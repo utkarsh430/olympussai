@@ -35,14 +35,18 @@ export default async function UpsrtcProjectLayout({
   }
 
   return (
-    // `zoom` enlarges the entire command centre a little (~8%) — text, panels
-    // and spacing together. The box is sized inversely (100/zoom) so after
-    // zooming it fills exactly the viewport, so nothing overflows or clips.
-    // Fixed overlays use `inset-0`, so they still cover the full viewport while
-    // their content scales with the zoom.
+    // Enlarge the entire command centre ~18% — text, panels and spacing
+    // together — with a top-left `transform: scale`. The box is laid out at the
+    // inverse size (100/scale) so after scaling it fills exactly the viewport
+    // (no overflow, no clipping). `transform` (rather than `zoom`) gives fixed
+    // overlays a proper containing block and keeps click coordinates correct.
+    //
+    // The dashboard is viewed at ~85% browser zoom, which widens the effective
+    // CSS viewport well beyond the 1920px design width, so the top command bar
+    // and the map-area overlays have ample room even at this scale.
     <div
-      className="upsrtc-shell relative overflow-hidden bg-void font-display text-[#d6ecf7] [font-feature-settings:'tnum'_1] antialiased"
-      style={{ zoom: 1.08, width: 'calc(100vw / 1.08)', height: 'calc(100dvh / 1.08)' }}
+      className="upsrtc-shell fixed left-0 top-0 origin-top-left overflow-hidden bg-void font-display text-[#d6ecf7] [font-feature-settings:'tnum'_1] antialiased"
+      style={{ transform: 'scale(1.18)', width: 'calc(100vw / 1.18)', height: 'calc(100dvh / 1.18)' }}
     >
       <a
         href="#command-main"
