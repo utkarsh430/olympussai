@@ -19,10 +19,28 @@ export default {
           crimson: '#ff4d5e',
           green: '#2bff88',
         },
+        // Olympuss landing palette (Section 18). Namespaced so it cannot
+        // collide with the dashboard's cyan HUD tokens above.
+        ol: {
+          bg: '#050507',
+          surface: '#0c0d12',
+          elevated: '#12141b',
+          midnight: '#11182a',
+          gold: '#d6a13a',
+          'gold-light': '#f3c86a',
+          'gold-muted': '#9d7127',
+          ivory: '#f2eee7',
+          text: '#f2eee7',
+          'text-secondary': '#a3a7b2',
+          muted: '#707580',
+        },
       },
       fontFamily: {
         display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        // Olympuss landing fonts (loaded in the public layout only).
+        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        serif: ['var(--font-serif-display)', 'ui-serif', 'Georgia', 'serif'],
       },
       boxShadow: {
         hud: '0 0 0 1px rgba(63,240,255,0.18), 0 0 28px -6px rgba(63,240,255,0.35)',

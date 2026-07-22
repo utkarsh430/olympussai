@@ -1,0 +1,150 @@
+/**
+ * Olympuss landing design system (Section 18).
+ *
+ * Tokens are defined here and consumed only under `.ol-scope` (applied by the
+ * public layout), so none of this cascades into the protected UPSRTC dashboard.
+ * Plain CSS custom properties + a few rhythm helpers; colours are also mirrored
+ * in Tailwind as the `ol-*` palette for utility use.
+ */
+
+:root {
+  --ol-bg-primary: #050507;
+  --ol-bg-secondary: #0c0d12;
+  --ol-bg-elevated: #12141b;
+  --ol-midnight: #11182a;
+  --ol-gold: #d6a13a;
+  --ol-gold-light: #f3c86a;
+  --ol-gold-muted: #9d7127;
+  --ol-ivory: #f2eee7;
+  --ol-text-primary: #f2eee7;
+  --ol-text-secondary: #a3a7b2;
+  --ol-text-muted: #707580;
+  --ol-border: rgba(255, 255, 255, 0.09);
+  --ol-glass: rgba(10, 11, 16, 0.55);
+}
+
+.ol-scope {
+  background-color: var(--ol-bg-primary);
+  color: var(--ol-text-primary);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  /* Prevent horizontal overflow from any wide decorative element. */
+  overflow-x: clip;
+}
+
+/* Editorial display type. */
+.ol-display {
+  font-family: var(--font-serif-display), ui-serif, Georgia, serif;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  line-height: 1.02;
+}
+
+.ol-eyebrow {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(11px, 1vw, 13px);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--ol-gold-muted);
+}
+
+.ol-body {
+  color: var(--ol-text-secondary);
+  font-size: clamp(1rem, 1.5vw, 1.2rem);
+  line-height: 1.7;
+}
+
+/* Fluid hero / section scales. */
+.ol-h1 {
+  font-size: clamp(3.3rem, 8vw, 7rem);
+}
+.ol-h2 {
+  font-size: clamp(2.4rem, 6vw, 5rem);
+}
+
+/* Constrained measures — never stretch text across the viewport. */
+.ol-measure {
+  max-width: 620px;
+}
+.ol-measure-wide {
+  max-width: 650px;
+}
+
+/* Thin gold hairline. */
+.ol-hairline {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(214, 161, 58, 0.4),
+    transparent
+  );
+}
+
+/* Glass surface for the scrolled header. */
+.ol-glass {
+  background: var(--ol-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Hero entrance choreography (Section 22). Timed, staggered via inline delay,
+   total under ~2.2s. No loader — repeat visitors are never blocked. */
+@keyframes ol-rise {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ol-emblem-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ol-scroll-cue {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateY(6px);
+    opacity: 1;
+  }
+}
+.ol-anim {
+  opacity: 0;
+  animation: ol-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.ol-anim-emblem {
+  opacity: 0;
+  animation: ol-emblem-in 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Reduced-motion: the static edition should still feel deliberate, never
+   broken. Decorative canvas motion is halted; layout is unaffected. */
+@media (prefers-reduced-motion: reduce) {
+  .ol-anim,
+  .ol-anim-emblem {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ol-scope *,
+  .ol-scope *::before,
+  .ol-scope *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
