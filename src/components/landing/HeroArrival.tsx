@@ -51,7 +51,7 @@ export function HeroArrival() {
           className="ol-anim ol-display ol-h1 mt-5 text-ol-ivory"
           style={{ animationDelay: '1.1s', textShadow: '0 2px 40px rgba(0,0,0,0.6)' }}
         >
-          Intelligence, elevated.
+          Intelligence Elevated
         </h1>
 
         <p
