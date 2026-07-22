@@ -47,7 +47,7 @@ async function selectFirstBus(page: Page): Promise<void> {
 
 test.describe('UPSRTC AI Operations Copilot', () => {
   test('1. command centre loads with identity and connection status', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
 
     await expect(page.getByRole('heading', { name: /TITANX AI/i })).toBeVisible();
     await expect(page.getByText('Predictive Fleet Command Intelligence')).toBeVisible();
@@ -55,7 +55,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('2. live or fixture buses appear in the fleet panel and on the counter', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await waitForFleet(page);
 
     const rows = page.getByTestId('fleet-bus-row');
@@ -67,7 +67,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('3. selecting a bus opens its detail panel with live data', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await selectFirstBus(page);
 
     const drawer = page.getByTestId('bus-detail-drawer');
@@ -83,7 +83,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
       if (request.url().includes('/api/upsrtc/schedule')) scheduleRequests.push(request.url());
     });
 
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await waitForFleet(page);
 
     // Nothing should have asked for a schedule during initial fleet load.
@@ -100,7 +100,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('5. bunching analysis opens with projected companion buses', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await selectFirstBus(page);
 
     await page.getByTestId('analysis-bunching').click();
@@ -115,7 +115,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('6. corridor analysis opens with route comparison', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await selectFirstBus(page);
 
     await page.getByTestId('analysis-traffic').click();
@@ -129,7 +129,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('7. incident response opens with assistance candidates', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await selectFirstBus(page);
 
     await page.getByTestId('analysis-breakdown').click();
@@ -141,7 +141,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('8. demand analysis opens with a working time slider', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await selectFirstBus(page);
 
     await page.getByTestId('analysis-demand').click();
@@ -159,7 +159,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('9. driver message sends and receives acknowledgement', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await selectFirstBus(page);
 
     await page.getByTestId('analysis-contact').click();
@@ -181,7 +181,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('10. voice call connects and ends cleanly', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await selectFirstBus(page);
 
     await page.getByTestId('analysis-bunching').click();
@@ -204,7 +204,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('11. pitch mode starts, advances and exits', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await waitForFleet(page);
 
     await page.getByTestId('start-pitch-mode-strip').click();
@@ -224,7 +224,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('12. live-data and predictive markers remain visible together', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await waitForFleet(page);
 
     // The top bar always distinguishes live data from the predictive layer.
@@ -241,7 +241,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('13. footer disclaimer is always accessible and expandable', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
 
     const footer = page.getByTestId('footer-disclaimer');
     await expect(footer).toBeVisible();
@@ -257,7 +257,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   }) => {
     const errors = collectConsoleErrors(page);
 
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await selectFirstBus(page);
 
     for (const testId of ['analysis-bunching', 'analysis-traffic', 'analysis-breakdown', 'analysis-demand']) {
@@ -273,7 +273,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('15. diagnostics, audit and scenario lab drawers open', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await waitForFleet(page);
 
     await page.getByRole('button', { name: /Diagnostics/i }).click();
@@ -293,7 +293,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('16. impact dashboard shows projected figures', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await waitForFleet(page);
 
     await page.getByTestId('open-impact').click();
@@ -309,7 +309,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('17. audit trail records the operator walkthrough', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await selectFirstBus(page);
     await page.getByTestId('analysis-bunching').click();
     await expect(page.getByTestId('scenario-stage')).toBeVisible({ timeout: 20_000 });
@@ -326,7 +326,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('18. alert centre is seeded with five alerts anchored to real vehicles', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await expect(page.getByTestId('alert-centre')).toBeVisible();
 
     const alerts = page.getByTestId('alert-item');
@@ -344,7 +344,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('19. opening an alert selects its vehicle and opens the analysis', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await expect(page.getByTestId('alert-item').first()).toBeVisible({ timeout: 60_000 });
 
     const registration = (await page.getByTestId('alert-item').first().innerText()).match(
@@ -360,7 +360,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('20. a new alert is raised on the stream interval', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await expect(page.getByTestId('alert-item').first()).toBeVisible({ timeout: 60_000 });
     const initial = await page.getByTestId('alert-item').count();
 
@@ -372,7 +372,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   test('21. no "simulated" or "demonstrate" wording remains anywhere in the interface', async ({
     page,
   }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await expect(page.getByTestId('alert-item').first()).toBeVisible({ timeout: 60_000 });
 
     async function assertClean(where: string) {
@@ -424,7 +424,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   test('22. fleet distribution opens from the command bar without a prior selection', async ({
     page,
   }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await expect(page.getByTestId('alert-item').first()).toBeVisible({ timeout: 60_000 });
 
     // No vehicle selected yet — the view must anchor one itself.
@@ -438,7 +438,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('23. alert stream carries exactly one vehicle-fault alert', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await expect(page.getByTestId('alert-item').first()).toBeVisible({ timeout: 60_000 });
     await expect.poll(() => page.getByTestId('alert-item').count(), { timeout: 30_000 }).toBe(5);
 
@@ -455,7 +455,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   });
 
   test('24. keyboard escape closes the bus detail drawer', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/project/upsrtc');
     await selectFirstBus(page);
 
     await page.keyboard.press('Escape');

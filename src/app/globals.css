@@ -12,14 +12,19 @@
   html,
   body {
     height: 100%;
-    background-color: #02040a;
-    color: #d6ecf7;
-    font-feature-settings: 'tnum' 1;
   }
 
+  /* Neutral Olympuss base. Near-black so there is never a white flash before a
+     route group paints its own environment. The protected UPSRTC shell layers
+     its void background, tabular numerals and Orbitron typography back on top;
+     the public landing page sets its own palette and fonts. */
   body {
-    overflow: hidden;
+    background-color: #050507;
+    color: #f2eee7;
     -webkit-font-smoothing: antialiased;
+    /* NOTE: the dashboard's `overflow: hidden` was intentionally removed from
+       this global rule and moved onto the `.upsrtc-shell` wrapper, so the
+       landing page scrolls natively while the dashboard stays fixed-viewport. */
   }
 
   /* Visible, high-contrast focus for keyboard operators. */

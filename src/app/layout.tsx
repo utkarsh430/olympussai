@@ -2,6 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import { Orbitron, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
+/**
+ * Dashboard typography. Exposed as CSS variables on <html> and consumed only by
+ * the protected UPSRTC shell (`font-display` / `font-mono`). The public
+ * Olympuss landing page loads its own editorial + interface fonts in a later
+ * phase; keeping both families as variables lets each route group opt in
+ * without a global default font fighting the other.
+ */
 const display = Orbitron({
   subsets: ['latin'],
   variable: '--font-display',
@@ -16,14 +23,20 @@ const mono = JetBrains_Mono({
   display: 'swap',
 });
 
+const SITE_URL = process.env.SITE_URL ?? 'https://olympuss.us';
+
 export const metadata: Metadata = {
-  title: 'TitanX AI — Predictive Fleet Command Intelligence',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: 'Olympuss AI — Intelligence, Elevated',
+    template: '%s · Olympuss AI',
+  },
   description:
-    'Predictive fleet command intelligence. Live UPSRTC GPS and schedule integration with a predictive operations copilot.',
+    'Olympuss AI is an AI-focused technology space exploring intelligent systems, real-time intelligence, adaptive automation, and human–AI interaction.',
 };
 
 export const viewport: Viewport = {
-  themeColor: '#02040a',
+  themeColor: '#050507',
   width: 'device-width',
   initialScale: 1,
 };
@@ -31,15 +44,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${mono.variable}`}>
-      <body className="bg-void font-display text-[#d6ecf7] antialiased">
-        <a
-          href="#command-main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded focus:bg-holo-glow focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:text-void"
-        >
-          Skip to command centre
-        </a>
-        {children}
-      </body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
