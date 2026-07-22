@@ -6,7 +6,7 @@
  */
 import { NextResponse } from 'next/server';
 import { getSession } from './server';
-import { PROJECT_UPSRTC } from './config';
+import { isAuthorizedProject } from './config';
 import type { SessionClaims } from './session';
 
 /** Standard 401 response for unauthenticated API requests. */
@@ -26,6 +26,6 @@ export function unauthorizedResponse(): NextResponse {
 export async function requireUpsrtcAccess(): Promise<SessionClaims | null> {
   const session = await getSession();
   if (!session) return null;
-  if (session.project !== PROJECT_UPSRTC) return null;
+  if (!isAuthorizedProject(session.project)) return null;
   return session;
 }

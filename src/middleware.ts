@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { SESSION_COOKIE, PROJECT_UPSRTC } from '@/lib/auth/config';
+import { SESSION_COOKIE, isAuthorizedProject } from '@/lib/auth/config';
 import { verifySessionToken } from '@/lib/auth/session';
 
 /**
@@ -18,7 +18,7 @@ export const config = {
 };
 
 function isAuthorized(claims: Awaited<ReturnType<typeof verifySessionToken>>): boolean {
-  return Boolean(claims && claims.project === PROJECT_UPSRTC);
+  return Boolean(claims && isAuthorizedProject(claims.project));
 }
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {

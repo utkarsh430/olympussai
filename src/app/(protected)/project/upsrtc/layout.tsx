@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/server';
-import { PROJECT_UPSRTC } from '@/lib/auth/config';
+import { isAuthorizedProject } from '@/lib/auth/config';
 
 /**
  * Protected UPSRTC dashboard shell.
@@ -30,7 +30,7 @@ export default async function UpsrtcProjectLayout({
   children: React.ReactNode;
 }) {
   const session = await getSession();
-  if (!session || session.project !== PROJECT_UPSRTC) {
+  if (!session || !isAuthorizedProject(session.project)) {
     redirect('/login?next=/project/upsrtc');
   }
 

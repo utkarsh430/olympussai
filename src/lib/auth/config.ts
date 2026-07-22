@@ -14,9 +14,6 @@ export const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
 /** Role stamped on every issued session. */
 export const SESSION_ROLE = 'project-access';
 
-/** The single project this deployment grants access to. */
-export const PROJECT_UPSRTC = 'upsrtc';
-
 /** Thrown when required auth environment variables are missing/invalid. */
 export class AuthConfigError extends Error {
   constructor(message: string) {
@@ -41,6 +38,21 @@ export function getConfiguredProjectName(): string {
     throw new AuthConfigError('PROJECT_NAME is not configured');
   }
   return normalizeProjectName(raw);
+}
+
+/**
+ * Whether a session's `project` claim matches the configured PROJECT_NAME.
+ * The single source of truth for "is this session authorized" — used by
+ * middleware, the protected layout, and every protected API. Returns false
+ * (never throws) if PROJECT_NAME is misconfigured, so callers can uniformly
+ * deny access rather than crash.
+ */
+export function isAuthorizedProject(project: string): boolean {
+  try {
+    return project === getConfiguredProjectName();
+  } catch {
+    return false;
+  }
 }
 
 /** Configured bcrypt hash of the project PIN. Throws if unset. */

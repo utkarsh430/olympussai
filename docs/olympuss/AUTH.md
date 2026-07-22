@@ -7,6 +7,13 @@ Single-project PIN authentication gating the UPSRTC dashboard and its data APIs.
 - **Credentials:** a project name (compared case-insensitively, trimmed) and a
   numeric PIN (matched exactly). The raw PIN is never stored in source — only a
   bcrypt hash lives in the environment.
+- **`PROJECT_NAME` is the single source of truth for the required project name**,
+  everywhere: what the login form must match, and what a session's `project`
+  claim must equal to pass middleware, the protected layout, and every API
+  check (`isAuthorizedProject()` in `src/lib/auth/config.ts`). There is no
+  separate hardcoded name — change `PROJECT_NAME` (e.g. to `olympus ai`) and the
+  whole chain follows automatically. The URL `/project/upsrtc` is a route path,
+  unrelated to this value, and does not need to change.
 - **Session:** a signed JWT (jose, HS256) carried in an **HttpOnly** cookie
   `olympuss_session` (`SameSite=lax`, `Secure` in production, `Path=/`, 8-hour
   max lifetime). Claims: `project`, `role: project-access`, `iat`, `exp`.

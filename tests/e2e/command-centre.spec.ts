@@ -53,6 +53,8 @@ async function selectFirstBus(page: Page): Promise<void> {
  */
 const E2E_PIN = process.env.E2E_PROJECT_PIN;
 const E2E_ORIGIN = process.env.E2E_ORIGIN ?? 'http://127.0.0.1:3000';
+// Must match the target environment's PROJECT_NAME (defaults to 'upsrtc').
+const E2E_PROJECT_NAME = process.env.E2E_PROJECT_NAME ?? 'upsrtc';
 
 test.describe('UPSRTC AI Operations Copilot', () => {
   test.skip(!E2E_PIN, 'Set E2E_PROJECT_PIN to run the authenticated dashboard e2e suite');
@@ -60,7 +62,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   test.beforeEach(async ({ context }) => {
     const res = await context.request.post('/api/auth/login', {
       headers: { 'Content-Type': 'application/json', Origin: E2E_ORIGIN },
-      data: { projectName: 'upsrtc', pin: E2E_PIN },
+      data: { projectName: E2E_PROJECT_NAME, pin: E2E_PIN },
     });
     if (!res.ok()) throw new Error(`E2E login failed (${res.status()})`);
   });

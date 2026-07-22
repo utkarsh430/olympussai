@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getSession } from '@/lib/auth/server';
-import { PROJECT_UPSRTC } from '@/lib/auth/config';
+import { isAuthorizedProject } from '@/lib/auth/config';
 import { sanitizeNext } from '@/lib/auth/redirect';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { AuthenticatedActions } from '@/components/auth/AuthenticatedActions';
@@ -20,7 +20,7 @@ export default async function LoginPage({
   const params = await searchParams;
   const next = sanitizeNext(params.next);
   const session = await getSession();
-  const authenticated = Boolean(session && session.project === PROJECT_UPSRTC);
+  const authenticated = Boolean(session && isAuthorizedProject(session.project));
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col bg-[#050507] text-[#f2eee7] md:flex-row">
