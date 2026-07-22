@@ -1,0 +1,205 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --hud-line: rgba(63, 240, 255, 0.22);
+    --hud-line-soft: rgba(63, 240, 255, 0.1);
+    --panel-bg: rgba(6, 14, 28, 0.72);
+  }
+
+  html,
+  body {
+    height: 100%;
+    background-color: #02040a;
+    color: #d6ecf7;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  body {
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Visible, high-contrast focus for keyboard operators. */
+  :focus-visible {
+    outline: 2px solid #3ff0ff;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgba(6, 14, 28, 0.5);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(63, 240, 255, 0.22);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(63, 240, 255, 0.4);
+  }
+}
+
+@layer components {
+  /* Frosted holographic panel — the core surface of the command centre. */
+  /* NOTE: deliberately no backdrop-filter. These panels overlay a live map,
+     so a blur layer can never be cached and re-samples every frame. An opaque
+     background is visually equivalent here and dramatically cheaper. */
+  .hud-panel {
+    @apply relative rounded-lg border border-holo-glow/20 bg-[rgb(7,15,29)];
+    box-shadow:
+      0 0 0 1px rgba(63, 240, 255, 0.06),
+      0 18px 50px -22px rgba(0, 0, 0, 0.9),
+      inset 0 1px 0 0 rgba(63, 240, 255, 0.08);
+  }
+
+  .hud-panel-strong {
+    @apply relative rounded-lg border border-holo-glow/35 bg-[rgb(8,17,32)];
+    box-shadow:
+      0 0 0 1px rgba(63, 240, 255, 0.18),
+      0 0 34px -10px rgba(63, 240, 255, 0.4),
+      0 18px 50px -22px rgba(0, 0, 0, 0.9);
+  }
+
+  /* Corner ticks — the "instrument" detail that sells the HUD look. */
+  .hud-corners::before,
+  .hud-corners::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-color: rgba(63, 240, 255, 0.55);
+    pointer-events: none;
+  }
+  .hud-corners::before {
+    top: -1px;
+    left: -1px;
+    border-top: 1px solid;
+    border-left: 1px solid;
+  }
+  .hud-corners::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 1px solid;
+    border-right: 1px solid;
+  }
+
+  .hud-label {
+    @apply font-mono text-[10px] uppercase tracking-[0.18em] text-holo-glow/70;
+  }
+
+  .hud-value {
+    @apply font-mono tabular-nums text-holo-glow;
+  }
+
+  /* Live vs simulated badges — the most important labelling affordance. */
+  .badge-live {
+    @apply inline-flex whitespace-nowrap items-center gap-1.5 rounded border border-alert-green/45 bg-alert-green/10
+      px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-alert-green;
+  }
+
+  .badge-sim {
+    @apply inline-flex items-center gap-1.5 rounded border border-alert-amber/50 bg-alert-amber/10
+      px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-alert-amber;
+  }
+
+  .badge-fixture {
+    @apply inline-flex items-center gap-1.5 rounded border border-holo-glow/40 bg-holo-glow/10
+      px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-holo-glow;
+  }
+
+  .badge-critical {
+    @apply inline-flex items-center gap-1.5 rounded border border-alert-crimson/50 bg-alert-crimson/10
+      px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-alert-crimson;
+  }
+
+  .hud-button {
+    @apply relative inline-flex items-center justify-center gap-2 rounded border border-holo-glow/30
+      bg-holo-glow/[0.06] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em]
+      text-holo-glow/90 transition-all duration-200
+      hover:border-holo-glow/70 hover:bg-holo-glow/15 hover:text-holo-glow
+      focus-visible:border-holo-glow disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .hud-button-primary {
+    @apply relative inline-flex items-center justify-center gap-2 rounded border border-holo-glow/60
+      bg-holo-glow/15 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-holo-glow
+      transition-all duration-200 hover:bg-holo-glow/25 disabled:cursor-not-allowed disabled:opacity-40;
+    box-shadow: 0 0 22px -8px rgba(63, 240, 255, 0.7);
+  }
+
+  .hud-button-danger {
+    @apply relative inline-flex items-center justify-center gap-2 rounded border border-alert-crimson/50
+      bg-alert-crimson/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em]
+      text-alert-crimson transition-all duration-200 hover:border-alert-crimson hover:bg-alert-crimson/20
+      disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .hud-input {
+    @apply w-full rounded border border-holo-glow/20 bg-void-900/70 px-3 py-1.5 font-mono text-xs
+      text-holo-glow placeholder:text-holo-glow/30 focus:border-holo-glow/60 focus:outline-none;
+  }
+
+  .scanline-overlay {
+    background-image: repeating-linear-gradient(
+      0deg,
+      rgba(63, 240, 255, 0.035) 0px,
+      rgba(63, 240, 255, 0.035) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  }
+
+  /* Digital noise texture, generated inline so no external asset is fetched. */
+  .noise-overlay {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  }
+
+  .text-glow {
+    text-shadow: 0 0 14px rgba(63, 240, 255, 0.55);
+  }
+
+  .divider-h {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-holo-glow/25 to-transparent;
+  }
+}
+
+@layer utilities {
+  .clip-hud {
+    clip-path: polygon(
+      10px 0,
+      100% 0,
+      100% calc(100% - 10px),
+      calc(100% - 10px) 100%,
+      0 100%,
+      0 10px
+    );
+  }
+}
+
+/* Global reduced-motion honouring: kill decorative motion, keep opacity cues. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Google Maps chrome suppression — keeps the basemap inside our HUD language. */
+.gm-style-cc,
+.gmnoprint a,
+.gm-style a[href^='https://maps.google.com'] {
+  display: none !important;
+}
+.gm-style img[alt='Google'] {
+  opacity: 0.35;
+}
