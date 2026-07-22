@@ -136,7 +136,16 @@ export function createFleetLayer(
       const anchorDiv = projection.fromLatLngToDivPixel(anchor);
       const anchorPixel = projection.fromLatLngToContainerPixel(anchor);
       if (!anchorDiv || !anchorPixel) return;
-      canvas.style.transform = `translate(${anchorDiv.x}px, ${anchorDiv.y}px)`;
+      // Vehicles below are placed in *container*-pixel space (relative to
+      // anchorPixel). The canvas lives in the overlayLayer pane, whose origin
+      // sits at (anchorPixel - anchorDiv) in container space, so translating the
+      // canvas by (anchorDiv - anchorPixel) lands its origin exactly on the
+      // container's top-left. Subtracting anchorPixel matters whenever the
+      // top-left corner does not project to (0,0) — which happens as soon as the
+      // map sits inside a scaled/zoomed container (CSS zoom or browser zoom);
+      // without it every marker is uniformly offset by that residual. When the
+      // corner already projects to (0,0) this is identical to the old behaviour.
+      canvas.style.transform = `translate(${anchorDiv.x - anchorPixel.x}px, ${anchorDiv.y - anchorPixel.y}px)`;
 
       // Scale is read off the projection rather than map.getZoom() so markers
       // stay welded to the basemap through animated zooms, where the reported
