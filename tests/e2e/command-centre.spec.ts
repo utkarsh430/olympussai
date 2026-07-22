@@ -45,7 +45,26 @@ async function selectFirstBus(page: Page): Promise<void> {
   await expect(page.getByTestId('bus-detail-drawer')).toBeVisible({ timeout: 30_000 });
 }
 
+/**
+ * The dashboard is now behind project authentication. The raw PIN is never
+ * committed — supply it via E2E_PROJECT_PIN when running the suite, e.g.:
+ *   E2E_PROJECT_PIN=<pin> npm run test:e2e
+ * Without it the authenticated suite is skipped rather than failing.
+ */
+const E2E_PIN = process.env.E2E_PROJECT_PIN;
+const E2E_ORIGIN = process.env.E2E_ORIGIN ?? 'http://127.0.0.1:3000';
+
 test.describe('UPSRTC AI Operations Copilot', () => {
+  test.skip(!E2E_PIN, 'Set E2E_PROJECT_PIN to run the authenticated dashboard e2e suite');
+
+  test.beforeEach(async ({ context }) => {
+    const res = await context.request.post('/api/auth/login', {
+      headers: { 'Content-Type': 'application/json', Origin: E2E_ORIGIN },
+      data: { projectName: 'upsrtc', pin: E2E_PIN },
+    });
+    if (!res.ok()) throw new Error(`E2E login failed (${res.status()})`);
+  });
+
   test('1. command centre loads with identity and connection status', async ({ page }) => {
     await page.goto('/project/upsrtc');
 

@@ -1,3 +1,39 @@
+# Olympuss AI — Unified Application
+
+One Next.js app: the public **Olympuss AI** landing experience, project
+authentication, and the protected **UPSRTC AI Copilot** dashboard — one
+deployment, one domain (**olympuss.us**), one auth system.
+
+- **`/`** — cinematic Olympuss AI landing (WebGL, 5 scenes; static fallback for
+  reduced-motion / no-WebGL)
+- **`/login`** — project authentication
+- **`/project/upsrtc`** — the UPSRTC dashboard below (session-protected)
+
+**Docs:** [Overview](docs/olympuss/OVERVIEW.md) ·
+[Authentication](docs/olympuss/AUTH.md) ·
+[Deployment](docs/olympuss/DEPLOYMENT.md) ·
+[Migration baseline](docs/olympuss/BASELINE.md)
+
+**Quick start**
+
+```bash
+npm install
+npm run generate-pin-hash -- <pin>   # PROJECT_PIN_HASH (escape $ as \$ in .env.local)
+npm run process-logo                 # regenerate brand assets from the source logo
+cp .env.example .env.local           # then fill in the values
+npm run dev
+```
+
+Credentials, secrets, and the Google Maps key are configured via environment
+variables only — see [Deployment](docs/olympuss/DEPLOYMENT.md). This repository
+is independent of the original TitanX repository and must use its own GitHub
+remote.
+
+---
+
+The remainder of this document describes the UPSRTC dashboard itself, which is
+preserved unchanged beneath `/project/upsrtc`.
+
 # TitanX AI
 
 **Predictive Fleet Command Intelligence** — a cinematic control-centre

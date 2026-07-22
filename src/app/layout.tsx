@@ -33,6 +33,31 @@ export const metadata: Metadata = {
   },
   description:
     'Olympuss AI is an AI-focused technology space exploring intelligent systems, real-time intelligence, adaptive automation, and human–AI interaction.',
+  applicationName: 'Olympuss AI',
+  alternates: { canonical: '/' },
+  openGraph: {
+    type: 'website',
+    siteName: 'Olympuss AI',
+    title: 'Olympuss AI — Intelligence, Elevated',
+    description:
+      'A digital laboratory exploring artificial intelligence, adaptive systems, and the ideas shaping the next era of technology.',
+    url: SITE_URL,
+    images: [
+      {
+        url: '/brand/olympuss-og-image.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Olympuss AI',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Olympuss AI — Intelligence, Elevated',
+    description:
+      'A digital laboratory exploring intelligent systems, real-time intelligence, adaptive automation, and human–AI interaction.',
+    images: ['/brand/olympuss-og-image.jpg'],
+  },
 };
 
 export const viewport: Viewport = {
