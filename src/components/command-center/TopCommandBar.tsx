@@ -6,14 +6,13 @@ import {
   Minimize2,
   Scale,
   FlaskConical,
-  Activity,
   ShieldCheck,
   ScrollText,
 } from 'lucide-react';
 import { useCopilotStore } from '@/stores/copilotStore';
 import { useIndiaClock } from '@/hooks/useIndiaClock';
 import { Badge, CountUp } from '@/components/shared/hud';
-import { PRODUCT_NAME, PRODUCT_SUBTITLE, LIVE_LABELS } from '@/lib/constants';
+import { LIVE_LABELS } from '@/lib/constants';
 import { formatRelativeAge } from '@/lib/formatters';
 import { useFleetDistribution } from '@/hooks/useFleetDistribution';
 import { ProjectSignOut } from '@/components/upsrtc/ProjectSignOut';
@@ -48,26 +47,6 @@ export function TopCommandBar({
       <ProjectSignOut />
 
       <div className="h-8 w-px bg-[#d6a13a]/20" />
-
-      {/* Identity */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex h-9 w-9 items-center justify-center">
-          <span className="absolute inset-0 rounded-full border border-holo-glow/40" />
-          <span className="absolute inset-[3px] animate-orbit rounded-full border border-dashed border-holo-teal/40" />
-          <span className="absolute inset-[7px] animate-core-breathe rounded-full bg-holo-glow/25" />
-          <Activity className="relative h-4 w-4 text-holo-glow" aria-hidden />
-        </div>
-        <div className="leading-tight">
-          <h1 className="text-[13px] font-bold tracking-[0.16em] text-holo-glow text-glow">
-            {PRODUCT_NAME}
-          </h1>
-          <p className="whitespace-nowrap font-mono text-[9px] uppercase tracking-[0.16em] text-holo-glow/45">
-            {PRODUCT_SUBTITLE}
-          </p>
-        </div>
-      </div>
-
-      <div className="h-8 w-px bg-holo-glow/15" />
 
       {/* System status with animated pulse */}
       <div className="flex items-center gap-2">

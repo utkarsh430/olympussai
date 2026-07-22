@@ -35,7 +35,15 @@ export default async function UpsrtcProjectLayout({
   }
 
   return (
-    <div className="upsrtc-shell relative h-[100dvh] w-full overflow-hidden bg-void font-display text-[#d6ecf7] [font-feature-settings:'tnum'_1] antialiased">
+    // `zoom` enlarges the entire command centre a little (~8%) — text, panels
+    // and spacing together. The box is sized inversely (100/zoom) so after
+    // zooming it fills exactly the viewport, so nothing overflows or clips.
+    // Fixed overlays use `inset-0`, so they still cover the full viewport while
+    // their content scales with the zoom.
+    <div
+      className="upsrtc-shell relative overflow-hidden bg-void font-display text-[#d6ecf7] [font-feature-settings:'tnum'_1] antialiased"
+      style={{ zoom: 1.08, width: 'calc(100vw / 1.08)', height: 'calc(100dvh / 1.08)' }}
+    >
       <a
         href="#command-main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded focus:bg-holo-glow focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:text-void"

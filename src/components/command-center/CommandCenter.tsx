@@ -56,7 +56,7 @@ export function CommandCenter() {
   }, []);
 
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-void">
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-void">
       <AmbientBackdrop />
 
       <TopCommandBar
