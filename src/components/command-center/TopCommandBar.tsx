@@ -16,6 +16,7 @@ import { Badge, CountUp } from '@/components/shared/hud';
 import { PRODUCT_NAME, PRODUCT_SUBTITLE, LIVE_LABELS } from '@/lib/constants';
 import { formatRelativeAge } from '@/lib/formatters';
 import { useFleetDistribution } from '@/hooks/useFleetDistribution';
+import { ProjectSignOut } from '@/components/upsrtc/ProjectSignOut';
 
 export function TopCommandBar({
   visibleCount,
@@ -43,6 +44,11 @@ export function TopCommandBar({
 
   return (
     <header className="relative z-30 flex h-[62px] shrink-0 items-center gap-3 border-b border-holo-glow/20 bg-[rgb(5,11,23)] px-3">
+      {/* Olympuss project context + Sign Out (restrained, gold) */}
+      <ProjectSignOut />
+
+      <div className="h-8 w-px bg-[#d6a13a]/20" />
+
       {/* Identity */}
       <div className="flex items-center gap-3">
         <div className="relative flex h-9 w-9 items-center justify-center">

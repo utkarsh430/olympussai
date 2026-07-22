@@ -1,0 +1,72 @@
+'use client';
+
+import { useState } from 'react';
+import { LogOut } from 'lucide-react';
+
+/**
+ * Restrained Olympuss project context + Sign Out, mounted into the dashboard's
+ * top command bar (Section 16). Deliberately compact and gold-toned so it reads
+ * as "you are inside an Olympuss project environment" without overwhelming the
+ * command centre's cyan HUD identity.
+ *
+ * Sign Out calls the server logout endpoint (clears the HttpOnly cookie) then
+ * hard-navigates to /login, so the now-unauthenticated client cannot keep
+ * rendering protected state.
+ */
+export function ProjectSignOut() {
+  const [busy, setBusy] = useState(false);
+
+  async function handleSignOut() {
+    setBusy(true);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Even if the request fails, fall through to the login page; the
+      // protected route + APIs re-verify server-side regardless.
+    }
+    window.location.assign('/login');
+  }
+
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2">
+        {/* Minimal ascending-peak emblem, gold — evokes the Olympuss mark
+            without depending on a raster asset inside the HUD. */}
+        <span
+          aria-hidden
+          className="relative flex h-8 w-8 items-center justify-center"
+        >
+          <span className="absolute inset-0 rounded-full border border-[#d6a13a]/45" />
+          <svg viewBox="0 0 24 24" className="relative h-3.5 w-3.5" fill="none">
+            <path
+              d="M4 18 L12 6 L20 18"
+              stroke="#f3c86a"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+        <div className="leading-tight">
+          <div className="font-mono text-[9px] font-semibold uppercase tracking-[0.2em] text-[#e8c477]">
+            Olympuss AI
+          </div>
+          <div className="whitespace-nowrap font-mono text-[8px] uppercase tracking-[0.16em] text-[#d6a13a]/55">
+            Project Environment
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleSignOut}
+        disabled={busy}
+        data-testid="project-sign-out"
+        className="inline-flex items-center gap-1.5 rounded border border-[#d6a13a]/40 bg-[#d6a13a]/[0.06] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#e8c477] transition-colors hover:border-[#d6a13a]/80 hover:bg-[#d6a13a]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6a13a] disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <LogOut className="h-3.5 w-3.5" aria-hidden />
+        {busy ? 'Signing out…' : 'Sign Out'}
+      </button>
+    </div>
+  );
+}

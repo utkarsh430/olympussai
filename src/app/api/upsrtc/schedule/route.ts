@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { jsonResponse } from '@/lib/upsrtc/respond';
+import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
 import { z } from 'zod';
 import {
   fetchUpstream,
@@ -60,6 +61,10 @@ const querySchema = z.object({
 });
 
 export async function GET(request: NextRequest): Promise<Response> {
+  // Independent authorization check — never rely on middleware alone.
+  const session = await requireUpsrtcAccess();
+  if (!session) return unauthorizedResponse();
+
   const acceptEncoding = request.headers.get('accept-encoding');
   const { searchParams } = new URL(request.url);
 

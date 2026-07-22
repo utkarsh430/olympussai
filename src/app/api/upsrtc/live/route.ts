@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { jsonResponse } from '@/lib/upsrtc/respond';
+import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
 import { fetchUpstream, UPSRTC_LIVE_URL, REQUEST_TIMEOUT_MS } from '@/lib/upsrtc/client';
 import { normalizeLivePayload } from '@/lib/upsrtc/normalizer';
 import { TtlCache } from '@/lib/upsrtc/cache';
@@ -45,6 +46,10 @@ function fixtureResponse(reason: string): LiveFeedResponse {
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
+  // Independent authorization check — never rely on middleware alone.
+  const session = await requireUpsrtcAccess();
+  if (!session) return unauthorizedResponse();
+
   const acceptEncoding = request.headers.get('accept-encoding');
   const now = Date.now();
 

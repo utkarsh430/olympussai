@@ -1,16 +1,22 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
+import { getSession } from '@/lib/auth/server';
+import { PROJECT_UPSRTC } from '@/lib/auth/config';
 
 /**
  * Protected UPSRTC dashboard shell.
  *
- * This wrapper re-establishes the command-centre's fixed-viewport visual
- * environment (dark void background, Orbitron display font, cyan text, tabular
- * numerals, no page scroll) *scoped to this route only* — it deliberately does
- * NOT live on the global <body>, so the public Olympuss landing page can scroll
- * natively and use its own typography and palette.
+ * Two responsibilities:
  *
- * Section 16 (Olympuss project context) and the server-side session gate are
- * layered on in the authentication phase.
+ * 1. Independent server-side session gate (defence in depth — middleware is the
+ *    first check, this is a second that does not trust it). An unauthenticated
+ *    request never renders dashboard markup; it redirects to /login.
+ *
+ * 2. Re-establishes the command-centre's fixed-viewport visual environment
+ *    (dark void background, Orbitron display font, cyan text, tabular numerals,
+ *    no page scroll) *scoped to this route only* — deliberately NOT on the
+ *    global <body>, so the public landing page scrolls natively with its own
+ *    typography and palette.
  */
 export const metadata: Metadata = {
   title: 'UPSRTC · Operations Intelligence',
@@ -18,7 +24,16 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function UpsrtcProjectLayout({ children }: { children: React.ReactNode }) {
+export default async function UpsrtcProjectLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await getSession();
+  if (!session || session.project !== PROJECT_UPSRTC) {
+    redirect('/login?next=/project/upsrtc');
+  }
+
   return (
     <div className="upsrtc-shell relative h-[100dvh] w-full overflow-hidden bg-void font-display text-[#d6ecf7] [font-feature-settings:'tnum'_1] antialiased">
       <a
