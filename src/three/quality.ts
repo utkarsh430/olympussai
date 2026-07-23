@@ -105,7 +105,7 @@ const TIERS: Record<QualityTier, QualityConfig> = {
     orbitCount: 5,
     // ~12,000 land dots + ~7,200 ocean-lattice dots, orbital ecosystem + arcs.
     globe: {
-      stepDeg: 1.0, dotSize: 0.02, oceanStepDeg: 2.4, oceanDotSize: 0.014,
+      stepDeg: 1.0, dotSize: 0.02, oceanStepDeg: 2.4, oceanDotSize: 0.016,
       parallels: 15, meridians: 22, graticuleSegments: 96, atmosphere: true,
       orbitPaths: 4, orbitSegments: 128, satellites: 6, markers: 8, arcs: 9, arcSegments: 64,
     },
@@ -119,7 +119,7 @@ const TIERS: Record<QualityTier, QualityConfig> = {
     orbitCount: 5,
     // ~6,100 land dots + ~4,600 ocean-lattice dots; fewer rings/satellites/arcs.
     globe: {
-      stepDeg: 1.4, dotSize: 0.021, oceanStepDeg: 3.0, oceanDotSize: 0.015,
+      stepDeg: 1.4, dotSize: 0.021, oceanStepDeg: 3.0, oceanDotSize: 0.017,
       parallels: 12, meridians: 18, graticuleSegments: 72, atmosphere: true,
       orbitPaths: 3, orbitSegments: 96, satellites: 4, markers: 5, arcs: 5, arcSegments: 48,
     },
@@ -133,7 +133,7 @@ const TIERS: Record<QualityTier, QualityConfig> = {
     orbitCount: 5,
     // ~3,000 land dots + ~2,300 ocean-lattice dots — net kept visible but simple.
     globe: {
-      stepDeg: 2.0, dotSize: 0.024, oceanStepDeg: 4.2, oceanDotSize: 0.018,
+      stepDeg: 2.0, dotSize: 0.024, oceanStepDeg: 4.2, oceanDotSize: 0.02,
       parallels: 9, meridians: 12, graticuleSegments: 48, atmosphere: true,
       orbitPaths: 2, orbitSegments: 64, satellites: 2, markers: 3, arcs: 2, arcSegments: 32,
     },

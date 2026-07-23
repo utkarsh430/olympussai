@@ -25,9 +25,9 @@ const DOT_COLOR = new THREE.Color('#eab65a');
 const DOT_COLOR_BRIGHT = new THREE.Color('#ffd98a');
 const DOT_GLINT = new THREE.Color('#fff3d6');
 
-/** Ocean / full-sphere data-lattice dots — dim warm gold, always below land. */
-const OCEAN_DOT = new THREE.Color('#c69a4c');
-const OCEAN_DOT_BRIGHT = new THREE.Color('#e8bd6a');
+/** Ocean / full-sphere data-lattice dots — warm gold, kept below land brightness. */
+const OCEAN_DOT = new THREE.Color('#d8ab58');
+const OCEAN_DOT_BRIGHT = new THREE.Color('#f4cf7e');
 
 /** Restrained warm-gold graticule. */
 const GRATICULE_COLOR = new THREE.Color('#bf9138');
@@ -46,10 +46,14 @@ const ARC_COLOR = new THREE.Color('#e9c074');
 const ARC_GLINT_COLOR = new THREE.Color('#fff1d2');
 const ARC_LIFT = 0.32; // arc altitude factor (longer routes rise higher)
 
-/** Continuous globe spin — one revolution per this many seconds (Y axis). */
-const SECONDS_PER_REV = 120;
-/** Initial longitude offset so the Americas frame nicely (lng −90 faces +Z). */
-const AMERICAS_OFFSET = -0.12;
+/** Continuous globe spin — one revolution per this many seconds (Y axis).
+ *  10% faster than the previous 120s/rev: 120 / 1.1 ≈ 109.09s per revolution. */
+const SECONDS_PER_REV = 120 / 1.1;
+/** Initial spin offset so the hero loads with **Asia** facing the viewer.
+ *  At offset 0, lng −90° (the Americas) faces +Z; adding π brings the opposite
+ *  meridian (~+90°E — Asia, with Europe/Africa on the limb) to face the camera,
+ *  so much more land is visible immediately. Rotation logic after load unchanged. */
+const INITIAL_SPIN_OFFSET = Math.PI;
 
 /** Fixed axial tilt of the whole globe (roll + slight forward tip). */
 const TILT_Z = -0.34; // ~ −19° roll, leans the north pole
@@ -70,7 +74,7 @@ function makeAtmosphereMaterial(): THREE.ShaderMaterial {
     uniforms: {
       uColor: { value: ATMO_COLOR },
       uPower: { value: 5.4 }, // higher → thinner, crisper rim (kept thin)
-      uStrength: { value: 0.95 }, // a touch brighter, still a thin atmospheric edge
+      uStrength: { value: 1.05 }, // a touch brighter edge; still thin atmospheric (not a border)
     },
     vertexShader: /* glsl */ `
       varying vec3 vNormalW;
@@ -338,7 +342,7 @@ export function Globe({ config, sprite }: { config: QualityConfig; sprite: THREE
       const h = ((i * 2654435761) >>> 0) / 4294967296;
       // Low-frequency spatial variation → soft brightness patches across land.
       const patch = 0.5 + 0.5 * Math.sin(s[0] * 0.14) * Math.cos(s[1] * 0.19);
-      const lum = 0.82 + 0.3 * patch + 0.14 * h; // brighter floor — land reads from hero distance
+      const lum = 0.88 + 0.3 * patch + 0.14 * h; // brighter floor — land stays the brightest feature
       if (h > 0.93) {
         c.copy(DOT_GLINT).multiplyScalar(1.05); // ~7% pale-gold hotspot clusters
       } else {
@@ -361,9 +365,10 @@ export function Globe({ config, sprite }: { config: QualityConfig; sprite: THREE
     const c = new THREE.Color();
     for (let i = 0; i < pts.length; i++) {
       const h = ((i * 2246822519) >>> 0) / 4294967296;
-      // Dim base; a minority of brighter "nodes" for a living data-lattice feel.
-      const lum = 0.36 + 0.16 * h;
-      c.copy(OCEAN_DOT).lerp(OCEAN_DOT_BRIGHT, h > 0.9 ? 1 : h * 0.3).multiplyScalar(lum);
+      // Brighter, clearly readable base; a minority of brighter "nodes" for a
+      // living data-lattice feel. Still kept below the continent brightness.
+      const lum = 0.54 + 0.2 * h;
+      c.copy(OCEAN_DOT).lerp(OCEAN_DOT_BRIGHT, h > 0.9 ? 1 : h * 0.35).multiplyScalar(lum);
       colors[i * 3] = c.r;
       colors[i * 3 + 1] = c.g;
       colors[i * 3 + 2] = c.b;
@@ -397,7 +402,7 @@ export function Globe({ config, sprite }: { config: QualityConfig; sprite: THREE
       m.rotation.z = TILT_Z;
     }
     if (inr) {
-      inr.rotation.y = AMERICAS_OFFSET + t * ((Math.PI * 2) / SECONDS_PER_REV);
+      inr.rotation.y = INITIAL_SPIN_OFFSET + t * ((Math.PI * 2) / SECONDS_PER_REV);
     }
   });
 
@@ -427,7 +432,7 @@ export function Globe({ config, sprite }: { config: QualityConfig; sprite: THREE
             sizeAttenuation
             depthWrite={false}
             blending={THREE.AdditiveBlending}
-            opacity={0.85}
+            opacity={0.96}
           />
         </points>
 
