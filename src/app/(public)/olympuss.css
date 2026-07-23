@@ -120,6 +120,18 @@
     opacity: 1;
   }
 }
+/* AI Research Projects — decorative diagram focus-node breathing. A soft scale
+   pulse (constant, low opacity — never a brightness spike); the global
+   reduced-motion block below neutralises it automatically. */
+@keyframes ol-node-pulse {
+  0%,
+  100% {
+    transform: scale(0.82);
+  }
+  50% {
+    transform: scale(1.16);
+  }
+}
 .ol-anim {
   opacity: 0;
   animation: ol-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;

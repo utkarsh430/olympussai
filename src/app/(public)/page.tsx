@@ -5,6 +5,7 @@ import { SiteFooter } from '@/components/landing/SiteFooter';
 import { HeroArrival } from '@/components/landing/HeroArrival';
 import { SectionAscent } from '@/components/landing/SectionAscent';
 import { SectionExploration } from '@/components/landing/SectionExploration';
+import { SectionResearch } from '@/components/landing/SectionResearch';
 import { SectionIntelligence } from '@/components/landing/SectionIntelligence';
 import { SectionPortal } from '@/components/landing/SectionPortal';
 
@@ -28,6 +29,7 @@ export default function LandingPage() {
         <HeroArrival />
         <SectionAscent />
         <SectionExploration />
+        <SectionResearch />
         <SectionIntelligence />
         <SectionPortal />
       </main>

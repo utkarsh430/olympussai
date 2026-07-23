@@ -33,15 +33,27 @@ export const scene: SceneState = {
 };
 
 /**
- * The five narrative sections mapped onto normalized progress ranges. Objects
- * fade in/out by asking "how far am I into range [a,b]" via `phase()`.
+ * The narrative sections mapped onto normalized progress ranges. Objects fade
+ * in/out by asking "how far am I into range [a,b]" via `phase()`.
+ *
+ * A sixth band — `research` (AI Research Projects) — sits between exploration
+ * and intelligence. Adding that DOM section makes the page physically taller, so
+ * every band was recomputed against the new layout to keep each transition
+ * aligned with its section. The values below are tuned to the measured scroll
+ * offsets of the rendered page (Section offsets ÷ total scrollable height).
+ *
+ * The globe choreography reads only arrival/ascent/exploration/intelligence/
+ * portal: `phase()` clamps `exploration` to 1 and `intelligence` stays 0 across
+ * the research band, so the globe holds its calm, receded pose there — no extra
+ * WebGL timeline, no jump on entry or exit.
  */
 export const RANGES = {
-  arrival: [0.0, 0.16],
-  ascent: [0.16, 0.42],
-  exploration: [0.42, 0.66],
-  intelligence: [0.66, 0.9],
-  portal: [0.9, 1.0],
+  arrival: [0.0, 0.11],
+  ascent: [0.11, 0.26],
+  exploration: [0.26, 0.43],
+  research: [0.43, 0.76],
+  intelligence: [0.76, 0.96],
+  portal: [0.96, 1.0],
 } as const;
 
 /** Linear 0..1 progress within [a,b], clamped. */
