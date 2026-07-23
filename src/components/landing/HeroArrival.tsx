@@ -1,12 +1,11 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback } from 'react';
 
 /**
- * Scene 01 — Arrival (Section 22). The 3D golden halo glows behind; this is the
- * accessible hero: eyebrow, emblem stamp, H1, body, two actions, scroll cue.
+ * Scene 01 — Arrival (Section 22). The 3D golden globe glows behind; this is the
+ * accessible hero: eyebrow, H1, body, two actions, scroll cue.
  * Entrance is staggered and brief; content is fully readable without animation.
  */
 export function HeroArrival() {
@@ -30,18 +29,8 @@ export function HeroArrival() {
       />
 
       <div className="relative z-10 flex flex-col items-center">
-        <Image
-          src="/brand/olympuss-emblem.webp"
-          alt="Olympuss AI"
-          width={84}
-          height={84}
-          priority
-          className="ol-anim-emblem h-16 w-16 sm:h-20 sm:w-20"
-          style={{ animationDelay: '0.15s' }}
-        />
-
         <p
-          className="ol-anim ol-eyebrow mt-8"
+          className="ol-anim ol-eyebrow"
           style={{ animationDelay: '0.9s' }}
         >
           Artificial Intelligence · Intelligent Systems · Innovation
