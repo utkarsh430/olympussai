@@ -48,7 +48,7 @@ const ARC_LIFT = 0.32; // arc altitude factor (longer routes rise higher)
 
 /** Continuous globe spin — one revolution per this many seconds (Y axis).
  *  10% faster than the previous 120s/rev: 120 / 1.1 ≈ 109.09s per revolution. */
-const SECONDS_PER_REV = 120 / 1.1;
+const SECONDS_PER_REV = 20;
 /** Initial spin offset so the hero loads with **Asia** facing the viewer.
  *  At offset 0, lng −90° (the Americas) faces +Z; adding π brings the opposite
  *  meridian (~+90°E — Asia, with Europe/Africa on the limb) to face the camera,
