@@ -51,8 +51,8 @@ export default async function LoginPage({
           <Image
             src="/brand/logonew.png"
             alt="Olympuss AI"
-            width={2000}
-            height={1456}
+            width={690}
+            height={677}
             priority
             sizes="(min-width: 768px) 18rem, 14rem"
             className="h-auto w-56 md:w-72"
