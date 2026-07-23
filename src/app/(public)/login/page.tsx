@@ -61,10 +61,6 @@ export default async function LoginPage({
             <span className="text-[#f2eee7]">OLYMPUSS</span>{' '}
             <span className="text-[#d6a13a]">AI</span>
           </p>
-          <p className="mt-8 max-w-xs text-sm leading-relaxed text-[#a3a7b2]">
-            A digital laboratory exploring intelligent systems and the ideas shaping the next era of
-            technology.
-          </p>
         </div>
       </section>
 
