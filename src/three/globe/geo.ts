@@ -126,6 +126,28 @@ export function sampleLandGrid(
   return out;
 }
 
+/**
+ * Deterministically sample a full-sphere lat/lng grid (land AND ocean) — the
+ * base "data lattice" that makes the whole globe read as a structured object,
+ * not just its continents. Same cos-weighted spacing as `sampleLandGrid` so the
+ * dots form even rows along parallels rather than clustering at the poles.
+ */
+export function sampleSphereGrid(opts: LandSampleOptions): Array<[number, number]> {
+  const step = opts.stepDeg;
+  const minCos = opts.minCos ?? 0.12;
+  const out: Array<[number, number]> = [];
+  const latBands = Math.max(1, Math.floor(180 / step));
+  for (let i = 0; i < latBands; i++) {
+    const lat = -90 + (i + 0.5) * (180 / latBands);
+    const cos = Math.max(Math.cos(lat * DEG2RAD), minCos);
+    const lngCols = Math.max(1, Math.round(360 / (step / cos)));
+    for (let j = 0; j < lngCols; j++) {
+      out.push([-180 + j * (360 / lngCols), lat]);
+    }
+  }
+  return out;
+}
+
 /** Flatten `[lng, lat]` samples into a packed XYZ Float32Array on the sphere. */
 export function landPointsToPositions(
   points: ReadonlyArray<readonly [number, number]>,

@@ -4,6 +4,7 @@ import {
   polygonContainsPoint,
   landContainsPoint,
   sampleLandGrid,
+  sampleSphereGrid,
   landPointsToPositions,
   buildGraticule,
   type LandPolygon,
@@ -130,6 +131,35 @@ describe('sampleLandGrid', () => {
     const pts = sampleLandGrid([square], { stepDeg: 0.5 });
     const inHole = pts.some(([lng, lat]) => Math.abs(lng) < 1 && Math.abs(lat) < 1);
     expect(inHole).toBe(false);
+  });
+});
+
+describe('sampleSphereGrid', () => {
+  it('is deterministic and covers the whole sphere (land + ocean)', () => {
+    const a = sampleSphereGrid({ stepDeg: 6 });
+    const b = sampleSphereGrid({ stepDeg: 6 });
+    expect(a).toEqual(b);
+    // Full-sphere grid must exceed the land-only subset at the same step.
+    expect(a.length).toBeGreaterThan(sampleLandGrid([square], { stepDeg: 6 }).length);
+  });
+
+  it('produces valid, in-range coordinates and densifies with smaller steps', () => {
+    const grid = sampleSphereGrid({ stepDeg: 4 });
+    for (const [lng, lat] of grid) {
+      expect(lat).toBeGreaterThanOrEqual(-90);
+      expect(lat).toBeLessThanOrEqual(90);
+      expect(lng).toBeGreaterThanOrEqual(-180);
+      expect(lng).toBeLessThan(180);
+    }
+    expect(sampleSphereGrid({ stepDeg: 3 }).length).toBeGreaterThan(
+      sampleSphereGrid({ stepDeg: 6 }).length,
+    );
+  });
+
+  it('includes open-ocean points that sampleLandGrid rejects', () => {
+    const grid = sampleSphereGrid({ stepDeg: 5 });
+    const hasOcean = grid.some(([lng, lat]) => !landContainsPoint([square], lng, lat));
+    expect(hasOcean).toBe(true);
   });
 });
 

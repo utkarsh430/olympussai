@@ -5,7 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { QualityConfig } from '../quality';
 import { scene, damp } from '../sceneState';
-import { DEG2RAD, sampleLandGrid, landPointsToPositions, buildGraticule } from './geo';
+import { DEG2RAD, sampleLandGrid, sampleSphereGrid, landPointsToPositions, buildGraticule } from './geo';
 import { orbitPoint, orbitRing } from './orbits';
 import { greatCircleArc, sampleArc, pickRoutes } from './arcs';
 import { LAND_POLYGONS } from './landData';
@@ -21,14 +21,18 @@ export const GLOBE_RADIUS = 1.5;
 const CORE_COLOR = '#08070b';
 
 /** Golden continent dots: base, brighter accent, and a pale glint for hotspots. */
-const DOT_COLOR = new THREE.Color('#e0aa4e');
-const DOT_COLOR_BRIGHT = new THREE.Color('#f6d489');
-const DOT_GLINT = new THREE.Color('#fff0cf');
+const DOT_COLOR = new THREE.Color('#eab65a');
+const DOT_COLOR_BRIGHT = new THREE.Color('#ffd98a');
+const DOT_GLINT = new THREE.Color('#fff3d6');
+
+/** Ocean / full-sphere data-lattice dots — dim warm gold, always below land. */
+const OCEAN_DOT = new THREE.Color('#c69a4c');
+const OCEAN_DOT_BRIGHT = new THREE.Color('#e8bd6a');
 
 /** Restrained warm-gold graticule. */
-const GRATICULE_COLOR = new THREE.Color('#b98731');
+const GRATICULE_COLOR = new THREE.Color('#bf9138');
 /** Thin premium atmospheric rim. */
-const ATMO_COLOR = new THREE.Color('#eab861');
+const ATMO_COLOR = new THREE.Color('#f0c274');
 
 /** Orbital ecosystem palette. */
 const ORBIT_COLOR = new THREE.Color('#c69542'); // deeper gold supporting line
@@ -65,8 +69,8 @@ function makeAtmosphereMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       uColor: { value: ATMO_COLOR },
-      uPower: { value: 6.0 }, // higher → thinner, crisper rim
-      uStrength: { value: 0.7 }, // overall rim brightness (restrained)
+      uPower: { value: 5.4 }, // higher → thinner, crisper rim (kept thin)
+      uStrength: { value: 0.95 }, // a touch brighter, still a thin atmospheric edge
     },
     vertexShader: /* glsl */ `
       varying vec3 vNormalW;
@@ -334,11 +338,11 @@ export function Globe({ config, sprite }: { config: QualityConfig; sprite: THREE
       const h = ((i * 2654435761) >>> 0) / 4294967296;
       // Low-frequency spatial variation → soft brightness patches across land.
       const patch = 0.5 + 0.5 * Math.sin(s[0] * 0.14) * Math.cos(s[1] * 0.19);
-      const lum = 0.5 + 0.4 * patch + 0.12 * h;
-      if (h > 0.965) {
-        c.copy(DOT_GLINT); // ~3.5% pale-gold hotspots
+      const lum = 0.82 + 0.3 * patch + 0.14 * h; // brighter floor — land reads from hero distance
+      if (h > 0.93) {
+        c.copy(DOT_GLINT).multiplyScalar(1.05); // ~7% pale-gold hotspot clusters
       } else {
-        c.copy(DOT_COLOR).lerp(DOT_COLOR_BRIGHT, h * 0.7).multiplyScalar(lum);
+        c.copy(DOT_COLOR).lerp(DOT_COLOR_BRIGHT, h * 0.75).multiplyScalar(lum);
       }
       colors[i * 3] = c.r;
       colors[i * 3 + 1] = c.g;
@@ -346,6 +350,26 @@ export function Globe({ config, sprite }: { config: QualityConfig; sprite: THREE
     }
     return { positions, colors };
   }, [samples]);
+
+  // Full-sphere data lattice (land + ocean): a dim, evenly-structured dot net so
+  // the whole globe reads as a data object. Sits just below the land dots and
+  // stays well darker than them; the near-black core occludes the far half.
+  const lattice = useMemo(() => {
+    const pts = sampleSphereGrid({ stepDeg: g.oceanStepDeg });
+    const positions = landPointsToPositions(pts, GLOBE_RADIUS * 1.0008);
+    const colors = new Float32Array(pts.length * 3);
+    const c = new THREE.Color();
+    for (let i = 0; i < pts.length; i++) {
+      const h = ((i * 2246822519) >>> 0) / 4294967296;
+      // Dim base; a minority of brighter "nodes" for a living data-lattice feel.
+      const lum = 0.36 + 0.16 * h;
+      c.copy(OCEAN_DOT).lerp(OCEAN_DOT_BRIGHT, h > 0.9 ? 1 : h * 0.3).multiplyScalar(lum);
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    }
+    return { positions, colors };
+  }, [g.oceanStepDeg]);
 
   const graticule = useMemo(
     () =>
@@ -388,6 +412,24 @@ export function Globe({ config, sprite }: { config: QualityConfig; sprite: THREE
           <sphereGeometry args={[GLOBE_RADIUS, 64, 48]} />
           <meshStandardMaterial color={CORE_COLOR} roughness={1} metalness={0} />
         </mesh>
+
+        {/* Ocean / full-sphere data lattice — dim structured net across the sphere. */}
+        <points>
+          <bufferGeometry>
+            <bufferAttribute attach="attributes-position" args={[lattice.positions, 3]} />
+            <bufferAttribute attach="attributes-color" args={[lattice.colors, 3]} />
+          </bufferGeometry>
+          <pointsMaterial
+            map={sprite}
+            vertexColors
+            transparent
+            size={g.oceanDotSize}
+            sizeAttenuation
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+            opacity={0.85}
+          />
+        </points>
 
         {/* Golden continent points. */}
         <points>
