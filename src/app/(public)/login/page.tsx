@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import { getSession } from '@/lib/auth/server';
 import { isAuthorizedProject } from '@/lib/auth/config';
 import { sanitizeNext } from '@/lib/auth/redirect';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { AuthenticatedActions } from '@/components/auth/AuthenticatedActions';
-import { OlympussMark } from '@/components/shared/OlympussMark';
 
 export const metadata: Metadata = {
   title: 'Authorized Project Access',
@@ -48,7 +48,15 @@ export default async function LoginPage({
           }}
         />
         <div className="relative z-10 flex flex-col items-center text-center">
-          <OlympussMark className="h-40 w-40 md:h-52 md:w-52" />
+          <Image
+            src="/brand/logonew.png"
+            alt="Olympuss AI"
+            width={2000}
+            height={1456}
+            priority
+            sizes="(min-width: 768px) 18rem, 14rem"
+            className="h-auto w-56 md:w-72"
+          />
           <p className="mt-8 max-w-xs text-sm leading-relaxed text-[#a3a7b2]">
             A digital laboratory exploring intelligent systems and the ideas shaping the next era of
             technology.

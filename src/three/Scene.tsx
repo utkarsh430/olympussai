@@ -5,8 +5,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { QualityConfig } from './quality';
 import { scene, RANGES, phase, bell, damp, clamp01 } from './sceneState';
+import { Globe } from './globe/Globe';
 
-const GOLD = new THREE.Color('#d6a13a');
 const GOLD_LIGHT = new THREE.Color('#f3c86a');
 const COOL = new THREE.Color('#8fb3d9');
 const IVORY = new THREE.Color('#f2eee7');
@@ -94,52 +94,20 @@ function ParticleField({ count, sprite }: { count: number; sprite: THREE.Texture
   );
 }
 
-/** The golden Olympuss halo + ascending peak + core glow. Morphs with scroll. */
-function OlympussCore({ rays, sprite }: { rays: number; sprite: THREE.Texture }) {
+/**
+ * Root wrapper for the golden globe — the **outer** transform group.
+ *
+ * It preserves the exact scroll-driven narrative choreography the previous
+ * halo used (emerge → swell through during the ascent → settle → reopen as the
+ * portal gateway) as position.z + uniform scale. The visual body — near-black
+ * core, golden continents, graticule, rim, and its own float/tilt/spin groups —
+ * lives in <Globe> inside. The old halo rings, radial rays, ascending-peak line
+ * and core glow sprite are intentionally removed.
+ */
+function OlympussCore({ config, sprite }: { config: QualityConfig; sprite: THREE.Texture }) {
   const group = useRef<THREE.Group>(null);
-  const glow = useRef<THREE.Sprite>(null);
-  const ringMat = useRef<THREE.MeshStandardMaterial>(null);
 
-  // Radial rays as one LineSegments buffer (cheap).
-  const rayGeo = useMemo(() => {
-    const g = new THREE.BufferGeometry();
-    const pos = new Float32Array(rays * 2 * 3);
-    for (let i = 0; i < rays; i++) {
-      const a = (i / rays) * Math.PI * 2;
-      const long = i % 2 === 0;
-      const inner = 1.5;
-      const outer = long ? 2.5 : 2.15;
-      pos[i * 6] = Math.cos(a) * inner;
-      pos[i * 6 + 1] = Math.sin(a) * inner;
-      pos[i * 6 + 2] = 0;
-      pos[i * 6 + 3] = Math.cos(a) * outer;
-      pos[i * 6 + 4] = Math.sin(a) * outer;
-      pos[i * 6 + 5] = 0;
-    }
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    return g;
-  }, [rays]);
-
-  // Ascending twin-peak line. Built as a THREE.Line object and rendered via
-  // <primitive> to avoid the R3F <line> / SVGLineElement JSX type clash.
-  const peakLine = useMemo(() => {
-    const pts = [
-      new THREE.Vector3(-1.15, -0.95, 0.02),
-      new THREE.Vector3(-0.2, 0.55, 0.02),
-      new THREE.Vector3(0, 0.2, 0.02),
-      new THREE.Vector3(0.2, 0.55, 0.02),
-      new THREE.Vector3(1.15, -0.95, 0.02),
-    ];
-    const geo = new THREE.BufferGeometry().setFromPoints(pts);
-    const mat = new THREE.LineBasicMaterial({
-      color: GOLD_LIGHT,
-      transparent: true,
-      opacity: 0.9,
-    });
-    return new THREE.Line(geo, mat);
-  }, []);
-
-  useFrame((state, dt) => {
+  useFrame((_, dt) => {
     const g = group.current;
     if (!g) return;
     const p = scene.progress;
@@ -147,11 +115,10 @@ function OlympussCore({ rays, sprite }: { rays: number; sprite: THREE.Texture })
     const exp = phase(p, RANGES.exploration[0], RANGES.exploration[1]);
     const intel = phase(p, RANGES.intelligence[0], RANGES.intelligence[1]);
     const portal = phase(p, RANGES.portal[0], RANGES.portal[1]);
-    // Swell is a bell over the ascent range — it rises then RETURNS, so the halo
-    // grows to fill the view (passing through) and settles back afterwards.
+    // Bell over the ascent range: grows to fill the view (passing through) then
+    // settles back afterwards — unchanged from the previous object.
     const swell = bell(p, RANGES.ascent[0], RANGES.ascent[1]);
 
-    // Emerge → swell (pass through) → settle to a compact core → reopen as gate.
     const scaleTarget =
       0.95 + arr * 0.08 + swell * 2.6 - exp * 0.4 - intel * 0.12 + portal * 1.8;
     const s = damp(g.scale.x, Math.max(0.4, scaleTarget), 3, dt);
@@ -159,70 +126,11 @@ function OlympussCore({ rays, sprite }: { rays: number; sprite: THREE.Texture })
 
     // Drift toward the camera as it swells / reopens as the gateway.
     g.position.z = damp(g.position.z, swell * 1.3 - exp * 0.3 + portal * 1.2, 2.5, dt);
-
-    // Very slow halo rotation (~90s/rev) + subtle pointer tilt (max ~3–4°).
-    g.rotation.z += dt * ((Math.PI * 2) / 90);
-    g.rotation.x = damp(g.rotation.x, scene.smoothY * 0.06, 3, dt);
-    g.rotation.y = damp(g.rotation.y, scene.smoothX * 0.06, 3, dt);
-
-    // Ray pulse every ~8s.
-    const pulse = 0.6 + 0.4 * (0.5 + 0.5 * Math.sin((state.clock.elapsedTime * (Math.PI * 2)) / 8));
-
-    // Core glow breathes and swells at the portal.
-    if (glow.current) {
-      const base = 3.0 + arr * 0.5 + portal * 2.6;
-      const gs = base * (0.96 + 0.06 * Math.sin(state.clock.elapsedTime * 0.9));
-      glow.current.scale.setScalar(gs);
-      const mat = glow.current.material as THREE.SpriteMaterial;
-      mat.opacity = 0.42 * pulse + portal * 0.45;
-    }
-
-    if (ringMat.current) {
-      ringMat.current.emissiveIntensity = 0.6 + portal * 0.9 + intel * 0.2;
-    }
-
-    // Fade the ascending-peak line when the halo is large (swell / gateway), so
-    // it reads as the emblem's peak up close and never as a stray diagonal.
-    const peakMat = peakLine.material as THREE.LineBasicMaterial;
-    peakMat.opacity = 0.9 * (1 - clamp01((s - 1.3) / 1.4));
   });
 
   return (
     <group ref={group}>
-      <sprite ref={glow} scale={3.2} position={[0, 0, -0.2]}>
-        <spriteMaterial
-          map={sprite}
-          color={GOLD}
-          transparent
-          opacity={0.5}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
-      </sprite>
-
-      {/* Primary halo ring */}
-      <mesh>
-        <torusGeometry args={[1.5, 0.045, 16, 128]} />
-        <meshStandardMaterial
-          ref={ringMat}
-          color={GOLD}
-          emissive={GOLD}
-          emissiveIntensity={0.6}
-          metalness={0.9}
-          roughness={0.25}
-        />
-      </mesh>
-      {/* Faint concentric ring */}
-      <mesh>
-        <torusGeometry args={[1.72, 0.006, 8, 128]} />
-        <meshBasicMaterial color={GOLD_LIGHT} transparent opacity={0.35} />
-      </mesh>
-
-      <lineSegments geometry={rayGeo}>
-        <lineBasicMaterial color={GOLD} transparent opacity={0.5} blending={THREE.AdditiveBlending} />
-      </lineSegments>
-
-      <primitive object={peakLine} />
+      <Globe config={config} sprite={sprite} />
     </group>
   );
 }
@@ -401,7 +309,7 @@ export function Scene({ config }: { config: QualityConfig }) {
 
       <CameraRig />
       <ParticleField count={config.bgParticles} sprite={sprite} />
-      <OlympussCore rays={config.rays} sprite={sprite} />
+      <OlympussCore config={config} sprite={sprite} />
       <ConceptOrbits count={config.orbitCount} sprite={sprite} />
       <SignalField count={config.signalParticles} sprite={sprite} />
     </>

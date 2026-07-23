@@ -19,13 +19,6 @@ import { SectionPortal } from '@/components/landing/SectionPortal';
 export default function LandingPage() {
   return (
     <>
-      <a
-        href="#arrival"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded focus:bg-ol-gold focus:px-4 focus:py-2 focus:text-sm focus:text-ol-bg"
-      >
-        Skip to content
-      </a>
-
       <LandingBackdrop />
       <CanvasMount />
 
