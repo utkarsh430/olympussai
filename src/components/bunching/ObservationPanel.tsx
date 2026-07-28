@@ -28,14 +28,14 @@ export function ObservationPanel({
 
   return (
     <section
-      className="rounded border border-alert-crimson/25 bg-alert-crimson/[0.04] p-3"
+      className="rounded border border-sim-crimson/25 bg-sim-crimson/[0.04] p-3"
       data-testid="observation-panel"
       aria-label="System observation"
     >
       <SectionLabel
-        icon={<Activity className="h-3.5 w-3.5 text-alert-crimson" aria-hidden />}
+        icon={<Activity className="h-3.5 w-3.5 text-sim-crimson" aria-hidden />}
         right={
-          <span className="shrink-0 rounded border border-alert-crimson/40 bg-alert-crimson/10 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.14em] text-alert-crimson">
+          <span className="shrink-0 rounded border border-sim-crimson/40 bg-sim-crimson/10 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.14em] text-sim-crimson">
             No control
           </span>
         }
@@ -47,17 +47,17 @@ export function ObservationPanel({
         {HEADWAY_LABELS.map((label, index) => (
           <div
             key={label}
-            className="rounded border border-holo-glow/12 bg-void-900/50 px-2 py-1.5 text-center"
+            className="rounded border border-sim-line bg-sim-well px-2 py-1.5 text-center"
           >
-            <div className="hud-label">{label}</div>
-            <div className="font-mono text-sm tabular-nums text-holo-glow">
+            <div className="sim-label">{label}</div>
+            <div className="font-mono text-sm tabular-nums text-sim-ink">
               {(iteration.headways[index] as number).toFixed(1)}
             </div>
           </div>
         ))}
       </div>
 
-      <div className="space-y-0.5 border-t border-holo-glow/10 pt-2">
+      <div className="space-y-0.5 border-t border-sim-line pt-2">
         <Row
           label="Trend"
           value={`${worstLabel} ${trend === 'deteriorating' ? 'deteriorating' : trend === 'improving' ? 'improving' : 'unchanged'}`}
@@ -94,41 +94,41 @@ export function ObservationPanel({
 
       {/* Scenario-specific commentary, all derived from the current state. */}
       {scenario.id === 'fast-follower' && (
-        <div className="mt-2 rounded border border-alert-amber/25 bg-alert-amber/[0.06] p-2">
-          <div className="hud-label mb-1 flex items-center gap-1 text-alert-amber/80">
+        <div className="mt-2 rounded border border-sim-amber/25 bg-sim-amber/[0.06] p-2">
+          <div className="sim-label mb-1 flex items-center gap-1 text-sim-amber/80">
             <TrendingDown aria-hidden className="h-2.5 w-2.5" />
             Free-run projection — {HEADWAY_LABELS[0]}
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5">
             {forwardProjection(iteration.headways, iteration.natural, [2, 4, 6]).map((entry) => (
-              <span key={entry.steps} className="font-mono text-[10px] text-alert-amber">
+              <span key={entry.steps} className="font-mono text-[10px] text-sim-amber">
                 +{entry.steps} cycles:{' '}
                 <span className="tabular-nums">{entry.headways[0].toFixed(1)}</span> min
               </span>
             ))}
           </div>
-          <p className="mt-1 font-mono text-[9px] leading-relaxed text-alert-amber/70">
+          <p className="mt-1 font-mono text-[9px] leading-relaxed text-sim-amber/70">
             Bunching is predicted from the closing rate, before any physical cluster forms.
           </p>
         </div>
       )}
 
       {scenario.id === 'temporary-stoppage' && iteration.incident.cleared && (
-        <div className="mt-2 rounded border border-alert-amber/25 bg-alert-amber/[0.06] p-2">
+        <div className="mt-2 rounded border border-sim-amber/25 bg-sim-amber/[0.06] p-2">
           <Row label="Original disruption" value="Cleared" tone="green" />
           <Row
             label="Residual bunching"
             value={`Remains — minimum headway ${iteration.metrics.minHeadway.toFixed(1)} min`}
             tone="crimson"
           />
-          <p className="mt-1 font-mono text-[9px] leading-relaxed text-alert-amber/70">
+          <p className="mt-1 font-mono text-[9px] leading-relaxed text-sim-amber/70">
             Removing the cause does not restore service regularity.
           </p>
         </div>
       )}
 
       {scenario.id === 'multi-bus-bunch' && (
-        <div className="mt-2 rounded border border-alert-crimson/25 bg-alert-crimson/[0.06] p-2">
+        <div className="mt-2 rounded border border-sim-crimson/25 bg-sim-crimson/[0.06] p-2">
           <Row
             label="Services within the cluster"
             value={`${iteration.headways[0] + iteration.headways[1] < 6 ? 3 : 2} of 4`}
@@ -139,7 +139,7 @@ export function ObservationPanel({
             value="≈ one service"
             tone="crimson"
           />
-          <p className="mt-1 font-mono text-[9px] leading-relaxed text-alert-crimson/70">
+          <p className="mt-1 font-mono text-[9px] leading-relaxed text-sim-crimson/70">
             Adding buses to a cluster does not improve effective frequency — passengers wait for the
             interval between clusters.
           </p>
@@ -147,8 +147,8 @@ export function ObservationPanel({
       )}
 
       {iteration.dispatch && (
-        <div className="mt-2 rounded border border-holo-glow/15 bg-void-900/50 p-2">
-          <div className="hud-label mb-1">Terminal departures — schedule priority</div>
+        <div className="mt-2 rounded border border-sim-line bg-sim-well p-2">
+          <div className="sim-label mb-1">Terminal departures — schedule priority</div>
           {iteration.dispatch.map((entry) => (
             <Row
               key={entry.bus}
@@ -157,7 +157,7 @@ export function ObservationPanel({
               tone={entry.offsetMinutes > 0 ? 'crimson' : 'glow'}
             />
           ))}
-          <p className="mt-1 font-mono text-[9px] leading-relaxed text-holo-glow/50">
+          <p className="mt-1 font-mono text-[9px] leading-relaxed text-sim-muted">
             Every following bus is punctual against its own timetable, yet the corridor starts{' '}
             {iteration.headways[0].toFixed(1)} minutes apart instead of{' '}
             {TARGET_HEADWAY_MINUTES.toFixed(1)}.

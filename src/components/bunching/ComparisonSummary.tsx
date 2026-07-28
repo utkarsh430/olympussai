@@ -77,25 +77,25 @@ export function ComparisonSummary({
 
   return (
     <section
-      className="rounded-lg border border-holo-glow/20 bg-void-900/60 p-3"
+      className="rounded-lg border border-sim-line bg-sim-well p-3"
       aria-label="Comparison summary"
       data-testid="comparison-summary"
     >
-      <div className="mb-2 grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 border-b border-holo-glow/12 pb-2 sm:grid-cols-[1.4fr_1fr_1fr]">
-        <span className="hud-label min-w-0 truncate">
+      <div className="mb-2 grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 border-b border-sim-line pb-2 sm:grid-cols-[1.4fr_1fr_1fr]">
+        <span className="sim-label min-w-0 truncate">
           Comparison at iteration {withAI.index}
         </span>
-        <span className="text-right font-mono text-[10px] uppercase tracking-[0.14em] text-alert-crimson sm:text-left">
+        <span className="text-right font-mono text-[10px] uppercase tracking-[0.14em] text-sim-crimson sm:text-left">
           Without AI
         </span>
-        <span className="text-right font-mono text-[10px] uppercase tracking-[0.14em] text-holo-teal sm:text-left">
+        <span className="text-right font-mono text-[10px] uppercase tracking-[0.14em] text-sim-teal sm:text-left">
           With AI
         </span>
       </div>
 
       <dl className="space-y-0.5">
         <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 py-1 sm:grid-cols-[1.4fr_1fr_1fr]">
-          <dt className="min-w-0 truncate font-mono text-[10px] text-holo-glow/55">
+          <dt className="min-w-0 truncate font-mono text-[10px] text-sim-muted">
             Bunching status
           </dt>
           <dd className="flex justify-end sm:justify-start">
@@ -112,17 +112,17 @@ export function ComparisonSummary({
             className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-3 py-1 sm:grid-cols-[1.4fr_1fr_1fr]"
             title={row.hint}
           >
-            <dt className="min-w-0 truncate font-mono text-[10px] text-holo-glow/55">
+            <dt className="min-w-0 truncate font-mono text-[10px] text-sim-muted">
               {row.label}
             </dt>
             <dd
               className={cn(
                 'text-right font-mono text-[11px] tabular-nums sm:text-left',
                 row.better === 'without'
-                  ? 'font-semibold text-alert-green'
+                  ? 'font-semibold text-sim-green'
                   : row.better === 'with'
-                    ? 'text-alert-crimson/80'
-                    : 'text-holo-glow/70',
+                    ? 'text-sim-crimson/80'
+                    : 'text-sim-muted',
               )}
             >
               {row.without}
@@ -131,10 +131,10 @@ export function ComparisonSummary({
               className={cn(
                 'text-right font-mono text-[11px] tabular-nums sm:text-left',
                 row.better === 'with'
-                  ? 'font-semibold text-alert-green'
+                  ? 'font-semibold text-sim-green'
                   : row.better === 'without'
-                    ? 'text-alert-crimson/80'
-                    : 'text-holo-glow/70',
+                    ? 'text-sim-crimson/80'
+                    : 'text-sim-muted',
               )}
             >
               {row.with}
@@ -145,15 +145,15 @@ export function ComparisonSummary({
 
       {isFinal && (
         <p
-          className="mt-2 border-t border-holo-glow/12 pt-2 font-mono text-[10px] leading-relaxed text-holo-glow/70"
+          className="mt-2 border-t border-sim-line pt-2 font-mono text-[10px] leading-relaxed text-sim-muted"
           data-testid="comparison-verdict"
         >
           After the same disturbance and the same simulated time, the uncontrolled corridor ends{' '}
-          <span className="text-alert-crimson">
+          <span className="text-sim-crimson">
             {STATUS_META[withoutAI.status].label.toLowerCase()}
           </span>{' '}
           at {withoutAI.metrics.regularity.toFixed(0)}% regularity, and the controlled corridor ends{' '}
-          <span className="text-holo-teal">{STATUS_META[withAI.status].label.toLowerCase()}</span> at{' '}
+          <span className="text-sim-teal">{STATUS_META[withAI.status].label.toLowerCase()}</span> at{' '}
           {withAI.metrics.regularity.toFixed(0)}%. Coordinated control did not remove the
           disturbance — it stopped the disturbance from propagating through the corridor.
         </p>

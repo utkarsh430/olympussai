@@ -1,8 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { MAP_DARK_STYLE } from '@/lib/constants';
+import {
+  SIMULATION_MAP_BACKGROUND,
+  SIMULATION_MAP_COLORS,
+  SIMULATION_MAP_LIGHT_STYLE,
+} from '@/lib/bunching/mapStyle';
 import { getMapsLoader, isMapsConfigured } from '@/lib/maps/loader';
+import { onMapsAuthFailure } from '@/lib/maps/authFailure';
 import { MARKER_TRANSITION_MS, BUS_COLORS } from '@/lib/bunching/config';
 import {
   SIMULATION_ROUTE_GEOMETRY,
@@ -72,6 +77,17 @@ export function BunchingMap({
     let cancelled = false;
     const created: Overlay[] = [];
 
+    // The SDK can load successfully and still be refused for this origin, in
+    // which case Google paints its own error panel inside the map div. Catch
+    // that and show our own fallback over the top instead.
+    const unsubscribe = onMapsAuthFailure(() => {
+      if (cancelled) return;
+      setStatus('error');
+      setErrorMessage(
+        'Google Maps refused this request — the API key is not authorised for this domain. The headway simulation, metrics and calculations below are unaffected.',
+      );
+    });
+
     getMapsLoader()
       .importLibrary('maps')
       .then(async ({ Map }) => {
@@ -88,11 +104,11 @@ export function BunchingMap({
         const map = new Map(containerRef.current, {
           center: path[0],
           zoom: 9,
-          styles: MAP_DARK_STYLE,
+          styles: SIMULATION_MAP_LIGHT_STYLE,
           disableDefaultUI: true,
           zoomControl: true,
           gestureHandling: 'cooperative',
-          backgroundColor: '#02040a',
+          backgroundColor: SIMULATION_MAP_BACKGROUND,
           clickableIcons: false,
           keyboardShortcuts: false,
           // No TrafficLayer: congestion in this simulator is a modelled
@@ -105,16 +121,16 @@ export function BunchingMap({
           new google.maps.Polyline({
             path,
             map,
-            strokeColor: '#22d9f5',
-            strokeOpacity: 0.5,
-            strokeWeight: 3,
+            strokeColor: SIMULATION_MAP_COLORS.corridor,
+            strokeOpacity: 0.55,
+            strokeWeight: 3.5,
             zIndex: 20,
             icons: [
               {
                 icon: {
                   path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
                   scale: 2.4,
-                  fillColor: '#22d9f5',
+                  fillColor: SIMULATION_MAP_COLORS.corridor,
                   fillOpacity: 0.85,
                   strokeOpacity: 0,
                 },
@@ -134,9 +150,11 @@ export function BunchingMap({
               icon: {
                 path: google.maps.SymbolPath.CIRCLE,
                 scale: terminal ? 5.5 : 3.2,
-                fillColor: terminal ? '#2bff88' : '#22d9f5',
-                fillOpacity: 0.85,
-                strokeColor: '#02040a',
+                fillColor: terminal
+                  ? SIMULATION_MAP_COLORS.terminal
+                  : SIMULATION_MAP_COLORS.stop,
+                fillOpacity: 0.9,
+                strokeColor: SIMULATION_MAP_COLORS.stopStroke,
                 strokeWeight: 1.4,
               },
               title: `${stop.name} — simulation corridor stop`,
@@ -183,6 +201,7 @@ export function BunchingMap({
 
     return () => {
       cancelled = true;
+      unsubscribe();
       if (frameRef.current !== undefined) cancelAnimationFrame(frameRef.current);
       created.forEach((overlay) => overlay.setMap(null));
       incidentRef.current.forEach((overlay) => overlay.setMap(null));
@@ -250,7 +269,9 @@ export function BunchingMap({
       return { lat: point.latitude, lng: point.longitude };
     };
 
-    const tone = incident.active ? '#ff4d5e' : '#7a8fa6';
+    const tone = incident.active
+      ? SIMULATION_MAP_COLORS.incident
+      : SIMULATION_MAP_COLORS.inactive;
 
     if (incident.kind === 'cluster') {
       // Highlight the cluster, then draw the service gap that sits behind it.
@@ -265,11 +286,11 @@ export function BunchingMap({
             INCIDENT_RADIUS.clusterMin * totalMetres,
             ((clusterTo - clusterFrom) / 2) * totalMetres + INCIDENT_RADIUS.clusterPad * totalMetres,
           ),
-          strokeColor: '#ff4d5e',
+          strokeColor: SIMULATION_MAP_COLORS.incident,
           strokeOpacity: 0.5,
           strokeWeight: 1.4,
-          fillColor: '#ff4d5e',
-          fillOpacity: 0.1,
+          fillColor: SIMULATION_MAP_COLORS.incident,
+          fillOpacity: 0.08,
           zIndex: 10,
           clickable: false,
         }),
@@ -280,7 +301,12 @@ export function BunchingMap({
           zIndex: 30,
           icons: [
             {
-              icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.85, strokeColor: '#ffb020', scale: 3 },
+              icon: {
+                path: 'M 0,-1 0,1',
+                strokeOpacity: 0.9,
+                strokeColor: SIMULATION_MAP_COLORS.gap,
+                scale: 3,
+              },
               offset: '0',
               repeat: '11px',
             },
@@ -291,7 +317,7 @@ export function BunchingMap({
           map,
           icon: labelPlaqueIcon(
             `Service gap ${iteration.headways[2].toFixed(1)} min`,
-            '#ffb020',
+            SIMULATION_MAP_COLORS.gap,
           ),
           zIndex: 950,
           clickable: false,
@@ -311,7 +337,7 @@ export function BunchingMap({
             strokeOpacity: 0.55,
             strokeWeight: 1.4,
             fillColor: tone,
-            fillOpacity: incident.active ? 0.13 : 0.05,
+            fillOpacity: incident.active ? 0.11 : 0.04,
             zIndex: 10,
             clickable: false,
           }),
@@ -341,7 +367,7 @@ export function BunchingMap({
           strokeOpacity: 0.5,
           strokeWeight: 1.4,
           fillColor: colour,
-          fillOpacity: incident.active ? 0.12 : 0.04,
+          fillOpacity: incident.active ? 0.1 : 0.035,
           zIndex: 10,
           clickable: false,
         }),
@@ -394,7 +420,7 @@ export function BunchingMap({
   ).join('. ');
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-holo-glow/20">
+    <div className="relative overflow-hidden rounded-lg border border-sim-line">
       <div
         ref={containerRef}
         className="h-[300px] w-full sm:h-[360px] lg:h-[400px]"
@@ -413,19 +439,19 @@ export function BunchingMap({
           status={status}
           message={errorMessage}
           onRetry={() => window.location.reload()}
+          variant="light"
         />
       )}
 
       <div aria-hidden className="pointer-events-none absolute inset-0 z-10">
-        <div className="absolute left-0 top-0 h-5 w-5 border-l-2 border-t-2 border-holo-glow/50" />
-        <div className="absolute right-0 top-0 h-5 w-5 border-r-2 border-t-2 border-holo-glow/50" />
-        <div className="absolute bottom-0 left-0 h-5 w-5 border-b-2 border-l-2 border-holo-glow/50" />
-        <div className="absolute bottom-0 right-0 h-5 w-5 border-b-2 border-r-2 border-holo-glow/50" />
-        <div className="absolute inset-0 scanline-overlay opacity-20" />
+        <div className="absolute left-0 top-0 h-5 w-5 border-l-2 border-t-2 border-sim-accent/45" />
+        <div className="absolute right-0 top-0 h-5 w-5 border-r-2 border-t-2 border-sim-accent/45" />
+        <div className="absolute bottom-0 left-0 h-5 w-5 border-b-2 border-l-2 border-sim-accent/45" />
+        <div className="absolute bottom-0 right-0 h-5 w-5 border-b-2 border-r-2 border-sim-accent/45" />
       </div>
 
-      <div className="pointer-events-none absolute bottom-2 left-2 z-20 rounded border border-holo-glow/25 bg-void/85 px-2 py-1">
-        <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-holo-glow/60">
+      <div className="pointer-events-none absolute bottom-2 left-2 z-20 rounded border border-sim-line bg-sim-surface/90 px-2 py-1">
+        <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-sim-muted">
           {SIMULATION_ROUTE_LABEL}
         </span>
       </div>

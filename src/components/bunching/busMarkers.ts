@@ -28,15 +28,19 @@ export function busMarkerIcon(
 ): google.maps.Icon {
   const color = BUS_COLORS[bus];
   const alertRing = options.alert
-    ? `<circle cx="${BADGE_CX}" cy="${BADGE_CY}" r="17.5" fill="none" stroke="#ff4d5e" stroke-width="1.4" stroke-dasharray="3 3" opacity="0.95"/>`
+    ? `<circle cx="${BADGE_CX}" cy="${BADGE_CY}" r="17.5" fill="none" stroke="#b3172f" stroke-width="1.4" stroke-dasharray="3 3" opacity="0.95"/>`
     : '';
 
+  // White badge with a coloured rim: the corridor runs over a light basemap, so
+  // the marker reads as a chip on the map rather than a hole in it. The caption
+  // sits on its own white plate so it stays legible over road geometry.
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
   ${alertRing}
-  <circle cx="${BADGE_CX}" cy="${BADGE_CY}" r="12.5" fill="#02040a" fill-opacity="0.92" stroke="${color}" stroke-width="2"/>
-  <circle cx="${BADGE_CX}" cy="${BADGE_CY}" r="12.5" fill="${color}" fill-opacity="0.16"/>
+  <circle cx="${BADGE_CX}" cy="${BADGE_CY}" r="12.5" fill="#ffffff" stroke="${color}" stroke-width="2"/>
+  <circle cx="${BADGE_CX}" cy="${BADGE_CY}" r="12.5" fill="${color}" fill-opacity="0.1"/>
   <text x="${BADGE_CX}" y="${BADGE_CY + 4.6}" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, monospace" font-size="13" font-weight="700" fill="${color}">${bus}</text>
-  <text x="${BADGE_CX}" y="${HEIGHT - 7}" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, monospace" font-size="7" letter-spacing="0.7" fill="${color}" fill-opacity="0.72">UPSRTC</text>
+  <rect x="${BADGE_CX - 16}" y="${HEIGHT - 14}" width="32" height="11" rx="2" fill="#ffffff" fill-opacity="0.9"/>
+  <text x="${BADGE_CX}" y="${HEIGHT - 6}" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, monospace" font-size="7" letter-spacing="0.7" fill="${color}" fill-opacity="0.85">UPSRTC</text>
 </svg>`;
 
   return {
@@ -54,7 +58,7 @@ export function labelPlaqueIcon(text: string, color: string): google.maps.Icon {
   const height = 20;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect x="0.6" y="0.6" width="${width - 1.2}" height="${height - 1.2}" rx="3" fill="#02040a" fill-opacity="0.88" stroke="${color}" stroke-width="1"/>
+  <rect x="0.6" y="0.6" width="${width - 1.2}" height="${height - 1.2}" rx="3" fill="#ffffff" fill-opacity="0.94" stroke="${color}" stroke-width="1"/>
   <text x="${width / 2}" y="${height / 2 + 3.4}" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, monospace" font-size="8.5" letter-spacing="0.4" fill="${color}">${text.toUpperCase()}</text>
 </svg>`;
 
