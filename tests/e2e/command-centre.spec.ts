@@ -295,24 +295,21 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     expect(errors, `Unexpected console errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
-  test('15. diagnostics, audit and scenario lab drawers open', async ({ page }) => {
+  test('15. scenario lab drawer opens, and the header exposes Bunching', async ({ page }) => {
     await page.goto('/project/upsrtc');
     await waitForFleet(page);
-
-    await page.getByRole('button', { name: /Diagnostics/i }).click();
-    await expect(page.getByTestId('diagnostics-drawer')).toBeVisible();
-    await expect(page.getByText('GPS Endpoint Health')).toBeVisible();
-    // Secrets must never be surfaced here.
-    await expect(page.getByTestId('diagnostics-drawer')).toContainText(/configured|MISSING/);
-    await page.keyboard.press('Escape');
 
     await page.getByRole('button', { name: /Scenario Lab/i }).click();
     await expect(page.getByTestId('scenario-lab')).toBeVisible();
     await expect(page.getByTestId('reset-demonstration')).toBeVisible();
     await page.keyboard.press('Escape');
 
-    await page.getByRole('button', { name: /Audit/i }).click();
-    await expect(page.getByTestId('audit-drawer')).toBeVisible();
+    // The Audit and Diagnostics header controls were replaced by Bunching. The
+    // drawers themselves remain in the application and keep recording (see the
+    // audit-trail test below); they simply no longer have a header trigger.
+    await expect(page.getByRole('button', { name: /^Audit$/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Diagnostics$/i })).toHaveCount(0);
+    await expect(page.getByTestId('open-bunching')).toBeVisible();
   });
 
   test('16. impact dashboard shows projected figures', async ({ page }) => {
@@ -337,15 +334,23 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     await page.getByTestId('analysis-bunching').click();
     await expect(page.getByTestId('scenario-stage')).toBeVisible({ timeout: 20_000 });
 
-    await page.getByRole('button', { name: /Audit/i }).click();
-    const drawer = page.getByTestId('audit-drawer');
-    await expect(drawer).toBeVisible();
+    // Asserted against the persisted trail rather than the drawer: the drawer no
+    // longer has a header trigger, but audit recording is unchanged.
+    const events = await page.evaluate(() =>
+      JSON.parse(window.localStorage.getItem('upsrtc-copilot-audit-v1') ?? '[]'),
+    );
 
-    await expect(drawer.getByText('Bus selected').first()).toBeVisible();
-    await expect(drawer.getByText('Scenario launched').first()).toBeVisible();
+    const types = (events as Array<{ type: string; simulated: boolean }>).map(
+      (event) => event.type,
+    );
+    expect(types).toContain('bus-selected');
+    expect(types).toContain('scenario-launched');
     // Live vs simulated provenance is preserved per event.
-    await expect(drawer.getByText('LIVE').first()).toBeVisible();
-    await expect(drawer.getByText('MODEL').first()).toBeVisible();
+    const simulatedFlags = (events as Array<{ simulated: boolean }>).map(
+      (event) => event.simulated,
+    );
+    expect(simulatedFlags).toContain(true);
+    expect(simulatedFlags).toContain(false);
   });
 
   test('18. alert centre is seeded with five alerts anchored to real vehicles', async ({ page }) => {
@@ -483,5 +488,58 @@ test.describe('UPSRTC AI Operations Copilot', () => {
 
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('bus-detail-drawer')).not.toBeVisible({ timeout: 10_000 });
+  });
+
+  test('25. Bunching opens the control simulator and both comparisons run in step', async ({
+    page,
+  }) => {
+    const errors = collectConsoleErrors(page);
+
+    await page.goto('/project/upsrtc');
+    await waitForFleet(page);
+    await page.getByTestId('open-bunching').click();
+
+    await expect(page).toHaveURL(/\/project\/bunching$/);
+    await expect(
+      page.getByRole('heading', { name: /Bus Bunching Control Simulator/i }),
+    ).toBeVisible();
+
+    // Defaults to scenario 1, paused, with both simulations on the disturbance.
+    await expect(page.getByTestId('bunching-prompt')).toBeVisible();
+    await expect(page.getByTestId('pane-without-ai')).toBeVisible();
+    await expect(page.getByTestId('pane-with-ai')).toBeVisible();
+    await expect(page.getByTestId('observation-panel')).toBeVisible();
+    await expect(page.getByTestId('ai-decision-panel')).toBeVisible();
+
+    // Stepping advances both sides together: the uncontrolled corridor loses
+    // regularity while the controlled one gains it.
+    const summary = page.getByTestId('comparison-summary');
+    await expect(summary).toContainText('iteration 0');
+    await page.getByTestId('bunching-next').click();
+    await expect(summary).toContainText('iteration 1');
+
+    // Run to the end and check the two sides diverge as designed.
+    for (let step = 0; step < 6; step += 1) {
+      const next = page.getByTestId('bunching-next');
+      if (await next.isDisabled()) break;
+      await next.click();
+    }
+    await expect(page.getByTestId('comparison-verdict')).toBeVisible();
+    await expect(page.getByTestId('pane-without-ai')).toContainText('BUNCHED');
+    await expect(page.getByTestId('pane-with-ai')).toContainText('STABLE');
+
+    // Severe cluster scenario resets both runs and redistributes the gap.
+    await page.getByTestId('scenario-multi-bus-bunch').click();
+    await expect(summary).toContainText('iteration 0');
+    await expect(page.getByTestId('recovery-sequence')).toBeVisible();
+
+    // The calculation drawer derives its arithmetic from the current state.
+    await page.getByTestId('calculation-panel').getByText(/View calculations/i).click();
+    await expect(page.getByTestId('calculation-panel')).toContainText('Passenger wait proxy');
+
+    await page.getByTestId('back-to-operations').click();
+    await expect(page).toHaveURL(/\/project\/upsrtc$/);
+
+    expect(errors, `Unexpected console errors:\n${errors.join('\n')}`).toEqual([]);
   });
 });

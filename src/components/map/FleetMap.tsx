@@ -1,15 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Loader } from '@googlemaps/js-api-loader';
 import { createFleetLayer, type FleetLayerHandle } from './fleetCanvasLayer';
 import { useCopilotStore, useSelectedBus } from '@/stores/copilotStore';
 import { MAP_DARK_STYLE, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, SELECTED_BUS_ZOOM } from '@/lib/constants';
+import { getMapsLoader, isMapsConfigured } from '@/lib/maps/loader';
 import { MapFallback } from './MapFallback';
 import { RadarSweep } from './RadarSweep';
 import { useScenarioOverlays } from './useScenarioOverlays';
-
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
 
 export function FleetMap() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -33,16 +31,15 @@ export function FleetMap() {
 
   // ---- Map bootstrap -------------------------------------------------------
   useEffect(() => {
-    if (!API_KEY) {
+    if (!isMapsConfigured()) {
       setStatus('error');
       setErrorMessage('Google Maps API key is not configured (NEXT_PUBLIC_GOOGLE_MAPS_API_KEY).');
       return;
     }
 
     let cancelled = false;
-    const loader = new Loader({ apiKey: API_KEY, version: 'weekly' });
 
-    loader
+    getMapsLoader()
       .importLibrary('maps')
       .then(({ Map }) => {
         if (cancelled || !containerRef.current) return;

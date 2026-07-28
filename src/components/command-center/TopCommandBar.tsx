@@ -1,14 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
-import {
-  Maximize2,
-  Minimize2,
-  Scale,
-  FlaskConical,
-  ShieldCheck,
-  ScrollText,
-} from 'lucide-react';
+import Link from 'next/link';
+import { Maximize2, Minimize2, Scale, FlaskConical, GitMerge } from 'lucide-react';
 import { useCopilotStore } from '@/stores/copilotStore';
 import { useIndiaClock } from '@/hooks/useIndiaClock';
 import { Badge, CountUp } from '@/components/shared/hud';
@@ -30,8 +24,6 @@ export function TopCommandBar({
   const feedMeta = useCopilotStore((state) => state.feedMeta);
   const toggleScenarioLab = useCopilotStore((state) => state.toggleScenarioLab);
   const openFleetDistribution = useFleetDistribution();
-  const toggleDiagnostics = useCopilotStore((state) => state.toggleDiagnostics);
-  const toggleAudit = useCopilotStore((state) => state.toggleAudit);
   const clock = useIndiaClock();
 
   const connectionState = useMemo(() => {
@@ -97,14 +89,16 @@ export function TopCommandBar({
           </span>
         </div>
 
-        <button type="button" className="hud-button whitespace-nowrap" onClick={() => toggleAudit()}>
-          <ScrollText className="h-3.5 w-3.5" aria-hidden />
-          Audit
-        </button>
-        <button type="button" className="hud-button whitespace-nowrap" onClick={() => toggleDiagnostics()}>
-          <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-          Diagnostics
-        </button>
+        {/* Opens the headway/bunching control simulator. A route rather than a
+            drawer: it is a full analysis surface, not an overlay on the map. */}
+        <Link
+          href="/project/bunching"
+          className="hud-button whitespace-nowrap"
+          data-testid="open-bunching"
+        >
+          <GitMerge className="h-3.5 w-3.5" aria-hidden />
+          Bunching
+        </Link>
         <button type="button" className="hud-button whitespace-nowrap" onClick={() => toggleScenarioLab()}>
           <FlaskConical className="h-3.5 w-3.5" aria-hidden />
           Scenario Lab
