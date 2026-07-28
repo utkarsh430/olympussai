@@ -169,12 +169,17 @@ export const STATUS_META: Record<
 
 // ── Presentation ───────────────────────────────────────────────────────────
 
-/** Marker colours per bus. Distinct, but drawn from the dashboard HUD palette. */
+/**
+ * Marker colours per bus. The four hues match the dashboard's HUD accents
+ * (cyan / teal / amber / violet) but at ink strength rather than neon, because
+ * the simulator is a light surface — the HUD's bright variants disappear
+ * against white. Each clears 4.5:1 contrast on the panel background.
+ */
 export const BUS_COLORS: Readonly<Record<BusId, string>> = {
-  A: '#3ff0ff',
-  B: '#2ef2c4',
-  C: '#ffb020',
-  D: '#c69bff',
+  A: '#0b6e87',
+  B: '#0a7a63',
+  C: '#a35c00',
+  D: '#6b3fb5',
 };
 
 /** Narrative phases for the uncontrolled corridor (Section 40). */

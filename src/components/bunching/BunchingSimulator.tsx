@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { ArrowLeft, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { SimulationBanner } from '@/components/shared/hud';
 import { FooterDisclaimer } from '@/components/shared/FooterDisclaimer';
 import { TARGET_HEADWAY_MINUTES } from '@/lib/bunching/config';
 import { DEFAULT_SCENARIO_ID, getScenario } from '@/lib/bunching/scenarios';
@@ -50,12 +49,12 @@ export function BunchingSimulator() {
   const showPrompt = player.index === 0 && !player.playing;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-void">
-      <header className="sticky top-0 z-30 border-b border-holo-glow/20 bg-[rgb(5,11,23)]/95 backdrop-blur-sm">
+    <div className="flex min-h-dvh flex-col bg-sim-page">
+      <header className="sticky top-0 z-30 border-b border-sim-line bg-sim-page/95 backdrop-blur-sm">
         <div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2.5 sm:px-5">
           <Link
             href="/project/upsrtc"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded border border-[#d6a13a]/40 bg-[#d6a13a]/[0.06] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#e8c477] transition-colors hover:border-[#d6a13a]/80 hover:bg-[#d6a13a]/15"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded border border-[#c9a227]/60 bg-[#d6a13a]/[0.08] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#8a6410] transition-colors hover:border-[#a8811a] hover:bg-[#d6a13a]/[0.18]"
             data-testid="back-to-operations"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
@@ -63,23 +62,23 @@ export function BunchingSimulator() {
           </Link>
 
           <div className="min-w-0 flex-1">
-            <h1 className="truncate font-display text-[15px] font-semibold uppercase tracking-[0.14em] text-holo-glow sm:text-[17px]">
+            <h1 className="truncate font-display text-[15px] font-semibold uppercase tracking-[0.14em] text-sim-ink sm:text-[17px]">
               Bus Bunching Control Simulator
             </h1>
-            <p className="truncate font-mono text-[9.5px] uppercase tracking-[0.1em] text-holo-glow/45">
+            <p className="truncate font-mono text-[9.5px] uppercase tracking-[0.1em] text-sim-muted">
               Real-time headway instability prediction and coordinated recovery simulation
             </p>
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span
-              className="whitespace-nowrap rounded border border-holo-teal/45 bg-holo-teal/10 px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-holo-teal"
+              className="whitespace-nowrap rounded border border-sim-teal/45 bg-sim-teal/10 px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-sim-teal"
               title={SIMULATION_ROUTE_DESCRIPTION}
             >
               {SIMULATION_ROUTE_LABEL}
             </span>
             <span
-              className="whitespace-nowrap rounded border border-holo-glow/30 bg-holo-glow/[0.07] px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-holo-glow/80"
+              className="whitespace-nowrap rounded border border-sim-line bg-sim-accent/[0.07] px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-sim-ink"
               title="Simulation assumption for this demonstration, not a universal UPSRTC operating standard."
             >
               Target headway {TARGET_HEADWAY_MINUTES.toFixed(1)} min
@@ -88,19 +87,30 @@ export function BunchingSimulator() {
         </div>
       </header>
 
-      <SimulationBanner label="SIMULATED SCENARIO" />
+      {/* Provenance strip. Same disclosure as the dashboard's SimulationBanner,
+          restyled for a light surface — a 7% neon-amber tint on white would be
+          both invisible and below contrast. */}
+      <div className="flex items-center gap-2 border-b border-sim-amber/30 bg-sim-amber/[0.07] px-3 py-1.5 sm:px-5">
+        <span className="inline-flex items-center gap-1.5 rounded border border-sim-amber/45 bg-sim-amber/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-sim-amber">
+          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-sim-amber" />
+          Simulated scenario
+        </span>
+        <span className="font-mono text-[10px] uppercase tracking-wider text-sim-amber/80">
+          Not operational data
+        </span>
+      </div>
 
       <main className="mx-auto w-full max-w-[1800px] flex-1 space-y-3 px-3 py-3 sm:px-5">
         <ScenarioSelector selected={scenarioId} onSelect={setScenarioId} />
 
-        <section className="rounded-lg border border-holo-glow/20 bg-void-900/60 p-3">
+        <section className="rounded-lg border border-sim-line bg-sim-well p-3">
           <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
             <div className="min-w-0 flex-1">
-              <h2 className="font-display text-[14px] font-semibold uppercase tracking-[0.1em] text-holo-glow">
-                <span className="mr-2 text-holo-glow/40">{scenario.number}</span>
+              <h2 className="font-display text-[14px] font-semibold uppercase tracking-[0.1em] text-sim-ink">
+                <span className="mr-2 text-sim-faint">{scenario.number}</span>
                 {scenario.title}
               </h2>
-              <p className="mt-1 max-w-4xl font-mono text-[10px] leading-relaxed text-holo-glow/60">
+              <p className="mt-1 max-w-4xl font-mono text-[10px] leading-relaxed text-sim-muted">
                 {scenario.description}
               </p>
             </div>
@@ -110,15 +120,15 @@ export function BunchingSimulator() {
                 {scenario.figures.map((figure) => (
                   <div
                     key={figure.label}
-                    className="min-w-0 rounded border border-holo-glow/15 bg-void/60 px-2.5 py-1.5"
+                    className="min-w-0 rounded border border-sim-line bg-sim-well px-2.5 py-1.5"
                   >
-                    <dt className="hud-label">{figure.label}</dt>
-                    <dd className="whitespace-nowrap font-mono text-[11px] tabular-nums text-holo-glow">
+                    <dt className="sim-label">{figure.label}</dt>
+                    <dd className="whitespace-nowrap font-mono text-[11px] tabular-nums text-sim-ink">
                       {figure.expected && (
-                        <span className="text-holo-glow/40 line-through">{figure.expected}</span>
+                        <span className="text-sim-faint line-through">{figure.expected}</span>
                       )}
-                      {figure.expected && <span className="mx-1 text-holo-glow/30">→</span>}
-                      <span className={figure.expected ? 'text-alert-amber' : undefined}>
+                      {figure.expected && <span className="mx-1 text-sim-faint">→</span>}
+                      <span className={figure.expected ? 'text-sim-amber' : undefined}>
                         {figure.observed}
                       </span>
                     </dd>
@@ -130,7 +140,7 @@ export function BunchingSimulator() {
 
           {showPrompt && (
             <p
-              className="mt-2.5 flex items-start gap-1.5 rounded border border-holo-glow/25 bg-holo-glow/[0.05] px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-holo-glow/75"
+              className="mt-2.5 flex items-start gap-1.5 rounded border border-sim-line bg-sim-accent/[0.05] px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-sim-ink"
               data-testid="bunching-prompt"
             >
               <Info aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
@@ -155,9 +165,9 @@ export function BunchingSimulator() {
                 'flex-1 rounded border px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors',
                 mobileTab === policy
                   ? policy === 'withAI'
-                    ? 'border-holo-teal/60 bg-holo-teal/15 text-holo-teal'
-                    : 'border-alert-crimson/60 bg-alert-crimson/15 text-alert-crimson'
-                  : 'border-holo-glow/20 bg-void-900/50 text-holo-glow/50',
+                    ? 'border-sim-teal/60 bg-sim-teal/15 text-sim-teal'
+                    : 'border-sim-crimson/60 bg-sim-crimson/15 text-sim-crimson'
+                  : 'border-sim-line bg-sim-well text-sim-muted',
               )}
             >
               {policy === 'withAI' ? 'With AI' : 'Without AI'}
@@ -195,7 +205,7 @@ export function BunchingSimulator() {
         <ScenarioExplanation scenario={scenario} />
       </main>
 
-      <FooterDisclaimer />
+      <FooterDisclaimer variant="light" />
     </div>
   );
 }

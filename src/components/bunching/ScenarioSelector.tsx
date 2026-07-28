@@ -37,32 +37,32 @@ export function ScenarioSelector({
             className={cn(
               'group relative flex flex-col gap-1 rounded border px-3 py-2.5 text-left transition-colors',
               active
-                ? 'border-holo-glow/70 bg-holo-glow/[0.1] shadow-hud'
-                : 'border-holo-glow/18 bg-void-900/50 hover:border-holo-glow/40 hover:bg-holo-glow/[0.05]',
+                ? 'border-sim-accent/70 bg-sim-accent/[0.1] shadow-[0_0_0_1px_rgba(11,110,135,0.22),0_6px_18px_-10px_rgba(11,110,135,0.35)]'
+                : 'border-sim-line bg-sim-well hover:border-sim-accent/40 hover:bg-sim-accent/[0.05]',
             )}
           >
             <div className="flex items-center gap-1.5">
               <span
                 className={cn(
                   'font-mono text-[10px] tabular-nums tracking-[0.14em]',
-                  active ? 'text-holo-glow' : 'text-holo-glow/45',
+                  active ? 'text-sim-ink' : 'text-sim-muted',
                 )}
               >
                 {scenario.number}
               </span>
               {active && (
-                <Check aria-hidden className="h-3 w-3 text-holo-glow" />
+                <Check aria-hidden className="h-3 w-3 text-sim-ink" />
               )}
             </div>
             <span
               className={cn(
                 'font-mono text-[11px] font-semibold uppercase leading-tight tracking-[0.06em]',
-                active ? 'text-holo-glow' : 'text-holo-glow/70',
+                active ? 'text-sim-ink' : 'text-sim-muted',
               )}
             >
               {scenario.name}
             </span>
-            <span className="font-mono text-[9px] leading-relaxed text-holo-glow/45">
+            <span className="font-mono text-[9px] leading-relaxed text-sim-muted">
               {scenario.cause}
             </span>
           </button>

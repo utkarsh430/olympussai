@@ -23,7 +23,7 @@ export function HeadwayChain({
 }) {
   return (
     <div
-      className="flex items-stretch justify-between gap-1 rounded border border-holo-glow/15 bg-void-900/60 px-2 py-2.5"
+      className="flex items-stretch justify-between gap-1 rounded border border-sim-line bg-sim-well px-2 py-2.5"
       role="group"
       aria-label="Current headways along the corridor"
     >
@@ -41,7 +41,7 @@ export function HeadwayChain({
               {bus}
             </span>
             {!compact && (
-              <span className="font-mono text-[7px] uppercase tracking-[0.12em] text-holo-glow/35">
+              <span className="font-mono text-[7px] uppercase tracking-[0.12em] text-sim-faint">
                 {index === 0 ? 'Lead' : 'UPSRTC'}
               </span>
             )}
@@ -72,16 +72,16 @@ function Gap({
   const deviation = Math.abs(minutes - TARGET_HEADWAY_MINUTES);
   const tone =
     minutes <= MIN_SAFE_HEADWAY_MINUTES
-      ? 'text-alert-crimson'
+      ? 'text-sim-crimson'
       : deviation <= 1.5
-        ? 'text-alert-green'
-        : 'text-alert-amber';
+        ? 'text-sim-green'
+        : 'text-sim-amber';
   const line =
     minutes <= MIN_SAFE_HEADWAY_MINUTES
-      ? 'via-alert-crimson/60'
+      ? 'via-sim-crimson/60'
       : deviation <= 1.5
-        ? 'via-alert-green/50'
-        : 'via-alert-amber/50';
+        ? 'via-sim-green/50'
+        : 'via-sim-amber/50';
 
   const arrow = trend === 'improving' ? '↑' : trend === 'deteriorating' ? '↓' : null;
 
@@ -108,7 +108,7 @@ function Gap({
           line,
         )}
       />
-      <span className="font-mono text-[7px] uppercase tracking-[0.1em] text-holo-glow/30">
+      <span className="font-mono text-[7px] uppercase tracking-[0.1em] text-sim-faint">
         {label}
       </span>
     </div>

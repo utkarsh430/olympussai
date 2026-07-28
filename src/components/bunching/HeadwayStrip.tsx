@@ -44,7 +44,7 @@ export function HeadwayStrip({
   return (
     <div className="flex items-center gap-2">
       {caption && (
-        <span className="w-16 shrink-0 font-mono text-[9px] uppercase tracking-[0.1em] text-holo-glow/40">
+        <span className="w-16 shrink-0 font-mono text-[9px] uppercase tracking-[0.1em] text-sim-faint">
           {caption}
         </span>
       )}
@@ -60,14 +60,14 @@ export function HeadwayStrip({
           <span
             key={step}
             aria-hidden
-            className="absolute top-1 h-5 border-l border-dashed border-holo-glow/15"
+            className="absolute top-1 h-5 border-l border-dashed border-sim-line"
             style={{ left: `${xFor(step * TARGET_HEADWAY_MINUTES)}%` }}
           />
         ))}
 
         <span
           aria-hidden
-          className="absolute top-1/2 h-px -translate-y-1/2 bg-holo-glow/25"
+          className="absolute top-1/2 h-px -translate-y-1/2 bg-sim-accent/25"
           style={{ left: `${xFor(cumulative[3])}%`, right: '4%' }}
         />
 
@@ -79,8 +79,11 @@ export function HeadwayStrip({
               left: `${xFor(cumulative[index] ?? 0)}%`,
               color: BUS_COLORS[bus],
               borderColor: `${BUS_COLORS[bus]}80`,
-              backgroundColor: dim ? 'rgba(2,4,10,0.9)' : `${BUS_COLORS[bus]}26`,
-              opacity: dim ? 0.55 : 1,
+              // A dimmed badge (an iteration not yet reached) stays on the light
+              // surface and simply loses its tint — it must not invert to a dark
+              // chip, which would both look wrong and drop the letter's contrast.
+              backgroundColor: dim ? '#ffffff' : `${BUS_COLORS[bus]}26`,
+              opacity: dim ? 0.5 : 1,
               // A leads: it must sit above followers when they overlap.
               zIndex: 10 - index,
             }}

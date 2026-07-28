@@ -56,25 +56,25 @@ export function SimulationPane({
         className={cn(
           'flex flex-wrap items-center justify-between gap-2 rounded border px-3 py-2',
           controlled
-            ? 'border-holo-teal/35 bg-holo-teal/[0.06]'
-            : 'border-alert-crimson/30 bg-alert-crimson/[0.05]',
+            ? 'border-sim-teal/35 bg-sim-teal/[0.06]'
+            : 'border-sim-crimson/30 bg-sim-crimson/[0.05]',
         )}
       >
         <div className="min-w-0">
           <h2
             className={cn(
               'font-mono text-[13px] font-semibold uppercase tracking-[0.18em]',
-              controlled ? 'text-holo-teal' : 'text-alert-crimson',
+              controlled ? 'text-sim-teal' : 'text-sim-crimson',
             )}
           >
             {title}
           </h2>
-          <p className="truncate font-mono text-[9px] uppercase tracking-[0.12em] text-holo-glow/45">
+          <p className="truncate font-mono text-[9px] uppercase tracking-[0.12em] text-sim-muted">
             {subtitle}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <span className="font-mono text-[10px] tabular-nums text-holo-glow/50">
+          <span className="font-mono text-[10px] tabular-nums text-sim-muted">
             {formatSimClock(iteration.simMinutes)}
           </span>
           <StatusBadge status={iteration.status} />
@@ -93,8 +93,8 @@ export function SimulationPane({
       <HeadwayStrip headways={iteration.headways} caption="Spacing" />
 
       {iteration.occupancy && (
-        <div className="flex items-center gap-2 rounded border border-holo-glow/15 bg-void-900/50 px-2.5 py-1.5">
-          <span className="hud-label shrink-0">Occupancy</span>
+        <div className="flex items-center gap-2 rounded border border-sim-line bg-sim-well px-2.5 py-1.5">
+          <span className="sim-label shrink-0">Occupancy</span>
           <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
             {BUS_IDS.map((bus) => {
               const value = iteration.occupancy?.[bus] ?? 0;
@@ -106,13 +106,13 @@ export function SimulationPane({
                   >
                     {bus}
                   </span>
-                  <span className="relative h-1.5 w-8 overflow-hidden rounded-full bg-holo-glow/10 sm:w-12">
+                  <span className="relative h-1.5 w-8 overflow-hidden rounded-full bg-sim-accent/10 sm:w-12">
                     <span
                       className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-500"
                       style={{ width: `${value}%`, backgroundColor: BUS_COLORS[bus], opacity: 0.75 }}
                     />
                   </span>
-                  <span className="font-mono text-[9px] tabular-nums text-holo-glow/60">
+                  <span className="font-mono text-[9px] tabular-nums text-sim-muted">
                     {value}%
                   </span>
                 </div>

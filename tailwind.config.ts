@@ -19,6 +19,26 @@ export default {
           crimson: '#ff4d5e',
           green: '#2bff88',
         },
+        // Light operations palette, used by the bunching simulator surface.
+        // Namespaced `sim` so it cannot collide with the dashboard's dark HUD
+        // tokens above; every ink/accent value clears 4.5:1 against white.
+        sim: {
+          page: '#ffffff',
+          surface: '#ffffff',
+          well: '#f5f8fb',
+          line: '#dde5ee',
+          'line-strong': '#c3d0de',
+          // ink 15.9:1, muted 5.9:1, faint 4.6:1 against white — the tertiary
+          // tier still has to clear AA because it labels which headway is which.
+          ink: '#0b2233',
+          muted: '#526677',
+          faint: '#5b6e7e',
+          accent: '#0b6e87',
+          teal: '#0a7a63',
+          amber: '#8a5200',
+          crimson: '#b3172f',
+          green: '#0b6b40',
+        },
         // Olympuss landing palette (Section 18). Namespaced so it cannot
         // collide with the dashboard's cyan HUD tokens above.
         ol: {

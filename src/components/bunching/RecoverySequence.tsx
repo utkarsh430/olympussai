@@ -21,15 +21,15 @@ export function RecoverySequence({
 }) {
   return (
     <section
-      className="rounded-lg border border-holo-glow/20 bg-void-900/60 p-3"
+      className="rounded-lg border border-sim-line bg-sim-well p-3"
       aria-label="Headway recovery sequence"
       data-testid="recovery-sequence"
     >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-holo-glow">
+        <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-sim-ink">
           Headway recovery — coordinated control
         </h2>
-        <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-holo-glow/40">
+        <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-sim-faint">
           Fixed scale · dashed ticks mark perfect 10-minute spacing
         </span>
       </div>
@@ -40,7 +40,7 @@ export function RecoverySequence({
             key={iteration.index}
             className="flex items-center gap-2 rounded px-1 py-0.5 transition-colors"
           >
-            <span className="w-10 shrink-0 font-mono text-[9px] tabular-nums text-holo-glow/40">
+            <span className="w-10 shrink-0 font-mono text-[9px] tabular-nums text-sim-faint">
               {formatSimClock(iteration.simMinutes)}
             </span>
             <div className="min-w-0 flex-1">
@@ -49,7 +49,7 @@ export function RecoverySequence({
                 dim={iteration.index > currentIndex}
               />
             </div>
-            <span className="w-28 shrink-0 text-right font-mono text-[9px] tabular-nums text-holo-glow/50">
+            <span className="w-28 shrink-0 text-right font-mono text-[9px] tabular-nums text-sim-muted">
               {iteration.headways.map((value) => value.toFixed(1)).join(' / ')}
             </span>
           </div>

@@ -18,7 +18,7 @@ export function PhaseTimeline({
 }) {
   const phases = policy === 'withAI' ? PHASES_WITH_AI : PHASES_WITHOUT_AI;
   const active = Math.min(currentIndex, phases.length - 1);
-  const accent = policy === 'withAI' ? 'holo-teal' : 'alert-crimson';
+  const accent = policy === 'withAI' ? 'sim-teal' : 'sim-crimson';
 
   return (
     <ol className="flex items-center gap-1 overflow-x-auto" aria-label={`${policy === 'withAI' ? 'Controlled' : 'Uncontrolled'} corridor phases`}>
@@ -31,12 +31,12 @@ export function PhaseTimeline({
               className={cn(
                 'whitespace-nowrap rounded border px-1.5 py-0.5 font-mono text-[8.5px] uppercase tracking-[0.1em] transition-colors',
                 isCurrent
-                  ? accent === 'holo-teal'
-                    ? 'border-holo-teal/60 bg-holo-teal/15 text-holo-teal'
-                    : 'border-alert-crimson/60 bg-alert-crimson/15 text-alert-crimson'
+                  ? accent === 'sim-teal'
+                    ? 'border-sim-teal/60 bg-sim-teal/15 text-sim-teal'
+                    : 'border-sim-crimson/60 bg-sim-crimson/15 text-sim-crimson'
                   : reached
-                    ? 'border-holo-glow/25 bg-holo-glow/[0.05] text-holo-glow/60'
-                    : 'border-holo-glow/10 text-holo-glow/25',
+                    ? 'border-sim-line bg-sim-accent/[0.05] text-sim-muted'
+                    : 'border-sim-line text-sim-faint',
               )}
               aria-current={isCurrent ? 'step' : undefined}
             >
@@ -45,7 +45,7 @@ export function PhaseTimeline({
             {index < phases.length - 1 && (
               <span
                 aria-hidden
-                className={cn('h-px w-2 shrink-0', reached ? 'bg-holo-glow/30' : 'bg-holo-glow/10')}
+                className={cn('h-px w-2 shrink-0', reached ? 'bg-sim-accent/30' : 'bg-sim-accent/10')}
               />
             )}
           </li>
