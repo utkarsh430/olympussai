@@ -90,7 +90,7 @@ describe('audit log operations', () => {
     });
 
     const parsed = JSON.parse(exportAuditJson(events));
-    expect(parsed.product).toBe('TitanX AI');
+    expect(parsed.product).toBe('Olympuss AI');
     expect(parsed.eventCount).toBe(1);
     expect(parsed.notice).toMatch(/model-driven/i);
     expect(parsed.events).toHaveLength(1);

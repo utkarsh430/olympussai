@@ -42,7 +42,7 @@ src/
 
 ## Key architectural decisions
 
-- **Base application:** the existing UPSRTC dashboard ("TitanX") was used as the
+- **Base application:** the existing UPSRTC dashboard was used as the
   base and the landing + auth built around it — the dashboard's proven
   server-proxy/normalizer/fallback code was preserved rather than rewritten.
 - **Route groups** keep the public landing, auth, and protected dashboard cleanly
