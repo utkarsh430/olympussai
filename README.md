@@ -8,6 +8,7 @@ single auth system on one domain (**olympuss.us**):
 | `/` | Public | Cinematic Olympuss AI landing experience — WebGL golden globe, six narrative scenes, static CSS fallback |
 | `/login` | Public | Project authentication (project name + PIN) |
 | `/project/upsrtc` | **Protected** | The UPSRTC AI Copilot — a predictive fleet command centre over live UPSRTC telemetry |
+| `/project/bunching` | **Protected** | Bus Bunching Control Simulator — a coordinated headway controller compared against an uncontrolled corridor |
 | `/api/auth/{login,logout,session}` | Mixed | Authentication endpoints |
 | `/api/upsrtc/{live,schedule}` | **Protected** | Server-side proxies to the UPSRTC upstream |
 | `/robots.txt`, `/sitemap.xml` | Public | Crawler policy — homepage only |
@@ -33,18 +34,19 @@ own GitHub remote.
 12. [Driver communication workflow](#12-driver-communication-workflow)
 13. [Audit trail](#13-audit-trail)
 14. [Pitch Mode](#14-pitch-mode)
-15. [The public landing experience](#15-the-public-landing-experience)
-16. [The WebGL globe](#16-the-webgl-globe)
-17. [Design system and style isolation](#17-design-system-and-style-isolation)
-18. [Security](#18-security)
-19. [Performance decisions](#19-performance-decisions)
-20. [Testing](#20-testing)
-21. [Build and deployment](#21-build-and-deployment)
-22. [Scripts reference](#22-scripts-reference)
-23. [Troubleshooting](#23-troubleshooting)
-24. [Data-labelling rules](#24-data-labelling-rules)
-25. [Safety disclaimer](#25-safety-disclaimer)
-26. [Further documentation](#26-further-documentation)
+15. [The bunching control simulator](#15-the-bunching-control-simulator)
+16. [The public landing experience](#16-the-public-landing-experience)
+17. [The WebGL globe](#17-the-webgl-globe)
+18. [Design system and style isolation](#18-design-system-and-style-isolation)
+19. [Security](#19-security)
+20. [Performance decisions](#20-performance-decisions)
+21. [Testing](#21-testing)
+22. [Build and deployment](#22-build-and-deployment)
+23. [Scripts reference](#23-scripts-reference)
+24. [Troubleshooting](#24-troubleshooting)
+25. [Data-labelling rules](#25-data-labelling-rules)
+26. [Safety disclaimer](#26-safety-disclaimer)
+27. [Further documentation](#27-further-documentation)
 
 ---
 
@@ -62,7 +64,7 @@ own GitHub remote.
 
 Live data carries a green `LIVE UPSRTC GPS` badge. Model-derived surfaces carry
 a `PREDICTIVE` marker. The distinction is enforced in code, not left to
-discipline — see [Data-labelling rules](#24-data-labelling-rules).
+discipline — see [Data-labelling rules](#25-data-labelling-rules).
 
 | LIVE (green badge) | PREDICTIVE (teal marker) |
 | --- | --- |
@@ -167,9 +169,11 @@ src/
 │   │   ├── page.tsx                  # landing composition (6 sections)
 │   │   └── login/page.tsx            # split-screen auth surface
 │   ├── (protected)/
-│   │   └── project/upsrtc/
-│   │       ├── layout.tsx            # server session gate + scoped dashboard shell
-│   │       └── page.tsx              # <CommandCenter/>
+│   │   └── project/
+│   │       ├── upsrtc/
+│   │       │   ├── layout.tsx        # server session gate + scoped dashboard shell
+│   │       │   └── page.tsx          # <CommandCenter/>
+│   │       └── bunching/page.tsx     # server session gate + <BunchingSimulator/>
 │   └── api/
 │       ├── auth/{login,logout,session}/route.ts
 │       └── upsrtc/{live,schedule}/route.ts
@@ -182,6 +186,9 @@ src/
 │   ├── simulation/                   # scenarioEngine, seededRandom
 │   ├── demo-scenarios/               # bunching, traffic, breakdown, demand,
 │   │                                 #   communication, impact, types
+│   ├── bunching/                     # types, config, math, controller, simulation,
+│   │                                 #   scenarios, route, routeInterpolation, mapStyle
+│   ├── maps/                         # shared JS-API loader singleton + gm_authFailure
 │   ├── alerts/alertEngine.ts         # predictive alert feed
 │   ├── audit/auditLog.ts             # localStorage audit trail + exports
 │   ├── constants/, formatters/, utils.ts
@@ -197,6 +204,8 @@ src/
 │   ├── alerts/, ai-core/             # alert centre + toasts, copilot panel + core
 │   ├── bus-details/, scenarios/      # vehicle drawer, scenario stage + 4 analyses, lab
 │   ├── communication/                # driver message modal, VoIP overlay
+│   ├── bunching/                     # simulator shell, two panes, maps, decision +
+│   │                                 #   observation + calculation panels, playback
 │   ├── audit/, diagnostics/, impact-dashboard/, pitch-mode/
 │   └── shared/                       # hud.tsx primitives, footer disclaimer, brand marks
 ├── three/                            # WebGL: ExperienceCanvas, Scene, quality, sceneState
@@ -265,6 +274,8 @@ clients from cache.
 | Routes | `src/app/api/upsrtc/*` | Orchestration, Zod validation, fallback ladder, diagnostics |
 | Models | `src/models/canonical.ts` | Zod schemas and types — **live data only** |
 | Predictive engine | `src/lib/simulation/`, `src/lib/demo-scenarios/` | Deterministic scenario templates |
+| Bunching engine | `src/lib/bunching/` | Headway dynamics, coordinated controller, scenario catalogue, corridor geometry |
+| Maps | `src/lib/maps/` | Shared JS-API loader singleton, `gm_authFailure` notification |
 | State | `src/stores/copilotStore.ts` | Single Zustand store |
 | Hooks | `src/hooks/` | Polling, schedule fetch, alert stream, clock, debounce |
 | UI | `src/components/` | Landing and command-centre surfaces |
@@ -335,6 +346,14 @@ throwing on misconfiguration.
 `sanitizeNext()` accepts a `next` parameter only when it is a root-relative
 path under `/project/upsrtc`. Protocol-relative (`//evil.com`), backslash
 tricks (`/\evil.com`) and any other target fall back to `/project/upsrtc`.
+
+> **Known gap.** The allowlist was not widened when `/project/bunching` was
+> added. An unauthenticated request to the simulator is redirected to
+> `/login?next=/project/bunching`, but `sanitizeNext` does not recognise that
+> path and falls back, so after signing in the user lands on the dashboard
+> rather than the simulator. It fails *safe* — the fallback is a valid internal
+> path, so this is a broken deep link rather than an open-redirect — but the
+> allowlist should be extended to cover every protected surface.
 
 ### Session status and sign-out
 
@@ -545,8 +564,20 @@ in *layout* pixels) and shifts every bus marker off the road.
 Olympuss project context and Sign Out · connection state (`CONNECTED` /
 `STALE CACHE` / `FIXTURE` / `DEGRADED`) with an animated pulse · India time ·
 last GPS update age · live bus count · visible count · the `LIVE UPSRTC GPS`
-badge and `PREDICTIVE ENGINE ACTIVE` marker side by side · buttons for Audit,
-Diagnostics, Scenario Lab, Fleet Distribution and fullscreen.
+badge and `PREDICTIVE ENGINE ACTIVE` marker side by side · a **Bunching** link to
+the control simulator · and buttons for Scenario Lab, Fleet Distribution and
+fullscreen.
+
+Bunching is a `<Link>` rather than a drawer toggle because it opens a full
+analysis surface, not an overlay on the map.
+
+> **Known gap.** The Bunching link took the slot previously occupied by the
+> **Audit** and **Diagnostics** buttons. Both drawers are still mounted in
+> `CommandCenter` and still function, but nothing in the interface opens them any
+> more — `toggleAudit` and `toggleDiagnostics` are now referenced only from
+> inside the drawers themselves, to close them. The audit trail keeps recording
+> normally (the e2e test asserts against `localStorage` instead of the drawer).
+> Restoring a trigger for both is outstanding.
 
 ### Fleet panel (left, 272 px)
 
@@ -644,9 +675,12 @@ render and hydration cannot disagree.
 ### Drawers and overlays
 
 **Scenario Lab** (presenter controls; every override rebuilds the active
-scenario immediately) · **Diagnostics** · **Audit** · **Driver message modal**
-· **VoIP call overlay** · **Impact dashboard** · **Pitch Mode**. All are
-Escape-dismissible.
+scenario immediately) · **Driver message modal** · **VoIP call overlay** ·
+**Impact dashboard** · **Pitch Mode**. All are Escape-dismissible.
+
+**Diagnostics** and **Audit** are also mounted and fully functional, but
+currently have no trigger in the interface — see the note under the top command
+bar above.
 
 ---
 
@@ -828,7 +862,279 @@ For the manual 8–10 minute presentation, see
 
 ---
 
-## 15. The public landing experience
+## 15. The bunching control simulator
+
+`/project/bunching` — a second protected surface, reachable from the **Bunching**
+button in the command bar. Where the dashboard's bunching *analysis* is a seeded
+narrative attached to one live vehicle, this is a working control model: two runs
+of the same corridor, from the same disturbed starting state, on the same clock —
+one with no intervention, one under coordinated headway control.
+
+It is **entirely local**. No backend call, no live GPS polling, no AI service, no
+traffic-signal control. The only network dependency is the Google basemap.
+
+### Why it is a separate route, not a drawer
+
+The page deliberately does **not** nest inside the dashboard's
+`upsrtc/layout.tsx`. That layout builds a fixed-viewport, CSS-zoomed
+command-centre environment for a page that must never scroll; the simulator is a
+long analysis surface that scrolls naturally, and CSS `zoom` would also
+desynchronise Tailwind's viewport breakpoints from the real layout width. It
+still re-verifies the session itself (`getSession()` + `isAuthorizedProject()`),
+so edge middleware and the page each gate it independently.
+
+### The corridor model
+
+Four services on a shared corridor, `A → B → C → D`, with three headways between
+them. The entire page derives from that three-number state vector:
+
+```
+H = [H_AB, H_BC, H_CD]        target 10.0 min
+```
+
+A per-bus time perturbation `u` changes **two** headways at once — the one in
+front of the bus and the one behind it:
+
+```
+H'_AB = H_AB + u_B − u_A
+H'_BC = H_BC + u_C − u_B
+H'_CD = H_CD + u_D − u_C
+```
+
+That coupling is the whole reason a corridor cannot be regulated one bus at a
+time, and both the natural dynamics and the controller go through it. Positive
+`u` means the bus loses time (dwells longer, or is held); negative means it gains
+time. Expressing disturbance and control in the same units is what lets a single
+update equation cover both.
+
+### Why bunching amplifies itself
+
+**Dwell-time feedback.** A bus with a larger-than-target gap ahead collects more
+waiting passengers, dwells longer and loses time; a bus running close behind its
+leader finds fewer passengers, dwells less and closes further:
+
+```
+delta_i = HEADWAY_FEEDBACK_GAIN × (H_ahead(i) − TARGET)      gain 0.35, capped ±0.8 min
+```
+
+The lead bus has no modelled bus ahead of it, so its only perturbation is the
+scenario's exogenous disturbance.
+
+**The overtaking floor.** Buses cannot pass each other, so the chain is walked
+from the front and a headway can never collapse below
+`MIN_PHYSICAL_HEADWAY_MINUTES` (0.4 min). If a following bus would gain more time
+than the gap ahead allows, the time it *actually* gains is reduced to the
+available gap — and that reduced figure, not the one it wanted, propagates into
+the headway behind it. This is why a bunch, once formed, freezes in place instead
+of inverting, and why the gap behind a bunch stops growing rather than widening
+forever. `advance()` reports the per-bus minutes actually realised, which is what
+the calculation drawer shows when the floor has bitten.
+
+### Metrics — all derived, never hand-written
+
+| Metric | Definition |
+| --- | --- |
+| Mean headway | Arithmetic mean of the three headways |
+| MAE | Mean absolute deviation from the 10-minute target |
+| Regularity | `100 × (1 − MAE / target)`, floored at 0 — a demo score, **not** an official UPSRTC KPI |
+| Variance | Population variance of the three headways |
+| Passenger wait proxy | `Σh² / 2Σh` — the random-arrival waiting time. With even headways this reduces to `h/2`; irregular spacing pushes it up because most passengers arrive during the long gaps |
+| Recovery progress | Percentage of the initial disturbance's headway error removed (controlled run only) |
+
+Status is classified primarily from the **minimum** headway — bunched ≤ 3 min,
+bunching-risk ≤ 6 min, stable requires MAE ≤ 0.6 **and** min headway ≥ 8.5 min.
+`recovering` is reserved for a controlled corridor whose error is actively
+falling but has not yet reached stability.
+
+The UI never computes a metric of its own, so a headway vector and a metrics
+panel can never disagree.
+
+### The controller
+
+Deliberately **not** `if (headway < 5) hold the bus`. Holding one bus repairs
+A–B and compresses B–C by exactly the same amount, so the controller solves the
+whole chain at once, every iteration:
+
+1. **Predict** where the corridor goes with no intervention (`predictedFree`).
+2. **Aim** at a partial correction — only `CONTROL_GAIN` (0.55) of the remaining
+   error, measured from the *current* state so the controller cancels the
+   disturbance rather than merely damping it. Below 1 by design: recovery must be
+   visibly progressive, never a single corrective jump.
+3. **Solve** for the per-bus hold/pacing vector closest to that aim, subject to
+   which buses UPSRTC can influence, per-iteration caps (hold ≤ 5 min, pacing
+   ≤ 1 min), and a penalty on total effort:
+
+   ```
+   minimise  Σ_j (D_j(u) − t_j)² + ρ Σ_i u_i²      subject to  lo_i ≤ u_i ≤ hi_i
+   where     D(u) = (u_B − u_A, u_C − u_B, u_D − u_C)
+   ```
+
+   A convex quadratic, minimised by box-constrained cyclic coordinate descent —
+   each coordinate has a closed-form unconstrained minimiser, clamped to its box
+   after every update. 120 sweeps. Deterministic, allocation-free, and small
+   enough to run every iteration without a solver dependency.
+4. **Quantise** to 15-second steps, so a recommendation is actually issuable.
+5. **Verify safety.** If the plan would push any projected headway below
+   `MIN_SAFE_HEADWAY_MINUTES` (4 min), it is scaled back by 0.7 and re-simulated,
+   up to six times. The bunch must never simply be relocated one position down
+   the chain.
+6. **Explain itself** from the numbers it just produced, so the prose can never
+   drift away from the arithmetic it describes.
+
+**The isolated-hold counterfactual.** Alongside the plan, `isolatedHoldCheck()`
+takes the single most compressed headway and asks: if we repaired only that one,
+by holding only the bus behind it, what happens to the headway behind *that* bus?
+For a real disturbance the answer is that the bunch moves one position down the
+chain — which is the argument for coordinated control, computed rather than
+asserted.
+
+`CONTROL_EFFORT_WEIGHT` (0.1) makes the controller reluctant to hold buses that
+are not yet in trouble, which is what produces the temporary B–C compression the
+demo explains rather than hides.
+
+### The six scenarios
+
+Declared as data in [`scenarios.ts`](src/lib/bunching/scenarios.ts). A scenario
+supplies only the **cause** — starting state, exogenous per-iteration minutes,
+which buses are controllable, and the narrative. It never states the resulting
+headways; those are always computed by the engine, so both sides of the
+comparison are guaranteed to receive an identical disturbance.
+
+| # | Scenario | Initial `H` | Cause |
+| --- | --- | --- | --- |
+| 01 | Traffic Shock | `[6, 10, 10]` | Lead bus delayed in congestion; A uncontrollable (external condition) |
+| 02 | Passenger Surge | `[7, 10, 10]` | A major stop generates ~4× the planned dwell; occupancy diverges alongside headways |
+| 03 | Fast Follower | `[7, 10, 10]` | B simply runs light and gains 0.5 min/cycle — the bunch is predicted from closing *rate*, before any physical cluster forms |
+| 04 | Late Terminal Departure | `[3, 10, 10]` | A leaves 7 min late; strict timetable adherence by the others converts one delay into a 3-minute headway before anyone carries a passenger |
+| 05 | Temporary Stoppage | `[6, 10, 10]` | A stationary 6 min across two cycles — then resumes, and the bunch persists anyway |
+| 06 | Multi-Bus Bunch | `[2, 2, 24]` | Three services already clustered behind a 24-minute service desert |
+
+Scenario 04's lead lateness is *derived*, not stated: the timetable asks for a
+10-minute gap and the corridor starts with `H_AB`, so A left `10 − H_AB` minutes
+late. Scenario 05 escalates after `INCIDENT_ESCALATION_ITERATIONS` (2)
+consecutive stalled cycles.
+
+### Playback
+
+`buildSimulation()` resolves a scenario into two fully-computed iteration
+sequences, one per policy. The whole run is **precomputed and pure**, so playback
+is nothing more than an index into those arrays — scrubbing, stepping backwards
+and replaying are exact, and nothing depends on wall-clock time.
+
+A single iteration index drives both panes, which is what makes this a controlled
+experiment rather than two animations. Six iterations per scenario, 5 simulated
+minutes each, auto-advancing every 1800 ms with 900 ms marker transitions.
+Changing scenario rewinds and pauses both sides together; pressing play on a
+finished run replays from the disturbance.
+
+Narrative phases run in parallel — *Disturbance → Propagation → Headway
+Compression → Bunching → Large Gap → Persistent Instability* on the uncontrolled
+side, *Disturbance → Detection → Prediction → Intervention → Recovery → Stable*
+on the controlled one. Reaching the last of each is the comparison in a single
+line.
+
+### Positions and the corridor
+
+Bus positions are derived from the headway state, not tracked separately: the
+lead bus advances with simulated time minus whatever the exogenous disturbance
+has taken from it (which is why a stationary bus visibly stalls on the map), and
+every following bus is placed by converting the headway ahead of it into a
+fraction of the corridor's nominal 60-minute running time. Marker spacing is
+therefore always a direct picture of the headway vector.
+
+Interpolation is by **cumulative distance** ([`routeInterpolation.ts`](src/lib/bunching/routeInterpolation.ts)),
+not by index — "60% along the route" must mean 60% of the distance travelled, or
+a corridor with unevenly spaced stops would bunch its own markers wherever the
+survey points happen to be dense. Kept free of React and Google Maps types so it
+is unit-testable in isolation.
+
+**Corridor provenance** is stated precisely in
+[`route.ts`](src/lib/bunching/route.ts), because the two halves differ:
+
+- The **origin is real** — six stationary KAISERBAGH-depot buses in this
+  project's own `upsrtc-live-sample.json` fixture sit within ~60 m of each other
+  on the Kaiserbagh Bus Station apron; their centroid `(26.860344, 80.928463)` is
+  the coordinate used.
+- The **route identity is real** — `KSG_166_ORD_OUT`, "KAISERBAGH TO MALLAWAN VIA
+  HARDOI", appears in the same live fixture.
+- The **intermediate points are not** — they are corridor waypoints along the
+  Lucknow–Hardoi road (NH-731), *not* surveyed UPSRTC stop coordinates. The
+  schedule fixture only carries stop geometry for the two Bareilly routes, so
+  there is no published Lucknow stop survey to draw on. They are labelled as a
+  simulation corridor accordingly.
+
+No Directions or Routes API is involved: the polyline is the waypoint sequence,
+exactly as the dashboard already draws live schedule geometry.
+
+### Page composition
+
+Scenario selector (a radio group, so keyboard users get arrow-key selection for
+free) · scenario header with expected-vs-observed figures · transport controls ·
+two `SimulationPane`s side by side (tabs below `lg`, rather than two unreadably
+narrow maps) · `ComparisonSummary` scoreboard that moves with the iteration so
+the gap opens up live rather than appearing at the end as a claim ·
+`RecoverySequence` stacking each controlled iteration on a fixed scale so the
+cluster spreading out is visible as a shape · `CalculationPanel` printing the
+arithmetic from the same functions the panels use · `ScenarioExplanation`
+(what happened / why it amplifies / what the controller does).
+
+Each pane carries a map, the `HeadwayChain` read-out (`A ← 9.7 min → B ← …`),
+a phase timeline, metrics, and either the `ObservationPanel` (uncontrolled side —
+live commentary, closing rate, projected iterations to bunching) or the
+`AIDecisionPanel` (controlled side — free projection, per-bus recommendation,
+post-intervention projection, generated reasoning).
+
+Bus markers are inline **SVG data URIs**, not raster pins: no network asset is
+fetched (the production CSP allows `data:` images but no third-party image
+hosts), the letter stays crisp at any device pixel ratio, and each icon carries
+both the chain identity (A/B/C/D) and the service label.
+
+The wording throughout is advisory. Nothing is transmitted to a driver and no
+action is executed.
+
+### Shared Maps loader
+
+The simulator adds two more map instances, so `@googlemaps/js-api-loader` is now
+wrapped in a singleton ([`src/lib/maps/loader.ts`](src/lib/maps/loader.ts)).
+The loader is a hard singleton upstream — constructing a second `Loader` with
+options that differ in any way throws — so the fleet map and both simulator maps
+go through one module, the options cannot drift, and the SDK is fetched once per
+session.
+
+[`authFailure.ts`](src/lib/maps/authFailure.ts) handles a failure mode the SDK
+does not surface as a rejection: when the key is rejected for the requesting
+origin (referrer restriction, billing, disabled API), `importLibrary` resolves
+normally, the map is created, and Google then paints its own English "Oops!
+Something went wrong" panel inside the map div. The only programmatic signal is
+the global `gm_authFailure` callback. The module is strictly opt-in — it chains
+rather than clobbers any existing handler, installs on first subscription and
+restores on last unsubscribe — so a surface that does not subscribe keeps exactly
+its current behaviour.
+
+### Simulator constants
+
+Every tunable lives in [`config.ts`](src/lib/bunching/config.ts) rather than
+scattered through components. **These are demonstration parameters, not UPSRTC
+operating standards.**
+
+| Constant | Value |
+| --- | --- |
+| `TARGET_HEADWAY_MINUTES` | 10 |
+| `SIM_MINUTES_PER_ITERATION` | 5 |
+| `ROUTE_NOMINAL_DURATION_MINUTES` | 60 |
+| `HEADWAY_FEEDBACK_GAIN` / cap | 0.35 / ±0.8 min |
+| `MIN_PHYSICAL_HEADWAY_MINUTES` | 0.4 |
+| `CONTROL_GAIN` | 0.55 |
+| `CONTROL_EFFORT_WEIGHT` | 0.1 |
+| `MAX_HOLD_MINUTES` / `MAX_PACING_MINUTES` | 5 / 1 |
+| `CONTROL_QUANTUM_MINUTES` | 0.25 (15 s) |
+| `MIN_SAFE_HEADWAY_MINUTES` | 4 |
+| `SOLVER_SWEEPS` | 120 |
+| `ITERATION_PLAYBACK_MS` | 1800 |
+
+---
+
+## 16. The public landing experience
 
 [`(public)/page.tsx`](<src/app/(public)/page.tsx>) composes six narrative
 sections over three layers:
@@ -863,7 +1169,7 @@ deployment, location, publication, funding or performance claims.
 
 ---
 
-## 16. The WebGL globe
+## 17. The WebGL globe
 
 `ExperienceCanvas` chooses a quality tier from **device capability, never
 viewport width alone**, combining device-pixel ratio, WebGL support, mobile
@@ -915,7 +1221,7 @@ Point sprites are generated in-canvas rather than loaded as assets.
 
 ---
 
-## 17. Design system and style isolation
+## 18. Design system and style isolation
 
 Two palettes coexist without collision, namespaced in
 [`tailwind.config.ts`](tailwind.config.ts):
@@ -928,6 +1234,23 @@ Two palettes coexist without collision, namespaced in
 - **Landing (`ol-*`):** `bg #050507`, `surface`, `elevated`, `midnight`,
   `gold #d6a13a`, `gold-light`, `gold-muted`, `ivory #f2eee7`, secondary text
   and muted.
+- **Simulator (`sim-*`):** a light operations palette for the bunching page —
+  `page`/`surface` white, `well #f5f8fb`, `line`, `ink #0b2233`, `muted`,
+  `faint`, `accent #0b6e87`, `teal`, `amber`, `crimson`, `green`. Every ink and
+  accent value clears **4.5:1 against white**, including the tertiary `faint`
+  tier, because that tier labels which headway is which. The dashboard's neon
+  HUD variants would simply disappear on a white surface, which is why this is a
+  separate scale rather than a reuse.
+
+`globals.css` mirrors the dark `hud-*` component classes with light `sim-*`
+equivalents (`sim-panel`, `sim-well`, `sim-label`, `sim-button`,
+`sim-button-primary`) so the simulator does not repeat long class strings. Two
+details are worth knowing: the global focus ring is tuned for the dark HUD, so
+`.sim-light :focus-visible` overrides it with the light accent; and
+`body:has(.sim-light)` repaints the body white, because the neutral near-black
+body background would otherwise show through on overscroll and behind a short
+page. The bus colours in `config.ts` match the HUD accents (cyan/teal/amber/
+violet) but at ink strength rather than neon, for the same contrast reason.
 
 Fonts follow the same split: **Orbitron** (display) and **JetBrains Mono** for
 the dashboard, declared as CSS variables in the root layout; **Manrope** and
@@ -963,7 +1286,7 @@ modified; crop constants at the top of the script are the only thing to tune.
 
 ---
 
-## 18. Security
+## 19. Security
 
 **Response headers** (all routes, from [`next.config.ts`](next.config.ts)):
 `X-Content-Type-Options: nosniff`, `Referrer-Policy:
@@ -995,7 +1318,7 @@ Run a review of pending changes on the current branch with `/security-review`.
 
 ---
 
-## 19. Performance decisions
+## 20. Performance decisions
 
 Each of these was made against a measured problem, not on principle:
 
@@ -1010,6 +1333,9 @@ Each of these was made against a measured problem, not on principle:
 | 160-row render cap + memoized filter option lists | Filtering and rendering ~9.5k records on every keystroke |
 | 220 ms search debounce | Same |
 | `lazy()` scenario bodies | Recharts only loads when an analysis is actually opened |
+| Precomputed simulator runs | Playback is an array index, so scrubbing and stepping backwards are exact and free rather than re-simulated |
+| Shared Maps loader singleton | `@googlemaps/js-api-loader` throws on a second Loader with differing options; three map instances now exist across two routes |
+| Cumulative-distance route interpolation | Index-based placement would bunch markers wherever survey points are dense |
 | `next/dynamic` `ssr: false` for the WebGL canvas | three.js never ships to dashboard routes; HTML renders immediately |
 | Mutable scene singleton for scroll/pointer | The 60 fps loop never triggers a React re-render |
 | `frameloop: 'never'` when the tab is hidden | No GPU work in a background tab |
@@ -1017,29 +1343,35 @@ Each of these was made against a measured problem, not on principle:
 
 ---
 
-## 20. Testing
+## 21. Testing
 
 ```bash
 npm run lint         # ESLint (next lint)
 npm run typecheck    # tsc --noEmit, strict
-npm run test         # Vitest — 156 unit tests, no network required
+npm run test         # Vitest — 224 unit tests, no network required
 npm run test:watch   # Vitest in watch mode
-npm run test:e2e     # Playwright — 24 specs (starts the app via npm run start)
+npm run test:e2e     # Playwright — 25 specs (starts the app via npm run start)
 npm run format       # Prettier over src/**/*.{ts,tsx,css} and docs/**/*.md
 ```
 
-### Unit tests (Vitest, jsdom) — 156 tests across 6 files
+### Unit tests (Vitest, jsdom) — 224 tests across 7 files
 
 | File | Tests | Covers |
 | --- | --- | --- |
+| `bunching.test.ts` | 68 | Headway metrics, the control equations, dwell-time feedback, the overtaking floor, status classification, projection helpers, the coordinated controller (including the isolated-hold counterfactual and safety scaling), route interpolation, bus positions, formatting, the scenario catalogue, and full simulation runs |
+| `scenarios.test.ts` | 43 | All four dashboard scenario templates, determinism, override plumbing, impact metrics |
 | `normalizer.test.ts` | 41 | Coordinate validation, numeric coercion, payload unwrapping, alias resolution, duplicate merging, data-quality labels, trip grouping and selection, schedule normalization |
-| `scenarios.test.ts` | 43 | All four scenario templates, determinism, override plumbing, impact metrics |
 | `geo.test.ts` | 23 | Lat/lng → vec3, poles, equator, longitude periodicity, point-in-polygon with holes, land/sphere grid sampling, graticule packing, real Natural Earth data |
 | `audit.test.ts` | 21 | Audit append/cap/round-trip/clear/export, TTL cache semantics, upstream client helpers, formatters |
 | `alerts.test.ts` | 19 | Alert anchoring to real vehicles, seeding (exactly five, exactly one fault), even rotation, candidate selection tiers, graceful degradation |
 | `globeExtras.test.ts` | 9 | Orbit radii and inclination, great-circle arc packing and lift, deterministic route picking |
 
-### End-to-end (Playwright) — 24 specs
+The bunching suite is the reason the simulator's arithmetic can be trusted: it
+asserts the control equations against hand-computed values, that the overtaking
+floor prevents inversion, that the controller never breaches the safety floor,
+and that each scenario's two runs diverge in the documented direction.
+
+### End-to-end (Playwright) — 25 specs
 
 Run at **2259×1271**, which is the effective CSS viewport of a 1920-wide
 display at the ~85% browser zoom the dashboard is actually used at.
@@ -1051,16 +1383,24 @@ candidates, demand time slider) · driver message send and acknowledgement ·
 voice call connect and clean teardown · Pitch Mode start/advance/exit · live and
 predictive markers remaining visible together · footer disclaimer always
 accessible and expandable · console cleanliness through a full walkthrough ·
-diagnostics, audit and scenario-lab drawers · impact dashboard figures · audit
-trail recording the walkthrough · alert seeding with real vehicles · alert
-click-through · the 30 s stream interval · **exactly one vehicle-fault alert** ·
-fleet distribution opening without a prior selection · Escape closing the detail
-drawer · and an assertion that the words **"simulated"** and **"demonstrate"**
-appear nowhere in the interface.
+the scenario-lab drawer and the presence of the Bunching trigger · impact
+dashboard figures · audit trail recording the walkthrough (asserted against
+`localStorage`, since the drawer no longer has a trigger) · alert seeding with
+real vehicles · alert click-through · the 30 s stream interval · **exactly one
+vehicle-fault alert** · fleet distribution opening without a prior selection ·
+Escape closing the detail drawer · and an assertion that the words
+**"simulated"** and **"demonstrate"** appear nowhere in the interface.
+
+Spec 25 covers the simulator end to end: navigating from the command bar,
+both panes rendering, stepping advancing the two runs in lockstep, the
+uncontrolled corridor finishing `BUNCHED` while the controlled one finishes
+`STABLE`, switching to the severe-cluster scenario resetting both runs, the
+calculation drawer opening, and the return link — with console-error collection
+across the whole flow.
 
 ---
 
-## 21. Build and deployment
+## 22. Build and deployment
 
 Deploys as a standard Next.js application (Vercel, or Node behind a reverse
 proxy). Requirements:
@@ -1089,7 +1429,7 @@ affect the build toolchain only, and do not reach runtime.
 
 ---
 
-## 22. Scripts reference
+## 23. Scripts reference
 
 | Command | What it does |
 | --- | --- |
@@ -1106,11 +1446,13 @@ affect the build toolchain only, and do not reach runtime.
 
 ---
 
-## 23. Troubleshooting
+## 24. Troubleshooting
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | "Basemap Unavailable" | Maps key missing, restricted or unbilled | Check `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`; allow the `localhost` referrer. Everything except the basemap still works. |
+| Google's own "Oops! Something went wrong" panel inside a map | Key rejected for this origin — referrer restriction, billing, or the Maps JavaScript API disabled | The SDK does not reject `importLibrary` for this; `gm_authFailure` is the only signal, and `src/lib/maps/authFailure.ts` surfaces it. Fix the key restriction for the origin you are serving from. |
+| Simulator maps blank but the dashboard map works | Same key, but the simulator is on a different route than the referrer restriction allows | Restrictions are per-origin, not per-route — check the origin, not the path. |
 | Amber "fixture fallback" banner | Upstream unreachable | Real captured data is being served. Check network access to `margdarshi.upsrtcvlt.com`. |
 | Bus count is zero | Upstream returned no usable records | Open **Diagnostics** for raw vs normalized vs rejected counts. |
 | "No schedule assigned" | Genuine upstream response for that vehicle on every candidate date | Pick a bus showing a route name in the fleet list. |
@@ -1127,7 +1469,7 @@ only whether configuration is present.
 
 ---
 
-## 24. Data-labelling rules
+## 25. Data-labelling rules
 
 These are enforced in code, not left to discipline:
 
@@ -1148,7 +1490,7 @@ These are enforced in code, not left to discipline:
 
 ---
 
-## 25. Safety disclaimer
+## 26. Safety disclaimer
 
 This is a prototype. Vehicle positions and schedules are live UPSRTC data.
 Alerts, recommendations, traffic conditions, demand forecasts, breakdowns and
@@ -1164,7 +1506,7 @@ backend integration.
 
 ---
 
-## 26. Further documentation
+## 27. Further documentation
 
 | Document | Contents |
 | --- | --- |
