@@ -1,4 +1,4 @@
-export const PRODUCT_NAME = 'TITANX AI';
+export const PRODUCT_NAME = 'OLYMPUSS AI';
 export const PRODUCT_SUBTITLE = 'Predictive Fleet Command Intelligence';
 
 export const LIVE_POLL_INTERVAL_MS = 15_000;

@@ -111,7 +111,7 @@ export function clearAuditLog(): AuditEvent[] {
 export function exportAuditJson(events: AuditEvent[]): string {
   return JSON.stringify(
     {
-      product: 'TitanX AI',
+      product: 'Olympuss AI',
       exportedAt: new Date().toISOString(),
       notice:
         'Prototype audit trail. Vehicle identity and position are live UPSRTC data; alerts, analyses, messages and calls are model-driven and were not transmitted.',
@@ -130,7 +130,7 @@ export function exportAuditSummary(events: AuditEvent[]): string {
   }
 
   const lines = [
-    'TITANX AI — SESSION SUMMARY',
+    'OLYMPUSS AI — SESSION SUMMARY',
     '='.repeat(56),
     `Generated: ${new Date().toISOString()}`,
     `Total events: ${events.length}`,

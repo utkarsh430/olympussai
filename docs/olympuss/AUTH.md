@@ -93,7 +93,7 @@ Cloud restrictions, not obscurity:
 - Restrict to the **Maps JavaScript API** only.
 - Use a **separate** development key restricted to `localhost`.
 - Set quotas and billing alerts.
-- Do **not** reuse the TitanX production key — configure a fresh restricted key.
+- Do **not** reuse the original prototype production key — configure a fresh restricted key.
 
 ## API endpoint visibility
 

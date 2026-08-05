@@ -59,7 +59,7 @@ export function ImpactDashboard() {
                   Projected Operational Impact
                 </h2>
                 <p className="font-mono text-[10px] text-holo-glow/45">
-                  TitanX AI — projected operational outcomes
+                  Olympuss AI — projected operational outcomes
                 </p>
               </div>
 

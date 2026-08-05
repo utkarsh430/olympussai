@@ -12,7 +12,7 @@ plain text, buttons in **bold**.
 
 _Full-screen command centre, no bus selected._
 
-> "This is TitanX AI.
+> "This is Olympuss AI.
 >
 > What you are looking at is not a mock-up. Every marker on this map is a real
 > UPSRTC bus, streaming live from our own GPS infrastructure, refreshed every

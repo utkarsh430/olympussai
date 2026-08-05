@@ -1,7 +1,7 @@
 # Olympuss Migration — Pre-Migration Baseline
 
 Recorded before any Olympuss changes, on branch `feature/olympuss-v1`, from the
-clean source snapshot (`dfc5de6`) of the UPSRTC AI Copilot ("TitanX") app.
+clean source snapshot (`dfc5de6`) of the UPSRTC AI Copilot app.
 
 This file separates **pre-existing** state from anything the migration
 introduces, so regressions are unambiguous.
@@ -45,6 +45,6 @@ No middleware. No auth. Single-page dashboard (UI state, not nested URLs).
 
 ## Rollback
 
-- Tag/branch in the ORIGINAL TitanX repo is untouched and out of scope here.
+- Tag/branch in the ORIGINAL prototype repo is untouched and out of scope here.
 - In THIS repo: base commit `dfc5de6`; `git reset --hard dfc5de6` returns to the
   clean snapshot. `main` branch holds the untouched snapshot.

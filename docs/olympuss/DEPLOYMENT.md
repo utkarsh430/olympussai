@@ -1,11 +1,11 @@
 # Olympuss AI — Deployment
 
 Target: **https://olympuss.us** on Vercel, from this repository's own new GitHub
-remote (never the TitanX remote).
+remote (never the original prototype remote).
 
 ## 1. Prerequisites
 
-- A new, empty GitHub repository for Olympuss (do not reuse `utkarsh430/TitanX`).
+- A new, empty GitHub repository for Olympuss (do not reuse the original prototype repository).
 - A Vercel project linked to that repo.
 - Node 18.18+ (Next 15). Package manager: **npm** (commit `package-lock.json`).
 
@@ -25,7 +25,7 @@ Set these in the Vercel project (Production + Preview). Never commit real values
 
 ## 3. Google Maps key restrictions (production)
 
-Configure a **separate, restricted** key — do not reuse the TitanX key:
+Configure a **separate, restricted** key — do not reuse the original prototype key:
 
 - Application restriction: **HTTP referrers** → `https://olympuss.us/*` (and
   `https://www.olympuss.us/*` if used). Use a separate key restricted to

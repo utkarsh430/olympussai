@@ -94,7 +94,7 @@ export function CopilotPanel() {
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.16em] text-holo-glow">
             <Bot className="h-3.5 w-3.5" aria-hidden />
-            TitanX Copilot
+            Olympuss Copilot
           </h2>
           <span className="rounded border border-holo-teal/45 bg-holo-teal/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-holo-teal">
             Predictive

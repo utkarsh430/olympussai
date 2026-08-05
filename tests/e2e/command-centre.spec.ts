@@ -70,8 +70,8 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   test('1. command centre loads with identity and connection status', async ({ page }) => {
     await page.goto('/project/upsrtc');
 
-    // The command bar now carries the Olympuss project identity (the TitanX
-    // heading + subtitle were removed).
+    // The command bar carries the Olympuss project identity (the former
+    // product heading + subtitle were removed).
     await expect(page.getByText('Olympuss AI')).toBeVisible();
     await expect(page.getByText('Project Environment')).toBeVisible();
     await expect(page.getByText(/CONNECTED|FIXTURE|STALE CACHE|DEGRADED/).first()).toBeVisible();
