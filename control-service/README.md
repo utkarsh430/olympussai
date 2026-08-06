@@ -21,17 +21,54 @@ database.
 That boundary is load-bearing: see section 1 of the integration contract
 for the rejected alternative (shared DB) and why it was rejected.
 
-This directory is schema-only for now.
-The control service's own runtime (ingestion, state estimation, detection,
-command dispatch) is a separate, not-yet-built system.
+The application runtime (Node/TS, Express REST + signed-webhook API, MPC
+solver, on-boot state rehydration, `/healthz` + `/readyz`, Sentry) lives
+under `src/` in this directory - see "Application runtime" below.
+Ingestion and state estimation from live GPS feeds are a further, separate
+piece of work; the runtime here consumes/produces the core-data-model
+tables and exposes the REST/webhook surface, but does not itself run a
+GPS ingestion pipeline yet.
 
 Hosting, CI/CD, staging/pilot environments, health checks, dashboards and
-alerting are now decided in
+alerting are decided in
 [`docs/CONTROL_SERVICE_DEPLOYMENT.md`](../docs/CONTROL_SERVICE_DEPLOYMENT.md)
-(Render, `render.yaml` in this directory) — checked in and ready, but not
-yet live: there is no application scaffold for it to deploy. That doc's
-"Blocker" section is the up-to-date status; read it before starting the
-runtime ticket.
+(Render, `render.yaml` in this directory). The application scaffold that
+doc's "Blocker" section was waiting on now exists (`package.json`,
+`Dockerfile`, health/readiness handlers); connecting `render.yaml` to a
+live Render account/team and setting the `sync: false` secrets is the
+remaining step to go live - see that doc's "Blocker" section for the
+up-to-date status.
+
+## Application runtime
+
+`src/` is a standalone Node/TypeScript service (pnpm, Express, `pg`,
+Zod, `@sentry/node`) - not part of the Next.js app's build. It is its own
+deployable with its own `package.json`, lockfile and lifecycle, matching
+the boundary described in `docs/CONTROL_SERVICE_INTEGRATION.md` section 1.
+
+```sh
+cd control-service
+pnpm install
+cp .env.example .env.local   # fill in CONTROL_SERVICE_DATABASE_URL etc.
+pnpm dev                     # tsx watch, local dev
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
+```
+
+Key pieces:
+
+- `GET /healthz` / `GET /readyz` - liveness/readiness, exact contract in
+  `docs/CONTROL_SERVICE_DEPLOYMENT.md` "Health/readiness contract".
+- `POST /v1/commands` - service-token authenticated; enforces the
+  `dispatcherActionId` non-negotiable from
+  `docs/CONTROL_SERVICE_INTEGRATION.md` section 1 (both at the request
+  layer and, as the actual source of truth, via the
+  `consume_dispatcher_action` DB trigger), then dispatches an HMAC-signed
+  webhook back to the web app.
+- `GET /v1/vehicle-states`, `POST /v1/mpc/solve` - service-token
+  authenticated reads/compute against the in-memory state rehydrated on
+  boot from `vehicle_states` / `headway_states` / `route_policies`.
+- `control-service/Dockerfile` - multi-stage build referenced by
+  `render.yaml` (`dockerfilePath: ./control-service/Dockerfile`).
 
 ## Applying migrations
 

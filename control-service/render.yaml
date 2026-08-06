@@ -2,12 +2,12 @@
 # service). See docs/CONTROL_SERVICE_DEPLOYMENT.md for the full plan this
 # implements and control-service/README.md for the service's scope.
 #
-# STATUS: inert until the control-service application scaffold (a
-# Dockerfile at control-service/Dockerfile, or a package.json for Render's
-# native Node runtime, plus /healthz and /readyz handlers) lands. This
-# blueprint is not yet connected to a Render account/team - there is no
-# live infra behind it. It is checked in now so the runtime ticket only
-# has to add application code, not invent the deploy topology.
+# STATUS: application scaffold now exists (control-service/Dockerfile,
+# package.json, /healthz + /readyz handlers - see control-service/README.md
+# "Application runtime"). This blueprint is still not connected to a
+# Render account/team - there is no live infra behind it yet. Connecting
+# it, setting the `sync: false` secrets below, and pushing to dev/main is
+# the remaining step; see docs/CONTROL_SERVICE_DEPLOYMENT.md "Blocker".
 #
 # Two independently-deployable environments, per the ticket's "separate
 # staging/pilot envs" requirement:

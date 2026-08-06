@@ -1,0 +1,26 @@
+// GET /v1/vehicle-states - web -> control-service, service-token
+// authenticated. Reads the in-memory state store (rehydrated on boot, kept
+// current by the state estimator - out of scope for this ticket) rather
+// than hitting Postgres on every poll, since this is the same data path
+// /readyz already guarantees is populated before the instance takes
+// traffic.
+import { Router } from 'express';
+import { AppError, sendError } from '../lib/errors.js';
+import { listVehicleStatesQuerySchema } from '../models/schemas.js';
+import { stateStore } from '../state/store.js';
+
+export const vehicleStatesRouter = Router();
+
+// Synchronous handler (in-memory read, no I/O): Express 4 catches a
+// synchronous throw from a route handler and forwards it to errorHandler
+// on its own, so this deliberately skips asyncHandler rather than wrapping
+// a function with no await in one.
+vehicleStatesRouter.get('/v1/vehicle-states', (req, res) => {
+  const parsed = listVehicleStatesQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    sendError(res, new AppError('invalid_request', 'Invalid query parameters', 400, parsed.error.flatten()));
+    return;
+  }
+  const vehicleStates = stateStore.listVehicleStates(parsed.data.routeDirectionId);
+  res.status(200).json({ vehicleStates });
+});
