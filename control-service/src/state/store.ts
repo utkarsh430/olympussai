@@ -13,6 +13,10 @@ export interface VehicleStateRow {
   currentStopId: string | null;
   confidence: number | null;
   observedAt: string;
+  /** Raw passenger count from the last onboard count sample, when the ingestion path reports one (blueprint 8.6 "occupancy is central" - schema column `vehicle_states.occupancy_count`). Null when unknown; the MPC occupancy weighting treats that as "estimated" rather than failing closed. */
+  occupancyCount: number | null;
+  /** Coarse load-band label alongside the count, when supplied by upstream (e.g. 'light' | 'moderate' | 'full'); not validated here, just passed through. */
+  occupancyLoadBand: string | null;
 }
 
 export interface HeadwayStateRow {
@@ -40,6 +44,12 @@ export interface RoutePolicyRow {
   selfEqualizingK: number | null;
   maxHoldSeconds: number;
   cooldownSeconds: number;
+  /** route_policies.prediction_horizon_control_points (Appendix C "prediction horizon"). Used to label/scale the occupancy-weighted MPC advisory, not to run a true multi-step solve yet. */
+  predictionHorizonControlPoints: number;
+  /** route_policies.occupancy_stale_seconds - an occupancy sample older than this is not "live" for MPC weighting purposes and the advisory must fall back to an estimated load instead of trusting it. Null means no configured limit (occupancy is never treated as fresh). */
+  occupancyStaleSeconds: number | null;
+  /** route_policies.occupancy_capacity - denominator for load fraction. Null means capacity is unknown for this route-direction, so occupancy weighting falls back to an estimated mid-load fraction. */
+  occupancyCapacity: number | null;
 }
 
 export type RehydrationStatus = 'pending' | 'in_progress' | 'complete' | 'failed';
@@ -48,6 +58,8 @@ class ControlStateStore {
   private vehicleStates = new Map<string, VehicleStateRow>();
   private headwayStatesByRouteDirection = new Map<string, HeadwayStateRow[]>();
   private activePoliciesByRouteDirection = new Map<string, RoutePolicyRow[]>();
+  /** route-direction -> the stop_id at sequence 0 in route_direction_stops, i.e. its origin terminal (blueprint 8.2 "Algorithm A - Terminal dispatch regulation": "at the origin, regulate actual departure headway"). */
+  private terminalStopByRouteDirection = new Map<string, string>();
   private _status: RehydrationStatus = 'pending';
   private _rehydratedAt: string | undefined;
   private _lastError: string | undefined;
@@ -98,6 +110,14 @@ class ControlStateStore {
     this.activePoliciesByRouteDirection = grouped;
   }
 
+  loadTerminalStops(rows: { routeDirectionId: string; stopId: string }[]): void {
+    this.terminalStopByRouteDirection = new Map(rows.map((r) => [r.routeDirectionId, r.stopId]));
+  }
+
+  getTerminalStopId(routeDirectionId: string): string | undefined {
+    return this.terminalStopByRouteDirection.get(routeDirectionId);
+  }
+
   getVehicleState(vehicleId: string): VehicleStateRow | undefined {
     return this.vehicleStates.get(vehicleId);
   }
@@ -139,6 +159,7 @@ class ControlStateStore {
     this.vehicleStates.clear();
     this.headwayStatesByRouteDirection.clear();
     this.activePoliciesByRouteDirection.clear();
+    this.terminalStopByRouteDirection.clear();
     this._status = 'pending';
     this._rehydratedAt = undefined;
     this._lastError = undefined;

@@ -117,6 +117,40 @@ Run `pnpm install && pnpm lint && pnpm typecheck && pnpm test && pnpm build`
 from this directory to verify. These are exactly the steps
 `.github/workflows/ci-control-service.yml` runs in CI.
 
+## Decision engine (`src/mpc/`, `src/tsp/`)
+
+`POST /v1/mpc/solve` (`src/mpc/solver.ts`) runs the control hierarchy from
+blueprint section 8 against the in-memory state for one route-direction:
+
+- `terminalDispatch.ts` - Algorithm A, terminal dispatch regulation
+  (8.2): the default first line for a vehicle dwelling at the
+  route-direction's origin terminal (`route_direction_stops` sequence 0,
+  loaded into `stateStore` on rehydrate).
+- `twoWayHold.ts` / `selfEqualizing.ts` - Algorithms B/C (8.3/8.4), exactly
+  the Appendix A formulas. Self-equalizing only fires for a pair two-way
+  couldn't cover (missing Kf/Kb or backward headway) - it is a fallback,
+  not a second opinion on the same pair.
+- `safety.ts` - the hard safety filter (9.1 step 5): rejects a candidate
+  computed from stale state, one that breaches the policy's max-hold cap,
+  or one whose vehicle already has a conflicting active command
+  (`listActiveVehicleIds` in `src/db/commands.ts`). Rejections are
+  returned (not dropped) on `rejectedCandidates` for auditability.
+- `occupancyMpc.ts` - Algorithm E (8.6), an occupancy-weighted re-score of
+  the safety-filtered candidates against the Appendix A wait/onboard cost
+  terms. Returned as `predictiveAdvisory`, always `label: 'PREDICTIVE'` -
+  advisory only, never the source of `selectedActionType` (matches the
+  blueprint's phasing: MPC follows the simulator/command workflow, it
+  doesn't replace the deterministic controllers yet).
+
+`src/tsp/eligibility.ts` is the conditional Transit Signal Priority
+eligibility stub from Appendix E Phase 5 / blueprint 8.7: a pure function
+that decides whether a gapped bus with an authorized signal interface and
+fresh state qualifies, and if so computes the request payload it would
+carry. It never makes a network call - wiring an actual signal-interface
+adapter is separate, tracked work. `test/tspEligibility.test.ts` is its
+regression suite and must stay green before any future ticket connects it
+to a live interface.
+
 ## Simulator (historical replay & regression suite)
 
 `src/simulation/` is a calibrated event-based/mesoscopic simulator
