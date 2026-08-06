@@ -16,13 +16,13 @@ operational system requires the work below. Nothing here is implemented.
 
 Scope deliberately narrow: bunching detection and driver communication only.
 
-| Workstream | Work |
-| --- | --- |
-| Data | Stable upstream contract; agreed SLA; historical archive for training |
-| Bunching | Replace the template with a real headway model using actual AVL history |
-| Communication | Integrate an approved messaging channel; consent and audit requirements |
-| Evaluation | Advisory mode only — log every recommendation and every dispatcher decision |
-| Success criteria | Measured change in bunching frequency and dispatcher response time |
+| Workstream       | Work                                                                        |
+| ---------------- | --------------------------------------------------------------------------- |
+| Data             | Stable upstream contract; agreed SLA; historical archive for training       |
+| Bunching         | Replace the template with a real headway model using actual AVL history     |
+| Communication    | Integrate an approved messaging channel; consent and audit requirements     |
+| Evaluation       | Advisory mode only — log every recommendation and every dispatcher decision |
+| Success criteria | Measured change in bunching frequency and dispatcher response time          |
 
 The pilot's purpose is to replace the illustrative figures in this prototype
 with measured ones.
@@ -43,16 +43,16 @@ with measured ones.
 
 ## Phase 4 — Platform hardening
 
-| Area | Requirement |
-| --- | --- |
-| Backend | Move from in-memory cache to Redis; horizontal scaling |
-| Storage | Time-series store for telemetry history |
-| Auth | SSO, role-based access, dispatcher identity on every action |
-| Audit | Server-side immutable audit trail (the prototype's is browser-local) |
-| Realtime | WebSocket/SSE push instead of 15s polling |
-| Observability | Metrics, tracing, alerting, upstream health SLOs |
-| Resilience | Multi-region failover; graceful degradation drills |
-| Compliance | Data retention policy; driver privacy protections |
+| Area          | Requirement                                                                                                                                                                                                                                                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Backend       | Move from in-memory cache to Redis; horizontal scaling                                                                                                                                                                                                                                                                                                 |
+| Storage       | Time-series store for telemetry history                                                                                                                                                                                                                                                                                                                |
+| Auth          | ~~SSO, role-based access, dispatcher identity on every action~~ — role-based access and dispatcher identity implemented: per-person, admin-invited accounts for driver/dispatcher/depot/control-room/planner (`docs/olympuss/RBAC.md`). SSO (federating to an external IdP instead of this app's own password accounts) is still open.                 |
+| Audit         | ~~Server-side immutable audit trail (the prototype's is browser-local)~~ — implemented for the ops RBAC surface: `ops_audit_log` (`db/migrations/`), append-only, every privileged action attributed to a user (`docs/olympuss/RBAC.md`). The pitch-demo command centre's audit log remains browser-local by design — it is not an operational record. |
+| Realtime      | WebSocket/SSE push instead of 15s polling                                                                                                                                                                                                                                                                                                              |
+| Observability | Metrics, tracing, alerting, upstream health SLOs                                                                                                                                                                                                                                                                                                       |
+| Resilience    | Multi-region failover; graceful degradation drills                                                                                                                                                                                                                                                                                                     |
+| Compliance    | Data retention policy; driver privacy protections                                                                                                                                                                                                                                                                                                      |
 
 ## Explicit non-goals for any near-term phase
 
@@ -72,11 +72,11 @@ it.
 
 ## Known gaps in the current prototype
 
-| Gap | Impact |
-| --- | --- |
-| Audit trail is browser-local | Not suitable as an operational record |
-| Cache is per-process in-memory | Will not survive restart or scale horizontally |
-| No authentication | Anyone with the URL sees the fleet |
-| No rate limiting on proxy routes | Upstream could be overloaded by request volume |
+| Gap                                      | Impact                                                     |
+| ---------------------------------------- | ---------------------------------------------------------- |
+| Audit trail is browser-local             | Not suitable as an operational record                      |
+| Cache is per-process in-memory           | Will not survive restart or scale horizontally             |
+| No authentication                        | Anyone with the URL sees the fleet                         |
+| No rate limiting on proxy routes         | Upstream could be overloaded by request volume             |
 | Schedule polylines skip unsurveyed stops | Route geometry is partial where upstream lacks coordinates |
-| No historical data | All analysis is instantaneous; no trend detection |
+| No historical data                       | All analysis is instantaneous; no trend detection          |

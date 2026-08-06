@@ -2,6 +2,12 @@
 
 Single-project PIN authentication gating the UPSRTC dashboard and its data APIs.
 
+> This document covers ONLY the shared-PIN system for `/project/upsrtc` and
+> `/project/bunching`, which this file describes unchanged. Per-person,
+> admin-invited accounts for the five operational roles (driver, dispatcher,
+> depot, control-room, planner) are a separate system — see
+> [`RBAC.md`](./RBAC.md).
+
 ## Model
 
 - **Credentials:** a project name (compared case-insensitively, trimmed) and a
@@ -34,11 +40,11 @@ Single-project PIN authentication gating the UPSRTC dashboard and its data APIs.
 
 ## Endpoints
 
-| Route | Method | Purpose |
-| --- | --- | --- |
-| `/api/auth/login` | POST | Validate + set session cookie |
-| `/api/auth/logout` | POST | Clear session cookie |
-| `/api/auth/session` | GET | Safe status: `{ authenticated, project?, expiresAt? }` |
+| Route               | Method | Purpose                                                |
+| ------------------- | ------ | ------------------------------------------------------ |
+| `/api/auth/login`   | POST   | Validate + set session cookie                          |
+| `/api/auth/logout`  | POST   | Clear session cookie                                   |
+| `/api/auth/session` | GET    | Safe status: `{ authenticated, project?, expiresAt? }` |
 
 `login` enforces: same-origin (Origin/Referer vs host), `application/json` only,
 zod-validated body, project-name normalization, rate limiting, and a **single
