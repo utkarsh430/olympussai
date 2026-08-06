@@ -239,18 +239,42 @@ describe('ScheduleLookupForm action flow', () => {
   });
 });
 
-describe('BreakdownReportPanel', () => {
-  it('composes a local report summary without calling a backend endpoint', () => {
-    const fetchMock = vi.fn();
+describe('BreakdownReportPanel action flow', () => {
+  it('submits to POST /api/ops/driver/breakdown-reports and shows the returned breakdownReportId plus a read-out summary on success', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, breakdownReportId: 'report-789', createdAt: '2026-08-06T00:00:00.000Z' }),
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<BreakdownReportPanel defaultVehicleReg="UP25FT4823" />);
     fireEvent.change(screen.getByLabelText(/details/i), { target: { value: 'Engine overheating near KM 12' } });
-    fireEvent.click(screen.getByRole('button', { name: /prepare report/i }));
+    fireEvent.click(screen.getByRole('button', { name: /submit report/i }));
 
-    const summary = screen.getByRole('status');
+    const summary = await screen.findByRole('status');
+    expect(within(summary).getByText(/report-789/)).toBeInTheDocument();
     expect(within(summary).getByText(/UP25FT4823/)).toBeInTheDocument();
     expect(within(summary).getByText(/Engine overheating near KM 12/)).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/ops/driver/breakdown-reports',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('shows a visible error when the breakdown-report endpoint rejects the request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({
+        error: { code: 'INVALID_BODY', message: 'A valid vehicleReg, category and description are required.' },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<BreakdownReportPanel defaultVehicleReg="UP25FT4823" />);
+    fireEvent.change(screen.getByLabelText(/details/i), { target: { value: 'Engine overheating near KM 12' } });
+    fireEvent.click(screen.getByRole('button', { name: /submit report/i }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/vehicleReg, category and description/i));
   });
 });

@@ -65,6 +65,22 @@ export interface DispatcherActionRecord {
   createdAt: string;
 }
 
+export interface BreakdownReportInput {
+  driverUserId: string;
+  vehicleReg: string;
+  category: string;
+  description: string;
+}
+
+export interface BreakdownReportRecord {
+  id: string;
+  driverUserId: string;
+  vehicleReg: string;
+  category: string;
+  description: string;
+  createdAt: string;
+}
+
 export interface OpsRepo {
   findUserByEmail(email: string): Promise<OpsUserRecord | null>;
   findUserById(id: string): Promise<OpsUserRecord | null>;
@@ -108,6 +124,8 @@ export interface OpsRepo {
   findDispatcherAction(id: string): Promise<DispatcherActionRecord | null>;
   /** Atomically marks the action consumed IFF it was not already consumed. Returns null if already consumed or missing. */
   consumeDispatcherAction(id: string): Promise<DispatcherActionRecord | null>;
+
+  createBreakdownReport(input: BreakdownReportInput): Promise<BreakdownReportRecord>;
 }
 
 function mapUserRow(row: Record<string, unknown>): OpsUserRecord {
@@ -143,6 +161,17 @@ function mapDispatcherActionRow(row: Record<string, unknown>): DispatcherActionR
     actionType: String(row.action_type),
     reason: String(row.reason),
     consumedAt: row.consumed_at ? new Date(row.consumed_at as string).toISOString() : null,
+    createdAt: new Date(row.created_at as string).toISOString(),
+  };
+}
+
+function mapBreakdownReportRow(row: Record<string, unknown>): BreakdownReportRecord {
+  return {
+    id: String(row.id),
+    driverUserId: String(row.driver_user_id),
+    vehicleReg: String(row.vehicle_reg),
+    category: String(row.category),
+    description: String(row.description),
     createdAt: new Date(row.created_at as string).toISOString(),
   };
 }
@@ -352,6 +381,18 @@ class PgOpsRepo implements OpsRepo {
       [id],
     );
     return rows[0] ? mapDispatcherActionRow(rows[0]) : null;
+  }
+
+  async createBreakdownReport(input: BreakdownReportInput): Promise<BreakdownReportRecord> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query(
+      `insert into ops_breakdown_reports
+         (driver_user_id, vehicle_reg, category, description)
+       values ($1, $2, $3, $4)
+       returning *`,
+      [input.driverUserId, input.vehicleReg, input.category, input.description],
+    );
+    return mapBreakdownReportRow(rows[0]);
   }
 }
 
