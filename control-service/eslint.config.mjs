@@ -25,6 +25,7 @@ export default tseslint.config(
       ],
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/no-explicit-any': 'error',
     },
   },
   {
@@ -38,12 +39,14 @@ export default tseslint.config(
   {
     // Test files assert against loosely-typed fixtures (e.g. supertest's
     // `res.body: any`) - relax the unsafe-* rules here rather than force
-    // a response-body type cast in every assertion.
-    files: ['test/**/*.ts'],
+    // a response-body type cast in every assertion. Covers both the
+    // application-runtime suite (`test/`) and the state-estimation suite
+    // (`tests/`).
+    files: ['test/**/*.ts', 'tests/**/*.ts'],
     rules: {
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
     },
-  },
+  }
 );

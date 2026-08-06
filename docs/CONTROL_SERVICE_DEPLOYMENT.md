@@ -15,23 +15,29 @@ infra exists).
 
 ## Blocker (read this first)
 
-`control-service/` currently contains only SQL migrations
-(`db/migrations/20260805190000__core_data_model.sql`). There is no
-application code: no server entrypoint, no `package.json`, no
-`Dockerfile`, no `/healthz` or `/readyz` handler, no MPC solver, no REST
-or webhook layer. That runtime is explicitly called out as "a separate,
-not-yet-built system" in `control-service/README.md`.
+`control-service/package.json` now exists: the live route-direction state
+estimator (map matching, direction confidence, Kalman smoothing,
+stop-state classification, leader-follower ordering - see
+`src/state-estimation/`) is real, tested application code, not just SQL.
+`ci-control-service.yml`'s scaffold-detection step now finds a
+`package.json` and runs real lint/typecheck/test/build against it (all
+four pass locally as of this change: 59 tests). What's still missing is
+the piece that turns this into a deployable service: no server
+entrypoint, no `Dockerfile`, no `/healthz` or `/readyz` handler, no MPC
+solver, no REST ingestion endpoint or webhook layer. Nothing in
+`control-service/src/` is wired to an HTTP listener yet - it is a library
+waiting for that runtime to import it. `control-service/README.md` has
+been updated to match.
 
 Consequences for this ticket's acceptance criteria, stated plainly instead
 of worked around:
 
 - **"CI runs lint/typecheck/test/build ... for both codebases"** - done
-  for the web app now (`.github/workflows/ci-web.yml`, real, currently
-  green). For control-service, `.github/workflows/ci-control-service.yml`
-  is wired and will start enforcing lint/typecheck/test/build the moment
-  `control-service/package.json` exists - it cannot enforce checks against
-  code that isn't there yet, and a no-op green check would misrepresent
-  coverage that doesn't exist.
+  for the web app (`.github/workflows/ci-web.yml`, real, currently green)
+  and now also enforced for real against `control-service/` (lint,
+  typecheck, 59 unit tests, build all pass in CI as of this change) -
+  though it only covers the state-estimation library so far, not an HTTP
+  server, since that doesn't exist yet.
 - **"Service deploys via CI/CD, rehydrates state from DB on restart,
   separate staging/pilot envs"** - topology decided and checked in
   (`control-service/render.yaml`), not live. There is nothing to deploy

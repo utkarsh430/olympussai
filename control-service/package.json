@@ -2,7 +2,7 @@
   "name": "control-service",
   "version": "0.1.0",
   "private": true,
-  "description": "Persistent control service: state estimation, MPC solver, REST + signed-webhook API. See docs/CONTROL_SERVICE_INTEGRATION.md and docs/CONTROL_SERVICE_DEPLOYMENT.md at the repo root.",
+  "description": "Persistent control service: live route-direction state estimation, MPC solver, REST + signed-webhook API. See docs/CONTROL_SERVICE_INTEGRATION.md and docs/CONTROL_SERVICE_DEPLOYMENT.md at the repo root.",
   "type": "module",
   "packageManager": "pnpm@10.29.3",
   "engines": {

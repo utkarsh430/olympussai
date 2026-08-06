@@ -4,7 +4,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['test/**/*.test.ts'],
+    // Covers both the application-runtime suite (`test/`) and the
+    // state-estimation suite (`tests/`).
+    include: ['test/**/*.test.ts', 'tests/**/*.test.ts'],
     exclude: ['node_modules/**', 'dist/**'],
     testTimeout: 10_000,
     // Env vars required by src/config/env.ts. Set here (rather than a
