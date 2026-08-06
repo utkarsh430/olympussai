@@ -1,0 +1,80 @@
+name: CI - control service
+
+# Lint/typecheck/test/build gate for control-service/. Scoped separately
+# from ci-web.yml because it is a different deployable with its own
+# lifecycle (docs/CONTROL_SERVICE_INTEGRATION.md section 1).
+#
+# STATUS: control-service currently ships only SQL migrations
+# (control-service/db/migrations) - there is no application scaffold
+# (package.json / Dockerfile) yet. The "Detect scaffold" step below makes
+# that visible instead of silently no-op'ing: PRs that touch only
+# db/migrations still pass (nothing to lint/build), but the moment
+# control-service/package.json lands, the real lint/typecheck/test/build
+# steps start running and gating merge with no further workflow changes
+# needed. See docs/CONTROL_SERVICE_DEPLOYMENT.md for the tracking ticket.
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "control-service/**"
+  push:
+    branches: [main, dev]
+    paths:
+      - "control-service/**"
+
+concurrency:
+  group: ci-control-service-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-typecheck-test-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: control-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect application scaffold
+        id: scaffold
+        run: |
+          if [ -f package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::control-service/package.json not found - no application scaffold yet, skipping lint/typecheck/test/build. This is expected until the control-service runtime ticket lands; see docs/CONTROL_SERVICE_DEPLOYMENT.md."
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: steps.scaffold.outputs.present == 'true'
+        with:
+          version: 10.29.3
+
+      - uses: actions/setup-node@v4
+        if: steps.scaffold.outputs.present == 'true'
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: control-service/pnpm-lock.yaml
+
+      - name: Install dependencies
+        if: steps.scaffold.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        if: steps.scaffold.outputs.present == 'true'
+        run: pnpm lint
+
+      - name: Typecheck
+        if: steps.scaffold.outputs.present == 'true'
+        run: pnpm typecheck
+
+      - name: Unit tests
+        if: steps.scaffold.outputs.present == 'true'
+        run: pnpm test
+
+      - name: Build
+        if: steps.scaffold.outputs.present == 'true'
+        run: pnpm build

@@ -1,0 +1,86 @@
+# Render Blueprint for the control service (route-direction state/MPC
+# service). See docs/CONTROL_SERVICE_DEPLOYMENT.md for the full plan this
+# implements and control-service/README.md for the service's scope.
+#
+# STATUS: inert until the control-service application scaffold (a
+# Dockerfile at control-service/Dockerfile, or a package.json for Render's
+# native Node runtime, plus /healthz and /readyz handlers) lands. This
+# blueprint is not yet connected to a Render account/team - there is no
+# live infra behind it. It is checked in now so the runtime ticket only
+# has to add application code, not invent the deploy topology.
+#
+# Two independently-deployable environments, per the ticket's "separate
+# staging/pilot envs" requirement:
+#   - control-service-staging tracks the `dev` branch, auto-deploys on
+#     every merge.
+#   - control-service-pilot tracks the `main` branch, auto-deploys on
+#     merge (promote staging -> main via PR, same as the web app).
+# Each environment gets its own Postgres/PostGIS instance - no data
+# sharing between staging and pilot, matching the "own datastore per
+# service" rule in docs/CONTROL_SERVICE_INTEGRATION.md section 3.
+
+services:
+  - type: web
+    name: control-service-staging
+    runtime: docker
+    dockerfilePath: ./control-service/Dockerfile
+    dockerContext: ./control-service
+    plan: starter
+    region: singapore
+    branch: dev
+    autoDeploy: true
+    healthCheckPath: /healthz
+    numInstances: 1
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: CONTROL_SERVICE_DATABASE_URL
+        fromDatabase:
+          name: control-service-db-staging
+          property: connectionString
+      - key: SERVICE_TOKEN_SECRET
+        sync: false # set via `render env set`, see docs/CONTROL_SERVICE_DEPLOYMENT.md
+      - key: WEBHOOK_HMAC_SECRET
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: staging
+
+  - type: web
+    name: control-service-pilot
+    runtime: docker
+    dockerfilePath: ./control-service/Dockerfile
+    dockerContext: ./control-service
+    plan: standard
+    region: singapore
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /healthz
+    numInstances: 2
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CONTROL_SERVICE_DATABASE_URL
+        fromDatabase:
+          name: control-service-db-pilot
+          property: connectionString
+      - key: SERVICE_TOKEN_SECRET
+        sync: false
+      - key: WEBHOOK_HMAC_SECRET
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: pilot
+
+databases:
+  - name: control-service-db-staging
+    plan: basic-256mb
+    region: singapore
+    postgresMajorVersion: "16"
+
+  - name: control-service-db-pilot
+    plan: basic-1gb
+    region: singapore
+    postgresMajorVersion: "16"
