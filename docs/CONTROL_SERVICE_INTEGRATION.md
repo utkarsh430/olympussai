@@ -176,6 +176,9 @@ must additionally satisfy:
   implementation; this contract holds either way.
 - The table/schema ownership matrix and migration/backup tooling referenced
   in §3 and §5.
-- PostGIS hosting choice (not all managed Postgres offerings support it) —
-  an infra decision for the ticket that provisions the control service's
-  datastore.
+- ~~PostGIS hosting choice (not all managed Postgres offerings support
+  it) — an infra decision for the ticket that provisions the control
+  service's datastore.~~ Decided: Render managed Postgres (supports the
+  `postgis` extension), one instance per environment. See
+  `docs/CONTROL_SERVICE_DEPLOYMENT.md`. Not yet live — blocked on the
+  control-service application scaffold, per that doc's "Blocker" section.

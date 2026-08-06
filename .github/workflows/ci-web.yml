@@ -1,0 +1,58 @@
+name: CI - web app
+
+# Lint/typecheck/test/build gate for the Next.js app (repo root). Required
+# status check for merge into main/dev - see branch protection note in
+# docs/CONTROL_SERVICE_DEPLOYMENT.md.
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths-ignore:
+      - "control-service/**"
+      - "docs/**"
+      - "**/*.md"
+  push:
+    branches: [main, dev]
+
+concurrency:
+  group: ci-web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-typecheck-test-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+        env:
+          # Build-time NEXT_PUBLIC_* values are inlined into the bundle.
+          # Populate from repo secrets so a CI build catches the same
+          # failures a real deploy would hit. Values live in GitHub repo
+          # secrets (Settings > Secrets > Actions), mirrored from the
+          # project's secrets vault - never hardcoded here.
+          NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}

@@ -23,11 +23,15 @@ for the rejected alternative (shared DB) and why it was rejected.
 
 This directory is schema-only for now.
 The control service's own runtime (ingestion, state estimation, detection,
-command dispatch) is a separate, not-yet-built system; provisioning,
-hosting, and a migration-runner choice for it are out of scope for this
-ticket (see section 6 of the integration contract — "PostGIS hosting
-choice ... an infra decision for the ticket that provisions the control
-service's datastore").
+command dispatch) is a separate, not-yet-built system.
+
+Hosting, CI/CD, staging/pilot environments, health checks, dashboards and
+alerting are now decided in
+[`docs/CONTROL_SERVICE_DEPLOYMENT.md`](../docs/CONTROL_SERVICE_DEPLOYMENT.md)
+(Render, `render.yaml` in this directory) — checked in and ready, but not
+yet live: there is no application scaffold for it to deploy. That doc's
+"Blocker" section is the up-to-date status; read it before starting the
+runtime ticket.
 
 ## Applying migrations
 
