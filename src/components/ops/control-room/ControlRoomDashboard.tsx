@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { OpsFleetSnapshot } from '@/lib/ops/fleetData';
 import { filterFleet } from '@/lib/ops/fleetView';
 import { DataSourceNotice } from '@/components/ops/DataSourceNotice';
@@ -20,6 +21,15 @@ export function ControlRoomDashboard({ snapshot, query }: { snapshot: OpsFleetSn
   return (
     <div className="space-y-8">
       <DataSourceNotice source={snapshot.source} stale={snapshot.stale} error={snapshot.error} />
+
+      <p>
+        <Link
+          href="/ops/control-room/observability"
+          className="inline-flex items-center gap-2 rounded-md border border-[rgba(255,255,255,0.14)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8fb4ff] hover:border-[#4f8cff]/60"
+        >
+          Live observability &rarr; headway / EWT / CV / incidents
+        </Link>
+      </p>
 
       <section>
         <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">

@@ -11,6 +11,14 @@ import {
   commandSchema,
   outcomeSchema,
   routePolicySchema,
+  routeDirectionMetaSchema,
+  headwayPairMetricSchema,
+  headwayAggregateSchema,
+  incidentChangeSchema,
+  headwayComputeResultSchema,
+  incidentsResponseSchema,
+  routeDirectionsResponseSchema,
+  vehicleStatesResponseSchema,
 } from '@/models/control';
 
 describe('control service wire-contract schemas', () => {
@@ -241,5 +249,166 @@ describe('control service wire-contract schemas', () => {
     });
     expect(parsed.maxHoldSeconds).toBe(90);
     expect(parsed.authorizedActions.two_way_hold).toBe('automatic');
+  });
+
+  it('accepts a vehicle state that omits position/heading/occupancy (today\'s actual GET /v1/vehicle-states shape)', () => {
+    const parsed = vehicleStateSchema.parse({
+      vehicleId: 'V1',
+      tripId: null,
+      routeDirectionId: 'dir-1',
+      distanceAlongRouteMeters: 120.5,
+      speedKmph: 22.4,
+      stopState: 'off_route',
+      currentStopId: null,
+      confidence: 0.9,
+      observedAt: '2026-08-06T06:01:00Z',
+    });
+    expect(parsed.position).toBeUndefined();
+    expect(parsed.speedKmph).toBe(22.4);
+  });
+
+  it('accepts a route-direction metrics projection', () => {
+    const parsed = routeDirectionMetaSchema.parse({
+      routeDirectionId: 'dir-1',
+      routeId: 'R1',
+      directionCode: 'up',
+      isLoop: false,
+      totalDistanceMeters: 18500,
+    });
+    expect(parsed.isLoop).toBe(false);
+  });
+
+  it('accepts a headway pair metric with a null backward headway (stationary leader)', () => {
+    const parsed = headwayPairMetricSchema.parse({
+      id: 'hs-1',
+      routeDirectionId: 'dir-1',
+      leaderVehicleId: 'V1',
+      followerVehicleId: 'V2',
+      gapMeters: 900,
+      hFwdSeconds: 180,
+      hBwdSeconds: null,
+      targetHeadwaySeconds: 300,
+      deviationSeconds: -120,
+      confidence: 0.8,
+    });
+    expect(parsed.hBwdSeconds).toBeNull();
+    expect(parsed.deviationSeconds).toBe(-120);
+  });
+
+  it('accepts a headway aggregate with CV/EWT', () => {
+    const parsed = headwayAggregateSchema.parse({
+      routeDirectionId: 'dir-1',
+      sampleCount: 4,
+      meanHeadwaySeconds: 280,
+      stddevHeadwaySeconds: 60,
+      cv: 0.214,
+      ewtSeconds: 15.2,
+      targetHeadwaySeconds: 300,
+    });
+    expect(parsed.cv).toBeCloseTo(0.214);
+  });
+
+  it('accepts a zero-sample headway aggregate (all metrics null, never thrown)', () => {
+    const parsed = headwayAggregateSchema.parse({
+      routeDirectionId: 'dir-1',
+      sampleCount: 0,
+      meanHeadwaySeconds: null,
+      stddevHeadwaySeconds: null,
+      cv: null,
+      ewtSeconds: null,
+      targetHeadwaySeconds: 300,
+    });
+    expect(parsed.sampleCount).toBe(0);
+  });
+
+  it('accepts an "opened" incident change and rejects an unknown action', () => {
+    expect(() =>
+      incidentChangeSchema.parse({
+        routeDirectionId: 'dir-1',
+        leaderVehicleId: 'V1',
+        followerVehicleId: 'V2',
+        action: 'opened',
+        severity: 'bunched',
+        incidentId: 'inc-1',
+        ratio: 0.18,
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      incidentChangeSchema.parse({
+        routeDirectionId: 'dir-1',
+        leaderVehicleId: 'V1',
+        followerVehicleId: 'V2',
+        action: 'exploded',
+        severity: null,
+        incidentId: null,
+        ratio: null,
+      }),
+    ).toThrow();
+  });
+
+  it('accepts a full headway compute result (pairs + aggregate + incident changes)', () => {
+    const parsed = headwayComputeResultSchema.parse({
+      routeDirectionId: 'dir-1',
+      computedAt: '2026-08-06T06:01:00Z',
+      pairs: [
+        {
+          id: 'hs-1',
+          routeDirectionId: 'dir-1',
+          leaderVehicleId: 'V1',
+          followerVehicleId: 'V2',
+          gapMeters: 900,
+          hFwdSeconds: 180,
+          hBwdSeconds: 200,
+          targetHeadwaySeconds: 300,
+          deviationSeconds: -120,
+          confidence: 0.8,
+        },
+      ],
+      aggregate: {
+        routeDirectionId: 'dir-1',
+        sampleCount: 1,
+        meanHeadwaySeconds: 180,
+        stddevHeadwaySeconds: 0,
+        cv: 0,
+        ewtSeconds: 0,
+        targetHeadwaySeconds: 300,
+      },
+      incidents: [
+        {
+          routeDirectionId: 'dir-1',
+          leaderVehicleId: 'V1',
+          followerVehicleId: 'V2',
+          action: 'opened',
+          severity: 'bunched',
+          incidentId: 'inc-1',
+          ratio: 0.6,
+        },
+      ],
+    });
+    expect(parsed.pairs).toHaveLength(1);
+    expect(parsed.incidents[0]?.action).toBe('opened');
+  });
+
+  it('accepts the GET /v1/route-directions, /v1/vehicle-states and /v1/incidents response envelopes', () => {
+    expect(() => routeDirectionsResponseSchema.parse({ routeDirections: [] })).not.toThrow();
+    expect(() =>
+      vehicleStatesResponseSchema.parse({
+        vehicleStates: [
+          {
+            vehicleId: 'V1',
+            tripId: null,
+            routeDirectionId: 'dir-1',
+            distanceAlongRouteMeters: 100,
+            speedKmph: 20,
+            stopState: 'off_route',
+            currentStopId: null,
+            confidence: 0.7,
+            observedAt: '2026-08-06T06:00:00Z',
+          },
+        ],
+      }),
+    ).not.toThrow();
+    expect(() => incidentsResponseSchema.parse({ incidents: [] })).not.toThrow();
   });
 });

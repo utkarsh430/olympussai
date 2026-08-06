@@ -114,18 +114,33 @@ export const vehicleStateSchema = z.object({
   vehicleId: z.string(),
   tripId: z.string().nullable(),
   routeDirectionId: z.string().nullable(),
-  position: geoPointSchema.nullable(),
+  // position/headingDegrees/occupancy* are `.optional()` in addition to
+  // `.nullable()`: the control service's GET /v1/vehicle-states (the
+  // in-memory VehicleStateRow projection, control-service/src/state/store.ts)
+  // does not populate these columns yet — they're real vehicle_states
+  // columns but that read path was scoped to what the MPC solver needed at
+  // the time it shipped. Optional here means this schema still validates
+  // today's actual response instead of silently lying about its shape;
+  // widen the endpoint to populate them and this schema keeps working
+  // either way.
+  position: geoPointSchema.nullable().optional(),
   distanceAlongRouteMeters: z.number().nullable(),
   speedKmph: z.number().nullable(),
-  headingDegrees: z.number().min(0).max(360).nullable(),
+  headingDegrees: z.number().min(0).max(360).nullable().optional(),
   stopState: stopStateSchema,
   currentStopId: z.string().nullable(),
-  occupancyCount: z.number().int().min(0).nullable(),
-  occupancyLoadBand: z.string().nullable(),
+  occupancyCount: z.number().int().min(0).nullable().optional(),
+  occupancyLoadBand: z.string().nullable().optional(),
   confidence: z.number().min(0).max(1).nullable(),
   observedAt: z.string(),
 });
 export type VehicleState = z.infer<typeof vehicleStateSchema>;
+
+/** Response body of GET /v1/vehicle-states. */
+export const vehicleStatesResponseSchema = z.object({
+  vehicleStates: z.array(vehicleStateSchema),
+});
+export type VehicleStatesResponse = z.infer<typeof vehicleStatesResponseSchema>;
 
 export const headwayStateSchema = z.object({
   id: z.string(),
@@ -183,6 +198,90 @@ export const bunchingIncidentSchema = z.object({
   evidence: z.record(z.string(), z.unknown()),
 });
 export type BunchingIncident = z.infer<typeof bunchingIncidentSchema>;
+
+// ---------------------------------------------------------------------------
+// Headway/EWT/CV metrics compute result
+//
+// Mirrors control-service/src/headway/types.ts (HeadwayPairMetric,
+// HeadwayAggregate) and headway/service.ts (HeadwayComputeResult,
+// IncidentChange) — the response body of
+// POST /v1/route-directions/:id/headway/compute. Distinct from
+// headwayStateSchema above: that one is a single persisted headway_states
+// row; these describe one whole compute cycle (every leader/follower pair
+// on a route-direction, the route-direction-wide CV/EWT aggregate derived
+// from them, and any bunching_incidents change the reactive rule made).
+// ---------------------------------------------------------------------------
+
+export const routeDirectionMetaSchema = z.object({
+  routeDirectionId: z.string(),
+  routeId: z.string(),
+  directionCode: z.string(),
+  isLoop: z.boolean(),
+  totalDistanceMeters: z.number(),
+});
+export type RouteDirectionMeta = z.infer<typeof routeDirectionMetaSchema>;
+
+export const headwayPairMetricSchema = z.object({
+  id: z.string(),
+  routeDirectionId: z.string(),
+  leaderVehicleId: z.string(),
+  followerVehicleId: z.string(),
+  gapMeters: z.number(),
+  hFwdSeconds: z.number().nullable(),
+  hBwdSeconds: z.number().nullable(),
+  targetHeadwaySeconds: z.number().positive(),
+  deviationSeconds: z.number().nullable(),
+  confidence: z.number().min(0).max(1).nullable(),
+});
+export type HeadwayPairMetric = z.infer<typeof headwayPairMetricSchema>;
+
+export const headwayAggregateSchema = z.object({
+  routeDirectionId: z.string(),
+  sampleCount: z.number().int().min(0),
+  meanHeadwaySeconds: z.number().nullable(),
+  stddevHeadwaySeconds: z.number().nullable(),
+  /** Coefficient of variation of forward headways (stddev / mean); higher = more irregular/bunched. */
+  cv: z.number().nullable(),
+  /** Excess Wait Time in seconds (blueprint 7.2: observed wait implied by the headway distribution minus wait under regular headway). */
+  ewtSeconds: z.number().nullable(),
+  targetHeadwaySeconds: z.number().positive(),
+});
+export type HeadwayAggregate = z.infer<typeof headwayAggregateSchema>;
+
+export const incidentChangeActionSchema = z.enum(['opened', 'escalated', 'closed', 'none']);
+export type IncidentChangeAction = z.infer<typeof incidentChangeActionSchema>;
+
+export const incidentChangeSchema = z.object({
+  routeDirectionId: z.string(),
+  leaderVehicleId: z.string(),
+  followerVehicleId: z.string(),
+  action: incidentChangeActionSchema,
+  severity: z.enum(['warning', 'bunched']).nullable(),
+  incidentId: z.string().nullable(),
+  ratio: z.number().nullable(),
+});
+export type IncidentChange = z.infer<typeof incidentChangeSchema>;
+
+export const headwayComputeResultSchema = z.object({
+  routeDirectionId: z.string(),
+  computedAt: z.string(),
+  pairs: z.array(headwayPairMetricSchema),
+  aggregate: headwayAggregateSchema,
+  incidents: z.array(incidentChangeSchema),
+});
+export type HeadwayComputeResult = z.infer<typeof headwayComputeResultSchema>;
+
+/** Response body of GET /v1/incidents. */
+export const incidentsResponseSchema = z.object({
+  incidents: z.array(bunchingIncidentSchema),
+});
+export type IncidentsResponse = z.infer<typeof incidentsResponseSchema>;
+
+/** Response body of GET /v1/route-directions. */
+export const routeDirectionsResponseSchema = z.object({
+  routeDirections: z.array(routeDirectionMetaSchema),
+});
+export type RouteDirectionsResponse = z.infer<typeof routeDirectionsResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // Recommendation

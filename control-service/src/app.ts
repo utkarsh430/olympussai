@@ -7,6 +7,7 @@ import { healthRouter } from './routes/health.js';
 import { commandsRouter } from './routes/commands.js';
 import { vehicleStatesRouter } from './routes/vehicleStates.js';
 import { mpcRouter } from './routes/mpc.js';
+import { headwayRouter } from './routes/headway.js';
 import { requireServiceToken } from './auth/serviceToken.js';
 import { errorHandler } from './lib/errors.js';
 import { logger } from './lib/logger.js';
@@ -30,6 +31,7 @@ export function createApp(): Express {
   app.use(commandsRouter);
   app.use(vehicleStatesRouter);
   app.use(mpcRouter);
+  app.use(headwayRouter);
 
   app.use((req, res) => {
     res.status(404).json({ error: { code: 'not_found', message: `No route for ${req.method} ${req.path}` } });
