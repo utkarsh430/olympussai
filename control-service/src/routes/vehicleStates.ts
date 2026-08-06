@@ -7,9 +7,37 @@
 import { Router } from 'express';
 import { AppError, sendError } from '../lib/errors.js';
 import { listVehicleStatesQuerySchema } from '../models/schemas.js';
-import { stateStore } from '../state/store.js';
+import { stateStore, type VehicleStateRow } from '../state/store.js';
 
 export const vehicleStatesRouter = Router();
+
+/**
+ * Maps the in-memory row to the full `vehicleStateSchema` wire shape
+ * (src/models/control.ts in the web app). `position` / `headingDegrees` /
+ * `occupancyCount` / `occupancyLoadBand` are reported null rather than
+ * omitted: the in-memory store doesn't carry them yet (a separate,
+ * not-yet-built piece of work - see control-service/README.md), and the
+ * schema's callers (this ticket's observability dashboard) must be able to
+ * tell "not tracked" apart from a malformed response instead of getting a
+ * response that fails validation outright.
+ */
+function toWireVehicleState(row: VehicleStateRow) {
+  return {
+    vehicleId: row.vehicleId,
+    tripId: row.tripId,
+    routeDirectionId: row.routeDirectionId,
+    position: null,
+    distanceAlongRouteMeters: row.distanceAlongRouteMeters,
+    speedKmph: row.speedKmph,
+    headingDegrees: null,
+    stopState: row.stopState,
+    currentStopId: row.currentStopId,
+    occupancyCount: null,
+    occupancyLoadBand: null,
+    confidence: row.confidence,
+    observedAt: row.observedAt,
+  };
+}
 
 // Synchronous handler (in-memory read, no I/O): Express 4 catches a
 // synchronous throw from a route handler and forwards it to errorHandler
@@ -21,6 +49,6 @@ vehicleStatesRouter.get('/v1/vehicle-states', (req, res) => {
     sendError(res, new AppError('invalid_request', 'Invalid query parameters', 400, parsed.error.flatten()));
     return;
   }
-  const vehicleStates = stateStore.listVehicleStates(parsed.data.routeDirectionId);
+  const vehicleStates = stateStore.listVehicleStates(parsed.data.routeDirectionId).map(toWireVehicleState);
   res.status(200).json({ vehicleStates });
 });

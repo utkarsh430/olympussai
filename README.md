@@ -142,6 +142,8 @@ exposed to the browser and no key is ever printed.
 | `UPSRTC_LIVE_URL` | no | server | Overrides the live GPS endpoint. |
 | `UPSRTC_SCHEDULE_URL` | no | server | Overrides the schedule endpoint. |
 | `NEXT_PUBLIC_DEMO_MODE` | no | browser/server | Set to `1` to force offline fixture mode for presentations without connectivity. |
+| `CONTROL_SERVICE_BASE_URL` | no | server | Base URL of the persistent control service (`control-service/`), e.g. `https://control-service-pilot.onrender.com`. Unset means the `/ops/control-room/observability` dashboard renders its "control service unavailable" state rather than throwing. |
+| `CONTROL_SERVICE_SERVICE_TOKEN` | no | server | Bearer token sent as `Authorization: Bearer …` on every web → control-service REST call (`src/lib/controlService/client.ts`); must match that instance's `SERVICE_TOKEN_SECRET` (`control-service/.env.example`). Never sent to the browser. |
 
 Present in some environments but **intentionally unused**:
 `GOOGLE_ROUTES_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`.
