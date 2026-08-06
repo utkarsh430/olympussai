@@ -4,6 +4,10 @@ import { z } from 'zod';
  * Canonical models for LIVE UPSRTC data only.
  * Everything in these models originates from the real UPSRTC upstream API.
  * Simulated scenario data uses separate types under src/lib/demo-scenarios.
+ * Persistent control service entities (route/control-point, trip/block,
+ * vehicle/headway state, incident, recommendation, command, outcome) use
+ * separate types under ./control.ts — see control-service/README.md for
+ * why that datastore is not this app's own.
  */
 
 export const dataQualitySchema = z.enum(['good', 'degraded', 'stale']);
