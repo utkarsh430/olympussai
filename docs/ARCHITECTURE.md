@@ -92,6 +92,14 @@ colour, screen-reader descriptions on data-quality and KPI elements, and full
 `prefers-reduced-motion` support (global CSS override plus per-component
 guards).
 
+## Persistent control service (future)
+
+If an always-on control service (AVL/dispatch) is introduced, its boundary
+with this app — REST/webhook contract, service-to-service auth, per-direction
+failure isolation, dispatcher-authorization enforcement — is decided in
+[`docs/CONTROL_SERVICE_INTEGRATION.md`](./CONTROL_SERVICE_INTEGRATION.md).
+Nothing described there is implemented yet.
+
 ## Security posture
 
 - Secrets stay server-side; only `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` reaches the

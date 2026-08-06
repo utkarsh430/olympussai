@@ -61,6 +61,15 @@ with measured ones.
 - Passenger-facing deployment.
 - Driver performance scoring or disciplinary use of telemetry.
 
+## Persistent control service integration
+
+The boundary, auth and per-direction failure-isolation contract for any
+always-on control service (AVL/dispatch) talking to this app and to
+Postgres/PostGIS is decided in
+[`docs/CONTROL_SERVICE_INTEGRATION.md`](./CONTROL_SERVICE_INTEGRATION.md).
+No backend ticket implementing that integration should start before reading
+it.
+
 ## Known gaps in the current prototype
 
 | Gap | Impact |
