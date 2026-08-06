@@ -22,12 +22,18 @@ export function ControlRoomDashboard({ snapshot, query }: { snapshot: OpsFleetSn
     <div className="space-y-8">
       <DataSourceNotice source={snapshot.source} stale={snapshot.stale} error={snapshot.error} />
 
-      <p>
+      <p className="flex flex-wrap gap-3">
         <Link
           href="/ops/control-room/observability"
           className="inline-flex items-center gap-2 rounded-md border border-[rgba(255,255,255,0.14)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8fb4ff] hover:border-[#4f8cff]/60"
         >
           Live observability &rarr; headway / EWT / CV / incidents
+        </Link>
+        <Link
+          href="/ops/control-room/copilot"
+          className="inline-flex items-center gap-2 rounded-md border border-[rgba(255,255,255,0.14)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8fb4ff] hover:border-[#4f8cff]/60"
+        >
+          Copilot &rarr; incident explanations / shift reports / ask a question
         </Link>
       </p>
 
