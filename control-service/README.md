@@ -1,7 +1,9 @@
-# Control service datastore
+# Control service
 
-This directory holds the schema for the **persistent control service's own
-Postgres/PostGIS datastore** — the always-on bunching-detection/dispatch
+This directory holds the **persistent control service's own
+Postgres/PostGIS datastore** (schema under `db/`) and, as of the live
+route-direction state estimation ticket, its first piece of application
+code (`src/state-estimation/`) - the always-on bunching-detection/dispatch
 system described in the technical blueprint
 (`docs/Olympuss_AI_UPSRTC_Bus_Bunching_Technical_Blueprint.md`, section 5 and
 section 12) and scoped by the accepted integration contract in
@@ -23,11 +25,16 @@ for the rejected alternative (shared DB) and why it was rejected.
 
 The application runtime (Node/TS, Express REST + signed-webhook API, MPC
 solver, on-boot state rehydration, `/healthz` + `/readyz`, Sentry) lives
-under `src/` in this directory - see "Application runtime" below.
-Ingestion and state estimation from live GPS feeds are a further, separate
-piece of work; the runtime here consumes/produces the core-data-model
-tables and exposes the REST/webhook surface, but does not itself run a
-GPS ingestion pipeline yet.
+under `src/` in this directory - see "Application runtime" below. It now
+also has a real, tested state-estimation library (`src/state-estimation/`)
+implementing map matching, trip/direction confidence scoring, Kalman
+smoothing, stop-state classification, and leader-follower ordering - see
+"Application code" below. The runtime consumes/produces the
+core-data-model tables and exposes the REST/webhook surface; wiring the
+state-estimation library's `processPositionEvent()` into a live GPS
+ingestion endpoint is a further, separate piece of work - `src/index.ts`
+re-exports `StateEstimationService` for that purpose, but the runtime does
+not call it yet.
 
 Hosting, CI/CD, staging/pilot environments, health checks, dashboards and
 alerting are decided in
@@ -70,6 +77,26 @@ Key pieces:
 - `control-service/Dockerfile` - multi-stage build referenced by
   `render.yaml` (`dockerfilePath: ./control-service/Dockerfile`).
 
+## Application code
+
+`src/state-estimation/` is a self-contained TypeScript library (no HTTP
+dependency of its own) that computes, per position event, a vehicle's
+distance-along-route, matched route-direction with a scored confidence,
+smoothed speed (via a Kalman filter whose state persists across restarts),
+and stop-state classification, plus leader-follower ordering per
+route-direction (including terminal wrap-around for loop routes and
+shared-trunk/corridor ordering). See the module's own file-level comments
+for the design, and `tests/` for coverage (`pnpm test` from this
+directory). `src/index.ts` re-exports `StateEstimationService` from it;
+wiring that into the HTTP runtime above (calling `rehydrate()` once at
+startup, gating `/readyz` on completion, then calling
+`processPositionEvent()` per incoming GPS fix) is the remaining
+integration step, tracked separately from this library's own tests.
+
+Run `pnpm install && pnpm lint && pnpm typecheck && pnpm test && pnpm build`
+from this directory to verify. These are exactly the steps
+`.github/workflows/ci-control-service.yml` runs in CI.
+
 ## Applying migrations
 
 Files under `db/migrations/` are plain, ordered, idempotent SQL
@@ -104,3 +131,8 @@ shipped migrations.
   authorization FK required by the integration contract), outcome, and
   per-route-direction policy configuration (thresholds, control points,
   hold caps — config, not code).
+- `db/migrations/20260805210000__state_estimation.sql` - additive follow-up:
+  loop/corridor-ordering columns on `route_directions`, and low-confidence
+  flag / persisted Kalman filter state / stop-entry timestamp columns on
+  `vehicle_states`, for `src/state-estimation/`.
+- `src/state-estimation/` - the state estimation library described above.

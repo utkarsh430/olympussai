@@ -3,6 +3,13 @@
 // rehydration in the background, and only reports /readyz healthy once
 // that completes - see docs/CONTROL_SERVICE_DEPLOYMENT.md "Health/readiness
 // contract" and "CI/CD pipeline" step 5.
+//
+// Also re-exports the state-estimation library and the shared db/logger
+// singletons, so this package's public surface (`main` in package.json)
+// covers both "run me as a process" (this file, executed directly) and
+// "import pieces of me as a library" (e.g. a future MPC/dispatch module
+// pulling in `StateEstimationService`) - see control-service/README.md
+// "Application code".
 import 'dotenv/config';
 import { loadEnv } from './config/env.js';
 import { initSentry, Sentry } from './telemetry/sentry.js';
@@ -10,6 +17,10 @@ import { createApp } from './app.js';
 import { rehydrateState } from './db/rehydrate.js';
 import { closePool } from './db/pool.js';
 import { logger } from './lib/logger.js';
+
+export * from './state-estimation/index.js';
+export { getPool, closePool } from './db/pool.js';
+export { logger } from './lib/logger.js';
 
 const env = loadEnv();
 initSentry();
