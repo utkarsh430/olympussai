@@ -66,3 +66,11 @@ migrations.
   (the logged human-approval record referenced by
   `docs/CONTROL_SERVICE_INTEGRATION.md` §1 as the future `dispatcherActionId`
   source).
+- `migrations/20260806120000__ops_breakdown_reports.sql` — `ops_breakdown_reports`,
+  the audited driver breakdown-report submission record.
+- `migrations/20260806140000__ops_copilot.sql` — `ops_copilot_interactions`
+  (append-only, enforced by trigger — every LLM prompt/response the
+  incident-explanation/shift-report/NL-query copilot makes) and
+  `ops_shift_report_drafts` (AI-drafted shift reports; a CHECK constraint
+  makes a `saved`/`sent` row without a human `saved_by`/`sent_by` impossible
+  at the database level). See `src/lib/copilot/`.

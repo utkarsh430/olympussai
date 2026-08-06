@@ -144,9 +144,11 @@ exposed to the browser and no key is ever printed.
 | `NEXT_PUBLIC_DEMO_MODE` | no | browser/server | Set to `1` to force offline fixture mode for presentations without connectivity. |
 | `CONTROL_SERVICE_BASE_URL` | no | server | Base URL of the persistent control service (`control-service/`), e.g. `https://control-service-pilot.onrender.com`. Unset means the `/ops/control-room/observability` dashboard renders its "control service unavailable" state rather than throwing. |
 | `CONTROL_SERVICE_SERVICE_TOKEN` | no | server | Bearer token sent as `Authorization: Bearer …` on every web → control-service REST call (`src/lib/controlService/client.ts`); must match that instance's `SERVICE_TOKEN_SECRET` (`control-service/.env.example`). Never sent to the browser. |
+| `OPS_DATABASE_URL` | no | server | Connection string for this app's own Postgres datastore (`db/migrations/`). Unset means every `/ops/*` route that touches it (auth, audit log, breakdown reports, the copilot module) fails closed with a 503. |
+| `ANTHROPIC_API_KEY` | no | server | Anthropic API key used by the control-room copilot (`src/lib/copilot/anthropic.ts`) to explain incidents, draft shift reports, and answer NL queries. Unset means those three endpoints return `503 COPILOT_UNAVAILABLE` rather than fabricating a response. Never sent to the browser, never logged — see that file's doc comment. |
+| `ANTHROPIC_MODEL` | no | server | Overrides the Anthropic model id the copilot calls. Defaults to `claude-sonnet-4-5`. |
 
-Present in some environments but **intentionally unused**:
-`GOOGLE_ROUTES_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`.
+Present in some environments but **intentionally unused**: `GOOGLE_ROUTES_API_KEY`.
 
 Missing auth configuration fails closed: `getConfiguredProjectName()`,
 `getProjectPinHash()` and `getSessionSecret()` throw `AuthConfigError`, the
