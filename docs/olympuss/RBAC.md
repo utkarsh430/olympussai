@@ -42,13 +42,21 @@ field bolted onto the PIN session:
   `email`, `role`, `iat`, `exp`.
 - **Passwords:** bcrypt, cost factor 12, minimum 12 characters
   (`src/lib/auth/rbac/passwords.ts`).
-- **Invite tokens:** a fresh 256-bit token is generated per invite and
-  returned exactly once, in the `POST /api/ops/admin/invites` response, to
-  the admin who created it. Only its SHA-256 digest is stored
+- **Invite tokens:** a fresh 256-bit token is generated per invite. It is
+  emailed to the invitee through the Resend adapter
+  (`src/lib/email/resend.ts`), using a branded HTML/text template
+  (`src/lib/email/inviteEmailTemplate.ts`) that states the accept link and
+  its expiry. Only the token's SHA-256 digest is stored
   (`ops_invites.token_hash`) — a database read alone can never be used to
-  accept someone else's invite. **Email delivery is not wired up** (no
-  vendor dependency configured in this repo yet); the admin shares the
-  returned `acceptUrl` out of band until that follow-up ticket lands.
+  accept someone else's invite, and the raw token/accept URL is never
+  logged. The `POST /api/ops/admin/invites` response omits the raw
+  `acceptUrl` by default; it is included only when the admin explicitly
+  opts in with `revealAcceptUrl: true` on the request. If Resend delivery
+  fails, the invite row is still created (never silently dropped) and the
+  response reports `delivered: false` with an actionable message; the admin
+  can retry via `POST /api/ops/admin/invites/:id/resend`, which rotates the
+  token (the original raw token was never persisted, so a resend cannot
+  reuse it) and re-sends the email.
 
 ## Defence in depth (three independent checks, per surface)
 
@@ -71,13 +79,14 @@ append-only — a database trigger rejects `UPDATE`/`DELETE` outright, since
 this app has one connection role and no per-role Postgres grants yet. Every
 privileged action writes one row here, attributed to `actor_user_id`:
 
-| Action                                                      | Endpoint                                | Note                                                                                                                                                                                                                                                              |
-| ----------------------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dispatcher.approval.create` / `dispatcher.override.create` | `POST /api/ops/dispatcher/approvals`    | Also creates one `ops_dispatcher_actions` row — this app's own record of a human approval, correlated by convention (not a shared FK) with control-service's `dispatcher_actions` table for a future REST integration (`docs/CONTROL_SERVICE_INTEGRATION.md` §1). |
-| `control_room.command.create`                               | `POST /api/ops/control-room/commands`   | Refuses (`409`) unless `dispatcherActionId` names an existing, unconsumed `ops_dispatcher_actions` row; consumes it atomically.                                                                                                                                   |
-| `admin.invite.create`                                       | `POST /api/ops/admin/invites`           |                                                                                                                                                                                                                                                                   |
-| `admin.user.disable`                                        | `POST /api/ops/admin/users/:id/disable` | Refuses (`409`) to disable the last active admin.                                                                                                                                                                                                                 |
-| `ops_user.invite.accept`                                    | `POST /api/ops/auth/accept-invite`      | Self-attributed by the newly created user.                                                                                                                                                                                                                        |
+| Action                                                      | Endpoint                                 | Note                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dispatcher.approval.create` / `dispatcher.override.create` | `POST /api/ops/dispatcher/approvals`     | Also creates one `ops_dispatcher_actions` row — this app's own record of a human approval, correlated by convention (not a shared FK) with control-service's `dispatcher_actions` table for a future REST integration (`docs/CONTROL_SERVICE_INTEGRATION.md` §1). |
+| `control_room.command.create`                               | `POST /api/ops/control-room/commands`    | Refuses (`409`) unless `dispatcherActionId` names an existing, unconsumed `ops_dispatcher_actions` row; consumes it atomically.                                                                                                                                   |
+| `admin.invite.create`                                       | `POST /api/ops/admin/invites`            | Metadata includes `emailDelivered` (whether the Resend send succeeded).                                                                                                                                                                                           |
+| `admin.invite.resend`                                       | `POST /api/ops/admin/invites/:id/resend` | Rotates the invite's token/expiry, then re-sends the email. Refuses (`409`) once accepted or revoked.                                                                                                                                                             |
+| `admin.user.disable`                                        | `POST /api/ops/admin/users/:id/disable`  | Refuses (`409`) to disable the last active admin.                                                                                                                                                                                                                 |
+| `ops_user.invite.accept`                                    | `POST /api/ops/auth/accept-invite`       | Self-attributed by the newly created user.                                                                                                                                                                                                                        |
 
 Every write path records the audit event **before** returning success and
 propagates a failure (500) if the audit write itself fails — an action that
@@ -95,14 +104,20 @@ unchanged and still backs the command-centre UI only.
   there is no in-memory fallback.
 - `OPS_SESSION_SECRET` — long random string, ≥32 chars, distinct from
   `SESSION_SECRET`.
-- `SITE_URL` — reused from the existing config; used to build the
-  `acceptUrl` returned by the invite-creation endpoint.
+- `SITE_URL` — reused from the existing config; used to build the invite
+  accept link, both the one sent by email and the one optionally returned
+  in the API response.
+- `RESEND_API_KEY` — API key for the [Resend](https://resend.com) email
+  vendor (`src/lib/email/resend.ts`). Required for invite emails to send;
+  if unset, `POST /api/ops/admin/invites` and the resend endpoint still
+  create/rotate the invite record but report `delivered: false` with an
+  actionable error, per the fail-gracefully rule above.
+- `RESEND_FROM_EMAIL` — optional; the `From` address/display name used for
+  invite emails (defaults to `Olympuss Ops <ops@olympuss.us>`). Must be a
+  verified sending domain in the Resend account.
 
 ## Known gaps (explicit, not silently deferred)
 
-- **Invite delivery is manual.** No email vendor is wired into this repo;
-  the accept link is returned to the admin, not emailed. Tracked as a
-  follow-up ticket.
 - **Per-role dashboards are placeholders.** This ticket's scope is the
   auth/guard/audit layer; the real driver/dispatcher/depot/control-room/
   planner screens are a separate frontend ticket. Each placeholder page

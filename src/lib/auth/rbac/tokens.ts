@@ -1,11 +1,12 @@
 /**
  * Invite token generation/hashing.
  *
- * Node runtime only (node:crypto). The raw token is returned to the caller
- * exactly once (for the admin to share out of band — see ../../../../db/README.md
- * on email delivery not being wired up yet) and is NEVER persisted; only its
- * SHA-256 digest is stored in ops_invites.token_hash, so a database read
- * alone can never be used to accept someone else's invite.
+ * Node runtime only (node:crypto). The raw token is generated fresh per
+ * invite (and per resend) and is embedded in the accept link emailed via the
+ * Resend adapter (src/lib/email/resend.ts). It is NEVER persisted — only its
+ * SHA-256 digest is stored in ops_invites.token_hash — so a database read
+ * alone can never be used to accept someone else's invite, and a Resend
+ * delivery failure can never leak it via logs (see docs/olympuss/RBAC.md).
  */
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 

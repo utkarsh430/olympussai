@@ -27,9 +27,10 @@ function errorResponse(code: string, message: string, status: number) {
 
 /**
  * Consumes a single-use admin-issued invite and creates the ops_users row.
- * The token itself proves possession of the invite (it was shared with the
- * invited person out of band — see db/README.md); there is no separate
- * account to log in with beforehand, by design ("admin-invite only").
+ * The token itself proves possession of the invite (it was emailed to the
+ * invited person via the Resend adapter — see docs/olympuss/RBAC.md); there
+ * is no separate account to log in with beforehand, by design
+ * ("admin-invite only").
  */
 export async function POST(request: NextRequest): Promise<Response> {
   if (!isSameOrigin(request)) {
