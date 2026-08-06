@@ -16,6 +16,7 @@ import { initSentry, Sentry } from './telemetry/sentry.js';
 import { createApp } from './app.js';
 import { rehydrateState } from './db/rehydrate.js';
 import { closePool } from './db/pool.js';
+import { sweepExpiredCommands } from './db/commands.js';
 import { logger } from './lib/logger.js';
 
 export * from './state-estimation/index.js';
@@ -38,8 +39,30 @@ rehydrateState().catch((err) => {
   Sentry.captureException(err);
 });
 
+// Backstop TTL sweep (command lifecycle ticket AC: "expired commands
+// never delivered/executed"). deliverCommand/acknowledgeCommand already
+// expire lazily on access; this catches commands nobody happens to touch
+// so they don't sit in an active status indefinitely.
+const commandTtlSweep = setInterval(() => {
+  sweepExpiredCommands()
+    .then((expired) => {
+      if (expired.length > 0) {
+        logger.info(
+          { count: expired.length, commandIds: expired.map((c) => c.id) },
+          'ttl sweep expired stale commands',
+        );
+      }
+    })
+    .catch((err) => {
+      logger.error({ err }, 'command ttl sweep failed');
+      Sentry.captureException(err);
+    });
+}, env.COMMAND_TTL_SWEEP_INTERVAL_MS);
+commandTtlSweep.unref();
+
 function shutdown(signal: string): void {
   logger.info({ signal }, 'shutting down');
+  clearInterval(commandTtlSweep);
   server.close(() => {
     closePool()
       .catch((err) => logger.error({ err }, 'error closing db pool during shutdown'))
