@@ -59,7 +59,7 @@ a hard control. It is not presented as more secure than it is.
 Generate the PIN hash:
 
 ```
-npm run generate-pin-hash -- 2740
+pnpm run generate-pin-hash -- 2740
 ```
 
 Set (uncommitted `.env.local` locally; host env settings in production):
