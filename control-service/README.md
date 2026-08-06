@@ -117,6 +117,23 @@ Run `pnpm install && pnpm lint && pnpm typecheck && pnpm test && pnpm build`
 from this directory to verify. These are exactly the steps
 `.github/workflows/ci-control-service.yml` runs in CI.
 
+## Simulator (historical replay & regression suite)
+
+`src/simulation/` is a calibrated event-based/mesoscopic simulator
+(blueprint section 11.1, "Mesoscopic simulator - non-negotiable"):
+historical-day replay, a pluggable controller interface for no-control
+vs. controlled comparison, and a regression scenario library (demand
+burst, missed trip, GPS dropout, non-compliance) that runs as part of
+this package's normal `pnpm test` - i.e. the existing CI gate above. It
+has no dependency on `../db`, `../state`, `../routes`, `../webhooks`, or
+`../mpc`, so it never writes production data and never touches the live
+command path; see
+[`docs/CONTROL_SERVICE_SIMULATOR.md`](../docs/CONTROL_SERVICE_SIMULATOR.md)
+for the full design, the documented replay-reproduction tolerance, and
+known simplifications. It is intentionally NOT re-exported from
+`src/index.ts` (importing that file starts the live HTTP server) - import
+from `src/simulation/index.ts` directly.
+
 ## Applying migrations
 
 Files under `db/migrations/` are plain, ordered, idempotent SQL
@@ -156,3 +173,6 @@ shipped migrations.
   flag / persisted Kalman filter state / stop-entry timestamp columns on
   `vehicle_states`, for `src/state-estimation/`.
 - `src/state-estimation/` - the state estimation library described above.
+- `src/simulation/` - the mesoscopic simulator, historical replay, and
+  regression scenario library described in "Simulator" above and in
+  `docs/CONTROL_SERVICE_SIMULATOR.md`.
