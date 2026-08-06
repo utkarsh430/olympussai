@@ -74,6 +74,16 @@ Key pieces:
 - `GET /v1/vehicle-states`, `POST /v1/mpc/solve` - service-token
   authenticated reads/compute against the in-memory state rehydrated on
   boot from `vehicle_states` / `headway_states` / `route_policies`.
+- `GET /v1/route-directions`, `POST /v1/route-directions/:id/headway/compute`,
+  `GET /v1/incidents` (`src/headway/`) - service-token authenticated
+  time-domain headway/EWT/CV metrics and reactive bunching detection
+  (blueprint 7.1-7.3). Unlike the two reads above, these query
+  `vehicle_states` / `route_policies` directly on every call rather than the
+  in-memory store, since nothing currently refreshes that store between
+  boot and the not-yet-built GPS ingestion endpoint (see "Application code"
+  below) - see `src/headway/repository.ts`'s file comment. The compute
+  endpoint is detection-and-display only: it never creates a `commands` row
+  or calls the MPC solver.
 - `control-service/Dockerfile` - multi-stage build referenced by
   `render.yaml` (`dockerfilePath: ./control-service/Dockerfile`).
 
@@ -92,6 +102,16 @@ wiring that into the HTTP runtime above (calling `rehydrate()` once at
 startup, gating `/readyz` on completion, then calling
 `processPositionEvent()` per incoming GPS fix) is the remaining
 integration step, tracked separately from this library's own tests.
+
+`src/headway/` computes time-domain forward/backward headway, the
+route-direction-wide CV/EWT aggregate, and the reactive bunching rule
+(blueprint 7.1-7.3): `metrics.ts` is pure math (gap → hFwd/hBwd → CV/EWT,
+no I/O), `bunching.ts` is the pure k-consecutive-samples reactive rule,
+`repository.ts` is the Postgres access, and `service.ts` orchestrates one
+compute cycle for a route-direction - load live state, order
+leader/follower (reusing `state-estimation/ordering.ts`), compute and
+persist one `headway_states` row per pair, then open/escalate/close
+`bunching_incidents` as the rule dictates. Never creates a `commands` row.
 
 Run `pnpm install && pnpm lint && pnpm typecheck && pnpm test && pnpm build`
 from this directory to verify. These are exactly the steps

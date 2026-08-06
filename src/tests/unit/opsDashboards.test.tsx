@@ -7,6 +7,8 @@ import { DispatcherDashboard } from '@/components/ops/dispatcher/DispatcherDashb
 import { DispatcherActionForm } from '@/components/ops/dispatcher/DispatcherActionForm';
 import { ControlRoomDashboard } from '@/components/ops/control-room/ControlRoomDashboard';
 import { ControlRoomCommandForm } from '@/components/ops/control-room/ControlRoomCommandForm';
+import { ObservabilityDashboard } from '@/components/ops/control-room/ObservabilityDashboard';
+import type { ObservabilitySnapshot } from '@/lib/controlService/observabilityData';
 import { DepotDashboard } from '@/components/ops/depot/DepotDashboard';
 import { PlannerDashboard } from '@/components/ops/planner/PlannerDashboard';
 import { DriverDashboard } from '@/components/ops/driver/DriverDashboard';
@@ -82,6 +84,110 @@ describe('ControlRoomDashboard', () => {
     expect(screen.getByText('Live fleet status')).toBeInTheDocument();
     expect(screen.getByText('UP25FT4823')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /issue command/i })).toBeInTheDocument();
+  });
+
+  it('links to the live observability dashboard', () => {
+    render(<ControlRoomDashboard snapshot={snapshot()} query="" />);
+    const link = screen.getByRole('link', { name: /live observability/i });
+    expect(link).toHaveAttribute('href', '/ops/control-room/observability');
+  });
+});
+
+function observabilitySnapshot(overrides: Partial<ObservabilitySnapshot> = {}): ObservabilitySnapshot {
+  return {
+    source: 'live',
+    stale: false,
+    error: null,
+    fetchedAt: new Date().toISOString(),
+    routeDirections: [{ routeDirectionId: 'dir-1', routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000 }],
+    selectedRouteDirectionId: 'dir-1',
+    positions: [
+      {
+        vehicleId: 'V1',
+        tripId: null,
+        routeDirectionId: 'dir-1',
+        distanceAlongRouteMeters: 500,
+        speedKmph: 18,
+        stopState: 'off_route',
+        currentStopId: null,
+        confidence: 0.9,
+        observedAt: new Date().toISOString(),
+      },
+    ],
+    headway: {
+      routeDirectionId: 'dir-1',
+      computedAt: new Date().toISOString(),
+      pairs: [],
+      aggregate: {
+        routeDirectionId: 'dir-1',
+        sampleCount: 2,
+        meanHeadwaySeconds: 240,
+        stddevHeadwaySeconds: 40,
+        cv: 0.17,
+        ewtSeconds: 12,
+        targetHeadwaySeconds: 300,
+      },
+      incidents: [],
+    },
+    incidents: [
+      {
+        id: 'inc-1',
+        routeDirectionId: 'dir-1',
+        members: [
+          { vehicleId: 'V1', role: 'leader' },
+          { vehicleId: 'V2', role: 'follower' },
+        ],
+        severity: 'bunched',
+        causeClass: 'endogenous',
+        controllability: 'controllable',
+        status: 'open',
+        startedAt: new Date().toISOString(),
+        endedAt: null,
+        evidence: { ratio: 0.2 },
+      },
+    ],
+    ...overrides,
+  };
+}
+
+describe('ObservabilityDashboard', () => {
+  it('shows live positions with a LIVE badge and active incidents distinctly from the headway summary', () => {
+    render(<ObservabilityDashboard snapshot={observabilitySnapshot()} now={Date.now()} />);
+
+    expect(screen.getByText('V1')).toBeInTheDocument();
+    expect(screen.getByText('Live')).toBeInTheDocument();
+    expect(screen.getByText('Excess Wait Time')).toBeInTheDocument();
+    expect(screen.getByText('Bunched')).toBeInTheDocument();
+    expect(screen.getByText(/V1 \(leader\), V2 \(follower\)/)).toBeInTheDocument();
+  });
+
+  it('renders a STALE badge for a position observed well outside the freshness window', () => {
+    const now = Date.now();
+    const stalePositions: ObservabilitySnapshot['positions'] = [
+      {
+        vehicleId: 'V9',
+        tripId: null,
+        routeDirectionId: 'dir-1',
+        distanceAlongRouteMeters: 100,
+        speedKmph: 5,
+        stopState: 'off_route',
+        currentStopId: null,
+        confidence: 0.5,
+        observedAt: new Date(now - 5 * 60_000).toISOString(),
+      },
+    ];
+    render(<ObservabilityDashboard snapshot={observabilitySnapshot({ positions: stalePositions })} now={now} />);
+    expect(screen.getByText('Stale')).toBeInTheDocument();
+  });
+
+  it('shows the control-service-unavailable notice when the snapshot could not be refreshed', () => {
+    render(
+      <ObservabilityDashboard
+        snapshot={observabilitySnapshot({ source: 'unavailable', stale: true, error: 'control service circuit open' })}
+        now={Date.now()}
+      />,
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(/last known control-service data/i);
   });
 });
 
