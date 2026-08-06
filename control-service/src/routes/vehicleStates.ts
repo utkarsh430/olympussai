@@ -13,13 +13,14 @@ export const vehicleStatesRouter = Router();
 
 /**
  * Maps the in-memory row to the full `vehicleStateSchema` wire shape
- * (src/models/control.ts in the web app). `position` / `headingDegrees` /
- * `occupancyCount` / `occupancyLoadBand` are reported null rather than
- * omitted: the in-memory store doesn't carry them yet (a separate,
- * not-yet-built piece of work - see control-service/README.md), and the
- * schema's callers (this ticket's observability dashboard) must be able to
- * tell "not tracked" apart from a malformed response instead of getting a
- * response that fails validation outright.
+ * (src/models/control.ts in the web app). `position` / `headingDegrees`
+ * are still reported null: the in-memory store doesn't carry them yet (a
+ * separate, not-yet-built piece of work - see control-service/README.md).
+ * `occupancyCount` / `occupancyLoadBand` are now sourced from the store
+ * (added for the occupancy-weighted MPC advisory - src/mpc/occupancyMpc.ts)
+ * and pass through whatever the rehydrated row has, including null when
+ * no ingestion path has populated it yet - the schema's callers must be
+ * able to tell "not tracked" apart from a malformed response either way.
  */
 function toWireVehicleState(row: VehicleStateRow) {
   return {
@@ -32,8 +33,8 @@ function toWireVehicleState(row: VehicleStateRow) {
     headingDegrees: null,
     stopState: row.stopState,
     currentStopId: row.currentStopId,
-    occupancyCount: null,
-    occupancyLoadBand: null,
+    occupancyCount: row.occupancyCount,
+    occupancyLoadBand: row.occupancyLoadBand,
     confidence: row.confidence,
     observedAt: row.observedAt,
   };

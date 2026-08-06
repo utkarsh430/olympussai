@@ -121,3 +121,28 @@ export async function createCommand(
     throw err;
   }
 }
+
+/**
+ * Which of `vehicleIds` currently have an active (non-terminal-status)
+ * command outstanding, per `commands_active_idx`
+ * (`status in ('proposed', 'awaiting_approval', 'authorized', 'delivered',
+ * 'acknowledged', 'executing')`). The decision engine's hard safety filter
+ * (`src/mpc/safety.ts`) uses this to reject a new candidate for a vehicle
+ * that already has a command in flight - the "conflicting active
+ * commands" guardrail. Returns an empty set (never queries) for an empty
+ * input so callers don't need to special-case "no candidates yet".
+ */
+export async function listActiveVehicleIds(
+  vehicleIds: string[],
+  pool: Pool = getPool(),
+): Promise<Set<string>> {
+  if (vehicleIds.length === 0) return new Set();
+  const { rows } = await pool.query<{ vehicle_id: string }>(
+    `select distinct vehicle_id
+       from commands
+      where vehicle_id = any($1)
+        and status in ('proposed', 'awaiting_approval', 'authorized', 'delivered', 'acknowledged', 'executing')`,
+    [vehicleIds],
+  );
+  return new Set(rows.map((r) => r.vehicle_id));
+}

@@ -17,11 +17,14 @@ async function loadVehicleStates(pool: Pool): Promise<VehicleStateRow[]> {
     speed_kmph: string | null;
     stop_state: string;
     current_stop_id: string | null;
+    occupancy_count: number | null;
+    occupancy_load_band: string | null;
     confidence: string | null;
     observed_at: string;
   }>(
     `select vehicle_id, trip_id, route_direction_id, distance_along_route_meters,
-            speed_kmph, stop_state, current_stop_id, confidence, observed_at
+            speed_kmph, stop_state, current_stop_id, occupancy_count, occupancy_load_band,
+            confidence, observed_at
        from vehicle_states`,
   );
   return rows.map((r) => ({
@@ -32,6 +35,8 @@ async function loadVehicleStates(pool: Pool): Promise<VehicleStateRow[]> {
     speedKmph: r.speed_kmph === null ? null : Number(r.speed_kmph),
     stopState: r.stop_state,
     currentStopId: r.current_stop_id,
+    occupancyCount: r.occupancy_count,
+    occupancyLoadBand: r.occupancy_load_band,
     confidence: r.confidence === null ? null : Number(r.confidence),
     observedAt: r.observed_at,
   }));
@@ -86,10 +91,14 @@ async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
     self_equalizing_k: string | null;
     max_hold_seconds: number;
     cooldown_seconds: number;
+    prediction_horizon_control_points: number;
+    occupancy_stale_seconds: number | null;
+    occupancy_capacity: number | null;
   }>(
     `select id, route_direction_id, operating_period, day_type,
             target_headway_seconds, bunched_threshold_ratio, warning_threshold_ratio,
-            kf, kb, self_equalizing_k, max_hold_seconds, cooldown_seconds
+            kf, kb, self_equalizing_k, max_hold_seconds, cooldown_seconds,
+            prediction_horizon_control_points, occupancy_stale_seconds, occupancy_capacity
        from route_policies
       where effective_to is null`,
   );
@@ -106,7 +115,22 @@ async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
     selfEqualizingK: r.self_equalizing_k === null ? null : Number(r.self_equalizing_k),
     maxHoldSeconds: r.max_hold_seconds,
     cooldownSeconds: r.cooldown_seconds,
+    predictionHorizonControlPoints: r.prediction_horizon_control_points,
+    occupancyStaleSeconds: r.occupancy_stale_seconds,
+    occupancyCapacity: r.occupancy_capacity,
   }));
+}
+
+async function loadTerminalStops(pool: Pool): Promise<{ routeDirectionId: string; stopId: string }[]> {
+  // The lowest `sequence` row per route-direction is its origin terminal
+  // (blueprint 8.2 Algorithm A). `distinct on` + `order by sequence asc`
+  // picks exactly that row per route-direction in one query.
+  const { rows } = await pool.query<{ route_direction_id: string; stop_id: string }>(
+    `select distinct on (route_direction_id) route_direction_id, stop_id
+       from route_direction_stops
+      order by route_direction_id, sequence asc`,
+  );
+  return rows.map((r) => ({ routeDirectionId: r.route_direction_id, stopId: r.stop_id }));
 }
 
 /**
@@ -118,14 +142,16 @@ async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
 export async function rehydrateState(pool: Pool = getPool()): Promise<void> {
   stateStore.setStatus('in_progress');
   try {
-    const [vehicleStates, headwayStates, activePolicies] = await Promise.all([
+    const [vehicleStates, headwayStates, activePolicies, terminalStops] = await Promise.all([
       loadVehicleStates(pool),
       loadHeadwayStates(pool),
       loadActivePolicies(pool),
+      loadTerminalStops(pool),
     ]);
     stateStore.loadVehicleStates(vehicleStates);
     stateStore.loadHeadwayStates(headwayStates);
     stateStore.loadActivePolicies(activePolicies);
+    stateStore.loadTerminalStops(terminalStops);
     stateStore.setStatus('complete');
     logger.info({ counts: stateStore.counts() }, 'state rehydration complete');
   } catch (err) {

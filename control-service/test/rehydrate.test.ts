@@ -29,6 +29,8 @@ describe('rehydrateState', () => {
               speed_kmph: '30',
               stop_state: 'off_route',
               current_stop_id: null,
+              occupancy_count: 12,
+              occupancy_load_band: 'moderate',
               confidence: '0.9',
               observed_at: new Date().toISOString(),
             },
@@ -68,8 +70,16 @@ describe('rehydrateState', () => {
               self_equalizing_k: '0.5',
               max_hold_seconds: 90,
               cooldown_seconds: 60,
+              prediction_horizon_control_points: 3,
+              occupancy_stale_seconds: 120,
+              occupancy_capacity: 60,
             },
           ],
+        };
+      }
+      if (sql.includes('from route_direction_stops')) {
+        return {
+          rows: [{ route_direction_id: 'rd-1', stop_id: 'stop-origin' }],
         };
       }
       return { rows: [] };
@@ -78,9 +88,20 @@ describe('rehydrateState', () => {
     await rehydrateState(pool);
 
     expect(stateStore.status).toBe('complete');
-    expect(stateStore.getVehicleState('veh-1')).toMatchObject({ routeDirectionId: 'rd-1', speedKmph: 30 });
+    expect(stateStore.getVehicleState('veh-1')).toMatchObject({
+      routeDirectionId: 'rd-1',
+      speedKmph: 30,
+      occupancyCount: 12,
+      occupancyLoadBand: 'moderate',
+    });
     expect(stateStore.getHeadwayStates('rd-1')).toHaveLength(1);
-    expect(stateStore.getActivePolicy('rd-1')).toMatchObject({ targetHeadwaySeconds: 600 });
+    expect(stateStore.getActivePolicy('rd-1')).toMatchObject({
+      targetHeadwaySeconds: 600,
+      predictionHorizonControlPoints: 3,
+      occupancyStaleSeconds: 120,
+      occupancyCapacity: 60,
+    });
+    expect(stateStore.getTerminalStopId('rd-1')).toBe('stop-origin');
   });
 
   it('marks the store failed (not complete) when a query errors', async () => {
