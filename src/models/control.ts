@@ -1,0 +1,337 @@
+import { z } from 'zod';
+
+/**
+ * Wire-contract Zod schemas for the persistent control service.
+ *
+ * These describe the JSON payloads exchanged with the control service over
+ * REST + signed webhooks, per docs/CONTROL_SERVICE_INTEGRATION.md — they do
+ * NOT describe this app's own database rows, because this app has none for
+ * these entities: the control service owns its Postgres/PostGIS schema
+ * under control-service/db/migrations/, and this app never connects to it
+ * directly (see control-service/README.md). Field names and shapes mirror
+ * that schema's columns so a payload round-trips without translation, but
+ * every id here is a string on the wire, matching the existing
+ * canonicalLiveBusSchema / canonicalStopSchema pattern in ./canonical.ts.
+ *
+ * Extends the canonical model set described in canonical.ts: those cover
+ * LIVE UPSRTC upstream data; these cover the control system's own
+ * entities (blueprint section 12.1 "Core entities").
+ */
+
+// ---------------------------------------------------------------------------
+// Route / stop / control point
+// ---------------------------------------------------------------------------
+
+export const routeOperatingModeSchema = z.enum(['headway_managed', 'timetable_managed', 'hybrid']);
+export type RouteOperatingMode = z.infer<typeof routeOperatingModeSchema>;
+
+export const controlRouteSchema = z.object({
+  id: z.string(),
+  publicName: z.string(),
+  operatingMode: routeOperatingModeSchema,
+  isActive: z.boolean(),
+});
+export type ControlRoute = z.infer<typeof controlRouteSchema>;
+
+export const controlRouteDirectionSchema = z.object({
+  id: z.string(),
+  routeId: z.string(),
+  directionCode: z.string(),
+  directionName: z.string().nullable(),
+  corridorId: z.string().nullable(),
+  isActive: z.boolean(),
+});
+export type ControlRouteDirection = z.infer<typeof controlRouteDirectionSchema>;
+
+/** A single lat/lon vertex, used to describe geography(Point/LineString) columns on the wire. */
+export const geoPointSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+});
+export type GeoPoint = z.infer<typeof geoPointSchema>;
+
+export const controlPointSchema = z.object({
+  id: z.string(),
+  routeDirectionId: z.string(),
+  stopId: z.string(),
+  sequence: z.number().int().min(0),
+  cumulativeDistanceMeters: z.number().min(0),
+  location: geoPointSchema,
+  isControlPoint: z.boolean(),
+  holdSuitable: z.boolean(),
+  maxHoldSeconds: z.number().int().min(0).nullable(),
+  geofenceRadiusMeters: z.number().positive(),
+  laybyBerth: z.boolean(),
+  shelterFlag: z.boolean(),
+  weatherFlag: z.boolean(),
+});
+export type ControlPoint = z.infer<typeof controlPointSchema>;
+
+// ---------------------------------------------------------------------------
+// Trip / block / vehicle
+// ---------------------------------------------------------------------------
+
+export const tripStatusSchema = z.enum([
+  'scheduled',
+  'active',
+  'completed',
+  'cancelled',
+  'short_turned',
+  'deadhead',
+]);
+export type TripStatus = z.infer<typeof tripStatusSchema>;
+
+export const controlTripSchema = z.object({
+  id: z.string(),
+  routeDirectionId: z.string(),
+  blockId: z.string().nullable(),
+  vehicleId: z.string().nullable(),
+  serviceDate: z.string(), // YYYY-MM-DD
+  scheduledStartTime: z.string(), // ISO datetime
+  scheduledEndTime: z.string(),
+  originStopId: z.string(),
+  destinationStopId: z.string(),
+  reliefPointStopId: z.string().nullable(),
+  status: tripStatusSchema,
+});
+export type ControlTrip = z.infer<typeof controlTripSchema>;
+
+// ---------------------------------------------------------------------------
+// Vehicle state / headway state
+// ---------------------------------------------------------------------------
+
+export const stopStateSchema = z.enum([
+  'approaching_stop',
+  'dwelling_at_stop',
+  'held_by_controller',
+  'stopped_in_traffic',
+  'departed_stop',
+  'off_route',
+]);
+export type StopState = z.infer<typeof stopStateSchema>;
+
+export const vehicleStateSchema = z.object({
+  vehicleId: z.string(),
+  tripId: z.string().nullable(),
+  routeDirectionId: z.string().nullable(),
+  position: geoPointSchema.nullable(),
+  distanceAlongRouteMeters: z.number().nullable(),
+  speedKmph: z.number().nullable(),
+  headingDegrees: z.number().min(0).max(360).nullable(),
+  stopState: stopStateSchema,
+  currentStopId: z.string().nullable(),
+  occupancyCount: z.number().int().min(0).nullable(),
+  occupancyLoadBand: z.string().nullable(),
+  confidence: z.number().min(0).max(1).nullable(),
+  observedAt: z.string(),
+});
+export type VehicleState = z.infer<typeof vehicleStateSchema>;
+
+export const headwayStateSchema = z.object({
+  id: z.string(),
+  routeDirectionId: z.string(),
+  leaderVehicleId: z.string(),
+  followerVehicleId: z.string(),
+  hFwdSeconds: z.number().nullable(),
+  hBwdSeconds: z.number().nullable(),
+  targetHeadwaySeconds: z.number().positive(), // H*
+  deviationSeconds: z.number().nullable(),
+  forecastHFwdSeconds: z.number().nullable(),
+  confidence: z.number().min(0).max(1).nullable(),
+  computedAt: z.string(),
+});
+export type HeadwayState = z.infer<typeof headwayStateSchema>;
+
+// ---------------------------------------------------------------------------
+// Bunching incident
+// ---------------------------------------------------------------------------
+
+export const incidentSeveritySchema = z.enum(['warning', 'bunched', 'severe']);
+export type IncidentSeverity = z.infer<typeof incidentSeveritySchema>;
+
+export const causeClassSchema = z.enum(['endogenous', 'exogenous', 'structural', 'unknown']);
+export type CauseClass = z.infer<typeof causeClassSchema>;
+
+export const controllabilitySchema = z.enum(['controllable', 'mitigable', 'structural', 'none']);
+export type Controllability = z.infer<typeof controllabilitySchema>;
+
+export const incidentStatusSchema = z.enum([
+  'open',
+  'mitigating',
+  'recovering',
+  'closed',
+  'escalated',
+]);
+export type IncidentStatus = z.infer<typeof incidentStatusSchema>;
+
+export const bunchingIncidentMemberSchema = z.object({
+  vehicleId: z.string(),
+  role: z.enum(['leader', 'follower', 'platoon_member']),
+});
+export type BunchingIncidentMember = z.infer<typeof bunchingIncidentMemberSchema>;
+
+export const bunchingIncidentSchema = z.object({
+  id: z.string(),
+  routeDirectionId: z.string(),
+  members: z.array(bunchingIncidentMemberSchema),
+  severity: incidentSeveritySchema,
+  causeClass: causeClassSchema,
+  controllability: controllabilitySchema,
+  status: incidentStatusSchema,
+  startedAt: z.string(),
+  endedAt: z.string().nullable(),
+  evidence: z.record(z.string(), z.unknown()),
+});
+export type BunchingIncident = z.infer<typeof bunchingIncidentSchema>;
+
+// ---------------------------------------------------------------------------
+// Recommendation
+// ---------------------------------------------------------------------------
+
+export const recommendationStatusSchema = z.enum([
+  'proposed',
+  'selected',
+  'superseded',
+  'rejected',
+]);
+export type RecommendationStatus = z.infer<typeof recommendationStatusSchema>;
+
+export const recommendationSchema = z.object({
+  id: z.string(),
+  incidentId: z.string().nullable(),
+  routeDirectionId: z.string(),
+  candidateActions: z.array(z.record(z.string(), z.unknown())),
+  selectedActionType: z.string().nullable(),
+  objectiveCost: z.number().nullable(),
+  expectedRecoverySeconds: z.number().nullable(),
+  constraints: z.record(z.string(), z.unknown()),
+  modelVersion: z.string().nullable(),
+  controllerVersion: z.string().nullable(),
+  status: recommendationStatusSchema,
+});
+export type Recommendation = z.infer<typeof recommendationSchema>;
+
+// ---------------------------------------------------------------------------
+// Command / outcome
+// ---------------------------------------------------------------------------
+
+export const commandActionTypeSchema = z.enum([
+  'terminal_dispatch_hold',
+  'two_way_hold',
+  'self_equalizing_hold',
+  'speed_guidance',
+  'stop_skip',
+  'short_turn',
+  'deadhead',
+  'boarding_limit',
+  'standby_injection',
+]);
+export type CommandActionType = z.infer<typeof commandActionTypeSchema>;
+
+export const commandStatusSchema = z.enum([
+  'proposed',
+  'awaiting_approval',
+  'authorized',
+  'delivered',
+  'acknowledged',
+  'executing',
+  'completed',
+  'expired',
+  'cancelled',
+  'failed',
+]);
+export type CommandStatus = z.infer<typeof commandStatusSchema>;
+
+/**
+ * A command flowing web -> control service. dispatcherActionId is
+ * REQUIRED and is the wire-level counterpart of the non-negotiable rule
+ * in docs/CONTROL_SERVICE_INTEGRATION.md section 1: no command may be sent
+ * without a valid, unconsumed, human-authorized dispatcher action. The
+ * control service's `commands.dispatcher_action_id` column is NOT NULL and
+ * UNIQUE and its `consume_dispatcher_action` trigger rejects a reused or
+ * unknown id — see control-service/db/migrations/20260805190000__core_data_model.sql.
+ */
+export const commandSchema = z.object({
+  id: z.string(),
+  recommendationId: z.string().nullable(),
+  vehicleId: z.string(),
+  tripId: z.string().nullable(),
+  actionType: commandActionTypeSchema,
+  targetStopId: z.string().nullable(),
+  parameters: z.record(z.string(), z.unknown()),
+  dispatcherActionId: z.string(),
+  ttlSeconds: z.number().int().positive(),
+  validFrom: z.string(),
+  expiresAt: z.string(),
+  policyVersion: z.string().nullable(),
+  status: commandStatusSchema,
+  deliveredAt: z.string().nullable(),
+  acknowledgedAt: z.string().nullable(),
+  acknowledgementReason: z.string().nullable(),
+});
+export type Command = z.infer<typeof commandSchema>;
+
+export const complianceSchema = z.enum(['complied', 'partial', 'unable', 'unsafe', 'no_response']);
+export type Compliance = z.infer<typeof complianceSchema>;
+
+export const outcomeSchema = z.object({
+  id: z.string(),
+  commandId: z.string().nullable(),
+  incidentId: z.string().nullable(),
+  actualAction: z.string().nullable(),
+  compliance: complianceSchema.nullable(),
+  recoverySeconds: z.number().nullable(),
+  passengerCost: z.number().nullable(),
+  guardrailEvents: z.array(z.record(z.string(), z.unknown())),
+  finalAttribution: z.record(z.string(), z.unknown()),
+});
+export type Outcome = z.infer<typeof outcomeSchema>;
+
+// ---------------------------------------------------------------------------
+// Route policy (config, not code)
+// ---------------------------------------------------------------------------
+
+export const operatingPeriodSchema = z.enum(['peak', 'off_peak', 'night', 'all']);
+export type OperatingPeriod = z.infer<typeof operatingPeriodSchema>;
+
+export const dayTypeSchema = z.enum(['weekday', 'weekend', 'holiday', 'all']);
+export type DayType = z.infer<typeof dayTypeSchema>;
+
+export const fallbackModeSchema = z.enum(['live', 'schedule_assisted', 'observation_only']);
+export type FallbackMode = z.infer<typeof fallbackModeSchema>;
+
+export const authorizationLevelSchema = z.enum(['automatic', 'approval', 'prohibited']);
+export type AuthorizationLevel = z.infer<typeof authorizationLevelSchema>;
+
+/** Mirrors control-service `route_policies` (blueprint Appendix C). Every field here is tunable configuration, never a compiled-in constant. */
+export const routePolicySchema = z.object({
+  id: z.string(),
+  routeDirectionId: z.string(),
+  operatingPeriod: operatingPeriodSchema,
+  dayType: dayTypeSchema,
+  targetHeadwaySeconds: z.number().positive(),
+  bunchedThresholdRatio: z.number().positive().max(1),
+  warningThresholdRatio: z.number().positive().max(1),
+  requiredSamples: z.number().int().positive(),
+  predictionHorizonControlPoints: z.number().int().positive(),
+  kf: z.number().nullable(),
+  kb: z.number().nullable(),
+  selfEqualizingK: z.number().nullable(),
+  cooldownSeconds: z.number().int().min(0),
+  minimumActionSeconds: z.number().int().min(0),
+  maxHoldSeconds: z.number().int().min(0),
+  occupancyStaleSeconds: z.number().int().nullable(),
+  occupancyCapacity: z.number().int().positive().nullable(),
+  authorizedActions: z.record(z.string(), authorizationLevelSchema),
+  commandTtlSeconds: z.number().int().positive(),
+  ackTimeoutSeconds: z.number().int().positive(),
+  retryCount: z.number().int().min(0),
+  speedBandMinKmph: z.number().nullable(),
+  speedBandMaxKmph: z.number().nullable(),
+  noOvertake: z.boolean(),
+  fallbackMode: fallbackModeSchema,
+  kpiThresholds: z.record(z.string(), z.unknown()),
+  effectiveFrom: z.string(),
+  effectiveTo: z.string().nullable(),
+});
+export type RoutePolicy = z.infer<typeof routePolicySchema>;
