@@ -11,6 +11,9 @@
 import 'server-only';
 import { getOpsPool } from '@/lib/db/pool';
 import type { OpsRole } from './roles';
+import { deriveInviteStatus, type OpsInviteStatus } from './inviteStatus';
+
+export { deriveInviteStatus, type OpsInviteStatus };
 
 export interface OpsUserRecord {
   id: string;
@@ -31,6 +34,7 @@ export interface OpsInviteRecord {
   expiresAt: string;
   acceptedAt: string | null;
   revokedAt: string | null;
+  createdAt: string;
 }
 
 export interface AuditEventInput {
@@ -76,6 +80,20 @@ export interface OpsRepo {
     expiresAt: Date;
   }): Promise<OpsInviteRecord>;
   findInviteByTokenHash(tokenHash: string): Promise<OpsInviteRecord | null>;
+  findInviteById(id: string): Promise<OpsInviteRecord | null>;
+  /** Invites not yet accepted or revoked (includes expired-but-unaccepted ones, so the admin can resend/rotate them). */
+  listOutstandingInvites(): Promise<OpsInviteRecord[]>;
+  /**
+   * Rotates an invite's token/expiry for a resend (the raw token is never
+   * persisted, so a resend cannot reuse the original one). Returns null if
+   * the invite does not exist or is no longer pending (already
+   * accepted/revoked) — callers must treat that as a 404/409, not retry.
+   */
+  regenerateInviteToken(input: {
+    id: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }): Promise<OpsInviteRecord | null>;
   /** Atomically consumes the invite and creates the user row. Throws if already consumed/expired/revoked. */
   acceptInvite(input: {
     tokenHash: string;
@@ -114,6 +132,7 @@ function mapInviteRow(row: Record<string, unknown>): OpsInviteRecord {
     expiresAt: new Date(row.expires_at as string).toISOString(),
     acceptedAt: row.accepted_at ? new Date(row.accepted_at as string).toISOString() : null,
     revokedAt: row.revoked_at ? new Date(row.revoked_at as string).toISOString() : null,
+    createdAt: new Date(row.created_at as string).toISOString(),
   };
 }
 
@@ -200,6 +219,38 @@ class PgOpsRepo implements OpsRepo {
     const { rows } = await pool.query('select * from ops_invites where token_hash = $1 limit 1', [
       tokenHash,
     ]);
+    return rows[0] ? mapInviteRow(rows[0]) : null;
+  }
+
+  async findInviteById(id: string): Promise<OpsInviteRecord | null> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query('select * from ops_invites where id = $1 limit 1', [id]);
+    return rows[0] ? mapInviteRow(rows[0]) : null;
+  }
+
+  async listOutstandingInvites(): Promise<OpsInviteRecord[]> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query(
+      `select * from ops_invites
+        where accepted_at is null and revoked_at is null
+        order by created_at desc`,
+    );
+    return rows.map(mapInviteRow);
+  }
+
+  async regenerateInviteToken(input: {
+    id: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }): Promise<OpsInviteRecord | null> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query(
+      `update ops_invites
+          set token_hash = $2, expires_at = $3
+        where id = $1 and accepted_at is null and revoked_at is null
+        returning *`,
+      [input.id, input.tokenHash, input.expiresAt.toISOString()],
+    );
     return rows[0] ? mapInviteRow(rows[0]) : null;
   }
 
