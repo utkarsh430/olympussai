@@ -89,19 +89,19 @@ The definitive field-by-field breakdown is in
 
 ## 2. Quick start
 
-**Prerequisites:** Node.js 20+ and npm.
+**Prerequisites:** Node.js 20+ and pnpm (see `packageManager` in `package.json` for the pinned version).
 
 ```bash
-npm install
+pnpm install
 
 # 1. Generate a bcrypt hash for the project PIN (prints the hash to stdout).
-npm run generate-pin-hash -- <pin>
+pnpm run generate-pin-hash -- <pin>
 
 # 2. Create the local environment file and fill in the values.
 cp .env.example .env.local
 
 # 3. Run.
-npm run dev            # http://localhost:3000
+pnpm run dev            # http://localhost:3000
 ```
 
 **If `.env.local` already exists, do not overwrite it.**
@@ -115,14 +115,14 @@ stays a clean, pipeable hash.
 Optional, only when the source logo art changes:
 
 ```bash
-npm run process-logo   # regenerate every brand asset from the source logo
+pnpm run process-logo   # regenerate every brand asset from the source logo
 ```
 
 Production:
 
 ```bash
-npm run build
-npm run start
+pnpm run build
+pnpm run start
 ```
 
 ---
@@ -381,7 +381,7 @@ Both endpoints are undocumented and were probed empirically — no schema was
 assumed. Reproduce the probe yourself:
 
 ```bash
-npm run inspect:api
+pnpm run inspect:api
 ```
 
 Observed (full report in [`docs/API_DISCOVERY.md`](docs/API_DISCOVERY.md)):
@@ -1274,7 +1274,7 @@ Shared HUD primitives live in
 
 ### Brand assets
 
-`npm run process-logo` reads an untouched source logo and produces every derived
+`pnpm run process-logo` reads an untouched source logo and produces every derived
 asset. White-background removal is **luminance-keyed**: pixels become
 transparent in proportion to how close to neutral-white they are (high minimum
 channel, low saturation), so the saturated gold artwork stays fully opaque while
@@ -1346,12 +1346,12 @@ Each of these was made against a measured problem, not on principle:
 ## 21. Testing
 
 ```bash
-npm run lint         # ESLint (next lint)
-npm run typecheck    # tsc --noEmit, strict
-npm run test         # Vitest — 224 unit tests, no network required
-npm run test:watch   # Vitest in watch mode
-npm run test:e2e     # Playwright — 25 specs (starts the app via npm run start)
-npm run format       # Prettier over src/**/*.{ts,tsx,css} and docs/**/*.md
+pnpm run lint         # ESLint (next lint)
+pnpm run typecheck    # tsc --noEmit, strict
+pnpm run test         # Vitest — 224 unit tests, no network required
+pnpm run test:watch   # Vitest in watch mode
+pnpm run test:e2e     # Playwright — 25 specs (starts the app via pnpm run start)
+pnpm run format       # Prettier over src/**/*.{ts,tsx,css} and docs/**/*.md
 ```
 
 ### Unit tests (Vitest, jsdom) — 224 tests across 7 files
@@ -1423,7 +1423,7 @@ the login rate limiter.
 
 ### Known advisories
 
-`npm audit` reports 2 moderate advisories against a `postcss` copy vendored
+`pnpm audit` reports 2 moderate advisories against a `postcss` copy vendored
 inside Next.js itself. They are not fixable without downgrading to `next@9`,
 affect the build toolchain only, and do not reach runtime.
 
@@ -1433,16 +1433,16 @@ affect the build toolchain only, and do not reach runtime.
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | Next dev server on :3000 |
-| `npm run build` / `npm run start` | Production build / serve |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | `tsc --noEmit`, strict |
-| `npm run test` / `test:watch` | Vitest |
-| `npm run test:e2e` | Playwright |
-| `npm run format` | Prettier over source and docs |
-| `npm run inspect:api` | Probe both UPSRTC endpoints and print an empirical report |
-| `npm run generate-pin-hash -- <pin>` | bcrypt hash (cost 12) for `PROJECT_PIN_HASH`; hash to stdout, guidance to stderr |
-| `npm run process-logo` | Regenerate every brand asset from the source logo |
+| `pnpm run dev` | Next dev server on :3000 |
+| `pnpm run build` / `pnpm run start` | Production build / serve |
+| `pnpm run lint` | ESLint |
+| `pnpm run typecheck` | `tsc --noEmit`, strict |
+| `pnpm run test` / `test:watch` | Vitest |
+| `pnpm run test:e2e` | Playwright |
+| `pnpm run format` | Prettier over source and docs |
+| `pnpm run inspect:api` | Probe both UPSRTC endpoints and print an empirical report |
+| `pnpm run generate-pin-hash -- <pin>` | bcrypt hash (cost 12) for `PROJECT_PIN_HASH`; hash to stdout, guidance to stderr |
+| `pnpm run process-logo` | Regenerate every brand asset from the source logo |
 
 ---
 
@@ -1458,7 +1458,7 @@ affect the build toolchain only, and do not reach runtime.
 | "No schedule assigned" | Genuine upstream response for that vehicle on every candidate date | Pick a bus showing a route name in the fleet list. |
 | Login always fails | `PROJECT_PIN_HASH` corrupted by dotenv `$` expansion | Escape every `$` as `\$` in `.env.local`; paste unescaped in host env UIs. |
 | `503 Authentication is not configured` | `PROJECT_NAME`, `PROJECT_PIN_HASH` or `SESSION_SECRET` missing/short | Set all three; the secret must be ≥ 32 characters. |
-| Redirected to `/login` immediately after signing in | Cookie rejected — usually `Secure` over plain HTTP in a production build | Serve over HTTPS, or run `npm run dev` locally. |
+| Redirected to `/login` immediately after signing in | Cookie rejected — usually `Secure` over plain HTTP in a production build | Serve over HTTPS, or run `pnpm run dev` locally. |
 | Fleet list feels slow | Very broad filter over ~9.5k records | Narrow by depot or route; the list caps at 160 rendered rows by design. |
 | Stale timestamps everywhere | Most vehicles are `Offline` upstream | Expected — filter to **GOOD** to see currently-reporting vehicles. |
 | Landing page shows no globe | Reduced-motion preference, or no WebGL | Intentional. The static CSS backdrop is the designed fallback. |

@@ -1,7 +1,7 @@
 # UPSRTC API Discovery
 
 Findings from probing the two undocumented UPSRTC endpoints with
-`npm run inspect:api` (`scripts/inspect-upsrtc-api.ts`).
+`pnpm run inspect:api` (`scripts/inspect-upsrtc-api.ts`).
 
 Nothing here was assumed. Every field below was observed in a real response.
 

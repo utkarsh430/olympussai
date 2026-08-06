@@ -32,7 +32,7 @@ demo works identically windowed — it just has less room.
 
 Run through this five minutes before presenting.
 
-- [ ] `npm run start` is running (or `npm run dev`).
+- [ ] `pnpm run start` is running (or `pnpm run dev`).
 - [ ] Page loads and the top bar shows **CONNECTED** in green.
 - [ ] Live bus count is in the thousands, not zero.
 - [ ] Click one bus — the detail drawer opens with coordinates.

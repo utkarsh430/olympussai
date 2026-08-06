@@ -7,7 +7,7 @@ remote (never the original prototype remote).
 
 - A new, empty GitHub repository for Olympuss (do not reuse the original prototype repository).
 - A Vercel project linked to that repo.
-- Node 18.18+ (Next 15). Package manager: **npm** (commit `package-lock.json`).
+- Node 18.18+ (Next 15). Package manager: **pnpm** (commit `pnpm-lock.yaml`; version pinned via `packageManager` in `package.json`).
 
 ## 2. Environment variables
 
@@ -16,7 +16,7 @@ Set these in the Vercel project (Production + Preview). Never commit real values
 | Variable | Notes |
 | --- | --- |
 | `PROJECT_NAME` | `upsrtc` |
-| `PROJECT_PIN_HASH` | Output of `npm run generate-pin-hash -- <pin>`. **Paste unescaped** in Vercel (host UIs store literally). Only local `.env.local` needs `$` escaped as `\$`. |
+| `PROJECT_PIN_HASH` | Output of `pnpm run generate-pin-hash -- <pin>`. **Paste unescaped** in Vercel (host UIs store literally). Only local `.env.local` needs `$` escaped as `\$`. |
 | `SESSION_SECRET` | Long random string ≥32 chars (`openssl rand -base64 48`). |
 | `SITE_URL` | `https://olympuss.us` |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Public browser key (see restrictions below). Not a secret. |
@@ -35,7 +35,7 @@ Configure a **separate, restricted** key — do not reuse the original prototype
 
 ## 4. Build & output
 
-- Build command: `npm run build` (default). Output: Next.js (Vercel auto-detects).
+- Build command: `pnpm run build` (default). Output: Next.js (Vercel auto-detects).
 - `next start` / Vercel serverless functions serve the dynamic routes and
   middleware. No custom server needed.
 
