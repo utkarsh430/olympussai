@@ -22,6 +22,7 @@ import { z } from 'zod';
 import { asyncHandler, AppError, sendError } from '../lib/errors.js';
 import {
   computeRouteDirectionHeadway,
+  getIncident,
   listActiveRouteDirections,
   listOpenIncidents,
 } from '../headway/service.js';
@@ -34,6 +35,10 @@ const routeDirectionParamSchema = z.object({
 
 const incidentsQuerySchema = z.object({
   routeDirectionId: z.string().min(1).optional(),
+});
+
+const incidentIdParamSchema = z.object({
+  id: z.string().min(1),
 });
 
 headwayRouter.post(
@@ -59,6 +64,23 @@ headwayRouter.get(
     }
     const incidents = await listOpenIncidents(parsed.data.routeDirectionId);
     res.status(200).json({ incidents });
+  }),
+);
+
+headwayRouter.get(
+  '/v1/incidents/:id',
+  asyncHandler(async (req, res) => {
+    const parsed = incidentIdParamSchema.safeParse(req.params);
+    if (!parsed.success) {
+      sendError(res, new AppError('invalid_request', 'Invalid incident id', 400, parsed.error.flatten()));
+      return;
+    }
+    const incident = await getIncident(parsed.data.id);
+    if (!incident) {
+      sendError(res, new AppError('incident_not_found', `incident ${parsed.data.id} not found`, 404));
+      return;
+    }
+    res.status(200).json({ incident });
   }),
 );
 

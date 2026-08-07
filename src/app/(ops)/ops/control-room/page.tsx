@@ -1,6 +1,7 @@
 import { getOpsSession } from '@/lib/auth/rbac/server';
 import { OpsShell } from '@/components/ops/OpsShell';
 import { getOpsFleetSnapshot } from '@/lib/ops/fleetData';
+import { getOpsRepo } from '@/lib/auth/rbac/repo';
 import { ControlRoomDashboard } from '@/components/ops/control-room/ControlRoomDashboard';
 
 export const dynamic = 'force-dynamic';
@@ -22,11 +23,22 @@ export default async function ControlRoomPage({
   );
 }
 
-/** See src/app/(ops)/ops/dispatcher/page.tsx's DashboardBody for why this boundary exists. */
+/**
+ * See src/app/(ops)/ops/dispatcher/page.tsx's DashboardBody for why this
+ * boundary exists. Unlike the dispatcher/depot read, control-room's own
+ * kill-switch list is load-bearing for this page's own engage/disengage
+ * panel (KillSwitchPanel needs a real starting list, not a silently-empty
+ * one) — an OpsDbConfigError here correctly falls into the same
+ * unavailable-page state as a fleet-snapshot failure, rather than being
+ * swallowed.
+ */
 async function DashboardBody({ query }: { query: string }) {
   try {
-    const snapshot = await getOpsFleetSnapshot();
-    return <ControlRoomDashboard snapshot={snapshot} query={query} />;
+    const [snapshot, activeKillSwitches] = await Promise.all([
+      getOpsFleetSnapshot(),
+      getOpsRepo().listKillSwitches(true),
+    ]);
+    return <ControlRoomDashboard snapshot={snapshot} query={query} activeKillSwitches={activeKillSwitches} />;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return (

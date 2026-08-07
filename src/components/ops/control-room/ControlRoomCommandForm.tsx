@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 const TARGET_TYPES = ['vehicle', 'route_direction', 'trip'] as const;
 type TargetType = (typeof TARGET_TYPES)[number];
@@ -17,10 +17,17 @@ interface SuccessState {
  * enforces that non-negotiably (docs/CONTROL_SERVICE_INTEGRATION.md §1), so
  * a 409 DISPATCHER_ACTION_INVALID is a normal, expected error to surface
  * here, not a bug.
+ *
+ * `prefillDispatcherActionId` is set by the approval queue's "Approve —
+ * issue command" action (ApprovalQueuePanel via
+ * ApprovalAndCommandPanel): issuing a command that consumes a queued
+ * action *is* the approval decision for this ticket's approval-queue AC,
+ * so that flow seeds this field rather than duplicating a separate
+ * approve endpoint.
  */
-export function ControlRoomCommandForm() {
+export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillDispatcherActionId?: string }) {
   const [summary, setSummary] = useState('');
-  const [dispatcherActionId, setDispatcherActionId] = useState('');
+  const [dispatcherActionId, setDispatcherActionId] = useState(prefillDispatcherActionId ?? '');
   const [targetType, setTargetType] = useState<TargetType>('vehicle');
   const [targetId, setTargetId] = useState('');
   const [status, setStatus] = useState<'idle' | 'submitting' | 'error' | 'success'>('idle');
@@ -29,6 +36,10 @@ export function ControlRoomCommandForm() {
 
   const errorId = useId();
   const successId = useId();
+
+  useEffect(() => {
+    if (prefillDispatcherActionId) setDispatcherActionId(prefillDispatcherActionId);
+  }, [prefillDispatcherActionId]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -69,7 +80,11 @@ export function ControlRoomCommandForm() {
   const submitting = status === 'submitting';
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-md border border-[rgba(255,255,255,0.08)] p-4">
+    <form
+      id="control-room-command-form"
+      onSubmit={handleSubmit}
+      className="space-y-4 rounded-md border border-[rgba(255,255,255,0.08)] p-4"
+    >
       <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">Issue command</h2>
 
       <div className="grid gap-4 sm:grid-cols-2">

@@ -39,6 +39,35 @@ export function groupByDepot(buses: CanonicalLiveBus[]): FleetGroup[] {
     .sort((a, b) => b.buses.length - a.buses.length);
 }
 
+export interface StandbyCandidate {
+  bus: CanonicalLiveBus;
+  /** Minutes since this vehicle's last live update, or null if unparseable — surfaced so a dispatcher can judge how current the "standby" read is, not just trust the label. */
+  idleMinutes: number | null;
+}
+
+/**
+ * Best-effort "available for standby injection" read over the live fleet
+ * feed (this ticket's AC1: "standby availability"). There is no dedicated
+ * standby/duty-roster table anywhere in this system yet (upstream UPSRTC
+ * data and control-service's schema both stop short of that) — this is a
+ * heuristic over real fields only: ignition on (or unknown) and no active
+ * trip assignment, which is the closest a live-GPS feed can say to "this
+ * bus is running but not currently on a scheduled service". Sorted most-
+ * recently-reporting first, since a stale GPS read is a weaker signal of
+ * genuine availability. Always label this as a heuristic in the UI — never
+ * present it as an authoritative duty-roster standby designation.
+ */
+export function deriveStandbyAvailability(buses: CanonicalLiveBus[], now: number = Date.now()): StandbyCandidate[] {
+  return buses
+    .filter((bus) => bus.tripId === null && bus.ignitionOn !== false)
+    .map((bus) => {
+      const updatedAtMs = Date.parse(bus.lastUpdatedAt);
+      const idleMinutes = Number.isNaN(updatedAtMs) ? null : Math.round((now - updatedAtMs) / 60_000);
+      return { bus, idleMinutes };
+    })
+    .sort((a, b) => (a.idleMinutes ?? Infinity) - (b.idleMinutes ?? Infinity));
+}
+
 /** Groups buses by route for the planner dashboard's route/schedule roster. */
 export function groupByRoute(buses: CanonicalLiveBus[]): FleetGroup[] {
   const groups = new Map<string, { label: string; buses: CanonicalLiveBus[] }>();

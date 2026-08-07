@@ -9,11 +9,12 @@ import request from 'supertest';
 vi.mock('../src/headway/service.js', () => ({
   computeRouteDirectionHeadway: vi.fn(),
   listOpenIncidents: vi.fn(),
+  getIncident: vi.fn(),
   listActiveRouteDirections: vi.fn(),
 }));
 
 const { createApp } = await import('../src/app.js');
-const { computeRouteDirectionHeadway, listOpenIncidents, listActiveRouteDirections } = await import(
+const { computeRouteDirectionHeadway, listOpenIncidents, getIncident, listActiveRouteDirections } = await import(
   '../src/headway/service.js'
 );
 const { AppError } = await import('../src/lib/errors.js');
@@ -25,6 +26,7 @@ describe('headway routes', () => {
   beforeEach(() => {
     vi.mocked(computeRouteDirectionHeadway).mockReset();
     vi.mocked(listOpenIncidents).mockReset();
+    vi.mocked(getIncident).mockReset();
     vi.mocked(listActiveRouteDirections).mockReset();
   });
 
@@ -148,6 +150,45 @@ describe('headway routes', () => {
       const res = await request(app).get('/v1/incidents').set('Authorization', AUTH_HEADER);
       expect(res.status).toBe(200);
       expect(listOpenIncidents).toHaveBeenCalledWith(undefined);
+    });
+  });
+
+  describe('GET /v1/incidents/:id', () => {
+    it('requires the service token', async () => {
+      const app = createApp();
+      const res = await request(app).get('/v1/incidents/inc-1');
+      expect(res.status).toBe(401);
+    });
+
+    it('returns the incident regardless of status (open or closed)', async () => {
+      const incident = {
+        id: 'inc-1',
+        routeDirectionId: 'rd-1',
+        severity: 'bunched',
+        causeClass: 'unknown',
+        controllability: 'controllable',
+        status: 'closed',
+        startedAt: new Date().toISOString(),
+        endedAt: new Date().toISOString(),
+        evidence: {},
+        members: [{ vehicleId: 'veh-a', role: 'leader' }],
+      };
+      vi.mocked(getIncident).mockResolvedValueOnce(incident);
+
+      const app = createApp();
+      const res = await request(app).get('/v1/incidents/inc-1').set('Authorization', AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(res.body.incident).toEqual(incident);
+      expect(getIncident).toHaveBeenCalledWith('inc-1');
+    });
+
+    it('404s when the incident does not exist', async () => {
+      vi.mocked(getIncident).mockResolvedValueOnce(null);
+      const app = createApp();
+      const res = await request(app).get('/v1/incidents/missing').set('Authorization', AUTH_HEADER);
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('incident_not_found');
     });
   });
 

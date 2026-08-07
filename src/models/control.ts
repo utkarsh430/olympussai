@@ -277,6 +277,12 @@ export const incidentsResponseSchema = z.object({
 });
 export type IncidentsResponse = z.infer<typeof incidentsResponseSchema>;
 
+/** Response body of GET /v1/incidents/:id — unlike the list above, returns the incident regardless of status (open or closed), for the incident timeline's "state" stage. */
+export const incidentResponseSchema = z.object({
+  incident: bunchingIncidentSchema,
+});
+export type IncidentResponse = z.infer<typeof incidentResponseSchema>;
+
 /** Response body of GET /v1/route-directions. */
 export const routeDirectionsResponseSchema = z.object({
   routeDirections: z.array(routeDirectionMetaSchema),
@@ -377,6 +383,7 @@ export const commandSchema = z.object({
   // response includes them, but a caller not passing them is not an error.
   version: z.number().int().positive().optional(),
   supersedesCommandId: z.string().nullable().optional(),
+  /** Driver ack outcome (blueprint 9.2) — accept/unable/unsafe, never penalized either way. Optional: older/other call sites of this schema may not populate it. */
   ackOutcome: z.enum(['accept', 'unable', 'unsafe']).nullable().optional(),
   createdAt: z.string().optional(),
 });
@@ -384,6 +391,35 @@ export type Command = z.infer<typeof commandSchema>;
 
 export const complianceSchema = z.enum(['complied', 'partial', 'unable', 'unsafe', 'no_response']);
 export type Compliance = z.infer<typeof complianceSchema>;
+
+/** Response body of GET /v1/commands/:id. */
+export const commandResponseSchema = z.object({
+  command: commandSchema,
+});
+export type CommandResponse = z.infer<typeof commandResponseSchema>;
+
+/** Mirrors control-service's CommandAuditLogEntry (control-service/src/db/commandAudit.ts) — one row per command_audit_log entry, the sole source of truth for command lifecycle reconstruction. */
+export const commandAuditLogEntrySchema = z.object({
+  id: z.string(),
+  commandId: z.string(),
+  eventType: z.string(),
+  fromStatus: z.string().nullable(),
+  toStatus: z.string(),
+  actorType: z.string(),
+  actorId: z.string().nullable(),
+  reason: z.string().nullable(),
+  metadata: z.record(z.string(), z.unknown()),
+  occurredAt: z.string(),
+});
+export type CommandAuditLogEntry = z.infer<typeof commandAuditLogEntrySchema>;
+
+/** Response body of GET /v1/commands/:id/audit — ordered oldest-first. */
+export const commandAuditResponseSchema = z.object({
+  commandId: z.string(),
+  command: commandSchema,
+  auditLog: z.array(commandAuditLogEntrySchema),
+});
+export type CommandAuditResponse = z.infer<typeof commandAuditResponseSchema>;
 
 export const outcomeSchema = z.object({
   id: z.string(),

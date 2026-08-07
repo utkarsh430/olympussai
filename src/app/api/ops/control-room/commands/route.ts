@@ -67,6 +67,29 @@ export async function POST(request: NextRequest): Promise<Response> {
   try {
     const repo = getOpsRepo();
 
+    // This ticket's kill-switch AC: "immediately halt new automatic
+    // commands ... both logged". This endpoint is this app's one real
+    // command-creation gate today (no control-service REST client that
+    // actually dispatches a command exists yet — see this file's other
+    // doc comment below), so it is the enforcement point. Network-wide
+    // always applies; the route-scoped switch only applies when the
+    // command targets that same route-direction directly — a
+    // vehicle/trip-targeted command cannot be resolved to a
+    // route-direction without a lookup this app doesn't have, so only the
+    // network-wide switch blocks those (documented, not silently assumed).
+    const routeDirectionId = parsed.data.targetType === 'route_direction' ? parsed.data.targetId : null;
+    const activeKillSwitches = await repo.getActiveKillSwitches(routeDirectionId);
+    const [blocking] = activeKillSwitches;
+    if (blocking) {
+      return errorResponse(
+        'KILL_SWITCH_ENGAGED',
+        blocking.scope === 'network'
+          ? 'A network-wide kill switch is engaged; no new commands can be authorized.'
+          : `A kill switch is engaged for route-direction ${blocking.routeDirectionId}; no new commands can be authorized for it.`,
+        409,
+      );
+    }
+
     // Non-negotiable per docs/CONTROL_SERVICE_INTEGRATION.md §1: no command
     // without a valid, unconsumed dispatcherActionId. consumeDispatcherAction
     // is an atomic UPDATE ... WHERE consumed_at IS NULL, so a raced double
