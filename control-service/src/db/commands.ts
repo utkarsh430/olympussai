@@ -16,6 +16,7 @@ import type { Pool, PoolClient } from 'pg';
 import { getPool } from './pool.js';
 import { setAuditContext } from './commandAudit.js';
 import { AppError } from '../lib/errors.js';
+import { assertRolloutStageAllowsCommand } from '../pilot/gate.js';
 import type {
   AcknowledgeCommandRequest,
   CreateCommandRequest,
@@ -169,6 +170,13 @@ export async function createCommand(
   try {
     await client.query('begin');
     await setAuditContext(client, { actorType: 'dispatcher', reason: 'command created against an authorized dispatcher action' });
+
+    // Pilot-staging rollout gate (ticket: "Pilot-staging dashboard with
+    // per-route rollout gates ..."): reads the route-direction's current
+    // stage inside this transaction and throws (with its own guardrail-
+    // breach record already durably written) if the stage is
+    // 'observation'/'shadow' — no command may be issued at all yet.
+    await assertRolloutStageAllowsCommand(client, input, pool);
 
     const { rows } = await client.query<RawCommandRow>(
       `insert into commands
@@ -428,6 +436,16 @@ export async function supersedeCommand(
       actorId: input.actorId,
       reason: input.reason ?? 'superseded by a re-issued command',
     });
+
+    // Same pilot-staging rollout gate as createCommand — superseding is a
+    // brand-new command in every sense the dispatcher-authorization rule
+    // cares about, so it must not bypass the stage gate either.
+    await assertRolloutStageAllowsCommand(
+      client,
+      { dispatcherActionId: input.dispatcherActionId, vehicleId: prior.vehicleId, actionType: input.actionType ?? prior.actionType },
+      pool,
+    );
+
     await client.query(`update commands set status = 'cancelled' where id = $1`, [id]);
 
     const expiresAt = new Date(Date.now() + input.ttlSeconds * 1000).toISOString();

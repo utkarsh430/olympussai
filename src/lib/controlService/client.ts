@@ -92,9 +92,9 @@ function readConfig(): { baseUrl: string; token: string } {
 }
 
 export interface ControlServiceRequestOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PUT';
   query?: Record<string, string | undefined>;
-  /** JSON-serialized and sent as the request body. Only meaningful for `method: 'POST'`. */
+  /** JSON-serialized and sent as the request body. Only meaningful for `method: 'POST'` / `'PUT'`. */
   body?: unknown;
   timeoutMs?: number;
 }

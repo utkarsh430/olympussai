@@ -507,3 +507,142 @@ export const acknowledgeCommandResponseSchema = z.object({
   command: commandSchema,
   webhookDelivered: z.boolean(),
 });
+
+// ---------------------------------------------------------------------------
+// Pilot-staging dashboard — rollout stage, guardrail breaches, daily KPI
+// snapshots, war-room incident review ("Pilot-staging dashboard with
+// per-route rollout gates and daily KPIs"). Mirrors
+// control-service/src/models/pilotSchemas.ts and the row shapes returned by
+// control-service/src/pilot/*.ts.
+// ---------------------------------------------------------------------------
+
+export const rolloutStageSchema = z.enum(['observation', 'shadow', 'advisory', 'limited_auto', 'expanded']);
+export type RolloutStage = z.infer<typeof rolloutStageSchema>;
+
+export const rolloutStageRowSchema = z.object({
+  routeDirectionId: z.string(),
+  routeId: z.string(),
+  directionCode: z.string(),
+  directionName: z.string().nullable(),
+  publicName: z.string(),
+  stage: rolloutStageSchema,
+  reason: z.string().nullable(),
+  updatedBy: z.string().nullable(),
+  updatedAt: z.string().nullable(),
+});
+export type RolloutStageRow = z.infer<typeof rolloutStageRowSchema>;
+
+/** Response body of GET /v1/rollout-stages. */
+export const rolloutStagesResponseSchema = z.object({
+  rolloutStages: z.array(rolloutStageRowSchema),
+});
+
+/** Response body of GET/PUT /v1/route-directions/:id/rollout-stage. */
+export const rolloutStageResponseSchema = z.object({
+  rolloutStage: rolloutStageRowSchema,
+});
+
+export const rolloutStageAuditEntrySchema = z.object({
+  id: z.string(),
+  routeDirectionId: z.string(),
+  previousStage: z.string().nullable(),
+  newStage: z.string(),
+  changedBy: z.string(),
+  reason: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type RolloutStageAuditEntry = z.infer<typeof rolloutStageAuditEntrySchema>;
+
+/** Response body of GET /v1/route-directions/:id/rollout-stage/audit. */
+export const rolloutStageAuditResponseSchema = z.object({
+  routeDirectionId: z.string(),
+  auditLog: z.array(rolloutStageAuditEntrySchema),
+});
+
+export const guardrailBreachSchema = z.object({
+  id: z.string(),
+  routeDirectionId: z.string().nullable(),
+  breachType: z.string(),
+  severity: z.enum(['info', 'warning', 'critical']),
+  detail: z.record(z.string(), z.unknown()),
+  detectedAt: z.string(),
+});
+export type GuardrailBreach = z.infer<typeof guardrailBreachSchema>;
+
+/** Response body of GET /v1/guardrail-breaches. */
+export const guardrailBreachesResponseSchema = z.object({
+  breaches: z.array(guardrailBreachSchema),
+});
+
+export const dailyKpiSnapshotSchema = z.object({
+  routeDirectionId: z.string(),
+  publicName: z.string(),
+  directionCode: z.string(),
+  snapshotDate: z.string(),
+  sampleCount: z.number().int().min(0),
+  meanHeadwaySeconds: z.number().nullable(),
+  ewtSeconds: z.number().nullable(),
+  cv: z.number().nullable(),
+  incidentCount: z.number().int().min(0),
+  recoveredIncidentCount: z.number().int().min(0),
+  recoveryRate: z.number().nullable(),
+  guardrailBreachCount: z.number().int().min(0),
+  complianceSampleCount: z.number().int().min(0),
+  compliancePct: z.number().nullable(),
+  computedAt: z.string(),
+});
+export type DailyKpiSnapshot = z.infer<typeof dailyKpiSnapshotSchema>;
+
+/** Response body of GET /v1/kpi/daily. */
+export const dailyKpiResponseSchema = z.object({
+  date: z.string(),
+  snapshots: z.array(dailyKpiSnapshotSchema),
+});
+
+export const warRoomClassificationSchema = z.enum(['eligible', 'exogenous', 'structural']);
+export type WarRoomClassification = z.infer<typeof warRoomClassificationSchema>;
+
+export const warRoomIncidentSchema = z.object({
+  incidentId: z.string(),
+  routeDirectionId: z.string(),
+  severity: incidentSeveritySchema,
+  causeClass: causeClassSchema,
+  controllability: controllabilitySchema,
+  status: incidentStatusSchema,
+  startedAt: z.string(),
+  endedAt: z.string().nullable(),
+  classification: warRoomClassificationSchema.nullable(),
+  actionTaken: z.string().nullable(),
+  reviewOutcome: z.string().nullable(),
+  reviewedBy: z.string().nullable(),
+  reviewedAt: z.string().nullable(),
+  measuredCompliance: complianceSchema.nullable(),
+  measuredRecoverySeconds: z.number().nullable(),
+  measuredGuardrailEvents: z.array(z.record(z.string(), z.unknown())),
+});
+export type WarRoomIncident = z.infer<typeof warRoomIncidentSchema>;
+
+/** Response body of GET /v1/war-room/incidents. */
+export const warRoomIncidentsResponseSchema = z.object({
+  date: z.string(),
+  incidents: z.array(warRoomIncidentSchema),
+});
+
+/** Response body of PUT /v1/war-room/incidents/:incidentId/review. */
+export const warRoomIncidentReviewResponseSchema = z.object({
+  incident: warRoomIncidentSchema,
+});
+
+export const submitIncidentReviewRequestSchema = z.object({
+  classification: warRoomClassificationSchema,
+  actionTaken: z.string().max(4000).nullable().optional(),
+  outcome: z.string().max(4000).nullable().optional(),
+  reviewedBy: z.string().min(1).max(200),
+});
+export type SubmitIncidentReviewRequest = z.infer<typeof submitIncidentReviewRequestSchema>;
+
+export const setRolloutStageRequestSchema = z.object({
+  stage: rolloutStageSchema,
+  reason: z.string().max(2000).nullable().optional(),
+});
+export type SetRolloutStageRequest = z.infer<typeof setRolloutStageRequestSchema>;

@@ -1,0 +1,25 @@
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { requireOpsRole } from '@/lib/auth/rbac/guard';
+import { getDailyKpiSnapshots } from '@/lib/controlService/pilotData';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+/**
+ * GET /api/ops/control-room/pilot/kpi?date=YYYY-MM-DD&routeDirectionId=
+ *
+ * Daily EWT/CV/recovery-rate/guardrail-breach/compliance per route
+ * (ticket AC2). `date` defaults to today (UTC) in control-service.
+ */
+export async function GET(request: NextRequest): Promise<Response> {
+  const guard = await requireOpsRole(['control_room']);
+  if (!guard.ok) return guard.response;
+
+  const url = new URL(request.url);
+  const date = url.searchParams.get('date') ?? undefined;
+  const routeDirectionId = url.searchParams.get('routeDirectionId') ?? undefined;
+
+  const snapshot = await getDailyKpiSnapshots(date, routeDirectionId);
+  return NextResponse.json(snapshot, { status: 200, headers: { 'Cache-Control': 'no-store' } });
+}

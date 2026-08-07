@@ -46,6 +46,12 @@ export function ControlRoomDashboard({
         >
           Copilot &rarr; incident explanations / shift reports / ask a question
         </Link>
+        <Link
+          href="/ops/control-room/pilot"
+          className="inline-flex items-center gap-2 rounded-md border border-[rgba(255,255,255,0.14)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8fb4ff] hover:border-[#4f8cff]/60"
+        >
+          Pilot staging &rarr; daily KPIs / guardrail breaches / war room
+        </Link>
       </p>
 
       <section>
