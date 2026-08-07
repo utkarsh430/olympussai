@@ -3,6 +3,7 @@
 // the full lifecycle the "command lifecycle and delivery service" ticket
 // asks for:
 //   POST   /v1/commands              persist + authorize (dispatcherActionId required)
+//   GET    /v1/commands/active       the one delivered, not-yet-acked command for ?vehicleId=
 //   GET    /v1/commands/:id          current state
 //   GET    /v1/commands/:id/audit    full, ordered audit trail (command_audit_log)
 //   POST   /v1/commands/:id/deliver  authorized -> delivered (refuses expired/unauthorized)
@@ -21,6 +22,7 @@ import {
 import {
   createCommand,
   getCommandById,
+  getActiveDeliveredCommandForVehicle,
   deliverCommand,
   acknowledgeCommand,
   supersedeCommand,
@@ -79,6 +81,25 @@ commandsRouter.post(
       command: result.command,
       webhookDelivered: result.delivery.delivered,
     });
+  }),
+);
+
+const activeCommandQuerySchema = z.object({ vehicleId: z.string().min(1, 'vehicleId is required') });
+
+// Registered ahead of GET /v1/commands/:id so the literal segment "active"
+// is never swallowed by that route's :id param (which would otherwise 400
+// it as "not a valid UUID" instead of reaching this handler).
+commandsRouter.get(
+  '/v1/commands/active',
+  asyncHandler(async (req, res) => {
+    const parsed = activeCommandQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      sendError(res, new AppError('invalid_request', 'vehicleId query param is required', 400, parsed.error.flatten()));
+      return;
+    }
+
+    const command = await getActiveDeliveredCommandForVehicle(parsed.data.vehicleId);
+    res.status(200).json({ command });
   }),
 );
 

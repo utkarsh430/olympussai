@@ -213,6 +213,52 @@ export async function getCommandById(id: string, pool: Pool = getPool()): Promis
 }
 
 /**
+ * The single command a driver's device should show right now for
+ * `vehicleId` (ticket: "Driver PWA ... single-instruction command
+ * interface"): the most recently created `delivered` command, i.e. one
+ * already handed to the driver and awaiting ack — `authorized`-but-not-yet-
+ * delivered commands are dispatcher-side state the driver never sees.
+ * Reuses `lockAndExpireIfDue` so a command whose TTL has lapsed is flipped
+ * to `expired` and returned as `null` here rather than handed to the driver
+ * stale - "auto-expiry on TTL lapse" holds for the read path, not just the
+ * write paths below. `commands_one_active_per_vehicle_idx` guarantees there
+ * is at most one non-terminal command per vehicle, so `delivered` here is
+ * unambiguous without needing an explicit `limit 1` tiebreak in practice;
+ * the `order by created_at desc limit 1` is defensive only.
+ */
+export async function getActiveDeliveredCommandForVehicle(
+  vehicleId: string,
+  pool: Pool = getPool(),
+): Promise<CommandRow | null> {
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    const { rows } = await client.query<{ id: string }>(
+      `select id from commands
+        where vehicle_id = $1 and status = 'delivered'
+        order by created_at desc
+        limit 1
+        for update`,
+      [vehicleId],
+    );
+    const candidate = rows[0];
+    if (!candidate) {
+      await client.query('commit');
+      return null;
+    }
+    const command = await lockAndExpireIfDue(client, candidate.id);
+    await client.query('commit');
+    if (!command || command.status !== 'delivered') return null;
+    return command;
+  } catch (err) {
+    await client.query('rollback').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Row-locks `id`, transitions it to `expired` in place if its TTL has
  * already passed (never leaving it in a status a caller could still act
  * on), and returns the up-to-date row. Every lifecycle mutation below

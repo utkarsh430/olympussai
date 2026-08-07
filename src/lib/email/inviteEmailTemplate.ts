@@ -20,6 +20,7 @@ export interface RenderedEmail {
 
 const ROLE_LABEL: Record<OpsRole, string> = {
   driver: 'Driver',
+  pilot_driver: 'Pilot Driver',
   dispatcher: 'Dispatcher',
   depot: 'Depot',
   control_room: 'Control Room',

@@ -22,15 +22,23 @@ beforeAll(() => {
 });
 
 describe('ops RBAC roles', () => {
-  it('recognizes exactly the five operational roles plus admin', () => {
+  it('recognizes exactly the six operational roles plus admin', () => {
     expect(OPS_ROLES).toEqual([
       'driver',
+      'pilot_driver',
       'dispatcher',
       'depot',
       'control_room',
       'planner',
       'admin',
     ]);
+  });
+
+  it('pilot_driver is a distinct role from driver, with its own URL segment', () => {
+    expect(isOpsRole('pilot_driver')).toBe(true);
+    expect(OPS_ROLE_SEGMENT.pilot_driver).toBe('pilot-driver');
+    expect(roleForSegment('pilot-driver')).toBe('pilot_driver');
+    expect(roleForSegment('pilot-driver')).not.toBe('driver');
   });
 
   it('isOpsRole rejects unknown values', () => {

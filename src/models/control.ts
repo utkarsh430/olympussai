@@ -367,6 +367,18 @@ export const commandSchema = z.object({
   deliveredAt: z.string().nullable(),
   acknowledgedAt: z.string().nullable(),
   acknowledgementReason: z.string().nullable(),
+  // version/supersedesCommandId/ackOutcome/createdAt: added by the driver
+  // PWA ticket to match control-service's CommandRow in full
+  // (control-service/src/db/commands.ts) — the supersede lifecycle and ack
+  // outcome weren't part of this schema's original wire contract. Optional
+  // rather than required so this remains a superset-compatible extension
+  // of the pre-existing wire contract this schema's own test fixtures
+  // exercise (src/tests/unit/control.test.ts) — every real control-service
+  // response includes them, but a caller not passing them is not an error.
+  version: z.number().int().positive().optional(),
+  supersedesCommandId: z.string().nullable().optional(),
+  ackOutcome: z.enum(['accept', 'unable', 'unsafe']).nullable().optional(),
+  createdAt: z.string().optional(),
 });
 export type Command = z.infer<typeof commandSchema>;
 
@@ -434,3 +446,28 @@ export const routePolicySchema = z.object({
   effectiveTo: z.string().nullable(),
 });
 export type RoutePolicy = z.infer<typeof routePolicySchema>;
+
+// ---------------------------------------------------------------------------
+// Command / outcome wire responses (driver PWA — "Driver PWA:
+// single-instruction command interface")
+// ---------------------------------------------------------------------------
+// commandSchema itself (above, "Command / outcome") already mirrors
+// control-service's CommandRow — extended here with the fields that schema
+// didn't yet carry (version/supersedesCommandId/ackOutcome/createdAt) and
+// the two response envelopes the driver PWA's API routes validate against
+// (src/lib/controlService/commands.ts). This app only ever reads/acks
+// commands through control-service's REST surface
+// (docs/CONTROL_SERVICE_INTEGRATION.md §1) — it never writes to
+// control-service's own `commands` table directly.
+
+export const commandAckOutcomeSchema = z.enum(['accept', 'unable', 'unsafe']);
+export type CommandAckOutcome = z.infer<typeof commandAckOutcomeSchema>;
+
+export const activeCommandResponseSchema = z.object({
+  command: commandSchema.nullable(),
+});
+
+export const acknowledgeCommandResponseSchema = z.object({
+  command: commandSchema,
+  webhookDelivered: z.boolean(),
+});
