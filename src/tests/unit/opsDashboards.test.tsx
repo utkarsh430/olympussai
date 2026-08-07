@@ -14,6 +14,7 @@ import { PlannerDashboard } from '@/components/ops/planner/PlannerDashboard';
 import { DriverDashboard } from '@/components/ops/driver/DriverDashboard';
 import { ScheduleLookupForm } from '@/components/ops/ScheduleLookupForm';
 import { BreakdownReportPanel } from '@/components/ops/driver/BreakdownReportPanel';
+import { OpsAdminInvitesPanel } from '@/components/ops/OpsAdminInvitesPanel';
 
 function bus(overrides: Partial<CanonicalLiveBus> = {}): CanonicalLiveBus {
   return {
@@ -382,5 +383,112 @@ describe('BreakdownReportPanel action flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /submit report/i }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/vehicleReg, category and description/i));
+  });
+});
+
+describe('OpsAdminInvitesPanel vehicle assignment', () => {
+  function usersResponse() {
+    return {
+      users: [
+        {
+          id: 'user-driver-1',
+          email: 'driver1@olympuss.us',
+          name: 'Driver One',
+          role: 'driver',
+          status: 'active',
+          vehicleId: 'UP25FT4823',
+          createdAt: '2026-08-01T00:00:00.000Z',
+        },
+        {
+          id: 'user-dispatcher-1',
+          email: 'dispatcher1@olympuss.us',
+          name: 'Dispatcher One',
+          role: 'dispatcher',
+          status: 'active',
+          vehicleId: null,
+          createdAt: '2026-08-01T00:00:00.000Z',
+        },
+      ],
+    };
+  }
+
+  function routeFetch(onVehiclePost: (body: unknown) => { ok: boolean; json: unknown }) {
+    return vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/ops/admin/users' && (!init || init.method === undefined)) {
+        return { ok: true, json: async () => usersResponse() };
+      }
+      if (url === '/api/ops/admin/invites' && (!init || init.method === undefined)) {
+        return { ok: true, json: async () => ({ invites: [] }) };
+      }
+      if (url === '/api/ops/admin/users/user-driver-1/vehicle' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        const result = onVehiclePost(body);
+        return { ok: result.ok, json: async () => result.json };
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+  }
+
+  it('renders each driver/pilot_driver row with its current vehicleId and no assignment control for other roles', async () => {
+    const fetchMock = routeFetch(() => ({ ok: true, json: { ok: true, vehicleId: null } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<OpsAdminInvitesPanel />);
+
+    expect(await screen.findByDisplayValue('UP25FT4823')).toBeInTheDocument();
+    const dispatcherRow = (await screen.findByText('Dispatcher One')).closest('tr')!;
+    expect(within(dispatcherRow).getByText('—')).toBeInTheDocument();
+  });
+
+  it('submits to POST /api/ops/admin/users/:id/vehicle and shows a saved confirmation on success', async () => {
+    const fetchMock = routeFetch((body) => {
+      expect(body).toEqual({ vehicleId: 'UP25FT9999' });
+      return { ok: true, json: { ok: true, id: 'user-driver-1', vehicleId: 'UP25FT9999' } };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<OpsAdminInvitesPanel />);
+
+    const input = await screen.findByDisplayValue('UP25FT4823');
+    fireEvent.change(input, { target: { value: 'UP25FT9999' } });
+    fireEvent.click(screen.getByRole('button', { name: /assign/i }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saved'));
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/ops/admin/users/user-driver-1/vehicle',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('sends null when the input is cleared, to unassign the vehicle', async () => {
+    const fetchMock = routeFetch((body) => {
+      expect(body).toEqual({ vehicleId: null });
+      return { ok: true, json: { ok: true, id: 'user-driver-1', vehicleId: null } };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<OpsAdminInvitesPanel />);
+
+    const input = await screen.findByDisplayValue('UP25FT4823');
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /assign/i }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saved'));
+  });
+
+  it('shows a visible error when the vehicle-assignment endpoint rejects the request', async () => {
+    const fetchMock = routeFetch(() => ({
+      ok: false,
+      json: { error: { code: 'NOT_FOUND', message: 'User not found.' } },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<OpsAdminInvitesPanel />);
+
+    const input = await screen.findByDisplayValue('UP25FT4823');
+    fireEvent.change(input, { target: { value: 'UP25FT9999' } });
+    fireEvent.click(screen.getByRole('button', { name: /assign/i }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('User not found.'));
   });
 });

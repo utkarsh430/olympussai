@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { OPERATIONAL_ROLES, type OpsRole } from '@/lib/auth/rbac/roles';
 
 interface OpsUserSummary {
@@ -9,8 +9,12 @@ interface OpsUserSummary {
   name: string;
   role: OpsRole;
   status: 'active' | 'disabled';
+  vehicleId: string | null;
   createdAt: string;
 }
+
+/** Roles a vehicle assignment is meaningful for (db/migrations/20260806180000__ops_users_vehicle_assignment.sql). */
+const VEHICLE_ASSIGNABLE_ROLES: OpsRole[] = ['driver', 'pilot_driver'];
 
 type OpsInviteStatus = 'pending' | 'expired' | 'accepted' | 'revoked';
 
@@ -47,6 +51,97 @@ function formatExpiry(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+/**
+ * Inline assign/reassign-vehicle form for a single driver/pilot_driver row,
+ * mirroring DispatcherActionForm's self-contained submit/error/success
+ * pattern. POSTs to /api/ops/admin/users/:id/vehicle, which is the only
+ * write path to ops_users.vehicle_id outside invite-time assignment — an
+ * empty input clears the assignment, since the endpoint treats '' the same
+ * as null.
+ */
+function VehicleAssignmentCell({
+  userId,
+  vehicleId,
+  onAssigned,
+}: {
+  userId: string;
+  vehicleId: string | null;
+  onAssigned: (id: string, vehicleId: string | null) => void;
+}) {
+  const [value, setValue] = useState(vehicleId ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const errorId = useId();
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const trimmed = value.trim();
+      const response = await fetch(`/api/ops/admin/users/${userId}/vehicle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vehicleId: trimmed === '' ? null : trimmed }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { ok: true; vehicleId: string | null }
+        | { error?: { message?: string } }
+        | null;
+      if (!response.ok || !data || !('ok' in data)) {
+        setError((data && 'error' in data && data.error?.message) || 'Could not assign vehicle.');
+        return;
+      }
+      setValue(data.vehicleId ?? '');
+      setSaved(true);
+      onAssigned(userId, data.vehicleId ?? null);
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-center justify-end gap-2">
+      <label htmlFor={`vehicle-${userId}`} className="sr-only">
+        Assign vehicle
+      </label>
+      <input
+        id={`vehicle-${userId}`}
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setSaved(false);
+        }}
+        placeholder="Unassigned"
+        aria-describedby={error ? errorId : undefined}
+        className="w-32 rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-2 py-1 text-xs text-[#e6e9ef] placeholder:text-[#707580] focus:border-[#4f8cff]/70 focus:outline-none"
+      />
+      <button
+        type="submit"
+        disabled={busy}
+        className="rounded border border-[rgba(255,255,255,0.14)] px-2 py-1 text-xs text-[#9aa0ad] hover:border-[#4f8cff]/60 hover:text-[#8fb4ff] disabled:opacity-60"
+      >
+        {busy ? 'Saving…' : 'Assign'}
+      </button>
+      {saved && !error && (
+        <span role="status" className="text-xs text-[#7ed6a5]">
+          Saved
+        </span>
+      )}
+      {error && (
+        <span id={errorId} role="alert" className="w-full text-right text-xs text-[#f0857d]">
+          {error}
+        </span>
+      )}
+    </form>
+  );
 }
 
 /**
@@ -122,6 +217,10 @@ export function OpsAdminInvitesPanel() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function handleVehicleAssigned(id: string, vehicleId: string | null) {
+    setUsers((prev) => (prev ? prev.map((u) => (u.id === id ? { ...u, vehicleId } : u)) : prev));
   }
 
   async function handleDisable(id: string) {
@@ -294,6 +393,7 @@ export function OpsAdminInvitesPanel() {
                 <th className="pb-2">Email</th>
                 <th className="pb-2">Role</th>
                 <th className="pb-2">Status</th>
+                <th className="pb-2">Vehicle</th>
                 <th className="pb-2" />
               </tr>
             </thead>
@@ -304,6 +404,17 @@ export function OpsAdminInvitesPanel() {
                   <td className="py-2">{u.email}</td>
                   <td className="py-2">{u.role.replace('_', ' ')}</td>
                   <td className="py-2">{u.status}</td>
+                  <td className="py-2 text-right">
+                    {VEHICLE_ASSIGNABLE_ROLES.includes(u.role) ? (
+                      <VehicleAssignmentCell
+                        userId={u.id}
+                        vehicleId={u.vehicleId}
+                        onAssigned={handleVehicleAssigned}
+                      />
+                    ) : (
+                      <span className="text-[#6f7684]">—</span>
+                    )}
+                  </td>
                   <td className="py-2 text-right">
                     {u.status === 'active' && (
                       <button
