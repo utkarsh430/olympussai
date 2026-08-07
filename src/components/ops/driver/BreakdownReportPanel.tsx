@@ -18,6 +18,13 @@ interface SuccessState {
  * ControlRoomCommandForm. On success it also renders the composed summary
  * so the driver can still read it out over radio/phone if that channel is
  * faster than waiting for dispatch to see the persisted report.
+ *
+ * `defaultVehicleReg` is DriverDashboard's admin-assigned vehicle (see that
+ * component's own doc comment) when the driver has one. It is only ever a
+ * starting value here; the field stays editable, since a wrong or duplicate
+ * report a driver chooses to file only affects their own submission, unlike
+ * the pilot-driver command-ack path, where a wrong vehicle can expose
+ * another vehicle's commands.
  */
 export function BreakdownReportPanel({ defaultVehicleReg = '' }: { defaultVehicleReg?: string }) {
   const [vehicleReg, setVehicleReg] = useState(defaultVehicleReg);

@@ -24,7 +24,15 @@ export function ScheduleLookupForm({
 }: {
   defaultRegNum?: string;
   title?: string;
-  /** When set, the entered registration is remembered in localStorage under this key (driver's "own vehicle" convenience — there is no vehicle assignment in the RBAC schema to read it from). */
+  /**
+   * When set, the entered registration is remembered in localStorage under
+   * this key: a driver's "own vehicle" convenience for accounts with no
+   * admin-set vehicle assignment yet (db/migrations/20260806200000__ops_users_vehicle_assignment.sql).
+   * Callers that already know the caller's assigned vehicle should pass it
+   * via `defaultRegNum` instead and omit this prop, so the remembered
+   * value (if any, possibly stale or someone else's) never overrides the
+   * authoritative one; see DriverDashboard.
+   */
   rememberKey?: string;
 }) {
   const [regNum, setRegNum] = useState(defaultRegNum);
@@ -35,9 +43,9 @@ export function ScheduleLookupForm({
   const inputId = useId();
   const errorId = useId();
 
-  // Restore a remembered registration (driver's own vehicle — there is no
-  // vehicle assignment in the RBAC schema to read it from instead) once the
-  // component mounts in the browser.
+  // Restore a remembered registration (driver's own vehicle, for accounts
+  // with no admin-set vehicle assignment yet) once the component mounts in
+  // the browser.
   useEffect(() => {
     if (!rememberKey || defaultRegNum) return;
     try {

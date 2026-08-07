@@ -11,12 +11,15 @@ export const dynamic = 'force-dynamic';
  * or session secret — only whether a session is active and, when it is, the
  * role and expiry (mirrors /api/auth/session for the PIN system).
  *
- * For the `pilot_driver` role, also returns the caller's own admin-assigned
- * `vehicleId` (db/migrations/20260806180000__ops_users_vehicle_assignment.sql)
- * so the driver PWA (CommandConsole.tsx) can display/poll for it without
- * ever letting the client self-report a vehicle — the read here is scoped
- * to the session's own user row, same as the authorization check in
- * GET /api/ops/pilot-driver/commands and the ack route.
+ * For `driver`/`pilot_driver` sessions, also returns the caller's own
+ * admin-assigned `vehicleId`
+ * (db/migrations/20260806180000__ops_users_vehicle_assignment.sql), `null`
+ * if an admin has not assigned one yet — the read here is scoped to the
+ * session's own user row, same as the authorization check in
+ * GET /api/ops/pilot-driver/commands and the ack route. Client surfaces
+ * (CommandConsole.tsx, DriverDashboard, BreakdownReportPanel) read this
+ * instead of trusting a client-self-reported vehicle for anything beyond a
+ * same-user convenience default.
  */
 export async function GET(): Promise<Response> {
   const session = await getOpsSession();
@@ -35,7 +38,8 @@ export async function GET(): Promise<Response> {
     } catch (error) {
       // A vehicle-lookup failure should never break session status itself —
       // omit vehicleId and let the caller treat it as "unknown", not fail
-      // the whole session check closed.
+      // the whole session check closed. Callers already fall back to the
+      // pre-existing self-report convention when this is null or absent.
       if (!(error instanceof OpsDbConfigError)) throw error;
       vehicleId = null;
     }
