@@ -74,3 +74,12 @@ migrations.
   `ops_shift_report_drafts` (AI-drafted shift reports; a CHECK constraint
   makes a `saved`/`sent` row without a human `saved_by`/`sent_by` impossible
   at the database level). See `src/lib/copilot/`.
+- `migrations/20260806160000__ops_pilot_driver_role.sql`: adds the
+  `pilot_driver` role to `ops_users`/`ops_invites`, a restricted cohort
+  distinct from `driver` for the driver PWA command interface.
+- `migrations/20260806200000__ops_users_vehicle_assignment.sql`: adds
+  `ops_users.vehicle_id`, an admin-set driver/pilot_driver-to-vehicle
+  assignment, set via `POST /api/ops/admin/users/:id/vehicle` and read via
+  `GET /api/ops/auth/session` (`vehicleId`). Replaces the client-self-reported
+  vehicle registration DriverDashboard/BreakdownReportPanel previously relied
+  on exclusively.

@@ -24,10 +24,10 @@ export interface OpsUserRecord {
   status: 'active' | 'disabled';
   /**
    * The vehicle this driver/pilot_driver is assigned to, admin-set only
-   * (db/migrations/20260806180000__ops_users_vehicle_assignment.sql). Null
-   * means "not yet assigned" — callers MUST NOT fall back to a
-   * client-supplied vehicleId when this is null; that was the A01 gap this
-   * column closes.
+   * (db/migrations/20260806180000__ops_users_vehicle_assignment.sql) via
+   * POST /api/ops/admin/users/:id/vehicle. Null means "not yet assigned" —
+   * callers MUST NOT fall back to a client-supplied vehicleId when this is
+   * null; that was the A01 gap this column closes.
    */
   vehicleId: string | null;
   createdAt: string;

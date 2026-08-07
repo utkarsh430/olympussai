@@ -38,7 +38,11 @@ function errorResponse(code: string, message: string, status: number) {
  * GET /api/ops/pilot-driver/commands and POST
  * /api/ops/pilot-driver/commands/:id/ack safe to trust the session's own
  * user row for authorization instead of a client-supplied vehicleId (A01
- * fix, see this ticket).
+ * fix, see this ticket). It is also the authoritative replacement for the
+ * self-reported-vehicle-registration-in-localStorage convention that
+ * DriverDashboard's schedule lookup and BreakdownReportPanel now read from
+ * via GET /api/ops/auth/session's `vehicleId`, and it already has an admin
+ * UI panel calling it (src/components/ops/OpsAdminInvitesPanel.tsx).
  */
 export async function POST(
   request: NextRequest,

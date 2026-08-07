@@ -252,6 +252,23 @@ describe('DriverDashboard', () => {
     expect(screen.getByText('Report a breakdown')).toBeInTheDocument();
     expect(screen.queryByText('Live fleet status')).not.toBeInTheDocument();
   });
+
+  it('with no admin-assigned vehicle, falls back to the self-reported/remembered registration convention', () => {
+    render(<DriverDashboard />);
+    expect(screen.getByLabelText(/registration number/i)).toHaveValue('');
+    expect(screen.getByLabelText(/vehicle/i)).toHaveValue('');
+  });
+
+  it('with an admin-assigned vehicle, prefills the schedule lookup and breakdown vehicle field from it instead of localStorage', () => {
+    window.localStorage.setItem('ops.driver.vehicleReg', 'UP99ZZ0000');
+
+    render(<DriverDashboard assignedVehicleId="UP25FT4823" />);
+
+    expect(screen.getByLabelText(/registration number/i)).toHaveValue('UP25FT4823');
+    expect(screen.getByLabelText(/vehicle/i)).toHaveValue('UP25FT4823');
+
+    window.localStorage.removeItem('ops.driver.vehicleReg');
+  });
 });
 
 describe('DispatcherActionForm action flow', () => {
