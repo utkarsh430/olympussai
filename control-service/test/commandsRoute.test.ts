@@ -11,6 +11,14 @@ vi.mock('../src/db/pool.js', () => ({
 
 vi.mock('../src/db/commands.js', () => ({
   createCommand: vi.fn(),
+  getCommandById: vi.fn(),
+  deliverCommand: vi.fn(),
+  acknowledgeCommand: vi.fn(),
+  supersedeCommand: vi.fn(),
+}));
+
+vi.mock('../src/db/commandAudit.js', () => ({
+  listCommandAuditLog: vi.fn(),
 }));
 
 vi.mock('../src/webhooks/dispatch.js', () => ({
@@ -91,7 +99,13 @@ describe('POST /v1/commands', () => {
       validFrom: new Date().toISOString(),
       expiresAt: new Date().toISOString(),
       policyVersion: null,
-      status: 'proposed',
+      status: 'authorized',
+      version: 1,
+      supersedesCommandId: null,
+      deliveredAt: null,
+      acknowledgedAt: null,
+      acknowledgementReason: null,
+      ackOutcome: null,
       createdAt: new Date().toISOString(),
     };
     vi.mocked(createCommand).mockResolvedValueOnce(command);

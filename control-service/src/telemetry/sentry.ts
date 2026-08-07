@@ -26,15 +26,29 @@ export function initSentry(): void {
 }
 
 /**
- * Wraps `fn` in a named Sentry performance span. Used for the two spans
- * the deployment dashboards are built against: `mpc.solve` and
- * `command.dispatch`. Falls back to a plain call (still measured via the
- * returned duration in the caller's own log line) when Sentry isn't
- * initialized, so span instrumentation never becomes a hard dependency on
- * Sentry being configured.
+ * Named Sentry span this service emits. `mpc.solve` and `command.dispatch`
+ * are the two the deployment dashboards are built against
+ * (docs/CONTROL_SERVICE_DEPLOYMENT.md) and must never be renamed; the
+ * rest cover the rest of the command lifecycle (persist is `command.dispatch`
+ * itself - deliver/ack/supersede/the periodic TTL sweep each get their own
+ * name so they're distinguishable in trace search).
+ */
+export type SpanName =
+  | 'mpc.solve'
+  | 'command.dispatch'
+  | 'command.deliver'
+  | 'command.acknowledge'
+  | 'command.supersede'
+  | 'command.ttl_sweep';
+
+/**
+ * Wraps `fn` in a named Sentry performance span. Falls back to a plain
+ * call (still measured via the returned duration in the caller's own log
+ * line) when Sentry isn't initialized, so span instrumentation never
+ * becomes a hard dependency on Sentry being configured.
  */
 export async function withSpan<T>(
-  name: 'mpc.solve' | 'command.dispatch',
+  name: SpanName,
   op: string,
   fn: () => Promise<T>,
 ): Promise<T> {

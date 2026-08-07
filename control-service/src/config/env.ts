@@ -24,6 +24,12 @@ const envSchema = z.object({
   // https://<web-app>/api/control-service/webhook).
   WEB_APP_WEBHOOK_URL: z.string().url().optional(),
 
+  // How often the process-level timer sweeps TTL-expired commands to
+  // `expired` (src/index.ts, control_service_expire_commands()). Deliver/
+  // ack also expire lazily on access, so this is a backstop for commands
+  // nobody happens to touch - it doesn't need to be aggressive.
+  COMMAND_TTL_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(30_000),
+
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().default('development'),
   // Render-provided build-time var; falls back for local dev.
