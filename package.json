@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "inspect:api": "tsx scripts/inspect-upsrtc-api.ts",
-    "generate-pin-hash": "node scripts/generate-pin-hash.mjs",
+    "create-project-user": "node scripts/create-project-user.mjs",
     "seed-ops-admin": "node scripts/seed-ops-admin.mjs",
     "process-logo": "node scripts/process-logo.mjs",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"docs/**/*.md\""
@@ -30,6 +30,8 @@
     "@radix-ui/react-tooltip": "^1.1.6",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.112.2",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

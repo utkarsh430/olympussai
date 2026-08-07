@@ -46,23 +46,27 @@ async function selectFirstBus(page: Page): Promise<void> {
 }
 
 /**
- * The dashboard is now behind project authentication. The raw PIN is never
- * committed — supply it via E2E_PROJECT_PIN when running the suite, e.g.:
- *   E2E_PROJECT_PIN=<pin> npm run test:e2e
- * Without it the authenticated suite is skipped rather than failing.
+ * The dashboard is behind enterprise authentication (Supabase Auth). Accounts
+ * are admin-provisioned only (`pnpm run create-project-user`) — supply an
+ * existing account's credentials via E2E_PROJECT_EMAIL / E2E_PROJECT_PASSWORD
+ * when running the suite, e.g.:
+ *   E2E_PROJECT_EMAIL=you@example.com E2E_PROJECT_PASSWORD=... npm run test:e2e
+ * Without them the authenticated suite is skipped rather than failing.
  */
-const E2E_PIN = process.env.E2E_PROJECT_PIN;
+const E2E_EMAIL = process.env.E2E_PROJECT_EMAIL;
+const E2E_PASSWORD = process.env.E2E_PROJECT_PASSWORD;
 const E2E_ORIGIN = process.env.E2E_ORIGIN ?? 'http://127.0.0.1:3000';
-// Must match the target environment's PROJECT_NAME (defaults to 'upsrtc').
-const E2E_PROJECT_NAME = process.env.E2E_PROJECT_NAME ?? 'upsrtc';
 
 test.describe('UPSRTC AI Operations Copilot', () => {
-  test.skip(!E2E_PIN, 'Set E2E_PROJECT_PIN to run the authenticated dashboard e2e suite');
+  test.skip(
+    !E2E_EMAIL || !E2E_PASSWORD,
+    'Set E2E_PROJECT_EMAIL and E2E_PROJECT_PASSWORD to run the authenticated dashboard e2e suite',
+  );
 
   test.beforeEach(async ({ context }) => {
     const res = await context.request.post('/api/auth/login', {
       headers: { 'Content-Type': 'application/json', Origin: E2E_ORIGIN },
-      data: { projectName: E2E_PROJECT_NAME, pin: E2E_PIN },
+      data: { email: E2E_EMAIL, password: E2E_PASSWORD },
     });
     if (!res.ok()) throw new Error(`E2E login failed (${res.status()})`);
   });

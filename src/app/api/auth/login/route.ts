@@ -1,14 +1,8 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import {
-  AuthConfigError,
-  getConfiguredProjectName,
-  getProjectPinHash,
-  normalizeProjectName,
-} from '@/lib/auth/config';
-import { verifyPin } from '@/lib/auth/password';
-import { establishSession } from '@/lib/auth/server';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { SupabaseConfigError } from '@/lib/supabase/env';
 import {
   checkRateLimit,
   clearFailures,
@@ -21,11 +15,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /** Single generic message — never reveals which field was wrong (Section 9). */
-const INVALID_MESSAGE = 'Invalid project name or PIN.';
+const INVALID_MESSAGE = 'Invalid email or password.';
 
 const bodySchema = z.object({
-  projectName: z.string().min(1).max(64),
-  pin: z.string().min(1).max(32),
+  email: z.string().trim().min(1).max(254).email(),
+  password: z.string().min(1).max(200),
 });
 
 function invalid(status = 401) {
@@ -65,12 +59,12 @@ export async function POST(request: NextRequest): Promise<Response> {
     return invalid(400);
   }
 
-  const submittedProject = normalizeProjectName(parsed.data.projectName);
-  const { pin } = parsed.data;
+  const email = parsed.data.email.toLowerCase();
+  const { password } = parsed.data;
 
-  // Rate-limit key: IP + normalized project name.
+  // Rate-limit key: IP + normalized email.
   const ip = clientIpFrom(request.headers);
-  const rlKey = `${ip}:${submittedProject}`;
+  const rlKey = `${ip}:${email}`;
 
   const preCheck = checkRateLimit(rlKey);
   if (preCheck.limited) {
@@ -86,13 +80,11 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  let expectedProject: string;
-  let pinHash: string;
+  let supabase;
   try {
-    expectedProject = getConfiguredProjectName();
-    pinHash = getProjectPinHash();
+    supabase = await createSupabaseServerClient();
   } catch (error) {
-    if (error instanceof AuthConfigError) {
+    if (error instanceof SupabaseConfigError) {
       // Misconfiguration — do not leak which variable, do not enumerate.
       return NextResponse.json(
         { error: 'Authentication is not configured.' },
@@ -102,12 +94,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     throw error;
   }
 
-  // Always run the bcrypt comparison, even when the project name is wrong, so
-  // response timing does not distinguish "wrong name" from "wrong PIN".
-  const pinMatches = await verifyPin(pin, pinHash);
-  const projectMatches = submittedProject === expectedProject;
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-  if (!projectMatches || !pinMatches) {
+  if (error || !data.user) {
     const result = recordFailure(rlKey);
     if (result.limited) {
       return NextResponse.json(
@@ -125,11 +114,10 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   clearFailures(rlKey);
-  await establishSession(expectedProject);
 
-  // Only safe success information — never the token, hash, or secret.
+  // Only safe success information — never the token or any credential.
   return NextResponse.json(
-    { ok: true, project: expectedProject },
+    { ok: true },
     { status: 200, headers: { 'Cache-Control': 'no-store' } },
   );
 }

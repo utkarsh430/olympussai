@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { getSession } from '@/lib/auth/server';
-import { isAuthorizedProject } from '@/lib/auth/config';
+import { getSupabaseUser } from '@/lib/supabase/server';
 import { sanitizeNext } from '@/lib/auth/redirect';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { AuthenticatedActions } from '@/components/auth/AuthenticatedActions';
@@ -19,8 +18,8 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const next = sanitizeNext(params.next);
-  const session = await getSession();
-  const authenticated = Boolean(session && isAuthorizedProject(session.project));
+  const user = await getSupabaseUser();
+  const authenticated = Boolean(user);
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col bg-[#050507] text-[#f2eee7] md:flex-row">
@@ -85,7 +84,11 @@ export default async function LoginPage({
             </p>
           </div>
 
-          {authenticated ? <AuthenticatedActions next={next} /> : <LoginForm next={next} />}
+          {authenticated ? (
+            <AuthenticatedActions next={next} email={user?.email} />
+          ) : (
+            <LoginForm next={next} />
+          )}
 
           <div className="mt-10 flex w-full max-w-sm items-center justify-between">
             <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#707580]">

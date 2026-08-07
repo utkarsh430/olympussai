@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/server';
+import { getSupabaseUser } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
  * Safe session-status endpoint. Returns only whether a session is active and,
- * when it is, the project identifier and expiry. Never returns the raw token,
- * PIN hash, session secret, or any credential configuration (Section 11).
+ * when it is, the signed-in user's email. Never returns the raw token or any
+ * credential configuration (Section 11).
  */
 export async function GET(): Promise<Response> {
-  const session = await getSession();
-  if (!session) {
+  const user = await getSupabaseUser();
+  if (!user) {
     return NextResponse.json(
       { authenticated: false },
       { status: 200, headers: { 'Cache-Control': 'no-store' } },
@@ -20,8 +20,7 @@ export async function GET(): Promise<Response> {
   return NextResponse.json(
     {
       authenticated: true,
-      project: session.project,
-      expiresAt: new Date(session.exp * 1000).toISOString(),
+      email: user.email ?? null,
     },
     { status: 200, headers: { 'Cache-Control': 'no-store' } },
   );

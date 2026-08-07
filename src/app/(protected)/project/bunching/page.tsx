@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth/server';
-import { isAuthorizedProject } from '@/lib/auth/config';
+import { getSupabaseUser } from '@/lib/supabase/server';
 import { BunchingSimulator } from '@/components/bunching/BunchingSimulator';
 
 /**
@@ -29,8 +28,8 @@ export const metadata: Metadata = {
 };
 
 export default async function BunchingPage() {
-  const session = await getSession();
-  if (!session || !isAuthorizedProject(session.project)) {
+  const user = await getSupabaseUser();
+  if (!user) {
     redirect('/login?next=/project/bunching');
   }
 

@@ -2,25 +2,27 @@
 
 Per-person, admin-invited accounts for five operational roles — driver,
 dispatcher, depot, control-room, planner — plus an internal admin role that
-can only invite/manage accounts. Entirely separate from the pitch-demo PIN
-auth described in `AUTH.md`, which is unchanged by this feature.
+can only invite/manage accounts. Entirely separate from the Supabase-backed
+enterprise auth described in `AUTH.md`, which is unaffected by this feature.
 
-## Why a second auth system, not an extension of the PIN one
+## Why a second auth system, not an extension of the project login
 
-The PIN system authorizes one shared secret per _project_
-(`/project/upsrtc`, `/project/bunching`) — there is no concept of an
-individual person, so it cannot answer "who approved this." This feature
-needs exactly that, per-action, so it is a new system rather than a role
-field bolted onto the PIN session:
+`AUTH.md`'s Supabase login authorizes access to the UPSRTC _project_
+(`/project/upsrtc`, `/project/bunching`) as a single undifferentiated surface
+— every signed-in account sees the same dashboard, with no role or
+operational identity attached. This feature needs per-action attribution
+("who approved this") across five distinct operational roles, so it is a new
+system rather than a role field bolted onto the project login:
 
-- Separate cookie (`olympuss_ops_session` vs `olympuss_session`).
-- Separate signing secret (`OPS_SESSION_SECRET` vs `SESSION_SECRET`) — a
+- Separate cookie (`olympuss_ops_session`, own signing secret) — a
   token from one system can never verify against the other.
-- Separate datastore (`db/migrations/`, this app's own Postgres — the PIN
-  system needs no database at all).
+- Separate signing secret (`OPS_SESSION_SECRET`) — this system still signs
+  its own HS256 session tokens rather than delegating to Supabase Auth.
+- Separate datastore (`db/migrations/`, this app's own Postgres — Supabase
+  Auth owns its users table for the other system, this one owns `ops_users`).
 - Separate route surface (`/ops/*`, `/api/ops/*` vs `/project/*`,
   `/api/upsrtc/*`), gated by a separate branch in `src/middleware.ts` that
-  never touches the PIN branch's code path.
+  never touches the Supabase auth branch's code path.
 
 ## Model
 
@@ -102,8 +104,8 @@ unchanged and still backs the command-centre UI only.
 - `OPS_DATABASE_URL` — this app's own Postgres connection string (see
   `../../db/README.md`). Every ops route fails closed with `503` if unset;
   there is no in-memory fallback.
-- `OPS_SESSION_SECRET` — long random string, ≥32 chars, distinct from
-  `SESSION_SECRET`.
+- `OPS_SESSION_SECRET` — long random string, ≥32 chars, distinct from any
+  other signing secret in this app.
 - `SITE_URL` — reused from the existing config; used to build the invite
   accept link, both the one sent by email and the one optionally returned
   in the API response.

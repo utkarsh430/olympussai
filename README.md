@@ -94,23 +94,18 @@ The definitive field-by-field breakdown is in
 ```bash
 pnpm install
 
-# 1. Generate a bcrypt hash for the project PIN (prints the hash to stdout).
-pnpm run generate-pin-hash -- <pin>
-
-# 2. Create the local environment file and fill in the values.
+# 1. Create the local environment file and fill in the values, including a
+#    Supabase project's NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY.
 cp .env.example .env.local
+
+# 2. Provision an enterprise login account — there is no self-service sign-up.
+SUPABASE_SERVICE_ROLE_KEY=... pnpm run create-project-user -- --email you@example.com
 
 # 3. Run.
 pnpm run dev            # http://localhost:3000
 ```
 
 **If `.env.local` already exists, do not overwrite it.**
-
-When pasting `PROJECT_PIN_HASH` into `.env.local`, escape every `$` in the hash
-as `\$` — dotenv treats `$` as variable expansion and will silently corrupt the
-value. Host environment UIs (Vercel etc.) store it literally, so paste it
-unescaped there. `generate-pin-hash` prints this reminder to stderr so stdout
-stays a clean, pipeable hash.
 
 Optional, only when the source logo art changes:
 
@@ -134,9 +129,9 @@ exposed to the browser and no key is ever printed.
 
 | Variable | Required | Scope | Purpose |
 | --- | --- | --- | --- |
-| `PROJECT_NAME` | yes | server | The project name accepted at `/login`. Also the single source of truth for "is this session authorized" — matched case-insensitively and trimmed. |
-| `PROJECT_PIN_HASH` | yes | server | bcrypt hash (cost 12) of the project PIN. The plaintext PIN appears nowhere in source. |
-| `SESSION_SECRET` | yes | server | HS256 signing secret for session tokens. Must be ≥ 32 characters (`openssl rand -base64 48`). |
+| `NEXT_PUBLIC_SUPABASE_URL` | yes | **browser** | Supabase project URL, backing enterprise auth at `/login`. Public by design. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | **browser** | Supabase anon (public) key. Public by design — access control comes from Supabase Auth + RLS, not from keeping this secret. |
+| `SUPABASE_SERVICE_ROLE_KEY` | no | server | **Server-only**, bypasses RLS. Used exclusively by `pnpm run create-project-user` to provision accounts (no self-service sign-up exists). Never imported by a route handler that serves ordinary requests, never sent to the browser. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | yes | **browser** | Renders the Google basemap. Public by design — restrict it by HTTP referrer and to the Maps JavaScript API. |
 | `SITE_URL` | no | server | Canonical origin for metadata, canonical URL, sitemap. Defaults to `https://olympuss.us`. |
 | `UPSRTC_LIVE_URL` | no | server | Overrides the live GPS endpoint. |
@@ -145,16 +140,19 @@ exposed to the browser and no key is ever printed.
 | `CONTROL_SERVICE_BASE_URL` | no | server | Base URL of the persistent control service (`control-service/`), e.g. `https://control-service-pilot.onrender.com`. Unset means the `/ops/control-room/observability` dashboard renders its "control service unavailable" state rather than throwing. |
 | `CONTROL_SERVICE_SERVICE_TOKEN` | no | server | Bearer token sent as `Authorization: Bearer …` on every web → control-service REST call (`src/lib/controlService/client.ts`); must match that instance's `SERVICE_TOKEN_SECRET` (`control-service/.env.example`). Never sent to the browser. |
 | `OPS_DATABASE_URL` | no | server | Connection string for this app's own Postgres datastore (`db/migrations/`). Unset means every `/ops/*` route that touches it (auth, audit log, breakdown reports, the copilot module) fails closed with a 503. |
+| `OPS_SESSION_SECRET` | no | server | HS256 signing secret for the *separate* ops RBAC session (`/ops/*`). Must be ≥ 32 characters. Unrelated to Supabase auth — see [`docs/olympuss/RBAC.md`](docs/olympuss/RBAC.md). |
+| `RESEND_API_KEY` | no | server | API key for the Resend email vendor (`src/lib/email/resend.ts`), used for ops admin invite emails. |
+| `RESEND_FROM_EMAIL` | no | server | Verified sender address for ops invite emails. |
 | `ANTHROPIC_API_KEY` | no | server | Anthropic API key used by the control-room copilot (`src/lib/copilot/anthropic.ts`) to explain incidents, draft shift reports, and answer NL queries. Unset means those three endpoints return `503 COPILOT_UNAVAILABLE` rather than fabricating a response. Never sent to the browser, never logged — see that file's doc comment. |
 | `ANTHROPIC_MODEL` | no | server | Overrides the Anthropic model id the copilot calls. Defaults to `claude-sonnet-4-5`. |
 
 Present in some environments but **intentionally unused**: `GOOGLE_ROUTES_API_KEY`.
 
-Missing auth configuration fails closed: `getConfiguredProjectName()`,
-`getProjectPinHash()` and `getSessionSecret()` throw `AuthConfigError`, the
-login route answers `503 Authentication is not configured.` without naming
-which variable is missing, and `isAuthorizedProject()` returns `false` rather
-than throwing so every guard denies uniformly.
+Missing auth configuration fails closed: `getSupabaseUrl()` and
+`getSupabaseAnonKey()` (`src/lib/supabase/env.ts`) throw `SupabaseConfigError`,
+the login route answers `503 Authentication is not configured.` without naming
+which variable is missing, and `getSupabaseUser()` / the middleware's Supabase
+client return `null` rather than throwing so every guard denies uniformly.
 
 ---
 
@@ -184,8 +182,10 @@ src/
 ├── middleware.ts                     # edge auth: redirect pages / 401 APIs
 ├── models/canonical.ts               # Zod schemas + types for LIVE data only
 ├── lib/
-│   ├── auth/                         # config, session, server, authorize, password,
-│   │                                 #   origin, rate-limit, redirect
+│   ├── supabase/                     # env, server (Route Handlers/Server Components),
+│   │                                 #   middleware (Edge) — enterprise auth backend
+│   ├── auth/                         # authorize, origin, rate-limit, redirect
+│   │                                 #   (shared with the separate ops RBAC system)
 │   ├── upsrtc/                       # client, normalizer, cache, respond
 │   ├── simulation/                   # scenarioEngine, seededRandom
 │   ├── demo-scenarios/               # bunching, traffic, breakdown, demand,
@@ -218,7 +218,7 @@ src/
 └── tests/unit/                       # Vitest suites
 
 tests/e2e/                            # Playwright command-centre spec
-scripts/                              # generate-pin-hash, process-logo, inspect-upsrtc-api
+scripts/                              # create-project-user, process-logo, inspect-upsrtc-api
 docs/                                 # architecture, API discovery, demo, roadmap, olympuss/
 ```
 
@@ -297,33 +297,38 @@ Playwright · ESLint · Prettier.
 
 ## 6. Authentication — full implementation
 
-A single project credential (name + PIN) unlocks the protected project area.
-There are no user accounts, no database, and no password reset flow.
+Enterprise auth via **Supabase Auth** unlocks the protected project area.
+Accounts are individual (email + password) and admin-provisioned only — there
+is no self-service sign-up route anywhere in the app. The earlier
+environment-variable-driven PIN system (`PROJECT_NAME` / `PROJECT_PIN_HASH` /
+`SESSION_SECRET`, one shared secret for the whole project) has been removed.
 
 ### Login sequence
 
 1. **Client** — [`LoginForm`](src/components/auth/LoginForm.tsx) POSTs
-   `{ projectName, pin }` as JSON to `/api/auth/login`.
+   `{ email, password }` as JSON to `/api/auth/login`.
 2. **Origin check** — `isSameOrigin()` compares the `Origin` header (falling
    back to `Referer`) against the request host. No `Origin` **and** no
    `Referer` on a state change → `403`. This complements the `SameSite=Lax`
-   cookie as a best-effort CSRF defence.
+   session cookies as a best-effort CSRF defence.
 3. **Content type** — anything that is not `application/json` → `415`.
-4. **Schema** — Zod: `projectName` 1–64 chars, `pin` 1–32 chars. Failure →
-   `400` with the same generic message as a bad credential.
-5. **Rate limit** — keyed on `clientIp:normalizedProjectName`. 5 failed
+4. **Schema** — Zod: `email` (validated email, ≤254 chars), `password` 1–200
+   chars. Failure → `400` with the same generic message as a bad credential.
+5. **Rate limit** — keyed on `clientIp:normalizedEmail`, via the same
+   `src/lib/auth/rate-limit.ts` module the ops RBAC login uses. 5 failed
    attempts per 15-minute sliding window → `429` with `Retry-After`. Checked
-   *before* the bcrypt compare and recorded *after* a failure.
-6. **Compare** — the bcrypt comparison **always runs**, even when the project
-   name is already known to be wrong, so response timing cannot distinguish
-   "wrong name" from "wrong PIN".
-7. **Success** — failures are cleared, `establishSession()` signs an HS256 JWT
-   (`{ project, role: 'project-access', iat, exp }`) and writes it to the
-   `olympuss_session` cookie: `HttpOnly`, `SameSite=Lax`, `Secure` in
-   production, `Path=/`, `Max-Age` 8 hours. The response body carries only
-   `{ ok: true, project }` — never the token, hash or secret.
+   *before* calling Supabase and recorded *after* a failure.
+6. **Verify** — [`src/lib/supabase/server.ts`](src/lib/supabase/server.ts)
+   builds a request-scoped Supabase client and calls
+   `supabase.auth.signInWithPassword({ email, password })`. Supabase Auth owns
+   password hashing and verification; this app never sees or stores a
+   password hash.
+7. **Success** — failures are cleared. Supabase's `@supabase/ssr` cookie
+   adapter writes the session cookies (`HttpOnly`, `SameSite=Lax`, `Secure` in
+   production) as part of the client call. The response body carries only
+   `{ ok: true }` — never a token or any credential.
 
-Every failure path returns the identical string `Invalid project name or PIN.`
+Every failure path returns the identical string `Invalid email or password.`
 
 ### Defence in depth
 
@@ -332,41 +337,57 @@ Three independent checks guard the protected surface. None trusts the others:
 | Check | Where | Behaviour when unauthorized |
 | --- | --- | --- |
 | Edge middleware | [`src/middleware.ts`](src/middleware.ts) | `/project/*` → redirect to `/login?next=…`; `/api/upsrtc/*` → `401` JSON |
-| Server layout | [`(protected)/project/upsrtc/layout.tsx`](<src/app/(protected)/project/upsrtc/layout.tsx>) | `redirect('/login?next=/project/upsrtc')` before any dashboard markup renders |
+| Server layout | [`(protected)/project/upsrtc/layout.tsx`](<src/app/(protected)/project/upsrtc/layout.tsx>) and [`(protected)/project/bunching/page.tsx`](<src/app/(protected)/project/bunching/page.tsx>) | `redirect('/login?next=…')` before any dashboard/simulator markup renders |
 | API guard | `requireUpsrtcAccess()` in [`src/lib/auth/authorize.ts`](src/lib/auth/authorize.ts) | Every UPSRTC route calls it first and returns `401` on null |
 
-Middleware is **edge-safe by construction**: it imports only `jose` and the
-config module. `bcryptjs`, `next/headers` and `server-only` are never pulled
-into the Edge bundle. Middleware reads the request cookie directly; Route
-Handlers and Server Components use `cookies()` via
-[`src/lib/auth/server.ts`](src/lib/auth/server.ts).
+Middleware is **edge-safe by construction**: it uses the `@supabase/ssr`
+client built in [`src/lib/supabase/middleware.ts`](src/lib/supabase/middleware.ts),
+which imports nothing Node-only. The service-role client, `next/headers` and
+`server-only` are never pulled into the Edge bundle. Middleware reads/writes
+cookies on the `NextRequest`/`NextResponse` pair directly; Route Handlers and
+Server Components use `cookies()` via
+[`src/lib/supabase/server.ts`](src/lib/supabase/server.ts).
 
-`isAuthorizedProject(claims.project)` is the single authorization predicate,
-comparing against the normalized `PROJECT_NAME`. It returns `false` rather than
-throwing on misconfiguration.
+Both paths call `supabase.auth.getUser()` — not `getSession()` — so every
+check re-validates the session against Supabase Auth rather than trusting an
+unverified cookie. Any authenticated Supabase user is authorized: there is no
+per-user role or "project" claim on this surface (that distinction is what
+the separate ops RBAC system, [`docs/olympuss/RBAC.md`](docs/olympuss/RBAC.md),
+exists for).
 
 ### Open-redirect protection
 
 `sanitizeNext()` accepts a `next` parameter only when it is a root-relative
-path under `/project/upsrtc`. Protocol-relative (`//evil.com`), backslash
-tricks (`/\evil.com`) and any other target fall back to `/project/upsrtc`.
-
-> **Known gap.** The allowlist was not widened when `/project/bunching` was
-> added. An unauthenticated request to the simulator is redirected to
-> `/login?next=/project/bunching`, but `sanitizeNext` does not recognise that
-> path and falls back, so after signing in the user lands on the dashboard
-> rather than the simulator. It fails *safe* — the fallback is a valid internal
-> path, so this is a broken deep link rather than an open-redirect — but the
-> allowlist should be extended to cover every protected surface.
+path under `/project/upsrtc` or `/project/bunching`. Protocol-relative
+(`//evil.com`), backslash tricks (`/\evil.com`) and any other target fall back
+to `/project/upsrtc`.
 
 ### Session status and sign-out
 
 - `GET /api/auth/session` returns `{ authenticated }` and, when true,
-  `{ project, expiresAt }`. Never the token or any credential configuration.
-- `POST /api/auth/logout` re-checks same-origin, clears the cookie
-  (`Max-Age=0`), and [`ProjectSignOut`](src/components/upsrtc/ProjectSignOut.tsx)
-  hard-navigates to `/login` so the now-unauthenticated client cannot keep
-  rendering protected state.
+  `{ email }`. Never a token or any credential configuration.
+- `POST /api/auth/logout` re-checks same-origin, calls `supabase.auth.signOut()`
+  (clearing the session cookies), and
+  [`ProjectSignOut`](src/components/upsrtc/ProjectSignOut.tsx) hard-navigates
+  to `/login` so the now-unauthenticated client cannot keep rendering
+  protected state.
+
+### Provisioning accounts (no self-registration)
+
+There is no signup route. An admin provisions each account out-of-band:
+
+```bash
+SUPABASE_URL=https://xyz.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=... \
+pnpm run create-project-user -- --email you@example.com
+```
+
+[`scripts/create-project-user.mjs`](scripts/create-project-user.mjs) prompts
+for a password with echo disabled (never as an argv) and calls
+`supabase.auth.admin.createUser()` with the service-role key, which bypasses
+RLS and is never used by the running app's own request path — only by this
+script. See [`docs/olympuss/AUTH.md`](docs/olympuss/AUTH.md) for the full
+model.
 
 ### Known limitation
 
@@ -884,8 +905,8 @@ The page deliberately does **not** nest inside the dashboard's
 command-centre environment for a page that must never scroll; the simulator is a
 long analysis surface that scrolls naturally, and CSS `zoom` would also
 desynchronise Tailwind's viewport breakpoints from the real layout width. It
-still re-verifies the session itself (`getSession()` + `isAuthorizedProject()`),
-so edge middleware and the page each gate it independently.
+still re-verifies the session itself (`getSupabaseUser()`), so edge middleware
+and the page each gate it independently.
 
 ### The corridor model
 
@@ -1409,8 +1430,10 @@ across the whole flow.
 Deploys as a standard Next.js application (Vercel, or Node behind a reverse
 proxy). Requirements:
 
-- All server-side environment variables configured on the host — including
-  `PROJECT_NAME`, `PROJECT_PIN_HASH` and a ≥ 32-character `SESSION_SECRET`.
+- All environment variables configured on the host — including
+  `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and at least
+  one account provisioned via `pnpm run create-project-user` (there is no
+  self-service sign-up to fall back on).
 - Outbound network access to `margdarshi.upsrtcvlt.com`.
 - The Google Maps key restricted to the deployment domain and to the Maps
   JavaScript API.
@@ -1445,7 +1468,7 @@ affect the build toolchain only, and do not reach runtime.
 | `pnpm run test:e2e` | Playwright |
 | `pnpm run format` | Prettier over source and docs |
 | `pnpm run inspect:api` | Probe both UPSRTC endpoints and print an empirical report |
-| `pnpm run generate-pin-hash -- <pin>` | bcrypt hash (cost 12) for `PROJECT_PIN_HASH`; hash to stdout, guidance to stderr |
+| `pnpm run create-project-user -- --email <email>` | Provision an enterprise login account via Supabase Auth (admin-only, no self-service sign-up); prompts for a password on stdin |
 | `pnpm run process-logo` | Regenerate every brand asset from the source logo |
 
 ---
@@ -1460,8 +1483,8 @@ affect the build toolchain only, and do not reach runtime.
 | Amber "fixture fallback" banner | Upstream unreachable | Real captured data is being served. Check network access to `margdarshi.upsrtcvlt.com`. |
 | Bus count is zero | Upstream returned no usable records | Open **Diagnostics** for raw vs normalized vs rejected counts. |
 | "No schedule assigned" | Genuine upstream response for that vehicle on every candidate date | Pick a bus showing a route name in the fleet list. |
-| Login always fails | `PROJECT_PIN_HASH` corrupted by dotenv `$` expansion | Escape every `$` as `\$` in `.env.local`; paste unescaped in host env UIs. |
-| `503 Authentication is not configured` | `PROJECT_NAME`, `PROJECT_PIN_HASH` or `SESSION_SECRET` missing/short | Set all three; the secret must be ≥ 32 characters. |
+| Login always fails with "Invalid email or password." | No account exists yet, or wrong credentials | Provision one with `pnpm run create-project-user -- --email you@example.com` — there is no self-service sign-up. |
+| `503 Authentication is not configured` | `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` missing | Set both in `.env.local` (or host env settings) from Supabase Dashboard > Project Settings > API. |
 | Redirected to `/login` immediately after signing in | Cookie rejected — usually `Secure` over plain HTTP in a production build | Serve over HTTPS, or run `pnpm run dev` locally. |
 | Fleet list feels slow | Very broad filter over ~9.5k records | Narrow by depot or route; the list caps at 160 rendered rows by design. |
 | Stale timestamps everywhere | Most vehicles are `Offline` upstream | Expected — filter to **GOOD** to see currently-reporting vehicles. |
