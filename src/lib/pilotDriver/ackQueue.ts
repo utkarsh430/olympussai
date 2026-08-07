@@ -18,7 +18,12 @@ const DB_VERSION = 1;
 
 export interface QueuedAck {
   commandId: string;
-  vehicleId: string;
+  // No `vehicleId` here (and none is sent to the ack endpoint) — the server
+  // derives the vehicle from the caller's own session/ops_users row
+  // (src/app/api/ops/pilot-driver/commands/[id]/ack/route.ts), never from
+  // client-supplied data. Keeping it out of the queued/sent payload means
+  // there is no client-controlled field left that could affect which
+  // vehicle's command gets acked.
   outcome: 'accept' | 'unable' | 'unsafe';
   reason: string | null;
   queuedAt: string;

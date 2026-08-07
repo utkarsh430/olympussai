@@ -30,6 +30,12 @@ const bodySchema = z.object({
   // omits it from the response unless the admin explicitly asks for it (e.g.
   // as a fallback while confirming Resend delivery is working).
   revealAcceptUrl: z.boolean().optional().default(false),
+  // Optional vehicle assignment (db/migrations/20260806180000__ops_users_vehicle_assignment.sql),
+  // copied onto the ops_users row on accept (repo.acceptInvite). Only
+  // meaningful for driver/pilot_driver roles, but accepted for any role —
+  // an admin can also leave it unset and assign later via
+  // POST /api/ops/admin/users/:id/vehicle.
+  vehicleId: z.string().trim().min(1).max(200).nullable().optional(),
 });
 
 function errorResponse(code: string, message: string, status: number) {
@@ -96,6 +102,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       invitedBy: guard.claims.sub,
       tokenHash,
       expiresAt,
+      vehicleId: parsed.data.vehicleId ?? null,
     });
 
     const acceptUrl = buildAcceptUrl(token);

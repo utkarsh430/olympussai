@@ -22,6 +22,14 @@ export interface OpsUserRecord {
   role: OpsRole;
   passwordHash: string;
   status: 'active' | 'disabled';
+  /**
+   * The vehicle this driver/pilot_driver is assigned to, admin-set only
+   * (db/migrations/20260806180000__ops_users_vehicle_assignment.sql). Null
+   * means "not yet assigned" — callers MUST NOT fall back to a
+   * client-supplied vehicleId when this is null; that was the A01 gap this
+   * column closes.
+   */
+  vehicleId: string | null;
   createdAt: string;
 }
 
@@ -34,6 +42,8 @@ export interface OpsInviteRecord {
   expiresAt: string;
   acceptedAt: string | null;
   revokedAt: string | null;
+  /** Optional vehicle assignment copied onto the new ops_users row by acceptInvite(). */
+  vehicleId: string | null;
   createdAt: string;
 }
 
@@ -87,6 +97,12 @@ export interface OpsRepo {
   listUsers(): Promise<OpsUserRecord[]>;
   disableUser(id: string, disabledBy: string): Promise<OpsUserRecord | null>;
   countAdmins(): Promise<number>;
+  /**
+   * Admin-only assignment of a driver/pilot_driver to a vehicle
+   * (POST /api/ops/admin/users/:id/vehicle). Pass `null` to unassign.
+   * Returns null if the user does not exist.
+   */
+  setUserVehicle(id: string, vehicleId: string | null): Promise<OpsUserRecord | null>;
 
   createInvite(input: {
     email: string;
@@ -94,6 +110,7 @@ export interface OpsRepo {
     invitedBy: string;
     tokenHash: string;
     expiresAt: Date;
+    vehicleId?: string | null;
   }): Promise<OpsInviteRecord>;
   findInviteByTokenHash(tokenHash: string): Promise<OpsInviteRecord | null>;
   findInviteById(id: string): Promise<OpsInviteRecord | null>;
@@ -136,6 +153,7 @@ function mapUserRow(row: Record<string, unknown>): OpsUserRecord {
     role: row.role as OpsRole,
     passwordHash: String(row.password_hash),
     status: row.status as 'active' | 'disabled',
+    vehicleId: row.vehicle_id == null ? null : String(row.vehicle_id),
     createdAt: new Date(row.created_at as string).toISOString(),
   };
 }
@@ -150,6 +168,7 @@ function mapInviteRow(row: Record<string, unknown>): OpsInviteRecord {
     expiresAt: new Date(row.expires_at as string).toISOString(),
     acceptedAt: row.accepted_at ? new Date(row.accepted_at as string).toISOString() : null,
     revokedAt: row.revoked_at ? new Date(row.revoked_at as string).toISOString() : null,
+    vehicleId: row.vehicle_id == null ? null : String(row.vehicle_id),
     createdAt: new Date(row.created_at as string).toISOString(),
   };
 }
@@ -226,19 +245,39 @@ class PgOpsRepo implements OpsRepo {
     return Number(rows[0]?.n ?? 0);
   }
 
+  async setUserVehicle(id: string, vehicleId: string | null): Promise<OpsUserRecord | null> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query(
+      `update ops_users
+          set vehicle_id = $2
+        where id = $1
+        returning *`,
+      [id, vehicleId],
+    );
+    return rows[0] ? mapUserRow(rows[0]) : null;
+  }
+
   async createInvite(input: {
     email: string;
     role: OpsRole;
     invitedBy: string;
     tokenHash: string;
     expiresAt: Date;
+    vehicleId?: string | null;
   }): Promise<OpsInviteRecord> {
     const pool = getOpsPool();
     const { rows } = await pool.query(
-      `insert into ops_invites (email, role, invited_by, token_hash, expires_at)
-       values ($1, $2, $3, $4, $5)
+      `insert into ops_invites (email, role, invited_by, token_hash, expires_at, vehicle_id)
+       values ($1, $2, $3, $4, $5, $6)
        returning *`,
-      [input.email, input.role, input.invitedBy, input.tokenHash, input.expiresAt.toISOString()],
+      [
+        input.email,
+        input.role,
+        input.invitedBy,
+        input.tokenHash,
+        input.expiresAt.toISOString(),
+        input.vehicleId ?? null,
+      ],
     );
     return mapInviteRow(rows[0]);
   }
@@ -306,10 +345,18 @@ class PgOpsRepo implements OpsRepo {
       }
 
       const userResult = await client.query(
-        `insert into ops_users (email, name, role, password_hash, invite_id, created_by)
-         values ($1, $2, $3, $4, $5, $6)
+        `insert into ops_users (email, name, role, password_hash, invite_id, created_by, vehicle_id)
+         values ($1, $2, $3, $4, $5, $6, $7)
          returning *`,
-        [invite.email, input.name, invite.role, input.passwordHash, invite.id, invite.invited_by],
+        [
+          invite.email,
+          input.name,
+          invite.role,
+          input.passwordHash,
+          invite.id,
+          invite.invited_by,
+          invite.vehicle_id ?? null,
+        ],
       );
 
       await client.query('update ops_invites set accepted_at = now() where id = $1', [invite.id]);
