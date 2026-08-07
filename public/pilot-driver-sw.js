@@ -139,10 +139,18 @@ async function flushAckQueue() {
   const flushed = [];
   for (const entry of queued) {
     try {
+      // No `vehicleId` sent — the server derives the vehicle to ack against
+      // from the caller's own session/ops_users row
+      // (src/app/api/ops/pilot-driver/commands/[id]/ack/route.ts), never
+      // from client input. Queued entries themselves carry no vehicleId
+      // either (src/lib/pilotDriver/ackQueue.ts), so sending one here would
+      // only ever be `undefined` — this mirrors the page's own `sendAck` in
+      // CommandConsole.tsx exactly, rather than leaving a field around that
+      // implies the ack endpoint still trusts a client-supplied vehicle.
       const response = await fetch(`/api/ops/pilot-driver/commands/${encodeURIComponent(entry.commandId)}/ack`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vehicleId: entry.vehicleId, outcome: entry.outcome, reason: entry.reason }),
+        body: JSON.stringify({ outcome: entry.outcome, reason: entry.reason }),
       });
       if (response.ok || response.status === 409) {
         await removeQueued(db, entry.commandId);
