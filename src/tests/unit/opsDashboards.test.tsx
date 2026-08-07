@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { CanonicalLiveBus } from '@/models/canonical';
 import type { OpsFleetSnapshot } from '@/lib/ops/fleetData';
@@ -9,6 +9,8 @@ import { ControlRoomDashboard } from '@/components/ops/control-room/ControlRoomD
 import { ControlRoomCommandForm } from '@/components/ops/control-room/ControlRoomCommandForm';
 import { ObservabilityDashboard } from '@/components/ops/control-room/ObservabilityDashboard';
 import type { ObservabilitySnapshot } from '@/lib/controlService/observabilityData';
+import type { RouteOperationsBoardSnapshot } from '@/lib/controlService/routeBoardData';
+import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
 import { DepotDashboard } from '@/components/ops/depot/DepotDashboard';
 import { PlannerDashboard } from '@/components/ops/planner/PlannerDashboard';
 import { DriverDashboard } from '@/components/ops/driver/DriverDashboard';
@@ -51,44 +53,74 @@ function snapshot(overrides: Partial<OpsFleetSnapshot> = {}): OpsFleetSnapshot {
   };
 }
 
+function routeBoardSnapshot(overrides: Partial<RouteOperationsBoardSnapshot> = {}): RouteOperationsBoardSnapshot {
+  return {
+    source: 'live',
+    stale: false,
+    error: null,
+    fetchedAt: new Date().toISOString(),
+    routeDirections: [],
+    selectedRouteDirectionId: null,
+    vehicles: [],
+    headwayPairs: [],
+    ...overrides,
+  };
+}
+
+const NO_ACTIVE_KILL_SWITCHES: KillSwitchRecord[] = [];
+
+// ApprovalQueuePanel (rendered inside DispatcherDashboard/ControlRoomDashboard)
+// fetches its queue on mount. Tests below that don't care about that panel's
+// own behaviour stub a perpetually-pending fetch so its effect never resolves
+// mid-test and triggers a React "not wrapped in act(...)" warning after the
+// test has already finished asserting. Tests that DO exercise the approval
+// queue (see the ApprovalQueuePanel/KillSwitchPanel describe blocks) override
+// this with their own resolving mock and await it with waitFor/findBy*.
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => new Promise(() => {})),
+  );
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe('DispatcherDashboard', () => {
   it('renders the live fleet status view and the approval/override action form', () => {
-    render(<DispatcherDashboard snapshot={snapshot()} query="" />);
+    render(<DispatcherDashboard snapshot={snapshot()} query="" routeBoard={routeBoardSnapshot()} activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
     expect(screen.getByText('Live fleet status')).toBeInTheDocument();
     expect(screen.getByText('UP25FT4823')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /record approval/i })).toBeInTheDocument();
   });
 
   it('shows a visible degraded-data notice when the fleet snapshot fell back to a stale cache', () => {
-    render(<DispatcherDashboard snapshot={snapshot({ source: 'cache', stale: true, error: 'upstream timed out' })} query="" />);
+    render(<DispatcherDashboard snapshot={snapshot({ source: 'cache', stale: true, error: 'upstream timed out' })} query="" routeBoard={routeBoardSnapshot()} activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
     expect(screen.getByRole('alert')).toHaveTextContent(/last known data/i);
   });
 
   it('shows a visible fixture-fallback notice when the live data source is unavailable', () => {
-    render(<DispatcherDashboard snapshot={snapshot({ source: 'fixture', stale: true, error: 'upstream unreachable' })} query="" />);
+    render(<DispatcherDashboard snapshot={snapshot({ source: 'fixture', stale: true, error: 'upstream unreachable' })} query="" routeBoard={routeBoardSnapshot()} activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
     expect(screen.getByRole('alert')).toHaveTextContent(/unavailable/i);
   });
 
   it('does not show a data-source notice for a fresh live snapshot', () => {
-    render(<DispatcherDashboard snapshot={snapshot()} query="" />);
+    render(<DispatcherDashboard snapshot={snapshot()} query="" routeBoard={routeBoardSnapshot()} activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
 
 describe('ControlRoomDashboard', () => {
   it('renders the live fleet status view and the issue-command action form', () => {
-    render(<ControlRoomDashboard snapshot={snapshot()} query="" />);
+    render(<ControlRoomDashboard snapshot={snapshot()} query="" activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
     expect(screen.getByText('Live fleet status')).toBeInTheDocument();
     expect(screen.getByText('UP25FT4823')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /issue command/i })).toBeInTheDocument();
   });
 
   it('links to the live observability dashboard', () => {
-    render(<ControlRoomDashboard snapshot={snapshot()} query="" />);
+    render(<ControlRoomDashboard snapshot={snapshot()} query="" activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
     const link = screen.getByRole('link', { name: /live observability/i });
     expect(link).toHaveAttribute('href', '/ops/control-room/observability');
   });
@@ -195,7 +227,7 @@ describe('ObservabilityDashboard', () => {
 describe('DepotDashboard', () => {
   it('renders a vehicle roster grouped by depot plus a schedule lookup', () => {
     const buses = [bus({ id: 'a', depotName: 'Bareilly' }), bus({ id: 'b', registrationNumber: 'UP32AB1234', depotName: 'Lucknow' })];
-    render(<DepotDashboard snapshot={snapshot({ buses })} />);
+    render(<DepotDashboard snapshot={snapshot({ buses })} routeBoard={routeBoardSnapshot()} activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
     expect(screen.getByText('Vehicle roster by depot')).toBeInTheDocument();
     expect(screen.getAllByText(/Bareilly/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Lucknow/).length).toBeGreaterThan(0);

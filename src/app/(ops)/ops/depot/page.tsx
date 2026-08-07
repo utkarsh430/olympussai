@@ -1,27 +1,40 @@
 import { getOpsSession } from '@/lib/auth/rbac/server';
 import { OpsShell } from '@/components/ops/OpsShell';
 import { getOpsFleetSnapshot } from '@/lib/ops/fleetData';
+import { getRouteOperationsBoardSnapshot } from '@/lib/controlService/routeBoardData';
+import { getOpsRepo } from '@/lib/auth/rbac/repo';
 import { DepotDashboard } from '@/components/ops/depot/DepotDashboard';
 
 export const dynamic = 'force-dynamic';
 
-export default async function DepotPage() {
+export default async function DepotPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ routeDirectionId?: string }>;
+}) {
   // requireOpsRolePage() in the layout above guarantees a non-null,
   // correct-role session by the time this renders.
   const session = (await getOpsSession())!;
+  const { routeDirectionId } = await searchParams;
 
   return (
     <OpsShell title="Depot" email={session.email}>
-      <DashboardBody />
+      <DashboardBody routeDirectionId={routeDirectionId} />
     </OpsShell>
   );
 }
 
-/** See src/app/(ops)/ops/dispatcher/page.tsx's DashboardBody for why this boundary exists. */
-async function DashboardBody() {
+/** See src/app/(ops)/ops/dispatcher/page.tsx's DashboardBody for why this boundary exists (and why the kill-switch read is best-effort). */
+async function DashboardBody({ routeDirectionId }: { routeDirectionId?: string }) {
   try {
-    const snapshot = await getOpsFleetSnapshot();
-    return <DepotDashboard snapshot={snapshot} />;
+    const [snapshot, routeBoard, activeKillSwitches] = await Promise.all([
+      getOpsFleetSnapshot(),
+      getRouteOperationsBoardSnapshot(routeDirectionId),
+      getOpsRepo()
+        .listKillSwitches(true)
+        .catch(() => []),
+    ]);
+    return <DepotDashboard snapshot={snapshot} routeBoard={routeBoard} activeKillSwitches={activeKillSwitches} />;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return (

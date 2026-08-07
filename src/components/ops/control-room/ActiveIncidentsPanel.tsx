@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { BunchingIncident } from '@/models/control';
 import { IncidentSeverityBadge } from './IncidentSeverityBadge';
 
@@ -41,6 +42,12 @@ export function ActiveIncidentsPanel({ incidents }: { incidents: BunchingInciden
           <p className="mt-1 font-mono text-xs text-[#6f7684]">
             Cause: {incident.causeClass} · Controllability: {incident.controllability}
           </p>
+          <Link
+            href={`/ops/control-room/incidents/${encodeURIComponent(incident.id)}`}
+            className="mt-2 inline-block font-mono text-[10px] uppercase tracking-[0.14em] text-[#8fb4ff] hover:underline"
+          >
+            View full timeline &rarr;
+          </Link>
         </li>
       ))}
     </ul>

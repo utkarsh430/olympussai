@@ -351,6 +351,58 @@ export async function listOpenIncidents(
   }));
 }
 
+/**
+ * A single incident by id, regardless of status (open or closed) — unlike
+ * listOpenIncidents, which deliberately excludes closed ones. Backs the web
+ * app's incident timeline reconstruction (state -> explanation -> decision
+ * -> ack -> outcome), which still needs to read a closed incident's state
+ * to show its final "outcome" stage.
+ */
+export async function getIncidentById(
+  id: string,
+  pool: Pool = getPool()
+): Promise<BunchingIncidentRow | null> {
+  const { rows } = await pool.query<{
+    id: string;
+    route_direction_id: string;
+    severity: string;
+    cause_class: string;
+    controllability: string;
+    status: string;
+    started_at: string;
+    ended_at: string | null;
+    evidence: Record<string, unknown>;
+    members: { vehicleId: string; role: string }[];
+  }>(
+    `select bi.id, bi.route_direction_id, bi.severity, bi.cause_class, bi.controllability,
+            bi.status, bi.started_at, bi.ended_at, bi.evidence,
+            coalesce(
+              json_agg(json_build_object('vehicleId', m.vehicle_id, 'role', m.member_role))
+                filter (where m.vehicle_id is not null),
+              '[]'
+            ) as members
+       from bunching_incidents bi
+       left join bunching_incident_members m on m.incident_id = bi.id
+      where bi.id = $1
+      group by bi.id`,
+    [id]
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    routeDirectionId: row.route_direction_id,
+    severity: row.severity,
+    causeClass: row.cause_class,
+    controllability: row.controllability,
+    status: row.status,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+    evidence: row.evidence,
+    members: row.members,
+  };
+}
+
 export async function listActiveRouteDirections(
   pool: Pool = getPool()
 ): Promise<RouteDirectionMeta[]> {

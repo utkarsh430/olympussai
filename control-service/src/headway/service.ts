@@ -254,6 +254,10 @@ export async function listOpenIncidents(routeDirectionId?: string): Promise<repo
   return repo.listOpenIncidents(routeDirectionId);
 }
 
+export async function getIncident(id: string): Promise<repo.BunchingIncidentRow | null> {
+  return repo.getIncidentById(id);
+}
+
 export async function listActiveRouteDirections(): Promise<RouteDirectionMeta[]> {
   return repo.listActiveRouteDirections();
 }

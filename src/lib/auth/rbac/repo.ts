@@ -71,8 +71,50 @@ export interface DispatcherActionRecord {
   dispatcherUserId: string;
   actionType: string;
   reason: string;
+  routeDirectionId: string | null;
+  vehicleId: string | null;
+  incidentId: string | null;
   consumedAt: string | null;
+  rejectedAt: string | null;
+  rejectedBy: string | null;
+  rejectionReason: string | null;
   createdAt: string;
+}
+
+/** Derived triage state of a dispatcher action for the approval-queue UI. */
+export type DispatcherActionDecisionState = 'pending' | 'approved' | 'rejected';
+
+export function decisionStateOf(action: Pick<DispatcherActionRecord, 'consumedAt' | 'rejectedAt'>): DispatcherActionDecisionState {
+  if (action.rejectedAt) return 'rejected';
+  if (action.consumedAt) return 'approved';
+  return 'pending';
+}
+
+/** The four disruptive action types this ticket's approval queue is scoped to (AC: "skip/short-turn/standby/boarding-limits"). */
+export const DISRUPTIVE_ACTION_TYPES = ['stop_skip', 'short_turn', 'standby_injection', 'boarding_limit'] as const;
+export type DisruptiveActionType = (typeof DISRUPTIVE_ACTION_TYPES)[number];
+
+export function isDisruptiveActionType(actionType: string): actionType is DisruptiveActionType {
+  return (DISRUPTIVE_ACTION_TYPES as readonly string[]).includes(actionType);
+}
+
+export interface KillSwitchRecord {
+  id: string;
+  scope: 'network' | 'route';
+  routeDirectionId: string | null;
+  engagedAt: string;
+  engagedBy: string;
+  reason: string;
+  disengagedAt: string | null;
+  disengagedBy: string | null;
+  disengageReason: string | null;
+}
+
+export interface EngageKillSwitchInput {
+  scope: 'network' | 'route';
+  routeDirectionId?: string | null;
+  engagedBy: string;
+  reason: string;
 }
 
 export interface BreakdownReportInput {
@@ -141,8 +183,34 @@ export interface OpsRepo {
   findDispatcherAction(id: string): Promise<DispatcherActionRecord | null>;
   /** Atomically marks the action consumed IFF it was not already consumed. Returns null if already consumed or missing. */
   consumeDispatcherAction(id: string): Promise<DispatcherActionRecord | null>;
+  /** Atomically marks the action rejected IFF it was neither consumed nor already rejected. Returns null if either has already happened, or the id is missing. */
+  rejectDispatcherAction(input: { id: string; rejectedBy: string; reason: string }): Promise<DispatcherActionRecord | null>;
+  /**
+   * The approval queue's backing list. `status` narrows to one decision
+   * state ('pending' by default reads the live queue); omit it for the
+   * full history a queue/timeline view needs. `incidentId` scopes to one
+   * incident's decisions (incident timeline's "decision" stage).
+   */
+  listDispatcherActions(filter?: { status?: DispatcherActionDecisionState; incidentId?: string; limit?: number }): Promise<DispatcherActionRecord[]>;
 
   createBreakdownReport(input: BreakdownReportInput): Promise<BreakdownReportRecord>;
+
+  /** Currently-active (not yet disengaged) kill switches, or every switch (including history) when `activeOnly` is false. */
+  listKillSwitches(activeOnly?: boolean): Promise<KillSwitchRecord[]>;
+  /** Every kill switch that would block a command with this scope right now: the network-wide one (if any) plus the route-scoped one for `routeDirectionId` (if given and one is active). */
+  getActiveKillSwitches(routeDirectionId?: string | null): Promise<KillSwitchRecord[]>;
+  /** Throws OpsKillSwitchConflictError if an active switch already exists for this exact scope key (DB-enforced via a partial unique index; this surfaces it as a typed error instead of a raw 23505). */
+  engageKillSwitch(input: EngageKillSwitchInput): Promise<KillSwitchRecord>;
+  /** Atomically marks the switch disengaged IFF it was still active. Returns null if already disengaged or missing. */
+  disengageKillSwitch(input: { id: string; disengagedBy: string; reason: string }): Promise<KillSwitchRecord | null>;
+}
+
+/** Thrown by engageKillSwitch() when an active switch already exists for the requested scope (network, or this route-direction). */
+export class OpsKillSwitchConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OpsKillSwitchConflictError';
+  }
 }
 
 function mapUserRow(row: Record<string, unknown>): OpsUserRecord {
@@ -179,8 +247,28 @@ function mapDispatcherActionRow(row: Record<string, unknown>): DispatcherActionR
     dispatcherUserId: String(row.dispatcher_user_id),
     actionType: String(row.action_type),
     reason: String(row.reason),
+    routeDirectionId: row.route_direction_id ? String(row.route_direction_id) : null,
+    vehicleId: row.vehicle_id ? String(row.vehicle_id) : null,
+    incidentId: row.incident_id ? String(row.incident_id) : null,
     consumedAt: row.consumed_at ? new Date(row.consumed_at as string).toISOString() : null,
+    rejectedAt: row.rejected_at ? new Date(row.rejected_at as string).toISOString() : null,
+    rejectedBy: row.rejected_by ? String(row.rejected_by) : null,
+    rejectionReason: row.rejection_reason ? String(row.rejection_reason) : null,
     createdAt: new Date(row.created_at as string).toISOString(),
+  };
+}
+
+function mapKillSwitchRow(row: Record<string, unknown>): KillSwitchRecord {
+  return {
+    id: String(row.id),
+    scope: row.scope as 'network' | 'route',
+    routeDirectionId: row.route_direction_id ? String(row.route_direction_id) : null,
+    engagedAt: new Date(row.engaged_at as string).toISOString(),
+    engagedBy: String(row.engaged_by),
+    reason: String(row.reason),
+    disengagedAt: row.disengaged_at ? new Date(row.disengaged_at as string).toISOString() : null,
+    disengagedBy: row.disengaged_by ? String(row.disengaged_by) : null,
+    disengageReason: row.disengage_reason ? String(row.disengage_reason) : null,
   };
 }
 
@@ -423,11 +511,52 @@ class PgOpsRepo implements OpsRepo {
     const { rows } = await pool.query(
       `update ops_dispatcher_actions
          set consumed_at = now()
-       where id = $1 and consumed_at is null
+       where id = $1 and consumed_at is null and rejected_at is null
        returning *`,
       [id],
     );
     return rows[0] ? mapDispatcherActionRow(rows[0]) : null;
+  }
+
+  async rejectDispatcherAction(input: { id: string; rejectedBy: string; reason: string }): Promise<DispatcherActionRecord | null> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query(
+      `update ops_dispatcher_actions
+         set rejected_at = now(), rejected_by = $2, rejection_reason = $3
+       where id = $1 and consumed_at is null and rejected_at is null
+       returning *`,
+      [input.id, input.rejectedBy, input.reason],
+    );
+    return rows[0] ? mapDispatcherActionRow(rows[0]) : null;
+  }
+
+  async listDispatcherActions(filter: { status?: DispatcherActionDecisionState; incidentId?: string; limit?: number } = {}): Promise<DispatcherActionRecord[]> {
+    const pool = getOpsPool();
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filter.status === 'pending') {
+      conditions.push('consumed_at is null and rejected_at is null');
+    } else if (filter.status === 'approved') {
+      conditions.push('consumed_at is not null');
+    } else if (filter.status === 'rejected') {
+      conditions.push('rejected_at is not null');
+    }
+
+    if (filter.incidentId) {
+      params.push(filter.incidentId);
+      conditions.push(`incident_id = $${params.length}`);
+    }
+
+    const rawLimit = filter.limit ?? 100;
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 500) : 100;
+    params.push(limit);
+    const where = conditions.length > 0 ? `where ${conditions.join(' and ')}` : '';
+    const { rows } = await pool.query(
+      `select * from ops_dispatcher_actions ${where} order by created_at desc limit $${params.length}`,
+      params,
+    );
+    return rows.map(mapDispatcherActionRow);
   }
 
   async createBreakdownReport(input: BreakdownReportInput): Promise<BreakdownReportRecord> {
@@ -440,6 +569,60 @@ class PgOpsRepo implements OpsRepo {
       [input.driverUserId, input.vehicleReg, input.category, input.description],
     );
     return mapBreakdownReportRow(rows[0]);
+  }
+
+  async listKillSwitches(activeOnly = true): Promise<KillSwitchRecord[]> {
+    const pool = getOpsPool();
+    const where = activeOnly ? 'where disengaged_at is null' : '';
+    const { rows } = await pool.query(
+      `select * from ops_kill_switches ${where} order by engaged_at desc`,
+    );
+    return rows.map(mapKillSwitchRow);
+  }
+
+  async getActiveKillSwitches(routeDirectionId?: string | null): Promise<KillSwitchRecord[]> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query(
+      `select * from ops_kill_switches
+        where disengaged_at is null
+          and (scope = 'network' or (scope = 'route' and route_direction_id = $1))`,
+      [routeDirectionId ?? null],
+    );
+    return rows.map(mapKillSwitchRow);
+  }
+
+  async engageKillSwitch(input: EngageKillSwitchInput): Promise<KillSwitchRecord> {
+    const pool = getOpsPool();
+    try {
+      const { rows } = await pool.query(
+        `insert into ops_kill_switches (scope, route_direction_id, engaged_by, reason)
+         values ($1, $2, $3, $4)
+         returning *`,
+        [input.scope, input.scope === 'route' ? (input.routeDirectionId ?? null) : null, input.engagedBy, input.reason],
+      );
+      return mapKillSwitchRow(rows[0]);
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === '23505') {
+        throw new OpsKillSwitchConflictError(
+          input.scope === 'network'
+            ? 'A network-wide kill switch is already engaged.'
+            : `A kill switch is already engaged for route-direction ${input.routeDirectionId ?? ''}.`,
+        );
+      }
+      throw error;
+    }
+  }
+
+  async disengageKillSwitch(input: { id: string; disengagedBy: string; reason: string }): Promise<KillSwitchRecord | null> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query(
+      `update ops_kill_switches
+         set disengaged_at = now(), disengaged_by = $2, disengage_reason = $3
+       where id = $1 and disengaged_at is null
+       returning *`,
+      [input.id, input.disengagedBy, input.reason],
+    );
+    return rows[0] ? mapKillSwitchRow(rows[0]) : null;
   }
 }
 

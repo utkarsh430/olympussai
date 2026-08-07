@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireOpsRole } from '@/lib/auth/rbac/guard';
-import { getOpsRepo } from '@/lib/auth/rbac/repo';
+import { getOpsRepo, decisionStateOf, isDisruptiveActionType, type DispatcherActionDecisionState } from '@/lib/auth/rbac/repo';
 import { OpsDbConfigError } from '@/lib/db/pool';
 import { isSameOrigin } from '@/lib/auth/origin';
 import { clientIpFrom } from '@/lib/auth/rate-limit';
@@ -99,6 +99,51 @@ export async function POST(request: NextRequest): Promise<Response> {
     return NextResponse.json(
       { ok: true, dispatcherActionId: action.id, createdAt: action.createdAt },
       { status: 201, headers: { 'Cache-Control': 'no-store' } },
+    );
+  } catch (error) {
+    if (error instanceof OpsDbConfigError) {
+      return errorResponse('NOT_CONFIGURED', 'Ops authentication is not configured.', 503);
+    }
+    throw error;
+  }
+}
+
+const statusQuerySchema = z.enum(['pending', 'approved', 'rejected', 'all']);
+
+/**
+ * The approval-queue read model (this ticket's AC: "Approval queue handles
+ * disruptive actions ... decisions logged with reason and actor"). Both the
+ * dispatcher who files these and the control-room operators who decide them
+ * need to see it — dispatcher to track their own submissions, control-room
+ * to triage. Defaults to `pending`, scoped to the four disruptive action
+ * types named in the AC unless `?disruptiveOnly=false` is passed (control-
+ * room's decision history view wants the full picture, e.g. when tracing
+ * an incident timeline's "decision" stage regardless of action type).
+ */
+export async function GET(request: NextRequest): Promise<Response> {
+  const guard = await requireOpsRole(['dispatcher', 'control_room']);
+  if (!guard.ok) return guard.response;
+
+  const url = new URL(request.url);
+  const statusParam = statusQuerySchema.safeParse(url.searchParams.get('status') ?? 'pending');
+  if (!statusParam.success) {
+    return errorResponse('INVALID_QUERY', 'status must be one of pending, approved, rejected, all.', 400);
+  }
+  const disruptiveOnly = url.searchParams.get('disruptiveOnly') !== 'false';
+  const incidentId = url.searchParams.get('incidentId') ?? undefined;
+
+  try {
+    const repo = getOpsRepo();
+    const status: DispatcherActionDecisionState | undefined =
+      statusParam.data === 'all' ? undefined : statusParam.data;
+    const actions = await repo.listDispatcherActions({ status, incidentId, limit: 100 });
+    const filtered = disruptiveOnly ? actions.filter((a) => isDisruptiveActionType(a.actionType)) : actions;
+
+    return NextResponse.json(
+      {
+        actions: filtered.map((a) => ({ ...a, decision: decisionStateOf(a) })),
+      },
+      { status: 200, headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (error) {
     if (error instanceof OpsDbConfigError) {

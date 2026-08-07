@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { filterFleet, groupByDepot, groupByRoute } from '@/lib/ops/fleetView';
+import { filterFleet, groupByDepot, groupByRoute, deriveStandbyAvailability } from '@/lib/ops/fleetView';
 import type { CanonicalLiveBus } from '@/models/canonical';
 
 function bus(overrides: Partial<CanonicalLiveBus> = {}): CanonicalLiveBus {
@@ -88,5 +88,44 @@ describe('groupByRoute', () => {
   it('buckets vehicles with no route under "Unassigned route"', () => {
     const groups = groupByRoute([bus({ routeId: null, routeName: null })]);
     expect(groups[0]?.key).toBe('Unassigned route');
+  });
+});
+
+describe('deriveStandbyAvailability', () => {
+  const now = Date.parse('2026-08-06T12:00:00.000Z');
+
+  it('includes a vehicle with no active trip and ignition on or unknown', () => {
+    const buses = [
+      bus({ id: 'a', tripId: null, ignitionOn: true }),
+      bus({ id: 'b', tripId: null, ignitionOn: null }),
+    ];
+    const standby = deriveStandbyAvailability(buses, now);
+    expect(standby.map((s) => s.bus.id)).toEqual(['a', 'b']);
+  });
+
+  it('excludes a vehicle on an active trip', () => {
+    const standby = deriveStandbyAvailability([bus({ id: 'a', tripId: 'trip-1' })], now);
+    expect(standby).toHaveLength(0);
+  });
+
+  it('excludes a vehicle with ignition confirmed off', () => {
+    const standby = deriveStandbyAvailability([bus({ id: 'a', tripId: null, ignitionOn: false })], now);
+    expect(standby).toHaveLength(0);
+  });
+
+  it('computes idleMinutes from lastUpdatedAt and sorts most-recently-reporting first', () => {
+    const buses = [
+      bus({ id: 'stale', tripId: null, lastUpdatedAt: new Date(now - 30 * 60_000).toISOString() }),
+      bus({ id: 'fresh', tripId: null, lastUpdatedAt: new Date(now - 2 * 60_000).toISOString() }),
+    ];
+    const standby = deriveStandbyAvailability(buses, now);
+    expect(standby.map((s) => s.bus.id)).toEqual(['fresh', 'stale']);
+    expect(standby[0]?.idleMinutes).toBe(2);
+    expect(standby[1]?.idleMinutes).toBe(30);
+  });
+
+  it('reports a null idleMinutes for an unparseable lastUpdatedAt rather than throwing', () => {
+    const standby = deriveStandbyAvailability([bus({ id: 'a', tripId: null, lastUpdatedAt: 'not-a-date' })], now);
+    expect(standby[0]?.idleMinutes).toBeNull();
   });
 });
