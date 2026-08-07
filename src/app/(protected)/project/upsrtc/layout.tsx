@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth/server';
-import { isAuthorizedProject } from '@/lib/auth/config';
+import { getSupabaseUser } from '@/lib/supabase/server';
 
 /**
  * Protected UPSRTC dashboard shell.
@@ -29,8 +28,8 @@ export default async function UpsrtcProjectLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getSession();
-  if (!session || !isAuthorizedProject(session.project)) {
+  const user = await getSupabaseUser();
+  if (!user) {
     redirect('/login?next=/project/upsrtc');
   }
 

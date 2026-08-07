@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { clearSession } from '@/lib/auth/server';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { isSameOrigin } from '@/lib/auth/origin';
 
 export const runtime = 'nodejs';
@@ -14,7 +14,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  await clearSession();
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut();
+
   return NextResponse.json(
     { ok: true },
     { status: 200, headers: { 'Cache-Control': 'no-store' } },

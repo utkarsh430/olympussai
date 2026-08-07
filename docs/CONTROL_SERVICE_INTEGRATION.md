@@ -54,9 +54,9 @@ ticket.
   UPSRTC upstream directly (`docs/ARCHITECTURE.md`).
 - Authenticated with a rotating service token (bearer token, short-lived,
   rotated out of band) sent as a header, distinct from and independent of the
-  human PIN-session cookie described in `docs/olympuss/AUTH.md`. Human
+  human Supabase session cookies described in `docs/olympuss/AUTH.md`. Human
   session auth and service-to-service auth are two separate mechanisms; the
-  control service never sees or accepts an `olympuss_session` cookie.
+  control service never sees or accepts a Supabase auth cookie.
 
 ### Control service → web (inbound, events/commands)
 

@@ -3,11 +3,11 @@
 import { useState } from 'react';
 
 /**
- * Shown on /login when the visitor already holds a valid session (Section 15).
- * Offers continuing into the project or signing out. Exposes no internal
- * session details.
+ * Shown on /login when the visitor already holds a valid Supabase session
+ * (Section 15). Offers continuing into the project or signing out. Exposes
+ * only the signed-in email — never any internal session/token details.
  */
-export function AuthenticatedActions({ next }: { next: string }) {
+export function AuthenticatedActions({ next, email }: { next: string; email?: string | null }) {
   const [busy, setBusy] = useState(false);
 
   async function handleSignOut() {
@@ -15,13 +15,18 @@ export function AuthenticatedActions({ next }: { next: string }) {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch {
-      // Ignore — the server clears the cookie; fall through to a reload.
+      // Ignore — the server clears the session; fall through to a reload.
     }
     window.location.assign('/login');
   }
 
   return (
     <div className="w-full max-w-sm space-y-4">
+      {email && (
+        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[#a3a7b2]">
+          Signed in as <span className="text-[#f2eee7]">{email}</span>
+        </p>
+      )}
       <a
         href={next}
         className="flex w-full items-center justify-center gap-2 rounded-md border border-[#d6a13a]/60 bg-[#d6a13a]/12 px-6 py-3.5 font-mono text-[13px] uppercase tracking-[0.2em] text-[#f3c86a] transition-all hover:bg-[#d6a13a]/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6a13a]"

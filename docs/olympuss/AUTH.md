@@ -1,93 +1,93 @@
 # Olympuss Authentication & API Protection
 
-Single-project PIN authentication gating the UPSRTC dashboard and its data APIs.
+Enterprise authentication (Supabase Auth) gating the UPSRTC dashboard and its
+data APIs. Accounts are provisioned by an administrator only — there is no
+self-service sign-up.
 
-> This document covers ONLY the shared-PIN system for `/project/upsrtc` and
-> `/project/bunching`, which this file describes unchanged. Per-person,
-> admin-invited accounts for the five operational roles (driver, dispatcher,
-> depot, control-room, planner) are a separate system — see
-> [`RBAC.md`](./RBAC.md).
+> This document covers ONLY the Supabase-backed auth for `/project/upsrtc` and
+> `/project/bunching`. Per-person, admin-invited accounts for the five
+> operational roles (driver, dispatcher, depot, control-room, planner) are a
+> separate system — see [`RBAC.md`](./RBAC.md). The two systems remain
+> independent: different cookies, different auth backends, and a bug in one
+> cannot widen the other's blast radius.
 
 ## Model
 
-- **Credentials:** a project name (compared case-insensitively, trimmed) and a
-  numeric PIN (matched exactly). The raw PIN is never stored in source — only a
-  bcrypt hash lives in the environment.
-- **`PROJECT_NAME` is the single source of truth for the required project name**,
-  everywhere: what the login form must match, and what a session's `project`
-  claim must equal to pass middleware, the protected layout, and every API
-  check (`isAuthorizedProject()` in `src/lib/auth/config.ts`). There is no
-  separate hardcoded name — change `PROJECT_NAME` (e.g. to `olympus ai`) and the
-  whole chain follows automatically. The URL `/project/upsrtc` is a route path,
-  unrelated to this value, and does not need to change.
-- **Session:** a signed JWT (jose, HS256) carried in an **HttpOnly** cookie
-  `olympuss_session` (`SameSite=lax`, `Secure` in production, `Path=/`, 8-hour
-  max lifetime). Claims: `project`, `role: project-access`, `iat`, `exp`.
-- **The signed token is never exposed to client JavaScript** and localStorage is
-  never used for auth.
+- **Credentials:** email + password, verified by Supabase Auth
+  (`supabase.auth.signInWithPassword`). There is no shared project PIN and no
+  `PROJECT_NAME` concept any more — every account is an individual Supabase
+  user.
+- **No self-registration.** The only way an account is created is an admin
+  running `pnpm run create-project-user` (or creating the user directly in the
+  Supabase dashboard). The app exposes no signup route.
+- **Session:** managed entirely by Supabase Auth via `@supabase/ssr`, carried
+  in **HttpOnly** cookies that Supabase's SSR helpers read/write. The app never
+  hand-rolls a session token — no JWT signing, no `SESSION_SECRET`.
+- **The session cookies are never exposed to client JavaScript.**
+  `requireUpsrtcAccess()` (`src/lib/auth/authorize.ts`) and `getSupabaseUser()`
+  (`src/lib/supabase/server.ts`) call `supabase.auth.getUser()`, which
+  re-validates the session against Supabase Auth on every call rather than
+  trusting an unverified cookie.
 
 ## Defence in depth (three independent checks)
 
 1. **Middleware** (`src/middleware.ts`, Edge) — first line: unauthenticated
    `/project/*` page requests redirect to `/login?next=…`; unauthenticated
-   `/api/upsrtc/*` requests get `401 {"error":"Unauthorized"}`. Imports only
-   edge-safe code (jose) — never bcrypt or `next/headers`.
-2. **Protected layout** (`(protected)/project/upsrtc/layout.tsx`) — re-verifies
-   the session server-side and `redirect()`s if absent. Does not trust
-   middleware.
+   `/api/upsrtc/*` requests get `401 {"error":"Unauthorized"}`. Uses the
+   Edge-safe Supabase client (`src/lib/supabase/middleware.ts`, built on
+   `@supabase/ssr`) — never the Node-only service-role client.
+2. **Protected layout** (`(protected)/project/upsrtc/layout.tsx`, and
+   `(protected)/project/bunching/page.tsx`) — re-verifies the session
+   server-side and `redirect()`s if absent. Does not trust middleware.
 3. **Every UPSRTC API** calls `requireUpsrtcAccess()` itself and returns
    `unauthorizedResponse()` when unauthenticated.
 
 ## Endpoints
 
-| Route               | Method | Purpose                                                |
-| ------------------- | ------ | ------------------------------------------------------ |
-| `/api/auth/login`   | POST   | Validate + set session cookie                          |
-| `/api/auth/logout`  | POST   | Clear session cookie                                   |
-| `/api/auth/session` | GET    | Safe status: `{ authenticated, project?, expiresAt? }` |
+| Route                | Method | Purpose                                          |
+| --------------------- | ------ | ------------------------------------------------- |
+| `/api/auth/login`    | POST   | Validate credentials with Supabase, set session cookies |
+| `/api/auth/logout`   | POST   | `supabase.auth.signOut()`, clear session cookies |
+| `/api/auth/session`  | GET    | Safe status: `{ authenticated, email? }`          |
 
-`login` enforces: same-origin (Origin/Referer vs host), `application/json` only,
-zod-validated body, project-name normalization, rate limiting, and a **single
-generic error** `Invalid project name or PIN.` for every credential failure
-(never reveals which field was wrong). bcrypt comparison runs even on a wrong
-project name so response timing does not distinguish the two.
+`login` enforces: same-origin (Origin/Referer vs host), `application/json`
+only, zod-validated body (`email`, `password`), rate limiting, and a **single
+generic error** `Invalid email or password.` for every credential failure
+(never reveals whether the email exists).
 
 ## Rate limiting (best-effort)
 
-`src/lib/auth/rate-limit.ts` — in-memory, per-process. 5 failed attempts per
-15-minute window, keyed on client IP + normalized project name. **On
-serverless/multi-instance hosting this is best-effort only** (per-instance
-counters, reset on cold start). Replace with Redis/Upstash before treating it as
-a hard control. It is not presented as more secure than it is.
+`src/lib/auth/rate-limit.ts` — in-memory, per-process, shared with the ops RBAC
+login. 5 failed attempts per 15-minute window, keyed on client IP + normalized
+email. **On serverless/multi-instance hosting this is best-effort only**
+(per-instance counters, reset on cold start). Replace with Redis/Upstash before
+treating it as a hard control. It is not presented as more secure than it is.
 
 ## Environment variables
 
-Generate the PIN hash:
+Set (uncommitted `.env.local` locally; host env settings in production) — see
+`.env.example` for the full list:
+
+- `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL.
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon (public) key.
+- `SUPABASE_SERVICE_ROLE_KEY` — **server-only**, bypasses RLS. Used exclusively
+  by `pnpm run create-project-user` to provision accounts. Never imported by
+  any route handler that serves ordinary user requests, never sent to the
+  browser.
+- `SITE_URL` — canonical origin.
+
+## Provisioning an account (no self-service sign-up)
 
 ```
-pnpm run generate-pin-hash -- 2740
+SUPABASE_URL=https://xyz.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=... \
+pnpm run create-project-user -- --email you@example.com
 ```
 
-Set (uncommitted `.env.local` locally; host env settings in production):
-
-- `PROJECT_NAME` — e.g. `upsrtc`
-- `PROJECT_PIN_HASH` — the bcrypt hash from the script
-- `SESSION_SECRET` — long random string, ≥32 chars (e.g. `openssl rand -base64 48`)
-- `SITE_URL` — canonical origin
-
-### ⚠️ Local `.env.local` and the `$` in bcrypt hashes
-
-bcrypt hashes contain `$` separators. Next's env loader (`@next/env` →
-dotenv-expand) treats `$` as **variable expansion** and will silently corrupt
-the hash in a local `.env.local`. Escape every `$` as `\$` there:
-
-```
-PROJECT_PIN_HASH=\$2b\$12\$abcd...      # local .env.local — escaped
-```
-
-Host environment UIs (Vercel, etc.) store the value **literally** — paste the
-hash **unescaped** there. The `generate-pin-hash` script prints a reminder to
-stderr.
+Prompts for a password with echo disabled (never as an argv, so it never lands
+in shell history or `ps`). Requires the service-role key, so it is meant to be
+run out-of-band by whoever administers the Supabase project — not exposed as
+an in-app flow.
 
 ## Google Maps key (not a secret)
 
@@ -100,6 +100,10 @@ Cloud restrictions, not obscurity:
 - Use a **separate** development key restricted to `localhost`.
 - Set quotas and billing alerts.
 - Do **not** reuse the original prototype production key — configure a fresh restricted key.
+
+The Supabase anon key (`NEXT_PUBLIC_SUPABASE_ANON_KEY`) is the same category:
+public by design, safe in the browser bundle. Access control comes from
+Supabase Auth + Row Level Security, not from keeping the anon key secret.
 
 ## API endpoint visibility
 

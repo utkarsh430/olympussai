@@ -15,9 +15,9 @@ Set these in the Vercel project (Production + Preview). Never commit real values
 
 | Variable | Notes |
 | --- | --- |
-| `PROJECT_NAME` | `upsrtc` |
-| `PROJECT_PIN_HASH` | Output of `pnpm run generate-pin-hash -- <pin>`. **Paste unescaped** in Vercel (host UIs store literally). Only local `.env.local` needs `$` escaped as `\$`. |
-| `SESSION_SECRET` | Long random string ≥32 chars (`openssl rand -base64 48`). |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon (public) key. Not a secret — see [`AUTH.md`](./AUTH.md). |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Server-only.** Only needed where `pnpm run create-project-user` is run to provision accounts — does not need to be set on Vercel unless you provision from that environment. |
 | `SITE_URL` | `https://olympuss.us` |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Public browser key (see restrictions below). Not a secret. |
 | `UPSRTC_LIVE_URL` / `UPSRTC_SCHEDULE_URL` | Optional — defaults built into the code. |

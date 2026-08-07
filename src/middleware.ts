@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { SESSION_COOKIE, isAuthorizedProject } from '@/lib/auth/config';
-import { verifySessionToken } from '@/lib/auth/session';
+import { createMiddlewareSupabaseClient, getMiddlewareUser } from '@/lib/supabase/middleware';
 import { OPS_SESSION_COOKIE } from '@/lib/auth/rbac/config';
 import { verifyOpsSessionToken } from '@/lib/auth/rbac/session';
 import { roleForSegment } from '@/lib/auth/rbac/roles';
@@ -11,23 +10,25 @@ import { roleForSegment } from '@/lib/auth/rbac/roles';
  *
  * This is NOT the only check: the protected layout and every UPSRTC API verify
  * the session independently (Section 10). Middleware only imports edge-safe
- * code (jose); bcrypt and next/headers are never pulled in here.
+ * code (`@supabase/ssr`); the Node-only service-role client and next/headers
+ * are never pulled in here.
  *
  * - Unauthenticated page request under /project/*  → redirect to /login?next=…
  * - Unauthenticated API request under /api/upsrtc/* → 401 JSON
  *
- * /ops/* and /api/ops/* (the multi-role RBAC surface added by this ticket)
- * are handled by a completely separate branch (handleOpsRequest, below) that
- * never touches SESSION_COOKIE/verifySessionToken — the PIN logic above is
- * unchanged, byte-for-byte, from before this ticket.
+ * Enterprise accounts are Supabase Auth users, provisioned by an admin only —
+ * there is no self-service signup route. Any signed-in Supabase user has
+ * access to the single UPSRTC project surface (the earlier PROJECT_NAME /
+ * PROJECT_PIN_HASH / SESSION_SECRET env-var PIN system has been removed).
+ *
+ * /ops/* and /api/ops/* (the multi-role RBAC surface added by an earlier
+ * ticket) are handled by a completely separate branch (handleOpsRequest,
+ * below) that never touches the Supabase session — the two auth systems
+ * remain independent.
  */
 export const config = {
   matcher: ['/project/:path*', '/api/upsrtc/:path*', '/ops/:path*', '/api/ops/:path*'],
 };
-
-function isAuthorized(claims: Awaited<ReturnType<typeof verifySessionToken>>): boolean {
-  return Boolean(claims && isAuthorizedProject(claims.project));
-}
 
 /**
  * Role gate for the ops RBAC surface. A path's required role is derived from
@@ -89,11 +90,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return handleOpsRequest(request);
   }
 
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const claims = await verifySessionToken(token);
+  const { supabase, supabaseResponse } = createMiddlewareSupabaseClient(request);
+  const user = await getMiddlewareUser(supabase);
 
-  if (isAuthorized(claims)) {
-    return NextResponse.next();
+  if (user) {
+    return supabaseResponse;
   }
 
   // Unauthorized.

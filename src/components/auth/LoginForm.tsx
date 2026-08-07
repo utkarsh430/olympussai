@@ -3,16 +3,20 @@
 import { useId, useState } from 'react';
 
 /**
- * Project authentication form (Section 15).
+ * Enterprise authentication form, backed by Supabase Auth (Section 15).
  *
- * - Explicit labels, PIN masked, numeric input mode, non-numeric stripped.
+ * Accounts are provisioned by an administrator only — there is no
+ * self-service sign-up, so this form intentionally has no "create account"
+ * affordance.
+ *
+ * - Explicit labels, password masked, standard autocomplete hints.
  * - Enter submits; button disabled while processing.
  * - Status announced via aria-live; error linked with aria-describedby.
  * - No credential hints, no prefilled values, generic error only.
  */
 export function LoginForm({ next }: { next: string }) {
-  const [projectName, setProjectName] = useState('');
-  const [pin, setPin] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'submitting' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +33,7 @@ export function LoginForm({ next }: { next: string }) {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectName, pin }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (response.ok) {
@@ -39,7 +43,7 @@ export function LoginForm({ next }: { next: string }) {
       }
 
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? 'Invalid project name or PIN.');
+      setError(data?.error ?? 'Invalid email or password.');
       setStatus('error');
     } catch {
       setError('Something went wrong. Please try again.');
@@ -54,23 +58,23 @@ export function LoginForm({ next }: { next: string }) {
       <div className="space-y-5">
         <div>
           <label
-            htmlFor="projectName"
+            htmlFor="email"
             className="mb-2 block font-mono text-[11px] uppercase tracking-[0.18em] text-[#a3a7b2]"
           >
-            Project name
+            Email
           </label>
           <input
-            id="projectName"
-            name="projectName"
-            type="text"
-            autoComplete="off"
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="username"
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
             required
-            value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
-            placeholder="Enter project name"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@company.com"
             aria-describedby={error ? errorId : undefined}
             aria-invalid={status === 'error' || undefined}
             className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-4 py-3 text-[#f2eee7] placeholder:text-[#707580] transition-colors focus:border-[#d6a13a]/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d6a13a]/40"
@@ -79,26 +83,23 @@ export function LoginForm({ next }: { next: string }) {
 
         <div>
           <label
-            htmlFor="pin"
+            htmlFor="password"
             className="mb-2 block font-mono text-[11px] uppercase tracking-[0.18em] text-[#a3a7b2]"
           >
-            Project PIN
+            Password
           </label>
           <input
-            id="pin"
-            name="pin"
+            id="password"
+            name="password"
             type="password"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            autoComplete="off"
+            autoComplete="current-password"
             required
-            value={pin}
-            // Strip any non-numeric character so only digits are entered.
-            onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
-            placeholder="Enter PIN"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter password"
             aria-describedby={error ? errorId : undefined}
             aria-invalid={status === 'error' || undefined}
-            className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-4 py-3 tracking-[0.3em] text-[#f2eee7] placeholder:tracking-normal placeholder:text-[#707580] transition-colors focus:border-[#d6a13a]/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d6a13a]/40"
+            className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-4 py-3 text-[#f2eee7] placeholder:text-[#707580] transition-colors focus:border-[#d6a13a]/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d6a13a]/40"
           />
         </div>
 
@@ -114,12 +115,16 @@ export function LoginForm({ next }: { next: string }) {
           className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-md border border-[#d6a13a]/60 bg-[#d6a13a]/12 px-6 py-3.5 font-mono text-[13px] uppercase tracking-[0.2em] text-[#f3c86a] transition-all hover:bg-[#d6a13a]/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6a13a] disabled:cursor-not-allowed disabled:opacity-60"
           style={{ boxShadow: '0 0 30px -12px rgba(214,161,58,0.6)' }}
         >
-          {submitting ? 'Authorizing…' : 'Enter Project'}
+          {submitting ? 'Signing in…' : 'Sign In'}
         </button>
 
         {/* Screen-reader status region. */}
         <p id={statusId} aria-live="polite" className="sr-only">
-          {submitting ? 'Authorizing, please wait.' : status === 'error' ? 'Authentication failed.' : ''}
+          {submitting ? 'Signing in, please wait.' : status === 'error' ? 'Authentication failed.' : ''}
+        </p>
+
+        <p className="text-center text-[11px] leading-relaxed text-[#707580]">
+          Accounts are provisioned by an administrator. There is no self-service sign-up.
         </p>
       </div>
     </form>
