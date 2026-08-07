@@ -6,9 +6,17 @@
  * src/lib/auth/config.ts for the PIN system.
  */
 
-/** The five operational roles named in this ticket, plus the internal admin role. */
+/**
+ * The five operational roles named in the parent RBAC ticket, plus the
+ * internal admin role, plus `pilot_driver` — a restricted cohort added by
+ * the "Driver PWA: single-instruction command interface" ticket
+ * (db/migrations/20260806160000__ops_pilot_driver_role.sql). `pilot_driver`
+ * is deliberately distinct from `driver`: the command interface must be
+ * "delivered only to the pilot driver pool", not to every driver account.
+ */
 export const OPS_ROLES = [
   'driver',
+  'pilot_driver',
   'dispatcher',
   'depot',
   'control_room',
@@ -40,6 +48,7 @@ export function isOpsRole(value: unknown): value is OpsRole {
  */
 export const OPS_ROLE_SEGMENT: Record<OpsRole, string> = {
   driver: 'driver',
+  pilot_driver: 'pilot-driver',
   dispatcher: 'dispatcher',
   depot: 'depot',
   control_room: 'control-room',

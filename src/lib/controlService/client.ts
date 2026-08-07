@@ -8,15 +8,19 @@ import 'server-only';
  * 15s poll / 10s-upstream envelope the ops dashboards already assume
  * (docs/CONTROL_SERVICE_INTEGRATION.md §5 pre-merge gate).
  *
- * Scope note: this ticket ("Compute headway/EWT/CV metrics and build the
- * live observability dashboard") is detection-and-display only — every
- * call this client makes is a GET or a metrics-compute POST, never a
- * `commands`/dispatcherActionId call. A full production client (retry
- * policy tuning, security review sign-off) remains gated per that doc's
- * §5; this module implements the two failure-isolation behaviours §2
- * actually requires for a read path — a fixed timeout and a short-lived
- * circuit breaker — so one unavailable control-service instance can never
- * hang or spam an ops dashboard render.
+ * Originally scoped to detection-and-display GETs and a metrics-compute
+ * POST only (the "Compute headway/EWT/CV metrics" ticket that introduced
+ * this file). The driver PWA ticket ("Driver PWA: single-instruction
+ * command interface") extended `options.body` so
+ * src/lib/controlService/commands.ts could add the one write call this
+ * client now makes — POST .../ack, which never carries a
+ * dispatcherActionId (only POST /v1/commands does, and no route in this
+ * app calls that yet — see src/app/api/ops/control-room/commands/route.ts).
+ * A full production client (retry policy tuning, security review sign-off)
+ * remains gated per that doc's §5; this module implements the two
+ * failure-isolation behaviours §2 actually requires — a fixed timeout and a
+ * short-lived circuit breaker — so one unavailable control-service instance
+ * can never hang or spam an ops dashboard render.
  */
 
 const DEFAULT_TIMEOUT_MS = 8_000; // fits inside the 15s poll / 10s upstream budget
@@ -90,6 +94,8 @@ function readConfig(): { baseUrl: string; token: string } {
 export interface ControlServiceRequestOptions {
   method?: 'GET' | 'POST';
   query?: Record<string, string | undefined>;
+  /** JSON-serialized and sent as the request body. Only meaningful for `method: 'POST'`. */
+  body?: unknown;
   timeoutMs?: number;
 }
 
@@ -126,7 +132,9 @@ export async function fetchControlService(
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
+        ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       },
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       signal: controller.signal,
       cache: 'no-store',
     });
