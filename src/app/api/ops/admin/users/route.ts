@@ -21,6 +21,7 @@ export async function GET(): Promise<Response> {
           name: u.name,
           role: u.role,
           status: u.status,
+          vehicleId: u.vehicleId,
           createdAt: u.createdAt,
         })),
       },

@@ -1,6 +1,7 @@
-import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { requireOpsRole } from '@/lib/auth/rbac/guard';
+import { getOpsRepo } from '@/lib/auth/rbac/repo';
+import { OpsDbConfigError } from '@/lib/db/pool';
 import { fetchActiveCommandForVehicle } from '@/lib/controlService/commands';
 import {
   ControlServiceConfigError,
@@ -19,32 +20,46 @@ function errorResponse(code: string, message: string, status: number) {
 }
 
 /**
- * GET /api/ops/pilot-driver/commands?vehicleId=<reg>
+ * GET /api/ops/pilot-driver/commands
  *
- * The driver PWA's poll for "the one active command" (AC1). `vehicleId` is
- * the driver's self-reported vehicle registration, the same convention
- * src/components/ops/driver/DriverDashboard.tsx already uses for schedule
- * lookup — this RBAC schema still has no driver-to-vehicle assignment (see
- * that component's own comment). Restricted to the `pilot_driver` role
- * (AC4: "delivered only to RBAC-provisioned pilot driver accounts").
+ * The driver PWA's poll for "the one active command" (AC1). Restricted to
+ * the `pilot_driver` role (AC4: "delivered only to RBAC-provisioned pilot
+ * driver accounts").
  *
- * Response is always 200 with `{ command: Command | null }`, even when
- * nothing is active — "no active command" is a normal state for a poll
- * endpoint, not an error.
+ * Ownership check (A01 fix): the vehicle to poll for is read from the
+ * caller's OWN ops_users row (guard.claims.sub -> repo.findUserById), set
+ * only by an admin (db/migrations/20260806180000__ops_users_vehicle_assignment.sql,
+ * POST /api/ops/admin/users/:id/vehicle). A client-supplied vehicleId is no
+ * longer accepted at all — previously any `pilot_driver` account could pass
+ * an arbitrary `?vehicleId=` and observe another vehicle's commands, since
+ * this RBAC schema had no driver-to-vehicle assignment to check against.
+ *
+ * Response is always 200 with `{ command: Command | null }` once a vehicle
+ * is assigned — "no active command" is a normal state for a poll endpoint,
+ * not an error. A driver with no vehicle assigned yet gets a distinct 409
+ * so the client can show "contact your admin" instead of silently polling
+ * forever.
  */
-export async function GET(request: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   const guard = await requireOpsRole(['pilot_driver']);
   if (!guard.ok) return guard.response;
 
-  const vehicleId = request.nextUrl.searchParams.get('vehicleId')?.trim();
-  if (!vehicleId) {
-    return errorResponse('INVALID_QUERY', 'vehicleId query parameter is required.', 400);
-  }
-
   try {
-    const command = await fetchActiveCommandForVehicle(vehicleId);
+    const user = await getOpsRepo().findUserById(guard.claims.sub);
+    if (!user || !user.vehicleId) {
+      return errorResponse(
+        'VEHICLE_NOT_ASSIGNED',
+        'No vehicle is assigned to your account yet. Contact your admin.',
+        409,
+      );
+    }
+
+    const command = await fetchActiveCommandForVehicle(user.vehicleId);
     return NextResponse.json({ command }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
+    if (error instanceof OpsDbConfigError) {
+      return errorResponse('NOT_CONFIGURED', 'Ops authentication is not configured.', 503);
+    }
     if (error instanceof ControlServiceConfigError) {
       return errorResponse('NOT_CONFIGURED', 'Control service is not configured.', 503);
     }

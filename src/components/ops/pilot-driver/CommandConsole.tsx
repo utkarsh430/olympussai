@@ -5,13 +5,18 @@ import type { Command, CommandAckOutcome } from '@/models/control';
 import { commandActionLabel, commandReason } from '@/lib/pilotDriver/commandCopy';
 import { enqueueAck, flushQueuedAcks, removeQueuedAck, type QueuedAck } from '@/lib/pilotDriver/ackQueue';
 
-const VEHICLE_ID_STORAGE_KEY = 'ops.pilotDriver.vehicleId';
 const POLL_INTERVAL_MS = 4_000;
 
 type AckPhase = 'idle' | 'sending' | 'queued' | 'sent' | 'error';
+type VehicleState = 'loading' | 'assigned' | 'unassigned' | 'error';
 
 interface ActiveCommandApiResponse {
   command: Command | null;
+}
+
+interface SessionApiResponse {
+  authenticated: boolean;
+  vehicleId?: string | null;
 }
 
 function formatCountdown(seconds: number): string {
@@ -25,12 +30,12 @@ async function sendAck(entry: QueuedAck): Promise<boolean> {
   const response = await fetch(`/api/ops/pilot-driver/commands/${encodeURIComponent(entry.commandId)}/ack`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ vehicleId: entry.vehicleId, outcome: entry.outcome, reason: entry.reason }),
+    body: JSON.stringify({ outcome: entry.outcome, reason: entry.reason }),
   });
   // A 409 (command no longer active — already acked elsewhere, superseded,
-  // or expired) is not a transient failure: retrying it forever would never
-  // succeed, so treat it as "done" and drop it from the queue rather than
-  // leaving it stuck.
+  // or expired; also returned when no vehicle is assigned) is not a
+  // transient failure: retrying it forever would never succeed, so treat it
+  // as "done" and drop it from the queue rather than leaving it stuck.
   if (response.status === 409) return true;
   return response.ok;
 }
@@ -43,8 +48,15 @@ async function sendAck(entry: QueuedAck): Promise<boolean> {
  * network interruption never loses it.
  */
 export function CommandConsole() {
-  const [vehicleId, setVehicleId] = useState('');
-  const [vehicleIdDraft, setVehicleIdDraft] = useState('');
+  // The assigned vehicle is never self-reported by the driver — it comes
+  // from the caller's own session/ops_users row
+  // (GET /api/ops/auth/session, backed by
+  // db/migrations/20260806180000__ops_users_vehicle_assignment.sql, set
+  // only by an admin). This closes the A01 gap where a `pilot_driver`
+  // account could previously type in any vehicleId and observe/ack that
+  // vehicle's commands.
+  const [vehicleState, setVehicleState] = useState<VehicleState>('loading');
+  const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [command, setCommand] = useState<Command | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [pollError, setPollError] = useState<string | null>(null);
@@ -52,24 +64,34 @@ export function CommandConsole() {
   const [ackError, setAckError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(true);
 
-  const vehicleFieldId = useId();
   const statusRegionId = useId();
   const activeCommandRef = useRef<Command | null>(null);
   activeCommandRef.current = command;
 
-  // Restore the remembered vehicle (same self-reported-vehicle convention
-  // as DriverDashboard/ScheduleLookupForm — this RBAC schema has no
-  // driver-to-vehicle assignment to read it from instead).
+  // Look up the caller's own assigned vehicle from the session — never from
+  // client input.
   useEffect(() => {
-    try {
-      const remembered = window.localStorage.getItem(VEHICLE_ID_STORAGE_KEY);
-      if (remembered) {
-        setVehicleId(remembered);
-        setVehicleIdDraft(remembered);
+    let cancelled = false;
+    async function loadVehicle() {
+      try {
+        const response = await fetch('/api/ops/auth/session', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`session lookup failed with status ${response.status}`);
+        const data = (await response.json()) as SessionApiResponse;
+        if (cancelled) return;
+        if (data.vehicleId) {
+          setVehicleId(data.vehicleId);
+          setVehicleState('assigned');
+        } else {
+          setVehicleState('unassigned');
+        }
+      } catch {
+        if (!cancelled) setVehicleState('error');
       }
-    } catch {
-      // Ignore — remembering the vehicle is a convenience, never required.
     }
+    loadVehicle();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -107,14 +129,14 @@ export function CommandConsole() {
   // blank out a command the driver is currently reading (AC3's "cached
   // shell ... survive brief network interruption").
   useEffect(() => {
-    if (!vehicleId) return;
+    if (vehicleState !== 'assigned') return;
     let cancelled = false;
 
     async function poll() {
       try {
-        const response = await fetch(`/api/ops/pilot-driver/commands?vehicleId=${encodeURIComponent(vehicleId)}`, {
-          cache: 'no-store',
-        });
+        // No vehicleId is sent — the server derives it from the caller's
+        // own session/ops_users row (A01 fix, see the route handler).
+        const response = await fetch('/api/ops/pilot-driver/commands', { cache: 'no-store' });
         if (!response.ok) throw new Error(`poll failed with status ${response.status}`);
         const data = (await response.json()) as ActiveCommandApiResponse;
         if (cancelled) return;
@@ -142,7 +164,7 @@ export function CommandConsole() {
     // ackPhase intentionally excluded — it is read via a ref-like check
     // above but shouldn't restart the poll loop on every ack state change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicleId]);
+  }, [vehicleState]);
 
   // Live countdown + client-side auto-expiry (AC1: "auto-expiry on TTL
   // lapse"). Ticks every second independent of the poll interval so the
@@ -170,23 +192,10 @@ export function CommandConsole() {
     return () => clearInterval(interval);
   }, [command]);
 
-  function handleVehicleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    const trimmed = vehicleIdDraft.trim();
-    if (!trimmed) return;
-    setVehicleId(trimmed);
-    try {
-      window.localStorage.setItem(VEHICLE_ID_STORAGE_KEY, trimmed);
-    } catch {
-      // Ignore — remembering the vehicle is a convenience, never required.
-    }
-  }
-
   async function handleAck(outcome: CommandAckOutcome) {
     if (!command || ackPhase === 'sending') return;
     const entry: QueuedAck = {
       commandId: command.id,
-      vehicleId,
       outcome,
       reason: null,
       queuedAt: new Date().toISOString(),
@@ -233,41 +242,35 @@ export function CommandConsole() {
 
       <section className="rounded-md border border-[rgba(255,255,255,0.08)] p-4">
         <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">Your vehicle</h2>
-        <form onSubmit={handleVehicleSubmit} className="flex flex-wrap items-end gap-3">
-          <div className="flex-1">
-            <label htmlFor={vehicleFieldId} className="mb-1 block text-xs text-[#9aa0ad]">
-              Vehicle registration
-            </label>
-            <input
-              id={vehicleFieldId}
-              value={vehicleIdDraft}
-              onChange={(e) => setVehicleIdDraft(e.target.value)}
-              placeholder="e.g. UP25FT4823"
-              className="w-full min-h-11 rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef] placeholder:text-[#707580] focus:border-[#4f8cff]/70 focus:outline-none"
-            />
-          </div>
-          <button
-            type="submit"
-            className="min-h-11 rounded-md border border-[rgba(255,255,255,0.14)] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#9aa0ad] hover:border-[#4f8cff]/60 hover:text-[#8fb4ff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#4f8cff]"
-          >
-            Save
-          </button>
-        </form>
+        {vehicleState === 'loading' && <p className="text-sm text-[#9aa0ad]">Loading your vehicle assignment…</p>}
+        {vehicleState === 'assigned' && (
+          <p className="font-mono text-sm text-[#e6e9ef]">{vehicleId}</p>
+        )}
+        {vehicleState === 'unassigned' && (
+          <p className="text-sm text-[#e0c17a]">
+            No vehicle is assigned to your account yet. Contact your admin to be assigned one.
+          </p>
+        )}
+        {vehicleState === 'error' && (
+          <p className="text-sm text-[#f0857d]">Could not load your vehicle assignment. Try reloading.</p>
+        )}
       </section>
 
       <section aria-live="polite" id={statusRegionId} className="rounded-md border border-[rgba(255,255,255,0.08)] p-4">
         <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">Active command</h2>
 
-        {!vehicleId && <p className="text-sm text-[#9aa0ad]">Enter your vehicle above to receive commands.</p>}
+        {vehicleState !== 'assigned' && (
+          <p className="text-sm text-[#9aa0ad]">Waiting for a vehicle assignment to receive commands.</p>
+        )}
 
-        {vehicleId && !command && (
+        {vehicleState === 'assigned' && !command && (
           <p className="text-sm text-[#9aa0ad]">
             No active command right now.
             {pollError && <span className="mt-1 block text-xs text-[#e0c17a]">{pollError}</span>}
           </p>
         )}
 
-        {vehicleId && command && (
+        {vehicleState === 'assigned' && command && (
           <div className="space-y-4">
             <div>
               <p className="text-lg font-semibold text-[#e6e9ef]">{commandActionLabel(command.actionType)}</p>
