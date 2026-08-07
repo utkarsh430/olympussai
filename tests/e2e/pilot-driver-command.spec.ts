@@ -154,10 +154,43 @@ async function loginAsPilotDriver(page: Page): Promise<void> {
   if (!res.ok()) throw new Error(`pilot_driver login failed (${res.status()}): ${await res.text()}`);
 }
 
-async function openConsoleForVehicle(page: Page, vehicleId: string): Promise<void> {
+/**
+ * Assigns `vehicleId` to the seeded E2E pilot_driver's OWN ops_users row,
+ * the same write POST /api/ops/admin/users/:id/vehicle performs, and the
+ * only way this app lets a vehicle become "assigned" to a driver
+ * (db/migrations/20260806180000__ops_users_vehicle_assignment.sql). This
+ * spec writes directly to `opsPool` rather than calling that admin route
+ * because there is no seeded admin session available to this suite — see
+ * the file header for what infra this spec assumes.
+ *
+ * This replaces a since-removed step that filled a "Vehicle registration"
+ * textbox in the console itself: that field only ever existed because the
+ * pre-fix console let a pilot_driver self-report any vehicleId, which was
+ * exactly the A01 gap this ticket closed. CommandConsole.tsx now derives
+ * the vehicle from GET /api/ops/auth/session (never client input), so this
+ * suite must arrange that server-side assignment itself to reach the same
+ * "driver sees their vehicle's command" state, not simulate the old
+ * client-controlled path.
+ */
+async function assignVehicleToPilotDriver(pool: Pool, vehicleId: string): Promise<void> {
+  const { rowCount } = await pool.query(`update ops_users set vehicle_id = $1 where lower(email) = lower($2)`, [
+    vehicleId,
+    PILOT_DRIVER_EMAIL,
+  ]);
+  if (rowCount === 0) {
+    throw new Error(`no ops_users row found for E2E_PILOT_DRIVER_EMAIL=${PILOT_DRIVER_EMAIL}`);
+  }
+}
+
+async function openConsoleForVehicle(page: Page, pool: Pool, vehicleId: string): Promise<void> {
+  await assignVehicleToPilotDriver(pool, vehicleId);
   await page.goto('/ops/pilot-driver');
-  await page.getByRole('textbox', { name: 'Vehicle registration' }).fill(vehicleId);
-  await page.getByRole('button', { name: 'Save' }).click();
+  // Confirms the console actually picked up the server-assigned vehicle
+  // (GET /api/ops/auth/session) before any test proceeds to assert on
+  // command state — a stale/failed assignment would otherwise leave the
+  // console stuck on "No vehicle is assigned to your account yet" and every
+  // downstream assertion would time out with a confusing failure instead.
+  await expect(page.getByText(vehicleId, { exact: true })).toBeVisible({ timeout: 15_000 });
 }
 
 /** Reads the IndexedDB ack outbox (src/lib/pilotDriver/ackQueue.ts) from inside the page. */
@@ -209,7 +242,7 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
     const reason = `QA e2e: merging traffic ahead near ${fixture.vehicleId} — reduce speed for driver safety.`;
     const commandId = await createAndDeliverCommand(fixture, { ttlSeconds: 300, reason });
 
-    await openConsoleForVehicle(page, fixture.vehicleId);
+    await openConsoleForVehicle(page, opsPool, fixture.vehicleId);
 
     // The driver sees the plain-language action, the dispatcher's reason,
     // a live countdown, and the three response buttons (AC1).
@@ -251,7 +284,7 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
     const reason = `QA e2e offline-queue scenario for ${fixture.vehicleId}.`;
     const commandId = await createAndDeliverCommand(fixture, { ttlSeconds: 300, reason });
 
-    await openConsoleForVehicle(page, fixture.vehicleId);
+    await openConsoleForVehicle(page, opsPool, fixture.vehicleId);
     await expect(page.getByText(reason)).toBeVisible({ timeout: 15_000 });
 
     await page.context().setOffline(true);
@@ -297,7 +330,7 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
     const ttlSeconds = 12;
     const commandId = await createAndDeliverCommand(fixture, { ttlSeconds, reason });
 
-    await openConsoleForVehicle(page, fixture.vehicleId);
+    await openConsoleForVehicle(page, opsPool, fixture.vehicleId);
     await expect(page.getByText(reason)).toBeVisible({ timeout: 15_000 });
     await expect(page.getByLabel('Time remaining to respond')).toHaveText(/^\d+:\d{2}$/);
 
