@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.29.3",
   "scripts": {
     "dev": "next dev",
-    "build": "sh -c 'next build'",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -16,6 +16,7 @@
     "create-project-user": "node scripts/create-project-user.mjs",
     "migrate:ops": "node scripts/migrate-ops.mjs",
     "seed-ops-admin": "node scripts/seed-ops-admin.mjs",
+    "seed-ops-user": "node scripts/seed-ops-user.mjs",
     "process-logo": "node scripts/process-logo.mjs",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"docs/**/*.md\""
   },
@@ -33,6 +34,7 @@
     "@react-three/fiber": "^9.6.1",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.2",
+    "@upstash/redis": "^1.38.2",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -5,6 +5,7 @@ import {
   isValidCoordinate,
   classifyDataQuality,
   extractArray,
+  parseUpstreamInstant,
   toNumber,
 } from '@/lib/upsrtc/normalizer';
 
@@ -236,6 +237,147 @@ describe('data-quality classification', () => {
   it('labels a missing or unparseable timestamp as stale', () => {
     expect(classifyDataQuality(null, now)).toBe('stale');
     expect(classifyDataQuality('not-a-date', now)).toBe('stale');
+  });
+});
+
+// ============================================================================
+// Regression suite for the live feed's timezone defect.
+//
+// Found by running against production, not by any unit test: the feed stamps
+// IST wall-clock time and labels it `Z`. Measured 2026-08-09 at 06:47 UTC /
+// 12:17 IST — the feed reported 12:16:37Z, the median record sat +5.44h ahead
+// of real UTC, and 2982 of 9260 records landed within 60s of exactly +5h30m.
+//
+// Taken literally that makes every age NEGATIVE, so `ageMinutes <= 5` in
+// classifyDataQuality was always true and every vehicle in the product was
+// badged `good` regardless of how long it had been dark. The failure is silent
+// — the badges keep rendering, they just stop meaning anything — so the
+// behaviour is pinned here rather than left to inspection.
+//
+// The twin of parseUpstreamInstant lives in control-service at
+// control-service/src/ingestion/upsrtc/normalize.ts, with its own suite in
+// control-service/tests/seed/upstreamInstant.test.ts.
+// ============================================================================
+describe('upstream instant parsing (IST-mislabelled-as-Z defect)', () => {
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  /** 2026-08-09T06:47:44Z, the moment the defect was measured against production. */
+  const NOW = Date.parse('2026-08-09T06:47:44.000Z');
+  /** Stamp a fix that is genuinely `agoMs` old the way the feed does: IST, labelled Z. */
+  const istStamp = (agoMs: number) => new Date(NOW - agoMs + IST_OFFSET_MS).toISOString();
+
+  it('corrects the exact production sample back to real UTC', () => {
+    // Precisely what the feed returned while UTC was 06:47:44.
+    const parsed = parseUpstreamInstant('2026-08-09T12:16:37Z', NOW);
+    expect(parsed).not.toBeNull();
+    expect(new Date(parsed as number).toISOString()).toBe('2026-08-09T06:46:37.000Z');
+
+    // 67s old — a plausible fix age. Read literally it was 5.5h in the FUTURE,
+    // and the age was negative.
+    const ageSeconds = (NOW - (parsed as number)) / 1000;
+    expect(ageSeconds).toBeGreaterThan(0);
+    expect(ageSeconds).toBeCloseTo(67, 0);
+    expect(classifyDataQuality('2026-08-09T12:16:37Z', NOW)).toBe('good');
+  });
+
+  it('leaves a genuinely-UTC recent or past value untouched', () => {
+    // Never shift a value already in the past: it is not ambiguous, and
+    // shifting would make a merely-stale fix look 5.5h staler than it is.
+    for (const raw of ['2026-08-09T06:47:00.000Z', '2026-08-09T04:00:00.000Z']) {
+      expect(parseUpstreamInstant(raw, NOW), raw).toBe(Date.parse(raw));
+    }
+
+    expect(classifyDataQuality('2026-08-09T06:37:44.000Z', NOW)).toBe('degraded'); // 10 min
+    expect(classifyDataQuality('2026-08-09T04:47:44.000Z', NOW)).toBe('stale'); // 2 hours
+  });
+
+  it('does not mistake small forward clock skew for a timezone error', () => {
+    // A few seconds of unit drift must not be "corrected" — doing so would
+    // rewrite a fresh fix into a 5.5h-old one and badge a live bus stale.
+    const raw = new Date(NOW + 30_000).toISOString();
+    expect(parseUpstreamInstant(raw, NOW)).toBe(Date.parse(raw));
+    expect(classifyDataQuality(raw, NOW)).toBe('good');
+  });
+
+  it('discards a fix still in the future after correction (broken unit clock)', () => {
+    // Observed in production: one unit reporting ~39 years ahead. Trusting it
+    // would badge that vehicle `good` forever and let it win every dedupe.
+    expect(parseUpstreamInstant('2065-01-01T00:00:00Z', NOW)).toBeNull();
+    expect(classifyDataQuality('2065-01-01T00:00:00Z', NOW)).toBe('stale');
+    expect(classifyDataQuality('2065-01-01T00:00:00Z', NOW)).not.toBe('good');
+  });
+
+  it('rejects an unparseable, empty, or absent value rather than defaulting to now', () => {
+    for (const raw of ['Bus Not Assigned', '', '   ', null, undefined]) {
+      expect(parseUpstreamInstant(raw, NOW), String(raw)).toBeNull();
+    }
+  });
+
+  describe('classification of IST-stamped fixes', () => {
+    it('badges a genuinely fresh IST-stamped fix good', () => {
+      expect(classifyDataQuality(istStamp(60_000), NOW)).toBe('good');
+    });
+
+    it('badges a genuinely 10-minute-old IST-stamped fix degraded', () => {
+      expect(classifyDataQuality(istStamp(10 * 60_000), NOW)).toBe('degraded');
+    });
+
+    it('badges a genuinely 2-hour-old IST-stamped fix stale, not good', () => {
+      // THE regression that matters. This stamp reads as NOW + 3.5h, so the
+      // pre-fix implementation computed a negative age, took the
+      // `ageMinutes <= 5` branch and returned 'good' for a bus that had been
+      // silent for two hours. Every badge in the product was that wrong.
+      const stamp = istStamp(2 * 60 * 60_000);
+      expect(Date.parse(stamp)).toBeGreaterThan(NOW); // the shape of the bug
+      expect((NOW - Date.parse(stamp)) / 60_000).toBeLessThan(0); // old age, negative
+      expect(classifyDataQuality(stamp, NOW)).toBe('stale');
+      expect(classifyDataQuality(stamp, NOW)).not.toBe('good');
+    });
+  });
+
+  describe('through normalizeLivePayload', () => {
+    it('stores the corrected UTC instant on the canonical bus', () => {
+      const { buses } = normalizeLivePayload(
+        [upstreamBus({ timestamp: '2026-08-09T12:16:37Z' })],
+        NOW,
+      );
+      expect(buses[0]?.gpsTimestamp).toBe('2026-08-09T06:46:37.000Z');
+      expect(buses[0]?.dataQuality).toBe('good');
+    });
+
+    it('drops a broken-clock timestamp and fails safe to stale', () => {
+      const { buses } = normalizeLivePayload(
+        [upstreamBus({ timestamp: '2065-01-01T00:00:00Z' })],
+        NOW,
+      );
+      expect(buses).toHaveLength(1); // the position is still usable
+      expect(buses[0]?.gpsTimestamp).toBeNull();
+      expect(buses[0]?.dataQuality).toBe('stale');
+    });
+
+    it('never lets a broken-clock duplicate outrank an honest one', () => {
+      // Both orderings: the merge must not depend on upstream row order.
+      const honest = upstreamBus({ timestamp: istStamp(60_000), latitude: 28.9, longitude: 79.9 });
+      const broken = upstreamBus({ timestamp: '2065-01-01T00:00:00Z', latitude: 20, longitude: 70 });
+
+      for (const rows of [[honest, broken], [broken, honest]]) {
+        const { buses } = normalizeLivePayload(rows, NOW);
+        expect(buses).toHaveLength(1);
+        expect(buses[0]?.latitude, JSON.stringify(rows.map((r) => r.timestamp))).toBeCloseTo(28.9);
+        expect(buses[0]?.dataQuality).toBe('good');
+      }
+    });
+
+    it('orders IST-stamped duplicates by their corrected instants', () => {
+      const { buses } = normalizeLivePayload(
+        [
+          upstreamBus({ timestamp: istStamp(20 * 60_000), latitude: 20, longitude: 70 }),
+          upstreamBus({ timestamp: istStamp(60_000), latitude: 28.9, longitude: 79.9 }),
+        ],
+        NOW,
+      );
+      expect(buses).toHaveLength(1);
+      expect(buses[0]?.latitude).toBeCloseTo(28.9);
+    });
   });
 });
 

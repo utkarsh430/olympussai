@@ -6,7 +6,7 @@ single auth system on one domain (**olympuss.us**):
 | Route | Access | What it is |
 | --- | --- | --- |
 | `/` | Public | Cinematic Olympuss AI landing experience — WebGL golden globe, six narrative scenes, static CSS fallback |
-| `/login` | Public | Project authentication (project name + PIN) |
+| `/login` | Public | Enterprise authentication (email + password, Supabase Auth). The earlier project-name + PIN system has been removed — see §6 |
 | `/project/upsrtc` | **Protected** | The UPSRTC AI Copilot — a predictive fleet command centre over live UPSRTC telemetry |
 | `/project/bunching` | **Protected** | Bus Bunching Control Simulator — a coordinated headway controller compared against an uncontrolled corridor |
 | `/api/auth/{login,logout,session}` | Mixed | Authentication endpoints |
@@ -107,6 +107,24 @@ pnpm run dev            # http://localhost:3000
 
 **If `.env.local` already exists, do not overwrite it.**
 
+Only if you are working on the `/ops/*` RBAC surface (it needs this app's own
+Postgres, `OPS_DATABASE_URL`):
+
+```bash
+pnpm migrate:ops                       # apply db/migrations/ (see docs/olympuss/RBAC.md)
+pnpm seed-ops-admin -- --email you@example.com --name "Your Name"
+```
+
+And only if you are working on the control service, which is a separate
+deployable against its own database:
+
+```bash
+cd control-service
+pnpm migrate            # apply control-service/db/migrations/
+pnpm seed               # harvest + persist network geometry (routes, stops, shapes)
+pnpm dev                # http://localhost:8080
+```
+
 Optional, only when the source logo art changes:
 
 ```bash
@@ -145,8 +163,29 @@ exposed to the browser and no key is ever printed.
 | `RESEND_FROM_EMAIL` | no | server | Verified sender address for ops invite emails. |
 | `ANTHROPIC_API_KEY` | no | server | Anthropic API key used by the control-room copilot (`src/lib/copilot/anthropic.ts`) to explain incidents, draft shift reports, and answer NL queries. Unset means those three endpoints return `503 COPILOT_UNAVAILABLE` rather than fabricating a response. Never sent to the browser, never logged — see that file's doc comment. |
 | `ANTHROPIC_MODEL` | no | server | Overrides the Anthropic model id the copilot calls. Defaults to `claude-sonnet-4-5`. |
+| `CONTROL_SERVICE_WEBHOOK_SECRET` | no | server | Shared HMAC-SHA256 key verifying inbound signed webhook deliveries at `POST /api/control-service/webhook`. Must be **byte-for-byte equal** to the control service's `WEBHOOK_HMAC_SECRET` — it is one key on both ends of one HMAC, not a pair; rotate them together. Unset means the handler answers `503` (retryable) rather than dropping command-lifecycle events. |
+| `REDIS_URL` | no | server | Upstash Redis REST endpoint (`https://<db>.upstash.io`). **The single switch for the shared rate-limit / circuit-breaker store** (`src/lib/redis/client.ts`). Unset — the default for local dev and CI — means the failed-login limiter, the copilot call limiter and the control-service circuit breaker keep their original per-process in-memory counters, unchanged. Set it on any multi-instance or serverless deploy, where per-process counters are close to meaningless. |
+| `REDIS_TOKEN` | no | server | REST token for `REDIS_URL`. `REDIS_URL` set without this is treated as a misconfiguration: it is logged loudly at error level and the counters fall back to in-memory, rather than silently pretending Redis is on. |
 
 Present in some environments but **intentionally unused**: `GOOGLE_ROUTES_API_KEY`.
+
+### Control-service environment variables
+
+The persistent control service (`control-service/`) is a separate deployable
+with its own env, fully documented in `control-service/.env.example`. The ones
+worth knowing from this side:
+
+| Variable | Purpose |
+| --- | --- |
+| `CONTROL_SERVICE_DATABASE_URL` | Its own Postgres/PostGIS datastore. **Never** this app's `OPS_DATABASE_URL` — the two datastores are isolated by design. |
+| `SERVICE_TOKEN_SECRET` | The other end of this app's `CONTROL_SERVICE_SERVICE_TOKEN`. |
+| `WEBHOOK_HMAC_SECRET` | The other end of this app's `CONTROL_SERVICE_WEBHOOK_SECRET`. |
+| `WEB_APP_WEBHOOK_URL` | Where signed webhooks are delivered, i.e. `https://<web-app>/api/control-service/webhook`. Unset means deliveries are skipped silently. |
+| `GPS_POLL_ENABLED` | In-process UPSRTC GPS poller. **Defaults off** so exactly one instance of a multi-instance deploy opts in — otherwise every replica ingests the same fixes. |
+| `GPS_POLL_INTERVAL_MS` / `GPS_POLL_URL` / `GPS_MAX_AGE_SECONDS` | Poll cadence, feed override (defaults to the same constant the seeder uses, so the two cannot drift), and the age past which a fix is dropped rather than allowed to resurrect a vehicle that has gone dark. |
+| `COMMAND_TTL_SWEEP_INTERVAL_MS` | Backstop timer that expires TTL-lapsed commands nobody happens to read. Default 30 s. |
+| `HEADWAY_COMPUTE_INTERVAL_MS` / `HEADWAY_BATCH_SIZE` / `HEADWAY_COMPUTE_CONCURRENCY` | Headway sweep cadence and batching. |
+| `REQUIRE_SEEDED_NETWORK` | When true (the default outside tests) `/readyz` reports 503 until network geometry is seeded — without a route shape every fix short-circuits to `off_route`. |
 
 Missing auth configuration fails closed: `getSupabaseUrl()` and
 `getSupabaseAnonKey()` (`src/lib/supabase/env.ts`) throw `SupabaseConfigError`,
@@ -1373,13 +1412,19 @@ Each of these was made against a measured problem, not on principle:
 ```bash
 pnpm run lint         # ESLint (next lint)
 pnpm run typecheck    # tsc --noEmit, strict
-pnpm run test         # Vitest — 224 unit tests, no network required
+pnpm run test         # Vitest — 517 unit tests across 34 files, no network required
 pnpm run test:watch   # Vitest in watch mode
-pnpm run test:e2e     # Playwright — 25 specs (starts the app via pnpm run start)
+pnpm run test:e2e     # Playwright — 29 specs (starts the app via pnpm run start)
 pnpm run format       # Prettier over src/**/*.{ts,tsx,css} and docs/**/*.md
 ```
 
-### Unit tests (Vitest, jsdom) — 224 tests across 7 files
+### Unit tests (Vitest, jsdom) — 517 tests across 34 files
+
+`src/tests/unit/` has grown well past the seven files this table was written
+for; the ops RBAC surface, the control-service client and webhook, the copilot,
+the pilot-driver console and the rate-limit/circuit-breaker backends all have
+their own suites. Run `pnpm test` for the authoritative per-file list. The
+files below are the load-bearing ones worth knowing about by name.
 
 | File | Tests | Covers |
 | --- | --- | --- |
@@ -1396,7 +1441,17 @@ asserts the control equations against hand-computed values, that the overtaking
 floor prevents inversion, that the controller never breaches the safety floor,
 and that each scenario's two runs diverge in the documented direction.
 
-### End-to-end (Playwright) — 25 specs
+### End-to-end (Playwright) — 29 specs
+
+25 of them are the command-centre walkthrough described below; the other four
+are `tests/e2e/pilot-driver-command.spec.ts`, the live control-service ->
+driver-console -> ack loop. That suite needs real infrastructure (both
+Postgres datastores, both processes, a seeded `pilot_driver`), so it **skips
+locally** when its `E2E_*` variables are unset — but under `CI=true` an unset
+variable is a hard failure, not a skip, because `.github/workflows/ci-web.yml`
+provisions all of it and a missing variable there means that setup broke. See
+that spec's header for the full list and a copy-pasteable local invocation.
+
 
 Run at **2259×1271**, which is the effective CSS viewport of a 1920-wide
 display at the ~85% browser zoom the dashboard is actually used at.
@@ -1469,7 +1524,19 @@ affect the build toolchain only, and do not reach runtime.
 | `pnpm run format` | Prettier over source and docs |
 | `pnpm run inspect:api` | Probe both UPSRTC endpoints and print an empirical report |
 | `pnpm run create-project-user -- --email <email>` | Provision an enterprise login account via Supabase Auth (admin-only, no self-service sign-up); prompts for a password on stdin |
+| `pnpm migrate:ops` | Apply `db/migrations/` to `OPS_DATABASE_URL`. One transaction per file, advisory-locked, checksum-verified — a shipped migration edited in place aborts the run |
+| `pnpm seed-ops-admin -- --email <email> --name <name>` | Seed the **first** ops admin (refuses if an active admin exists); every account after it comes from an admin invite |
+| `pnpm seed-ops-user -- --email <email> --name <name> --role <role>` | Seed one non-admin ops account directly, for automation with no mailbox to receive an invite in (this is how CI provisions the e2e `pilot_driver`). **Refuses `admin`**; password from `OPS_SEED_PASSWORD` or a hidden prompt, never argv |
 | `pnpm run process-logo` | Regenerate every brand asset from the source logo |
+
+Inside `control-service/` (its own package, own database):
+
+| Command | What it does |
+| --- | --- |
+| `pnpm migrate` | Apply `control-service/db/migrations/` to `CONTROL_SERVICE_DATABASE_URL`. Same guarantees as `migrate:ops`; run in production as `render.yaml`'s `preDeployCommand` (`node dist/db/migrate.js`) so the schema is never behind the code |
+| `pnpm seed` | Harvest and persist network geometry — routes, directions, stops, shapes — from the upstream feed |
+| `pnpm dev` / `pnpm build` / `pnpm start` | Run, compile, serve the service |
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` | 437 tests across 45 files |
 
 ---
 

@@ -58,7 +58,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   const ip = clientIpFrom(request.headers);
   const rlKey = `ops:${ip}:${email.toLowerCase()}`;
 
-  const preCheck = checkRateLimit(rlKey);
+  const preCheck = await checkRateLimit(rlKey);
   if (preCheck.limited) {
     return NextResponse.json(
       { error: { code: 'RATE_LIMITED', message: 'Too many attempts. Try again later.' } },
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   const passwordMatches = await verifyPassword(password, user?.passwordHash ?? DUMMY_HASH);
 
   if (!user || user.status !== 'active' || !passwordMatches) {
-    const result = recordFailure(rlKey);
+    const result = await recordFailure(rlKey);
     if (result.limited) {
       return NextResponse.json(
         { error: { code: 'RATE_LIMITED', message: 'Too many attempts. Try again later.' } },
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     return invalid();
   }
 
-  clearFailures(rlKey);
+  await clearFailures(rlKey);
   await establishOpsSession({ id: user.id, email: user.email, role: user.role });
 
   return NextResponse.json(

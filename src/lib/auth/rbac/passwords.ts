@@ -1,10 +1,9 @@
 /**
  * Ops account password hashing via bcryptjs.
  *
- * Node runtime only — never imported from Edge middleware, mirrors
- * src/lib/auth/password.ts. Distinct from the PIN's verifyPin(): ops accounts
- * hash a full password chosen by the person accepting the invite, not a
- * shared numeric PIN.
+ * Node runtime only — never imported from Edge middleware. Every ops account
+ * hashes a full password chosen by the person accepting their invite; there
+ * is no shared credential anywhere on this surface.
  */
 import bcrypt from 'bcryptjs';
 

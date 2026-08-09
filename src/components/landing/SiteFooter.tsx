@@ -28,6 +28,19 @@ export function SiteFooter() {
           >
             Project Login
           </Link>
+          {/*
+            The /ops/* operations console is a separate surface with its own
+            credentials; without this link it was reachable only by typing the
+            URL, and operators followed "Project Login" into Supabase auth and
+            concluded their credentials were wrong. Quieter than Project Login
+            on purpose — it is wayfinding for staff, not a second call to action.
+          */}
+          <Link
+            href="/ops/login"
+            className="font-sans text-xs uppercase tracking-[0.16em] text-ol-text-secondary transition-colors hover:text-ol-ivory focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ol-gold"
+          >
+            Operations Sign-In
+          </Link>
           <p className="font-sans text-xs text-ol-muted">© 2026 Olympuss AI</p>
         </div>
       </div>

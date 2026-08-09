@@ -13,11 +13,13 @@
  * (src/models/canonical.ts) already relied on elsewhere in this app.
  *
  * This intentionally does not call the /api/upsrtc/* route handlers over
- * HTTP — those are gated by the separate PIN-session auth
- * (requireUpsrtcAccess), which an ops RBAC user never holds. Instead this
+ * HTTP — those are gated by the separate Supabase Auth session
+ * (requireUpsrtcAccess in src/lib/auth/authorize.ts), which an ops RBAC user
+ * never holds: the two auth systems are deliberately disjoint. Instead this
  * module calls the same underlying fetch/normalize/cache building blocks
  * directly, in-process, guarded by the caller's own ops RBAC session
- * instead.
+ * instead. (That gate used to be an env-var PIN system; it is Supabase now,
+ * but it is still not a credential an ops account carries.)
  */
 import 'server-only';
 import { fetchUpstream, UPSRTC_LIVE_URL, REQUEST_TIMEOUT_MS, buildScheduleUrl, indiaDate, shiftDate, isValidRegistrationNumber } from '@/lib/upsrtc/client';

@@ -5,8 +5,11 @@
  * (src/components/ops/pilot-driver/CommandConsole.tsx), so the ack is
  * durable across a page reload or a dropped connection even if the fetch
  * itself never completes. The service worker's `sync` handler
- * (public/pilot-driver/sw.js) reads/writes this same database by name so a
- * queued ack can flush even if no tab is open when connectivity returns.
+ * (public/pilot-driver-sw.js — served from the ROOT, not from
+ * /pilot-driver/, because a worker's default scope is its own directory and
+ * the console needs a scope covering /ops/pilot-driver; the file's own header
+ * explains this) reads/writes this same database by name, so a queued ack can
+ * flush even if no tab is open when connectivity returns.
  *
  * Browser-only (uses the global `indexedDB`) — never imported from a
  * server module.

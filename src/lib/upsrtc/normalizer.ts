@@ -106,19 +106,95 @@ export function isValidCoordinate(lat: number | null, lng: number | null): boole
   return true;
 }
 
-function parseTimestamp(value: unknown): string | null {
-  const raw = toStringOrNull(value);
-  if (!raw) return null;
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString();
+/** Asia/Kolkata is UTC+5:30 and has no DST, so a fixed offset is exact here. */
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+/**
+ * Tolerance for a fix stamped slightly ahead of us: unit clock drift plus our
+ * own. Anything beyond this is not skew, it is wrong.
+ */
+const FUTURE_SKEW_TOLERANCE_MS = 120_000;
+
+/**
+ * Parse an upstream instant to epoch millis, correcting a timezone defect in
+ * the live feed, or return null when the value is unusable.
+ *
+ * SIBLING IMPLEMENTATION: `parseUpstreamInstant` in
+ * control-service/src/ingestion/upsrtc/normalize.ts. The semantics here are a
+ * deliberate mirror of that one — same offset, same 120s tolerance, same
+ * drop-rather-than-trust behaviour — so the two feeds cannot disagree about
+ * how old a fix is. No import is possible: control-service is a separate
+ * package, the root tsconfig excludes it, and there is no pnpm workspace. Any
+ * change to one must be made to the other.
+ *
+ * The live feed stamps IST WALL-CLOCK time and labels it `Z`. Measured against
+ * the production feed on 2026-08-09 at 06:47 UTC / 12:17 IST: the feed reported
+ * `12:16:37Z`, the median record sat +5.44h ahead of real UTC, and 2982 of 9260
+ * records landed within 60s of exactly +5h30m. Taking `Z` at face value puts
+ * every fix ~5.5 hours in the future, which silently breaks everything in this
+ * app that compares a GPS timestamp against `now`:
+ *
+ *   1. classifyDataQuality's age goes NEGATIVE, so `ageMinutes <= 5` is always
+ *      true and every vehicle is labelled `good` no matter how long it has been
+ *      dark. The GOOD/DEGRADED/STALE badges the control room reads were
+ *      therefore never meaningful.
+ *   2. The duplicate-registration merge below keeps the "latest" timestamp. A
+ *      unit with a broken clock (one was observed +39 years ahead) beats every
+ *      honest record for that registration, forever.
+ *   3. Relative-age readouts in the UI (formatRelativeAge) render a future
+ *      instant for a fix that actually arrived a minute ago.
+ *
+ * Correction: a value reading meaningfully in the future is almost certainly
+ * IST mislabelled, so shift it back one IST offset. A genuinely-UTC recent or
+ * past value is left untouched, since it never trips the future test. If it is
+ * STILL in the future afterwards the unit's own clock is broken, and null is
+ * returned so the caller drops the fix rather than trusting it — for
+ * classifyDataQuality that means `stale`, the same fail-safe an absent
+ * timestamp already gets.
+ */
+export function parseUpstreamInstant(
+  raw: string | null | undefined,
+  nowMs: number = Date.now(),
+): number | null {
+  if (raw === null || raw === undefined) return null;
+  const text = raw.trim();
+  if (text === '') return null;
+
+  const parsed = Date.parse(text);
+  if (Number.isNaN(parsed)) return null;
+
+  const ceiling = nowMs + FUTURE_SKEW_TOLERANCE_MS;
+  const corrected = parsed > ceiling ? parsed - IST_OFFSET_MS : parsed;
+
+  return corrected > ceiling ? null : corrected;
 }
 
-/** Age-based data quality classification. */
+/**
+ * Normalize an upstream timestamp to a real-UTC ISO string, or null.
+ *
+ * This is the correction point for the whole app: everything downstream reads
+ * CanonicalLiveBus.gpsTimestamp, so fixing it here means the badges, the
+ * drawer readouts and the fleet tables all agree. A broken-clock value becomes
+ * null rather than a fabricated instant — dropping beats inventing.
+ */
+function parseTimestamp(value: unknown, now: number = Date.now()): string | null {
+  const instant = parseUpstreamInstant(toStringOrNull(value), now);
+  if (instant === null) return null;
+  return new Date(instant).toISOString();
+}
+
+/**
+ * Age-based data quality classification.
+ *
+ * Takes the timestamp through parseUpstreamInstant rather than Date.parse, so
+ * an IST-mislabelled fix is aged from its true instant and an unusable one
+ * fails safe to `stale`. The correction is idempotent: a value already
+ * normalized by parseTimestamp is in the past and passes straight through.
+ */
 export function classifyDataQuality(gpsTimestamp: string | null, now: number = Date.now()): DataQuality {
   if (!gpsTimestamp) return 'stale';
-  const ts = new Date(gpsTimestamp).getTime();
-  if (Number.isNaN(ts)) return 'stale';
+  const ts = parseUpstreamInstant(gpsTimestamp, now);
+  if (ts === null) return 'stale';
   const ageMinutes = (now - ts) / 60_000;
   if (ageMinutes <= 5) return 'good';
   if (ageMinutes <= 30) return 'degraded';
@@ -210,7 +286,7 @@ export function normalizeLivePayload(payload: unknown, now: number = Date.now())
       continue;
     }
 
-    const gpsTimestamp = parseTimestamp(pick(row, TIMESTAMP_ALIASES));
+    const gpsTimestamp = parseTimestamp(pick(row, TIMESTAMP_ALIASES), now);
     const speed = toNumber(pick(row, SPEED_ALIASES));
 
     const bus: CanonicalLiveBus = {
@@ -244,10 +320,13 @@ export function normalizeLivePayload(payload: unknown, now: number = Date.now())
     };
 
     // Merge duplicate registrations, keeping the most recent GPS timestamp.
+    // Compared through parseUpstreamInstant, not Date.parse: an unusable
+    // timestamp sorts to -Infinity so a record with a broken clock can never
+    // outrank an honest one.
     const existing = byReg.get(registrationNumber);
     if (existing) {
-      const existingTs = existing.gpsTimestamp ? Date.parse(existing.gpsTimestamp) : -Infinity;
-      const incomingTs = bus.gpsTimestamp ? Date.parse(bus.gpsTimestamp) : -Infinity;
+      const existingTs = parseUpstreamInstant(existing.gpsTimestamp, now) ?? -Infinity;
+      const incomingTs = parseUpstreamInstant(bus.gpsTimestamp, now) ?? -Infinity;
       if (incomingTs > existingTs) byReg.set(registrationNumber, bus);
     } else {
       byReg.set(registrationNumber, bus);

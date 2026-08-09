@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
 /**
  * Safe session-status endpoint. Never returns the raw token, password hash,
  * or session secret — only whether a session is active and, when it is, the
- * role and expiry (mirrors /api/auth/session for the PIN system).
+ * role and expiry (mirrors /api/auth/session, the equivalent endpoint for
+ * the Supabase-Auth surface).
  *
  * For `driver`/`pilot_driver` sessions, also returns the caller's own
  * admin-assigned `vehicleId`

@@ -37,10 +37,22 @@ system rather than a role field bolted onto the project login:
   and choose a password. The very first admin, who by definition has no
   inviter, is seeded directly via `scripts/seed-ops-admin.mjs` (see
   `../../db/README.md`).
+
+  There is one further, deliberately narrow exception:
+  `scripts/seed-ops-user.mjs` (`pnpm seed-ops-user`) writes a single
+  non-admin account directly, for automation that has no mailbox to receive
+  an invite in and no admin session to issue one from — specifically the
+  `pilot_driver` account `.github/workflows/ci-web.yml` seeds so
+  `tests/e2e/pilot-driver-command.spec.ts` can log in. It **refuses to create
+  an `admin`**, so it cannot be used to escalate: minting an admin still goes
+  through `seed-ops-admin.mjs` (first admin only) or an existing admin's
+  invite. Its password comes from `OPS_SEED_PASSWORD` or a hidden TTY prompt,
+  never argv.
 - **Session:** a signed JWT (jose, HS256) in an **HttpOnly**
   `olympuss_ops_session` cookie (`SameSite=lax`, `Secure` in production,
-  `Path=/`, 4-hour max lifetime — shorter than the PIN session's 8h, since
-  operational accounts should re-auth more often). Claims: `sub` (user id),
+  `Path=/`, 4-hour max lifetime — deliberately short, since operational
+  accounts carry dispatch/command authority and should re-auth more often
+  than the project surface's Supabase session). Claims: `sub` (user id),
   `email`, `role`, `iat`, `exp`.
 - **Passwords:** bcrypt, cost factor 12, minimum 12 characters
   (`src/lib/auth/rbac/passwords.ts`).

@@ -2,8 +2,9 @@
  * Ops RBAC role model.
  *
  * Edge-safe: no imports beyond plain TypeScript, so this is usable from
- * middleware as well as Node route handlers/pages — same rule as
- * src/lib/auth/config.ts for the PIN system.
+ * middleware as well as Node route handlers/pages — the same rule
+ * src/middleware.ts imposes on everything it imports (see
+ * src/lib/auth/rbac/config.ts and session.ts, its other two imports here).
  */
 
 /**

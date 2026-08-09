@@ -1,14 +1,17 @@
 name: CI - web app
 
-# Lint/typecheck/test/build gate for the Next.js app (repo root). Required
-# status check for merge into main/dev - see branch protection note in
-# docs/CONTROL_SERVICE_DEPLOYMENT.md.
+# Lint/typecheck/test/build gate for the Next.js app (repo root), plus the
+# live pilot-driver end-to-end suite. Required status check for merge into
+# main/dev - see branch protection note in docs/CONTROL_SERVICE_DEPLOYMENT.md.
 
 on:
   pull_request:
     branches: [main, dev]
+    # `control-service/**` used to be ignored here, back when nothing in this
+    # workflow touched it. The e2e job below builds, migrates and RUNS the
+    # control service, so a control-service change can now break this
+    # workflow - it has to be able to trigger it.
     paths-ignore:
-      - "control-service/**"
       - "docs/**"
       - "**/*.md"
   push:
@@ -56,3 +59,224 @@ jobs:
           # project's secrets vault - never hardcoded here.
           NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+
+  # ---------------------------------------------------------------------------
+  # tests/e2e/pilot-driver-command.spec.ts, actually running.
+  #
+  # That spec is the only test in the repo that exercises the whole
+  # control-service -> driver-console -> ack -> both-audit-logs loop, and it
+  # skipped itself on every run this repo has ever done, because its six
+  # E2E_* variables were never set anywhere. A suite that only ever skips is
+  # worth nothing, so this job provisions the real thing: the two datastores
+  # the spec's header lists, both migration runners, a seeded pilot_driver,
+  # and both processes. The spec itself now hard-FAILS (never skips) when
+  # CI=true and a variable is missing, so this can never silently regress
+  # back to skipping.
+  #
+  # Neither database holds anything but throwaway fixtures - the containers
+  # are created and destroyed with the job, and the credentials below are
+  # local-only, which is why they are literals rather than secrets.
+  # ---------------------------------------------------------------------------
+  e2e-pilot-driver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      # Control service's own datastore. PostGIS, not plain Postgres: its
+      # first migration does `create extension postgis` and its route
+      # geometry columns are `geography` types.
+      control-service-db:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: control_service
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      # This app's own ops datastore (db/migrations, OPS_DATABASE_URL).
+      # Deliberately a SEPARATE container from the one above: the two
+      # datastores are isolated by design (docs/CONTROL_SERVICE_INTEGRATION.md
+      # section 3), and sharing one here would let a cross-datastore query
+      # pass in CI that cannot work in production.
+      ops-db:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ops
+        ports:
+          - 55433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      CONTROL_SERVICE_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:55432/control_service
+      OPS_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:55433/ops
+      # One shared value on both ends of the web -> control-service bearer
+      # check, and one on both ends of the webhook HMAC. Mismatching either
+      # is the single most common way this integration silently breaks, so
+      # they are defined once here and referenced everywhere below.
+      SERVICE_TOKEN: ci-e2e-service-token-not-a-real-secret
+      WEBHOOK_SECRET: ci-e2e-webhook-hmac-not-a-real-secret
+      OPS_SESSION_SECRET: ci-e2e-ops-session-secret-at-least-32-characters
+      PILOT_DRIVER_EMAIL: pilot.driver.qa@example.test
+      PILOT_DRIVER_PASSWORD: ci-e2e-pilot-driver-password
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install web dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install control-service dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: control-service
+
+      # Only the browser this suite's single project uses. --with-deps pulls
+      # the shared libraries headless Chromium needs on a bare ubuntu runner.
+      - name: Install Playwright chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # --- schema -------------------------------------------------------
+      - name: Apply ops migrations
+        run: pnpm migrate:ops
+
+      - name: Apply control-service migrations
+        run: pnpm migrate
+        working-directory: control-service
+        env:
+          SERVICE_TOKEN_SECRET: ${{ env.SERVICE_TOKEN }}
+          WEBHOOK_HMAC_SECRET: ${{ env.WEBHOOK_SECRET }}
+
+      # --- fixtures -----------------------------------------------------
+      # The one account the spec logs in as. scripts/seed-ops-admin.mjs seeds
+      # an admin and nothing else; every other ops account normally comes from
+      # an admin invite, which needs a mailbox and an admin session CI has
+      # neither of - hence scripts/seed-ops-user.mjs. The spec seeds its own
+      # per-test control-service fixtures (vehicle, approval, rollout stage)
+      # directly, as its header explains.
+      - name: Seed the pilot_driver account
+        run: >-
+          node scripts/seed-ops-user.mjs
+          --email "$PILOT_DRIVER_EMAIL"
+          --name "CI Pilot Driver"
+          --role pilot_driver
+        env:
+          OPS_SEED_PASSWORD: ${{ env.PILOT_DRIVER_PASSWORD }}
+
+      # --- services -----------------------------------------------------
+      - name: Build control-service
+        run: pnpm build
+        working-directory: control-service
+
+      - name: Start control-service
+        working-directory: control-service
+        env:
+          NODE_ENV: test
+          PORT: "8081"
+          SERVICE_TOKEN_SECRET: ${{ env.SERVICE_TOKEN }}
+          WEBHOOK_HMAC_SECRET: ${{ env.WEBHOOK_SECRET }}
+          WEB_APP_WEBHOOK_URL: http://127.0.0.1:3000/api/control-service/webhook
+          # Test 4 asserts the PERIODIC backstop sweep expires a 5s-TTL
+          # command within 30s. At the 30s default that is a coin flip on
+          # timer alignment; 5s makes it deterministic without changing what
+          # is being tested (that the timer runs at all).
+          COMMAND_TTL_SWEEP_INTERVAL_MS: "5000"
+          # No network geometry is seeded here (the spec never ingests a GPS
+          # fix), so /readyz must not gate on it. Liveness is what the wait
+          # loop below checks.
+          REQUIRE_SEEDED_NETWORK: "false"
+          # Never poll the real UPSRTC feed from CI.
+          GPS_POLL_ENABLED: "false"
+        run: |
+          node dist/index.js > "$RUNNER_TEMP/control-service.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/control-service.pid"
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8081/healthz > /dev/null; then
+              echo "control-service is up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "control-service did not become healthy"; cat "$RUNNER_TEMP/control-service.log"; exit 1
+
+      - name: Build web app
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+
+      - name: Start web app
+        env:
+          PORT: "3000"
+          CONTROL_SERVICE_BASE_URL: http://127.0.0.1:8081
+          CONTROL_SERVICE_SERVICE_TOKEN: ${{ env.SERVICE_TOKEN }}
+          CONTROL_SERVICE_WEBHOOK_SECRET: ${{ env.WEBHOOK_SECRET }}
+        run: |
+          pnpm start > "$RUNNER_TEMP/web.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/web.pid"
+          # Wait for a real 200 from a real page, not just an open socket:
+          # playwright.config.ts reuses an existing server only when its URL
+          # answers successfully, and a half-started Next would otherwise make
+          # Playwright try to start a second one on the same port.
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:3000/ops/login > /dev/null; then
+              echo "web app is up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "web app did not become ready"; cat "$RUNNER_TEMP/web.log"; exit 1
+
+      # --- the actual suite ---------------------------------------------
+      - name: Pilot-driver command e2e
+        env:
+          # CI=true is what turns "a variable is unset" from a silent skip
+          # into a hard failure inside the spec.
+          CI: "true"
+          E2E_ORIGIN: http://127.0.0.1:3000
+          E2E_BASE_URL: http://127.0.0.1:3000
+          E2E_PILOT_DRIVER_EMAIL: ${{ env.PILOT_DRIVER_EMAIL }}
+          E2E_PILOT_DRIVER_PASSWORD: ${{ env.PILOT_DRIVER_PASSWORD }}
+          E2E_CONTROL_SERVICE_URL: http://127.0.0.1:8081
+          E2E_CONTROL_SERVICE_TOKEN: ${{ env.SERVICE_TOKEN }}
+          E2E_CONTROL_SERVICE_DATABASE_URL: ${{ env.CONTROL_SERVICE_DATABASE_URL }}
+          E2E_OPS_DATABASE_URL: ${{ env.OPS_DATABASE_URL }}
+        run: pnpm test:e2e pilot-driver-command
+
+      - name: Service logs (on failure)
+        if: failure()
+        run: |
+          echo "===== control-service ====="; tail -n 200 "$RUNNER_TEMP/control-service.log" || true
+          echo "===== web app ====="; tail -n 200 "$RUNNER_TEMP/web.log" || true
+
+      - name: Upload Playwright traces (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Stop services
+        if: always()
+        run: |
+          for pidfile in "$RUNNER_TEMP/web.pid" "$RUNNER_TEMP/control-service.pid"; do
+            [ -f "$pidfile" ] && kill "$(cat "$pidfile")" 2>/dev/null || true
+          done

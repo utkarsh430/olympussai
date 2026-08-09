@@ -38,10 +38,17 @@ import { Pool } from 'pg';
  *     "create a command via control-service" at all, exactly as a human
  *     verifying this by hand would have to.
  *
- * Every one of the above is optional at the process-env level; the whole
- * suite is skipped (not failed) when any is unset, mirroring
- * tests/e2e/command-centre.spec.ts's E2E_PROJECT_PIN convention. Run it with,
- * e.g.:
+ * Every one of the above is optional at the process-env level LOCALLY; the
+ * whole suite is skipped (not failed) when any is unset, mirroring
+ * tests/e2e/command-centre.spec.ts's E2E_PROJECT_PIN convention.
+ *
+ * IN CI IT IS NOT OPTIONAL. `.github/workflows/ci-web.yml` stands the whole
+ * thing up — a `postgis/postgis:16-3.4` service for control-service, a
+ * `postgres:16` service for the ops datastore, both migration runners, a
+ * seeded pilot_driver, and both processes — and a missing variable there
+ * means that setup broke, not that the suite is unwanted. A suite that only
+ * ever skips is worth nothing, so `CI=true` turns an unset variable into a
+ * hard failure (see the guard below the env block). Run it with, e.g.:
  *
  *   E2E_PILOT_DRIVER_EMAIL=pilot.driver.qa@example.com \
  *   E2E_PILOT_DRIVER_PASSWORD=... \
@@ -72,12 +79,68 @@ const missingEnv = Object.entries(REQUIRED_ENV)
   .filter(([, value]) => !value)
   .map(([key]) => key);
 
+/**
+ * CI-ONLY: an unset variable is a broken workflow, not a reason to skip.
+ *
+ * Thrown at module scope on purpose. `test.skip(condition, reason)` inside
+ * the describe (still used below, for local runs) reports as a PASS with
+ * skipped tests, which is indistinguishable in a green check from the suite
+ * actually running — exactly how this file spent its whole life never
+ * executing once. Throwing here fails collection, so the job goes red the
+ * moment the fixtures/services stop being wired up correctly.
+ */
+if (process.env.CI === 'true' && missingEnv.length > 0) {
+  throw new Error(
+    `CI=true but ${missingEnv.join(', ')} ${missingEnv.length === 1 ? 'is' : 'are'} unset. ` +
+      'In CI this suite must RUN, never skip — .github/workflows/ci-web.yml provisions the ' +
+      'Postgres services, applies both migration runners, seeds the pilot_driver and boots ' +
+      'both processes before calling it. A missing variable here means that setup regressed. ' +
+      '(Locally, leave CI unset and the suite skips as before.)',
+  );
+}
+
 /** Command action types this suite is free to use — parameters.reason makes the exact label irrelevant. */
 const ACTION_TYPE = 'speed_guidance';
 
 interface Fixture {
   vehicleId: string;
   dispatcherActionId: string;
+}
+
+/**
+ * Route-direction every fixture's approval is attached to, created once per
+ * run and promoted to a rollout stage that permits commands.
+ *
+ * Required because POST /v1/commands is gated on the rollout stage of the
+ * route-direction its approval names (control-service/src/pilot/gate.ts),
+ * and that gate FAILS CLOSED twice over: an approval with a null
+ * `route_direction_id` is refused 422 `route_direction_required`, and a
+ * route-direction with no `route_direction_rollout_stages` row defaults to
+ * 'observation', which is refused 403 `rollout_stage_forbids_commands`. So
+ * the fixture must supply both. 'advisory' is the weakest stage that allows
+ * a command at all — deliberately not a higher one, so this suite exercises
+ * the same gate posture a real pilot corridor starts at rather than one that
+ * happens to be permissive.
+ */
+async function seedGatedRouteDirection(pool: Pool): Promise<string> {
+  const suffix = randomUUID().slice(0, 8);
+  const routeId = `qa-e2e-route-${suffix}`;
+  await pool.query(`insert into routes (id, public_name) values ($1, $2)`, [
+    routeId,
+    `QA E2E Route ${suffix}`,
+  ]);
+  const { rows } = await pool.query<{ id: string }>(
+    `insert into route_directions (route_id, direction_code, direction_name)
+     values ($1, 'UP', 'QA E2E direction') returning id`,
+    [routeId],
+  );
+  const routeDirectionId = rows[0].id;
+  await pool.query(
+    `insert into route_direction_rollout_stages (route_direction_id, stage, updated_by, reason)
+     values ($1, 'advisory', 'qa-e2e-suite', 'e2e fixture')`,
+    [routeDirectionId],
+  );
+  return routeDirectionId;
 }
 
 /**
@@ -88,7 +151,7 @@ interface Fixture {
  * command moves to `executing`, which is still "active" for that constraint,
  * so reusing a vehicle across tests would spuriously 409.
  */
-async function seedFixture(pool: Pool, label: string): Promise<Fixture> {
+async function seedFixture(pool: Pool, label: string, routeDirectionId: string): Promise<Fixture> {
   const suffix = randomUUID().slice(0, 8);
   const vehicleId = `qa-e2e-${label}-${suffix}`;
   const dispatcherActionId = randomUUID();
@@ -97,9 +160,9 @@ async function seedFixture(pool: Pool, label: string): Promise<Fixture> {
     [vehicleId, `E2E${suffix.toUpperCase()}`],
   );
   await pool.query(
-    `insert into dispatcher_actions (id, dispatcher_id, action_type, vehicle_id, reason)
-     values ($1, 'qa-e2e-suite', $2, $3, $4)`,
-    [dispatcherActionId, ACTION_TYPE, vehicleId, `QA e2e fixture for ${label}`],
+    `insert into dispatcher_actions (id, dispatcher_id, action_type, vehicle_id, reason, route_direction_id)
+     values ($1, 'qa-e2e-suite', $2, $3, $4, $5)`,
+    [dispatcherActionId, ACTION_TYPE, vehicleId, `QA e2e fixture for ${label}`, routeDirectionId],
   );
   return { vehicleId, dispatcherActionId };
 }
@@ -220,10 +283,12 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
 
   let controlServicePool: Pool;
   let opsPool: Pool;
+  let routeDirectionId: string;
 
-  test.beforeAll(() => {
+  test.beforeAll(async () => {
     controlServicePool = new Pool({ connectionString: CONTROL_SERVICE_DATABASE_URL });
     opsPool = new Pool({ connectionString: OPS_DATABASE_URL });
+    routeDirectionId = await seedGatedRouteDirection(controlServicePool);
   });
 
   test.afterAll(async () => {
@@ -238,7 +303,7 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
   test('1. create -> deliver -> poll shows countdown/reason -> ACK -> clears console -> audited in both systems', async ({
     page,
   }) => {
-    const fixture = await seedFixture(controlServicePool, 'ack');
+    const fixture = await seedFixture(controlServicePool, 'ack', routeDirectionId);
     const reason = `QA e2e: merging traffic ahead near ${fixture.vehicleId} — reduce speed for driver safety.`;
     const commandId = await createAndDeliverCommand(fixture, { ttlSeconds: 300, reason });
 
@@ -280,7 +345,7 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
   test('2. queues an ack in IndexedDB when the network drops mid-ack, and flushes it once back online (AC3)', async ({
     page,
   }) => {
-    const fixture = await seedFixture(controlServicePool, 'offline');
+    const fixture = await seedFixture(controlServicePool, 'offline', routeDirectionId);
     const reason = `QA e2e offline-queue scenario for ${fixture.vehicleId}.`;
     const commandId = await createAndDeliverCommand(fixture, { ttlSeconds: 300, reason });
 
@@ -323,7 +388,7 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
   test('3. auto-expires locally on TTL lapse, and control-service marks it expired via its own periodic sweep', async ({
     page,
   }) => {
-    const fixture = await seedFixture(controlServicePool, 'ttl');
+    const fixture = await seedFixture(controlServicePool, 'ttl', routeDirectionId);
     const reason = `QA e2e TTL-expiry scenario for ${fixture.vehicleId}.`;
     // Long enough to reliably render before it lapses, short enough to
     // finish inside this test's own timeout budget.
@@ -372,7 +437,7 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
     // COMMAND_TTL_SWEEP_INTERVAL_MS) from the lazy-expire-on-read path test
     // 3 above exercises, so this test can only pass if that backstop timer
     // is genuinely running server-side.
-    const fixture = await seedFixture(controlServicePool, 'sweep-only');
+    const fixture = await seedFixture(controlServicePool, 'sweep-only', routeDirectionId);
     const ttlSeconds = 5;
     const commandId = await createAndDeliverCommand(fixture, {
       ttlSeconds,

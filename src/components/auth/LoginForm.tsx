@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
+import Link from 'next/link';
 
 /**
  * Enterprise authentication form, backed by Supabase Auth (Section 15).
@@ -19,6 +20,13 @@ export function LoginForm({ next }: { next: string }) {
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'submitting' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
+  // 503 means Supabase auth is not configured on this deployment — nothing the
+  // operator types here can ever work. Most people who hit it are looking for
+  // the /ops console, which has its own credentials, so point them there
+  // rather than leaving them to conclude their password is wrong. Purely
+  // client-side copy: the API keeps its generic message and never says which
+  // variable is missing.
+  const [authUnavailable, setAuthUnavailable] = useState(false);
 
   const errorId = useId();
   const statusId = useId();
@@ -28,6 +36,7 @@ export function LoginForm({ next }: { next: string }) {
     if (status === 'submitting') return;
     setStatus('submitting');
     setError(null);
+    setAuthUnavailable(false);
 
     try {
       const response = await fetch('/api/auth/login', {
@@ -44,6 +53,7 @@ export function LoginForm({ next }: { next: string }) {
 
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
       setError(data?.error ?? 'Invalid email or password.');
+      setAuthUnavailable(response.status === 503);
       setStatus('error');
     } catch {
       setError('Something went wrong. Please try again.');
@@ -104,9 +114,22 @@ export function LoginForm({ next }: { next: string }) {
         </div>
 
         {error && (
-          <p id={errorId} role="alert" className="text-sm text-[#f0857d]">
-            {error}
-          </p>
+          <div id={errorId} role="alert" className="space-y-2">
+            <p className="text-sm text-[#f0857d]">{error}</p>
+            {authUnavailable && (
+              <p className="text-[12px] leading-relaxed text-[#a3a7b2]">
+                This sign-in is unavailable on this deployment — your credentials are not the
+                problem. Looking for the operations console?{' '}
+                <Link
+                  href="/ops/login"
+                  className="text-[#f3c86a] underline underline-offset-2 transition-colors hover:text-[#d6a13a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6a13a]"
+                >
+                  Sign in at /ops/login
+                </Link>
+                .
+              </p>
+            )}
+          </div>
         )}
 
         <button
