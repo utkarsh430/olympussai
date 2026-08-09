@@ -25,10 +25,40 @@ import { roleForSegment } from '@/lib/auth/rbac/roles';
  * ticket) are handled by a completely separate branch (handleOpsRequest,
  * below) that never touches the Supabase session — the two auth systems
  * remain independent.
+ *
+ * /api/control-service/* is machine-to-machine and authenticates itself — see
+ * PUBLIC_MACHINE_API_PREFIXES below.
  */
 export const config = {
+  // Deliberately an allowlist of protected prefixes, NOT a broad '/api/:path*'.
+  // /api/control-service/* must never appear here, directly or via a wider
+  // pattern — see PUBLIC_MACHINE_API_PREFIXES for why. The `middleware`
+  // function below repeats the exemption so widening this matcher later
+  // cannot silently break inbound webhooks.
   matcher: ['/project/:path*', '/api/upsrtc/:path*', '/ops/:path*', '/api/ops/:path*'],
 };
+
+/**
+ * Paths that carry their own request-level authentication and must never be
+ * touched by a session gate.
+ *
+ * /api/control-service/webhook receives HMAC-signed deliveries from the
+ * control service. It has no cookie, no Supabase user and no ops session — the
+ * signature is the entire authentication (see that route's doc comment).
+ *
+ * Why this is repeated here even though `config.matcher` already excludes it:
+ * the failure mode is silent and total. If a session gate ever did apply, the
+ * unauthenticated POST would be answered with a redirect to a login page —
+ * which fetch() follows — so the sender would receive HTTP 200 with an HTML
+ * body and mark the event DELIVERED. Every command lifecycle event would be
+ * discarded while every dashboard reported success. Belt and braces is cheap;
+ * that outage is not.
+ */
+const PUBLIC_MACHINE_API_PREFIXES = ['/api/control-service/'] as const;
+
+function isPublicMachineApi(pathname: string): boolean {
+  return PUBLIC_MACHINE_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
 
 /**
  * Role gate for the ops RBAC surface. A path's required role is derived from
@@ -85,6 +115,12 @@ async function handleOpsRequest(request: NextRequest): Promise<NextResponse> {
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
+
+  // Checked first, ahead of both auth systems: these paths authenticate
+  // themselves per-request and must reach their handler untouched.
+  if (isPublicMachineApi(pathname)) {
+    return NextResponse.next();
+  }
 
   if (pathname.startsWith('/ops/') || pathname.startsWith('/api/ops/')) {
     return handleOpsRequest(request);

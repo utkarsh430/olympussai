@@ -734,3 +734,112 @@ export const setRolloutStageRequestSchema = z.object({
   reason: z.string().max(2000).nullable().optional(),
 });
 export type SetRolloutStageRequest = z.infer<typeof setRolloutStageRequestSchema>;
+
+// ===========================================================================
+// APPENDED SECTION — inbound control-service -> web webhook envelope
+//
+// Everything above describes payloads this app READS from control-service's
+// REST surface. This block describes the payloads control-service PUSHES to
+// this app: the signed deliveries handled by
+// src/app/api/control-service/webhook/route.ts.
+//
+// Wire contract (control-service/src/webhooks/{dispatch,sign}.ts), matched
+// byte for byte because the HMAC is computed over the exact serialization:
+//   body      JSON.stringify({ type, idempotencyKey, data })
+//   signature hex(hmac_sha256(secret, `${timestamp}.${rawBody}`))  — no prefix
+//   headers   x-control-service-{timestamp,signature,idempotency-key}
+// The signature is the only authentication; there is no Authorization header.
+// ===========================================================================
+
+/** The four event types control-service emits today (control-service/src/routes/commands.ts). */
+export const controlServiceWebhookEventTypeSchema = z.enum([
+  'command.created',
+  'command.delivered',
+  'command.acknowledged',
+  'command.superseded',
+]);
+export type ControlServiceWebhookEventType = z.infer<typeof controlServiceWebhookEventTypeSchema>;
+
+/**
+ * The outer envelope, validated BEFORE the event type is known.
+ *
+ * `type` is a plain bounded string rather than the enum above on purpose: an
+ * unrecognised type must produce a 200 (forward compatibility — a new
+ * control-service event must not make the sender log delivery errors and burn
+ * its retry budget), whereas a structurally malformed envelope is a 400. Those
+ * are different outcomes, so they need different schemas.
+ */
+export const webhookEventEnvelopeSchema = z.object({
+  type: z.string().min(1).max(200),
+  idempotencyKey: z.string().min(1).max(300),
+  data: z.record(z.string(), z.unknown()),
+});
+export type WebhookEventEnvelope = z.infer<typeof webhookEventEnvelopeSchema>;
+
+/**
+ * `commandSchema` as it appears inside a webhook payload.
+ *
+ * Two deliberate deltas from the bare `commandSchema` above, both additive:
+ *
+ *  - `id`/`supersedesCommandId` are narrowed to UUIDs. control-service's
+ *    `commands.id` is `uuid primary key default gen_random_uuid()`
+ *    (control-service/db/migrations/20260805190000__core_data_model.sql) and
+ *    this app's `ops_command_mirror.command_id` is a `uuid` column, so a
+ *    non-UUID id is genuinely unprocessable — better a 400 at the edge than a
+ *    22P02 from Postgres halfway through the side effects.
+ *  - `updatedAt`/`routeDirectionId` are accepted when present. Zod strips
+ *    unknown keys, so without naming them here a future control-service that
+ *    starts sending `updatedAt` would have it silently dropped — and
+ *    `updatedAt` is precisely the field the mirror's out-of-order write guard
+ *    prefers as its event time.
+ */
+export const webhookCommandSchema = commandSchema.extend({
+  id: z.string().uuid(),
+  supersedesCommandId: z.string().uuid().nullable().optional(),
+  /** Preferred event time for the mirror's last-write-wins guard. Not on CommandRow today; honoured if it appears. */
+  updatedAt: z.string().optional(),
+  /** Not on CommandRow today; the mirror otherwise backfills this from the referenced ops_dispatcher_actions row. */
+  routeDirectionId: z.string().nullable().optional(),
+});
+export type WebhookCommand = z.infer<typeof webhookCommandSchema>;
+
+/** `data` for command.created / command.delivered / command.acknowledged. */
+export const commandWebhookDataSchema = z.object({
+  command: webhookCommandSchema,
+});
+export type CommandWebhookData = z.infer<typeof commandWebhookDataSchema>;
+
+/** `data` for command.superseded — the NEW command, plus the id of the one it replaces. */
+export const supersededCommandWebhookDataSchema = commandWebhookDataSchema.extend({
+  supersedesCommandId: z.string().uuid(),
+});
+export type SupersededCommandWebhookData = z.infer<typeof supersededCommandWebhookDataSchema>;
+
+/**
+ * Fully-typed event, discriminated on `type`. Only applied once the type is
+ * known to be one this app handles; a failure here is a contract violation
+ * (400), not an unknown-event-type case (200).
+ */
+export const controlServiceWebhookEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('command.created'),
+    idempotencyKey: z.string().min(1).max(300),
+    data: commandWebhookDataSchema,
+  }),
+  z.object({
+    type: z.literal('command.delivered'),
+    idempotencyKey: z.string().min(1).max(300),
+    data: commandWebhookDataSchema,
+  }),
+  z.object({
+    type: z.literal('command.acknowledged'),
+    idempotencyKey: z.string().min(1).max(300),
+    data: commandWebhookDataSchema,
+  }),
+  z.object({
+    type: z.literal('command.superseded'),
+    idempotencyKey: z.string().min(1).max(300),
+    data: supersededCommandWebhookDataSchema,
+  }),
+]);
+export type ControlServiceWebhookEvent = z.infer<typeof controlServiceWebhookEventSchema>;
