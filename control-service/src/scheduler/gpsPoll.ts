@@ -22,7 +22,14 @@
 import { loadEnv, type Env } from '../config/env.js';
 import { ingestPositionEvents, type IngestBatchResult } from '../ingestion/pipeline.js';
 import { fetchUpstream } from '../ingestion/upsrtc/client.js';
-import { extractArray, isRecord, pick, toNumber, toStringOrNull } from '../ingestion/upsrtc/normalize.js';
+import {
+  extractArray,
+  isRecord,
+  parseUpstreamInstant,
+  pick,
+  toNumber,
+  toStringOrNull,
+} from '../ingestion/upsrtc/normalize.js';
 import { logger } from '../lib/logger.js';
 import type { PositionEvent } from '../state-estimation/types.js';
 
@@ -193,7 +200,15 @@ export async function runGpsPoll(env: Env = loadEnv(), deps: GpsPollDeps = {}): 
     // A fix with no usable timestamp is dropped rather than stamped with
     // "now": inventing an observed_at would let an arbitrarily old fix win
     // the vehicle_states out-of-order guard against a genuinely current one.
-    const observedMs = vehicle.observedAt === null ? NaN : Date.parse(vehicle.observedAt);
+    //
+    // parseUpstreamInstant (not Date.parse) because the live feed stamps IST
+    // wall-clock time and labels it `Z`, putting every fix ~5.5h in the
+    // future. Read literally that defeats the max-age test immediately below,
+    // AND mpc/safety.ts's hard staleness filter, AND the vehicle_states
+    // out-of-order guard - see that function's comment for the measurements.
+    // It also returns null for a unit whose own clock is broken beyond the
+    // IST correction, so those are dropped here as unusable.
+    const observedMs = parseUpstreamInstant(vehicle.observedAt, now()) ?? NaN;
     if (Number.isNaN(observedMs) || now() - observedMs > maxAgeMs) {
       stale += 1;
       continue;

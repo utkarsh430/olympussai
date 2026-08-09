@@ -132,6 +132,31 @@ class ControlStateStore {
     this.headwayStatesByRouteDirection = grouped;
   }
 
+  /**
+   * Replace one route-direction's headway slice after a compute cycle.
+   *
+   * The counterpart to upsertVehicleState, and needed for the same reason.
+   * loadHeadwayStates() above replaces the WHOLE map and runs once, at boot,
+   * from rehydrate.ts. Without this method the headway sweep persisted to
+   * `headway_states` while stateStore kept its boot-time snapshot forever - so
+   * mpc/solver.ts, which reads getHeadwayStates() and iterates it to build
+   * terminal-dispatch and two-way candidates, saw an empty list and returned
+   * zero candidates no matter how bunched the route actually was. The decision
+   * engine was structurally unable to act on live data.
+   *
+   * Per-direction replacement, not a merge: one compute cycle yields the
+   * complete current pair set for that route-direction, and a pair whose
+   * follower has since moved on must disappear rather than linger. Passing an
+   * empty array therefore correctly clears the direction.
+   */
+  upsertHeadwayStates(routeDirectionId: string, rows: HeadwayStateRow[]): void {
+    if (rows.length === 0) {
+      this.headwayStatesByRouteDirection.delete(routeDirectionId);
+      return;
+    }
+    this.headwayStatesByRouteDirection.set(routeDirectionId, rows);
+  }
+
   loadActivePolicies(rows: RoutePolicyRow[]): void {
     const grouped = new Map<string, RoutePolicyRow[]>();
     for (const row of rows) {

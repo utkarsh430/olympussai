@@ -18,6 +18,37 @@ import {
   selectBatch,
   _resetHeadwayCursorForTests,
 } from '../src/scheduler/headwayCompute.js';
+import type { HeadwayComputeResult } from '../src/headway/service.js';
+
+/**
+ * Minimal HeadwayComputeResult for sweep stubs.
+ *
+ * `pairs` matters: runHeadwayComputeSweep publishes the result into
+ * stateStore for the MPC to read, so a stub returning `{}` would compile
+ * against a loose type and silently re-create the empty-headway-map bug that
+ * publish step exists to fix. Tests that care about the published rows pass
+ * their own pairs.
+ */
+function computeResult(
+  routeDirectionId: string,
+  pairs: HeadwayComputeResult['pairs'] = [],
+): HeadwayComputeResult {
+  return {
+    routeDirectionId,
+    computedAt: new Date('2026-08-09T06:47:44.000Z').toISOString(),
+    pairs,
+    aggregate: {
+      routeDirectionId,
+      sampleCount: pairs.length,
+      meanHeadwaySeconds: null,
+      stddevHeadwaySeconds: null,
+      cv: null,
+      ewtSeconds: null,
+      targetHeadwaySeconds: 600,
+    },
+    incidents: [],
+  };
+}
 
 const NOW = Date.parse('2026-08-05T08:00:00.000Z');
 
@@ -213,7 +244,7 @@ describe('runHeadwayComputeSweep', () => {
   });
 
   it('computes only the pruned, eligible route-directions', async () => {
-    const compute = vi.fn().mockResolvedValue({});
+    const compute = vi.fn().mockImplementation((id: string) => Promise.resolve(computeResult(id)));
     const result = await runHeadwayComputeSweep(env({ HEADWAY_BATCH_SIZE: 60 }), {
       listEligible: () => Promise.resolve(['rd-1', 'rd-2']),
       compute,
@@ -227,7 +258,7 @@ describe('runHeadwayComputeSweep', () => {
     const listEligible = vi.fn().mockResolvedValue([]);
     await runHeadwayComputeSweep(env({ HEADWAY_VEHICLE_FRESHNESS_SECONDS: 120 }), {
       listEligible,
-      compute: vi.fn(),
+      compute: vi.fn().mockImplementation((id: string) => Promise.resolve(computeResult(id))),
     });
     expect(listEligible).toHaveBeenCalledWith(120);
   });
@@ -241,7 +272,7 @@ describe('runHeadwayComputeSweep', () => {
         listEligible: () => Promise.resolve(eligible),
         compute: (id) => {
           batch.push(id);
-          return Promise.resolve({});
+          return Promise.resolve(computeResult(id));
         },
       });
       seen.push(batch.sort());
@@ -264,7 +295,7 @@ describe('runHeadwayComputeSweep', () => {
       peak = Math.max(peak, inFlight);
       await new Promise((resolve) => setTimeout(resolve, 1));
       inFlight -= 1;
-      return {};
+      return computeResult('rd-concurrency');
     });
 
     await runHeadwayComputeSweep(env({ HEADWAY_BATCH_SIZE: 20, HEADWAY_COMPUTE_CONCURRENCY: 4 }), {
@@ -280,7 +311,7 @@ describe('runHeadwayComputeSweep', () => {
   it('CONTAINS a per-route failure: one unconfigured route-direction cannot abort the sweep', async () => {
     const compute = vi.fn().mockImplementation((id: string) => {
       if (id === 'rd-2') return Promise.reject(new Error('no_active_policy'));
-      return Promise.resolve({});
+      return Promise.resolve(computeResult(id));
     });
 
     const result = await runHeadwayComputeSweep(env({ HEADWAY_BATCH_SIZE: 10 }), {
@@ -311,7 +342,7 @@ describe('runHeadwayComputeSweep', () => {
       listEligible: () => Promise.resolve(eligible),
       compute: (id) => {
         seen.push(id);
-        return Promise.resolve({});
+        return Promise.resolve(computeResult(id));
       },
     });
 

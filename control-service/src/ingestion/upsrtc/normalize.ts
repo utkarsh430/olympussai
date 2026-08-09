@@ -379,3 +379,61 @@ export function normalizeScheduleJourneys(payload: unknown): ScheduleJourney[] {
 
   return journeys;
 }
+
+// ============================================================================
+// Instant parsing
+// ============================================================================
+
+/** Asia/Kolkata is UTC+5:30 and has no DST, so a fixed offset is exact here. */
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+/**
+ * Tolerance for a fix stamped slightly ahead of us: unit clock drift plus our
+ * own. Anything beyond this is not skew, it is wrong.
+ */
+const FUTURE_SKEW_TOLERANCE_MS = 120_000;
+
+/**
+ * Parse an upstream instant to epoch millis, correcting a timezone defect in
+ * the live feed, or return null when the value is unusable.
+ *
+ * The live feed stamps IST WALL-CLOCK time and labels it `Z`. Measured against
+ * the production feed on 2026-08-09 at 06:47 UTC / 12:17 IST: the feed reported
+ * `12:16:37Z`, the median record sat +5.44h ahead of real UTC, and 2982 of 9260
+ * records landed within 60s of exactly +5h30m. Taking `Z` at face value puts
+ * every fix ~5.5 hours in the future, which silently disables three separate
+ * guards that all compare `observed_at` against `now()`:
+ *
+ *   1. mpc/safety.ts's hard staleness filter - `ageSeconds()` goes negative, so
+ *      `> staleAfterSeconds` is never true and the controller will happily
+ *      authorise a hold computed from arbitrarily old state. That filter is the
+ *      blueprint's non-negotiable guardrail, so this is the serious one.
+ *   2. GPS_MAX_AGE_SECONDS in the poller - every fix looks fresh, so a stale
+ *      one can resurrect a vehicle that has gone dark.
+ *   3. The `on conflict ... where observed_at <= excluded.observed_at` guard on
+ *      vehicle_states - a badly future-dated row can never be superseded by a
+ *      real one. Some units report decades ahead (one was +39 years), which
+ *      would lock that vehicle out permanently.
+ *
+ * Correction: a value reading meaningfully in the future is almost certainly
+ * IST mislabelled, so shift it back one IST offset. A genuinely-UTC recent or
+ * past value is left untouched, since it never trips the future test. If it is
+ * STILL in the future afterwards the unit's own clock is broken, and null is
+ * returned so the caller drops the fix rather than poisoning the guards above.
+ */
+export function parseUpstreamInstant(
+  raw: string | null | undefined,
+  nowMs: number = Date.now(),
+): number | null {
+  if (raw === null || raw === undefined) return null;
+  const text = typeof raw === 'string' ? raw.trim() : String(raw);
+  if (text === '') return null;
+
+  const parsed = Date.parse(text);
+  if (Number.isNaN(parsed)) return null;
+
+  const ceiling = nowMs + FUTURE_SKEW_TOLERANCE_MS;
+  const corrected = parsed > ceiling ? parsed - IST_OFFSET_MS : parsed;
+
+  return corrected > ceiling ? null : corrected;
+}

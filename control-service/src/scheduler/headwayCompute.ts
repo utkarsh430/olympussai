@@ -35,9 +35,30 @@
 // multiplies it directly and is the more dangerous knob of the two.
 
 import { loadEnv, type Env } from '../config/env.js';
-import { computeRouteDirectionHeadway } from '../headway/service.js';
+import { computeRouteDirectionHeadway, type HeadwayComputeResult } from '../headway/service.js';
 import { listRouteDirectionsWithLiveHeadwayPairs } from '../headway/repository.js';
 import { logger } from '../lib/logger.js';
+import { stateStore, type HeadwayStateRow } from '../state/store.js';
+
+/**
+ * Project a compute result onto the store's row shape. Deliberately explicit
+ * rather than a spread: HeadwayPairResult carries `gapMeters`, `confidence`
+ * and `forecastHFwdSeconds` that HeadwayStateRow has no place for, and the
+ * MPC must read exactly the fields the boot-time rehydrate would have loaded.
+ */
+function toHeadwayStateRows(result: HeadwayComputeResult): HeadwayStateRow[] {
+  return result.pairs.map((pair) => ({
+    id: pair.id,
+    routeDirectionId: pair.routeDirectionId,
+    leaderVehicleId: pair.leaderVehicleId,
+    followerVehicleId: pair.followerVehicleId,
+    hFwdSeconds: pair.hFwdSeconds,
+    hBwdSeconds: pair.hBwdSeconds,
+    targetHeadwaySeconds: pair.targetHeadwaySeconds,
+    deviationSeconds: pair.deviationSeconds,
+    computedAt: pair.computedAt,
+  }));
+}
 
 /**
  * Round-robin cursor: the last route-direction id processed. Module-level
@@ -62,7 +83,13 @@ export interface HeadwaySweepResult {
 
 export interface HeadwaySweepDeps {
   listEligible?: (freshnessSeconds: number) => Promise<string[]>;
-  compute?: (routeDirectionId: string) => Promise<unknown>;
+  /**
+   * Must return the real result shape, not `unknown`: the sweep publishes it
+   * into stateStore for the MPC to read, so a stub that returns nothing would
+   * type-check while silently reproducing the empty-headway-map bug this
+   * publish step exists to fix.
+   */
+  compute?: (routeDirectionId: string) => Promise<HeadwayComputeResult>;
   now?: () => number;
 }
 
@@ -147,7 +174,15 @@ export async function runHeadwayComputeSweep(
 
   await mapWithConcurrency(batch, env.HEADWAY_COMPUTE_CONCURRENCY, async (routeDirectionId) => {
     try {
-      await compute(routeDirectionId);
+      const result = await compute(routeDirectionId);
+      // Publish into the MPC's read model. compute() persists to
+      // `headway_states`, but stateStore is loaded once at boot by
+      // rehydrate.ts, so without this the solver reads a permanently empty
+      // headway map: mpc/solver.ts iterates getHeadwayStates() to build both
+      // terminal-dispatch and two-way candidates, and returned zero
+      // candidates on a genuinely bunched route. Persisting is not
+      // publishing.
+      stateStore.upsertHeadwayStates(routeDirectionId, toHeadwayStateRows(result));
       computed += 1;
     } catch (error) {
       failed += 1;
