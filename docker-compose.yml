@@ -1,0 +1,62 @@
+# Local development datastores only. Neither the web app nor control-service
+# runs in a container here — both run as normal `pnpm dev` processes on the
+# host, and connect to these two databases over the mapped ports below. This
+# mirrors production topology (two separate Postgres instances, one per
+# service) without needing a container for the app processes themselves.
+#
+# Ports are non-default (55432 / 55433) specifically so this can run
+# alongside a developer's other local Postgres instances on 5432 without
+# a conflict.
+#
+# Usage:
+#   docker compose up -d
+#   docker compose down          # stop, keep data (named volumes)
+#   docker compose down -v       # stop and WIPE all seeded/ingested data
+#
+# See docs/LOCAL_DEV_SETUP.md for the full first-time setup sequence
+# (migrations, network seed, ops accounts) after these are up.
+
+services:
+  control-db:
+    # Must be postgis/postgis, not plain postgres: control-service's schema
+    # uses `geography(Point,4326)` / `geography(LineString,4326)` columns
+    # (control-service/db/migrations/20260805190000__core_data_model.sql),
+    # and the seeder's ST_MakeLine/ST_Length calls require the extension.
+    image: postgis/postgis:16-3.4
+    container_name: olympuss-control-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: olympuss
+      POSTGRES_DB: control_service
+    ports:
+      - '55432:5432'
+    volumes:
+      - olympuss-control-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d control_service']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ops-db:
+    # Plain Postgres — the web app's own datastore (db/migrations/) has no
+    # PostGIS columns.
+    image: postgres:16
+    container_name: olympuss-ops-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: olympuss
+      POSTGRES_DB: ops
+    ports:
+      - '55433:5432'
+    volumes:
+      - olympuss-ops-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d ops']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  olympuss-control-db-data:
+  olympuss-ops-db-data:
