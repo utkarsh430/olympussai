@@ -1,0 +1,62 @@
+[
+ {
+  "platform_code": "A",
+  "vj_id": 7001,
+  "atco_code": 701,
+  "stop_sequence": 1,
+  "stop_name": "H DEPOT",
+  "RouteName": "HHH_700_ORD_OUT",
+  "route_description": "H CIRCULAR",
+  "vehicle_journey_code": "HHH_700_ORD_OUT-7001",
+  "scheduled_time": "06:00:00",
+  "line_id": 700,
+  "line_name": "700",
+  "Latitude": 26.8,
+  "Longitude": 80.9
+ },
+ {
+  "platform_code": "A",
+  "vj_id": 7001,
+  "atco_code": 702,
+  "stop_sequence": 2,
+  "stop_name": "H1",
+  "RouteName": "HHH_700_ORD_OUT",
+  "route_description": "H CIRCULAR",
+  "vehicle_journey_code": "HHH_700_ORD_OUT-7001",
+  "scheduled_time": "06:20:00",
+  "line_id": 700,
+  "line_name": "700",
+  "Latitude": 26.85,
+  "Longitude": 80.95
+ },
+ {
+  "platform_code": "A",
+  "vj_id": 7001,
+  "atco_code": 703,
+  "stop_sequence": 3,
+  "stop_name": "H2",
+  "RouteName": "HHH_700_ORD_OUT",
+  "route_description": "H CIRCULAR",
+  "vehicle_journey_code": "HHH_700_ORD_OUT-7001",
+  "scheduled_time": "06:40:00",
+  "line_id": 700,
+  "line_name": "700",
+  "Latitude": 26.9,
+  "Longitude": 80.92
+ },
+ {
+  "platform_code": "A",
+  "vj_id": 7001,
+  "atco_code": 701,
+  "stop_sequence": 4,
+  "stop_name": "H DEPOT",
+  "RouteName": "HHH_700_ORD_OUT",
+  "route_description": "H CIRCULAR",
+  "vehicle_journey_code": "HHH_700_ORD_OUT-7001",
+  "scheduled_time": "07:00:00",
+  "line_id": 700,
+  "line_name": "700",
+  "Latitude": 26.8,
+  "Longitude": 80.9
+ }
+]

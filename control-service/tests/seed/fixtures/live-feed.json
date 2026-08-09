@@ -1,0 +1,57 @@
+[
+ {
+  "regNum": "UP11AA1002",
+  "status": "Live",
+  "route": 9001,
+  "routename": "AAA_100_ORD_OUT",
+  "route_description": "ALPHA TO BETA",
+  "depot_name": "ALPHA",
+  "vehicle_type": "ORDINARY",
+  "latitude": 26.8,
+  "longitude": 80.9
+ },
+ {
+  "regNum": "UP11AA1001",
+  "status": "Live",
+  "route": 9001,
+  "routename": "AAA_100_ORD_OUT",
+  "route_description": "ALPHA TO BETA",
+  "depot_name": "ALPHA",
+  "vehicle_type": "ORDINARY",
+  "latitude": 26.81,
+  "longitude": 80.91
+ },
+ {
+  "regNum": "UP11AA1003",
+  "status": "Live",
+  "route": 9002,
+  "routename": "BBB_200_ORD",
+  "route_description": "GAMMA CIRCULAR",
+  "depot_name": "BETA",
+  "vehicle_type": "AC",
+  "latitude": 26.9,
+  "longitude": 81
+ },
+ {
+  "regNum": "UP11AA1004",
+  "status": "Offline",
+  "route": 9003,
+  "routename": "CCC_300_ORD_OUT",
+  "route_description": "DELTA TO EPSILON",
+  "depot_name": "GAMMA",
+  "vehicle_type": "ORDINARY",
+  "latitude": 0,
+  "longitude": 0
+ },
+ {
+  "regNum": "UP11AA1005",
+  "status": "Live",
+  "route": null,
+  "routename": "",
+  "route_description": null,
+  "depot_name": "DELTA",
+  "vehicle_type": null,
+  "latitude": 27,
+  "longitude": 81.1
+ }
+]

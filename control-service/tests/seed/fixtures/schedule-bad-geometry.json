@@ -1,0 +1,62 @@
+[
+ {
+  "platform_code": "A",
+  "vj_id": 8001,
+  "atco_code": 1001,
+  "stop_sequence": 1,
+  "stop_name": "I1",
+  "RouteName": "III_800_ORD_OUT",
+  "route_description": "I TO J",
+  "vehicle_journey_code": "III_800_ORD_OUT-8001",
+  "scheduled_time": "06:00:00",
+  "line_id": 800,
+  "line_name": "800",
+  "Latitude": 26.8,
+  "Longitude": 80.9
+ },
+ {
+  "platform_code": "A",
+  "vj_id": 8001,
+  "atco_code": 1002,
+  "stop_sequence": 2,
+  "stop_name": "I NEVER SURVEYED",
+  "RouteName": "III_800_ORD_OUT",
+  "route_description": "I TO J",
+  "vehicle_journey_code": "III_800_ORD_OUT-8001",
+  "scheduled_time": "06:20:00",
+  "line_id": 800,
+  "line_name": "800",
+  "Latitude": 0,
+  "Longitude": 0
+ },
+ {
+  "platform_code": "A",
+  "vj_id": 8101,
+  "atco_code": 1101,
+  "stop_sequence": 1,
+  "stop_name": "J1",
+  "RouteName": "JJJ_801_ORD_OUT",
+  "route_description": "J TO K",
+  "vehicle_journey_code": "JJJ_801_ORD_OUT-8101",
+  "scheduled_time": "06:00:00",
+  "line_id": 801,
+  "line_name": "801",
+  "Latitude": 26.8,
+  "Longitude": 80.9
+ },
+ {
+  "platform_code": "A",
+  "vj_id": 8101,
+  "atco_code": 1102,
+  "stop_sequence": 2,
+  "stop_name": "J2",
+  "RouteName": "JJJ_801_ORD_OUT",
+  "route_description": "J TO K",
+  "vehicle_journey_code": "JJJ_801_ORD_OUT-8101",
+  "scheduled_time": "12:00:00",
+  "line_id": 801,
+  "line_name": "801",
+  "Latitude": 21,
+  "Longitude": 75
+ }
+]
