@@ -215,6 +215,53 @@ export async function fetchScheduleWithRetry(
   return first;
 }
 
+/**
+ * Print the H* provenance breakdown, and say plainly what a fabricated target
+ * costs.
+ *
+ * This is a `warn`, not another `info` line among twenty, because the situation
+ * it describes is invisible everywhere else: a route-direction seeded with the
+ * fallback raises no error, fails no constraint and never appears in
+ * `failures` — it simply never triggers bunching detection again, and its CV
+ * and EWT on the dashboard are ratios against a number nobody measured. The
+ * only moment anyone is in a position to notice is the run that wrote it, so
+ * the run has to say so rather than leaving it to be discovered by SQL.
+ */
+export function logHeadwayCalibration(
+  report: ReturnType<typeof harvestNetwork>['report'],
+  fallbackSeconds: number,
+): void {
+  const calibration = report.headwayCalibration;
+  const total = calibration.journey_span + calibration.fleet_span + calibration.default;
+  const share = (count: number): string =>
+    total === 0 ? '0.0%' : `${((count / total) * 100).toFixed(1)}%`;
+
+  logger.info(
+    {
+      journey_span: calibration.journey_span,
+      fleet_span: calibration.fleet_span,
+      default: calibration.default,
+      derivedPct: share(calibration.journey_span + calibration.fleet_span),
+      fabricatedPct: share(calibration.default),
+      fleetRouteNames: report.fleetDepartures.routeNames,
+      fleetRouteNamesWithMultipleDepartures: report.fleetDepartures.withMultipleDepartures,
+      implausibleDerivationsRejected: report.implausibleHeadways.length,
+    },
+    'seed: target headway (H*) calibration by source',
+  );
+
+  if (calibration.default > 0) {
+    logger.warn(
+      {
+        directions: calibration.default,
+        share: share(calibration.default),
+        fallbackSeconds,
+      },
+      'seed: these route-directions carry a FABRICATED target headway — every threshold in src/headway/ is a ratio of H*, so they are effectively excluded from bunching detection and their CV/EWT are meaningless. Find them with: select * from route_policies where effective_to is null and calibration_source = \'default\'',
+    );
+  }
+}
+
 interface SeedRunSummary {
   startedAt: string;
   finishedAt: string;
@@ -295,6 +342,8 @@ export async function runSeed(argv: readonly string[]): Promise<number> {
     },
     'seed: harvest complete',
   );
+
+  logHeadwayCalibration(seed.report, options.defaultHeadwaySeconds);
 
   // ---- persist -----------------------------------------------------------
   const env = loadEnv();

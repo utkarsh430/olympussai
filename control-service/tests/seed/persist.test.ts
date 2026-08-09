@@ -7,6 +7,9 @@
 // the fail-closed rollout-stage rule. Those are exactly the properties that
 // fail silently rather than loudly if they regress.
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import type { Pool } from 'pg';
 import { harvestNetwork, type NetworkSeed } from '../../src/seed/harvest.js';
@@ -223,6 +226,24 @@ describe('geography columns', () => {
   });
 });
 
+/** The open policy row a re-run would find, as pg returns it (numerics as text). */
+function openPolicyRow(overrides: Record<string, unknown> = {}) {
+  return {
+    rows: [
+      {
+        id: 'policy-1',
+        target_headway_seconds: '1800',
+        kf: '0.4',
+        kb: '0.2',
+        self_equalizing_k: '0.35',
+        calibration_source: 'default',
+        ...overrides,
+      },
+    ],
+    rowCount: 1,
+  };
+}
+
 describe('route_policies versioning', () => {
   it('inserts a first policy carrying kf / kb / self_equalizing_k', async () => {
     // All three are nullable with no default, and twoWayHold.ts returns []
@@ -237,20 +258,7 @@ describe('route_policies versioning', () => {
 
   it('leaves an unchanged policy alone instead of versioning it on every run', async () => {
     const handle = fakePool((sql) =>
-      sql.startsWith('select id, target_headway_seconds')
-        ? {
-            rows: [
-              {
-                id: 'policy-1',
-                target_headway_seconds: '1800',
-                kf: '0.4',
-                kb: '0.2',
-                self_equalizing_k: '0.35',
-              },
-            ],
-            rowCount: 1,
-          }
-        : undefined,
+      sql.startsWith('select id, target_headway_seconds') ? openPolicyRow() : undefined,
     );
     const result = await persistNetworkSeed(handle.pool, seedOf('schedule-loop'));
     expect(result.policiesUnchanged).toBe(1);
@@ -261,18 +269,7 @@ describe('route_policies versioning', () => {
   it('closes the open row before inserting when a value actually changed', async () => {
     const handle = fakePool((sql) =>
       sql.startsWith('select id, target_headway_seconds')
-        ? {
-            rows: [
-              {
-                id: 'policy-1',
-                target_headway_seconds: '600',
-                kf: '0.4',
-                kb: '0.2',
-                self_equalizing_k: '0.35',
-              },
-            ],
-            rowCount: 1,
-          }
+        ? openPolicyRow({ target_headway_seconds: '600' })
         : undefined,
     );
     const result = await persistNetworkSeed(handle.pool, seedOf('schedule-loop'));
@@ -290,22 +287,121 @@ describe('route_policies versioning', () => {
   it('re-versions a policy whose gains were nulled out', async () => {
     const handle = fakePool((sql) =>
       sql.startsWith('select id, target_headway_seconds')
-        ? {
-            rows: [
-              {
-                id: 'policy-1',
-                target_headway_seconds: '1800',
-                kf: null,
-                kb: null,
-                self_equalizing_k: null,
-              },
-            ],
-            rowCount: 1,
-          }
+        ? openPolicyRow({ kf: null, kb: null, self_equalizing_k: null })
         : undefined,
     );
     const result = await persistNetworkSeed(handle.pool, seedOf('schedule-loop'));
     expect(result.policiesInserted).toBe(1);
+  });
+});
+
+describe('route_policies calibration_source', () => {
+  it('writes the harvested source explicitly rather than letting the column default decide', async () => {
+    // The column default is 'default', i.e. "fabricated" — omitting the value
+    // would silently claim every seeded route has no real target.
+    const handle = fakePool();
+    const seed = seedOf('schedule-same-direction-repeat'); // two journeys -> journey_span
+    expect(seed.routes[0]!.directions[0]!.policy.calibrationSource).toBe('journey_span');
+
+    await persistNetworkSeed(handle.pool, seed);
+    const insert = handle.queries.find((entry) => entry.sql.startsWith('insert into route_policies'))!;
+    expect(insert.sql).toContain('calibration_source');
+    // (route_direction_id, H*, kf, kb, self_equalizing_k, calibration_source, created_by)
+    expect(insert.params[5]).toBe('journey_span');
+    expect(insert.params[6]).toBe('network-seeder');
+  });
+
+  it("labels a fallback target 'default' all the way into the insert", async () => {
+    const handle = fakePool();
+    const seed = seedOf('schedule-loop'); // one journey, no live fleet -> fallback
+    expect(seed.routes[0]!.directions[0]!.policy.calibrationSource).toBe('default');
+
+    await persistNetworkSeed(handle.pool, seed);
+    const insert = handle.queries.find((entry) => entry.sql.startsWith('insert into route_policies'))!;
+    expect(insert.params[1]).toBe(1800);
+    expect(insert.params[5]).toBe('default');
+  });
+
+  it('reads calibration_source back so it can take part in change detection', async () => {
+    const handle = fakePool();
+    await persistNetworkSeed(handle.pool, seedOf('schedule-loop'));
+    const select = handle.queries.find((entry) =>
+      entry.sql.startsWith('select id, target_headway_seconds'),
+    )!;
+    expect(select.sql).toContain('calibration_source');
+  });
+
+  it('re-versions a policy whose ONLY change is its provenance', async () => {
+    // The run where a route stops being silently excluded from bunching
+    // detection must appear in the version history even though H* itself did
+    // not move — this is also how rows the migration back-filled as 'default'
+    // get corrected.
+    const handle = fakePool((sql) =>
+      sql.startsWith('select id, target_headway_seconds')
+        ? openPolicyRow({ target_headway_seconds: '23340', calibration_source: 'default' })
+        : undefined,
+    );
+    const seed = seedOf('schedule-same-direction-repeat');
+    expect(seed.routes[0]!.directions[0]!.policy).toMatchObject({
+      targetHeadwaySeconds: 23_340,
+      calibrationSource: 'journey_span',
+    });
+
+    const result = await persistNetworkSeed(handle.pool, seed);
+    expect(result.policiesInserted).toBe(1);
+    expect(result.policiesUnchanged).toBe(0);
+    const statements = handle.sql();
+    const closeIndex = statements.findIndex((sql) => sql.startsWith('update route_policies'));
+    const insertIndex = statements.findIndex((sql) => sql.startsWith('insert into route_policies'));
+    expect(closeIndex).toBeGreaterThan(-1);
+    expect(insertIndex).toBeGreaterThan(closeIndex);
+    const insert = handle.queries.find((entry) => entry.sql.startsWith('insert into route_policies'))!;
+    expect(insert.params[5]).toBe('journey_span');
+  });
+
+  it('sends only values the column CHECK constraint accepts', () => {
+    // The seeder is the only writer of this column, so a source added in TS
+    // without being added to the migration would not fail a type check, a lint
+    // or any of the fake-pool tests above — it would fail in production, one
+    // route-direction at a time, and each failure would be swallowed as a
+    // per-direction `failure` while the route silently kept its old policy.
+    const migration = readFileSync(
+      join(
+        dirname(fileURLToPath(import.meta.url)),
+        '../../db/migrations/20260809100000__route_policy_calibration.sql',
+      ),
+      'utf8',
+    );
+    const allowed = new Set(
+      /check \(calibration_source in \(([^)]+)\)\)/
+        .exec(migration)![1]!
+        .split(',')
+        .map((value) => value.trim().replace(/^'|'$/g, '')),
+    );
+
+    const seed = harvestNetwork(liveFeed, [
+      probe('schedule-loop'),
+      probe('schedule-same-direction-repeat'),
+      probe('schedule-suffixed-pair'),
+    ]);
+    const emitted = new Set(
+      seed.routes.flatMap((route) => route.directions.map((d) => d.policy.calibrationSource)),
+    );
+    expect(emitted.size).toBeGreaterThan(0);
+    for (const source of emitted) expect(allowed).toContain(source);
+    // And the migration must not have drifted away from what the seeder knows.
+    expect([...allowed].sort()).toEqual(['default', 'fleet_span', 'journey_span']);
+  });
+
+  it('does not re-version when the source already matches', async () => {
+    const handle = fakePool((sql) =>
+      sql.startsWith('select id, target_headway_seconds')
+        ? openPolicyRow({ target_headway_seconds: '23340', calibration_source: 'journey_span' })
+        : undefined,
+    );
+    const result = await persistNetworkSeed(handle.pool, seedOf('schedule-same-direction-repeat'));
+    expect(result.policiesUnchanged).toBe(1);
+    expect(result.policiesInserted).toBe(0);
   });
 });
 
@@ -364,20 +460,7 @@ describe('idempotence', () => {
     // The already-seeded state is simulated by answering the policy lookup
     // with the values the first run wrote.
     const responder: Responder = (sql) =>
-      sql.startsWith('select id, target_headway_seconds')
-        ? {
-            rows: [
-              {
-                id: 'policy-1',
-                target_headway_seconds: '1800',
-                kf: '0.4',
-                kb: '0.2',
-                self_equalizing_k: '0.35',
-              },
-            ],
-            rowCount: 1,
-          }
-        : undefined;
+      sql.startsWith('select id, target_headway_seconds') ? openPolicyRow() : undefined;
 
     const seed = seedOf('schedule-suffixed-pair');
     const first = fakePool(responder);

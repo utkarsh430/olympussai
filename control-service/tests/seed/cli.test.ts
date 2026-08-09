@@ -8,12 +8,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_CONCURRENCY,
   fetchScheduleWithRetry,
+  logHeadwayCalibration,
   mapWithConcurrency,
   parseArgs,
   parseGains,
 } from '../../src/seed/index.js';
 import * as client from '../../src/ingestion/upsrtc/client.js';
-import { loadFixture } from './fixtures.js';
+import { harvestNetwork } from '../../src/seed/harvest.js';
+import { logger } from '../../src/lib/logger.js';
+import { liveFeed, loadFixture, probe } from './fixtures.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -86,6 +89,56 @@ describe('parseArgs', () => {
     expect(parseGains('0.4,0.2,0.35')).toEqual({ kf: 0.4, kb: 0.2, selfEqualizingK: 0.35 });
     expect(() => parseGains('0.4,0.2')).toThrow(/three finite numbers/);
     expect(() => parseGains('a,b,c')).toThrow(/three finite numbers/);
+  });
+});
+
+describe('logHeadwayCalibration', () => {
+  it('prints the breakdown by source, so the run itself says how much is fabricated', () => {
+    // Discovering that two thirds of the network has no real target by writing
+    // SQL against route_policies is discovering it too late.
+    const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+    vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+
+    const seed = harvestNetwork(loadFixture('live-feed-fleet'), [
+      probe('schedule-loop'), // fleet_span
+      probe('schedule-same-direction-repeat'), // journey_span
+      probe('schedule-suffixed-pair'), // no evidence either way -> default x2
+    ]);
+    logHeadwayCalibration(seed.report, 1800);
+
+    const call = info.mock.calls.find(([, message]) => String(message).includes('calibration'))!;
+    expect(call[0]).toMatchObject({
+      journey_span: 1,
+      fleet_span: 1,
+      default: 2,
+      derivedPct: '50.0%',
+      fabricatedPct: '50.0%',
+    });
+  });
+
+  it('warns — not merely informs — when any direction carries a fabricated target', () => {
+    // A fallback H* raises no error, fails no constraint and appears in no
+    // failure list; it just silently stops the route being detectable.
+    vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+
+    const seed = harvestNetwork(liveFeed, [probe('schedule-loop')]);
+    logHeadwayCalibration(seed.report, 900);
+
+    const call = warn.mock.calls.find(([, message]) => String(message).includes('FABRICATED'))!;
+    expect(call).toBeDefined();
+    expect(call[0]).toMatchObject({ directions: 1, share: '100.0%', fallbackSeconds: 900 });
+    expect(String(call[1])).toContain("calibration_source = 'default'");
+  });
+
+  it('stays quiet when every direction has a real target', () => {
+    vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+
+    const seed = harvestNetwork(liveFeed, [probe('schedule-same-direction-repeat')]);
+    expect(seed.report.headwayCalibration).toMatchObject({ journey_span: 1, default: 0 });
+    logHeadwayCalibration(seed.report, 1800);
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 

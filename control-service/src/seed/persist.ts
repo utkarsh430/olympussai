@@ -282,9 +282,17 @@ async function replaceDirectionStops(
  * changed, then insert the replacement.
  *
  * An unconditional close-and-insert would append a new version on every run and
- * turn the history into noise. The comparison is on the four values the seeder
+ * turn the history into noise. The comparison is on the five values the seeder
  * owns; anything an operator tuned by hand in the other columns is preserved by
  * simply not touching the row.
+ *
+ * calibration_source is one of those five, and it must be, even though it never
+ * changes what the controller computes. A policy whose H* is unchanged but
+ * whose provenance moved from 'default' to a real derivation is a genuinely
+ * different policy — that is the run where a route stopped being silently
+ * excluded from bunching detection, and it has to appear in the version
+ * history. (It is also how the rows this column's migration back-filled with
+ * 'default' get corrected: the value is unchanged, the label is not.)
  *
  * effective_to is clamped strictly above effective_from because the table has
  * `check (effective_to is null or effective_to > effective_from)` and now() is
@@ -304,8 +312,9 @@ async function upsertPolicy(
     kf: string | null;
     kb: string | null;
     self_equalizing_k: string | null;
+    calibration_source: string | null;
   }>(
-    `select id, target_headway_seconds, kf, kb, self_equalizing_k
+    `select id, target_headway_seconds, kf, kb, self_equalizing_k, calibration_source
        from route_policies
       where route_direction_id = $1
         and operating_period = 'all'
@@ -319,6 +328,7 @@ async function upsertPolicy(
   if (current) {
     const unchanged =
       Number(current.target_headway_seconds) === policy.targetHeadwaySeconds &&
+      current.calibration_source === policy.calibrationSource &&
       current.kf !== null &&
       Number(current.kf) === policy.kf &&
       current.kb !== null &&
@@ -344,17 +354,22 @@ async function upsertPolicy(
   // kf / kb / self_equalizing_k are always written: they are nullable with no
   // column default, and src/mpc/twoWayHold.ts returns [] when kf or kb is null,
   // so a null here silently degrades the route to self-equalizing control.
+  //
+  // calibration_source is written explicitly rather than left to its column
+  // default for the same class of reason: the default is 'default', so an
+  // omitted value would silently claim every row is fabricated.
   await client.query(
     `insert into route_policies
        (route_direction_id, operating_period, day_type, target_headway_seconds,
-        kf, kb, self_equalizing_k, created_by)
-     values ($1, 'all', 'all', $2, $3, $4, $5, $6)`,
+        kf, kb, self_equalizing_k, calibration_source, created_by)
+     values ($1, 'all', 'all', $2, $3, $4, $5, $6, $7)`,
     [
       routeDirectionId,
       policy.targetHeadwaySeconds,
       policy.kf,
       policy.kb,
       policy.selfEqualizingK,
+      policy.calibrationSource,
       'network-seeder',
     ],
   );

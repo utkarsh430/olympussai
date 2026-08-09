@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
+  collapseNearIdenticalDepartures,
   harvestNetwork,
   isReversedStopOrder,
+  liveScheduledStartSeconds,
   planProbes,
   scheduledTimeToSeconds,
   stripDirectionSuffix,
   directionSuffix,
+  MAX_DERIVED_HEADWAY_SECONDS,
+  MIN_DERIVED_HEADWAY_SECONDS,
   type NetworkSeed,
   type SeedRouteDirection,
 } from '../../src/seed/harvest.js';
-import { liveFeed, probe } from './fixtures.js';
+import { liveFeed, loadFixture, probe } from './fixtures.js';
 
 function direction(seed: NetworkSeed, routeId: string, code: string): SeedRouteDirection {
   const route = seed.routes.find((candidate) => candidate.id === routeId);
@@ -255,18 +259,7 @@ describe('"Bus Not Assigned"', () => {
 });
 
 describe('policy, control points and rollout stage', () => {
-  it('derives the target headway from the journey-start span', () => {
-    const seed = harvestNetwork(liveFeed, [probe('schedule-same-direction-repeat')]);
-    // 07:01:00 -> 13:30:00 is 23,340s over one gap.
-    expect(direction(seed, '7762', 'SINGLE').policy.targetHeadwaySeconds).toBe(23_340);
-  });
-
-  it('falls back to the configured default when there is only one journey', () => {
-    const seed = harvestNetwork(liveFeed, [probe('schedule-loop')], {
-      defaultHeadwaySeconds: 900,
-    });
-    expect(direction(seed, '700', 'OUT').policy.targetHeadwaySeconds).toBe(900);
-  });
+  // H* derivation itself lives in the 'target headway calibration' block below.
 
   it('always writes kf / kb / self_equalizing_k', () => {
     // Both are nullable with no column default, and src/mpc/twoWayHold.ts
@@ -318,6 +311,280 @@ describe('policy, control points and rollout stage', () => {
       expect(cumulative[index]!).toBeGreaterThanOrEqual(cumulative[index - 1]!);
     }
     expect(cumulative[cumulative.length - 1]).toBeCloseTo(built.totalDistanceMeters, 6);
+  });
+});
+
+// ============================================================================
+// H* calibration
+// ============================================================================
+//
+// target_headway_seconds is the denominator of every threshold in
+// src/headway/, and a wrong one produces SILENCE rather than an error — the
+// ratio simply never crosses 0.25 or 0.5 and the route is never flagged. These
+// tests pin down which evidence wins, what counts as credible, and that a
+// fabricated target is always labelled as one.
+
+/** Live feed carrying scheduled_start_time per assigned vehicle. */
+const fleetLiveFeed = loadFixture('live-feed-fleet');
+
+/**
+ * Minimal schedule rows: `journeys` are [vj_id, first stop time, second stop
+ * time] triples over the same two-stop road, which is all the H* derivation
+ * looks at.
+ */
+function scheduleRows(
+  routeName: string,
+  lineId: number,
+  journeys: readonly [number, string | null, string | null][],
+  stopIdBase = 6001,
+): unknown[] {
+  return journeys.flatMap(([vjId, first, second]) => [
+    {
+      vj_id: vjId,
+      atco_code: stopIdBase,
+      stop_sequence: 1,
+      stop_name: `C${stopIdBase}`,
+      RouteName: routeName,
+      line_id: lineId,
+      scheduled_time: first,
+      Latitude: 26.8,
+      Longitude: 80.9,
+    },
+    {
+      vj_id: vjId,
+      atco_code: stopIdBase + 1,
+      stop_sequence: 2,
+      stop_name: `C${stopIdBase + 1}`,
+      RouteName: routeName,
+      line_id: lineId,
+      scheduled_time: second,
+      Latitude: 26.85,
+      Longitude: 80.95,
+    },
+  ]);
+}
+
+describe('target headway calibration', () => {
+  it('prefers the journey span even when the live fleet would also derive one', () => {
+    // ALM_11_VPL runs 07:01 and 13:30 (23,340s over one gap); the live fixture
+    // publishes 05:00 and 06:00 for the same routename (3,600s). Real
+    // departures over the same road beat a fleet-level estimate.
+    const seed = harvestNetwork(fleetLiveFeed, [probe('schedule-same-direction-repeat')]);
+    expect(direction(seed, '7762', 'SINGLE').policy).toMatchObject({
+      targetHeadwaySeconds: 23_340,
+      calibrationSource: 'journey_span',
+    });
+    expect(seed.report.headwayCalibration).toMatchObject({ journey_span: 1, fleet_span: 0, default: 0 });
+  });
+
+  it('derives from the live fleet when one probed vehicle only ever gives one journey', () => {
+    // This is the case the whole feature exists for: the seeder probes exactly
+    // one representative regNum per routename, so a route served by four buses
+    // still yields a single journey and could never derive a headway from it.
+    // HHH_700_ORD_OUT carries four assignments at 06:00/07:00/08:00/09:00.
+    const seed = harvestNetwork(fleetLiveFeed, [probe('schedule-loop')]);
+    expect(direction(seed, '700', 'OUT').policy).toMatchObject({
+      targetHeadwaySeconds: 3600,
+      calibrationSource: 'fleet_span',
+    });
+    expect(seed.report.headwayCalibration).toMatchObject({ journey_span: 0, fleet_span: 1, default: 0 });
+  });
+
+  it('counts every assigned vehicle, not only the ones reporting status Live', () => {
+    // Three of the four HHH_700_ORD_OUT assignments are Offline/Stationary.
+    // Their duty is still a real published working, and restricting to Live
+    // would throw away most of the sample for no gain in truthfulness.
+    const live = (loadFixture('live-feed-fleet') as { routename: string; status: string }[]).filter(
+      (record) => record.routename === 'HHH_700_ORD_OUT',
+    );
+    expect(live.filter((record) => record.status === 'Live')).toHaveLength(1);
+    const seed = harvestNetwork(fleetLiveFeed, [probe('schedule-loop')]);
+    expect(direction(seed, '700', 'OUT').policy.calibrationSource).toBe('fleet_span');
+  });
+
+  it('unions the routenames a direction was harvested from', () => {
+    // One line run out of two depots (BBK_828_ORD_OUT / BRH_828_ORD_OUT) is one
+    // direction with two routenames, and both depots' departures are its
+    // departures. Neither journey carries a scheduled_time here, so the fleet
+    // is the only evidence: 04:15 + 10:15 = 21,600s over one gap.
+    const seed = harvestNetwork(fleetLiveFeed, [
+      probe('schedule-unassigned', {
+        payload: scheduleRows('BBK_828_ORD_OUT', 828, [[1, null, null]], 6001),
+      }),
+      probe('schedule-unassigned', {
+        payload: scheduleRows('BRH_828_ORD_OUT', 828, [[2, null, null]], 6011),
+      }),
+    ]);
+    const built = direction(seed, '828', 'OUT');
+    expect(built.sourceRouteNames).toEqual(['BBK_828_ORD_OUT', 'BRH_828_ORD_OUT']);
+    expect(built.policy).toMatchObject({
+      targetHeadwaySeconds: 21_600,
+      calibrationSource: 'fleet_span',
+    });
+  });
+
+  it('falls back to the configured default, labelled as such, when both methods fail', () => {
+    // HHH_700_ORD_OUT does not appear in the plain live fixture, so there is no
+    // fleet evidence at all and the single journey cannot span anything.
+    const seed = harvestNetwork(liveFeed, [probe('schedule-loop')], { defaultHeadwaySeconds: 900 });
+    expect(direction(seed, '700', 'OUT').policy).toMatchObject({
+      targetHeadwaySeconds: 900,
+      calibrationSource: 'default',
+    });
+    expect(seed.report.headwayCalibration).toMatchObject({ journey_span: 0, fleet_span: 0, default: 1 });
+  });
+
+  it('collapses two live records of one working instead of reading a 2-minute headway', () => {
+    // III_701_ORD_OUT is two vehicles at 06:00 and 06:02 — one published
+    // working, not a 120s service. Uncollapsed it would mark the route
+    // permanently bunched; collapsed it leaves a single departure, which
+    // derives nothing.
+    const seed = harvestNetwork(fleetLiveFeed, [
+      probe('schedule-unassigned', {
+        payload: scheduleRows('III_701_ORD_OUT', 701, [[10, '06:00:00', '07:30:00']]),
+      }),
+    ]);
+    expect(direction(seed, '701', 'OUT').policy).toMatchObject({
+      targetHeadwaySeconds: 1800,
+      calibrationSource: 'default',
+    });
+  });
+
+  it('rejects a fleet derivation longer than the credibility bound instead of persisting it', () => {
+    // JJJ_702_ORD_OUT: 05:00 and 23:00 are the first and last workings of the
+    // day, so their gap is a service span, not a headway.
+    const seed = harvestNetwork(fleetLiveFeed, [
+      probe('schedule-unassigned', {
+        payload: scheduleRows('JJJ_702_ORD_OUT', 702, [[20, '05:00:00', '06:30:00']]),
+      }),
+    ]);
+    expect(direction(seed, '702', 'OUT').policy).toMatchObject({
+      targetHeadwaySeconds: 1800,
+      calibrationSource: 'default',
+    });
+    expect(seed.report.implausibleHeadways).toContainEqual({
+      routeId: '702',
+      directionCode: 'OUT',
+      method: 'fleet_span',
+      seconds: 64_800,
+      sampleCount: 2,
+    });
+    expect(64_800).toBeGreaterThan(MAX_DERIVED_HEADWAY_SECONDS);
+  });
+
+  it('falls THROUGH to the fleet when the journey span is not credible, rather than to the default', () => {
+    // 06:00 -> 23:30 is 63,000s: over the bound, so not a derivation at all.
+    // The live fleet's 3,600s is still real evidence and must be preferred to
+    // the fallback.
+    const seed = harvestNetwork(fleetLiveFeed, [
+      probe('schedule-unassigned', {
+        payload: scheduleRows('HHH_700_ORD_OUT', 700, [
+          [30, '06:00:00', '07:20:00'],
+          [31, '23:30:00', '23:59:00'],
+        ]),
+      }),
+    ]);
+    expect(direction(seed, '700', 'OUT').policy).toMatchObject({
+      targetHeadwaySeconds: 3600,
+      calibrationSource: 'fleet_span',
+    });
+    expect(seed.report.implausibleHeadways).toContainEqual(
+      expect.objectContaining({ method: 'journey_span', seconds: 63_000 }),
+    );
+  });
+
+  it('rejects a journey span below the minimum as an artefact, not a headway', () => {
+    // 100s apart over DIFFERENT roads, so the duplicate-journey collapse does
+    // not catch them. A gap that small is a residual duplicate or a midnight
+    // wrap, never a service pattern.
+    const rows = [
+      ...scheduleRows('MMM_900_ORD_OUT', 900, [[40, '06:00:00', '07:00:00']]),
+      {
+        vj_id: 41,
+        atco_code: 6003,
+        stop_sequence: 1,
+        stop_name: 'C3',
+        RouteName: 'MMM_900_ORD_OUT',
+        line_id: 900,
+        scheduled_time: '06:01:40',
+        Latitude: 26.8,
+        Longitude: 80.9,
+      },
+      {
+        vj_id: 41,
+        atco_code: 6004,
+        stop_sequence: 2,
+        stop_name: 'C4',
+        RouteName: 'MMM_900_ORD_OUT',
+        line_id: 900,
+        scheduled_time: '07:01:40',
+        Latitude: 26.86,
+        Longitude: 80.96,
+      },
+    ];
+    const seed = harvestNetwork(fleetLiveFeed, [probe('schedule-unassigned', { payload: rows })]);
+    expect(direction(seed, '900', 'OUT').policy).toMatchObject({
+      targetHeadwaySeconds: 1800,
+      calibrationSource: 'default',
+    });
+    expect(seed.report.implausibleHeadways).toContainEqual(
+      expect.objectContaining({ method: 'journey_span', seconds: 100 }),
+    );
+    expect(100).toBeLessThan(MIN_DERIVED_HEADWAY_SECONDS);
+  });
+
+  it('reports how much raw material the live feed offered at all', () => {
+    // The gap between these two numbers is the ceiling on what 'fleet_span'
+    // can ever rescue — a routename with one assignment derives nothing.
+    const seed = harvestNetwork(fleetLiveFeed, [probe('schedule-loop')]);
+    // HHH_700, III_701, JJJ_702, ALM_11, BBK_828, BRH_828 carry a start time;
+    // KKK_703's is the "None" sentinel, so it is not counted.
+    expect(seed.report.fleetDepartures).toEqual({ routeNames: 6, withMultipleDepartures: 3 });
+  });
+
+  it('sums the calibration counts to the number of accepted directions', () => {
+    const seed = harvestNetwork(fleetLiveFeed, [
+      probe('schedule-loop'),
+      probe('schedule-suffixed-pair'),
+      probe('schedule-same-direction-repeat'),
+    ]);
+    const { journey_span, fleet_span, default: fabricated } = seed.report.headwayCalibration;
+    expect(journey_span + fleet_span + fabricated).toBe(seed.report.directionsAccepted);
+  });
+});
+
+describe('liveScheduledStartSeconds', () => {
+  it('reads the clock components and does NOT shift them by a timezone', () => {
+    // The live feed stamps IST wall-clock and mislabels it Z (measured: the
+    // median record sits +5.44h ahead of real UTC). Honouring the Z would put
+    // every departure 5.5h from the schedule feed's frame, which is the only
+    // frame these times have to be comparable in.
+    expect(liveScheduledStartSeconds('2026-07-20T10:06:00Z')).toBe(36_360);
+    expect(liveScheduledStartSeconds('2026-07-20 10:06:00')).toBe(36_360);
+    expect(liveScheduledStartSeconds('10:06:00')).toBe(36_360);
+  });
+
+  it('rejects the sentinels upstream uses for "no assignment"', () => {
+    expect(liveScheduledStartSeconds(null)).toBeNull();
+    expect(liveScheduledStartSeconds('')).toBeNull();
+    expect(liveScheduledStartSeconds('None')).toBeNull();
+    expect(liveScheduledStartSeconds('2026-07-20T99:06:00Z')).toBeNull();
+  });
+});
+
+describe('collapseNearIdenticalDepartures', () => {
+  it('keeps genuinely separate departures and sorts them', () => {
+    expect(collapseNearIdenticalDepartures([25_200, 21_600, 28_800])).toEqual([21_600, 25_200, 28_800]);
+  });
+
+  it('collapses a re-published working and keeps the earliest', () => {
+    expect(collapseNearIdenticalDepartures([21_600, 21_660, 25_200])).toEqual([21_600, 25_200]);
+  });
+
+  it('collapses a run of near-duplicates against the last KEPT one, not the last seen', () => {
+    // 0, 200, 400 would otherwise ratchet forward 200s at a time and survive as
+    // three departures despite spanning less than one window.
+    expect(collapseNearIdenticalDepartures([0, 200, 400])).toEqual([0, 400]);
   });
 });
 
