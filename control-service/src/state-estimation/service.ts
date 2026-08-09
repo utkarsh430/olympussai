@@ -12,7 +12,9 @@
 // this having completed, per the devops interface note that /readyz must
 // return 503 until rehydration is done.
 
+import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
+import { CANDIDATE_RADIUS_METERS } from "./cache.js";
 import { LOW_CONFIDENCE_THRESHOLD } from "./confidence.js";
 import { estimateVehicleState } from "./estimator.js";
 import { computeLeaderFollowerOrder, computeCorridorOrder } from "./ordering.js";
@@ -25,6 +27,12 @@ import type {
   RouteDirectionShape,
   VehicleStateEstimate,
 } from "./types.js";
+
+export interface PositionEventOutcome {
+  estimate: VehicleStateEstimate;
+  /** false = the out-of-order guard suppressed the write; nothing downstream should advance. */
+  persisted: boolean;
+}
 
 export class StateEstimationService {
   private cache = new Map<string, PriorVehicleState>();
@@ -41,8 +49,47 @@ export class StateEstimationService {
     this.rehydrated = true;
   }
 
+  /**
+   * Processes one fix and returns the estimate. Convenience wrapper over
+   * processPositionEventWithOutcome for callers that don't care whether
+   * the write actually landed.
+   */
   async processPositionEvent(event: PositionEvent): Promise<VehicleStateEstimate> {
-    const shapes = await this.repository.loadActiveRouteDirectionShapes();
+    return (await this.processPositionEventWithOutcome(event)).estimate;
+  }
+
+  /**
+   * Processes one fix, reporting whether the row was actually written.
+   * `persisted: false` means the out-of-order guard suppressed the write
+   * because a newer fix for this vehicle is already durable - the caller
+   * must not mirror this estimate into any other cache either.
+   */
+  async processPositionEventWithOutcome(event: PositionEvent): Promise<PositionEventOutcome> {
+    // Before rehydration the prior-state cache is empty, so every vehicle
+    // would be map-matched as if it had just appeared from nowhere: no
+    // direction hysteresis, a cold Kalman filter, and a confidence score
+    // that has no continuity bonus to draw on. Persisting that would
+    // corrupt good state with worse state. Fail closed instead - 503 is
+    // honest and retryable, and /readyz is already 503 at this point so a
+    // load balancer should not be sending traffic here anyway.
+    if (!this.rehydrated) {
+      throw new AppError(
+        "state_not_rehydrated",
+        "state estimation has not finished rehydrating from the database",
+        503
+      );
+    }
+
+    // Prefer the spatial prefilter when the repository offers one. The
+    // radius is far wider than the estimator's own off-route threshold, so
+    // this narrows work without ever narrowing the decision (see
+    // CANDIDATE_RADIUS_METERS).
+    const shapes = this.repository.loadCandidateShapesNear
+      ? await this.repository.loadCandidateShapesNear(
+          { lat: event.lat, lon: event.lon },
+          CANDIDATE_RADIUS_METERS
+        )
+      : await this.repository.loadActiveRouteDirectionShapes();
     const stopsByDirection = await this.repository.loadRouteDirectionStops(
       shapes.map((s) => s.routeDirectionId)
     );
@@ -67,27 +114,34 @@ export class StateEstimationService {
       tripId,
     });
 
+    let persisted: boolean;
     try {
-      await this.repository.saveVehicleState(estimate);
+      persisted = await this.repository.saveVehicleState(estimate);
     } catch (error) {
-      // Persistence failure must not silently drop the observation from the
-      // in-memory cache used for live ordering, but it also must not be
-      // hidden - surfaced via structured logging (OWASP A09), and rethrown
-      // so the caller (ingestion endpoint) can retry/ack appropriately
-      // rather than acting on a state it believes was durably saved.
+      // Persistence failed. The in-memory cache is deliberately NOT
+      // advanced: it feeds live leader/follower ordering, and letting it
+      // run ahead of the table means a restart silently rewinds every
+      // vehicle to a state the rest of the system never agreed with.
+      // Surfaced via structured logging (OWASP A09) and rethrown so the
+      // ingestion boundary can classify it (state-estimation/errors.ts)
+      // instead of acting on a state it believes was durably saved.
       logger.error(
         {
           vehicleId: event.vehicleId,
           error: error instanceof Error ? error.message : String(error),
         },
-        'processPositionEvent: persistence failed, in-memory cache still updated'
+        'processPositionEvent: persistence failed, in-memory cache left unchanged'
       );
-      this.updateCache(event.vehicleId, estimate);
       throw error;
     }
 
-    this.updateCache(event.vehicleId, estimate);
-    return estimate;
+    // A suppressed write means an out-of-order fix lost to a newer one
+    // already in the table. Advancing the cache anyway is exactly how
+    // cache and table diverge, so mirror the table's decision.
+    if (persisted) {
+      this.updateCache(event.vehicleId, estimate);
+    }
+    return { estimate, persisted };
   }
 
   private updateCache(vehicleId: string, estimate: VehicleStateEstimate): void {

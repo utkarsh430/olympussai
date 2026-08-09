@@ -33,9 +33,25 @@ export interface StateEstimationRepository {
   loadPriorVehicleState(vehicleId: string): Promise<PriorVehicleState | null>;
   loadActiveHold(vehicleId: string): Promise<boolean>;
   resolveCurrentTrip(vehicleId: string, routeDirectionId: string, now: Date): Promise<string | null>;
-  saveVehicleState(estimate: VehicleStateEstimate): Promise<void>;
+  /**
+   * Persists the estimate. Resolves `false` when the write was suppressed
+   * by the out-of-order guard (an already-persisted fix is newer), so the
+   * caller can skip mirroring a state the table deliberately did not take.
+   */
+  saveVehicleState(estimate: VehicleStateEstimate): Promise<boolean>;
   /** Loads every vehicle's persisted prior state - used once at startup to rebuild the in-memory cache. */
   rehydrateAll(): Promise<Map<string, PriorVehicleState>>;
+  /**
+   * Optional spatial prefilter: only the shapes plausibly within
+   * `radiusMeters` of `point`. Optional so an implementation without a
+   * spatial index (the in-memory test repository) stays valid and callers
+   * simply fall back to loadActiveRouteDirectionShapes().
+   *
+   * Implementations MUST return a superset of every shape within
+   * `radiusMeters` - returning fewer would silently change a map-match
+   * decision, which is exactly what the prefilter must never do.
+   */
+  loadCandidateShapesNear?(point: LatLng, radiusMeters: number): Promise<RouteDirectionShape[]>;
 }
 
 const HOLD_ACTION_TYPES = ["terminal_dispatch_hold", "two_way_hold", "self_equalizing_hold"] as const;
@@ -174,9 +190,9 @@ export class PgStateEstimationRepository implements StateEstimationRepository {
     return rows[0]?.id ?? null;
   }
 
-  async saveVehicleState(estimate: VehicleStateEstimate): Promise<void> {
+  async saveVehicleState(estimate: VehicleStateEstimate): Promise<boolean> {
     try {
-      await this.db.query(
+      const { rows } = await this.db.query<{ vehicle_id: string }>(
         `insert into vehicle_states (
            vehicle_id, trip_id, route_direction_id, position, distance_along_route_meters,
            speed_kmph, heading_degrees, stop_state, current_stop_id, confidence,
@@ -205,7 +221,12 @@ export class PgStateEstimationRepository implements StateEstimationRepository {
          -- Never let a late/out-of-order redelivered position event clobber
          -- a state we've already advanced past (idempotency / ordering
          -- safety - OWASP A10, fail closed rather than regress silently).
-         where vehicle_states.observed_at <= excluded.observed_at`,
+         where vehicle_states.observed_at <= excluded.observed_at
+         -- RETURNING is load-bearing, not decoration: the WHERE above can
+         -- silently update zero rows, and without a row count the caller
+         -- would go on to advance its in-memory cache past a fix the table
+         -- rejected - cache and table then disagree permanently.
+         returning vehicle_id`,
         [
           estimate.vehicleId,
           estimate.tripId,
@@ -225,6 +246,15 @@ export class PgStateEstimationRepository implements StateEstimationRepository {
           estimate.observedAt,
         ]
       );
+
+      if (rows.length === 0) {
+        logger.debug(
+          { vehicleId: estimate.vehicleId, observedAt: estimate.observedAt },
+          'vehicle_states write suppressed: a newer fix is already persisted'
+        );
+        return false;
+      }
+      return true;
     } catch (error) {
       logger.error(
         {

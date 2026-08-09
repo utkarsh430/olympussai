@@ -9,35 +9,56 @@ import { logger } from '../lib/logger.js';
 import type { HeadwayStateRow, RoutePolicyRow, VehicleStateRow } from '../state/store.js';
 
 async function loadVehicleStates(pool: Pool): Promise<VehicleStateRow[]> {
+  // `position` is a geography(Point) - projected to plain lat/lon here
+  // rather than shipped as WKB, because everything that reads this store
+  // (the /v1/vehicle-states wire shape, the MPC solver) wants numbers.
+  // ::geometry is required before ST_X/ST_Y: those accessors are not
+  // defined on geography.
   const { rows } = await pool.query<{
     vehicle_id: string;
     trip_id: string | null;
     route_direction_id: string | null;
+    position_lat: number | string | null;
+    position_lon: number | string | null;
     distance_along_route_meters: string | null;
     speed_kmph: string | null;
+    heading_degrees: string | null;
     stop_state: string;
     current_stop_id: string | null;
     occupancy_count: number | null;
     occupancy_load_band: string | null;
     confidence: string | null;
+    is_low_confidence: boolean | null;
     observed_at: string;
   }>(
-    `select vehicle_id, trip_id, route_direction_id, distance_along_route_meters,
-            speed_kmph, stop_state, current_stop_id, occupancy_count, occupancy_load_band,
-            confidence, observed_at
+    `select vehicle_id, trip_id, route_direction_id,
+            ST_Y(position::geometry) as position_lat,
+            ST_X(position::geometry) as position_lon,
+            distance_along_route_meters,
+            speed_kmph, heading_degrees, stop_state, current_stop_id,
+            occupancy_count, occupancy_load_band,
+            confidence, is_low_confidence, observed_at
        from vehicle_states`,
   );
   return rows.map((r) => ({
     vehicleId: r.vehicle_id,
     tripId: r.trip_id,
     routeDirectionId: r.route_direction_id,
+    position:
+      r.position_lat == null || r.position_lon == null
+        ? null
+        : { lat: Number(r.position_lat), lon: Number(r.position_lon) },
     distanceAlongRouteMeters: r.distance_along_route_meters === null ? null : Number(r.distance_along_route_meters),
     speedKmph: r.speed_kmph === null ? null : Number(r.speed_kmph),
+    headingDegrees: r.heading_degrees === null ? null : Number(r.heading_degrees),
     stopState: r.stop_state,
     currentStopId: r.current_stop_id,
     occupancyCount: r.occupancy_count,
     occupancyLoadBand: r.occupancy_load_band,
     confidence: r.confidence === null ? null : Number(r.confidence),
+    // NOT NULL DEFAULT false in the schema; `?? false` only covers a row
+    // materialised by a fake pool in tests.
+    isLowConfidence: r.is_low_confidence ?? false,
     observedAt: r.observed_at,
   }));
 }
@@ -134,6 +155,57 @@ async function loadTerminalStops(pool: Pool): Promise<{ routeDirectionId: string
 }
 
 /**
+ * How much of the NETWORK (as opposed to runtime state) this instance
+ * actually has. Distinct from stateStore.counts(), which reports the live
+ * per-vehicle state: these two numbers describe whether the static network
+ * that state estimation matches AGAINST exists at all.
+ */
+export interface NetworkCounts {
+  /**
+   * Active route-directions that have a route_shape. Zero means map
+   * matching has nothing to match to, so every fix short-circuits to
+   * `off_route` - see routes/health.ts, which turns a zero here into a
+   * 503 rather than letting the instance take traffic it cannot serve.
+   */
+  routeDirectionsWithShape: number;
+  vehicles: number;
+}
+
+let networkCounts: NetworkCounts = { routeDirectionsWithShape: 0, vehicles: 0 };
+
+/** Last counts observed by rehydrateState(). Zeroed until it has run. */
+export function getNetworkCounts(): NetworkCounts {
+  return { ...networkCounts };
+}
+
+/** Test-only: reset the module-level counts between cases. */
+export function _resetNetworkCountsForTests(): void {
+  networkCounts = { routeDirectionsWithShape: 0, vehicles: 0 };
+}
+
+async function loadNetworkCounts(pool: Pool): Promise<NetworkCounts> {
+  // One round trip with two scalar subqueries rather than two queries: the
+  // numbers are only ever read together, and count(*) returns bigint, which
+  // node-postgres hands back as a string.
+  const { rows } = await pool.query<{
+    route_directions_with_shape: string | number | null;
+    vehicles: string | number | null;
+  }>(
+    `select
+       (select count(*)
+          from route_directions rd
+          join route_shapes rs on rs.route_direction_id = rd.id
+         where rd.is_active) as route_directions_with_shape,
+       (select count(*) from vehicles where is_active) as vehicles`,
+  );
+  const row = rows[0];
+  return {
+    routeDirectionsWithShape: Number(row?.route_directions_with_shape ?? 0),
+    vehicles: Number(row?.vehicles ?? 0),
+  };
+}
+
+/**
  * Rehydrates the in-memory store from CONTROL_SERVICE_DATABASE_URL. Must
  * complete (or fail) before /readyz can return 200 - Render gates traffic
  * cutover on /readyz, so this function is the load-bearing piece of a safe
@@ -142,18 +214,23 @@ async function loadTerminalStops(pool: Pool): Promise<{ routeDirectionId: string
 export async function rehydrateState(pool: Pool = getPool()): Promise<void> {
   stateStore.setStatus('in_progress');
   try {
-    const [vehicleStates, headwayStates, activePolicies, terminalStops] = await Promise.all([
+    const [vehicleStates, headwayStates, activePolicies, terminalStops, counts] = await Promise.all([
       loadVehicleStates(pool),
       loadHeadwayStates(pool),
       loadActivePolicies(pool),
       loadTerminalStops(pool),
+      loadNetworkCounts(pool),
     ]);
     stateStore.loadVehicleStates(vehicleStates);
     stateStore.loadHeadwayStates(headwayStates);
     stateStore.loadActivePolicies(activePolicies);
     stateStore.loadTerminalStops(terminalStops);
+    networkCounts = counts;
     stateStore.setStatus('complete');
-    logger.info({ counts: stateStore.counts() }, 'state rehydration complete');
+    logger.info(
+      { counts: stateStore.counts(), network: networkCounts },
+      'state rehydration complete',
+    );
   } catch (err) {
     stateStore.setStatus('failed', err instanceof Error ? err.message : String(err));
     logger.error({ err }, 'state rehydration failed');

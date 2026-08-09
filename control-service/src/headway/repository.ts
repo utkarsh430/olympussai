@@ -203,6 +203,96 @@ export async function loadRecentHeadwayRatios(
   return rows.map((row) => Number(row.ratio));
 }
 
+/**
+ * Route-directions that could actually produce a leader/follower pair right
+ * now, i.e. that have at least TWO map-matched vehicle_states rows fresher
+ * than `freshnessSeconds`.
+ *
+ * This pruning query - not the concurrency cap - is what makes the periodic
+ * headway sweep affordable. With ~665 live buses spread over ~517 routes,
+ * the overwhelming majority of the ~1,020 active route-directions have zero
+ * or one vehicle on them and can produce no pair at all; computing headway
+ * for those is pure waste (a metadata read, a policy read, a vehicle read,
+ * and an empty result). In practice this cuts the sweep from ~1,020
+ * route-directions to a few dozen.
+ *
+ * `exists (select 1 ... offset 1)` is the cheap spelling of "at least two":
+ * Postgres can stop as soon as it has skipped one row and found a second,
+ * without counting the rest.
+ */
+export async function listRouteDirectionsWithLiveHeadwayPairs(
+  freshnessSeconds: number,
+  pool: Pool = getPool()
+): Promise<string[]> {
+  const { rows } = await pool.query<{ id: string }>(
+    `select rd.id
+       from route_directions rd
+       join route_shapes rs on rs.route_direction_id = rd.id
+      where rd.is_active
+        and exists (
+              select 1
+                from vehicle_states vs
+               where vs.route_direction_id = rd.id
+                 and vs.distance_along_route_meters is not null
+                 and vs.observed_at > now() - ($1 || ' seconds')::interval
+              offset 1
+            )
+      order by rd.id`,
+    [freshnessSeconds]
+  );
+  return rows.map((row) => row.id);
+}
+
+/**
+ * The most recent persisted sample per leader/follower pair on a
+ * route-direction, within `maxAgeSeconds`. Read-only counterpart to
+ * insertHeadwaySample - backs GET /v1/route-directions/:id/headway, which
+ * exists so a dashboard poll can READ the history the reactive bunching
+ * rule looks back over instead of appending an off-cadence sample to it.
+ */
+export async function loadLatestHeadwaySamples(
+  routeDirectionId: string,
+  maxAgeSeconds: number,
+  pool: Pool = getPool()
+): Promise<HeadwaySampleRow[]> {
+  const { rows } = await pool.query<{
+    id: string;
+    route_direction_id: string;
+    leader_vehicle_id: string;
+    follower_vehicle_id: string;
+    h_fwd_seconds: string | null;
+    h_bwd_seconds: string | null;
+    target_headway_seconds: string;
+    deviation_seconds: string | null;
+    forecast_h_fwd_seconds: string | null;
+    confidence: string | null;
+    computed_at: string;
+  }>(
+    `select distinct on (leader_vehicle_id, follower_vehicle_id)
+            id, route_direction_id, leader_vehicle_id, follower_vehicle_id,
+            h_fwd_seconds, h_bwd_seconds, target_headway_seconds, deviation_seconds,
+            forecast_h_fwd_seconds, confidence, computed_at
+       from headway_states
+      where route_direction_id = $1
+        and computed_at > now() - ($2 || ' seconds')::interval
+      order by leader_vehicle_id, follower_vehicle_id, computed_at desc`,
+    [routeDirectionId, maxAgeSeconds]
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    routeDirectionId: row.route_direction_id,
+    leaderVehicleId: row.leader_vehicle_id,
+    followerVehicleId: row.follower_vehicle_id,
+    hFwdSeconds: row.h_fwd_seconds == null ? null : Number(row.h_fwd_seconds),
+    hBwdSeconds: row.h_bwd_seconds == null ? null : Number(row.h_bwd_seconds),
+    targetHeadwaySeconds: Number(row.target_headway_seconds),
+    deviationSeconds: row.deviation_seconds == null ? null : Number(row.deviation_seconds),
+    forecastHFwdSeconds: row.forecast_h_fwd_seconds == null ? null : Number(row.forecast_h_fwd_seconds),
+    confidence: row.confidence == null ? null : Number(row.confidence),
+    computedAt: row.computed_at,
+  }));
+}
+
 export interface OpenIncidentRef {
   id: string;
   severity: BunchingSeverity;

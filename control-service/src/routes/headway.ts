@@ -2,15 +2,23 @@
 // service, service-token authenticated. Detection and display only: none
 // of these handlers ever create a `commands` row or invoke the MPC solver.
 //
+//   GET /v1/route-directions/:routeDirectionId/headway
+//     READ of the latest persisted sample set. This is what a dashboard
+//     poll should call.
 //   POST /v1/route-directions/:routeDirectionId/headway/compute
 //     Computes a fresh sample from current vehicle_states, persists one
 //     headway_states row per leader/follower pair, runs the reactive
 //     bunching rule, and returns the pair metrics + CV/EWT aggregate +
-//     any incident changes. This is the "compute" side of the ticket's
-//     "computed ... and queryable via API" acceptance criterion; callers
-//     (e.g. the web app's observability dashboard poll) driving this on an
-//     interval is what produces the sample history the reactive rule
-//     looks back over.
+//     any incident changes.
+//
+//     The scheduled sweep (scheduler/headwayCompute.ts) is what drives
+//     this on a fixed cadence in production; the endpoint remains for
+//     manual and test use. A UI must NOT poll it: every call APPENDS to
+//     headway_states, which is the exact history the reactive bunching
+//     rule reads ("k consecutive samples over threshold"). A dashboard
+//     polling compute therefore manufactures the evidence for its own
+//     alerts, and two open dashboards would halve the effective detection
+//     window. Reads read; writes are the scheduler's job.
 //   GET /v1/incidents?routeDirectionId=
 //     Currently open (non-closed) bunching incidents, optionally scoped to
 //     one route-direction.
@@ -23,6 +31,7 @@ import { asyncHandler, AppError, sendError } from '../lib/errors.js';
 import {
   computeRouteDirectionHeadway,
   getIncident,
+  getLatestRouteDirectionHeadway,
   listActiveRouteDirections,
   listOpenIncidents,
 } from '../headway/service.js';
@@ -40,6 +49,19 @@ const incidentsQuerySchema = z.object({
 const incidentIdParamSchema = z.object({
   id: z.string().min(1),
 });
+
+headwayRouter.get(
+  '/v1/route-directions/:routeDirectionId/headway',
+  asyncHandler(async (req, res) => {
+    const parsed = routeDirectionParamSchema.safeParse(req.params);
+    if (!parsed.success) {
+      sendError(res, new AppError('invalid_request', 'Invalid route-direction id', 400, parsed.error.flatten()));
+      return;
+    }
+    const result = await getLatestRouteDirectionHeadway(parsed.data.routeDirectionId);
+    res.status(200).json(result);
+  }),
+);
 
 headwayRouter.post(
   '/v1/route-directions/:routeDirectionId/headway/compute',
