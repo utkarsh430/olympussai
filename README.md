@@ -91,6 +91,14 @@ The definitive field-by-field breakdown is in
 
 **Prerequisites:** Node.js 20+ and pnpm (see `packageManager` in `package.json` for the pinned version).
 
+> **Running the full system locally** — both this app and the independent
+> `control-service/`, against real local databases via Docker, with no cloud
+> accounts required for `/ops/*` — is a longer setup than the quick start
+> below covers. See [`docs/LOCAL_DEV_SETUP.md`](docs/LOCAL_DEV_SETUP.md) for
+> the complete sequence (`docker compose up`, migrations, network seed, ops
+> accounts). This section is the web app alone, against the live UPSRTC
+> upstream and no local database.
+
 ```bash
 pnpm install
 
