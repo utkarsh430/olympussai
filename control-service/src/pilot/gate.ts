@@ -31,22 +31,57 @@ export interface RolloutGateCommandInput {
  * is populated by the web app when the approval is created
  * (ops_dispatcher_actions.route_direction_id on the web side, correlated
  * only across the REST boundary per the Crewban-4/Crewban-9 handoffs, never
- * a shared foreign key). Returns null if the approval carries no
- * route-direction (nothing to gate against — allowed, not blocked, since
- * this ticket cannot invent a route context that doesn't exist).
+ * a shared foreign key; the web mirrors that row in inline on POST
+ * /v1/commands — see models/schemas.ts#inlineDispatcherActionSchema).
+ *
+ * FAILS CLOSED. This used to return null for "approval carries no
+ * route-direction", and assertRolloutStageAllowsCommand then returned early
+ * and ALLOWED the command. That was a fail-open hole with the blast radius of
+ * the whole gate: an approval with a null route_direction_id — including
+ * every approval, had the bridge been allowed to send null — would have
+ * bypassed the rollout stage check silently, letting commands reach routes
+ * still in 'observation'/'shadow'. The rollout gate is the mechanism keeping
+ * commands off unpromoted routes; a gate that opens when its input is missing
+ * is not a gate. Both callers now get a 422 instead:
+ *
+ *   - row missing entirely -> `dispatcher_action_invalid` (the same verdict
+ *     the consume_dispatcher_action trigger is about to reach anyway, a few
+ *     statements later, just with a clearer message)
+ *   - row present, route_direction_id null -> `route_direction_required`
+ *
+ * The wire schema enforces a non-null uuid too, so in practice this branch
+ * only catches a row that predates the bridge or was written by hand.
  */
-async function resolveRouteDirectionId(client: PoolClient, dispatcherActionId: string): Promise<string | null> {
+async function resolveRouteDirectionId(client: PoolClient, dispatcherActionId: string): Promise<string> {
   const { rows } = await client.query<{ route_direction_id: string | null }>(
     `select route_direction_id from dispatcher_actions where id = $1`,
     [dispatcherActionId],
   );
-  return rows[0]?.route_direction_id ?? null;
+  const row = rows[0];
+  if (!row) {
+    throw new AppError(
+      'dispatcher_action_invalid',
+      `dispatcher_action ${dispatcherActionId} does not exist`,
+      422,
+    );
+  }
+  if (!row.route_direction_id) {
+    throw new AppError(
+      'route_direction_required',
+      `dispatcher_action ${dispatcherActionId} carries no route_direction_id, so the rollout stage it must be gated against cannot be resolved; commands are refused rather than allowed through an unenforceable gate`,
+      422,
+      { dispatcherActionId },
+    );
+  }
+  return row.route_direction_id;
 }
 
 /**
  * Throws a 403 `rollout_stage_forbids_commands` AppError (and records a
  * guardrail breach) if the command's route-direction is currently in
- * 'observation' or 'shadow'. Reads happen on `client` — inside the same
+ * 'observation' or 'shadow', or a 422 if the route-direction cannot be
+ * resolved at all (see resolveRouteDirectionId — fails closed). Reads happen
+ * on `client` — inside the same
  * transaction as the command insert this is guarding, before that insert
  * runs — but the guardrail-breach write goes through `breachPool` (a plain
  * `Pool`, defaulting to the shared singleton), deliberately OUTSIDE that
@@ -61,7 +96,6 @@ export async function assertRolloutStageAllowsCommand(
   breachPool: Pool = getPool(),
 ): Promise<void> {
   const routeDirectionId = await resolveRouteDirectionId(client, input.dispatcherActionId);
-  if (!routeDirectionId) return;
 
   const { rows } = await client.query<{ stage: string }>(
     `select stage from route_direction_rollout_stages where route_direction_id = $1 for update`,

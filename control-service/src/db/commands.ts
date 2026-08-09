@@ -134,6 +134,33 @@ function mapCommandWriteError(err: unknown): never {
       }
       throw new AppError('dispatcher_action_already_used', 'dispatcherActionId has already authorized a command', 409);
     }
+    // Foreign-key violations. MUST be checked BEFORE the P0001 branch
+    // below: that branch also fires on any message merely *containing*
+    // "dispatcher_action", and a 23503 on `dispatcher_actions_vehicle_id_fkey`
+    // (raised while mirroring an inline approval) does exactly that. Getting
+    // the order wrong reports "your approval is invalid" for what is really
+    // "that vehicle isn't in this service's fleet yet".
+    //
+    // Before this branch existed both of these fell through to the raw
+    // rethrow at the bottom, i.e. an opaque 500 for what is squarely a
+    // caller-supplied-id problem.
+    if (err.code === '23503') {
+      if (/route_direction_id_fkey/.test(err.message)) {
+        throw new AppError(
+          'unknown_route_direction',
+          'routeDirectionId does not reference a route-direction known to this service',
+          422,
+        );
+      }
+      if (/vehicle_id_fkey/.test(err.message)) {
+        throw new AppError('unknown_vehicle', 'vehicleId does not reference a vehicle known to this service', 422);
+      }
+      // Any other FK on this write path (e.g. incident_id, trip_id,
+      // target_stop_id, recommendation_id) is the same class of problem:
+      // the caller named something this service has never heard of. A 422
+      // naming the constraint beats an opaque 500 for every one of them.
+      throw new AppError('unknown_reference', `a referenced id does not exist in this service: ${err.message}`, 422);
+    }
     // control_service_consume_dispatcher_action() raises a plain
     // exception (SQLSTATE P0001) for "does not exist" / "already
     // consumed" - both map to the same client-facing rejection: the
@@ -160,6 +187,13 @@ function mapCommandWriteError(err: unknown): never {
  * `vehicle_has_active_command` if the vehicle already has a non-terminal
  * command outstanding, closing the "no conflicting commands per vehicle"
  * gap the advisory `listActiveVehicleIds` pre-check alone leaves open.
+ *
+ * If `input.dispatcherAction` is present it is mirrored into
+ * `dispatcher_actions` first, inside this same transaction — see the block
+ * below. That is the bridge that lets a human approval recorded in the WEB
+ * app's own datastore authorize a command here, which nothing could do
+ * before: no code path in this service ever inserted a `dispatcher_actions`
+ * row, so the trigger could only ever reject.
  */
 export async function createCommand(
   input: CreateCommandRequest,
@@ -170,6 +204,37 @@ export async function createCommand(
   try {
     await client.query('begin');
     await setAuditContext(client, { actorType: 'dispatcher', reason: 'command created against an authorized dispatcher action' });
+
+    // Mirror the caller's own human approval into this service's
+    // dispatcher_actions, in this transaction, BEFORE both the rollout gate
+    // (which SELECTs this exact row on this same client, so it has to be
+    // visible by then) and the insert into `commands` (whose BEFORE INSERT
+    // trigger locks and consumes it).
+    //
+    // `do nothing`, deliberately NOT `do update`: a retry must never rewrite
+    // the terms of an approval that already exists. If the row is there and
+    // already consumed, the trigger raises P0001 and mapCommandWriteError
+    // turns it into the correct client-facing rejection — which is exactly
+    // the behaviour that makes a retried dispatch safe.
+    if (input.dispatcherAction) {
+      const action = input.dispatcherAction;
+      await client.query(
+        `insert into dispatcher_actions
+           (id, dispatcher_id, action_type, route_direction_id, vehicle_id, incident_id, reason, authorized_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8)
+         on conflict (id) do nothing`,
+        [
+          action.id,
+          action.dispatcherId,
+          action.actionType,
+          action.routeDirectionId,
+          action.vehicleId ?? null,
+          action.incidentId ?? null,
+          action.reason,
+          action.authorizedAt,
+        ],
+      );
+    }
 
     // Pilot-staging rollout gate (ticket: "Pilot-staging dashboard with
     // per-route rollout gates ..."): reads the route-direction's current
@@ -216,6 +281,31 @@ export async function createCommand(
 
 export async function getCommandById(id: string, pool: Pool = getPool()): Promise<CommandRow | null> {
   const { rows } = await pool.query<RawCommandRow>(`select ${COMMAND_COLUMNS} from commands where id = $1`, [id]);
+  const row = rows[0];
+  return row ? mapRow(row) : null;
+}
+
+/**
+ * The command (if any) a given dispatcher action authorized. One indexed
+ * lookup — `commands.dispatcher_action_id` is already UNIQUE, so this can
+ * never return more than one row.
+ *
+ * This is the reconciliation primitive for the one failure the caller cannot
+ * otherwise resolve: this service commits a command and returns 201, but the
+ * caller never sees the response (timeout, crash, dropped connection). On
+ * retry the caller re-sends the same dispatcherActionId, gets the 409
+ * `dispatcher_action_already_used` the UNIQUE constraint produces, and needs
+ * some way to learn WHICH command it already created rather than guessing or
+ * — far worse — issuing a second one. This is that way.
+ */
+export async function getCommandByDispatcherActionId(
+  dispatcherActionId: string,
+  pool: Pool = getPool(),
+): Promise<CommandRow | null> {
+  const { rows } = await pool.query<RawCommandRow>(
+    `select ${COMMAND_COLUMNS} from commands where dispatcher_action_id = $1`,
+    [dispatcherActionId],
+  );
   const row = rows[0];
   return row ? mapRow(row) : null;
 }
