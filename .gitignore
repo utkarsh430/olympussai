@@ -44,3 +44,6 @@ next-env.d.ts
 .env.local
 test-results/
 playwright-report/
+
+# Agent worktrees and local session state
+.claude/

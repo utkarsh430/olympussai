@@ -21,17 +21,27 @@
 
 import { loadEnv, type Env } from '../config/env.js';
 import { ingestPositionEvents, type IngestBatchResult } from '../ingestion/pipeline.js';
+import { fetchUpstream } from '../ingestion/upsrtc/client.js';
+import { extractArray, isRecord, pick, toNumber, toStringOrNull } from '../ingestion/upsrtc/normalize.js';
 import { logger } from '../lib/logger.js';
 import type { PositionEvent } from '../state-estimation/types.js';
 
 // ---------------------------------------------------------------------------
 // Upstream client contract
 // ---------------------------------------------------------------------------
-// The real tolerant fetch + normalizer lives in
-// `src/ingestion/upsrtc/client.ts`, which is owned by a different work
-// stream. This module is written against the narrow interface below so
-// adopting it is a one-line import swap (replace the `fetchLiveFeed`
-// binding at the bottom of this section), and so this job stays unit
+// The transport and the payload-shape quirks are now shared with the seeder
+// via `src/ingestion/upsrtc/{client,normalize}.ts` - one implementation of
+// "how does this undocumented endpoint misbehave", so the two consumers
+// cannot drift apart on it.
+//
+// What is NOT shared is the field mapping below. The seeder's
+// `normalizeLiveRecords()` deliberately DISCARDS coordinates: it only needs
+// registration + route identity, and it keeps records with no GPS fix at all
+// because a parked bus is still a `vehicles` row. This poller needs the exact
+// opposite - a position or nothing. Reusing that normalizer here would
+// silently drop every fix, so the mapping stays local and explicit.
+//
+// The `FetchLiveFeed` seam is retained: it is what keeps this job unit
 // testable without a network.
 
 /** One normalized live fix. Field names match PositionEvent deliberately - the mapping below should stay boring. */
@@ -60,43 +70,11 @@ export interface LiveFeedSnapshot {
 
 export type FetchLiveFeed = (options: { url: string; timeoutMs?: number }) => Promise<LiveFeedSnapshot>;
 
-const DEFAULT_TIMEOUT_MS = 20_000;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function pick(row: Record<string, unknown>, aliases: readonly string[]): unknown {
-  for (const key of aliases) {
-    if (!(key in row)) continue;
-    const value = row[key];
-    if (value === null || value === undefined) continue;
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      if (trimmed === '' || trimmed === 'None' || trimmed === 'null' || trimmed === 'NULL') continue;
-      return trimmed;
-    }
-    return value;
-  }
-  return undefined;
-}
-
-function toNumber(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (trimmed === '') return null;
-    const parsed = Number(trimmed);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function toStringOrNull(value: unknown): string | null {
-  if (typeof value === 'string') return value.trim() === '' ? null : value.trim();
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return null;
-}
+// The live payload is ~11.7 MB. 20s was too tight to download it reliably on
+// a slow link, and a timeout that always fires makes the poller useless. The
+// scheduler's per-job overlap suppression is what makes a longer ceiling safe:
+// a slow poll delays the next cycle, it never stacks concurrent downloads.
+const DEFAULT_TIMEOUT_MS = 60_000;
 
 /**
  * Placeholder implementation of FetchLiveFeed, kept deliberately minimal
@@ -112,54 +90,20 @@ function toStringOrNull(value: unknown): string | null {
  * Replace with the shared client when it lands; see the header note.
  */
 export const fetchLiveFeedOverHttp: FetchLiveFeed = async ({ url, timeoutMs = DEFAULT_TIMEOUT_MS }) => {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  let text: string;
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { Accept: 'application/json, text/plain, */*' },
-    });
-    if (!response.ok) throw new Error(`upstream GPS feed responded ${response.status}`);
-    text = await response.text();
-  } finally {
-    clearTimeout(timer);
+  const result = await fetchUpstream(url, timeoutMs);
+
+  // fetchUpstream reports failure structurally (HTML outage page, malformed
+  // JSON, non-2xx, timeout) rather than throwing. Convert that to a throw
+  // here on purpose: the scheduler counts a rejected job, whereas returning
+  // an empty snapshot would log a successful 0-vehicle poll and make an
+  // upstream outage look like a quiet night on the network.
+  if (!result.ok) {
+    throw new Error(`upstream GPS feed unavailable: ${result.error ?? `HTTP ${result.status}`}`);
   }
 
-  const trimmed = text.trimStart();
-  if (trimmed.startsWith('<')) {
-    // An HTML document where data was expected is an upstream outage page,
-    // not a payload. Throwing here keeps a 0-vehicle "successful" poll from
-    // looking like a quiet night on the network.
-    throw new Error('upstream GPS feed returned an HTML document instead of data');
-  }
-
-  let payload: unknown;
-  try {
-    payload = JSON.parse(trimmed);
-  } catch {
-    throw new Error('upstream GPS feed returned malformed JSON');
-  }
-  if (typeof payload === 'string') {
-    try {
-      payload = JSON.parse(payload);
-    } catch {
-      /* leave as-is; extraction below will yield an empty array */
-    }
-  }
-
-  let rows: unknown[] = [];
-  if (Array.isArray(payload)) {
-    rows = payload;
-  } else if (isRecord(payload)) {
-    for (const key of ['data', 'result', 'results', 'vehicles', 'buses', 'records', 'rows', 'items']) {
-      const candidate = payload[key];
-      if (Array.isArray(candidate) && candidate.length > 0) {
-        rows = candidate;
-        break;
-      }
-    }
-  }
+  // extractArray unwraps a bare array, a wrapper object, or JSON double
+  // encoded as a string inside JSON - all three have been observed here.
+  const rows = extractArray(result.payload);
 
   const vehicles: LiveVehiclePosition[] = [];
   for (const row of rows) {

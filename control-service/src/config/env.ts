@@ -3,6 +3,7 @@
 // same "validate inputs" default the web app applies to request bodies,
 // applied here to process.env.
 import { z } from 'zod';
+import { UPSRTC_LIVE_URL } from '../ingestion/upsrtc/client.js';
 
 /**
  * Env vars arrive as strings, so `z.coerce.boolean()` is unusable here - it
@@ -52,7 +53,11 @@ const baseEnvSchema = z.object({
   // (otherwise every replica ingests the same 665 fixes).
   GPS_POLL_ENABLED: booleanFromEnv.default(false),
   GPS_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(30_000),
-  GPS_POLL_URL: z.string().url().default('https://margdarshi.upsrtcvlt.com/php/getGpsLiveData.php'),
+  // Defaults to the shared UPSRTC_LIVE_URL constant rather than repeating the
+  // literal: the seeder and the poller must never drift onto different
+  // endpoints. Set GPS_POLL_URL only to point the poller somewhere else (a
+  // replay fixture, a staging mirror) without moving the seeder too.
+  GPS_POLL_URL: z.string().url().default(UPSRTC_LIVE_URL),
   /** A fix older than this is dropped rather than ingested - a stale fix must not resurrect a vehicle that has since gone dark. */
   GPS_MAX_AGE_SECONDS: z.coerce.number().int().positive().default(300),
 
