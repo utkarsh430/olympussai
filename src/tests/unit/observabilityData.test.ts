@@ -60,7 +60,10 @@ describe('getObservabilitySnapshot', () => {
           }),
         );
       }
-      if (path.endsWith('/headway/compute')) {
+      // GET .../headway, not POST .../headway/compute: the dashboard reads
+      // the persisted sample set, it does not append to the history its own
+      // bunching alerts are derived from.
+      if (path.endsWith('/headway')) {
         return Promise.resolve(
           jsonResponse({
             routeDirectionId: 'dir-1',
@@ -102,7 +105,7 @@ describe('getObservabilitySnapshot', () => {
         return jsonResponse({ routeDirections: [{ routeDirectionId: 'dir-1', routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000 }] });
       }
       if (path === '/v1/vehicle-states') return jsonResponse({ vehicleStates: [] });
-      if (path.endsWith('/headway/compute')) {
+      if (path.endsWith('/headway')) {
         return jsonResponse({
           routeDirectionId: 'dir-1',
           computedAt: new Date().toISOString(),

@@ -11,9 +11,14 @@ const shape = makeShape({
 });
 
 describe("StateEstimationService.processPositionEvent", () => {
+  // rehydrate() is a precondition of processPositionEvent, not a nicety:
+  // the service fails closed with 503 state_not_rehydrated until the prior
+  // cache has been rebuilt, because estimating against an empty cache
+  // silently persists cold-start state over good state.
   it("persists an estimate for each position event via the repository", async () => {
     const repo = new InMemoryStateEstimationRepository([shape]);
     const service = new StateEstimationService(repo);
+    await service.rehydrate();
 
     const point = offsetEastNorth(ORIGIN, 300, 0);
     const estimate = await service.processPositionEvent({
@@ -32,6 +37,7 @@ describe("StateEstimationService.processPositionEvent", () => {
   it("computes leader/follower order across multiple vehicles processed on the same route-direction", async () => {
     const repo = new InMemoryStateEstimationRepository([shape]);
     const service = new StateEstimationService(repo);
+    await service.rehydrate();
 
     const front = offsetEastNorth(ORIGIN, 900, 0);
     const back = offsetEastNorth(ORIGIN, 100, 0);
@@ -63,6 +69,7 @@ describe("StateEstimationService restart / rehydration (AC: state persists acros
   it("resumes Kalman smoothing from persisted state instead of a cold prior after a simulated restart", async () => {
     const repo = new InMemoryStateEstimationRepository([shape]);
     const warmService = new StateEstimationService(repo);
+    await warmService.rehydrate();
 
     // Warm the filter up over several consistent samples so its covariance narrows.
     for (let i = 0; i < 6; i++) {

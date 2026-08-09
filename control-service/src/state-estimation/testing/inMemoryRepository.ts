@@ -50,9 +50,28 @@ export class InMemoryStateEstimationRepository implements StateEstimationReposit
     return Promise.resolve(this.tripsByVehicleAndDirection.get(`${vehicleId}:${routeDirectionId}`) ?? null);
   }
 
-  async saveVehicleState(estimate: VehicleStateEstimate): Promise<void> {
+  /**
+   * Mirrors PgStateEstimationRepository's `where observed_at <= excluded`
+   * guard, including its return value, so a test that exercises
+   * out-of-order redelivery sees the same behaviour it would against
+   * Postgres. `saveError`, when set, is thrown instead - used to cover the
+   * persistence-failure path without a live database.
+   */
+  saveError: unknown = null;
+
+  async saveVehicleState(estimate: VehicleStateEstimate): Promise<boolean> {
+    if (this.saveError !== null) {
+      // Rethrown verbatim, cast only to satisfy only-throw-error: tests
+      // set a pg-shaped object carrying a SQLSTATE `code`, and wrapping it
+      // in a real Error would erase the exact field under test.
+      throw this.saveError as Error;
+    }
+    const existing = this.savedStates.get(estimate.vehicleId);
+    if (existing && existing.observedAt > estimate.observedAt) {
+      return Promise.resolve(false);
+    }
     this.savedStates.set(estimate.vehicleId, estimate);
-    return Promise.resolve();
+    return Promise.resolve(true);
   }
 
   async rehydrateAll(): Promise<Map<string, PriorVehicleState>> {

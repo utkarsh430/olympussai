@@ -9,6 +9,7 @@ import { vehicleStatesRouter } from './routes/vehicleStates.js';
 import { mpcRouter } from './routes/mpc.js';
 import { headwayRouter } from './routes/headway.js';
 import { pilotRouter } from './routes/pilot.js';
+import { positionsRouter } from './routes/positions.js';
 import { requireServiceToken } from './auth/serviceToken.js';
 import { errorHandler } from './lib/errors.js';
 import { logger } from './lib/logger.js';
@@ -34,6 +35,11 @@ export function createApp(): Express {
   app.use(mpcRouter);
   app.use(headwayRouter);
   app.use(pilotRouter);
+  // Telemetry intake (POST /v1/positions) + the geometry-cache
+  // invalidation hook. Behind requireServiceToken like every other /v1
+  // route: a fix is a write to fleet state, and an unauthenticated caller
+  // must not be able to move a bus on the control room's map.
+  app.use(positionsRouter);
 
   app.use((req, res) => {
     res.status(404).json({ error: { code: 'not_found', message: `No route for ${req.method} ${req.path}` } });

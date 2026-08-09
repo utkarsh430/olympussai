@@ -13,7 +13,7 @@ import { computeLeaderFollowerOrder } from "../state-estimation/ordering.js";
 import type { VehicleOrderingInput } from "../state-estimation/types.js";
 import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
-import { computeAggregate, computePairHeadways } from "./metrics.js";
+import { computeAggregate, computeGapMeters, computePairHeadways } from "./metrics.js";
 import { evaluateBunchingRule } from "./bunching.js";
 import * as repo from "./repository.js";
 import type { HeadwayAggregate, HeadwayPairMetric, RouteDirectionMeta } from "./types.js";
@@ -248,6 +248,90 @@ export async function computeRouteDirectionHeadway(routeDirectionId: string): Pr
     );
     throw error;
   }
+}
+
+/**
+ * How far back GET .../headway looks for "the latest sample set". Wide
+ * enough to survive a couple of missed sweeps, short enough that a
+ * dashboard never shows an hour-old headway as if it were live.
+ */
+const LATEST_SAMPLE_WINDOW_SECONDS = 900;
+
+/**
+ * READ-ONLY view of the most recent persisted sample per pair. Same wire
+ * shape as computeRouteDirectionHeadway so an existing caller can switch
+ * from POST .../headway/compute to GET .../headway without changing how it
+ * parses the response.
+ *
+ * Why this endpoint has to exist: every POST .../headway/compute APPENDS a
+ * sample to headway_states, and headway_states is exactly the history the
+ * reactive bunching rule reads ("k consecutive samples over threshold").
+ * A dashboard polling compute therefore injects off-cadence samples into
+ * the evidence for its own alerts - two dashboards open would halve the
+ * effective detection window. Reads must read.
+ *
+ * `gapMeters` is not a persisted column, so it is recomputed from the
+ * vehicles' CURRENT distance-along-route. A pair whose vehicles are no
+ * longer both on this route-direction is omitted rather than reported with
+ * an invented gap.
+ *
+ * `incidents` is always empty: an incident change is something a compute
+ * cycle DOES, and this endpoint deliberately does nothing. Open incidents
+ * are served by GET /v1/incidents.
+ */
+export async function getLatestRouteDirectionHeadway(
+  routeDirectionId: string
+): Promise<HeadwayComputeResult> {
+  const [meta, policy, samples, vehicles] = await Promise.all([
+    repo.loadRouteDirectionMeta(routeDirectionId),
+    repo.loadActiveRoutePolicy(routeDirectionId),
+    repo.loadLatestHeadwaySamples(routeDirectionId, LATEST_SAMPLE_WINDOW_SECONDS),
+    repo.loadVehicleStatesForRouteDirection(routeDirectionId),
+  ]);
+
+  if (!meta) {
+    throw new AppError("unknown_route_direction", `No active route-direction ${routeDirectionId}`, 404);
+  }
+  if (!policy) {
+    throw new AppError("no_active_policy", `No active route policy for route-direction ${routeDirectionId}`, 404);
+  }
+
+  const distanceByVehicleId = new Map(vehicles.map((v) => [v.vehicleId, v.distanceAlongRouteMeters]));
+
+  const pairs: HeadwayPairResult[] = [];
+  for (const sample of samples) {
+    const leaderDistance = distanceByVehicleId.get(sample.leaderVehicleId);
+    const followerDistance = distanceByVehicleId.get(sample.followerVehicleId);
+    if (leaderDistance == null || followerDistance == null) continue;
+
+    pairs.push({
+      id: sample.id,
+      routeDirectionId: sample.routeDirectionId,
+      leaderVehicleId: sample.leaderVehicleId,
+      followerVehicleId: sample.followerVehicleId,
+      gapMeters: computeGapMeters(leaderDistance, followerDistance, meta.totalDistanceMeters),
+      hFwdSeconds: sample.hFwdSeconds,
+      hBwdSeconds: sample.hBwdSeconds,
+      targetHeadwaySeconds: sample.targetHeadwaySeconds,
+      deviationSeconds: sample.deviationSeconds,
+      confidence: sample.confidence,
+      forecastHFwdSeconds: sample.forecastHFwdSeconds,
+      computedAt: sample.computedAt,
+    });
+  }
+
+  const computedAt = pairs.reduce<string | null>(
+    (latest, p) => (latest === null || p.computedAt > latest ? p.computedAt : latest),
+    null
+  );
+
+  return {
+    routeDirectionId,
+    computedAt: computedAt ?? new Date().toISOString(),
+    pairs,
+    aggregate: computeAggregate(pairs, routeDirectionId, policy.targetHeadwaySeconds),
+    incidents: [],
+  };
 }
 
 export async function listOpenIncidents(routeDirectionId?: string): Promise<repo.BunchingIncidentRow[]> {
