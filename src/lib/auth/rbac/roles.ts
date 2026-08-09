@@ -10,7 +10,7 @@
  * The five operational roles named in the parent RBAC ticket, plus the
  * internal admin role, plus `pilot_driver` — a restricted cohort added by
  * the "Driver PWA: single-instruction command interface" ticket
- * (db/migrations/20260806160000__ops_pilot_driver_role.sql). `pilot_driver`
+ * (db/migrations/20260806170000__ops_pilot_driver_role.sql). `pilot_driver`
  * is deliberately distinct from `driver`: the command interface must be
  * "delivered only to the pilot driver pool", not to every driver account.
  */

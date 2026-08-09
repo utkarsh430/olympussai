@@ -7,15 +7,26 @@
 -- vehicleId and observe/ack that vehicle's commands.
 --
 -- Follow-up to the parent RBAC migration (20260805210000__ops_rbac.sql) and
--- the pilot_driver role migration (20260806160000__ops_pilot_driver_role.sql).
+-- the pilot_driver role migration (20260806170000__ops_pilot_driver_role.sql).
 --
 -- Nullable and admin-set only: a driver never sets their own vehicle_id (no
 -- route lets a non-admin caller write this column — see
 -- src/app/api/ops/admin/users/[id]/vehicle/route.ts and the optional
 -- `vehicleId` on POST /api/ops/admin/invites). Nullable because an account
 -- can exist before it is assigned a vehicle (e.g. immediately after invite
--- acceptance, before an admin has assigned one) — callers must treat
--- null as "no vehicle assigned yet", not fall back to trusting client input.
+-- acceptance, before an admin has assigned one).
+--
+-- What "null" means to a caller is NOT uniform across the app, and that is a
+-- deliberate decision rather than an inconsistency. The column comment below
+-- is the single source of truth for it: command-carrying surfaces fail
+-- closed, read-only convenience surfaces may fall back to a user-entered
+-- registration. Read that comment before adding any new read site.
+--
+-- This file is the surviving definition of ops_users.vehicle_id. A duplicate
+-- migration (20260806200000__ops_users_vehicle_assignment.sql) added the same
+-- column from the opposite premise and, sorting later, overwrote this
+-- comment with the permissive wording; it has been deleted and its one new
+-- artifact re-homed in 20260808100000__ops_users_vehicle_id_index.sql.
 --
 -- No FK to a vehicles table: this app's own schema
 -- (db/migrations/*.sql) has no vehicles table of its own — fleet/vehicle
@@ -33,7 +44,15 @@ begin;
 alter table ops_users add column if not exists vehicle_id text;
 
 comment on column ops_users.vehicle_id is
-  'The vehicle this driver/pilot_driver is assigned to, set only by an admin (POST /api/ops/admin/users/:id/vehicle, or at invite time via ops_invites.vehicle_id). Null means "not yet assigned" — never fall back to a client-supplied vehicleId when this is null. Meaningless for non-driver roles but left ungated at the schema level, same as ops_dispatcher_actions.vehicle_id being nullable for action_types that do not target a vehicle.';
+  'The vehicle this driver/pilot_driver is assigned to, set ONLY by an admin (POST /api/ops/admin/users/:id/vehicle, or at invite time via ops_invites.vehicle_id). Null means "no vehicle assigned yet". Free-text registration/id, same convention as ops_dispatcher_actions.vehicle_id and ops_breakdown_reports.vehicle_reg; no FK, because fleet identity lives in the separate control-service datastore this app never shares a database with (docs/CONTROL_SERVICE_INTEGRATION.md sections 1 and 3). Meaningless for non-driver roles but left ungated at the schema level, same as ops_dispatcher_actions.vehicle_id being nullable for action_types that do not target a vehicle.
+
+HOW TO TREAT NULL — this is decided per surface, on purpose, and this comment is the authoritative statement of it.
+
+(1) COMMAND-CARRYING SURFACES FAIL CLOSED. Any endpoint that reads, delivers or acknowledges a command MUST derive the vehicle from the CALLER''s own ops_users row (session subject -> findUserById) and MUST return 409 VEHICLE_NOT_ASSIGNED when this column is null. A client-supplied vehicleId is never accepted, in a query string, a body or a header. Representative files: src/app/api/ops/pilot-driver/commands/route.ts and src/app/api/ops/pilot-driver/commands/[id]/ack/route.ts. This is the OWASP A01 fix this migration exists for — before it, any pilot_driver account could pass an arbitrary vehicleId and observe or acknowledge another vehicle''s commands. It must never be relaxed, and no fallback of any kind may be added to these paths.
+
+(2) READ-ONLY CONVENIENCE SURFACES MAY FALL BACK to a user-entered vehicle registration when this is null. Representative files: src/components/ops/driver/DriverDashboard.tsx (schedule lookup, via src/components/ops/ScheduleLookupForm.tsx) and src/components/ops/driver/BreakdownReportPanel.tsx (breakdown reporting). These expose no command authority: the worst case from a wrong self-report is a mis-scoped read-only schedule view, or a breakdown report misattributed to another registration while still being attributed to the submitting user. Blocking a not-yet-assigned driver from reporting a breakdown would be worse than that marginal risk. Where an assignment DOES exist it wins — these surfaces use it as the sole source of truth and disable the remembered self-report, so the fallback applies only to the null case.
+
+Adding a new read site means deciding which category it is in FIRST. If it can cause anything to happen to a vehicle, it is category (1).';
 
 -- Lets an admin assign the vehicle at invite time (copied onto ops_users by
 -- acceptInvite in src/lib/auth/rbac/repo.ts) instead of requiring a second

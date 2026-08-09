@@ -27,7 +27,11 @@ export function ScheduleLookupForm({
   /**
    * When set, the entered registration is remembered in localStorage under
    * this key: a driver's "own vehicle" convenience for accounts with no
-   * admin-set vehicle assignment yet (db/migrations/20260806200000__ops_users_vehicle_assignment.sql).
+   * admin-set vehicle assignment yet
+   * (db/migrations/20260806180000__ops_users_vehicle_assignment.sql). This is
+   * a category (2) read-only convenience surface in that migration's column
+   * comment — falling back to a self-reported registration is allowed here
+   * precisely because a schedule lookup carries no command authority.
    * Callers that already know the caller's assigned vehicle should pass it
    * via `defaultRegNum` instead and omit this prop, so the remembered
    * value (if any, possibly stale or someone else's) never overrides the

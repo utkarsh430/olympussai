@@ -119,13 +119,24 @@ section 3).
 ### Migration order
 
 Migrations apply before the new app revision receives traffic:
-`control-service/db/migrations/*.sql` in filename order, idempotent
-(`CREATE ... IF NOT EXISTS`), run via
-`psql "$CONTROL_SERVICE_DATABASE_URL" -f <file>` as a Render **pre-deploy
-command** (Render runs this before swapping traffic to the new instance;
-if it fails, the deploy is aborted and the previous instance keeps
-serving). No migration runner is wired up yet per
-`control-service/README.md` - that choice stays with the runtime ticket.
+`control-service/db/migrations/*.sql` in lexicographic filename order,
+idempotent (`CREATE ... IF NOT EXISTS`), run by the service's own migration
+runner as `render.yaml`'s `preDeployCommand` on both services. Render runs
+it before swapping traffic to the new instance; a non-zero exit aborts the
+deploy and the previous instance keeps serving.
+
+```yaml
+preDeployCommand: node dist/db/migrate.js
+```
+
+`node dist/db/migrate.js` rather than `pnpm migrate` because the runtime
+image ships only `dist/` plus production `node_modules` and never enables
+corepack, so neither `tsx` (a devDependency) nor `pnpm` is present there;
+see `control-service/README.md` "Applying migrations" for the full
+rationale and the runner's guarantees (one transaction per file, advisory
+lock, checksum-drift abort). The equivalent for the web app's own datastore
+is `pnpm migrate:ops` (`scripts/migrate-ops.mjs`) against
+`OPS_DATABASE_URL`.
 
 ### Smoke test (post-deploy, both envs)
 

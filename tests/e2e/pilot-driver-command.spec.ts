@@ -26,7 +26,7 @@ import { Pool } from 'pg';
  *   - a seeded `pilot_driver` ops_users row (scripts/seed-ops-admin.mjs seeds
  *     an admin; a pilot_driver account is provisioned the same way this repo's
  *     admin-invite flow provisions any ops account — see db/migrations/
- *     20260806160000__ops_pilot_driver_role.sql) whose credentials are
+ *     20260806170000__ops_pilot_driver_role.sql) whose credentials are
  *     E2E_PILOT_DRIVER_EMAIL / E2E_PILOT_DRIVER_PASSWORD.
  *   - direct read/write Postgres access to BOTH datastores for this spec's
  *     OWN fixture setup and audit-trail assertions: E2E_CONTROL_SERVICE_DATABASE_URL

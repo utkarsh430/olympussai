@@ -171,18 +171,51 @@ from `src/simulation/index.ts` directly.
 ## Applying migrations
 
 Files under `db/migrations/` are plain, ordered, idempotent SQL
-(`CREATE ... IF NOT EXISTS`), safe to re-run.
-Apply them in filename order against a Postgres 14+ instance with the
-`postgis` extension available, e.g.:
+(`CREATE ... IF NOT EXISTS`), safe to re-run, applied against a Postgres 14+
+instance with the `postgis` extension available. Apply them with the runner:
 
 ```sh
-psql "$CONTROL_SERVICE_DATABASE_URL" -f db/migrations/20260805190000__core_data_model.sql
+CONTROL_SERVICE_DATABASE_URL=postgres://... pnpm migrate
 ```
 
-Any dedicated migration runner (dbmate, node-pg-migrate, Flyway, ...) can
-adopt these files as-is later; none is wired up yet, since choosing one is
-a separate, infra-level decision (tracked as an open item above) rather
-than a data-model concern.
+`src/db/migrate.ts` applies every file not yet recorded in
+`schema_migrations`, in **lexicographic filename order** (which the
+`YYYYMMDDHHMMSS__name.sql` convention makes chronological order too). It
+guarantees:
+
+- **One transaction per file.** The file's SQL and its `schema_migrations`
+  row commit together, so a half-applied migration is impossible. Each file
+  wraps itself in `begin;`/`commit;` for historical psql use; the runner
+  strips that outer pair and supplies the transaction itself, because
+  Postgres does not nest transactions and the file's inner `commit` would
+  otherwise commit the runner's transaction early. See the long-form
+  rationale on `stripOuterTransaction` in that file.
+- **A `pg_advisory_lock`** for the whole run — two Render instances booting
+  simultaneously serialize instead of racing.
+- **Checksum drift detection.** Each file's sha256 is recorded; editing a
+  migration that has already been applied anywhere aborts the run naming the
+  file, rather than letting environments silently diverge. Add a new
+  migration instead — that rule is now enforced, not just documented.
+
+A non-zero exit means nothing was left half-done. Applying a single file by
+hand still works (`psql "$CONTROL_SERVICE_DATABASE_URL" -f db/migrations/....sql`)
+but skips the `schema_migrations` bookkeeping, so prefer the runner.
+
+**In deployment** this runs as `render.yaml`'s `preDeployCommand` on both
+services, so the schema is never behind the code that queries it. The hook
+invokes `node dist/db/migrate.js`, not `pnpm migrate`: the runtime image
+(`Dockerfile`) ships only `dist/` plus production `node_modules` and never
+enables corepack, so neither `tsx` (a devDependency) nor `pnpm` exists there.
+`src/db/migrate.ts` is inside `tsconfig.build.json`'s `include`, so it
+compiles to `dist/db/migrate.js` as part of the normal build, and the
+Dockerfile copies `db/` into the image because the runner reads those `.sql`
+files at runtime.
+
+The web app's own datastore has a separate, equivalent runner
+(`scripts/migrate-ops.mjs`, `pnpm migrate:ops` at the repo root) against
+`OPS_DATABASE_URL`. The two datastores stay isolated — this one never runs
+against that database or vice versa
+(`docs/CONTROL_SERVICE_INTEGRATION.md` §3).
 
 ## Rollback
 

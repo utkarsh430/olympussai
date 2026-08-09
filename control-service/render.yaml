@@ -18,6 +18,21 @@
 # Each environment gets its own Postgres/PostGIS instance - no data
 # sharing between staging and pilot, matching the "own datastore per
 # service" rule in docs/CONTROL_SERVICE_INTEGRATION.md section 3.
+#
+# MIGRATIONS: both services run `preDeployCommand` before the new version
+# takes traffic, so the schema is never behind the code that queries it.
+# Render runs it once per deploy (not once per instance), and the runner
+# additionally takes a pg advisory lock, so the two pilot instances cannot
+# race even if that ever changes.
+#
+# Why `node dist/db/migrate.js` and not `pnpm migrate`: the runtime image
+# (./Dockerfile) is a multi-stage build whose final stage ships only dist/
+# plus PRODUCTION node_modules, and never runs `corepack enable`. `tsx` is a
+# devDependency, so it is absent there, and pnpm itself is not on PATH -
+# `pnpm migrate` would fail at deploy time. src/db/migrate.ts is inside
+# tsconfig.build.json's `include`, so it compiles to dist/db/migrate.js as
+# part of the normal build with no extra step. `pnpm migrate` still exists
+# in package.json for local use, where devDependencies are present.
 
 services:
   - type: web
@@ -30,6 +45,7 @@ services:
     branch: dev
     autoDeploy: true
     healthCheckPath: /healthz
+    preDeployCommand: node dist/db/migrate.js
     numInstances: 1
     envVars:
       - key: NODE_ENV
@@ -57,6 +73,7 @@ services:
     branch: main
     autoDeploy: true
     healthCheckPath: /healthz
+    preDeployCommand: node dist/db/migrate.js
     numInstances: 2
     envVars:
       - key: NODE_ENV
