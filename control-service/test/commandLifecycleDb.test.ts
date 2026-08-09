@@ -48,11 +48,32 @@ function fakeTransactionalPool(responses: {
   select?: { rows: unknown[] } | Error;
   update?: { rows: unknown[] } | Error;
   insert?: { rows: unknown[] } | Error;
+  /** Rollout-gate answers, only consulted by supersedeCommand. Defaults let the gate pass. */
+  dispatcherActionRouteDirectionId?: string | null;
+  rolloutStage?: string;
 }): { pool: Pool; query: ReturnType<typeof vi.fn> } {
   const query = vi.fn((sql: string) => {
     const s = sql.trim().toLowerCase();
     if (s.startsWith('begin') || s.startsWith('commit') || s.startsWith('rollback') || s.startsWith('select set_config')) {
       return Promise.resolve({ rows: [] });
+    }
+    // The rollout gate's two SELECTs (src/pilot/gate.ts), which supersedeCommand
+    // runs on this client before its insert. Matched BEFORE the generic
+    // `select ... for update` branch below, which the stage lookup would
+    // otherwise hit and be answered with a command row.
+    //
+    // These have to be answered explicitly now that the gate FAILS CLOSED: it
+    // used to read a missing dispatcher_actions row / null route_direction_id
+    // as "nothing to gate against — allow", so the fallthrough `{ rows: [] }`
+    // used to be enough. It is now a 422, which is the point of the change —
+    // superseding is a brand-new command and must not bypass the stage gate.
+    if (s.startsWith('select route_direction_id from dispatcher_actions')) {
+      return Promise.resolve({
+        rows: [{ route_direction_id: responses.dispatcherActionRouteDirectionId ?? 'rd-1' }],
+      });
+    }
+    if (s.startsWith('select stage from route_direction_rollout_stages')) {
+      return Promise.resolve({ rows: [{ stage: responses.rolloutStage ?? 'limited_auto' }] });
     }
     if (s.startsWith('select') && s.includes('for update')) {
       if (responses.select instanceof Error) return Promise.reject(responses.select);

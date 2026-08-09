@@ -7,7 +7,7 @@ import { isOpsRole, OPS_ROLE_SEGMENT } from '@/lib/auth/rbac/roles';
  * Ops RBAC login form — email + password against a per-person account.
  * Mirrors src/components/auth/LoginForm.tsx's UX conventions (explicit
  * labels, generic error, aria-live status) but authenticates against
- * /api/ops/auth/login instead of the PIN endpoint.
+ * /api/ops/auth/login instead of the Supabase-backed /api/auth/login.
  *
  * `next` is a pre-sanitized deep-link target (sanitizeOpsNext) or null. When
  * null, the destination is derived from the role the login response reports,

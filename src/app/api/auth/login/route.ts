@@ -66,7 +66,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   const ip = clientIpFrom(request.headers);
   const rlKey = `${ip}:${email}`;
 
-  const preCheck = checkRateLimit(rlKey);
+  const preCheck = await checkRateLimit(rlKey);
   if (preCheck.limited) {
     return NextResponse.json(
       { error: 'Too many attempts. Try again later.' },
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error || !data.user) {
-    const result = recordFailure(rlKey);
+    const result = await recordFailure(rlKey);
     if (result.limited) {
       return NextResponse.json(
         { error: 'Too many attempts. Try again later.' },
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     return invalid();
   }
 
-  clearFailures(rlKey);
+  await clearFailures(rlKey);
 
   // Only safe success information — never the token or any credential.
   return NextResponse.json(

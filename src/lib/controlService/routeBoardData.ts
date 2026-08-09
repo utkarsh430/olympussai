@@ -85,9 +85,16 @@ export async function getRouteOperationsBoardSnapshot(
       return snapshot;
     }
 
+    // Headway is READ (GET .../headway), never computed here — same rule as
+    // getObservabilitySnapshot, and for the same reason. Every compute APPENDS
+    // a row to headway_states, which is the exact history the reactive
+    // bunching rule reads ("k consecutive samples over threshold"). A polling
+    // dashboard that computed would be injecting off-cadence samples into the
+    // evidence for its own alerts. The control service's scheduler owns that
+    // sweep on a fixed cadence now. Reads read.
     const [vehiclesRaw, headwayRaw] = await Promise.all([
       fetchControlService('/v1/vehicle-states', { query: { routeDirectionId: selected } }),
-      fetchControlService(`/v1/route-directions/${encodeURIComponent(selected)}/headway/compute`, { method: 'POST' }),
+      fetchControlService(`/v1/route-directions/${encodeURIComponent(selected)}/headway`),
     ]);
 
     const { vehicleStates } = vehicleStatesResponseSchema.parse(vehiclesRaw);

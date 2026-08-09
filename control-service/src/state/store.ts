@@ -7,11 +7,21 @@ export interface VehicleStateRow {
   vehicleId: string;
   tripId: string | null;
   routeDirectionId: string | null;
+  /**
+   * Raw GPS fix (vehicle_states.position). Present so a
+   * VehicleStateEstimate can be mirrored into this store losslessly -
+   * without it, /v1/vehicle-states had no choice but to hardcode
+   * `position: null`.
+   */
+  position: { lat: number; lon: number } | null;
   distanceAlongRouteMeters: number | null;
   speedKmph: number | null;
+  headingDegrees: number | null;
   stopState: string;
   currentStopId: string | null;
   confidence: number | null;
+  /** vehicle_states.is_low_confidence - a flagged vehicle is excluded from the leader/follower chain rather than silently trusted. */
+  isLowConfidence: boolean;
   observedAt: string;
   /** Raw passenger count from the last onboard count sample, when the ingestion path reports one (blueprint 8.6 "occupancy is central" - schema column `vehicle_states.occupancy_count`). Null when unknown; the MPC occupancy weighting treats that as "estimated" rather than failing closed. */
   occupancyCount: number | null;
@@ -86,8 +96,30 @@ class ControlStateStore {
     if (status === 'failed') this._lastError = error;
   }
 
+  /**
+   * Boot-time WHOLESALE REPLACE of the vehicle-state map. Correct for
+   * rehydration (the DB is the truth and this store is empty), and wrong
+   * for anything incremental - calling it with a single row would delete
+   * every other vehicle. Runtime updates must use upsertVehicleState.
+   */
   loadVehicleStates(rows: VehicleStateRow[]): void {
     this.vehicleStates = new Map(rows.map((r) => [r.vehicleId, r]));
+  }
+
+  /**
+   * Single-vehicle update for the live ingestion path.
+   *
+   * The staleness guard mirrors PgStateEstimationRepository.saveVehicleState's
+   * `where vehicle_states.observed_at <= excluded.observed_at` conflict
+   * clause EXACTLY, so this cache and that table can never disagree about
+   * which of two out-of-order fixes won. A strict `>` (not `>=`) keeps a
+   * redelivery of the same timestamp idempotent-but-applied, matching the
+   * `<=` on the SQL side.
+   */
+  upsertVehicleState(row: VehicleStateRow): void {
+    const existing = this.vehicleStates.get(row.vehicleId);
+    if (existing && existing.observedAt > row.observedAt) return;
+    this.vehicleStates.set(row.vehicleId, row);
   }
 
   loadHeadwayStates(rows: HeadwayStateRow[]): void {
@@ -98,6 +130,31 @@ class ControlStateStore {
       grouped.set(row.routeDirectionId, bucket);
     }
     this.headwayStatesByRouteDirection = grouped;
+  }
+
+  /**
+   * Replace one route-direction's headway slice after a compute cycle.
+   *
+   * The counterpart to upsertVehicleState, and needed for the same reason.
+   * loadHeadwayStates() above replaces the WHOLE map and runs once, at boot,
+   * from rehydrate.ts. Without this method the headway sweep persisted to
+   * `headway_states` while stateStore kept its boot-time snapshot forever - so
+   * mpc/solver.ts, which reads getHeadwayStates() and iterates it to build
+   * terminal-dispatch and two-way candidates, saw an empty list and returned
+   * zero candidates no matter how bunched the route actually was. The decision
+   * engine was structurally unable to act on live data.
+   *
+   * Per-direction replacement, not a merge: one compute cycle yields the
+   * complete current pair set for that route-direction, and a pair whose
+   * follower has since moved on must disappear rather than linger. Passing an
+   * empty array therefore correctly clears the direction.
+   */
+  upsertHeadwayStates(routeDirectionId: string, rows: HeadwayStateRow[]): void {
+    if (rows.length === 0) {
+      this.headwayStatesByRouteDirection.delete(routeDirectionId);
+      return;
+    }
+    this.headwayStatesByRouteDirection.set(routeDirectionId, rows);
   }
 
   loadActivePolicies(rows: RoutePolicyRow[]): void {

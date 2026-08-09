@@ -56,7 +56,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   const ip = clientIpFrom(request.headers);
   const rlKey = `ops-invite:${ip}`;
-  const preCheck = checkRateLimit(rlKey);
+  const preCheck = await checkRateLimit(rlKey);
   if (preCheck.limited) {
     return NextResponse.json(
       { error: { code: 'RATE_LIMITED', message: 'Too many attempts. Try again later.' } },
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   } catch (error) {
     if (error instanceof InviteNotAcceptableError) {
-      recordFailure(rlKey);
+      await recordFailure(rlKey);
       return errorResponse(
         'INVITE_NOT_ACCEPTABLE',
         'This invite link is invalid or has expired.',

@@ -306,21 +306,69 @@ describe('DispatcherActionForm action flow', () => {
   });
 });
 
+// The form's fields changed with the endpoint's contract: the old
+// {targetType, targetId} pair is gone, replaced by an explicit vehicleId AND
+// routeDirectionId, both always sent. That is a deliberate widening of what
+// the request must state, not a cosmetic rename — the route-scoped kill
+// switch used to be consulted only when targetType happened to be
+// 'route_direction', so a vehicle-targeted command on a killed route went
+// straight through it, and control-service's rollout gate resolves the
+// route-direction it gates on from the same value. The response gained
+// commandId/expiresAt because the command is now really created.
 describe('ControlRoomCommandForm action flow', () => {
-  it('submits to POST /api/ops/control-room/commands and shows the returned auditEventId on success', async () => {
+  function fillCommandForm() {
+    fireEvent.change(screen.getByLabelText(/dispatcher action id/i), { target: { value: 'da-1' } });
+    fireEvent.change(screen.getByLabelText(/vehicle id/i), { target: { value: 'UP25FT4823' } });
+    fireEvent.change(screen.getByLabelText(/route-direction id/i), { target: { value: 'rd-1' } });
+    fireEvent.change(screen.getByLabelText(/summary/i), { target: { value: 'Hold at terminal per approval' } });
+  }
+
+  it('submits to POST /api/ops/control-room/commands and shows the returned commandId and auditEventId on success', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ ok: true, auditEventId: 'audit-456', createdAt: '2026-08-05T00:00:00.000Z' }),
+      json: async () => ({
+        ok: true,
+        commandId: 'cmd-789',
+        expiresAt: '2026-08-05T00:02:00.000Z',
+        auditEventId: 'audit-456',
+      }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<ControlRoomCommandForm />);
-    fireEvent.change(screen.getByLabelText(/dispatcher action id/i), { target: { value: 'da-1' } });
-    fireEvent.change(screen.getByLabelText(/target id/i), { target: { value: 'UP25FT4823' } });
-    fireEvent.change(screen.getByLabelText(/summary/i), { target: { value: 'Hold at terminal per approval' } });
+    fillCommandForm();
     fireEvent.click(screen.getByRole('button', { name: /issue command/i }));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('audit-456'));
+    // The commandId is the operator's handle on a command that now really
+    // exists in the control service, so it has to be surfaced, not just the
+    // audit id.
+    expect(screen.getByRole('status')).toHaveTextContent('cmd-789');
+
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    const sent = JSON.parse(init.body) as Record<string, unknown>;
+    expect(sent).toMatchObject({
+      dispatcherActionId: 'da-1',
+      vehicleId: 'UP25FT4823',
+      routeDirectionId: 'rd-1',
+      actionType: 'self_equalizing_hold',
+    });
+    expect(sent).not.toHaveProperty('targetType');
+    expect(sent).not.toHaveProperty('targetId');
+  });
+
+  it('never offers "override" as a dispatchable action type', () => {
+    // An override is recorded, never dispatched: control-service's
+    // commands.action_type CHECK does not include it, and widening that CHECK
+    // would let an unmodelled action reach applyHardSafetyFilter, which
+    // switches on actionType and has no 'override' case.
+    render(<ControlRoomCommandForm />);
+    const options = Array.from(
+      (screen.getByLabelText(/action type/i) as HTMLSelectElement).options,
+    ).map((option) => option.value);
+
+    expect(options).not.toContain('override');
+    expect(options).toContain('self_equalizing_hold');
   });
 
   it('surfaces a 409 dispatcher-action-invalid error from the endpoint', async () => {
@@ -331,12 +379,32 @@ describe('ControlRoomCommandForm action flow', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<ControlRoomCommandForm />);
-    fireEvent.change(screen.getByLabelText(/dispatcher action id/i), { target: { value: 'already-used' } });
-    fireEvent.change(screen.getByLabelText(/target id/i), { target: { value: 'UP25FT4823' } });
-    fireEvent.change(screen.getByLabelText(/summary/i), { target: { value: 'Hold at terminal' } });
+    fillCommandForm();
     fireEvent.click(screen.getByRole('button', { name: /issue command/i }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/unconsumed approval/i));
+  });
+
+  it('surfaces a 422 APPROVAL_MISMATCH, which only this app can detect', async () => {
+    // control-service only ever sees the payload this app builds, so the
+    // "does this command match the approval it cites?" check has no other
+    // possible home.
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({
+        error: {
+          code: 'APPROVAL_MISMATCH',
+          message: 'Approval da-1 authorizes stop_skip for vehicle UP25FT4823 on route-direction rd-1; this command does not match it.',
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ControlRoomCommandForm />);
+    fillCommandForm();
+    fireEvent.click(screen.getByRole('button', { name: /issue command/i }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/does not match it/i));
   });
 });
 

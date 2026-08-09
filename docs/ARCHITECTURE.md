@@ -92,13 +92,64 @@ colour, screen-reader descriptions on data-quality and KPI elements, and full
 `prefers-reduced-motion` support (global CSS override plus per-component
 guards).
 
-## Persistent control service (future)
+## Persistent control service
 
-If an always-on control service (AVL/dispatch) is introduced, its boundary
-with this app — REST/webhook contract, service-to-service auth, per-direction
-failure isolation, dispatcher-authorization enforcement — is decided in
-[`docs/CONTROL_SERVICE_INTEGRATION.md`](./CONTROL_SERVICE_INTEGRATION.md).
-Nothing described there is implemented yet.
+The always-on control service (AVL/dispatch) is built and lives in
+`control-service/` — 87 TypeScript source files, 28 tables, 27 route handlers
+over 26 `/v1` paths plus `/healthz` and `/readyz`, 437 tests. It is a separate
+deployable with its own Postgres/PostGIS datastore; the boundary between it
+and this app — REST/webhook contract, service-to-service auth, per-direction
+failure isolation, dispatcher-authorization enforcement — is specified in
+[`docs/CONTROL_SERVICE_INTEGRATION.md`](./CONTROL_SERVICE_INTEGRATION.md) and
+implemented on both sides. Hosting/CI/observability status is in
+[`docs/CONTROL_SERVICE_DEPLOYMENT.md`](./CONTROL_SERVICE_DEPLOYMENT.md) — the
+one thing still outstanding there is a Render account to deploy it to.
+
+```
+UPSRTC live feed ──► GPS poller (GPS_POLL_ENABLED, one instance only)
+                     └─► POST /v1/positions ──► ingestion pipeline
+                                                 │
+                            map matching · direction confidence · Kalman
+                            smoothing · stop-state classification ·
+                            leader-follower ordering  (src/state-estimation/)
+                                                 │
+                                                 ▼
+                       vehicle_states · headway_states · bunching_incidents
+                                                 │
+                      scheduler (src/scheduler/): TTL sweep · headway compute
+                                 · geometry refresh · GPS poll
+                                                 │
+                                                 ▼
+                                     MPC (src/mpc/) ──► POST /v1/mpc/solve
+                                                 │
+                       dispatcher approval (required) ──► commands lifecycle
+                                                 │
+                    ┌────────────────────────────┴────────────────────────┐
+        signed webhook (HMAC-SHA256)                        service-token REST
+        control-service ──► this app                        this app ──► control-service
+        POST /api/control-service/webhook                   GET /v1/... · POST .../ack
+```
+
+| Piece | Location | Responsibility |
+| --- | --- | --- |
+| Process entrypoint | `control-service/src/index.ts` | Env load, Sentry, listener, background rehydration, scheduler, graceful shutdown |
+| HTTP surface | `control-service/src/routes/` | commands, vehicle-states, mpc, headway, pilot rollout/KPI/war-room, positions, health |
+| State estimation | `control-service/src/state-estimation/` | Map matching, direction confidence, Kalman filter, stop-state classification, ordering |
+| MPC | `control-service/src/mpc/` | Solver + safety envelope + self-equalizing / two-way-hold / terminal-dispatch / occupancy controllers |
+| Scheduler | `control-service/src/scheduler/` | GPS poll, headway compute sweep, geometry refresh, command TTL sweep |
+| Webhooks | `control-service/src/webhooks/` | HMAC-SHA256 signing and delivery of command-lifecycle events |
+| Datastore | `control-service/db/migrations/` | Its own Postgres/PostGIS instance — never this app's |
+
+On this app's side: `src/lib/controlService/` is the outbound REST client
+(service-token bearer, fixed timeout, circuit breaker),
+`src/app/api/control-service/webhook/` verifies and ingests inbound signed
+deliveries, and `/ops/*` renders the result. The two datastores are never
+joined; correlation happens across the REST boundary only.
+
+Two operational commands worth knowing: `pnpm migrate:ops` applies this app's
+own `db/migrations/`, and `pnpm migrate` inside `control-service/` applies
+that service's. They are separate runners against separate databases on
+purpose.
 
 ## Security posture
 

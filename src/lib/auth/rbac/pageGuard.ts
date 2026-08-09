@@ -1,7 +1,7 @@
 /**
  * Server-side role gate for ops pages (Server Components).
  *
- * Second independent check, same pattern as the PIN system's
+ * Second independent check, same pattern as the Supabase-Auth-gated
  * (protected)/project/upsrtc/layout.tsx: middleware is the first line, this
  * re-verifies and redirect()s without trusting middleware. Used by every
  * per-role layout under src/app/(ops)/ops/<role>/layout.tsx.

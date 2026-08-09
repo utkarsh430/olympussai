@@ -1,10 +1,10 @@
 /**
  * Ops session token creation and verification (jose / HS256).
  *
- * Edge-safe — mirrors src/lib/auth/session.ts exactly, but for per-person ops
- * accounts: the claim set carries a user id, email and role instead of a
- * shared project name. Verified independently by middleware and every route
- * handler/layout (defence in depth, same pattern as the PIN system).
+ * Edge-safe. Carries a user id, email and role per person — a self-contained
+ * signed session for the ops surface, independent of the Supabase Auth
+ * session the project surface uses, and verified independently by middleware
+ * AND by every route handler/layout (defence in depth).
  */
 import { SignJWT, jwtVerify } from 'jose';
 import { isOpsRole, type OpsRole } from './roles';

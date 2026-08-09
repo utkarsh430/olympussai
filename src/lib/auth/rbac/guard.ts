@@ -2,7 +2,8 @@
  * Per-request role guard for ops API route handlers.
  *
  * This is the SECOND independent check (middleware is the first — defence in
- * depth, same pattern as requireUpsrtcAccess() for the PIN system). Every ops
+ * depth, the same pattern requireUpsrtcAccess() follows for the Supabase-Auth
+ * surface). Every ops
  * route handler calls one of these itself and never trusts middleware alone,
  * so a middleware matcher mistake can never be the only thing standing
  * between a request and another role's endpoint.

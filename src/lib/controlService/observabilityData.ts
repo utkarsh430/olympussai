@@ -70,13 +70,18 @@ function unavailableSnapshot(reason: string, now: number): ObservabilitySnapshot
  * `routeDirectionId` when given, else the first active route-direction
  * control-service reports.
  *
- * The headway compute call (POST .../headway/compute) is what actually
- * produces the sample this ticket's reactive bunching rule looks back
- * over — there is no separate ingestion-triggered scheduler yet (see the
- * Crewban-5 handoff note on this ticket), so each dashboard load/refresh
- * is itself the compute trigger. This is intentionally idempotent-safe:
- * every call appends one more real sample from current vehicle_states,
- * never fabricates one.
+ * Headway is READ (GET .../headway), never computed here.
+ *
+ * This used to POST .../headway/compute, on the reasoning that no
+ * scheduler existed so the dashboard had to be the compute trigger. The
+ * control service now runs that sweep on a fixed cadence, and reading is
+ * not merely tidier — POSTing from here was actively wrong. Every compute
+ * APPENDS a row to headway_states, which is the exact history the
+ * reactive bunching rule reads ("k consecutive samples over threshold").
+ * A dashboard on a poll therefore injected off-cadence samples into the
+ * evidence for its own alerts: two open dashboards would have halved the
+ * effective detection window, and a page refresh could manufacture an
+ * incident. Reads read.
  */
 export async function getObservabilitySnapshot(
   routeDirectionId?: string,
@@ -109,7 +114,7 @@ export async function getObservabilitySnapshot(
 
     const [positionsRaw, headwayRaw, incidentsRaw] = await Promise.all([
       fetchControlService('/v1/vehicle-states', { query: { routeDirectionId: selected } }),
-      fetchControlService(`/v1/route-directions/${encodeURIComponent(selected)}/headway/compute`, { method: 'POST' }),
+      fetchControlService(`/v1/route-directions/${encodeURIComponent(selected)}/headway`),
       fetchControlService('/v1/incidents', { query: { routeDirectionId: selected } }),
     ]);
 

@@ -40,6 +40,11 @@ RUN addgroup -S control-service && adduser -S control-service -G control-service
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
+# The migration runner (dist/db/migrate.js, run by render.yaml's
+# preDeployCommand) reads these .sql files at runtime, so they must ship in
+# the final image - they are data the compiled output resolves at ../../db/
+# migrations, not something tsc bundles.
+COPY db ./db
 
 USER control-service
 EXPOSE 8080

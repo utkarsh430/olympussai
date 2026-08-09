@@ -48,7 +48,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     return errorResponse('INVALID_BODY', 'incidentId is required.', 400);
   }
 
-  const rateLimit = recordCopilotCall(guard.claims.sub);
+  const rateLimit = await recordCopilotCall(guard.claims.sub);
   if (rateLimit.limited) {
     return NextResponse.json(
       { error: { code: 'RATE_LIMITED', message: 'Too many copilot requests. Please wait before trying again.' } },

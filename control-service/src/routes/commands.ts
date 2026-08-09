@@ -4,6 +4,8 @@
 // asks for:
 //   POST   /v1/commands              persist + authorize (dispatcherActionId required)
 //   GET    /v1/commands/active       the one delivered, not-yet-acked command for ?vehicleId=
+//   GET    /v1/commands/by-dispatcher-action/:dispatcherActionId
+//                                    the command an approval authorized (reconciliation)
 //   GET    /v1/commands/:id          current state
 //   GET    /v1/commands/:id/audit    full, ordered audit trail (command_audit_log)
 //   POST   /v1/commands/:id/deliver  authorized -> delivered (refuses expired/unauthorized)
@@ -22,6 +24,7 @@ import {
 import {
   createCommand,
   getCommandById,
+  getCommandByDispatcherActionId,
   getActiveDeliveredCommandForVehicle,
   deliverCommand,
   acknowledgeCommand,
@@ -99,6 +102,55 @@ commandsRouter.get(
     }
 
     const command = await getActiveDeliveredCommandForVehicle(parsed.data.vehicleId);
+    res.status(200).json({ command });
+  }),
+);
+
+const dispatcherActionParamSchema = z.object({
+  dispatcherActionId: z.string().uuid('dispatcherActionId must be a valid UUID'),
+});
+
+/**
+ * The command a given dispatcher action authorized, or 404 if it never
+ * authorized one.
+ *
+ * Reconciliation endpoint, not a convenience read. POST /v1/commands can
+ * succeed and commit while its caller never sees the 201 — the web app's
+ * client has an 8s timeout and a circuit breaker
+ * (src/lib/controlService/client.ts), so this is expected rather than
+ * theoretical. On retry the caller re-sends the same dispatcherActionId and
+ * gets a 409 `dispatcher_action_already_used` from the UNIQUE constraint;
+ * this endpoint is the only way for it to then find out WHICH command it
+ * already created, instead of leaving a live command unattributed or issuing
+ * a duplicate one against the same bus.
+ *
+ * Registered ahead of GET /v1/commands/:id purely for readability — the
+ * literal three-segment path cannot collide with that two-segment route.
+ */
+commandsRouter.get(
+  '/v1/commands/by-dispatcher-action/:dispatcherActionId',
+  asyncHandler(async (req, res) => {
+    const parsed = dispatcherActionParamSchema.safeParse(req.params);
+    if (!parsed.success) {
+      sendError(
+        res,
+        new AppError('invalid_request', 'dispatcherActionId must be a valid UUID', 400, parsed.error.flatten()),
+      );
+      return;
+    }
+
+    const command = await getCommandByDispatcherActionId(parsed.data.dispatcherActionId);
+    if (!command) {
+      sendError(
+        res,
+        new AppError(
+          'command_not_found',
+          `no command has been created against dispatcher action ${parsed.data.dispatcherActionId}`,
+          404,
+        ),
+      );
+      return;
+    }
     res.status(200).json({ command });
   }),
 );

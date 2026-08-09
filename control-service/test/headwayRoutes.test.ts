@@ -8,15 +8,20 @@ import request from 'supertest';
 
 vi.mock('../src/headway/service.js', () => ({
   computeRouteDirectionHeadway: vi.fn(),
+  getLatestRouteDirectionHeadway: vi.fn(),
   listOpenIncidents: vi.fn(),
   getIncident: vi.fn(),
   listActiveRouteDirections: vi.fn(),
 }));
 
 const { createApp } = await import('../src/app.js');
-const { computeRouteDirectionHeadway, listOpenIncidents, getIncident, listActiveRouteDirections } = await import(
-  '../src/headway/service.js'
-);
+const {
+  computeRouteDirectionHeadway,
+  getLatestRouteDirectionHeadway,
+  listOpenIncidents,
+  getIncident,
+  listActiveRouteDirections,
+} = await import('../src/headway/service.js');
 const { AppError } = await import('../src/lib/errors.js');
 type HeadwayComputeResult = Awaited<ReturnType<typeof computeRouteDirectionHeadway>>;
 
@@ -25,9 +30,65 @@ const AUTH_HEADER = 'Bearer test-service-token-secret-value';
 describe('headway routes', () => {
   beforeEach(() => {
     vi.mocked(computeRouteDirectionHeadway).mockReset();
+    vi.mocked(getLatestRouteDirectionHeadway).mockReset();
     vi.mocked(listOpenIncidents).mockReset();
     vi.mocked(getIncident).mockReset();
     vi.mocked(listActiveRouteDirections).mockReset();
+  });
+
+  // The read endpoint exists so a dashboard poll stops APPENDING to the
+  // very history the reactive bunching rule reads back over. Two open
+  // dashboards polling compute would have halved the effective detection
+  // window; a refresh could manufacture an incident.
+  describe('GET /v1/route-directions/:routeDirectionId/headway', () => {
+    const latest: HeadwayComputeResult = {
+      routeDirectionId: 'rd-1',
+      computedAt: '2026-08-05T08:00:00.000Z',
+      pairs: [],
+      aggregate: {
+        routeDirectionId: 'rd-1',
+        sampleCount: 0,
+        meanHeadwaySeconds: null,
+        stddevHeadwaySeconds: null,
+        cv: null,
+        ewtSeconds: null,
+        targetHeadwaySeconds: 300,
+      },
+      incidents: [],
+    };
+
+    it('requires the service token', async () => {
+      const res = await request(createApp()).get('/v1/route-directions/rd-1/headway');
+      expect(res.status).toBe(401);
+      expect(getLatestRouteDirectionHeadway).not.toHaveBeenCalled();
+    });
+
+    it('returns the latest persisted sample set WITHOUT computing a new one', async () => {
+      vi.mocked(getLatestRouteDirectionHeadway).mockResolvedValue(latest);
+
+      const res = await request(createApp())
+        .get('/v1/route-directions/rd-1/headway')
+        .set('authorization', AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(res.body.routeDirectionId).toBe('rd-1');
+      expect(getLatestRouteDirectionHeadway).toHaveBeenCalledWith('rd-1');
+      // The load-bearing assertion: reading must not write.
+      expect(computeRouteDirectionHeadway).not.toHaveBeenCalled();
+    });
+
+    it('surfaces an unknown route-direction as a 404, not an empty 200', async () => {
+      vi.mocked(getLatestRouteDirectionHeadway).mockRejectedValue(
+        new AppError('unknown_route_direction', 'No active route-direction rd-nope', 404),
+      );
+
+      const res = await request(createApp())
+        .get('/v1/route-directions/rd-nope/headway')
+        .set('authorization', AUTH_HEADER);
+
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('unknown_route_direction');
+    });
   });
 
   describe('POST /v1/route-directions/:routeDirectionId/headway/compute', () => {

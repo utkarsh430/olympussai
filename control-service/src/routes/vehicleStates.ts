@@ -13,24 +13,36 @@ export const vehicleStatesRouter = Router();
 
 /**
  * Maps the in-memory row to the full `vehicleStateSchema` wire shape
- * (src/models/control.ts in the web app). `position` / `headingDegrees`
- * are still reported null: the in-memory store doesn't carry them yet (a
- * separate, not-yet-built piece of work - see control-service/README.md).
- * `occupancyCount` / `occupancyLoadBand` are now sourced from the store
- * (added for the occupancy-weighted MPC advisory - src/mpc/occupancyMpc.ts)
- * and pass through whatever the rehydrated row has, including null when
- * no ingestion path has populated it yet - the schema's callers must be
- * able to tell "not tracked" apart from a malformed response either way.
+ * (src/models/control.ts in the web app).
+ *
+ * `position` / `headingDegrees` used to be hardcoded null purely because
+ * VehicleStateRow had nowhere to put them; the store now carries both
+ * (rehydrated from vehicle_states, kept current by the ingestion pipeline)
+ * so they pass through like every other field. A null now means the
+ * genuine absence of a fix, not a missing feature - which is the whole
+ * point: a map that draws a bus at "null" and a map that draws a bus at
+ * its last known position are different products.
+ *
+ * `occupancyCount` / `occupancyLoadBand` likewise pass through whatever
+ * the row has, including null when no ingestion path has populated them -
+ * the schema's callers must be able to tell "not tracked" apart from a
+ * malformed response.
+ *
+ * NOTE the rename on `position`: the store speaks `{lat, lon}` (matching
+ * the state-estimation library's LatLng), the wire contract's
+ * geoPointSchema is `{latitude, longitude}`. Emitting the store's spelling
+ * would fail the web app's zod parse for every vehicle.
  */
 function toWireVehicleState(row: VehicleStateRow) {
   return {
     vehicleId: row.vehicleId,
     tripId: row.tripId,
     routeDirectionId: row.routeDirectionId,
-    position: null,
+    position:
+      row.position === null ? null : { latitude: row.position.lat, longitude: row.position.lon },
     distanceAlongRouteMeters: row.distanceAlongRouteMeters,
     speedKmph: row.speedKmph,
-    headingDegrees: null,
+    headingDegrees: row.headingDegrees,
     stopState: row.stopState,
     currentStopId: row.currentStopId,
     occupancyCount: row.occupancyCount,

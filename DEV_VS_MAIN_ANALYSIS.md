@@ -1339,6 +1339,8 @@ That split may be defensible — a schedule lookup is a read with far lower stak
 
 **Recommended fix:** delete `20260806200000`, port its one genuinely new artifact (`ops_users_vehicle_id_idx`) into a new correctly-timestamped migration, and make an explicit, documented decision about the fallback policy per surface.
 
+> **RESOLVED.** `20260806200000__ops_users_vehicle_assignment.sql` is deleted. Its index now lives in `db/migrations/20260808100000__ops_users_vehicle_id_index.sql`. `20260806180000__ops_users_vehicle_assignment.sql` is the surviving definition, and its `comment on column ops_users.vehicle_id` is now the authoritative per-surface policy: command-carrying surfaces fail closed (409), read-only convenience surfaces may fall back. The filenames named above are kept as written for the historical record.
+
 ---
 
 ### G2 — Migration timestamp collision 🟠
@@ -1349,6 +1351,8 @@ Two files share the timestamp `20260806160000`:
 - `db/migrations/20260806160000__ops_pilot_driver_role.sql` (commit #21)
 
 With a stated "apply in filename order" convention and **no migration runner**, ordering falls to a lexicographic tiebreak on the description suffix (`ops_approval…` < `ops_pilot…`). It happens to be deterministic and it happens to work — the two files touch disjoint objects. It is not something to rely on, and it will silently break the day two colliding migrations do touch the same object.
+
+> **RESOLVED.** The pilot-driver file is renamed to `db/migrations/20260806170000__ops_pilot_driver_role.sql`, so the timestamps no longer collide and the relative order is unchanged. There is now a migration runner on both datastores (`scripts/migrate-ops.mjs` / `control-service/src/db/migrate.ts`), which sorts lexicographically and records each file in `schema_migrations`. The colliding filename above is kept as written for the historical record.
 
 ---
 

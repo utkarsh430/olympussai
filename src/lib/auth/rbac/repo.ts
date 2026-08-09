@@ -66,6 +66,14 @@ export interface DispatcherActionInput {
   incidentId?: string | null;
 }
 
+/**
+ * How far this approval has got on its way to becoming a real command in the
+ * control service (db/migrations/20260808110000__ops_dispatcher_action_dispatch.sql).
+ * Strictly finer-grained than the queue's approved/rejected/pending triage,
+ * which is still derived from consumed_at/rejected_at alone.
+ */
+export type DispatcherActionDispatchState = 'pending' | 'claimed' | 'dispatched' | 'failed' | 'rejected';
+
 export interface DispatcherActionRecord {
   id: string;
   dispatcherUserId: string;
@@ -79,6 +87,13 @@ export interface DispatcherActionRecord {
   rejectedBy: string | null;
   rejectionReason: string | null;
   createdAt: string;
+  dispatchState: DispatcherActionDispatchState;
+  claimedAt: string | null;
+  claimedBy: string | null;
+  /** control-service `commands.id` this approval authorized. The only durable web<->control link; null for a recorded 'override', which never reaches the control service. */
+  controlServiceCommandId: string | null;
+  controlServiceError: string | null;
+  dispatchAttempts: number;
 }
 
 /** Derived triage state of a dispatcher action for the approval-queue UI. */
@@ -181,8 +196,52 @@ export interface OpsRepo {
 
   createDispatcherAction(input: DispatcherActionInput): Promise<DispatcherActionRecord>;
   findDispatcherAction(id: string): Promise<DispatcherActionRecord | null>;
-  /** Atomically marks the action consumed IFF it was not already consumed. Returns null if already consumed or missing. */
+  /**
+   * Atomically marks the action consumed IFF it was not already consumed.
+   * Returns null if already consumed or missing.
+   *
+   * Retained unchanged, but NO LONGER the command path's authorization step —
+   * see claimDispatcherAction for why an irreversible consume-before-dispatch
+   * was unsafe. Still the right primitive for any flow where "approved" and
+   * "done" are the same instant.
+   */
   consumeDispatcherAction(id: string): Promise<DispatcherActionRecord | null>;
+
+  /**
+   * Phase 1 of the two-phase dispatch. Takes the action for ONE in-flight
+   * attempt (dispatch_state -> 'claimed', dispatch_attempts + 1) while
+   * deliberately leaving `consumed_at` NULL, so a failed attempt can be
+   * released and retried instead of permanently burning a human approval —
+   * which is exactly what the old consume-then-dispatch order did, with no
+   * un-consume path anywhere in the codebase.
+   *
+   * Claimable when the action is neither consumed nor rejected AND is
+   * 'pending', 'failed', or a 'claimed' whose claim is older than 2 minutes.
+   * That last case makes a web process crashing between claim and dispatch
+   * self-healing rather than needing a human. Reclaiming is safe precisely
+   * because the mirrored uuid makes a re-dispatch idempotent: if the original
+   * attempt actually reached the control service, the retry gets a 409
+   * `dispatcher_action_already_used` and reconciles against the command that
+   * already exists rather than creating a second one.
+   *
+   * Returns null when the action is not claimable — callers MUST treat that
+   * as a refusal, never as "claim it anyway".
+   */
+  claimDispatcherAction(id: string, claimedBy: string): Promise<DispatcherActionRecord | null>;
+  /**
+   * Phase 2, success. Stamps `consumed_at` (so the approval queue reads
+   * "approved" exactly as it always has) and records the control-service
+   * command id, which is the only durable link between this approval and the
+   * command it authorized. `commandId` is null for a recorded 'override',
+   * which by design never reaches the control service.
+   */
+  markDispatcherActionDispatched(id: string, commandId: string | null): Promise<DispatcherActionRecord | null>;
+  /**
+   * Phase 2, failure. Records why and drops the claim, leaving `consumed_at`
+   * NULL so the approval stays live and retryable. Only ever acts on a row
+   * still in 'claimed', so it can never undo a dispatch that succeeded.
+   */
+  releaseDispatcherActionClaim(id: string, error: string): Promise<DispatcherActionRecord | null>;
   /** Atomically marks the action rejected IFF it was neither consumed nor already rejected. Returns null if either has already happened, or the id is missing. */
   rejectDispatcherAction(input: { id: string; rejectedBy: string; reason: string }): Promise<DispatcherActionRecord | null>;
   /**
@@ -255,6 +314,16 @@ function mapDispatcherActionRow(row: Record<string, unknown>): DispatcherActionR
     rejectedBy: row.rejected_by ? String(row.rejected_by) : null,
     rejectionReason: row.rejection_reason ? String(row.rejection_reason) : null,
     createdAt: new Date(row.created_at as string).toISOString(),
+    // Defaulted rather than asserted: a row read from a database where
+    // 20260808110000__ops_dispatcher_action_dispatch.sql has not been applied
+    // yet has no such columns, and 'pending'/0/null is exactly what that row
+    // means operationally.
+    dispatchState: (row.dispatch_state as DispatcherActionDispatchState | undefined) ?? 'pending',
+    claimedAt: row.claimed_at ? new Date(row.claimed_at as string).toISOString() : null,
+    claimedBy: row.claimed_by ? String(row.claimed_by) : null,
+    controlServiceCommandId: row.control_service_command_id ? String(row.control_service_command_id) : null,
+    controlServiceError: row.control_service_error ? String(row.control_service_error) : null,
+    dispatchAttempts: Number(row.dispatch_attempts ?? 0),
   };
 }
 
@@ -514,6 +583,71 @@ class PgOpsRepo implements OpsRepo {
        where id = $1 and consumed_at is null and rejected_at is null
        returning *`,
       [id],
+    );
+    return rows[0] ? mapDispatcherActionRow(rows[0]) : null;
+  }
+
+  async claimDispatcherAction(id: string, claimedBy: string): Promise<DispatcherActionRecord | null> {
+    const pool = getOpsPool();
+    // One atomic statement, so two concurrent dispatch attempts cannot both
+    // claim the same approval: the loser's UPDATE matches zero rows because
+    // the winner already moved dispatch_state off its claimable value.
+    const { rows } = await pool.query(
+      `update ops_dispatcher_actions
+          set dispatch_state = 'claimed',
+              claimed_at = now(),
+              claimed_by = $2,
+              dispatch_attempts = dispatch_attempts + 1
+        where id = $1
+          and consumed_at is null
+          and rejected_at is null
+          and (
+            dispatch_state = 'pending'
+            or dispatch_state = 'failed'
+            -- Stale-claim reclaim: a process that died mid-dispatch would
+            -- otherwise wedge this approval forever. Safe because the
+            -- mirrored uuid makes a re-dispatch a no-op if the original
+            -- attempt actually landed.
+            or (dispatch_state = 'claimed' and claimed_at < now() - interval '2 minutes')
+          )
+        returning *`,
+      [id, claimedBy],
+    );
+    return rows[0] ? mapDispatcherActionRow(rows[0]) : null;
+  }
+
+  async markDispatcherActionDispatched(id: string, commandId: string | null): Promise<DispatcherActionRecord | null> {
+    const pool = getOpsPool();
+    // coalesce(consumed_at, now()) so a reconciled retry (control had already
+    // created the command; this app is only now recording that) does not
+    // rewrite the original approval timestamp.
+    const { rows } = await pool.query(
+      `update ops_dispatcher_actions
+          set dispatch_state = 'dispatched',
+              consumed_at = coalesce(consumed_at, now()),
+              control_service_command_id = $2,
+              control_service_error = null
+        where id = $1
+        returning *`,
+      [id, commandId],
+    );
+    return rows[0] ? mapDispatcherActionRow(rows[0]) : null;
+  }
+
+  async releaseDispatcherActionClaim(id: string, error: string): Promise<DispatcherActionRecord | null> {
+    const pool = getOpsPool();
+    // `and dispatch_state = 'claimed'` is the safety clause: a late release
+    // (e.g. from a request that timed out locally after the dispatch had in
+    // fact succeeded) can never walk a 'dispatched' row back to 'failed' and
+    // invite a duplicate command.
+    const { rows } = await pool.query(
+      `update ops_dispatcher_actions
+          set dispatch_state = 'failed',
+              control_service_error = $2,
+              claimed_by = null
+        where id = $1 and dispatch_state = 'claimed'
+        returning *`,
+      [id, error.slice(0, 2000)],
     );
     return rows[0] ? mapDispatcherActionRow(rows[0]) : null;
   }
