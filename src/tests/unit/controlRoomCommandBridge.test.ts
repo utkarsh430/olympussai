@@ -278,6 +278,62 @@ describe('POST /api/ops/control-room/commands — exactly-once dispatch on retry
     expect(markDispatcherActionDispatched).not.toHaveBeenCalled();
     expect(recordAuditEvent).not.toHaveBeenCalled();
   });
+
+  it('reconciles a 422 dispatcher_action_invalid — the code a real retry actually returns', async () => {
+    // REGRESSION. The tests above use 409 `dispatcher_action_already_used`,
+    // reasoning from commands.dispatcher_action_id being UNIQUE. The database
+    // never gets that far: `consume_dispatcher_action` is a BEFORE INSERT
+    // trigger, so on a retry it sees consumed_at already stamped and raises
+    // P0001 -> `dispatcher_action_invalid` (422) before the unique constraint
+    // is ever evaluated. The 23505 is unreachable in exactly the case
+    // reconciliation exists for, so keying only on 409 made this whole path
+    // dead code.
+    //
+    // Caught by running it, not by reasoning: a retry after a simulated
+    // crash-before-record returned 422, reconciliation did not fire, and the
+    // approval was stranded permanently while its command sat in
+    // control-service.
+    createControlServiceCommand.mockRejectedValueOnce(
+      new ControlServiceRequestError(
+        `dispatcher_action ${DISPATCHER_ACTION_ID} is already consumed`,
+        422,
+        'dispatcher_action_invalid',
+      ),
+    );
+
+    const response = await postCommand(commandBody());
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.commandId).toBe('cmd-1');
+    expect(fetchCommandByDispatcherAction).toHaveBeenCalledWith(DISPATCHER_ACTION_ID);
+    expect(markDispatcherActionDispatched).toHaveBeenCalledWith(DISPATCHER_ACTION_ID, 'cmd-1');
+    expect(releaseDispatcherActionClaim).not.toHaveBeenCalled();
+  });
+
+  it('still rejects a 422 when no command is behind it — a genuinely invalid approval', async () => {
+    // The other half of the same change: reconciliation is driven by the
+    // LOOKUP, not the error code. Widening the accepted codes must not turn
+    // "this approval does not exist" into a fabricated success, so a 422 with
+    // nothing behind it has to keep failing.
+    createControlServiceCommand.mockRejectedValueOnce(
+      new ControlServiceRequestError(
+        `dispatcher_action ${DISPATCHER_ACTION_ID} does not exist`,
+        422,
+        'dispatcher_action_invalid',
+      ),
+    );
+    fetchCommandByDispatcherAction.mockResolvedValueOnce(null);
+
+    const response = await postCommand(commandBody());
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body.ok).toBeUndefined();
+    expect(markDispatcherActionDispatched).not.toHaveBeenCalled();
+    expect(releaseDispatcherActionClaim).toHaveBeenCalledWith(DISPATCHER_ACTION_ID, expect.any(String));
+    expect(recordAuditEvent).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /api/ops/control-room/commands — the command must match the approval it cites', () => {

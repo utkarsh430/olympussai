@@ -329,22 +329,43 @@ export async function POST(request: NextRequest): Promise<Response> {
 }
 
 /**
- * Turns the one 409 that means "you already succeeded" into the command that
- * succeeded, or null for every other failure.
+ * Codes that can mean "an earlier attempt already committed a command against
+ * this approval". Neither PROVES it — the lookup below is what decides.
  *
- * control-service's `commands.dispatcher_action_id` is UNIQUE, so re-sending
- * the same approval after a timeout raises a 23505 that it maps to
- * `dispatcher_action_already_used`. That is not a duplicate-command error to
- * surface — it is proof that an earlier attempt committed a command this app
- * never got to record. Fetching it and continuing down the success path is
- * what makes the whole flow exactly-once rather than at-most-once.
+ * Both are needed, and keying on `dispatcher_action_already_used` alone was a
+ * real bug: it made this whole reconciliation path dead code.
+ *
+ * `commands.dispatcher_action_id` is UNIQUE, so the obvious retry signal is a
+ * 23505 mapped to `dispatcher_action_already_used` (409). But the insert never
+ * gets that far. `consume_dispatcher_action` is a BEFORE INSERT trigger, so on
+ * a retry it sees `consumed_at` already stamped and raises P0001 first, which
+ * maps to `dispatcher_action_invalid` (422). The 23505 is therefore
+ * unreachable whenever the first attempt actually succeeded — i.e. in exactly
+ * the case reconciliation exists for. Verified end-to-end: a retry after a
+ * simulated crash-before-record returned `422 dispatcher_action_invalid`,
+ * reconciliation did not fire, and the approval was stranded permanently even
+ * though its command was sitting in control-service.
+ */
+const RECONCILABLE_ERROR_CODES = new Set(['dispatcher_action_already_used', 'dispatcher_action_invalid']);
+
+/**
+ * Turns "you already succeeded" into the command that succeeded, or null for
+ * every other failure.
+ *
+ * Deliberately driven by the LOOKUP, not by the error code: the code only
+ * decides whether asking is worthwhile, and `fetchCommandByDispatcherAction`
+ * is the authority. A 422 with no command behind it is a genuinely invalid
+ * approval and still surfaces as an error; a 422 with a command behind it is
+ * proof of an earlier commit this app never recorded. That ordering is what
+ * makes the flow exactly-once rather than at-most-once, and it does not
+ * depend on control-service classifying its own errors perfectly.
  *
  * If the lookup itself fails (control-service went away between the two
  * calls) this returns null and the caller releases the claim, so the operator
  * gets a retryable error rather than a silent inconsistency.
  */
 async function reconcileAlreadyUsed(error: unknown, dispatcherActionId: string): Promise<Command | null> {
-  if (!(error instanceof ControlServiceRequestError) || error.code !== 'dispatcher_action_already_used') {
+  if (!(error instanceof ControlServiceRequestError) || !RECONCILABLE_ERROR_CODES.has(error.code ?? '')) {
     return null;
   }
   try {
