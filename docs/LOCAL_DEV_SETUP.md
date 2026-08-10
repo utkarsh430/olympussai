@@ -206,6 +206,35 @@ by default so it doesn't surprise you with background network activity and
   `503 {"reason":"network_not_seeded"}` until step 5 has run; `200` once at
   least one route-direction has geometry.
 
+## Running the pilot-driver E2E suite locally
+
+`tests/e2e/pilot-driver-command.spec.ts` drives the whole command lifecycle
+against both running services and both databases. It **skips** locally when
+its env is unset (and hard-fails in CI, so it can never silently stop
+running). To run it here, with both services up and an ops account seeded as
+`pilot_driver` **with a `vehicle_id` assigned**:
+
+```sh
+E2E_ORIGIN=http://127.0.0.1:3000 \
+E2E_PILOT_DRIVER_EMAIL=pilot@example.local \
+E2E_PILOT_DRIVER_PASSWORD='<the password you seeded>' \
+E2E_CONTROL_SERVICE_URL=http://127.0.0.1:8080 \
+E2E_CONTROL_SERVICE_TOKEN='<control-service SERVICE_TOKEN_SECRET>' \
+E2E_CONTROL_SERVICE_DATABASE_URL=postgres://postgres:olympuss@127.0.0.1:55432/control_service \
+E2E_OPS_DATABASE_URL=postgres://postgres:olympuss@127.0.0.1:55433/ops \
+  npx playwright test pilot-driver-command
+```
+
+> **Start control-service with `COMMAND_TTL_SWEEP_INTERVAL_MS=5000` for this
+> run.** Two of the four tests assert that the periodic backstop sweep expires
+> a short-TTL command within 30s. At the 30s production default the sweep may
+> not tick inside the assertion window, so test 4 fails on timer alignment
+> rather than on anything being wrong. CI sets the same value. This changes
+> the sweep cadence, not what is being tested.
+
+Note `pnpm test:e2e -- pilot-driver-command` does **not** filter — the `--`
+is swallowed. Use `npx playwright test pilot-driver-command`.
+
 ## Everyday commands
 
 ```sh
