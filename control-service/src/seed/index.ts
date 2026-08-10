@@ -17,7 +17,7 @@
 // fatal. The only fatal conditions are "the live feed did not load" and "the
 // database is unreachable", because neither leaves anything to do.
 
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { Pool } from 'pg';
 import {
   buildLiveUrl,
@@ -59,6 +59,29 @@ export interface SeedCliOptions {
   limit: number | null;
   maxStopDetourMeters: number;
   controlPointInterval: number;
+  /**
+   * Read the live-feed payload from a local JSON file instead of fetching
+   * `getGpsLiveData.php`.
+   *
+   * The live endpoint is the seeder's single hard dependency — with no live
+   * feed there is no vehicle inventory and no probe plan, so the run aborts.
+   * That endpoint is also observably unreliable: it answers `HTTP 200` with a
+   * one-byte body `F` during outages (sampled failing continuously for hours
+   * on 2026-08-09), which is a normal-looking success to every layer above
+   * the JSON parse. Being unable to seed at all whenever upstream sneezes is
+   * not an acceptable property for the step that bootstraps the entire
+   * network.
+   *
+   * A saved payload also makes a seed run reproducible — the same input
+   * yields the same network — which is what lets the calibration and
+   * geometry logic be verified against real-shaped data rather than against
+   * whatever happened to be on the wire that minute.
+   *
+   * The SCHEDULE endpoint is still fetched live; this only substitutes the
+   * live-feed fetch. Capture a payload with:
+   *   curl -s https://margdarshi.upsrtcvlt.com/php/getGpsLiveData.php > live.json
+   */
+  liveFeedFile: string | null;
 }
 
 export const DEFAULT_CONCURRENCY = 5;
@@ -138,6 +161,7 @@ export function parseArgs(argv: readonly string[]): SeedCliOptions {
     limit: flagValue(argv, 'limit') === undefined
       ? null
       : parsePositiveInt(flagValue(argv, 'limit'), 1, 'limit'),
+    liveFeedFile: flagValue(argv, 'live-feed-file') ?? null,
     // Explicit 0 disables outlier pruning; absent means the default.
     maxStopDetourMeters:
       detourRaw === undefined ? MAX_STOP_DETOUR_METERS : Math.max(0, Number(detourRaw)),
@@ -290,14 +314,49 @@ export async function runSeed(argv: readonly string[]): Promise<number> {
   );
 
   // ---- live feed ---------------------------------------------------------
-  const live = await fetchUpstream(buildLiveUrl(), LIVE_REQUEST_TIMEOUT_MS);
-  if (!live.ok) {
-    // Fatal: with no live feed there is no vehicle inventory and no probe plan.
-    logger.error({ error: live.error, status: live.status }, 'seed: live feed unavailable');
-    return 1;
+  // Either read a saved payload (--live-feed-file) or fetch the live endpoint.
+  // Both paths converge on the same `payload` so planProbes cannot tell them
+  // apart; the file path is parsed with the same tolerance as the wire path
+  // because a captured payload is byte-identical to what the wire returned.
+  let livePayload: unknown;
+  if (options.liveFeedFile) {
+    let raw: string;
+    try {
+      raw = await readFile(options.liveFeedFile, 'utf8');
+    } catch (error) {
+      logger.error(
+        { file: options.liveFeedFile, error: error instanceof Error ? error.message : String(error) },
+        'seed: --live-feed-file could not be read',
+      );
+      return 1;
+    }
+    try {
+      livePayload = JSON.parse(raw);
+    } catch {
+      // Same failure the wire path guards against: the upstream answers 200
+      // with a one-byte `F` during outages, so a captured payload can easily
+      // be that sentinel rather than data.
+      logger.error(
+        { file: options.liveFeedFile, bytes: raw.length, head: raw.slice(0, 32) },
+        'seed: --live-feed-file is not valid JSON',
+      );
+      return 1;
+    }
+    logger.info({ file: options.liveFeedFile }, 'seed: using saved live feed (upstream not contacted)');
+  } else {
+    const live = await fetchUpstream(buildLiveUrl(), LIVE_REQUEST_TIMEOUT_MS);
+    if (!live.ok) {
+      // Fatal: with no live feed there is no vehicle inventory and no probe plan.
+      logger.error(
+        { error: live.error, status: live.status },
+        'seed: live feed unavailable (pass --live-feed-file=<path> to seed from a saved payload)',
+      );
+      return 1;
+    }
+    livePayload = live.payload;
   }
 
-  const plan = planProbes(live.payload);
+  const plan = planProbes(livePayload);
   logger.info(
     { vehicles: plan.vehicles.length, probes: plan.probes.length },
     'seed: live feed parsed',
@@ -323,7 +382,7 @@ export async function runSeed(argv: readonly string[]): Promise<number> {
   });
 
   // ---- harvest -----------------------------------------------------------
-  const seed = harvestNetwork(live.payload, probeResults, {
+  const seed = harvestNetwork(livePayload, probeResults, {
     defaultHeadwaySeconds: options.defaultHeadwaySeconds,
     gains: options.gains,
     rolloutStage: options.rolloutStage,

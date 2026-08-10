@@ -288,3 +288,73 @@ describe('listCommandAuditLog', () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining('order by occurred_at asc'), ['cmd-1']);
   });
 });
+
+describe('timestamptz normalization (webhook idempotency-key regression)', () => {
+  // REGRESSION. node-postgres parses timestamptz into a JS Date, but
+  // RawCommandRow declared these columns as `string` - an assertion at the
+  // driver boundary TypeScript cannot verify. JSON.stringify hid it (Date
+  // serializes to ISO), so the webhook BODY was always right. String
+  // interpolation did not, and routes/commands.ts builds the webhook
+  // idempotency key as `${command.id}:ack:${command.acknowledgedAt}`.
+  //
+  // The key therefore came out as Date.prototype.toString():
+  //   <id>:ack:Sun Aug 09 2026 23:00:52 GMT-0400 (Eastern Daylight Time)
+  // which embeds the SENDER'S LOCAL TIMEZONE. Two instances in different
+  // zones - or one instance after a TZ change - emit different keys for the
+  // same logical event, so the receiver's dedupe stores it twice. Observed
+  // live: ops_control_service_webhook_events held both spellings for a
+  // single acknowledgement.
+  it('returns ISO strings when pg hands back Date objects', async () => {
+    const acknowledgedAt = new Date('2026-08-10T03:00:52.213Z');
+    const { pool } = fakeTransactionalPool({
+      select: { rows: [baseCommandRow({ status: 'delivered' })] },
+      update: {
+        rows: [
+          baseCommandRow({
+            status: 'failed',
+            ack_outcome: 'unsafe',
+            // What the driver ACTUALLY returns for a timestamptz column.
+            acknowledged_at: acknowledgedAt,
+            delivered_at: new Date('2026-08-10T03:00:15.096Z'),
+            created_at: new Date('2026-08-10T02:59:10.712Z'),
+          }),
+        ],
+      },
+    });
+
+    const command = await acknowledgeCommand(
+      'cmd-1',
+      { outcome: 'unsafe', reason: 'blind bend', actorId: 'driver-1' },
+      pool,
+    );
+
+    expect(command.acknowledgedAt).toBe('2026-08-10T03:00:52.213Z');
+    expect(command.deliveredAt).toBe('2026-08-10T03:00:15.096Z');
+    expect(command.createdAt).toBe('2026-08-10T02:59:10.712Z');
+
+    // The property that actually matters: the interpolated key is stable and
+    // timezone-independent, not a locale string.
+    const key = `${command.id}:ack:${command.acknowledgedAt}`;
+    expect(key).toBe('cmd-1:ack:2026-08-10T03:00:52.213Z');
+    expect(key).not.toMatch(/GMT|Daylight|Standard/);
+  });
+
+  it('passes ISO strings through unchanged', async () => {
+    // Defensive: a caller (or a future driver config) may already hand back
+    // strings. Normalizing must be idempotent, not double-convert.
+    const { pool } = fakeTransactionalPool({
+      select: { rows: [baseCommandRow({ status: 'delivered' })] },
+      update: {
+        rows: [baseCommandRow({ status: 'acknowledged', acknowledged_at: '2026-08-10T03:00:52.213Z' })],
+      },
+    });
+
+    const command = await acknowledgeCommand(
+      'cmd-1',
+      { outcome: 'accept', reason: null, actorId: 'driver-1' },
+      pool,
+    );
+
+    expect(command.acknowledgedAt).toBe('2026-08-10T03:00:52.213Z');
+  });
+});

@@ -66,17 +66,44 @@ interface RawCommandRow {
   parameters: Record<string, unknown>;
   dispatcher_action_id: string;
   ttl_seconds: number;
-  valid_from: string;
-  expires_at: string;
+  valid_from: string | Date;
+  expires_at: string | Date;
   policy_version: string | null;
   status: string;
   version: number;
   supersedes_command_id: string | null;
-  delivered_at: string | null;
-  acknowledged_at: string | null;
+  delivered_at: string | Date | null;
+  acknowledged_at: string | Date | null;
   acknowledgement_reason: string | null;
   ack_outcome: string | null;
-  created_at: string;
+  created_at: string | Date;
+}
+
+/**
+ * Normalize a timestamptz column to an ISO-8601 string.
+ *
+ * `node-postgres` parses timestamptz into a JS `Date`, but RawCommandRow
+ * declares these columns as `string` — a type assertion at the driver
+ * boundary that TypeScript cannot verify, so the lie compiles and every
+ * consumer downstream believes it has a string.
+ *
+ * JSON.stringify hides it (Date serializes to ISO), so the webhook BODY was
+ * always correct. String interpolation does not, and that is where it bit:
+ * `${command.acknowledgedAt}` in routes/commands.ts produced a webhook
+ * idempotency key of
+ *   <id>:ack:Sun Aug 09 2026 23:00:52 GMT-0400 (Eastern Daylight Time)
+ * instead of `<id>:ack:<iso>`. That key is Date.prototype.toString() — it
+ * embeds the SENDER'S LOCAL TIMEZONE, so the same logical event emitted from
+ * two instances in different zones, or from one instance after a TZ change,
+ * dedupes as two distinct events. Observed live in ops_control_service_
+ * webhook_events, which recorded both spellings for a single acknowledgement.
+ *
+ * Converting here makes the declared types true for every consumer at once,
+ * rather than patching each interpolation site as it is discovered.
+ */
+function toIso(value: string | Date | null): string | null {
+  if (value === null || value === undefined) return null;
+  return value instanceof Date ? value.toISOString() : value;
 }
 
 function mapRow(row: RawCommandRow): CommandRow {
@@ -90,17 +117,19 @@ function mapRow(row: RawCommandRow): CommandRow {
     parameters: row.parameters,
     dispatcherActionId: row.dispatcher_action_id,
     ttlSeconds: row.ttl_seconds,
-    validFrom: row.valid_from,
-    expiresAt: row.expires_at,
+    // Non-null in the schema, so the `?? ''` is unreachable in practice; it
+    // exists only to satisfy the non-nullable field types without a cast.
+    validFrom: toIso(row.valid_from) ?? '',
+    expiresAt: toIso(row.expires_at) ?? '',
     policyVersion: row.policy_version,
     status: row.status,
     version: row.version,
     supersedesCommandId: row.supersedes_command_id,
-    deliveredAt: row.delivered_at,
-    acknowledgedAt: row.acknowledged_at,
+    deliveredAt: toIso(row.delivered_at),
+    acknowledgedAt: toIso(row.acknowledged_at),
     acknowledgementReason: row.acknowledgement_reason,
     ackOutcome: row.ack_outcome,
-    createdAt: row.created_at,
+    createdAt: toIso(row.created_at) ?? '',
   };
 }
 
