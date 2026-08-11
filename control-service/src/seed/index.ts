@@ -12,15 +12,32 @@
 //   pnpm seed --limit=8 --report=/tmp/seed-report.json
 //   pnpm seed --dry-run --routes=BRH_828_ORD_OUT,RKD_635_ORD_IN
 //
-// H* (target_headway_seconds) comes from the PUBLISHED TIMETABLE
-// (getStaticData.php, src/seed/timetable.ts), which is fetched by default and
-// is the only source that can say how often a route is SERVED. A run that
-// cannot get one ABORTS rather than quietly reverting to the fabricated
-// fallback; --no-timetable is how an operator asks for that fallback out loud.
+// H* (target_headway_seconds) comes from PUBLISHED SCHEDULES, never from an
+// estimate over whichever buses happen to be running. There are two, in strict
+// precedence order:
+//
+//   'timetable'     getStaticData.php (src/seed/timetable.ts) — a departure
+//                   board at a stop. Headway at a point, which is what H* IS.
+//                   Scoped to 22 stops on ONE instrumented corridor.
+//   'od_timetable'  getBusBetweenStops.php (src/seed/odTimetable.ts) — the
+//                   statewide origin-destination schedule, swept over the
+//                   ordered pairs of the published cities. Real schedule,
+//                   coarser view, statewide reach. Consulted ONLY where the
+//                   corridor timetable is silent, so it can never downgrade a
+//                   route the board already answered for.
+//
+// A run that can get NEITHER aborts rather than quietly reverting to the
+// fabricated fallback; --no-timetable is how an operator asks for that fallback
+// out loud.
 //
 //   pnpm seed --recalibrate-only            # fix H* on the existing network
-//   pnpm seed --timetable-out=/tmp/tt.json  # capture the corpus
-//   pnpm seed --recalibrate-only --timetable-file=/tmp/tt.json --dry-run
+//   pnpm seed --timetable-out=/tmp/tt.json --od-out=/tmp/od.json   # capture
+//   pnpm seed --recalibrate-only --timetable-file=/tmp/tt.json \
+//             --od-file=/tmp/od.json --dry-run                     # replay
+//
+// THE CACHED RUN IS THE INTENDED ONE. A full OD sweep is 210 POSTs plus a
+// ~650-query prefix drill against a shared PHP host; capture it once with
+// --od-out and replay it with --od-file thereafter.
 //
 // --recalibrate-only exists because the harvest depends on the live feed
 // publishing a `routename` per vehicle and the feed does not always do so
@@ -46,11 +63,21 @@ import {
 } from '../ingestion/upsrtc/client.js';
 import { isUnassignedScheduleResponse } from '../ingestion/upsrtc/normalize.js';
 import {
+  fetchBusBetweenStops,
+  normalizeOdPayloads,
+  orderedCityPairs,
+  splitOdCorpus,
+} from '../ingestion/upsrtc/busBetweenStops.js';
+import {
   fetchStaticData,
   normalizeTimetablePayloads,
   splitTimetableCorpus,
   STATIC_DATA_STOP_CODES,
 } from '../ingestion/upsrtc/staticData.js';
+import {
+  enumerateStopAreaGroups,
+  fetchStopAreaGroup,
+} from '../ingestion/upsrtc/stopAreaGroup.js';
 import { loadEnv } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 import { MAX_STOP_DETOUR_METERS } from './geometry.js';
@@ -65,6 +92,7 @@ import {
   type ProbeTarget,
   type ScheduleProbeResult,
 } from './harvest.js';
+import { buildOdIndex, type OdIndex } from './odTimetable.js';
 import { persistNetworkSeed, type PersistResult } from './persist.js';
 import { recalibrateHeadways, summarizeRecalibration, type RecalibrateResult } from './recalibrate.js';
 import { buildTimetableIndex, type TimetableIndex } from './timetable.js';
@@ -125,6 +153,45 @@ export interface SeedCliOptions {
   timetableFile: string | null;
   /** Write the fetched timetable corpus here, for a later --timetable-file run. */
   timetableOut: string | null;
+  /**
+   * Read the statewide OD corpus from a local JSON file instead of sweeping
+   * getBusBetweenStops.php across every ordered city pair.
+   *
+   * Same rationale as `timetableFile`, and a stronger one again on cost. A live
+   * sweep is a ~650-query prefix drill over getStopAreaAndGroup.php (to learn
+   * the city ids at all, since nothing publishes them) followed by 210 POSTs to
+   * getBusBetweenStops.php — several minutes against a shared PHP host that the
+   * schedule probes also use. It also makes the most consequential output of a
+   * run auditable: whether a route-direction can ever be flagged as bunched now
+   * depends on this corpus, so being able to re-run the exact derivation over
+   * the exact bytes matters more than the saved requests do.
+   *
+   * Accepts an array of rows, an array of per-pair arrays, or a pair-key ->
+   * payload object. Produce one with --od-out.
+   */
+  odFile: string | null;
+  /** Write the swept OD corpus here, for a later --od-file run. */
+  odOut: string | null;
+  /**
+   * Do not use the statewide OD schedule at all.
+   *
+   * Unlike --no-timetable this is not dangerous — it narrows coverage back to
+   * the corridor and everything else becomes an honest 'none'. It exists so an
+   * operator can reproduce a corridor-only run, and so a fast local run can
+   * skip the sweep entirely.
+   */
+  noOd: boolean;
+  /**
+   * Service date for the OD sweep, YYYY-MM-DD. Defaults to `--date` / today.
+   *
+   * Separate from `--date` because they ask different questions:
+   * getScheduledBusInfo is asked about a vehicle's duty on a specific day (and
+   * retries the day before, because duties are not published until the day is
+   * under way), while the OD sweep wants a REPRESENTATIVE service day. A
+   * headway derived from a day with a partial timetable published is a headway
+   * for that day, not for the service.
+   */
+  odDate: string | null;
   /**
    * Do not use a timetable at all: fall back to the vehicle-derived estimators
    * ('journey_span' / 'fleet_span' / 'default').
@@ -195,6 +262,11 @@ export function parseArgs(argv: readonly string[]): SeedCliOptions {
     throw new Error('--date must be YYYY-MM-DD');
   }
 
+  const odDate = flagValue(argv, 'od-date') ?? null;
+  if (odDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(odDate)) {
+    throw new Error('--od-date must be YYYY-MM-DD');
+  }
+
   const requestedConcurrency = parsePositiveInt(
     flagValue(argv, 'concurrency'),
     DEFAULT_CONCURRENCY,
@@ -229,6 +301,10 @@ export function parseArgs(argv: readonly string[]): SeedCliOptions {
     liveFeedFile: flagValue(argv, 'live-feed-file') ?? null,
     timetableFile: flagValue(argv, 'timetable-file') ?? null,
     timetableOut: flagValue(argv, 'timetable-out') ?? null,
+    odFile: flagValue(argv, 'od-file') ?? null,
+    odOut: flagValue(argv, 'od-out') ?? null,
+    noOd: hasFlag(argv, 'no-od'),
+    odDate,
     noTimetable: hasFlag(argv, 'no-timetable'),
     recalibrateOnly: hasFlag(argv, 'recalibrate-only'),
     // Explicit 0 disables outlier pruning; absent means the default.
@@ -333,12 +409,19 @@ export function logHeadwayCalibration(
     {
       ...calibration,
       total,
-      // `measuredPct` is the timetable alone — a reading of the published
-      // service. `derivedPct` keeps its original meaning of "H* rests on some
-      // evidence", which the timetable also satisfies, so the two overlap on
-      // purpose and neither can be read as the other.
-      measuredPct: share(calibration.timetable),
-      derivedPct: share(calibration.timetable + calibration.journey_span + calibration.fleet_span),
+      // `measuredPct` is the two PUBLISHED sources — readings of the published
+      // service, in precedence order. `derivedPct` keeps its original meaning
+      // of "H* rests on some evidence", which both also satisfy, so the two
+      // overlap on purpose and neither can be read as the other.
+      measuredPct: share(calibration.timetable + calibration.od_timetable),
+      fromTimetablePct: share(calibration.timetable),
+      fromOdTimetablePct: share(calibration.od_timetable),
+      derivedPct: share(
+        calibration.timetable +
+          calibration.od_timetable +
+          calibration.journey_span +
+          calibration.fleet_span,
+      ),
       fabricatedPct: share(calibration.default),
       noTargetPct: share(calibration.none),
       timetableMatchesExact: report.timetableMatches.filter((entry) => entry.match === 'exact').length,
@@ -349,6 +432,13 @@ export function logHeadwayCalibration(
       timetableHeadwaysDerived: report.timetable?.headwaysDerived ?? 0,
       timetableNoRepeatedDeparture: report.timetable?.headwaysNoRepeatedDeparture ?? 0,
       timetableImplausible: report.timetable?.headwaysImplausible.length ?? 0,
+      odMatchesExact: report.odMatches.filter((entry) => entry.match === 'exact').length,
+      odMatchesSoleDirection: report.odMatches.filter((entry) => entry.match === 'sole_direction')
+        .length,
+      odLineDirections: report.od?.distinctLineDirections ?? 0,
+      odHeadwaysDerived: report.od?.headwaysDerived ?? 0,
+      odNoRepeatedDeparture: report.od?.headwaysNoRepeatedDeparture ?? 0,
+      odImplausible: report.od?.headwaysImplausible.length ?? 0,
       fleetRouteNames: report.fleetDepartures.routeNames,
       fleetRouteNamesWithMultipleDepartures: report.fleetDepartures.withMultipleDepartures,
       implausibleDerivationsRejected: report.implausibleHeadways.length,
@@ -381,7 +471,7 @@ export function logHeadwayCalibration(
         directions: calibration.none,
         share: share(calibration.none),
       },
-      'seed: these route-directions have NO target headway — the timetable published no repeated departure for them, so none was invented. They are observation-only: loadActiveRoutePolicy refuses the row and bunching detection is off for them, visibly. Find them with: select * from route_policies where effective_to is null and calibration_source = \'none\'',
+      'seed: these route-directions have NO target headway — neither the corridor timetable nor the statewide OD schedule published a repeated departure for them, so none was invented. They are observation-only: loadActiveRoutePolicy refuses the row and bunching detection is off for them, visibly. Find them with: select * from route_policies where effective_to is null and calibration_source = \'none\'',
     );
   }
 }
@@ -493,6 +583,176 @@ async function loadTimetable(options: SeedCliOptions): Promise<TimetableIndex | 
   return index;
 }
 
+/**
+ * Politeness delay between OD requests.
+ *
+ * A sweep is 210 sequential POSTs plus the ~650-query prefix drill that
+ * precedes it, all to the same shared PHP host the schedule probes use. 250 ms
+ * adds about a minute to a run that is already minutes long, and a run is
+ * expected to be cached (--od-file) rather than repeated.
+ */
+const OD_REQUEST_DELAY_MS = 250;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Sweep the statewide OD schedule and return the raw per-pair payloads.
+ *
+ * TWO STAGES, because nothing publishes a city list. getStopAreaAndGroup.php is
+ * an autocomplete with a server-side LIMIT 10 and no pagination, so the ids are
+ * recovered by a bounded prefix drill (see stopAreaGroup.ts); the OD endpoint is
+ * then asked about every ORDERED pair of the cities found. `UNKNOWN` is already
+ * filtered out by the enumerator, at the point the name is read, so it can
+ * never become an origin.
+ *
+ * Sequential with a small delay, exactly like the timetable fetch above and for
+ * the same reason.
+ */
+async function sweepOdCorpus(date: string): Promise<unknown[] | null> {
+  const geography = await enumerateStopAreaGroups({
+    fetch: async (query) => {
+      const result = await fetchStopAreaGroup(query);
+      await sleep(OD_REQUEST_DELAY_MS);
+      return result;
+    },
+  });
+
+  logger.info(
+    {
+      queries: geography.queriesIssued,
+      cities: geography.groups.length,
+      stopAreas: geography.stopAreas.length,
+      truncatedPrefixes: geography.truncatedPrefixes.length,
+      unexpandedPrefixes: geography.unexpandedPrefixes.length,
+      failures: geography.failures.length,
+      cityNames: geography.groups.map((group) => `${group.name}(${group.id})`),
+    },
+    'seed: geography index enumerated',
+  );
+
+  if (geography.groups.length < 2) {
+    logger.error(
+      { cities: geography.groups.length, failures: geography.failures.length },
+      'seed: fewer than two cities found — an OD sweep needs at least one ordered pair',
+    );
+    return null;
+  }
+
+  const pairs = orderedCityPairs(geography.groups.map((group) => group.id));
+  const payloads: unknown[] = [];
+  let failures = 0;
+  let empty = 0;
+
+  for (const [index, pair] of pairs.entries()) {
+    const response = await fetchBusBetweenStops({ ...pair, date });
+    await sleep(OD_REQUEST_DELAY_MS);
+    if (response.error) {
+      failures += 1;
+      logger.warn({ ...pair, error: response.error }, 'seed: OD pair fetch failed');
+      continue;
+    }
+    const rowCount = Array.isArray(response.payload) ? response.payload.length : 0;
+    if (rowCount === 0) empty += 1;
+    payloads.push(response.payload);
+    if ((index + 1) % 25 === 0 || index + 1 === pairs.length) {
+      logger.info({ completed: index + 1, total: pairs.length }, 'seed: OD sweep');
+    }
+  }
+
+  logger.info(
+    { pairs: pairs.length, fetched: payloads.length, empty, failures, date },
+    'seed: OD sweep complete',
+  );
+  return payloads;
+}
+
+/**
+ * Load the statewide OD corpus, from a file or from a live sweep, and index it.
+ *
+ * Returns null when the run asked for no OD source, when the corpus could not
+ * be read, or when it came back empty. UNLIKE the timetable, a null here is NOT
+ * fatal: OD is the second-precedence source, so a run without it still produces
+ * a correct — merely narrower — calibration in which everything it would have
+ * answered for is an honest 'none'. The absence is logged loudly enough to be
+ * noticed rather than turned into an abort.
+ */
+async function loadOdSchedule(options: SeedCliOptions, serviceDate: string): Promise<OdIndex | null> {
+  if (options.noOd) {
+    logger.warn(
+      {},
+      'seed: --no-od — the statewide OD schedule will not be consulted, so coverage is limited to the 22-stop corridor getStaticData publishes and everything else is an honest \'none\'',
+    );
+    return null;
+  }
+
+  let payloads: unknown[];
+
+  if (options.odFile) {
+    let raw: string;
+    try {
+      raw = await readFile(options.odFile, 'utf8');
+    } catch (error) {
+      logger.error(
+        { file: options.odFile, error: error instanceof Error ? error.message : String(error) },
+        'seed: --od-file could not be read',
+      );
+      return null;
+    }
+    try {
+      payloads = splitOdCorpus(JSON.parse(raw));
+    } catch {
+      logger.error(
+        { file: options.odFile, bytes: raw.length, head: raw.slice(0, 32) },
+        'seed: --od-file is not valid JSON',
+      );
+      return null;
+    }
+    logger.info(
+      { file: options.odFile, payloads: payloads.length },
+      'seed: using saved OD corpus (getStopAreaAndGroup / getBusBetweenStops not contacted)',
+    );
+  } else {
+    const swept = await sweepOdCorpus(options.odDate ?? serviceDate);
+    if (swept === null) return null;
+    payloads = swept;
+
+    if (options.odOut) {
+      await writeFile(options.odOut, `${JSON.stringify(payloads)}\n`, 'utf8');
+      logger.info({ path: options.odOut }, 'seed: OD corpus written');
+    }
+  }
+
+  const { rows, rowCount, rejectedRowCount } = normalizeOdPayloads(payloads);
+  if (rows.length === 0) {
+    logger.warn(
+      { rowCount, rejectedRowCount },
+      'seed: OD corpus is empty — continuing with the corridor timetable alone',
+    );
+    return null;
+  }
+
+  const index = buildOdIndex(rows);
+  logger.info(
+    {
+      rowCount,
+      rowsAccepted: index.report.rowsAccepted,
+      rejectedRowCount,
+      lines: index.report.distinctLines,
+      lineDirections: index.report.distinctLineDirections,
+      routeNames: index.report.distinctRouteNames,
+      boardingStops: index.report.distinctBoardingStops,
+      rowsWithoutDirectionSuffix: index.report.rowsWithoutDirectionSuffix,
+      headwaysDerived: index.report.headwaysDerived,
+      noRepeatedDeparture: index.report.headwaysNoRepeatedDeparture,
+      implausible: index.report.headwaysImplausible.length,
+    },
+    'seed: OD schedule indexed',
+  );
+  return index;
+}
+
 interface SeedRunSummary {
   startedAt: string;
   finishedAt: string;
@@ -527,27 +787,53 @@ function openSeedPool(connectionString: string): Pool {
  */
 function logRecalibration(result: RecalibrateResult): void {
   const summary = summarizeRecalibration(result);
+  const total = result.routeDirectionsConsidered;
+  const share = (count: number): string =>
+    total === 0 ? '0.0%' : `${((count / total) * 100).toFixed(1)}%`;
+
   logger.info(
     {
-      routeDirections: result.routeDirectionsConsidered,
+      routeDirections: total,
       calibrated: result.calibrated,
       uncalibrated: result.uncalibrated,
       calibratedPct: summary.calibratedPct,
+      // The breakdown across ALL sources this pass can write, so the log line
+      // and `select calibration_source, count(*) from route_policies group by 1`
+      // read the same way.
+      timetable: result.calibratedFromTimetable,
+      timetablePct: share(result.calibratedFromTimetable),
+      od_timetable: result.calibratedFromOd,
+      odTimetablePct: share(result.calibratedFromOd),
+      none: result.uncalibrated,
+      nonePct: share(result.uncalibrated),
       matchesExact: result.matchesExact,
       matchesSoleDirection: result.matchesSoleDirection,
       policiesInserted: result.policiesInserted,
       policiesUnchanged: result.policiesUnchanged,
       fabricatedTargetsCleared: summary.fabricatedCleared,
       replacedByMeasurement: summary.replacedByMeasurement,
+      // Must be 0. Precedence is enforced in recalibrate.ts#resolveHeadway;
+      // this reports it from the run's own audit trail so the claim is checked
+      // rather than assumed.
+      timetableDowngraded: summary.timetableDowngraded,
       failures: result.failures.length,
     },
-    'seed: timetable recalibration complete',
+    'seed: headway recalibration complete',
   );
 
+  if (summary.timetableDowngraded > 0) {
+    logger.error(
+      { directions: summary.timetableDowngraded },
+      'seed: a route-direction that held a corridor-timetable H* was overwritten by a weaker source — precedence is broken and this must never happen. See src/seed/recalibrate.ts#resolveHeadway',
+    );
+  }
+
+  // KEPT LOUD. 'none' means no published source could answer, so detection is
+  // off for these route-directions. Nothing downstream will mention them again.
   if (result.uncalibrated > 0) {
     logger.warn(
-      { directions: result.uncalibrated },
-      'seed: these route-directions have NO target headway — the timetable published no repeated departure for them, so none was invented. They are observation-only: loadActiveRoutePolicy refuses the row and bunching detection is off for them, visibly. Find them with: select * from route_policies where effective_to is null and calibration_source = \'none\'',
+      { directions: result.uncalibrated, share: share(result.uncalibrated) },
+      'seed: these route-directions have NO target headway — neither the corridor timetable nor the statewide OD schedule published a repeated departure for them, so none was invented. They are observation-only: loadActiveRoutePolicy refuses the row and bunching detection is off for them, visibly. Find them with: select * from route_policies where effective_to is null and calibration_source = \'none\'',
     );
   }
 }
@@ -581,6 +867,12 @@ export async function runSeed(argv: readonly string[]): Promise<number> {
     return 1;
   }
 
+  // The OD sweep is only meaningful alongside a published timetable: with
+  // --no-timetable the run has explicitly asked for the vehicle-derived
+  // estimator regime, and mixing a published source into it would produce a
+  // report nobody can read. Its absence is never fatal — see loadOdSchedule.
+  const od = options.noTimetable ? null : await loadOdSchedule(options, serviceDate);
+
   // ---- recalibrate-only --------------------------------------------------
   if (options.recalibrateOnly) {
     if (!timetable) {
@@ -592,7 +884,7 @@ export async function runSeed(argv: readonly string[]): Promise<number> {
     let recalibrate: RecalibrateResult | null = null;
     let exitCode = 0;
     try {
-      recalibrate = await recalibrateHeadways(pool, timetable, {
+      recalibrate = await recalibrateHeadways(pool, timetable, od, {
         dryRun: options.dryRun,
         gains: options.gains,
       });
@@ -707,6 +999,7 @@ export async function runSeed(argv: readonly string[]): Promise<number> {
     controlPointInterval: options.controlPointInterval,
     maxStopDetourMeters: options.maxStopDetourMeters,
     timetable,
+    od,
   });
 
   logger.info(

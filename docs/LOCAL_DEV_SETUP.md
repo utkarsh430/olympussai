@@ -188,9 +188,30 @@ select calibration_source, count(*),
  group by 1 order by 2 desc;
 ```
 
-`calibration_source = 'default'` means the target was not derived from data.
-Treat those route-directions as observation-only until a real service
-frequency is supplied.
+Read the `calibration_source` column as follows, best evidence first:
+
+| value | meaning |
+| --- | --- |
+| `timetable` | Measured from `getStaticData.php`, the published departure board: the median gap between successive departures of this line-direction at one stop area. The endpoint serves 22 stops on the Lucknow–Raebareli–Prayagraj corridor and cannot be widened. |
+| `od_timetable` | Measured from `getBusBetweenStops.php`, the statewide origin-destination schedule, swept over the ordered pairs of the published cities. Same estimator, bucketed by boarding stop. Real published schedule, statewide reach, coarser vantage point. |
+| `none` | **No target exists.** Neither published source had an answer, so none was invented: `target_headway_seconds` carries the sentinel `1`, `loadActiveRoutePolicy` refuses the row, and the route-direction is observation-only. Detection is off *visibly*. |
+| `journey_span` / `fleet_span` | The older vehicle-derived estimators. Only a `--no-timetable` run emits these. |
+| `default` | **Fabricated** — not derived from anything. Treat as observation-only. |
+
+Precedence is strict: `timetable` > `od_timetable` > `none`. A route-direction
+that already has a corridor-timetable H\* is never overwritten by the coarser
+source; the seeder reports `timetableDowngraded`, which must always be `0`.
+
+A full OD sweep is a ~650-query prefix drill over `getStopAreaAndGroup.php`
+(nothing publishes the city ids) plus 210 POSTs, all against a shared PHP host.
+Capture it once and replay it:
+
+```sh
+pnpm seed --recalibrate-only --dry-run \
+  --timetable-out=/tmp/tt.json --od-out=/tmp/od.json
+pnpm seed --recalibrate-only \
+  --timetable-file=/tmp/tt.json --od-file=/tmp/od.json
+```
 
 Every seeded route starts at rollout stage `observation` — detection runs,
 but no command can be issued on it until an admin promotes it via

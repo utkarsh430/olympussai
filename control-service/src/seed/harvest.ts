@@ -161,6 +161,13 @@ import {
   type ScheduleJourney,
 } from '../ingestion/upsrtc/normalize.js';
 import {
+  lookupOdHeadway,
+  type OdIndex,
+  type OdMatchKind,
+  type OdReport,
+} from './odTimetable.js';
+import { directionSuffix, stripDirectionSuffix } from './routeName.js';
+import {
   lookupTimetableHeadway,
   type TimetableIndex,
   type TimetableMatchKind,
@@ -271,22 +278,35 @@ export interface SeedRouteDirectionStop {
 /**
  * How target_headway_seconds was arrived at. Persisted verbatim into
  * route_policies.calibration_source, whose CHECK constraint is exactly this
- * union — see db/migrations/20260809100000__route_policy_calibration.sql and
- * db/migrations/20260810120000__route_policy_timetable_calibration.sql.
+ * union — see db/migrations/20260809100000__route_policy_calibration.sql,
+ * db/migrations/20260810120000__route_policy_timetable_calibration.sql and
+ * db/migrations/20260811090000__route_policy_od_timetable_calibration.sql.
  *
- * 'timetable' and 'none' are the only two a run with a timetable can emit; the
- * other three exist for a run without one. See deriveTargetHeadway.
+ * 'timetable', 'od_timetable' and 'none' are the only three a run with a
+ * published source can emit, in that PRECEDENCE order; the other two exist for
+ * a run without one. See deriveTargetHeadway.
  */
 export type HeadwayCalibrationSource =
   | 'timetable'
+  | 'od_timetable'
   | 'journey_span'
   | 'fleet_span'
   | 'default'
   | 'none';
 
-/** Every source, in the order a report should list them: best evidence first. */
+/**
+ * Every source, in the order a report should list them: best evidence first.
+ *
+ * The first two are also the PRECEDENCE order, and that ordering is a claim
+ * about the observations, not about the numbers. 'timetable' is a departure
+ * board at one stop — successive departures at a point, which is what headway
+ * IS. 'od_timetable' is published trips between city pairs, assembled from many
+ * queries; real schedule, coarser view. A route holding the former is never
+ * downgraded to the latter (src/seed/recalibrate.ts, deriveTargetHeadway).
+ */
 export const HEADWAY_CALIBRATION_SOURCES: readonly HeadwayCalibrationSource[] = [
   'timetable',
+  'od_timetable',
   'journey_span',
   'fleet_span',
   'default',
@@ -466,8 +486,25 @@ export interface TimetableHeadwayMatchEntry {
 }
 
 /**
- * A route-direction the timetable could not answer for. Every one of these is a
- * `calibration_source = 'none'` row: detection off, visibly.
+ * A route-direction whose H* came from the statewide OD schedule, and how it
+ * was matched. The 'od_timetable' counterpart of TimetableHeadwayMatchEntry,
+ * kept separate rather than merged with a source discriminator so a report can
+ * be read without first deciding which kind of `stopCount` it is looking at —
+ * one counts stop AREAS on a departure board, the other counts BOARDING STOPS
+ * across city-pair queries.
+ */
+export interface OdHeadwayMatchEntry {
+  routeId: string;
+  directionCode: string;
+  match: OdMatchKind;
+  targetHeadwaySeconds: number;
+  sampleCount: number;
+  stopCount: number;
+}
+
+/**
+ * A route-direction NEITHER published source could answer for. Every one of
+ * these is a `calibration_source = 'none'` row: detection off, visibly.
  */
 export interface UncalibratedDirectionEntry {
   routeId: string;
@@ -517,6 +554,14 @@ export interface HarvestReport {
    */
   timetable: TimetableReport | null;
   timetableMatches: TimetableHeadwayMatchEntry[];
+  /**
+   * The statewide OD schedule's own audit, plus how it landed on THIS harvest.
+   * Null when the run was given no OD corpus. Only route-directions the
+   * corridor timetable could NOT answer for can appear in `odMatches` — see
+   * deriveTargetHeadway on precedence.
+   */
+  od: OdReport | null;
+  odMatches: OdHeadwayMatchEntry[];
   uncalibratedDirections: UncalibratedDirectionEntry[];
   implausibleHeadways: ImplausibleHeadwayEntry[];
   skippedRoutes: SkippedRouteEntry[];
@@ -734,6 +779,16 @@ export interface HarvestOptions {
    * getScheduledBusInfo. This is a hybrid, not a replacement.
    */
   timetable?: TimetableIndex | null;
+  /**
+   * The statewide OD schedule (src/seed/odTimetable.ts). Consulted for H* ONLY
+   * where `timetable` had no answer — see deriveTargetHeadway on precedence.
+   *
+   * It is NOT authoritative for direction_code, unlike `timetable`: this corpus
+   * publishes no explicit direction word, only an `_IN`/`_OUT` suffix on the
+   * route name, which is the same signal the harvester already reads for
+   * itself. Nor for geometry — it publishes no coordinates either.
+   */
+  od?: OdIndex | null;
 }
 
 interface HarvestedJourney {
@@ -742,18 +797,11 @@ interface HarvestedJourney {
   registrationNumber: string;
 }
 
-/** `_ORD`, `_JRT`, `_VPL` etc. are service classes; only _IN/_OUT are directions. */
-export function directionSuffix(routeName: string | null): 'IN' | 'OUT' | null {
-  if (!routeName) return null;
-  if (/_OUT$/i.test(routeName)) return 'OUT';
-  if (/_IN$/i.test(routeName)) return 'IN';
-  return null;
-}
-
-/** RouteName with any trailing _IN/_OUT removed. Service class is retained. */
-export function stripDirectionSuffix(routeName: string): string {
-  return routeName.replace(/_(IN|OUT)$/i, '');
-}
+// The route-name grammar moved to src/seed/routeName.ts when src/seed/
+// odTimetable.ts became a second reader of it — see that file's header. It is
+// re-exported here because it is part of the harvester's own vocabulary and
+// several callers already import it from this module.
+export { directionSuffix, stripDirectionSuffix } from './routeName.js';
 
 /**
  * Terminal-swap test: B runs the reverse of A when A starts where B ends and
@@ -1009,6 +1057,8 @@ export interface HeadwayDerivation {
   rejected: { method: DerivableHeadwaySource; seconds: number; sampleCount: number }[];
   /** Present only for 'timetable': how the row was matched, and on what sample. */
   timetableMatch?: { match: TimetableMatchKind; sampleCount: number; stopAreaCount: number };
+  /** Present only for 'od_timetable'. Mutually exclusive with timetableMatch. */
+  odMatch?: { match: OdMatchKind; sampleCount: number; stopCount: number };
 }
 
 /** Mean gap between successive departures: span / (n-1). null below 2 samples. */
@@ -1027,19 +1077,33 @@ function isCredibleHeadway(seconds: number): boolean {
  * H* for one route-direction, plus the honest name of how it was obtained.
  *
  * TWO REGIMES, and which one applies is decided by whether the run was given a
- * timetable. They are not blended, deliberately.
+ * PUBLISHED source. They are not blended, deliberately.
  *
- * WITH A TIMETABLE (`index` non-null) the answer is 'timetable' or 'none', full
- * stop. The vehicle-derived estimators are NOT consulted as a fallback, because
- * consulting them is the bug: both infer a property of the SERVICE from a
- * sample of VEHICLES, and a route the timetable cannot answer for is a route
- * nobody has measured. Falling back would put a plausible-looking number on
- * exactly the rows that have no evidence, which is how 435 route-directions
+ * WITH A PUBLISHED SOURCE the answer is 'timetable', 'od_timetable' or 'none',
+ * full stop. The vehicle-derived estimators are NOT consulted as a fallback,
+ * because consulting them is the bug: both infer a property of the SERVICE from
+ * a sample of VEHICLES, and a route no published source can answer for is a
+ * route nobody has measured. Falling back would put a plausible-looking number
+ * on exactly the rows that have no evidence, which is how 435 route-directions
  * came to carry a fabricated 1,800s in the first place. 'none' pairs with
  * UNCALIBRATED_HEADWAY_SENTINEL_SECONDS and turns detection off VISIBLY.
  *
- * WITHOUT A TIMETABLE the pre-existing chain is unchanged, strongest evidence
- * first and the fallback last and labelled as such:
+ * PRECEDENCE AMONG THE PUBLISHED SOURCES, and it is strict:
+ *
+ *     'timetable'  >  'od_timetable'  >  'none'
+ *
+ * The corridor timetable is consulted first and, when it answers, the OD corpus
+ * is not consulted at all — so a route already calibrated from a departure
+ * board can never be DOWNGRADED by the coarser source, whatever number that
+ * source would have produced. The ordering reflects what was observed rather
+ * than which number looks better: getStaticData gives successive departures of
+ * one line-direction AT ONE STOP, which is the definition of headway;
+ * getBusBetweenStops gives published trips between city pairs, assembled across
+ * many queries. Both are real schedule; one is a closer measurement of the
+ * quantity H* names.
+ *
+ * WITHOUT ANY PUBLISHED SOURCE the pre-existing chain is unchanged, strongest
+ * evidence first and the fallback last and labelled as such:
  *
  *   1. 'journey_span': >=2 deduped journey starts for THIS direction, span/(n-1).
  *      Real published departures over the same road.
@@ -1060,23 +1124,50 @@ export function deriveTargetHeadway(
   fleetDepartureSeconds: readonly number[],
   fallbackSeconds: number,
   timetable?: { index: TimetableIndex; routeId: string; directionCode: string } | null,
+  od?: { index: OdIndex; routeId: string; directionCode: string } | null,
 ): HeadwayDerivation {
   const rejected: HeadwayDerivation['rejected'] = [];
 
-  if (timetable) {
-    const found = lookupTimetableHeadway(timetable.index, timetable.routeId, timetable.directionCode);
-    if (found) {
-      return {
-        targetHeadwaySeconds: found.headway.targetHeadwaySeconds,
-        calibrationSource: 'timetable',
-        rejected,
-        timetableMatch: {
-          match: found.match,
-          sampleCount: found.headway.sampleCount,
-          stopAreaCount: found.headway.stopAreaCount,
-        },
-      };
+  if (timetable || od) {
+    if (timetable) {
+      const found = lookupTimetableHeadway(
+        timetable.index,
+        timetable.routeId,
+        timetable.directionCode,
+      );
+      if (found) {
+        return {
+          targetHeadwaySeconds: found.headway.targetHeadwaySeconds,
+          calibrationSource: 'timetable',
+          rejected,
+          timetableMatch: {
+            match: found.match,
+            sampleCount: found.headway.sampleCount,
+            stopAreaCount: found.headway.stopAreaCount,
+          },
+        };
+      }
     }
+
+    // Only reached when the corridor timetable had NO answer. This is the
+    // enforcement point for precedence: there is no path from a 'timetable'
+    // result to this branch.
+    if (od) {
+      const found = lookupOdHeadway(od.index, od.routeId, od.directionCode);
+      if (found) {
+        return {
+          targetHeadwaySeconds: found.headway.targetHeadwaySeconds,
+          calibrationSource: 'od_timetable',
+          rejected,
+          odMatch: {
+            match: found.match,
+            sampleCount: found.headway.sampleCount,
+            stopCount: found.headway.stopCount,
+          },
+        };
+      }
+    }
+
     return {
       targetHeadwaySeconds: UNCALIBRATED_HEADWAY_SENTINEL_SECONDS,
       calibrationSource: 'none',
@@ -1154,6 +1245,7 @@ export function harvestNetwork(
   const controlPointInterval = Math.max(1, options.controlPointInterval ?? DEFAULT_CONTROL_POINT_INTERVAL);
   const maxStopDetourMeters = options.maxStopDetourMeters ?? MAX_STOP_DETOUR_METERS;
   const timetable = options.timetable ?? null;
+  const od = options.od ?? null;
 
   const plan = planProbes(livePayload);
 
@@ -1169,7 +1261,14 @@ export function harvestNetwork(
     routesAccepted: 0,
     directionsAccepted: 0,
     stopsAccepted: 0,
-    headwayCalibration: { timetable: 0, journey_span: 0, fleet_span: 0, default: 0, none: 0 },
+    headwayCalibration: {
+      timetable: 0,
+      od_timetable: 0,
+      journey_span: 0,
+      fleet_span: 0,
+      default: 0,
+      none: 0,
+    },
     fleetDepartures: {
       routeNames: plan.fleetDepartures.size,
       withMultipleDepartures: [...plan.fleetDepartures.values()].filter((starts) => starts.length >= 2)
@@ -1177,6 +1276,8 @@ export function harvestNetwork(
     },
     timetable: timetable?.report ?? null,
     timetableMatches: [],
+    od: od?.report ?? null,
+    odMatches: [],
     uncalibratedDirections: [],
     implausibleHeadways: [],
     skippedRoutes: [],
@@ -1298,6 +1399,7 @@ export function harvestNetwork(
           maxStopDetourMeters,
           fleetDepartures: plan.fleetDepartures,
           timetable,
+          od,
         },
         report,
       );
@@ -1345,6 +1447,8 @@ interface BuildDirectionConfig {
   fleetDepartures: Map<string, number[]>;
   /** Authoritative H* and direction source, or null for a timetable-less run. */
   timetable: TimetableIndex | null;
+  /** Second-precedence H* source. Consulted only where `timetable` is silent. */
+  od: OdIndex | null;
 }
 
 function buildDirection(
@@ -1521,6 +1625,7 @@ function buildDirection(
     fleetDepartureSeconds,
     config.fallbackHeadway,
     config.timetable ? { index: config.timetable, routeId, directionCode } : null,
+    config.od ? { index: config.od, routeId, directionCode } : null,
   );
   for (const entry of headway.rejected) {
     report.implausibleHeadways.push({
@@ -1539,6 +1644,15 @@ function buildDirection(
       targetHeadwaySeconds: headway.targetHeadwaySeconds,
       sampleCount: headway.timetableMatch.sampleCount,
       stopAreaCount: headway.timetableMatch.stopAreaCount,
+    });
+  } else if (headway.odMatch) {
+    report.odMatches.push({
+      routeId,
+      directionCode,
+      match: headway.odMatch.match,
+      targetHeadwaySeconds: headway.targetHeadwaySeconds,
+      sampleCount: headway.odMatch.sampleCount,
+      stopCount: headway.odMatch.stopCount,
     });
   } else if (headway.calibrationSource === 'none') {
     report.uncalibratedDirections.push({
