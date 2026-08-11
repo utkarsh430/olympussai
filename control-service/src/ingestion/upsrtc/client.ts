@@ -40,12 +40,41 @@ export interface UpstreamFetchResult {
 }
 
 /**
+ * The parts of a request that differ between the UPSRTC endpoints.
+ *
+ * ONE endpoint needs this — getBusBetweenStops.php, which is a POST of a
+ * form-encoded body (src/ingestion/upsrtc/busBetweenStops.ts). It is an
+ * optional third argument rather than a second fetch function because
+ * EVERYTHING ELSE about the two calls is identical, and all of it is
+ * hard-won: the text-then-JSON.parse (the endpoints advertise text/html while
+ * returning JSON), the leading-`<` HTML-error-page guard, and the abort
+ * timeout. A sibling POST helper would have to re-state all three, and the
+ * module header's rule — "fix a bug in one, fix it in both" — has already been
+ * paid for once across packages. It is not worth paying again inside one file.
+ */
+export interface UpstreamRequest {
+  method?: 'GET' | 'POST';
+  /**
+   * Pre-encoded request body, sent verbatim. POST only.
+   *
+   * Encoding is the caller's job because the caller is the one that knows the
+   * content type: getBusBetweenStops wants
+   * `application/x-www-form-urlencoded`, and building that here would mean
+   * guessing at how a future endpoint wants its parameters serialized.
+   */
+  body?: string;
+  /** Merged over the defaults below; a same-named key here wins. */
+  headers?: Record<string, string>;
+}
+
+/**
  * Fetch + tolerant parse. The upstream advertises text/html even when the body
  * is JSON, so we always attempt a JSON parse of the text body ourselves.
  */
 export async function fetchUpstream(
   url: string,
   timeoutMs: number = SCHEDULE_REQUEST_TIMEOUT_MS,
+  request: UpstreamRequest = {},
 ): Promise<UpstreamFetchResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -56,9 +85,14 @@ export async function fetchUpstream(
     // anyway. Freshness is instead requested at the protocol level.
     const response = await fetch(url, {
       signal: controller.signal,
+      method: request.method ?? 'GET',
+      // Undici rejects a body on GET, so it is only ever attached when one was
+      // actually supplied.
+      ...(request.body === undefined ? {} : { body: request.body }),
       headers: {
         Accept: 'application/json, text/plain, */*',
         'Cache-Control': 'no-cache',
+        ...request.headers,
       },
     });
 

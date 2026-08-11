@@ -1,0 +1,154 @@
+-- route_policies.calibration_source: admit a SECOND measured target headway,
+-- 'od_timetable', derived from the statewide origin-destination schedule.
+--
+-- Extends control-service/db/migrations/20260810120000__route_policy_timetable_calibration.sql,
+-- which is already applied and must NOT be edited. Idempotent: every statement
+-- is safe to re-run.
+--
+-- Constraints changed: route_policies_calibration_source_check (widened again).
+-- route_policies_uncalibrated_sentinel_check is deliberately left exactly as
+-- the previous migration wrote it -- see the bottom of this file.
+
+begin;
+
+-- ============================================================================
+-- WHY THIS MIGRATION EXISTS
+-- ============================================================================
+--
+-- The previous migration made H* a MEASUREMENT or an explicit ABSENCE, and
+-- deleted fabrication. It could not make coverage good, because the only
+-- published source it had reaches one corridor.
+--
+-- MEASURED, by probing getStaticData.php densely over stop_code 1..400 with
+-- zero errors: it serves exactly 22 stops, and their names in order are
+-- ALAMBAGH, TELIBAGH, SGPGI, MOHANLAL GANJ, NIGOHA, BACHHRAWAN, HARCHANDPUR,
+-- RAEBARELI, UNCHAHAR, NAWABGANJ, PHAPHAMAU, PRAYAGRAJ. That is the
+-- Lucknow -> Raebareli -> Prayagraj corridor, one instrumented line of the
+-- network, and the endpoint cannot be widened. It calibrated 74 of 666 active
+-- route-directions; the other 592 became 'none'. 'none' is honest, and 89% of
+-- the network being observation-only is still 89% of the network being
+-- observation-only.
+--
+-- getBusBetweenStops.php covers the state. It answers "what runs from city A to
+-- city B on date D" with published trips, each carrying its line, its route
+-- name and its departure time from a stop inside the origin city. Sweeping the
+-- ordered pairs of the published cities returns the statewide published
+-- service. The city ids it needs are not published anywhere either; they are
+-- recovered by a bounded prefix drill over getStopAreaAndGroup.php
+-- (src/ingestion/upsrtc/stopAreaGroup.ts), which is an autocomplete with a
+-- server-side LIMIT 10 and no pagination.
+--
+-- ============================================================================
+-- 'od_timetable' -- a measurement, from a coarser vantage point
+-- ============================================================================
+--
+-- The MEDIAN gap between successive published departures of one line-direction
+-- AT ONE BOARDING STOP, medianed across the boarding stops that observed it
+-- (src/seed/odTimetable.ts#deriveOdHeadway). Structurally the same estimator as
+-- 'timetable', importing the same helpers, the same 120s re-publication
+-- collapse and the same [5 min, 4h] credibility bounds -- with an
+-- out-of-bounds derivation REJECTED rather than clamped, so the
+-- route-direction becomes 'none' instead of carrying a number that looks like a
+-- measurement and is not.
+--
+-- BUCKETING BY BOARDING STOP IS LOAD-BEARING HERE, more than it was for
+-- 'timetable'. MEASURED on a real Lucknow -> Prayagraj response: vj_id 19237
+-- appears TWICE in one payload, at KAISERBAGH 10:53:44 and ALAMBAGH 11:08:52 --
+-- the same bus, fifteen minutes apart, on its way out of one city. Pooling the
+-- boarding stops would turn that single working into a 15-minute "headway", and
+-- an H* biased LOW is the silent-false-negative failure this whole line of work
+-- exists to remove. Each journey also recurs in every city pair its route
+-- spans, so departure times are deduped per bucket before any gap is computed.
+--
+-- Both estimators were run over the full 53,898-row sweep and compared on the
+-- 906 line-directions BOTH can answer for: pooled reports a median H* of 1,635s
+-- against bucketed 2,582s, and is strictly lower on 399 of the 906. Pooling
+-- would have calibrated 111 route-directions instead of 97 -- fourteen more,
+-- every one of them on a denominator biased 37% short.
+--
+-- ============================================================================
+-- WHAT THIS ACTUALLY BUYS, MEASURED ON THIS DATABASE
+-- ============================================================================
+--
+--   before:  74 'timetable' + 592 'none'                     (11.1% calibrated)
+--   after:   74 'timetable' + 97 'od_timetable' + 495 'none'  (25.7% calibrated)
+--
+-- The ceiling is the JOIN, not the estimator. OD rows reach the seeded network
+-- through `line_name`, which matches routes.id (seeded from
+-- getScheduledBusInfo's `line_id`) for only ~170 of 666 route-directions --
+-- MEASURED, because many OD rows carry a description in `line_name` rather than
+-- a line id. Keying on `route_name` instead reaches 2,851 derivable groups,
+-- which looks much better and lines up with nothing that was seeded. The
+-- remaining 495 'none' rows are an honest census, not a gap to be filled in.
+--
+-- WHY IT IS A SEPARATE SOURCE AND NOT MORE 'timetable' ROWS:
+--
+--   * getStaticData publishes a DEPARTURE BOARD -- successive departures of one
+--     line-direction at one stop. That is the definition of headway.
+--   * getBusBetweenStops publishes TRIPS BETWEEN CITY PAIRS. Real schedule, but
+--     one route's departures are assembled from many separate queries and the
+--     completeness of that set depends on which city pairs the route spans.
+--
+-- Both are published operator data and neither is an estimate. They are not
+-- equally close to the quantity H* names, and a single label would erase that.
+--
+-- ============================================================================
+-- PRECEDENCE: 'timetable' > 'od_timetable' > 'none'
+-- ============================================================================
+--
+-- Enforced in exactly one place, src/seed/recalibrate.ts#resolveHeadway: the
+-- corridor timetable is asked first and, when it answers, the OD index is not
+-- consulted at all -- not compared against, not averaged with, not used as a
+-- tie-breaker. There is no code path from a timetable hit to an 'od_timetable'
+-- result, which is what makes "a 'timetable' row is never downgraded" a
+-- structural property rather than a convention. The seeder additionally reports
+-- `timetableDowngraded`, computed from its own audit trail, which must be 0.
+--
+-- This is NOT expressible as a database constraint, and pretending otherwise
+-- would be worse than not trying: route_policies is a VERSIONED table, so the
+-- legitimate way a row's source changes is a new row with the old one closed,
+-- and a constraint forbidding 'timetable' -> 'od_timetable' would also forbid
+-- the legitimate case where a corridor route genuinely leaves the timetable.
+-- The invariant lives in the code that writes, and in the report that audits.
+--
+-- ============================================================================
+-- WHAT IS UNCHANGED, AND MUST STAY UNCHANGED
+-- ============================================================================
+--
+-- 'none' still means NO TARGET EXISTS: target_headway_seconds carries the
+-- sentinel 1, pinned by route_policies_uncalibrated_sentinel_check, and
+-- src/headway/repository.ts#loadActiveRoutePolicy plus src/db/rehydrate.ts both
+-- EXCLUDE such rows with `calibration_source <> 'none'`, so the pre-existing
+-- 404 `no_active_policy` path takes over. Adding a source did not add a
+-- fabrication branch: a route-direction neither published source can answer for
+-- still gets no number.
+--
+-- Those two exclusions are written as `<> 'none'` rather than as an allow-list,
+-- which is why 'od_timetable' rows are loaded by both without either query
+-- being touched. That is the intended behaviour: an 'od_timetable' H* is a
+-- measurement and detection SHOULD run against it.
+--
+-- The sentinel CHECK is not touched either. It says a 'none' row may carry only
+-- the value 1; it says nothing about the other sources and does not need to.
+
+-- Named by Postgres from the previous migration's explicit
+-- `add constraint route_policies_calibration_source_check`. Dropping by that
+-- name with `if exists` keeps this re-runnable and fails loudly if a future
+-- migration renames it rather than silently leaving two constraints behind.
+alter table route_policies
+  drop constraint if exists route_policies_calibration_source_check;
+
+-- Kept on ONE line, deliberately. tests/seed/timetableCalibration.test.ts reads
+-- this constraint straight out of the migration directory and compares it with
+-- HEADWAY_CALIBRATION_SOURCES, so a source added in TypeScript but not here
+-- fails a test instead of failing in production one route-direction at a time.
+-- Its regex does not span newlines; wrapping this list would make the guard
+-- silently read the PREVIOUS migration's constraint instead of this one.
+alter table route_policies
+  add constraint route_policies_calibration_source_check
+  check (calibration_source in ('timetable', 'od_timetable', 'journey_span', 'fleet_span', 'default', 'none'));
+
+comment on column route_policies.calibration_source is
+  'How target_headway_seconds (H*) was obtained, written by the network seeder. Two PUBLISHED sources, in strict precedence order. ''timetable'' = MEASURED from a departure board: the median gap between successive published departures of this line-direction at one stop area, medianed across observing stop areas, from getStaticData.php (src/seed/timetable.ts). That endpoint serves 22 stops on ONE corridor (Lucknow-Raebareli-Prayagraj) and cannot be widened. ''od_timetable'' = MEASURED from the statewide origin-destination schedule: the same estimator over published trips from getBusBetweenStops.php, bucketed by BOARDING STOP and medianed across them (src/seed/odTimetable.ts). Real published schedule, statewide reach, coarser vantage point -- one route''s departures are assembled from many city-pair queries rather than read off one board. PRECEDENCE: a route-direction that has a ''timetable'' H* is NEVER overwritten by ''od_timetable'' (src/seed/recalibrate.ts#resolveHeadway consults the OD index only when the timetable is silent). ''none'' = NO TARGET EXISTS: neither published source had an answer, target_headway_seconds carries the sentinel 1 (pinned by route_policies_uncalibrated_sentinel_check), loadActiveRoutePolicy and rehydrate both refuse the row and the route-direction is observation-only -- detection is off VISIBLY. ''journey_span'' / ''fleet_span'' = the older vehicle-derived estimators, used only by a run given no published source; both infer a property of the SERVICE from a sample of VEHICLES and ''fleet_span'' in particular overestimates. ''default'' = NOT DERIVED, a configured fallback was written because the column is not-null. Consumers MUST treat ''none'' and ''default'' alike as uncalibrated and never present their thresholds, CV or EWT as measurements: a wrong H* disables detection without raising anything, because every threshold in src/headway/ is a ratio of it.';
+
+commit;
