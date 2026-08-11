@@ -98,6 +98,13 @@ async function loadHeadwayStates(pool: Pool): Promise<HeadwayStateRow[]> {
   }));
 }
 
+/**
+ * `calibration_source = 'none'` rows are excluded for the same reason
+ * src/headway/repository.ts#loadActiveRoutePolicy excludes them: such a row has
+ * no target headway, only the sentinel that the not-null column forced. Loading
+ * it into the store would hand every consumer a number to divide by. Absent
+ * from the store is the state that already means "unpoliced".
+ */
 async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
   const { rows } = await pool.query<{
     id: string;
@@ -121,7 +128,8 @@ async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
             kf, kb, self_equalizing_k, max_hold_seconds, cooldown_seconds,
             prediction_horizon_control_points, occupancy_stale_seconds, occupancy_capacity
        from route_policies
-      where effective_to is null`,
+      where effective_to is null
+        and calibration_source <> 'none'`,
   );
   return rows.map((r) => ({
     id: r.id,
