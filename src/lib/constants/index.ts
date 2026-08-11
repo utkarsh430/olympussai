@@ -16,6 +16,8 @@ export const LIVE_LABELS = {
   schedule: 'LIVE UPSRTC SCHEDULE',
   fixture: 'UPSRTC FIXTURE FALLBACK',
   liveData: 'LIVE UPSRTC DATA',
+  /** The upstream did not answer and nothing real is held — no data is shown at all. */
+  unavailable: 'UPSTREAM UNAVAILABLE',
 } as const;
 
 /** Copilot status states shown on the intelligence core. */

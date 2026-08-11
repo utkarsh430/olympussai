@@ -11,6 +11,7 @@ import {
 } from '@/lib/upsrtc/client';
 import { normalizeSchedulePayload } from '@/lib/upsrtc/normalizer';
 import { TtlCache } from '@/lib/upsrtc/cache';
+import { isDemoModeForced, isFixtureFallbackAllowed } from '@/lib/upsrtc/fixtureFallback';
 import scheduleFixture from '@/fixtures/upsrtc-schedule-sample.json';
 import type { CanonicalSchedule, ScheduleResponse } from '@/models/canonical';
 
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       } satisfies ScheduleResponse, { acceptEncoding });
   }
 
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === '1') {
+  if (isDemoModeForced()) {
     return jsonResponse(fixtureSchedule(regNum, requestedDate, 'Fixture mode forced'), { acceptEncoding });
   }
 
@@ -138,7 +139,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       } satisfies ScheduleResponse, { acceptEncoding });
   }
 
-  return jsonResponse(fixtureSchedule(regNum, requestedDate, scheduleDiagnostics.lastError), { acceptEncoding });
+  return jsonResponse(degradedSchedule(regNum, requestedDate, scheduleDiagnostics.lastError), { acceptEncoding });
 }
 
 /**
@@ -227,4 +228,28 @@ function fixtureSchedule(regNum: string, date: string, reason: string | null): S
       ? `Showing UPSRTC fixture fallback (${reason}).`
       : 'Showing UPSRTC fixture fallback.',
   };
+}
+
+/**
+ * The honest answer when the schedule upstream could not be reached and no
+ * real cached copy is held. Distinct from the `source: 'live', schedule: null`
+ * result above, which means the upstream answered and this vehicle genuinely
+ * has no assignment: that is a fact about the roster, this is a fact about the
+ * network.
+ */
+function unavailableSchedule(reason: string | null): ScheduleResponse {
+  return {
+    schedule: null,
+    fetchedAt: new Date().toISOString(),
+    source: 'unavailable',
+    stale: true,
+    message: `Live UPSRTC schedule is unavailable — the upstream did not answer and no cached schedule is held.${reason ? ` (${reason})` : ''}`,
+  };
+}
+
+/** Fixture substitution only where explicitly permitted; otherwise the unavailable state. */
+function degradedSchedule(regNum: string, date: string, reason: string | null): ScheduleResponse {
+  return isFixtureFallbackAllowed()
+    ? fixtureSchedule(regNum, date, reason)
+    : unavailableSchedule(reason);
 }

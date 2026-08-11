@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { OpsFleetSnapshot } from '@/lib/ops/fleetData';
 import { filterFleet } from '@/lib/ops/fleetView';
 import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
-import { DataSourceNotice } from '@/components/ops/DataSourceNotice';
+import { DataSourceNotice, emptyFleetLabel } from '@/components/ops/DataSourceNotice';
 import { FleetSearchForm } from '@/components/ops/FleetSearchForm';
 import { FleetStatusTable } from '@/components/ops/FleetStatusTable';
 import { KillSwitchPanel } from './KillSwitchPanel';
@@ -66,7 +66,11 @@ export function ControlRoomDashboard({
           Live fleet status
         </h2>
         <FleetSearchForm query={query} resultCount={rows.length} totalCount={snapshot.buses.length} />
-        <FleetStatusTable buses={rows} totalCount={snapshot.buses.length} />
+        <FleetStatusTable
+          buses={rows}
+          totalCount={snapshot.buses.length}
+          emptyLabel={emptyFleetLabel(snapshot.source, 'No vehicles match.')}
+        />
       </section>
 
       <section>

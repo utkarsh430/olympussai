@@ -78,7 +78,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     // product heading + subtitle were removed).
     await expect(page.getByText('Olympuss AI')).toBeVisible();
     await expect(page.getByText('Project Environment')).toBeVisible();
-    await expect(page.getByText(/CONNECTED|FIXTURE|STALE CACHE|DEGRADED/).first()).toBeVisible();
+    await expect(page.getByText(/CONNECTED|FIXTURE|STALE CACHE|DEGRADED|UNAVAILABLE/).first()).toBeVisible();
   });
 
   test('2. live or fixture buses appear in the fleet panel and on the counter', async ({ page }) => {
@@ -255,7 +255,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     await waitForFleet(page);
 
     // The top bar always distinguishes live data from the predictive layer.
-    await expect(page.getByText(/LIVE UPSRTC GPS|UPSRTC FIXTURE FALLBACK/).first()).toBeVisible();
+    await expect(page.getByText(/LIVE UPSRTC GPS|UPSRTC FIXTURE FALLBACK|UPSTREAM UNAVAILABLE/).first()).toBeVisible();
     await expect(page.getByText('Predictive Engine Active')).toBeVisible();
 
     await selectFirstBus(page);
@@ -264,7 +264,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
 
     // Simulation labelling survives while a scenario is on screen.
     await expect(page.getByTestId('scenario-stage').getByText('INCIDENT RESPONSE').first()).toBeVisible();
-    await expect(page.getByText(/LIVE UPSRTC GPS|UPSRTC FIXTURE FALLBACK/).first()).toBeVisible();
+    await expect(page.getByText(/LIVE UPSRTC GPS|UPSRTC FIXTURE FALLBACK|UPSTREAM UNAVAILABLE/).first()).toBeVisible();
   });
 
   test('13. footer disclaimer is always accessible and expandable', async ({ page }) => {

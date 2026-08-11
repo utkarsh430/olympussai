@@ -116,6 +116,9 @@ export function BusDetailDrawer() {
                 {scheduleSource === 'fixture' && (
                   <Badge variant="fixture">{LIVE_LABELS.fixture}</Badge>
                 )}
+                {scheduleSource === 'unavailable' && (
+                  <Badge variant="critical">{LIVE_LABELS.unavailable}</Badge>
+                )}
               </div>
               <h2 className="font-mono text-lg font-bold tracking-[0.12em] text-holo-glow text-glow">
                 {bus.registrationNumber}

@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { LIVE_LABELS } from '@/lib/constants';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 /** Panel with holographic frame, corner ticks and an optional scanning line. */
@@ -46,6 +47,23 @@ export function HudPanel({
       {children}
     </section>
   );
+}
+
+/**
+ * Which provenance badge a feed's source deserves.
+ *
+ * Shared by every surface that labels the live GPS feed (TopCommandBar,
+ * FleetPanel, IntelligenceStrip) so a single source value can never read as
+ * "LIVE" on one of them and something else on another. 'unavailable' is
+ * critical rather than merely non-live: nothing is being displayed at all.
+ */
+export function sourceBadge(source: string | null): {
+  variant: 'live' | 'fixture' | 'critical';
+  label: string;
+} {
+  if (source === 'unavailable') return { variant: 'critical', label: LIVE_LABELS.unavailable };
+  if (source === 'fixture') return { variant: 'fixture', label: LIVE_LABELS.fixture };
+  return { variant: 'live', label: LIVE_LABELS.gps };
 }
 
 /** LIVE / MODEL / FIXTURE provenance badge. */

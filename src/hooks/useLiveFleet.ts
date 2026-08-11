@@ -30,7 +30,16 @@ export function useLiveFleet(): void {
         });
         if (!response.ok) throw new Error(`Live feed responded ${response.status}`);
         const payload = (await response.json()) as LiveFeedResponse;
-        if (!cancelled) setFleet(payload);
+        if (cancelled) return;
+
+        setFleet(payload);
+        // An 'unavailable' payload is a successful HTTP response describing an
+        // upstream outage: zero vehicles, and no fixture stand-ins. setFleet
+        // clears feedMeta.error, so the reason is re-applied after it —
+        // otherwise an outage would render as an ordinary empty fleet.
+        if (payload.source === 'unavailable') {
+          setFleetError(payload.message ?? 'Live UPSRTC feed is unavailable.');
+        }
       } catch (error) {
         if (cancelled) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;

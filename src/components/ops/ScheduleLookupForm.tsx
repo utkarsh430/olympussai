@@ -144,15 +144,30 @@ export function ScheduleLookupForm({
 
       {result && (
         <div className="mt-4">
-          {(result.source === 'fixture' || result.stale) && (
-            <p role="status" className="mb-3 text-sm text-[#e8c07a]">
-              {result.source === 'fixture'
-                ? 'Live schedule data is unavailable — showing demo/fixture data.'
-                : 'Showing the last known schedule — the live feed did not respond.'}
+          {/*
+            Three distinguishable states, same reasoning as DataSourceNotice:
+            'unavailable' means the upstream never answered (an outage, and no
+            schedule is shown for that reason), 'fixture' means someone
+            explicitly opted into demo data, and a stale cache means a real
+            schedule that is simply older than it looks.
+          */}
+          {result.source === 'unavailable' ? (
+            <p role="alert" data-source="unavailable" className="mb-3 text-sm text-[#f5a89f]">
+              Live schedule data is unavailable — the upstream did not respond. This is not a
+              statement that the vehicle has no assignment; it means we could not ask.
+              {result.message ? ` (${result.message})` : ''}
             </p>
+          ) : (
+            (result.source === 'fixture' || result.stale) && (
+              <p role="status" data-source={result.source} className="mb-3 text-sm text-[#e8c07a]">
+                {result.source === 'fixture'
+                  ? 'Showing bundled demo/fixture data — this schedule is not real. Live schedule data is unavailable.'
+                  : 'Showing the last known schedule — the live feed did not respond.'}
+              </p>
+            )
           )}
 
-          {!result.schedule ? (
+          {result.source === 'unavailable' ? null : !result.schedule ? (
             <p className="text-sm text-[#9aa0ad]">{result.message ?? 'No schedule found for this vehicle.'}</p>
           ) : (
             <div className="space-y-3">
