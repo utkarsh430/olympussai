@@ -4,6 +4,7 @@ import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize'
 import { fetchUpstream, UPSRTC_LIVE_URL, REQUEST_TIMEOUT_MS } from '@/lib/upsrtc/client';
 import { normalizeLivePayload } from '@/lib/upsrtc/normalizer';
 import { TtlCache } from '@/lib/upsrtc/cache';
+import { isDemoModeForced, isFixtureFallbackAllowed } from '@/lib/upsrtc/fixtureFallback';
 import liveFixture from '@/fixtures/upsrtc-live-sample.json';
 import type { LiveFeedResponse } from '@/models/canonical';
 
@@ -42,7 +43,31 @@ function fixtureResponse(reason: string): LiveFeedResponse {
     stale: true,
     recordCount,
     rejectedRecordCount,
+    message: `Showing bundled UPSRTC fixture data — these vehicles are not real. (${reason})`,
   };
+}
+
+/**
+ * The honest answer when the upstream could not be reached and no real cached
+ * response is held: zero vehicles, explicitly flagged. Never fixture rows —
+ * substituting demo buses for an outage is exactly what this state exists to
+ * stop (src/lib/upsrtc/fixtureFallback.ts).
+ */
+function unavailableResponse(reason: string): LiveFeedResponse {
+  return {
+    buses: [],
+    fetchedAt: new Date().toISOString(),
+    source: 'unavailable',
+    stale: true,
+    recordCount: 0,
+    rejectedRecordCount: 0,
+    message: `Live UPSRTC feed is unavailable — the upstream did not answer and no cached response is held. (${reason})`,
+  };
+}
+
+/** Fixture substitution only where explicitly permitted; otherwise the unavailable state. */
+function degradedResponse(reason: string): LiveFeedResponse {
+  return isFixtureFallbackAllowed() ? fixtureResponse(reason) : unavailableResponse(reason);
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
@@ -54,7 +79,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const now = Date.now();
 
   // Explicit offline demo mode for presentations without connectivity.
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === '1') {
+  if (isDemoModeForced()) {
     return jsonResponse(fixtureResponse('Fixture mode forced via NEXT_PUBLIC_DEMO_MODE'), { acceptEncoding });
   }
 
@@ -87,6 +112,29 @@ export async function GET(request: NextRequest): Promise<Response> {
       return jsonResponse(body, { acceptEncoding });
     }
 
+    // The upstream answered and carried nothing at all: a real, healthy "no
+    // vehicles on the road" reading, not a failure — and emphatically not the
+    // same thing as an unreachable upstream, which is why it keeps `source:
+    // 'live'` and clears the error rather than falling down the ladder.
+    if (recordCount === 0) {
+      liveDiagnostics.lastSuccessAt = new Date(now).toISOString();
+      liveDiagnostics.lastError = null;
+      liveDiagnostics.consecutiveFailures = 0;
+
+      const body: LiveFeedResponse = {
+        buses: [],
+        fetchedAt: new Date(now).toISOString(),
+        source: 'live',
+        stale: false,
+        recordCount: 0,
+        rejectedRecordCount,
+        message: 'The UPSRTC upstream answered normally and reported no vehicles on the road.',
+      };
+      return jsonResponse(body, { acceptEncoding });
+    }
+
+    // Records arrived but every one was rejected as unusable — the feed is
+    // answering with data we cannot trust, which is a degradation.
     liveDiagnostics.lastError = 'Upstream responded but contained no usable bus records';
   } else {
     liveDiagnostics.lastError = result.error ?? 'Unknown upstream failure';
@@ -94,7 +142,10 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   liveDiagnostics.consecutiveFailures += 1;
 
-  // Degrade gracefully: last-known-good, then fixture. Never a blank screen.
+  // Degrade gracefully: last-known-good real data, then an explicit
+  // unavailable state. The bundled fixture only enters this ladder when it
+  // has been asked for (src/lib/upsrtc/fixtureFallback.ts) — an outage must
+  // not silently repopulate the map with vehicles that do not exist.
   const lastGood = cache.getLastGood(CACHE_KEY);
   if (lastGood) {
     const body: LiveFeedResponse = {
@@ -105,5 +156,5 @@ export async function GET(request: NextRequest): Promise<Response> {
     return jsonResponse(body, { acceptEncoding });
   }
 
-  return jsonResponse(fixtureResponse(liveDiagnostics.lastError ?? 'Upstream unavailable'), { acceptEncoding });
+  return jsonResponse(degradedResponse(liveDiagnostics.lastError ?? 'Upstream unavailable'), { acceptEncoding });
 }

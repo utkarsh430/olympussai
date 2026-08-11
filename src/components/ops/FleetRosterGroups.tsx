@@ -10,9 +10,22 @@ const ROWS_PER_GROUP = 10;
  * its assigned vehicles. Real backend data (the same live feed as the
  * fleet-status view), reframed as a roster rather than a flat table.
  */
-export function FleetRosterGroups({ groups, totalVehicles }: { groups: FleetGroup[]; totalVehicles: number }) {
+export function FleetRosterGroups({
+  groups,
+  totalVehicles,
+  emptyLabel = 'No vehicles currently reporting.',
+}: {
+  groups: FleetGroup[];
+  totalVehicles: number;
+  /**
+   * Wording for the zero-groups case. Defaults to the quiet-night reading;
+   * callers pass a different one when the roster is empty because the feed is
+   * unavailable rather than because the road is (see emptyFleetLabel).
+   */
+  emptyLabel?: string;
+}) {
   if (groups.length === 0) {
-    return <p className="text-sm text-[#9aa0ad]">No vehicles currently reporting.</p>;
+    return <p className="text-sm text-[#9aa0ad]">{emptyLabel}</p>;
   }
 
   const shown = groups.slice(0, GROUPS_SHOWN);

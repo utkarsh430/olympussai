@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { Area, AreaChart, ResponsiveContainer } from 'recharts';
 import { Activity, Radio, TriangleAlert, BarChart3, Play, TrendingUp } from 'lucide-react';
 import { useCopilotStore } from '@/stores/copilotStore';
-import { Badge } from '@/components/shared/hud';
+import { Badge, sourceBadge } from '@/components/shared/hud';
 import { AUDIT_EVENT_LABELS } from '@/lib/audit/auditLog';
 import { formatIndiaTime } from '@/lib/formatters';
 import { PITCH_STEPS } from '@/components/pitch-mode/pitchScript';
@@ -71,8 +71,8 @@ export function IntelligenceStrip() {
       <Panel
         title="Live GPS Stream"
         icon={Radio}
-        badge={<Badge variant={feedMeta.source === 'fixture' ? 'fixture' : 'live'} pulse>
-          {feedMeta.source === 'fixture' ? 'FIXTURE' : 'LIVE'}
+        badge={<Badge variant={sourceBadge(feedMeta.source).variant} pulse>
+          {feedMeta.source === 'unavailable' ? 'UNAVAILABLE' : feedMeta.source === 'fixture' ? 'FIXTURE' : 'LIVE'}
         </Badge>}
         className="w-[240px]"
       >

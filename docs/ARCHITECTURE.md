@@ -51,11 +51,25 @@ clients from cache.
 ## Fallback ladder
 
 ```
-live upstream  →  fresh cache  →  last-known-good (flagged stale)  →  sanitized fixture
+live upstream  →  fresh cache  →  last-known-good (flagged stale)  →  explicit "unavailable"
+                                                                     └─ sanitized fixture,
+                                                                        only if opted in
 ```
 
 Every stage is labelled distinctly in the UI. There is no state in which the
 operator sees a blank screen or an unhandled error.
+
+The last step is deliberate. Serving a recently-cached **real** response is
+legitimate degradation — the data was really observed, it is only older than it
+looks. Substituting **bundled sample vehicles that do not exist** is not, so it
+happens only when explicitly requested (`ALLOW_FIXTURE_FALLBACK`, or the
+deliberate `NEXT_PUBLIC_DEMO_MODE=1` offline demo); otherwise a failed call
+returns `source: 'unavailable'` with zero rows and a loud error notice. See
+`src/lib/upsrtc/fixtureFallback.ts`.
+
+An upstream that *answers* and reports zero vehicles stays `source: 'live'`:
+"a quiet night" and "we could not reach the feed" both show an empty table, and
+conflating them turns an incident into a shrug.
 
 ## Simulation design
 

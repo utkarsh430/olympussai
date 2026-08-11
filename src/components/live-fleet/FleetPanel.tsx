@@ -4,9 +4,8 @@ import { useMemo, useState, useEffect } from 'react';
 import { Search, Navigation, Bus, SignalHigh } from 'lucide-react';
 import { useCopilotStore } from '@/stores/copilotStore';
 import { useDebounced } from '@/hooks/useDebounced';
-import { Badge } from '@/components/shared/hud';
+import { Badge, sourceBadge } from '@/components/shared/hud';
 import { DATA_QUALITY_META, formatRelativeAge, formatSpeed, formatNumber } from '@/lib/formatters';
-import { LIVE_LABELS } from '@/lib/constants';
 import type { CanonicalLiveBus } from '@/models/canonical';
 import { cn } from '@/lib/utils';
 
@@ -99,8 +98,8 @@ export function FleetPanel({ onVisibleCountChange }: { onVisibleCountChange: (n:
             <Bus className="h-3.5 w-3.5" aria-hidden />
             Fleet Navigation
           </h2>
-          <Badge variant={feedMeta.source === 'fixture' ? 'fixture' : 'live'} pulse>
-            {feedMeta.source === 'fixture' ? LIVE_LABELS.fixture : LIVE_LABELS.gps}
+          <Badge variant={sourceBadge(feedMeta.source).variant} pulse>
+            {sourceBadge(feedMeta.source).label}
           </Badge>
         </div>
 

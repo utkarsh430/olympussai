@@ -1,6 +1,6 @@
 import type { OpsFleetSnapshot } from '@/lib/ops/fleetData';
 import { groupByRoute } from '@/lib/ops/fleetView';
-import { DataSourceNotice } from '@/components/ops/DataSourceNotice';
+import { DataSourceNotice, emptyFleetLabel } from '@/components/ops/DataSourceNotice';
 import { FleetRosterGroups } from '@/components/ops/FleetRosterGroups';
 import { ScheduleLookupForm } from '@/components/ops/ScheduleLookupForm';
 
@@ -20,7 +20,11 @@ export function PlannerDashboard({ snapshot }: { snapshot: OpsFleetSnapshot }) {
         <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
           Route roster
         </h2>
-        <FleetRosterGroups groups={groups} totalVehicles={snapshot.buses.length} />
+        <FleetRosterGroups
+          groups={groups}
+          totalVehicles={snapshot.buses.length}
+          emptyLabel={emptyFleetLabel(snapshot.source, 'No vehicles currently reporting.')}
+        />
       </section>
 
       <section>

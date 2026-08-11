@@ -2,7 +2,7 @@ import type { OpsFleetSnapshot } from '@/lib/ops/fleetData';
 import { groupByDepot, deriveStandbyAvailability } from '@/lib/ops/fleetView';
 import type { RouteOperationsBoardSnapshot } from '@/lib/controlService/routeBoardData';
 import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
-import { DataSourceNotice } from '@/components/ops/DataSourceNotice';
+import { DataSourceNotice, emptyFleetLabel } from '@/components/ops/DataSourceNotice';
 import { FleetRosterGroups } from '@/components/ops/FleetRosterGroups';
 import { ScheduleLookupForm } from '@/components/ops/ScheduleLookupForm';
 import { RouteOperationsBoard } from '@/components/ops/RouteOperationsBoard';
@@ -36,7 +36,11 @@ export function DepotDashboard({
         <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
           Vehicle roster by depot
         </h2>
-        <FleetRosterGroups groups={groups} totalVehicles={snapshot.buses.length} />
+        <FleetRosterGroups
+          groups={groups}
+          totalVehicles={snapshot.buses.length}
+          emptyLabel={emptyFleetLabel(snapshot.source, 'No vehicles currently reporting.')}
+        />
       </section>
 
       <section>

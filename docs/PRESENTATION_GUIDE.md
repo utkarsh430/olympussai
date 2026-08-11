@@ -52,12 +52,19 @@ The app degrades in stages and **never shows a blank screen or an error stack**.
 | What happened | What you will see | What to say |
 | --- | --- | --- |
 | Upstream slow / timed out | Amber banner: "last known good positions" | "We're showing the last confirmed positions — the feed refreshes every fifteen seconds." |
-| Upstream unreachable at startup | Amber banner + `UPSRTC FIXTURE FALLBACK` badge | "We're on a captured snapshot of real UPSRTC data. The positions are genuine, just not this minute's." |
+| Upstream unreachable at startup, no opt-in set | Red banner + `UPSTREAM UNAVAILABLE` badge, **no vehicles shown** | "The upstream feed isn't answering, so we're showing nothing rather than something invented. That's deliberate — this console never fills a gap with data it doesn't have." |
+| Upstream unreachable at startup, presenting with `NEXT_PUBLIC_DEMO_MODE=1` or `ALLOW_FIXTURE_FALLBACK=1` | Amber banner + `UPSRTC FIXTURE FALLBACK` badge | "We're on a captured snapshot of real UPSRTC data. The positions are genuine, just not this minute's." |
 | Google Maps key rejected | Futuristic "Basemap Unavailable" panel | "The basemap isn't loading, but the fleet data and all the intelligence layers are live — let me show you in the panels." |
 | No schedule for the vehicle | "No UPSRTC schedule is assigned to this vehicle" | "This vehicle has no assignment today — let me pick one that does." |
 
 **Do not apologise excessively for fallback mode.** The fixture contains real
 UPSRTC records. The honest framing is "real data, captured earlier".
+
+**If you want fixture mode available in a room with no connectivity, set it
+before the demo** — `NEXT_PUBLIC_DEMO_MODE=1` (or `ALLOW_FIXTURE_FALLBACK=1`).
+It is off by default on purpose: a live deployment that quietly swapped in demo
+buses during an outage would be showing a dispatcher vehicles that do not
+exist.
 
 ### Choosing a good bus to demo
 

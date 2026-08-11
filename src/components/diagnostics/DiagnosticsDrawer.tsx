@@ -25,7 +25,9 @@ export function DiagnosticsDrawer() {
   }, [isOpen, toggle]);
 
   const mapKeyConfigured = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
-  const gpsHealthy = !meta.error && meta.source !== 'fixture';
+  // 'unavailable' is never healthy even if no error string came through: it
+  // means the upstream did not answer and nothing at all is being displayed.
+  const gpsHealthy = !meta.error && meta.source !== 'fixture' && meta.source !== 'unavailable';
 
   return (
     <AnimatePresence>
@@ -60,8 +62,19 @@ export function DiagnosticsDrawer() {
               <Row
                 label="Status"
                 value={
-                  <Badge variant={gpsHealthy ? 'live' : meta.error ? 'critical' : 'fixture'} pulse>
-                    {meta.error ? 'DEGRADED' : meta.source === 'fixture' ? 'FIXTURE MODE' : 'HEALTHY'}
+                  <Badge
+                    variant={
+                      gpsHealthy ? 'live' : meta.source === 'unavailable' || meta.error ? 'critical' : 'fixture'
+                    }
+                    pulse
+                  >
+                    {meta.source === 'unavailable'
+                      ? 'UPSTREAM UNAVAILABLE'
+                      : meta.error
+                        ? 'DEGRADED'
+                        : meta.source === 'fixture'
+                          ? 'FIXTURE MODE'
+                          : 'HEALTHY'}
                   </Badge>
                 }
               />
@@ -119,7 +132,18 @@ export function DiagnosticsDrawer() {
             <Group title="Prediction Engine" icon={Activity}>
               <Row label="LLM calls" value="none — local templates" tone="green" />
               <Row label="Seeding" value="deterministic per registration" tone="green" />
-              <Row label="Fixture mode" value={process.env.NEXT_PUBLIC_DEMO_MODE === '1' ? 'FORCED' : 'auto'} />
+              {/*
+                'auto' was accurate when a failed upstream call silently fell
+                back to the bundled fixture. It no longer does: the fallback
+                is opt-in and off by default (src/lib/upsrtc/fixtureFallback.ts),
+                so the honest reading of an unset NEXT_PUBLIC_DEMO_MODE is
+                "not forced" — and whether the server-side opt-in is set is
+                deliberately not exposed to the browser.
+              */}
+              <Row
+                label="Fixture mode"
+                value={process.env.NEXT_PUBLIC_DEMO_MODE === '1' ? 'FORCED' : 'not forced'}
+              />
             </Group>
 
             <p className="rounded border border-holo-glow/15 bg-void-900/50 px-3 py-2 font-mono text-[9px] leading-relaxed text-holo-glow/45">

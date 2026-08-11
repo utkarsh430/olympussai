@@ -15,6 +15,7 @@ import { DepotDashboard } from '@/components/ops/depot/DepotDashboard';
 import { PlannerDashboard } from '@/components/ops/planner/PlannerDashboard';
 import { DriverDashboard } from '@/components/ops/driver/DriverDashboard';
 import { ScheduleLookupForm } from '@/components/ops/ScheduleLookupForm';
+import { DataSourceNotice } from '@/components/ops/DataSourceNotice';
 import { BreakdownReportPanel } from '@/components/ops/driver/BreakdownReportPanel';
 import { OpsAdminInvitesPanel } from '@/components/ops/OpsAdminInvitesPanel';
 
@@ -107,6 +108,76 @@ describe('DispatcherDashboard', () => {
 
   it('does not show a data-source notice for a fresh live snapshot', () => {
     render(<DispatcherDashboard snapshot={snapshot()} query="" routeBoard={routeBoardSnapshot()} activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  // The dispatcher's fleet table is the surface the placeholder-data rule
+  // exists to protect: during an upstream outage it must be empty and loudly
+  // flagged, not quietly populated with bundled demo buses.
+  it('renders an empty, explicitly-flagged fleet table for an unavailable snapshot', () => {
+    render(
+      <DispatcherDashboard
+        snapshot={snapshot({ buses: [], source: 'unavailable', stale: true, error: 'network unreachable' })}
+        query=""
+        routeBoard={routeBoardSnapshot()}
+        activeKillSwitches={NO_ACTIVE_KILL_SWITCHES}
+      />,
+    );
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveAttribute('data-source', 'unavailable');
+    expect(alert).toHaveTextContent(/outage, not an empty fleet/i);
+    // No vehicle rows at all, and the empty state says why.
+    expect(screen.queryByText('UP25FT4823')).not.toBeInTheDocument();
+    expect(screen.getByText(/live feed is unavailable/i)).toBeInTheDocument();
+  });
+});
+
+// DataSourceNotice has to make three degradations distinguishable at a
+// glance, because they mean different things to the person on shift: a stale
+// cache is real data that is simply older than it looks, an unavailable feed
+// means nothing is being shown at all, and fixture data means the rows on
+// screen describe vehicles that do not exist.
+describe('DataSourceNotice states', () => {
+  it('renders a distinct, visible error state for an unavailable source', () => {
+    render(<DataSourceNotice source="unavailable" stale={true} error="network unreachable" />);
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveAttribute('data-source', 'unavailable');
+    expect(alert).toHaveAttribute('data-tone', 'error');
+    expect(alert).toHaveTextContent(/upstream feed did not respond/i);
+    expect(alert).toHaveTextContent(/outage, not an empty fleet/i);
+    expect(alert).toHaveTextContent(/network unreachable/);
+    // Must not be mistaken for either of the other two states.
+    expect(alert).not.toHaveTextContent(/last known data/i);
+    expect(alert).not.toHaveTextContent(/demo\/fixture/i);
+  });
+
+  it('renders the stale-cache warning distinctly from the unavailable error', () => {
+    render(<DataSourceNotice source="cache" stale={true} error="upstream timed out" />);
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveAttribute('data-source', 'cache');
+    expect(alert).toHaveAttribute('data-tone', 'warning');
+    expect(alert).toHaveTextContent(/last known data/i);
+    expect(alert).not.toHaveTextContent(/outage/i);
+  });
+
+  it('renders the fixture notice distinctly, saying the vehicles are not real', () => {
+    render(<DataSourceNotice source="fixture" stale={true} error="upstream unreachable" />);
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveAttribute('data-source', 'fixture');
+    expect(alert).toHaveAttribute('data-tone', 'error');
+    expect(alert).toHaveTextContent(/these vehicles are not real/i);
+  });
+
+  it('stays silent for live data and for a fresh cache hit', () => {
+    const { unmount } = render(<DataSourceNotice source="live" stale={false} error={null} />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    unmount();
+
+    render(<DataSourceNotice source="cache" stale={false} error={null} />);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
@@ -460,6 +531,54 @@ describe('ScheduleLookupForm action flow', () => {
     render(<ScheduleLookupForm />);
     fireEvent.click(screen.getByRole('button', { name: /load schedule/i }));
     expect(screen.getByRole('alert')).toHaveTextContent(/enter a registration number/i);
+  });
+
+  // "No schedule found for this vehicle" is a statement about the roster. An
+  // unreachable upstream must never be reported that way — it is a statement
+  // about the network, and the difference decides whether a depot goes
+  // looking for a missing assignment or for a missing feed.
+  it('reports an unavailable schedule feed as an outage, not as "no assignment"', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        schedule: null,
+        source: 'unavailable',
+        stale: true,
+        error: 'network unreachable',
+        message: 'Live schedule data is unavailable — the upstream did not answer.',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ScheduleLookupForm />);
+    fireEvent.change(screen.getByLabelText(/registration number/i), { target: { value: 'UP25FT4823' } });
+    fireEvent.click(screen.getByRole('button', { name: /load schedule/i }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveAttribute('data-source', 'unavailable');
+    expect(alert).toHaveTextContent(/could not ask/i);
+    expect(screen.queryByText(/No schedule found for this vehicle/i)).not.toBeInTheDocument();
+  });
+
+  it('says plainly that a fixture schedule is not real', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        schedule: null,
+        source: 'fixture',
+        stale: true,
+        error: 'network unreachable',
+        message: 'Showing UPSRTC fixture fallback.',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ScheduleLookupForm />);
+    fireEvent.change(screen.getByLabelText(/registration number/i), { target: { value: 'UP25FT4823' } });
+    fireEvent.click(screen.getByRole('button', { name: /load schedule/i }));
+
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent(/this schedule is not real/i);
   });
 });
 

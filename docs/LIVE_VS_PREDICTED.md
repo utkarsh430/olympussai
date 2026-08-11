@@ -53,11 +53,20 @@ Sourced from the UPSRTC upstream API in real time. Labelled on screen with a
 | Stop coordinates (where surveyed) | `LIVE UPSRTC SCHEDULE` | `getScheduledBusInfo.php` |
 | Route direction (`IN`/`OUT`) | `LIVE UPSRTC SCHEDULE` | Derived from real route-name suffix |
 
-### Fixture fallback
+### Unreachable upstream
 
-If the upstream endpoint is unreachable, the app serves a **sanitized snapshot
-of genuine UPSRTC data** captured by the inspector, labelled
-`UPSRTC FIXTURE FALLBACK`. The data is real; only its freshness is not.
+If the upstream endpoint is unreachable and no real cached response is held,
+the app serves an explicit **`source: 'unavailable'`** state: **zero rows**, a
+red notice, and an `UPSTREAM UNAVAILABLE` badge. No placeholder vehicles are
+substituted — a dispatcher must never see bundled demo buses in the same table
+as real ones.
+
+### Fixture fallback (opt-in)
+
+Set `ALLOW_FIXTURE_FALLBACK` (or `NEXT_PUBLIC_DEMO_MODE=1` for a fully offline
+demo) and that same failure instead serves a **sanitized snapshot of genuine
+UPSRTC data** captured by the inspector, labelled `UPSRTC FIXTURE FALLBACK`.
+The records are real captures; they are not the current fleet. Off by default.
 
 ---
 

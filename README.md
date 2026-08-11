@@ -162,7 +162,8 @@ exposed to the browser and no key is ever printed.
 | `SITE_URL` | no | server | Canonical origin for metadata, canonical URL, sitemap. Defaults to `https://olympuss.us`. |
 | `UPSRTC_LIVE_URL` | no | server | Overrides the live GPS endpoint. |
 | `UPSRTC_SCHEDULE_URL` | no | server | Overrides the schedule endpoint. |
-| `NEXT_PUBLIC_DEMO_MODE` | no | browser/server | Set to `1` to force offline fixture mode for presentations without connectivity. |
+| `NEXT_PUBLIC_DEMO_MODE` | no | browser/server | Set to `1` to force offline fixture mode for presentations without connectivity. The upstream is not called at all. |
+| `ALLOW_FIXTURE_FALLBACK` | no | server | **Default off.** Opt-in permission for a *failed* upstream call to fall back to the bundled fixture (`1`/`true`/`yes`/`on`). Unset, a failure returns an explicit `source: 'unavailable'` state with zero rows instead of demo vehicles that do not exist. Does not govern the stale-cache path, which serves real data and is always allowed. See `src/lib/upsrtc/fixtureFallback.ts`. |
 | `CONTROL_SERVICE_BASE_URL` | no | server | Base URL of the persistent control service (`control-service/`), e.g. `https://control-service-pilot.onrender.com`. Unset means the `/ops/control-room/observability` dashboard renders its "control service unavailable" state rather than throwing. |
 | `CONTROL_SERVICE_SERVICE_TOKEN` | no | server | Bearer token sent as `Authorization: Bearer …` on every web → control-service REST call (`src/lib/controlService/client.ts`); must match that instance's `SERVICE_TOKEN_SECRET` (`control-service/.env.example`). Never sent to the browser. |
 | `OPS_DATABASE_URL` | no | server | Connection string for this app's own Postgres datastore (`db/migrations/`). Unset means every `/ops/*` route that touches it (auth, audit log, breakdown reports, the copilot module) fails closed with a 503. |
@@ -507,10 +508,14 @@ Node runtime, `force-dynamic`.
    `cache: 'no-store'`, `Accept: application/json, text/plain, */*`.
 5. `normalizeLivePayload()` (below).
 6. Cache and return `{ buses, fetchedAt, source, stale, recordCount, rejectedRecordCount }`.
-7. **Degrade gracefully, never blank:** last-known-good (flagged `stale`) →
-   sanitized fixture. A `liveDiagnostics` object tracks last attempt, last
-   success, last error, last status and consecutive failures for the
-   Diagnostics drawer.
+7. **Degrade gracefully, honestly:** last-known-good (flagged `stale`) → an
+   explicit `source: 'unavailable'` body with zero buses. The sanitized fixture
+   only enters this ladder when `ALLOW_FIXTURE_FALLBACK` is set — an outage must
+   not silently repopulate the map with vehicles that do not exist. An upstream
+   that *answers* with zero vehicles stays `source: 'live'`: a quiet night and
+   an outage are different facts. A `liveDiagnostics` object tracks last
+   attempt, last success, last error, last status and consecutive failures for
+   the Diagnostics drawer.
 
 ### `normalizeLivePayload()`
 
@@ -563,7 +568,8 @@ Node runtime, `force-dynamic`, Zod-validated query.
 - **Origin/destination.** Taken from the first and last stop, but overridden by
   a `route_description` of the form `A TO B VIA C`, which gives better labels.
 - **Direction** is read from the `_IN` / `_OUT` suffix on the route name.
-- Fallback ladder mirrors the live route: last-known-good → fixture.
+- Fallback ladder mirrors the live route: last-known-good → explicit
+  `unavailable`, with the fixture step gated on `ALLOW_FIXTURE_FALLBACK`.
 
 ### `TtlCache`
 
@@ -615,7 +621,9 @@ CanonicalSchedule {
 ```
 
 Both API responses share an envelope: `{ fetchedAt, source: 'live' | 'cache' |
-'fixture', stale }`.
+'fixture' | 'unavailable', stale }`. `'unavailable'` means the upstream could
+not be reached and no real cached copy is held — it always carries zero rows,
+and is deliberately distinct from a successful response that listed nothing.
 
 ---
 
@@ -1555,8 +1563,9 @@ Inside `control-service/` (its own package, own database):
 | "Basemap Unavailable" | Maps key missing, restricted or unbilled | Check `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`; allow the `localhost` referrer. Everything except the basemap still works. |
 | Google's own "Oops! Something went wrong" panel inside a map | Key rejected for this origin — referrer restriction, billing, or the Maps JavaScript API disabled | The SDK does not reject `importLibrary` for this; `gm_authFailure` is the only signal, and `src/lib/maps/authFailure.ts` surfaces it. Fix the key restriction for the origin you are serving from. |
 | Simulator maps blank but the dashboard map works | Same key, but the simulator is on a different route than the referrer restriction allows | Restrictions are per-origin, not per-route — check the origin, not the path. |
-| Amber "fixture fallback" banner | Upstream unreachable | Real captured data is being served. Check network access to `margdarshi.upsrtcvlt.com`. |
-| Bus count is zero | Upstream returned no usable records | Open **Diagnostics** for raw vs normalized vs rejected counts. |
+| Red "live data is unavailable" banner, zero vehicles | Upstream unreachable and nothing real cached | This is the default, honest behaviour — no placeholder rows are substituted. Check network access to `margdarshi.upsrtcvlt.com`. Set `ALLOW_FIXTURE_FALLBACK=1` only if you deliberately want captured sample data locally. |
+| Amber "fixture fallback" banner | Upstream unreachable **and** `ALLOW_FIXTURE_FALLBACK` / `NEXT_PUBLIC_DEMO_MODE` is set | Real captured data is being served, but it is not this minute's fleet. Check network access to `margdarshi.upsrtcvlt.com`. |
+| Bus count is zero with no banner | Upstream answered and reported no vehicles | A genuine empty fleet, not an outage. Open **Diagnostics** for raw vs normalized vs rejected counts. |
 | "No schedule assigned" | Genuine upstream response for that vehicle on every candidate date | Pick a bus showing a route name in the fleet list. |
 | Login always fails with "Invalid email or password." | No account exists yet, or wrong credentials | Provision one with `pnpm run create-project-user -- --email you@example.com` — there is no self-service sign-up. |
 | `503 Authentication is not configured` | `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` missing | Set both in `.env.local` (or host env settings) from Supabase Dashboard > Project Settings > API. |

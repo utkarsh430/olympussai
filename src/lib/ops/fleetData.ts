@@ -25,6 +25,7 @@ import 'server-only';
 import { fetchUpstream, UPSRTC_LIVE_URL, REQUEST_TIMEOUT_MS, buildScheduleUrl, indiaDate, shiftDate, isValidRegistrationNumber } from '@/lib/upsrtc/client';
 import { normalizeLivePayload, normalizeSchedulePayload } from '@/lib/upsrtc/normalizer';
 import { TtlCache } from '@/lib/upsrtc/cache';
+import { isDemoModeForced, isFixtureFallbackAllowed } from '@/lib/upsrtc/fixtureFallback';
 import liveFixture from '@/fixtures/upsrtc-live-sample.json';
 import scheduleFixture from '@/fixtures/upsrtc-schedule-sample.json';
 import type { CanonicalLiveBus, CanonicalSchedule, UpstreamSource } from '@/models/canonical';
@@ -52,6 +53,12 @@ export interface OpsFleetSnapshot {
   fetchedAt: string;
   /** Non-null whenever the live upstream call itself failed, even if a cached/fixture value is still shown. */
   error: string | null;
+  /**
+   * Provenance detail for the honest states: why the feed is unavailable, or
+   * that a successful upstream response genuinely listed no vehicles. Never
+   * set on an ordinary fresh 'live'/'cache' snapshot.
+   */
+  message?: string;
 }
 
 function fixtureSnapshot(reason: string): OpsFleetSnapshot {
@@ -68,15 +75,66 @@ function fixtureSnapshot(reason: string): OpsFleetSnapshot {
 }
 
 /**
+ * The honest answer when the upstream could not be reached and no real cached
+ * response exists: zero rows and an explicit 'unavailable' source, so a
+ * dispatcher's fleet table is empty and loudly flagged rather than quietly
+ * populated with buses that do not exist.
+ *
+ * Distinct on purpose from `liveEmptySnapshot` below: "we could not reach the
+ * upstream" is an incident; "the upstream answered and listed no vehicles" is
+ * a quiet night. Both show zero rows, so the source is what tells them apart.
+ */
+function unavailableSnapshot(reason: string, now: number): OpsFleetSnapshot {
+  return {
+    buses: [],
+    source: 'unavailable',
+    // Nothing fresh is being shown, so no consumer should treat this as
+    // current data — even though (unlike a stale cache) there is no older
+    // real data behind it either.
+    stale: true,
+    fetchedAt: new Date(now).toISOString(),
+    error: reason,
+    message: `Live fleet data is unavailable — the UPSRTC upstream did not answer and no cached response is held. (${reason})`,
+  };
+}
+
+/** A successful upstream response that listed no vehicles at all. Real data, just empty. */
+function liveEmptySnapshot(now: number): OpsFleetSnapshot {
+  return {
+    buses: [],
+    source: 'live',
+    stale: false,
+    fetchedAt: new Date(now).toISOString(),
+    error: null,
+    message: 'The UPSRTC upstream answered normally and reported no vehicles on the road.',
+  };
+}
+
+/**
+ * Fixture substitution, but only where it has been explicitly permitted.
+ * Otherwise the caller gets the explicit unavailable state.
+ */
+function degradedSnapshot(reason: string, now: number): OpsFleetSnapshot {
+  return isFixtureFallbackAllowed() ? fixtureSnapshot(reason) : unavailableSnapshot(reason, now);
+}
+
+/**
  * Real live fleet/vehicle status data for the dispatcher, control-room,
- * depot and planner dashboards. Never throws and never returns a value that
- * would leave a dashboard blank — same fallback ladder as
- * src/app/api/upsrtc/live/route.ts (fresh -> last-known-good cache (stale)
- * -> bundled fixture), just returned as data instead of an HTTP response.
+ * depot and planner dashboards. Never throws and never breaks a page — same
+ * fallback ladder as src/app/api/upsrtc/live/route.ts, returned as data
+ * instead of an HTTP response:
+ *
+ *   fresh live -> last-known-good cache (real data, flagged stale)
+ *              -> explicit 'unavailable' (zero rows)
+ *
+ * The bundled fixture is only ever inserted into that ladder when it has been
+ * asked for — see src/lib/upsrtc/fixtureFallback.ts. It used to be automatic,
+ * which meant an upstream outage silently filled a dispatcher's table with
+ * demo buses.
  */
 export async function getOpsFleetSnapshot(now: number = Date.now()): Promise<OpsFleetSnapshot> {
   try {
-    if (process.env.NEXT_PUBLIC_DEMO_MODE === '1') {
+    if (isDemoModeForced()) {
       return fixtureSnapshot('Fixture mode forced via NEXT_PUBLIC_DEMO_MODE');
     }
 
@@ -85,7 +143,7 @@ export async function getOpsFleetSnapshot(now: number = Date.now()): Promise<Ops
 
     const result = await fetchUpstream(UPSRTC_LIVE_URL, REQUEST_TIMEOUT_MS);
     if (result.ok) {
-      const { buses } = normalizeLivePayload(result.payload, now);
+      const { buses, recordCount } = normalizeLivePayload(result.payload, now);
       if (buses.length > 0) {
         const snapshot: OpsFleetSnapshot = {
           buses,
@@ -97,17 +155,27 @@ export async function getOpsFleetSnapshot(now: number = Date.now()): Promise<Ops
         liveCache.set(LIVE_CACHE_KEY, snapshot, now);
         return snapshot;
       }
+
+      // The upstream answered and carried nothing at all: a real, healthy
+      // "no vehicles on the road" reading, not a failure. Deliberately not
+      // cached — an empty fleet is cheap to re-ask for, and caching it would
+      // let a quiet minute mask the next real fetch's last-known-good.
+      if (recordCount === 0) return liveEmptySnapshot(now);
+      // Records arrived but every one was rejected as unusable: the feed is
+      // answering with data we cannot trust, which is a degradation.
     }
 
     const error = result.ok ? 'Upstream responded but contained no usable bus records' : (result.error ?? 'Unknown upstream failure');
     const lastGood = liveCache.getLastGood(LIVE_CACHE_KEY);
     if (lastGood) {
+      // Real data that was really observed, only older than it looks —
+      // legitimate degradation, never gated behind the fixture flag.
       return { ...lastGood.value, source: 'cache', stale: true, error };
     }
-    return fixtureSnapshot(error);
+    return degradedSnapshot(error, now);
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : 'Unknown error fetching live fleet data';
-    return fixtureSnapshot(message);
+    return degradedSnapshot(message, now);
   }
 }
 
@@ -129,6 +197,30 @@ function fixtureSchedule(regNum: string, date: string, reason: string): OpsVehic
   }
 }
 
+/**
+ * The honest answer for a schedule lookup the upstream could not serve: no
+ * schedule, explicitly flagged unavailable.
+ *
+ * Distinct from the `source: 'live', schedule: null` result below, which
+ * means the upstream answered for every candidate date and this vehicle
+ * genuinely has no assignment. Both show "no schedule"; only the source says
+ * whether that is a fact about the roster or a fact about the network.
+ */
+function unavailableSchedule(reason: string): OpsVehicleScheduleResult {
+  return {
+    schedule: null,
+    source: 'unavailable',
+    stale: true,
+    error: reason,
+    message: `Live schedule data is unavailable — the UPSRTC upstream did not answer and no cached schedule is held. (${reason})`,
+  };
+}
+
+/** Fixture substitution for a schedule, but only where explicitly permitted. */
+function degradedSchedule(regNum: string, date: string, reason: string): OpsVehicleScheduleResult {
+  return isFixtureFallbackAllowed() ? fixtureSchedule(regNum, date, reason) : unavailableSchedule(reason);
+}
+
 function candidateDates(requested: string, today: string): string[] {
   return [...new Set([requested, today, shiftDate(today, -1), shiftDate(today, -2)])];
 }
@@ -137,7 +229,8 @@ function candidateDates(requested: string, today: string): string[] {
  * Real schedule/roster data for one vehicle, used by the depot, planner and
  * driver dashboards. `regNum` is validated by the caller (route handler) —
  * this function assumes it is already a plausible registration number.
- * Never throws; same fallback ladder as getOpsFleetSnapshot.
+ * Never throws; same fallback ladder as getOpsFleetSnapshot, including the
+ * fixture step being opt-in rather than automatic.
  */
 export async function getOpsVehicleSchedule(
   regNum: string,
@@ -158,7 +251,7 @@ export async function getOpsVehicleSchedule(
     const cached = scheduleCache.get(cacheKey, now);
     if (cached) return { ...cached, source: 'cache', stale: false };
 
-    if (process.env.NEXT_PUBLIC_DEMO_MODE === '1') {
+    if (isDemoModeForced()) {
       return fixtureSchedule(normalizedReg, date, 'Fixture mode forced via NEXT_PUBLIC_DEMO_MODE');
     }
 
@@ -194,11 +287,13 @@ export async function getOpsVehicleSchedule(
       return value;
     }
 
+    // A previously-fetched real schedule, served after a failed refresh:
+    // legitimate degradation, never gated behind the fixture flag.
     const lastGood = scheduleCache.getLastGood(cacheKey);
     if (lastGood) return { ...lastGood.value, source: 'cache', stale: true, error: lastError };
-    return fixtureSchedule(normalizedReg, date, lastError);
+    return degradedSchedule(normalizedReg, date, lastError);
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : 'Unknown error fetching vehicle schedule';
-    return fixtureSchedule(regNum.toUpperCase(), requestedDate ?? indiaDate(), message);
+    return degradedSchedule(regNum.toUpperCase(), requestedDate ?? indiaDate(), message);
   }
 }

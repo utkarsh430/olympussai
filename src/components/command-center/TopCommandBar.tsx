@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { Maximize2, Minimize2, Scale, FlaskConical, GitMerge } from 'lucide-react';
 import { useCopilotStore } from '@/stores/copilotStore';
 import { useIndiaClock } from '@/hooks/useIndiaClock';
-import { Badge, CountUp } from '@/components/shared/hud';
-import { LIVE_LABELS } from '@/lib/constants';
+import { Badge, CountUp, sourceBadge } from '@/components/shared/hud';
 import { formatRelativeAge } from '@/lib/formatters';
 import { useFleetDistribution } from '@/hooks/useFleetDistribution';
 import { ProjectSignOut } from '@/components/upsrtc/ProjectSignOut';
@@ -27,6 +26,9 @@ export function TopCommandBar({
   const clock = useIndiaClock();
 
   const connectionState = useMemo(() => {
+    // Checked ahead of the generic error branch: "the upstream is unreachable
+    // and we are showing nothing" is a stronger statement than "degraded".
+    if (feedMeta.source === 'unavailable') return { label: 'UNAVAILABLE', tone: 'amber' as const };
     if (feedMeta.error) return { label: 'DEGRADED', tone: 'amber' as const };
     if (feedMeta.source === 'fixture') return { label: 'FIXTURE', tone: 'fixture' as const };
     if (feedMeta.stale) return { label: 'STALE CACHE', tone: 'amber' as const };
@@ -80,8 +82,8 @@ export function TopCommandBar({
       <div className="ml-auto flex items-center gap-2">
         {/* The core labelling affordance: live data vs predictive layer */}
         <div className="mr-1 flex shrink-0 items-center gap-2">
-          <Badge variant={feedMeta.source === 'fixture' ? 'fixture' : 'live'} pulse>
-            {feedMeta.source === 'fixture' ? LIVE_LABELS.fixture : LIVE_LABELS.gps}
+          <Badge variant={sourceBadge(feedMeta.source).variant} pulse>
+            {sourceBadge(feedMeta.source).label}
           </Badge>
           <span className="inline-flex whitespace-nowrap items-center gap-1.5 rounded border border-holo-teal/45 bg-holo-teal/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-holo-teal">
             <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-holo-teal" />

@@ -71,7 +71,26 @@ export const canonicalScheduleSchema = z.object({
 });
 export type CanonicalSchedule = z.infer<typeof canonicalScheduleSchema>;
 
-export type UpstreamSource = 'live' | 'cache' | 'fixture';
+/**
+ * Provenance of a canonical payload. Four states, deliberately distinct:
+ *
+ * • 'live'        — fetched fresh from the upstream API this cycle.
+ * • 'cache'       — a real upstream response served from this process's TTL
+ *                   cache. `stale: false` = still inside the TTL (the normal
+ *                   healthy fast path); `stale: true` = last-known-good served
+ *                   after a failed refresh. Legitimate degradation: it is real
+ *                   data that was really observed, only older than it looks.
+ * • 'fixture'     — bundled sample data that describes vehicles/schedules
+ *                   which do not exist. Only ever produced when someone has
+ *                   explicitly asked for it (NEXT_PUBLIC_DEMO_MODE=1, or
+ *                   ALLOW_FIXTURE_FALLBACK on a failed call); see
+ *                   src/lib/upsrtc/fixtureFallback.ts.
+ * • 'unavailable' — the upstream could not be reached and no real cached copy
+ *                   exists. Carries zero rows. This is NOT the same as a
+ *                   successful response that listed zero vehicles: that is a
+ *                   quiet night and stays 'live'; this is an incident.
+ */
+export type UpstreamSource = 'live' | 'cache' | 'fixture' | 'unavailable';
 
 export interface LiveFeedResponse {
   buses: CanonicalLiveBus[];
@@ -80,6 +99,8 @@ export interface LiveFeedResponse {
   stale: boolean;
   recordCount: number;
   rejectedRecordCount: number;
+  /** Human-readable provenance/failure detail. Set on 'unavailable' and 'fixture'. */
+  message?: string;
 }
 
 export interface ScheduleResponse {
