@@ -12,6 +12,22 @@
 //   pnpm seed --limit=8 --report=/tmp/seed-report.json
 //   pnpm seed --dry-run --routes=BRH_828_ORD_OUT,RKD_635_ORD_IN
 //
+// H* (target_headway_seconds) comes from the PUBLISHED TIMETABLE
+// (getStaticData.php, src/seed/timetable.ts), which is fetched by default and
+// is the only source that can say how often a route is SERVED. A run that
+// cannot get one ABORTS rather than quietly reverting to the fabricated
+// fallback; --no-timetable is how an operator asks for that fallback out loud.
+//
+//   pnpm seed --recalibrate-only            # fix H* on the existing network
+//   pnpm seed --timetable-out=/tmp/tt.json  # capture the corpus
+//   pnpm seed --recalibrate-only --timetable-file=/tmp/tt.json --dry-run
+//
+// --recalibrate-only exists because the harvest depends on the live feed
+// publishing a `routename` per vehicle and the feed does not always do so
+// (MEASURED 2026-08-10: zero of 9,155 records carried one, so a full harvest
+// yields an empty network). Geometry does not go stale on the timescale a
+// headway does.
+//
 // The run is intentionally survivable end to end: an unassigned vehicle, a
 // malformed route, a failed transaction — each is recorded and skipped, never
 // fatal. The only fatal conditions are "the live feed did not load" and "the
@@ -29,6 +45,12 @@ import {
   SCHEDULE_REQUEST_TIMEOUT_MS,
 } from '../ingestion/upsrtc/client.js';
 import { isUnassignedScheduleResponse } from '../ingestion/upsrtc/normalize.js';
+import {
+  fetchStaticData,
+  normalizeTimetablePayloads,
+  splitTimetableCorpus,
+  STATIC_DATA_STOP_CODES,
+} from '../ingestion/upsrtc/staticData.js';
 import { loadEnv } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 import { MAX_STOP_DETOUR_METERS } from './geometry.js';
@@ -39,10 +61,13 @@ import {
   DEFAULT_GAINS,
   DEFAULT_HEADWAY_SECONDS,
   DEFAULT_ROLLOUT_STAGE,
+  HEADWAY_CALIBRATION_SOURCES,
   type ProbeTarget,
   type ScheduleProbeResult,
 } from './harvest.js';
 import { persistNetworkSeed, type PersistResult } from './persist.js';
+import { recalibrateHeadways, summarizeRecalibration, type RecalibrateResult } from './recalibrate.js';
+import { buildTimetableIndex, type TimetableIndex } from './timetable.js';
 
 const ROLLOUT_STAGES = ['observation', 'shadow', 'advisory', 'limited_auto', 'expanded'] as const;
 
@@ -82,6 +107,46 @@ export interface SeedCliOptions {
    *   curl -s https://margdarshi.upsrtcvlt.com/php/getGpsLiveData.php > live.json
    */
   liveFeedFile: string | null;
+  /**
+   * Read the TIMETABLE corpus from a local JSON file instead of fetching
+   * getStaticData.php across every stop code.
+   *
+   * Same rationale as `liveFeedFile`, and a stronger one. H* is now derived
+   * from this corpus, so a seed run's most consequential output — whether a
+   * route-direction can ever be flagged as bunched — depends on it. Being able
+   * to re-run the exact derivation over the exact bytes is what makes that
+   * auditable rather than "whatever the wire said that minute". It also
+   * collapses 24 requests to a shared PHP host into zero.
+   *
+   * Accepts an array of rows, an array of per-stop arrays, or a stop-code ->
+   * payload object, so any reasonable capture works unmodified. Produce one
+   * with --timetable-out.
+   */
+  timetableFile: string | null;
+  /** Write the fetched timetable corpus here, for a later --timetable-file run. */
+  timetableOut: string | null;
+  /**
+   * Do not use a timetable at all: fall back to the vehicle-derived estimators
+   * ('journey_span' / 'fleet_span' / 'default').
+   *
+   * Opt-in rather than automatic BECAUSE of what it does — it re-enables the
+   * fabricated fallback that put 435 of 656 route-directions outside detection.
+   * Degrading to that silently on a bad fetch would hide the one thing anybody
+   * needs to know about the run.
+   */
+  noTimetable: boolean;
+  /**
+   * Skip the harvest; only re-derive H* for route-directions already in the
+   * database (src/seed/recalibrate.ts).
+   *
+   * The harvest needs the live feed to publish a `routename` per vehicle to
+   * plan its probes. MEASURED 2026-08-10: zero of 9,155 live records carried
+   * one, so no harvest was possible at all — while 656 route-directions with
+   * good geometry sat in the database carrying a fabricated headway. Geometry
+   * does not go stale on the timescale a headway does; this mode fixes the
+   * headway without pretending the network can be rebuilt.
+   */
+  recalibrateOnly: boolean;
 }
 
 export const DEFAULT_CONCURRENCY = 5;
@@ -162,6 +227,10 @@ export function parseArgs(argv: readonly string[]): SeedCliOptions {
       ? null
       : parsePositiveInt(flagValue(argv, 'limit'), 1, 'limit'),
     liveFeedFile: flagValue(argv, 'live-feed-file') ?? null,
+    timetableFile: flagValue(argv, 'timetable-file') ?? null,
+    timetableOut: flagValue(argv, 'timetable-out') ?? null,
+    noTimetable: hasFlag(argv, 'no-timetable'),
+    recalibrateOnly: hasFlag(argv, 'recalibrate-only'),
     // Explicit 0 disables outlier pruning; absent means the default.
     maxStopDetourMeters:
       detourRaw === undefined ? MAX_STOP_DETOUR_METERS : Math.max(0, Number(detourRaw)),
@@ -256,17 +325,30 @@ export function logHeadwayCalibration(
   fallbackSeconds: number,
 ): void {
   const calibration = report.headwayCalibration;
-  const total = calibration.journey_span + calibration.fleet_span + calibration.default;
+  const total = HEADWAY_CALIBRATION_SOURCES.reduce((sum, source) => sum + calibration[source], 0);
   const share = (count: number): string =>
     total === 0 ? '0.0%' : `${((count / total) * 100).toFixed(1)}%`;
 
   logger.info(
     {
-      journey_span: calibration.journey_span,
-      fleet_span: calibration.fleet_span,
-      default: calibration.default,
-      derivedPct: share(calibration.journey_span + calibration.fleet_span),
+      ...calibration,
+      total,
+      // `measuredPct` is the timetable alone — a reading of the published
+      // service. `derivedPct` keeps its original meaning of "H* rests on some
+      // evidence", which the timetable also satisfies, so the two overlap on
+      // purpose and neither can be read as the other.
+      measuredPct: share(calibration.timetable),
+      derivedPct: share(calibration.timetable + calibration.journey_span + calibration.fleet_span),
       fabricatedPct: share(calibration.default),
+      noTargetPct: share(calibration.none),
+      timetableMatchesExact: report.timetableMatches.filter((entry) => entry.match === 'exact').length,
+      timetableMatchesSoleDirection: report.timetableMatches.filter(
+        (entry) => entry.match === 'sole_direction',
+      ).length,
+      timetableLineDirections: report.timetable?.distinctLineDirections ?? 0,
+      timetableHeadwaysDerived: report.timetable?.headwaysDerived ?? 0,
+      timetableNoRepeatedDeparture: report.timetable?.headwaysNoRepeatedDeparture ?? 0,
+      timetableImplausible: report.timetable?.headwaysImplausible.length ?? 0,
       fleetRouteNames: report.fleetDepartures.routeNames,
       fleetRouteNamesWithMultipleDepartures: report.fleetDepartures.withMultipleDepartures,
       implausibleDerivationsRejected: report.implausibleHeadways.length,
@@ -274,6 +356,9 @@ export function logHeadwayCalibration(
     'seed: target headway (H*) calibration by source',
   );
 
+  // KEPT VERBATIM, and it must be. A fabricated target raises no error, fails
+  // no constraint and never appears in `failures` — the run that writes it is
+  // the only moment anyone is placed to notice.
   if (calibration.default > 0) {
     logger.warn(
       {
@@ -284,6 +369,128 @@ export function logHeadwayCalibration(
       'seed: these route-directions carry a FABRICATED target headway — every threshold in src/headway/ is a ratio of H*, so they are effectively excluded from bunching detection and their CV/EWT are meaningless. Find them with: select * from route_policies where effective_to is null and calibration_source = \'default\'',
     );
   }
+
+  // A DIFFERENT warning, deliberately not merged with the one above. 'none' is
+  // also "no target", but it is the honest kind: nothing was invented, the
+  // policy row is refused by loadActiveRoutePolicy, and the route-direction is
+  // observation-only in a way that shows up in a `group by`. Collapsing the two
+  // would lose exactly the distinction this work created.
+  if (calibration.none > 0) {
+    logger.warn(
+      {
+        directions: calibration.none,
+        share: share(calibration.none),
+      },
+      'seed: these route-directions have NO target headway — the timetable published no repeated departure for them, so none was invented. They are observation-only: loadActiveRoutePolicy refuses the row and bunching detection is off for them, visibly. Find them with: select * from route_policies where effective_to is null and calibration_source = \'none\'',
+    );
+  }
+}
+
+/**
+ * Load the timetable corpus, from a file or from the endpoint, and index it.
+ *
+ * Returns null when the run asked for no timetable, or when the corpus came
+ * back empty — an empty corpus would mark EVERY route-direction 'none', which
+ * is a truthful statement about a corpus that does not exist but a false one
+ * about the network. A run that cannot get a timetable and was not told to
+ * proceed without one aborts instead, because silently continuing is how the
+ * fabricated-fallback regime became the default in the first place.
+ */
+async function loadTimetable(options: SeedCliOptions): Promise<TimetableIndex | null> {
+  if (options.noTimetable) {
+    logger.warn(
+      {},
+      'seed: --no-timetable — H* will fall back to the vehicle-derived estimators, which infer a service property from a sample of vehicles and produce a FABRICATED default when they cannot',
+    );
+    return null;
+  }
+
+  let payloads: unknown[];
+
+  if (options.timetableFile) {
+    let raw: string;
+    try {
+      raw = await readFile(options.timetableFile, 'utf8');
+    } catch (error) {
+      logger.error(
+        {
+          file: options.timetableFile,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'seed: --timetable-file could not be read',
+      );
+      return null;
+    }
+    try {
+      payloads = splitTimetableCorpus(JSON.parse(raw));
+    } catch {
+      logger.error(
+        { file: options.timetableFile, bytes: raw.length, head: raw.slice(0, 32) },
+        'seed: --timetable-file is not valid JSON',
+      );
+      return null;
+    }
+    logger.info(
+      { file: options.timetableFile, payloads: payloads.length },
+      'seed: using saved timetable (getStaticData not contacted)',
+    );
+  } else {
+    // Sequential, not concurrent. There are only 24 of these, they are large,
+    // and they hit the same shared PHP host the schedule probes are about to
+    // hammer. Politeness costs about a minute once per run.
+    const fetched: unknown[] = [];
+    let failures = 0;
+    let empty = 0;
+    for (const stopCode of STATIC_DATA_STOP_CODES) {
+      const response = await fetchStaticData(stopCode);
+      if (response.error) {
+        failures += 1;
+        logger.warn({ stopCode, error: response.error }, 'seed: timetable stop fetch failed');
+        continue;
+      }
+      const rowCount = Array.isArray(response.payload) ? response.payload.length : 0;
+      // Codes 16 and 23 answer `[]` permanently. Normal, not a failure.
+      if (rowCount === 0) empty += 1;
+      fetched.push(response.payload);
+    }
+    logger.info(
+      { stopCodes: STATIC_DATA_STOP_CODES.length, fetched: fetched.length, empty, failures },
+      'seed: timetable fetched',
+    );
+    payloads = fetched;
+
+    if (options.timetableOut) {
+      await writeFile(options.timetableOut, `${JSON.stringify(payloads)}\n`, 'utf8');
+      logger.info({ path: options.timetableOut }, 'seed: timetable corpus written');
+    }
+  }
+
+  const { rows, rowCount, rejectedRowCount } = normalizeTimetablePayloads(payloads);
+  if (rows.length === 0) {
+    logger.error(
+      { rowCount, rejectedRowCount },
+      'seed: timetable corpus is empty — refusing to continue, since every route-direction would be marked uncalibrated. Pass --no-timetable to seed with the vehicle-derived estimators instead',
+    );
+    return null;
+  }
+
+  const index = buildTimetableIndex(rows);
+  logger.info(
+    {
+      rowCount,
+      rowsAccepted: index.report.rowsAccepted,
+      rejectedRowCount,
+      lines: index.report.distinctLines,
+      lineDirections: index.report.distinctLineDirections,
+      routeNames: index.report.distinctRouteNames,
+      stopAreas: index.report.stopAreasWithRows.length,
+      headwaysDerived: index.report.headwaysDerived,
+      noRepeatedDeparture: index.report.headwaysNoRepeatedDeparture,
+      implausible: index.report.headwaysImplausible.length,
+    },
+    'seed: timetable indexed',
+  );
+  return index;
 }
 
 interface SeedRunSummary {
@@ -293,8 +500,56 @@ interface SeedRunSummary {
   dryRun: boolean;
   serviceDate: string;
   options: Omit<SeedCliOptions, 'reportPath'>;
-  harvest: ReturnType<typeof harvestNetwork>['report'];
+  harvest: ReturnType<typeof harvestNetwork>['report'] | null;
   persist: PersistResult | null;
+  recalibrate: RecalibrateResult | null;
+}
+
+/**
+ * A pool sized for a batch job rather than a request handler.
+ *
+ * db/pool.ts sets statement_timeout to 10s, which a ~9,300-row bulk vehicle
+ * upsert can legitimately exceed.
+ */
+function openSeedPool(connectionString: string): Pool {
+  return new Pool({
+    connectionString,
+    max: 4,
+    connectionTimeoutMillis: 10_000,
+    statement_timeout: 120_000,
+  });
+}
+
+/**
+ * Report a recalibration run at the same volume the harvest's calibration
+ * summary is reported at, for the same reason: nothing downstream will ever
+ * mention an uncalibrated route-direction again.
+ */
+function logRecalibration(result: RecalibrateResult): void {
+  const summary = summarizeRecalibration(result);
+  logger.info(
+    {
+      routeDirections: result.routeDirectionsConsidered,
+      calibrated: result.calibrated,
+      uncalibrated: result.uncalibrated,
+      calibratedPct: summary.calibratedPct,
+      matchesExact: result.matchesExact,
+      matchesSoleDirection: result.matchesSoleDirection,
+      policiesInserted: result.policiesInserted,
+      policiesUnchanged: result.policiesUnchanged,
+      fabricatedTargetsCleared: summary.fabricatedCleared,
+      replacedByMeasurement: summary.replacedByMeasurement,
+      failures: result.failures.length,
+    },
+    'seed: timetable recalibration complete',
+  );
+
+  if (result.uncalibrated > 0) {
+    logger.warn(
+      { directions: result.uncalibrated },
+      'seed: these route-directions have NO target headway — the timetable published no repeated departure for them, so none was invented. They are observation-only: loadActiveRoutePolicy refuses the row and bunching detection is off for them, visibly. Find them with: select * from route_policies where effective_to is null and calibration_source = \'none\'',
+    );
+  }
 }
 
 export async function runSeed(argv: readonly string[]): Promise<number> {
@@ -309,9 +564,72 @@ export async function runSeed(argv: readonly string[]): Promise<number> {
       concurrency: options.concurrency,
       rolloutStage: options.rolloutStage,
       limit: options.limit,
+      recalibrateOnly: options.recalibrateOnly,
     },
     'seed: starting network harvest',
   );
+
+  const timetable = await loadTimetable(options);
+  if (timetable === null && !options.noTimetable) {
+    // Fatal, and deliberately so. Continuing without a timetable means
+    // continuing with the fabricated fallback, which is the defect being fixed;
+    // an operator who genuinely wants that must ask for it by name.
+    logger.error(
+      {},
+      'seed: no timetable available — aborting. Pass --no-timetable to seed with the vehicle-derived estimators, or --timetable-file=<path> to use a saved corpus',
+    );
+    return 1;
+  }
+
+  // ---- recalibrate-only --------------------------------------------------
+  if (options.recalibrateOnly) {
+    if (!timetable) {
+      logger.error({}, 'seed: --recalibrate-only needs a timetable and is meaningless without one');
+      return 1;
+    }
+    const env = loadEnv();
+    const pool = openSeedPool(env.CONTROL_SERVICE_DATABASE_URL);
+    let recalibrate: RecalibrateResult | null = null;
+    let exitCode = 0;
+    try {
+      recalibrate = await recalibrateHeadways(pool, timetable, {
+        dryRun: options.dryRun,
+        gains: options.gains,
+      });
+      logRecalibration(recalibrate);
+      for (const failure of recalibrate.failures) {
+        logger.warn(failure, 'seed: route-direction recalibration failed');
+      }
+      if (recalibrate.failures.length > 0) exitCode = 2;
+    } catch (error) {
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        'seed: recalibration failed',
+      );
+      exitCode = 1;
+    } finally {
+      await pool.end();
+    }
+
+    if (options.reportPath) {
+      const finishedAt = new Date();
+      const { reportPath: _reportPath, ...reportedOptions } = options;
+      const summary: SeedRunSummary = {
+        startedAt: startedAt.toISOString(),
+        finishedAt: finishedAt.toISOString(),
+        durationMs: finishedAt.getTime() - startedAt.getTime(),
+        dryRun: options.dryRun,
+        serviceDate,
+        options: reportedOptions,
+        harvest: null,
+        persist: null,
+        recalibrate,
+      };
+      await writeFile(options.reportPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
+      logger.info({ path: options.reportPath }, 'seed: report written');
+    }
+    return exitCode;
+  }
 
   // ---- live feed ---------------------------------------------------------
   // Either read a saved payload (--live-feed-file) or fetch the live endpoint.
@@ -388,6 +706,7 @@ export async function runSeed(argv: readonly string[]): Promise<number> {
     rolloutStage: options.rolloutStage,
     controlPointInterval: options.controlPointInterval,
     maxStopDetourMeters: options.maxStopDetourMeters,
+    timetable,
   });
 
   logger.info(
@@ -406,15 +725,7 @@ export async function runSeed(argv: readonly string[]): Promise<number> {
 
   // ---- persist -----------------------------------------------------------
   const env = loadEnv();
-  // A dedicated pool rather than db/pool.ts's: that one sets
-  // statement_timeout to 10s for request handlers, which a ~9,300-row bulk
-  // vehicle upsert can legitimately exceed. A batch job gets batch bounds.
-  const pool = new Pool({
-    connectionString: env.CONTROL_SERVICE_DATABASE_URL,
-    max: 4,
-    connectionTimeoutMillis: 10_000,
-    statement_timeout: 120_000,
-  });
+  const pool = openSeedPool(env.CONTROL_SERVICE_DATABASE_URL);
 
   let persist: PersistResult | null = null;
   let exitCode = 0;
@@ -476,6 +787,7 @@ export async function runSeed(argv: readonly string[]): Promise<number> {
       options: reportedOptions,
       harvest: seed.report,
       persist,
+      recalibrate: null,
     };
     await writeFile(options.reportPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
     logger.info({ path: options.reportPath }, 'seed: report written');

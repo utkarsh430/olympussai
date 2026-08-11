@@ -51,7 +51,25 @@ export async function loadRouteDirectionMeta(
   };
 }
 
-/** Active policy for this route-direction (effective_to is null), preferring the all-period/all-day-type default row when several apply. */
+/**
+ * Active policy for this route-direction (effective_to is null), preferring the
+ * all-period/all-day-type default row when several apply.
+ *
+ * `calibration_source = 'none'` ROWS ARE EXCLUDED, and that exclusion is the
+ * enforcement point for the seeder's no-fabrication policy. Such a row means
+ * the timetable had no answer for this route-direction, so
+ * target_headway_seconds carries a sentinel rather than a target (see
+ * db/migrations/20260810120000__route_policy_timetable_calibration.sql). H* is
+ * the denominator of every threshold in this directory - bunching.ts divides by
+ * it, metrics.ts reports CV and EWT against it - so letting a sentinel through
+ * would produce numbers, and numbers get believed.
+ *
+ * Filtering here rather than at each call site means the route-direction takes
+ * the path that ALREADY existed for an unpoliced one: this returns null and
+ * service.ts raises its 404 `no_active_policy`. Detection is off, and saying so
+ * out loud is the entire point - the failure being fixed is that it used to be
+ * off silently, on two thirds of the network.
+ */
 export async function loadActiveRoutePolicy(
   routeDirectionId: string,
   pool: Pool = getPool()
@@ -69,6 +87,7 @@ export async function loadActiveRoutePolicy(
             warning_threshold_ratio, required_samples, operating_period, day_type
        from route_policies
       where route_direction_id = $1 and effective_to is null
+        and calibration_source <> 'none'
       order by (operating_period = 'all' and day_type = 'all') desc
       limit 1`,
     [routeDirectionId]

@@ -21,7 +21,13 @@
 
 import type { Pool, PoolClient } from 'pg';
 import { toLineStringWkt } from './geometry.js';
-import type { NetworkSeed, SeedRoute, SeedRouteDirection, SeedVehicle } from './harvest.js';
+import type {
+  NetworkSeed,
+  SeedRoute,
+  SeedRouteDirection,
+  SeedRoutePolicy,
+  SeedVehicle,
+} from './harvest.js';
 
 /** Above this, stored total_distance_meters and ST_Length(geom) have diverged. */
 export const SHAPE_DRIFT_WARN_RATIO = 0.01;
@@ -86,7 +92,7 @@ function emptyResult(): PersistResult {
   };
 }
 
-async function withTransaction<T>(
+export async function withTransaction<T>(
   pool: Pool,
   dryRun: boolean,
   run: (client: PoolClient) => Promise<T>,
@@ -299,13 +305,38 @@ async function replaceDirectionStops(
  * transaction time — a row created and closed inside one transaction would
  * otherwise violate it.
  */
-async function upsertPolicy(
+export interface UpsertPolicyOptions {
+  /**
+   * Carry the open row's kf / kb / self_equalizing_k forward instead of writing
+   * the supplied ones.
+   *
+   * The recalibration pass (src/seed/recalibrate.ts) changes ONLY H* and its
+   * provenance. Those three gains are operator-tunable and this write path is
+   * versioned, so re-stamping them with the seeder's defaults would silently
+   * revert a hand-tuned route on a run that was never about gains. The supplied
+   * values are still used when the open row has nulls, because
+   * src/mpc/twoWayHold.ts returns [] when kf or kb is null and a null there
+   * degrades the route to self-equalizing control with no error anywhere.
+   */
+  inheritGains?: boolean;
+}
+
+/**
+ * Returns the policy write outcome plus what was there before, so a caller
+ * reporting on a recalibration can show the old value next to the new one
+ * without a second query.
+ */
+export interface PolicyWriteOutcome {
+  inserted: boolean;
+  previous: { targetHeadwaySeconds: number; calibrationSource: string | null } | null;
+}
+
+export async function upsertRoutePolicy(
   client: PoolClient,
   routeDirectionId: string,
-  direction: SeedRouteDirection,
-): Promise<boolean> {
-  const { policy } = direction;
-
+  policy: SeedRoutePolicy,
+  options: UpsertPolicyOptions = {},
+): Promise<PolicyWriteOutcome> {
   const { rows } = await client.query<{
     id: string;
     target_headway_seconds: string;
@@ -325,17 +356,30 @@ async function upsertPolicy(
   );
 
   const current = rows[0];
+  const previous = current
+    ? {
+        targetHeadwaySeconds: Number(current.target_headway_seconds),
+        calibrationSource: current.calibration_source,
+      }
+    : null;
+
+  const inherit = options.inheritGains === true && current !== undefined;
+  const kf = inherit && current.kf !== null ? Number(current.kf) : policy.kf;
+  const kb = inherit && current.kb !== null ? Number(current.kb) : policy.kb;
+  const selfEqualizingK =
+    inherit && current?.self_equalizing_k != null ? Number(current.self_equalizing_k) : policy.selfEqualizingK;
+
   if (current) {
     const unchanged =
       Number(current.target_headway_seconds) === policy.targetHeadwaySeconds &&
       current.calibration_source === policy.calibrationSource &&
       current.kf !== null &&
-      Number(current.kf) === policy.kf &&
+      Number(current.kf) === kf &&
       current.kb !== null &&
-      Number(current.kb) === policy.kb &&
+      Number(current.kb) === kb &&
       current.self_equalizing_k !== null &&
-      Number(current.self_equalizing_k) === policy.selfEqualizingK;
-    if (unchanged) return false;
+      Number(current.self_equalizing_k) === selfEqualizingK;
+    if (unchanged) return { inserted: false, previous };
 
     await client.query(
       `update route_policies
@@ -366,14 +410,14 @@ async function upsertPolicy(
     [
       routeDirectionId,
       policy.targetHeadwaySeconds,
-      policy.kf,
-      policy.kb,
-      policy.selfEqualizingK,
+      kf,
+      kb,
+      selfEqualizingK,
       policy.calibrationSource,
       'network-seeder',
     ],
   );
-  return true;
+  return { inserted: true, previous };
 }
 
 /**
@@ -444,7 +488,7 @@ async function persistDirection(
     const postgisMeters = await upsertShape(client, routeDirectionId, direction);
     const stopsWritten = await upsertStops(client, seed, direction);
     const routeDirectionStopsWritten = await replaceDirectionStops(client, routeDirectionId, direction);
-    const policyInserted = await upsertPolicy(client, routeDirectionId, direction);
+    const policy = await upsertRoutePolicy(client, routeDirectionId, direction.policy);
     const rolloutStageWritten = await upsertRolloutStage(client, routeDirectionId, direction, options);
 
     // The stored total is a JS haversine running sum over the very vertices
@@ -461,7 +505,7 @@ async function persistDirection(
       routeDirectionId,
       stopsWritten,
       routeDirectionStopsWritten,
-      policyInserted,
+      policyInserted: policy.inserted,
       rolloutStageWritten,
       drift:
         driftRatio > SHAPE_DRIFT_WARN_RATIO

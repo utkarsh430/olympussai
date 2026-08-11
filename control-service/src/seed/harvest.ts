@@ -76,7 +76,32 @@
 // route_policies.calibration_source), and why the fallback is never dressed up
 // as a derivation.
 //
+// SUPERSEDED, AND WHY THE OLD METHODS ARE STILL HERE. Everything below this
+// paragraph describes the VEHICLE-derived estimators, which are now the
+// fallback regime used only when a run is given no timetable. getStaticData
+// (src/ingestion/upsrtc/staticData.ts) publishes the actual departure board, so
+// a normal run derives H* from it and labels the result 'timetable', or writes
+// NO target at all and labels it 'none'. The reason the old chain survives is
+// that it is the only thing that works when the timetable endpoint is down, and
+// the reason it is not blended with the timetable is in deriveTargetHeadway:
+// both old methods infer a property of the SERVICE from a sample of VEHICLES,
+// so using one to "top up" the timetable's coverage would put invented numbers
+// on precisely the rows that have no evidence.
+//
 // The methods, in precedence order:
+//
+//   'timetable'     The median gap between successive published departures of
+//                   this line-direction at one stop area, taken from
+//                   getStaticData and medianed across the stop areas that saw
+//                   it. A measurement of the service itself rather than an
+//                   inference from whoever was driving it. See
+//                   src/seed/timetable.ts.
+//
+//   'none'          The timetable has no answer for this route-direction. NO
+//                   NUMBER IS INVENTED: the sentinel goes in the not-null
+//                   column, loadActiveRoutePolicy refuses the row, and the
+//                   route-direction is observation-only — detection off, but
+//                   visibly and auditably rather than silently.
 //
 //   'journey_span'  >=2 deduped journey starts for THIS route-direction in the
 //                   schedule feed. The strongest evidence there is: real
@@ -135,6 +160,12 @@ import {
   type LiveRecord,
   type ScheduleJourney,
 } from '../ingestion/upsrtc/normalize.js';
+import {
+  lookupTimetableHeadway,
+  type TimetableIndex,
+  type TimetableMatchKind,
+  type TimetableReport,
+} from './timetable.js';
 
 // ============================================================================
 // Defaults (all overridable from the CLI)
@@ -240,13 +271,55 @@ export interface SeedRouteDirectionStop {
 /**
  * How target_headway_seconds was arrived at. Persisted verbatim into
  * route_policies.calibration_source, whose CHECK constraint is exactly this
- * union — see db/migrations/20260809100000__route_policy_calibration.sql.
+ * union — see db/migrations/20260809100000__route_policy_calibration.sql and
+ * db/migrations/20260810120000__route_policy_timetable_calibration.sql.
+ *
+ * 'timetable' and 'none' are the only two a run with a timetable can emit; the
+ * other three exist for a run without one. See deriveTargetHeadway.
  */
-export type HeadwayCalibrationSource = 'journey_span' | 'fleet_span' | 'default';
+export type HeadwayCalibrationSource =
+  | 'timetable'
+  | 'journey_span'
+  | 'fleet_span'
+  | 'default'
+  | 'none';
+
+/** Every source, in the order a report should list them: best evidence first. */
+export const HEADWAY_CALIBRATION_SOURCES: readonly HeadwayCalibrationSource[] = [
+  'timetable',
+  'journey_span',
+  'fleet_span',
+  'default',
+  'none',
+];
+
+/**
+ * The value written to target_headway_seconds when there is NO target.
+ *
+ * route_policies.target_headway_seconds is `not null check (> 0)`, so "no
+ * answer" cannot be represented as NULL and something has to go in the column.
+ * Three properties make this safe rather than another fabrication:
+ *
+ *   1. It is paired with `calibration_source = 'none'`, and
+ *      src/headway/repository.ts#loadActiveRoutePolicy REFUSES to return such a
+ *      row. The route-direction then takes the pre-existing fail-closed path —
+ *      a 404 `no_active_policy` — so src/headway/service.ts and bunching.ts
+ *      never see this number at all. Detection is off, loudly.
+ *   2. The migration CHECKs it: a 'none' row may carry ONLY this value, so the
+ *      pair cannot drift apart and a sentinel cannot masquerade as a target.
+ *   3. One second is not a headway anyone could mistake for real — it is 300x
+ *      below MIN_TIMETABLE_HEADWAY_SECONDS. If it ever did leak, it reads as
+ *      obviously broken rather than as a plausible-looking 1,800.
+ */
+export const UNCALIBRATED_HEADWAY_SENTINEL_SECONDS = 1;
 
 export interface SeedRoutePolicy {
   targetHeadwaySeconds: number;
-  /** 'default' means FABRICATED: no evidence was found, detection is disabled. */
+  /**
+   * 'default' means FABRICATED: no evidence was found but a number was written
+   * anyway. 'none' means NO TARGET: the timetable had no answer, the sentinel
+   * is in the column, and detection is disabled visibly rather than silently.
+   */
   calibrationSource: HeadwayCalibrationSource;
   kf: number;
   kb: number;
@@ -330,6 +403,7 @@ export interface DerivedDirectionEntry {
   journeyId: string;
   directionCode: string;
   basis:
+    | 'timetable_line_direction'
     | 'route_name_suffix'
     | 'derived_from_start_time_order'
     | 'derived_from_suffixed_reference'
@@ -367,11 +441,38 @@ export type HeadwayCalibrationCounts = Record<HeadwayCalibrationSource, number>;
 export interface ImplausibleHeadwayEntry {
   routeId: string;
   directionCode: string;
-  method: Exclude<HeadwayCalibrationSource, 'default'>;
+  method: DerivableHeadwaySource;
   /** The rejected value, in seconds. */
   seconds: number;
   /** How many departure times the estimator had to work from. */
   sampleCount: number;
+}
+
+/** The sources that represent an actual derivation attempt. */
+export type DerivableHeadwaySource = Exclude<HeadwayCalibrationSource, 'default' | 'none'>;
+
+/**
+ * A route-direction whose H* came from the timetable, and how it was matched.
+ * Recorded so the coverage figure in the run summary can be audited without
+ * re-running the derivation.
+ */
+export interface TimetableHeadwayMatchEntry {
+  routeId: string;
+  directionCode: string;
+  match: TimetableMatchKind;
+  targetHeadwaySeconds: number;
+  sampleCount: number;
+  stopAreaCount: number;
+}
+
+/**
+ * A route-direction the timetable could not answer for. Every one of these is a
+ * `calibration_source = 'none'` row: detection off, visibly.
+ */
+export interface UncalibratedDirectionEntry {
+  routeId: string;
+  directionCode: string;
+  reason: 'line_absent_from_timetable' | 'no_headway_for_line_direction';
 }
 
 export interface HarvestReport {
@@ -409,6 +510,14 @@ export interface HarvestReport {
    * The gap between the two is the ceiling on what this method can ever rescue.
    */
   fleetDepartures: { routeNames: number; withMultipleDepartures: number };
+  /**
+   * The timetable's own audit, plus how it landed on THIS harvest. Null when
+   * the run was given no timetable, which is itself worth seeing in a report:
+   * such a run cannot produce a single 'timetable' row.
+   */
+  timetable: TimetableReport | null;
+  timetableMatches: TimetableHeadwayMatchEntry[];
+  uncalibratedDirections: UncalibratedDirectionEntry[];
   implausibleHeadways: ImplausibleHeadwayEntry[];
   skippedRoutes: SkippedRouteEntry[];
   droppedStops: DroppedStopEntry[];
@@ -613,6 +722,18 @@ export interface HarvestOptions {
   controlPointInterval?: number;
   /** 0 disables outlier pruning entirely. See geometry.findCoordinateSpikes. */
   maxStopDetourMeters?: number;
+  /**
+   * The published timetable (src/seed/timetable.ts). When present it is
+   * AUTHORITATIVE for direction_code and for H*, and the vehicle-derived
+   * estimators are switched off entirely — see deriveTargetHeadway.
+   *
+   * It is authoritative for those two things and NOT for geometry, because
+   * getStaticData publishes no coordinates and, measured, reaches a median of
+   * ONE stop area per line-direction. A stop sequence cannot be built from one
+   * stop, so route_direction_stops and route_shapes still come from
+   * getScheduledBusInfo. This is a hybrid, not a replacement.
+   */
+  timetable?: TimetableIndex | null;
 }
 
 interface HarvestedJourney {
@@ -675,7 +796,16 @@ export function scheduledTimeToSeconds(value: string | null): number | null {
  * routes.id. line_id first — see the module header for the measurements that
  * settle this. The remaining branches only fire on payloads that omit it.
  */
-function resolveRouteId(journey: ScheduleJourney): string | null {
+function resolveRouteId(journey: ScheduleJourney, timetable?: TimetableIndex | null): string | null {
+  // The timetable is authoritative for route IDENTITY, so when it publishes
+  // this route name its line_id wins. In practice the two agree — both
+  // endpoints emit the same line_id space, which is exactly why this join
+  // needs no name matching — but "authoritative" has to mean something when
+  // they ever disagree.
+  if (journey.routeName) {
+    const stated = timetable?.identityByRouteName.get(journey.routeName);
+    if (stated) return stated.routeId;
+  }
   if (journey.lineId) return journey.lineId;
   const embedded = journey.routeName ? /_(\d+)_/.exec(journey.routeName)?.[1] : undefined;
   if (embedded) return embedded;
@@ -739,6 +869,7 @@ function assignDirections(
   routeId: string,
   journeys: readonly HarvestedJourney[],
   derived: DerivedDirectionEntry[],
+  timetable?: TimetableIndex | null,
 ): Map<string, string> {
   const byJourneyId = new Map<string, string>();
   const record = (entry: HarvestedJourney, code: string, basis: DerivedDirectionEntry['basis']): void => {
@@ -757,6 +888,21 @@ function assignDirections(
   const suffixed: HarvestedJourney[] = [];
   const unsuffixed: HarvestedJourney[] = [];
   for (const entry of journeys) {
+    // The timetable STATES the direction, so when it knows this route name
+    // nothing is parsed or inferred. That is the point of preferring it: the
+    // suffix rule cannot answer for a name carrying neither _IN nor _OUT, and
+    // its stand-ins ('SINGLE', and 'UP' from an unrelated naming convention)
+    // are pseudo-directions on 128 of the 656 seeded route-directions.
+    const stated =
+      entry.journey.routeName !== null
+        ? (timetable?.identityByRouteName.get(entry.journey.routeName)?.directionCode ?? null)
+        : null;
+    if (stated) {
+      record(entry, stated, 'timetable_line_direction');
+      suffixed.push(entry);
+      continue;
+    }
+
     const suffix = directionSuffix(entry.journey.routeName);
     if (suffix) {
       record(entry, suffix, 'route_name_suffix');
@@ -772,11 +918,14 @@ function assignDirections(
 
   // A declared direction on the same route is a better reference than an
   // arbitrary unsuffixed journey — classify against it rather than inventing
-  // a third direction code.
-  const reference =
-    suffixed.find((entry) => directionSuffix(entry.journey.routeName) === 'OUT') ?? suffixed[0];
+  // a third direction code. The reference's code is read back from what was
+  // RECORDED, not re-derived from its name: a journey the timetable named has
+  // a direction its route name may not carry a suffix for.
+  const assigned = (entry: HarvestedJourney): string | null =>
+    byJourneyId.get(entry.journey.journeyId) ?? null;
+  const reference = suffixed.find((entry) => assigned(entry) === 'OUT') ?? suffixed[0];
   if (reference) {
-    const referenceCode = directionSuffix(reference.journey.routeName) ?? 'OUT';
+    const referenceCode = assigned(reference) ?? 'OUT';
     const referenceIds = stopIds(reference);
     for (const entry of unsuffixed) {
       const code = isReversedStopOrder(referenceIds, stopIds(entry))
@@ -857,7 +1006,9 @@ export interface HeadwayDerivation {
   targetHeadwaySeconds: number;
   calibrationSource: HeadwayCalibrationSource;
   /** Derivations discarded as not credible, in the order they were attempted. */
-  rejected: { method: Exclude<HeadwayCalibrationSource, 'default'>; seconds: number; sampleCount: number }[];
+  rejected: { method: DerivableHeadwaySource; seconds: number; sampleCount: number }[];
+  /** Present only for 'timetable': how the row was matched, and on what sample. */
+  timetableMatch?: { match: TimetableMatchKind; sampleCount: number; stopAreaCount: number };
 }
 
 /** Mean gap between successive departures: span / (n-1). null below 2 samples. */
@@ -875,10 +1026,23 @@ function isCredibleHeadway(seconds: number): boolean {
 /**
  * H* for one route-direction, plus the honest name of how it was obtained.
  *
- * Precedence — strongest evidence first, fallback last and labelled as such:
+ * TWO REGIMES, and which one applies is decided by whether the run was given a
+ * timetable. They are not blended, deliberately.
+ *
+ * WITH A TIMETABLE (`index` non-null) the answer is 'timetable' or 'none', full
+ * stop. The vehicle-derived estimators are NOT consulted as a fallback, because
+ * consulting them is the bug: both infer a property of the SERVICE from a
+ * sample of VEHICLES, and a route the timetable cannot answer for is a route
+ * nobody has measured. Falling back would put a plausible-looking number on
+ * exactly the rows that have no evidence, which is how 435 route-directions
+ * came to carry a fabricated 1,800s in the first place. 'none' pairs with
+ * UNCALIBRATED_HEADWAY_SENTINEL_SECONDS and turns detection off VISIBLY.
+ *
+ * WITHOUT A TIMETABLE the pre-existing chain is unchanged, strongest evidence
+ * first and the fallback last and labelled as such:
  *
  *   1. 'journey_span': >=2 deduped journey starts for THIS direction, span/(n-1).
- *      Real published departures over the same road; nothing beats it.
+ *      Real published departures over the same road.
  *   2. 'fleet_span': the same estimator over the departure times the LIVE FLEET
  *      publishes for this direction's routenames. This is the case
  *      'journey_span' structurally cannot reach — the seeder probes one
@@ -895,8 +1059,30 @@ export function deriveTargetHeadway(
   journeys: readonly HarvestedJourney[],
   fleetDepartureSeconds: readonly number[],
   fallbackSeconds: number,
+  timetable?: { index: TimetableIndex; routeId: string; directionCode: string } | null,
 ): HeadwayDerivation {
   const rejected: HeadwayDerivation['rejected'] = [];
+
+  if (timetable) {
+    const found = lookupTimetableHeadway(timetable.index, timetable.routeId, timetable.directionCode);
+    if (found) {
+      return {
+        targetHeadwaySeconds: found.headway.targetHeadwaySeconds,
+        calibrationSource: 'timetable',
+        rejected,
+        timetableMatch: {
+          match: found.match,
+          sampleCount: found.headway.sampleCount,
+          stopAreaCount: found.headway.stopAreaCount,
+        },
+      };
+    }
+    return {
+      targetHeadwaySeconds: UNCALIBRATED_HEADWAY_SENTINEL_SECONDS,
+      calibrationSource: 'none',
+      rejected,
+    };
+  }
 
   const journeyStarts = journeys
     .map((entry) => scheduledTimeToSeconds(entry.journey.firstScheduledTime))
@@ -967,6 +1153,7 @@ export function harvestNetwork(
   const rolloutStage = options.rolloutStage ?? DEFAULT_ROLLOUT_STAGE;
   const controlPointInterval = Math.max(1, options.controlPointInterval ?? DEFAULT_CONTROL_POINT_INTERVAL);
   const maxStopDetourMeters = options.maxStopDetourMeters ?? MAX_STOP_DETOUR_METERS;
+  const timetable = options.timetable ?? null;
 
   const plan = planProbes(livePayload);
 
@@ -982,12 +1169,15 @@ export function harvestNetwork(
     routesAccepted: 0,
     directionsAccepted: 0,
     stopsAccepted: 0,
-    headwayCalibration: { journey_span: 0, fleet_span: 0, default: 0 },
+    headwayCalibration: { timetable: 0, journey_span: 0, fleet_span: 0, default: 0, none: 0 },
     fleetDepartures: {
       routeNames: plan.fleetDepartures.size,
       withMultipleDepartures: [...plan.fleetDepartures.values()].filter((starts) => starts.length >= 2)
         .length,
     },
+    timetable: timetable?.report ?? null,
+    timetableMatches: [],
+    uncalibratedDirections: [],
     implausibleHeadways: [],
     skippedRoutes: [],
     droppedStops: [],
@@ -1035,7 +1225,7 @@ export function harvestNetwork(
 
     report.probesWithSchedule += 1;
     for (const journey of journeys) {
-      const routeId = resolveRouteId(journey);
+      const routeId = resolveRouteId(journey, timetable);
       if (!routeId) {
         report.skippedRoutes.push({
           registrationNumber: result.registrationNumber,
@@ -1078,7 +1268,12 @@ export function harvestNetwork(
 
   for (const routeId of [...byRoute.keys()].sort(compareStrings)) {
     const routeJourneys = byRoute.get(routeId)!;
-    const directionByJourneyId = assignDirections(routeId, routeJourneys, report.derivedDirections);
+    const directionByJourneyId = assignDirections(
+      routeId,
+      routeJourneys,
+      report.derivedDirections,
+      timetable,
+    );
 
     const groups = new Map<string, DirectionGroup>();
     for (const entry of routeJourneys) {
@@ -1102,6 +1297,7 @@ export function harvestNetwork(
           controlPointInterval,
           maxStopDetourMeters,
           fleetDepartures: plan.fleetDepartures,
+          timetable,
         },
         report,
       );
@@ -1147,6 +1343,8 @@ interface BuildDirectionConfig {
   maxStopDetourMeters: number;
   /** routename -> live fleet departure times. See LivePlan.fleetDepartures. */
   fleetDepartures: Map<string, number[]>;
+  /** Authoritative H* and direction source, or null for a timetable-less run. */
+  timetable: TimetableIndex | null;
 }
 
 function buildDirection(
@@ -1318,7 +1516,12 @@ function buildDirection(
     sourceRouteNames.flatMap((routeName) => config.fleetDepartures.get(routeName) ?? []),
   );
 
-  const headway = deriveTargetHeadway(journeys, fleetDepartureSeconds, config.fallbackHeadway);
+  const headway = deriveTargetHeadway(
+    journeys,
+    fleetDepartureSeconds,
+    config.fallbackHeadway,
+    config.timetable ? { index: config.timetable, routeId, directionCode } : null,
+  );
   for (const entry of headway.rejected) {
     report.implausibleHeadways.push({
       routeId,
@@ -1326,6 +1529,24 @@ function buildDirection(
       method: entry.method,
       seconds: entry.seconds,
       sampleCount: entry.sampleCount,
+    });
+  }
+  if (headway.timetableMatch) {
+    report.timetableMatches.push({
+      routeId,
+      directionCode,
+      match: headway.timetableMatch.match,
+      targetHeadwaySeconds: headway.targetHeadwaySeconds,
+      sampleCount: headway.timetableMatch.sampleCount,
+      stopAreaCount: headway.timetableMatch.stopAreaCount,
+    });
+  } else if (headway.calibrationSource === 'none') {
+    report.uncalibratedDirections.push({
+      routeId,
+      directionCode,
+      reason: config.timetable?.directionsByRouteId.has(routeId)
+        ? 'no_headway_for_line_direction'
+        : 'line_absent_from_timetable',
     });
   }
 

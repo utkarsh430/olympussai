@@ -151,6 +151,47 @@ network (~650 route-directions). Add `--limit=20` for a fast partial seed
 while you're just getting the system running, or `--dry-run` to see what it
 would do without writing anything.
 
+> **Run this during Uttar Pradesh service hours.** The live feed only carries
+> `routename` / `route` / `vehicle_journey_id` once buses have been assigned
+> their duties for the day. Overnight IST the feed still returns ~9,000
+> records with complete GPS, but **zero** of them carry a route — measured at
+> 04:17 IST: `routename` populated on 0 / 9157 records. The seeder groups by
+> route to plan its probes, so an overnight run harvests nothing. GPS
+> ingestion is unaffected and works around the clock; it is only route
+> *identity* that is diurnal.
+>
+> Two consequences worth knowing:
+> - Target headway (H\*) derivation needs **several vehicles on the same
+>   route**. A sparse sample gives ~1 vehicle per route and derives nothing,
+>   so those routes fall back to a fabricated default. Seed from a busy
+>   period, not a quiet one.
+> - `--live-feed-file=<path>` lets you capture a good payload once and re-seed
+>   from it later, which is both outage-proof and reproducible:
+>   ```sh
+>   curl -s https://margdarshi.upsrtcvlt.com/php/getGpsLiveData.php > live.json
+>   pnpm seed --live-feed-file=live.json --report=/tmp/seed.json
+>   ```
+
+### Checking H\* calibration afterwards
+
+A fabricated H\* is worse than a missing one: every threshold in
+`src/headway/` is a ratio of it, so an affected route-direction is silently
+excluded from bunching detection and its CV/EWT are meaningless. The seeder
+prints a breakdown by `calibration_source` and warns loudly about the
+fabricated ones. To audit at any time:
+
+```sql
+select calibration_source, count(*),
+       round(min(target_headway_seconds)) as min_h,
+       round(max(target_headway_seconds)) as max_h
+  from route_policies where effective_to is null
+ group by 1 order by 2 desc;
+```
+
+`calibration_source = 'default'` means the target was not derived from data.
+Treat those route-directions as observation-only until a real service
+frequency is supplied.
+
 Every seeded route starts at rollout stage `observation` — detection runs,
 but no command can be issued on it until an admin promotes it via
 `/ops/admin/rollout-stages`. This is deliberate and fail-safe.
