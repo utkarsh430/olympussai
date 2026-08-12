@@ -40,6 +40,18 @@ const baseEnvSchema = z.object({
   // nobody happens to touch - it doesn't need to be aggressive.
   COMMAND_TTL_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(30_000),
 
+  // How often commandDeliverySweep (src/scheduler/commandDeliverySweep.ts)
+  // retries commands stuck in `authorized`. The primary delivery path is
+  // now in-process and immediate (POST /v1/commands and .../supersede both
+  // attempt delivery inline right after their commit) - this sweep only
+  // matters after a crash between that commit and the inline attempt, or a
+  // delivery that threw. Set shorter than COMMAND_TTL_SWEEP_INTERVAL_MS's
+  // default (30s) and ordered before it in scheduler/jobs.ts, so a command
+  // stuck in `authorized` after a crash gets at least one more delivery
+  // attempt before the TTL sweep would otherwise expire it out from under
+  // the driver.
+  COMMAND_DELIVERY_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(15_000),
+
   // --- Ingestion / scheduler -------------------------------------------
   // How long a NetworkGeometryCache snapshot (active route-direction
   // shapes + their stops + the spatial grid) is served before a background

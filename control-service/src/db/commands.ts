@@ -627,6 +627,27 @@ export async function sweepExpiredCommands(pool: Pool = getPool()): Promise<Comm
 }
 
 /**
+ * Ids of commands sitting in `authorized`, not yet expired, oldest first -
+ * the candidate set for `commandDeliverySweep`
+ * (control-service/src/scheduler/commandDeliverySweep.ts). A command only
+ * lingers here after the inline delivery attempt in createCommand/
+ * supersedeCommand's callers failed or never ran (a crash between commit
+ * and delivery) - this is the backstop that lets those self-heal without
+ * waiting for a human to notice. `expires_at > now()` is a plain filter,
+ * not `lockAndExpireIfDue`: a row already past its TTL is commandTtlSweep's
+ * job, not this one's, and ordering this sweep before that one in
+ * scheduler/jobs.ts is what makes "delivered rather than expired" the
+ * outcome for a command that both sweeps would otherwise race on.
+ */
+export async function listCommandsAwaitingDelivery(limit: number, pool: Pool = getPool()): Promise<string[]> {
+  const { rows } = await pool.query<{ id: string }>(
+    `select id from commands where status = 'authorized' and expires_at > now() order by created_at asc limit $1`,
+    [limit],
+  );
+  return rows.map((r) => r.id);
+}
+
+/**
  * Which of `vehicleIds` currently have an active (non-terminal-status)
  * command outstanding, per `commands_one_active_per_vehicle_idx`
  * (`status in ('proposed', 'awaiting_approval', 'authorized', 'delivered',

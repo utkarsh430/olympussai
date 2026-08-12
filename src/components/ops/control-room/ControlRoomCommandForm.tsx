@@ -26,6 +26,8 @@ interface SuccessState {
   commandId: string;
   expiresAt: string;
   auditEventId: string;
+  status: string;
+  deliveredAt: string | null;
 }
 
 /**
@@ -89,7 +91,14 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
       });
 
       const data = (await response.json().catch(() => null)) as
-        | { ok: true; commandId: string; expiresAt: string; auditEventId: string }
+        | {
+            ok: true;
+            commandId: string;
+            expiresAt: string;
+            auditEventId: string;
+            status: string;
+            deliveredAt: string | null;
+          }
         | { error: { code: string; message: string } }
         | null;
 
@@ -99,7 +108,13 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
         return;
       }
 
-      setSuccess({ commandId: data.commandId, expiresAt: data.expiresAt, auditEventId: data.auditEventId });
+      setSuccess({
+        commandId: data.commandId,
+        expiresAt: data.expiresAt,
+        auditEventId: data.auditEventId,
+        status: data.status,
+        deliveredAt: data.deliveredAt,
+      });
       setStatus('success');
       setDispatcherActionId('');
       setVehicleId('');
@@ -223,7 +238,10 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
 
       {success && (
         <p id={successId} role="status" className="text-sm text-[#7fd9a4]">
-          Command issued and audited. commandId:{' '}
+          {success.status === 'delivered'
+            ? 'Command issued and delivered.'
+            : 'Command issued, not yet delivered — will retry automatically.'}{' '}
+          commandId:{' '}
           <code className="rounded bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 font-mono text-[#e6e9ef]">
             {success.commandId}
           </code>{' '}

@@ -26,15 +26,42 @@ vi.mock('../src/webhooks/dispatch.js', () => ({
 }));
 
 const { createApp } = await import('../src/app.js');
-const { createCommand } = await import('../src/db/commands.js');
+const { createCommand, deliverCommand } = await import('../src/db/commands.js');
 const { dispatchWebhook } = await import('../src/webhooks/dispatch.js');
 const { AppError } = await import('../src/lib/errors.js');
 
 const AUTH_HEADER = 'Bearer test-service-token-secret-value';
 
+function sampleCommand(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'cmd-1',
+    recommendationId: null,
+    vehicleId: 'veh-1',
+    tripId: null,
+    actionType: 'self_equalizing_hold',
+    targetStopId: null,
+    parameters: {},
+    dispatcherActionId: '00000000-0000-0000-0000-000000000000',
+    ttlSeconds: 120,
+    validFrom: new Date().toISOString(),
+    expiresAt: new Date().toISOString(),
+    policyVersion: null,
+    status: 'authorized',
+    version: 1,
+    supersedesCommandId: null,
+    deliveredAt: null,
+    acknowledgedAt: null,
+    acknowledgementReason: null,
+    ackOutcome: null,
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
 describe('POST /v1/commands', () => {
   beforeEach(() => {
     vi.mocked(createCommand).mockReset();
+    vi.mocked(deliverCommand).mockReset();
     vi.mocked(dispatchWebhook).mockReset();
   });
 
@@ -85,34 +112,15 @@ describe('POST /v1/commands', () => {
     expect(createCommand).not.toHaveBeenCalled();
   });
 
-  it('creates the command and dispatches a webhook on a valid request', async () => {
-    const command = {
-      id: 'cmd-1',
-      recommendationId: null,
-      vehicleId: 'veh-1',
-      tripId: null,
-      actionType: 'self_equalizing_hold',
-      targetStopId: null,
-      parameters: {},
-      dispatcherActionId: '00000000-0000-0000-0000-000000000000',
-      ttlSeconds: 120,
-      validFrom: new Date().toISOString(),
-      expiresAt: new Date().toISOString(),
-      policyVersion: null,
-      status: 'authorized',
-      version: 1,
-      supersedesCommandId: null,
-      deliveredAt: null,
-      acknowledgedAt: null,
-      acknowledgementReason: null,
-      ackOutcome: null,
-      createdAt: new Date().toISOString(),
-    };
-    vi.mocked(createCommand).mockResolvedValueOnce(command);
-    vi.mocked(dispatchWebhook).mockResolvedValueOnce({
+  it('creates the command, delivers it inline, and dispatches BOTH command.created and command.delivered webhooks', async () => {
+    const created = sampleCommand();
+    const delivered = sampleCommand({ status: 'delivered', deliveredAt: new Date().toISOString() });
+    vi.mocked(createCommand).mockResolvedValueOnce(created);
+    vi.mocked(deliverCommand).mockResolvedValueOnce(delivered);
+    vi.mocked(dispatchWebhook).mockResolvedValue({
       delivered: true,
       attempts: 1,
-      idempotencyKey: 'cmd-1',
+      idempotencyKey: 'k',
       status: 200,
     });
 
@@ -128,11 +136,52 @@ describe('POST /v1/commands', () => {
       });
 
     expect(res.status).toBe(201);
-    expect(res.body.command.id).toBe('cmd-1');
+    // The response reflects the post-delivery state, not the just-created one.
+    expect(res.body.command.status).toBe('delivered');
+    expect(res.body.delivered).toBe(true);
     expect(res.body.webhookDelivered).toBe(true);
     expect(createCommand).toHaveBeenCalledTimes(1);
+    expect(deliverCommand).toHaveBeenCalledWith('cmd-1');
     expect(dispatchWebhook).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'command.created', idempotencyKey: 'cmd-1' }),
+    );
+    expect(dispatchWebhook).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'command.delivered', idempotencyKey: 'cmd-1:delivered:v1' }),
+    );
+    expect(dispatchWebhook).toHaveBeenCalledTimes(2);
+  });
+
+  it('still responds 201 with delivered: false and the authorized command when the inline delivery attempt rejects', async () => {
+    const created = sampleCommand();
+    vi.mocked(createCommand).mockResolvedValueOnce(created);
+    vi.mocked(deliverCommand).mockRejectedValueOnce(
+      new AppError('command_not_authorized', 'command must be authorized first', 409),
+    );
+    vi.mocked(dispatchWebhook).mockResolvedValue({
+      delivered: true,
+      attempts: 1,
+      idempotencyKey: 'k',
+      status: 200,
+    });
+
+    const app = createApp();
+    const res = await request(app)
+      .post('/v1/commands')
+      .set('Authorization', AUTH_HEADER)
+      .send({
+        vehicleId: 'veh-1',
+        actionType: 'self_equalizing_hold',
+        ttlSeconds: 120,
+        dispatcherActionId: '00000000-0000-0000-0000-000000000000',
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.delivered).toBe(false);
+    expect(res.body.command.status).toBe('authorized');
+    // Only the command.created webhook fires; there is no delivered command to notify about.
+    expect(dispatchWebhook).toHaveBeenCalledTimes(1);
+    expect(dispatchWebhook).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'command.created' }),
     );
   });
 

@@ -245,9 +245,11 @@ describe('POST /v1/commands/:id/supersede', () => {
     expect(supersedeCommand).not.toHaveBeenCalled();
   });
 
-  it('supersedes the command and dispatches a webhook naming the prior id', async () => {
-    vi.mocked(supersedeCommand).mockResolvedValueOnce(
-      sampleCommand({ id: 'cmd-new', version: 2, supersedesCommandId: COMMAND_ID }),
+  it('supersedes the command, delivers the version+1 row inline, and dispatches BOTH command.superseded and command.delivered webhooks', async () => {
+    const superseded = sampleCommand({ id: 'cmd-new', version: 2, supersedesCommandId: COMMAND_ID });
+    vi.mocked(supersedeCommand).mockResolvedValueOnce(superseded);
+    vi.mocked(deliverCommand).mockResolvedValueOnce(
+      sampleCommand({ id: 'cmd-new', version: 2, supersedesCommandId: COMMAND_ID, status: 'delivered', deliveredAt: new Date().toISOString() }),
     );
 
     const app = createApp();
@@ -258,8 +260,33 @@ describe('POST /v1/commands/:id/supersede', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.command.version).toBe(2);
+    // The response reflects the post-delivery state, not the just-superseded one.
+    expect(res.body.command.status).toBe('delivered');
+    expect(res.body.delivered).toBe(true);
+    expect(deliverCommand).toHaveBeenCalledWith('cmd-new');
     expect(dispatchWebhook).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'command.superseded', data: expect.objectContaining({ supersedesCommandId: COMMAND_ID }) }),
     );
+    expect(dispatchWebhook).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'command.delivered', idempotencyKey: 'cmd-new:delivered:v2' }),
+    );
+  });
+
+  it('still responds 201 with delivered: false and the authorized command when the inline delivery attempt rejects', async () => {
+    const superseded = sampleCommand({ id: 'cmd-new', version: 2, supersedesCommandId: COMMAND_ID });
+    vi.mocked(supersedeCommand).mockResolvedValueOnce(superseded);
+    vi.mocked(deliverCommand).mockRejectedValueOnce(
+      new AppError('command_expired', 'command has expired and cannot be delivered', 410),
+    );
+
+    const app = createApp();
+    const res = await request(app)
+      .post(`/v1/commands/${COMMAND_ID}/supersede`)
+      .set('Authorization', AUTH_HEADER)
+      .send({ dispatcherActionId: '33333333-3333-3333-3333-333333333333', ttlSeconds: 90 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.delivered).toBe(false);
+    expect(res.body.command.status).toBe('authorized');
   });
 });

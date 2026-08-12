@@ -1,6 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
+import { seedGatedRouteDirection, insertVehicle } from './fixtures/controlServiceFixtures';
+import { assignVehicleToPilotDriver } from './fixtures/opsFixtures';
 
 /**
  * Live, authenticated end-to-end coverage for the driver PWA's
@@ -108,42 +110,6 @@ interface Fixture {
 }
 
 /**
- * Route-direction every fixture's approval is attached to, created once per
- * run and promoted to a rollout stage that permits commands.
- *
- * Required because POST /v1/commands is gated on the rollout stage of the
- * route-direction its approval names (control-service/src/pilot/gate.ts),
- * and that gate FAILS CLOSED twice over: an approval with a null
- * `route_direction_id` is refused 422 `route_direction_required`, and a
- * route-direction with no `route_direction_rollout_stages` row defaults to
- * 'observation', which is refused 403 `rollout_stage_forbids_commands`. So
- * the fixture must supply both. 'advisory' is the weakest stage that allows
- * a command at all — deliberately not a higher one, so this suite exercises
- * the same gate posture a real pilot corridor starts at rather than one that
- * happens to be permissive.
- */
-async function seedGatedRouteDirection(pool: Pool): Promise<string> {
-  const suffix = randomUUID().slice(0, 8);
-  const routeId = `qa-e2e-route-${suffix}`;
-  await pool.query(`insert into routes (id, public_name) values ($1, $2)`, [
-    routeId,
-    `QA E2E Route ${suffix}`,
-  ]);
-  const { rows } = await pool.query<{ id: string }>(
-    `insert into route_directions (route_id, direction_code, direction_name)
-     values ($1, 'UP', 'QA E2E direction') returning id`,
-    [routeId],
-  );
-  const routeDirectionId = rows[0].id;
-  await pool.query(
-    `insert into route_direction_rollout_stages (route_direction_id, stage, updated_by, reason)
-     values ($1, 'advisory', 'qa-e2e-suite', 'e2e fixture')`,
-    [routeDirectionId],
-  );
-  return routeDirectionId;
-}
-
-/**
  * Seeds a fresh, isolated vehicle + unconsumed dispatcher_actions approval
  * directly against control-service's own database — the only way to obtain
  * a valid dispatcherActionId (see file header). A unique vehicleId per test
@@ -155,10 +121,7 @@ async function seedFixture(pool: Pool, label: string, routeDirectionId: string):
   const suffix = randomUUID().slice(0, 8);
   const vehicleId = `qa-e2e-${label}-${suffix}`;
   const dispatcherActionId = randomUUID();
-  await pool.query(
-    `insert into vehicles (id, registration_number, vehicle_type, is_active) values ($1, $2, 'bus', true)`,
-    [vehicleId, `E2E${suffix.toUpperCase()}`],
-  );
+  await insertVehicle(pool, vehicleId, suffix);
   await pool.query(
     `insert into dispatcher_actions (id, dispatcher_id, action_type, vehicle_id, reason, route_direction_id)
      values ($1, 'qa-e2e-suite', $2, $3, $4, $5)`,
@@ -218,35 +181,17 @@ async function loginAsPilotDriver(page: Page): Promise<void> {
 }
 
 /**
- * Assigns `vehicleId` to the seeded E2E pilot_driver's OWN ops_users row,
- * the same write POST /api/ops/admin/users/:id/vehicle performs, and the
- * only way this app lets a vehicle become "assigned" to a driver
- * (db/migrations/20260806180000__ops_users_vehicle_assignment.sql). This
- * spec writes directly to `opsPool` rather than calling that admin route
- * because there is no seeded admin session available to this suite — see
- * the file header for what infra this spec assumes.
- *
  * This replaces a since-removed step that filled a "Vehicle registration"
  * textbox in the console itself: that field only ever existed because the
  * pre-fix console let a pilot_driver self-report any vehicleId, which was
  * exactly the A01 gap this ticket closed. CommandConsole.tsx now derives
  * the vehicle from GET /api/ops/auth/session (never client input), so this
- * suite must arrange that server-side assignment itself to reach the same
- * "driver sees their vehicle's command" state, not simulate the old
- * client-controlled path.
+ * suite must arrange that server-side assignment itself (assignVehicleToPilotDriver,
+ * tests/e2e/fixtures/opsFixtures.ts) to reach the same "driver sees their
+ * vehicle's command" state, not simulate the old client-controlled path.
  */
-async function assignVehicleToPilotDriver(pool: Pool, vehicleId: string): Promise<void> {
-  const { rowCount } = await pool.query(`update ops_users set vehicle_id = $1 where lower(email) = lower($2)`, [
-    vehicleId,
-    PILOT_DRIVER_EMAIL,
-  ]);
-  if (rowCount === 0) {
-    throw new Error(`no ops_users row found for E2E_PILOT_DRIVER_EMAIL=${PILOT_DRIVER_EMAIL}`);
-  }
-}
-
 async function openConsoleForVehicle(page: Page, pool: Pool, vehicleId: string): Promise<void> {
-  await assignVehicleToPilotDriver(pool, vehicleId);
+  await assignVehicleToPilotDriver(pool, PILOT_DRIVER_EMAIL!, vehicleId);
   await page.goto('/ops/pilot-driver');
   // Confirms the console actually picked up the server-assigned vehicle
   // (GET /api/ops/auth/session) before any test proceeds to assert on

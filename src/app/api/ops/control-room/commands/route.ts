@@ -317,7 +317,14 @@ export async function POST(request: NextRequest): Promise<Response> {
     });
 
     return NextResponse.json(
-      { ok: true, commandId: command.id, expiresAt: command.expiresAt, auditEventId },
+      {
+        ok: true,
+        commandId: command.id,
+        expiresAt: command.expiresAt,
+        status: command.status,
+        deliveredAt: command.deliveredAt,
+        auditEventId,
+      },
       { status: 201, headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (error) {

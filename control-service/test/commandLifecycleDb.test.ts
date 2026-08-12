@@ -9,7 +9,12 @@
 // prove.
 import { describe, it, expect, vi } from 'vitest';
 import type { Pool } from 'pg';
-import { deliverCommand, acknowledgeCommand, supersedeCommand } from '../src/db/commands.js';
+import {
+  deliverCommand,
+  acknowledgeCommand,
+  supersedeCommand,
+  listCommandsAwaitingDelivery,
+} from '../src/db/commands.js';
 import { listCommandAuditLog } from '../src/db/commandAudit.js';
 import { AppError } from '../src/lib/errors.js';
 
@@ -356,5 +361,30 @@ describe('timestamptz normalization (webhook idempotency-key regression)', () =>
     );
 
     expect(command.acknowledgedAt).toBe('2026-08-10T03:00:52.213Z');
+  });
+});
+
+describe('listCommandsAwaitingDelivery', () => {
+  it('selects authorized, not-yet-expired commands oldest first, bounded by the given limit', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ id: 'cmd-1' }, { id: 'cmd-2' }] });
+    const pool = { query } as unknown as Pool;
+
+    const ids = await listCommandsAwaitingDelivery(50, pool);
+
+    expect(ids).toEqual(['cmd-1', 'cmd-2']);
+    const [sql, params] = query.mock.calls[0] as [string, unknown[]];
+    const normalized = sql.trim().toLowerCase();
+    expect(normalized).toContain("status = 'authorized'");
+    expect(normalized).toContain('expires_at > now()');
+    expect(normalized).toContain('order by created_at asc');
+    expect(normalized).toContain('limit $1');
+    expect(params).toEqual([50]);
+  });
+
+  it('returns an empty array rather than throwing when nothing is awaiting delivery', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const pool = { query } as unknown as Pool;
+
+    await expect(listCommandsAwaitingDelivery(50, pool)).resolves.toEqual([]);
   });
 });

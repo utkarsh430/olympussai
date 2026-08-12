@@ -1,25 +1,44 @@
-// The four periodic jobs this process runs, assembled from env.
+// The five periodic jobs this process runs, assembled from env.
 //
 // Kept separate from index.ts (the runner) so the runner's overlap /
 // containment / jitter semantics can be tested against trivial fake jobs,
 // and so the set of jobs is one readable list rather than four setInterval
 // calls scattered through the process entrypoint.
 //
-//   commandTtlSweep  COMMAND_TTL_SWEEP_INTERVAL_MS  30 s
-//   gpsPoll          GPS_POLL_INTERVAL_MS           30 s   (opt-in)
-//   headwayCompute   HEADWAY_COMPUTE_INTERVAL_MS    60 s
-//   geometryRefresh  SHAPE_CACHE_TTL_MS             15 min
+//   commandDeliverySweep  COMMAND_DELIVERY_SWEEP_INTERVAL_MS  15 s
+//   commandTtlSweep       COMMAND_TTL_SWEEP_INTERVAL_MS       30 s
+//   gpsPoll               GPS_POLL_INTERVAL_MS                30 s   (opt-in)
+//   headwayCompute        HEADWAY_COMPUTE_INTERVAL_MS         60 s
+//   geometryRefresh       SHAPE_CACHE_TTL_MS                  15 min
+//
+// commandDeliverySweep is ordered BEFORE commandTtlSweep deliberately: a
+// command that is simultaneously due for both (stuck in `authorized` past
+// its TTL after a crash) should be delivered, not expired out from under
+// the driver - see commandDeliverySweep.ts.
 
 import type { Env } from '../config/env.js';
 import { sweepExpiredCommands } from '../db/commands.js';
 import { logger } from '../lib/logger.js';
 import { getNetworkGeometryCache } from '../state-estimation/singleton.js';
+import { runCommandDeliverySweep } from './commandDeliverySweep.js';
 import { runGpsPoll } from './gpsPoll.js';
 import { runHeadwayComputeSweep } from './headwayCompute.js';
 import type { ScheduledJob } from './index.js';
 
 export function buildJobs(env: Env): ScheduledJob[] {
   const jobs: ScheduledJob[] = [
+    {
+      // Backstop for the in-process delivery attempt POST /v1/commands and
+      // POST /v1/commands/:id/supersede now make right after their own
+      // commit (src/commands/deliverAndNotify.ts) - catches a command left
+      // in `authorized` by a crash between that commit and the inline
+      // attempt, or an inline attempt that threw.
+      name: 'commandDeliverySweep',
+      intervalMs: env.COMMAND_DELIVERY_SWEEP_INTERVAL_MS,
+      run: async () => {
+        await runCommandDeliverySweep();
+      },
+    },
     {
       // Backstop TTL sweep (command lifecycle AC: "expired commands never
       // delivered/executed"). deliverCommand/acknowledgeCommand already
