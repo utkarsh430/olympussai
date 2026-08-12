@@ -1,22 +1,51 @@
 /**
- * Ops session token creation and verification (jose / HS256).
+ * LEGACY ops session token creation and verification (jose / HS256).
  *
  * Edge-safe. Carries a user id, email and role per person — a self-contained
- * signed session for the ops surface, independent of the Supabase Auth
- * session the project surface uses, and verified independently by middleware
- * AND by every route handler/layout (defence in depth).
+ * signed session minted by POST /api/ops/auth/login.
+ *
+ * This is the OLD front door and it is retained on purpose while the two auth
+ * systems are collapsed onto Supabase (see config.ts's header). It is still
+ * accepted at the edge (src/lib/auth/rbac/edgeSession.ts) and by the Node
+ * guards (server.ts), so both login paths work at once and rollback is a
+ * configuration change. What changed underneath it: this token is no longer
+ * the AUTHORITY on anything. Its role is a ceiling; `ops_users.role` and
+ * `ops_users.status` are re-read per guarded request and decide.
  */
 import { SignJWT, jwtVerify } from 'jose';
 import { isOpsRole, type OpsRole } from './roles';
 import { OPS_SESSION_MAX_AGE_SECONDS, getOpsSessionSecret } from './config';
 
 export interface OpsSessionClaims {
-  /** ops_users.id */
+  /**
+   * ops_users.id — and ONLY ever ops_users.id.
+   *
+   * 27 call sites write this straight into a Postgres column with a FK to
+   * `ops_users(id)` (audit actor, dispatcher action, breakdown reporter,
+   * invite author, kill-switch operator, …) or pass it to
+   * `repo.findUserById`. Five of those columns are `not null` +
+   * `on delete restrict`, and two of the tables are append-only and
+   * trigger-protected. It also crosses the wire to control-service as
+   * `dispatcherId`, into a plain text column with no FK — the one place a
+   * wrong id would NOT be caught by a constraint.
+   *
+   * The Supabase Auth user id is a DIFFERENT uuid in a different system and
+   * is exposed separately as `supabaseUserId` below. Never substitute one
+   * for the other.
+   */
   sub: string;
   email: string;
   role: OpsRole;
   iat: number;
   exp: number;
+  /**
+   * The Supabase Auth identity this session was established from
+   * (`auth.users.id`), when it came in through the Supabase front door.
+   * Absent for the legacy ops-cookie path, and absent when the profile has
+   * not been linked yet. Informational: nothing authorizes on it, and it must
+   * never be written to an ops FK column.
+   */
+  supabaseUserId?: string;
 }
 
 /** Create a signed ops session token for a specific user. */

@@ -15,7 +15,7 @@
 // not select the path (so middleware never even runs in production), and that
 // the `middleware` function short-circuits it anyway (so widening the matcher
 // later cannot silently break inbound webhooks).
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const createMiddlewareSupabaseClient = vi.fn();
@@ -44,9 +44,19 @@ function unauthenticatedPost(path: string): NextRequest {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  createMiddlewareSupabaseClient.mockImplementation(() => {
-    throw new Error('the Supabase session gate must never run for a machine API path');
-  });
+  // This used to throw, as a blunt "the Supabase gate must never run" tripwire.
+  // It cannot any more: collapsing the two front doors means the OPS branch
+  // legitimately builds a Supabase client too (it accepts a Supabase session
+  // carrying app_metadata.ops_role as well as the legacy ops cookie), so a
+  // throwing implementation would now fire on the ops paths this file also
+  // exercises. The exemption is asserted directly and per-path instead —
+  // `not.toHaveBeenCalled()` on EVERY machine-API case below, which is a
+  // strictly stronger statement than "the mock did not blow up".
+  createMiddlewareSupabaseClient.mockImplementation(() => ({
+    supabase: null,
+    supabaseResponse: NextResponse.next(),
+  }));
+  getMiddlewareUser.mockResolvedValue(null);
   verifyOpsSessionToken.mockResolvedValue(null);
 });
 
@@ -61,6 +71,8 @@ describe('middleware — /api/control-service/* is exempt from every session gat
     // Emphatically NOT a redirect: a 3xx here is the silent-data-loss bug.
     expect(response.headers.get('location')).toBeNull();
     expect([301, 302, 303, 307, 308]).not.toContain(response.status);
+    expect(createMiddlewareSupabaseClient).not.toHaveBeenCalled();
+    expect(verifyOpsSessionToken).not.toHaveBeenCalled();
   });
 
   it('consults neither auth system for the webhook path', async () => {
@@ -79,6 +91,9 @@ describe('middleware — /api/control-service/* is exempt from every session gat
       expect(response.headers.get('location')).toBeNull();
       expect(response.status).toBe(200);
     }
+    expect(createMiddlewareSupabaseClient).not.toHaveBeenCalled();
+    expect(getMiddlewareUser).not.toHaveBeenCalled();
+    expect(verifyOpsSessionToken).not.toHaveBeenCalled();
   });
 
   it('does not exempt look-alike paths that merely contain the prefix', async () => {

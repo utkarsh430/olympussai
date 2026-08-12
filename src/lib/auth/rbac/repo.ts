@@ -30,6 +30,17 @@ export interface OpsUserRecord {
    * null; that was the A01 gap this column closes.
    */
   vehicleId: string | null;
+  /**
+   * The Supabase Auth user (`auth.users.id`) that signs in as this ops
+   * account, or null when this row is not linked yet and still signs in
+   * through the legacy ops password path
+   * (db/migrations/20260812094500__ops_users_supabase_link.sql).
+   *
+   * NEVER interchangeable with `id`. `id` is `ops_users.id`, the FK target of
+   * 14 columns across 8 tables including two append-only audit tables; this
+   * is a foreign system's uuid and must never be written to any of them.
+   */
+  supabaseUserId: string | null;
   createdAt: string;
 }
 
@@ -254,6 +265,30 @@ function decodeBreakdownReportCursor(cursor: string): { createdAt: string; id: s
 export interface OpsRepo {
   findUserByEmail(email: string): Promise<OpsUserRecord | null>;
   findUserById(id: string): Promise<OpsUserRecord | null>;
+  /**
+   * Resolve a signed-in Supabase Auth user to their ops profile. This is the
+   * hot path of the Node-runtime guard: it runs once per guarded request and
+   * its result — `role` and `status` — is the AUTHORITY that the token's
+   * `app_metadata.ops_role` ceiling is checked against
+   * (src/lib/auth/rbac/server.ts).
+   *
+   * Returns null when the Supabase identity has no linked ops profile, which
+   * the guard treats as no access at all. That is a state the app could not
+   * previously reach and is now the normal case for an ordinary project
+   * viewer, so it must never be conflated with "not signed in".
+   *
+   * At most one row can match — `ops_users_supabase_user_id_uq`.
+   */
+  findUserBySupabaseId(supabaseUserId: string): Promise<OpsUserRecord | null>;
+  /**
+   * Bind an ops profile to a Supabase Auth identity. Additive: it never
+   * touches `password_hash`, so the legacy credential path keeps working and
+   * rollback stays a config change. Returns null if the ops user does not
+   * exist. Throws on a uniqueness violation (that identity is already bound
+   * to a different ops profile) — callers must surface it, never retry
+   * blindly.
+   */
+  linkSupabaseUser(opsUserId: string, supabaseUserId: string): Promise<OpsUserRecord | null>;
   listUsers(): Promise<OpsUserRecord[]>;
   disableUser(id: string, disabledBy: string): Promise<OpsUserRecord | null>;
   countAdmins(): Promise<number>;
@@ -395,6 +430,7 @@ function mapUserRow(row: Record<string, unknown>): OpsUserRecord {
     passwordHash: String(row.password_hash),
     status: row.status as 'active' | 'disabled',
     vehicleId: row.vehicle_id == null ? null : String(row.vehicle_id),
+    supabaseUserId: row.supabase_user_id == null ? null : String(row.supabase_user_id),
     createdAt: new Date(row.created_at as string).toISOString(),
   };
 }
@@ -495,6 +531,27 @@ class PgOpsRepo implements OpsRepo {
   async findUserById(id: string): Promise<OpsUserRecord | null> {
     const pool = getOpsPool();
     const { rows } = await pool.query('select * from ops_users where id = $1 limit 1', [id]);
+    return rows[0] ? mapUserRow(rows[0]) : null;
+  }
+
+  async findUserBySupabaseId(supabaseUserId: string): Promise<OpsUserRecord | null> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query(
+      'select * from ops_users where supabase_user_id = $1 limit 1',
+      [supabaseUserId],
+    );
+    return rows[0] ? mapUserRow(rows[0]) : null;
+  }
+
+  async linkSupabaseUser(opsUserId: string, supabaseUserId: string): Promise<OpsUserRecord | null> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query(
+      `update ops_users
+          set supabase_user_id = $2
+        where id = $1
+        returning *`,
+      [opsUserId, supabaseUserId],
+    );
     return rows[0] ? mapUserRow(rows[0]) : null;
   }
 

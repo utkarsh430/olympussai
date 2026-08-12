@@ -2,10 +2,37 @@
 
 Per-person, admin-invited accounts for five operational roles — driver,
 dispatcher, depot, control-room, planner — plus an internal admin role that
-can only invite/manage accounts. Entirely separate from the Supabase-backed
-enterprise auth described in `AUTH.md`, which is unaffected by this feature.
+can only invite/manage accounts.
 
-## Why a second auth system, not an extension of the project login
+## Status: this is being collapsed onto Supabase Auth
+
+The two auth systems this document describes as deliberately separate are
+being merged into one front door. Supabase Auth becomes the single sign-in;
+`ops_users` survives as the role and profile table, linked forward by a new
+nullable `ops_users.supabase_user_id`
+(`db/migrations/20260812094500__ops_users_supabase_link.sql`). `ops_users.id`
+is never re-keyed: it is the FK target of 14 columns across 8 tables,
+including two append-only, trigger-protected audit tables.
+
+Both front doors are accepted at once while the cutover is proven. A request
+may carry a Supabase session whose access token names an ops role
+(`app_metadata.ops_role`), or the legacy `olympuss_ops_session` cookie, and
+both are resolved to the same `ops_users` row and subjected to the same
+checks. Nothing in the credential path has been removed, so rollback is a
+configuration change rather than a data restore.
+
+What changed underneath, and it is not cosmetic: **the token is no longer the
+authority on anything.** It used to be. `getOpsSession()` verified a cookie
+and returned its claims, and no request path ever read `ops_users`, so
+`ops_users.status` was checked only at login and a disabled operator kept full
+dispatch authority until their 4-hour token happened to expire. The role and
+status are now re-read from the database on every guarded request. See the
+"Defence in depth" section below and `src/lib/auth/rbac/server.ts`.
+
+## Why this was originally a second auth system
+
+The reasoning below is retained because it explains the shape of what is being
+merged, not because the separation still holds.
 
 `AUTH.md`'s Supabase login authorizes access to the UPSRTC _project_
 (`/project/upsrtc`, `/project/bunching`) as a single undifferentiated surface
@@ -85,6 +112,35 @@ system rather than a role field bolted onto the project login:
    middleware.
 3. **Every ops API route** calls `requireOpsRole([...])` or
    `requireOpsSession()` itself (`src/lib/auth/rbac/guard.ts`).
+
+**Which of those is the authority.** Check 1 runs on the Edge runtime, which
+cannot reach `pg`, so it reads a role out of a verified _token_
+(`src/lib/auth/rbac/edgeSession.ts`: a Supabase access token's
+`app_metadata.ops_role`, verified locally against the project's published
+signing keys, or the legacy ops cookie). That role is baked in when the token
+is minted, so it is stale after a role change and says nothing at all about
+whether the account has since been disabled. It is a **ceiling**, exactly like
+`OPS_API_ROLE_OVERRIDES` (`src/lib/auth/rbac/roles.ts`) is a ceiling over each
+route's own `requireOpsRole` allowlist.
+
+Checks 2 and 3 run on the Node runtime and re-read `ops_users` on every call
+(`src/lib/auth/rbac/server.ts`). That read is the **authority**, and three
+things it decides cannot be decided anywhere else:
+
+- an identity with **no linked `ops_users` row** gets no ops access (the
+  normal state for an ordinary project viewer, and a state that could not
+  exist before the merge);
+- a **disabled** profile is refused on its very next request, rather than when
+  its token expires;
+- a token whose role **disagrees** with the database is refused outright, in
+  both directions, rather than either value being guessed at. Signing in again
+  mints a correct claim, so this is self-healing. It surfaces as `401` with
+  code `SESSION_STALE` on the API, and as a redirect to sign in (never to
+  `/ops/forbidden`, which would be a dead end) on a page.
+
+Do not "optimize away" that per-request read by trusting an `ops_users.id` or
+role embedded in the token. Doing so restores the four-hour window in which a
+disabled account kept working.
 
 ## Audit trail
 

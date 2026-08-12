@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createMiddlewareSupabaseClient, getMiddlewareUser } from '@/lib/supabase/middleware';
-import { OPS_SESSION_COOKIE } from '@/lib/auth/rbac/config';
-import { verifyOpsSessionToken } from '@/lib/auth/rbac/session';
+import { resolveOpsEdgeCeiling } from '@/lib/auth/rbac/edgeSession';
 import { roleForSegment, rolesForOpsApiPath, isPublicOpsApiPath } from '@/lib/auth/rbac/roles';
 
 /**
@@ -21,10 +20,13 @@ import { roleForSegment, rolesForOpsApiPath, isPublicOpsApiPath } from '@/lib/au
  * access to the single UPSRTC project surface (the earlier PROJECT_NAME /
  * PROJECT_PIN_HASH / SESSION_SECRET env-var PIN system has been removed).
  *
- * /ops/* and /api/ops/* (the multi-role RBAC surface added by an earlier
- * ticket) are handled by a completely separate branch (handleOpsRequest,
- * below) that never touches the Supabase session — the two auth systems
- * remain independent.
+ * /ops/* and /api/ops/* (the multi-role RBAC surface) are handled by a
+ * separate branch (handleOpsRequest, below). Those two auth systems used to
+ * be deliberately independent, with separate cookies and separate secrets.
+ * They are being collapsed onto one front door: the ops branch now accepts a
+ * Supabase session carrying an `app_metadata.ops_role` claim, AND the legacy
+ * ops cookie, so both login paths keep working until the cutover is proven.
+ * See src/lib/auth/rbac/edgeSession.ts.
  *
  * /api/control-service/* is machine-to-machine and authenticates itself — see
  * PUBLIC_MACHINE_API_PREFIXES below.
@@ -94,6 +96,24 @@ function isPublicMachineApi(pathname: string): boolean {
  * Authenticated-but-wrong-role never bounces to /ops/login (that would imply
  * "you are not signed in", which is false and would invite retrying with a
  * different account); it redirects to /ops/forbidden / returns 403 instead.
+ *
+ * WHERE THE ROLE COMES FROM, and why it is only a ceiling: the Edge runtime
+ * cannot reach `pg`, so it cannot read `ops_users`. It reads a role out of a
+ * verified token instead — a Supabase access token's
+ * `app_metadata.ops_role`, verified LOCALLY against the project's published
+ * signing keys, or the legacy ops cookie (src/lib/auth/rbac/edgeSession.ts).
+ * That role is baked in at mint time, so it is stale after a role change and
+ * says nothing at all about whether the account has since been disabled.
+ * Every ops route handler and layout re-reads `ops_users` itself and can
+ * still refuse (src/lib/auth/rbac/server.ts). Nothing here is ever the
+ * decision.
+ *
+ * Note it verifies the token locally rather than calling
+ * `getMiddlewareUser()` / `supabase.auth.getUser()` as the project branch
+ * below does. `getUser()` is unconditionally an HTTP round-trip to Supabase
+ * Auth; using it here would put a network hop on every ops page load and
+ * every ops API call — where today there is none — and would make the whole
+ * control surface unavailable during a Supabase Auth outage.
  */
 async function handleOpsRequest(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
@@ -108,28 +128,32 @@ async function handleOpsRequest(request: NextRequest): Promise<NextResponse> {
         return role ? [role] : null;
       })();
 
+  // Built even for public paths so a refreshed Supabase auth cookie is
+  // carried back on the response; constructing the client is local work, not
+  // a network call.
+  const { supabase, supabaseResponse } = createMiddlewareSupabaseClient(request);
+
   if (!allowedRoles && (!isApi || isPublicOpsApiPath(pathname))) {
     // Genuinely not a role surface at all: an intentionally public page
     // (login/forbidden/accept-invite) or an API path that authenticates
     // itself (/api/ops/auth/*, e.g. the login call itself, which by
     // definition cannot require a session yet). The route handler or layout
     // enforces whatever it individually needs.
-    return NextResponse.next();
+    return supabaseResponse;
   }
 
-  const token = request.cookies.get(OPS_SESSION_COOKIE)?.value;
-  const claims = await verifyOpsSessionToken(token);
+  const ceiling = await resolveOpsEdgeCeiling(request, supabase);
 
   // allowedRoles is null past this point only for an /api/ops/* path this
   // map cannot classify (see the doc comment above) — that still requires a
   // valid session (any role), just not a specific one; the route handler's
   // own requireOpsRole remains the real, narrow decision either way.
-  if (claims && (!allowedRoles || allowedRoles.includes(claims.role))) {
-    return NextResponse.next();
+  if (ceiling && (!allowedRoles || allowedRoles.includes(ceiling.role))) {
+    return supabaseResponse;
   }
 
   if (isApi) {
-    if (claims) {
+    if (ceiling) {
       return NextResponse.json(
         { error: { code: 'FORBIDDEN', message: 'Your role does not permit this action.' } },
         { status: 403, headers: { 'Cache-Control': 'no-store' } },
@@ -141,7 +165,7 @@ async function handleOpsRequest(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (claims) {
+  if (ceiling) {
     return NextResponse.redirect(new URL('/ops/forbidden', request.url));
   }
 

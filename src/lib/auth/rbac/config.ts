@@ -1,17 +1,27 @@
 /**
- * Ops session configuration.
+ * LEGACY ops session configuration — the old ops front door.
  *
- * Edge-safe (no Node-only imports) — usable from middleware. Deliberately a
- * SEPARATE cookie name and a SEPARATE secret env var from the other auth
- * system in this app, Supabase Auth (`@supabase/ssr` cookies,
- * NEXT_PUBLIC_SUPABASE_* / SUPABASE_SERVICE_ROLE_KEY — see
- * src/lib/supabase/), so the two cannot cross-authenticate each other's
- * tokens and a bug in one cannot widen the other's blast radius.
+ * Edge-safe (no Node-only imports) — usable from middleware.
  *
- * (This used to describe the split against a pitch-demo PIN session in
- * src/lib/auth/config.ts. That system and that file are gone — the
- * project-facing surface moved to Supabase Auth — but the separation
- * argument is unchanged, only the neighbour it separates from.)
+ * READ THIS BEFORE DELETING ANYTHING HERE. This file used to argue FOR
+ * keeping the ops session deliberately separate from Supabase Auth: a
+ * separate cookie name and a separate secret, so the two systems could not
+ * cross-authenticate each other's tokens and a bug in one could not widen the
+ * other's blast radius. That argument has been overturned on purpose — the
+ * two front doors are being collapsed into one, with Supabase Auth as the
+ * single sign-in and `ops_users` surviving as the role/profile table.
+ *
+ * Everything below is retained through the cutover, not left behind. It backs
+ * POST /api/ops/auth/login and /ops/login, which stay live and working until
+ * the new path is proven, and it is the only credential path that still
+ * functions if Supabase Auth is unreachable. Both doors are accepted at once
+ * (src/lib/auth/rbac/edgeSession.ts, server.ts), so rollback is a
+ * configuration change rather than a data restore.
+ *
+ * OPS_SESSION_SECRET is the LAST thing to remove, after the code that reads
+ * it, never before: `getOpsSessionSecret()` throws, `verifyOpsSessionToken`
+ * catches and returns null, so removing it while any fallback path survives
+ * is a silent universal deny with no error surfaced anywhere.
  */
 
 export const OPS_SESSION_COOKIE = 'olympuss_ops_session';
