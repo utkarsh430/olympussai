@@ -359,8 +359,18 @@ describe.skipIf(!HAS_OPS_DB)('control-service webhook — against a real ops Pos
   });
 
   it('never writes ops_audit_log', async () => {
+    // SCOPED TO THIS COMMAND, NOT A GLOBAL ROW COUNT. This used to compare
+    // `count(*)` on the whole table before and after, which silently assumed
+    // no other test file writes an audit row while this one runs. Vitest runs
+    // files in parallel and another Postgres-backed suite now does exactly
+    // that (opsSupabaseBackfillApplyDb.test.ts), so the global count was a
+    // race waiting to fire. Any audit row this delivery could have written
+    // would necessarily reference the command it processed, so scoping by
+    // that id is both race-free and more specific about what would be wrong.
+    // The total "no ops_audit_log query is ever issued" guarantee is asserted
+    // separately and race-free by the mock-backed twin in
+    // controlServiceWebhook.test.ts.
     const { getOpsPool } = await import('@/lib/db/pool');
-    const before = await getOpsPool().query('select count(*)::int as n from ops_audit_log');
     const id = newCommandId();
 
     await deliver({
@@ -371,8 +381,12 @@ describe.skipIf(!HAS_OPS_DB)('control-service webhook — against a real ops Pos
       },
     });
 
-    const after = await getOpsPool().query('select count(*)::int as n from ops_audit_log');
-    expect(after.rows[0].n).toBe(before.rows[0].n);
+    const written = await getOpsPool().query(
+      `select id, action, resource_id from ops_audit_log
+        where resource_id = $1 or metadata::text like $2`,
+      [id, `%${id}%`],
+    );
+    expect(written.rows).toEqual([]);
   });
 
   it('reconciles the dispatcher action when the sibling migration has landed, and skips it otherwise', async () => {

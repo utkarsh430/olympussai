@@ -87,9 +87,14 @@ out.
 chain terminates on a page with a visible way out.
 And the landing decision (`src/lib/auth/landing.ts`) never nominates an
 `/ops/*` destination for an account that cannot open one.
-Both are load-bearing during the cutover specifically: until the backfill
-writes `app_metadata.ops_role`, *every* Supabase session reaches the edge with
-no role claim, so middleware bounces even a fully provisioned operator.
+Both are load-bearing during the cutover specifically: until the role-claim
+push writes `app_metadata.ops_role`, *every* Supabase session reaches the edge
+with no role claim, so middleware bounces even a fully provisioned operator.
+That push is a **separate step** from linking accounts - the account backfill
+(`pnpm backfill-ops-links`) populates `ops_users.supabase_user_id` and
+deliberately writes no `app_metadata` at all, so running it alone does not
+clear this. See [`AUTH_CUTOVER_RUNBOOK.md`](./AUTH_CUTOVER_RUNBOOK.md) for the
+order.
 See `src/tests/unit/loginFrontDoor.test.tsx`, which walks the real pages hop
 by hop and fails on any repeated URL.
 
