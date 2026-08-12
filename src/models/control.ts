@@ -590,15 +590,33 @@ export const createCommandRequestSchema = z
 export type CreateCommandRequest = z.infer<typeof createCommandRequestSchema>;
 
 /**
- * Response body of POST /v1/commands (201). No `webhookDelivered` field:
- * unlike the ack/deliver/supersede endpoints, control-service dispatches
- * this request's webhooks without waiting for them (control-service/src/routes/commands.ts),
- * so their outcome literally isn't known yet by the time this response is
- * built - reporting one here would mean reporting a fabricated placeholder,
- * not what actually happened.
+ * Response body of POST /v1/commands (201).
+ *
+ * `webhookDelivered` is OPTIONAL here, and required in
+ * acknowledgeCommandResponseSchema above, because the two endpoints know
+ * genuinely different things. The ack/deliver/supersede endpoints await
+ * their webhook dispatch and report its real outcome. Create does not:
+ * control-service fires this request's webhooks without waiting for them
+ * (control-service/src/routes/commands.ts#notifyWithoutWaiting), because
+ * awaiting them blew the web client's 8s timeout AFTER the command had
+ * already committed and delivered. There is therefore no outcome to report,
+ * and a placeholder boolean would be a fabricated one.
+ *
+ * Optional rather than absent so the contract survives a deploy in either
+ * order, instead of depending on the two services going out together: a
+ * control-service still sending the field (any release up to and including
+ * the one this app shipped alongside) parses here, and one that has stopped
+ * sending it parses here too. Nothing reads the value on this path - the
+ * only consumer, createControlServiceCommand
+ * (src/lib/controlService/createCommand.ts), returns `command` and discards
+ * the rest - so tolerating it costs nothing, whereas refusing it turns a
+ * routine version skew into a 502 on a command an operator had already
+ * authorized (and which control-service had already delivered to the
+ * driver).
  */
 export const createCommandResponseSchema = z.object({
   command: commandSchema,
+  webhookDelivered: z.boolean().optional(),
 });
 export type CreateCommandResponse = z.infer<typeof createCommandResponseSchema>;
 

@@ -25,6 +25,38 @@ jobs:
   lint-typecheck-test-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    # -----------------------------------------------------------------------
+    # `pnpm test` used to run here with no database at all, so every
+    # Postgres-backed test in the suite (src/tests/unit/*Db.test.ts - 12
+    # tests across opsBreakdownReportsPaginationDb and
+    # controlServiceWebhookDb) SKIPPED on every CI run and only ever
+    # executed on an engineer's laptop. Those are the two files that prove
+    # the guarantees living in SQL rather than in TypeScript - keyset
+    # pagination not losing safety records, and ON CONFLICT dedupe - i.e.
+    # exactly the regressions a mocked pool cannot catch. A suite that
+    # reports green while skipping them proves nothing about them.
+    #
+    # Same image, credentials and health-check shape as the e2e job's own
+    # ops-db below; this job needs no PostGIS service because nothing in
+    # `pnpm test` talks to the control-service datastore (the webhook test
+    # exercises THIS app's mirror tables, which live in the ops database).
+    # -----------------------------------------------------------------------
+    services:
+      ops-db:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ops
+        ports:
+          - 55433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
     steps:
       - uses: actions/checkout@v4
 
@@ -46,8 +78,22 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # Throwaway fixtures in a container created and destroyed with the job,
+      # so these credentials are local-only literals rather than secrets -
+      # same reasoning as the e2e job's.
+      - name: Apply ops migrations
+        run: pnpm migrate:ops
+        env:
+          OPS_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:55433/ops
+
+      # OPS_DATABASE_URL is scoped to this step (and the migration above)
+      # rather than the whole job on purpose: `pnpm build` below must keep
+      # building with no database reachable, the way a real build machine
+      # does.
       - name: Unit tests
         run: pnpm test
+        env:
+          OPS_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:55433/ops
 
       - name: Build
         run: pnpm build

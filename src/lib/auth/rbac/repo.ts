@@ -169,7 +169,9 @@ export interface BreakdownReportListFilter {
    * bare ISO-8601 timestamp: `created_at` alone cannot break ties between
    * rows sharing the same instant (ORDER BY is `created_at desc, id desc`),
    * so the cursor carries `id` too and both routes' `before` query param
-   * validates against BREAKDOWN_REPORT_CURSOR_PATTERN accordingly.
+   * validates against BREAKDOWN_REPORT_CURSOR_PATTERN accordingly. Its
+   * timestamp half carries all six of the column's stored digits, which a
+   * `Date`-derived ISO string cannot - see CURSOR_CREATED_AT_SQL.
    */
   before?: string;
   category?: string;
@@ -190,11 +192,41 @@ export interface BreakdownReportListPage {
  * (rather than base64/JSON) to match this file's existing preference for
  * transparent, debuggable cursors — GET .../breakdown-reports?before=...
  * stays readable in a log line.
+ *
+ * The fraction is 3-6 digits, not a fixed 3. `created_at` is a plain
+ * `timestamptz` (db/migrations/20260806120000__ops_breakdown_reports.sql),
+ * so Postgres stores MICROSECONDS; a cursor minted here always carries all
+ * six (see CURSOR_CREATED_AT_SQL). Three digits stay accepted only so a
+ * cursor a client is already holding from the previous release keeps
+ * paginating across the deploy instead of 400ing - nothing mints one.
  */
 const BREAKDOWN_REPORT_CURSOR_PATTERN =
-  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)_([0-9a-fA-F-]{36})$/;
+  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,6}Z)_([0-9a-fA-F-]{36})$/;
 
 export { BREAKDOWN_REPORT_CURSOR_PATTERN };
+
+/**
+ * Renders `created_at` at the FULL precision Postgres stores it at, as the
+ * cursor's timestamp half.
+ *
+ * Why this is SQL rather than `item.createdAt`: `pg` decodes `timestamptz`
+ * into a JavaScript `Date`, which is millisecond-precision by construction,
+ * so `new Date(row.created_at).toISOString()` silently rounds a `.500900`
+ * row down to `.500Z`. Feeding that back as the next page's boundary made
+ * `(created_at, id) < (boundary, id)` exclude every row in the same
+ * millisecond BELOW the boundary - rows no page had returned. Three reports
+ * at .500900/.500500/.500100 paged one at a time yielded one row and then
+ * "no more pages", and the other two were unreachable for good. Reading the
+ * boundary straight out of Postgres as text keeps all six digits, so the
+ * value compared against the column is the row's own timestamp exactly.
+ *
+ * Deliberately NOT `created_at::text` (Postgres renders `2026-08-10
+ * 12:00:00.5009+00`, which is neither ISO-8601 nor fixed-width, and trims
+ * trailing zeros) and deliberately not a migration pinning the column to
+ * `timestamptz(3)` - that would throw away real recorded precision to make
+ * the cursor's limitation the database's problem.
+ */
+const CURSOR_CREATED_AT_SQL = `to_char(r.created_at at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 
 function encodeBreakdownReportCursor(item: { createdAt: string; id: string }): string {
   return `${item.createdAt}_${item.id}`;
@@ -821,8 +853,12 @@ class PgOpsRepo implements OpsRepo {
       // `r.created_at < $1` (the old query) excluded every row at exactly
       // the cursor's created_at, including ones after it in id order that
       // this page never returned — see decodeBreakdownReportCursor's doc
-      // comment.
-      conditions.push(`(r.created_at, r.id) < ($${params.length - 1}, $${params.length})`);
+      // comment. Casts are explicit so the boundary is parsed as a
+      // timestamptz/uuid pair rather than left to inference on a row-wise
+      // comparison.
+      conditions.push(
+        `(r.created_at, r.id) < ($${params.length - 1}::timestamptz, $${params.length}::uuid)`,
+      );
     }
 
     const rawLimit = filter.limit ?? 50;
@@ -832,7 +868,10 @@ class PgOpsRepo implements OpsRepo {
 
     const where = conditions.length > 0 ? `where ${conditions.join(' and ')}` : '';
     const { rows } = await pool.query(
-      `select r.*, u.name as reporter_name, u.email as reporter_email
+      `select r.*,
+              ${CURSOR_CREATED_AT_SQL} as cursor_created_at,
+              u.name as reporter_name,
+              u.email as reporter_email
          from ops_breakdown_reports r
          join ops_users u on u.id = r.driver_user_id
          ${where}
@@ -844,11 +883,21 @@ class PgOpsRepo implements OpsRepo {
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
     const items = page.map(mapBreakdownReportListItemRow);
-    const last = items[items.length - 1];
+    // Built from the ROW, not from the mapped item: the item's `createdAt`
+    // is a millisecond-precision `Date#toISOString()` for display, which is
+    // exactly the value that cannot be used as a page boundary - see
+    // CURSOR_CREATED_AT_SQL.
+    const lastRow = page[page.length - 1];
 
     return {
       items,
-      nextCursor: hasMore && last ? encodeBreakdownReportCursor(last) : null,
+      nextCursor:
+        hasMore && lastRow
+          ? encodeBreakdownReportCursor({
+              createdAt: String(lastRow.cursor_created_at),
+              id: String(lastRow.id),
+            })
+          : null,
     };
   }
 

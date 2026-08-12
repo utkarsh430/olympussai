@@ -19,6 +19,8 @@ import {
   incidentsResponseSchema,
   routeDirectionsResponseSchema,
   vehicleStatesResponseSchema,
+  createCommandResponseSchema,
+  acknowledgeCommandResponseSchema,
 } from '@/models/control';
 
 describe('control service wire-contract schemas', () => {
@@ -198,6 +200,52 @@ describe('control service wire-contract schemas', () => {
 
     expect(() => commandSchema.parse({ ...base, dispatcherActionId: 'da-1' })).not.toThrow();
     expect(() => commandSchema.parse({ ...base, dispatcherActionId: undefined })).toThrow();
+  });
+
+  // -------------------------------------------------------------------------
+  // Cross-version tolerance of the command response envelopes. The web app
+  // and control-service deploy separately (AGENTS.md "Layout"), so whichever
+  // one restarts first talks to the other's previous release for a while.
+  // `webhookDelivered` is exactly the field that moved, so it is exactly the
+  // field a version skew can 502 an already-authorized command on.
+  // -------------------------------------------------------------------------
+  describe('command response envelopes across a split deploy', () => {
+    const command = {
+      id: 'cmd-1',
+      recommendationId: 'rec-1',
+      vehicleId: 'V1',
+      tripId: 'T1',
+      actionType: 'two_way_hold' as const,
+      targetStopId: 'S1',
+      parameters: { holdSeconds: 45 },
+      ttlSeconds: 120,
+      validFrom: '2026-08-05T06:04:00Z',
+      expiresAt: '2026-08-05T06:06:00Z',
+      policyVersion: 'v1',
+      status: 'proposed' as const,
+      deliveredAt: null,
+      acknowledgedAt: null,
+      acknowledgementReason: null,
+      dispatcherActionId: 'da-1',
+    };
+
+    it('accepts a create response from a control-service that no longer sends webhookDelivered', () => {
+      const parsed = createCommandResponseSchema.parse({ command, delivered: true });
+      expect(parsed.command.id).toBe('cmd-1');
+      expect(parsed.webhookDelivered).toBeUndefined();
+    });
+
+    it('accepts a create response from a control-service that still sends webhookDelivered', () => {
+      const parsed = createCommandResponseSchema.parse({ command, delivered: true, webhookDelivered: true });
+      expect(parsed.webhookDelivered).toBe(true);
+    });
+
+    it('still requires webhookDelivered on ack, where control-service really does await the dispatch', () => {
+      expect(() => acknowledgeCommandResponseSchema.parse({ command, webhookDelivered: false })).not.toThrow();
+      // Not weakened along with the create path: an ack response missing it
+      // is a genuinely malformed response, not a version skew.
+      expect(() => acknowledgeCommandResponseSchema.parse({ command })).toThrow();
+    });
   });
 
   it('accepts an outcome record', () => {

@@ -112,6 +112,17 @@ const ACTION_TYPE = 'speed_guidance';
  * without this: confirmed by driving the real login against a live server,
  * which returns 200 and a Set-Cookie, immediately followed by a real
  * `context.request` call that comes back unauthenticated.
+ *
+ * Reads every `Set-Cookie` on the response, not just the first. Login sets
+ * exactly one today, so taking one worked - but `headers()` collapses
+ * repeated `Set-Cookie` values into ONE newline-joined string, and
+ * `.split(';', 1)[0]` cuts at the first attribute delimiter, i.e. before
+ * that newline. So the moment login sets a second cookie (a CSRF token, a
+ * tenant hint) the old code would have kept cookie one and silently dropped
+ * every later one - a 401 with nothing in this file pointing at why.
+ * Verified against a live two-cookie response: `headers()` yields
+ * `"a=1; Path=/\nb=2; Path=/"` and the old expression yields `"a=1"`, while
+ * `headersArray()` keeps each value separate and yields `"a=1; b=2"`.
  */
 async function login(request: APIRequestContext, email: string, password: string): Promise<string> {
   const res = await request.post('/api/ops/auth/login', {
@@ -119,9 +130,18 @@ async function login(request: APIRequestContext, email: string, password: string
     data: { email, password },
   });
   if (!res.ok()) throw new Error(`login failed for ${email} (${res.status()}): ${await res.text()}`);
-  const setCookie = res.headers()['set-cookie'];
-  if (!setCookie) throw new Error(`login for ${email} succeeded but set no session cookie`);
-  return setCookie.split(';', 1)[0]!;
+  const cookiePairs = res
+    .headersArray()
+    .filter((header) => header.name.toLowerCase() === 'set-cookie')
+    // Everything after the first `;` is attributes (Path/HttpOnly/Secure/...),
+    // which belong on a Set-Cookie response header and never on a Cookie
+    // request header.
+    .map((header) => header.value.split(';', 1)[0]!.trim())
+    .filter((pair) => pair.length > 0);
+  if (cookiePairs.length === 0) {
+    throw new Error(`login for ${email} succeeded but set no session cookie`);
+  }
+  return cookiePairs.join('; ');
 }
 
 interface CreateCommandResponseBody {

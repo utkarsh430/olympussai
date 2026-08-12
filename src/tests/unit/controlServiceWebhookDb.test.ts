@@ -18,15 +18,25 @@
 // have been applied:
 //   OPS_DATABASE_URL=postgres://... pnpm migrate:ops
 //
-// SKIPPED, not failed, when OPS_DATABASE_URL is unset — the rest of the suite
-// must stay runnable with no Postgres, matching how
-// tests/e2e/pilot-driver-command.spec.ts gates on its own env.
+// SKIPPED, not failed, when OPS_DATABASE_URL is unset LOCALLY - the rest of
+// the suite must stay runnable with no Postgres, matching how
+// tests/e2e/pilot-driver-command.spec.ts gates on its own env. IN CI IT IS
+// NOT OPTIONAL - see the hard-fail guard below.
 import { NextRequest } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { TEST_SECRET, buildCommand, buildSignedDelivery } from '@/tests/helpers/controlServiceWebhook';
 
 const HAS_OPS_DB = Boolean(process.env.OPS_DATABASE_URL?.trim());
+
+/** CI-ONLY hard failure on a missing database - see src/tests/unit/opsBreakdownReportsPaginationDb.test.ts's guard for the full rationale (this file skipped on every CI run for the same reason). */
+if (process.env.CI === 'true' && !HAS_OPS_DB) {
+  throw new Error(
+    'CI=true but OPS_DATABASE_URL is unset. In CI this suite must RUN, never skip ' +
+      '(.github/workflows/ci-web.yml provisions the ops-db service for it). ' +
+      'Locally, leave CI unset and it skips as before.',
+  );
+}
 
 const WEBHOOK_URL = 'http://localhost:3000/api/control-service/webhook';
 
