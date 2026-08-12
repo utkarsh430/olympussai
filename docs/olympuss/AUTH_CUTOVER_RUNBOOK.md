@@ -30,7 +30,7 @@ They are separate steps on purpose, and the order is not arbitrary.
 1. **Link** - `ops_users.supabase_user_id` is populated, so a Supabase identity resolves to an ops profile.
    Until this happens the guard finds no profile and grants no ops access.
    This runbook's script does this.
-2. **Push role claims** - `app_metadata.ops_role` is written on each Supabase user, so the role rides in the token and the Edge middleware has a ceiling to check.
+2. **Push role claims** - `app_metadata.ops_role` is written on each Supabase user (`POST /api/ops/admin/users/:id/role`, listed by `GET /api/ops/admin/role-drift`), so the role rides in the token and the Edge middleware has a ceiling to check.
    **Until this happens a Supabase-only session cannot pass the Edge gate at all**, no matter how correct the link is.
 3. **Close the old door** - `/ops/login` is removed and the guard redirects to `/login`.
 
@@ -136,8 +136,12 @@ It is an explicit acknowledgement, not a default.)
 Note that `RESULT:` on a `--email` run reports only the account you named, and says so on the line.
 It is not a statement about the fleet.
 
-**3b.** Push the role claim for your account, using step 4's tooling for one account.
-Your `ops_users.role` is `admin`, so `app_metadata.ops_role` must become `admin`.
+**3b.** Push the role claim for your account.
+`POST /api/ops/admin/users/<your ops user id>/role` with the role the database **already** holds (`{"role":"admin"}`) is the push - re-assigning an unchanged role is deliberately not a no-op, it re-writes `app_metadata.ops_role` as an ordinary audited assignment.
+
+Do this **while signed in through the legacy ops session**, and this is the part that is easy to get wrong.
+That endpoint sits behind `/api/ops/*`, which the Edge gate protects, and until your claim exists a Supabase-only session has no ceiling to pass it with.
+The legacy `olympuss_ops_session` cookie does, which is precisely why `/ops/login?legacy=1` still exists and why step 3c tells you not to sign out of it.
 
 **3c.** Prove both doors, in this order, and do not skip any of them.
 
@@ -157,9 +161,12 @@ OPS_DATABASE_URL=... SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
   pnpm backfill-ops-links -- --apply --actor-email you@example.com
 ```
 
-Then run the role-claim push for all accounts, which writes `app_metadata.ops_role` alongside the authoritative `ops_users.role`.
+Then push a role claim for every remaining account, again from the legacy admin session.
+`GET /api/ops/admin/role-drift` lists exactly which accounts need it: `claim_missing` is every account this backfill has just linked, and `claim_stale` is one whose token would claim the wrong role.
+Repair each by re-assigning the role the database already holds, as in 3b.
+Re-read the drift report until it is empty.
 
-Then run the dry run one final time as a verification pass.
+Then run the backfill dry run one final time as an independent verification pass - it reads the same two systems from the other side.
 **Every row must read `claim: ok`, and `needs-attention` must be `0`.**
 A row reading `claim: absent` cannot pass the Edge gate once the old door closes, and a row reading `claim: mismatch(...)` is refused outright.
 
@@ -172,7 +179,8 @@ Leave `/ops/login` open and let people use `/login` for at least a full operatin
 Both doors resolve to the same `ops_users` row and get the same checks, so there is nothing to keep in sync and no reason to hurry.
 
 Watch for anyone who cannot sign in at `/login`, and for any row that has drifted back to `claim: absent` or `mismatch`.
-Re-run the dry run to check; it is read-only and safe to run any number of times.
+`GET /api/ops/admin/role-drift` and a backfill dry run both answer this; each is read-only and safe to run any number of times.
+Drift after cutover is not hypothetical - editing `app_metadata` in the Supabase dashboard or a role changed by hand with `psql` both produce it, and it presents to the operator as "I sign in and it immediately says my session is out of date", which is close to undiagnosable from their side.
 
 ## Step 6 - close the old door
 
@@ -248,7 +256,7 @@ Leaving it applied costs nothing, and removing it would only make a retry harder
 - **Never creates, modifies or deletes a Supabase user.**
   Its only Supabase call is a read.
 - **Never writes `app_metadata`.**
-  It reports the claim state; the role-claim push owns writing it.
+  It reports the claim state; `POST /api/ops/admin/users/:id/role` owns writing it.
 - **Never re-points or clears an existing link**, and never touches `password_hash`, `role` or `status`.
 - **Safe to re-run.**
   Already-linked rows are a no-op, and the write is guarded against a concurrent run.

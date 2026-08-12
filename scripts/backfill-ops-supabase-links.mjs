@@ -43,8 +43,8 @@
  *
  * IT DOES NOT WRITE `app_metadata.ops_role`. That claim is the edge-runtime
  * CEILING (src/lib/auth/rbac/supabaseClaims.ts) and is owned by the
- * role-assignment path, which writes it alongside the authoritative
- * `ops_users.role`. Linking and role-claim push are separate steps on purpose
+ * role-assignment path (POST /api/ops/admin/users/:id/role), which writes it
+ * alongside the authoritative `ops_users.role` in one transaction. Linking and role-claim push are separate steps on purpose
  * - see the runbook. This script does REPORT the claim state it observes for
  * every row, because a linked account with no claim cannot pass the edge gate
  * and a linked account whose claim DISAGREES with the database is refused
@@ -636,7 +636,9 @@ function report(out, decisions, { apply }) {
       `${claimGaps.length} linked row(s) do not yet carry a matching app_metadata.${OPS_ROLE_CLAIM} claim. ` +
         'That is expected before the role-claim push and fatal after it: without the claim these accounts ' +
         'cannot pass the Edge gate, and a MISMATCHED claim is refused outright. This script does not write ' +
-        'claims - run the role-claim push, then re-run this to confirm every row reads "claim: ok".',
+        'claims. GET /api/ops/admin/role-drift lists them; re-assigning the role the database already holds ' +
+        '(POST /api/ops/admin/users/:id/role) re-pushes each claim. Then re-run this to confirm every row ' +
+        'reads "claim: ok".',
     );
   }
 }
