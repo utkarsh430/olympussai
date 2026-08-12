@@ -17,7 +17,11 @@ export function OpsShell({
 }) {
   async function handleLogout() {
     await fetch('/api/ops/auth/logout', { method: 'POST' });
-    window.location.assign('/ops/login');
+    // The single front door. Note this only clears the LEGACY ops cookie —
+    // a Supabase-authenticated operator stays signed in and /login will say
+    // so. Completing sign-out across both is the session layer's job, not
+    // this button's.
+    window.location.assign('/login');
   }
 
   return (

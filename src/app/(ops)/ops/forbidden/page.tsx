@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getOpsSession } from '@/lib/auth/rbac/server';
-import { OPS_ROLE_SEGMENT } from '@/lib/auth/rbac/roles';
+import { opsHomePath } from '@/lib/auth/landing';
 
 export const metadata: Metadata = {
   title: 'Access Denied',
@@ -16,7 +16,9 @@ export const metadata: Metadata = {
  */
 export default async function OpsForbiddenPage() {
   const session = await getOpsSession();
-  const home = session ? `/ops/${OPS_ROLE_SEGMENT[session.role]}` : '/ops/login';
+  // "Back to your dashboard" pointed an admin at /ops/admin, a 404: refused
+  // at one screen, 404 at the next, with no way back into the product.
+  const home = session ? opsHomePath(session.role) : '/login';
 
   return (
     <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-6 text-center">

@@ -29,14 +29,22 @@ export function SiteFooter() {
             Project Login
           </Link>
           {/*
-            The /ops/* operations console is a separate surface with its own
-            credentials; without this link it was reachable only by typing the
-            URL, and operators followed "Project Login" into Supabase auth and
-            concluded their credentials were wrong. Quieter than Project Login
-            on purpose — it is wayfinding for staff, not a second call to action.
+            The /ops/* console is no longer a separate surface with its own
+            credentials — /login is now the single front door for both, and it
+            routes each operator to their own dashboard by role. So this points
+            at /login too.
+
+            It is kept as a SIGNPOST rather than removed. This link exists
+            because operators could not find the console at all: they scanned
+            the footer for the word "Operations", did not see it, followed
+            "Project Login" instead and concluded their credentials were wrong.
+            That word is the entire value of the link, and it is worth just as
+            much now that the two doors share a destination. Quieter than
+            Project Login on purpose — wayfinding for staff, not a second call
+            to action.
           */}
           <Link
-            href="/ops/login"
+            href="/login"
             className="font-sans text-xs uppercase tracking-[0.16em] text-ol-text-secondary transition-colors hover:text-ol-ivory focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ol-gold"
           >
             Operations Sign-In

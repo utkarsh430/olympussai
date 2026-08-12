@@ -10,6 +10,8 @@ import {
   recordFailure,
 } from '@/lib/auth/rate-limit';
 import { isSameOrigin } from '@/lib/auth/origin';
+import { landingUrl, resolveLanding } from '@/lib/auth/landing';
+import { opsRoleForSupabaseUser } from '@/lib/auth/opsAccess';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,6 +22,12 @@ const INVALID_MESSAGE = 'Invalid email or password.';
 const bodySchema = z.object({
   email: z.string().trim().min(1).max(254).email(),
   password: z.string().min(1).max(200),
+  /**
+   * Where the caller was heading before it was bounced here. Never trusted:
+   * `resolveLanding` re-sanitizes it against the internal allowlist, so a
+   * hostile value can only downgrade to the default, never open-redirect.
+   */
+  next: z.string().max(2048).optional(),
 });
 
 function invalid(status = 401) {
@@ -115,9 +123,23 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   await clearFailures(rlKey);
 
-  // Only safe success information — never the token or any credential.
+  // ROLE-CORRECT LANDING. This is now the single front door for the ops
+  // console too, so the answer has to say where this particular person
+  // belongs — before the collapse every one of the seven ops roles was sent
+  // to /project/upsrtc, a product most of them have no business in.
+  //
+  // Looked up by `data.user.id` rather than through the session helpers: the
+  // auth cookies signInWithPassword just issued ride on the outgoing
+  // response and are not readable back via `cookies()` in this same request.
+  // Never fatal — see src/lib/auth/opsAccess.ts.
+  const opsRole = await opsRoleForSupabaseUser(data.user.id);
+  const decision = resolveLanding({ requestedNext: parsed.data.next, opsRole });
+
+  // Only safe success information — never the token or any credential. The
+  // role itself is deliberately NOT returned: the client has no use for it,
+  // and `redirectTo` already carries everything the form needs.
   return NextResponse.json(
-    { ok: true },
+    { ok: true, redirectTo: landingUrl(decision) },
     { status: 200, headers: { 'Cache-Control': 'no-store' } },
   );
 }

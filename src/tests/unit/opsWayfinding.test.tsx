@@ -10,12 +10,31 @@
 //
 // These tests pin the two exits from that dead end: a link on the landing page,
 // and a pointer in the /login error state.
+//
+// BOTH DESTINATIONS MOVED AT THE LOGIN COLLAPSE, and the reasoning is worth
+// keeping because the assertions below now look like they contradict the story
+// above.
+//
+// /login IS the operations console's front door now — it routes each operator
+// to their own dashboard by role — so the landing-page link points there. The
+// link is still worth having: its value was never the URL, it was the word
+// "Operations" being visible in the footer at all. Staff who scanned for it,
+// failed to find it, and followed "Project Login" instead are the exact
+// failure it was added to prevent, and that has not changed.
+//
+// The 503 pointer moved somewhere genuinely different. A 503 means Supabase is
+// the thing that is unavailable, so pointing at /ops/login would now forward
+// the user straight back to the page that just failed them. It points at the
+// explicit legacy escape hatch instead — the one door that still works when
+// Supabase is down, and the reason /ops/login is redirected rather than
+// deleted.
 
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import LandingPage from '@/app/(public)/page';
 import { LoginForm } from '@/components/auth/LoginForm';
+import { OPS_LEGACY_LOGIN_PATH } from '@/lib/auth/landing';
 
 beforeAll(() => {
   // The landing page's Reveal/SiteHeader components consult prefers-reduced-
@@ -55,7 +74,8 @@ describe('landing page sign-in wayfinding', () => {
   it('exposes a link to the operations console', () => {
     render(<LandingPage />);
     const link = screen.getByRole('link', { name: /operations sign-in/i });
-    expect(link).toHaveAttribute('href', '/ops/login');
+    // The single front door. Kept as a signpost, not a second destination.
+    expect(link).toHaveAttribute('href', '/login');
   });
 
   it('still offers the project login it always had', () => {
@@ -92,8 +112,8 @@ describe('/login error copy', () => {
     expect(alert).toHaveTextContent('Authentication is not configured.');
     expect(alert).toHaveTextContent(/your credentials are not the problem/i);
 
-    const link = screen.getByRole('link', { name: /\/ops\/login/i });
-    expect(link).toHaveAttribute('href', '/ops/login');
+    const link = screen.getByRole('link', { name: /operations sign-in/i });
+    expect(link).toHaveAttribute('href', OPS_LEGACY_LOGIN_PATH);
   });
 
   it('does not offer the ops console for an ordinary bad-credentials failure', async () => {
@@ -112,12 +132,12 @@ describe('/login error copy', () => {
     mockLoginResponse(503, { error: 'Authentication is not configured.' });
     render(<LoginForm next="/project" />);
     await submit();
-    expect(await screen.findByRole('link', { name: /\/ops\/login/i })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /operations sign-in/i })).toBeInTheDocument();
 
     mockLoginResponse(401, { error: 'Invalid email or password.' });
     await submit();
     await waitFor(() => {
-      expect(screen.queryByRole('link', { name: /\/ops\/login/i })).toBeNull();
+      expect(screen.queryByRole('link', { name: /operations sign-in/i })).toBeNull();
     });
   });
 });

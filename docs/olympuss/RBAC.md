@@ -21,6 +21,36 @@ both are resolved to the same `ops_users` row and subjected to the same
 checks. Nothing in the credential path has been removed, so rollback is a
 configuration change rather than a data restore.
 
+### The sign-in page has already collapsed
+
+`/login` is now the single front door for both surfaces.
+It routes each of the seven roles to its own dashboard on sign-in, and sends a
+signed-in account with no usable ops profile to a plain "no operations access
+configured" state rather than into `/ops/*`.
+The landing-page footer and the ops shell's sign-out both point at it.
+
+`/ops/login` still exists and **must not be deleted yet**.
+It forwards to `/login`, carrying a sanitized `next`, because three things
+still point at it that are out of that change's scope to move: middleware's
+own bounce URL, `requireOpsRolePage()`'s redirect, and operator bookmarks.
+Deleting the page turns all three into a 404, which is a lockout.
+`/ops/login?legacy=1` is the deliberate exception: it renders the old password
+form, so that a Supabase outage during the cutover still leaves one reachable
+door. That escape hatch and the page itself both retire at the cutover, once
+those callers point at `/login` directly.
+
+Two rules keep this from looping, and a loop is what actually locks people
+out.
+`/login` never issues an automatic redirect — it renders, so every bounce
+chain terminates on a page with a visible way out.
+And the landing decision (`src/lib/auth/landing.ts`) never nominates an
+`/ops/*` destination for an account that cannot open one.
+Both are load-bearing during the cutover specifically: until the backfill
+writes `app_metadata.ops_role`, *every* Supabase session reaches the edge with
+no role claim, so middleware bounces even a fully provisioned operator.
+See `src/tests/unit/loginFrontDoor.test.tsx`, which walks the real pages hop
+by hop and fails on any repeated URL.
+
 What changed underneath, and it is not cosmetic: **the token is no longer the
 authority on anything.** It used to be. `getOpsSession()` verified a cookie
 and returned its claims, and no request path ever read `ops_users`, so
@@ -104,7 +134,8 @@ system rather than a role field bolted onto the project login:
 1. **Middleware** (`src/middleware.ts`, `handleOpsRequest`, Edge) — derives
    the required role from the first path segment under `/ops/` or
    `/api/ops/` (`roleForSegment()`); unauthenticated → redirect to
-   `/ops/login?next=…` (pages) or `401` (API); authenticated but wrong role →
+   `/ops/login?next=…` (pages, which now forwards to `/login`) or `401` (API);
+   authenticated but wrong role →
    redirect to `/ops/forbidden` (pages, never back to login — the person _is_
    signed in) or `403` (API).
 2. **Per-role layout** (`src/app/(ops)/ops/<role>/layout.tsx`, via

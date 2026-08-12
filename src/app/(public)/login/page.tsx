@@ -2,24 +2,58 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { getSupabaseUser } from '@/lib/supabase/server';
-import { sanitizeNext } from '@/lib/auth/redirect';
+import { DEFAULT_NEXT, sanitizeNext } from '@/lib/auth/redirect';
+import { NO_OPS_ACCESS_NOTICE, resolveLanding } from '@/lib/auth/landing';
+import { currentOpsRole } from '@/lib/auth/opsAccess';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { AuthenticatedActions } from '@/components/auth/AuthenticatedActions';
+import { NoOpsAccessNotice } from '@/components/auth/NoOpsAccessNotice';
 
 export const metadata: Metadata = {
   title: 'Authorized Project Access',
   robots: { index: false, follow: false },
 };
 
+/**
+ * The single front door, for the project surface and the ops console alike.
+ *
+ * THIS PAGE NEVER CALLS `redirect()`, and that is a safety property rather
+ * than an oversight — see the long note in src/lib/auth/landing.ts. Every
+ * path that bounces someone to sign in eventually arrives here, so if this
+ * page also bounced, the two would chase each other forever. It renders, and
+ * every outcome below is a terminal state with a visible way out. Post-
+ * sign-in navigation happens in the form, once, after credentials are
+ * accepted.
+ */
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; notice?: string }>;
 }) {
   const params = await searchParams;
   const next = sanitizeNext(params.next);
   const user = await getSupabaseUser();
   const authenticated = Boolean(user);
+
+  // Only asked once the visitor is actually signed in: an anonymous visitor
+  // has no ops profile to find, and this is a database read on a public page.
+  const opsRole = authenticated ? await currentOpsRole() : null;
+  const decision = resolveLanding({ requestedNext: params.next, opsRole });
+
+  // Two ways to reach the explanation: arriving with an ops `next` this
+  // account cannot use, or being sent back here by POST /api/auth/login,
+  // which made the same call at the moment of sign-in and has no `next` to
+  // pass on.
+  // `!opsRole` guards the notice-parameter branch: a stale or hand-typed
+  // ?notice must not accuse an account that demonstrably does have a role.
+  const deniedOps =
+    authenticated &&
+    !opsRole &&
+    (decision.kind === 'no-ops-access' || params.notice === NO_OPS_ACCESS_NOTICE);
+
+  // Never the requested ops path when access was refused — that button is the
+  // one place a loop could still be hand-built, one click at a time.
+  const continueTo = decision.kind === 'go' ? decision.path : DEFAULT_NEXT;
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col bg-[#050507] text-[#f2eee7] md:flex-row">
@@ -80,12 +114,23 @@ export default async function LoginPage({
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-[#a3a7b2]">
               {authenticated
                 ? 'You are authenticated. Continue to the protected environment or sign out.'
-                : 'Use your project credentials to continue to the protected environment.'}
+                : 'Use your project or operations credentials to continue to the protected environment.'}
             </p>
           </div>
 
           {authenticated ? (
-            <AuthenticatedActions next={next} email={user?.email} />
+            <div className="w-full max-w-sm space-y-5">
+              {deniedOps && (
+                <NoOpsAccessNotice
+                  requested={decision.kind === 'no-ops-access' ? decision.requested : null}
+                />
+              )}
+              <AuthenticatedActions
+                next={continueTo}
+                email={user?.email}
+                label={opsRole && !deniedOps ? 'Continue to Operations' : undefined}
+              />
+            </div>
           ) : (
             <LoginForm next={next} />
           )}

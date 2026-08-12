@@ -1,7 +1,8 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { isOpsRole, OPS_ROLE_SEGMENT } from '@/lib/auth/rbac/roles';
+import { isOpsRole } from '@/lib/auth/rbac/roles';
+import { opsHomePath } from '@/lib/auth/landing';
 
 /**
  * Ops RBAC login form — email + password against a per-person account.
@@ -38,7 +39,10 @@ export function OpsLoginForm({ next }: { next: string | null }) {
       if (response.ok) {
         const data = (await response.json().catch(() => null)) as { role?: string } | null;
         const role = data?.role;
-        const target = next ?? (isOpsRole(role) ? `/ops/${OPS_ROLE_SEGMENT[role]}` : '/ops/login');
+        // opsHomePath, not `/ops/${segment}`: the raw segment sends an admin
+        // to /ops/admin, which is not a page. The fallback is the single front
+        // door, since /ops/login now only forwards there anyway.
+        const target = next ?? (isOpsRole(role) ? opsHomePath(role) : '/login');
         // Full navigation so the server re-renders the now-authorized route.
         window.location.assign(target);
         return;

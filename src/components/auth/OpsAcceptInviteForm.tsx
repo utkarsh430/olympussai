@@ -1,7 +1,8 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { isOpsRole, OPS_ROLE_SEGMENT } from '@/lib/auth/rbac/roles';
+import { isOpsRole } from '@/lib/auth/rbac/roles';
+import { opsHomePath } from '@/lib/auth/landing';
 
 /** Mirrors src/lib/auth/rbac/passwords.ts MIN_PASSWORD_LENGTH (kept in sync manually — no server-only import in a client component). */
 const MIN_PASSWORD_LENGTH = 12;
@@ -35,7 +36,9 @@ export function OpsAcceptInviteForm({ token }: { token: string }) {
       if (response.ok) {
         const data = (await response.json().catch(() => null)) as { role?: string } | null;
         const role = data?.role;
-        window.location.assign(isOpsRole(role) ? `/ops/${OPS_ROLE_SEGMENT[role]}` : '/ops/login');
+        // An admin accepting an invite used to land on /ops/admin, a 404 —
+        // the very first thing that happens to a new administrator.
+        window.location.assign(isOpsRole(role) ? opsHomePath(role) : '/login');
         return;
       }
 

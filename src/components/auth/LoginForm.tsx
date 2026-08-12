@@ -2,6 +2,7 @@
 
 import { useId, useState } from 'react';
 import Link from 'next/link';
+import { OPS_LEGACY_LOGIN_PATH } from '@/lib/auth/landing';
 
 /**
  * Enterprise authentication form, backed by Supabase Auth (Section 15).
@@ -21,9 +22,13 @@ export function LoginForm({ next }: { next: string }) {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   // 503 means Supabase auth is not configured on this deployment — nothing the
-  // operator types here can ever work. Most people who hit it are looking for
-  // the /ops console, which has its own credentials, so point them there
-  // rather than leaving them to conclude their password is wrong. Purely
+  // operator types here can ever work, so say so rather than leaving them to
+  // conclude their password is wrong.
+  //
+  // This used to point at /ops/login as a separate console with its own
+  // credentials. It is no longer separate — it forwards straight back here —
+  // so the pointer is now the explicit legacy escape hatch, which is exactly
+  // the door that still works when Supabase is the thing that is down. Purely
   // client-side copy: the API keeps its generic message and never says which
   // variable is missing.
   const [authUnavailable, setAuthUnavailable] = useState(false);
@@ -42,16 +47,26 @@ export function LoginForm({ next }: { next: string }) {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, next }),
       });
 
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string; redirectTo?: string }
+        | null;
+
       if (response.ok) {
+        // The SERVER picks the destination, not this component: only it knows
+        // the signed-in role, and therefore which of the seven ops dashboards
+        // (or the project surface) this person belongs on. `next` is sent up
+        // as a request, not applied here as a decision.
+        //
+        // Falling back to `next` if the field is missing keeps an older cached
+        // bundle working against a newer server, and vice versa.
         // Full navigation so the server re-renders the now-authorized route.
-        window.location.assign(next);
+        window.location.assign(data?.redirectTo ?? next);
         return;
       }
 
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
       setError(data?.error ?? 'Invalid email or password.');
       setAuthUnavailable(response.status === 503);
       setStatus('error');
@@ -119,12 +134,12 @@ export function LoginForm({ next }: { next: string }) {
             {authUnavailable && (
               <p className="text-[12px] leading-relaxed text-[#a3a7b2]">
                 This sign-in is unavailable on this deployment — your credentials are not the
-                problem. Looking for the operations console?{' '}
+                problem. Operations staff can still use the{' '}
                 <Link
-                  href="/ops/login"
+                  href={OPS_LEGACY_LOGIN_PATH}
                   className="text-[#f3c86a] underline underline-offset-2 transition-colors hover:text-[#d6a13a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6a13a]"
                 >
-                  Sign in at /ops/login
+                  operations sign-in
                 </Link>
                 .
               </p>
