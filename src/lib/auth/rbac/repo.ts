@@ -11,6 +11,7 @@
 import 'server-only';
 import { getOpsPool } from '@/lib/db/pool';
 import type { OpsRole } from './roles';
+import { SUPABASE_MANAGED_PASSWORD_HASH } from './passwords';
 import { deriveInviteStatus, type OpsInviteStatus } from './inviteStatus';
 
 export { deriveInviteStatus, type OpsInviteStatus };
@@ -322,12 +323,71 @@ export interface OpsRepo {
     tokenHash: string;
     expiresAt: Date;
   }): Promise<OpsInviteRecord | null>;
-  /** Atomically consumes the invite and creates the user row. Throws if already consumed/expired/revoked. */
+  /**
+   * Atomically consumes the invite and creates the user row, bound to the
+   * Supabase Auth identity the invitee will sign in with. Throws if the
+   * invite is already consumed, expired or revoked.
+   *
+   * WHY THE CALLBACKS. Creating that identity is an HTTP call to Supabase
+   * Auth, and it must be all-or-nothing with the two rows written here: a
+   * consumed invite with no sign-in identity is an operator who can never
+   * log in and whose single-use invite is spent, and an identity with no ops
+   * profile is a stranded account. Neither is repairable by the person
+   * hitting the button. `provisionIdentity` therefore runs INSIDE the
+   * transaction, after the invite row is locked and validated — so a
+   * concurrent second acceptance blocks rather than provisioning a second
+   * identity — and `releaseIdentity` undoes it if the database half then
+   * fails.
+   *
+   * The password is not a parameter: an invite-created account's credential
+   * lives in Supabase Auth, and `password_hash` gets
+   * SUPABASE_MANAGED_PASSWORD_HASH. That is stated here, in the only place
+   * that inserts the row, rather than left to each caller to remember.
+   */
   acceptInvite(input: {
     tokenHash: string;
     name: string;
-    passwordHash: string;
+    /**
+     * Provision the sign-in identity for this invite. Called once, inside the
+     * transaction, with the invite's own email and role — never with
+     * client-supplied values, so a caller cannot provision an identity for an
+     * address the invite was not issued to. Throwing aborts the acceptance
+     * and leaves the invite unconsumed.
+     */
+    provisionIdentity: (invite: {
+      email: string;
+      role: OpsRole;
+    }) => Promise<{ supabaseUserId: string }>;
+    /**
+     * Compensating undo, called only when the transaction fails after
+     * `provisionIdentity` succeeded. Must not throw; its own failure is
+     * logged by the caller and never masks the original error.
+     */
+    releaseIdentity: (supabaseUserId: string) => Promise<void>;
   }): Promise<OpsUserRecord>;
+
+  /**
+   * Change a user's role in the database and in Supabase Auth as ONE action,
+   * or in neither.
+   *
+   * `commitClaim` runs inside the transaction, after `ops_users.role` is
+   * written and before commit. Throwing rolls the role change back — by the
+   * database, not by a compensating UPDATE that could itself fail while the
+   * two stores are already diverged.
+   *
+   * Divergence is not a cosmetic concern here: `resolveOpsSession()` refuses
+   * any session whose token claim disagrees with `ops_users.role`, so a
+   * half-applied assignment locks the user out until they sign in again.
+   *
+   * Returns null if the user does not exist. The row is locked FOR UPDATE for
+   * the duration, so two concurrent assignments serialize rather than
+   * interleave a database write with the other one's claim write.
+   */
+  assignUserRole(input: {
+    id: string;
+    role: OpsRole;
+    commitClaim: (user: OpsUserRecord) => Promise<void>;
+  }): Promise<OpsUserRecord | null>;
 
   /** Fails closed: throws if the write fails, never swallows an audit-write error. */
   recordAuditEvent(input: AuditEventInput): Promise<{ id: string; createdAt: string }>;
@@ -661,10 +721,18 @@ class PgOpsRepo implements OpsRepo {
   async acceptInvite(input: {
     tokenHash: string;
     name: string;
-    passwordHash: string;
+    provisionIdentity: (invite: {
+      email: string;
+      role: OpsRole;
+    }) => Promise<{ supabaseUserId: string }>;
+    releaseIdentity: (supabaseUserId: string) => Promise<void>;
   }): Promise<OpsUserRecord> {
     const pool = getOpsPool();
     const client = await pool.connect();
+    // Non-null only between "the identity exists" and "the transaction
+    // committed". That window is exactly when an undo is both possible and
+    // required.
+    let provisionedIdentity: string | null = null;
     try {
       await client.query('begin');
 
@@ -680,25 +748,86 @@ class PgOpsRepo implements OpsRepo {
         throw new InviteNotAcceptableError('Invite has expired.');
       }
 
+      // Under the row lock, so a concurrent acceptance of the same invite
+      // waits here and then loses on `accepted_at` instead of creating a
+      // second Supabase account for the same person.
+      const identity = await input.provisionIdentity({
+        email: invite.email,
+        role: invite.role,
+      });
+      provisionedIdentity = identity.supabaseUserId;
+
       const userResult = await client.query(
-        `insert into ops_users (email, name, role, password_hash, invite_id, created_by, vehicle_id)
-         values ($1, $2, $3, $4, $5, $6, $7)
+        `insert into ops_users (email, name, role, password_hash, invite_id, created_by, vehicle_id, supabase_user_id)
+         values ($1, $2, $3, $4, $5, $6, $7, $8)
          returning *`,
         [
           invite.email,
           input.name,
           invite.role,
-          input.passwordHash,
+          SUPABASE_MANAGED_PASSWORD_HASH,
           invite.id,
           invite.invited_by,
           invite.vehicle_id ?? null,
+          identity.supabaseUserId,
         ],
       );
 
       await client.query('update ops_invites set accepted_at = now() where id = $1', [invite.id]);
 
       await client.query('commit');
+      // Committed: the identity is now owned by a real profile and must not
+      // be released by the catch below if anything later in this function
+      // throws.
+      provisionedIdentity = null;
       return mapUserRow(userResult.rows[0]);
+    } catch (error) {
+      await client.query('rollback').catch(() => undefined);
+      if (provisionedIdentity) {
+        // Best effort by construction. If it fails, the leftover is a
+        // Supabase account with no ops profile, which the guard refuses
+        // outright (`no_profile`) — an orphan, never an unauthorized session.
+        await input.releaseIdentity(provisionedIdentity).catch(() => undefined);
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async assignUserRole(input: {
+    id: string;
+    role: OpsRole;
+    commitClaim: (user: OpsUserRecord) => Promise<void>;
+  }): Promise<OpsUserRecord | null> {
+    const pool = getOpsPool();
+    const client = await pool.connect();
+    try {
+      await client.query('begin');
+
+      const existing = await client.query('select id from ops_users where id = $1 for update', [
+        input.id,
+      ]);
+      if (!existing.rows[0]) {
+        await client.query('rollback');
+        return null;
+      }
+
+      const updated = await client.query(
+        `update ops_users
+            set role = $2
+          where id = $1
+          returning *`,
+        [input.id, input.role],
+      );
+      const user = mapUserRow(updated.rows[0]);
+
+      // The claim write is part of the transaction's success condition, not
+      // an afterthought performed once the database has already committed.
+      await input.commitClaim(user);
+
+      await client.query('commit');
+      return user;
     } catch (error) {
       await client.query('rollback').catch(() => undefined);
       throw error;

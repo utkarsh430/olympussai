@@ -21,6 +21,48 @@ both are resolved to the same `ops_users` row and subjected to the same
 checks. Nothing in the credential path has been removed, so rollback is a
 configuration change rather than a data restore.
 
+### Invites and role assignment have already collapsed
+
+Accepting an invite now creates a **Supabase Auth account** and links it
+(`ops_users.supabase_user_id`) instead of writing a bcrypt hash. The password
+goes to Supabase; the profile row keeps a sentinel in `password_hash`
+(`SUPABASE_MANAGED_PASSWORD_HASH`) that `verifyPassword` refuses outright, so
+the legacy login can never become a second, weaker door into an account whose
+credential now lives elsewhere. Everything that made the invite flow safe is
+unchanged: hash-only tokens, expiry, revocation, single-use under a row lock,
+one live invite per email, and the audit event.
+
+Provisioning happens **inside** the acceptance transaction and is undone if
+the database half fails, because both ways this can half-succeed are
+unrecoverable by the person clicking the link — a spent invite with no account
+to sign into, or an account with no profile behind it.
+
+An address that already has a Supabase account is **refused**
+(`409 IDENTITY_ALREADY_EXISTS`), not adopted. Adopting it would mean resetting
+a stranger's password to whatever was typed into the invite form. Linking an
+existing identity is an explicit admin action, not something an invite may do
+implicitly. The invite survives the refusal.
+
+Role assignment is a **dual write** (`POST /api/ops/admin/users/:id/role`,
+new). `ops_users.role` is the authority; `app_metadata.ops_role` is the
+ceiling the Edge checks. Because a session whose claim disagrees with the
+database is refused in both directions, a half-applied assignment is a
+lockout — so the claim write runs inside the transaction and its failure rolls
+the database change back. The attempt is still recorded
+(`admin.user.role_assign_failed`), since the rollback undoes the change, not
+the fact that an admin tried. Re-assigning the role an account already has is
+deliberately not a no-op: it re-pushes the claim, and is the repair action for
+anything `GET /api/ops/admin/role-drift` reports.
+
+Disabling reaches both paths, in the **opposite** order and for a reason:
+`ops_users.status` alone already revokes access on the very next request, so
+that write commits first and the claim clear is best effort, with its outcome
+in the audit record. Failing the disable because the second write did not land
+would leave a live session for the sake of a stale ceiling. Note that
+`@supabase/auth-js` 2.112.2 offers no way to end another user's Supabase
+session at all, which is exactly why the per-request `ops_users` read is the
+disable mechanism and not an optimisation anyone may remove.
+
 ### The sign-in page has already collapsed
 
 `/login` is now the single front door for both surfaces.
@@ -90,10 +132,10 @@ system rather than a role field bolted onto the project login:
   `/ops/admin/invites`.
 - **Admin-invite only:** there is no self-service signup. An admin creates an
   `ops_invites` row (`POST /api/ops/admin/invites`); the invitee accepts it
-  once (`POST /api/ops/auth/accept-invite`) to create their `ops_users` row
-  and choose a password. The very first admin, who by definition has no
-  inviter, is seeded directly via `scripts/seed-ops-admin.mjs` (see
-  `../../db/README.md`).
+  once (`POST /api/ops/auth/accept-invite`), which provisions their Supabase
+  Auth account with the password they choose and creates the `ops_users` row
+  linked to it. The very first admin, who by definition has no inviter, is
+  seeded directly via `scripts/seed-ops-admin.mjs` (see `../../db/README.md`).
 
   There is one further, deliberately narrow exception:
   `scripts/seed-ops-user.mjs` (`pnpm seed-ops-user`) writes a single
@@ -111,8 +153,15 @@ system rather than a role field bolted onto the project login:
   accounts carry dispatch/command authority and should re-auth more often
   than the project surface's Supabase session). Claims: `sub` (user id),
   `email`, `role`, `iat`, `exp`.
-- **Passwords:** bcrypt, cost factor 12, minimum 12 characters
-  (`src/lib/auth/rbac/passwords.ts`).
+- **Passwords:** minimum 12 characters (`src/lib/auth/rbac/passwords.ts`).
+  Accounts predating the collapse hold a bcrypt hash here (cost factor 12) and
+  still sign in through `POST /api/ops/auth/login`. Accounts created by
+  accepting an invite since then hold their password in Supabase Auth and
+  carry `SUPABASE_MANAGED_PASSWORD_HASH` in the `not null` column, which
+  `verifyPassword` refuses explicitly. Rollback consequence, stated plainly:
+  a Supabase-managed account has **no** local password to fall back on, so
+  rolling the cutover back strands it until an admin re-invites it or seeds a
+  password.
 - **Invite tokens:** a fresh 256-bit token is generated per invite. It is
   emailed to the invitee through the Resend adapter
   (`src/lib/email/resend.ts`), using a branded HTML/text template
@@ -186,7 +235,9 @@ privileged action writes one row here, attributed to `actor_user_id`:
 | `control_room.command.create`                               | `POST /api/ops/control-room/commands`    | Refuses (`409`) unless `dispatcherActionId` names an existing, unconsumed `ops_dispatcher_actions` row; consumes it atomically.                                                                                                                                   |
 | `admin.invite.create`                                       | `POST /api/ops/admin/invites`            | Metadata includes `emailDelivered` (whether the Resend send succeeded).                                                                                                                                                                                           |
 | `admin.invite.resend`                                       | `POST /api/ops/admin/invites/:id/resend` | Rotates the invite's token/expiry, then re-sends the email. Refuses (`409`) once accepted or revoked.                                                                                                                                                             |
-| `admin.user.disable`                                        | `POST /api/ops/admin/users/:id/disable`  | Refuses (`409`) to disable the last active admin.                                                                                                                                                                                                                 |
+| `admin.user.disable`                                        | `POST /api/ops/admin/users/:id/disable`  | Refuses (`409`) to disable the last active admin. Metadata carries `claimCleared`: `true`/`false` for a linked account, `null` when there was no identity to clear — "nothing to clear" and "tried and failed" are different facts.                               |
+| `admin.user.role_assign`                                    | `POST /api/ops/admin/users/:id/role`     | One event for both writes. Metadata carries `previousRole`, `role`, and `claimWritten` (`false` for an account with no Supabase identity yet). Refuses (`409`) to move the last active admin off `admin`.                                                         |
+| `admin.user.role_assign_failed`                             | `POST /api/ops/admin/users/:id/role`     | The claim write failed and the role change was rolled back. Metadata names the `failure` and records `rolledBack: true`. Written after the rollback, so retries leave one record each.                                                                            |
 | `ops_user.invite.accept`                                    | `POST /api/ops/auth/accept-invite`       | Self-attributed by the newly created user.                                                                                                                                                                                                                        |
 
 Every write path records the audit event **before** returning success and
@@ -205,6 +256,16 @@ unchanged and still backs the command-centre UI only.
   there is no in-memory fallback.
 - `OPS_SESSION_SECRET` — long random string, ≥32 chars, distinct from any
   other signing secret in this app.
+- `SUPABASE_SERVICE_ROLE_KEY` — **now required in the running app**, not only
+  by `scripts/create-project-user.mjs`. It is the only credential that can
+  create an account on someone's behalf or write another user's
+  `app_metadata`, so invite acceptance, role assignment and the disable-side
+  claim clear all need it. Server-only and never bundled: it is reached
+  exclusively through `src/lib/supabase/admin.ts`, which is marked
+  `server-only`, and `src/tests/unit/middlewareEdgeSafety.test.ts` fails if
+  anything reachable from middleware imports it. Without it, invite
+  acceptance returns `503` and role assignment refuses rather than applying
+  half of itself.
 - `SITE_URL` — reused from the existing config; used to build the invite
   accept link, both the one sent by email and the one optionally returned
   in the API response.

@@ -70,10 +70,12 @@ Set (uncommitted `.env.local` locally; host env settings in production) — see
 
 - `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon (public) key.
-- `SUPABASE_SERVICE_ROLE_KEY` — **server-only**, bypasses RLS. Used exclusively
-  by `pnpm run create-project-user` to provision accounts. Never imported by
-  any route handler that serves ordinary user requests, never sent to the
-  browser.
+- `SUPABASE_SERVICE_ROLE_KEY` — **server-only**, bypasses RLS, never sent to
+  the browser. Used by `pnpm run create-project-user`, and by the
+  admin-authenticated ops routes that provision an invited operator's sign-in
+  account and write their role claim (see [`RBAC.md`](./RBAC.md)). Reached
+  only through `src/lib/supabase/admin.ts`, which is `server-only`; no
+  Edge-runtime module may import it.
 - `SITE_URL` — canonical origin.
 
 ## Provisioning an account (no self-service sign-up)

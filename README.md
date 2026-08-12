@@ -157,7 +157,7 @@ exposed to the browser and no key is ever printed.
 | --- | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | yes | **browser** | Supabase project URL, backing enterprise auth at `/login`. Public by design. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | **browser** | Supabase anon (public) key. Public by design — access control comes from Supabase Auth + RLS, not from keeping this secret. |
-| `SUPABASE_SERVICE_ROLE_KEY` | no | server | **Server-only**, bypasses RLS. Used exclusively by `pnpm run create-project-user` to provision accounts (no self-service sign-up exists). Never imported by a route handler that serves ordinary requests, never sent to the browser. |
+| `SUPABASE_SERVICE_ROLE_KEY` | yes | server | **Server-only**, bypasses RLS, never sent to the browser. Used by `pnpm run create-project-user`, and — since the ops auth systems were collapsed — by the admin-authenticated routes that provision an invited operator's sign-in account and write their role claim. Reached only through `src/lib/supabase/admin.ts` (`server-only`); no Edge-runtime module may import it. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | yes | **browser** | Renders the Google basemap. Public by design — restrict it by HTTP referrer and to the Maps JavaScript API. |
 | `SITE_URL` | no | server | Canonical origin for metadata, canonical URL, sitemap. Defaults to `https://olympuss.us`. |
 | `UPSRTC_LIVE_URL` | no | server | Overrides the live GPS endpoint. |

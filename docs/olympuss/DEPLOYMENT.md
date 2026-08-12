@@ -17,7 +17,7 @@ Set these in the Vercel project (Production + Preview). Never commit real values
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon (public) key. Not a secret — see [`AUTH.md`](./AUTH.md). |
-| `SUPABASE_SERVICE_ROLE_KEY` | **Server-only.** Only needed where `pnpm run create-project-user` is run to provision accounts — does not need to be set on Vercel unless you provision from that environment. |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Server-only. Now required on Vercel**, not only where `pnpm run create-project-user` is run. Accepting an ops invite provisions a Supabase account, and assigning a role writes `app_metadata` — both need this key. Without it, invite acceptance returns `503` and role assignment refuses. See [`RBAC.md`](./RBAC.md). |
 | `SITE_URL` | `https://olympuss.us` |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Public browser key (see restrictions below). Not a secret. |
 | `UPSRTC_LIVE_URL` / `UPSRTC_SCHEDULE_URL` | Optional — defaults built into the code. |
