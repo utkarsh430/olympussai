@@ -67,6 +67,30 @@ lands in shell history), hashes it with the same bcrypt cost factor as every
 other ops password, and inserts the row directly. Run it once per
 environment; it refuses to run if an admin already exists.
 
+## Linking ops accounts to Supabase Auth
+
+`ops_users.supabase_user_id`
+(`migrations/20260812094500__ops_users_supabase_link.sql`) is how a signed-in
+Supabase identity resolves to an ops profile once the two auth systems are
+collapsed onto one front door. The migration only adds the column; it is
+populated by `scripts/backfill-ops-supabase-links.mjs`:
+
+```sh
+OPS_DATABASE_URL=... SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+  pnpm backfill-ops-links            # dry run - reports, writes nothing
+```
+
+It is a dry run by default, matches on email case-insensitively and on
+nothing else, reports every case it cannot resolve with certainty instead of
+guessing, and never touches `password_hash`. Adding `--apply` performs
+exactly what the dry run printed.
+
+**Read `docs/olympuss/AUTH_CUTOVER_RUNBOOK.md` before running it with
+`--apply`.** The order of operations is what keeps a working login at every
+step, and that document also carries the rollback sequence (every step of
+which is a single `update ops_users set supabase_user_id = null ...`, because
+nothing about the linkage is destructive).
+
 ## Rollback
 
 This is the first migration for this datastore — there is no production data

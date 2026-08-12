@@ -101,6 +101,11 @@ dispatch authority until their 4-hour token happened to expire. The role and
 status are now re-read from the database on every guarded request. See the
 "Defence in depth" section below and `src/lib/auth/rbac/server.ts`.
 
+The operator procedure for actually performing the cutover - the order that
+keeps a working login at every step, what to do for your own account so you
+are never locked out, and the rollback sequence - is
+[`AUTH_CUTOVER_RUNBOOK.md`](./AUTH_CUTOVER_RUNBOOK.md).
+
 ## Why this was originally a second auth system
 
 The reasoning below is retained because it explains the shape of what is being
