@@ -146,7 +146,25 @@ async function controlServiceFetch(path: string, init: RequestInit = {}): Promis
   return response;
 }
 
-/** Creates an authorized command against `fixture` and immediately delivers it, returning the command id. */
+/**
+ * Creates an authorized command against `fixture` and returns its id, once
+ * it has actually reached `delivered`.
+ *
+ * Delivery is no longer a separate step this suite drives itself: POST
+ * /v1/commands now attempts delivery inline, right after its own commit
+ * (control-service/src/commands/deliverAndNotify.ts) — see AGENTS.md's
+ * "control-service is the only thing that delivers a command". This helper
+ * used to POST
+ * `/v1/commands/:id/deliver` immediately afterward, which is exactly the
+ * production path that inline delivery replaced: by the time that second
+ * call landed the command was already `delivered`, so it hit
+ * `command_not_authorized` (control-service/src/db/commands.ts#deliverCommand
+ * refuses anything not in `authorized`) and controlServiceFetch's
+ * throw-on-non-ok turned that into a hard failure for all four tests here.
+ * Asserting the response's own status rather than re-deriving delivery
+ * ourselves keeps this a genuine proof that the inline path worked, not an
+ * assumption.
+ */
 async function createAndDeliverCommand(
   fixture: Fixture,
   options: { ttlSeconds: number; reason: string },
@@ -161,8 +179,12 @@ async function createAndDeliverCommand(
       parameters: { reason: options.reason },
     }),
   });
-  const { command } = (await createRes.json()) as { command: { id: string } };
-  await controlServiceFetch(`/v1/commands/${command.id}/deliver`, { method: 'POST' });
+  const { command } = (await createRes.json()) as { command: { id: string; status: string } };
+  if (command.status !== 'delivered') {
+    throw new Error(
+      `expected command ${command.id} to be delivered inline on create, but its status was "${command.status}"`,
+    );
+  }
   return command.id;
 }
 

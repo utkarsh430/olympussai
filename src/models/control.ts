@@ -589,10 +589,16 @@ export const createCommandRequestSchema = z
   });
 export type CreateCommandRequest = z.infer<typeof createCommandRequestSchema>;
 
-/** Response body of POST /v1/commands (201). */
+/**
+ * Response body of POST /v1/commands (201). No `webhookDelivered` field:
+ * unlike the ack/deliver/supersede endpoints, control-service dispatches
+ * this request's webhooks without waiting for them (control-service/src/routes/commands.ts),
+ * so their outcome literally isn't known yet by the time this response is
+ * built - reporting one here would mean reporting a fabricated placeholder,
+ * not what actually happened.
+ */
 export const createCommandResponseSchema = z.object({
   command: commandSchema,
-  webhookDelivered: z.boolean(),
 });
 export type CreateCommandResponse = z.infer<typeof createCommandResponseSchema>;
 

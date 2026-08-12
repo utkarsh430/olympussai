@@ -94,12 +94,34 @@ if (process.env.CI === 'true' && missingEnv.length > 0) {
 /** parameters.reason makes the exact action label irrelevant beyond matching the driver console's copy for it. */
 const ACTION_TYPE = 'speed_guidance';
 
-async function login(request: APIRequestContext, email: string, password: string): Promise<void> {
+/**
+ * Logs in and returns the session `Cookie` header to attach to subsequent
+ * `request.*` calls on the SAME context explicitly.
+ *
+ * Not redundant with the context's own cookie jar: the login response sets
+ * the ops session cookie `Secure` (`src/lib/auth/rbac/server.ts`, correctly,
+ * for real HTTPS deployments), and a real Chromium PAGE navigation to
+ * `http://127.0.0.1` still sends it back (Chrome trusts localhost as a
+ * secure context) — but Playwright's `APIRequestContext` (`context.request`
+ * / `page.request`, a plain Node HTTP client, not the browser's own network
+ * stack) does not carry that exception and silently drops `Secure` cookies
+ * over a plain-HTTP origin. E2E_ORIGIN is `http://127.0.0.1:...` both
+ * locally and in CI (`.github/workflows/ci-web.yml`), so every dispatcher/
+ * control-room call below — API-only, unlike the pilot-driver flow's real
+ * page navigation — would 401 "Authentication required" on every run
+ * without this: confirmed by driving the real login against a live server,
+ * which returns 200 and a Set-Cookie, immediately followed by a real
+ * `context.request` call that comes back unauthenticated.
+ */
+async function login(request: APIRequestContext, email: string, password: string): Promise<string> {
   const res = await request.post('/api/ops/auth/login', {
     headers: { 'Content-Type': 'application/json', Origin: E2E_ORIGIN },
     data: { email, password },
   });
   if (!res.ok()) throw new Error(`login failed for ${email} (${res.status()}): ${await res.text()}`);
+  const setCookie = res.headers()['set-cookie'];
+  if (!setCookie) throw new Error(`login for ${email} succeeded but set no session cookie`);
+  return setCookie.split(';', 1)[0]!;
 }
 
 interface CreateCommandResponseBody {
@@ -157,9 +179,9 @@ test.describe('Control-room command delivery — the real create-to-driver path'
     const reason = `QA e2e: merging traffic ahead near ${vehicleId} — reduce speed for driver safety.`;
     let dispatcherActionId: string;
     try {
-      await login(dispatcherContext.request, DISPATCHER_EMAIL!, DISPATCHER_PASSWORD!);
+      const dispatcherCookie = await login(dispatcherContext.request, DISPATCHER_EMAIL!, DISPATCHER_PASSWORD!);
       const approvalRes = await dispatcherContext.request.post('/api/ops/dispatcher/approvals', {
-        headers: { 'Content-Type': 'application/json', Origin: E2E_ORIGIN },
+        headers: { 'Content-Type': 'application/json', Origin: E2E_ORIGIN, Cookie: dispatcherCookie },
         data: { actionType: ACTION_TYPE, reason, routeDirectionId, vehicleId },
       });
       if (!approvalRes.ok()) {
@@ -175,9 +197,9 @@ test.describe('Control-room command delivery — the real create-to-driver path'
     const controlRoomContext = await browser.newContext();
     let commandBody: CreateCommandResponseBody;
     try {
-      await login(controlRoomContext.request, CONTROL_ROOM_EMAIL!, CONTROL_ROOM_PASSWORD!);
+      const controlRoomCookie = await login(controlRoomContext.request, CONTROL_ROOM_EMAIL!, CONTROL_ROOM_PASSWORD!);
       const commandRes = await controlRoomContext.request.post('/api/ops/control-room/commands', {
-        headers: { 'Content-Type': 'application/json', Origin: E2E_ORIGIN },
+        headers: { 'Content-Type': 'application/json', Origin: E2E_ORIGIN, Cookie: controlRoomCookie },
         data: {
           dispatcherActionId,
           actionType: ACTION_TYPE,

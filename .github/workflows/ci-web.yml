@@ -61,17 +61,21 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
   # ---------------------------------------------------------------------------
-  # tests/e2e/pilot-driver-command.spec.ts, actually running.
+  # tests/e2e/pilot-driver-command.spec.ts AND
+  # tests/e2e/control-room-command-delivery.spec.ts, actually running.
   #
-  # That spec is the only test in the repo that exercises the whole
-  # control-service -> driver-console -> ack -> both-audit-logs loop, and it
-  # skipped itself on every run this repo has ever done, because its six
-  # E2E_* variables were never set anywhere. A suite that only ever skips is
-  # worth nothing, so this job provisions the real thing: the two datastores
-  # the spec's header lists, both migration runners, a seeded pilot_driver,
-  # and both processes. The spec itself now hard-FAILS (never skips) when
-  # CI=true and a variable is missing, so this can never silently regress
-  # back to skipping.
+  # Between them these are the only tests in the repo that exercise the whole
+  # control-service -> driver-console -> ack -> both-audit-logs loop (the
+  # first) and the REAL create -> deliver product path, dispatcher approval
+  # through to the driver console, with no REST client of its own that could
+  # reach for /deliver directly (the second — see its file header for the
+  # incident that convention prevents). Both skipped themselves on every run
+  # this repo has ever done, because their E2E_* variables were never set
+  # anywhere. A suite that only ever skips is worth nothing, so this job
+  # provisions the real thing: the two datastores both specs' headers list,
+  # both migration runners, a seeded pilot_driver/dispatcher/control_room,
+  # and both processes. Both specs hard-FAIL (never skip) when CI=true and a
+  # variable is missing, so this can never silently regress back to skipping.
   #
   # Neither database holds anything but throwaway fixtures - the containers
   # are created and destroyed with the job, and the credentials below are
@@ -130,6 +134,14 @@ jobs:
       OPS_SESSION_SECRET: ci-e2e-ops-session-secret-at-least-32-characters
       PILOT_DRIVER_EMAIL: pilot.driver.qa@example.test
       PILOT_DRIVER_PASSWORD: ci-e2e-pilot-driver-password
+      # control-room-command-delivery.spec.ts's own two roles: a dispatcher
+      # to record the human approval and a control_room account to issue the
+      # command through it — the two decisions a real dispatch requires that
+      # the pilot-driver spec's fixtures never needed.
+      DISPATCHER_EMAIL: dispatcher.qa@example.test
+      DISPATCHER_PASSWORD: ci-e2e-dispatcher-password
+      CONTROL_ROOM_EMAIL: control-room.qa@example.test
+      CONTROL_ROOM_PASSWORD: ci-e2e-control-room-password
 
     steps:
       - uses: actions/checkout@v4
@@ -167,12 +179,12 @@ jobs:
           WEBHOOK_HMAC_SECRET: ${{ env.WEBHOOK_SECRET }}
 
       # --- fixtures -----------------------------------------------------
-      # The one account the spec logs in as. scripts/seed-ops-admin.mjs seeds
-      # an admin and nothing else; every other ops account normally comes from
-      # an admin invite, which needs a mailbox and an admin session CI has
-      # neither of - hence scripts/seed-ops-user.mjs. The spec seeds its own
-      # per-test control-service fixtures (vehicle, approval, rollout stage)
-      # directly, as its header explains.
+      # The three accounts these two specs log in as. scripts/seed-ops-admin.mjs
+      # seeds an admin and nothing else; every other ops account normally
+      # comes from an admin invite, which needs a mailbox and an admin
+      # session CI has neither of - hence scripts/seed-ops-user.mjs. Each
+      # spec seeds its own per-test control-service fixtures (vehicle,
+      # approval, rollout stage) directly, as their headers explain.
       - name: Seed the pilot_driver account
         run: >-
           node scripts/seed-ops-user.mjs
@@ -181,6 +193,24 @@ jobs:
           --role pilot_driver
         env:
           OPS_SEED_PASSWORD: ${{ env.PILOT_DRIVER_PASSWORD }}
+
+      - name: Seed the dispatcher account
+        run: >-
+          node scripts/seed-ops-user.mjs
+          --email "$DISPATCHER_EMAIL"
+          --name "CI Dispatcher"
+          --role dispatcher
+        env:
+          OPS_SEED_PASSWORD: ${{ env.DISPATCHER_PASSWORD }}
+
+      - name: Seed the control_room account
+        run: >-
+          node scripts/seed-ops-user.mjs
+          --email "$CONTROL_ROOM_EMAIL"
+          --name "CI Control Room"
+          --role control_room
+        env:
+          OPS_SEED_PASSWORD: ${{ env.CONTROL_ROOM_PASSWORD }}
 
       # --- services -----------------------------------------------------
       - name: Build control-service
@@ -243,21 +273,32 @@ jobs:
           done
           echo "web app did not become ready"; cat "$RUNNER_TEMP/web.log"; exit 1
 
-      # --- the actual suite ---------------------------------------------
-      - name: Pilot-driver command e2e
+      # --- the actual suites ---------------------------------------------
+      - name: Pilot-driver command + control-room command delivery e2e
         env:
           # CI=true is what turns "a variable is unset" from a silent skip
-          # into a hard failure inside the spec.
+          # into a hard failure inside either spec.
           CI: "true"
           E2E_ORIGIN: http://127.0.0.1:3000
           E2E_BASE_URL: http://127.0.0.1:3000
           E2E_PILOT_DRIVER_EMAIL: ${{ env.PILOT_DRIVER_EMAIL }}
           E2E_PILOT_DRIVER_PASSWORD: ${{ env.PILOT_DRIVER_PASSWORD }}
+          E2E_DISPATCHER_EMAIL: ${{ env.DISPATCHER_EMAIL }}
+          E2E_DISPATCHER_PASSWORD: ${{ env.DISPATCHER_PASSWORD }}
+          E2E_CONTROL_ROOM_EMAIL: ${{ env.CONTROL_ROOM_EMAIL }}
+          E2E_CONTROL_ROOM_PASSWORD: ${{ env.CONTROL_ROOM_PASSWORD }}
           E2E_CONTROL_SERVICE_URL: http://127.0.0.1:8081
           E2E_CONTROL_SERVICE_TOKEN: ${{ env.SERVICE_TOKEN }}
           E2E_CONTROL_SERVICE_DATABASE_URL: ${{ env.CONTROL_SERVICE_DATABASE_URL }}
           E2E_OPS_DATABASE_URL: ${{ env.OPS_DATABASE_URL }}
-        run: pnpm test:e2e pilot-driver-command
+        # Two explicit filenames, not the whole tests/e2e/ directory: this
+        # job only provisions what these two specs need. Other e2e specs
+        # (e.g. command-centre.spec.ts, gated on E2E_PROJECT_PIN) merely skip
+        # locally when their own vars are unset — they don't have the
+        # CI=true hard-fail guard these two do — but running them here would
+        # still mean standing up infrastructure this job was never meant to
+        # own.
+        run: pnpm test:e2e pilot-driver-command control-room-command-delivery
 
       - name: Service logs (on failure)
         if: failure()

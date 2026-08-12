@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { createMiddlewareSupabaseClient, getMiddlewareUser } from '@/lib/supabase/middleware';
 import { OPS_SESSION_COOKIE } from '@/lib/auth/rbac/config';
 import { verifyOpsSessionToken } from '@/lib/auth/rbac/session';
-import { roleForSegment, rolesForOpsApiPath } from '@/lib/auth/rbac/roles';
+import { roleForSegment, rolesForOpsApiPath, isPublicOpsApiPath } from '@/lib/auth/rbac/roles';
 
 /**
  * Edge middleware — the first line of defence for protected surfaces.
@@ -81,7 +81,15 @@ function isPublicMachineApi(pathname: string): boolean {
  *
  * Paths whose segment is not a role surface at all (auth, login, forbidden)
  * are intentionally left unchecked here — each such route enforces whatever
- * it individually needs.
+ * it individually needs. That exemption is an explicit allowlist
+ * (isPublicOpsApiPath for API routes; page segments are never role-gated
+ * unless roleForSegment says so), not "anything unrecognised passes" — an
+ * /api/ops/* path that is neither role-gated nor on that allowlist fails
+ * CLOSED below to "must be authenticated", so a brand-new /api/ops/fleet/*
+ * route nobody has added an override for yet cannot reach its handler with
+ * zero check the way GET /api/ops/fleet/schedule and .../breakdown-reports
+ * both used to before their overrides existed (and the way HEAD/POST on
+ * either still could, since OPS_API_ROLE_OVERRIDES only lists GET).
  *
  * Authenticated-but-wrong-role never bounces to /ops/login (that would imply
  * "you are not signed in", which is false and would invite retrying with a
@@ -100,16 +108,23 @@ async function handleOpsRequest(request: NextRequest): Promise<NextResponse> {
         return role ? [role] : null;
       })();
 
-  if (!allowedRoles) {
-    // Not a role-gated segment (auth/login/forbidden/etc.) — let it through;
-    // the route handler or layout enforces its own requirement.
+  if (!allowedRoles && (!isApi || isPublicOpsApiPath(pathname))) {
+    // Genuinely not a role surface at all: an intentionally public page
+    // (login/forbidden/accept-invite) or an API path that authenticates
+    // itself (/api/ops/auth/*, e.g. the login call itself, which by
+    // definition cannot require a session yet). The route handler or layout
+    // enforces whatever it individually needs.
     return NextResponse.next();
   }
 
   const token = request.cookies.get(OPS_SESSION_COOKIE)?.value;
   const claims = await verifyOpsSessionToken(token);
 
-  if (claims && allowedRoles.includes(claims.role)) {
+  // allowedRoles is null past this point only for an /api/ops/* path this
+  // map cannot classify (see the doc comment above) — that still requires a
+  // valid session (any role), just not a specific one; the route handler's
+  // own requireOpsRole remains the real, narrow decision either way.
+  if (claims && (!allowedRoles || allowedRoles.includes(claims.role))) {
     return NextResponse.next();
   }
 

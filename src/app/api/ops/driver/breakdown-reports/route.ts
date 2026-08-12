@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireOpsRole } from '@/lib/auth/rbac/guard';
-import { getOpsRepo } from '@/lib/auth/rbac/repo';
+import { getOpsRepo, BREAKDOWN_REPORT_CURSOR_PATTERN } from '@/lib/auth/rbac/repo';
 import { OpsDbConfigError } from '@/lib/db/pool';
 import { isSameOrigin } from '@/lib/auth/origin';
 import { clientIpFrom } from '@/lib/auth/rate-limit';
@@ -20,7 +20,9 @@ const bodySchema = z.object({
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional(),
-  before: z.string().datetime().optional(),
+  // Opaque `<createdAt>_<id>` keyset cursor — see
+  // BreakdownReportListFilter.before's doc comment (src/lib/auth/rbac/repo.ts).
+  before: z.string().regex(BREAKDOWN_REPORT_CURSOR_PATTERN, 'Invalid pagination cursor').optional(),
   category: categorySchema.optional(),
   vehicleReg: z.string().trim().min(1).max(50).optional(),
 });

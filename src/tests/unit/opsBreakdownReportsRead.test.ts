@@ -22,9 +22,13 @@ vi.mock('@/lib/auth/rbac/guard', () => ({
   requireOpsRole: (...args: unknown[]) => requireOpsRole(...args),
 }));
 
-vi.mock('@/lib/auth/rbac/repo', () => ({
-  getOpsRepo: () => ({ listBreakdownReports }),
-}));
+vi.mock('@/lib/auth/rbac/repo', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/auth/rbac/repo')>();
+  return {
+    ...actual,
+    getOpsRepo: () => ({ listBreakdownReports }),
+  };
+});
 
 const REPORT = {
   id: 'br-1',
@@ -35,6 +39,17 @@ const REPORT = {
   createdAt: '2026-08-10T00:00:00.000Z',
   reporterName: 'Driver One',
   reporterEmail: 'driver1@example.com',
+};
+
+/** What the fleet-wide route must actually put on the wire: no email. */
+const REPORT_WITHOUT_EMAIL = {
+  id: REPORT.id,
+  driverUserId: REPORT.driverUserId,
+  vehicleReg: REPORT.vehicleReg,
+  category: REPORT.category,
+  description: REPORT.description,
+  createdAt: REPORT.createdAt,
+  reporterName: REPORT.reporterName,
 };
 
 beforeEach(() => {
@@ -68,7 +83,8 @@ describe('GET /api/ops/fleet/breakdown-reports', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Cache-Control')).toBe('no-store');
-    expect(body).toEqual({ reports: [REPORT], nextCursor: null });
+    expect(body).toEqual({ reports: [REPORT_WITHOUT_EMAIL], nextCursor: null });
+    expect(body.reports[0]).not.toHaveProperty('reporterEmail');
     expect(listBreakdownReports).toHaveBeenCalledWith({
       limit: undefined,
       before: undefined,
@@ -81,7 +97,8 @@ describe('GET /api/ops/fleet/breakdown-reports', () => {
     requireOpsRole.mockResolvedValue({ ok: true, claims: { sub: 'cr-1', email: 'c@example.com', role: 'control_room' } });
 
     const { GET } = await import('@/app/api/ops/fleet/breakdown-reports/route');
-    const before = '2026-08-11T00:00:00.000Z';
+    // <createdAt>_<id> keyset cursor — see BREAKDOWN_REPORT_CURSOR_PATTERN.
+    const before = '2026-08-11T00:00:00.000Z_11111111-1111-1111-1111-111111111111';
     await GET(request(`?limit=10&before=${encodeURIComponent(before)}&category=Mechanical&vehicleReg=UP25FT4823`));
 
     expect(listBreakdownReports).toHaveBeenCalledWith({

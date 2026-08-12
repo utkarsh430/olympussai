@@ -75,11 +75,18 @@ function mapControlServiceError(error: unknown): NextResponse | null {
     return errorResponse('NOT_CONFIGURED', 'Control service is not configured.', 503);
   }
   if (error instanceof ControlServiceUnavailableError) {
-    // Retryable, and the approval is provably still live: releasing the claim
-    // left consumed_at NULL.
+    // Retryable, and the claim on THIS app's side is provably released
+    // (releaseQuietly left consumed_at NULL) - but that does not prove
+    // control-service never committed the command: a timeout here means
+    // this app gave up waiting for a response, not that control-service
+    // never sent one. Overclaiming "not consumed" is exactly the bug an
+    // adversarial review caught live: control-service had already created
+    // AND delivered the command, the driver already had it on screen, and
+    // this message told the operator it was safe to re-issue. Point at how
+    // to check instead of asserting an outcome this app cannot prove.
     return errorResponse(
       'CONTROL_SERVICE_UNAVAILABLE',
-      'Control service is temporarily unavailable; the approval was not consumed and can be re-issued.',
+      'Control service is temporarily unavailable. This approval can be re-issued, but check the vehicle console or dispatcher queue first - the command may have already reached the driver.',
       503,
     );
   }

@@ -112,17 +112,15 @@ describe('POST /v1/commands', () => {
     expect(createCommand).not.toHaveBeenCalled();
   });
 
-  it('creates the command, delivers it inline, and dispatches BOTH command.created and command.delivered webhooks', async () => {
+  it('creates the command, delivers it inline, and fires BOTH command.created and command.delivered webhooks without waiting for them', async () => {
     const created = sampleCommand();
     const delivered = sampleCommand({ status: 'delivered', deliveredAt: new Date().toISOString() });
     vi.mocked(createCommand).mockResolvedValueOnce(created);
     vi.mocked(deliverCommand).mockResolvedValueOnce(delivered);
-    vi.mocked(dispatchWebhook).mockResolvedValue({
-      delivered: true,
-      attempts: 1,
-      idempotencyKey: 'k',
-      status: 200,
-    });
+    // Deliberately never resolves: proves the response below does not wait
+    // on it (the whole point of this fix) rather than merely resolving fast
+    // enough in a test that no timing bug would show up either way.
+    vi.mocked(dispatchWebhook).mockReturnValue(new Promise(() => {}));
 
     const app = createApp();
     const res = await request(app)
@@ -136,12 +134,17 @@ describe('POST /v1/commands', () => {
       });
 
     expect(res.status).toBe(201);
-    // The response reflects the post-delivery state, not the just-created one.
+    // The response reflects the post-delivery state, not the just-created
+    // one - and has no webhookDelivered field at all, since that outcome
+    // genuinely isn't known synchronously anymore (see models/control.ts's
+    // createCommandResponseSchema on the web side).
     expect(res.body.command.status).toBe('delivered');
     expect(res.body.delivered).toBe(true);
-    expect(res.body.webhookDelivered).toBe(true);
+    expect(res.body).not.toHaveProperty('webhookDelivered');
     expect(createCommand).toHaveBeenCalledTimes(1);
     expect(deliverCommand).toHaveBeenCalledWith('cmd-1');
+    // The dispatch calls happened (fire-and-forget still calls dispatchWebhook
+    // synchronously) even though neither promise ever resolved.
     expect(dispatchWebhook).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'command.created', idempotencyKey: 'cmd-1' }),
     );

@@ -25,19 +25,37 @@ export interface DeliverAndNotifyResult {
 }
 
 /**
- * Delivers `id` and notifies the web app. Propagates whatever
- * `deliverCommand` throws (404/409/410 AppErrors) unchanged - callers that
- * must not fail their own response on a delivery error (the inline
- * post-create/post-supersede attempt) catch around this call themselves
- * rather than this function swallowing anything.
+ * The `command.delivered` webhook event for `command`, in one place so its
+ * idempotency key format (`${id}:delivered:v${version}`) can never drift
+ * between the callers that need to dispatch it - deliverAndNotify below, and
+ * POST /v1/commands's own create-response path (routes/commands.ts), which
+ * fires this same event but deliberately does not await it (see that
+ * route's comment for why: dispatchWebhook's own worst case was proven to
+ * blow the web client's response budget even though the command had
+ * already committed and delivered).
  */
-export async function deliverAndNotify(id: string): Promise<DeliverAndNotifyResult> {
-  const command = await deliverCommand(id);
-  const delivery = await dispatchWebhook({
+export function buildDeliveredWebhookEvent(command: CommandRow): {
+  type: 'command.delivered';
+  idempotencyKey: string;
+  data: { command: CommandRow };
+} {
+  return {
     type: 'command.delivered',
     idempotencyKey: `${command.id}:delivered:v${command.version}`,
     data: { command },
-  });
+  };
+}
+
+/**
+ * Delivers `id` and notifies the web app. Propagates whatever
+ * `deliverCommand` throws (404/409/410 AppErrors) unchanged - callers that
+ * must not fail their own response on a delivery error (the inline
+ * post-supersede attempt, POST /v1/commands/:id/deliver) catch around this
+ * call themselves rather than this function swallowing anything.
+ */
+export async function deliverAndNotify(id: string): Promise<DeliverAndNotifyResult> {
+  const command = await deliverCommand(id);
+  const delivery = await dispatchWebhook(buildDeliveredWebhookEvent(command));
   if (!delivery.delivered) {
     logger.warn(
       { commandId: command.id, idempotencyKey: delivery.idempotencyKey },

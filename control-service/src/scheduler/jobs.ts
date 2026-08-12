@@ -11,10 +11,12 @@
 //   headwayCompute        HEADWAY_COMPUTE_INTERVAL_MS         60 s
 //   geometryRefresh       SHAPE_CACHE_TTL_MS                  15 min
 //
-// commandDeliverySweep is ordered BEFORE commandTtlSweep deliberately: a
-// command that is simultaneously due for both (stuck in `authorized` past
-// its TTL after a crash) should be delivered, not expired out from under
-// the driver - see commandDeliverySweep.ts.
+// commandDeliverySweep and commandTtlSweep never contend for the same
+// command: the former's candidate set is `status = 'authorized' and
+// expires_at > now()`, the latter's is everything non-terminal already past
+// its TTL - disjoint by construction. Array position here has no effect on
+// either: startScheduler (./index.ts) gives every job its own randomised
+// first run and its own interval.
 
 import type { Env } from '../config/env.js';
 import { sweepExpiredCommands } from '../db/commands.js';

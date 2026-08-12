@@ -163,7 +163,14 @@ export interface BreakdownReportListItem extends BreakdownReportRecord {
 export interface BreakdownReportListFilter {
   /** Clamped to 1-200, same idiom as listDispatcherActions's limit. Defaults to 50. */
   limit?: number;
-  /** ISO-8601 cursor: only reports created strictly before this instant. */
+  /**
+   * Opaque keyset cursor from a previous page's `nextCursor` — see
+   * encodeBreakdownReportCursor/decodeBreakdownReportCursor below. NOT a
+   * bare ISO-8601 timestamp: `created_at` alone cannot break ties between
+   * rows sharing the same instant (ORDER BY is `created_at desc, id desc`),
+   * so the cursor carries `id` too and both routes' `before` query param
+   * validates against BREAKDOWN_REPORT_CURSOR_PATTERN accordingly.
+   */
   before?: string;
   category?: string;
   vehicleReg?: string;
@@ -173,8 +180,43 @@ export interface BreakdownReportListFilter {
 
 export interface BreakdownReportListPage {
   items: BreakdownReportListItem[];
-  /** ISO-8601 createdAt of the last item, to pass back as `before` for the next page. Null when there is no next page. */
+  /** Opaque cursor (see BreakdownReportListFilter.before) to pass back as `before` for the next page. Null when there is no next page. */
   nextCursor: string | null;
+}
+
+/**
+ * `<createdAt ISO-8601>_<id>` — createdAt never contains `_`, and `id` is a
+ * uuid, so splitting is unambiguous. Kept as a plain delimited string
+ * (rather than base64/JSON) to match this file's existing preference for
+ * transparent, debuggable cursors — GET .../breakdown-reports?before=...
+ * stays readable in a log line.
+ */
+const BREAKDOWN_REPORT_CURSOR_PATTERN =
+  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)_([0-9a-fA-F-]{36})$/;
+
+export { BREAKDOWN_REPORT_CURSOR_PATTERN };
+
+function encodeBreakdownReportCursor(item: { createdAt: string; id: string }): string {
+  return `${item.createdAt}_${item.id}`;
+}
+
+/**
+ * Bug this exists to fix: the old cursor carried only `created_at` and
+ * compared with a strict `<`, so a page boundary that fell in the middle of
+ * several rows sharing one `created_at` silently dropped whichever of those
+ * rows landed after the boundary — `r.created_at < cursor` excludes ALL rows
+ * at exactly `cursor`, not just the ones already returned. Comparing the
+ * full `(created_at, id)` tuple against `(cursor.createdAt, cursor.id)`
+ * matches the query's own `order by created_at desc, id desc` exactly, so a
+ * tie is broken by `id` the same way on both sides of the page boundary.
+ */
+function decodeBreakdownReportCursor(cursor: string): { createdAt: string; id: string } {
+  const match = BREAKDOWN_REPORT_CURSOR_PATTERN.exec(cursor);
+  if (!match) {
+    throw new Error(`Invalid breakdown report pagination cursor: ${cursor}`);
+  }
+  const [, createdAt, id] = match;
+  return { createdAt: createdAt!, id: id! };
 }
 
 export interface OpsRepo {
@@ -771,8 +813,16 @@ class PgOpsRepo implements OpsRepo {
       conditions.push(`r.vehicle_reg = $${params.length}`);
     }
     if (filter.before) {
-      params.push(filter.before);
-      conditions.push(`r.created_at < $${params.length}`);
+      const cursor = decodeBreakdownReportCursor(filter.before);
+      params.push(cursor.createdAt, cursor.id);
+      // Tuple comparison, matching `order by created_at desc, id desc`
+      // exactly: a row is "before" the cursor if its created_at is earlier,
+      // OR it shares the cursor's created_at and has a lower id. A plain
+      // `r.created_at < $1` (the old query) excluded every row at exactly
+      // the cursor's created_at, including ones after it in id order that
+      // this page never returned — see decodeBreakdownReportCursor's doc
+      // comment.
+      conditions.push(`(r.created_at, r.id) < ($${params.length - 1}, $${params.length})`);
     }
 
     const rawLimit = filter.limit ?? 50;
@@ -794,10 +844,11 @@ class PgOpsRepo implements OpsRepo {
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
     const items = page.map(mapBreakdownReportListItemRow);
+    const last = items[items.length - 1];
 
     return {
       items,
-      nextCursor: hasMore ? (items[items.length - 1]?.createdAt ?? null) : null,
+      nextCursor: hasMore && last ? encodeBreakdownReportCursor(last) : null,
     };
   }
 

@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireOpsRole } from '@/lib/auth/rbac/guard';
-import { getOpsRepo } from '@/lib/auth/rbac/repo';
+import { getOpsRepo, BREAKDOWN_REPORT_CURSOR_PATTERN } from '@/lib/auth/rbac/repo';
 import { OpsDbConfigError } from '@/lib/db/pool';
 
 export const runtime = 'nodejs';
@@ -12,7 +12,11 @@ const categorySchema = z.enum(['Mechanical', 'Electrical', 'Tyre/wheel', 'Accide
 
 const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional(),
-  before: z.string().datetime().optional(),
+  // Opaque `<createdAt>_<id>` keyset cursor from a previous page's
+  // nextCursor — see BreakdownReportListFilter.before's doc comment
+  // (src/lib/auth/rbac/repo.ts) for why a bare ISO datetime can't tell rows
+  // sharing a created_at apart.
+  before: z.string().regex(BREAKDOWN_REPORT_CURSOR_PATTERN, 'Invalid pagination cursor').optional(),
   category: categorySchema.optional(),
   vehicleReg: z.string().trim().min(1).max(50).optional(),
 });
@@ -68,8 +72,22 @@ export async function GET(request: NextRequest): Promise<Response> {
       vehicleReg: parsed.data.vehicleReg,
     });
 
+    // Fleet-wide view: a depot/dispatcher/control-room operator needs to
+    // know WHO reported a breakdown to route a repair, never their email -
+    // built explicitly (not spread) so a future field on BreakdownReportListItem
+    // does not silently leak into this response by default.
+    const reports = items.map((item) => ({
+      id: item.id,
+      driverUserId: item.driverUserId,
+      vehicleReg: item.vehicleReg,
+      category: item.category,
+      description: item.description,
+      createdAt: item.createdAt,
+      reporterName: item.reporterName,
+    }));
+
     return NextResponse.json(
-      { reports: items, nextCursor },
+      { reports, nextCursor },
       { status: 200, headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (error) {

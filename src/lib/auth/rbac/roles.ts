@@ -91,8 +91,15 @@ export interface OpsApiRoleOverride {
  * check; the route handler's `requireOpsRole` call remains the sole
  * authoritative, narrow decision (see src/lib/auth/rbac/guard.ts's doc
  * comment for the other half of this ordering). A path with no matching
- * override (and no bare segment role) fails closed — that is today's
- * behaviour for any non-role segment, not a new risk.
+ * override and no bare segment role fails closed to "must be authenticated"
+ * (not to a specific role, which this map has no way to know) — see
+ * isPublicOpsApiPath and src/middleware.ts's handleOpsRequest for where that
+ * fallback actually lives; the alternative (pass through unauthenticated)
+ * was a real, since-fixed bug: roleForSegment('fleet') is null, so before
+ * that fallback existed ANY method on ANY /api/ops/fleet/* path with no
+ * override here — e.g. a HEAD/POST on schedule or breakdown-reports, or a
+ * brand-new fleet route nobody added an override for yet — reached its
+ * handler with no check at all, middleware or otherwise.
  *
  * Every entry here must only WIDEN its segment's role, never re-home an
  * endpoint under an unrelated role (guarded by a test in rbac.test.ts).
@@ -121,6 +128,20 @@ export const OPS_API_ROLE_OVERRIDES: readonly OpsApiRoleOverride[] = [
   // from the start.
   { path: '/api/ops/fleet/breakdown-reports', methods: ['GET'], roles: ['control_room', 'dispatcher', 'depot'] },
 ] as const;
+
+/**
+ * /api/ops/* paths that authenticate themselves and are legitimately
+ * reachable with no ops session at all — you need to hit login before you
+ * have one. Every other /api/ops/* path with no override and no bare
+ * segment role must require at least a valid session (see
+ * src/middleware.ts's handleOpsRequest); this is the only exemption from
+ * that fallback.
+ */
+export const PUBLIC_OPS_API_PREFIXES = ['/api/ops/auth/'] as const;
+
+export function isPublicOpsApiPath(pathname: string): boolean {
+  return PUBLIC_OPS_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
 
 /**
  * The role(s) allowed to call an /api/ops/* path with the given HTTP

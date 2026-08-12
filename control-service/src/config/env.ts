@@ -46,10 +46,9 @@ const baseEnvSchema = z.object({
   // attempt delivery inline right after their commit) - this sweep only
   // matters after a crash between that commit and the inline attempt, or a
   // delivery that threw. Set shorter than COMMAND_TTL_SWEEP_INTERVAL_MS's
-  // default (30s) and ordered before it in scheduler/jobs.ts, so a command
-  // stuck in `authorized` after a crash gets at least one more delivery
-  // attempt before the TTL sweep would otherwise expire it out from under
-  // the driver.
+  // default (30s) simply so a stuck command gets more retry opportunities
+  // within its TTL window, not because of any ordering between the two
+  // jobs - they never compete for the same row (see scheduler/jobs.ts).
   COMMAND_DELIVERY_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(15_000),
 
   // --- Ingestion / scheduler -------------------------------------------

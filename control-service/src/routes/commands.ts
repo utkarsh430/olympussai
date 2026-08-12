@@ -23,6 +23,7 @@ import {
 } from '../models/schemas.js';
 import {
   createCommand,
+  deliverCommand,
   getCommandById,
   getCommandByDispatcherActionId,
   getActiveDeliveredCommandForVehicle,
@@ -31,8 +32,8 @@ import {
   type CommandRow,
 } from '../db/commands.js';
 import { listCommandAuditLog } from '../db/commandAudit.js';
-import { dispatchWebhook, type DispatchResult } from '../webhooks/dispatch.js';
-import { deliverAndNotify } from '../commands/deliverAndNotify.js';
+import { dispatchWebhook, type DispatchResult, type WebhookEvent } from '../webhooks/dispatch.js';
+import { deliverAndNotify, buildDeliveredWebhookEvent } from '../commands/deliverAndNotify.js';
 import { withSpan, Sentry } from '../telemetry/sentry.js';
 import { logger } from '../lib/logger.js';
 
@@ -73,6 +74,39 @@ async function attemptInlineDelivery(commandId: string): Promise<{ command: Comm
   }
 }
 
+/**
+ * The DB half of "create, then deliver inline" - deliberately just the
+ * transition (deliverCommand), not deliverAndNotify: POST /v1/commands
+ * fires the corresponding webhook itself, without awaiting it (see the
+ * handler below for why). Mirrors attemptInlineDelivery's never-throw
+ * contract: a failure here leaves the command in `authorized`, which
+ * commandDeliverySweep will retry.
+ */
+async function attemptInlineDeliveryCommit(commandId: string): Promise<CommandRow | null> {
+  try {
+    return await deliverCommand(commandId);
+  } catch (err) {
+    logger.error(
+      { err, commandId },
+      'inline delivery immediately after create failed; commandDeliverySweep will retry it',
+    );
+    Sentry.captureException(err);
+    return null;
+  }
+}
+
+/** Fires a webhook without making the caller wait for it - see POST /v1/commands's own comment for why create needs this and supersede/deliver/ack do not (yet). */
+function notifyWithoutWaiting(event: WebhookEvent): void {
+  void dispatchWebhook(event).then((delivery) => {
+    if (!delivery.delivered) {
+      logger.warn(
+        { eventType: event.type, idempotencyKey: delivery.idempotencyKey },
+        'command event webhook did not succeed; web app will need to reconcile',
+      );
+    }
+  });
+}
+
 commandsRouter.post(
   '/v1/commands',
   asyncHandler(async (req, res) => {
@@ -87,43 +121,39 @@ commandsRouter.post(
 
     const result = await withSpan('command.dispatch', 'command.dispatch', async () => {
       const command = await createCommand(parsed.data);
+      // Awaited: this is the actual state a caller must be able to trust in
+      // the response body (`command.status`/`deliveredAt`, `delivered`) -
+      // one indexed UPDATE, not the slow part.
+      const deliveredCommand = await attemptInlineDeliveryCommit(command.id);
 
-      // The delivery transition itself is a single indexed UPDATE - fast.
-      // What's expensive is the two webhook deliveries that follow it
-      // (each up to MAX_ATTEMPTS retries with backoff against an 8s web
-      // client timeout), so those run concurrently via Promise.all rather
-      // than sequentially: dispatchWebhook returns rather than throws on
-      // final failure, so Promise.all here cannot reject, and the web-side
-      // upsertMirror keys off each event's own occurred-at rather than
-      // arrival order, so command.created and command.delivered are safe
-      // to land in either order.
-      const [createdDelivery, deliveryOutcome] = await Promise.all([
-        dispatchWebhook({
-          type: 'command.created',
-          idempotencyKey: command.id,
-          data: { command },
-        }),
-        attemptInlineDelivery(command.id),
-      ]);
-
-      if (!createdDelivery.delivered) {
-        logger.warn(
-          { commandId: command.id, idempotencyKey: createdDelivery.idempotencyKey },
-          'command created but webhook delivery did not succeed; web app will need to reconcile',
-        );
+      // The webhooks are notifications, not part of what this response's
+      // correctness depends on: the command (and its delivery, if it
+      // succeeded above) are already durably committed by this point.
+      // Awaiting dispatchWebhook here used to make this response wait up to
+      // its own worst case (MAX_ATTEMPTS retries x its own request timeout,
+      // plus backoff) for EACH of two webhooks, against the web client's 8s
+      // timeout (src/lib/controlService/client.ts) - proven live to time
+      // out AFTER the command had already committed and delivered, so the
+      // operator was told the approval "was not consumed and can be
+      // re-issued" while the driver already had the instruction on screen.
+      // Fire-and-forget instead: a web app that never receives either event
+      // reconciles the same way it already does for a dropped inline
+      // delivery attempt or a crashed process (commandDeliverySweep, or a
+      // later read of the command's own state).
+      notifyWithoutWaiting({ type: 'command.created', idempotencyKey: command.id, data: { command } });
+      if (deliveredCommand) {
+        notifyWithoutWaiting(buildDeliveredWebhookEvent(deliveredCommand));
       }
 
       return {
-        command: deliveryOutcome?.command ?? command,
-        delivered: deliveryOutcome !== null,
-        webhookDelivered: createdDelivery.delivered,
+        command: deliveredCommand ?? command,
+        delivered: deliveredCommand !== null,
       };
     });
 
     res.status(201).json({
       command: result.command,
       delivered: result.delivered,
-      webhookDelivered: result.webhookDelivered,
     });
   }),
 );

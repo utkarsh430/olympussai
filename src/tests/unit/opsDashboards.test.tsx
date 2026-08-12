@@ -429,6 +429,49 @@ describe('ControlRoomCommandForm action flow', () => {
     expect(sent).not.toHaveProperty('targetId');
   });
 
+  it('promises an automatic retry only when status is "authorized" — the one status commandDeliverySweep actually retries', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        commandId: 'cmd-790',
+        expiresAt: '2026-08-05T00:02:00.000Z',
+        auditEventId: 'audit-457',
+        status: 'authorized',
+        deliveredAt: null,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ControlRoomCommandForm />);
+    fillCommandForm();
+    fireEvent.click(screen.getByRole('button', { name: /issue command/i }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/will retry automatically/i));
+  });
+
+  it('never claims an automatic retry for a reconciled status the sweep does not touch (e.g. already acknowledged)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        commandId: 'cmd-791',
+        expiresAt: '2026-08-05T00:02:00.000Z',
+        auditEventId: 'audit-458',
+        status: 'acknowledged',
+        deliveredAt: '2026-08-05T00:00:30.000Z',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ControlRoomCommandForm />);
+    fillCommandForm();
+    fireEvent.click(screen.getByRole('button', { name: /issue command/i }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/current status: acknowledged/i));
+    expect(screen.getByRole('status')).not.toHaveTextContent(/will retry automatically/i);
+  });
+
   it('never offers "override" as a dispatchable action type', () => {
     // An override is recorded, never dispatched: control-service's
     // commands.action_type CHECK does not include it, and widening that CHECK
@@ -653,6 +696,9 @@ describe('BreakdownReportsPanel', () => {
       expect.objectContaining({ cache: 'no-store' }),
     );
     expect(screen.getByText(/reported by Driver One/)).toBeInTheDocument();
+    // Even when the fleet payload happens to carry reporterEmail (as this
+    // test's own fixture does), the fleet view must never display it.
+    expect(screen.queryByText(/driver1@example\.com/)).not.toBeInTheDocument();
   });
 
   it('scope="mine" loads from GET /api/ops/driver/breakdown-reports and omits the reporter line', async () => {

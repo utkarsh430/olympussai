@@ -635,9 +635,9 @@ export async function sweepExpiredCommands(pool: Pool = getPool()): Promise<Comm
  * and delivery) - this is the backstop that lets those self-heal without
  * waiting for a human to notice. `expires_at > now()` is a plain filter,
  * not `lockAndExpireIfDue`: a row already past its TTL is commandTtlSweep's
- * job, not this one's, and ordering this sweep before that one in
- * scheduler/jobs.ts is what makes "delivered rather than expired" the
- * outcome for a command that both sweeps would otherwise race on.
+ * job, not this one's - the two candidate sets are disjoint by construction
+ * (this one requires `expires_at > now()`, commandTtlSweep's requires the
+ * opposite), so a command is never simultaneously due for both.
  */
 export async function listCommandsAwaitingDelivery(limit: number, pool: Pool = getPool()): Promise<string[]> {
   const { rows } = await pool.query<{ id: string }>(

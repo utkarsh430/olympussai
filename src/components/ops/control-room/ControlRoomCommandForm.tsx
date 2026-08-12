@@ -240,7 +240,14 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
         <p id={successId} role="status" className="text-sm text-[#7fd9a4]">
           {success.status === 'delivered'
             ? 'Command issued and delivered.'
-            : 'Command issued, not yet delivered — will retry automatically.'}{' '}
+            : success.status === 'authorized'
+              ? // The only status commandDeliverySweep's candidate query
+                // (control-service/src/db/commands.ts#listCommandsAwaitingDelivery)
+                // actually retries — every other non-delivered status below
+                // can only come back from reconciling an earlier attempt that
+                // already progressed past delivery, which no sweep touches.
+                'Command issued, not yet delivered — will retry automatically.'
+              : `Command issued — current status: ${success.status}.`}{' '}
           commandId:{' '}
           <code className="rounded bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 font-mono text-[#e6e9ef]">
             {success.commandId}

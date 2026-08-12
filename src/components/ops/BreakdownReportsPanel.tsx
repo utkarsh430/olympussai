@@ -10,7 +10,6 @@ interface BreakdownReport {
   description: string;
   createdAt: string;
   reporterName: string;
-  reporterEmail: string;
 }
 
 type FetchState =
@@ -131,7 +130,7 @@ export function BreakdownReportsPanel({ scope }: { scope: 'fleet' | 'mine' }) {
             <p className="mt-1 text-sm text-[#e6e9ef]">{report.description}</p>
             <p className="mt-1 font-mono text-[11px] text-[#6f7684]">
               vehicle {report.vehicleReg}
-              {scope === 'fleet' ? ` · reported by ${report.reporterName} (${report.reporterEmail})` : ''}
+              {scope === 'fleet' ? ` · reported by ${report.reporterName}` : ''}
             </p>
             <p className="mt-1 font-mono text-[10px] text-[#6f7684]">id: {report.id}</p>
           </li>
