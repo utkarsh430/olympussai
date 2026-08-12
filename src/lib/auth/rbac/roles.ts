@@ -70,3 +70,71 @@ const SEGMENT_TO_ROLE: Record<string, OpsRole> = Object.fromEntries(
 export function roleForSegment(segment: string): OpsRole | null {
   return SEGMENT_TO_ROLE[segment] ?? null;
 }
+
+/**
+ * One API route's role allowlist, wider than (or equal to) the role its URL
+ * segment alone would imply. Matched on the request's exact pathname, never
+ * a prefix — a prefix match would let a `[id]` sub-route silently inherit a
+ * wider allowlist meant only for its parent collection route.
+ */
+export interface OpsApiRoleOverride {
+  readonly path: string;
+  readonly methods: readonly string[];
+  readonly roles: readonly OpsRole[];
+}
+
+/**
+ * Declarative, method-scoped, exact-pathname overrides for /api/ops/* routes
+ * whose real role requirement (`requireOpsRole` in the route handler itself)
+ * is wider than — or, for `fleet`, entirely undeterminable from — the URL's
+ * first path segment. This map is a CEILING on middleware's edge-runtime
+ * check; the route handler's `requireOpsRole` call remains the sole
+ * authoritative, narrow decision (see src/lib/auth/rbac/guard.ts's doc
+ * comment for the other half of this ordering). A path with no matching
+ * override (and no bare segment role) fails closed — that is today's
+ * behaviour for any non-role segment, not a new risk.
+ *
+ * Every entry here must only WIDEN its segment's role, never re-home an
+ * endpoint under an unrelated role (guarded by a test in rbac.test.ts).
+ */
+export const OPS_API_ROLE_OVERRIDES: readonly OpsApiRoleOverride[] = [
+  // GET /api/ops/dispatcher/approvals — mirrors
+  // src/app/api/ops/dispatcher/approvals/route.ts's
+  // requireOpsRole(['dispatcher', 'control_room']). The bare `dispatcher`
+  // segment role alone 403s a control_room session before that broader
+  // guard ever runs.
+  { path: '/api/ops/dispatcher/approvals', methods: ['GET'], roles: ['dispatcher', 'control_room'] },
+  // GET /api/ops/control-room/kill-switches — mirrors
+  // src/app/api/ops/control-room/kill-switches/route.ts's
+  // requireOpsRole(['dispatcher', 'depot', 'control_room']).
+  { path: '/api/ops/control-room/kill-switches', methods: ['GET'], roles: ['dispatcher', 'depot', 'control_room'] },
+  // GET /api/ops/fleet/schedule — mirrors
+  // src/app/api/ops/fleet/schedule/route.ts's requireOpsRole(OPERATIONAL_ROLES).
+  // `fleet` has no OPS_ROLE_SEGMENT entry, so roleForSegment('fleet') is
+  // null and this path previously passed through middleware with no check
+  // at all — not even authentication. This entry closes that fail-open gap.
+  { path: '/api/ops/fleet/schedule', methods: ['GET'], roles: OPERATIONAL_ROLES },
+  // GET /api/ops/fleet/breakdown-reports — mirrors
+  // src/app/api/ops/fleet/breakdown-reports/route.ts's
+  // requireOpsRole(['control_room', 'dispatcher', 'depot']). Same `fleet`
+  // fail-open gap as above; this route ships with real middleware defence
+  // from the start.
+  { path: '/api/ops/fleet/breakdown-reports', methods: ['GET'], roles: ['control_room', 'dispatcher', 'depot'] },
+] as const;
+
+/**
+ * The role(s) allowed to call an /api/ops/* path with the given HTTP
+ * method: the override's roles if one matches exactly (path + method), else
+ * the single role implied by the URL's first segment, else null (not a
+ * role-gated path at all — see roleForSegment).
+ */
+export function rolesForOpsApiPath(pathname: string, method: string): readonly OpsRole[] | null {
+  const override = OPS_API_ROLE_OVERRIDES.find(
+    (entry) => entry.path === pathname && entry.methods.includes(method),
+  );
+  if (override) return override.roles;
+
+  const segment = pathname.startsWith('/api/ops/') ? (pathname.slice('/api/ops/'.length).split('/')[0] ?? '') : '';
+  const segmentRole = roleForSegment(segment);
+  return segmentRole ? [segmentRole] : null;
+}

@@ -8,6 +8,7 @@ import { FleetStatusTable } from '@/components/ops/FleetStatusTable';
 import { RouteOperationsBoard } from '@/components/ops/RouteOperationsBoard';
 import { KillSwitchBanner } from '@/components/ops/KillSwitchBanner';
 import { ApprovalQueuePanel } from '@/components/ops/ApprovalQueuePanel';
+import { BreakdownReportsPanel } from '@/components/ops/BreakdownReportsPanel';
 import { DispatcherActionForm } from './DispatcherActionForm';
 
 const DEFAULT_ROW_LIMIT = 25;
@@ -63,6 +64,13 @@ export function DispatcherDashboard({
           Approval queue
         </h2>
         <ApprovalQueuePanel canDecide={false} />
+      </section>
+
+      <section>
+        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+          Breakdown reports
+        </h2>
+        <BreakdownReportsPanel scope="fleet" />
       </section>
 
       <section>

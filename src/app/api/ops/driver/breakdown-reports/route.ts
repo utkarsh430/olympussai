@@ -18,6 +18,13 @@ const bodySchema = z.object({
   description: z.string().trim().min(1).max(2000),
 });
 
+const listQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  before: z.string().datetime().optional(),
+  category: categorySchema.optional(),
+  vehicleReg: z.string().trim().min(1).max(50).optional(),
+});
+
 function errorResponse(code: string, message: string, status: number) {
   return NextResponse.json(
     { error: { code, message } },
@@ -92,6 +99,56 @@ export async function POST(request: NextRequest): Promise<Response> {
     return NextResponse.json(
       { ok: true, breakdownReportId: report.id, createdAt: report.createdAt },
       { status: 201, headers: { 'Cache-Control': 'no-store' } },
+    );
+  } catch (error) {
+    if (error instanceof OpsDbConfigError) {
+      return errorResponse('NOT_CONFIGURED', 'Ops authentication is not configured.', 503);
+    }
+    throw error;
+  }
+}
+
+/**
+ * A driver's own breakdown-report history. Always scoped server-side to
+ * `guard.claims.sub` — same posture as GET /api/ops/pilot-driver/commands,
+ * which derives the vehicle to poll from the caller's own ops_users row
+ * rather than any client-supplied id. There is no `driverUserId` (or
+ * equivalent) query param at all here, so there is nothing for a caller to
+ * override even if they tried.
+ */
+export async function GET(request: NextRequest): Promise<Response> {
+  const guard = await requireOpsRole(['driver']);
+  if (!guard.ok) return guard.response;
+
+  const { searchParams } = new URL(request.url);
+  const parsed = listQuerySchema.safeParse({
+    limit: searchParams.get('limit') ?? undefined,
+    before: searchParams.get('before') ?? undefined,
+    category: searchParams.get('category') ?? undefined,
+    vehicleReg: searchParams.get('vehicleReg') ?? undefined,
+  });
+
+  if (!parsed.success) {
+    return errorResponse(
+      'INVALID_QUERY',
+      parsed.error.issues[0]?.message ?? 'Invalid query parameters.',
+      400,
+    );
+  }
+
+  try {
+    const repo = getOpsRepo();
+    const { items, nextCursor } = await repo.listBreakdownReports({
+      driverUserId: guard.claims.sub,
+      limit: parsed.data.limit,
+      before: parsed.data.before,
+      category: parsed.data.category,
+      vehicleReg: parsed.data.vehicleReg,
+    });
+
+    return NextResponse.json(
+      { reports: items, nextCursor },
+      { status: 200, headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (error) {
     if (error instanceof OpsDbConfigError) {

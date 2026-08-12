@@ -17,6 +17,7 @@ import { DriverDashboard } from '@/components/ops/driver/DriverDashboard';
 import { ScheduleLookupForm } from '@/components/ops/ScheduleLookupForm';
 import { DataSourceNotice } from '@/components/ops/DataSourceNotice';
 import { BreakdownReportPanel } from '@/components/ops/driver/BreakdownReportPanel';
+import { BreakdownReportsPanel } from '@/components/ops/BreakdownReportsPanel';
 import { OpsAdminInvitesPanel } from '@/components/ops/OpsAdminInvitesPanel';
 
 function bus(overrides: Partial<CanonicalLiveBus> = {}): CanonicalLiveBus {
@@ -619,6 +620,137 @@ describe('BreakdownReportPanel action flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /submit report/i }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/vehicleReg, category and description/i));
+  });
+});
+
+function breakdownReport(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'br-1',
+    driverUserId: 'driver-1',
+    vehicleReg: 'UP25FT4823',
+    category: 'Mechanical',
+    description: 'Engine overheating near KM 12',
+    createdAt: '2026-08-06T00:00:00.000Z',
+    reporterName: 'Driver One',
+    reporterEmail: 'driver1@example.com',
+    ...overrides,
+  };
+}
+
+describe('BreakdownReportsPanel', () => {
+  it('scope="fleet" loads from GET /api/ops/fleet/breakdown-reports and shows the reporter', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ reports: [breakdownReport()], nextCursor: null }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<BreakdownReportsPanel scope="fleet" />);
+
+    await waitFor(() => expect(screen.getByText('Engine overheating near KM 12')).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/ops/fleet/breakdown-reports',
+      expect.objectContaining({ cache: 'no-store' }),
+    );
+    expect(screen.getByText(/reported by Driver One/)).toBeInTheDocument();
+  });
+
+  it('scope="mine" loads from GET /api/ops/driver/breakdown-reports and omits the reporter line', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ reports: [breakdownReport()], nextCursor: null }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<BreakdownReportsPanel scope="mine" />);
+
+    await waitFor(() => expect(screen.getByText('Engine overheating near KM 12')).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/ops/driver/breakdown-reports',
+      expect.objectContaining({ cache: 'no-store' }),
+    );
+    expect(screen.queryByText(/reported by/)).not.toBeInTheDocument();
+  });
+
+  it('shows a scope-appropriate empty state', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ reports: [], nextCursor: null }) }));
+    render(<BreakdownReportsPanel scope="mine" />);
+    await waitFor(() => expect(screen.getByText(/you have not filed any breakdown reports/i)).toBeInTheDocument());
+  });
+
+  it('shows a visible error when the endpoint rejects the request', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: { message: 'Your role does not permit this action.' } }),
+      }),
+    );
+    render(<BreakdownReportsPanel scope="fleet" />);
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/does not permit/i));
+  });
+
+  it('fetches the next page with the cursor when "Load more" is clicked', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/ops/fleet/breakdown-reports') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ reports: [breakdownReport()], nextCursor: '2026-08-05T00:00:00.000Z' }),
+        });
+      }
+      if (url === `/api/ops/fleet/breakdown-reports?before=${encodeURIComponent('2026-08-05T00:00:00.000Z')}`) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ reports: [breakdownReport({ id: 'br-2', description: 'Flat tyre' })], nextCursor: null }),
+        });
+      }
+      throw new Error(`unexpected fetch to ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<BreakdownReportsPanel scope="fleet" />);
+    await waitFor(() => expect(screen.getByText('Engine overheating near KM 12')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /load more/i }));
+
+    await waitFor(() => expect(screen.getByText('Flat tyre')).toBeInTheDocument());
+    expect(screen.getByText('Engine overheating near KM 12')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /load more/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('DriverDashboard breakdown-reports refresh-after-submit', () => {
+  it('refetches the "mine" breakdown-reports list after a successful submit, so a filed report is not left showing stale data', async () => {
+    let getCalls = 0;
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url === '/api/ops/driver/breakdown-reports' && init?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ ok: true, breakdownReportId: 'report-789', createdAt: '2026-08-06T00:00:00.000Z' }),
+        });
+      }
+      if (url === '/api/ops/driver/breakdown-reports') {
+        getCalls += 1;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ reports: getCalls > 1 ? [breakdownReport()] : [], nextCursor: null }),
+        });
+      }
+      throw new Error(`unexpected fetch to ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<DriverDashboard assignedVehicleId="UP25FT4823" />);
+
+    await waitFor(() => expect(screen.getByText(/you have not filed any breakdown reports/i)).toBeInTheDocument());
+    expect(getCalls).toBe(1);
+
+    fireEvent.change(screen.getByLabelText(/details/i), { target: { value: 'Engine overheating near KM 12' } });
+    fireEvent.click(screen.getByRole('button', { name: /submit report/i }));
+
+    await screen.findByRole('status');
+    await waitFor(() => expect(getCalls).toBe(2));
+    await waitFor(() => expect(screen.getByText('Engine overheating near KM 12')).toBeInTheDocument());
   });
 });
 

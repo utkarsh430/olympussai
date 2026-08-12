@@ -5,6 +5,7 @@ import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
 import { DataSourceNotice, emptyFleetLabel } from '@/components/ops/DataSourceNotice';
 import { FleetSearchForm } from '@/components/ops/FleetSearchForm';
 import { FleetStatusTable } from '@/components/ops/FleetStatusTable';
+import { BreakdownReportsPanel } from '@/components/ops/BreakdownReportsPanel';
 import { KillSwitchPanel } from './KillSwitchPanel';
 import { ApprovalAndCommandPanel } from './ApprovalAndCommandPanel';
 
@@ -78,6 +79,13 @@ export function ControlRoomDashboard({
           Approval queue
         </h2>
         <ApprovalAndCommandPanel />
+      </section>
+
+      <section>
+        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+          Breakdown reports
+        </h2>
+        <BreakdownReportsPanel scope="fleet" />
       </section>
     </div>
   );

@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { createMiddlewareSupabaseClient, getMiddlewareUser } from '@/lib/supabase/middleware';
 import { OPS_SESSION_COOKIE } from '@/lib/auth/rbac/config';
 import { verifyOpsSessionToken } from '@/lib/auth/rbac/session';
-import { roleForSegment } from '@/lib/auth/rbac/roles';
+import { roleForSegment, rolesForOpsApiPath } from '@/lib/auth/rbac/roles';
 
 /**
  * Edge middleware — the first line of defence for protected surfaces.
@@ -61,11 +61,27 @@ function isPublicMachineApi(pathname: string): boolean {
 }
 
 /**
- * Role gate for the ops RBAC surface. A path's required role is derived from
- * its first segment under /ops/ or /api/ops/ (e.g. /ops/control-room/... →
- * `control_room`). Paths whose segment is not a role surface at all (auth,
- * login, forbidden) are intentionally left unchecked here — each such route
- * enforces whatever it individually needs (see src/lib/auth/rbac/guard.ts).
+ * Role gate for the ops RBAC surface.
+ *
+ * Pages (/ops/<segment>/...) are checked by their first URL segment alone,
+ * with strict equality against the caller's role — a page is one role's
+ * screen, and nothing should widen it (roleForSegment gives exactly one
+ * role, so `allowedRoles.includes(claims.role)` below behaves as strict
+ * equality here).
+ *
+ * API routes (/api/ops/<segment>/...) are checked via
+ * rolesForOpsApiPath(pathname, method) instead, which returns a segment's
+ * bare role UNLESS a more specific, method-scoped override applies
+ * (OPS_API_ROLE_OVERRIDES in src/lib/auth/rbac/roles.ts — see that file for
+ * why some API routes need a wider or otherwise-undeterminable-from-the-URL
+ * allowlist). Middleware's check is a CEILING, not the decision: every ops
+ * route handler calls requireOpsRole itself with its own, authoritative,
+ * narrow allowlist (src/lib/auth/rbac/guard.ts) and never trusts middleware
+ * alone.
+ *
+ * Paths whose segment is not a role surface at all (auth, login, forbidden)
+ * are intentionally left unchecked here — each such route enforces whatever
+ * it individually needs.
  *
  * Authenticated-but-wrong-role never bounces to /ops/login (that would imply
  * "you are not signed in", which is false and would invite retrying with a
@@ -76,9 +92,15 @@ async function handleOpsRequest(request: NextRequest): Promise<NextResponse> {
   const isApi = pathname.startsWith('/api/ops/');
   const root = isApi ? '/api/ops/' : '/ops/';
   const segment = pathname.slice(root.length).split('/')[0] ?? '';
-  const requiredRole = roleForSegment(segment);
 
-  if (!requiredRole) {
+  const allowedRoles = isApi
+    ? rolesForOpsApiPath(pathname, request.method)
+    : (() => {
+        const role = roleForSegment(segment);
+        return role ? [role] : null;
+      })();
+
+  if (!allowedRoles) {
     // Not a role-gated segment (auth/login/forbidden/etc.) — let it through;
     // the route handler or layout enforces its own requirement.
     return NextResponse.next();
@@ -87,7 +109,7 @@ async function handleOpsRequest(request: NextRequest): Promise<NextResponse> {
   const token = request.cookies.get(OPS_SESSION_COOKIE)?.value;
   const claims = await verifyOpsSessionToken(token);
 
-  if (claims && claims.role === requiredRole) {
+  if (claims && allowedRoles.includes(claims.role)) {
     return NextResponse.next();
   }
 

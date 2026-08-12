@@ -148,6 +148,35 @@ export interface BreakdownReportRecord {
   createdAt: string;
 }
 
+/**
+ * A breakdown report as read back for the fleet/driver GET surfaces —
+ * BreakdownReportRecord plus the reporting driver's name/email (joined from
+ * ops_users), which the POST path's caller never needs. Kept as its own
+ * type rather than widening BreakdownReportRecord, so createBreakdownReport
+ * stays a plain single-table insert with no join.
+ */
+export interface BreakdownReportListItem extends BreakdownReportRecord {
+  reporterName: string;
+  reporterEmail: string;
+}
+
+export interface BreakdownReportListFilter {
+  /** Clamped to 1-200, same idiom as listDispatcherActions's limit. Defaults to 50. */
+  limit?: number;
+  /** ISO-8601 cursor: only reports created strictly before this instant. */
+  before?: string;
+  category?: string;
+  vehicleReg?: string;
+  /** Scopes to one driver's own reports (the "mine" GET surface). Omit for the fleet-wide view. */
+  driverUserId?: string;
+}
+
+export interface BreakdownReportListPage {
+  items: BreakdownReportListItem[];
+  /** ISO-8601 createdAt of the last item, to pass back as `before` for the next page. Null when there is no next page. */
+  nextCursor: string | null;
+}
+
 export interface OpsRepo {
   findUserByEmail(email: string): Promise<OpsUserRecord | null>;
   findUserById(id: string): Promise<OpsUserRecord | null>;
@@ -253,6 +282,17 @@ export interface OpsRepo {
   listDispatcherActions(filter?: { status?: DispatcherActionDecisionState; incidentId?: string; limit?: number }): Promise<DispatcherActionRecord[]>;
 
   createBreakdownReport(input: BreakdownReportInput): Promise<BreakdownReportRecord>;
+  /**
+   * The fleet-wide and driver-own-history read surfaces backing GET
+   * /api/ops/fleet/breakdown-reports and GET
+   * /api/ops/driver/breakdown-reports. Keyset-paginated (`order by
+   * created_at desc, id desc`, fetches `limit + 1` rows to determine
+   * whether there is a next page) rather than offset-paginated, so pages
+   * stay stable while new reports are filed concurrently. Pass
+   * `driverUserId` to scope to one driver's own reports; omit it for the
+   * fleet-wide view.
+   */
+  listBreakdownReports(filter?: BreakdownReportListFilter): Promise<BreakdownReportListPage>;
 
   /** Currently-active (not yet disengaged) kill switches, or every switch (including history) when `activeOnly` is false. */
   listKillSwitches(activeOnly?: boolean): Promise<KillSwitchRecord[]>;
@@ -349,6 +389,14 @@ function mapBreakdownReportRow(row: Record<string, unknown>): BreakdownReportRec
     category: String(row.category),
     description: String(row.description),
     createdAt: new Date(row.created_at as string).toISOString(),
+  };
+}
+
+function mapBreakdownReportListItemRow(row: Record<string, unknown>): BreakdownReportListItem {
+  return {
+    ...mapBreakdownReportRow(row),
+    reporterName: String(row.reporter_name),
+    reporterEmail: String(row.reporter_email),
   };
 }
 
@@ -703,6 +751,54 @@ class PgOpsRepo implements OpsRepo {
       [input.driverUserId, input.vehicleReg, input.category, input.description],
     );
     return mapBreakdownReportRow(rows[0]);
+  }
+
+  async listBreakdownReports(filter: BreakdownReportListFilter = {}): Promise<BreakdownReportListPage> {
+    const pool = getOpsPool();
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filter.driverUserId) {
+      params.push(filter.driverUserId);
+      conditions.push(`r.driver_user_id = $${params.length}`);
+    }
+    if (filter.category) {
+      params.push(filter.category);
+      conditions.push(`r.category = $${params.length}`);
+    }
+    if (filter.vehicleReg) {
+      params.push(filter.vehicleReg);
+      conditions.push(`r.vehicle_reg = $${params.length}`);
+    }
+    if (filter.before) {
+      params.push(filter.before);
+      conditions.push(`r.created_at < $${params.length}`);
+    }
+
+    const rawLimit = filter.limit ?? 50;
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 200) : 50;
+    // Fetch one extra row to determine whether there is a next page without a separate count query.
+    params.push(limit + 1);
+
+    const where = conditions.length > 0 ? `where ${conditions.join(' and ')}` : '';
+    const { rows } = await pool.query(
+      `select r.*, u.name as reporter_name, u.email as reporter_email
+         from ops_breakdown_reports r
+         join ops_users u on u.id = r.driver_user_id
+         ${where}
+        order by r.created_at desc, r.id desc
+        limit $${params.length}`,
+      params,
+    );
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const items = page.map(mapBreakdownReportListItemRow);
+
+    return {
+      items,
+      nextCursor: hasMore ? (items[items.length - 1]?.createdAt ?? null) : null,
+    };
   }
 
   async listKillSwitches(activeOnly = true): Promise<KillSwitchRecord[]> {

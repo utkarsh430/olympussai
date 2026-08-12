@@ -11,7 +11,14 @@
 // browser). Per-file `node` environment sidesteps the jsdom-only artifact
 // without touching that shared, already-shipped pattern.
 import { describe, it, expect, beforeAll } from 'vitest';
-import { OPS_ROLES, isOpsRole, roleForSegment, OPS_ROLE_SEGMENT } from '@/lib/auth/rbac/roles';
+import {
+  OPS_ROLES,
+  isOpsRole,
+  roleForSegment,
+  OPS_ROLE_SEGMENT,
+  OPS_API_ROLE_OVERRIDES,
+  rolesForOpsApiPath,
+} from '@/lib/auth/rbac/roles';
 import { sanitizeOpsNext } from '@/lib/auth/rbac/redirect';
 import { hashInviteToken, generateInviteToken, hashesEqual } from '@/lib/auth/rbac/tokens';
 import { createOpsSessionToken, verifyOpsSessionToken } from '@/lib/auth/rbac/session';
@@ -64,6 +71,78 @@ describe('ops RBAC roles', () => {
     expect(roleForSegment('forbidden')).toBeNull();
     expect(roleForSegment('auth')).toBeNull();
     expect(roleForSegment('')).toBeNull();
+  });
+});
+
+describe('rolesForOpsApiPath', () => {
+  it('returns the override roles on an exact path + method match (too-strict Part 1 bug: dispatcher approvals)', () => {
+    expect(rolesForOpsApiPath('/api/ops/dispatcher/approvals', 'GET')).toEqual(['dispatcher', 'control_room']);
+  });
+
+  it('returns the override roles for control-room kill-switches GET', () => {
+    expect(rolesForOpsApiPath('/api/ops/control-room/kill-switches', 'GET')).toEqual([
+      'dispatcher',
+      'depot',
+      'control_room',
+    ]);
+  });
+
+  it('closes the fail-open gap: fleet/schedule GET has no bare segment role but gets an explicit override', () => {
+    expect(roleForSegment('fleet')).toBeNull();
+    const roles = rolesForOpsApiPath('/api/ops/fleet/schedule', 'GET');
+    expect(roles).not.toBeNull();
+    expect(roles).toContain('driver');
+    expect(roles).toContain('planner');
+    expect(roles).not.toContain('admin');
+  });
+
+  it('gives the new fleet/breakdown-reports GET real middleware defence via the same fleet-segment override mechanism', () => {
+    expect(rolesForOpsApiPath('/api/ops/fleet/breakdown-reports', 'GET')).toEqual([
+      'control_room',
+      'dispatcher',
+      'depot',
+    ]);
+  });
+
+  it('a method miss on an overridden path falls back to the bare segment role, not to null', () => {
+    // No POST override is declared for dispatcher/approvals — POST there is
+    // still segment-gated to `dispatcher` alone at the middleware layer
+    // (the route handler's requireOpsRole(['dispatcher']) is the real
+    // decision either way).
+    expect(rolesForOpsApiPath('/api/ops/dispatcher/approvals', 'POST')).toEqual(['dispatcher']);
+  });
+
+  it('matches the exact pathname only, never a prefix — a sub-route does not silently inherit a wider allowlist', () => {
+    expect(rolesForOpsApiPath('/api/ops/dispatcher/approvals/extra', 'GET')).toEqual(['dispatcher']);
+    expect(rolesForOpsApiPath('/api/ops/dispatcher/approvals/123/reject', 'GET')).toEqual(['dispatcher']);
+  });
+
+  it('returns null for a non-role segment (auth/login/forbidden) regardless of method', () => {
+    expect(rolesForOpsApiPath('/api/ops/auth/login', 'POST')).toBeNull();
+    expect(rolesForOpsApiPath('/api/ops/auth/session', 'GET')).toBeNull();
+  });
+});
+
+describe('OPS_API_ROLE_OVERRIDES only widens, never re-homes an endpoint', () => {
+  it('every override whose URL segment maps to a bare role includes that role in its allowlist', () => {
+    for (const entry of OPS_API_ROLE_OVERRIDES) {
+      const segment = entry.path.startsWith('/api/ops/') ? (entry.path.slice('/api/ops/'.length).split('/')[0] ?? '') : '';
+      const segmentRole = roleForSegment(segment);
+      if (segmentRole) {
+        expect(entry.roles, `override for ${entry.path} must include its own segment role '${segmentRole}'`).toContain(
+          segmentRole,
+        );
+      }
+    }
+  });
+
+  it('every override matches an exact pathname (no trailing slash, no wildcard)', () => {
+    for (const entry of OPS_API_ROLE_OVERRIDES) {
+      expect(entry.path.startsWith('/api/ops/')).toBe(true);
+      expect(entry.path.endsWith('/')).toBe(false);
+      expect(entry.path).not.toContain('*');
+      expect(entry.path).not.toContain('[');
+    }
   });
 });
 

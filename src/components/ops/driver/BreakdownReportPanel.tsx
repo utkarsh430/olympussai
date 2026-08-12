@@ -25,8 +25,18 @@ interface SuccessState {
  * report a driver chooses to file only affects their own submission, unlike
  * the pilot-driver command-ack path, where a wrong vehicle can expose
  * another vehicle's commands.
+ *
+ * `onSubmitted` fires after a successful submit so a sibling
+ * BreakdownReportsPanel (scope="mine") can refresh — otherwise a driver
+ * files a report and their own history still shows stale data.
  */
-export function BreakdownReportPanel({ defaultVehicleReg = '' }: { defaultVehicleReg?: string }) {
+export function BreakdownReportPanel({
+  defaultVehicleReg = '',
+  onSubmitted,
+}: {
+  defaultVehicleReg?: string;
+  onSubmitted?: () => void;
+}) {
   const [vehicleReg, setVehicleReg] = useState(defaultVehicleReg);
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]>('Mechanical');
   const [description, setDescription] = useState('');
@@ -79,6 +89,7 @@ export function BreakdownReportPanel({ defaultVehicleReg = '' }: { defaultVehicl
       });
       setStatus('success');
       setDescription('');
+      onSubmitted?.();
     } catch {
       setError('Something went wrong. Please try again.');
       setStatus('error');

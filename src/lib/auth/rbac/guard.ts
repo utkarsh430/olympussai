@@ -7,6 +7,13 @@
  * route handler calls one of these itself and never trusts middleware alone,
  * so a middleware matcher mistake can never be the only thing standing
  * between a request and another role's endpoint.
+ *
+ * Ordering with middleware's OPS_API_ROLE_OVERRIDES map
+ * (src/lib/auth/rbac/roles.ts): that map is a CEILING — an edge-safe
+ * approximation of who may reach a route at all — while the `allowed` list
+ * passed to requireOpsRole here is the DECISION. A route's real allowlist
+ * always lives here; the map exists only so middleware doesn't 403 a
+ * request the route handler would have accepted.
  */
 import 'server-only';
 import { NextResponse } from 'next/server';
