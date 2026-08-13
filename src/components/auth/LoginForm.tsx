@@ -3,6 +3,7 @@
 import { useId, useState } from 'react';
 import Link from 'next/link';
 import { OPS_LEGACY_LOGIN_PATH } from '@/lib/auth/landing';
+import { DEFAULT_NEXT } from '@/lib/auth/redirect';
 
 /**
  * Enterprise authentication form, backed by Supabase Auth (Section 15).
@@ -16,7 +17,14 @@ import { OPS_LEGACY_LOGIN_PATH } from '@/lib/auth/landing';
  * - Status announced via aria-live; error linked with aria-describedby.
  * - No credential hints, no prefilled values, generic error only.
  */
-export function LoginForm({ next }: { next: string }) {
+/**
+ * `next` is a sanitized deep-link target, or null when the visitor asked for
+ * nowhere in particular. NULL IS NOT THE SAME AS THE DEFAULT PATH and must not
+ * be collapsed into one: the server routes "asked for nothing" to the signed-in
+ * role's own dashboard, and can only do that if this form omits the field
+ * rather than filling it in with a guess.
+ */
+export function LoginForm({ next }: { next: string | null }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'submitting' | 'error'>('idle');
@@ -47,7 +55,9 @@ export function LoginForm({ next }: { next: string }) {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, next }),
+        // Omitted entirely when there is no request to make, so the server
+        // sees "no destination asked for" and picks the role's own dashboard.
+        body: JSON.stringify({ email, password, ...(next === null ? {} : { next }) }),
       });
 
       const data = (await response.json().catch(() => null)) as
@@ -63,7 +73,7 @@ export function LoginForm({ next }: { next: string }) {
         // Falling back to `next` if the field is missing keeps an older cached
         // bundle working against a newer server, and vice versa.
         // Full navigation so the server re-renders the now-authorized route.
-        window.location.assign(data?.redirectTo ?? next);
+        window.location.assign(data?.redirectTo ?? next ?? DEFAULT_NEXT);
         return;
       }
 

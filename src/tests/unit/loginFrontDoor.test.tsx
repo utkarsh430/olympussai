@@ -472,6 +472,30 @@ describe('role-correct landing', () => {
     }
   });
 
+  it('hands the form a null next when the URL carries none', async () => {
+    // Pins the page half of the fix at its source. `sanitizeNext` would
+    // substitute '/project/upsrtc' here, and the form would then send it as a
+    // real request - which is exactly how role-correct landing was being
+    // defeated before any of the sign-in code ran.
+    function findLoginForm(node: unknown): { next: string | null } | null {
+      if (!node || typeof node !== 'object') return null;
+      const element = node as { type?: unknown; props?: Record<string, unknown> };
+      if (element.type === LoginForm) return element.props as { next: string | null };
+      const children = element.props?.children;
+      for (const child of Array.isArray(children) ? children : [children]) {
+        const found = findLoginForm(child);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    const { element } = await visit(LoginPage, {});
+    expect(findLoginForm(element)?.next).toBeNull();
+
+    const deepLink = await visit(LoginPage, { next: '/ops/depot' });
+    expect(findLoginForm(deepLink.element)?.next).toBe('/ops/depot');
+  });
+
   it('routes a no-ops-access decision back to /login, not into ops', () => {
     const decision = resolveLanding({ requestedNext: '/ops/depot', opsRole: null });
     expect(landingUrl(decision)).toBe(`/login?notice=${NO_OPS_ACCESS_NOTICE}`);
@@ -808,6 +832,35 @@ describe('sign-in form navigation', () => {
     render(<LoginForm next="/project/upsrtc" />);
     await submit();
     await waitFor(() => expect(assign).toHaveBeenCalledWith('/ops/control-room'));
+  });
+
+  it('omits next entirely when the visitor asked for nowhere in particular', async () => {
+    // THE SECOND HALF OF ROLE-CORRECT LANDING, and without it the first half
+    // never runs. /login used to compute its form's `next` with
+    // `sanitizeNext`, which turns "no ?next at all" into '/project/upsrtc'.
+    // That default then arrived at the server as an EXPLICIT request, and an
+    // explicit request is honoured - so every one of the seven ops roles was
+    // routed to the project surface on an ordinary sign-in and none of them
+    // ever saw their own dashboard. Caught in a real browser: control_room
+    // signed in and landed on /project/upsrtc.
+    //
+    // The field has to be absent, not empty and not defaulted, because
+    // "asked for nothing" is the only input that reaches the role-correct
+    // branch of resolveLanding.
+    const fetchMock = mockLogin(200, { ok: true, redirectTo: '/ops/control-room' });
+    render(<LoginForm next={null} />);
+    await submit();
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/ops/control-room'));
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(body).not.toHaveProperty('next');
+  });
+
+  it('still has somewhere to go if the server names no destination and next is null', async () => {
+    // The rolling-deploy fallback below, in the new null case.
+    mockLogin(200, { ok: true });
+    render(<LoginForm next={null} />);
+    await submit();
+    await waitFor(() => expect(assign).toHaveBeenCalledWith(DEFAULT_NEXT));
   });
 
   it('sends the requested next up for the server to sanitize', async () => {

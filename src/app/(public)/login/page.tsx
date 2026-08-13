@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { getSupabaseUser } from '@/lib/supabase/server';
-import { sanitizeNext } from '@/lib/auth/redirect';
+import { sanitizeNextOrNull } from '@/lib/auth/redirect';
 import {
   NO_OPS_ACCESS_NOTICE,
   OPS_ACCESS_PENDING_NOTICE,
@@ -36,7 +36,16 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string; notice?: string }>;
 }) {
   const params = await searchParams;
-  const next = sanitizeNext(params.next);
+  // `sanitizeNextOrNull`, NOT `sanitizeNext`, and the difference is the whole
+  // of role-correct landing.
+  //
+  // `sanitizeNext` collapses "asked for nothing" into `/project/upsrtc`. Handed
+  // to the form, that default became an explicit request on every ordinary
+  // sign-in, and `resolveLanding` honours an explicit request - so all seven
+  // ops roles were routed to the project surface and none of them ever reached
+  // their own dashboard. The role-correct branch only runs when nothing was
+  // asked for, so "nothing" has to survive the trip to the server as null.
+  const next = sanitizeNextOrNull(params.next);
   const user = await getSupabaseUser();
   const authenticated = Boolean(user);
 
