@@ -12,6 +12,7 @@ import {
 import { isSameOrigin } from '@/lib/auth/origin';
 import { landingUrl, resolveLanding } from '@/lib/auth/landing';
 import { opsRoleForSupabaseUser } from '@/lib/auth/opsAccess';
+import { opsRoleClaimOf, syncOpsRoleClaimForSignIn } from '@/lib/auth/opsClaimSync';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -133,7 +134,29 @@ export async function POST(request: NextRequest): Promise<Response> {
   // response and are not readable back via `cookies()` in this same request.
   // Never fatal — see src/lib/auth/opsAccess.ts.
   const opsRole = await opsRoleForSupabaseUser(data.user.id);
-  const decision = resolveLanding({ requestedNext: parsed.data.next, opsRole });
+
+  // THE CUTOVER TRAP, CLOSED HERE. `resolveLanding` below answers from the
+  // database, but Edge middleware gates /ops/* on the token's
+  // `app_metadata.ops_role` claim. A linked operator whose claim has not been
+  // pushed yet — the state every account passes through between the backfill
+  // and the claim push — was therefore told to go to a dashboard that
+  // immediately bounced them, into a loop with no explanation.
+  //
+  // So the two stores are reconciled at the one moment this route is holding
+  // both: the database's answer, and a session it can still refresh. The push
+  // is strictly database -> token and can never widen what the database says;
+  // see src/lib/auth/opsClaimSync.ts for why that direction is the whole
+  // safety argument. If it cannot be done, `opsClaimReady: false` makes the
+  // landing decision refuse to nominate an ops path at all, and the user gets
+  // an explanation instead of a bounce.
+  let opsClaimReady = true;
+  if (opsRole) {
+    opsClaimReady =
+      opsRoleClaimOf(data.user) === opsRole ||
+      (await syncOpsRoleClaimForSignIn(supabase, data.user.id, opsRole));
+  }
+
+  const decision = resolveLanding({ requestedNext: parsed.data.next, opsRole, opsClaimReady });
 
   // Only safe success information — never the token or any credential. The
   // role itself is deliberately NOT returned: the client has no use for it,

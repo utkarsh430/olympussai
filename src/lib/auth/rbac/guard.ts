@@ -48,21 +48,38 @@ function structuredError(code: string, message: string, status: number): NextRes
 }
 
 /**
- * How each refusal reaches the client. All are 401 rather than 403: none of
- * them mean "your role is too narrow for this endpoint" (that is FORBIDDEN,
- * below) — they mean this session cannot be used at all and the caller must
- * authenticate again. A distinct code per reason so a client can tell a
- * plain sign-in prompt from a stale session that a re-login repairs, without
- * this guard ever explaining WHY an account was refused to the account
- * itself.
+ * How each refusal reaches the client. The four caller-side reasons are 401
+ * rather than 403: none of them mean "your role is too narrow for this
+ * endpoint" (that is FORBIDDEN, below) — they mean this session cannot be
+ * used at all and the caller must authenticate again. A distinct code per
+ * reason so a client can tell a plain sign-in prompt from a stale session
+ * that a re-login repairs, without this guard ever explaining WHY an account
+ * was refused to the account itself.
+ *
+ * `unavailable` is the one that is not about the caller at all, and it is a
+ * 503: the ops database could not be read, so this service has no answer
+ * rather than a negative one. Telling a client "authentication required" for
+ * an outage would have every operator's console invite them to re-enter
+ * credentials that cannot help, and would make an outage indistinguishable
+ * from a mass sign-out in the logs. It stays a refusal — never an access
+ * result, and never satisfied from the token's own role claim.
  */
-const DENIAL_RESPONSES: Record<OpsSessionDenial, { code: string; message: string }> = {
-  no_session: { code: 'UNAUTHORIZED', message: 'Authentication required.' },
-  no_profile: { code: 'UNAUTHORIZED', message: 'Authentication required.' },
-  profile_disabled: { code: 'UNAUTHORIZED', message: 'Authentication required.' },
+const DENIAL_RESPONSES: Record<
+  OpsSessionDenial,
+  { code: string; message: string; status: number }
+> = {
+  no_session: { code: 'UNAUTHORIZED', message: 'Authentication required.', status: 401 },
+  no_profile: { code: 'UNAUTHORIZED', message: 'Authentication required.', status: 401 },
+  profile_disabled: { code: 'UNAUTHORIZED', message: 'Authentication required.', status: 401 },
   role_claim_mismatch: {
     code: 'SESSION_STALE',
     message: 'Your session is out of date. Please sign in again.',
+    status: 401,
+  },
+  unavailable: {
+    code: 'SERVICE_UNAVAILABLE',
+    message: 'Operations sign-in is temporarily unavailable. Try again shortly.',
+    status: 503,
   },
 };
 
@@ -70,8 +87,8 @@ const DENIAL_RESPONSES: Record<OpsSessionDenial, { code: string; message: string
 export async function requireOpsSession(): Promise<OpsGuardResult> {
   const resolution = await resolveOpsSession();
   if (!resolution.ok) {
-    const { code, message } = DENIAL_RESPONSES[resolution.reason];
-    return { ok: false, response: structuredError(code, message, 401) };
+    const { code, message, status } = DENIAL_RESPONSES[resolution.reason];
+    return { ok: false, response: structuredError(code, message, status) };
   }
   return { ok: true, claims: resolution.claims };
 }

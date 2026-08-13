@@ -188,6 +188,18 @@ jobs:
       DISPATCHER_PASSWORD: ci-e2e-dispatcher-password
       CONTROL_ROOM_EMAIL: control-room.qa@example.test
       CONTROL_ROOM_PASSWORD: ci-e2e-control-room-password
+      # tests/e2e/ops-dashboard-pages.spec.ts covers all twelve ops
+      # dashboards, so it needs the remaining four roles too. Before it, only
+      # /ops/pilot-driver had any end-to-end coverage at all, which is how a
+      # defect living in the shape shared by all twelve pages shipped green.
+      ADMIN_EMAIL: admin.qa@example.test
+      ADMIN_PASSWORD: ci-e2e-admin-password
+      DRIVER_EMAIL: driver.qa@example.test
+      DRIVER_PASSWORD: ci-e2e-driver-password
+      DEPOT_EMAIL: depot.qa@example.test
+      DEPOT_PASSWORD: ci-e2e-depot-password
+      PLANNER_EMAIL: planner.qa@example.test
+      PLANNER_PASSWORD: ci-e2e-planner-password
 
     steps:
       - uses: actions/checkout@v4
@@ -258,6 +270,47 @@ jobs:
         env:
           OPS_SEED_PASSWORD: ${{ env.CONTROL_ROOM_PASSWORD }}
 
+      # The remaining three non-admin roles, for ops-dashboard-pages.spec.ts.
+      - name: Seed the driver account
+        run: >-
+          node scripts/seed-ops-user.mjs
+          --email "$DRIVER_EMAIL"
+          --name "CI Driver"
+          --role driver
+        env:
+          OPS_SEED_PASSWORD: ${{ env.DRIVER_PASSWORD }}
+
+      - name: Seed the depot account
+        run: >-
+          node scripts/seed-ops-user.mjs
+          --email "$DEPOT_EMAIL"
+          --name "CI Depot"
+          --role depot
+        env:
+          OPS_SEED_PASSWORD: ${{ env.DEPOT_PASSWORD }}
+
+      - name: Seed the planner account
+        run: >-
+          node scripts/seed-ops-user.mjs
+          --email "$PLANNER_EMAIL"
+          --name "CI Planner"
+          --role planner
+        env:
+          OPS_SEED_PASSWORD: ${{ env.PLANNER_PASSWORD }}
+
+      # The admin, which seed-ops-user.mjs deliberately refuses to create (it
+      # must never be able to mint privilege). seed-ops-admin.mjs is the only
+      # supported path for the first admin, and it reads the password from
+      # stdin rather than argv so it never lands in shell history or `ps` -
+      # hence the pipe rather than an OPS_SEED_PASSWORD env var. The trailing
+      # newline is required: it is what makes readline deliver the line.
+      - name: Seed the admin account
+        run: >-
+          printf '%s\n' "$ADMIN_PASSWORD" |
+          node scripts/seed-ops-admin.mjs
+          --email "$ADMIN_EMAIL"
+          --name "CI Admin"
+
       # --- services -----------------------------------------------------
       - name: Build control-service
         run: pnpm build
@@ -320,7 +373,7 @@ jobs:
           echo "web app did not become ready"; cat "$RUNNER_TEMP/web.log"; exit 1
 
       # --- the actual suites ---------------------------------------------
-      - name: Pilot-driver command + control-room command delivery e2e
+      - name: Pilot-driver command + control-room command delivery + ops dashboards e2e
         env:
           # CI=true is what turns "a variable is unset" from a silent skip
           # into a hard failure inside either spec.
@@ -333,18 +386,30 @@ jobs:
           E2E_DISPATCHER_PASSWORD: ${{ env.DISPATCHER_PASSWORD }}
           E2E_CONTROL_ROOM_EMAIL: ${{ env.CONTROL_ROOM_EMAIL }}
           E2E_CONTROL_ROOM_PASSWORD: ${{ env.CONTROL_ROOM_PASSWORD }}
+          E2E_ADMIN_EMAIL: ${{ env.ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
+          E2E_DRIVER_EMAIL: ${{ env.DRIVER_EMAIL }}
+          E2E_DRIVER_PASSWORD: ${{ env.DRIVER_PASSWORD }}
+          E2E_DEPOT_EMAIL: ${{ env.DEPOT_EMAIL }}
+          E2E_DEPOT_PASSWORD: ${{ env.DEPOT_PASSWORD }}
+          E2E_PLANNER_EMAIL: ${{ env.PLANNER_EMAIL }}
+          E2E_PLANNER_PASSWORD: ${{ env.PLANNER_PASSWORD }}
           E2E_CONTROL_SERVICE_URL: http://127.0.0.1:8081
           E2E_CONTROL_SERVICE_TOKEN: ${{ env.SERVICE_TOKEN }}
           E2E_CONTROL_SERVICE_DATABASE_URL: ${{ env.CONTROL_SERVICE_DATABASE_URL }}
           E2E_OPS_DATABASE_URL: ${{ env.OPS_DATABASE_URL }}
-        # Two explicit filenames, not the whole tests/e2e/ directory: this
-        # job only provisions what these two specs need. Other e2e specs
-        # (e.g. command-centre.spec.ts, gated on E2E_PROJECT_PIN) merely skip
+        # Explicit filenames, not the whole tests/e2e/ directory: this job
+        # only provisions what these specs need. Other e2e specs (e.g.
+        # command-centre.spec.ts, gated on E2E_PROJECT_PIN) merely skip
         # locally when their own vars are unset — they don't have the
-        # CI=true hard-fail guard these two do — but running them here would
+        # CI=true hard-fail guard these do — but running them here would
         # still mean standing up infrastructure this job was never meant to
         # own.
-        run: pnpm test:e2e pilot-driver-command control-room-command-delivery
+        run: >-
+          pnpm test:e2e
+          pilot-driver-command
+          control-room-command-delivery
+          ops-dashboard-pages
 
       - name: Service logs (on failure)
         if: failure()

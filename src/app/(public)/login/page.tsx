@@ -3,11 +3,16 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { getSupabaseUser } from '@/lib/supabase/server';
 import { DEFAULT_NEXT, sanitizeNext } from '@/lib/auth/redirect';
-import { NO_OPS_ACCESS_NOTICE, resolveLanding } from '@/lib/auth/landing';
-import { currentOpsRole } from '@/lib/auth/opsAccess';
+import {
+  NO_OPS_ACCESS_NOTICE,
+  OPS_ACCESS_PENDING_NOTICE,
+  resolveLanding,
+} from '@/lib/auth/landing';
+import { currentOpsAccess } from '@/lib/auth/opsAccess';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { AuthenticatedActions } from '@/components/auth/AuthenticatedActions';
 import { NoOpsAccessNotice } from '@/components/auth/NoOpsAccessNotice';
+import { OpsAccessPendingNotice } from '@/components/auth/OpsAccessPendingNotice';
 
 export const metadata: Metadata = {
   title: 'Authorized Project Access',
@@ -37,8 +42,19 @@ export default async function LoginPage({
 
   // Only asked once the visitor is actually signed in: an anonymous visitor
   // has no ops profile to find, and this is a database read on a public page.
-  const opsRole = authenticated ? await currentOpsRole() : null;
-  const decision = resolveLanding({ requestedNext: params.next, opsRole });
+  //
+  // The claim half matters as much as the role half. Reading the role alone
+  // made this page offer "Continue to Operations" to a linked operator whose
+  // token does not carry their role yet — a button that bounces off the edge
+  // gate and lands back here, which is a loop the user drives by hand.
+  const { role: opsRole, claimReady: opsClaimReady } = authenticated
+    ? await currentOpsAccess()
+    : { role: null, claimReady: true };
+  const decision = resolveLanding({
+    requestedNext: params.next,
+    opsRole,
+    opsClaimReady,
+  });
 
   // Two ways to reach the explanation: arriving with an ops `next` this
   // account cannot use, or being sent back here by POST /api/auth/login,
@@ -50,6 +66,16 @@ export default async function LoginPage({
     authenticated &&
     !opsRole &&
     (decision.kind === 'no-ops-access' || params.notice === NO_OPS_ACCESS_NOTICE);
+
+  // The opposite state, and it gets the opposite explanation: an account that
+  // DOES hold a role the edge gate cannot see yet. Guarded on the live
+  // readings rather than the parameter alone, so a hand-typed ?notice cannot
+  // tell a fully working operator that their access is pending.
+  const opsAccessPending =
+    authenticated &&
+    Boolean(opsRole) &&
+    !opsClaimReady &&
+    (decision.kind === 'ops-access-pending' || params.notice === OPS_ACCESS_PENDING_NOTICE);
 
   // Never the requested ops path when access was refused — that button is the
   // one place a loop could still be hand-built, one click at a time.
@@ -125,10 +151,18 @@ export default async function LoginPage({
                   requested={decision.kind === 'no-ops-access' ? decision.requested : null}
                 />
               )}
+              {opsAccessPending && (
+                <OpsAccessPendingNotice
+                  role={opsRole}
+                  requested={decision.kind === 'ops-access-pending' ? decision.requested : null}
+                />
+              )}
               <AuthenticatedActions
                 next={continueTo}
                 email={user?.email}
-                label={opsRole && !deniedOps ? 'Continue to Operations' : undefined}
+                label={
+                  opsRole && !deniedOps && !opsAccessPending ? 'Continue to Operations' : undefined
+                }
               />
             </div>
           ) : (

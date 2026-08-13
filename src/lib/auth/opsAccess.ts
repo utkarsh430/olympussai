@@ -20,6 +20,8 @@
 import 'server-only';
 import { resolveOpsSession } from './rbac/server';
 import { getOpsRepo } from './rbac/repo';
+import { readSupabaseOpsClaim } from './rbac/supabaseClaims';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { OpsRole } from './rbac/roles';
 
 /**
@@ -35,6 +37,48 @@ export async function currentOpsRole(): Promise<OpsRole | null> {
     return resolution.ok ? resolution.claims.role : null;
   } catch {
     return null;
+  }
+}
+
+/** What the sign-in surface needs to know about the caller's ops access. */
+export interface OpsAccessSummary {
+  /** `ops_users.role` for an active, linked profile. The authority. */
+  role: OpsRole | null;
+  /**
+   * Whether the caller's CURRENT access token carries that same role as its
+   * `app_metadata.ops_role` claim — the only thing Edge middleware can check.
+   *
+   * False with a non-null `role` is the cutover state: a genuine operator the
+   * edge gate cannot see yet. Offering them an ops link in that state is the
+   * redirect loop, so /login must not. Reported as true when `role` is null,
+   * where it means nothing.
+   */
+  claimReady: boolean;
+}
+
+/**
+ * The caller's ops role AND whether their token can actually get them
+ * through the edge gate with it.
+ *
+ * Both halves are needed because they can disagree, and the disagreement is
+ * the whole failure: `currentOpsRole()` alone made /login offer "Continue to
+ * Operations" to a linked-but-claimless operator, which bounced straight back
+ * to /login. Degrades to "no ops access" on any failure, for the same reason
+ * `currentOpsRole()` does — strictly less access, never more.
+ */
+export async function currentOpsAccess(): Promise<OpsAccessSummary> {
+  const role = await currentOpsRole();
+  if (!role) return { role: null, claimReady: true };
+
+  try {
+    const claim = await readSupabaseOpsClaim(await createSupabaseServerClient());
+    // A legacy-ops-cookie session has no Supabase claim to be missing, and it
+    // reaches the edge through its own cookie: the claim is irrelevant to it,
+    // never "not ready". Only a live Supabase session is judged here.
+    if (!claim) return { role, claimReady: true };
+    return { role, claimReady: claim.roleClaim === role };
+  } catch {
+    return { role, claimReady: true };
   }
 }
 

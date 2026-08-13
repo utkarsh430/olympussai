@@ -21,6 +21,21 @@
  *     `next`. A stale or unlinked session is repaired by signing in again,
  *     so a terminal forbidden page would be a dead end — and for an admin
  *     it would be a dead end in front of the very screens that fix it.
+ *   - The ops database could not be read at all -> /ops/unavailable. NOT the
+ *     sign-in page: nothing about the operator's account is wrong, signing in
+ *     again reads the same unreadable authority, and an operations console
+ *     that answers its own outage with "please sign in" hides the one fact
+ *     the person on shift needs.
+ *
+ * THIS IS ALSO WHERE PAGES GET THEIR SESSION. Ops pages used to call the
+ * layout guard for its side effect and then re-resolve the session themselves
+ * with `(await getOpsSession())!`, asserting non-null on the strength of this
+ * guard having run. Two independent resolutions of a database-backed session,
+ * rendered concurrently, are exactly what a mid-render role change or disable
+ * splits apart — and the `!` turned that split into an HTTP 500 rather than a
+ * redirect. Pages now take the session this function returns. It costs no
+ * extra read: `resolveOpsSession` is memoised per request (see server.ts), so
+ * the layout and the page body share one resolution and one answer.
  */
 import 'server-only';
 import { redirect } from 'next/navigation';
@@ -28,12 +43,21 @@ import { resolveOpsSession } from './server';
 import type { OpsRole } from './roles';
 import type { OpsSessionClaims } from './session';
 
+/** Where an operator is sent when the ops database itself cannot be read. */
+export const OPS_UNAVAILABLE_PATH = '/ops/unavailable';
+
 export async function requireOpsRolePage(
   role: OpsRole,
   nextPath: string,
 ): Promise<OpsSessionClaims> {
   const resolution = await resolveOpsSession();
   if (!resolution.ok) {
+    if (resolution.reason === 'unavailable') {
+      // Carries `next` for the same reason the sign-in bounce does: the retry
+      // has to land back on the screen the operator was actually opening, and
+      // that page cannot work it out for itself (it reads nothing at all).
+      redirect(`${OPS_UNAVAILABLE_PATH}?next=${encodeURIComponent(nextPath)}`);
+    }
     // Still /ops/login while both front doors are live. The worker who
     // collapses the login pages repoints this to /login (and widens
     // src/lib/auth/redirect.ts's sanitizeNext to accept /ops/*, or every

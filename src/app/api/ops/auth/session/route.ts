@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getOpsSession } from '@/lib/auth/rbac/server';
+import { resolveOpsSession } from '@/lib/auth/rbac/server';
 import { getOpsRepo } from '@/lib/auth/rbac/repo';
 import { OpsDbConfigError } from '@/lib/db/pool';
 
@@ -21,15 +21,30 @@ export const dynamic = 'force-dynamic';
  * (CommandConsole.tsx, DriverDashboard, BreakdownReportPanel) read this
  * instead of trusting a client-self-reported vehicle for anything beyond a
  * same-user convenience default.
+ *
+ * "NOT SIGNED IN" AND "CANNOT TELL" ARE DIFFERENT ANSWERS. This used to
+ * report both as a flat 200 `{ authenticated: false }`, because the resolver
+ * behind it collapsed every refusal into null. Once the ops profile table
+ * became the authority, that made a transient ops-database failure
+ * indistinguishable from a signed-out operator — the console would quietly
+ * report a driver as having no assigned vehicle in the middle of an outage,
+ * which is a statement about the fleet, not about the database. An unreadable
+ * authority is now a 503 that says so, and callers that check the status get
+ * an honest "unknown" instead of a confident wrong answer.
  */
 export async function GET(): Promise<Response> {
-  const session = await getOpsSession();
-  if (!session) {
+  const resolution = await resolveOpsSession();
+  if (!resolution.ok) {
+    const unavailable = resolution.reason === 'unavailable';
     return NextResponse.json(
-      { authenticated: false },
-      { status: 200, headers: { 'Cache-Control': 'no-store' } },
+      // `authenticated: false` is kept on the outage response so an existing
+      // caller reading only that field is no worse off than before; the
+      // status code and flag are what let a caller tell the two apart.
+      unavailable ? { authenticated: false, unavailable: true } : { authenticated: false },
+      { status: unavailable ? 503 : 200, headers: { 'Cache-Control': 'no-store' } },
     );
   }
+  const session = resolution.claims;
 
   let vehicleId: string | null | undefined;
   if (session.role === 'pilot_driver' || session.role === 'driver') {

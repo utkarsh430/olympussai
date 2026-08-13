@@ -24,7 +24,7 @@ import userEvent from '@testing-library/user-event';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { resolveLanding, opsHomePath, landingUrl, NO_OPS_ACCESS_NOTICE, OPS_LEGACY_LOGIN_PATH } from '@/lib/auth/landing';
+import { resolveLanding, opsHomePath, landingUrl, NO_OPS_ACCESS_NOTICE, OPS_ACCESS_PENDING_NOTICE, OPS_LEGACY_LOGIN_PATH } from '@/lib/auth/landing';
 import { sanitizeNext, sanitizeNextOrNull, DEFAULT_NEXT } from '@/lib/auth/redirect';
 import { OPS_ROLES, type OpsRole } from '@/lib/auth/rbac/roles';
 
@@ -51,8 +51,21 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 const currentOpsRole = vi.fn();
+/**
+ * Whether the caller's TOKEN carries the role their `ops_users` row holds.
+ *
+ * The same fact `hasEdgeCeiling` models below, seen from the Node side —
+ * `walk()` keeps the two in step deliberately, because a test where the edge
+ * gate and the sign-in page disagree about the same token is testing a
+ * situation that cannot happen and would hide the one that can.
+ */
+const opsClaimReady = vi.fn<() => boolean>();
 vi.mock('@/lib/auth/opsAccess', () => ({
   currentOpsRole: () => currentOpsRole(),
+  currentOpsAccess: async () => ({
+    role: await currentOpsRole(),
+    claimReady: opsClaimReady(),
+  }),
   opsRoleForSupabaseUser: vi.fn(),
 }));
 
@@ -90,6 +103,7 @@ function parse(url: string): { pathname: string; params: Record<string, string> 
 beforeEach(() => {
   getSupabaseUser.mockReset().mockResolvedValue(null);
   currentOpsRole.mockReset().mockResolvedValue(null);
+  opsClaimReady.mockReset().mockReturnValue(true);
   getOpsSession.mockReset().mockResolvedValue(null);
 });
 
@@ -136,6 +150,11 @@ describe('redirect loop safety', () => {
   ): Promise<string[]> {
     const seen: string[] = [];
     let url = start;
+
+    // One token, one fact. "Middleware has no ceiling" and "the sign-in page
+    // can see no role claim" are the same missing claim, so the model must
+    // not let them disagree.
+    opsClaimReady.mockReturnValue(hasEdgeCeiling);
 
     for (let hop = 0; hop < maxHops; hop += 1) {
       expect(seen, `redirect loop: ${[...seen, url].join(' -> ')}`).not.toContain(url);
@@ -551,6 +570,86 @@ describe('no ops access configured', () => {
     render(element as React.ReactElement);
     const link = screen.getByRole('link', { name: /continue to operations/i });
     expect(link).toHaveAttribute('href', '/ops/admin/invites');
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// THE CUTOVER STATE: A REAL OPERATOR THE EDGE GATE CANNOT SEE YET
+// ───────────────────────────────────────────────────────────────────────────
+
+describe('operations access not applied to the sign-in yet', () => {
+  /** Linked, active, correctly roled — and holding a token with no claim. */
+  function claimlessOperator(role: OpsRole): void {
+    getSupabaseUser.mockResolvedValue({ email: `${role}@example.com` });
+    currentOpsRole.mockResolvedValue(role);
+    opsClaimReady.mockReturnValue(false);
+  }
+
+  it('never offers a link into the console it cannot open', async () => {
+    // This is the defect, exactly: the page rendered a "Continue to
+    // Operations" button that bounced off the edge gate and landed back here.
+    // A loop with no automatic hop is still a loop; the user just drives it.
+    claimlessOperator('control_room');
+
+    const { redirectedTo, element } = await visit(LoginPage, { next: '/ops/control-room' });
+    expect(redirectedTo).toBeNull();
+    render(element as React.ReactElement);
+
+    for (const link of screen.getAllByRole('link')) {
+      const href = link.getAttribute('href') ?? '';
+      // /ops/login is the deliberate exception: it is a public ops page that
+      // renders the fallback form, not a gated screen that bounces.
+      if (href.startsWith('/ops/login')) continue;
+      expect(href, `link to ${href} bounces straight back here`).not.toMatch(/^\/ops\//);
+    }
+    expect(screen.queryByRole('link', { name: /continue to operations/i })).toBeNull();
+  });
+
+  it('says what is actually wrong, not that the account has no access', async () => {
+    claimlessOperator('control_room');
+
+    const { element } = await visit(LoginPage, { next: '/ops/control-room' });
+    render(element as React.ReactElement);
+
+    const notice = screen.getByRole('status');
+    expect(notice).toHaveTextContent(/not been applied to your sign-in yet/i);
+    expect(notice).toHaveTextContent(/control room/i);
+    // The opposite claim would send an on-shift operator chasing a role they
+    // already hold, while the real fault goes unreported.
+    expect(notice.textContent ?? '').not.toMatch(/no operations access configured/i);
+  });
+
+  it('shows the same explanation when the sign-in call sent them back', async () => {
+    claimlessOperator('depot');
+
+    const { element } = await visit(LoginPage, { notice: OPS_ACCESS_PENDING_NOTICE });
+    render(element as React.ReactElement);
+    expect(screen.getByRole('status')).toHaveTextContent(/not been applied to your sign-in yet/i);
+  });
+
+  it('does not tell a fully working operator their access is pending', async () => {
+    // A stale or hand-typed ?notice must not manufacture the state.
+    getSupabaseUser.mockResolvedValue({ email: 'depot@example.com' });
+    currentOpsRole.mockResolvedValue('depot' satisfies OpsRole);
+    opsClaimReady.mockReturnValue(true);
+
+    const { element } = await visit(LoginPage, { notice: OPS_ACCESS_PENDING_NOTICE });
+    render(element as React.ReactElement);
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByRole('link', { name: /continue to operations/i })).toBeInTheDocument();
+  });
+
+  it('points at the fallback sign-in, which is the door that still works', async () => {
+    // /ops/login?legacy=1 is not gated on the missing claim, so it is a real
+    // way in rather than another bounce.
+    claimlessOperator('dispatcher');
+
+    const { element } = await visit(LoginPage, {});
+    render(element as React.ReactElement);
+    expect(screen.getByRole('link', { name: /operations fallback sign-in/i })).toHaveAttribute(
+      'href',
+      OPS_LEGACY_LOGIN_PATH,
+    );
   });
 });
 

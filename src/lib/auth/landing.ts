@@ -69,7 +69,20 @@ export type LandingDecision =
    * Deliberately NOT a path: the caller must render an explanation, because
    * every possible ops destination would bounce them straight back here.
    */
-  | { kind: 'no-ops-access'; requested: string };
+  | { kind: 'no-ops-access'; requested: string }
+  /**
+   * The DATABASE says this person is an operator; their TOKEN does not carry
+   * the role yet, and it could not be repaired on the spot.
+   *
+   * A different answer from `no-ops-access` because it is a different fact
+   * and needs a different instruction: nobody should tell an active
+   * dispatcher that their account "has no operations access configured" when
+   * it demonstrably does. It is also the specific state this decision must
+   * never nominate an `/ops/*` path for — the edge gate reads the token, so
+   * every ops destination bounces, and nominating one is the redirect loop
+   * itself. `requested` is null when the user named no destination.
+   */
+  | { kind: 'ops-access-pending'; role: OpsRole; requested: string | null };
 
 export interface LandingInput {
   /** Raw, unsanitized `next` query parameter. Sanitized here. */
@@ -83,10 +96,35 @@ export interface LandingInput {
    * more specific than "not configured" on a public page.
    */
   readonly opsRole?: OpsRole | null;
+  /**
+   * Whether the caller's CURRENT access token carries `opsRole` as its
+   * `app_metadata.ops_role` claim, which is the only thing Edge middleware
+   * can see.
+   *
+   * Defaults to true so every existing caller keeps its behaviour; pass it
+   * explicitly wherever the token is actually knowable. Meaningless when
+   * `opsRole` is null and ignored there.
+   */
+  readonly opsClaimReady?: boolean;
 }
 
-export function resolveLanding({ requestedNext, opsRole }: LandingInput): LandingDecision {
+export function resolveLanding({
+  requestedNext,
+  opsRole,
+  opsClaimReady = true,
+}: LandingInput): LandingDecision {
   const requested = sanitizeNextOrNull(requestedNext);
+
+  // An operator the edge gate cannot yet see. Everything under /ops/* is
+  // unreachable for them until the claim lands, so no ops path may be
+  // nominated — not the requested one, and not their own dashboard.
+  if (opsRole && !opsClaimReady) {
+    if (!requested || isOpsPath(requested)) {
+      return { kind: 'ops-access-pending', role: opsRole, requested: requested ?? null };
+    }
+    // They asked for somewhere that is not the ops console; that still works.
+    return { kind: 'go', path: requested };
+  }
 
   if (requested) {
     if (isOpsPath(requested) && !opsRole) {
@@ -103,6 +141,13 @@ export function resolveLanding({ requestedNext, opsRole }: LandingInput): Landin
 
 /** Query parameter `/login` reads to render the no-ops-access explanation. */
 export const NO_OPS_ACCESS_NOTICE = 'no-ops-access';
+
+/**
+ * Query parameter `/login` reads to render the "your role has not reached
+ * your sign-in yet" explanation. Distinct from NO_OPS_ACCESS_NOTICE because
+ * the two are opposite facts about the account and need opposite advice.
+ */
+export const OPS_ACCESS_PENDING_NOTICE = 'ops-access-pending';
 
 /**
  * THE ROLLBACK LEVER, and the reason `/ops/login` is redirected rather than
@@ -132,5 +177,12 @@ export const OPS_LEGACY_LOGIN_PATH = `/ops/login?${OPS_LEGACY_LOGIN_PARAM}=1`;
  * a visible state rather than a silent drop onto the project dashboard.
  */
 export function landingUrl(decision: LandingDecision): string {
-  return decision.kind === 'go' ? decision.path : `/login?notice=${NO_OPS_ACCESS_NOTICE}`;
+  switch (decision.kind) {
+    case 'go':
+      return decision.path;
+    case 'ops-access-pending':
+      return `/login?notice=${OPS_ACCESS_PENDING_NOTICE}`;
+    case 'no-ops-access':
+      return `/login?notice=${NO_OPS_ACCESS_NOTICE}`;
+  }
 }

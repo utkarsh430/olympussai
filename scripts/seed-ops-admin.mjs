@@ -12,7 +12,16 @@
  *
  * Refuses to run if an active admin already exists. The password is read
  * from stdin with echo disabled (never as an argv, so it never lands in
- * shell history or `ps`).
+ * shell history or `ps`), which also makes it pipeable:
+ *
+ *   printf '%s\n' "$ADMIN_PASSWORD" | node scripts/seed-ops-admin.mjs ...
+ *
+ * A pipe that ends without ever delivering a line is an ERROR, not an empty
+ * password. It used to be neither: readline simply never called back, `main`
+ * fell off the end of the event loop, and the process exited 0 having created
+ * nothing. A seeding step that reports success and seeds no admin is the
+ * worst of the three possible outcomes — CI goes green, and the failure
+ * surfaces later as an unrelated sign-in error.
  */
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
@@ -36,7 +45,11 @@ function readPasswordFromStdin(prompt) {
     const rl = readline.createInterface({ input: process.stdin, terminal: true });
     // @ts-ignore — Node's readline internals; muting echo for a password prompt.
     rl._writeToOutput = () => {};
-    rl.question('', (answer) => {
+
+    let answered = false;
+    const finish = (answer) => {
+      if (answered) return;
+      answered = true;
       rl.close();
       process.stdout.write('\n');
       if (!answer || answer.length < MIN_PASSWORD_LENGTH) {
@@ -44,7 +57,14 @@ function readPasswordFromStdin(prompt) {
         return;
       }
       resolve(answer);
-    });
+    };
+
+    rl.question('', finish);
+    // stdin ended without a line. An interactive Ctrl-D and a pipe whose last
+    // byte is not a newline both land here; both mean "no password was given",
+    // and both must stop the run rather than let it exit successfully having
+    // done nothing.
+    rl.on('close', () => finish(''));
   });
 }
 

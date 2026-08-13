@@ -38,8 +38,29 @@
  * change rather than a data restore. `establishOpsSession` /
  * `clearOpsSession` are retained for exactly that reason — they are the
  * rollback lever, not dead code.
+ *
+ * ONE ANSWER PER REQUEST, AND WHY IT IS A CORRECTNESS PROPERTY. While this
+ * was a pure token decode it was deterministic and free, so it did not
+ * matter how many times a request asked. It is now a database read, and a
+ * page renders its layout guard and its body CONCURRENTLY — two independent
+ * reads of a table an admin can change at any moment. When they disagreed
+ * (an operator disabled or re-roled mid-render) the guard redirected while
+ * the body carried on with a null session, which is how every ops dashboard
+ * could answer a routine admin action with HTTP 500. `resolveOpsSession` is
+ * therefore wrapped in React `cache()`: one resolution per request, shared
+ * by the guard and everything downstream of it, so a mid-render change
+ * cannot split a single render's view of who the caller is. It also halves
+ * the profile reads a guarded page pays. `cache()` is request-scoped — it is
+ * NOT a cross-request cache and must never be replaced by one, or a disabled
+ * account would keep working until the cache expired.
+ *
+ * MEMOISATION IS NOT THE WHOLE FIX. No caller may assume a non-null session
+ * because some earlier caller checked: the guarantee is "the same answer",
+ * never "an answer you may assert on". Pages take their session from
+ * `requireOpsRolePage` (pageGuard.ts), which redirects on refusal.
  */
 import 'server-only';
+import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { OPS_SESSION_COOKIE, OPS_SESSION_MAX_AGE_SECONDS, isOpsProduction } from './config';
 import { createOpsSessionToken, verifyOpsSessionToken, type OpsSessionClaims } from './session';
@@ -80,7 +101,27 @@ export type OpsSessionDenial =
    * and proceeding on either value is guessing. Re-authenticating mints a
    * fresh, correct claim, so this is self-healing, never a lockout.
    */
-  | 'role_claim_mismatch';
+  | 'role_claim_mismatch'
+  /**
+   * The AUTHORITY ITSELF could not be read — the ops database is unreachable,
+   * unconfigured, or timed out.
+   *
+   * Deliberately its own reason rather than being folded into `no_session`.
+   * The four reasons above are all statements about the CALLER, and every one
+   * of them is answered by "sign in again". This one is a statement about
+   * this service, and sending an operator to a sign-in page during an ops
+   * database outage tells them a lie about their own account, invites them to
+   * retype credentials that will not help, and buries the one fact an
+   * operations console must never bury: the console is down, not you. It is
+   * also, on its own, a bounce with nothing at the end of it, since signing in
+   * again lands on the same unreadable authority.
+   *
+   * It is never an authorization result: no path anywhere may treat this as
+   * access, and no path may fall back to the token's own role claim to
+   * "degrade gracefully" — that would convert an outage into a window in
+   * which a disabled account works again.
+   */
+  | 'unavailable';
 
 export type OpsSessionResolution =
   | { ok: true; claims: OpsSessionClaims }
@@ -112,16 +153,32 @@ async function readLegacyClaims(): Promise<OpsSessionClaims | null> {
 
 /**
  * Resolve the current request to an ops profile, or to the specific reason it
- * was refused. This is the function guards should call; `getOpsSession()`
- * below is the claims-or-null wrapper the existing 13 ops pages already use.
+ * was refused. This is the function guards call, and the ONE place a request
+ * decides who its caller is.
  *
- * Fails closed on every path: a thrown database error propagates (a 503 is
- * correct — the authority is unavailable, and promoting the token to sole
- * authority as "graceful degradation" would convert an outage into a
- * privilege-escalation window).
+ * Memoised per request (see this module's header). The wrapped implementation
+ * is below; callers must always use this export so the guard and the page
+ * body cannot resolve to two different answers within one render.
+ *
+ * Refuses on every path, and says which kind of refusal it is: a caller
+ * problem, or this service's own authority being unreadable (`unavailable`).
+ * It never promotes the token to sole authority to keep working through an
+ * outage.
  */
-export async function resolveOpsSession(): Promise<OpsSessionResolution> {
-  const identity = await resolveIdentity();
+export const resolveOpsSession: () => Promise<OpsSessionResolution> = cache(resolveOpsSessionUncached);
+
+async function resolveOpsSessionUncached(): Promise<OpsSessionResolution> {
+  let identity: Awaited<ReturnType<typeof resolveIdentity>>;
+  try {
+    identity = await resolveIdentity();
+  } catch (error) {
+    // The ops database is the authority, so failing to read it is not
+    // "no session" — it is "no answer". Logged because an operations console
+    // silently degrading to a sign-in page during its own outage is the
+    // failure mode this reason exists to prevent.
+    console.error('[ops-auth] Could not read the ops profile authority.', error);
+    return { ok: false, reason: 'unavailable' };
+  }
   if (!identity.ok) return identity;
 
   const { profile, roleClaim, iat, exp, supabaseUserId } = identity.identity;
@@ -198,11 +255,22 @@ async function resolveIdentity(): Promise<
 /**
  * The current ops session, or null if there is not a usable one.
  *
- * Unchanged signature, deliberately: every ops page calls
- * `(await getOpsSession())!`. Note what changed BEHIND it — this now reads
- * `ops_users` and returns null for a disabled account, an unlinked identity
- * or a role claim that disagrees with the database, none of which it used to
- * do. Callers that need to tell those apart use `resolveOpsSession()`.
+ * NULL IS AN ANSWER, NOT AN IMPOSSIBILITY. Every ops page used to call this
+ * as `(await getOpsSession())!`, on the reasoning that the layout's
+ * `requireOpsRolePage()` had already proven a session existed. That held only
+ * while this was a pure token decode: two decodes of one cookie cannot
+ * disagree. It stopped holding the moment this became a database read, and
+ * `!` then turned an ordinary mid-render change — an admin disabling an
+ * operator, or changing their role, while they were loading a dashboard —
+ * into an unhandled TypeError and an HTTP 500 on every ops dashboard.
+ *
+ * Pages must take their session from `requireOpsRolePage()` instead, which
+ * returns a session or redirects. This wrapper remains for the handful of
+ * callers that genuinely want "session or nothing" and handle the nothing —
+ * /ops/forbidden and the legacy /ops/login — and it deliberately still
+ * collapses all four refusals plus `unavailable` into null, because those
+ * two callers render the same thing either way. Anything that must tell them
+ * apart calls `resolveOpsSession()`.
  */
 export async function getOpsSession(): Promise<OpsSessionClaims | null> {
   const resolution = await resolveOpsSession();
