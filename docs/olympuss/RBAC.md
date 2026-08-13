@@ -54,14 +54,63 @@ the fact that an admin tried. Re-assigning the role an account already has is
 deliberately not a no-op: it re-pushes the claim, and is the repair action for
 anything `GET /api/ops/admin/role-drift` reports.
 
-Disabling reaches both paths, in the **opposite** order and for a reason:
-`ops_users.status` alone already revokes access on the very next request, so
-that write commits first and the claim clear is best effort, with its outcome
-in the audit record. Failing the disable because the second write did not land
-would leave a live session for the sake of a stale ceiling. Note that
-`@supabase/auth-js` 2.112.2 offers no way to end another user's Supabase
-session at all, which is exactly why the per-request `ops_users` read is the
-disable mechanism and not an optimisation anyone may remove.
+Disabling reaches **three** things, in the **opposite** order from role
+assignment and for a reason: `ops_users.status` alone already revokes this
+product on the very next request, so that write commits first and the identity
+revocation is best effort, with its outcome in the audit record. Failing the
+disable because the second write did not land would leave a fully live account
+for the sake of an all-or-nothing write.
+
+`ops_users.status` is the revocation **for this product, both surfaces**.
+Every guarded request re-reads it, and since the project surface was gated on
+the same row (`src/lib/auth/authorize.ts`) that now covers `/project/*` and
+`/api/upsrtc/*` as well as `/ops/*`. A disabled account is refused on its very
+next request whatever token it is holding, through either front door.
+
+The identity revocation (`revokeOpsIdentity`, one `updateUserById`) clears
+`app_metadata.ops_role` **and** bans the Supabase account with
+`ban_duration: '876000h'`. It closes what the status write cannot reach: a
+Supabase identity is a credential against the **Supabase project**, which this
+app does not exclusively own, so an unbanned account keeps a working sign-in
+and keeps renewing itself by refresh forever. It is also the standing backstop
+for the profile gate on the enterprise surface — the check that surface was
+missing entirely until recently. Measured against this project's Supabase
+instance, a ban makes GoTrue answer `403 user_banned` to `GET /user` with the
+token the account already holds, `400 user_banned` to a refresh, and
+`400 user_banned` to a fresh sign-in.
+
+**The residual, stated so nobody has to rediscover it.** A ban does not
+invalidate an access token's signature. This project signs with ES256 and both
+surfaces verify locally, so a token already issued keeps verifying until it
+expires — 3600s here, measured. Inside this app that grants nothing: the only
+local verifier is the Edge ceiling, and the Node guard behind it re-reads
+`ops_users` and refuses. At the Supabase project level the worst case is up to
+one token lifetime of RLS-scoped access with a token already in hand, and this
+app stores nothing there (its own Postgres is reached with `pg`). Closing even
+that would mean **deleting** the identity, destroying the account and its
+history for the sake of a one-hour window; a ban is reversible.
+
+`@supabase/auth-js` 2.112.2 still offers no way to end another user's session
+by session id (`admin.signOut` needs that user's own JWT). It does not need
+one, for the reasons above. This is also why the per-request `ops_users` read
+is the disable mechanism and not an optimisation anyone may remove.
+
+Nothing re-activates a disabled ops account today. Whoever builds that path
+must lift the ban with `ban_duration: 'none'` as part of it, or the re-enabled
+operator will hold an ops profile they cannot sign in to.
+
+### Signing out ends both sessions
+
+`POST /api/ops/auth/logout` clears the legacy `olympuss_ops_session` cookie
+**and** revokes the Supabase session (`signOut()`, global scope — the
+operator's other devices go too), then expires the `sb-*-auth-token` cookies
+unconditionally so an unreachable Supabase degrades a sign-out to "ended on
+this device", never to "did nothing" (`src/lib/auth/rbac/signOut.ts`). It
+re-reads the cookie store afterwards and answers `500 SIGN_OUT_INCOMPLETE` if
+any credential survived; the ops shell's button then stays on the page with an
+error instead of showing a login screen over a live session. That mattered
+most on a shared depot tablet, where an operator hands the device over because
+the screen told them they were signed out.
 
 ### The sign-in page has already collapsed
 
@@ -245,7 +294,7 @@ privileged action writes one row here, attributed to `actor_user_id`:
 | `control_room.command.create`                               | `POST /api/ops/control-room/commands`    | Refuses (`409`) unless `dispatcherActionId` names an existing, unconsumed `ops_dispatcher_actions` row; consumes it atomically.                                                                                                                                   |
 | `admin.invite.create`                                       | `POST /api/ops/admin/invites`            | Metadata includes `emailDelivered` (whether the Resend send succeeded).                                                                                                                                                                                           |
 | `admin.invite.resend`                                       | `POST /api/ops/admin/invites/:id/resend` | Rotates the invite's token/expiry, then re-sends the email. Refuses (`409`) once accepted or revoked.                                                                                                                                                             |
-| `admin.user.disable`                                        | `POST /api/ops/admin/users/:id/disable`  | Refuses (`409`) to disable the last active admin. Metadata carries `claimCleared`: `true`/`false` for a linked account, `null` when there was no identity to clear — "nothing to clear" and "tried and failed" are different facts.                               |
+| `admin.user.disable`                                        | `POST /api/ops/admin/users/:id/disable`  | Refuses (`409`) to disable the last active admin. Metadata carries `identityRevoked`: `true`/`false` for a linked account, `null` when there was no identity to revoke — "nothing to revoke" and "tried and failed" are different facts. `false` means the enterprise surface is **still open** and the response says so. Rows written before the ban landed carry the older `claimCleared` key. |
 | `admin.user.role_assign`                                    | `POST /api/ops/admin/users/:id/role`     | One event for both writes. Metadata carries `previousRole`, `role`, and `claimWritten` (`false` for an account with no Supabase identity yet). Refuses (`409`) to move the last active admin off `admin`.                                                         |
 | `admin.user.role_assign_failed`                             | `POST /api/ops/admin/users/:id/role`     | The claim write failed and the role change was rolled back. Metadata names the `failure` and records `rolledBack: true`. Written after the rollback, so retries leave one record each.                                                                            |
 | `ops_user.invite.accept`                                    | `POST /api/ops/auth/accept-invite`       | Self-attributed by the newly created user.                                                                                                                                                                                                                        |

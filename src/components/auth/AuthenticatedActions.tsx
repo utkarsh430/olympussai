@@ -31,13 +31,30 @@ export function AuthenticatedActions({
   label?: string;
 }) {
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
 
+  /**
+   * Navigation is the LAST step, and only once the server has confirmed both
+   * credentials are gone. Showing a signed-out page over a session that is
+   * still live is the defect this button is fixing, not a style it may
+   * repeat — and "ignore the error and reload anyway" is exactly how it was
+   * written before.
+   */
   async function handleSignOut() {
     setBusy(true);
+    setFailed(false);
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      const response = await fetch('/api/auth/logout', { method: 'POST' });
+      if (!response.ok) {
+        setBusy(false);
+        setFailed(true);
+        return;
+      }
     } catch {
-      // Ignore — the server clears the session; fall through to a reload.
+      // The request never reached the server, so nothing was cleared.
+      setBusy(false);
+      setFailed(true);
+      return;
     }
     window.location.assign('/login');
   }
@@ -66,6 +83,11 @@ export function AuthenticatedActions({
       >
         {busy ? 'Signing out…' : 'Sign Out'}
       </button>
+      {failed ? (
+        <p role="alert" className="text-[12px] leading-snug text-[#ff8f8f]">
+          Sign-out failed — you are still signed in. Try again, or close this browser.
+        </p>
+      ) : null}
     </div>
   );
 }

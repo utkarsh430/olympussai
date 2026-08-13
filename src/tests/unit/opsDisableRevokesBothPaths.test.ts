@@ -1,24 +1,25 @@
 // @vitest-environment node
 //
-// Disabling an operator has to reach both auth paths.
+// Disabling an operator has to reach every surface they can still reach.
 //
-// There is no way for an administrator to end another user's Supabase session
-// with @supabase/auth-js 2.112.2 — `admin.signOut` needs that user's own JWT,
-// and there is no session list or delete. An access token already in a
-// disabled operator's browser therefore stays cryptographically valid until
-// it expires. Revocation has to come from somewhere else, and it comes from
-// two places:
-//
-//   ops_users.status   Re-read on every guarded request. This is the
-//                      revocation: the account is refused on its very next
-//                      request, whatever token it is holding.
+//   ops_users.status   Re-read on every guarded request. This is what revokes
+//                      the product - both /ops/* and, since the project
+//                      surface was gated on the same row, /project/* and
+//                      /api/upsrtc/* too. Refused on the very next request,
+//                      whatever token they are holding.
 //   app_metadata       The ceiling Edge middleware checks. Cleared so the
 //                      account stops carrying an ops role at all.
+//   ban_duration       What revokes the SIGN-IN IDENTITY, which neither of
+//                      the above touches: a Supabase account is a credential
+//                      against the Supabase project, not only against this
+//                      app, and unbanned it keeps renewing itself by refresh
+//                      forever. It is also the backstop if the profile gate
+//                      on the enterprise surface is ever lost again.
 //
-// The second half is what this change adds; the first half is what the two
-// integration proofs at the bottom pin, because a disable that only clears a
-// claim would look identical in every unit assertion above them and would
-// leave a live session running for up to a full token lifetime.
+// The claim clear and the ban are one `updateUserById`, so they succeed or
+// fail together and the route reports one outcome. The integration proofs at
+// the bottom pin the database half independently, because a disable that only
+// wrote to Supabase would look identical in every unit assertion above them.
 import { NextRequest } from 'next/server';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { OpsUserRecord } from '@/lib/auth/rbac/repo';
@@ -29,7 +30,7 @@ const findUserById = vi.fn();
 const countAdmins = vi.fn();
 const disableUser = vi.fn();
 const recordAuditEvent = vi.fn();
-const clearOpsRoleClaim = vi.fn();
+const revokeOpsIdentity = vi.fn();
 const readSupabaseOpsClaim = vi.fn<() => Promise<SupabaseOpsClaim | null>>();
 const findUserBySupabaseId = vi.fn<(id: string) => Promise<OpsUserRecord | null>>();
 const cookieGet = vi.fn<(name: string) => { value: string } | undefined>();
@@ -56,7 +57,7 @@ vi.mock('@/lib/auth/rbac/repo', () => ({
   }),
 }));
 vi.mock('@/lib/auth/rbac/opsIdentity', () => ({
-  clearOpsRoleClaim: (...args: unknown[]) => clearOpsRoleClaim(...args),
+  revokeOpsIdentity: (...args: unknown[]) => revokeOpsIdentity(...args),
 }));
 vi.mock('@/lib/auth/rbac/supabaseClaims', () => ({
   readSupabaseOpsClaim: () => readSupabaseOpsClaim(),
@@ -124,14 +125,14 @@ beforeEach(() => {
   requireOpsRole.mockResolvedValue({ ok: true, claims: ADMIN_CLAIMS });
   recordAuditEvent.mockResolvedValue({ id: 'audit-1', createdAt: new Date().toISOString() });
   countAdmins.mockResolvedValue(3);
-  clearOpsRoleClaim.mockResolvedValue(undefined);
+  revokeOpsIdentity.mockResolvedValue(undefined);
   readSupabaseOpsClaim.mockResolvedValue(null);
   findUserBySupabaseId.mockResolvedValue(null);
   cookieGet.mockReturnValue(undefined);
 });
 
-describe('disabling an operator clears the token side too', () => {
-  it('clears the ops role claim on their sign-in identity', async () => {
+describe('disabling an operator revokes their sign-in identity too', () => {
+  it('revokes the sign-in identity — role claim cleared and account banned', async () => {
     findUserById.mockResolvedValue(target());
     disableUser.mockResolvedValue(target({ status: 'disabled' }));
 
@@ -139,52 +140,59 @@ describe('disabling an operator clears the token side too', () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(clearOpsRoleClaim).toHaveBeenCalledWith(SUPABASE_USER_ID);
-    expect(body.claimCleared).toBe(true);
+    expect(revokeOpsIdentity).toHaveBeenCalledWith(SUPABASE_USER_ID);
+    expect(body.identityRevoked).toBe(true);
     expect(recordAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'admin.user.disable',
-        metadata: expect.objectContaining({ claimCleared: true }),
+        metadata: expect.objectContaining({ identityRevoked: true }),
       }),
     );
   });
 
-  it('has nothing to clear for an account with no sign-in identity, and says so', async () => {
+  it('has nothing to revoke for an account with no sign-in identity, and says so', async () => {
     findUserById.mockResolvedValue(target({ supabaseUserId: null }));
     disableUser.mockResolvedValue(target({ supabaseUserId: null, status: 'disabled' }));
 
     const response = await POST(...disableRequest());
     const body = await response.json();
 
-    expect(clearOpsRoleClaim).not.toHaveBeenCalled();
+    expect(revokeOpsIdentity).not.toHaveBeenCalled();
     // null, not false: "nothing to clear" and "tried and failed" are
     // different facts and an audit reader must be able to tell them apart.
-    expect(body.claimCleared).toBeNull();
+    expect(body.identityRevoked).toBeNull();
     expect(recordAuditEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ metadata: expect.objectContaining({ claimCleared: null }) }),
+      expect.objectContaining({ metadata: expect.objectContaining({ identityRevoked: null }) }),
     );
   });
 
-  it('keeps the account disabled when the claim clear fails, and warns instead of pretending', async () => {
+  it('keeps the account disabled when the identity revoke fails, and names the surface still open', async () => {
     // The opposite ordering from role assignment, deliberately: the status
-    // write alone already revokes access, so failing the whole disable here
-    // would leave a live account for the sake of a stale ceiling.
+    // write alone already revokes /ops, so failing the whole disable here
+    // would leave a fully live account for the sake of an all-or-nothing
+    // write. What it must NOT do is call the result a full revocation.
     findUserById.mockResolvedValue(target());
     disableUser.mockResolvedValue(target({ status: 'disabled' }));
-    clearOpsRoleClaim.mockRejectedValue(new Error('Supabase unreachable'));
+    revokeOpsIdentity.mockRejectedValue(new Error('Supabase unreachable'));
 
     const response = await POST(...disableRequest());
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(body.status).toBe('disabled');
-    expect(body.claimCleared).toBe(false);
+    expect(body.identityRevoked).toBe(false);
     expect(body.warning).toContain('Access is revoked');
+    // Names what is actually still open - the Supabase identity - rather
+    // than a product surface the status write has already closed. Claiming
+    // the enterprise surface is still reachable would send an admin chasing
+    // an exposure that is not there and miss the one that is.
+    expect(body.warning).toContain('Supabase sign-in identity could NOT be revoked');
+    expect(body.warning).not.toMatch(/still reach the enterprise/i);
     expect(recordAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: expect.objectContaining({
-          claimCleared: false,
-          claimClearError: 'Supabase unreachable',
+          identityRevoked: false,
+          identityRevokeError: 'Supabase unreachable',
         }),
       }),
     );
@@ -198,7 +206,7 @@ describe('disabling an operator clears the token side too', () => {
 
     expect(response.status).toBe(409);
     expect(disableUser).not.toHaveBeenCalled();
-    expect(clearOpsRoleClaim).not.toHaveBeenCalled();
+    expect(revokeOpsIdentity).not.toHaveBeenCalled();
   });
 });
 

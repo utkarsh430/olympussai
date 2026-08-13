@@ -126,6 +126,30 @@ function claimOf(user: User | null | undefined): OpsRole | null {
   return isOpsRole(raw) ? raw : null;
 }
 
+/**
+ * How long a revoked operator is banned for.
+ *
+ * 876000h is a hundred years, and it is the value @supabase/auth-js's own
+ * `updateUserById` documentation uses to mean "indefinitely" — GoTrue models a
+ * ban as a `banned_until` timestamp, so there is no literal "forever" to pass.
+ * Lifting it is `ban_duration: 'none'`, which is what a future re-enable path
+ * must call; nothing today re-activates a disabled ops account, so nothing
+ * today calls it.
+ */
+const OPS_IDENTITY_BAN_DURATION = '876000h';
+
+/**
+ * Whether this identity is currently banned, read from the timestamp GoTrue
+ * actually stores. A `banned_until` in the past is not a ban, and treating it
+ * as one would let a revocation read back as applied when it had expired.
+ */
+function isBanned(user: User | null | undefined): boolean {
+  const until = user?.banned_until;
+  if (typeof until !== 'string' || until.length === 0) return false;
+  const expiry = Date.parse(until);
+  return Number.isFinite(expiry) && expiry > Date.now();
+}
+
 interface AuthErrorish {
   message?: unknown;
   status?: unknown;
@@ -263,22 +287,80 @@ export async function releaseOpsIdentity(supabaseUserId: string): Promise<boolea
  * account may sign in. Dropping them is an unrecoverable, silent lockout.
  */
 export async function pushOpsRoleClaim(supabaseUserId: string, role: OpsRole): Promise<void> {
-  await writeClaim(supabaseUserId, role);
+  await writeIdentity(supabaseUserId, role, { ban: false });
 }
 
 /**
- * Remove the ops role claim so the token stops carrying an edge ceiling.
+ * Revoke a disabled operator's sign-in identity outright: clear the ops role
+ * claim AND ban the account.
  *
- * Written as an explicit `null` rather than by omitting the key, because
- * `updateUserById` merges: an omitted key is "leave it alone", which on a
- * disable path is exactly the wrong reading. `null` is not a valid ops role,
- * so it reads back as "no ceiling" whether Supabase merged or replaced.
+ * WHAT REVOKES WHAT, because the three writes are not interchangeable.
+ * `ops_users.status` is the revocation FOR THIS PRODUCT: every guarded
+ * request on both surfaces re-reads that row, so a disabled account is
+ * refused on its very next request whatever token it is holding. A ban adds
+ * nothing there and is not a substitute for it.
+ *
+ * WHAT THE BAN IS FOR is the part the status write cannot reach: a Supabase
+ * identity is a credential against the SUPABASE PROJECT, which this app does
+ * not exclusively own. Until it is banned, a fired operator keeps a working
+ * sign-in, keeps renewing tokens by refresh forever, and keeps whatever the
+ * project itself grants a signed-in user. It is also the standing backstop
+ * for the profile gate: if `/project/*` ever loses its `ops_users` check
+ * again — which is precisely what it was missing until recently — a banned
+ * identity still cannot get in.
+ *
+ * WHAT A BAN ACTUALLY DOES, measured against this project's Supabase instance
+ * rather than assumed:
+ *
+ *   GET /user with the token they already hold   403 user_banned
+ *   refresh_token grant                          400 user_banned
+ *   a fresh password sign-in                     400 user_banned
+ *
+ * THE ONE THING IT DOES NOT DO, stated plainly because it is the residual an
+ * incident review will ask about: a ban does not invalidate an access token's
+ * SIGNATURE. This project signs with ES256, so anything that verifies the
+ * token locally keeps accepting it until it expires — 3600s here, measured.
+ * Inside this app that grants nothing: the only local verifier is the Edge
+ * ceiling, and the Node guard behind it re-reads `ops_users` and refuses. At
+ * the Supabase project level the worst case is up to one token lifetime of
+ * RLS-scoped access with a token already in hand; this app keeps no data
+ * there (its own Postgres is reached with `pg`), so there is nothing behind
+ * it. Closing even that would mean DELETING the identity, which destroys the
+ * account and its history for a one-hour window; a ban is reversible.
+ *
+ * ONE WRITE, NOT TWO. The claim clear and the ban go out in a single
+ * `updateUserById` on purpose: two admin calls have a state between them
+ * where the ceiling is gone but the account is still live, and a second call
+ * that fails leaves a half-revocation nobody is looking at. Both halves are
+ * read back off the same response.
+ *
+ * Lifting this is `ban_duration: 'none'`. Nothing re-activates a disabled ops
+ * account today; whoever builds that path has to lift the ban there, or the
+ * re-enabled operator will hold an ops profile they cannot sign in to.
  */
-export async function clearOpsRoleClaim(supabaseUserId: string): Promise<void> {
-  await writeClaim(supabaseUserId, null);
+export async function revokeOpsIdentity(supabaseUserId: string): Promise<void> {
+  await writeIdentity(supabaseUserId, null, { ban: true });
 }
 
-async function writeClaim(supabaseUserId: string, role: OpsRole | null): Promise<void> {
+/**
+ * Write `app_metadata.ops_role` — and, on a revocation, the ban — merging
+ * into whatever else is already on the account.
+ *
+ * The role is written as an explicit `null` when clearing rather than by
+ * omitting the key, because `updateUserById` merges: an omitted key is "leave
+ * it alone", which on a revocation path is exactly the wrong reading. `null`
+ * is not a valid ops role, so it reads back as "no ceiling" whether Supabase
+ * merged or replaced.
+ *
+ * `ban_duration` is likewise only ever SENT on a revocation. Sending it on
+ * the role-assignment path would let an ordinary role change silently decide
+ * a ban question it has no opinion about.
+ */
+async function writeIdentity(
+  supabaseUserId: string,
+  role: OpsRole | null,
+  { ban }: { ban: boolean },
+): Promise<void> {
   const admin = adminClient();
   const current = await fetchUser(admin, supabaseUserId);
 
@@ -288,7 +370,10 @@ async function writeClaim(supabaseUserId: string, role: OpsRole | null): Promise
   let result: Awaited<ReturnType<SupabaseClient['auth']['admin']['updateUserById']>>;
   try {
     result = await bounded(
-      admin.auth.admin.updateUserById(supabaseUserId, { app_metadata: next }),
+      admin.auth.admin.updateUserById(supabaseUserId, {
+        app_metadata: next,
+        ...(ban ? { ban_duration: OPS_IDENTITY_BAN_DURATION } : {}),
+      }),
       'updateUserById',
     );
   } catch (error) {
@@ -304,7 +389,7 @@ async function writeClaim(supabaseUserId: string, role: OpsRole | null): Promise
     }
     throw new OpsIdentityError(
       'write_rejected',
-      `Supabase Auth refused the role claim write: ${describe(result.error)}`,
+      `Supabase Auth refused the identity write: ${describe(result.error)}`,
     );
   }
 
@@ -312,6 +397,16 @@ async function writeClaim(supabaseUserId: string, role: OpsRole | null): Promise
     throw new OpsIdentityError(
       'write_not_applied',
       'Supabase Auth accepted the role claim write but the claim did not change.',
+    );
+  }
+
+  // Read back separately from the claim: a merge that applied the metadata
+  // and dropped the ban would otherwise pass as a complete revocation, and
+  // the half it dropped is the half that closes the enterprise surface.
+  if (ban && !isBanned(result.data?.user)) {
+    throw new OpsIdentityError(
+      'write_not_applied',
+      'Supabase Auth accepted the revocation but the account is not banned.',
     );
   }
 }

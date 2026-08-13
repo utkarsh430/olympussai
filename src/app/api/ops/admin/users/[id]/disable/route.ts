@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireOpsRole } from '@/lib/auth/rbac/guard';
 import { getOpsRepo } from '@/lib/auth/rbac/repo';
-import { clearOpsRoleClaim } from '@/lib/auth/rbac/opsIdentity';
+import { revokeOpsIdentity } from '@/lib/auth/rbac/opsIdentity';
 import { OpsDbConfigError } from '@/lib/db/pool';
 import { isSameOrigin } from '@/lib/auth/origin';
 import { clientIpFrom } from '@/lib/auth/rate-limit';
@@ -26,35 +26,51 @@ function errorResponse(code: string, message: string, status: number) {
  * account when they are the last active admin, so a tenant can never lock
  * itself out of invite management.
  *
- * DISABLE HAS TO REACH BOTH AUTH PATHS NOW.
+ * DISABLE HAS TO REACH EVERY SURFACE THE ACCOUNT CAN STILL REACH.
  *
- *   ops_users.status   The revocation. Re-read on every guarded request by
- *                      `resolveOpsSession()`, so the account is refused on
- *                      its very next request through either front door,
- *                      whatever token it is still holding. This is what
- *                      makes a disable immediate.
- *   app_metadata       The ceiling Edge middleware checks. Cleared here so
- *                      the disabled account stops carrying an ops role in
- *                      its tokens at all, and cannot even reach an ops route
- *                      to be refused by the guard.
+ *   ops_users.status   Revokes THIS PRODUCT, both surfaces. Re-read on every
+ *                      guarded request by `resolveOpsSession()` — which now
+ *                      gates /project/* and /api/upsrtc/* as well as /ops/*
+ *                      — so the account is refused on its very next request
+ *                      through either front door, whatever token it is still
+ *                      holding. This is what makes a disable immediate.
+ *   app_metadata       The ceiling Edge middleware checks. Cleared so the
+ *                      disabled account stops carrying an ops role in its
+ *                      tokens at all, and cannot even reach an ops route to
+ *                      be refused by the guard.
+ *   ban_duration       Revokes the SIGN-IN IDENTITY itself, which neither of
+ *                      the above touches. A Supabase account is a credential
+ *                      against the Supabase project, not just against this
+ *                      app: unbanned, a fired operator keeps a working
+ *                      sign-in and keeps renewing tokens by refresh forever.
+ *                      It is also the standing backstop for the profile gate
+ *                      on the enterprise surface — which is exactly the check
+ *                      that was missing until recently.
+ *                      `revokeOpsIdentity` writes it with the claim clear in
+ *                      one call; see that function for the measured effect of
+ *                      a ban on an already-issued token, and for the residual
+ *                      it cannot close.
  *
  * THE ORDER IS DELIBERATE, AND IT IS THE OPPOSITE OF THE ROLE-ASSIGNMENT
  * PATH. There, a claim write that fails must roll the database change back,
  * because half an assignment locks the operator out. Here, the database
- * write alone ALREADY fully revokes access, so failing the disable because
- * the second write did not land would leave the account active — trading a
- * stale, harmless ceiling for a genuinely live session. The status write
- * therefore commits first and the claim clear is best effort, with its
- * outcome recorded in the audit event and returned to the caller rather than
- * swallowed.
+ * write already revokes the ops surface, so failing the disable because the
+ * identity write did not land would leave the account fully active — trading
+ * a partial revocation for no revocation at all. The status write therefore
+ * commits first and the identity revocation is best effort, with its outcome
+ * recorded in the audit event and returned to the caller rather than
+ * swallowed. When it does fail, the response says plainly that enterprise
+ * access is still live, because that is a fact an admin has to act on.
  *
- * WHAT THIS DOES NOT DO: end the user's Supabase session. @supabase/auth-js
- * 2.112.2 exposes no way for an administrator to revoke another user's
- * sessions (`admin.signOut` needs that user's own JWT; there is no session
- * list or delete). An already-issued access token therefore stays
- * cryptographically valid until it expires — which is precisely why the
- * per-request `ops_users` read is the disable mechanism and not an
- * optimisation anyone may remove.
+ * WHAT THIS STILL DOES NOT DO: end an in-flight Supabase session by session
+ * id. @supabase/auth-js 2.112.2 exposes no administrator path to another
+ * user's sessions (`admin.signOut` needs that user's own JWT; there is no
+ * session list or delete). It does not need to. Every guarded request in this
+ * product re-reads `ops_users` and refuses; a ban stops the identity ever
+ * obtaining another token. What neither reaches is a purely LOCAL signature
+ * check of a token already issued — in this app that is only the Edge
+ * ceiling, which is never a decision. `revokeOpsIdentity` documents the
+ * measured bound.
  */
 export async function POST(
   request: NextRequest,
@@ -92,21 +108,25 @@ export async function POST(
       return errorResponse('NOT_FOUND', 'User not found.', 404);
     }
 
-    // Access is already revoked at this point. Everything below is about the
-    // token side catching up.
-    let claimCleared: boolean | null = null;
-    let claimClearError: string | null = null;
+    // The OPS surface is revoked at this point. Everything below is what
+    // takes the enterprise surface and the token ceiling with it.
+    //
+    // `identityRevoked` replaces the earlier `claimCleared` field, which
+    // named only half of what this step now does. Audit rows written before
+    // this change keep the old key; nothing reads either one programmatically.
+    let identityRevoked: boolean | null = null;
+    let identityRevokeError: string | null = null;
     if (updated.supabaseUserId) {
       try {
-        await clearOpsRoleClaim(updated.supabaseUserId);
-        claimCleared = true;
+        await revokeOpsIdentity(updated.supabaseUserId);
+        identityRevoked = true;
       } catch (error) {
-        claimCleared = false;
-        claimClearError = error instanceof Error ? error.message : 'Unknown error.';
-        console.error('[ops/admin/users/disable] could not clear the ops role claim', {
+        identityRevoked = false;
+        identityRevokeError = error instanceof Error ? error.message : 'Unknown error.';
+        console.error('[ops/admin/users/disable] could not revoke the sign-in identity', {
           opsUserId: updated.id,
           supabaseUserId: updated.supabaseUserId,
-          error: claimClearError,
+          error: identityRevokeError,
         });
       }
     }
@@ -120,9 +140,9 @@ export async function POST(
       metadata: {
         disabledEmail: updated.email,
         disabledRole: updated.role,
-        // null = nothing to clear (never linked to a Supabase identity).
-        claimCleared,
-        ...(claimClearError ? { claimClearError } : {}),
+        // null = nothing to revoke (never linked to a Supabase identity).
+        identityRevoked,
+        ...(identityRevokeError ? { identityRevokeError } : {}),
       },
       ip: clientIpFrom(request.headers),
     });
@@ -132,13 +152,15 @@ export async function POST(
         ok: true,
         id: updated.id,
         status: updated.status,
-        claimCleared,
-        ...(claimCleared === false
+        identityRevoked,
+        ...(identityRevoked === false
           ? {
               warning:
-                'Access is revoked — every request from this account is now refused. The role ' +
-                'claim on their sign-in identity could not be cleared; re-run this action, or ' +
-                'clear it in the Supabase dashboard, so it does not linger there.',
+                'Access is revoked — every request from this account is now refused, on the ' +
+                'operations console and the project surface alike. Their Supabase sign-in ' +
+                'identity could NOT be revoked, so the account itself still exists and can ' +
+                'still be used against the Supabase project directly. Re-run this action, or ' +
+                'ban the user in the Supabase dashboard (Authentication -> Users), to close it.',
             }
           : {}),
       },
