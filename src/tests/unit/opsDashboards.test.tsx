@@ -297,13 +297,38 @@ describe('ObservabilityDashboard', () => {
 });
 
 describe('DepotDashboard', () => {
-  it('renders a vehicle roster grouped by depot plus a schedule lookup', () => {
-    const buses = [bus({ id: 'a', depotName: 'Bareilly' }), bus({ id: 'b', registrationNumber: 'UP32AB1234', depotName: 'Lucknow' })];
-    render(<DepotDashboard snapshot={snapshot({ buses })} routeBoard={routeBoardSnapshot()} activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
-    expect(screen.getByText('Vehicle roster by depot')).toBeInTheDocument();
+  const BAREILLY_SCOPE = { kind: 'depot', depotCode: 'BAREILLY', depotName: 'Bareilly' } as const;
+
+  it('renders the vehicle roster for the scoped depot plus a schedule lookup', () => {
+    // Already scoped by the page — this component does no filtering of its
+    // own (see its doc comment for why a second filter here would be a
+    // liability rather than defence in depth).
+    const buses = [bus({ id: 'a', depotName: 'Bareilly' }), bus({ id: 'b', registrationNumber: 'UP32AB1234', depotName: 'Bareilly' })];
+    render(
+      <DepotDashboard
+        snapshot={snapshot({ buses })}
+        routeBoard={routeBoardSnapshot()}
+        activeKillSwitches={NO_ACTIVE_KILL_SWITCHES}
+        scope={BAREILLY_SCOPE}
+      />,
+    );
+    expect(screen.getByText(/Vehicle roster · Bareilly/)).toBeInTheDocument();
     expect(screen.getAllByText(/Bareilly/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Lucknow/).length).toBeGreaterThan(0);
     expect(screen.getByRole('heading', { name: /vehicle schedule lookup/i })).toBeInTheDocument();
+  });
+
+  it('names the depot rather than "all depots" on the route operations board', () => {
+    render(
+      <DepotDashboard
+        snapshot={snapshot({ buses: [bus({ id: 'a', depotName: 'Bareilly' })] })}
+        routeBoard={routeBoardSnapshot()}
+        activeKillSwitches={NO_ACTIVE_KILL_SWITCHES}
+        scope={BAREILLY_SCOPE}
+      />,
+    );
+    // The old dashboard hardcoded depotLabel="all depots", which was an
+    // accurate description of an unscoped view and would now be a lie.
+    expect(screen.queryByText(/all depots/i)).not.toBeInTheDocument();
   });
 });
 
@@ -811,6 +836,7 @@ describe('OpsAdminInvitesPanel vehicle assignment', () => {
           role: 'driver',
           status: 'active',
           vehicleId: 'UP25FT4823',
+          depotId: null,
           createdAt: '2026-08-01T00:00:00.000Z',
         },
         {
@@ -820,19 +846,55 @@ describe('OpsAdminInvitesPanel vehicle assignment', () => {
           role: 'dispatcher',
           status: 'active',
           vehicleId: null,
+          depotId: null,
+          createdAt: '2026-08-01T00:00:00.000Z',
+        },
+        {
+          id: 'user-depot-1',
+          email: 'depot1@olympuss.us',
+          name: 'Depot One',
+          role: 'depot',
+          status: 'active',
+          vehicleId: null,
+          depotId: DEPOT_BAREILLY_ID,
           createdAt: '2026-08-01T00:00:00.000Z',
         },
       ],
     };
   }
 
-  function routeFetch(onVehiclePost: (body: unknown) => { ok: boolean; json: unknown }) {
+  const DEPOT_BAREILLY_ID = 'aaaaaaaa-0000-4000-8000-00000000bbbb';
+  const DEPOT_LUCKNOW_ID = 'cccccccc-0000-4000-8000-00000000dddd';
+
+  function depotsResponse() {
+    return {
+      depots: [
+        { id: DEPOT_BAREILLY_ID, code: 'BAREILLY', name: 'Bareilly' },
+        { id: DEPOT_LUCKNOW_ID, code: 'LUCKNOW', name: 'Lucknow' },
+      ],
+    };
+  }
+
+  function routeFetch(
+    onVehiclePost: (body: unknown) => { ok: boolean; json: unknown },
+    onDepotPost: (body: unknown) => { ok: boolean; json: unknown } = () => ({
+      ok: true,
+      json: { ok: true, id: 'user-depot-1', depotId: DEPOT_LUCKNOW_ID },
+    }),
+  ) {
     return vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
       if (url === '/api/ops/admin/users' && (!init || init.method === undefined)) {
         return { ok: true, json: async () => usersResponse() };
       }
       if (url === '/api/ops/admin/invites' && (!init || init.method === undefined)) {
         return { ok: true, json: async () => ({ invites: [] }) };
+      }
+      if (url === '/api/ops/admin/depots' && (!init || init.method === undefined)) {
+        return { ok: true, json: async () => depotsResponse() };
+      }
+      if (url === '/api/ops/admin/users/user-depot-1/depot' && init?.method === 'POST') {
+        const result = onDepotPost(JSON.parse(String(init.body)));
+        return { ok: result.ok, json: async () => result.json };
       }
       if (url === '/api/ops/admin/users/user-driver-1/vehicle' && init?.method === 'POST') {
         const body = JSON.parse(String(init.body));
@@ -850,8 +912,76 @@ describe('OpsAdminInvitesPanel vehicle assignment', () => {
     render(<OpsAdminInvitesPanel />);
 
     expect(await screen.findByDisplayValue('UP25FT4823')).toBeInTheDocument();
+    // A dispatcher is neither vehicle- nor depot-assignable, so that row
+    // carries a placeholder in both columns and no control in either.
     const dispatcherRow = (await screen.findByText('Dispatcher One')).closest('tr')!;
-    expect(within(dispatcherRow).getByText('—')).toBeInTheDocument();
+    expect(within(dispatcherRow).getAllByText('—')).toHaveLength(2);
+    expect(within(dispatcherRow).queryByLabelText(/assign vehicle/i)).not.toBeInTheDocument();
+    expect(within(dispatcherRow).queryByLabelText(/assign depot/i)).not.toBeInTheDocument();
+  });
+
+  it('offers a depot picker only for depot-role rows, preselected to the current assignment', async () => {
+    vi.stubGlobal('fetch', routeFetch(() => ({ ok: true, json: { ok: true, vehicleId: null } })));
+    render(<OpsAdminInvitesPanel />);
+
+    const select = (await screen.findByLabelText(/assign depot/i)) as HTMLSelectElement;
+    expect(select.value).toBe(DEPOT_BAREILLY_ID);
+    // One picker in the whole table: only the depot-role row gets one.
+    expect(screen.getAllByLabelText(/assign depot/i)).toHaveLength(1);
+  });
+
+  it('posts the chosen depot id to POST /api/ops/admin/users/:id/depot', async () => {
+    const seen: unknown[] = [];
+    const fetchMock = routeFetch(
+      () => ({ ok: true, json: { ok: true, vehicleId: null } }),
+      (body) => {
+        seen.push(body);
+        return { ok: true, json: { ok: true, id: 'user-depot-1', depotId: DEPOT_LUCKNOW_ID } };
+      },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    render(<OpsAdminInvitesPanel />);
+
+    const select = await screen.findByLabelText(/assign depot/i);
+    fireEvent.change(select, { target: { value: DEPOT_LUCKNOW_ID } });
+
+    await waitFor(() => expect(seen).toEqual([{ depotId: DEPOT_LUCKNOW_ID }]));
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/ops/admin/users/user-depot-1/depot',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('sends null to unassign a depot', async () => {
+    const seen: unknown[] = [];
+    vi.stubGlobal(
+      'fetch',
+      routeFetch(
+        () => ({ ok: true, json: { ok: true, vehicleId: null } }),
+        (body) => {
+          seen.push(body);
+          return { ok: true, json: { ok: true, id: 'user-depot-1', depotId: null } };
+        },
+      ),
+    );
+    render(<OpsAdminInvitesPanel />);
+
+    fireEvent.change(await screen.findByLabelText(/assign depot/i), { target: { value: '' } });
+    await waitFor(() => expect(seen).toEqual([{ depotId: null }]));
+  });
+
+  it('shows a visible error when the depot-assignment endpoint rejects the request', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routeFetch(
+        () => ({ ok: true, json: { ok: true, vehicleId: null } }),
+        () => ({ ok: false, json: { error: { code: 'DEPOT_NOT_FOUND', message: 'Depot not found.' } } }),
+      ),
+    );
+    render(<OpsAdminInvitesPanel />);
+
+    fireEvent.change(await screen.findByLabelText(/assign depot/i), { target: { value: DEPOT_LUCKNOW_ID } });
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Depot not found.'));
   });
 
   it('submits to POST /api/ops/admin/users/:id/vehicle and shows a saved confirmation on success', async () => {

@@ -102,6 +102,7 @@ function profile(overrides: Partial<OpsUserRecord> = {}): OpsUserRecord {
     passwordHash: '$2a$10$notarealhash',
     status: 'active',
     vehicleId: null,
+    depotId: null,
     supabaseUserId: null,
     createdAt: new Date('2026-01-01T00:00:00Z').toISOString(),
     ...overrides,

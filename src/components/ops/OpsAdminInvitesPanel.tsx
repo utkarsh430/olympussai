@@ -10,11 +10,21 @@ interface OpsUserSummary {
   role: OpsRole;
   status: 'active' | 'disabled';
   vehicleId: string | null;
+  depotId: string | null;
   createdAt: string;
+}
+
+interface OpsDepotSummary {
+  id: string;
+  code: string;
+  name: string;
 }
 
 /** Roles a vehicle assignment is meaningful for (db/migrations/20260806180000__ops_users_vehicle_assignment.sql). */
 const VEHICLE_ASSIGNABLE_ROLES: OpsRole[] = ['driver', 'pilot_driver'];
+
+/** Roles a depot assignment is meaningful for (db/migrations/20260812150000__ops_depot_ownership.sql). */
+const DEPOT_ASSIGNABLE_ROLES: OpsRole[] = ['depot'];
 
 type OpsInviteStatus = 'pending' | 'expired' | 'accepted' | 'revoked';
 
@@ -145,6 +155,118 @@ function VehicleAssignmentCell({
 }
 
 /**
+ * Depot assignment for one `depot`-role operator, the sibling of
+ * VehicleAssignmentCell. POSTs to /api/ops/admin/users/:id/depot, the only
+ * write path to ops_users.depot_id outside invite-time assignment.
+ *
+ * A SELECT over the registry rather than a free-text box, unlike the vehicle
+ * cell. The depot is an authorization boundary and the endpoint takes a uuid:
+ * a typed name that matched nothing would look like a successful assignment
+ * while silently leaving the operator with an empty roster. Choosing from the
+ * registry makes an unassignable depot impossible to express. The option
+ * labels carry the canonical code alongside the name because that is what the
+ * boundary matches on, which matters when two depots read alike (SAHARANPUR
+ * versus SAHARANPUR(A)).
+ */
+function DepotAssignmentCell({
+  userId,
+  depotId,
+  depots,
+  onAssigned,
+}: {
+  userId: string;
+  depotId: string | null;
+  depots: OpsDepotSummary[] | null;
+  onAssigned: (id: string, depotId: string | null) => void;
+}) {
+  const [value, setValue] = useState(depotId ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const errorId = useId();
+
+  async function submit(nextValue: string) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const response = await fetch(`/api/ops/admin/users/${userId}/depot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ depotId: nextValue === '' ? null : nextValue }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { ok: true; depotId: string | null }
+        | { error?: { message?: string } }
+        | null;
+      if (!response.ok || !data || !('ok' in data)) {
+        setError((data && 'error' in data && data.error?.message) || 'Could not assign depot.');
+        return;
+      }
+      setValue(data.depotId ?? '');
+      setSaved(true);
+      onAssigned(userId, data.depotId ?? null);
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (depots === null) {
+    return <span className="text-[#6f7684]">…</span>;
+  }
+
+  if (depots.length === 0) {
+    // An empty registry is a real, actionable state, not a blank dropdown:
+    // nobody can be assigned until the registry is seeded from the feed.
+    return (
+      <span className="text-xs text-[#c9b27a]">
+        No depots in registry — run <code>pnpm seed-ops-depots</code>
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <label htmlFor={`depot-${userId}`} className="sr-only">
+        Assign depot
+      </label>
+      <select
+        id={`depot-${userId}`}
+        value={value}
+        disabled={busy}
+        aria-describedby={error ? errorId : undefined}
+        onChange={(e) => {
+          setValue(e.target.value);
+          void submit(e.target.value);
+        }}
+        className="w-44 rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-2 py-1 text-xs text-[#e6e9ef] focus:border-[#4f8cff]/70 focus:outline-none disabled:opacity-60"
+      >
+        <option value="">Unassigned</option>
+        {depots.map((depot) => (
+          <option key={depot.id} value={depot.id}>
+            {depot.name === depot.code ? depot.name : `${depot.name} (${depot.code})`}
+          </option>
+        ))}
+      </select>
+      {busy && <span className="text-xs text-[#9aa0ad]">Saving…</span>}
+      {saved && !busy && !error && (
+        <span role="status" className="text-xs text-[#7ed6a5]">
+          Saved
+        </span>
+      )}
+      {error && (
+        <span id={errorId} role="alert" className="w-full text-right text-xs text-[#f0857d]">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
  * Admin invite/user-management panel. Client-side only; every action goes
  * through the guarded /api/ops/admin/* routes, which are the actual
  * enforcement point — this component trusts nothing it doesn't get back from
@@ -152,6 +274,7 @@ function VehicleAssignmentCell({
  */
 export function OpsAdminInvitesPanel() {
   const [users, setUsers] = useState<OpsUserSummary[] | null>(null);
+  const [depots, setDepots] = useState<OpsDepotSummary[] | null>(null);
   const [invites, setInvites] = useState<OpsInviteSummary[] | null>(null);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<OpsRole>('driver');
@@ -170,6 +293,14 @@ export function OpsAdminInvitesPanel() {
     }
   }
 
+  async function loadDepots() {
+    const response = await fetch('/api/ops/admin/depots', { cache: 'no-store' });
+    if (response.ok) {
+      const data = (await response.json()) as { depots: OpsDepotSummary[] };
+      setDepots(data.depots);
+    }
+  }
+
   async function loadInvites() {
     const response = await fetch('/api/ops/admin/invites', { cache: 'no-store' });
     if (response.ok) {
@@ -181,6 +312,7 @@ export function OpsAdminInvitesPanel() {
   useEffect(() => {
     void loadUsers();
     void loadInvites();
+    void loadDepots();
   }, []);
 
   async function handleInvite(event: React.FormEvent) {
@@ -221,6 +353,10 @@ export function OpsAdminInvitesPanel() {
 
   function handleVehicleAssigned(id: string, vehicleId: string | null) {
     setUsers((prev) => (prev ? prev.map((u) => (u.id === id ? { ...u, vehicleId } : u)) : prev));
+  }
+
+  function handleDepotAssigned(id: string, depotId: string | null) {
+    setUsers((prev) => (prev ? prev.map((u) => (u.id === id ? { ...u, depotId } : u)) : prev));
   }
 
   async function handleDisable(id: string) {
@@ -394,6 +530,7 @@ export function OpsAdminInvitesPanel() {
                 <th className="pb-2">Role</th>
                 <th className="pb-2">Status</th>
                 <th className="pb-2">Vehicle</th>
+                <th className="pb-2">Depot</th>
                 <th className="pb-2" />
               </tr>
             </thead>
@@ -410,6 +547,18 @@ export function OpsAdminInvitesPanel() {
                         userId={u.id}
                         vehicleId={u.vehicleId}
                         onAssigned={handleVehicleAssigned}
+                      />
+                    ) : (
+                      <span className="text-[#6f7684]">—</span>
+                    )}
+                  </td>
+                  <td className="py-2 text-right">
+                    {DEPOT_ASSIGNABLE_ROLES.includes(u.role) ? (
+                      <DepotAssignmentCell
+                        userId={u.id}
+                        depotId={u.depotId}
+                        depots={depots}
+                        onAssigned={handleDepotAssigned}
                       />
                     ) : (
                       <span className="text-[#6f7684]">—</span>

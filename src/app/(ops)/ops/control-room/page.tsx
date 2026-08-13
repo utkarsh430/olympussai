@@ -1,6 +1,7 @@
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
 import { getOpsFleetSnapshot } from '@/lib/ops/fleetData';
+import { OPS_FLEET_SCOPE_ALL } from '@/lib/ops/depotScope';
 import { getOpsRepo } from '@/lib/auth/rbac/repo';
 import { ControlRoomDashboard } from '@/components/ops/control-room/ControlRoomDashboard';
 
@@ -40,7 +41,7 @@ export default async function ControlRoomPage({
 async function DashboardBody({ query }: { query: string }) {
   try {
     const [snapshot, activeKillSwitches] = await Promise.all([
-      getOpsFleetSnapshot(),
+      getOpsFleetSnapshot(OPS_FLEET_SCOPE_ALL),
       getOpsRepo().listKillSwitches(true),
     ]);
     return <ControlRoomDashboard snapshot={snapshot} query={query} activeKillSwitches={activeKillSwitches} />;

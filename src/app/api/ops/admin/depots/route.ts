@@ -6,24 +6,33 @@ import { OpsDbConfigError } from '@/lib/db/pool';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Admin-only roster. Never returns password_hash. */
+/**
+ * GET /api/ops/admin/depots
+ *
+ * The depot registry (ops_depots), for the admin user-management screen's
+ * depot picker. Admin-only, and read-only: the registry is populated by
+ * scripts/seed-ops-depots.mjs from the live feed, not through the API — a
+ * depot exists because vehicles report it, and letting an admin invent one
+ * by hand would create depots that can own nothing while looking like a
+ * valid assignment.
+ *
+ * `code` is returned alongside `name` because it is the value the boundary
+ * actually matches on; showing it lets an admin confirm they are assigning
+ * the depot they mean when two names look alike (e.g. SAHARANPUR(A) versus
+ * SAHARANPUR).
+ */
 export async function GET(): Promise<Response> {
   const guard = await requireOpsRole(['admin']);
   if (!guard.ok) return guard.response;
 
   try {
-    const users = await getOpsRepo().listUsers();
+    const depots = await getOpsRepo().listDepots();
     return NextResponse.json(
       {
-        users: users.map((u) => ({
-          id: u.id,
-          email: u.email,
-          name: u.name,
-          role: u.role,
-          status: u.status,
-          vehicleId: u.vehicleId,
-          depotId: u.depotId,
-          createdAt: u.createdAt,
+        depots: depots.map((d) => ({
+          id: d.id,
+          code: d.code,
+          name: d.name,
         })),
       },
       { status: 200, headers: { 'Cache-Control': 'no-store' } },

@@ -1,6 +1,7 @@
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
 import { getOpsFleetSnapshot } from '@/lib/ops/fleetData';
+import { OPS_FLEET_SCOPE_ALL } from '@/lib/ops/depotScope';
 import { PlannerDashboard } from '@/components/ops/planner/PlannerDashboard';
 
 export const dynamic = 'force-dynamic';
@@ -25,7 +26,7 @@ export default async function PlannerPage() {
 /** See src/app/(ops)/ops/dispatcher/page.tsx's DashboardBody for why this boundary exists. */
 async function DashboardBody() {
   try {
-    const snapshot = await getOpsFleetSnapshot();
+    const snapshot = await getOpsFleetSnapshot(OPS_FLEET_SCOPE_ALL);
     return <PlannerDashboard snapshot={snapshot} />;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

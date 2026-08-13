@@ -16,6 +16,21 @@ import { deriveInviteStatus, type OpsInviteStatus } from './inviteStatus';
 
 export { deriveInviteStatus, type OpsInviteStatus };
 
+/**
+ * One depot in the registry (ops_depots), seeded from the live feed by
+ * scripts/seed-ops-depots.mjs. `code` is the canonical matching key that
+ * src/lib/ops/depotScope.ts derives identically from a live vehicle's
+ * depot_name; `name` is display only and `upstreamDepotId` is provenance
+ * only — neither is ever used to decide whether a vehicle is in scope.
+ */
+export interface OpsDepotRecord {
+  id: string;
+  code: string;
+  name: string;
+  upstreamDepotId: string | null;
+  createdAt: string;
+}
+
 export interface OpsUserRecord {
   id: string;
   email: string;
@@ -31,6 +46,17 @@ export interface OpsUserRecord {
    * null; that was the A01 gap this column closes.
    */
   vehicleId: string | null;
+  /**
+   * The depot this `depot`-role operator owns, admin-set only
+   * (db/migrations/20260812150000__ops_depot_ownership.sql) via
+   * POST /api/ops/admin/users/:id/depot. Null means "not yet assigned" —
+   * and unlike vehicleId there is NO read-only fallback for that case
+   * anywhere: every depot-scoped surface refuses (409 DEPOT_NOT_ASSIGNED, or
+   * a refusal panel on the page) rather than widening to the statewide
+   * fleet, because the statewide fleet is the exposure the column exists to
+   * remove. Resolve it through src/lib/ops/depotAccess.ts, never by hand.
+   */
+  depotId: string | null;
   /**
    * The Supabase Auth user (`auth.users.id`) that signs in as this ops
    * account, or null when this row is not linked yet and still signs in
@@ -299,6 +325,25 @@ export interface OpsRepo {
    * Returns null if the user does not exist.
    */
   setUserVehicle(id: string, vehicleId: string | null): Promise<OpsUserRecord | null>;
+  /**
+   * Admin-only depot assignment, the depot twin of setUserVehicle. Returns
+   * null if the ops user does not exist. `depotId` must be an existing
+   * ops_depots id or null (unassign) — the FK enforces that, but callers
+   * should check first so an unknown depot is a clean 404 rather than a
+   * constraint violation surfacing as a 500.
+   */
+  setUserDepot(id: string, depotId: string | null): Promise<OpsUserRecord | null>;
+
+  /** The whole depot registry, ordered by display name — the admin assignment picker's source. */
+  listDepots(): Promise<OpsDepotRecord[]>;
+  findDepotById(id: string): Promise<OpsDepotRecord | null>;
+  /**
+   * Idempotent registry upsert, keyed on the canonical `code`, used by
+   * scripts/seed-ops-depots.mjs. Refreshes the display name and upstream id
+   * of a depot already known; never deletes, because an ops_users row may
+   * point at any existing depot (FK is on delete restrict).
+   */
+  upsertDepot(input: { code: string; name: string; upstreamDepotId: string | null }): Promise<OpsDepotRecord>;
 
   createInvite(input: {
     email: string;
@@ -490,7 +535,18 @@ function mapUserRow(row: Record<string, unknown>): OpsUserRecord {
     passwordHash: String(row.password_hash),
     status: row.status as 'active' | 'disabled',
     vehicleId: row.vehicle_id == null ? null : String(row.vehicle_id),
+    depotId: row.depot_id == null ? null : String(row.depot_id),
     supabaseUserId: row.supabase_user_id == null ? null : String(row.supabase_user_id),
+    createdAt: new Date(row.created_at as string).toISOString(),
+  };
+}
+
+function mapDepotRow(row: Record<string, unknown>): OpsDepotRecord {
+  return {
+    id: String(row.id),
+    code: String(row.code),
+    name: String(row.name),
+    upstreamDepotId: row.upstream_depot_id == null ? null : String(row.upstream_depot_id),
     createdAt: new Date(row.created_at as string).toISOString(),
   };
 }
@@ -653,6 +709,48 @@ class PgOpsRepo implements OpsRepo {
     return rows[0] ? mapUserRow(rows[0]) : null;
   }
 
+  async setUserDepot(id: string, depotId: string | null): Promise<OpsUserRecord | null> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query(
+      `update ops_users
+          set depot_id = $2
+        where id = $1
+        returning *`,
+      [id, depotId],
+    );
+    return rows[0] ? mapUserRow(rows[0]) : null;
+  }
+
+  async listDepots(): Promise<OpsDepotRecord[]> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query('select * from ops_depots order by name asc');
+    return rows.map(mapDepotRow);
+  }
+
+  async findDepotById(id: string): Promise<OpsDepotRecord | null> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query('select * from ops_depots where id = $1 limit 1', [id]);
+    return rows[0] ? mapDepotRow(rows[0]) : null;
+  }
+
+  async upsertDepot(input: {
+    code: string;
+    name: string;
+    upstreamDepotId: string | null;
+  }): Promise<OpsDepotRecord> {
+    const pool = getOpsPool();
+    const { rows } = await pool.query(
+      `insert into ops_depots (code, name, upstream_depot_id)
+       values ($1, $2, $3)
+       on conflict (code) do update
+          set name = excluded.name,
+              upstream_depot_id = coalesce(excluded.upstream_depot_id, ops_depots.upstream_depot_id)
+       returning *`,
+      [input.code, input.name, input.upstreamDepotId],
+    );
+    return mapDepotRow(rows[0]);
+  }
+
   async createInvite(input: {
     email: string;
     role: OpsRole;
@@ -758,8 +856,8 @@ class PgOpsRepo implements OpsRepo {
       provisionedIdentity = identity.supabaseUserId;
 
       const userResult = await client.query(
-        `insert into ops_users (email, name, role, password_hash, invite_id, created_by, vehicle_id, supabase_user_id)
-         values ($1, $2, $3, $4, $5, $6, $7, $8)
+        `insert into ops_users (email, name, role, password_hash, invite_id, created_by, vehicle_id, depot_id, supabase_user_id)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          returning *`,
         [
           invite.email,
@@ -769,6 +867,7 @@ class PgOpsRepo implements OpsRepo {
           invite.id,
           invite.invited_by,
           invite.vehicle_id ?? null,
+          invite.depot_id ?? null,
           identity.supabaseUserId,
         ],
       );

@@ -121,7 +121,14 @@ Postgres, `OPS_DATABASE_URL`):
 ```bash
 pnpm migrate:ops                       # apply db/migrations/ (see docs/olympuss/RBAC.md)
 pnpm seed-ops-admin -- --email you@example.com --name "Your Name"
+pnpm seed-ops-depots                   # populate the depot registry from the live feed
 ```
+
+`seed-ops-depots` is required before any `depot`-role account can be used: a
+depot operator is scoped to the depot assigned to them, and until the registry
+holds that depot there is nothing to assign. An unassigned depot operator is
+refused rather than shown the statewide fleet
+(`db/migrations/20260812150000__ops_depot_ownership.sql`).
 
 And only if you are working on the control service, which is a separate
 deployable against its own database:
@@ -1546,6 +1553,7 @@ affect the build toolchain only, and do not reach runtime.
 | `pnpm run create-project-user -- --email <email>` | Provision an enterprise login account via Supabase Auth (admin-only, no self-service sign-up); prompts for a password on stdin |
 | `pnpm migrate:ops` | Apply `db/migrations/` to `OPS_DATABASE_URL`. One transaction per file, advisory-locked, checksum-verified — a shipped migration edited in place aborts the run |
 | `pnpm seed-ops-admin -- --email <email> --name <name>` | Seed the **first** ops admin (refuses if an active admin exists); every account after it comes from an admin invite |
+| `pnpm seed-ops-depots` | Populate/refresh `ops_depots` from the live UPSRTC feed, so an admin can assign a depot to a `depot`-role account. Idempotent, keyed on the canonical depot code; never deletes a depot a user may be assigned to. `--dry-run` reports what it would write, including any ambiguous upstream naming, without touching the database |
 | `pnpm seed-ops-user -- --email <email> --name <name> --role <role>` | Seed one non-admin ops account directly, for automation with no mailbox to receive an invite in (this is how CI provisions the e2e `pilot_driver`). **Refuses `admin`**; password from `OPS_SEED_PASSWORD` or a hidden prompt, never argv |
 | `pnpm run process-logo` | Regenerate every brand asset from the source logo |
 

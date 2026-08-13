@@ -29,6 +29,7 @@ import { isDemoModeForced, isFixtureFallbackAllowed } from '@/lib/upsrtc/fixture
 import liveFixture from '@/fixtures/upsrtc-live-sample.json';
 import scheduleFixture from '@/fixtures/upsrtc-schedule-sample.json';
 import type { CanonicalLiveBus, CanonicalSchedule, UpstreamSource } from '@/models/canonical';
+import { filterBusesToScope, type OpsFleetScope } from './depotScope';
 
 const LIVE_CACHE_TTL_MS = 15_000;
 const SCHEDULE_CACHE_TTL_MS = 120_000;
@@ -131,8 +132,15 @@ function degradedSnapshot(reason: string, now: number): OpsFleetSnapshot {
  * asked for — see src/lib/upsrtc/fixtureFallback.ts. It used to be automatic,
  * which meant an upstream outage silently filled a dispatcher's table with
  * demo buses.
+ *
+ * STATEWIDE, AND NOT EXPORTED. Every caller goes through getOpsFleetSnapshot
+ * below and states a scope. This function exists separately because the cache
+ * underneath it is shared process-wide under one key: a depot filter applied
+ * BEFORE the cache write would store one depot's fleet under the key every
+ * other caller reads, handing depot A's snapshot to depot B for the next 15
+ * seconds. Fetch and cache statewide; narrow on the way out.
  */
-export async function getOpsFleetSnapshot(now: number = Date.now()): Promise<OpsFleetSnapshot> {
+async function getStatewideFleetSnapshot(now: number = Date.now()): Promise<OpsFleetSnapshot> {
   try {
     if (isDemoModeForced()) {
       return fixtureSnapshot('Fixture mode forced via NEXT_PUBLIC_DEMO_MODE');
@@ -177,6 +185,38 @@ export async function getOpsFleetSnapshot(now: number = Date.now()): Promise<Ops
     const message = cause instanceof Error ? cause.message : 'Unknown error fetching live fleet data';
     return degradedSnapshot(message, now);
   }
+}
+
+/**
+ * Real live fleet data, narrowed to what the caller is allowed to see.
+ *
+ * `scope` is REQUIRED and has no default. That is the point: an omitted
+ * argument used to mean "the entire statewide fleet", which is how every
+ * depot operator came to see all ~9,000 vehicles in the state. There is now
+ * no way to call this without saying who it is for, so a new dashboard cannot
+ * inherit the statewide fleet by accident — it has to ask for
+ * OPS_FLEET_SCOPE_ALL explicitly, and that is reviewable.
+ *
+ * Resolve the scope with resolveOpsFleetScope (src/lib/ops/depotAccess.ts),
+ * which derives it from the caller's own ops_users row. Never build a depot
+ * scope from anything in the request.
+ *
+ * The narrowing is applied server-side, here, before the data ever reaches a
+ * component — the vehicles a depot operator is not entitled to are not
+ * hidden in the browser, they are never sent. `buses.length` and every
+ * count derived from it are the scoped numbers, so a roster header cannot
+ * quietly report a statewide total over a scoped list.
+ */
+export async function getOpsFleetSnapshot(
+  scope: OpsFleetScope,
+  now: number = Date.now(),
+): Promise<OpsFleetSnapshot> {
+  const snapshot = await getStatewideFleetSnapshot(now);
+  if (scope.kind === 'all') return snapshot;
+  // Rebuilt rather than mutated: the object above may be the cache's own
+  // retained value (the `source: 'cache'` branches spread a stored snapshot),
+  // and narrowing that in place would poison the shared cache entry.
+  return { ...snapshot, buses: filterBusesToScope(snapshot.buses, scope) };
 }
 
 export interface OpsVehicleScheduleResult {

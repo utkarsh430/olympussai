@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { requireOpsRole } from '@/lib/auth/rbac/guard';
 import { getOpsRepo, BREAKDOWN_REPORT_CURSOR_PATTERN } from '@/lib/auth/rbac/repo';
 import { OpsDbConfigError } from '@/lib/db/pool';
+import { resolveOpsFleetScope, DEPOT_SCOPE_DENIAL_RESPONSE } from '@/lib/ops/depotAccess';
+import { getOpsFleetSnapshot } from '@/lib/ops/fleetData';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -64,6 +66,13 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
+    const scopeResolution = await resolveOpsFleetScope(guard.claims);
+    if (!scopeResolution.ok) {
+      const denial = DEPOT_SCOPE_DENIAL_RESPONSE[scopeResolution.reason];
+      return errorResponse(denial.code, denial.message, denial.status);
+    }
+    const { scope } = scopeResolution;
+
     const repo = getOpsRepo();
     const { items, nextCursor } = await repo.listBreakdownReports({
       limit: parsed.data.limit,
@@ -72,11 +81,38 @@ export async function GET(request: NextRequest): Promise<Response> {
       vehicleReg: parsed.data.vehicleReg,
     });
 
+    // A depot caller sees only breakdowns on their own depot's vehicles
+    // (db/migrations/20260812150000__ops_depot_ownership.sql). Membership is
+    // decided against that caller's own scoped live fleet, the same list
+    // their roster is drawn from, so the two can never disagree.
+    //
+    // Two honest consequences of scoping a self-reported field, both chosen
+    // over the alternative:
+    //  * A report whose vehicleReg matches no vehicle currently reporting -
+    //    a typo, or a bus whose GPS is dark - is shown to NO depot. That is
+    //    the fail-closed direction: a missed repair ticket is visible and
+    //    recoverable, whereas defaulting an unattributable report into every
+    //    depot's list would put one depot's incidents in another's queue.
+    //  * Filtering happens after the keyset page is read, so a page can come
+    //    back shorter than `limit`, or empty, while nextCursor still points
+    //    at more rows. That is already how this cursor works (keep following
+    //    nextCursor until it is null); it is not an "end of list" signal.
+    const scopedItems =
+      scope.kind === 'all'
+        ? items
+        : await (async () => {
+            const fleet = await getOpsFleetSnapshot(scope);
+            const owned = new Set(
+              fleet.buses.map((bus) => bus.registrationNumber.trim().toUpperCase()),
+            );
+            return items.filter((item) => owned.has(item.vehicleReg.trim().toUpperCase()));
+          })();
+
     // Fleet-wide view: a depot/dispatcher/control-room operator needs to
     // know WHO reported a breakdown to route a repair, never their email -
     // built explicitly (not spread) so a future field on BreakdownReportListItem
     // does not silently leak into this response by default.
-    const reports = items.map((item) => ({
+    const reports = scopedItems.map((item) => ({
       id: item.id,
       driverUserId: item.driverUserId,
       vehicleReg: item.vehicleReg,

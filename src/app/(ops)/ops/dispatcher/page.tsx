@@ -1,6 +1,7 @@
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
 import { getOpsFleetSnapshot } from '@/lib/ops/fleetData';
+import { OPS_FLEET_SCOPE_ALL } from '@/lib/ops/depotScope';
 import { getRouteOperationsBoardSnapshot } from '@/lib/controlService/routeBoardData';
 import { getOpsRepo } from '@/lib/auth/rbac/repo';
 import { DispatcherDashboard } from '@/components/ops/dispatcher/DispatcherDashboard';
@@ -42,7 +43,7 @@ export default async function DispatcherPage({
 async function DashboardBody({ query, routeDirectionId }: { query: string; routeDirectionId?: string }) {
   try {
     const [snapshot, routeBoard, activeKillSwitches] = await Promise.all([
-      getOpsFleetSnapshot(),
+      getOpsFleetSnapshot(OPS_FLEET_SCOPE_ALL),
       getRouteOperationsBoardSnapshot(routeDirectionId),
       getOpsRepo()
         .listKillSwitches(true)

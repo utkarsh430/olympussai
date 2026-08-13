@@ -52,6 +52,7 @@ function user(overrides: Partial<OpsUserRecord> = {}): OpsUserRecord {
     passwordHash: 'supabase-managed:no-local-password',
     status: 'active',
     vehicleId: null,
+    depotId: null,
     supabaseUserId: `9999999${seq}-9999-9999-9999-999999999999`,
     createdAt: new Date('2026-08-12T00:00:00Z').toISOString(),
     ...overrides,

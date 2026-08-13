@@ -11,6 +11,7 @@
 // deliberate NEXT_PUBLIC_DEMO_MODE=1 offline demo); otherwise an outage
 // produces an explicit 'unavailable' state with zero rows.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { OPS_FLEET_SCOPE_ALL } from '@/lib/ops/depotScope';
 
 /** One usable live vehicle, as the upstream would return it. */
 function upstreamOk(rows: unknown[]) {
@@ -45,7 +46,7 @@ describe('getOpsFleetSnapshot', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(upstreamOk(ONE_BUS)));
 
     const { getOpsFleetSnapshot } = await import('@/lib/ops/fleetData');
-    const snapshot = await getOpsFleetSnapshot();
+    const snapshot = await getOpsFleetSnapshot(OPS_FLEET_SCOPE_ALL);
 
     expect(snapshot.source).toBe('live');
     expect(snapshot.stale).toBe(false);
@@ -63,7 +64,7 @@ describe('getOpsFleetSnapshot', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network unreachable')));
 
     const { getOpsFleetSnapshot } = await import('@/lib/ops/fleetData');
-    const snapshot = await getOpsFleetSnapshot();
+    const snapshot = await getOpsFleetSnapshot(OPS_FLEET_SCOPE_ALL);
 
     expect(snapshot.source).toBe('unavailable');
     expect(snapshot.buses).toHaveLength(0);
@@ -78,7 +79,7 @@ describe('getOpsFleetSnapshot', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network unreachable')));
 
     const { getOpsFleetSnapshot } = await import('@/lib/ops/fleetData');
-    const snapshot = await getOpsFleetSnapshot();
+    const snapshot = await getOpsFleetSnapshot(OPS_FLEET_SCOPE_ALL);
 
     expect(snapshot.source).toBe('fixture');
     expect(snapshot.stale).toBe(true);
@@ -91,7 +92,7 @@ describe('getOpsFleetSnapshot', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network unreachable')));
 
     const { getOpsFleetSnapshot } = await import('@/lib/ops/fleetData');
-    const snapshot = await getOpsFleetSnapshot();
+    const snapshot = await getOpsFleetSnapshot(OPS_FLEET_SCOPE_ALL);
 
     expect(snapshot.source).toBe('unavailable');
     expect(snapshot.buses).toHaveLength(0);
@@ -106,7 +107,7 @@ describe('getOpsFleetSnapshot', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const { getOpsFleetSnapshot } = await import('@/lib/ops/fleetData');
-    const snapshot = await getOpsFleetSnapshot();
+    const snapshot = await getOpsFleetSnapshot(OPS_FLEET_SCOPE_ALL);
 
     expect(snapshot.source).toBe('fixture');
     expect(snapshot.buses.length).toBeGreaterThan(0);
@@ -122,12 +123,12 @@ describe('getOpsFleetSnapshot', () => {
 
     const { getOpsFleetSnapshot } = await import('@/lib/ops/fleetData');
 
-    const first = await getOpsFleetSnapshot(Date.now());
+    const first = await getOpsFleetSnapshot(OPS_FLEET_SCOPE_ALL, Date.now());
     expect(first.source).toBe('live');
 
     // Advance past the 15s in-module TTL so the second call re-fetches
     // instead of serving the fresh cache.
-    const second = await getOpsFleetSnapshot(Date.now() + 20_000);
+    const second = await getOpsFleetSnapshot(OPS_FLEET_SCOPE_ALL, Date.now() + 20_000);
     expect(second.source).toBe('cache');
     expect(second.stale).toBe(true);
     expect(second.error).toBeTruthy();
@@ -143,11 +144,11 @@ describe('getOpsFleetSnapshot', () => {
     const { getOpsFleetSnapshot } = await import('@/lib/ops/fleetData');
 
     const now = Date.now();
-    const first = await getOpsFleetSnapshot(now);
+    const first = await getOpsFleetSnapshot(OPS_FLEET_SCOPE_ALL, now);
     expect(first.source).toBe('live');
 
     // Well inside the 15s TTL — served from cache, still fresh, still real.
-    const second = await getOpsFleetSnapshot(now + 1_000);
+    const second = await getOpsFleetSnapshot(OPS_FLEET_SCOPE_ALL, now + 1_000);
     expect(second.source).toBe('cache');
     expect(second.stale).toBe(false);
     expect(second.error).toBeNull();
@@ -160,7 +161,7 @@ describe('getOpsFleetSnapshot', () => {
     // A quiet night: the upstream answered normally with an empty list.
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(upstreamOk([])));
     const { getOpsFleetSnapshot: quietNight } = await import('@/lib/ops/fleetData');
-    const empty = await quietNight();
+    const empty = await quietNight(OPS_FLEET_SCOPE_ALL);
 
     vi.resetModules();
     vi.unstubAllGlobals();
@@ -168,7 +169,7 @@ describe('getOpsFleetSnapshot', () => {
     // An incident: the upstream could not be reached at all.
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network unreachable')));
     const { getOpsFleetSnapshot: outage } = await import('@/lib/ops/fleetData');
-    const unreachable = await outage();
+    const unreachable = await outage(OPS_FLEET_SCOPE_ALL);
 
     // Both show zero vehicles...
     expect(empty.buses).toHaveLength(0);

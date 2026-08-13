@@ -17,6 +17,7 @@
     "migrate:ops": "node scripts/migrate-ops.mjs",
     "seed-ops-admin": "node scripts/seed-ops-admin.mjs",
     "seed-ops-user": "node scripts/seed-ops-user.mjs",
+    "seed-ops-depots": "tsx scripts/seed-ops-depots.ts",
     "backfill-ops-links": "node scripts/backfill-ops-supabase-links.mjs",
     "process-logo": "node scripts/process-logo.mjs",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"docs/**/*.md\""
