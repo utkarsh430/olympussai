@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { seedGatedRouteDirection, insertVehicle } from './fixtures/controlServiceFixtures';
 import { assignVehicleToPilotDriver } from './fixtures/opsFixtures';
+import { assertQaRoster, signInThroughFrontDoor } from './fixtures/opsSignIn';
 
 /**
  * Live, authenticated end-to-end coverage for the driver PWA's
@@ -194,12 +195,18 @@ async function getControlServiceCommand(commandId: string): Promise<{ status: st
   return command;
 }
 
+/**
+ * Signs in at `/login`, the single front door, rather than at the legacy ops
+ * password endpoint this suite used to call. The console this drives is
+ * reached by a real page navigation, so the browser context's own cookie jar
+ * carries the session from here on.
+ */
 async function loginAsPilotDriver(page: Page): Promise<void> {
-  const res = await page.context().request.post('/api/ops/auth/login', {
-    headers: { 'Content-Type': 'application/json', Origin: E2E_ORIGIN },
-    data: { email: PILOT_DRIVER_EMAIL, password: PILOT_DRIVER_PASSWORD },
+  await signInThroughFrontDoor(page.context().request, {
+    email: PILOT_DRIVER_EMAIL!,
+    password: PILOT_DRIVER_PASSWORD!,
+    origin: E2E_ORIGIN,
   });
-  if (!res.ok()) throw new Error(`pilot_driver login failed (${res.status()}): ${await res.text()}`);
 }
 
 /**
@@ -253,6 +260,10 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
   let routeDirectionId: string;
 
   test.beforeAll(async () => {
+    // Before anything connects. This suite writes to `ops_users` by email and
+    // signs in against the real Supabase directory, so a stray address here
+    // must stop the run rather than reach either.
+    assertQaRoster({ pilot_driver: { email: PILOT_DRIVER_EMAIL } });
     controlServicePool = new Pool({ connectionString: CONTROL_SERVICE_DATABASE_URL });
     opsPool = new Pool({ connectionString: OPS_DATABASE_URL });
     routeDirectionId = await seedGatedRouteDirection(controlServicePool);

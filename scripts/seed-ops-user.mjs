@@ -24,10 +24,24 @@
  *   * Idempotent by email: re-running updates the existing row's password,
  *     name and role instead of failing, so a CI job that re-runs against a
  *     warm database behaves the same as against an empty one.
+ *
+ * THE SIGN-IN IDENTITY. With `NEXT_PUBLIC_SUPABASE_URL` and
+ * `SUPABASE_SERVICE_ROLE_KEY` set, this also provisions the Supabase Auth
+ * account the row signs in with and links it — which is what lets CI drive
+ * `/login`, the single front door, instead of the legacy password endpoint.
+ * With neither set it behaves exactly as it always has. That path is confined
+ * to the `*.qa@example.test` namespace and REFUSES anything else; see
+ * scripts/lib/qa-identity.mjs for why that refusal is in code rather than in
+ * a convention.
+ *
+ * The bcrypt hash is still written either way. It costs nothing, and it keeps
+ * the legacy door usable for these accounts for as long as the legacy door
+ * exists — which is the point of a fallback.
  */
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
 import readline from 'node:readline';
+import { identitySeedingEnabled, seedOpsIdentity } from './lib/qa-identity-seed.mjs';
 
 const COST_FACTOR = 12;
 const MIN_PASSWORD_LENGTH = 12;
@@ -106,10 +120,15 @@ async function main() {
   const pool = new pg.Pool({ connectionString });
 
   try {
+    // Before the database write. A refused or failed identity must leave no
+    // ops row behind claiming to be seeded: an account that exists and cannot
+    // sign in fails much later, somewhere that says nothing about why.
+    const supabaseUserId = await seedOpsIdentity({ email, password, role });
+
     const passwordHash = await bcrypt.hash(password, COST_FACTOR);
     const result = await pool.query(
-      `insert into ops_users (email, name, role, password_hash, status)
-       values ($1, $2, $3, $4, 'active')
+      `insert into ops_users (email, name, role, password_hash, status, supabase_user_id)
+       values ($1, $2, $3, $4, 'active', $5)
        on conflict (email) do update
          set name = excluded.name,
              role = excluded.role,
@@ -117,12 +136,23 @@ async function main() {
              status = 'active',
              disabled_at = null,
              disabled_by = null,
+             -- coalesce, not overwrite: a run with no service-role key must
+             -- not unlink a row an earlier run linked.
+             supabase_user_id = coalesce(excluded.supabase_user_id, ops_users.supabase_user_id),
              updated_at = now()
        returning id`,
-      [email, name, role, passwordHash],
+      [email, name, role, passwordHash, supabaseUserId],
     );
 
-    process.stdout.write(`Seeded ${role} ${email} (id ${result.rows[0].id}).\n`);
+    process.stdout.write(
+      `Seeded ${role} ${email} (id ${result.rows[0].id})` +
+        `${supabaseUserId ? ', linked to a Supabase sign-in identity' : ''}.\n`,
+    );
+    if (!supabaseUserId && !identitySeedingEnabled()) {
+      process.stdout.write(
+        '  No Supabase configuration in this environment — this account can only use the legacy ops sign-in.\n',
+      );
+    }
   } finally {
     await pool.end();
   }

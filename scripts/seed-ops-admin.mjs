@@ -22,10 +22,22 @@
  * nothing. A seeding step that reports success and seeds no admin is the
  * worst of the three possible outcomes — CI goes green, and the failure
  * surfaces later as an unrelated sign-in error.
+ *
+ * THE SIGN-IN IDENTITY. With `NEXT_PUBLIC_SUPABASE_URL` and
+ * `SUPABASE_SERVICE_ROLE_KEY` set, this also provisions the Supabase Auth
+ * account the admin signs in with and links it, so CI can drive `/login`
+ * rather than the legacy password endpoint. That path is confined to the
+ * `*.qa@example.test` namespace and refuses anything else — see
+ * scripts/lib/qa-identity.mjs. Seeding a REAL first admin still works
+ * unchanged; it simply gets no Supabase identity from here, which is correct:
+ * a real administrator's login is created deliberately, not by a script that
+ * a pull request can run.
  */
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
 import readline from 'node:readline';
+import { identitySeedingEnabled, seedOpsIdentity } from './lib/qa-identity-seed.mjs';
+import { isQaIdentityEmail } from './lib/qa-identity.mjs';
 
 const COST_FACTOR = 12;
 const MIN_PASSWORD_LENGTH = 12;
@@ -95,16 +107,29 @@ async function main() {
     }
 
     const password = await readPasswordFromStdin('Choose a password for this admin (input hidden): ');
+
+    // Only for a QA address. A real first admin keeps the original behaviour
+    // (bcrypt row, no identity) rather than being refused outright — this
+    // script is still the supported way to bootstrap a real deployment, and
+    // that bootstrap must not start depending on a service-role key.
+    const supabaseUserId =
+      identitySeedingEnabled() && isQaIdentityEmail(email)
+        ? await seedOpsIdentity({ email, password, role: 'admin' })
+        : null;
+
     const passwordHash = await bcrypt.hash(password, COST_FACTOR);
 
     const result = await pool.query(
-      `insert into ops_users (email, name, role, password_hash, status)
-       values ($1, $2, 'admin', $3, 'active')
+      `insert into ops_users (email, name, role, password_hash, status, supabase_user_id)
+       values ($1, $2, 'admin', $3, 'active', $4)
        returning id`,
-      [email, name, passwordHash],
+      [email, name, passwordHash, supabaseUserId],
     );
 
-    process.stdout.write(`Seeded admin ${email} (id ${result.rows[0].id}).\n`);
+    process.stdout.write(
+      `Seeded admin ${email} (id ${result.rows[0].id})` +
+        `${supabaseUserId ? ', linked to a Supabase sign-in identity' : ''}.\n`,
+    );
   } finally {
     await pool.end();
   }

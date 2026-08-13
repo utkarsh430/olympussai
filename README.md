@@ -1479,6 +1479,16 @@ variable is a hard failure, not a skip, because `.github/workflows/ci-web.yml`
 provisions all of it and a missing variable there means that setup broke. See
 that spec's header for the full list and a copy-pasteable local invocation.
 
+**The three ops suites authenticate against a real Supabase project.** They
+sign in at `/login`, the single front door, so CI needs
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
+`SUPABASE_SERVICE_ROLE_KEY` as repo secrets; the workflow checks for all three
+up front and fails with a named list rather than letting the absence surface
+as a confusing sign-in error later. Every identity CI creates lives in the
+`*.qa@example.test` namespace, is scoped to the run that created it, and is
+removed and verified gone afterwards — enforced in `scripts/lib/qa-identity.mjs`,
+which refuses to touch anything outside that namespace. See `docs/olympuss/RBAC.md`.
+
 
 Run at **2259×1271**, which is the effective CSS viewport of a 1920-wide
 display at the ~85% browser zoom the dashboard is actually used at.
@@ -1554,7 +1564,7 @@ affect the build toolchain only, and do not reach runtime.
 | `pnpm migrate:ops` | Apply `db/migrations/` to `OPS_DATABASE_URL`. One transaction per file, advisory-locked, checksum-verified — a shipped migration edited in place aborts the run |
 | `pnpm seed-ops-admin -- --email <email> --name <name>` | Seed the **first** ops admin (refuses if an active admin exists); every account after it comes from an admin invite |
 | `pnpm seed-ops-depots` | Populate/refresh `ops_depots` from the live UPSRTC feed, so an admin can assign a depot to a `depot`-role account. Idempotent, keyed on the canonical depot code; never deletes a depot a user may be assigned to. `--dry-run` reports what it would write, including any ambiguous upstream naming, without touching the database |
-| `pnpm seed-ops-user -- --email <email> --name <name> --role <role>` | Seed one non-admin ops account directly, for automation with no mailbox to receive an invite in (this is how CI provisions the e2e `pilot_driver`). **Refuses `admin`**; password from `OPS_SEED_PASSWORD` or a hidden prompt, never argv |
+| `pnpm seed-ops-user -- --email <email> --name <name> --role <role>` | Seed one non-admin ops account directly, for automation with no mailbox to receive an invite in (this is how CI provisions the seven e2e role accounts). **Refuses `admin`**; password from `OPS_SEED_PASSWORD` or a hidden prompt, never argv. With `SUPABASE_SERVICE_ROLE_KEY` set it also provisions and links the Supabase sign-in identity — confined to `*.qa@example.test`, see `scripts/lib/qa-identity.mjs` |
 | `pnpm run process-logo` | Regenerate every brand asset from the source logo |
 
 Inside `control-service/` (its own package, own database):

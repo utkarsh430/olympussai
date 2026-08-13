@@ -207,13 +207,26 @@ system rather than a role field bolted onto the project login:
   There is one further, deliberately narrow exception:
   `scripts/seed-ops-user.mjs` (`pnpm seed-ops-user`) writes a single
   non-admin account directly, for automation that has no mailbox to receive
-  an invite in and no admin session to issue one from — specifically the
-  `pilot_driver` account `.github/workflows/ci-web.yml` seeds so
-  `tests/e2e/pilot-driver-command.spec.ts` can log in. It **refuses to create
-  an `admin`**, so it cannot be used to escalate: minting an admin still goes
-  through `seed-ops-admin.mjs` (first admin only) or an existing admin's
-  invite. Its password comes from `OPS_SEED_PASSWORD` or a hidden TTY prompt,
-  never argv.
+  an invite in and no admin session to issue one from — the seven role
+  accounts `.github/workflows/ci-web.yml` provisions for the three ops e2e
+  suites. It **refuses to create an `admin`**, so it cannot be used to
+  escalate: minting an admin still goes through `seed-ops-admin.mjs` (first
+  admin only) or an existing admin's invite. Its password comes from
+  `OPS_SEED_PASSWORD` or a hidden TTY prompt, never argv.
+
+  When `SUPABASE_SERVICE_ROLE_KEY` is present it also provisions the Supabase
+  Auth identity the row signs in with, stamps `app_metadata.ops_role`, and
+  links it — which is what lets CI drive `/login` rather than the legacy
+  password endpoint, and therefore what makes that endpoint deletable at all.
+  **That path is confined to `*.qa@example.test` and refuses everything else**
+  (`scripts/lib/qa-identity.mjs`). CI runs against the project's real Supabase
+  directory, which holds real people's logins, and the ops e2e suite disables
+  accounts on purpose; the namespace is enforced in code rather than by
+  convention so no pull request can point either at a real account. `.test` is
+  RFC 2606 reserved, so nothing in that namespace can be a real mailbox.
+  `scripts/qa-identity-teardown.mjs` removes those identities after each run
+  and verifies they are gone; it accepts no address, listing and filtering the
+  directory itself.
 - **Session:** a signed JWT (jose, HS256) in an **HttpOnly**
   `olympuss_ops_session` cookie (`SameSite=lax`, `Secure` in production,
   `Path=/`, 4-hour max lifetime — deliberately short, since operational

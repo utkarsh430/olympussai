@@ -69,6 +69,28 @@ jobs:
           node-version: "20"
           cache: pnpm
 
+      # Named secrets, checked once and up front. Without them the failure
+      # arrives much later and disguised: a build that succeeds and produces
+      # a /login page that cannot authenticate anybody, or a seed step
+      # erroring on a Supabase call three jobs deep. Values are never
+      # printed - only whether each one is set.
+      - name: Check the Supabase secrets are configured
+        run: |
+          missing=""
+          [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] || missing="$missing NEXT_PUBLIC_SUPABASE_URL"
+          [ -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] || missing="$missing NEXT_PUBLIC_SUPABASE_ANON_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repo secret(s):$missing"
+            echo "Add them under Settings > Secrets and variables > Actions:"
+            echo "  NEXT_PUBLIC_SUPABASE_URL       the project URL, e.g. https://<ref>.supabase.co"
+            echo "  NEXT_PUBLIC_SUPABASE_ANON_KEY  the project's anon/publishable key"
+            exit 1
+          fi
+          echo "All required Supabase secrets are present."
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -105,6 +127,16 @@ jobs:
           # project's secrets vault - never hardcoded here.
           NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          # Supabase Auth is the single sign-in front door, and these two are
+          # inlined into the browser bundle at build time - a build without
+          # them produces a /login page that cannot authenticate anybody.
+          # "Public" in the Supabase sense (the anon key is protected by RLS,
+          # not by secrecy); they are kept as repo secrets anyway, following
+          # this file's existing convention of never hardcoding project
+          # identifiers. The service-role key is deliberately NOT here: this
+          # job neither serves requests nor provisions accounts.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
   # ---------------------------------------------------------------------------
   # tests/e2e/pilot-driver-command.spec.ts AND
@@ -178,27 +210,67 @@ jobs:
       SERVICE_TOKEN: ci-e2e-service-token-not-a-real-secret
       WEBHOOK_SECRET: ci-e2e-webhook-hmac-not-a-real-secret
       OPS_SESSION_SECRET: ci-e2e-ops-session-secret-at-least-32-characters
-      PILOT_DRIVER_EMAIL: pilot.driver.qa@example.test
+
+      # -------------------------------------------------------------------
+      # SUPABASE. The three ops suites now sign in at /login, the single
+      # front door, instead of at the legacy password endpoint - which is
+      # what makes that endpoint deletable at all, since it was the only ops
+      # coverage this repo had and it all depended on the old door.
+      #
+      # This runs against the project's REAL Supabase directory. There is no
+      # second one, and a fake would prove nothing about the claim
+      # verification, the Edge ceiling or the landing decision the product
+      # actually uses. The anon key is public by design (RLS is what
+      # protects it); the service-role key bypasses RLS and is what
+      # provisions the QA sign-in identities below. Next inlines only
+      # NEXT_PUBLIC_* into the browser bundle, so the service-role key stays
+      # server-side even though it is set job-wide here (as OPS_DATABASE_URL
+      # already is for this job).
+      #
+      # THE SAFETY RULE, enforced in code rather than by convention:
+      # scripts/lib/qa-identity.mjs refuses to create, change or delete any
+      # identity outside *.qa@example.test, and the teardown step below takes
+      # no address at all - it lists the directory and filters. Read that
+      # module before touching any of this.
+      # -------------------------------------------------------------------
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      # Every QA identity this run creates carries this token in its local
+      # part, and the teardown removes only identities carrying it.
+      #
+      # RUN-SCOPED, NOT FIXED, and that is not tidiness. Two pull requests
+      # can reach this job at the same time (`concurrency` above is keyed on
+      # the ref, so it serialises a branch with itself and nothing else)
+      # against one shared Supabase directory. With one fixed address per
+      # role, the second run's account creation collides with the first's,
+      # and the first run's teardown deletes the second run's accounts
+      # mid-suite - a green change goes red for reasons that have nothing to
+      # do with it.
+      QA_IDENTITY_SCOPE: ci-${{ github.run_id }}-${{ github.run_attempt }}
+
+      PILOT_DRIVER_EMAIL: pilot-driver.ci-${{ github.run_id }}-${{ github.run_attempt }}.qa@example.test
       PILOT_DRIVER_PASSWORD: ci-e2e-pilot-driver-password
       # control-room-command-delivery.spec.ts's own two roles: a dispatcher
       # to record the human approval and a control_room account to issue the
       # command through it — the two decisions a real dispatch requires that
       # the pilot-driver spec's fixtures never needed.
-      DISPATCHER_EMAIL: dispatcher.qa@example.test
+      DISPATCHER_EMAIL: dispatcher.ci-${{ github.run_id }}-${{ github.run_attempt }}.qa@example.test
       DISPATCHER_PASSWORD: ci-e2e-dispatcher-password
-      CONTROL_ROOM_EMAIL: control-room.qa@example.test
+      CONTROL_ROOM_EMAIL: control-room.ci-${{ github.run_id }}-${{ github.run_attempt }}.qa@example.test
       CONTROL_ROOM_PASSWORD: ci-e2e-control-room-password
       # tests/e2e/ops-dashboard-pages.spec.ts covers all twelve ops
       # dashboards, so it needs the remaining four roles too. Before it, only
       # /ops/pilot-driver had any end-to-end coverage at all, which is how a
       # defect living in the shape shared by all twelve pages shipped green.
-      ADMIN_EMAIL: admin.qa@example.test
+      ADMIN_EMAIL: admin.ci-${{ github.run_id }}-${{ github.run_attempt }}.qa@example.test
       ADMIN_PASSWORD: ci-e2e-admin-password
-      DRIVER_EMAIL: driver.qa@example.test
+      DRIVER_EMAIL: driver.ci-${{ github.run_id }}-${{ github.run_attempt }}.qa@example.test
       DRIVER_PASSWORD: ci-e2e-driver-password
-      DEPOT_EMAIL: depot.qa@example.test
+      DEPOT_EMAIL: depot.ci-${{ github.run_id }}-${{ github.run_attempt }}.qa@example.test
       DEPOT_PASSWORD: ci-e2e-depot-password
-      PLANNER_EMAIL: planner.qa@example.test
+      PLANNER_EMAIL: planner.ci-${{ github.run_id }}-${{ github.run_attempt }}.qa@example.test
       PLANNER_PASSWORD: ci-e2e-planner-password
 
     steps:
@@ -212,6 +284,28 @@ jobs:
         with:
           node-version: "20"
           cache: pnpm
+
+      # Named secrets, checked once and up front. Without them the failure
+      # arrives much later and disguised: a build that succeeds and produces
+      # a /login page that cannot authenticate anybody, or a seed step
+      # erroring on a Supabase call three jobs deep. Values are never
+      # printed - only whether each one is set.
+      - name: Check the Supabase secrets are configured
+        run: |
+          missing=""
+          [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] || missing="$missing NEXT_PUBLIC_SUPABASE_URL"
+          [ -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] || missing="$missing NEXT_PUBLIC_SUPABASE_ANON_KEY"
+          [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] || missing="$missing SUPABASE_SERVICE_ROLE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repo secret(s):$missing"
+            echo "Add them under Settings > Secrets and variables > Actions:"
+            echo "  NEXT_PUBLIC_SUPABASE_URL       the project URL, e.g. https://<ref>.supabase.co"
+            echo "  NEXT_PUBLIC_SUPABASE_ANON_KEY  the project's anon/publishable key"
+            echo "  SUPABASE_SERVICE_ROLE_KEY      the project's service_role key (bypasses RLS - keep it secret)"
+            exit 1
+          fi
+          echo "All required Supabase secrets are present."
+
 
       - name: Install web dependencies
         run: pnpm install --frozen-lockfile
@@ -237,12 +331,22 @@ jobs:
           WEBHOOK_HMAC_SECRET: ${{ env.WEBHOOK_SECRET }}
 
       # --- fixtures -----------------------------------------------------
-      # The three accounts these two specs log in as. scripts/seed-ops-admin.mjs
-      # seeds an admin and nothing else; every other ops account normally
-      # comes from an admin invite, which needs a mailbox and an admin
-      # session CI has neither of - hence scripts/seed-ops-user.mjs. Each
-      # spec seeds its own per-test control-service fixtures (vehicle,
-      # approval, rollout stage) directly, as their headers explain.
+      # The seven accounts these three specs log in as.
+      # scripts/seed-ops-admin.mjs seeds an admin and nothing else; every
+      # other ops account normally comes from an admin invite, which needs a
+      # mailbox and an admin session CI has neither of - hence
+      # scripts/seed-ops-user.mjs. Each spec seeds its own per-test
+      # control-service fixtures (vehicle, approval, rollout stage) directly,
+      # as their headers explain.
+      #
+      # With SUPABASE_SERVICE_ROLE_KEY set, both scripts ALSO provision the
+      # Supabase Auth identity each row signs in with, stamp its
+      # app_metadata.ops_role claim, and link it via
+      # ops_users.supabase_user_id. Without all three of those the account
+      # exists in Postgres and cannot get past the Edge ceiling, so /login
+      # would answer a correct password with an explanation page. Both
+      # scripts REFUSE to provision an identity for anything outside
+      # *.qa@example.test.
       - name: Seed the pilot_driver account
         run: >-
           node scripts/seed-ops-user.mjs
@@ -432,3 +536,28 @@ jobs:
           for pidfile in "$RUNNER_TEMP/web.pid" "$RUNNER_TEMP/control-service.pid"; do
             [ -f "$pidfile" ] && kill "$(cat "$pidfile")" 2>/dev/null || true
           done
+
+      # -------------------------------------------------------------------
+      # Remove this run's QA sign-in identities from the shared Supabase
+      # directory, and VERIFY they are gone.
+      #
+      # `if: always()` because the accounts outlive a failed suite: the two
+      # databases are containers that vanish with the job, but Supabase is
+      # not, and identities left behind accumulate forever and eventually
+      # collide with a later run.
+      #
+      # It cannot touch anything outside *.qa@example.test. The step passes
+      # no address; scripts/qa-identity-teardown.mjs lists the directory,
+      # keeps only the namespace, re-checks each record immediately before
+      # deleting it, and then re-reads the directory to confirm. It exits
+      # non-zero if anything it tried to remove is still there - a teardown
+      # that reports success while leaving accounts behind is worse than one
+      # that fails, because the collision surfaces three jobs away.
+      #
+      # It also sweeps namespace identities older than its stale threshold,
+      # which is what cleans up after runs `cancel-in-progress` killed before
+      # their own teardown could run.
+      # -------------------------------------------------------------------
+      - name: Remove this run's QA sign-in identities
+        if: always()
+        run: node scripts/qa-identity-teardown.mjs

@@ -1,5 +1,10 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { Pool } from 'pg';
+import {
+  assertQaRoster,
+  isSupabaseAuthCookie,
+  signInThroughFrontDoor,
+} from './fixtures/opsSignIn';
 
 /**
  * Every ops dashboard page, actually opened — and the mid-render race that
@@ -49,12 +54,17 @@ import { Pool } from 'pg';
  *   ... (one pair per role) \
  *   npm run test:e2e -- ops-dashboard-pages
  *
- * It signs in through POST /api/ops/auth/login, the legacy ops door, which
- * is deliberately still live through the cutover and is what CI already
- * provisions accounts for. The defect under test is in the per-request
- * authority check that BOTH front doors pass through
- * (src/lib/auth/rbac/server.ts), so exercising it through either one
- * exercises it for both.
+ * It signs in through `/login`, the single front door: Supabase Auth, the
+ * `app_metadata.ops_role` claim, the Edge ceiling that reads it, and the
+ * per-request `ops_users` authority behind that. It used to drive
+ * POST /api/ops/auth/login instead, and that mattered for a reason well
+ * beyond which endpoint a test calls: the legacy password endpoint cannot be
+ * DELETED while the only end-to-end coverage of the ops console depends on
+ * it. So this suite was the thing holding the old auth system open.
+ *
+ * Every account it touches is a throwaway QA identity, enforced rather than
+ * agreed — see tests/e2e/fixtures/opsSignIn.ts. This suite disables accounts
+ * on purpose, and it now runs against the project's real Supabase directory.
  */
 
 const E2E_ORIGIN = process.env.E2E_ORIGIN ?? 'http://127.0.0.1:3000';
@@ -140,6 +150,10 @@ if (process.env.CI === 'true' && missingEnv.length > 0) {
 let pool: Pool | undefined;
 
 test.beforeAll(() => {
+  // Before anything connects or signs in. A stray address here would be
+  // driven against the real Supabase directory by a suite whose whole job is
+  // to disable accounts.
+  assertQaRoster(ROLE_ACCOUNTS);
   if (missingEnv.length === 0) pool = new Pool({ connectionString: OPS_DATABASE_URL });
 });
 
@@ -158,13 +172,14 @@ test.afterAll(async () => {
   await pool?.end();
 });
 
-async function signIn(request: APIRequestContext, role: OpsRoleName): Promise<void> {
+async function signIn(request: APIRequestContext, role: OpsRoleName): Promise<string> {
   const account = ROLE_ACCOUNTS[role];
-  const res = await request.post('/api/ops/auth/login', {
-    headers: { 'Content-Type': 'application/json', Origin: E2E_ORIGIN },
-    data: { email: account.email, password: account.password },
+  const { cookieHeader } = await signInThroughFrontDoor(request, {
+    email: account.email!,
+    password: account.password!,
+    origin: E2E_ORIGIN,
   });
-  if (!res.ok()) throw new Error(`${role} login failed (${res.status()}): ${await res.text()}`);
+  return cookieHeader;
 }
 
 async function setStatus(role: OpsRoleName, status: 'active' | 'disabled'): Promise<void> {
@@ -238,11 +253,10 @@ test.describe('a dashboard survives its account changing mid-render', () => {
    * transient failure of the profile read.
    *
    * Issued with plain `fetch` from the test process rather than through
-   * Playwright's request context, which drops the ops cookie: `next start`
-   * runs in production mode, so that cookie is `Secure`, and the API context
-   * will not put a Secure cookie on a plaintext localhost request the way a
-   * browser does. The cookie is still obtained the product's way — through
-   * POST /api/ops/auth/login — and read back out of the browser context.
+   * Playwright's request context, so the concurrency is real: 250 requests
+   * genuinely in flight, not serialised behind one client's connection
+   * management. The session is still obtained the product's way — a real
+   * sign-in at `/login` — and its cookies are carried verbatim.
    *
    * The assertion is deliberately NOT "everything is 200". A request whose
    * guard resolves after the disable SHOULD be refused, and a redirect to
@@ -256,13 +270,17 @@ test.describe('a dashboard survives its account changing mid-render', () => {
     test(`${target?.path} never 500s while ${role} is toggled`, async ({ page }) => {
       const path = target?.path;
       if (!path) throw new Error(`no page for ${role}`);
-      await signIn(page.request, role);
+      const cookieHeader = await signIn(page.request, role);
 
-      const cookies = await page.context().cookies();
-      const cookieHeader = cookies.map(({ name, value }) => `${name}=${value}`).join('; ');
-      expect(cookieHeader, 'sign-in left no session cookie to load with').toContain(
-        'olympuss_ops_session=',
-      );
+      // A Supabase session, not the legacy ops cookie. Asserted rather than
+      // assumed: if the sign-in silently produced nothing, every request
+      // below would be refused upstream and the "no 5xx" check would pass
+      // while proving nothing at all about the page.
+      const cookieNames = cookieHeader.split('; ').map((pair) => pair.split('=', 1)[0]!);
+      expect(
+        cookieNames.filter(isSupabaseAuthCookie),
+        `sign-in left no Supabase session to load with (got ${cookieNames.join(', ')})`,
+      ).not.toEqual([]);
 
       let toggling = true;
       const toggler = (async () => {

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { seedGatedRouteDirection, insertVehicle } from './fixtures/controlServiceFixtures';
 import { assignVehicleToPilotDriver } from './fixtures/opsFixtures';
+import { assertQaRoster, signInThroughFrontDoor } from './fixtures/opsSignIn';
 
 /**
  * Live, authenticated end-to-end coverage for the REAL product path a
@@ -95,53 +96,35 @@ if (process.env.CI === 'true' && missingEnv.length > 0) {
 const ACTION_TYPE = 'speed_guidance';
 
 /**
- * Logs in and returns the session `Cookie` header to attach to subsequent
- * `request.*` calls on the SAME context explicitly.
+ * Signs in at `/login` — the single front door — and returns the session
+ * `Cookie` header to attach to subsequent `request.*` calls on the SAME
+ * context explicitly.
  *
- * Not redundant with the context's own cookie jar: the login response sets
- * the ops session cookie `Secure` (`src/lib/auth/rbac/server.ts`, correctly,
- * for real HTTPS deployments), and a real Chromium PAGE navigation to
- * `http://127.0.0.1` still sends it back (Chrome trusts localhost as a
- * secure context) — but Playwright's `APIRequestContext` (`context.request`
- * / `page.request`, a plain Node HTTP client, not the browser's own network
- * stack) does not carry that exception and silently drops `Secure` cookies
- * over a plain-HTTP origin. E2E_ORIGIN is `http://127.0.0.1:...` both
- * locally and in CI (`.github/workflows/ci-web.yml`), so every dispatcher/
- * control-room call below — API-only, unlike the pilot-driver flow's real
- * page navigation — would 401 "Authentication required" on every run
- * without this: confirmed by driving the real login against a live server,
- * which returns 200 and a Set-Cookie, immediately followed by a real
- * `context.request` call that comes back unauthenticated.
+ * WHY THE HEADER IS PASSED BY HAND rather than left to the context's own
+ * cookie jar: these dispatcher and control-room calls are API-only, unlike
+ * the pilot-driver flow's real page navigation, and being explicit about the
+ * session is what makes a 401 here mean "the server refused" rather than
+ * "some client dropped a cookie". It is also what let this suite survive the
+ * previous door, whose cookie was `Secure` and which Playwright's
+ * `APIRequestContext` — a plain Node HTTP client, not the browser's network
+ * stack — silently discarded over plain HTTP.
  *
- * Reads every `Set-Cookie` on the response, not just the first. Login sets
- * exactly one today, so taking one worked - but `headers()` collapses
- * repeated `Set-Cookie` values into ONE newline-joined string, and
- * `.split(';', 1)[0]` cuts at the first attribute delimiter, i.e. before
- * that newline. So the moment login sets a second cookie (a CSRF token, a
- * tenant hint) the old code would have kept cookie one and silently dropped
- * every later one - a 401 with nothing in this file pointing at why.
- * Verified against a live two-cookie response: `headers()` yields
- * `"a=1; Path=/\nb=2; Path=/"` and the old expression yields `"a=1"`, while
- * `headersArray()` keeps each value separate and yields `"a=1; b=2"`.
+ * Reading EVERY `Set-Cookie` rather than the first is load-bearing on the
+ * Supabase door: a session that exceeds the per-cookie size limit is SPLIT
+ * across `sb-<ref>-auth-token.0`, `.1`, and `headers()` collapses repeated
+ * `Set-Cookie` values into one newline-joined string that `.split(';', 1)[0]`
+ * cuts before the newline. Keeping chunk zero and dropping the rest yields a
+ * 401 with nothing in this file pointing at why.
+ * tests/e2e/fixtures/opsSignIn.ts owns that parsing for all three ops suites
+ * so it cannot drift between them.
  */
 async function login(request: APIRequestContext, email: string, password: string): Promise<string> {
-  const res = await request.post('/api/ops/auth/login', {
-    headers: { 'Content-Type': 'application/json', Origin: E2E_ORIGIN },
-    data: { email, password },
+  const { cookieHeader } = await signInThroughFrontDoor(request, {
+    email,
+    password,
+    origin: E2E_ORIGIN,
   });
-  if (!res.ok()) throw new Error(`login failed for ${email} (${res.status()}): ${await res.text()}`);
-  const cookiePairs = res
-    .headersArray()
-    .filter((header) => header.name.toLowerCase() === 'set-cookie')
-    // Everything after the first `;` is attributes (Path/HttpOnly/Secure/...),
-    // which belong on a Set-Cookie response header and never on a Cookie
-    // request header.
-    .map((header) => header.value.split(';', 1)[0]!.trim())
-    .filter((pair) => pair.length > 0);
-  if (cookiePairs.length === 0) {
-    throw new Error(`login for ${email} succeeded but set no session cookie`);
-  }
-  return cookiePairs.join('; ');
+  return cookieHeader;
 }
 
 interface CreateCommandResponseBody {
@@ -165,6 +148,14 @@ test.describe('Control-room command delivery — the real create-to-driver path'
   let routeDirectionId: string;
 
   test.beforeAll(async () => {
+    // Before anything connects. This suite writes to `ops_users` by email and
+    // signs in against the real Supabase directory, so a stray address here
+    // must stop the run rather than reach either.
+    assertQaRoster({
+      dispatcher: { email: DISPATCHER_EMAIL },
+      control_room: { email: CONTROL_ROOM_EMAIL },
+      pilot_driver: { email: PILOT_DRIVER_EMAIL },
+    });
     controlServicePool = new Pool({ connectionString: CONTROL_SERVICE_DATABASE_URL });
     opsPool = new Pool({ connectionString: OPS_DATABASE_URL });
     routeDirectionId = await seedGatedRouteDirection(controlServicePool);
