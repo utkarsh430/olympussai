@@ -327,6 +327,90 @@ describe('role-correct landing', () => {
     });
   });
 
+  it('falls back to the role home when the requested ops path is not this role\'s screen', () => {
+    // THE REGRESSION. Reproduced in a browser before it was fixed: signed in
+    // as `admin`, with a leftover `?next=/ops/control-room` from an earlier
+    // navigation, and a SUCCESSFUL sign-in landed on "Access Denied".
+    //
+    // Nothing was broken at the moment of refusal - /ops/control-room is a
+    // control_room screen and the guard is right to turn an admin away. The
+    // defect is upstream: the landing decision nominated a destination it
+    // could see the account could not open. Signing in correctly and being
+    // shown a wall is indistinguishable, from the user's side, from failing
+    // to sign in at all.
+    expect(resolveLanding({ requestedNext: '/ops/control-room', opsRole: 'admin' })).toEqual({
+      kind: 'go',
+      path: '/ops/admin/invites',
+    });
+
+    // Not special to that one pair: EVERY cross-role combination falls back
+    // to the signer's own dashboard rather than to a refusal.
+    for (const role of OPS_ROLES) {
+      for (const other of OPS_ROLES) {
+        if (other === role) continue;
+        const decision = resolveLanding({ requestedNext: opsHomePath(other), opsRole: role });
+        expect(
+          decision,
+          `${role} asking for ${other}'s home should land on its own dashboard`,
+        ).toEqual({ kind: 'go', path: opsHomePath(role) });
+      }
+    }
+  });
+
+  it('falls back to the role home for an ops path that is nobody\'s screen', () => {
+    // /ops/forbidden and /ops/unavailable render for anyone, so they are
+    // "reachable" in the guard's sense - but landing on either after a
+    // successful sign-in is the same bad first impression wearing a
+    // different hat, so neither is a destination this may nominate.
+    for (const role of OPS_ROLES) {
+      for (const requestedNext of ['/ops/forbidden', '/ops/unavailable']) {
+        expect(resolveLanding({ requestedNext, opsRole: role })).toEqual({
+          kind: 'go',
+          path: opsHomePath(role),
+        });
+      }
+    }
+  });
+
+  it('still honours a deep link the role CAN open, query string and all', () => {
+    // The fix must not overshoot into "always ignore next". A real deep link
+    // for the right role survives, including the query string middleware
+    // never sees (it matches on pathname), which is why the segment test
+    // strips the separators rather than splitting on '/' alone.
+    expect(
+      resolveLanding({
+        requestedNext: '/ops/control-room/incidents/42?tab=timeline',
+        opsRole: 'control_room',
+      }),
+    ).toEqual({ kind: 'go', path: '/ops/control-room/incidents/42?tab=timeline' });
+
+    expect(resolveLanding({ requestedNext: '/ops/admin/invites', opsRole: 'admin' })).toEqual({
+      kind: 'go',
+      path: '/ops/admin/invites',
+    });
+  });
+
+  it('never turns the fallback into an open redirect', () => {
+    // The fallback branch is reached by strictly MORE inputs than before, so
+    // re-assert the invariant on it directly: whatever comes in, what comes
+    // out is an internal path this app owns.
+    for (const hostile of [
+      'https://evil.example.com/steal',
+      '//evil.example.com/ops/depot',
+      '/\\evil.example.com',
+      '/ops/depot/../../evil',
+      '/ops/control-room@evil.example.com',
+      'javascript:alert(1)',
+    ]) {
+      const decision = resolveLanding({ requestedNext: hostile, opsRole: 'depot' });
+      expect(decision.kind).toBe('go');
+      const target = decision.kind === 'go' ? decision.path : '';
+      expect(target.startsWith('/')).toBe(true);
+      expect(target.startsWith('//')).toBe(false);
+      expect(target).not.toContain('evil.example.com');
+    }
+  });
+
   it('falls back to the role home when nothing was requested', () => {
     expect(resolveLanding({ requestedNext: null, opsRole: 'planner' })).toEqual({
       kind: 'go',

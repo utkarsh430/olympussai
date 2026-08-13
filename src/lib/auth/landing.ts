@@ -40,7 +40,7 @@
  * `/ops/login` and `/ops/accept-invite` as targets at all — a `next` that
  * points back at a login page is a one-hop loop of its own.
  */
-import { OPS_ROLE_SEGMENT, type OpsRole } from './rbac/roles';
+import { OPS_ROLE_SEGMENT, roleForSegment, type OpsRole } from './rbac/roles';
 import { isOpsPath, sanitizeNextOrNull } from './redirect';
 
 /**
@@ -65,6 +65,45 @@ const OPS_ROLE_HOME_OVERRIDES: Partial<Record<OpsRole, string>> = {
 /** The dashboard a role lands on. Always a real page. */
 export function opsHomePath(role: OpsRole): string {
   return OPS_ROLE_HOME_OVERRIDES[role] ?? `/ops/${OPS_ROLE_SEGMENT[role]}`;
+}
+
+/**
+ * Whether `role` can actually OPEN this already-sanitized path.
+ *
+ * Sanitizing a `next` proves it is safe to navigate to - internal, no
+ * open-redirect, not a login page. It says nothing about whether the person
+ * holding it is allowed in, and those are different questions with different
+ * answers. A leftover `?next=/ops/control-room` on the sign-in page is a
+ * perfectly safe path that an `admin` cannot open, and honouring it turned a
+ * SUCCESSFUL sign-in into "Access Denied" - the guards did their job, but the
+ * user's whole experience of signing in correctly was a wall.
+ *
+ * The rule mirrors the guards exactly rather than approximating them, so this
+ * can never nominate something they would refuse:
+ *
+ *   - `/ops/<segment>` is one role's screen. `roleForSegment` gives that role,
+ *     and both enforcers - Edge middleware's ceiling
+ *     (`handleOpsRequest`, src/middleware.ts) and the page guard
+ *     (`requireOpsRolePage`, src/lib/auth/rbac/pageGuard.ts) - compare it for
+ *     STRICT EQUALITY. So anything but an exact match is unreachable.
+ *   - A segment that is not a role surface at all (`forbidden`, `unavailable`)
+ *     returns null and is unreachable too. Those pages render for anyone, but
+ *     neither is a place to LAND after signing in, which is the same complaint
+ *     in a different costume. (`login` and `accept-invite` never get this far -
+ *     `sanitizeOpsNext` already refuses them as one-hop loops.)
+ *   - A `/project/*` path is gated on holding an active ops profile rather
+ *     than on any particular role (src/lib/auth/authorize.ts), and every
+ *     caller here has one, so it stays reachable for all seven roles.
+ *
+ * Note this reads the PATH only. A `next` legitimately carries a query string
+ * (`/ops/control-room/incidents/42?tab=timeline`), and middleware matches its
+ * segment against `nextUrl.pathname`, which has none - so the separators are
+ * stripped here to compare the same thing middleware will.
+ */
+function isReachableBy(path: string, role: OpsRole): boolean {
+  if (!isOpsPath(path)) return true;
+  const segment = path.slice('/ops/'.length).split(/[/?#]/)[0] ?? '';
+  return roleForSegment(segment) === role;
 }
 
 export type LandingDecision =
@@ -177,10 +216,28 @@ export function resolveLanding({
     return { kind: 'go', path: requested };
   }
 
-  // An operator with an explicit destination gets it; otherwise their own
-  // dashboard. This is the "role-correct landing" half — before the collapse,
-  // /login sent all seven ops roles to /project/upsrtc.
-  return { kind: 'go', path: requested ?? opsHomePath(opsRole) };
+  // An operator with an explicit destination gets it - but only if it is a
+  // destination THEY can open. Otherwise their own dashboard. This is the
+  // "role-correct landing" half — before the collapse, /login sent all seven
+  // ops roles to /project/upsrtc.
+  //
+  // The reachability test is what stops a correct sign-in from ending on a
+  // refusal. A `next` outlives the navigation that set it: middleware writes
+  // one whenever it bounces an operator off an ops route, it survives in the
+  // address bar and in bookmarks, and nothing clears it when the person who
+  // finally signs in is not the person it was written for. Honouring it
+  // unconditionally meant an `admin` arriving with a stale
+  // `?next=/ops/control-room` authenticated successfully and was shown
+  // "Access Denied" - indistinguishable, from the user's side, from having
+  // got their password wrong.
+  //
+  // Falling back is strictly a NARROWING: `requested` has already been
+  // through `sanitizeNextOrNull`, and the fallback is `opsHomePath`, a fixed
+  // internal path built from a compile-time map. There is no input that can
+  // reach either branch and leave this app, so closing the refusal costs
+  // nothing on the open-redirect side.
+  const reachable = requested !== null && isReachableBy(requested, opsRole);
+  return { kind: 'go', path: reachable ? requested : opsHomePath(opsRole) };
 }
 
 /** Query parameter `/login` reads to render the no-ops-access explanation. */
