@@ -35,6 +35,36 @@
  * script cannot resolve with certainty is REPORTED for a human, never
  * guessed. Nothing is ever silently skipped.
  *
+ * AN EMAIL MATCH IS NOT PROOF OF CONTROL, WHICH IS WHY UNCONFIRMED AND
+ * BANNED IDENTITIES ARE REFUSED. The match above answers "does an identity
+ * carry this address"; it does not answer "does the person holding this
+ * identity control that mailbox". Those come apart in exactly one way, and
+ * it is reachable:
+ *
+ *   The Supabase project accepts public self-signup with mailer
+ *   auto-confirm OFF. Anyone may register ANY address, including an
+ *   administrator's, and the account exists immediately - just UNCONFIRMED,
+ *   because confirming it needs the real mailbox. Register the admin's
+ *   address before this script runs and it becomes the sole email match.
+ *   Linking it hands that attacker the admin ops profile, and
+ *   `resolveIdentity` (src/lib/auth/rbac/server.ts) then trusts the binding
+ *   absolutely: it resolves by `supabase_user_id` and re-checks nothing.
+ *
+ * The unconfirmed flag is the ONLY signal that separates that account from a
+ * real one, and it used to be attached as a cosmetic note next to a `link`
+ * decision that proceeded anyway. It is now a REFUSAL. Banned identities are
+ * refused on the same principle: an account an administrator has already
+ * revoked must not be handed an operational role by a batch job.
+ *
+ * Both refusals are overridable, loudly and separately (`--include-unconfirmed`,
+ * `--include-banned`), because there are legitimate cases - a pre-existing
+ * directory where nobody ever confirmed, a temporary ban being lifted. An
+ * override is an operator asserting out-of-band knowledge, which is a
+ * different act from a script inferring it, and the report says so on every
+ * affected line. Accounts created by `scripts/create-project-user.mjs` and by
+ * the invite flow both set `email_confirm: true`, so the normal path is
+ * unaffected by any of this.
+ *
  * IT NEVER CREATES, MODIFIES OR DELETES A SUPABASE USER. Its only Supabase
  * call is `listUsers` (read). An ops account with no Supabase identity is
  * reported, not conjured: creating one means choosing a password, and that
@@ -101,6 +131,17 @@ Options:
                           new front door before touching anyone else's.
   --include-disabled      Also link rows whose status is 'disabled'. Off by
                           default; disabled rows are reported either way.
+  --include-unconfirmed   Link even when the matched Supabase identity has
+                          never confirmed its email. REFUSED by default: an
+                          unconfirmed account proves an address was typed,
+                          not that the mailbox is controlled, and public
+                          self-signup makes typing someone else's address
+                          free. Only pass this if you know out-of-band who
+                          holds every affected account.
+  --include-banned        Link even when the matched Supabase identity is
+                          banned. REFUSED by default: an account an admin has
+                          revoked should not be handed an operational role by
+                          a batch job.
   --actor-email <address> Active ops admin to attribute each link to in
                           ops_audit_log. Required with --apply.
   --no-audit              Apply links WITHOUT an audit row. Explicit
@@ -233,14 +274,24 @@ export function describeClaim(opsRole, supabaseUser) {
  *   attention:linked-email-differs- linked, but the identity's email differs
  *   attention:linked-unknown      - linked to an id absent from this project
  *   attention:duplicate-ops-email - >1 ops row with that email
+ *   attention:identity-banned     - matched identity is banned (--include-banned)
+ *   attention:identity-unconfirmed- matched identity never confirmed its email
+ *                                   (--include-unconfirmed)
  *
  * Every `attention:*` is a human's call. None of them is written, and none of
  * them is silent.
  *
- * @param {{ opsUsers: OpsUserRow[], supabaseUsers: SupabaseAuthUser[], onlyEmail?: string | null, includeDisabled?: boolean }} input
+ * @param {{ opsUsers: OpsUserRow[], supabaseUsers: SupabaseAuthUser[], onlyEmail?: string | null, includeDisabled?: boolean, includeUnconfirmed?: boolean, includeBanned?: boolean }} input
  * @returns {{ decisions: Decision[], directory: ReturnType<typeof indexSupabaseUsers> }}
  */
-export function planBackfill({ opsUsers, supabaseUsers, onlyEmail = null, includeDisabled = false }) {
+export function planBackfill({
+  opsUsers,
+  supabaseUsers,
+  onlyEmail = null,
+  includeDisabled = false,
+  includeUnconfirmed = false,
+  includeBanned = false,
+}) {
   const directory = indexSupabaseUsers(supabaseUsers);
   const filterKey = onlyEmail === null ? null : normalizeEmail(onlyEmail);
   if (onlyEmail !== null && filterKey === null) {
@@ -312,7 +363,26 @@ export function planBackfill({ opsUsers, supabaseUsers, onlyEmail = null, includ
           note: `ops row says "${row.email}", the linked identity signs in as "${linked.email ?? '(none)'}"`,
         });
       } else {
-        decide('already-linked', { targetSupabaseUserId: row.supabaseUserId });
+        // Correctly linked - but say so about WHAT. A link made before the
+        // unconfirmed/banned refusals existed is exactly the binding they
+        // were added to prevent, and nothing downstream will ever question
+        // it again (`resolveIdentity` resolves by id and re-checks nothing).
+        // This report is the only place it can still be noticed.
+        const lockedOut = Boolean(linked.banned_until);
+        const unconfirmed = !linked.email_confirmed_at && !linked.confirmed_at;
+        decide('already-linked', {
+          targetSupabaseUserId: row.supabaseUserId,
+          banned: lockedOut,
+          emailUnconfirmed: unconfirmed,
+          note:
+            lockedOut || unconfirmed
+              ? `REVIEW: this ops row is already linked to a Supabase identity that is ${
+                  [lockedOut ? 'BANNED' : null, unconfirmed ? 'UNCONFIRMED' : null]
+                    .filter(Boolean)
+                    .join(' and ')
+                }. This script never re-points a link; unlink it by hand if that binding is wrong (see the runbook's rollback).`
+              : undefined,
+        });
       }
       continue;
     }
@@ -353,6 +423,39 @@ export function planBackfill({ opsUsers, supabaseUsers, onlyEmail = null, includ
       continue;
     }
 
+    // TRUSTWORTHINESS OF THE MATCHED IDENTITY, checked before the disabled
+    // skip. A banned or unconfirmed identity is a security refusal, not a
+    // routine skip, and "[skip] (..., disabled)" is a line an operator reads
+    // past. Surfacing the stronger fact first means re-enabling the ops row
+    // cannot silently promote a refusal into a link.
+    const banned = Boolean(match.banned_until);
+    const emailUnconfirmed = !match.email_confirmed_at && !match.confirmed_at;
+
+    if (banned && !includeBanned) {
+      decide('attention:identity-banned', {
+        targetSupabaseUserId: match.id,
+        banned: true,
+        emailUnconfirmed,
+        note:
+          'REFUSED: the matched Supabase identity is banned. An account an administrator has ' +
+          'already revoked must not be handed an ops role. Pass --include-banned to link it anyway.',
+      });
+      continue;
+    }
+
+    if (emailUnconfirmed && !includeUnconfirmed) {
+      decide('attention:identity-unconfirmed', {
+        targetSupabaseUserId: match.id,
+        emailUnconfirmed: true,
+        note:
+          'REFUSED: the matched Supabase identity has never confirmed its email, so this match ' +
+          'proves the address was typed, not that the mailbox is controlled - which is exactly ' +
+          'what a self-signup registered against someone else\'s address looks like. Confirm the ' +
+          'account, or pass --include-unconfirmed if you know out-of-band who holds it.',
+      });
+      continue;
+    }
+
     // Disabled rows are checked LAST, so the report still says whether a
     // disabled account would otherwise have linked cleanly. Skipping earlier
     // would hide a duplicate or an ambiguous identity behind the word
@@ -367,12 +470,21 @@ export function planBackfill({ opsUsers, supabaseUsers, onlyEmail = null, includ
 
     plannedIdentities.add(match.id);
     const caseMismatch = row.email.trim() !== (match.email ?? '').trim();
+    const notes = [];
+    if (caseMismatch) notes.push(`email case differs (ops "${row.email}" vs Supabase "${match.email}")`);
+    // Reaching here with either flag set means an override was passed. Say so
+    // on the row itself: the summary block is easy to scroll past, and this is
+    // the line an operator will paste into an incident review later.
+    if (banned) notes.push('OVERRIDDEN by --include-banned: linking a BANNED Supabase identity');
+    if (emailUnconfirmed) {
+      notes.push('OVERRIDDEN by --include-unconfirmed: linking an UNCONFIRMED Supabase identity');
+    }
     decide('link', {
       targetSupabaseUserId: match.id,
       caseMismatch,
-      note: caseMismatch ? `email case differs (ops "${row.email}" vs Supabase "${match.email}")` : undefined,
-      emailUnconfirmed: !match.email_confirmed_at && !match.confirmed_at,
-      banned: Boolean(match.banned_until),
+      note: notes.length > 0 ? notes.join('; ') : undefined,
+      emailUnconfirmed,
+      banned,
     });
   }
 
@@ -399,14 +511,25 @@ export function summarize(decisions) {
 
 /**
  * @param {string[]} argv
- * @returns {{ apply: boolean, includeDisabled: boolean, noAudit: boolean, help: boolean, email: string | null, actorEmail: string | null }}
+ * @returns {{ apply: boolean, includeDisabled: boolean, includeUnconfirmed: boolean, includeBanned: boolean, noAudit: boolean, help: boolean, email: string | null, actorEmail: string | null }}
  */
 export function parseArgs(argv) {
-  const args = { apply: false, includeDisabled: false, noAudit: false, help: false, email: null, actorEmail: null };
+  const args = {
+    apply: false,
+    includeDisabled: false,
+    includeUnconfirmed: false,
+    includeBanned: false,
+    noAudit: false,
+    help: false,
+    email: null,
+    actorEmail: null,
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--apply') args.apply = true;
     else if (arg === '--include-disabled') args.includeDisabled = true;
+    else if (arg === '--include-unconfirmed') args.includeUnconfirmed = true;
+    else if (arg === '--include-banned') args.includeBanned = true;
     else if (arg === '--no-audit') args.noAudit = true;
     else if (arg === '--help' || arg === '-h') args.help = true;
     else if (arg === '--email') args.email = argv[++i];
@@ -587,11 +710,12 @@ export function formatDecision(decision) {
   if (decision.targetSupabaseUserId) parts.push(`-> ${decision.targetSupabaseUserId}`);
   parts.push(`claim: ${decision.claim}`);
   const line = parts.join('  ');
-  const notes = [];
-  if (decision.note) notes.push(decision.note);
-  if (decision.emailUnconfirmed) notes.push('Supabase email is unconfirmed - that account may not be able to sign in yet');
-  if (decision.banned) notes.push('Supabase user is banned');
-  return notes.length === 0 ? line : `${line}\n${notes.map((n) => `        note: ${n}`).join('\n')}`;
+  // ONE note source, built by the planner. `emailUnconfirmed` and `banned`
+  // used to be re-rendered here as standalone asides ("Supabase user is
+  // banned") beside a decision that linked anyway - which read as colour
+  // commentary rather than as the refusal it should have been. The planner
+  // now says what it DID about each flag, and this only prints it.
+  return decision.note ? `${line}\n        note: ${decision.note}` : line;
 }
 
 function report(out, decisions, { apply }) {
@@ -625,6 +749,65 @@ function report(out, decisions, { apply }) {
     out('');
     out(`${attention.length} row(s) need a human. Nothing was written for them, by design.`);
     out('Resolve them per docs/olympuss/AUTH_CUTOVER_RUNBOOK.md - do not close /ops/login while any remain.');
+  }
+
+  // Said separately from the generic attention block, and in these words,
+  // because these two are the ones an operator is most likely to wave through
+  // as noise. They are the refusals that stop an email match alone from
+  // binding an ops role to an identity nobody has proven control of.
+  const refusedIdentities = decisions.filter(
+    (d) => d.kind === 'attention:identity-banned' || d.kind === 'attention:identity-unconfirmed',
+  );
+  if (refusedIdentities.length > 0) {
+    out('');
+    out(
+      `REFUSED ${refusedIdentities.length} link(s): the matched Supabase identity is banned or has ` +
+        'never confirmed its email. An email match proves an address was typed, not that the ' +
+        'mailbox is controlled, and this project accepts public self-signup - so an unconfirmed ' +
+        "match on an administrator's address is indistinguishable from an attacker who registered it.",
+    );
+    for (const d of refusedIdentities) {
+      out(`  refused: ${d.email} -> ${d.targetSupabaseUserId} (${d.kind.replace('attention:', '')})`);
+    }
+    out(
+      'Confirm or unban the account, or re-run with --include-unconfirmed / --include-banned to ' +
+        'link it deliberately.',
+    );
+  }
+
+  // The mirror image: an override was passed and rows ARE being linked on a
+  // signal the script would otherwise have refused. Loud in the dry run too,
+  // so the decision is visible before the write rather than after it.
+  const overridden = decisions.filter((d) => d.kind === 'link' && (d.banned || d.emailUnconfirmed));
+  if (overridden.length > 0) {
+    out('');
+    out(
+      `OVERRIDE IN EFFECT - ${overridden.length} link(s) to a banned or unconfirmed Supabase ` +
+        'identity are being made anyway. Each one binds an ops role to an account whose control ' +
+        'this script could not verify:',
+    );
+    for (const d of overridden) {
+      const flags = [d.banned ? 'banned' : null, d.emailUnconfirmed ? 'unconfirmed' : null]
+        .filter(Boolean)
+        .join(', ');
+      out(`  override: ${d.email} -> ${d.targetSupabaseUserId} (${flags})`);
+    }
+  }
+
+  const reviewLinked = decisions.filter(
+    (d) => d.kind === 'already-linked' && (d.banned || d.emailUnconfirmed),
+  );
+  if (reviewLinked.length > 0) {
+    out('');
+    out(
+      `${reviewLinked.length} row(s) are ALREADY linked to a banned or unconfirmed Supabase ` +
+        'identity. This script never re-points a link, so nothing here was changed - but these ' +
+        'are the bindings the refusals above exist to prevent, and they resolve to a real ops ' +
+        'role on every request. Check each one and unlink by hand if it is wrong.',
+    );
+    for (const d of reviewLinked) {
+      out(`  review: ${d.email} -> ${d.targetSupabaseUserId}`);
+    }
   }
 
   const claimGaps = decisions.filter(
@@ -686,6 +869,18 @@ async function main() {
 
     const actor = args.apply && args.actorEmail ? await resolveActor(pool, args.actorEmail) : null;
     if (args.apply && !actor) out('WARNING: --no-audit - these links will NOT appear in ops_audit_log.');
+    // Announced before anything is read, not only where the affected rows
+    // print: an override changes what the whole run is willing to do, and an
+    // operator who passed one by copy-paste should see it at the top.
+    if (args.includeUnconfirmed) {
+      out(
+        'WARNING: --include-unconfirmed - identities that never confirmed their email are eligible ' +
+          'for linking in this run.',
+      );
+    }
+    if (args.includeBanned) {
+      out('WARNING: --include-banned - banned identities are eligible for linking in this run.');
+    }
 
     const [opsUsers, supabaseUsers] = await Promise.all([loadOpsUsers(pool), fetchSupabaseUsers(supabase.auth.admin)]);
     out(`ops_users rows: ${opsUsers.length}   Supabase identities: ${supabaseUsers.length}`);
@@ -695,6 +890,8 @@ async function main() {
       supabaseUsers,
       onlyEmail: args.email,
       includeDisabled: args.includeDisabled,
+      includeUnconfirmed: args.includeUnconfirmed,
+      includeBanned: args.includeBanned,
     });
     if (directory.withoutEmail > 0) {
       out(`(${directory.withoutEmail} Supabase identit(ies) have no email address and cannot be matched)`);

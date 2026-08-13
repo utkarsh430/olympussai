@@ -26,16 +26,22 @@
  *      in the token, say — which is the state EVERY account is in until the
  *      backfill pushes `app_metadata`).
  *
- *   2. This function refuses to nominate an `/ops/*` target for someone with
- *      no usable ops profile. Sending them there would produce a bounce even
- *      if rule 1 were ever weakened.
+ *   2. This function refuses to nominate ANY target for someone with no
+ *      usable ops profile — `/project/*` included, now that it is gated on
+ *      the same profile. Sending them anywhere would produce a bounce even if
+ *      rule 1 were ever weakened.
  *
- * `sanitizeOpsNext` contributes a third, narrower guard by refusing
+ *   3. And it refuses to nominate an `/ops/*` target for an operator whose
+ *      token does not yet carry their role claim, which is rule 1's blind
+ *      spot made explicit: the sign-in route can now SEE that state, so it
+ *      no longer has to rely on the terminal page to absorb the bounce.
+ *
+ * `sanitizeOpsNext` contributes a fourth, narrower guard by refusing
  * `/ops/login` and `/ops/accept-invite` as targets at all — a `next` that
  * points back at a login page is a one-hop loop of its own.
  */
 import { OPS_ROLE_SEGMENT, type OpsRole } from './rbac/roles';
-import { DEFAULT_NEXT, isOpsPath, sanitizeNextOrNull } from './redirect';
+import { isOpsPath, sanitizeNextOrNull } from './redirect';
 
 /**
  * Roles whose `/ops/<segment>` path is not actually a page.
@@ -65,11 +71,17 @@ export type LandingDecision =
   /** Navigate here. Always a safe internal path. */
   | { kind: 'go'; path: string }
   /**
-   * The user asked for an ops screen but holds no usable ops profile.
-   * Deliberately NOT a path: the caller must render an explanation, because
-   * every possible ops destination would bounce them straight back here.
+   * Signed in, but holding no usable ops profile — so there is nowhere to
+   * send them. Deliberately NOT a path: the caller must render an
+   * explanation, because every destination this app has would bounce them
+   * straight back here.
+   *
+   * `requested` is the path they explicitly asked for, or null when they
+   * asked for nothing in particular. The explanation reads differently in
+   * those two cases ("it cannot open X" vs. a plain statement of the state),
+   * so the distinction is preserved rather than defaulted away.
    */
-  | { kind: 'no-ops-access'; requested: string }
+  | { kind: 'no-ops-access'; requested: string | null }
   /**
    * The DATABASE says this person is an operator; their TOKEN does not carry
    * the role yet, and it could not be repaired on the spot.
@@ -81,6 +93,11 @@ export type LandingDecision =
    * never nominate an `/ops/*` path for — the edge gate reads the token, so
    * every ops destination bounces, and nominating one is the redirect loop
    * itself. `requested` is null when the user named no destination.
+   *
+   * A NON-ops destination is still nominated for them, and that remains
+   * correct after `/project/*` was gated on the ops profile: this account
+   * HAS one. What it lacks is the edge ceiling, and `/project/*` has no
+   * ceiling to lack — its guard reads the same profile table directly.
    */
   | { kind: 'ops-access-pending'; role: OpsRole; requested: string | null };
 
@@ -108,6 +125,37 @@ export interface LandingInput {
   readonly opsClaimReady?: boolean;
 }
 
+/**
+ * NO OPS PROFILE NOW MEANS NO DESTINATION AT ALL, which is a real change of
+ * behaviour and worth stating plainly.
+ *
+ * This function used to send an account with no ops profile to
+ * `/project/upsrtc`, on the understanding that the project surface was a
+ * separate product any signed-in enterprise user could use. That
+ * understanding was the C1 exposure: the "enterprise viewer" tier was not a
+ * provisioned population, it was whoever had registered — and it carried the
+ * live fleet feed. `/project/*` is now gated on the same active `ops_users`
+ * profile the ops console requires (src/lib/auth/authorize.ts).
+ *
+ * So both halves of this app are behind one profile, and nominating any path
+ * for someone without one would hand them a link that refuses them on
+ * arrival. The `no-ops-access` decision is not a fallback here; it is the
+ * only truthful answer, and `/login` renders it as a terminal state with a
+ * working way out (sign out, or ask an administrator).
+ *
+ * OPERATIONAL CONSEQUENCE, deliberately not softened: a Supabase account with
+ * no `ops_users` row can no longer reach anything. During the cutover that
+ * includes accounts created by `pnpm create-project-user` for the project
+ * surface alone. They need an ops row and a link (steps 1-3 of
+ * docs/olympuss/AUTH_CUTOVER_RUNBOOK.md), or the legacy `/ops/login` door,
+ * which still resolves to a real profile and is still open.
+ *
+ * THE TWO REFUSALS ARE ORDERED, AND THE ORDER IS THE POINT. "No profile at
+ * all" is checked first and is terminal; "a profile the edge cannot see yet"
+ * is checked second and is narrower — it withholds only `/ops/*`. Reversing
+ * them would tell a profile-less account that its access is merely pending,
+ * which is a promise nobody is going to keep.
+ */
 export function resolveLanding({
   requestedNext,
   opsRole,
@@ -115,28 +163,24 @@ export function resolveLanding({
 }: LandingInput): LandingDecision {
   const requested = sanitizeNextOrNull(requestedNext);
 
+  if (!opsRole) return { kind: 'no-ops-access', requested };
+
   // An operator the edge gate cannot yet see. Everything under /ops/* is
   // unreachable for them until the claim lands, so no ops path may be
-  // nominated — not the requested one, and not their own dashboard.
-  if (opsRole && !opsClaimReady) {
+  // nominated — not the requested one, and not their own dashboard. A
+  // non-ops destination still works: /project/* reads the profile table
+  // itself and has no token ceiling to be missing.
+  if (!opsClaimReady) {
     if (!requested || isOpsPath(requested)) {
-      return { kind: 'ops-access-pending', role: opsRole, requested: requested ?? null };
-    }
-    // They asked for somewhere that is not the ops console; that still works.
-    return { kind: 'go', path: requested };
-  }
-
-  if (requested) {
-    if (isOpsPath(requested) && !opsRole) {
-      return { kind: 'no-ops-access', requested };
+      return { kind: 'ops-access-pending', role: opsRole, requested };
     }
     return { kind: 'go', path: requested };
   }
 
-  // No explicit destination: send an operator to their own dashboard and
-  // everyone else to the project. This is the "role-correct landing" half —
-  // before the collapse, /login sent all seven ops roles to /project/upsrtc.
-  return { kind: 'go', path: opsRole ? opsHomePath(opsRole) : DEFAULT_NEXT };
+  // An operator with an explicit destination gets it; otherwise their own
+  // dashboard. This is the "role-correct landing" half — before the collapse,
+  // /login sent all seven ops roles to /project/upsrtc.
+  return { kind: 'go', path: requested ?? opsHomePath(opsRole) };
 }
 
 /** Query parameter `/login` reads to render the no-ops-access explanation. */

@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { jsonResponse } from '@/lib/upsrtc/respond';
-import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
+import { requireUpsrtcAccess } from '@/lib/auth/authorize';
 import { fetchUpstream, UPSRTC_LIVE_URL, REQUEST_TIMEOUT_MS } from '@/lib/upsrtc/client';
 import { normalizeLivePayload } from '@/lib/upsrtc/normalizer';
 import { TtlCache } from '@/lib/upsrtc/cache';
@@ -71,9 +71,11 @@ function degradedResponse(reason: string): LiveFeedResponse {
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
-  // Independent authorization check — never rely on middleware alone.
-  const session = await requireUpsrtcAccess();
-  if (!session) return unauthorizedResponse();
+  // Independent authorization check — never rely on middleware alone, which
+  // runs on the Edge and cannot read `ops_users`. This answers the whole
+  // fleet's live positions, so "signed in" was never the right question.
+  const guard = await requireUpsrtcAccess();
+  if (!guard.ok) return guard.response;
 
   const acceptEncoding = request.headers.get('accept-encoding');
   const now = Date.now();

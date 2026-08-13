@@ -74,7 +74,12 @@ vi.mock('@/lib/auth/rbac/repo', () => ({
 vi.mock('next/headers', () => ({
   cookies: async () => ({ get: (name: string) => cookieGet(name) }),
 }));
-vi.mock('next/navigation', () => ({
+// Partial: `redirect` becomes a catchable signal so a guard's refusal can be
+// read, but `unstable_rethrow` must be the REAL one. Stubbing it would make
+// the control-flow-rethrow test below assert against a stub of the very thing
+// under test.
+vi.mock('next/navigation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/navigation')>()),
   redirect: (to: string) => {
     throw new RedirectSignal(to);
   },
@@ -249,6 +254,23 @@ describe('an unreadable ops database is not a signed-out user', () => {
     const { redirectedTo } = await guardPage('driver', '/ops/driver');
 
     expect(redirectedTo).toBe('/ops/login?next=%2Fops%2Fdriver');
+  });
+
+  it("rethrows Next's own control-flow errors instead of reporting them as an outage", async () => {
+    // A regression with teeth. `redirect()`, `notFound()` and the
+    // dynamic-rendering bailout are all signalled AS thrown errors, so the
+    // catch that turns a database failure into `unavailable` will swallow
+    // them unless it rethrows first. Swallowing the bailout tells Next a page
+    // that reads cookies can be prerendered, and turns "this page is dynamic"
+    // into "the operations directory is down" — a build failure, or worse a
+    // build success, with a completely misleading cause.
+    await signedIn('driver');
+    const notFoundError = Object.assign(new Error('NEXT_HTTP_ERROR_FALLBACK;404'), {
+      digest: 'NEXT_HTTP_ERROR_FALLBACK;404',
+    });
+    findUserById.mockRejectedValue(notFoundError);
+
+    await expect(resolveOpsSession()).rejects.toBe(notFoundError);
   });
 });
 

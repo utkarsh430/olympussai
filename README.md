@@ -345,11 +345,15 @@ Playwright · ESLint · Prettier.
 
 ## 6. Authentication — full implementation
 
-Enterprise auth via **Supabase Auth** unlocks the protected project area.
-Accounts are individual (email + password) and admin-provisioned only — there
-is no self-service sign-up route anywhere in the app. The earlier
-environment-variable-driven PIN system (`PROJECT_NAME` / `PROJECT_PIN_HASH` /
-`SESSION_SECRET`, one shared secret for the whole project) has been removed.
+Enterprise auth via **Supabase Auth** is the front door to the protected
+project area. Signing in is not the same as being let in: the protected area
+is gated on an **active, linked `ops_users` profile**, re-read from the
+database on every guarded request, exactly as the ops console is. The app
+exposes no sign-up route, but whether the Supabase directory accepts public
+self-signup is a dashboard setting rather than an access control, so the code
+does not rely on it. The earlier environment-variable-driven PIN system
+(`PROJECT_NAME` / `PROJECT_PIN_HASH` / `SESSION_SECRET`, one shared secret for
+the whole project) has been removed.
 
 ### Login sequence
 

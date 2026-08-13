@@ -62,6 +62,7 @@
 import 'server-only';
 import { cache } from 'react';
 import { cookies } from 'next/headers';
+import { unstable_rethrow } from 'next/navigation';
 import { OPS_SESSION_COOKIE, OPS_SESSION_MAX_AGE_SECONDS, isOpsProduction } from './config';
 import { createOpsSessionToken, verifyOpsSessionToken, type OpsSessionClaims } from './session';
 import { readSupabaseOpsClaim, type SupabaseOpsClaim } from './supabaseClaims';
@@ -172,10 +173,19 @@ async function resolveOpsSessionUncached(): Promise<OpsSessionResolution> {
   try {
     identity = await resolveIdentity();
   } catch (error) {
-    // The ops database is the authority, so failing to read it is not
-    // "no session" — it is "no answer". Logged because an operations console
-    // silently degrading to a sign-in page during its own outage is the
-    // failure mode this reason exists to prevent.
+    // NEXT'S OWN CONTROL FLOW IS NOT AN OUTAGE, and it arrives as a thrown
+    // error like any other. `redirect()`, `notFound()` and the
+    // dynamic-rendering bailout raised by reading cookies during a build are
+    // all signalled by throwing, so a bare catch here would swallow them and
+    // report "the authority is unavailable" for a page that was merely
+    // telling Next it cannot be prerendered. `unstable_rethrow` is the
+    // sanctioned way to let those through, and it must come first.
+    unstable_rethrow(error);
+    // Anything left really is the authority failing. The ops database
+    // decides who the caller is, so failing to read it is not "no session" —
+    // it is "no answer". Logged because an operations console silently
+    // degrading to a sign-in page during its own outage is the failure mode
+    // this reason exists to prevent.
     console.error('[ops-auth] Could not read the ops profile authority.', error);
     return { ok: false, reason: 'unavailable' };
   }

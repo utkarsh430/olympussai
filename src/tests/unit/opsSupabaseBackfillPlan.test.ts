@@ -410,33 +410,186 @@ describe('planBackfill - role-claim reporting', () => {
     expect(forEmail(decisions, 'stale@example.com').claim).toBe('mismatch(admin)');
   });
 
-  it('flags an unconfirmed or banned Supabase user without refusing the link', () => {
+  // --------------------------------------------------------------------
+  // An email match proves an address was typed. It does not prove the
+  // mailbox is controlled, and these are the two cases where those come
+  // apart. Every test below would FAIL against the previous implementation,
+  // which emitted `link` for both and attached the facts as cosmetic notes.
+  // --------------------------------------------------------------------
+
+  it('refuses to link an ops row to a Supabase identity that never confirmed its email', () => {
     const { decisions } = planBackfill({
-      opsUsers: [opsRow({ email: 'new@example.com' }), opsRow({ email: 'banned@example.com' })],
+      opsUsers: [opsRow({ email: 'new@example.com' })],
       supabaseUsers: [
         supabaseUser({ id: 'sb-new', email: 'new@example.com', email_confirmed_at: null, confirmed_at: null }),
+      ],
+    });
+
+    expect(forEmail(decisions, 'new@example.com')).toMatchObject({
+      kind: 'attention:identity-unconfirmed',
+      emailUnconfirmed: true,
+      targetSupabaseUserId: 'sb-new',
+    });
+    expect(summarize(decisions).toLink).toHaveLength(0);
+  });
+
+  it('refuses to link an ops row to a banned Supabase identity', () => {
+    const { decisions } = planBackfill({
+      opsUsers: [opsRow({ email: 'banned@example.com' })],
+      supabaseUsers: [
         supabaseUser({ id: 'sb-ban', email: 'banned@example.com', banned_until: '2030-01-01T00:00:00Z' }),
       ],
     });
 
-    // Linking is harmless in both cases; being unable to sign in is not, and
-    // it would otherwise be discovered by the person who cannot sign in.
-    expect(forEmail(decisions, 'new@example.com')).toMatchObject({ kind: 'link', emailUnconfirmed: true });
-    expect(forEmail(decisions, 'banned@example.com')).toMatchObject({ kind: 'link', banned: true });
+    expect(forEmail(decisions, 'banned@example.com')).toMatchObject({
+      kind: 'attention:identity-banned',
+      banned: true,
+      targetSupabaseUserId: 'sb-ban',
+    });
+    expect(summarize(decisions).toLink).toHaveLength(0);
+  });
+
+  // The attack this refusal exists for, stated as a test so it cannot be
+  // undone by someone who reads the refusal as over-caution. The project
+  // accepts public self-signup with auto-confirm off: registering someone
+  // else's address is free and produces an UNCONFIRMED account, which is the
+  // only thing separating it from theirs.
+  it('refuses the admin ops profile to a self-signup that squatted the admin address', () => {
+    const { decisions } = planBackfill({
+      opsUsers: [opsRow({ email: 'admin@example.com', role: 'admin' })],
+      supabaseUsers: [
+        supabaseUser({
+          id: 'sb-squatter',
+          email: 'admin@example.com',
+          email_confirmed_at: null,
+          confirmed_at: null,
+        }),
+      ],
+    });
+
+    const decision = forEmail(decisions, 'admin@example.com');
+    expect(decision.kind).toBe('attention:identity-unconfirmed');
+    expect(decision.note).toMatch(/REFUSED/);
+    expect(summarize(decisions).toLink).toHaveLength(0);
+  });
+
+  it('refuses on the ban before the disabled skip, so re-enabling the row cannot silently link it', () => {
+    const { decisions } = planBackfill({
+      opsUsers: [opsRow({ email: 'banned@example.com', status: 'disabled' })],
+      supabaseUsers: [
+        supabaseUser({ id: 'sb-ban', email: 'banned@example.com', banned_until: '2030-01-01T00:00:00Z' }),
+      ],
+    });
+
+    // Not `skipped-disabled`: that line reads as routine and would hide the
+    // stronger fact until the day someone re-enables the account.
+    expect(forEmail(decisions, 'banned@example.com').kind).toBe('attention:identity-banned');
+  });
+
+  it('links an unconfirmed identity only under --include-unconfirmed, and says so on the row', () => {
+    const input = {
+      opsUsers: [opsRow({ email: 'new@example.com' })],
+      supabaseUsers: [
+        supabaseUser({ id: 'sb-new', email: 'new@example.com', email_confirmed_at: null, confirmed_at: null }),
+      ],
+    };
+
+    const overridden = forEmail(planBackfill({ ...input, includeUnconfirmed: true }).decisions, 'new@example.com');
+    expect(overridden).toMatchObject({ kind: 'link', emailUnconfirmed: true, targetSupabaseUserId: 'sb-new' });
+    expect(overridden.note).toMatch(/OVERRIDDEN by --include-unconfirmed/);
+
+    // The flags are independent: the banned override must not unlock this one.
+    expect(forEmail(planBackfill({ ...input, includeBanned: true }).decisions, 'new@example.com').kind).toBe(
+      'attention:identity-unconfirmed',
+    );
+  });
+
+  it('links a banned identity only under --include-banned, and says so on the row', () => {
+    const input = {
+      opsUsers: [opsRow({ email: 'banned@example.com' })],
+      supabaseUsers: [
+        supabaseUser({ id: 'sb-ban', email: 'banned@example.com', banned_until: '2030-01-01T00:00:00Z' }),
+      ],
+    };
+
+    const overridden = forEmail(planBackfill({ ...input, includeBanned: true }).decisions, 'banned@example.com');
+    expect(overridden).toMatchObject({ kind: 'link', banned: true, targetSupabaseUserId: 'sb-ban' });
+    expect(overridden.note).toMatch(/OVERRIDDEN by --include-banned/);
+
+    expect(forEmail(planBackfill({ ...input, includeUnconfirmed: true }).decisions, 'banned@example.com').kind).toBe(
+      'attention:identity-banned',
+    );
+  });
+
+  it('a confirmed, unbanned identity still links with no override at all', () => {
+    // The guard against over-correcting: `create-project-user.mjs` and the
+    // invite flow both set email_confirm: true, so the ordinary path must
+    // stay a plain one-flag-free link.
+    const { decisions } = planBackfill({
+      opsUsers: [opsRow({ email: 'ordinary@example.com' })],
+      supabaseUsers: [supabaseUser({ id: 'sb-ok', email: 'ordinary@example.com' })],
+    });
+
+    expect(forEmail(decisions, 'ordinary@example.com')).toMatchObject({
+      kind: 'link',
+      emailUnconfirmed: false,
+      banned: false,
+    });
+  });
+
+  it('flags an EXISTING link to a banned or unconfirmed identity for review, without re-pointing it', () => {
+    // A link made before these refusals existed is exactly the binding they
+    // prevent, and nothing downstream ever questions it again. The report is
+    // the only place it can still be caught.
+    const { decisions } = planBackfill({
+      opsUsers: [opsRow({ email: 'legacy@example.com', supabaseUserId: 'sb-legacy' })],
+      supabaseUsers: [
+        supabaseUser({
+          id: 'sb-legacy',
+          email: 'legacy@example.com',
+          email_confirmed_at: null,
+          confirmed_at: null,
+        }),
+      ],
+    });
+
+    const decision = forEmail(decisions, 'legacy@example.com');
+    expect(decision.kind).toBe('already-linked');
+    expect(decision.note).toMatch(/REVIEW/);
+    expect(decision.note).toMatch(/UNCONFIRMED/);
   });
 });
 
 describe('parseArgs', () => {
-  it('defaults to a dry run', () => {
-    expect(parseArgs([])).toMatchObject({ apply: false, includeDisabled: false, noAudit: false });
+  it('defaults to a dry run, and to refusing untrusted identities', () => {
+    expect(parseArgs([])).toMatchObject({
+      apply: false,
+      includeDisabled: false,
+      includeUnconfirmed: false,
+      includeBanned: false,
+      noAudit: false,
+    });
   });
 
   it('parses each flag', () => {
-    expect(parseArgs(['--apply', '--email', 'a@b.com', '--actor-email', 'admin@b.com', '--include-disabled'])).toMatchObject({
+    expect(
+      parseArgs([
+        '--apply',
+        '--email',
+        'a@b.com',
+        '--actor-email',
+        'admin@b.com',
+        '--include-disabled',
+        '--include-unconfirmed',
+        '--include-banned',
+      ]),
+    ).toMatchObject({
       apply: true,
       email: 'a@b.com',
       actorEmail: 'admin@b.com',
       includeDisabled: true,
+      includeUnconfirmed: true,
+      includeBanned: true,
     });
   });
 
@@ -493,5 +646,27 @@ describe('formatDecision', () => {
     expect(line).toContain('sb-1');
     expect(line).toContain('claim: absent');
     expect(line).not.toMatch(/password|hash|secret|key|token/i);
+  });
+
+  it('prints the planner s note verbatim rather than re-deriving one from the flags', () => {
+    // The regression this holds: `banned` and `emailUnconfirmed` used to be
+    // rendered here as standalone asides beside a decision that linked
+    // anyway, which read as commentary rather than as a refusal. The planner
+    // now says what it DID, and this only prints it.
+    const line = formatDecision({
+      kind: 'attention:identity-banned',
+      opsUserId: 'ops-1',
+      email: 'ops@example.com',
+      role: 'dispatcher',
+      status: 'active',
+      targetSupabaseUserId: 'sb-1',
+      claim: 'absent',
+      banned: true,
+      note: 'REFUSED: the matched Supabase identity is banned.',
+    });
+
+    expect(line).toContain('ATTENTION identity-banned');
+    expect(line).toContain('REFUSED');
+    expect(line).not.toContain('may not be able to sign in yet');
   });
 });

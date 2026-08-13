@@ -1,15 +1,20 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
-import { getSupabaseUser } from '@/lib/supabase/server';
+import { requireProjectSurface } from '@/lib/auth/projectPageGuard';
 
 /**
  * Protected UPSRTC dashboard shell.
  *
  * Two responsibilities:
  *
- * 1. Independent server-side session gate (defence in depth — middleware is the
- *    first check, this is a second that does not trust it). An unauthenticated
- *    request never renders dashboard markup; it redirects to /login.
+ * 1. Independent server-side authorization gate (defence in depth — middleware
+ *    is the first check, this is a second that does not trust it, and the Edge
+ *    runtime cannot read `ops_users` at all). A request without an ACTIVE ops
+ *    profile never renders dashboard markup.
+ *
+ *    This used to be `if (!user) redirect('/login')` — a signed-in check, not
+ *    an authorization one. With public self-signup on the Supabase project,
+ *    that admitted any stranger who completed a registration form to the whole
+ *    command centre. See src/lib/auth/authorize.ts for the full account.
  *
  * 2. Re-establishes the command-centre's fixed-viewport visual environment
  *    (dark void background, Orbitron display font, cyan text, tabular numerals,
@@ -28,10 +33,7 @@ export default async function UpsrtcProjectLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getSupabaseUser();
-  if (!user) {
-    redirect('/login?next=/project/upsrtc');
-  }
+  await requireProjectSurface('/project/upsrtc');
 
   return (
     // Enlarge the entire command centre ~18% — text, panels and spacing

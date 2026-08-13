@@ -244,14 +244,19 @@ describe('signing in with a role the database holds and the token does not', () 
     expect((await response.json()).redirectTo).toBe('/ops/depot');
   });
 
-  it('touches nothing for an ordinary project viewer with no ops profile', async () => {
+  it('pushes nothing for an account with no ops profile, and nominates nowhere', async () => {
+    // There is no "ordinary project viewer" tier any more: `/project/*` is
+    // gated on the same active ops profile as `/ops/*`
+    // (src/lib/auth/authorize.ts), so an account without one has no
+    // destination and gets the explanation instead of a link that refuses it
+    // on arrival.
     credentialsAccepted(null);
     opsRoleForSupabaseUser.mockResolvedValue(null);
 
     const response = await signIn();
 
     expect(pushOpsRoleClaim).not.toHaveBeenCalled();
-    expect((await response.json()).redirectTo).toBe('/project/upsrtc');
+    expect((await response.json()).redirectTo).toBe(`/login?notice=${NO_OPS_ACCESS_NOTICE}`);
   });
 });
 

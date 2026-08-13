@@ -338,14 +338,38 @@ describe('role-correct landing', () => {
     });
   });
 
-  it('sends a non-ops user to the project, as before', () => {
+  it('nominates NO destination for an account with no ops profile', () => {
+    // Changed deliberately, and it is the C1 fix showing through. This used
+    // to send a profile-less account to /project/upsrtc, on the premise that
+    // the project surface was a separate product any signed-in enterprise
+    // user could use. That premise WAS the exposure: with public self-signup
+    // on the Supabase project, "any signed-in user" meant anyone who filled
+    // in a registration form, and the surface carries the live fleet feed.
+    //
+    // /project/* is now gated on the same active ops profile /ops/* requires
+    // (src/lib/auth/authorize.ts), so nominating any path here would hand
+    // someone a link that refuses them on arrival — the loop this module
+    // exists to prevent.
     expect(resolveLanding({ requestedNext: null, opsRole: null })).toEqual({
-      kind: 'go',
-      path: DEFAULT_NEXT,
+      kind: 'no-ops-access',
+      requested: null,
     });
     expect(resolveLanding({ requestedNext: '/project/bunching', opsRole: null })).toEqual({
+      kind: 'no-ops-access',
+      requested: '/project/bunching',
+    });
+  });
+
+  it('still sends an operator to an explicitly requested project path', () => {
+    // The project surface is gated, not withdrawn: an operator with a real
+    // profile keeps the deep link they asked for.
+    expect(resolveLanding({ requestedNext: '/project/bunching', opsRole: 'dispatcher' })).toEqual({
       kind: 'go',
       path: '/project/bunching',
+    });
+    expect(resolveLanding({ requestedNext: DEFAULT_NEXT, opsRole: 'depot' })).toEqual({
+      kind: 'go',
+      path: DEFAULT_NEXT,
     });
   });
 
@@ -495,22 +519,26 @@ describe('no ops access configured', () => {
     expect(notice).toHaveTextContent(/ask an administrator/i);
   });
 
-  it('offers a way onward that is not the ops path it just refused', async () => {
+  it('offers no way onward at all, because there is nowhere that would admit them', async () => {
     getSupabaseUser.mockResolvedValue({ email: 'viewer@example.com' });
     currentOpsRole.mockResolvedValue(null);
 
     const { element } = await visit(LoginPage, { next: '/ops/depot' });
     render(element as React.ReactElement);
 
-    // Every link and button on the page must lead somewhere that works —
-    // a "continue" pointing back at /ops/depot is a loop built by hand.
+    // Every link on the page must lead somewhere that works. This page used
+    // to offer "Continue to project" as the honest alternative to the ops
+    // screen it had just refused; now that /project/* needs the same profile,
+    // that button's only function would be to bounce the reader straight
+    // back here — the loop, hand-built one click at a time.
     for (const link of screen.getAllByRole('link')) {
-      expect(link.getAttribute('href')).not.toMatch(/^\/ops\//);
+      expect(link.getAttribute('href')).not.toMatch(/^\/(ops|project)\//);
     }
-    expect(screen.getByRole('link', { name: /continue to project/i })).toHaveAttribute(
-      'href',
-      DEFAULT_NEXT,
-    );
+    expect(screen.queryByRole('link', { name: /continue/i })).toBeNull();
+
+    // Sign-out survives, and it is the one action that helps: it is how the
+    // right person signs in on a shared machine.
+    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
   });
 
   it('shows the same explanation when the sign-in call sent them back', async () => {
@@ -547,19 +575,23 @@ describe('no ops access configured', () => {
     }
   });
 
-  it('leaves an ordinary project viewer alone', async () => {
-    // No ops profile is the NORMAL state for a project viewer. Someone who
-    // never asked for an ops screen must not be shown an access warning.
+  it('explains itself to a profile-less account even when it asked for nothing', async () => {
+    // Reversed deliberately. This used to assert that a signed-in account
+    // with no ops profile was "an ordinary project viewer" and must be shown
+    // no warning at all — it was simply offered /project/upsrtc. That tier
+    // never existed as a provisioned population; it was whoever had
+    // registered, and it is the C1 exposure in one sentence.
+    //
+    // Such an account now has no destination, so saying nothing would leave a
+    // signed-in person on a page with a Sign Out button and no explanation of
+    // why the product appears empty.
     getSupabaseUser.mockResolvedValue({ email: 'viewer@example.com' });
     currentOpsRole.mockResolvedValue(null);
 
     const { element } = await visit(LoginPage, {});
     render(element as React.ReactElement);
-    expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getByRole('link', { name: /continue to upsrtc project/i })).toHaveAttribute(
-      'href',
-      DEFAULT_NEXT,
-    );
+    expect(screen.getByRole('status')).toHaveTextContent(/no operations access/i);
+    expect(screen.queryByRole('link', { name: /continue/i })).toBeNull();
   });
 
   it('offers an operator their own dashboard, correctly labelled', async () => {

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { getSupabaseUser } from '@/lib/supabase/server';
-import { DEFAULT_NEXT, sanitizeNext } from '@/lib/auth/redirect';
+import { sanitizeNext } from '@/lib/auth/redirect';
 import {
   NO_OPS_ACCESS_NOTICE,
   OPS_ACCESS_PENDING_NOTICE,
@@ -77,9 +77,13 @@ export default async function LoginPage({
     !opsClaimReady &&
     (decision.kind === 'ops-access-pending' || params.notice === OPS_ACCESS_PENDING_NOTICE);
 
-  // Never the requested ops path when access was refused — that button is the
-  // one place a loop could still be hand-built, one click at a time.
-  const continueTo = decision.kind === 'go' ? decision.path : DEFAULT_NEXT;
+  // Never a path when access was refused. There is no longer any surface a
+  // profile-less account may enter (`/project/*` is gated on the same active
+  // ops profile as `/ops/*`), so offering a "Continue" button at all would be
+  // the loop, hand-built one click at a time: every destination bounces
+  // straight back to this page. The pending case is refused for the narrower
+  // reason: the console it would point at is the one place that bounces.
+  const continueTo = decision.kind === 'go' ? decision.path : null;
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col bg-[#050507] text-[#f2eee7] md:flex-row">
@@ -164,6 +168,10 @@ export default async function LoginPage({
                   opsRole && !deniedOps && !opsAccessPending ? 'Continue to Operations' : undefined
                 }
               />
+              {/* Sign-out is the only action left when there is nowhere to
+                  continue to, and it is the one that lets a second person on
+                  a shared machine get in. AuthenticatedActions renders it
+                  either way. */}
             </div>
           ) : (
             <LoginForm next={next} />

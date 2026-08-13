@@ -51,7 +51,14 @@ Doing 1 and 2 with 3 still pending locks nobody out of anything - which is exact
 Sign in through **both** doors and confirm both work:
 
 - `/ops/login` with your ops password, landing on your role's dashboard.
-- `/login` with your Supabase password, landing on `/project/upsrtc`.
+- `/login` with your Supabase password.
+  Where this lands you depends on whether your Supabase identity is linked yet: an operator lands on their role's dashboard, and an unlinked account lands on a "no operations access" explanation.
+
+**`/project/upsrtc` now requires an active `ops_users` profile, exactly as `/ops/*` does.**
+It used to admit any signed-in Supabase account, which - with public self-signup enabled on the project - meant anyone who completed a registration form could open the command centre and read the whole live fleet.
+So a Supabase account created for the project surface alone no longer reaches anything until it is linked to an ops row (steps 1-3).
+If you have such an account and want it to keep working, give it an `ops_users` row first (`pnpm seed-ops-user`, or an admin invite) and let the backfill link it.
+Until then, `/ops/login` is still open and still resolves to a real profile - that is what it is for.
 
 If you do not have a Supabase account at all, create one **now**, before anything else, using the email that is on your `ops_users` row:
 
@@ -90,6 +97,8 @@ Read all of it - the whole point of this step is that the surprises surface here
 | `[ATTENTION linked-elsewhere]`      | the row is already linked to some other identity             | investigate; the script will never re-point it                   |
 | `[ATTENTION linked-email-differs]`  | linked fine, but the identity signs in under another address | harmless today; reconcile the addresses when convenient          |
 | `[ATTENTION linked-unknown]`        | linked to an id this Supabase project does not have          | **stop** - almost always the wrong Supabase project              |
+| `[ATTENTION identity-banned]`       | the matched identity is banned; the link is **refused**       | unban it, or re-run with `--include-banned` to link it anyway    |
+| `[ATTENTION identity-unconfirmed]`  | the matched identity never confirmed its email; **refused**   | confirm it, or re-run with `--include-unconfirmed` - read below  |
 
 Also read the `claim:` field on each line.
 
@@ -110,6 +119,18 @@ Nothing here is optional, and none of it can be resolved by the script, because 
 - **`ambiguous-identity` and `duplicate-ops-email`** - exactly one row on each side may own the identity.
   Remove or disable the other.
 - **`linked-unknown`** - see the warning in step 1.
+- **`identity-banned`** - lift the ban in the Supabase dashboard if the account is legitimate, or disable the ops row if it is not.
+  Do not reach for `--include-banned` to move past it: the ban was somebody's decision, and this script is not the place to reverse it.
+- **`identity-unconfirmed`** - have the person confirm the address, or confirm it for them in the Supabase dashboard once you know who they are.
+
+  **This is the one refusal that is protecting you from something specific.**
+  An email match proves an address was typed into a signup form; it does not prove the mailbox is controlled.
+  This project accepts public self-signup with auto-confirm off, so anyone may register any address - including yours - and the account exists immediately, just unconfirmed.
+  If that happens before this script runs, the squatted account becomes the sole email match for your ops row, and linking it hands your ops profile to whoever registered it.
+  Nothing downstream will ever catch that: `resolveOpsSession` resolves by `supabase_user_id` and re-checks nothing.
+
+  `--include-unconfirmed` exists for a directory where nobody ever confirmed anything, and it is an assertion that you know out-of-band who holds every affected account.
+  Pass it per-account with `--email` rather than across a whole fleet.
 
 Re-run the dry run until only `[LINK]`, `[ok]` and deliberate `[skip]` lines remain.
 

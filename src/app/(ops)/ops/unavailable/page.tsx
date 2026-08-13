@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { sanitizeOpsNext } from '@/lib/auth/rbac/redirect';
+import { sanitizeNextOrNull } from '@/lib/auth/redirect';
 
 export const metadata: Metadata = {
   title: 'Operations Console Unavailable',
@@ -8,8 +8,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * Shown when the ops profile database — the authority every ops page checks
- * against — could not be read at all.
+ * Shown when the ops profile database — the authority every ops page AND
+ * every `/project/*` page now checks against — could not be read at all.
  *
  * A SEPARATE DESTINATION FROM THE SIGN-IN PAGE, ON PURPOSE. Before this,
  * every refusal from `resolveOpsSession()` looked the same by the time it
@@ -29,6 +29,13 @@ export const metadata: Metadata = {
  * treats it as a public ops page (src/middleware.ts) and no layout guard
  * stands in front of it. That is required — a guarded outage page is
  * unreachable exactly when it is needed.
+ *
+ * IT SERVES BOTH SURFACES, which is why the retry target is sanitized with
+ * the whole-app allowlist rather than the ops-only one. The project surface
+ * is gated on the same `ops_users` row (src/lib/auth/projectPageGuard.ts), so
+ * one outage takes both down and there is one honest thing to say about it.
+ * Sanitizing with the ops-only rule here would have silently dropped the
+ * retry link for exactly the half of the product that was added last.
  */
 export default async function OpsUnavailablePage({
   searchParams,
@@ -38,13 +45,13 @@ export default async function OpsUnavailablePage({
   const params = await searchParams;
   // Sanitized, never echoed raw: this page is reachable by anyone, so an
   // attacker-supplied `next` must not become a link off this origin.
-  const retryTo = sanitizeOpsNext(params.next);
+  const retryTo = sanitizeNextOrNull(params.next);
 
   return (
     <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-6 text-center">
       <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#6f7684]">Olympuss AI</p>
       <h1 className="text-2xl font-semibold text-[#e6e9ef]">
-        Operations console temporarily unavailable
+        Temporarily unavailable
       </h1>
       <p className="max-w-md text-sm leading-relaxed text-[#9aa0ad]">
         Your account is fine — this service could not reach the operations directory it checks
@@ -52,8 +59,8 @@ export default async function OpsUnavailablePage({
         changed and nothing is lost.
       </p>
       <p className="max-w-md text-[12px] leading-relaxed text-[#6f7684]">
-        Retry in a moment. If it persists, report it as an operations console outage rather than a
-        sign-in problem — signing in again will not help while this is happening.
+        Retry in a moment. If it persists, report it as a service outage rather than a sign-in
+        problem — signing in again will not help while this is happening.
       </p>
       {retryTo && (
         <Link

@@ -14,9 +14,16 @@ import { NextRequest } from 'next/server';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { LiveFeedResponse, ScheduleResponse } from '@/models/canonical';
 
+// Stands in for an ACTIVE, linked ops profile. The gate itself — including
+// that a signed-in account WITHOUT one is refused — is proved against the
+// real guard in src/tests/unit/projectSurfaceOpsGate.test.ts.
 vi.mock('@/lib/auth/authorize', () => ({
-  requireUpsrtcAccess: async () => ({ id: 'test-user', email: 'ops@olympuss.us' }),
+  requireUpsrtcAccess: async () => ({
+    ok: true,
+    claims: { sub: 'ops-1', email: 'ops@olympuss.us', role: 'dispatcher', iat: 0, exp: 0 },
+  }),
   unauthorizedResponse: () => new Response('unauthorized', { status: 401 }),
+  authorityUnavailableResponse: () => new Response('unavailable', { status: 503 }),
 }));
 
 function clearFixtureEnv() {

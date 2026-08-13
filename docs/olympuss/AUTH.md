@@ -1,15 +1,14 @@
 # Olympuss Authentication & API Protection
 
 Enterprise authentication (Supabase Auth) gating the UPSRTC dashboard and its
-data APIs. Accounts are provisioned by an administrator only — there is no
-self-service sign-up.
+data APIs.
 
-> This document covers ONLY the Supabase-backed auth for `/project/upsrtc` and
-> `/project/bunching`. Per-person, admin-invited accounts for the five
-> operational roles (driver, dispatcher, depot, control-room, planner) are a
-> separate system — see [`RBAC.md`](./RBAC.md). The two systems remain
-> independent: different cookies, different auth backends, and a bug in one
-> cannot widen the other's blast radius.
+> This document covers the Supabase-backed front door for `/project/upsrtc`
+> and `/project/bunching`. It is no longer a separate auth system from the
+> operational roles: the two were collapsed onto one door, and **the project
+> surface is now gated on the same active `ops_users` profile the ops console
+> requires** — see [`RBAC.md`](./RBAC.md) and
+> [`AUTH_CUTOVER_RUNBOOK.md`](./AUTH_CUTOVER_RUNBOOK.md).
 
 ## Model
 
@@ -17,9 +16,19 @@ self-service sign-up.
   (`supabase.auth.signInWithPassword`). There is no shared project PIN and no
   `PROJECT_NAME` concept any more — every account is an individual Supabase
   user.
-- **No self-registration.** The only way an account is created is an admin
-  running `pnpm run create-project-user` (or creating the user directly in the
-  Supabase dashboard). The app exposes no signup route.
+- **Signing in is not being authorized.** The app exposes no signup route, but
+  that is a fact about the app, not about the directory: whether the Supabase
+  project itself accepts public self-signup is a dashboard setting, and a
+  dashboard setting is not an access-control mechanism. Admission is therefore
+  decided against an **active, linked `ops_users` profile**, re-read from the
+  database on every guarded request. A valid Supabase session with no such
+  profile reaches nothing.
+
+  This is the C1 fix, and it closed a live hole: while the guards asked only
+  "is there a session?", any stranger who registered could open the command
+  centre and read the entire live fleet feed. Provision project accounts with
+  `pnpm run create-project-user` **and** give them an ops row, or they will
+  sign in successfully and land on a "no operations access" explanation.
 - **Session:** managed entirely by Supabase Auth via `@supabase/ssr`, carried
   in **HttpOnly** cookies that Supabase's SSR helpers read/write. The app never
   hand-rolls a session token — no JWT signing, no `SESSION_SECRET`.
@@ -31,16 +40,26 @@ self-service sign-up.
 
 ## Defence in depth (three independent checks)
 
-1. **Middleware** (`src/middleware.ts`, Edge) — first line: unauthenticated
-   `/project/*` page requests redirect to `/login?next=…`; unauthenticated
-   `/api/upsrtc/*` requests get `401 {"error":"Unauthorized"}`. Uses the
-   Edge-safe Supabase client (`src/lib/supabase/middleware.ts`, built on
-   `@supabase/ssr`) — never the Node-only service-role client.
-2. **Protected layout** (`(protected)/project/upsrtc/layout.tsx`, and
-   `(protected)/project/bunching/page.tsx`) — re-verifies the session
-   server-side and `redirect()`s if absent. Does not trust middleware.
-3. **Every UPSRTC API** calls `requireUpsrtcAccess()` itself and returns
-   `unauthorizedResponse()` when unauthenticated.
+1. **Middleware** (`src/middleware.ts`, Edge) — a **ceiling, not a decision**.
+   It turns away requests carrying no credential at all (page → `/login?next=…`,
+   API → `401 {"error":"Unauthorized"}`) and accepts either front door, the
+   Supabase session or the legacy ops cookie. It cannot do more: the Edge
+   runtime cannot reach `pg`, so it cannot read `ops_users`, and a ceiling that
+   refused what the authority admits would lock out every operator whose role
+   claim has not been pushed yet. See `handleProjectRequest`'s comment.
+2. **Page guard** (`requireProjectSurface`, `src/lib/auth/projectPageGuard.ts`),
+   called by `(protected)/project/upsrtc/layout.tsx` and
+   `(protected)/project/bunching/page.tsx` — resolves the ops profile and
+   redirects. A profile-less or disabled account goes to a terminal
+   `/login?notice=no-ops-access` explanation, deliberately without a `next`
+   that would bounce it straight back.
+3. **Every UPSRTC API** calls `requireUpsrtcAccess()`
+   (`src/lib/auth/authorize.ts`) itself: `401` for any caller-side refusal
+   (identical body for all of them, so `/login` cannot enumerate accounts) and
+   `503` when the authority itself is unreachable.
+
+Layers 2 and 3 share one request-scoped resolution, so a dashboard render pays
+for one `ops_users` read rather than two.
 
 ## Endpoints
 

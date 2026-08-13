@@ -1,15 +1,21 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
-import { getSupabaseUser } from '@/lib/supabase/server';
+import { requireProjectSurface } from '@/lib/auth/projectPageGuard';
 import { BunchingSimulator } from '@/components/bunching/BunchingSimulator';
 
 /**
  * Bus bunching control simulator — a protected UPSRTC project surface.
  *
  * Sits under `/project/*`, so edge middleware gates it exactly like the
- * operations dashboard. This server component then re-verifies the session
+ * operations dashboard. This server component then re-decides admission
  * independently (the same defence-in-depth pattern the dashboard layout uses):
- * an unauthenticated request never renders simulator markup.
+ * a request without an ACTIVE ops profile never renders simulator markup.
+ *
+ * It is its own gate rather than an inherited one BECAUSE it is deliberately
+ * not nested under the dashboard layout (see below) — so there is no shared
+ * parent to carry the check, and a `/project/*` surface that forgot to call
+ * `requireProjectSurface` would simply be open. That is a structural risk
+ * rather than a stylistic one, so it is held by a test that walks this
+ * directory: src/tests/unit/projectSurfaceOpsGate.test.ts.
  *
  * Deliberately *not* nested inside the dashboard's `upsrtc/layout.tsx`. That
  * layout re-creates a fixed-viewport, CSS-zoomed command-centre environment for
@@ -28,10 +34,7 @@ export const metadata: Metadata = {
 };
 
 export default async function BunchingPage() {
-  const user = await getSupabaseUser();
-  if (!user) {
-    redirect('/login?next=/project/bunching');
-  }
+  await requireProjectSurface('/project/bunching');
 
   return (
     <div className="sim-light bg-sim-page font-display text-sim-ink [font-feature-settings:'tnum'_1] antialiased">

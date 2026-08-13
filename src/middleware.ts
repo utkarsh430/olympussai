@@ -12,13 +12,11 @@ import { roleForSegment, rolesForOpsApiPath, isPublicOpsApiPath } from '@/lib/au
  * code (`@supabase/ssr`); the Node-only service-role client and next/headers
  * are never pulled in here.
  *
- * - Unauthenticated page request under /project/*  → redirect to /login?next=…
- * - Unauthenticated API request under /api/upsrtc/* → 401 JSON
+ * - Credential-less page request under /project/*  → redirect to /login?next=…
+ * - Credential-less API request under /api/upsrtc/* → 401 JSON
  *
- * Enterprise accounts are Supabase Auth users, provisioned by an admin only —
- * there is no self-service signup route. Any signed-in Supabase user has
- * access to the single UPSRTC project surface (the earlier PROJECT_NAME /
- * PROJECT_PIN_HASH / SESSION_SECRET env-var PIN system has been removed).
+ * See handleProjectRequest below for what this branch does and, more
+ * importantly, what it deliberately does NOT decide.
  *
  * /ops/* and /api/ops/* (the multi-role RBAC surface) are handled by a
  * separate branch (handleOpsRequest, below). Those two auth systems used to
@@ -174,8 +172,80 @@ async function handleOpsRequest(request: NextRequest): Promise<NextResponse> {
   return NextResponse.redirect(loginUrl);
 }
 
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+/**
+ * Credential gate for the enterprise project surface (/project/* and
+ * /api/upsrtc/*).
+ *
+ * THIS BRANCH DECIDES NOTHING, AND SAYING SO IS THE POINT. It used to be
+ * `if (user) return supabaseResponse;` sitting in front of a route layout and
+ * two API handlers that also only asked "is there a Supabase user?" — so the
+ * edge check WAS the decision by default, and with public self-signup on the
+ * Supabase project it admitted anyone who could complete a registration form
+ * to the whole command centre and the live fleet feed.
+ *
+ * Admission is now decided where `ops_users` can actually be read: the page
+ * guard (src/lib/auth/projectPageGuard.ts) and the API guard
+ * (src/lib/auth/authorize.ts), both re-reading role and status per request.
+ * What is left here is a CEILING, in the same relationship to those guards
+ * that handleOpsRequest's role check has to `requireOpsRole` — cheap, coarse,
+ * and never the last word.
+ *
+ * WHY IT IS NOT TIGHTENED FURTHER, WHICH IS A DELIBERATE CHOICE AND NOT AN
+ * OVERSIGHT. The obvious tightening is to demand `app_metadata.ops_role`
+ * here, exactly as the ops branch does. It is rejected because a CEILING MUST
+ * NEVER REFUSE WHAT THE AUTHORITY WOULD ADMIT, and it would:
+ *
+ *   - A linked, active ops account whose role claim has not been pushed yet
+ *     is admitted by the authority (`resolveOpsSession` treats a null claim
+ *     as "no ceiling", not as a mismatch) but carries no claim to check here.
+ *     That state is not exotic — it is every account between step 1 and step
+ *     4 of docs/olympuss/AUTH_CUTOVER_RUNBOOK.md, and step 0 of that runbook
+ *     is "sign in at /login and land on /project/upsrtc".
+ *   - From the Edge, that account is indistinguishable from a stranger's
+ *     self-signup: both are a valid Supabase session with no ops claim. The
+ *     difference lives in a database this runtime cannot reach.
+ *
+ * So the edge would have to refuse both or admit both. Refusing both closes
+ * the hole one layer earlier and locks every un-pushed operator out of the
+ * product for the length of the cutover; admitting both lets a stranger's
+ * request reach a Node guard that answers it with a 401 and no data. The
+ * second is the same security outcome for one wasted round-trip, so it wins.
+ *
+ * WHAT DID CHANGE HERE, BESIDES THE FRAMING: the legacy ops cookie is now
+ * accepted. It resolves to a real ops profile in `resolveOpsSession`, so the
+ * authority already admitted those requests — the edge was refusing them and
+ * bouncing operators to /login. That is the same ceiling-inversion described
+ * above, and it was live: the legacy password door is the cutover's lockout
+ * safety net, and a safety net that cannot reach the product it is meant to
+ * rescue you into is not one.
+ */
+async function handleProjectRequest(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
+  const { supabase, supabaseResponse } = createMiddlewareSupabaseClient(request);
+
+  const user = await getMiddlewareUser(supabase);
+  if (user) return supabaseResponse;
+
+  // No Supabase session. Before refusing, check the legacy ops door — an
+  // operator holding only that cookie has a real, active ops profile behind
+  // it, which is strictly more than the Supabase session above proves.
+  const ceiling = await resolveOpsEdgeCeiling(request, supabase);
+  if (ceiling) return supabaseResponse;
+
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
+  const loginUrl = new URL('/login', request.url);
+  loginUrl.searchParams.set('next', `${pathname}${search}`);
+  return NextResponse.redirect(loginUrl);
+}
+
+export async function middleware(request: NextRequest): Promise<NextResponse> {
+  const { pathname } = request.nextUrl;
 
   // Checked first, ahead of both auth systems: these paths authenticate
   // themselves per-request and must reach their handler untouched.
@@ -187,22 +257,5 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return handleOpsRequest(request);
   }
 
-  const { supabase, supabaseResponse } = createMiddlewareSupabaseClient(request);
-  const user = await getMiddlewareUser(supabase);
-
-  if (user) {
-    return supabaseResponse;
-  }
-
-  // Unauthorized.
-  if (pathname.startsWith('/api/')) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: { 'Cache-Control': 'no-store' } },
-    );
-  }
-
-  const loginUrl = new URL('/login', request.url);
-  loginUrl.searchParams.set('next', `${pathname}${search}`);
-  return NextResponse.redirect(loginUrl);
+  return handleProjectRequest(request);
 }
