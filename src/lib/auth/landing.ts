@@ -99,8 +99,15 @@ export function opsHomePath(role: OpsRole): string {
  * (`/ops/control-room/incidents/42?tab=timeline`), and middleware matches its
  * segment against `nextUrl.pathname`, which has none - so the separators are
  * stripped here to compare the same thing middleware will.
+ *
+ * EXPORTED so the one client-side sign-in form that still picks its own
+ * destination can ask the same question rather than approximate it. The
+ * legacy ops form (src/components/auth/OpsLoginForm.tsx) is handed an
+ * already-sanitized `next` and had no way to tell "safe to navigate to" from
+ * "this account can open it", so it reproduced exactly the refusal-after-a-
+ * successful-sign-in this function exists to prevent. One rule, one owner.
  */
-function isReachableBy(path: string, role: OpsRole): boolean {
+export function opsPathIsReachableBy(path: string, role: OpsRole): boolean {
   if (!isOpsPath(path)) return true;
   const segment = path.slice('/ops/'.length).split(/[/?#]/)[0] ?? '';
   return roleForSegment(segment) === role;
@@ -236,7 +243,7 @@ export function resolveLanding({
   // internal path built from a compile-time map. There is no input that can
   // reach either branch and leave this app, so closing the refusal costs
   // nothing on the open-redirect side.
-  const reachable = requested !== null && isReachableBy(requested, opsRole);
+  const reachable = requested !== null && opsPathIsReachableBy(requested, opsRole);
   return { kind: 'go', path: reachable ? requested : opsHomePath(opsRole) };
 }
 

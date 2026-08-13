@@ -19,7 +19,7 @@
 // tell an infinite redirect from a dead product, and cannot get out of one.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -77,6 +77,7 @@ vi.mock('@/lib/auth/rbac/server', () => ({
 import LoginPage from '@/app/(public)/login/page';
 import OpsLoginPage from '@/app/(ops)/ops/login/page';
 import { LoginForm } from '@/components/auth/LoginForm';
+import { OpsLoginForm } from '@/components/auth/OpsLoginForm';
 
 /** Visit a page component. Returns where it redirected, or its rendered tree. */
 async function visit(
@@ -605,6 +606,82 @@ describe('/ops/login', () => {
     getOpsSession.mockResolvedValue({ role: 'admin', email: 'a@example.com', sub: 'x' });
     const { redirectedTo } = await visit(OpsLoginPage, { legacy: '1' });
     expect(redirectedTo).toBe('/ops/admin/invites');
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// THE SAME DEFECT ON THE LEGACY FORM
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * The fallback form picks its own destination client-side, and it honoured
+ * `next` unconditionally — so a correct password could still end on "Access
+ * Denied". Same defect the main door had, same cause: a SANITIZED path was
+ * mistaken for a REACHABLE one.
+ *
+ * It is worth pinning even though `/ops/login` is scheduled for deletion. The
+ * legacy door is live today, it is the door people reach for when Supabase is
+ * the thing that is broken, and middleware writes a `next` into its URL on
+ * every bounce — so a stale one is the normal case, not the exotic one.
+ */
+describe('the legacy ops form lands a correct sign-in correctly', () => {
+  const assign = vi.fn();
+
+  beforeEach(() => {
+    assign.mockReset();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { assign, href: 'https://olympuss.test/ops/login' },
+    });
+  });
+
+  async function signIn(next: string | null, role: string | undefined) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ ok: true, role }) })),
+    );
+    render(<OpsLoginForm next={next} />);
+    await userEvent.type(screen.getByLabelText(/email/i), 'someone@olympuss.local');
+    await userEvent.type(screen.getByLabelText(/password/i), 'a-long-enough-password');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await waitFor(() => expect(assign).toHaveBeenCalled());
+    return assign.mock.calls[0]?.[0] as string;
+  }
+
+  it('does not answer a successful sign-in with a refusal', async () => {
+    // The reported shape: an admin arrives carrying middleware's leftover
+    // `?next=/ops/control-room`, types the right password, and is shown
+    // "Access Denied" — indistinguishable, from their side, from typing the
+    // wrong one.
+    expect(await signIn('/ops/control-room', 'admin')).toBe('/ops/admin/invites');
+  });
+
+  it('still honours a deep link the account can actually open', async () => {
+    expect(await signIn('/ops/control-room/copilot', 'control_room')).toBe(
+      '/ops/control-room/copilot',
+    );
+  });
+
+  it('falls back to the role home when no destination was requested', async () => {
+    expect(await signIn(null, 'depot')).toBe('/ops/depot');
+  });
+
+  it('applies exactly the rule the main door applies, for every role', async () => {
+    // One owner for "can this role open this path", not two implementations
+    // that drift apart. `/ops/control-room` is somebody's screen and nobody
+    // else's, so it is reachable for exactly one of the seven.
+    const requested = '/ops/control-room';
+    for (const role of OPS_ROLES) {
+      cleanup();
+      assign.mockReset();
+      expect(await signIn(requested, role)).toBe(
+        landingUrl(resolveLanding({ requestedNext: requested, opsRole: role })),
+      );
+    }
+  });
+
+  it('sends an unrecognised role to the front door rather than guessing', async () => {
+    expect(await signIn('/ops/depot', undefined)).toBe('/login');
   });
 });
 

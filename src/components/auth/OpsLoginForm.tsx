@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react';
 import { isOpsRole } from '@/lib/auth/rbac/roles';
-import { opsHomePath } from '@/lib/auth/landing';
+import { opsHomePath, opsPathIsReachableBy } from '@/lib/auth/landing';
 
 /**
  * Ops RBAC login form — email + password against a per-person account.
@@ -13,6 +13,23 @@ import { opsHomePath } from '@/lib/auth/landing';
  * `next` is a pre-sanitized deep-link target (sanitizeOpsNext) or null. When
  * null, the destination is derived from the role the login response reports,
  * since roles differ in where their home page lives.
+ *
+ * A SANITIZED `next` IS NOT A REACHABLE ONE, and conflating the two turned a
+ * SUCCESSFUL sign-in into "Access Denied". Sanitizing proves a target is
+ * internal and not a login loop; it says nothing about whether the account
+ * that just authenticated may open it. A `next` outlives the navigation that
+ * set it — middleware writes one whenever it bounces an operator off an ops
+ * route, and it survives in the address bar and in bookmarks — so an admin
+ * arriving at this form with a stale `?next=/ops/control-room` typed the
+ * right password and was shown a refusal, indistinguishable from having typed
+ * the wrong one. The main door (src/lib/auth/landing.ts's `resolveLanding`,
+ * used by POST /api/auth/login) already narrows to the role's own dashboard
+ * in that case; `opsPathIsReachableBy` is the same rule, from the same owner,
+ * applied here.
+ *
+ * This form is scheduled to disappear with `/ops/login` at the cutover. It is
+ * fixed rather than left to rot because the legacy door is still LIVE, so the
+ * defect is reachable by real operators today.
  */
 export function OpsLoginForm({ next }: { next: string | null }) {
   const [email, setEmail] = useState('');
@@ -39,10 +56,17 @@ export function OpsLoginForm({ next }: { next: string | null }) {
       if (response.ok) {
         const data = (await response.json().catch(() => null)) as { role?: string } | null;
         const role = data?.role;
+        // Without a usable role there is nowhere role-correct to go, and
+        // honouring `next` blind is what produced the refusal described
+        // above — so the single front door absorbs it and explains.
+        //
         // opsHomePath, not `/ops/${segment}`: the raw segment sends an admin
-        // to /ops/admin, which is not a page. The fallback is the single front
-        // door, since /ops/login now only forwards there anyway.
-        const target = next ?? (isOpsRole(role) ? opsHomePath(role) : '/login');
+        // to /ops/admin, which is not a page.
+        const target = !isOpsRole(role)
+          ? '/login'
+          : next !== null && opsPathIsReachableBy(next, role)
+            ? next
+            : opsHomePath(role);
         // Full navigation so the server re-renders the now-authorized route.
         window.location.assign(target);
         return;

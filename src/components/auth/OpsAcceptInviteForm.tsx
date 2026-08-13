@@ -34,11 +34,23 @@ export function OpsAcceptInviteForm({ token }: { token: string }) {
       });
 
       if (response.ok) {
-        const data = (await response.json().catch(() => null)) as { role?: string } | null;
+        const data = (await response.json().catch(() => null)) as {
+          role?: string;
+          redirectTo?: string;
+        } | null;
         const role = data?.role;
-        // An admin accepting an invite used to land on /ops/admin, a 404 —
-        // the very first thing that happens to a new administrator.
-        window.location.assign(isOpsRole(role) ? opsHomePath(role) : '/login');
+        // The SERVER picks the destination. It is the only side that knows
+        // whether the session it just opened can actually get through the
+        // edge gate — a claimless token has no business being pointed at an
+        // /ops/* page, and this component cannot tell.
+        //
+        // The role fallback keeps an older cached bundle working against a
+        // newer server and vice versa. opsHomePath, not `/ops/${segment}`:
+        // the raw segment sends an admin to /ops/admin, a 404 — the very
+        // first thing that used to happen to a new administrator.
+        window.location.assign(
+          data?.redirectTo ?? (isOpsRole(role) ? opsHomePath(role) : '/login'),
+        );
         return;
       }
 

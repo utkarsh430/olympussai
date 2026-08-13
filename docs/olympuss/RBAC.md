@@ -192,9 +192,17 @@ system rather than a role field bolted onto the project login:
 - **Admin-invite only:** there is no self-service signup. An admin creates an
   `ops_invites` row (`POST /api/ops/admin/invites`); the invitee accepts it
   once (`POST /api/ops/auth/accept-invite`), which provisions their Supabase
-  Auth account with the password they choose and creates the `ops_users` row
-  linked to it. The very first admin, who by definition has no inviter, is
-  seeded directly via `scripts/seed-ops-admin.mjs` (see `../../db/README.md`).
+  Auth account with the password they choose, creates the `ops_users` row
+  linked to it, and **signs them in with a Supabase session** before landing
+  them on their own dashboard. That last part is not incidental: the route
+  used to finish by minting a legacy `olympuss_ops_session` cookie for an
+  account whose only credential lives in Supabase Auth, so the one path that
+  creates new operators was the one path that never produced a session on the
+  new front door. If Supabase Auth cannot be reached at that moment the legacy
+  cookie is issued as a fallback rather than failing an acceptance that has
+  already consumed the single-use invite. The very first admin, who by
+  definition has no inviter, is seeded directly via
+  `scripts/seed-ops-admin.mjs` (see `../../db/README.md`).
 
   There is one further, deliberately narrow exception:
   `scripts/seed-ops-user.mjs` (`pnpm seed-ops-user`) writes a single
