@@ -335,21 +335,6 @@ export function OpsConfidence({
 }
 
 /**
- * The system declining to give a figure, by name.
- *
- * The counterpart to OpsConfidence, and just as important: an estimate that
- * cannot be measured must say so in words rather than showing a dash and
- * letting the operator guess. Use the established phrasings — "Not confident
- * enough to give a time", "Too far ahead to time yet", "Reading is out of
- * date - waiting for a fresh one".
- */
-export function OpsDeclined({ reason, className }: { reason: ReactNode; className?: string }) {
-  return (
-    <span className={cn('text-xs leading-snug text-muted-foreground', className)}>{reason}</span>
-  );
-}
-
-/**
  * How much of a population a figure actually covers.
  *
  * "198 of 759 mapped" is the canonical form and it is deliberately not a

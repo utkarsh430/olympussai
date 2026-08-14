@@ -83,12 +83,6 @@
   max-width: 650px;
 }
 
-/* Thin identity hairline. */
-.ol-hairline {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, hsl(var(--brand) / 0.4), transparent);
-}
-
 /* Glass surface for the scrolled header. `--background` rather than a fixed
    near-black, so the bar frosts the ground it is actually sitting on. */
 .ol-glass {
@@ -104,16 +98,6 @@
   from {
     opacity: 0;
     transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-@keyframes ol-emblem-in {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.92);
   }
   to {
     opacity: 1;
@@ -147,16 +131,11 @@
   opacity: 0;
   animation: ol-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-.ol-anim-emblem {
-  opacity: 0;
-  animation: ol-emblem-in 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
 
 /* Reduced-motion: the static edition should still feel deliberate, never
    broken. Decorative canvas motion is halted; layout is unaffected. */
 @media (prefers-reduced-motion: reduce) {
-  .ol-anim,
-  .ol-anim-emblem {
+  .ol-anim {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;

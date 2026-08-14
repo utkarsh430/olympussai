@@ -327,10 +327,6 @@
     @apply text-[10px] font-medium uppercase tracking-[0.22em] text-subtle;
   }
 
-  .ops-value {
-    @apply tabular-nums text-foreground;
-  }
-
   .ops-button {
     @apply inline-flex items-center justify-center gap-2 rounded-md border border-input bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40;
   }
@@ -435,10 +431,6 @@
     @apply font-mono text-[10px] uppercase tracking-[0.18em] text-primary/70;
   }
 
-  .hud-value {
-    @apply font-mono tabular-nums text-primary;
-  }
-
   /* ═══ PROVENANCE BADGES ══════════════════════════════════════════════════
      The most important labelling affordance in the product: an operator must
      always be able to tell observed data from modelled data, and the same
@@ -484,15 +476,12 @@
   /* ═══ IDENTITY CHROME ════════════════════════════════════════════════════
      The Olympuss surface — the landing page, the front door, the project
      badge inside the command centre. `--brand`, never `--primary`: this
-     chrome says whose product you are in, and says nothing about a bus. */
+     chrome says whose product you are in, and says nothing about a bus.
 
-  .brand-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border border-brand bg-brand px-6 py-3 text-sm font-medium tracking-wide text-brand-foreground transition-colors duration-200 hover:bg-brand/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60;
-  }
-
-  .brand-button-quiet {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border border-border bg-transparent px-6 py-3 text-sm font-medium tracking-wide text-muted-foreground transition-colors duration-200 hover:border-brand hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-background;
-  }
+     `.brand-button` and `.brand-button-quiet` lived here too and had no call
+     sites left: the landing page's buttons are shadcn's `Button` with its
+     `brand` variant (src/components/ui/button.tsx), which is where that
+     styling belongs now. */
 
   .brand-eyebrow {
     @apply text-[11px] font-medium uppercase tracking-[0.18em] text-brand;
@@ -514,23 +503,6 @@
 
   .text-glow {
     text-shadow: 0 0 14px rgb(var(--hud-glow-rgb) / calc(0.55 * var(--hud-bloom)));
-  }
-
-  .divider-h {
-    @apply h-px w-full bg-gradient-to-r from-transparent via-primary/25 to-transparent;
-  }
-}
-
-@layer utilities {
-  .clip-hud {
-    clip-path: polygon(
-      10px 0,
-      100% 0,
-      100% calc(100% - 10px),
-      calc(100% - 10px) 100%,
-      0 100%,
-      0 10px
-    );
   }
 }
 

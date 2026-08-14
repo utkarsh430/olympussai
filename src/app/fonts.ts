@@ -107,16 +107,18 @@ export const mono = localFont({
 });
 
 /**
- * `--font-display` is kept as an ALIAS of the body face rather than removed.
+ * The two families this product loads, and the whole list.
  *
- * Orbitron used to fill it, and roughly a dozen surfaces still say
- * `font-display`. Pointing the variable at Noto Sans retires Orbitron
- * everywhere in one move, with no edit to any of those surfaces — and, more
- * to the point, Orbitron carries no Devanagari at all, so any bilingual
- * string that landed on a `font-display` element would have fallen back to
- * a mismatched system face.
+ * Orbitron, Manrope and Cormorant Garamond were the display and editorial
+ * faces before the overhaul. All three are gone, along with the
+ * `font-display` / `font-serif` Tailwind aliases that pointed at the body
+ * face while the last of their call sites were removed. Orbitron in
+ * particular carries no Devanagari at all, so any bilingual string landing on
+ * it fell back to a mismatched system face — which is why the retirement was
+ * done by re-pointing the alias rather than by editing surfaces one at a time.
  *
- * The alias is a migration aid, not a permanent second name. When the last
- * `font-display` is gone, delete it.
+ * Nothing here loads over the network: both families are `next/font/local`
+ * against the .woff2 files in public/fonts, so a console on a depot's
+ * connection paints in the right face or not at all, never in Times.
  */
 export const fontVariables = `${sans.variable} ${mono.variable}`;

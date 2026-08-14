@@ -7,9 +7,14 @@ Everything here is lifted from `/project/upsrtc`, not invented alongside it.
 When this document and the code disagree, the code wins and this document is
 the bug.
 
-- Colour tokens: the `ops` block in `tailwind.config.ts` (alongside the
-  command centre's own `void` / `holo` / `alert` / `ol` tokens, which remain
-  the source they were derived from).
+- Colour tokens: the shadcn vocabulary in `tailwind.config.ts` — `background`,
+  `foreground`, `card`, `primary`, `muted`, `destructive`, `warning`,
+  `success`, `subtle`, `instrument.*`, `border`, `input`, `ring`, `brand`.
+  New work uses these and nothing else.
+  The `ops` / `holo` / `alert` / `void` blocks below them are the overhaul's
+  remaining migration aliases, kept only because the command centre, the
+  scenario stages and a handful of ops panels still call them. `sim`, `ol` and
+  `navy` are gone; every alias whose last call site disappears goes with it.
 - Component classes: the `.ops-*` block in `src/app/globals.css`.
 - React primitives: `src/components/ops/ui` (`./primitives.tsx`).
 - Shell: `src/components/ops/OpsShell.tsx`.
@@ -23,8 +28,11 @@ pnpm tsx --tsconfig scripts/tsconfig.preview.json scripts/preview-ops-shell.tsx 
 pnpm tailwindcss -i src/app/globals.css -o preview.css
 ```
 
-Wrap the body in a page that links `preview.css` and defines `--font-display`
-(Orbitron) and `--font-mono` (JetBrains Mono).
+Wrap the body in a page that links `preview.css` and points `--font-sans` and
+`--font-mono` at the app's own faces (Noto Sans and JetBrains Mono, in
+`public/fonts/`). `scripts/serve-control-room-preview.mjs` does exactly that
+and is the worked example — copy its `<style>` block rather than reaching for
+a webfont CDN, which would review the console in a typeface it does not ship.
 
 ## Mounting a dashboard
 
@@ -142,14 +150,17 @@ pointer-transparent until you mark one `pointer-events-auto`.
 - **Depot scoping is a server-side boundary, never a UI filter.** Components
   receive already-scoped data and label it; they must not narrow it. See
   `DepotDashboard`'s doc comment.
-- **The surface is dark, and motion is minimal.** The console keeps the
-  command centre's grid and volumetric wash and animates nothing — it is read
-  for a whole shift, and it includes forms. `prefers-reduced-motion` is
-  honoured globally in `globals.css`; do not add animation that would need it.
-- **Contrast.** Every `ops` ink token clears WCAG AA against `ops.bg` and
-  `ops.surface`. Use `ops.danger` / `ops.warn` / `ops.good` for alert-coloured
-  *text* and `alert.crimson` / `alert.amber` / `alert.green` for borders,
-  fills and badges.
+- **The surface follows the operator's theme, and motion is minimal.** Light is
+  the base palette on `:root` and `.dark` overrides it, so a console opened in
+  daylight is not black; only `/project/*` pins itself dark. The shell keeps
+  the grid and wash and animates nothing — it is read for a whole shift, and it
+  includes forms. `prefers-reduced-motion` is honoured globally in
+  `globals.css`; do not add animation that would need it.
+- **Contrast.** Every ink token clears WCAG AA against `background` and `card`
+  in both palettes, which `src/tests/unit/designTokens.test.ts` measures rather
+  than asserts by eye. Use `destructive` / `warning` / `success` for
+  alert-coloured *text* and the `instrument.*` tokens for borders, fills and
+  badges.
 
 ## Sign-out
 

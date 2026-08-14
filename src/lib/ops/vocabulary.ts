@@ -408,18 +408,8 @@ export const STOP_INSTRUCTIONS = {
    COMMAND PERMISSION ("rollout stage")
    ───────────────────────────────────────────────────────────────────────── */
 
-/**
- * What a corridor is allowed to do. Read-only on this console — the setting
- * is an admin action; the control room only reports it.
- */
-export const COMMAND_PERMISSION_LABEL: Record<string, string> = {
-  observation: 'Watch only',
-  shadow: 'Watch and suggest (nothing sent)',
-  advisory: 'Instructions allowed, each needs approval',
-  limited_auto: 'Instructions allowed, narrower automatic band',
-  expanded: 'Instructions allowed, full band',
-};
-
-export function commandPermissionLabel(value: string): string {
-  return COMMAND_PERMISSION_LABEL[value] ?? humaniseEnum(value);
-}
+/* What a corridor is allowed to do had a label table and a lookup here, and
+   nothing ever called either. The screen that reports the setting — Admin ›
+   Rollout stages — renders `ROLLOUT_STAGE_LABEL` instead, which is the same
+   five values under the name the admin console actually uses. Two tables for
+   one enum is how they drift, so the unused one is gone. */

@@ -28,6 +28,13 @@ const stubs = {
   navigation: path.join(outDir, 'stub-navigation.ts'),
 };
 
+/** The only paths under public/ this server will hand out. See its use below. */
+const FONT_FILES = new Set([
+  '/fonts/NotoSans-Latin.woff2',
+  '/fonts/NotoSans-Devanagari.woff2',
+  '/fonts/JetBrainsMono-Latin.woff2',
+]);
+
 async function writeStubs() {
   await mkdir(outDir, { recursive: true });
   // next/link and next/navigation only exist inside a Next runtime. The shell
@@ -119,11 +126,18 @@ function page(fixture) {
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Control room — review harness</title>
 <link rel="stylesheet" href="/preview.css" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
 <style>
-  :root { --font-display: 'Orbitron', system-ui, sans-serif; --font-mono: 'JetBrains Mono', ui-monospace, monospace; }
+  /* The SAME two local families the app loads (src/app/fonts.ts), served from
+     public/fonts below, rather than fetched from Google. This block used to
+     pull Orbitron and fill a --font-display that no longer exists, so the
+     harness reviewed the console in a typeface the product does not ship —
+     and did it over the network, which a review tool has no business needing.
+     Noto Sans is also the only one of the two that carries Devanagari, so a
+     bilingual string is only legible here because this points at it. */
+  @font-face { font-family: 'Noto Sans'; src: url('/fonts/NotoSans-Latin.woff2') format('woff2'); font-display: swap; }
+  @font-face { font-family: 'Noto Sans'; src: url('/fonts/NotoSans-Devanagari.woff2') format('woff2'); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+A830-A839, U+A8E0-A8FF; font-display: swap; }
+  @font-face { font-family: 'JetBrains Mono'; src: url('/fonts/JetBrainsMono-Latin.woff2') format('woff2'); font-display: swap; }
+  :root { --font-sans: 'Noto Sans'; --font-mono: 'JetBrains Mono'; }
   html, body, #root { height: 100%; margin: 0; background: #02040a; }
 </style>
 </head>
@@ -161,6 +175,22 @@ async function main() {
     if (url === '/preview.js') {
       response.writeHead(200, { 'content-type': 'text/javascript' });
       response.end(js);
+      return;
+    }
+    // The app's own font files, so the harness renders in the product's faces
+    // without a network call. Exact-match against the known three rather than
+    // joining the URL onto a directory: this server is a review tool, not a
+    // static host, and `/fonts/../../.env.local` must not resolve to anything.
+    if (FONT_FILES.has(url)) {
+      readFile(path.join(root, 'public', url.slice(1))).then(
+        (bytes) => {
+          response.writeHead(200, { 'content-type': 'font/woff2' });
+          response.end(bytes);
+        },
+        () => {
+          response.writeHead(404).end();
+        },
+      );
       return;
     }
     response.writeHead(200, { 'content-type': 'text/html' });

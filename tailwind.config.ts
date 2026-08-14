@@ -25,13 +25,19 @@ import type { Config } from 'tailwindcss';
  * lane deletes the alias uses in the screens it owns, and the final deletion
  * PR removes the aliases themselves. Do not add new uses of them.
  *
- * ─── WHAT IS DELIBERATELY *NOT* ALIASED ──────────────────────────────────
+ * ─── HOW MUCH OF THAT SURFACE IS LEFT ────────────────────────────────────
  *
- * `void`, `navy`, `sim` and `ol` stay literal hexes. They belong to the
- * cinematic and simulator surfaces, which are dark-only and light-only
- * respectively and render identically before and after this change. Lane 4
- * owns unifying them. Aliasing them here would have changed three surfaces
- * this foundation is not responsible for and could not verify.
+ * Every alias whose last call site is gone has now been deleted, and what
+ * remains is genuinely still in use — roughly 740 utilities across the
+ * command centre, the scenario stages, the alert and audit drawers, the
+ * landing HUD and a handful of ops panels. Those surfaces were never in the
+ * console overhaul's scope, which is why their aliases outlived it.
+ *
+ * So this block shrinks by deletion, never by exception. Before adding a name
+ * back, check that something outside this file actually asks for it: the
+ * previous round of removals was `ops.surface`, `ops.raised`, `holo.bright`,
+ * `holo.core`, `holo.deep`, `void.800` and the whole `navy` palette, every
+ * one of which had zero call sites and had simply never been swept up.
  *
  * ─── DARK MODE IS CLASS-BASED, AND THAT IS WHY SUBTREES CAN OPT OUT ──────
  *
@@ -121,8 +127,6 @@ export default {
            and can be migrated one lane at a time. */
         ops: {
           bg: 'hsl(var(--background))',
-          surface: 'hsl(var(--card))',
-          raised: 'hsl(var(--muted))',
           line: 'hsl(var(--border))',
           'line-strong': 'hsl(var(--input))',
           ink: 'hsl(var(--foreground))',
@@ -134,9 +138,6 @@ export default {
         },
         holo: {
           glow: 'hsl(var(--primary))',
-          bright: 'hsl(var(--primary))',
-          core: 'hsl(var(--primary))',
-          deep: 'hsl(var(--input))',
           teal: 'hsl(var(--instrument-success))',
         },
         alert: {
@@ -145,36 +146,16 @@ export default {
           crimson: 'hsl(var(--instrument-danger))',
         },
 
-        /* ── THE LAST TWO LITERAL PALETTES ARE NOW ALIASES TOO ────────────
-           The foundation left `void`, `navy`, `sim` and `ol` as literal
-           hexes because it did not own the surfaces that used them. This
-           lane owns them, so:
-
-             `sim` and `ol` are DELETED. `sim` was the old light simulator
-             palette, and the simulator now renders on the ops shell, so its
-             only remaining users were two dead `light` variants. `ol` was
-             the landing page's private palette, and every one of its eleven
-             names had a token equivalent already sitting in globals.css —
-             keeping it would have been a second vocabulary for the same
-             eleven decisions.
-
-             `void` and `navy` survive as ALIASES rather than deletions, for
-             the same reason the foundation kept `ops-*`: ~50 uses across the
-             command centre, and a migration that has to land in one commit
-             to be verifiable is a migration that lands broken. They now
-             follow the theme, so the command centre themes without every
-             one of those call sites being edited first. Same migration
-             surface, same rule — do not add new uses. */
+        /* `sim`, `ol` and `navy` were the last three literal palettes and are
+           all DELETED — `sim` was the old light simulator's, `ol` was the
+           landing page's private eleven names, and `navy` outlived its last
+           call site. Every one of them had a token equivalent already sitting
+           in globals.css, so keeping any was a second vocabulary for the same
+           decisions. `void` survives as an alias only because the command
+           centre still uses it. */
         void: {
           DEFAULT: 'hsl(var(--background))',
           900: 'hsl(var(--background))',
-          800: 'hsl(var(--card))',
-        },
-        navy: {
-          900: 'hsl(var(--card))',
-          800: 'hsl(var(--popover))',
-          700: 'hsl(var(--border))',
-          600: 'hsl(var(--input))',
         },
       },
       borderRadius: {
@@ -187,12 +168,6 @@ export default {
            metrics. See src/app/fonts.ts for the measurements. */
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-        /* Migration aliases. Orbitron and the landing serif are retired;
-           these point at the body face so no surface loses its font — and,
-           more importantly, so no bilingual string lands on a face with no
-           Devanagari in it. */
-        display: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        serif: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       lineHeight: {
         /* Devanagari ink spans 1.164em against Latin's 1.005em, so a line
@@ -207,15 +182,6 @@ export default {
            flat and never errors. This project uses the `new-york` (v3)
            registry style for exactly that reason. */
         panel: '0 10px 30px -24px rgb(0 0 0 / 0.9)',
-        'panel-raised': '0 18px 50px -22px rgb(0 0 0 / 0.9)',
-        /* Bloom shadows, scaled by `--hud-bloom` so they read as glow on the
-           night ground and as a plain hairline on the day one. */
-        hud: '0 0 0 1px rgb(var(--hud-glow-rgb) / calc(0.18 * var(--hud-bloom))), 0 0 28px -6px rgb(var(--hud-glow-rgb) / calc(0.35 * var(--hud-bloom)))',
-        'hud-strong':
-          '0 0 0 1px rgb(var(--hud-glow-rgb) / calc(0.35 * var(--hud-bloom))), 0 0 46px -4px rgb(var(--hud-glow-rgb) / calc(0.5 * var(--hud-bloom)))',
-        critical:
-          '0 0 0 1px hsl(var(--instrument-danger) / 0.4), 0 0 40px -6px hsl(var(--instrument-danger) / calc(0.55 * var(--hud-bloom)))',
-        warn: '0 0 0 1px hsl(var(--instrument-warning) / 0.35), 0 0 36px -8px hsl(var(--instrument-warning) / calc(0.45 * var(--hud-bloom)))',
         /* The landing page's card lift. Warm rather than neutral, because the
            identity accent is warm and a cool shadow under a gold card reads
            as a printing error. */
@@ -246,46 +212,13 @@ export default {
           '0%': { transform: 'scale(0.7)', opacity: '0.85' },
           '100%': { transform: 'scale(2.4)', opacity: '0' },
         },
-        'core-breathe': {
-          '0%,100%': { transform: 'scale(1)', opacity: '0.9' },
-          '50%': { transform: 'scale(1.06)', opacity: '1' },
-        },
-        'data-stream': {
-          '0%': { backgroundPosition: '0 0' },
-          '100%': { backgroundPosition: '0 -220px' },
-        },
-        orbit: { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(-360deg)' } },
         flicker: { '0%,100%': { opacity: '1' }, '50%': { opacity: '0.72' } },
-        rise: {
-          '0%': { transform: 'translateY(8px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
-        },
-        drift: {
-          '0%': { transform: 'translate3d(0,0,0)' },
-          '50%': { transform: 'translate3d(6px,-10px,0)' },
-          '100%': { transform: 'translate3d(0,0,0)' },
-        },
-        'accordion-down': {
-          from: { height: '0' },
-          to: { height: 'var(--radix-accordion-content-height)' },
-        },
-        'accordion-up': {
-          from: { height: 'var(--radix-accordion-content-height)' },
-          to: { height: '0' },
-        },
       },
       animation: {
         'scan-y': 'scan-y 5.5s linear infinite',
         'radar-sweep': 'radar-sweep 3.6s linear infinite',
         'pulse-ring': 'pulse-ring 2.4s ease-out infinite',
-        'core-breathe': 'core-breathe 3.4s ease-in-out infinite',
-        'data-stream': 'data-stream 9s linear infinite',
-        orbit: 'orbit 18s linear infinite',
         flicker: 'flicker 2.6s ease-in-out infinite',
-        rise: 'rise 0.4s ease-out both',
-        drift: 'drift 7s ease-in-out infinite',
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
       },
     },
   },

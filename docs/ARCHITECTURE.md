@@ -90,7 +90,7 @@ scenario synchronously.
 | --- | --- |
 | 11.6 MiB upstream payload | Server-side fetch + 15s shared cache |
 | 3.85 MB response to browser | gzip → ~416 KB (9.3× reduction) |
-| 9,588 markers | `MarkerClusterer` + compact cluster rendering |
+| 9,588 markers | Custom canvas overlay (`src/components/map/fleetCanvasLayer.ts`); `MarkerClusterer` was removed after costing 5.1s of main thread |
 | Marker churn every poll | Incremental diff: update moved, add new, remove gone |
 | Camera fighting the poll | Fly-to keyed on selection id only, never position |
 | Large option lists | Memoized depot/route derivation |

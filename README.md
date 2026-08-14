@@ -289,14 +289,14 @@ docs/                                 # architecture, API discovery, demo, roadm
 
 Two Next.js route groups do the heavy lifting, and the split is deliberate:
 
-- **`(public)`** loads the Olympuss editorial fonts (Manrope, Cormorant
-  Garamond) and applies the `.ol-scope` token wrapper. Because the fonts and
-  tokens live in that layout — not the root layout — the protected dashboard
-  never downloads them and never inherits the landing palette.
+- **`(public)`** applies the `.ol-scope` wrapper, which is now a type scale and
+  an entrance choreography — not a palette and not a font load. Manrope and
+  Cormorant Garamond are retired; both route groups render in the two local
+  families the root layout loads once (Noto Sans, JetBrains Mono).
 - **`(protected)`** re-establishes the command-centre visual environment (dark
-  void, Orbitron display font, cyan text, tabular numerals, no page scroll)
-  *scoped to that route only*, so the public landing page keeps scrolling
-  natively with its own typography.
+  ground, cyan text, tabular numerals) *scoped to that route only* by wrapping
+  itself in `.dark`, so it keeps its night look while an operator has the
+  console in light mode, and the landing page keeps scrolling natively.
 
 The root layout stays neutral: it declares both font families as CSS variables
 on `<html>` and lets each group opt in.
@@ -1196,7 +1196,7 @@ options that differ in any way throws — so the fleet map and both simulator ma
 go through one module, the options cannot drift, and the SDK is fetched once per
 session.
 
-[`authFailure.ts`](src/lib/maps/authFailure.ts) handles a failure mode the SDK
+[`loader.ts`](src/lib/maps/loader.ts) handles a failure mode the SDK
 does not surface as a rejection: when the key is rejected for the requesting
 origin (referrer restriction, billing, disabled API), `importLibrary` resolves
 normally, the map is created, and Google then paints its own English "Oops!
@@ -1347,9 +1347,10 @@ body background would otherwise show through on overscroll and behind a short
 page. The bus colours in `config.ts` match the HUD accents (cyan/teal/amber/
 violet) but at ink strength rather than neon, for the same contrast reason.
 
-Fonts follow the same split: **Orbitron** (display) and **JetBrains Mono** for
-the dashboard, declared as CSS variables in the root layout; **Manrope** and
-**Cormorant Garamond** for the landing, loaded only in the public layout.
+Fonts no longer split: **Noto Sans** (Latin + Devanagari, one family with
+matched vertical metrics) and **JetBrains Mono** are declared once in the root
+layout and serve every surface. Orbitron, Manrope and Cormorant Garamond are
+retired — see `src/app/fonts.ts`.
 
 The visual concept is an original holographic command-centre identity: deep
 black and dark navy layers, electric cyan and teal highlights, amber warnings,
@@ -1587,7 +1588,7 @@ Inside `control-service/` (its own package, own database):
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | "Basemap Unavailable" | Maps key missing, restricted or unbilled | Check `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`; allow the `localhost` referrer. Everything except the basemap still works. |
-| Google's own "Oops! Something went wrong" panel inside a map | Key rejected for this origin — referrer restriction, billing, or the Maps JavaScript API disabled | The SDK does not reject `importLibrary` for this; `gm_authFailure` is the only signal, and `src/lib/maps/authFailure.ts` surfaces it. Fix the key restriction for the origin you are serving from. |
+| Google's own "Oops! Something went wrong" panel inside a map | Key rejected for this origin — referrer restriction, billing, or the Maps JavaScript API disabled | The SDK does not reject `importLibrary` for this; `gm_authFailure` is the only signal, and `src/lib/maps/loader.ts` surfaces it. Fix the key restriction for the origin you are serving from. |
 | Simulator maps blank but the dashboard map works | Same key, but the simulator is on a different route than the referrer restriction allows | Restrictions are per-origin, not per-route — check the origin, not the path. |
 | Red "live data is unavailable" banner, zero vehicles | Upstream unreachable and nothing real cached | This is the default, honest behaviour — no placeholder rows are substituted. Check network access to `margdarshi.upsrtcvlt.com`. Set `ALLOW_FIXTURE_FALLBACK=1` only if you deliberately want captured sample data locally. |
 | Amber "fixture fallback" banner | Upstream unreachable **and** `ALLOW_FIXTURE_FALLBACK` / `NEXT_PUBLIC_DEMO_MODE` is set | Real captured data is being served, but it is not this minute's fleet. Check network access to `margdarshi.upsrtcvlt.com`. |

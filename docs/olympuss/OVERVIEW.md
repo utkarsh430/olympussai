@@ -25,8 +25,8 @@ src/
 │   ├── icon.png / apple-icon.png  # favicons (generated from the logo)
 │   ├── robots.ts / sitemap.ts
 │   ├── (public)/
-│   │   ├── layout.tsx             # Olympuss fonts + .ol-scope tokens (landing/login only)
-│   │   ├── olympuss.css           # design system (scoped)
+│   │   ├── layout.tsx             # .ol-scope wrapper (landing/login only); loads no fonts
+│   │   ├── olympuss.css           # scoped type scale + entrance choreography
 │   │   ├── page.tsx               # landing composition
 │   │   └── login/page.tsx
 │   ├── (protected)/
@@ -47,10 +47,12 @@ src/
   server-proxy/normalizer/fallback code was preserved rather than rewritten.
 - **Route groups** keep the public landing, auth, and protected dashboard cleanly
   separated while sharing one deployment.
-- **Style + font isolation:** Olympuss gold/serif tokens and fonts load only under
-  the public route group (`.ol-scope`); the dashboard keeps its cyan HUD identity
-  and never downloads the landing fonts. The dashboard's fixed-viewport styling
-  moved off the global `<body>` onto a scoped shell so the landing can scroll.
+- **Style isolation:** the whole product now runs on one token set and two local
+  fonts loaded once in the root layout. `.ol-scope` survives as a *scoped type
+  scale and entrance choreography* for the landing and login pages only — its
+  eleven private gold/serif colour tokens are gone, and the public layout loads
+  no fonts of its own. The console's shell styling likewise lives on a scoped
+  shell rather than the global `<body>`, so the landing can scroll.
 - **Code splitting:** the three.js bundle is dynamically imported and absent from
   the dashboard route; the landing route does not load any UPSRTC code or data.
 - **Auth defence in depth:** middleware + protected-layout gate + per-API check,
