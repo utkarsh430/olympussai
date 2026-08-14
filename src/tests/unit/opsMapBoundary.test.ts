@@ -111,7 +111,11 @@ function state(vehicleId: string, latitude: number, longitude: number): VehicleS
   };
 }
 
-function incident(id: string, members: string[]): BunchingIncident {
+function incident(
+  id: string,
+  members: string[],
+  evidence: Record<string, unknown> = {},
+): BunchingIncident {
   return {
     id,
     routeDirectionId: RD,
@@ -125,7 +129,7 @@ function incident(id: string, members: string[]): BunchingIncident {
     status: 'open',
     startedAt: '2026-08-12T06:00:00Z',
     endedAt: null,
-    evidence: {},
+    evidence,
   };
 }
 
@@ -173,7 +177,11 @@ async function mapRequest(query = '') {
 
 interface MapBody {
   vehicles: { id: string; latitude: number; longitude: number; positionSource: string; observedAt: string }[];
-  incidents: { id: string }[];
+  incidents: {
+    id: string;
+    members: { vehicleId: string; role: string }[];
+    evidence: Record<string, unknown>;
+  }[];
   scopeLabel: string;
   controlServiceError: string | null;
 }
@@ -311,14 +319,83 @@ describe('GET /api/ops/fleet/map - bunching incidents stay inside the boundary',
     expect(raw).not.toContain(LUCKNOW_BUS);
   });
 
-  it('gives a statewide role every incident on the corridor', async () => {
+  // ─── THE MIXED-DEPOT INCIDENT ────────────────────────────────────────
+  //
+  // This is the NORMAL case, not an edge one: a route is not owned by a
+  // depot, so a bunching pair on a corridor routinely has one bus from each
+  // of two depots. Keeping the incident because ONE member is in scope, and
+  // then serialising the whole record, hands a Bareilly operator a Lucknow
+  // registration in the response body — the same boundary
+  // db/migrations/20260812150000__ops_depot_ownership.sql closed for
+  // vehicles, reopened through the incident payload.
+  //
+  // Live-proven against a signed-in Bareilly operator before the fix, and
+  // reachable with no crafted request at all: DepotDashboard mounts the map
+  // with a routeDirectionId and polls it every 15 seconds.
+  //
+  // Asserted on RAW RESPONSE BODY TEXT for the reason the file header gives —
+  // the property is about what is on the wire, and the pre-existing mixed
+  // test used an ORPHAN bus (owned by nobody) and asserted only on `id`,
+  // which is why this shipped.
+  describe('a mixed-depot incident', () => {
+    /** Evidence is `Record<string, unknown>` from control-service and is never validated field by field. */
+    const FOREIGN_EVIDENCE = {
+      leaderVehicleId: LUCKNOW_BUS,
+      leaderPosition: { latitude: 26.8, longitude: 80.9 },
+      headwaySeconds: 41,
+    };
+
+    beforeEach(() => {
+      controlServiceIncidents.mockReturnValue([
+        incident('inc-mixed', [BAREILLY_BUS, LUCKNOW_BUS], FOREIGN_EVIDENCE),
+      ]);
+      requireOpsRole.mockResolvedValue({ ok: true, claims: BAREILLY_OPERATOR });
+    });
+
+    it('never puts the other depot vehicle in the response body', async () => {
+      const raw = await (await mapRequest(`?routeDirectionId=${RD}`)).text();
+      expect(raw).not.toContain(LUCKNOW_BUS);
+    });
+
+    it('never ships the incident evidence blob, whatever control-service put in it', async () => {
+      const raw = await (await mapRequest(`?routeDirectionId=${RD}`)).text();
+      // Field by field, because `evidence` is untyped passthrough: anything
+      // control-service adds to it leaks automatically unless it is dropped.
+      expect(raw).not.toContain('leaderVehicleId');
+      expect(raw).not.toContain('leaderPosition');
+      expect(raw).not.toContain('80.9');
+      expect(raw).not.toContain('26.8');
+    });
+
+    // Redacted, NOT dropped. The operator's own bus is bunched; that is their
+    // incident and hiding it would be a worse failure than the leak. The
+    // overlay only ever draws members it can place, so the members it cannot
+    // see were never on screen anyway.
+    it('still serves the incident, narrowed to the members this operator owns', async () => {
+      const body = (await (await mapRequest(`?routeDirectionId=${RD}`)).json()) as MapBody;
+      expect(body.incidents.map((entry) => entry.id)).toEqual(['inc-mixed']);
+      expect(body.incidents[0]?.members).toEqual([{ vehicleId: BAREILLY_BUS, role: 'leader' }]);
+      expect(body.incidents[0]?.evidence).toEqual({});
+    });
+  });
+
+  it('gives a statewide role every incident on the corridor, unredacted', async () => {
     controlServiceIncidents.mockReturnValue([
       incident('inc-own', [BAREILLY_BUS]),
-      incident('inc-foreign', [LUCKNOW_BUS]),
+      incident('inc-foreign', [LUCKNOW_BUS], { headwaySeconds: 41 }),
     ]);
     requireOpsRole.mockResolvedValue({ ok: true, claims: CONTROL_ROOM });
     const body = (await (await mapRequest(`?routeDirectionId=${RD}`)).json()) as MapBody;
     expect(body.incidents.map((entry) => entry.id).sort()).toEqual(['inc-foreign', 'inc-own']);
+    // A statewide role owns the whole fleet, so there is nothing to narrow -
+    // and narrowing it anyway would quietly delete evidence from the one
+    // console whose job is reading it.
+    expect(body.incidents.find((entry) => entry.id === 'inc-foreign')?.members).toEqual([
+      { vehicleId: LUCKNOW_BUS, role: 'leader' },
+    ]);
+    expect(body.incidents.find((entry) => entry.id === 'inc-foreign')?.evidence).toEqual({
+      headwaySeconds: 41,
+    });
   });
 
   it('asks control-service for nothing when no corridor is selected', async () => {

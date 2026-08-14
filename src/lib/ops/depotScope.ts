@@ -149,3 +149,54 @@ export function filterVehicleStatesToScope<T extends { vehicleId: string }>(
   const inScope = new Set(scopedFleet.map((bus) => bus.id));
   return vehicleStates.filter((state) => inScope.has(state.vehicleId));
 }
+
+/**
+ * Narrow bunching incidents to a scope — REDACTING the parts of each one that
+ * fall outside it, not merely deciding whether to keep the record.
+ *
+ * ─── THE LEAK THIS CLOSES ────────────────────────────────────────────────
+ *
+ * A route-direction is not owned by a depot, so the ordinary case is a
+ * bunching pair with one bus from each of two depots. Deciding to keep an
+ * incident because ONE member is in scope and then serialising the whole
+ * record hands a Bareilly operator a Lucknow registration, a role and an
+ * incident timeline — reopening, through the incident payload, the boundary
+ * db/migrations/20260812150000__ops_depot_ownership.sql closed for vehicles.
+ * It needed no crafted request: DepotDashboard mounts the map with a
+ * routeDirectionId and polls it every fifteen seconds.
+ *
+ * ─── REDACT, RATHER THAN DROP THE INCIDENT ───────────────────────────────
+ *
+ * Dropping every mixed incident would be the simpler rule and the wrong one:
+ * the operator's OWN bus is bunched, which is exactly the thing their map
+ * exists to tell them, and a boundary that hides an operator's own incidents
+ * from them is a worse failure than the one being fixed. Nothing is lost on
+ * screen either way — `buildIncidentOverlay` can only place members it has a
+ * position for, so an out-of-scope member was never drawable.
+ *
+ * ─── EVIDENCE GOES ENTIRELY ──────────────────────────────────────────────
+ *
+ * `evidence` is `Record<string, unknown>` straight off control-service and is
+ * never validated field by field, so whatever that service adds to it in
+ * future leaks automatically. It is dropped wholesale for a depot scope
+ * rather than filtered: there is no field list to filter against, and this
+ * app has no consumer for it on a depot surface. A statewide scope keeps it,
+ * because a statewide role owns the whole fleet and the control room's
+ * incident panel is the one place it is actually read.
+ */
+export function narrowIncidentsToScope<
+  T extends { members: readonly { vehicleId: string }[]; evidence: Record<string, unknown> },
+>(incidents: readonly T[], scope: OpsFleetScope, visibleVehicleIds: ReadonlySet<string>): T[] {
+  if (scope.kind === 'all') return [...incidents];
+
+  const narrowed: T[] = [];
+  for (const incident of incidents) {
+    const members = incident.members.filter((member) => visibleVehicleIds.has(member.vehicleId));
+    // Not one member this caller can see: not their incident, and the overlay
+    // could not have drawn it. Dropped from the payload rather than shipped
+    // as an undrawable record.
+    if (members.length === 0) continue;
+    narrowed.push({ ...incident, members, evidence: {} });
+  }
+  return narrowed;
+}

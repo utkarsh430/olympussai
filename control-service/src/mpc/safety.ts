@@ -17,6 +17,30 @@ import type { CandidateAction, SafetyRejection, SafetyRejectionReason } from './
  */
 export const DEFAULT_STATE_STALE_SECONDS = 90;
 
+/**
+ * How far AHEAD of now a reading may be stamped before it is unusable.
+ *
+ * The staleness test below is one-sided by nature — `age > staleAfterSeconds`
+ * — so a reading from the future has a negative age and can never trip it. A
+ * `vehicle_states` row observed on the live control database carried
+ * `observed_at = 2046-03-27`, roughly 19.6 years ahead: under the one-sided
+ * test that vehicle is permanently, unconditionally "fresh", and the filter
+ * would vouch for a hold computed from a reading whose true age nobody knows.
+ *
+ * ingestion/upsrtc/normalize.ts already refuses to WRITE such a row (see
+ * `parseUpstreamInstant`, and tests/seed/upstreamInstant.ts's "yields a
+ * positive age so the MPC staleness filter can actually fire"), but that
+ * guard only covers rows arriving through the poller from the day it landed.
+ * It does nothing for a row already in the table, and this filter is the
+ * blueprint's non-negotiable guardrail — it must not depend on an upstream
+ * guard having been correct.
+ *
+ * The tolerance matches that module's own FUTURE_SKEW_TOLERANCE_MS: a couple
+ * of minutes is unit clock drift plus ours, and anything past it is not skew,
+ * it is wrong.
+ */
+export const FUTURE_STATE_TOLERANCE_SECONDS = 120;
+
 export interface SafetyFilterContext {
   now: Date;
   staleAfterSeconds: number;
@@ -31,6 +55,20 @@ function ageSeconds(iso: string | undefined, now: Date): number {
   if (!iso) return Number.POSITIVE_INFINITY;
   const age = (now.getTime() - new Date(iso).getTime()) / 1000;
   return Number.isFinite(age) ? age : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * Whether a reading may be reasoned over at all.
+ *
+ * TWO-SIDED on purpose. Too old is the obvious failure; stamped meaningfully
+ * in the FUTURE is the one that hides, because it makes the age negative and
+ * the "too old" comparison silently unfalsifiable. Both answers are the same:
+ * the reading's true age is unknown, so the controller does not vouch for a
+ * hold computed from it. See FUTURE_STATE_TOLERANCE_SECONDS.
+ */
+function isUnusableReading(iso: string | undefined, now: Date, staleAfterSeconds: number): boolean {
+  const age = ageSeconds(iso, now);
+  return age > staleAfterSeconds || age < -FUTURE_STATE_TOLERANCE_SECONDS;
 }
 
 /**
@@ -50,10 +88,17 @@ export function applyHardSafetyFilter(
   for (const candidate of candidates) {
     const reasons: SafetyRejectionReason[] = [];
 
-    const candidateIsStale = ageSeconds(candidate.stateAsOf, context.now) > context.staleAfterSeconds;
-    const anyInvolvedVehicleStale = candidate.involvedVehicleIds.some(
-      (vehicleId) =>
-        ageSeconds(context.vehicleObservedAtByVehicleId.get(vehicleId), context.now) > context.staleAfterSeconds,
+    const candidateIsStale = isUnusableReading(
+      candidate.stateAsOf,
+      context.now,
+      context.staleAfterSeconds,
+    );
+    const anyInvolvedVehicleStale = candidate.involvedVehicleIds.some((vehicleId) =>
+      isUnusableReading(
+        context.vehicleObservedAtByVehicleId.get(vehicleId),
+        context.now,
+        context.staleAfterSeconds,
+      ),
     );
     if (candidateIsStale || anyInvolvedVehicleStale) {
       reasons.push('stale_state');

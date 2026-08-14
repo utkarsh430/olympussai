@@ -8,10 +8,12 @@ import { isObserved, readingDisplay } from '@/lib/ops/consoleReadings';
 import {
   describeBasis,
   describeRejection,
+  describeSampleAge,
   engineCommandSummary,
   humanOriginatedActions,
   isRecommendationExpired,
   matchingApproval,
+  sampleAge,
   type PendingApproval,
 } from '@/lib/ops/recommendationView';
 import { COMMAND_ACTION_TYPES, ENGINE_ACTION_TYPES, type EngineCandidateAction } from '@/models/control';
@@ -94,6 +96,45 @@ describe('console status band — a zero is only ever a measured zero', () => {
     expect(tile(up, 'Open incidents').reading.availability).toBe('observed');
     expect(tile(up, 'Open incidents').reading.value).toBe(0);
     expect(tile(up, 'Open incidents').reading.detail).toMatch(/clear/i);
+  });
+
+  // With no corridor selected these two tiles used to read "0 / this corridor
+  // is clear" and "0 / none recorded" - trivially true, and phrased as a
+  // report on a corridor that does not exist. Every neighbouring tile already
+  // printed `—` in that state, so they were also the only two on the strip
+  // disagreeing with the rest of it.
+  it('reports no corridor as no reading, not as a clear corridor', () => {
+    const none = buildConsoleKpi(
+      overview({ selectedRouteDirectionId: null, incidents: [], guardrails: { ok: true, total: 0, critical: 0 } }),
+    );
+
+    expect(tile(none, 'Open incidents').reading.availability).toBe('not-yet-computed');
+    expect(readingDisplay(tile(none, 'Open incidents').reading)).toBe('—');
+    expect(tile(none, 'Open incidents').reading.detail).toBe('no corridor selected');
+    expect(tile(none, 'Open incidents').reading.detail).not.toMatch(/clear/i);
+
+    expect(tile(none, 'Guardrail breaches').reading.availability).toBe('not-yet-computed');
+    expect(readingDisplay(tile(none, 'Guardrail breaches').reading)).toBe('—');
+    expect(tile(none, 'Guardrail breaches').reading.detail).toBe('no corridor selected');
+    expect(tile(none, 'Guardrail breaches').reading.detail).not.toMatch(/none recorded/i);
+
+    // Nothing failed, so nothing is reported as degraded. "No corridor" is not
+    // an outage and must not be dressed as one.
+    expect(none.degraded).toEqual([]);
+  });
+
+  it('still says "the control service did not answer" ahead of "no corridor"', () => {
+    // Order matters: an outage is the more important fact, and a dash where
+    // an `n/a` belongs would understate it.
+    const down = buildConsoleKpi(
+      overview({
+        selectedRouteDirectionId: null,
+        observability: { ok: false, stale: true, error: 'timeout' },
+        guardrails: { ok: false, total: 0, critical: 0 },
+      }),
+    );
+    expect(tile(down, 'Open incidents').reading.availability).toBe('unavailable');
+    expect(tile(down, 'Guardrail breaches').reading.availability).toBe('unavailable');
   });
 
   it('separates "no headway sample yet" from "the control service did not answer"', () => {
@@ -384,5 +425,66 @@ describe('engine proposal — expiry and audit text', () => {
     expect(summary).toContain('2026-08-13T10:00:00.000Z');
     expect(summary).toContain('UP25FT4823');
     expect(summary).toMatch(/not auto-issued/i);
+  });
+});
+
+/**
+ * A reading stamped in the FUTURE, which the panel used to render as the most
+ * reassuring number on it.
+ *
+ * `sampleAgeSeconds` clamped with `Math.max(0, …)`, so an `observed_at` ahead
+ * of now displayed as "Reading age 0s" — permanently, since the clamp does not
+ * age. A read-only query against the live control database found a
+ * `vehicle_states` row at `observed_at = 2046-03-27`, ~19.6 years ahead, so
+ * this is a real row on a real corridor and not a hypothetical.
+ */
+describe('sample age — a reading from the future is a state, not a zero', () => {
+  const NOW = Date.parse('2026-08-13T10:00:00.000Z');
+
+  it('reports an ordinary elapsed age', () => {
+    expect(sampleAge('2026-08-13T09:59:15.000Z', NOW)).toEqual({ state: 'aged', ageSeconds: 45 });
+    expect(describeSampleAge(sampleAge('2026-08-13T09:59:15.000Z', NOW))).toEqual({
+      label: '45s',
+      tone: 'default',
+    });
+  });
+
+  it('warns once a reading is over a minute old', () => {
+    expect(describeSampleAge(sampleAge('2026-08-13T09:58:00.000Z', NOW)).tone).toBe('warn');
+  });
+
+  it('names a future-dated reading instead of clamping it to zero', () => {
+    const age = sampleAge('2046-03-27T00:00:00.000Z', NOW);
+    expect(age.state).toBe('future');
+    const described = describeSampleAge(age);
+    // The exact thing the old code could not say. "0s" was not merely
+    // imprecise here, it was the opposite of the truth.
+    expect(described.label).not.toBe('0s');
+    expect(described.label).toContain('ahead');
+    expect(described.label).toContain('19.6 years');
+    expect(described.tone).toBe('critical');
+  });
+
+  it('treats a couple of minutes ahead as clock skew, not as a defect', () => {
+    // The browser clock and the clock that stamped the reading are different
+    // clocks. Crying wolf on ordinary skew would train operators to ignore it.
+    expect(sampleAge('2026-08-13T10:00:30.000Z', NOW)).toEqual({ state: 'aged', ageSeconds: 0 });
+    expect(describeSampleAge(sampleAge('2026-08-13T10:00:30.000Z', NOW)).tone).toBe('default');
+  });
+
+  it('says a timestamp it cannot read is unknown, never fresh', () => {
+    expect(sampleAge('not-a-date', NOW)).toEqual({ state: 'unreadable' });
+    expect(describeSampleAge(sampleAge('not-a-date', NOW))).toEqual({
+      label: 'unknown',
+      tone: 'warn',
+    });
+  });
+
+  it('sizes a future span so an operator can read it', () => {
+    const ahead = (seconds: number) =>
+      describeSampleAge(sampleAge(new Date(NOW + seconds * 1000).toISOString(), NOW)).label;
+    expect(ahead(600)).toBe('dated 10m ahead');
+    expect(ahead(7_200)).toBe('dated 2h ahead');
+    expect(ahead(864_000)).toBe('dated 10d ahead');
   });
 });

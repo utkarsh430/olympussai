@@ -69,6 +69,30 @@ describe('OpsFleetMapPanel', () => {
     expect(screen.getByText('Bareilly · 2 vehicles')).toBeInTheDocument();
   });
 
+  // The control room deliberately takes no server-side vehicle read - the
+  // statewide roster is thousands of rows and does not belong in the page
+  // payload - so it mounts unseeded. Captioned "all depots · 0 vehicles" it
+  // contradicted the status band's own "VEHICLES REPORTING 9,181" for the
+  // first fifteen seconds of every visit.
+  it('does not claim a count it has not taken yet', () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
+    render(<OpsFleetMapPanel vehicles={null} scopeLabel="all depots" live />);
+    expect(screen.getByText('all depots · counting vehicles…')).toBeInTheDocument();
+    expect(screen.queryByText(/0 vehicles/)).not.toBeInTheDocument();
+    // The freshness legend beside the caption was making the same claim.
+    expect(screen.getByText('Fresh')).toBeInTheDocument();
+    expect(screen.queryByText('Fresh 0')).not.toBeInTheDocument();
+    expect(screen.queryByText('Stale 0')).not.toBeInTheDocument();
+  });
+
+  // An empty ARRAY is still a measurement. A depot whose buses are all in the
+  // shed genuinely has none reporting, and "counting…" forever would be its
+  // own lie.
+  it('still reports a measured empty fleet as zero', () => {
+    render(<OpsFleetMapPanel vehicles={[]} scopeLabel="Bareilly" />);
+    expect(screen.getByText('Bareilly · 0 vehicles')).toBeInTheDocument();
+  });
+
   it('says one vehicle rather than 1 vehicles', () => {
     render(<OpsFleetMapPanel vehicles={toOpsMapVehicles([bus('A')])} scopeLabel="Bareilly" />);
     expect(screen.getByText('Bareilly · 1 vehicle')).toBeInTheDocument();

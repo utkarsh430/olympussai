@@ -22,8 +22,19 @@ import type { BunchingIncident } from '@/models/control';
  */
 
 export interface OpsFleetMapPanelProps {
-  /** Scoped vehicles from the page's own server-side read. */
-  vehicles: readonly OpsMapVehicle[];
+  /**
+   * Scoped vehicles from the page's own server-side read, or `null` when the
+   * page deliberately did not take one.
+   *
+   * NULL IS "UNKNOWN", NEVER "NONE", and the distinction is load-bearing. A
+   * statewide console does not seed: 9,170 vehicles do not belong in a page
+   * payload, so it mounts with nothing and waits for the first poll. Passing
+   * `[]` for that made the caption read "all depots · 0 vehicles" next to a
+   * status band reporting 9,181 reporting vehicles - the console's own numbers
+   * contradicting each other on arrival. An empty ARRAY still means a real,
+   * measured empty fleet and is captioned as such.
+   */
+  vehicles: readonly OpsMapVehicle[] | null;
   /** Open bunching incidents to draw. Ignored once a live poll has returned its own. */
   incidents?: readonly BunchingIncident[];
   /** The boundary in force, e.g. `Bareilly` or `all depots`. Shown in the caption. */
@@ -57,10 +68,21 @@ export function OpsFleetMapPanel({
 }: OpsFleetMapPanelProps) {
   const feed = useOpsMapFeed({ routeDirectionId, enabled: live });
 
-  // A landed poll wins; until then the server-rendered seed is what is drawn.
-  const currentVehicles = feed.snapshot?.vehicles ?? vehicles;
+  // A landed poll wins; until then the server-rendered seed is what is drawn,
+  // and an unseeded panel draws nothing until one arrives. Memoised because
+  // the `null` fallback would otherwise mint a fresh array on every render and
+  // re-run the overlay build below with identical input.
+  const currentVehicles = useMemo(
+    () => feed.snapshot?.vehicles ?? vehicles ?? [],
+    [feed.snapshot, vehicles],
+  );
   const currentIncidents = feed.snapshot?.incidents ?? incidents;
   const currentScopeLabel = feed.snapshot?.scopeLabel ?? scopeLabel;
+
+  // Whether the number in the caption is a measurement. False only in the
+  // opening moment of an unseeded live panel, where drawing "0 vehicles" would
+  // be stating a count nobody has taken.
+  const vehicleCountKnown = feed.snapshot !== null || vehicles !== null;
 
   const { overlay, unresolvedIncidentIds } = useMemo(
     () => buildIncidentOverlay(currentIncidents, currentVehicles),
@@ -77,14 +99,18 @@ export function OpsFleetMapPanel({
   // unknown, not empty. A statewide console deliberately does not seed (9,170
   // vehicles do not belong in a page payload), so this is the normal opening
   // state there rather than an edge case.
-  const awaitingFirstLoad = live && feed.loading && vehicles.length === 0;
+  const awaitingFirstLoad = live && feed.loading && vehicles === null;
 
   return (
     <div className={fill ? 'flex min-h-0 flex-1 flex-col' : undefined}>
       <OpsFleetMap
         vehicles={currentVehicles}
         overlays={overlays}
-        caption={`${currentScopeLabel} · ${currentVehicles.length} ${currentVehicles.length === 1 ? 'vehicle' : 'vehicles'}`}
+        caption={
+          vehicleCountKnown
+            ? `${currentScopeLabel} · ${currentVehicles.length} ${currentVehicles.length === 1 ? 'vehicle' : 'vehicles'}`
+            : `${currentScopeLabel} · counting vehicles…`
+        }
         minHeight={minHeight}
         fill={fill}
         awaitingFirstLoad={awaitingFirstLoad}

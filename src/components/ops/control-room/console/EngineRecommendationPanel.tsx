@@ -15,11 +15,12 @@ import {
   describeBasis,
   describeObjectiveCost,
   describeRejection,
+  describeSampleAge,
   engineCommandSummary,
   humanOriginatedActions,
   isRecommendationExpired,
   matchingApproval,
-  sampleAgeSeconds,
+  sampleAge,
   type PendingApproval,
   type RecommendationResult,
 } from '@/lib/ops/recommendationView';
@@ -237,8 +238,11 @@ export function EngineRecommendationPanel({
             <OpsReadout label="Target headway" value={`${Math.round(selected.targetHeadwaySeconds)}s`} />
             <OpsReadout
               label="Reading age"
-              value={ageLabel(sampleAgeSeconds(selected.stateAsOf, now))}
-              tone={(sampleAgeSeconds(selected.stateAsOf, now) ?? 0) > 60 ? 'warn' : 'default'}
+              // One call, both the words and the emphasis. A reading stamped
+              // in the future is drawn as an alert rather than clamped to a
+              // reassuring "0s" - see sampleAge in recommendationView.ts.
+              value={describeSampleAge(sampleAge(selected.stateAsOf, now)).label}
+              tone={describeSampleAge(sampleAge(selected.stateAsOf, now)).tone}
             />
             <OpsReadout label="Objective cost" value={String(Math.round(selected.objectiveCost))} />
           </div>
@@ -534,9 +538,4 @@ function EngineErrorNotice({ error }: { error: { code: string; message: string }
       {error.message}
     </OpsAlert>
   );
-}
-
-function ageLabel(seconds: number | null): string {
-  if (seconds === null) return 'unknown';
-  return `${seconds}s`;
 }

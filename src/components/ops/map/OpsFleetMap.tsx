@@ -254,9 +254,14 @@ export function OpsFleetMap({
 
       <div className="mt-2 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ops-faint">
         {caption !== undefined && <span className="text-ops-muted">{caption}</span>}
-        <LegendSwatch colour="#2bff88" label={`Fresh ${legend.good}`} />
-        <LegendSwatch colour="#ffb020" label={`Delayed ${legend.degraded}`} />
-        <LegendSwatch colour="#ff4d5e" label={`Stale ${legend.stale}`} />
+        {/* While the first poll is still out there is nothing to count, and
+            "Fresh 0 · Delayed 0 · Stale 0" is the same fabricated zero the
+            caption beside it was just taught not to print. The swatches stay -
+            they explain the chevron colours, which is a fact about the
+            renderer rather than a claim about the fleet. */}
+        <LegendSwatch colour="#2bff88" label={awaitingFirstLoad ? 'Fresh' : `Fresh ${legend.good}`} />
+        <LegendSwatch colour="#ffb020" label={awaitingFirstLoad ? 'Delayed' : `Delayed ${legend.degraded}`} />
+        <LegendSwatch colour="#ff4d5e" label={awaitingFirstLoad ? 'Stale' : `Stale ${legend.stale}`} />
       </div>
     </div>
   );

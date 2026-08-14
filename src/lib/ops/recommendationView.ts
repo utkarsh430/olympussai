@@ -192,11 +192,86 @@ export function describeObjectiveCost(cost: number): string {
     : `${Math.round(cost)}s between the ideal hold and the one that can actually be applied`;
 }
 
-/** Age of the sample a candidate was computed from, which is the freshness the safety filter graded. */
-export function sampleAgeSeconds(stateAsOf: string, now: number): number | null {
+/**
+ * How far AHEAD of now a reading may be stamped before it is reported as
+ * future-dated rather than as an age.
+ *
+ * The browser clock and the clock that stamped the reading are different
+ * clocks, so a few seconds either way is skew and not news. Matches
+ * control-service's own FUTURE_STATE_TOLERANCE_SECONDS (src/mpc/safety.ts) and
+ * its ingestion tolerance, so the two ends of this number agree on what
+ * counts as impossible.
+ */
+export const FUTURE_READING_TOLERANCE_SECONDS = 120;
+
+/**
+ * The age of the sample a candidate was computed from — the freshness the
+ * safety filter graded — as one of three genuinely different answers.
+ *
+ * ─── WHY 'future' IS A STATE AND NOT A CLAMPED ZERO ──────────────────────
+ *
+ * This used to be `Math.max(0, ...)`, which turned a reading stamped in the
+ * future into "Reading age 0s" — the most reassuring readout on the panel,
+ * shown for the least trustworthy data there is. A read-only query on the
+ * live control database found a `vehicle_states` row with
+ * `observed_at = 2046-03-27`, about 19.6 years ahead; under the clamp that
+ * vehicle reads as perfectly fresh forever, and the operator has no way to
+ * tell from the screen.
+ *
+ * The clamp existed to avoid rendering a negative age, which is a real
+ * concern — a bare "-618000000s" is worse than useless. The answer is to name
+ * the condition, not to hide it. `ageSeconds` is now only ever a real elapsed
+ * time, and a reading from the future is its own state that the panel draws
+ * in the alert tone.
+ *
+ * See control-service/src/mpc/safety.ts for the same two-sided judgement
+ * applied where it decides whether a hold may be issued at all.
+ */
+export type SampleAge =
+  | { state: 'aged'; ageSeconds: number }
+  /** The reading claims to have been taken later than now, beyond any plausible clock skew. Its true age is unknown. */
+  | { state: 'future'; secondsAhead: number }
+  /** The timestamp could not be read at all. */
+  | { state: 'unreadable' };
+
+export function sampleAge(stateAsOf: string, now: number): SampleAge {
   const at = Date.parse(stateAsOf);
-  if (Number.isNaN(at)) return null;
-  return Math.max(0, Math.round((now - at) / 1000));
+  if (Number.isNaN(at)) return { state: 'unreadable' };
+  const seconds = Math.round((now - at) / 1000);
+  if (seconds < -FUTURE_READING_TOLERANCE_SECONDS) return { state: 'future', secondsAhead: -seconds };
+  // Inside the tolerance the difference is clock skew between two machines,
+  // not a data defect, and an operator reading "-3s" would learn nothing.
+  return { state: 'aged', ageSeconds: Math.max(0, seconds) };
+}
+
+/**
+ * The sample age as an operator reads it, with the emphasis it has earned.
+ *
+ * `critical` for a future-dated reading is deliberate: it is not a slightly
+ * worse version of stale, it is a reading whose age cannot be established at
+ * all, and the engine's own safety filter refuses to act on it.
+ */
+export function describeSampleAge(age: SampleAge): {
+  label: string;
+  tone: 'default' | 'warn' | 'critical';
+} {
+  switch (age.state) {
+    case 'aged':
+      return { label: `${age.ageSeconds}s`, tone: age.ageSeconds > 60 ? 'warn' : 'default' };
+    case 'future':
+      return { label: `dated ${formatDuration(age.secondsAhead)} ahead`, tone: 'critical' };
+    case 'unreadable':
+      return { label: 'unknown', tone: 'warn' };
+  }
+}
+
+/** A span an operator can size at a glance. Coarsens as it grows, because "618,000,000s" is not a duration anybody reads. */
+function formatDuration(seconds: number): string {
+  if (seconds < 90) return `${seconds}s`;
+  if (seconds < 5_400) return `${Math.round(seconds / 60)}m`;
+  if (seconds < 172_800) return `${Math.round(seconds / 3_600)}h`;
+  if (seconds < 31_557_600) return `${Math.round(seconds / 86_400)}d`;
+  return `${(seconds / 31_557_600).toFixed(1)} years`;
 }
 
 /**

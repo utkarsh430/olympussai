@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "check:client-boundary": "tsx scripts/check-client-boundary.ts",
     "inspect:api": "tsx scripts/inspect-upsrtc-api.ts",
     "create-project-user": "node scripts/create-project-user.mjs",
     "migrate:ops": "node scripts/migrate-ops.mjs",

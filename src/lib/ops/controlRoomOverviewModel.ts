@@ -24,6 +24,7 @@ import {
   formatPercent,
   formatRatio,
   formatSeconds,
+  notYetComputed,
   readingFrom,
   unavailable,
   observed,
@@ -114,6 +115,19 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
 
   const headwayOk = overview.observability.ok;
   const aggregate = overview.headway;
+
+  /**
+   * Whether there is a corridor for the corridor-scoped tiles to describe.
+   *
+   * With none selected, "OPEN INCIDENTS 0 — this corridor is clear" and
+   * "GUARDRAIL BREACHES 0 — none recorded" were trivially true and read as a
+   * report on a corridor nobody had checked. Their neighbours already print
+   * `—` in that state (no headway sample, no KPI row), so these two were also
+   * the only tiles on the strip disagreeing with the rest of it. Not-computed
+   * rather than unavailable: nothing failed, there is simply no subject.
+   */
+  const corridorSelected = overview.selectedRouteDirectionId !== null;
+  const NO_CORRIDOR = 'no corridor selected';
   const sampleNote =
     aggregate === null
       ? 'no headway sample computed yet'
@@ -166,14 +180,16 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
     },
     {
       label: 'Open incidents',
-      reading: headwayOk
-        ? observed(
-            overview.incidents.length,
-            overview.incidents.length === 0 ? 'this corridor is clear' : 'bunching on this corridor',
-          )
-        : unavailable('the control service did not answer'),
+      reading: !headwayOk
+        ? unavailable('the control service did not answer')
+        : !corridorSelected
+          ? notYetComputed(NO_CORRIDOR)
+          : observed(
+              overview.incidents.length,
+              overview.incidents.length === 0 ? 'this corridor is clear' : 'bunching on this corridor',
+            ),
       tone:
-        headwayOk && overview.incidents.length > 0 ? 'critical' : 'default',
+        headwayOk && corridorSelected && overview.incidents.length > 0 ? 'critical' : 'default',
     },
     {
       label: 'Recovery rate',
@@ -188,17 +204,22 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
     },
     {
       label: 'Guardrail breaches',
-      reading: overview.guardrails.ok
-        ? observed(
-            overview.guardrails.total,
-            overview.guardrails.critical > 0
-              ? `${overview.guardrails.critical} critical`
-              : overview.guardrails.total === 0
-                ? 'none recorded'
-                : 'none critical',
-          )
-        : unavailable('breaches could not be read'),
-      tone: overview.guardrails.ok && overview.guardrails.critical > 0 ? 'critical' : 'default',
+      reading: !overview.guardrails.ok
+        ? unavailable('breaches could not be read')
+        : !corridorSelected
+          ? notYetComputed(NO_CORRIDOR)
+          : observed(
+              overview.guardrails.total,
+              overview.guardrails.critical > 0
+                ? `${overview.guardrails.critical} critical`
+                : overview.guardrails.total === 0
+                  ? 'none recorded'
+                  : 'none critical',
+            ),
+      tone:
+        overview.guardrails.ok && corridorSelected && overview.guardrails.critical > 0
+          ? 'critical'
+          : 'default',
     },
   ];
 

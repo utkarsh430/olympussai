@@ -16,6 +16,10 @@ import { CopilotQueryBox } from '../CopilotQueryBox';
 import { ConsoleKpiStrip } from './ConsoleKpiStrip';
 import { EngineRecommendationPanel } from './EngineRecommendationPanel';
 import { useControlRoomFeed } from './useControlRoomFeed';
+// A plain sibling module with no 'use client', because the page above is a
+// Server Component and needs `isConsoleTab`. See consoleTabs.ts for the 500
+// that taught us to keep it there.
+import { TAB_LABEL, TAB_ORDER, type ConsoleTabId } from './consoleTabs';
 
 /**
  * The control room, as one console.
@@ -64,23 +68,6 @@ import { useControlRoomFeed } from './useControlRoomFeed';
  * regression dressed as tidiness, and the per-pair headway detail on
  * observability genuinely has no home here.
  */
-
-export type ConsoleTabId = 'decisions' | 'approvals' | 'fleet' | 'copilot' | 'safety' | 'reports';
-
-const TAB_ORDER: ConsoleTabId[] = ['decisions', 'approvals', 'fleet', 'copilot', 'safety', 'reports'];
-
-const TAB_LABEL: Record<ConsoleTabId, string> = {
-  decisions: 'Decisions',
-  approvals: 'Approvals',
-  fleet: 'Fleet',
-  copilot: 'Copilot',
-  safety: 'Kill switches',
-  reports: 'Reports',
-};
-
-export function isConsoleTab(value: string | undefined): value is ConsoleTabId {
-  return value !== undefined && (TAB_ORDER as string[]).includes(value);
-}
 
 export interface ControlRoomConsoleProps {
   email: string;
@@ -203,7 +190,13 @@ export function ControlRoomConsole({
           className="flex min-h-[24rem] shrink-0 flex-col lg:min-h-0 lg:min-w-0 lg:flex-1 lg:shrink"
         >
           <OpsFleetMapPanel
-            vehicles={[]}
+            // Null, not []: this console deliberately takes no server-side
+            // vehicle read (the statewide roster is thousands of rows and does
+            // not belong in the page payload), so the count is UNKNOWN until
+            // the first poll lands. Seeded as an empty array it captioned
+            // itself "all depots · 0 vehicles" beside a status band reporting
+            // 9,181 - two numbers from the same console disagreeing on arrival.
+            vehicles={null}
             incidents={overview?.incidents ?? []}
             scopeLabel="all depots"
             routeDirectionId={corridor ?? undefined}

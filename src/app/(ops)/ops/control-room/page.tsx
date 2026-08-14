@@ -8,11 +8,16 @@ import { getControlRoomOverview } from '@/lib/ops/controlRoomOverview';
 import { BreakdownReportsPanel } from '@/components/ops/BreakdownReportsPanel';
 import { ControlRoomFleetPanel } from '@/components/ops/control-room/ControlRoomFleetPanel';
 import { OpsSection } from '@/components/ops/ui';
+import { ControlRoomConsole } from '@/components/ops/control-room/console/ControlRoomConsole';
+// From the plain tab module, NOT from ControlRoomConsole. That component
+// carries 'use client', and a value imported out of it here is a
+// client-reference proxy rather than the function - calling it threw on every
+// single render and made this page a hard 500. See consoleTabs.ts, and
+// scripts/lib/clientBoundary.ts for the check that now fails the build on it.
 import {
-  ControlRoomConsole,
   isConsoleTab,
   type ConsoleTabId,
-} from '@/components/ops/control-room/console/ControlRoomConsole';
+} from '@/components/ops/control-room/console/consoleTabs';
 
 export const dynamic = 'force-dynamic';
 

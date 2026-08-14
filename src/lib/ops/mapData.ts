@@ -36,7 +36,12 @@ import {
   type VehicleState,
 } from '@/models/control';
 import { getOpsFleetSnapshot, type OpsFleetSnapshot } from './fleetData';
-import { filterVehicleStatesToScope, scopeLabel, type OpsFleetScope } from './depotScope';
+import {
+  filterVehicleStatesToScope,
+  narrowIncidentsToScope,
+  scopeLabel,
+  type OpsFleetScope,
+} from './depotScope';
 import { toOpsMapVehicles, type OpsMapVehicle } from './mapVehicles';
 
 export interface OpsMapSnapshot {
@@ -99,15 +104,13 @@ export async function getOpsMapSnapshot(
   const vehicles = toOpsMapVehicles(snapshot.buses, vehicleStates);
 
   // An incident is kept only when at least one of its members is a vehicle
-  // this caller can see. A depot operator is not shown an incident between two
-  // other depots' buses, and the overlay builder could not have drawn it
-  // anyway - this drops it from the payload too, rather than shipping an
-  // undrawable record to the browser.
+  // this caller can see, AND is then narrowed to those members with its
+  // evidence blob removed. Keeping the whole record because one member was in
+  // scope is how another depot's registrations reached a depot operator's
+  // browser - see narrowIncidentsToScope for the leak and for why the
+  // incident is redacted rather than dropped outright.
   const visible = new Set(vehicles.map((vehicle) => vehicle.id));
-  const scopedIncidents =
-    scope.kind === 'all'
-      ? incidents
-      : incidents.filter((incident) => incident.members.some((member) => visible.has(member.vehicleId)));
+  const scopedIncidents = narrowIncidentsToScope(incidents, scope, visible);
 
   return {
     vehicles,

@@ -100,6 +100,27 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # -------------------------------------------------------------------
+      # The one class of defect every gate above is structurally blind to.
+      #
+      # /ops/control-room shipped as a hard HTTP 500 on 100% of requests
+      # because a Server Component imported `isConsoleTab` out of a
+      # 'use client' module, where it is a client-reference proxy rather than
+      # a function. `pnpm lint` has no rule for it, `pnpm typecheck` sees a
+      # real function at type level, `pnpm build` never renders a
+      # force-dynamic page, and `pnpm test` runs in jsdom, which has no
+      # server/client boundary at all. Only opening the page in a browser
+      # caught it.
+      #
+      # A parse-only scan of the tree catches it in about a second. Run as
+      # its own step so the failure names itself in the job summary; the same
+      # scan is also asserted inside `pnpm test`
+      # (src/tests/unit/clientBoundary.test.ts), so deleting this step does
+      # not remove the gate. See scripts/lib/clientBoundary.ts.
+      # -------------------------------------------------------------------
+      - name: Server/client import boundary
+        run: pnpm check:client-boundary
+
       # Throwaway fixtures in a container created and destroyed with the job,
       # so these credentials are local-only literals rather than secrets -
       # same reasoning as the e2e job's.
