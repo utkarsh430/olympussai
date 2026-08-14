@@ -28,7 +28,7 @@
  * forbidden import specifier appears under this directory.
  */
 import 'server-only';
-import { generateCopilotText } from './anthropic';
+import { generateCopilotText, resolveCopilotModel } from './claudeSubscription';
 import {
   findOpenIncidentById,
   listOpenIncidentsForGrounding,
@@ -85,7 +85,7 @@ export async function explainIncident(
     prompt,
     response: llmResult.ok ? llmResult.text : null,
     sourceRecordIds: citations,
-    model: llmResult.ok ? llmResult.model : (process.env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-4-5'),
+    model: llmResult.ok ? llmResult.model : resolveCopilotModel(),
     status: llmResult.ok ? 'ok' : 'error',
     errorMessage: llmResult.ok ? null : llmResult.error,
   });
@@ -129,7 +129,7 @@ export async function answerCopilotQuery(
     prompt,
     response: llmResult.ok ? llmResult.text : null,
     sourceRecordIds: citations,
-    model: llmResult.ok ? llmResult.model : (process.env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-4-5'),
+    model: llmResult.ok ? llmResult.model : resolveCopilotModel(),
     status: llmResult.ok ? 'ok' : 'error',
     errorMessage: llmResult.ok ? null : llmResult.error,
   });
@@ -188,7 +188,7 @@ export async function draftShiftReport(
     prompt,
     response: llmResult.ok ? llmResult.text : null,
     sourceRecordIds: citations,
-    model: llmResult.ok ? llmResult.model : (process.env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-4-5'),
+    model: llmResult.ok ? llmResult.model : resolveCopilotModel(),
     status: llmResult.ok ? 'ok' : 'error',
     errorMessage: llmResult.ok ? null : llmResult.error,
   });

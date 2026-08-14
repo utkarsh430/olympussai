@@ -84,18 +84,44 @@ Available evidence sources today:
 
 ## LLM adapter
 
-`src/lib/copilot/anthropic.ts` calls the Anthropic Messages API directly
-over `fetch` — no vendor SDK, matching this repo's existing rule for
-single-endpoint HTTP integrations (see `src/lib/email/resend.ts`'s doc
-comment).
-Configured by `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` (see `README.md`'s env
-var table); unset means every copilot endpoint returns
-`503 COPILOT_UNAVAILABLE` rather than fabricating a response.
-The API key and the raw prompt/response text are never written to
-`console` — only a status code and a short error preview reach the process
-log; the full prompt/response is persisted to `ops_copilot_interactions`
-instead, which is access-controlled the same way as the rest of the ops
-audit trail.
+`src/lib/copilot/claudeSubscription.ts` runs every completion on the
+operator's **Claude subscription**, not a metered Anthropic API key.
+The credential is a Claude Code OAuth token minted with `claude setup-token`
+and supplied as `CLAUDE_CODE_OAUTH_TOKEN`; the adapter hands it to the
+`claude` CLI in `--print` mode and reads back a single JSON result.
+This mirrors the approach already proven in the operator's crewban project
+(`apps/runner/src/claude.ts` there) so the two behave identically.
+
+The CLI is used rather than a direct HTTPS call because a subscription OAuth
+token is what the Claude Code CLI is built to carry; the CLI is the supported
+consumer of that credential.
+
+Configured by `CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_MODEL`, with optional
+`CLAUDE_CLI_PATH` and `COPILOT_CLAUDE_TIMEOUT_MS` (see `README.md`'s env var
+table). A missing credential, an expired one, a missing CLI, a timeout and an
+empty response all return `{ ok: false }` and surface as
+`503 COPILOT_UNAVAILABLE` rather than fabricating a response — an expired
+credential says so explicitly, because the fix is to re-run `claude setup-token`
+and no retry will ever help.
+
+`ANTHROPIC_API_KEY` is deliberately unused and is stripped from the
+subprocess's environment along with `ANTHROPIC_AUTH_TOKEN` and
+`ANTHROPIC_BASE_URL`: claude-code gives an API key precedence over subscription
+credentials, so a stray key in the server environment would silently move every
+copilot call onto per-token billing, and a base-URL override would redirect
+grounded incident data to another host.
+
+The subprocess runs with no tools, no ambient MCP servers, no host settings and
+no session persistence, with its working directory set to the system temp dir so
+the deployed tree's `CLAUDE.md`/settings can never leak into a prompt. The
+grounded prompt travels over **stdin**, not argv, because argv is world-readable
+via `ps`.
+
+The credential and the raw prompt/response text are never written to
+`console` — only a status code reaches the process log, and every error string
+is scrubbed of anything token-shaped before it is returned; the full
+prompt/response is persisted to `ops_copilot_interactions` instead, which is
+access-controlled the same way as the rest of the ops audit trail.
 
 ## Audit logging
 
