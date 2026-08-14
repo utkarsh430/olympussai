@@ -41,7 +41,7 @@ function overview(patch: Partial<ControlRoomOverview> = {}): ControlRoomOverview
     ],
     selectedRouteDirectionId: 'dir-1',
     fleet: { reporting: 9170, source: 'live', stale: false, error: null },
-    observability: { ok: true, stale: false, error: null },
+    observability: { ok: true, stale: false, error: null, noActivePolicy: false },
     headway: {
       routeDirectionId: 'dir-1',
       sampleCount: 12,
@@ -87,12 +87,12 @@ describe('console status band — a zero is only ever a measured zero', () => {
 
   it('refuses to report "no open incidents" when the control service is down', () => {
     const down = buildConsoleKpi(
-      overview({ observability: { ok: false, stale: true, error: 'timeout' }, incidents: [] }),
+      overview({ observability: { ok: false, stale: true, error: 'timeout', noActivePolicy: false }, incidents: [] }),
     );
     expect(tile(down, 'Open incidents').reading.availability).toBe('unavailable');
     expect(readingDisplay(tile(down, 'Open incidents').reading)).toBe('n/a');
 
-    const up = buildConsoleKpi(overview({ observability: { ok: true, stale: false, error: null }, incidents: [] }));
+    const up = buildConsoleKpi(overview({ observability: { ok: true, stale: false, error: null, noActivePolicy: false }, incidents: [] }));
     expect(tile(up, 'Open incidents').reading.availability).toBe('observed');
     expect(tile(up, 'Open incidents').reading.value).toBe(0);
     expect(tile(up, 'Open incidents').reading.detail).toMatch(/clear/i);
@@ -129,12 +129,104 @@ describe('console status band — a zero is only ever a measured zero', () => {
     const down = buildConsoleKpi(
       overview({
         selectedRouteDirectionId: null,
-        observability: { ok: false, stale: true, error: 'timeout' },
+        observability: { ok: false, stale: true, error: 'timeout', noActivePolicy: false },
         guardrails: { ok: false, total: 0, critical: 0 },
       }),
     );
     expect(tile(down, 'Open incidents').reading.availability).toBe('unavailable');
     expect(tile(down, 'Guardrail breaches').reading.availability).toBe('unavailable');
+  });
+
+  /**
+   * THE DEFECT: the status band claimed an outage that did not happen.
+   *
+   * With no corridor chosen the console selects the first active
+   * route-direction the control service lists. On the live network that
+   * corridor has no active headway policy, so `GET .../headway` answers 404
+   * `no_active_policy` - a deliberate, documented signal that bunching
+   * detection is off for it (control-service/src/headway/repository.ts:
+   * "Detection is off, and saying so out loud is the entire point"). That
+   * rejected the snapshot's Promise.all, the whole read fell to
+   * `source: 'unavailable'`, and every corridor tile printed `n/a - the
+   * control service did not answer`.
+   *
+   * It did answer. Three times, twice with 200s. Reporting an outage on a page
+   * whose whole premise is honest readouts is the worst available failure, and
+   * it was the DEFAULT view of the console.
+   */
+  describe('a corridor with no active policy is not an outage', () => {
+    const noPolicy = () =>
+      buildConsoleKpi(
+        overview({
+          observability: {
+            ok: false,
+            stale: true,
+            error: 'No active route policy for route-direction dir-1',
+            noActivePolicy: true,
+          },
+          headway: null,
+          incidents: [],
+        }),
+      );
+
+    it('does not accuse the control service of failing to answer', () => {
+      const model = noPolicy();
+      for (const t of model.tiles) {
+        expect(t.reading.detail).not.toMatch(/did not answer/i);
+      }
+      expect(model.degraded).not.toContain('the control service');
+      expect(model.degraded).toEqual([]);
+    });
+
+    it('prints the nothing-to-report dash, not the unknown n/a', () => {
+      const model = noPolicy();
+      for (const label of ['Mean headway', 'Headway CV', 'Excess wait', 'Open incidents']) {
+        const reading = tile(model, label).reading;
+        expect(reading.availability, label).toBe('not-yet-computed');
+        expect(readingDisplay(reading), label).toBe('—');
+        expect(reading.detail, label).toMatch(/no active headway policy/i);
+      }
+    });
+
+    it('explains the corridor in its own line, separate from the outage line', () => {
+      const model = noPolicy();
+      expect(model.corridorNotice).toMatch(/answered/i);
+      expect(model.corridorNotice).toMatch(/no active headway policy/i);
+      expect(model.corridorNotice).not.toMatch(/did not answer|unavailable|outage/i);
+    });
+
+    // A real outage must still read as one; the fix must not soften it.
+    it('still reports a genuine outage as an outage', () => {
+      const down = buildConsoleKpi(
+        overview({
+          observability: { ok: false, stale: true, error: 'timeout', noActivePolicy: false },
+          headway: null,
+        }),
+      );
+      expect(tile(down, 'Mean headway').reading.availability).toBe('unavailable');
+      expect(readingDisplay(tile(down, 'Mean headway').reading)).toBe('n/a');
+      expect(tile(down, 'Mean headway').reading.detail).toMatch(/did not answer/i);
+      expect(down.degraded).toContain('the control service');
+      expect(down.corridorNotice).toBeNull();
+    });
+
+    // The sources that answered normally are untouched: this is a per-corridor
+    // fact about the headway policy, not a reason to blank the whole strip.
+    it('leaves unrelated readings alone', () => {
+      const model = noPolicy();
+      expect(tile(model, 'Vehicles reporting').reading.availability).toBe('observed');
+      expect(tile(model, 'Vehicles reporting').reading.value).toBe(9170);
+      expect(tile(model, 'Guardrail breaches').reading.availability).toBe('observed');
+    });
+
+    // The one number it must NOT print is a confident zero: the incident read
+    // was abandoned along with the headway read, so the console holds no
+    // answer of its own even though the detector cannot have opened one.
+    it('does not fabricate a clear corridor', () => {
+      const incidents = tile(noPolicy(), 'Open incidents').reading;
+      expect(incidents.value).toBeNull();
+      expect(incidents.detail).not.toMatch(/clear/i);
+    });
   });
 
   it('separates "no headway sample yet" from "the control service did not answer"', () => {
@@ -143,7 +235,7 @@ describe('console status band — a zero is only ever a measured zero', () => {
     expect(readingDisplay(tile(notYet, 'Mean headway').reading)).toBe('—');
 
     const down = buildConsoleKpi(
-      overview({ observability: { ok: false, stale: true, error: 'timeout' } }),
+      overview({ observability: { ok: false, stale: true, error: 'timeout', noActivePolicy: false } }),
     );
     expect(tile(down, 'Mean headway').reading.availability).toBe('unavailable');
     expect(readingDisplay(tile(down, 'Mean headway').reading)).toBe('n/a');

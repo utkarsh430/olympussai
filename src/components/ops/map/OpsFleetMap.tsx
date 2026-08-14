@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createFleetLayer, type FleetLayerHandle } from '@/components/map/fleetCanvasLayer';
 import { getMapsLoader, isMapsConfigured, onMapsAuthFailure } from '@/lib/maps/loader';
+import { partitionPlottable } from '@/lib/maps/plottable';
 import { MAP_DARK_STYLE, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/lib/constants';
 import { OpsMapFrame, OpsButton } from '@/components/ops/ui';
 import type { FleetMapOverlay } from '@/lib/maps/contract';
@@ -30,10 +31,24 @@ import type { OpsMapVehicle } from '@/lib/ops/mapVehicles';
  * that fetched the statewide feed and filtered in the browser would look
  * identical and would hand the whole fleet to anyone who opened devtools. Use
  * OpsFleetMapPanel for a live-refreshing mount; it polls the scoped endpoint.
+ *
+ * THE ONE THING IT DOES REMOVE is a vehicle whose reported position is not on
+ * the network at all - see src/lib/maps/plottable.ts for the reading that made
+ * this necessary and for why the test is a bounding box. That is a
+ * plausibility judgement about a coordinate, not a scoping decision about a
+ * viewer: it removes the same vehicle from every operator's map rather than
+ * different vehicles from different ones, so the depot boundary above is
+ * untouched. The count is declared under the map, because a console that
+ * silently drops a real bus is making the same kind of mistake as one that
+ * draws a bus in the sea.
  */
 
 export interface OpsFleetMapProps {
-  /** Already-scoped vehicles. Everything passed in is drawn; the component performs no filtering of its own. */
+  /**
+   * Already-scoped vehicles. Everything passed in is drawn except a vehicle
+   * whose position is not on the served network; the component performs no
+   * scope filtering of its own.
+   */
   vehicles: readonly OpsMapVehicle[];
   /** Annotations drawn in the same frame. Build them with `buildIncidentOverlay` or any other pure builder. */
   overlays?: readonly FleetMapOverlay[];
@@ -104,6 +119,11 @@ export function OpsFleetMap({
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Split before anything is drawn or measured, so a garbage reading cannot
+  // reach the renderer, the camera fit, the selection pan or the legend. Every
+  // use of `vehicles` below this line is deliberately `drawable` instead.
+  const { plottable: drawable, unplottable } = useMemo(() => partitionPlottable(vehicles), [vehicles]);
+
   // An API-key rejection is not a load failure: the SDK loads, the map is
   // constructed, and Google then paints its own white error panel over the
   // container. Without this the console shows that panel - a large white
@@ -170,8 +190,8 @@ export function OpsFleetMap({
   // O(visible vehicles) on the next animation frame. `status` is a dependency
   // because the layer does not exist until the basemap has loaded.
   useEffect(() => {
-    layerRef.current?.setVehicles(vehicles);
-  }, [vehicles, status]);
+    layerRef.current?.setVehicles(drawable);
+  }, [drawable, status]);
 
   useEffect(() => {
     layerRef.current?.setOverlays(overlays ?? []);
@@ -184,27 +204,37 @@ export function OpsFleetMap({
   // Fit ONCE, on the first non-empty set. Refitting on every poll would drag
   // the camera out from under an operator who had zoomed into a corridor,
   // every fifteen seconds, for the whole shift.
+  //
+  // Fitted over `drawable`, never `vehicles`. This is the line the ocean
+  // defect was on: `fitBounds` takes the extremes of whatever it is given, so
+  // it is the one place in the app where a single bad reading decides what
+  // every operator sees first. A fleet with no plottable vehicle at all is
+  // left on the state view rather than fitted to nothing.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'ready' || !autoFit || hasFittedRef.current) return;
-    if (vehicles.length === 0) return;
+    if (drawable.length === 0) return;
 
     const bounds = new google.maps.LatLngBounds();
-    for (const vehicle of vehicles) bounds.extend({ lat: vehicle.latitude, lng: vehicle.longitude });
+    for (const vehicle of drawable) bounds.extend({ lat: vehicle.latitude, lng: vehicle.longitude });
     map.fitBounds(bounds, 48);
     const listener = google.maps.event.addListenerOnce(map, 'idle', () => {
       if ((map.getZoom() ?? 0) > MAX_AUTO_FIT_ZOOM) map.setZoom(MAX_AUTO_FIT_ZOOM);
     });
     hasFittedRef.current = true;
     return () => listener.remove();
-  }, [vehicles, status, autoFit]);
+  }, [drawable, status, autoFit]);
 
   // Pan to a selection made elsewhere on the page (a table row, an incident
   // list). Keyed on the id alone so a position refresh never yanks the camera.
+  //
+  // Searches `drawable` so selecting the unplaceable vehicle in a table leaves
+  // the camera where it is, rather than flying the operator out to an empty
+  // blue rectangle at zoom 12 with no basemap features and no explanation.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'ready' || selectedVehicleId === null) return;
-    const vehicle = vehicles.find((candidate) => candidate.id === selectedVehicleId);
+    const vehicle = drawable.find((candidate) => candidate.id === selectedVehicleId);
     if (!vehicle) return;
     map.panTo({ lat: vehicle.latitude, lng: vehicle.longitude });
     if ((map.getZoom() ?? 0) < 12) map.setZoom(12);
@@ -213,7 +243,10 @@ export function OpsFleetMap({
 
   const handleRetry = useCallback(() => window.location.reload(), []);
 
-  const legend = useMemo(() => countByQuality(vehicles), [vehicles]);
+  // Counts the DRAWN set. Counting every vehicle here made the legend and the
+  // chevrons on the glass disagree by one, with nothing on screen to explain
+  // the difference.
+  const legend = useMemo(() => countByQuality(drawable), [drawable]);
 
   return (
     <div className={fill ? 'flex min-h-0 flex-1 flex-col' : undefined}>
@@ -238,7 +271,7 @@ export function OpsFleetMap({
           </div>
         )}
 
-        {status === 'ready' && vehicles.length === 0 && (
+        {status === 'ready' && drawable.length === 0 && (
           <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2 px-6 text-center">
             {/* "No vehicles" is a claim about the fleet. Before any data has
                 arrived the map has no evidence for it, and on a statewide
@@ -246,8 +279,19 @@ export function OpsFleetMap({
                 because 9,170 of them do not belong in a page payload - that
                 gap is a real second of screen time. Saying the wrong one of
                 these is exactly the fabrication this surface exists to
-                remove. */}
-            <p className="text-sm text-ops-muted">{awaitingFirstLoad ? 'Loading vehicle positions…' : 'No vehicles to show.'}</p>
+                remove.
+
+                The third case is its own sentence for the same reason: a
+                fleet that reported only unusable positions is not an empty
+                fleet, and calling it one would hide a feed problem behind a
+                calm, ordinary-looking message. */}
+            <p className="text-sm text-ops-muted">
+              {awaitingFirstLoad
+                ? 'Loading vehicle positions…'
+                : vehicles.length === 0
+                  ? 'No vehicles to show.'
+                  : 'No vehicle reported a position on the network.'}
+            </p>
           </div>
         )}
       </OpsMapFrame>
@@ -263,9 +307,38 @@ export function OpsFleetMap({
         <LegendSwatch colour="#ffb020" label={awaitingFirstLoad ? 'Delayed' : `Delayed ${legend.degraded}`} />
         <LegendSwatch colour="#ff4d5e" label={awaitingFirstLoad ? 'Stale' : `Stale ${legend.stale}`} />
       </div>
+
+      {/* The vehicles removed from the picture, declared. These are real buses
+          with a broken fix, not phantoms: the operator's own roster still
+          lists them, so the map has to account for the difference rather than
+          let the count quietly drop by one. */}
+      {unplottable.length > 0 && (
+        <p role="status" className="mt-1 shrink-0 text-xs text-ops-warn">
+          {unplottable.length === 1
+            ? '1 vehicle reported a position that is not on the network and is not drawn'
+            : `${unplottable.length} vehicles reported positions that are not on the network and are not drawn`}
+          {' '}({unplottable
+            .slice(0, UNPLOTTABLE_NAMES_SHOWN)
+            .map((vehicle) => vehicle.registrationNumber)
+            .join(', ')}
+          {unplottable.length > UNPLOTTABLE_NAMES_SHOWN
+            ? ` and ${unplottable.length - UNPLOTTABLE_NAMES_SHOWN} more`
+            : ''}
+          ). Their positions are still listed in the tables on this page.
+        </p>
+      )}
     </div>
   );
 }
+
+/**
+ * How many registrations to name before summarising.
+ *
+ * Naming them matters - "1 vehicle is not drawn" is not actionable, and
+ * UP78JT5520 is - but a feed-wide GPS outage must not produce a wall of
+ * registration numbers under the map.
+ */
+const UNPLOTTABLE_NAMES_SHOWN = 3;
 
 /**
  * Swatches use the renderer's own literal chevron colours, not ops tokens.

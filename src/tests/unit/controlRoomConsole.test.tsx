@@ -55,7 +55,7 @@ function overview(patch: Partial<ControlRoomOverview> = {}): ControlRoomOverview
     ],
     selectedRouteDirectionId: CORRIDOR,
     fleet: { reporting: 9170, source: 'live', stale: false, error: null },
-    observability: { ok: true, stale: false, error: null },
+    observability: { ok: true, stale: false, error: null, noActivePolicy: false },
     headway: {
       routeDirectionId: CORRIDOR,
       sampleCount: 12,
@@ -283,13 +283,13 @@ describe('control-room console — the status band', () => {
   it('shows n/a rather than zero when a source did not answer', async () => {
     stubFetch({
       overview: overview({
-        observability: { ok: false, stale: true, error: 'timed out' },
+        observability: { ok: false, stale: true, error: 'timed out', noActivePolicy: false },
         guardrails: { ok: false, total: 0, critical: 0 },
       }),
     });
     renderConsole({
       initialOverview: overview({
-        observability: { ok: false, stale: true, error: 'timed out' },
+        observability: { ok: false, stale: true, error: 'timed out', noActivePolicy: false },
         guardrails: { ok: false, total: 0, critical: 0 },
       }),
     });

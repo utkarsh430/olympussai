@@ -83,6 +83,7 @@ export async function getControlRoomOverview(
       ok: observabilityOk,
       stale: observability.stale,
       error: observability.error,
+      noActivePolicy: noActivePolicyFrom(observability),
     },
     headway: observability.headway?.aggregate ?? null,
     incidents: observability.incidents,
@@ -100,6 +101,36 @@ export async function getControlRoomOverview(
     },
     killSwitches,
   };
+}
+
+/**
+ * The control service's `no_active_policy`, promoted from an error to a fact.
+ *
+ * ─── WHY THIS IS NOT AN OUTAGE ───────────────────────────────────────────
+ *
+ * `GET /v1/route-directions/{id}/headway` answers 404 `no_active_policy` for a
+ * corridor whose timetable produced no usable headway target
+ * (control-service/src/headway/repository.ts#loadActiveRoutePolicy, which
+ * excludes `calibration_source = 'none'` rows precisely so that this happens).
+ * The control service is being deliberately loud there — its own comment says
+ * "Detection is off, and saying so out loud is the entire point ... the failure
+ * being fixed is that it used to be off silently, on two thirds of the
+ * network."
+ *
+ * On this side that 404 rejected the `Promise.all` and the whole snapshot fell
+ * to `source: 'unavailable'`, so the status band reported "the control service
+ * did not answer" — an outage claim — about a service that had just answered
+ * three times, twice with 200s. On a console whose entire premise is honest
+ * readouts, inventing an outage is the worst available failure, and it
+ * happened to be the DEFAULT view: with no corridor chosen the console selects
+ * the first active route-direction, which on the live network has no policy.
+ *
+ * `no_active_policy` is therefore a real, benign, reportable state of a
+ * corridor, and the strip words it as one. The distinction survives on the
+ * structured `error.code`, never on the message prose.
+ */
+function noActivePolicyFrom(observability: { source: string; errorCode: string | null }): boolean {
+  return observability.source === 'unavailable' && observability.errorCode === 'no_active_policy';
 }
 
 /**

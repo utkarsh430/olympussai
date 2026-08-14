@@ -50,6 +50,16 @@ export interface ControlRoomOverview {
     ok: boolean;
     stale: boolean;
     error: string | null;
+    /**
+     * True when the control service ANSWERED and told us this corridor has no
+     * active headway policy — so `ok` is false because there is nothing to
+     * report, not because anything failed.
+     *
+     * This is the difference between "we cannot see" and "there is nothing to
+     * see", and on this console they are not allowed to look the same. See
+     * `noActivePolicyFrom` in src/lib/ops/controlRoomOverview.ts.
+     */
+    noActivePolicy: boolean;
   };
   headway: HeadwayAggregate | null;
   /** Open bunching incidents on the selected corridor. Meaningless unless `observability.ok`. */
@@ -91,6 +101,16 @@ export interface ConsoleKpiModel {
   killSwitchNotice: { engaged: boolean; label: string; detail: string } | null;
   /** Every upstream that failed, for one honest line under the strip. */
   degraded: string[];
+  /**
+   * Non-null when the corridor-scoped tiles are blank for a benign, explained
+   * reason rather than a failure.
+   *
+   * Separate from `degraded` because that line is worded as an outage. A
+   * console that files "this corridor has no policy" under "did not answer"
+   * has told the operator the system is broken when it is working exactly as
+   * designed — and would train them to ignore the line that matters.
+   */
+  corridorNotice: string | null;
 }
 
 /**
@@ -106,15 +126,45 @@ export interface ConsoleKpiModel {
 const CV_IRREGULAR = 0.5;
 
 export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel {
+  /**
+   * The service answered; this corridor simply has no active headway policy.
+   *
+   * Kept distinct from `!observability.ok` throughout the builder below. The
+   * two states share `ok: false` because neither yields a headway number, and
+   * that is the ONLY thing they have in common: one is the console unable to
+   * see, the other is the corridor having nothing to show. Rendering them the
+   * same way reported an outage that never happened.
+   */
+  const noPolicy = overview.observability.noActivePolicy;
+
   const degraded: string[] = [];
   if (overview.fleet.source === 'unavailable') degraded.push('the vehicle feed');
-  if (!overview.observability.ok) degraded.push('the control service');
+  // `noPolicy` is deliberately NOT degraded. The line under the strip reads
+  // "... did not answer", and the control service did answer.
+  if (!overview.observability.ok && !noPolicy) degraded.push('the control service');
   if (!overview.dailyKpi.ok) degraded.push("today's KPI roll-up");
   if (!overview.guardrails.ok) degraded.push('guardrail breaches');
   if (!overview.killSwitches.ok) degraded.push('the kill-switch record');
 
   const headwayOk = overview.observability.ok;
   const aggregate = overview.headway;
+
+  /**
+   * What a corridor-scoped control-service tile says when it has no number.
+   *
+   * `not-yet-computed` rather than `unavailable`, so the tile prints `—`
+   * instead of `n/a`: nothing failed, and the glyph is what an operator
+   * actually reads mid-incident. With no policy there is no headway target, so
+   * there is no CV, no excess wait, and no threshold for the detector to open
+   * an incident against — the emptiness is real and explainable rather than
+   * unknown.
+   *
+   * Kept SHORT deliberately. A tile hint sets the column width, and the fuller
+   * sentence pushed the seven-tile strip onto a second row. The explanation
+   * belongs in `corridorNotice`, which has a line to itself.
+   */
+  const NO_POLICY_NOTE = 'no active headway policy';
+  const noPolicyReading = () => notYetComputed(NO_POLICY_NOTE);
 
   /**
    * Whether there is a corridor for the corridor-scoped tiles to describe.
@@ -133,11 +183,13 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
       ? 'no headway sample computed yet'
       : `${aggregate.sampleCount} pair ${aggregate.sampleCount === 1 ? 'sample' : 'samples'}`;
 
-  const cv = readingFrom(headwayOk, aggregate?.cv, {
-    observed: sampleNote,
-    missing: sampleNote,
-    unavailable: 'the control service did not answer',
-  });
+  const cv = noPolicy
+    ? noPolicyReading()
+    : readingFrom(headwayOk, aggregate?.cv, {
+        observed: sampleNote,
+        missing: sampleNote,
+        unavailable: 'the control service did not answer',
+      });
 
   const tiles: ConsoleKpiTile[] = [
     {
@@ -153,14 +205,16 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
     },
     {
       label: 'Mean headway',
-      reading: readingFrom(headwayOk, aggregate?.meanHeadwaySeconds, {
-        observed:
-          aggregate === null
-            ? sampleNote
-            : `target ${formatSeconds(aggregate.targetHeadwaySeconds)} · ${sampleNote}`,
-        missing: sampleNote,
-        unavailable: 'the control service did not answer',
-      }),
+      reading: noPolicy
+        ? noPolicyReading()
+        : readingFrom(headwayOk, aggregate?.meanHeadwaySeconds, {
+            observed:
+              aggregate === null
+                ? sampleNote
+                : `target ${formatSeconds(aggregate.targetHeadwaySeconds)} · ${sampleNote}`,
+            missing: sampleNote,
+            unavailable: 'the control service did not answer',
+          }),
       format: formatSeconds,
     },
     {
@@ -171,23 +225,32 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
     },
     {
       label: 'Excess wait',
-      reading: readingFrom(headwayOk, aggregate?.ewtSeconds, {
-        observed: 'passenger-impact KPI',
-        missing: sampleNote,
-        unavailable: 'the control service did not answer',
-      }),
+      reading: noPolicy
+        ? noPolicyReading()
+        : readingFrom(headwayOk, aggregate?.ewtSeconds, {
+            observed: 'passenger-impact KPI',
+            missing: sampleNote,
+            unavailable: 'the control service did not answer',
+          }),
       format: formatSeconds,
     },
     {
+      // Not `observed(0)` under `noPolicy`, even though the detector genuinely
+      // cannot have opened one: this snapshot abandoned the incident read when
+      // the headway read failed, so the console holds no answer of its own and
+      // printing a confident `0 — this corridor is clear` would be exactly the
+      // fabricated zero the strip exists to prevent.
       label: 'Open incidents',
-      reading: !headwayOk
-        ? unavailable('the control service did not answer')
-        : !corridorSelected
-          ? notYetComputed(NO_CORRIDOR)
-          : observed(
-              overview.incidents.length,
-              overview.incidents.length === 0 ? 'this corridor is clear' : 'bunching on this corridor',
-            ),
+      reading: noPolicy
+        ? noPolicyReading()
+        : !headwayOk
+          ? unavailable('the control service did not answer')
+          : !corridorSelected
+            ? notYetComputed(NO_CORRIDOR)
+            : observed(
+                overview.incidents.length,
+                overview.incidents.length === 0 ? 'this corridor is clear' : 'bunching on this corridor',
+              ),
       tone:
         headwayOk && corridorSelected && overview.incidents.length > 0 ? 'critical' : 'default',
     },
@@ -228,6 +291,9 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
     fleetBadge: fleetBadgeFor(overview.fleet.source, overview.fleet.stale),
     killSwitchNotice: killSwitchNoticeFor(overview.killSwitches),
     degraded,
+    corridorNotice: noPolicy
+      ? 'The control service answered: this corridor has no active headway policy, so bunching detection is off for it and there are no headway readings to show. Choose another corridor for live headway.'
+      : null,
   };
 }
 

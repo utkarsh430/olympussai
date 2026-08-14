@@ -219,6 +219,7 @@ function observabilitySnapshot(overrides: Partial<ObservabilitySnapshot> = {}): 
     source: 'live',
     stale: false,
     error: null,
+    errorCode: null,
     fetchedAt: new Date().toISOString(),
     routeDirections: [{ routeDirectionId: 'dir-1', routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000 }],
     selectedRouteDirectionId: 'dir-1',

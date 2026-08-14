@@ -136,4 +136,132 @@ describe('getObservabilitySnapshot', () => {
     expect(second.stale).toBe(true);
     expect(second.selectedRouteDirectionId).toBe('dir-1');
   });
+
+  /**
+   * The signal the status band needs to tell an outage from a corridor with
+   * nothing to report.
+   *
+   * `no_active_policy` is a 404 the control service raises on purpose, for a
+   * corridor whose timetable produced no usable headway target. Before this,
+   * the snapshot recorded only the prose message, so every caller had to
+   * describe a service that had just answered three times as one that "did not
+   * answer" - see src/lib/ops/controlRoomOverview.ts#noActivePolicyFrom.
+   */
+  describe('error provenance', () => {
+    const routeDirections = {
+      routeDirections: [
+        { routeDirectionId: 'dir-1', routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000 },
+      ],
+    };
+
+    it("keeps the service's own error code when it answered with a per-corridor error", async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation((url: URL) => {
+          if (url.pathname === '/v1/route-directions') return Promise.resolve(jsonResponse(routeDirections));
+          if (url.pathname.endsWith('/headway')) {
+            // Byte-for-byte what the live control service returns.
+            return Promise.resolve({
+              ok: false,
+              status: 404,
+              json: async () => ({
+                error: { code: 'no_active_policy', message: 'No active route policy for route-direction dir-1' },
+              }),
+            });
+          }
+          return Promise.resolve(jsonResponse({ vehicleStates: [], incidents: [] }));
+        }),
+      );
+
+      const { getObservabilitySnapshot } = await import('@/lib/controlService/observabilityData');
+      const snapshot = await getObservabilitySnapshot('dir-1', Date.now());
+
+      expect(snapshot.errorCode).toBe('no_active_policy');
+      expect(snapshot.error).toMatch(/No active route policy/);
+    });
+
+    // Without this, the console reported "no corridor selected" AND "this
+    // corridor has no active headway policy" at the same time - two
+    // contradictory claims about a corridor it could no longer name, because
+    // the successfully-fetched corridor list was discarded along with the
+    // headway error that had nothing to do with it.
+    it('keeps the corridor list and selection it already fetched', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation((url: URL) => {
+          if (url.pathname === '/v1/route-directions') return Promise.resolve(jsonResponse(routeDirections));
+          if (url.pathname.endsWith('/headway')) {
+            return Promise.resolve({
+              ok: false,
+              status: 404,
+              json: async () => ({ error: { code: 'no_active_policy', message: 'No active route policy' } }),
+            });
+          }
+          return Promise.resolve(jsonResponse({ vehicleStates: [], incidents: [] }));
+        }),
+      );
+
+      const { getObservabilitySnapshot } = await import('@/lib/controlService/observabilityData');
+      const snapshot = await getObservabilitySnapshot('dir-1', Date.now());
+
+      expect(snapshot.errorCode).toBe('no_active_policy');
+      expect(snapshot.selectedRouteDirectionId).toBe('dir-1');
+      expect(snapshot.routeDirections).toHaveLength(1);
+      expect(snapshot.headway).toBeNull();
+      // Never another corridor's cached incidents attributed to this one.
+      expect(snapshot.incidents).toEqual([]);
+      expect(snapshot.positions).toEqual([]);
+    });
+
+    it('leaves the code null when the service genuinely did not answer', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation((url: URL) => {
+          if (url.pathname === '/v1/route-directions') return Promise.resolve(jsonResponse(routeDirections));
+          return Promise.reject(new Error('socket hang up'));
+        }),
+      );
+
+      const { getObservabilitySnapshot } = await import('@/lib/controlService/observabilityData');
+      const snapshot = await getObservabilitySnapshot('dir-1', Date.now());
+
+      expect(snapshot.source).toBe('unavailable');
+      expect(snapshot.errorCode).toBeNull();
+    });
+
+    it('carries no code on a healthy read', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation((url: URL) => {
+          if (url.pathname === '/v1/route-directions') return Promise.resolve(jsonResponse(routeDirections));
+          if (url.pathname.endsWith('/headway')) {
+            return Promise.resolve(
+              jsonResponse({
+                routeDirectionId: 'dir-1',
+                computedAt: new Date().toISOString(),
+                pairs: [],
+                aggregate: {
+                  routeDirectionId: 'dir-1',
+                  sampleCount: 0,
+                  meanHeadwaySeconds: null,
+                  stddevHeadwaySeconds: null,
+                  cv: null,
+                  ewtSeconds: null,
+                  targetHeadwaySeconds: 300,
+                },
+                incidents: [],
+              }),
+            );
+          }
+          return Promise.resolve(jsonResponse({ vehicleStates: [], incidents: [] }));
+        }),
+      );
+
+      const { getObservabilitySnapshot } = await import('@/lib/controlService/observabilityData');
+      const snapshot = await getObservabilitySnapshot('dir-1', Date.now());
+
+      expect(snapshot.source).toBe('live');
+      expect(snapshot.errorCode).toBeNull();
+    });
+  });
 });

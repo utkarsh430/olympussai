@@ -80,6 +80,17 @@ export function ConsoleKpiStrip({
           <span className="font-mono">n/a</span> are unknown, not zero.
         </p>
       )}
+
+      {/* Muted, not amber, and never alongside the word "unavailable". This is
+          a working system reporting a corridor it has nothing to say about;
+          styling it as a fault is how the outage claim got here in the first
+          place. */}
+      {model.corridorNotice !== null && (
+        <p role="status" className="border-t border-ops-line px-6 py-2 text-xs text-ops-muted">
+          {model.corridorNotice} Tiles marked <span className="font-mono">—</span> have nothing to report, as opposed
+          to <span className="font-mono">n/a</span>, which means unknown.
+        </p>
+      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import 'server-only';
  */
 import {
   ControlServiceConfigError,
+  ControlServiceRequestError,
   fetchControlService,
 } from './client';
 import {
@@ -37,6 +38,23 @@ export interface ObservabilitySnapshot {
   source: 'live' | 'unavailable';
   stale: boolean;
   error: string | null;
+  /**
+   * The control service's own `error.code` when it ANSWERED with a per-request
+   * error, and null when the failure was transport-level (unreachable, timed
+   * out, circuit open, misconfigured).
+   *
+   * Carried because `error` alone cannot tell those two apart, and a caller
+   * that cannot tell them apart has to describe both as an outage. It is not
+   * one: `no_active_policy` is a 404 the control service raises DELIBERATELY,
+   * to say out loud that bunching detection is off for a corridor whose
+   * timetable had no calibration answer (control-service/src/headway/
+   * repository.ts#loadActiveRoutePolicy — "Detection is off, and saying so out
+   * loud is the entire point"). Collapsing that into "the service did not
+   * answer" throws away the one signal it went out of its way to send.
+   *
+   * A code, not a parsed message: the message is prose and will change.
+   */
+  errorCode: string | null;
   fetchedAt: string;
   routeDirections: RouteDirectionMeta[];
   selectedRouteDirectionId: string | null;
@@ -45,15 +63,23 @@ export interface ObservabilitySnapshot {
   incidents: BunchingIncident[];
 }
 
-function unavailableSnapshot(reason: string, now: number): ObservabilitySnapshot {
+function unavailableSnapshot(reason: string, now: number, code: string | null = null): ObservabilitySnapshot {
   const lastGood = snapshotCache.getLastGood('observability');
   if (lastGood) {
-    return { ...lastGood.value, source: 'unavailable', stale: true, error: reason, fetchedAt: new Date(now).toISOString() };
+    return {
+      ...lastGood.value,
+      source: 'unavailable',
+      stale: true,
+      error: reason,
+      errorCode: code,
+      fetchedAt: new Date(now).toISOString(),
+    };
   }
   return {
     source: 'unavailable',
     stale: true,
     error: reason,
+    errorCode: code,
     fetchedAt: new Date(now).toISOString(),
     routeDirections: [],
     selectedRouteDirectionId: null,
@@ -101,6 +127,7 @@ export async function getObservabilitySnapshot(
         source: 'live',
         stale: false,
         error: null,
+        errorCode: null,
         fetchedAt: new Date(now).toISOString(),
         routeDirections,
         selectedRouteDirectionId: null,
@@ -112,11 +139,45 @@ export async function getObservabilitySnapshot(
       return snapshot;
     }
 
-    const [positionsRaw, headwayRaw, incidentsRaw] = await Promise.all([
-      fetchControlService('/v1/vehicle-states', { query: { routeDirectionId: selected } }),
-      fetchControlService(`/v1/route-directions/${encodeURIComponent(selected)}/headway`),
-      fetchControlService('/v1/incidents', { query: { routeDirectionId: selected } }),
-    ]);
+    let positionsRaw: unknown;
+    let headwayRaw: unknown;
+    let incidentsRaw: unknown;
+    try {
+      [positionsRaw, headwayRaw, incidentsRaw] = await Promise.all([
+        fetchControlService('/v1/vehicle-states', { query: { routeDirectionId: selected } }),
+        fetchControlService(`/v1/route-directions/${encodeURIComponent(selected)}/headway`),
+        fetchControlService('/v1/incidents', { query: { routeDirectionId: selected } }),
+      ]);
+    } catch (cause) {
+      // `no_active_policy` is the ONE failure here that is a fact about the
+      // corridor rather than about the service, and the corridor list has
+      // already been fetched successfully by this point. Rethrowing it into
+      // the outer handler discarded that list, so the console lost its picker
+      // and reported "no corridor selected" while simultaneously explaining
+      // that THIS corridor has no policy - two contradictory statements about
+      // a corridor it could no longer name. The ladder, cache and contract are
+      // unchanged; this only stops known-good facts being thrown away with the
+      // error that did not concern them.
+      if (!(cause instanceof ControlServiceRequestError) || cause.code !== 'no_active_policy') throw cause;
+      // Built explicitly rather than through `unavailableSnapshot`, which
+      // falls back to the last good snapshot: that copy holds ANOTHER
+      // corridor's positions and incidents, and carrying them here would
+      // attribute them to this one. Empty is the honest answer - with no
+      // active policy the detector never runs, so this corridor has no
+      // incidents of its own to report.
+      return {
+        source: 'unavailable',
+        stale: true,
+        error: cause.message,
+        errorCode: cause.code,
+        fetchedAt: new Date(now).toISOString(),
+        routeDirections,
+        selectedRouteDirectionId: selected,
+        positions: [],
+        headway: null,
+        incidents: [],
+      };
+    }
 
     const { vehicleStates: positions } = vehicleStatesResponseSchema.parse(positionsRaw);
     const headway = headwayComputeResultSchema.parse(headwayRaw);
@@ -126,6 +187,7 @@ export async function getObservabilitySnapshot(
       source: 'live',
       stale: false,
       error: null,
+      errorCode: null,
       fetchedAt: new Date(now).toISOString(),
       routeDirections,
       selectedRouteDirectionId: selected,
@@ -142,6 +204,12 @@ export async function getObservabilitySnapshot(
         : cause instanceof Error
           ? cause.message
           : 'Unknown control service error';
-    return unavailableSnapshot(message, now);
+    // A ControlServiceRequestError means the service ANSWERED and the answer
+    // was an error for this request. Every other cause — a config error, a
+    // timeout, an open circuit, a socket failure — means it did not answer at
+    // all, and leaves the code null. The ladder above is unchanged; this only
+    // stops the two being indistinguishable to the caller.
+    const code = cause instanceof ControlServiceRequestError ? cause.code : null;
+    return unavailableSnapshot(message, now, code);
   }
 }

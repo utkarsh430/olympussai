@@ -273,7 +273,18 @@ export function ControlRoomConsole({
                   title="Open incidents on this corridor"
                   description="Detected automatically by the headway sweep, and drawn on the map beside this."
                 >
-                  {overview?.observability.ok === false ? (
+                  {/* Two different reasons the list is not a list, and they
+                      must not share a message. "Did not answer" is an outage;
+                      "no active policy" is the control service answering that
+                      detection is off for this corridor, which is a fact about
+                      the corridor rather than a fault in the system. */}
+                  {overview?.observability.noActivePolicy === true ? (
+                    <OpsAlert tone="info">
+                      This corridor has no active headway policy, so the bunching detector does not run on it and no
+                      incidents can be raised. This is the control service reporting its own configuration, not a
+                      failure to reach it.
+                    </OpsAlert>
+                  ) : overview?.observability.ok === false ? (
                     <OpsAlert tone="error">
                       The control service did not answer, so the incident list is unknown — not empty.
                     </OpsAlert>
