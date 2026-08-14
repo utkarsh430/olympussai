@@ -102,8 +102,9 @@ async function DashboardBody({
     return (
       <OpsShell title="Depot" email={email} role="depot">
         <OpsAlert tone="error">
-          Your depot assignment could not be read right now ({message}), so no vehicles can be shown. Try refreshing the
-          page.
+          Which depot you belong to could not be read right now ({message}), so no buses can be
+          shown. This screen will not fall back to the whole state&apos;s buses. Try refreshing the
+          page; if it keeps happening, ask your administrator to check your account.
         </OpsAlert>
       </OpsShell>
     );
@@ -148,23 +149,23 @@ async function DashboardBody({
         initialTab={tab}
         rosterPanel={
           <OpsSection
-            title={`Vehicle roster · ${depotLabel}`}
-            description="Every vehicle this depot has reporting, grouped by the route it is running. Grouping by depot would produce one group on this surface, which is the boundary working."
+            title={`All buses · ${depotLabel}`}
+            description="Every bus this depot has reporting, grouped by the route it is running. Grouping by depot would give one group on this screen, which is the boundary working."
           >
             <FleetRosterGroups
               groups={groupByRoute(fleet.buses)}
               totalVehicles={fleet.buses.length}
               emptyLabel={emptyFleetLabel(
                 fleet.source,
-                `No vehicles from ${depotLabel} are currently reporting.`,
+                `No buses from ${depotLabel} are reporting right now.`,
               )}
             />
           </OpsSection>
         }
         reportsPanel={
           <OpsSection
-            title="Breakdown reports"
-            description="Filed by drivers from the vehicle console."
+            title="Breakdowns reported"
+            description="Sent by drivers from the screen in their cab."
           >
             <BreakdownReportsPanel scope="fleet" />
           </OpsSection>
@@ -176,7 +177,8 @@ async function DashboardBody({
     return (
       <OpsShell title="Depot" email={email} role="depot">
         <OpsAlert tone="error">
-          Depot data is unavailable right now ({message}). Try refreshing the page.
+          This depot&apos;s data could not be read right now ({message}). Nothing about your depot
+          has changed — this screen simply cannot see it. Try refreshing the page.
         </OpsAlert>
       </OpsShell>
     );

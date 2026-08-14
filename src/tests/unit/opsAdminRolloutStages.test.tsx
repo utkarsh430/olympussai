@@ -73,8 +73,8 @@ function mountWith(rows: RolloutStageRow[], putResult?: (body: unknown) => unkno
 
 /** Opens the editor for the single corridor on screen. */
 async function openEditor() {
-  fireEvent.click(await screen.findByRole('button', { name: /change stage/i }));
-  return screen.findByLabelText(/^stage$/i);
+  fireEvent.click(await screen.findByRole('button', { name: /^change$/i }));
+  return screen.findByLabelText(/^permission$/i);
 }
 
 beforeEach(() => {
@@ -85,7 +85,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('withdrawing command authority', () => {
+describe('stopping instructions on a corridor', () => {
   it('warns, in the consequence’s own words, before it can be applied', async () => {
     mountWith([row({ stage: 'advisory' })]);
     const select = await openEditor();
@@ -93,9 +93,12 @@ describe('withdrawing command authority', () => {
     fireEvent.change(select, { target: { value: 'shadow' } });
 
     const warning = await screen.findByRole('alert');
-    expect(warning).toHaveTextContent(/stops commands reaching drivers/i);
-    expect(warning).toHaveTextContent(/refuses every command/i);
-    expect(warning).toHaveTextContent(/guardrail breach/i);
+    expect(warning).toHaveTextContent(/stops instructions reaching drivers/i);
+    expect(warning).toHaveTextContent(/refuses every instruction/i);
+    expect(warning).toHaveTextContent(/blocked by a safety rule/i);
+    // The audience for the consequence, named. This is the half an
+    // administrator cannot work out for themselves.
+    expect(warning).toHaveTextContent(/dispatchers will see their approvals start failing/i);
   });
 
   it('refuses to submit without a written reason', async () => {
@@ -103,7 +106,7 @@ describe('withdrawing command authority', () => {
     const select = await openEditor();
     fireEvent.change(select, { target: { value: 'observation' } });
 
-    const apply = screen.getByRole('button', { name: /withdraw command authority/i });
+    const apply = screen.getByRole('button', { name: /stop instructions on this corridor/i });
     expect(apply).toBeDisabled();
 
     fireEvent.click(apply);
@@ -115,22 +118,26 @@ describe('withdrawing command authority', () => {
     mountWith([row({ stage: 'expanded' })]);
     const select = await openEditor();
     fireEvent.change(select, { target: { value: 'observation' } });
-    fireEvent.change(screen.getByLabelText(/reason/i), {
-      target: { value: 'repeated guardrail breaches overnight' },
+    fireEvent.change(screen.getByLabelText(/^why/i), {
+      target: { value: 'repeatedly blocked by a safety rule overnight' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /withdraw command authority/i }));
+    fireEvent.click(screen.getByRole('button', { name: /stop instructions on this corridor/i }));
 
     await waitFor(() => expect(puts).toHaveLength(1));
+    // The WIRE VALUE is untouched by the rename. Only the reading changed —
+    // an audit row that says `observation` still says `observation`.
     expect(puts[0]).toEqual({
       url: '/api/ops/admin/rollout-stages/rd-1',
-      body: { stage: 'observation', reason: 'repeated guardrail breaches overnight' },
+      body: { stage: 'observation', reason: 'repeatedly blocked by a safety rule overnight' },
     });
   });
 
-  it('names the button after the act, not after the widget', async () => {
-    // "Set stage" is what the old panel called every one of these. The label
-    // is the last thing an admin reads before committing.
+  it('names the button after the act, not after the widget or the programme rung', async () => {
+    // "Set stage" is what the old panel called every one of these, and
+    // "Promote to advisory" named a rung of a pilot programme rather than a
+    // consequence. The label is the last thing an admin reads before
+    // committing, so it says what will be true afterwards.
     mountWith([row({ stage: 'observation' })]);
     // A held corridor is not in the default view, which is itself the point of
     // the default view — reach it the way an admin would.
@@ -138,14 +145,16 @@ describe('withdrawing command authority', () => {
     const select = await openEditor();
 
     fireEvent.change(select, { target: { value: 'advisory' } });
-    expect(screen.getByRole('button', { name: /promote to advisory/i })).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: /allow instructions: instructions with approval/i }),
+    ).toBeEnabled();
 
     fireEvent.change(select, { target: { value: 'observation' } });
-    expect(screen.getByRole('button', { name: /re-stamp this stage/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /record this setting again/i })).toBeEnabled();
   });
 });
 
-describe('a demotion that withdraws nothing', () => {
+describe('a narrowing that stops nothing', () => {
   it('is not dressed up as one that does, and needs no reason', async () => {
     // expanded -> advisory is narrower, and nothing stops working. Warning an
     // admin about a consequence that will not happen is how warnings stop
@@ -156,7 +165,9 @@ describe('a demotion that withdraws nothing', () => {
     fireEvent.change(select, { target: { value: 'advisory' } });
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    const apply = screen.getByRole('button', { name: /narrow to advisory/i });
+    const apply = screen.getByRole('button', {
+      name: /narrow to: instructions with approval/i,
+    });
     expect(apply).toBeEnabled();
 
     fireEvent.click(apply);
@@ -166,7 +177,7 @@ describe('a demotion that withdraws nothing', () => {
 });
 
 describe('the list an admin actually works from', () => {
-  it('opens on the corridors that accept commands, not on all 759', async () => {
+  it('opens on the corridors that allow instructions, not on all 759', async () => {
     mountWith([
       row({ routeDirectionId: 'rd-1', publicName: 'Promoted corridor', stage: 'advisory' }),
       row({ routeDirectionId: 'rd-2', publicName: 'Held corridor', stage: 'observation' }),
@@ -181,7 +192,9 @@ describe('the list an admin actually works from', () => {
     // here", when what it means is that the whole network refuses commands.
     mountWith([row({ stage: 'observation' })]);
 
-    expect(await screen.findByText(/no corridor currently accepts commands/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/no corridor allows instructions right now/i),
+    ).toBeInTheDocument();
   });
 
   it('reaches every corridor through the filters', async () => {
@@ -196,7 +209,7 @@ describe('the list an admin actually works from', () => {
     expect(screen.getByText('Promoted corridor')).toBeInTheDocument();
   });
 
-  it('shows each corridor’s command posture in its row, not only its stage name', async () => {
+  it('shows in each row whether instructions are allowed, not only the permission name', async () => {
     mountWith([
       row({ routeDirectionId: 'rd-1', publicName: 'Promoted corridor', stage: 'advisory' }),
       row({ routeDirectionId: 'rd-2', publicName: 'Held corridor', stage: 'shadow' }),
@@ -205,14 +218,14 @@ describe('the list an admin actually works from', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^every corridor$/i }));
 
     const held = (await screen.findByText('Held corridor')).closest('tr')!;
-    expect(within(held).getByText('refused')).toBeInTheDocument();
+    expect(within(held).getByText('Refused')).toBeInTheDocument();
     const promoted = screen.getByText('Promoted corridor').closest('tr')!;
-    expect(within(promoted).getByText('permitted')).toBeInTheDocument();
+    expect(within(promoted).getByText('Allowed')).toBeInTheDocument();
   });
 });
 
 describe('when the control service cannot be read', () => {
-  it('says the posture is unknown rather than showing an empty, calm network', async () => {
+  it('says the permissions are unknown rather than showing an empty, calm network', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: {} }) }),
@@ -222,6 +235,6 @@ describe('when the control service cannot be read', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/could not be read/i);
-    expect(alert).toHaveTextContent(/keeps whatever stage it already had/i);
+    expect(alert).toHaveTextContent(/keeps whatever permission it already had/i);
   });
 });

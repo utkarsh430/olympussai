@@ -102,13 +102,33 @@ export function withdrawsCommandAuthority(from: RolloutStage, to: RolloutStage):
   return permitsCommands(from) && !permitsCommands(to);
 }
 
-/** Short label for a stage. Sentence case; the UI decides its own casing. */
+/**
+ * What a stage is called on screen.
+ *
+ * ─── WHY THESE ARE NOT THE ENUM NAMES ────────────────────────────────────
+ *
+ * The wire values (`observation`, `shadow`, `advisory`, `limited_auto`,
+ * `expanded`) are a pilot-programme vocabulary. They tell a reader who already
+ * knows the programme which rung of it a corridor is on, and they tell an
+ * administrator who does not know it nothing at all — least of all the one
+ * thing the setting actually decides, which is whether an instruction can
+ * reach a driver on that corridor.
+ *
+ * So the label answers that question instead, and the enum is untouched: it is
+ * what the control service enforces on and what every audit row already holds.
+ * Renaming the display and keeping the wire value is the whole point — a
+ * migration of the enum would rewrite history that says what somebody actually
+ * did.
+ *
+ * Kept short enough for a table cell and a tally grid. The sentence version is
+ * ROLLOUT_STAGE_MEANING, which is what a reader gets before they change one.
+ */
 export const ROLLOUT_STAGE_LABEL: Record<RolloutStage, string> = {
-  observation: 'Observation',
-  shadow: 'Shadow',
-  advisory: 'Advisory',
-  limited_auto: 'Limited auto',
-  expanded: 'Expanded',
+  observation: 'Watch only',
+  shadow: 'Watch and suggest',
+  advisory: 'Instructions with approval',
+  limited_auto: 'Instructions, narrow auto',
+  expanded: 'Instructions, full band',
 };
 
 /**
@@ -117,13 +137,56 @@ export const ROLLOUT_STAGE_LABEL: Record<RolloutStage, string> = {
  * Written from the enforcement point rather than from the pilot plan: these
  * describe what the control service will and will not do, which is the only
  * thing a stage decides.
+ *
+ * "Blocked by a safety rule" rather than "guardrail breach", deliberately.
+ * These are refusals the system RECORDED — nothing got through — and "breach"
+ * reads as something that did.
  */
 export const ROLLOUT_STAGE_MEANING: Record<RolloutStage, string> = {
   observation:
-    'Detection only. Commands for this corridor are refused and logged as a guardrail breach.',
+    'Watching only. Every instruction for this corridor is refused, and each attempt is recorded as blocked by a safety rule.',
   shadow:
-    'The engine recommends, nothing is sent. Commands for this corridor are refused and logged as a guardrail breach.',
-  advisory: 'Commands permitted, each one still requiring a human approval first.',
-  limited_auto: 'Commands permitted, with a narrowed automatic band on top of human approval.',
-  expanded: 'Commands permitted across the full band.',
+    'The engine works out what it would suggest, and nothing is sent to any driver. Every instruction for this corridor is refused, and each attempt is recorded as blocked by a safety rule.',
+  advisory: 'Instructions are allowed, and each one still needs a person to approve it first.',
+  limited_auto: 'Instructions are allowed, with a narrower automatic band on top of that approval.',
+  expanded: 'Instructions are allowed across the full band.',
 };
+
+/**
+ * The label for a stage value that came out of STORED HISTORY rather than out
+ * of the current enum.
+ *
+ * The audit schema types `previousStage`/`newStage` as plain strings on
+ * purpose (src/models/control.ts): an audit row records what the setting was
+ * called at the time, and a stage since removed from the programme is still a
+ * true thing that happened. So this falls back to the stored value rather than
+ * to a blank or a dash — an unrecognised entry must stay legible as itself, not
+ * quietly turn into "nothing to report" in the one record somebody reads when
+ * they are working out why an instruction did or did not go out.
+ */
+export function rolloutStageLabel(stage: string): string {
+  return ROLLOUT_STAGE_LABEL[stage as RolloutStage] ?? stage.replace(/_/g, ' ');
+}
+
+/**
+ * The button that applies a proposed change, written as the thing it does to
+ * the corridor rather than as a move along a scale.
+ *
+ * "Promote to advisory" names a rung. "Allow instructions, each needing
+ * approval" names the consequence, which is what an administrator is actually
+ * deciding — and the withdrawing case says the loud part out loud rather than
+ * hiding it behind the same verb as every other demotion.
+ */
+export function stageChangeActionLabel(from: RolloutStage, to: RolloutStage): string {
+  if (withdrawsCommandAuthority(from, to)) return 'Stop instructions on this corridor';
+  switch (stageChangeDirection(from, to)) {
+    case 'promotion':
+      return permitsCommands(from)
+        ? `Widen to: ${ROLLOUT_STAGE_LABEL[to].toLowerCase()}`
+        : `Allow instructions: ${ROLLOUT_STAGE_LABEL[to].toLowerCase()}`;
+    case 'demotion':
+      return `Narrow to: ${ROLLOUT_STAGE_LABEL[to].toLowerCase()}`;
+    case 'unchanged':
+      return 'Record this setting again';
+  }
+}

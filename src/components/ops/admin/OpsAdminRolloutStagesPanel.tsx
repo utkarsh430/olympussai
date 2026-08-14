@@ -8,6 +8,8 @@ import {
   ROLLOUT_STAGE_MEANING,
   ROLLOUT_STAGE_ORDER,
   permitsCommands,
+  rolloutStageLabel,
+  stageChangeActionLabel,
   stageChangeDirection,
   withdrawsCommandAuthority,
 } from '@/lib/ops/rolloutPosture';
@@ -15,6 +17,7 @@ import {
   OpsAlert,
   OpsButton,
   OpsEmptyState,
+  OpsIdentifier,
   OpsInput,
   OpsPanel,
   OpsReadout,
@@ -31,33 +34,37 @@ import {
 } from '@/components/ops/ui';
 
 /**
- * Per-route-direction rollout stages.
+ * Command permissions, per corridor.
  *
  * ─── WHAT THIS SCREEN IS ACTUALLY FOR ────────────────────────────────────
  *
- * A rollout stage is not a display value. The control service refuses to
- * create ANY command for a corridor at `observation` or `shadow` — it records
- * a guardrail breach and answers 403 (control-service/src/pilot/gate.ts). So
- * this is the screen that decides, per corridor, whether dispatchers'
- * approvals reach drivers at all.
+ * This is a safety setting, not a display value. The control service refuses
+ * to create ANY instruction for a corridor at `observation` or `shadow` — it
+ * records the attempt and answers 403 (control-service/src/pilot/gate.ts). So
+ * this is the screen that decides, per corridor, whether a dispatcher's
+ * approval reaches a driver at all.
  *
  * The version this replaced rendered all of that as a dropdown and a "Set
  * stage" button per row, with an optional reason box, and treated moving UP
- * and moving DOWN as the same gesture. Three things follow from taking the
- * posture seriously instead:
+ * and moving DOWN as the same gesture. Four things follow from taking the
+ * setting seriously instead:
  *
- *   1. DEMOTION IS CONFIRMED, AND THE ONE THAT WITHDRAWS COMMAND AUTHORITY
- *      REQUIRES A WRITTEN REASON. Crossing back below `advisory` stops
- *      commands on a live corridor; the people who notice are dispatchers
- *      whose approvals begin failing, and they will ask why. A reason
- *      reconstructed afterwards from an audit trail is not the same artifact
- *      as one written at the moment of the decision.
- *   2. THE LIST IS FILTERED, NOT DUMPED. The network is 759 corridors. A page
+ *   1. DEMOTION IS CONFIRMED, AND THE ONE THAT STOPS INSTRUCTIONS REQUIRES A
+ *      WRITTEN REASON. Crossing back below `advisory` stops instructions on a
+ *      live corridor; the people who notice are the dispatchers whose
+ *      approvals begin failing, and they will ask why. A reason reconstructed
+ *      afterwards from an audit trail is not the same artifact as one written
+ *      at the moment of the decision.
+ *   2. THE BUTTON IS NAMED AFTER WHAT IT DOES. "Stop instructions on this
+ *      corridor", not "Withdraw command authority" and certainly not "Demote".
+ *      See `stageChangeActionLabel`.
+ *   3. THE LIST IS FILTERED, NOT DUMPED. The network is 759 corridors. A page
  *      that renders 759 editors is one where nobody finds the eighteen that
- *      are actually promoted, which are the only ones whose posture is load
- *      bearing today.
- *   3. EVERY STAGE SAYS WHAT IT PERMITS. Not the pilot-plan name for it — what
- *      the control service will and will not do.
+ *      actually allow instructions, which are the only ones whose setting is
+ *      load bearing today.
+ *   4. EVERY PERMISSION SAYS WHAT IT ALLOWS. Not the pilot-programme name for
+ *      it — what the control service will and will not do. The wire values are
+ *      untouched; only the reading changed.
  *
  * Client-side only; every action goes through the guarded
  * /api/ops/admin/rollout-stages* routes, which are the enforcement point.
@@ -70,8 +77,8 @@ const PAGE_SIZE = 40;
 type StageFilter = 'commanding' | 'held' | 'all';
 
 const FILTER_LABEL: Record<StageFilter, string> = {
-  commanding: 'Accepting commands',
-  held: 'Held at detect-only',
+  commanding: 'Instructions allowed',
+  held: 'Watch-only',
   all: 'Every corridor',
 };
 
@@ -83,10 +90,9 @@ function AuditTrail({ routeDirectionId }: { routeDirectionId: string }) {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(
-          `/api/ops/admin/rollout-stages/${routeDirectionId}/audit`,
-          { cache: 'no-store' },
-        );
+        const response = await fetch(`/api/ops/admin/rollout-stages/${routeDirectionId}/audit`, {
+          cache: 'no-store',
+        });
         const data = (await response.json().catch(() => null)) as {
           auditLog?: RolloutStageAuditEntry[];
         } | null;
@@ -105,18 +111,26 @@ function AuditTrail({ routeDirectionId }: { routeDirectionId: string }) {
     };
   }, [routeDirectionId]);
 
-  if (error) return <p className="text-xs text-ops-danger">{error}</p>;
-  if (!entries) return <p className="text-xs text-ops-faint">Loading the change history…</p>;
+  if (error) return <p className="text-xs text-destructive">{error}</p>;
+  if (!entries) return <p className="text-xs text-subtle">Loading the change history…</p>;
   if (entries.length === 0) {
-    return <p className="text-xs text-ops-faint">This corridor has never been staged.</p>;
+    return (
+      <p className="text-xs text-subtle">This corridor&apos;s permission has never been changed.</p>
+    );
   }
 
   return (
-    <ul className="space-y-1 text-xs text-ops-muted">
+    <ul className="space-y-1 text-xs text-muted-foreground">
       {entries.map((entry) => (
         <li key={entry.id}>
-          <span className="text-ops-ink">
-            {entry.previousStage ?? '(never staged)'} &rarr; {entry.newStage}
+          {/* The stored wire values are translated here too. An audit row that
+              reads "observation → advisory" is only readable by somebody who
+              knows the programme, and the person most likely to be reading it
+              is somebody investigating why an instruction did or did not go
+              out. The stored value is untouched; only the reading changes. */}
+          <span className="font-medium text-foreground">
+            {entry.previousStage ? rolloutStageLabel(entry.previousStage) : '(never set)'} &rarr;{' '}
+            {rolloutStageLabel(entry.newStage)}
           </span>{' '}
           by {entry.changedBy} at {new Date(entry.createdAt).toLocaleString()}
           {entry.reason ? ` — ${entry.reason}` : ''}
@@ -168,24 +182,20 @@ function StageEditor({
         body: JSON.stringify({ stage, reason: reason.trim() === '' ? null : reason.trim() }),
       });
       const data = (await response.json().catch(() => null)) as
-        | { rolloutStage: RolloutStageRow }
-        | { error?: { message?: string } }
-        | null;
+        { rolloutStage: RolloutStageRow } | { error?: { message?: string } } | null;
       if (!response.ok || !data || !('rolloutStage' in data)) {
-        setError(
-          (data && 'error' in data && data.error?.message) || 'The stage was not changed.',
-        );
+        setError((data && 'error' in data && data.error?.message) || 'The stage was not changed.');
         return;
       }
       onSaved(data.rolloutStage);
       setReason('');
       setSaved(
         permitsCommands(data.rolloutStage.stage)
-          ? 'Saved. Commands are permitted on this corridor from now, with no deploy.'
-          : 'Saved. Commands for this corridor are refused from now, with no deploy.',
+          ? 'Saved. Instructions are allowed on this corridor from now. No release is needed.'
+          : 'Saved. Instructions for this corridor are refused from now. No release is needed.',
       );
     } catch {
-      setError('Something went wrong. The stage was not changed.');
+      setError('Something went wrong. The permission was not changed. Try again.');
     } finally {
       setBusy(false);
     }
@@ -193,10 +203,10 @@ function StageEditor({
 
   return (
     <OpsStack gap="tight" className="text-xs">
-      <div className="grid gap-3 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
         <div>
           <label htmlFor={stageId} className="ops-label mb-1.5 block">
-            Stage
+            Permission
           </label>
           <OpsSelect
             id={stageId}
@@ -215,12 +225,12 @@ function StageEditor({
               </option>
             ))}
           </OpsSelect>
-          <p className="mt-1.5 leading-snug text-ops-faint">{ROLLOUT_STAGE_MEANING[stage]}</p>
+          <p className="mt-1.5 leading-snug text-subtle">{ROLLOUT_STAGE_MEANING[stage]}</p>
         </div>
 
         <div>
           <label htmlFor={reasonId} className="ops-label mb-1.5 block">
-            Reason {reasonRequired && <span className="text-alert-crimson">(required)</span>}
+            Why {reasonRequired && <span className="text-destructive">(required)</span>}
           </label>
           <OpsTextarea
             id={reasonId}
@@ -229,30 +239,31 @@ function StageEditor({
             onChange={(event) => setReason(event.target.value)}
             placeholder={
               reasonRequired
-                ? 'Why commands are being withdrawn from this corridor'
-                : 'e.g. week 3 of pilot cadence, guardrails clean'
+                ? 'Why instructions are being stopped on this corridor'
+                : 'e.g. week 3 of the trial, nothing has been blocked by a safety rule'
             }
             className="min-h-[4.5rem] w-full px-2 py-1 text-xs"
           />
-          <p className="mt-1 leading-snug text-ops-faint">
-            Recorded against this change and shown in the corridor&apos;s history.
+          <p className="mt-1 leading-snug text-subtle">
+            Recorded against this change and shown in this corridor&apos;s history.
           </p>
         </div>
       </div>
 
       {withdrawing && (
-        <OpsAlert tone="warning" title="This stops commands reaching drivers on this corridor">
-          Moving from {ROLLOUT_STAGE_LABEL[row.stage].toLowerCase()} to{' '}
-          {ROLLOUT_STAGE_LABEL[stage].toLowerCase()} takes effect immediately and with no deploy.
-          From that moment the control service refuses every command for this corridor and logs
-          each attempt as a guardrail breach — dispatchers will see their approvals start failing.
-          {reasonMissing && ' Give a reason before applying it.'}
+        <OpsAlert tone="warning" title="This stops instructions reaching drivers on this corridor">
+          Changing this corridor from &ldquo;{ROLLOUT_STAGE_LABEL[row.stage].toLowerCase()}&rdquo;
+          to &ldquo;{ROLLOUT_STAGE_LABEL[stage].toLowerCase()}&rdquo; takes effect straight away. No
+          release is needed. From that moment the control service refuses every instruction for this
+          corridor and records each attempt as blocked by a safety rule — the dispatchers will see
+          their approvals start failing, and they will ask why.
+          {reasonMissing && ' Say why before applying it.'}
         </OpsAlert>
       )}
 
       {!withdrawing && direction === 'demotion' && (
-        <p className="leading-snug text-ops-muted">
-          A narrower posture, but commands stay permitted either way — nothing stops working.
+        <p className="leading-snug text-muted-foreground">
+          A narrower setting, but instructions stay allowed either way — nothing stops working.
         </p>
       )}
 
@@ -263,15 +274,7 @@ function StageEditor({
           disabled={busy || reasonMissing}
           onClick={() => void submit()}
         >
-          {busy
-            ? 'Applying…'
-            : withdrawing
-              ? 'Withdraw command authority'
-              : direction === 'promotion'
-                ? `Promote to ${ROLLOUT_STAGE_LABEL[stage].toLowerCase()}`
-                : direction === 'demotion'
-                  ? `Narrow to ${ROLLOUT_STAGE_LABEL[stage].toLowerCase()}`
-                  : 'Re-stamp this stage'}
+          {busy ? 'Applying…' : stageChangeActionLabel(row.stage, stage)}
         </OpsButton>
         <OpsButton
           variant="quiet"
@@ -283,18 +286,18 @@ function StageEditor({
       </div>
 
       {saved && !error && (
-        <p role="status" className="text-ops-good">
+        <p role="status" className="text-success">
           {saved}
         </p>
       )}
       {error && (
-        <p role="alert" className="text-ops-danger">
+        <p role="alert" className="text-destructive">
           {error}
         </p>
       )}
 
       {row.updatedBy && (
-        <p className="text-[11px] text-ops-faint">
+        <p className="text-[11px] text-subtle">
           Last set by {row.updatedBy}
           {row.updatedAt ? ` at ${new Date(row.updatedAt).toLocaleString()}` : ''}
           {row.reason ? ` — ${row.reason}` : ''}.
@@ -302,7 +305,7 @@ function StageEditor({
       )}
 
       {showAudit && (
-        <div className="border-t border-ops-line pt-3">
+        <div className="border-t border-border pt-3">
           <AuditTrail routeDirectionId={row.routeDirectionId} />
         </div>
       )}
@@ -380,15 +383,15 @@ export function OpsAdminRolloutStagesPanel() {
 
   if (loadError) {
     return (
-      <OpsAlert tone="error" title="Rollout stages could not be read">
-        {loadError} Nothing about the network&apos;s posture has changed — this console cannot see
-        it. Every corridor keeps whatever stage it already had.
+      <OpsAlert tone="error" title="Command permissions could not be read">
+        {loadError} Nothing has changed — this screen cannot see it. Every corridor keeps whatever
+        permission it already had.
       </OpsAlert>
     );
   }
 
   if (!snapshot) {
-    return <p className="text-sm text-ops-muted">Loading rollout stages…</p>;
+    return <p className="text-sm text-muted-foreground">Loading command permissions…</p>;
   }
 
   const visible = filtered.slice(0, limit);
@@ -397,15 +400,15 @@ export function OpsAdminRolloutStagesPanel() {
     <OpsStack>
       {snapshot.source !== 'live' && (
         <OpsAlert tone="warning">
-          Showing the last posture this console read
-          {snapshot.error ? ` — the control service did not respond (${snapshot.error})` : ''}. It
-          may no longer be current; changing a stage from here still goes to the live service.
+          Showing the last permissions this screen read
+          {snapshot.error ? ` — the control service did not answer (${snapshot.error})` : ''}. They
+          may no longer be current. Changing one from here still goes to the live service.
         </OpsAlert>
       )}
 
       <OpsPanel
-        title="What the stages mean"
-        description="Set here, enforced by the control service, with no deploy in between."
+        title="What each permission means"
+        description="Set here, enforced by the control service, with no release in between."
       >
         <OpsStack gap="tight">
           <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -418,10 +421,16 @@ export function OpsAdminRolloutStagesPanel() {
               />
             ))}
           </div>
-          <ul className="space-y-1 text-xs leading-snug text-ops-faint">
+          <ul className="space-y-1 text-xs leading-snug text-subtle">
             {ROLLOUT_STAGE_ORDER.map((stage) => (
               <li key={stage}>
-                <span className={permitsCommands(stage) ? 'text-holo-glow' : 'text-ops-muted'}>
+                <span
+                  className={
+                    permitsCommands(stage)
+                      ? 'font-medium text-primary'
+                      : 'font-medium text-muted-foreground'
+                  }
+                >
                   {ROLLOUT_STAGE_LABEL[stage]}
                 </span>{' '}
                 — {ROLLOUT_STAGE_MEANING[stage]}
@@ -433,7 +442,7 @@ export function OpsAdminRolloutStagesPanel() {
 
       <OpsPanel
         title={FILTER_LABEL[filter]}
-        description="Corridors accepting commands are shown first because those are the ones whose posture is load bearing today."
+        description="Corridors that allow instructions are shown first, because those are the ones whose setting matters today."
         actions={
           <div className="flex flex-wrap items-end gap-2">
             {(Object.keys(FILTER_LABEL) as StageFilter[]).map((option) => (
@@ -454,7 +463,7 @@ export function OpsAdminRolloutStagesPanel() {
         }
         padded={false}
       >
-        <div className="border-b border-ops-line p-3">
+        <div className="border-b border-border p-3">
           <label htmlFor={searchId} className="sr-only">
             Search corridors
           </label>
@@ -474,12 +483,12 @@ export function OpsAdminRolloutStagesPanel() {
           <div className="p-4">
             <OpsEmptyState>
               {rows.length === 0
-                ? 'The control service reports no active route-directions at all.'
+                ? 'The control service reports no corridors at all.'
                 : query.trim()
                   ? 'No corridor in this view matches that search.'
                   : filter === 'commanding'
-                    ? 'No corridor currently accepts commands. Every one is held at observation or shadow, so the control service refuses every command on the network.'
-                    : 'Every corridor in the network currently accepts commands.'}
+                    ? 'No corridor allows instructions right now. Every one is set to watch only or watch and suggest, so the control service refuses every instruction across the network.'
+                    : 'Every corridor in the network currently allows instructions.'}
             </OpsEmptyState>
           </div>
         ) : (
@@ -489,8 +498,8 @@ export function OpsAdminRolloutStagesPanel() {
                 <tr className={opsTheadRowClass}>
                   <th className={opsThClass}>Corridor</th>
                   <th className={opsThClass}>Direction</th>
-                  <th className={opsThClass}>Stage</th>
-                  <th className={opsThClass}>Commands</th>
+                  <th className={opsThClass}>Permission</th>
+                  <th className={opsThClass}>Instructions</th>
                   <th className={opsThClass} />
                 </tr>
               </thead>
@@ -501,17 +510,17 @@ export function OpsAdminRolloutStagesPanel() {
                     <tr key={row.routeDirectionId} className={opsTrClass}>
                       <td className={opsTdClass}>
                         {row.publicName}
-                        <span className="ml-2 font-mono text-[11px] text-ops-faint">
+                        <OpsIdentifier className="ml-2 text-[11px] text-subtle">
                           {row.routeId}
-                        </span>
+                        </OpsIdentifier>
                       </td>
                       <td className={opsTdMutedClass}>{row.directionCode}</td>
                       <td className={opsTdClass}>{ROLLOUT_STAGE_LABEL[row.stage]}</td>
                       <td className={opsTdClass}>
                         {permitsCommands(row.stage) ? (
-                          <span className="text-holo-glow">permitted</span>
+                          <span className="font-medium text-primary">Allowed</span>
                         ) : (
-                          <span className="text-ops-muted">refused</span>
+                          <span className="text-muted-foreground">Refused</span>
                         )}
                       </td>
                       <td className={opsTdClass}>
@@ -522,14 +531,14 @@ export function OpsAdminRolloutStagesPanel() {
                             aria-expanded={open}
                             onClick={() => setOpenId(open ? null : row.routeDirectionId)}
                           >
-                            {open ? 'Close' : 'Change stage'}
+                            {open ? 'Close' : 'Change'}
                           </OpsButton>
                         </div>
                       </td>
                     </tr>,
                     open ? (
                       <tr key={`${row.routeDirectionId}-editor`} className={opsTrClass}>
-                        <td colSpan={5} className="bg-ops-raised/40 px-3 py-4">
+                        <td colSpan={5} className="bg-muted/50 px-3 py-4">
                           <StageEditor row={row} onSaved={handleSaved} />
                         </td>
                       </tr>
@@ -542,7 +551,7 @@ export function OpsAdminRolloutStagesPanel() {
         )}
 
         {filtered.length > visible.length && (
-          <div className="flex items-center justify-between gap-3 border-t border-ops-line p-3 text-xs text-ops-muted">
+          <div className="flex items-center justify-between gap-3 border-t border-border p-3 text-xs text-muted-foreground">
             <span>
               Showing {visible.length} of {filtered.length}
             </span>

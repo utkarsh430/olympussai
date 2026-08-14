@@ -1,3 +1,4 @@
+import { OpsAlert } from '@/components/ops/ui';
 import type { OpsScopeDenial } from '@/lib/ops/depotAccess';
 
 /**
@@ -19,22 +20,17 @@ import type { OpsScopeDenial } from '@/lib/ops/depotAccess';
 export function DepotNotAssignedNotice({ reason }: { reason: OpsScopeDenial }) {
   const detail =
     reason === 'depot_missing'
-      ? 'The depot recorded on your account is no longer in the depot registry, so its vehicles cannot be identified.'
-      : 'Your account has not been assigned to a depot yet.';
+      ? 'The depot on your account is no longer in the depot list, so this screen cannot tell which buses are yours.'
+      : 'Your account has not been given a depot yet.';
 
   return (
-    <section
-      role="alert"
-      className="rounded-md border border-ops-warn/40 bg-ops-warn/10 px-4 py-4 text-sm text-ops-warn"
-    >
-      <h2 className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ops-warn">
-        No depot assigned
-      </h2>
+    <OpsAlert tone="warning" title="No depot on your account">
       <p className="mb-2">{detail}</p>
-      <p className="text-ops-warn">
-        A depot dashboard shows the vehicles belonging to one depot, so there is nothing to show until
-        an administrator assigns yours. Ask an admin to set your depot, then reload this page.
+      <p>
+        This screen shows the buses belonging to one depot, so there is nothing to show until
+        somebody sets yours. Ask your administrator to set your depot, then reload this page. Your
+        sign-in is fine — this is not a password problem.
       </p>
-    </section>
+    </OpsAlert>
   );
 }

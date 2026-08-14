@@ -55,6 +55,17 @@ export interface OpsFleetMapPanelProps {
    * see OpsFleetMap's own note.
    */
   fill?: boolean;
+  /**
+   * Which basemap to paint under the fleet. Forwarded straight to OpsFleetMap,
+   * whose own note owns the reasoning.
+   *
+   * A PASSTHROUGH rather than a `useTheme()` call inside this panel, and
+   * deliberately: this component is shared with the control room, and
+   * subscribing here would flip that console's basemap as a side effect of a
+   * depot change. Each surface opts in from its own screen, which is the
+   * contract OpsFleetMap set.
+   */
+  basemapTheme?: 'dark' | 'light';
 }
 
 export function OpsFleetMapPanel({
@@ -65,6 +76,7 @@ export function OpsFleetMapPanel({
   live = false,
   minHeight,
   fill = false,
+  basemapTheme,
 }: OpsFleetMapPanelProps) {
   const feed = useOpsMapFeed({ routeDirectionId, enabled: live });
 
@@ -106,6 +118,7 @@ export function OpsFleetMapPanel({
       <OpsFleetMap
         vehicles={currentVehicles}
         overlays={overlays}
+        basemapTheme={basemapTheme}
         caption={
           vehicleCountKnown
             ? `${currentScopeLabel} · ${currentVehicles.length} ${currentVehicles.length === 1 ? 'vehicle' : 'vehicles'}`

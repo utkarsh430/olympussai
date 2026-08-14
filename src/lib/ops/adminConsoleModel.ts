@@ -24,11 +24,7 @@
  * readings are pinned.
  */
 import type { RolloutStage } from '@/models/control';
-import {
-  observed,
-  unavailable,
-  type ConsoleReading,
-} from '@/lib/ops/consoleReadings';
+import { observed, unavailable, type ConsoleReading } from '@/lib/ops/consoleReadings';
 import { ROLLOUT_STAGE_ORDER, permitsCommands } from '@/lib/ops/rolloutPosture';
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -170,33 +166,30 @@ export function buildAdminConsoleModel(facts: AdminConsoleFacts): AdminConsoleMo
       ],
     },
     {
-      label: 'Command authority',
+      label: 'Command permissions',
       tiles: [
         {
-          label: 'Corridors accepting commands',
-          unit: rollout.ok ? `of ${rollout.total} staged` : undefined,
+          label: 'Corridors that allow instructions',
+          unit: rollout.ok ? `of ${rollout.total} set` : undefined,
           reading: rollout.ok
             ? observed(
                 rollout.permittingCommands,
                 // The hint carries the caveat rather than the tile carrying a
-                // second number: a staged route-direction with no geometry is
+                // second number: a corridor with no shape in the database is
                 // still one the command gate will permit, so it belongs in the
                 // count — but an admin reading "18" must not take all eighteen
                 // for corridors anybody can see.
                 rollout.permittingWithoutGeometry
-                  ? `advisory or above — ${rollout.permittingWithoutGeometry} unmapped`
-                  : 'advisory or above',
+                  ? `${rollout.permittingWithoutGeometry} of them are not on the map`
+                  : 'each instruction still needs approval',
               )
             : unavailable('the control service did not answer'),
           tone: 'accent',
         },
         {
-          label: 'Held at detect-only',
+          label: 'Corridors set to watch only',
           reading: rollout.ok
-            ? observed(
-                rollout.byStage.observation + rollout.byStage.shadow,
-                'commands refused',
-              )
+            ? observed(rollout.byStage.observation + rollout.byStage.shadow, 'instructions refused')
             : unavailable('the control service did not answer'),
         },
       ],
@@ -205,19 +198,19 @@ export function buildAdminConsoleModel(facts: AdminConsoleFacts): AdminConsoleMo
       label: 'Network coverage',
       tiles: [
         {
-          label: 'Corridors mapped',
+          label: 'Corridors surveyed',
           reading: network.ok
-            ? observed(network.mapped, 'have geometry')
+            ? observed(network.mapped, 'have a shape in the database')
             : unavailable('the control service did not answer'),
         },
         {
-          label: 'Can detect bunching',
+          label: 'Can report buses closing up',
           unit: network.ok && network.detecting !== null ? `of ${network.mapped}` : undefined,
           reading: !network.ok
             ? unavailable('the control service did not answer')
             : network.detecting === null
-              ? unavailable('this control service does not report headway policies')
-              : observed(network.detecting, 'have a measured target headway'),
+              ? unavailable('this control service does not say which corridors have a planned gap')
+              : observed(network.detecting, 'have a planned gap set'),
         },
       ],
     },
@@ -228,9 +221,9 @@ export function buildAdminConsoleModel(facts: AdminConsoleFacts): AdminConsoleMo
     attention: attentionFrom(facts),
     coverageNotice: coverageNoticeFor(network),
     unreadable: [
-      ...(roster.ok ? [] : ['the operator roster']),
+      ...(roster.ok ? [] : ['the list of people']),
       ...(invites.ok ? [] : ['outstanding invites']),
-      ...(rollout.ok ? [] : ['rollout stages']),
+      ...(rollout.ok ? [] : ['command permissions']),
       ...(network.ok ? [] : ['corridor coverage']),
     ],
   };
@@ -253,11 +246,11 @@ function attentionFrom({ roster, invites, rollout }: AdminConsoleFacts): AdminAt
     items.push({
       id: 'depot-unassigned',
       tone: 'warning',
-      title: `${n} depot ${n === 1 ? 'operator has' : 'operators have'} no depot assigned`,
+      title: `${n} depot ${n === 1 ? 'person has' : 'people have'} no depot set`,
       detail:
-        'Their console refuses fleet data outright rather than falling back to the statewide ' +
-        'fleet, so they see nothing until an administrator assigns one. That refusal is ' +
-        'deliberate; the missing assignment is not.',
+        'Their screen refuses to show any buses at all rather than falling back to the whole ' +
+        "state's, so they see nothing until somebody sets one. That refusal is deliberate; the " +
+        'missing setting is not.',
       href: '/ops/admin/invites',
     });
   }
@@ -267,10 +260,10 @@ function attentionFrom({ roster, invites, rollout }: AdminConsoleFacts): AdminAt
     items.push({
       id: 'vehicle-unassigned',
       tone: 'warning',
-      title: `${n} ${n === 1 ? 'driver has' : 'drivers have'} no vehicle assigned`,
+      title: `${n} ${n === 1 ? 'driver has' : 'drivers have'} no bus set`,
       detail:
-        'A driver with no vehicle has no instruction stream to receive — nothing dispatched ' +
-        'will reach them. Only an administrator can set this.',
+        'A driver with no bus has nothing to receive instructions on — nothing sent from the ' +
+        'control room will reach them. Only an administrator can set this.',
       href: '/ops/admin/invites',
     });
   }
@@ -280,10 +273,10 @@ function attentionFrom({ roster, invites, rollout }: AdminConsoleFacts): AdminAt
     items.push({
       id: 'invites-expired',
       tone: 'info',
-      title: `${n} invite ${n === 1 ? 'link has' : 'links have'} expired unaccepted`,
+      title: `${n} invite ${n === 1 ? 'link has' : 'links have'} run out of time`,
       detail:
-        'The invitee cannot use the link they were sent. Resending issues a fresh token and ' +
-        'expiry; the old one stops working.',
+        'The person cannot use the link they were sent. Sending it again creates a fresh link ' +
+        'with a new expiry; the old one stops working.',
       href: '/ops/admin/invites',
     });
   }
@@ -294,25 +287,29 @@ function attentionFrom({ roster, invites, rollout }: AdminConsoleFacts): AdminAt
       tone: 'info',
       title: 'One active administrator',
       detail:
-        'Disabling or re-roling that account is refused, so the tenant cannot lock itself out — ' +
-        'but nobody else can manage people or rollout stages either.',
+        'Disabling that account, or changing its role, is refused so this system cannot lock ' +
+        'itself out — but nobody else can manage people or command permissions either.',
       href: '/ops/admin/invites',
     });
   }
 
-  if (rollout.ok && rollout.permittingWithoutGeometry !== null && rollout.permittingWithoutGeometry > 0) {
+  if (
+    rollout.ok &&
+    rollout.permittingWithoutGeometry !== null &&
+    rollout.permittingWithoutGeometry > 0
+  ) {
     const n = rollout.permittingWithoutGeometry;
     const real = rollout.permittingCommands - n;
     items.push({
       id: 'staged-without-geometry',
       tone: 'warning',
-      title: `${n} of the ${rollout.permittingCommands} corridors accepting commands have no mapped geometry`,
+      title: `${n} of the ${rollout.permittingCommands} corridors that allow instructions are not on the map`,
       detail:
-        `Only ${real} ${real === 1 ? 'is' : 'are'} a real corridor an operator can select or supervise. ` +
-        'The rest are staged route-directions with no shape in the control database — typically left ' +
-        'behind by end-to-end test runs. They are not harmless: the command gate reads their stage like ' +
-        'any other, so each one is a route-direction the system is permitted to command and nobody is ' +
-        'watching. Demote them, or have them removed from the control database.',
+        `Only ${real} ${real === 1 ? 'is' : 'are'} a real corridor anybody can open or watch. ` +
+        'The rest have no shape in the control database at all — usually left behind by test ' +
+        'runs. They are not harmless: the system reads their permission like any other, so each ' +
+        'one is a corridor instructions are allowed on and nobody is watching. Set them back to ' +
+        'watch only, or have them removed from the control database.',
       href: '/ops/admin/rollout-stages',
     });
   }
@@ -321,11 +318,11 @@ function attentionFrom({ roster, invites, rollout }: AdminConsoleFacts): AdminAt
     items.push({
       id: 'no-command-authority',
       tone: 'warning',
-      title: 'No corridor currently accepts commands',
+      title: 'No corridor allows instructions right now',
       detail:
-        'Every staged route-direction is at observation or shadow, so the control service will ' +
-        'refuse every command and record a guardrail breach for it. This is the correct posture ' +
-        'before a pilot starts and the wrong one during it.',
+        'Every corridor is set to watch only or watch and suggest, so the control service will ' +
+        'refuse every instruction and record each attempt as blocked by a safety rule. This is ' +
+        'the correct setting before a trial starts and the wrong one during it.',
       href: '/ops/admin/rollout-stages',
     });
   }
@@ -345,18 +342,18 @@ function coverageNoticeFor(network: AdminNetworkFacts): string | null {
   if (!network.ok) return null;
 
   const NETWORK_UNKNOWN =
-    'The control database holds only the corridors that have been mapped so far, so the size of the full network is not known here — this is not a whole-network view.';
+    'The control database holds only the corridors surveyed so far, so the size of the full network is not known here — this is not a view of the whole network.';
 
   if (network.mapped === 0) {
-    return `The control service reports no mapped corridors. ${NETWORK_UNKNOWN}`;
+    return `The control service reports no surveyed corridors. ${NETWORK_UNKNOWN}`;
   }
   if (network.detecting === null) {
-    return `${network.mapped} ${word(network.mapped)} have mapped geometry. This control service does not report which of them carry an active headway policy, so how many can detect bunching is unknown. ${NETWORK_UNKNOWN}`;
+    return `${network.mapped} ${word(network.mapped)} have been surveyed. This control service does not say which of them have a planned gap set, so how many can report buses closing up is unknown. ${NETWORK_UNKNOWN}`;
   }
   if (network.detecting === network.mapped) {
-    return `All ${network.mapped} mapped ${word(network.mapped)} carry a measured target headway and can report bunching. ${NETWORK_UNKNOWN}`;
+    return `All ${network.mapped} surveyed ${word(network.mapped)} have a planned gap set, so buses closing up can be reported on every one of them. ${NETWORK_UNKNOWN}`;
   }
-  return `${network.detecting} of ${network.mapped} mapped ${word(network.mapped)} carry a real measured target headway and can report bunching; the other ${network.mapped - network.detecting} carry an honest sentinel and are observation-only — they can be selected but will show nothing. ${NETWORK_UNKNOWN}`;
+  return `${network.detecting} of ${network.mapped} surveyed ${word(network.mapped)} have a planned gap set, so buses closing up can be reported there. The other ${network.mapped - network.detecting} have a placeholder target instead of a measured one — they can be opened, and they will show nothing. ${NETWORK_UNKNOWN}`;
 }
 
 function word(count: number): string {
@@ -372,9 +369,10 @@ export function emptyStageTally(): Record<RolloutStage, number> {
 }
 
 /** Tally a list of staged corridors, and count how many accept commands. */
-export function tallyStages(
-  stages: readonly RolloutStage[],
-): { byStage: Record<RolloutStage, number>; permittingCommands: number } {
+export function tallyStages(stages: readonly RolloutStage[]): {
+  byStage: Record<RolloutStage, number>;
+  permittingCommands: number;
+} {
   const byStage = emptyStageTally();
   let permittingCommands = 0;
   for (const stage of stages) {

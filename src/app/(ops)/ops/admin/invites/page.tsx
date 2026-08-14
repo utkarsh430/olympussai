@@ -22,11 +22,11 @@ export default async function OpsAdminPeoplePage() {
 
   return (
     <OpsShell
-      title="Admin · People"
+      title="People"
       email={session.email}
       role="admin"
       variant="wide"
-      subtitle="Who holds operational access, what they may do, and what they are assigned to"
+      subtitle="Who can sign in, what they are allowed to do, and which depot or bus they are set to"
     >
       <OpsAdminPeoplePanel />
     </OpsShell>

@@ -38,7 +38,8 @@ vi.mock('@/components/ops/map/OpsFleetMapPanel', () => ({
     vehicles: readonly unknown[] | null;
   }) => (
     <div data-testid="fleet-map">
-      map:{scopeLabel}:{routeDirectionId ?? 'none'}:{vehicles === null ? 'unknown' : vehicles.length}
+      map:{scopeLabel}:{routeDirectionId ?? 'none'}:
+      {vehicles === null ? 'unknown' : vehicles.length}
     </div>
   ),
 }));
@@ -100,12 +101,14 @@ function fleetSnapshot(overrides: Partial<OpsFleetSnapshot> = {}): OpsFleetSnaps
   };
 }
 
-function renderConsole(overrides: {
-  console?: DepotConsoleSnapshot;
-  fleet?: OpsFleetSnapshot;
-  incidents?: BunchingIncident[];
-  initialTab?: 'running' | 'bunching' | 'schedule' | 'standby' | 'roster' | 'reports';
-} = {}) {
+function renderConsole(
+  overrides: {
+    console?: DepotConsoleSnapshot;
+    fleet?: OpsFleetSnapshot;
+    incidents?: BunchingIncident[];
+    initialTab?: 'running' | 'bunching' | 'schedule' | 'standby' | 'roster' | 'reports';
+  } = {},
+) {
   return render(
     <DepotConsole
       email="depot1@olympuss.us"
@@ -145,7 +148,7 @@ describe('DepotConsole — the corridor picker', () => {
     expect(picker.options[1]!.textContent).toContain('1 bus');
   });
 
-  it('marks a corridor that can never report bunching BEFORE the click is spent', () => {
+  it('marks a corridor that can never report buses closing up BEFORE the click is spent', () => {
     renderConsole({
       console: consoleSnapshot({
         corridors: [
@@ -156,14 +159,17 @@ describe('DepotConsole — the corridor picker', () => {
     });
 
     const picker = screen.getByLabelText(/corridor/i) as HTMLSelectElement;
-    expect(picker.options[0]!.textContent).not.toContain('no detection');
-    expect(picker.options[1]!.textContent).toContain('no detection');
+    expect(picker.options[0]!.textContent).not.toContain('cannot report');
+    expect(picker.options[1]!.textContent).toContain('cannot report buses closing up');
   });
 
   it('changes corridor through the server rather than filtering in the browser', () => {
     renderConsole({
       console: consoleSnapshot({
-        corridors: [corridor({ routeDirectionId: 'rd-1' }), corridor({ routeDirectionId: 'rd-2', routeId: '9000' })],
+        corridors: [
+          corridor({ routeDirectionId: 'rd-1' }),
+          corridor({ routeDirectionId: 'rd-2', routeId: '9000' }),
+        ],
       }),
     });
 
@@ -173,15 +179,15 @@ describe('DepotConsole — the corridor picker', () => {
     expect(replace).toHaveBeenCalledWith('/ops/depot?routeDirectionId=rd-2', { scroll: false });
   });
 
-  it('renders no picker at all when the depot is on no mapped corridor', () => {
+  it('renders no picker at all when the depot is on no surveyed corridor', () => {
     renderConsole({ console: consoleSnapshot({ corridors: [], selectedCorridor: null }) });
     expect(screen.queryByLabelText(/corridor/i)).not.toBeInTheDocument();
-    expectText(/no mapped corridor in service/i);
+    expectText(/no surveyed corridor in service/i);
   });
 });
 
 describe('DepotConsole — an empty bunching panel always says which empty it is', () => {
-  it('says detection is OFF for an observation-only corridor, not that the corridor is clear', () => {
+  it('says this corridor CANNOT BE CHECKED, rather than that it is clear', () => {
     renderConsole({
       initialTab: 'bunching',
       console: consoleSnapshot({
@@ -190,40 +196,125 @@ describe('DepotConsole — an empty bunching panel always says which empty it is
       }),
     });
 
-    expectText(/no measured target headway/i);
+    expectText(/no planned gap has been set for it/i);
     expectText(/not a failure to reach it/i);
     // The dangerous reading, explicitly absent.
     expect(screen.queryByText(/real all-clear/i)).not.toBeInTheDocument();
   });
 
-  it('says a detecting corridor with no incident is a REAL all-clear', () => {
+  it('says a checkable corridor with nothing happening is a REAL all-clear', () => {
     renderConsole({
       initialTab: 'bunching',
       console: consoleSnapshot({ corridors: [corridor({ hasActivePolicy: true })] }),
     });
 
-    expectText(/real all-clear rather than an absence of detection/i);
+    expectText(/real all-clear rather than a corridor that cannot be checked/i);
   });
 
-  it('says the reading is UNKNOWN, not clear, when the headway read failed', () => {
+  it('says the reading is UNKNOWN, not clear, when the gap read failed', () => {
     renderConsole({
       initialTab: 'bunching',
-      console: consoleSnapshot({ corridors: [corridor({ hasActivePolicy: true })], headwayRead: false }),
+      console: consoleSnapshot({
+        corridors: [corridor({ hasActivePolicy: true })],
+        headwayRead: false,
+      }),
     });
 
     expectText(/unknown —\s*\n?\s*not clear|unknown — not clear/i);
   });
 
-  it('warns rather than informs when NONE of this depot’s corridors can detect', () => {
+  it('warns rather than informs when NONE of this depot’s corridors can be checked', () => {
     renderConsole({
       initialTab: 'bunching',
       console: consoleSnapshot({
-        corridors: [corridor({ hasActivePolicy: false }), corridor({ routeDirectionId: 'rd-2', hasActivePolicy: false })],
+        corridors: [
+          corridor({ hasActivePolicy: false }),
+          corridor({ routeDirectionId: 'rd-2', hasActivePolicy: false }),
+        ],
       }),
     });
 
     const alerts = screen.getAllByRole('alert');
-    expect(alerts.some((alert) => /observation-only/i.test(alert.textContent ?? ''))).toBe(true);
+    expect(alerts.some((alert) => /watch-only/i.test(alert.textContent ?? ''))).toBe(true);
+  });
+});
+
+describe('DepotConsole — the pairs tile tells the two silences apart', () => {
+  /**
+   * THE DEFECT: one glyph doing two jobs, in the one place the whole
+   * vocabulary exists to keep apart.
+   *
+   * The "pairs being watched" tile printed `—` for BOTH of these:
+   *
+   *   • this corridor has no planned gap, so there are no pairs to count —
+   *     which is "nothing to report", and `—` is correct;
+   *   • the gap reading was attempted and failed — which is "we could not
+   *     see", and must be `n/a`.
+   *
+   * The second one wore the first one's glyph. During an outage an operator
+   * read "nothing to report about pairs on this corridor" off a reading that
+   * had never been taken, which is exactly the substitution `-` versus `n/a`
+   * is in this product to prevent. Both branches also carried a `warn` tone,
+   * colouring a reading nobody took as a measurement that was bad.
+   */
+  function pairsTile() {
+    return screen.getByText('Pairs of buses being watched').parentElement!;
+  }
+
+  it('prints "-" when there is genuinely nothing to count', () => {
+    renderConsole({
+      console: consoleSnapshot({ corridors: [corridor({ hasActivePolicy: false })] }),
+    });
+
+    const tile = pairsTile();
+    expect(tile.textContent).toContain('—');
+    expect(tile.textContent).not.toContain('n/a');
+    expect(tile.textContent).toMatch(/no planned gap set for this corridor/i);
+    // A screen reader announces "-" as nothing at all, so the meaning is also
+    // carried in words.
+    expect(within(tile).getByText('nothing to report')).toBeInTheDocument();
+  });
+
+  it('prints "n/a" when the reading was attempted and could not be taken', () => {
+    renderConsole({
+      console: consoleSnapshot({
+        corridors: [corridor({ hasActivePolicy: true })],
+        headwayRead: false,
+      }),
+    });
+
+    const tile = pairsTile();
+    expect(tile.textContent).toContain('n/a');
+    expect(tile.textContent).not.toContain('—');
+    expect(tile.textContent).toMatch(/could not be taken/i);
+    expect(within(tile).getByText('unknown, could not be read')).toBeInTheDocument();
+  });
+
+  it('says the control service did not answer, rather than assuming no gap', () => {
+    // hasActivePolicy undefined is "we did not hear", which is not "no". The
+    // tile may not print the settled no-planned-gap sentence for it.
+    renderConsole({
+      console: consoleSnapshot({ corridors: [corridor({ hasActivePolicy: undefined })] }),
+    });
+
+    expect(pairsTile().textContent).toMatch(
+      /does not say whether this corridor has a planned gap/i,
+    );
+  });
+
+  it('counts the pairs when the reading really was taken', () => {
+    renderConsole({
+      console: consoleSnapshot({
+        corridors: [corridor({ hasActivePolicy: true })],
+        headwayRead: true,
+      }),
+    });
+
+    const tile = pairsTile();
+    expect(tile.textContent).toContain('0');
+    // A measured zero is a fact an operator may act on, and must NOT be
+    // dashed out. This is the other half of the same rule.
+    expect(tile.textContent).not.toContain('n/a');
   });
 });
 
@@ -231,7 +322,7 @@ describe('DepotConsole — what it does not claim to do', () => {
   it('states plainly that this console issues nothing, and offers no command control', () => {
     renderConsole({ initialTab: 'standby' });
 
-    expectText(/this console observes; it does not issue/i);
+    expectText(/this console watches; it does not send/i);
     // Not a disabled button, not an enabled one that would 403 — no control.
     expect(screen.queryByRole('button', { name: /issue|hold|send/i })).not.toBeInTheDocument();
   });
@@ -239,26 +330,38 @@ describe('DepotConsole — what it does not claim to do', () => {
   it('names the six instructions nothing generates, derived rather than hardcoded', () => {
     renderConsole({ initialTab: 'standby' });
 
-    expectText(/instructions that exist but that nothing proposes/i);
-    for (const label of ['Stop skip', 'Short turn', 'Deadhead', 'Boarding limit', 'Standby injection', 'Speed guidance']) {
+    expectText(/instructions that exist, but that nothing suggests/i);
+    for (const label of [
+      'Stop skip',
+      'Short turn',
+      'Deadhead',
+      'Boarding limit',
+      'Standby injection',
+      'Speed guidance',
+    ]) {
       expectText(new RegExp(label, 'i'));
     }
-    expectText(/changes no state beyond the record of having issued it/i);
+    expectText(/changes nothing except the record that it was sent/i);
   });
 
-  it('says rerouting does not exist at all, and keeps the bay & crew gap visible', () => {
+  it('says sending a bus another way does not exist, and keeps the bay & crew gap visible', () => {
     renderConsole({ initialTab: 'standby' });
 
-    expectText(/rerouting/i);
+    expectText(/sending a bus a different way/i);
     expectText(/does not exist, in any form/i);
-    expectText(/bay & crew conflicts|bay &amp; crew conflicts/i);
-    expectText(/not available yet/i);
+    expectText(/bay and crew clashes/i);
+    expectText(/not built yet/i);
+    // The schema column name and the backlog reference are gone: an operator
+    // could act on neither, and naming a database column on an admin screen
+    // is the same defect as printing a shell command on one.
+    expect(screen.queryByText(/crew_ref/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/follow-up work/i)).not.toBeInTheDocument();
   });
 
   it('lists exactly the three hold types as what the engine can reason about', () => {
     renderConsole({ initialTab: 'standby' });
 
-    expectText(/three hold types, and nothing else/i);
+    expectText(/three kinds of hold, and nothing else/i);
     expectText(/Terminal dispatch hold/i);
     expectText(/Two-way hold/i);
     expectText(/Self-equalizing hold/i);
@@ -270,14 +373,16 @@ describe('DepotConsole — the schedule', () => {
     renderConsole({ initialTab: 'schedule' });
 
     expectText(/one published time per stop/i);
-    expectText(/they are the same value, not two separate predictions/i);
+    expectText(/they are the same number, not two separate\s+predictions/i);
     expectText(/not an estimate of when the bus will actually get there/i);
   });
 });
 
 describe('DepotConsole — the shell', () => {
   it('mounts the map with this depot’s scope and its selected corridor', () => {
-    renderConsole({ console: consoleSnapshot({ corridors: [corridor({ routeDirectionId: 'rd-7' })] }) });
+    renderConsole({
+      console: consoleSnapshot({ corridors: [corridor({ routeDirectionId: 'rd-7' })] }),
+    });
 
     expect(screen.getByTestId('fleet-map')).toHaveTextContent('map:Bareilly:rd-7:0');
   });
@@ -291,13 +396,16 @@ describe('DepotConsole — the shell', () => {
     // The two are routinely far apart, and one presented as the other would
     // silently redefine "this depot's fleet" as the part the control service
     // happens to understand.
-    const buses = Array.from({ length: 40 }, (_, index) => ({ id: `bus-${index}` }) as CanonicalLiveBus);
+    const buses = Array.from(
+      { length: 40 },
+      (_, index) => ({ id: `bus-${index}` }) as CanonicalLiveBus,
+    );
     renderConsole({
       fleet: fleetSnapshot({ buses }),
       console: consoleSnapshot({ corridors: [corridor({ depotVehicleCount: 6 })] }),
     });
 
-    expectText(/on a mapped corridor/i);
+    expectText(/on a surveyed corridor/i);
     expectText(/34 on roads not yet surveyed/i);
   });
 

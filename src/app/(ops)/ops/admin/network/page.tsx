@@ -4,6 +4,7 @@ import { OpsShell } from '@/components/ops/OpsShell';
 import {
   OpsAlert,
   OpsEmptyState,
+  OpsIdentifier,
   OpsPanel,
   OpsStack,
   OpsStat,
@@ -30,9 +31,9 @@ const FILTERS = ['detecting', 'observation-only', 'all'] as const;
 type CorridorFilter = (typeof FILTERS)[number];
 
 const FILTER_LABEL: Record<CorridorFilter, string> = {
-  detecting: 'Can detect bunching',
-  'observation-only': 'Observation-only',
-  all: 'Every mapped corridor',
+  detecting: 'Can report buses closing up',
+  'observation-only': 'Watch-only',
+  all: 'Every surveyed corridor',
 };
 
 function filterFrom(value: string | undefined): CorridorFilter {
@@ -74,11 +75,11 @@ export default async function OpsAdminNetworkPage({
 
   return (
     <OpsShell
-      title="Admin · Network"
+      title="Network coverage"
       email={session.email}
       role="admin"
       variant="wide"
-      subtitle="Corridor coverage: what has been mapped, and what can actually detect"
+      subtitle="Which corridors have been surveyed, and which of those can actually report anything"
     >
       <NetworkBody filter={filter} />
     </OpsShell>
@@ -97,7 +98,7 @@ async function NetworkBody({ filter }: { filter: CorridorFilter }) {
     return (
       <OpsAlert tone="error" title="Corridor coverage could not be read">
         The control service did not answer{snapshot.error ? ` (${snapshot.error})` : ''}, so this
-        screen has no corridor list to show. Nothing about the network has changed — this console
+        screen has no corridor list to show. Nothing about the network has changed — this screen
         cannot see it. Try again shortly.
       </OpsAlert>
     );
@@ -108,65 +109,68 @@ async function NetworkBody({ filter }: { filter: CorridorFilter }) {
   const unknown = snapshot.corridors.filter((c) => c.detects === null);
 
   const shown =
-    filter === 'detecting' ? detecting : filter === 'observation-only' ? observationOnly : snapshot.corridors;
+    filter === 'detecting'
+      ? detecting
+      : filter === 'observation-only'
+        ? observationOnly
+        : snapshot.corridors;
 
   return (
     <OpsStack>
-      <OpsStatStrip className="rounded-md border border-ops-line px-4">
+      <OpsStatStrip className="rounded-md border border-border px-4">
         <OpsStat
-          label="Corridors mapped"
+          label="Corridors surveyed"
           value={snapshot.mapped}
-          hint="have geometry in the control database"
+          hint="have a shape in the control database"
         />
         <OpsStat
-          label="Can detect bunching"
+          label="Can report buses closing up"
           value={snapshot.detecting === null ? 'n/a' : snapshot.detecting}
           unit={snapshot.detecting === null ? undefined : `of ${snapshot.mapped}`}
-          tone="accent"
+          tone={snapshot.detecting === null ? 'default' : 'accent'}
           hint={
             snapshot.detecting === null
-              ? 'this control service does not report headway policies'
-              : 'carry a real measured target headway'
+              ? 'this control service does not say which corridors have a planned gap'
+              : 'have a planned gap set'
           }
         />
         <OpsStat
-          label="Observation-only"
+          label="Watch-only"
           value={snapshot.detecting === null ? 'n/a' : observationOnly.length}
-          hint="carry an honest sentinel and will report nothing"
+          hint="have a placeholder target instead of a measured one, and will report nothing"
         />
       </OpsStatStrip>
 
       <OpsAlert tone="info" title="What these two numbers are, and are not">
-        A mapped corridor has real geometry and can be selected anywhere in the console. Only a
-        corridor with a real measured target headway can compare vehicles against a schedule and
-        report bunching; the rest carry an honest sentinel instead of an invented target, so they
-        show nothing rather than something wrong. None of this network is fabricated. And{' '}
-        <span className="text-ops-ink">
-          the control database holds only the corridors mapped so far, so the size of the full
+        A surveyed corridor has a real shape and can be opened anywhere in the console. Only a
+        corridor with a planned gap set can compare buses against it and report them closing up; the
+        rest carry a placeholder target instead of an invented one, so they show nothing rather than
+        something wrong. None of this network is made up. And{' '}
+        <span className="font-medium text-foreground">
+          the control database holds only the corridors surveyed so far, so the size of the full
           network is not known here
         </span>{' '}
-        — this is not a whole-network view.
+        — this is not a view of the whole network.
       </OpsAlert>
 
       {snapshot.stagesMissing && (
         <OpsAlert tone="warning">
-          Corridor names and rollout stages come from a second read that did not answer, so those
-          two columns are blank below. The coverage counts above came from the corridor list itself
-          and are unaffected.
+          Corridor names and permissions come from a second read that did not answer, so those two
+          columns are blank below. The counts above came from the corridor list itself and are
+          unaffected.
         </OpsAlert>
       )}
 
       {unknown.length > 0 && (
         <OpsAlert tone="warning">
-          {unknown.length} of {snapshot.mapped} corridors did not say whether they carry a headway
-          policy. They are counted as neither detecting nor observation-only, because assuming
-          either would be a guess.
+          {unknown.length} of {snapshot.mapped} corridors did not say whether they have a planned
+          gap. They are counted in neither column above, because assuming either would be a guess.
         </OpsAlert>
       )}
 
       <OpsPanel
         title={FILTER_LABEL[filter]}
-        description="Observation-only is the default view: it is the list an administrator can act on."
+        description="Watch-only is the view this screen opens on, because it is the list an administrator can act on."
         actions={
           <div className="flex flex-wrap gap-2">
             {FILTERS.map((option) => (
@@ -176,8 +180,8 @@ async function NetworkBody({ filter }: { filter: CorridorFilter }) {
                 aria-current={option === filter ? 'true' : undefined}
                 className={
                   option === filter
-                    ? 'rounded border border-holo-glow/60 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-holo-glow'
-                    : 'rounded border border-ops-line-strong px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-ops-muted hover:border-holo-glow/60 hover:text-holo-glow'
+                    ? 'rounded border border-primary/60 bg-primary/10 px-3 py-1.5 text-[11px] font-medium text-primary'
+                    : 'rounded border border-border px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:border-primary/60 hover:text-primary'
                 }
               >
                 {FILTER_LABEL[option]}
@@ -191,10 +195,10 @@ async function NetworkBody({ filter }: { filter: CorridorFilter }) {
           <div className="p-4">
             <OpsEmptyState>
               {filter === 'observation-only'
-                ? 'Every mapped corridor carries a measured target headway — there are none that can only be observed.'
+                ? 'Every surveyed corridor has a planned gap set — there are none that can only be watched.'
                 : filter === 'detecting'
-                  ? 'No mapped corridor carries a measured target headway yet, so nothing on this network can report bunching.'
-                  : 'The control service reports no mapped corridors at all.'}
+                  ? 'No surveyed corridor has a planned gap set yet, so nothing on this network can report buses closing up.'
+                  : 'The control service reports no surveyed corridors at all.'}
             </OpsEmptyState>
           </div>
         ) : (
@@ -213,51 +217,48 @@ function CorridorTable({ corridors }: { corridors: readonly AdminCorridor[] }) {
           <tr className={opsTheadRowClass}>
             <th className={opsThClass}>Corridor</th>
             <th className={opsThClass}>Direction</th>
-            <th className={opsThClass}>Detection</th>
-            <th className={opsThClass}>Rollout stage</th>
-            <th className={opsThClass}>Commands</th>
+            <th className={opsThClass}>Can it report buses closing up?</th>
+            <th className={opsThClass}>Permission</th>
+            <th className={opsThClass}>Instructions</th>
           </tr>
         </thead>
         <tbody>
           {corridors.map((corridor) => {
-            // An unstaged corridor is not an unknown one: the control service
-            // treats a missing row as 'observation', which is the closed end of
-            // the scale. Rendering it as blank would hide a real posture.
+            // A corridor whose permission has never been set is not an unknown
+            // one: the control service treats a missing row as watch-only,
+            // which is the closed end of the scale. Rendering it as blank would
+            // hide a real setting.
             const stage = corridor.stage ?? DEFAULT_ROLLOUT_STAGE;
             return (
               <tr key={corridor.routeDirectionId} className={opsTrClass}>
                 <td className={opsTdClass}>
-                  {corridor.publicName ?? (
-                    <span className="text-ops-faint">unnamed</span>
-                  )}
-                  <span className="ml-2 font-mono text-[11px] text-ops-faint">
+                  {corridor.publicName ?? <span className="text-subtle">unnamed</span>}
+                  <OpsIdentifier className="ml-2 text-[11px] text-subtle">
                     {corridor.routeId}
-                  </span>
+                  </OpsIdentifier>
                 </td>
                 <td className={opsTdMutedClass}>{corridor.directionCode}</td>
                 {/* Deliberately NOT an OpsBadge. `live`/`sim`/`fixture` are
                     this product's provenance vocabulary — observed data versus
-                    modelled data — and detection capability is a different
-                    question entirely. Borrowing the green chip for it would put
-                    a second meaning on the one signal the whole console's
-                    honesty claim rests on. */}
+                    modelled data — and whether a corridor can report is a
+                    different question entirely. Borrowing the green chip for it
+                    would put a second meaning on the one signal the whole
+                    console's honesty claim rests on. */}
                 <td className={opsTdClass}>
                   {corridor.detects === true ? (
-                    <span className="text-ops-good">measured headway</span>
+                    <span className="text-success">Yes — planned gap set</span>
                   ) : corridor.detects === false ? (
-                    <span className="text-ops-muted">observation only</span>
+                    <span className="text-muted-foreground">No — watch-only</span>
                   ) : (
-                    <span className="text-ops-faint">not reported</span>
+                    <span className="text-subtle">Not reported</span>
                   )}
                 </td>
                 <td className={opsTdMutedClass}>
                   {ROLLOUT_STAGE_LABEL[stage]}
-                  {corridor.stage === null && (
-                    <span className="ml-1 text-ops-faint">(never staged)</span>
-                  )}
+                  {corridor.stage === null && <span className="ml-1 text-subtle">(never set)</span>}
                 </td>
                 <td className={opsTdMutedClass}>
-                  {permitsCommands(stage) ? 'permitted' : 'refused'}
+                  {permitsCommands(stage) ? 'Allowed' : 'Refused'}
                 </td>
               </tr>
             );

@@ -5,18 +5,21 @@ import {
   OpsAlert,
   OpsGrid,
   OpsPanel,
+  OpsReadingStat,
   OpsReadout,
   OpsSection,
   OpsStack,
-  OpsStat,
   OpsStatGroup,
   OpsStatStrip,
   opsButtonClass,
 } from '@/components/ops/ui';
-import { readingDisplay } from '@/lib/ops/consoleReadings';
 import { buildAdminConsoleModel } from '@/lib/ops/adminConsoleModel';
 import { readAdminConsoleFacts } from '@/lib/ops/adminConsoleData';
-import { ROLLOUT_STAGE_LABEL, ROLLOUT_STAGE_ORDER, permitsCommands } from '@/lib/ops/rolloutPosture';
+import {
+  ROLLOUT_STAGE_LABEL,
+  ROLLOUT_STAGE_ORDER,
+  permitsCommands,
+} from '@/lib/ops/rolloutPosture';
 import { OpsAdminRoleDriftPanel } from '@/components/ops/admin/OpsAdminRoleDriftPanel';
 
 export const dynamic = 'force-dynamic';
@@ -71,12 +74,15 @@ export default async function OpsAdminPage() {
           {model.groups.map((group) => (
             <OpsStatGroup key={group.label} label={group.label}>
               {group.tiles.map((tile) => (
-                <OpsStat
+                // `OpsReadingStat`, not `OpsStat`: every one of these comes
+                // from a source that can be down, and this primitive is what
+                // keeps an unread tile from carrying a unit or a tone that
+                // would make its `n/a` read as a measurement.
+                <OpsReadingStat
                   key={tile.label}
                   label={tile.label}
-                  value={readingDisplay(tile.reading)}
+                  reading={tile.reading}
                   unit={tile.unit}
-                  hint={tile.reading.detail}
                   tone={tile.tone}
                 />
               ))}
@@ -87,35 +93,37 @@ export default async function OpsAdminPage() {
     >
       <OpsStack>
         {model.unreadable.length > 0 && (
-          <OpsAlert tone="warning" title="Some of this console could not be read">
+          <OpsAlert tone="warning" title="Some of this screen could not be read">
             {model.unreadable.join(', ')} did not answer, so those readings show{' '}
-            <span className="font-mono">n/a</span> rather than a number. Nothing above is a
-            measured zero.
+            <span className="font-mono">n/a</span> rather than a number. Nothing above is a measured
+            zero.
           </OpsAlert>
         )}
 
         <OpsSection
-          title="Needs an administrator"
-          description="Conditions only somebody with this role can clear. An empty list is the correct state, not a missing one."
+          title="Needs you"
+          description="Things only an administrator can put right. An empty list is the correct state, not a missing one."
         >
           {model.attention.length === 0 ? (
             <OpsAlert tone="success">
-              Nothing is waiting on an administrator: every active operator has the assignments
-              their role needs, no invite has expired unaccepted, and command authority is set.
+              Nothing is waiting on you: everybody active has what their role needs, no invite has
+              run out of time, and command permissions are set.
             </OpsAlert>
           ) : (
             <OpsStack gap="tight">
               {model.attention.map((item) => (
                 <OpsAlert
                   key={item.id}
-                  tone={item.tone === 'error' ? 'error' : item.tone === 'warning' ? 'warning' : 'info'}
+                  tone={
+                    item.tone === 'error' ? 'error' : item.tone === 'warning' ? 'warning' : 'info'
+                  }
                   title={item.title}
                 >
                   <p>{item.detail}</p>
                   {item.href && (
                     <Link
                       href={item.href}
-                      className="mt-2 inline-block text-xs uppercase tracking-[0.14em] text-holo-glow underline-offset-4 hover:underline"
+                      className="mt-2 inline-block text-xs font-medium text-primary underline-offset-4 hover:underline"
                     >
                       Open the screen that fixes it
                     </Link>
@@ -126,24 +134,24 @@ export default async function OpsAdminPage() {
           )}
         </OpsSection>
 
-        <OpsSection title="Access integrity">
+        <OpsSection title="Can everybody actually sign in?">
           <OpsAdminRoleDriftPanel />
         </OpsSection>
 
         <OpsGrid columns={2}>
           <OpsPanel
-            title="Command authority by corridor"
-            description="A rollout stage is a safety posture, not a display value: observation and shadow refuse every command outright."
+            title="What each corridor is allowed to do"
+            description="This is a safety setting, not a label. A corridor set to watch only, or to watch and suggest, refuses every instruction outright."
             actions={
               <Link href="/ops/admin/rollout-stages" className={opsButtonClass('quiet')}>
-                Manage stages
+                Change permissions
               </Link>
             }
           >
             {!facts.rollout.ok ? (
               <OpsAlert tone="warning">
-                The control service did not answer, so the current posture of every corridor is
-                unknown here. It has not changed — this console simply cannot read it.
+                The control service did not answer, so what each corridor is currently allowed to do
+                is unknown here. Nothing has changed — this screen simply cannot read it.
               </OpsAlert>
             ) : (
               <OpsStack gap="tight">
@@ -163,18 +171,18 @@ export default async function OpsAdminPage() {
                     />
                   ))}
                 </div>
-                <p className="text-xs leading-relaxed text-ops-faint">
-                  Cyan stages permit commands. Every corridor at observation or shadow refuses
-                  them and records a guardrail breach for the attempt, so a corridor sitting there
-                  is not merely unmonitored — it is closed.
+                <p className="text-xs leading-relaxed text-subtle">
+                  Corridors counted in the accent colour allow instructions. A corridor set to watch
+                  only, or to watch and suggest, refuses them and records each attempt as blocked by
+                  a safety rule — so a corridor sitting there is not merely unwatched, it is closed.
                 </p>
               </OpsStack>
             )}
           </OpsPanel>
 
           <OpsPanel
-            title="What the network can detect"
-            description="Corridors with mapped geometry, and the subset carrying a real measured target headway."
+            title="What the network can report"
+            description="Corridors that have been surveyed, and the smaller number of those with a planned gap set."
             actions={
               <Link href="/ops/admin/network" className={opsButtonClass('quiet')}>
                 Corridor coverage
@@ -188,11 +196,11 @@ export default async function OpsAdminPage() {
                     means in the strip, and the only way to guarantee that is
                     for both to come from the same source health flag. */}
                 <OpsReadout
-                  label="Mapped"
+                  label="Surveyed"
                   value={facts.network.ok ? facts.network.mapped : 'n/a'}
                 />
                 <OpsReadout
-                  label="Can detect bunching"
+                  label="Can report buses closing up"
                   value={
                     facts.network.ok && facts.network.detecting !== null
                       ? facts.network.detecting
@@ -202,9 +210,9 @@ export default async function OpsAdminPage() {
                 />
               </div>
               {model.coverageNotice ? (
-                <p className="text-xs leading-relaxed text-ops-faint">{model.coverageNotice}</p>
+                <p className="text-xs leading-relaxed text-subtle">{model.coverageNotice}</p>
               ) : (
-                <p className="text-xs leading-relaxed text-ops-faint">
+                <p className="text-xs leading-relaxed text-subtle">
                   The control service did not answer, so coverage could not be counted at all.
                 </p>
               )}
@@ -213,25 +221,25 @@ export default async function OpsAdminPage() {
         </OpsGrid>
 
         <OpsPanel
-          title="Two assignments only an administrator can make"
-          description="Both fail closed by design. Read this before treating either as a broken form."
+          title="Two things only an administrator can set"
+          description="Both refuse rather than guess. Read this before treating either as a broken form."
         >
           <OpsStack gap="tight">
-            <p className="text-sm leading-relaxed text-ops-muted">
-              <span className="text-ops-ink">Depot.</span> A depot operator sees only their own
-              depot&apos;s vehicles, and the scope is applied on the server before any fleet data is
-              sent. An operator with no depot is refused outright rather than shown the statewide
-              fleet, because the fallback that looks helpful is the one that leaks 143 depots&apos;
-              vehicles to whoever was configured last.
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              <span className="font-medium text-foreground">Depot.</span> Somebody with a depot role
+              sees only their own depot&apos;s buses, and that narrowing happens on the server
+              before any bus data is sent. Someone with no depot set is refused outright rather than
+              shown the whole state&apos;s buses, because the fallback that looks helpful is the one
+              that hands 143 depots&apos; buses to whoever was set up last.
             </p>
-            <p className="text-sm leading-relaxed text-ops-muted">
-              <span className="text-ops-ink">Vehicle.</span> A driver&apos;s assigned vehicle
-              decides which instruction stream reaches them. If a driver could set their own, they
-              could redirect another vehicle&apos;s commands to their cab — so the write path is
-              admin-only, and a driver-supplied vehicle id is never trusted as a fallback.
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              <span className="font-medium text-foreground">Bus.</span> The bus set on a driver
+              decides which instructions reach them. If a driver could set their own, they could
+              send another bus&apos;s instructions to their own cab — so only an administrator can
+              set it, and a bus number sent by the driver is never trusted instead.
             </p>
             <Link href="/ops/admin/invites" className={opsButtonClass('default', 'self-start')}>
-              Manage people and assignments
+              Manage people and what they are set to
             </Link>
           </OpsStack>
         </OpsPanel>

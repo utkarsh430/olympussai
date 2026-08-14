@@ -59,7 +59,8 @@ function mount(
     vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
       if (!init || init.method === undefined) {
         if (url === '/api/ops/admin/users') return { ok: true, json: async () => users() };
-        if (url === '/api/ops/admin/invites') return { ok: true, json: async () => ({ invites: [] }) };
+        if (url === '/api/ops/admin/invites')
+          return { ok: true, json: async () => ({ invites: [] }) };
         if (url === '/api/ops/admin/depots') {
           return {
             ok: true,
@@ -145,18 +146,20 @@ describe('changing an operator’s role', () => {
     );
   });
 
-  it('offers re-applying the SAME role, because that is the documented repair', async () => {
-    // Re-assigning the role somebody already holds is not a no-op: it
-    // re-pushes the claim, and it is the fix for a sign-in whose role
+  it('offers setting the SAME role again, because that is the documented repair', async () => {
+    // Setting the role somebody already holds is not a no-op: it writes the
+    // role onto their sign-in again, and it is the fix for a sign-in that
     // disagrees with this system. A UI that greyed it out would remove the
     // only repair path.
     const { sent } = mount();
     const row = await operatorRow();
 
-    fireEvent.click(within(row).getByRole('button', { name: /^re-apply$/i }));
-    expect(within(row).getByText(/repair for a sign-in whose role disagrees/i)).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole('button', { name: /^set again$/i }));
+    expect(
+      within(row).getByText(/fix for somebody whose sign-in disagrees with this system/i),
+    ).toBeInTheDocument();
 
-    fireEvent.click(within(row).getByRole('button', { name: /^re-apply role$/i }));
+    fireEvent.click(within(row).getByRole('button', { name: /^set role again$/i }));
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(sent[0]!.body).toEqual({ role: 'dispatcher' });
   });
@@ -196,10 +199,13 @@ describe('disabling an operator', () => {
 
     fireEvent.click(within(row).getByRole('button', { name: /^disable$/i }));
 
-    expect(within(row).getByText(/every request from this account is refused/i)).toBeInTheDocument();
-    expect(within(row).getByText(/sign-in is banned/i)).toBeInTheDocument();
-    // THE HONEST HALF.
-    expect(within(row).getByText(/keeps a valid signature until it expires/i)).toBeInTheDocument();
+    expect(
+      within(row).getByText(/everything this account asks for is refused/i),
+    ).toBeInTheDocument();
+    expect(within(row).getByText(/sign-in is blocked/i)).toBeInTheDocument();
+    // THE HONEST HALF. "Access revoked immediately" is the simpler sentence
+    // and the slightly false one.
+    expect(within(row).getByText(/stays technically valid until it runs out/i)).toBeInTheDocument();
     expect(sent).toEqual([]);
   });
 
@@ -256,7 +262,8 @@ describe('inviting somebody who already has an account', () => {
           if (url === '/api/ops/admin/invites') {
             return { ok: true, json: async () => ({ invites: [] }) };
           }
-          if (url === '/api/ops/admin/depots') return { ok: true, json: async () => ({ depots: [] }) };
+          if (url === '/api/ops/admin/depots')
+            return { ok: true, json: async () => ({ depots: [] }) };
         }
         if (url === '/api/ops/admin/invites' && init?.method === 'POST') {
           return {

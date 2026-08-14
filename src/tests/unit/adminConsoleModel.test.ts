@@ -54,9 +54,9 @@ describe('the healthy overview', () => {
     const model = buildAdminConsoleModel(facts());
 
     expect(readingDisplay(tile(model, 'Active accounts').reading)).toBe('18');
-    expect(readingDisplay(tile(model, 'Corridors accepting commands').reading)).toBe('18');
-    expect(tile(model, 'Corridors accepting commands').unit).toBe('of 759 staged');
-    expect(readingDisplay(tile(model, 'Can detect bunching').reading)).toBe('198');
+    expect(readingDisplay(tile(model, 'Corridors that allow instructions').reading)).toBe('18');
+    expect(tile(model, 'Corridors that allow instructions').unit).toBe('of 759 set');
+    expect(readingDisplay(tile(model, 'Can report buses closing up').reading)).toBe('198');
     expect(model.unreadable).toEqual([]);
   });
 
@@ -67,7 +67,7 @@ describe('the healthy overview', () => {
     const model = buildAdminConsoleModel(facts());
 
     expect(model.coverageNotice).toContain('198 of 759');
-    expect(model.coverageNotice).toContain('observation-only');
+    expect(model.coverageNotice).toContain('placeholder target instead of a measured one');
     expect(model.coverageNotice).toContain('the size of the full network is not known here');
   });
 
@@ -94,7 +94,7 @@ describe('a source that did not answer', () => {
 
     expect(tile(model, 'Active accounts').reading.availability).toBe('unavailable');
     expect(readingDisplay(tile(model, 'Active accounts').reading)).toBe('n/a');
-    expect(model.unreadable).toContain('the operator roster');
+    expect(model.unreadable).toContain('the list of people');
   });
 
   it('never renders a dead control service as a locked-down network', () => {
@@ -113,11 +113,11 @@ describe('a source that did not answer', () => {
       }),
     );
 
-    expect(readingDisplay(tile(model, 'Corridors accepting commands').reading)).toBe('n/a');
-    expect(tile(model, 'Corridors accepting commands').unit).toBeUndefined();
+    expect(readingDisplay(tile(model, 'Corridors that allow instructions').reading)).toBe('n/a');
+    expect(tile(model, 'Corridors that allow instructions').unit).toBeUndefined();
     // And it must not then claim the network is dangerously wide open either.
     expect(model.attention.map((a) => a.id)).not.toContain('no-command-authority');
-    expect(model.unreadable).toContain('rollout stages');
+    expect(model.unreadable).toContain('command permissions');
   });
 
   it('stays silent about coverage it could not count', () => {
@@ -126,7 +126,7 @@ describe('a source that did not answer', () => {
     );
 
     expect(model.coverageNotice).toBeNull();
-    expect(readingDisplay(tile(model, 'Corridors mapped').reading)).toBe('n/a');
+    expect(readingDisplay(tile(model, 'Corridors surveyed').reading)).toBe('n/a');
   });
 
   it('distinguishes "this service does not report policies" from "no corridors detect"', () => {
@@ -138,8 +138,8 @@ describe('a source that did not answer', () => {
       facts({ network: { ok: true, mapped: 759, detecting: null } }),
     );
 
-    expect(readingDisplay(tile(model, 'Can detect bunching').reading)).toBe('n/a');
-    expect(model.coverageNotice).toContain('does not report which of them');
+    expect(readingDisplay(tile(model, 'Can report buses closing up').reading)).toBe('n/a');
+    expect(model.coverageNotice).toContain('does not say which of them have a planned gap');
     expect(model.coverageNotice).not.toContain('0 of 759');
   });
 });
@@ -153,8 +153,8 @@ describe('what an admin is asked to act on', () => {
     );
 
     const item = model.attention.find((a) => a.id === 'depot-unassigned');
-    expect(item?.title).toContain('3 depot operators');
-    expect(item?.detail).toMatch(/refuses fleet data/i);
+    expect(item?.title).toContain('3 depot people');
+    expect(item?.detail).toMatch(/refuses to show any buses at all/i);
     // The fail-closed posture is deliberate and must not read as the bug.
     expect(item?.detail).toMatch(/deliberate/i);
   });
@@ -165,8 +165,8 @@ describe('what an admin is asked to act on', () => {
     );
 
     const item = model.attention.find((a) => a.id === 'vehicle-unassigned');
-    expect(item?.title).toBe('1 driver has no vehicle assigned');
-    expect(item?.detail).toMatch(/instruction stream/i);
+    expect(item?.title).toBe('1 driver has no bus set');
+    expect(item?.detail).toMatch(/nothing to receive instructions on/i);
   });
 
   it('flags a network where nothing can be commanded — but only when it read one', () => {
@@ -184,13 +184,11 @@ describe('what an admin is asked to act on', () => {
 
     const item = model.attention.find((a) => a.id === 'no-command-authority');
     expect(item?.tone).toBe('warning');
-    expect(item?.detail).toMatch(/guardrail breach/i);
+    expect(item?.detail).toMatch(/blocked by a safety rule/i);
   });
 
   it('treats a lone administrator as a standing fact, not an alarm', () => {
-    const model = buildAdminConsoleModel(
-      facts({ roster: { ...facts().roster, activeAdmins: 1 } }),
-    );
+    const model = buildAdminConsoleModel(facts({ roster: { ...facts().roster, activeAdmins: 1 } }));
 
     const item = model.attention.find((a) => a.id === 'single-admin');
     expect(item?.tone).toBe('info');
@@ -247,12 +245,14 @@ describe('staged route-directions with no mapped geometry', () => {
     expect(item?.title).toContain('17 of the 18');
     expect(item?.detail).toContain('Only 1 is a real corridor');
     // Not dismissed as cosmetic: the gate reads their stage like any other.
-    expect(item?.detail).toMatch(/permitted to command and nobody is watching/i);
+    expect(item?.detail).toMatch(/instructions are allowed on and nobody is watching/i);
 
     // And the tile keeps the count while carrying the caveat, because a staged
     // route-direction with no geometry IS still one the gate will permit.
-    expect(readingDisplay(tile(model, 'Corridors accepting commands').reading)).toBe('18');
-    expect(tile(model, 'Corridors accepting commands').reading.detail).toContain('17 unmapped');
+    expect(readingDisplay(tile(model, 'Corridors that allow instructions').reading)).toBe('18');
+    expect(tile(model, 'Corridors that allow instructions').reading.detail).toContain(
+      '17 of them are not on the map',
+    );
   });
 
   it('raises nothing when every commandable corridor is mapped', () => {
@@ -269,7 +269,9 @@ describe('staged route-directions with no mapped geometry', () => {
     );
 
     expect(model.attention.map((a) => a.id)).not.toContain('staged-without-geometry');
-    expect(tile(model, 'Corridors accepting commands').reading.detail).toBe('advisory or above');
+    expect(tile(model, 'Corridors that allow instructions').reading.detail).toBe(
+      'each instruction still needs approval',
+    );
   });
 
   it('stays silent rather than claiming an all-clear it could not check', () => {
@@ -289,6 +291,8 @@ describe('staged route-directions with no mapped geometry', () => {
     );
 
     expect(model.attention.map((a) => a.id)).not.toContain('staged-without-geometry');
-    expect(tile(model, 'Corridors accepting commands').reading.detail).toBe('advisory or above');
+    expect(tile(model, 'Corridors that allow instructions').reading.detail).toBe(
+      'each instruction still needs approval',
+    );
   });
 });

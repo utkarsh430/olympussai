@@ -73,7 +73,10 @@ async function loadSnapshotReader() {
 }
 
 /** The reported operator: 195 buses reporting on the live feed. */
-const REPORTING_FLEET = Array.from({ length: 195 }, (_, i) => ({ id: `BAREILLY-${i}` }) as CanonicalLiveBus);
+const REPORTING_FLEET = Array.from(
+  { length: 195 },
+  (_, i) => ({ id: `BAREILLY-${i}` }) as CanonicalLiveBus,
+);
 
 function fleetSnapshot(): OpsFleetSnapshot {
   return {
@@ -88,7 +91,10 @@ function fleetSnapshot(): OpsFleetSnapshot {
   };
 }
 
-function renderConsole(snapshot: DepotConsoleSnapshot, initialTab: 'running' | 'bunching' = 'running') {
+function renderConsole(
+  snapshot: DepotConsoleSnapshot,
+  initialTab: 'running' | 'bunching' = 'running',
+) {
   return render(
     <DepotConsole
       email="depot1@olympuss.us"
@@ -148,7 +154,9 @@ function healthyControlService() {
     ...Array.from({ length: 725 }, (_, i) => routeDirection(`other-${i}`, false)),
   ];
   // 62 of the depot's 195 buses placed on a mapped corridor.
-  const states = Array.from({ length: 62 }, (_, i) => vehicleState(`BAREILLY-${i}`, `rd-${i % 34}`));
+  const states = Array.from({ length: 62 }, (_, i) =>
+    vehicleState(`BAREILLY-${i}`, `rd-${i % 34}`),
+  );
 
   fetchControlService.mockImplementation(async (path: string) => {
     if (path === '/v1/route-directions') return { routeDirections: statewide };
@@ -200,7 +208,7 @@ describe('the depot console when the control service was never read', () => {
     // was 759. With the count unknown there is no honest denominator to
     // print, so the clause must not appear at all — asserted whole rather
     // than as "not zero", because any number here would be invented.
-    expect(screenText()).not.toMatch(/corridors mapped statewide/);
+    expect(screenText()).not.toMatch(/corridors surveyed statewide/);
   });
 
   it('does not claim the depot’s buses are on unsurveyed roads', async () => {
@@ -216,7 +224,12 @@ describe('the depot console when the control service was never read', () => {
   it('prints n/a, not a zero, for every reading that was never taken', async () => {
     renderConsole(await coldFailedRead());
 
-    for (const label of ['On a mapped corridor', 'Corridors running', 'Can report bunching', 'Observation-only']) {
+    for (const label of [
+      'On a surveyed corridor',
+      'Corridors this depot is on',
+      'Corridors that can be checked',
+      'Watch-only',
+    ]) {
       const tile = screen.getByText(label).parentElement;
       expect(tile, `no tile rendered for "${label}"`).not.toBeNull();
       // `n/a` = unknown. `—` would say "nothing to report", which is the
@@ -236,7 +249,7 @@ describe('the depot console when the control service was never read', () => {
 
     // "Vehicles reporting 195" is measured, by a source that is up. An
     // outage on the control service must not blank it.
-    const tile = screen.getByText('Vehicles reporting').parentElement;
+    const tile = screen.getByText('Buses reporting').parentElement;
     expect(tile!.textContent).toMatch(/195/);
   });
 
@@ -247,24 +260,24 @@ describe('the depot console when the control service was never read', () => {
     // control service is "not placing any of Bareilly's vehicles on a mapped
     // corridor right now ... a gap in the mapped route network". True when
     // measured; a fabrication when nothing was read.
-    expect(screenText()).not.toMatch(/gap in the mapped route network/i);
+    expect(screenText()).not.toMatch(/gap in the survey/i);
     expect(screenText()).toMatch(/did not answer/i);
   });
 
-  it('does not tell the running-order panel the depot is on no mapped corridor', async () => {
+  it('does not tell the running-order panel the depot is on no surveyed corridor', async () => {
     renderConsole(await coldFailedRead());
 
     // Same substitution one panel over: "is not placing any of this depot's
     // vehicles on a mapped corridor right now" is a reading, and it was not
     // taken. 34 corridors were running.
-    expect(screenText()).not.toMatch(/not placing any of this depot's vehicles/i);
-    expect(screenText()).not.toMatch(/has been surveyed into the control database/i);
+    expect(screenText()).not.toMatch(/not placing any of this depot's buses/i);
+    expect(screenText()).not.toMatch(/have been surveyed into the control database/i);
     expect(screenText()).toMatch(/did not answer/i);
   });
 
   it('does not state in the shell subtitle that no corridor is in service', async () => {
     renderConsole(await coldFailedRead());
-    expect(screenText()).not.toMatch(/no mapped corridor in service/i);
+    expect(screenText()).not.toMatch(/no surveyed corridor in service/i);
   });
 });
 
@@ -278,7 +291,11 @@ describe('the depot console when a failed refresh still has a last-known-good', 
   async function staleAfterGoodRead(): Promise<DepotConsoleSnapshot> {
     const getDepotConsoleSnapshot = await loadSnapshotReader();
     healthyControlService();
-    const good = await getDepotConsoleSnapshot({ scope: BAREILLY, scopedFleet: REPORTING_FLEET, now: clock });
+    const good = await getDepotConsoleSnapshot({
+      scope: BAREILLY,
+      scopedFleet: REPORTING_FLEET,
+      now: clock,
+    });
     expect(good.stale).toBe(false);
     expect(good.mappedCorridorCount).toBe(759);
 
@@ -297,14 +314,16 @@ describe('the depot console when a failed refresh still has a last-known-good', 
     renderConsole(snapshot);
 
     const text = screenText();
-    expect(text).toMatch(/759 corridors mapped statewide/);
+    expect(text).toMatch(/759 corridors surveyed statewide/);
     expect(text).toMatch(/133 on roads not yet surveyed/); // 195 reporting - 62 placed
-    expect(screen.getByText('Corridors running').parentElement!.textContent).toMatch(/34/);
-    expect(screen.getByText('Can report bunching').parentElement!.textContent).toMatch(/14/);
+    expect(screen.getByText('Corridors this depot is on').parentElement!.textContent).toMatch(/34/);
+    expect(screen.getByText('Corridors that can be checked').parentElement!.textContent).toMatch(
+      /14/,
+    );
   });
 
   it('labels them as stale rather than presenting them as current', async () => {
     renderConsole(await staleAfterGoodRead());
-    expect(screenText()).toMatch(/corridors stale/i);
+    expect(screenText()).toMatch(/corridors out of date/i);
   });
 });

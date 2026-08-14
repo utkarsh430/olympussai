@@ -70,12 +70,15 @@ export const OPS_NAV: Record<OpsRole, readonly OpsNavItem[]> = {
   pilot_driver: [{ href: '/ops/pilot-driver', label: 'Commands' }],
   admin: [
     { href: '/ops/admin', label: 'Overview' },
-    // The URL still says "invites" because that is where the screen started
-    // and a live console's addresses are not worth churning; the screen itself
-    // is the whole people surface — roster, roles, assignments and invites.
+    // The URLs still say "invites" and "rollout-stages" because that is where
+    // those screens started and a live console's addresses are not worth
+    // churning; the labels say what an administrator is actually going there
+    // to do. "Rollout stage" in particular is a pilot-programme word for the
+    // setting that decides whether an instruction can reach a driver at all,
+    // which is not a thing anybody should have to translate.
     { href: '/ops/admin/invites', label: 'People' },
-    { href: '/ops/admin/rollout-stages', label: 'Rollout stages' },
-    { href: '/ops/admin/network', label: 'Network' },
+    { href: '/ops/admin/rollout-stages', label: 'Command permissions' },
+    { href: '/ops/admin/network', label: 'Network coverage' },
   ],
 };
 

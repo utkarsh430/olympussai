@@ -15,6 +15,7 @@ import type { OpsMapVehicle } from '@/lib/ops/mapVehicles';
 import type { BunchingIncident } from '@/models/control';
 import type { StandbyCandidate } from '@/lib/ops/fleetView';
 import { depotCorridorLabel, corridorDetection } from '@/lib/ops/depotCorridors';
+import { useTheme } from '@/components/theme/ThemeProvider';
 import { DepotStatusStrip } from './DepotStatusStrip';
 import { DepotRunningOrderPanel } from './DepotRunningOrderPanel';
 import { DepotBunchingPanel } from './DepotBunchingPanel';
@@ -103,6 +104,12 @@ export function DepotConsole({
   const [tab, setTab] = useState<DepotTabId>(initialTab);
   const router = useRouter();
   const searchParams = useSearchParams();
+  // The basemap is a JS style array, not CSS, so it cannot follow the theme
+  // through a class the way every other surface here does. OpsFleetMap takes
+  // it as an opt-in prop precisely so one console moving does not move the
+  // others; this is the depot opting in. Without it a light depot console
+  // renders over a black map.
+  const { resolved: basemapTheme } = useTheme();
 
   const selectCorridor = useCallback(
     (routeDirectionId: string) => {
@@ -133,16 +140,14 @@ export function DepotConsole({
       subtitle={
         selected
           ? `${depotLabel} · corridor ${depotCorridorLabel(selected)}`
-          : // "no mapped corridor in service" is a reading. With nothing read
+          : // "no surveyed corridor in service" is a reading. With nothing read
             // it would be the strip's fabricated zeros restated as a sentence,
             // in the one place on the page an operator reads first.
             readingsUnavailable
-            ? `${depotLabel} · corridor readings unavailable`
-            : `${depotLabel} · no mapped corridor in service`
+            ? `${depotLabel} · corridor readings could not be taken`
+            : `${depotLabel} · no surveyed corridor in service`
       }
-      actions={
-        <CorridorPicker snapshot={snapshot} onSelect={selectCorridor} />
-      }
+      actions={<CorridorPicker snapshot={snapshot} onSelect={selectCorridor} />}
       statusStrip={<DepotStatusStrip fleet={fleet} console={snapshot} depotLabel={depotLabel} />}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:flex-row lg:overflow-hidden">
@@ -162,6 +167,7 @@ export function DepotConsole({
             live
             fill
             minHeight="24rem"
+            basemapTheme={basemapTheme}
           />
         </section>
 
@@ -170,7 +176,7 @@ export function DepotConsole({
           className="flex min-h-0 w-full flex-col lg:w-[30rem] lg:shrink-0 xl:w-[34rem]"
         >
           <nav aria-label="Depot console sections" className="shrink-0">
-            <ul className="flex flex-wrap gap-1 border-b border-ops-line pb-2">
+            <ul className="flex flex-wrap gap-1 border-b border-border pb-2">
               {DEPOT_TAB_ORDER.map((id) => {
                 const isCurrent = id === tab;
                 const badge = badges[id];
@@ -181,14 +187,19 @@ export function DepotConsole({
                       aria-current={isCurrent ? 'true' : undefined}
                       data-testid={`depot-tab-${id}`}
                       onClick={() => setTab(id)}
-                      className={`ops-nav-link rounded px-2 py-1.5 text-[10px] tracking-[0.1em] ${
+                      // `whitespace-nowrap` plus tight padding so all six
+                      // sections fit one row of the rail at xl. They wrapped
+                      // before, orphaning a single tab onto a second line —
+                      // which reads as a layout fault rather than as a rail.
+                      className={`ops-nav-link whitespace-nowrap rounded px-1.5 py-1.5 text-[10px] tracking-[0.08em] ${
                         isCurrent ? 'ops-nav-link-active' : ''
                       }`}
                     >
                       {DEPOT_TAB_LABEL[id]}
                       {badge !== undefined && badge > 0 && (
-                        <span className="ml-1.5 rounded bg-alert-crimson/20 px-1.5 py-0.5 font-mono text-[10px] text-ops-danger">
+                        <span className="ml-1 rounded bg-instrument-danger/15 px-1 py-0.5 text-[10px] tabular-nums text-destructive">
                           {badge}
+                          <span className="sr-only"> happening now</span>
                         </span>
                       )}
                     </button>
@@ -213,23 +224,28 @@ export function DepotConsole({
               {readingsUnavailable ? (
                 <OpsAlert tone="warning">
                   The control service did not answer
-                  {snapshot.error ? ` (${snapshot.error})` : ''}, and no earlier reading is held. Every corridor
-                  reading on this page is marked <span className="font-mono">n/a</span> — unknown, not zero. Nothing
-                  here says this depot has anything or nothing running.
+                  {snapshot.error ? ` (${snapshot.error})` : ''}, and no earlier reading is held.
+                  Every corridor reading on this page is marked{' '}
+                  <span className="font-mono">n/a</span> — unknown, not zero. Nothing here says this
+                  depot has anything or nothing running.
                 </OpsAlert>
               ) : (
                 snapshot.source === 'unavailable' && (
                   <OpsAlert tone="warning">
                     The control service could not be read
-                    {snapshot.error ? ` (${snapshot.error})` : ''}. The corridor readings below are the last ones
-                    that were taken, not current ones.
+                    {snapshot.error ? ` (${snapshot.error})` : ''}. The corridor readings below are
+                    the last ones that were taken, not current ones.
                   </OpsAlert>
                 )
               )}
 
               {tab === 'running' && <DepotRunningOrderPanel snapshot={snapshot} />}
               {tab === 'bunching' && (
-                <DepotBunchingPanel snapshot={snapshot} incidents={incidents} depotLabel={depotLabel} />
+                <DepotBunchingPanel
+                  snapshot={snapshot}
+                  incidents={incidents}
+                  depotLabel={depotLabel}
+                />
               )}
               {tab === 'schedule' && <DepotSchedulePanel />}
               {tab === 'standby' && (
@@ -249,13 +265,18 @@ export function DepotConsole({
 }
 
 /**
- * The corridor selector, offering only the corridors this depot is running.
+ * The corridor selector, offering only the corridors this depot is on.
  *
  * Marked BEFORE the choice, not after — the same decision the control room's
- * picker made and for the same reason: a corridor with no measured target
- * headway can be watched and will report nothing, and a picker that offers it
+ * picker made and for the same reason: a corridor with no planned gap can be
+ * watched and will report nothing, and a picker that offers it
  * indistinguishably spends the operator's click before explaining that. Here
  * the marking matters more, because on many depots EVERY option carries it.
+ *
+ * The three detection states get three different marks rather than two. A
+ * corridor the control service says nothing about is not the same as one it
+ * says cannot be checked, and collapsing them would make the picker state a
+ * fact nobody established.
  */
 function CorridorPicker({
   snapshot,
@@ -273,17 +294,24 @@ function CorridorPicker({
       </label>
       <select
         id="depot-corridor"
-        className="ops-input max-w-[18rem] py-1 text-xs"
+        className="ops-input max-w-[22rem] py-1 text-xs"
         value={snapshot.selectedCorridor?.routeDirectionId ?? ''}
         onChange={(event) => onSelect(event.target.value)}
       >
-        {snapshot.corridors.map((corridor) => (
-          <option key={corridor.routeDirectionId} value={corridor.routeDirectionId}>
-            {depotCorridorLabel(corridor)} · {corridor.depotVehicleCount}{' '}
-            {corridor.depotVehicleCount === 1 ? 'bus' : 'buses'}
-            {corridorDetection(corridor) === 'observation-only' ? ' — no detection' : ''}
-          </option>
-        ))}
+        {snapshot.corridors.map((corridor) => {
+          const detection = corridorDetection(corridor);
+          return (
+            <option key={corridor.routeDirectionId} value={corridor.routeDirectionId}>
+              {depotCorridorLabel(corridor)} · {corridor.depotVehicleCount}{' '}
+              {corridor.depotVehicleCount === 1 ? 'bus' : 'buses'}
+              {detection === 'observation-only'
+                ? ' — cannot report buses closing up'
+                : detection === 'unknown'
+                  ? ' — not known whether it can report'
+                  : ''}
+            </option>
+          );
+        })}
       </select>
     </div>
   );

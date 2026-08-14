@@ -28,16 +28,17 @@ export function DepotSchedulePanel() {
   return (
     <OpsStack gap="tight">
       <OpsAlert tone="info" title="One published time per stop.">
-        The upstream timetable publishes a single time for each stop, and this system stores it as both the scheduled
-        arrival and the scheduled departure — they are the same value, not two separate predictions, so only one is
-        shown. It is a published timetable time, not an estimate of when the bus will actually get there.
+        The timetable gives a single time for each stop, and this system stores that one time as
+        both the arrival and the departure — they are the same number, not two separate predictions,
+        so only one is shown. It is a published timetable time, not an estimate of when the bus will
+        actually get there.
       </OpsAlert>
 
       <OpsSection
-        title="Vehicle schedule"
-        description="Look up any vehicle by registration to see the stop list for the journey it is running today."
+        title="Timetable for one bus"
+        description="Look up any bus by its number plate to see the stops for the journey it is running today."
       >
-        <ScheduleLookupForm title="Look up a vehicle's stop list" />
+        <ScheduleLookupForm title="Look up a bus's stops" />
       </OpsSection>
     </OpsStack>
   );

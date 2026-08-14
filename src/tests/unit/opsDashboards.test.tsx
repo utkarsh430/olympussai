@@ -1085,7 +1085,9 @@ describe('OpsAdminPeoplePanel vehicle and depot assignment', () => {
     const dispatcherRow = (await screen.findByText('Dispatcher One')).closest('tr')!;
     expect(within(dispatcherRow).getAllByText('—')).toHaveLength(2);
     expect(within(dispatcherRow).queryByLabelText(/assign vehicle/i)).not.toBeInTheDocument();
-    expect(within(dispatcherRow).queryByLabelText(/assign depot/i)).not.toBeInTheDocument();
+    expect(
+      within(dispatcherRow).queryByLabelText(/depot for this person/i),
+    ).not.toBeInTheDocument();
   });
 
   it('offers a depot picker only for depot-role rows, preselected to the current assignment', async () => {
@@ -1095,10 +1097,10 @@ describe('OpsAdminPeoplePanel vehicle and depot assignment', () => {
     );
     render(<OpsAdminPeoplePanel />);
 
-    const select = (await screen.findByLabelText(/assign depot/i)) as HTMLSelectElement;
+    const select = (await screen.findByLabelText(/depot for this person/i)) as HTMLSelectElement;
     expect(select.value).toBe(DEPOT_BAREILLY_ID);
     // One picker in the whole table: only the depot-role row gets one.
-    expect(screen.getAllByLabelText(/assign depot/i)).toHaveLength(1);
+    expect(screen.getAllByLabelText(/depot for this person/i)).toHaveLength(1);
   });
 
   it('posts the chosen depot id to POST /api/ops/admin/users/:id/depot', async () => {
@@ -1113,7 +1115,7 @@ describe('OpsAdminPeoplePanel vehicle and depot assignment', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<OpsAdminPeoplePanel />);
 
-    const select = await screen.findByLabelText(/assign depot/i);
+    const select = await screen.findByLabelText(/depot for this person/i);
     fireEvent.change(select, { target: { value: DEPOT_LUCKNOW_ID } });
 
     await waitFor(() => expect(seen).toEqual([{ depotId: DEPOT_LUCKNOW_ID }]));
@@ -1137,7 +1139,9 @@ describe('OpsAdminPeoplePanel vehicle and depot assignment', () => {
     );
     render(<OpsAdminPeoplePanel />);
 
-    fireEvent.change(await screen.findByLabelText(/assign depot/i), { target: { value: '' } });
+    fireEvent.change(await screen.findByLabelText(/depot for this person/i), {
+      target: { value: '' },
+    });
     await waitFor(() => expect(seen).toEqual([{ depotId: null }]));
   });
 
@@ -1154,7 +1158,7 @@ describe('OpsAdminPeoplePanel vehicle and depot assignment', () => {
     );
     render(<OpsAdminPeoplePanel />);
 
-    fireEvent.change(await screen.findByLabelText(/assign depot/i), {
+    fireEvent.change(await screen.findByLabelText(/depot for this person/i), {
       target: { value: DEPOT_LUCKNOW_ID },
     });
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Depot not found.'));
@@ -1171,7 +1175,7 @@ describe('OpsAdminPeoplePanel vehicle and depot assignment', () => {
 
     const input = await screen.findByDisplayValue('UP25FT4823');
     fireEvent.change(input, { target: { value: 'UP25FT9999' } });
-    fireEvent.click(screen.getByRole('button', { name: /assign/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^set$/i }));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saved'));
     expect(fetchMock).toHaveBeenCalledWith(
@@ -1191,7 +1195,7 @@ describe('OpsAdminPeoplePanel vehicle and depot assignment', () => {
 
     const input = await screen.findByDisplayValue('UP25FT4823');
     fireEvent.change(input, { target: { value: '' } });
-    fireEvent.click(screen.getByRole('button', { name: /assign/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^set$/i }));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saved'));
   });
@@ -1207,7 +1211,7 @@ describe('OpsAdminPeoplePanel vehicle and depot assignment', () => {
 
     const input = await screen.findByDisplayValue('UP25FT4823');
     fireEvent.change(input, { target: { value: 'UP25FT9999' } });
-    fireEvent.click(screen.getByRole('button', { name: /assign/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^set$/i }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('User not found.'));
   });

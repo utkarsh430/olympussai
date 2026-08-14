@@ -67,14 +67,18 @@ export interface DepotCorridor {
 /** What a corridor can say, as one word. */
 export type CorridorDetection = 'detecting' | 'observation-only' | 'unknown';
 
-export function corridorDetection(corridor: Pick<DepotCorridor, 'hasActivePolicy'>): CorridorDetection {
+export function corridorDetection(
+  corridor: Pick<DepotCorridor, 'hasActivePolicy'>,
+): CorridorDetection {
   if (corridor.hasActivePolicy === true) return 'detecting';
   if (corridor.hasActivePolicy === false) return 'observation-only';
   return 'unknown';
 }
 
 /** `1348 · OUT (loop)` — the corridor as an operator reads it in a picker. */
-export function depotCorridorLabel(corridor: Pick<DepotCorridor, 'routeId' | 'directionCode' | 'isLoop'>): string {
+export function depotCorridorLabel(
+  corridor: Pick<DepotCorridor, 'routeId' | 'directionCode' | 'isLoop'>,
+): string {
   return `${corridor.routeId} · ${corridor.directionCode}${corridor.isLoop ? ' (loop)' : ''}`;
 }
 
@@ -135,8 +139,30 @@ export function deriveDepotCorridors(
  * is not a security check (see the header) — it is that the alternative is a
  * console showing an empty running order and a blank headway table for a road
  * none of this depot's buses are on, with nothing on screen explaining why. A
- * stale bookmark therefore degrades to the depot's busiest corridor instead of
- * to an empty screen.
+ * stale bookmark therefore degrades to a real corridor instead of to an empty
+ * screen.
+ *
+ * ─── WHY BUSIEST IS THE WRONG DEFAULT ON ITS OWN ─────────────────────────
+ *
+ * It was, and the cost was measured on the live console: KAUSHAMBI's busiest
+ * corridor is watch-only, so the depot opened every shift on a screen where
+ * the whole bunching panel was a paragraph explaining why there was nothing in
+ * it. The first thing a new operator saw was an apology.
+ *
+ * 561 of the 759 mapped corridors carry no planned gap, so this is the common
+ * case rather than an edge one. Opening on the busiest corridor that can
+ * actually report something puts a working screen in front of the operator,
+ * and the picker still offers every corridor with its own marking — nothing is
+ * hidden, and the count on each option means the operator can see immediately
+ * that a busier one exists.
+ *
+ * The fallback is deliberately the plain busiest corridor rather than nothing:
+ * a depot where NO corridor can detect must still show its running order, its
+ * roster and its map, with the panels saying in words why bunching is blank.
+ * Skipping straight to "nothing to show" would be the same lie by omission.
+ *
+ * A corridor whose detection state is UNKNOWN is not preferred and not
+ * excluded. Preferring it would be treating "we did not hear" as "yes".
  */
 export function selectDepotCorridor(
   corridors: readonly DepotCorridor[],
@@ -146,7 +172,9 @@ export function selectDepotCorridor(
     const requested = corridors.find((c) => c.routeDirectionId === requestedRouteDirectionId);
     if (requested) return requested;
   }
-  return corridors[0] ?? null;
+  // `corridors` is already ordered busiest-first and the order is total, so the
+  // first detecting entry is the busiest detecting one without a second sort.
+  return corridors.find((c) => corridorDetection(c) === 'detecting') ?? corridors[0] ?? null;
 }
 
 /** How much of what this depot is running can actually detect bunching. */
@@ -161,8 +189,15 @@ export interface DepotDetectionCoverage {
   unknown: number;
 }
 
-export function depotDetectionCoverage(corridors: readonly DepotCorridor[]): DepotDetectionCoverage {
-  const coverage: DepotDetectionCoverage = { running: corridors.length, detecting: 0, observationOnly: 0, unknown: 0 };
+export function depotDetectionCoverage(
+  corridors: readonly DepotCorridor[],
+): DepotDetectionCoverage {
+  const coverage: DepotDetectionCoverage = {
+    running: corridors.length,
+    detecting: 0,
+    observationOnly: 0,
+    unknown: 0,
+  };
   for (const corridor of corridors) {
     switch (corridorDetection(corridor)) {
       case 'detecting':
@@ -199,23 +234,30 @@ export function describeDepotDetectionCoverage(
   const { running, detecting, observationOnly, unknown } = coverage;
 
   if (running === 0) {
-    return `The control service is not placing any of ${depotLabel}'s vehicles on a mapped corridor right now, so there is no corridor here to detect bunching on. That is a gap in the mapped route network, not a quiet depot — only part of the state has been surveyed into the control database.`;
+    return `None of ${depotLabel}'s buses is on a surveyed corridor right now, so there is nothing here to check for buses closing up. That is a gap in the survey, not a quiet depot — only part of the state's roads have been surveyed into the control database.`;
   }
 
   const unknownClause =
     unknown === 0
       ? ''
-      : ` The control service does not report a policy state for ${unknown} of them, so whether ${unknown === 1 ? 'that one' : 'those'} can detect is unknown rather than no.`;
+      : ` The control service does not say whether ${unknown} of them ${unknown === 1 ? 'has' : 'have'} a planned gap, so whether ${unknown === 1 ? 'that one' : 'those'} can be checked is unknown, not no.`;
 
   if (detecting === 0 && observationOnly === running) {
-    return `None of the ${running} ${corridorWord(running)} ${depotLabel} is running carries a measured target headway, so all of them are observation-only: their buses can be watched here and no bunching can be reported on them, ever. An empty bunching panel on this depot is that fact, not a quiet corridor.`;
+    return `None of the ${running} ${corridorWord(running)} ${depotLabel} is on has a planned gap set, so all of them are watch-only: you can see the buses here, and nothing will ever be reported about them closing up. An empty panel on this depot is that fact, not a quiet night.`;
   }
 
   if (detecting === running) {
-    return `All ${running} ${corridorWord(running)} ${depotLabel} is running carry a measured target headway and can report bunching.`;
+    return `All ${running} ${corridorWord(running)} ${depotLabel} is on have a planned gap set, so buses closing up can be reported on every one of them.`;
   }
 
-  return `${detecting} of the ${running} ${corridorWord(running)} ${depotLabel} is running ${detecting === 1 ? 'carries' : 'carry'} a measured target headway and can report bunching; the ${observationOnly} ${corridorWord(observationOnly)} marked observation-only ${observationOnly === 1 ? 'is' : 'are'} mapped but carry no measured target, so nothing will ever be raised on ${observationOnly === 1 ? 'it' : 'them'}.${unknownClause}`;
+  const watchOnlyClause =
+    observationOnly === 0
+      ? ''
+      : observationOnly === 1
+        ? ' The other one is surveyed but has no planned gap set, so it is watch-only and nothing will ever be raised on it.'
+        : ` The other ${observationOnly} ${corridorWord(observationOnly)} are surveyed but have no planned gap set, so they are watch-only and nothing will ever be raised on them.`;
+
+  return `${detecting} of the ${running} ${corridorWord(running)} ${depotLabel} is on ${detecting === 1 ? 'has' : 'have'} a planned gap set, so buses closing up can be reported there.${watchOnlyClause}${unknownClause}`;
 }
 
 /**
@@ -230,8 +272,8 @@ export function describeCorridorObservationOnly(corridor: DepotCorridor): string
     case 'detecting':
       return null;
     case 'observation-only':
-      return `${depotCorridorLabel(corridor)} is mapped but carries no measured target headway, so bunching detection does not run on it. There are no headway readings to show and no incident can be raised here — this is the control service reporting its own configuration, not a failure to reach it.`;
+      return `${depotCorridorLabel(corridor)} is surveyed, but no planned gap has been set for it, so buses closing up cannot be checked here. There are no gap readings to show and nothing can be raised on this corridor — this is the control service reporting its own settings, not a failure to reach it.`;
     case 'unknown':
-      return `This control service does not report whether ${depotCorridorLabel(corridor)} has an active headway policy, so whether bunching detection runs on it is unknown. Any absence of readings below cannot be read as a quiet corridor.`;
+      return `The control service does not say whether ${depotCorridorLabel(corridor)} has a planned gap set, so whether buses closing up can be checked here is unknown. An empty panel below cannot be read as a quiet corridor.`;
   }
 }

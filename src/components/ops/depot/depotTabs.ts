@@ -9,17 +9,34 @@
  * typecheck, lint, build and unit tests all pass. `pnpm check:client-boundary`
  * is the check that catches it; keeping this file plain is what makes it pass.
  */
-export const DEPOT_TAB_ORDER = ['running', 'bunching', 'schedule', 'standby', 'roster', 'reports'] as const;
+export const DEPOT_TAB_ORDER = [
+  'running',
+  'bunching',
+  'schedule',
+  'standby',
+  'roster',
+  'reports',
+] as const;
 
 export type DepotTabId = (typeof DEPOT_TAB_ORDER)[number];
 
+/**
+ * The rail's words.
+ *
+ * The ids are URL surface and stay put — a depot supervisor's bookmark to
+ * `?tab=bunching` keeps working — while the labels say what the section is
+ * about. "Bunching" is the one that mattered: it is this industry's word for
+ * buses closing up on each other, and it is not a word a reader outside the
+ * industry can guess from. "Standby" and "Roster" go the same way; each is a
+ * noun the screen never explains.
+ */
 export const DEPOT_TAB_LABEL: Record<DepotTabId, string> = {
   running: 'Running order',
-  bunching: 'Bunching',
-  schedule: 'Schedule',
-  standby: 'Standby',
-  roster: 'Roster',
-  reports: 'Reports',
+  bunching: 'Buses closing up',
+  schedule: 'Timetable',
+  standby: 'Buses free',
+  roster: 'All buses',
+  reports: 'Breakdowns',
 };
 
 export function isDepotTab(value: string | undefined): value is DepotTabId {

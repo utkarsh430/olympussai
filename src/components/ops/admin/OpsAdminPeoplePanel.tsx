@@ -95,30 +95,47 @@ interface OpsInviteSummary {
 const INVITABLE_ROLES: OpsRole[] = [...OPERATIONAL_ROLES, 'admin'];
 
 const INVITE_STATUS_LABEL: Record<OpsInviteStatus, string> = {
-  pending: 'Pending',
-  expired: 'Expired',
-  accepted: 'Accepted',
-  revoked: 'Revoked',
+  pending: 'Waiting to be used',
+  expired: 'Ran out of time',
+  accepted: 'Used',
+  revoked: 'Cancelled',
 };
 
 /**
- * Invite status as an ops ink token rather than a literal hex.
+ * Invite status as a semantic token rather than a literal hex.
  *
  * The old panel applied hard-coded hexes through `style` because the value was
  * data-driven and Tailwind cannot see a class name it never literally
  * contains. A lookup table of literal class strings solves the same problem
- * without a second copy of the palette to keep in step — every one of these is
- * in the source (tailwind.config.ts) and therefore compiled.
+ * without a second copy of the palette to keep in step — and on semantic
+ * tokens each one is legible in both themes rather than only the dark one.
  */
 const INVITE_STATUS_CLASS: Record<OpsInviteStatus, string> = {
-  pending: 'text-holo-glow',
-  expired: 'text-ops-warn',
-  accepted: 'text-ops-good',
-  revoked: 'text-ops-danger',
+  pending: 'text-primary',
+  expired: 'text-warning',
+  accepted: 'text-success',
+  revoked: 'text-muted-foreground',
+};
+
+/**
+ * A role, as it is spoken.
+ *
+ * `pilot_driver` was reaching the screen as "pilot driver" and `control_room`
+ * as "control room", which is the wire value with its underscore taken out.
+ * Two of the seven needed more than that to be a phrase anybody would say.
+ */
+const ROLE_LABEL: Record<OpsRole, string> = {
+  control_room: 'Control room',
+  dispatcher: 'Dispatcher',
+  depot: 'Depot',
+  planner: 'Planner',
+  driver: 'Driver',
+  pilot_driver: 'Driver (trial)',
+  admin: 'Administrator',
 };
 
 function roleLabel(role: OpsRole): string {
-  return role.replace('_', ' ');
+  return ROLE_LABEL[role] ?? role.replace(/_/g, ' ');
 }
 
 function formatWhen(iso: string): string {
@@ -194,13 +211,13 @@ function RoleAssignmentCell({
       onAssigned(user.id, data.role);
       setOutcome(
         data.requiresReauth
-          ? 'Role changed. They stay signed out of the console until they sign in again.'
+          ? 'Role changed. They cannot get back in until they sign in again.'
           : data.claimWritten
-            ? 'Role re-applied to their sign-in.'
-            : 'Role saved. This account has no linked sign-in, so there was no second store to write.',
+            ? 'Role written to their sign-in again.'
+            : 'Role saved. This account has no sign-in linked to it, so there was nothing else to write.',
       );
     } catch {
-      setError('Something went wrong. The role was not changed.');
+      setError('Something went wrong. The role was not changed. Try again.');
     } finally {
       setBusy(false);
     }
@@ -240,22 +257,22 @@ function RoleAssignmentCell({
               setError(null);
             }}
           >
-            {repair ? 'Re-apply' : 'Change'}
+            {repair ? 'Set again' : 'Change'}
           </OpsButton>
         )}
       </div>
 
       {confirming && (
-        <div className="rounded border border-alert-amber/40 bg-alert-amber/5 p-2 text-[11px] leading-snug text-ops-muted">
-          <p className="text-ops-ink">
+        <div className="rounded border border-instrument-warning/50 bg-instrument-warning/10 p-2 text-[11px] leading-snug text-muted-foreground">
+          <p className="font-medium text-foreground">
             {repair
-              ? `Re-apply ${roleLabel(user.role)} to ${user.email}?`
+              ? `Set ${user.email} to ${roleLabel(user.role)} again?`
               : `Move ${user.email} from ${roleLabel(user.role)} to ${roleLabel(value)}?`}
           </p>
           <p className="mt-1">
             {repair
-              ? 'This re-writes the role onto their sign-in. It is the repair for a sign-in whose role disagrees with this system.'
-              : 'This writes both this system and their sign-in, or neither. Their current session stops working immediately and they must sign in again to get back in.'}
+              ? 'This writes the role onto their sign-in again. It is the fix for somebody whose sign-in disagrees with this system about their role.'
+              : 'This writes both this system and their sign-in, or neither — never one without the other. They are signed out straight away and must sign in again to get back in, even if they are part way through a shift.'}
           </p>
           <div className="mt-2 flex gap-2">
             <OpsButton
@@ -264,7 +281,7 @@ function RoleAssignmentCell({
               disabled={busy}
               onClick={() => void apply()}
             >
-              {busy ? 'Applying…' : repair ? 'Re-apply role' : 'Change role'}
+              {busy ? 'Applying…' : repair ? 'Set role again' : 'Change role'}
             </OpsButton>
             <OpsButton
               variant="quiet"
@@ -282,12 +299,12 @@ function RoleAssignmentCell({
       )}
 
       {outcome && !error && (
-        <p role="status" className="text-[11px] leading-snug text-ops-good">
+        <p role="status" className="text-[11px] leading-snug text-success">
           {outcome}
         </p>
       )}
       {error && (
-        <p role="alert" className="text-[11px] leading-snug text-ops-danger">
+        <p role="alert" className="text-[11px] leading-snug text-destructive">
           {error}
         </p>
       )}
@@ -330,18 +347,18 @@ function VehicleAssignmentCell({
         body: JSON.stringify({ vehicleId: trimmed === '' ? null : trimmed }),
       });
       const data = (await response.json().catch(() => null)) as
-        | { ok: true; vehicleId: string | null }
-        | { error?: { message?: string } }
-        | null;
+        { ok: true; vehicleId: string | null } | { error?: { message?: string } } | null;
       if (!response.ok || !data || !('ok' in data)) {
-        setError((data && 'error' in data && data.error?.message) || 'Could not assign vehicle.');
+        setError(
+          (data && 'error' in data && data.error?.message) || 'The bus was not set. Try again.',
+        );
         return;
       }
       setValue(data.vehicleId ?? '');
       setSaved(true);
       onAssigned(userId, data.vehicleId ?? null);
     } catch {
-      setError('Something went wrong. Please try again.');
+      setError('Something went wrong. The bus was not set. Try again.');
     } finally {
       setBusy(false);
     }
@@ -350,7 +367,7 @@ function VehicleAssignmentCell({
   return (
     <form onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
       <label htmlFor={`vehicle-${userId}`} className="sr-only">
-        Assign vehicle
+        Bus for this driver, by number plate. Leave empty for none.
       </label>
       <OpsInput
         id={`vehicle-${userId}`}
@@ -359,20 +376,20 @@ function VehicleAssignmentCell({
           setValue(event.target.value);
           setSaved(false);
         }}
-        placeholder="Unassigned"
+        placeholder="No bus set"
         aria-describedby={error ? errorId : undefined}
-        className="w-32 px-2 py-1 text-xs"
+        className="w-32 px-2 py-1 font-mono text-xs"
       />
       <OpsButton type="submit" variant="quiet" className="px-2 py-1 text-xs" disabled={busy}>
-        {busy ? 'Saving…' : 'Assign'}
+        {busy ? 'Saving…' : 'Set'}
       </OpsButton>
       {saved && !error && (
-        <span role="status" className="text-xs text-ops-good">
+        <span role="status" className="text-xs text-success">
           Saved
         </span>
       )}
       {error && (
-        <span id={errorId} role="alert" className="w-full text-xs text-ops-danger">
+        <span id={errorId} role="alert" className="w-full text-xs text-destructive">
           {error}
         </span>
       )}
@@ -423,33 +440,37 @@ function DepotAssignmentCell({
         body: JSON.stringify({ depotId: nextValue === '' ? null : nextValue }),
       });
       const data = (await response.json().catch(() => null)) as
-        | { ok: true; depotId: string | null }
-        | { error?: { message?: string } }
-        | null;
+        { ok: true; depotId: string | null } | { error?: { message?: string } } | null;
       if (!response.ok || !data || !('ok' in data)) {
-        setError((data && 'error' in data && data.error?.message) || 'Could not assign depot.');
+        setError(
+          (data && 'error' in data && data.error?.message) || 'The depot was not set. Try again.',
+        );
         return;
       }
       setValue(data.depotId ?? '');
       setSaved(true);
       onAssigned(userId, data.depotId ?? null);
     } catch {
-      setError('Something went wrong. Please try again.');
+      setError('Something went wrong. The depot was not set. Try again.');
     } finally {
       setBusy(false);
     }
   }
 
   if (depots === null) {
-    return <span className="text-ops-faint">…</span>;
+    return <span className="text-subtle">…</span>;
   }
 
   if (depots.length === 0) {
-    // An empty registry is a real, actionable state, not a blank dropdown:
-    // nobody can be assigned until the registry is seeded from the feed.
+    // An empty depot list is a real, actionable state, not a blank dropdown:
+    // nobody can be given a depot until the list is loaded from the feed.
+    //
+    // It used to say "run `pnpm seed-ops-depots`". A shell command has no place
+    // on an administrator's screen — the person reading this has no terminal
+    // and no repository — so it names who can do it instead.
     return (
-      <span className="text-xs text-ops-warn">
-        No depots in registry — run <code>pnpm seed-ops-depots</code>
+      <span className="text-xs text-warning">
+        No depots loaded yet. Ask whoever runs this system to load the depot list.
       </span>
     );
   }
@@ -457,7 +478,7 @@ function DepotAssignmentCell({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <label htmlFor={`depot-${userId}`} className="sr-only">
-        Assign depot
+        Depot for this person. Choosing one saves immediately.
       </label>
       <OpsSelect
         id={`depot-${userId}`}
@@ -470,21 +491,21 @@ function DepotAssignmentCell({
         }}
         className="w-44 px-2 py-1 text-xs"
       >
-        <option value="">Unassigned</option>
+        <option value="">No depot set</option>
         {depots.map((depot) => (
           <option key={depot.id} value={depot.id}>
             {depot.name === depot.code ? depot.name : `${depot.name} (${depot.code})`}
           </option>
         ))}
       </OpsSelect>
-      {busy && <span className="text-xs text-ops-muted">Saving…</span>}
+      {busy && <span className="text-xs text-muted-foreground">Saving…</span>}
       {saved && !busy && !error && (
-        <span role="status" className="text-xs text-ops-good">
+        <span role="status" className="text-xs text-success">
           Saved
         </span>
       )}
       {error && (
-        <span id={errorId} role="alert" className="w-full text-xs text-ops-danger">
+        <span id={errorId} role="alert" className="w-full text-xs text-destructive">
           {error}
         </span>
       )}
@@ -529,7 +550,10 @@ function DisableCell({
         | { error?: { message?: string } }
         | null;
       if (!response.ok || !data || !('ok' in data)) {
-        setError((data && 'error' in data && data.error?.message) || 'Could not disable.');
+        setError(
+          (data && 'error' in data && data.error?.message) ||
+            'The account was not disabled. Try again.',
+        );
         return;
       }
       setConfirming(false);
@@ -541,14 +565,14 @@ function DisableCell({
       // somewhere that survives the row it came from.
       onDisabled(user.id, data.warning ?? null);
     } catch {
-      setError('Something went wrong. Please try again.');
+      setError('Something went wrong. The account was not disabled. Try again.');
     } finally {
       setBusy(false);
     }
   }
 
   if (user.status === 'disabled') {
-    return <span className="text-xs text-ops-faint">disabled</span>;
+    return <span className="text-xs text-subtle">Disabled</span>;
   }
 
   return (
@@ -556,23 +580,30 @@ function DisableCell({
       {!confirming ? (
         <OpsButton
           variant="quiet"
-          className="px-2 py-1 text-xs hover:border-alert-crimson/60 hover:text-alert-crimson"
+          className="px-2 py-1 text-xs hover:border-instrument-danger/60 hover:text-destructive"
           onClick={() => setConfirming(true)}
         >
           Disable
         </OpsButton>
       ) : (
-        <div className="rounded border border-alert-crimson/40 bg-alert-crimson/5 p-2 text-[11px] leading-snug text-ops-muted">
-          <p className="text-ops-ink">Disable {user.email}?</p>
+        <div className="rounded border border-instrument-danger/50 bg-instrument-danger/10 p-2 text-[11px] leading-snug text-muted-foreground">
+          <p className="font-medium text-foreground">Disable {user.email}?</p>
           <p className="mt-1">
-            Every request from this account is refused from the next one onwards, on both the
-            operations console and the project surface, and their sign-in is banned so no new
-            token can be issued.
+            From their very next request onwards, everything this account asks for is refused — on
+            this console and on the public site — and their sign-in is blocked so no new pass can be
+            issued to them.
           </p>
+          {/* This paragraph is the reason this dialog exists rather than a
+              plain confirm. "Access revoked immediately" is a simpler sentence
+              and a slightly false one: no admin action can invalidate a pass
+              ALREADY in somebody's hands, and an incident review will ask
+              about exactly that window. Stated before the click, in the
+              consequence's own terms, rather than discovered afterwards. */}
           <p className="mt-1">
-            A token they are already holding keeps a valid signature until it expires — up to an
-            hour. Inside this product that grants nothing, because access is re-checked on every
-            request; against the Supabase project directly it is a real, bounded window.
+            A pass they are already holding stays technically valid until it runs out — up to an
+            hour. Inside this product that gets them nothing, because every request checks the
+            account again and refuses. Against the sign-in provider directly it is a real window,
+            and it closes on its own.
           </p>
           <div className="mt-2 flex gap-2">
             <OpsButton
@@ -595,7 +626,7 @@ function DisableCell({
         </div>
       )}
       {error && (
-        <p role="alert" className="text-[11px] leading-snug text-ops-danger">
+        <p role="alert" className="text-[11px] leading-snug text-destructive">
           {error}
         </p>
       )}
@@ -679,13 +710,16 @@ export function OpsAdminPeoplePanel() {
       if (!response.ok) {
         // Includes the refusal for an address that already has an account,
         // which carries its own remedy in the message rather than a code.
-        setError(data?.error?.message ?? 'Could not create invite.');
+        setError(data?.error?.message ?? 'The invite was not created. Try again.');
         return;
       }
       if (data?.delivered === false) {
-        setError(data.error?.message ?? 'Invite created, but the email could not be sent.');
+        setError(
+          data.error?.message ??
+            'The invite was created, but the email could not be sent. Use the link below, or send it again.',
+        );
       } else {
-        setNotice('Invite sent — the invitee will receive an email with their accept link.');
+        setNotice('Invite sent. They will get an email with a link to set up their account.');
       }
       setAcceptUrl(data?.acceptUrl ?? null);
       setEmail('');
@@ -706,7 +740,9 @@ export function OpsAdminPeoplePanel() {
   }
 
   function handleRoleAssigned(id: string, nextRole: OpsRole) {
-    setUsers((prev) => (prev ? prev.map((u) => (u.id === id ? { ...u, role: nextRole } : u)) : prev));
+    setUsers((prev) =>
+      prev ? prev.map((u) => (u.id === id ? { ...u, role: nextRole } : u)) : prev,
+    );
   }
 
   function handleDisabled(id: string, warning: string | null) {
@@ -727,24 +763,31 @@ export function OpsAdminPeoplePanel() {
         error?: { message?: string };
       } | null;
       if (!response.ok) {
-        setError(data?.error?.message ?? `Could not ${action} invite.`);
+        setError(
+          data?.error?.message ??
+            (action === 'resend'
+              ? 'The invite was not sent again. Try again.'
+              : 'The invite was not cancelled. Try again.'),
+        );
         return;
       }
       if (action === 'resend') {
         if (data?.delivered === false) {
           setError(
             data.error?.message ??
-              'The invite link was refreshed, but the email could not be sent.',
+              'A new link was created, but the email could not be sent. The old link has stopped working.',
           );
         } else {
-          setNotice('Invite email resent. The previous link no longer works.');
+          setNotice('Invite sent again with a new link. The old link no longer works.');
         }
       } else {
-        setNotice('Invite cancelled. That link no longer works, and the address is free again.');
+        setNotice(
+          'Invite cancelled. That link no longer works, and the email address can be invited again.',
+        );
       }
       await loadInvites();
     } catch {
-      setError('Something went wrong. Please try again.');
+      setError('Something went wrong. Try again.');
     } finally {
       setInviteActionId(null);
     }
@@ -753,8 +796,8 @@ export function OpsAdminPeoplePanel() {
   return (
     <OpsStack>
       <OpsPanel
-        title="Invite a person"
-        description="An invite creates a new account. Somebody who already has one is changed here instead — moved to another role, or disabled."
+        title="Invite somebody"
+        description="An invite creates a new account. Somebody who already has one is changed further down this page instead — moved to another role, or disabled."
       >
         <form onSubmit={handleInvite} className="space-y-4">
           {/* Capped rather than `flex-1`: on the `wide` shell this row is ~1600px
@@ -796,43 +839,43 @@ export function OpsAdminPeoplePanel() {
             </OpsButton>
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-ops-muted">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
             <input
               type="checkbox"
               checked={revealAcceptUrl}
               onChange={(event) => setRevealAcceptUrl(event.target.checked)}
-              className="rounded border-ops-line-strong"
+              className="rounded border-input"
             />
-            Also show me the accept link (in addition to emailing it)
+            Show me the link as well as emailing it
           </label>
 
-          <p className="text-[11px] leading-relaxed text-ops-faint">
-            The link is single-use, expires in seven days, and only its hash is ever stored — so
-            nobody, including this console, can retrieve it later. Resending mints a new link and
-            breaks the old one.
+          <p className="text-[11px] leading-relaxed text-subtle">
+            The link works once, stops working after seven days, and is never stored in a form
+            anybody can read back — not even this screen. Sending the invite again makes a new link
+            and breaks the old one.
           </p>
 
           {error && <OpsAlert tone="error">{error}</OpsAlert>}
           {notice && !error && <OpsAlert tone="success">{notice}</OpsAlert>}
           {acceptUrl && (
-            <p className="break-all text-sm text-ops-muted">
-              Accept link (shown because you opted in above — the invitee was also emailed this
-              link): <span className="text-holo-glow">{acceptUrl}</span>
+            <p className="break-all text-sm text-muted-foreground">
+              Their link, shown because you asked above. They were emailed it as well:{' '}
+              <span className="font-mono text-primary">{acceptUrl}</span>
             </p>
           )}
         </form>
       </OpsPanel>
 
       <OpsPanel
-        title="Outstanding invites"
-        description="Issued, not yet accepted. Cancelling one stops the link working and frees the address for a corrected invite."
+        title="Invites still waiting"
+        description="Sent, but not used yet. Cancelling one stops the link working and frees the email address so you can invite it again."
         padded={false}
       >
         {!invites ? (
-          <p className="p-4 text-sm text-ops-muted">Loading…</p>
+          <p className="p-4 text-sm text-muted-foreground">Loading…</p>
         ) : invites.length === 0 ? (
-          <p className="p-4 text-sm text-ops-muted">
-            No outstanding invites. Everybody who has been invited has either accepted or been
+          <p className="p-4 text-sm text-muted-foreground">
+            No invites are waiting. Everybody invited has either set up their account or been
             cancelled.
           </p>
         ) : (
@@ -842,8 +885,8 @@ export function OpsAdminPeoplePanel() {
                 <tr className={opsTheadRowClass}>
                   <th className={opsThClass}>Email</th>
                   <th className={opsThClass}>Role</th>
-                  <th className={opsThClass}>Status</th>
-                  <th className={opsThClass}>Link expires</th>
+                  <th className={opsThClass}>State</th>
+                  <th className={opsThClass}>Link stops working</th>
                   <th className={opsThClass} />
                 </tr>
               </thead>
@@ -867,11 +910,11 @@ export function OpsAdminPeoplePanel() {
                             disabled={inviteActionId === invite.id}
                             onClick={() => void inviteAction(invite.id, 'resend')}
                           >
-                            {inviteActionId === invite.id ? 'Working…' : 'Resend'}
+                            {inviteActionId === invite.id ? 'Working…' : 'Send again'}
                           </OpsButton>
                           <OpsButton
                             variant="quiet"
-                            className="px-2 py-1 text-xs hover:border-alert-crimson/60 hover:text-alert-crimson"
+                            className="px-2 py-1 text-xs hover:border-instrument-danger/60 hover:text-destructive"
                             disabled={inviteActionId === invite.id}
                             onClick={() => void inviteAction(invite.id, 'revoke')}
                           >
@@ -889,7 +932,7 @@ export function OpsAdminPeoplePanel() {
       </OpsPanel>
 
       {disableWarning && (
-        <OpsAlert tone="warning" title="That account is revoked here, but its sign-in is not">
+        <OpsAlert tone="warning" title="That account is shut out here, but its sign-in is not">
           <p>{disableWarning}</p>
           <OpsButton
             variant="quiet"
@@ -902,16 +945,16 @@ export function OpsAdminPeoplePanel() {
       )}
 
       <OpsPanel
-        title="People"
-        description="Role, assignments and access. A depot operator with no depot is refused fleet data outright rather than shown the whole state; a driver with no vehicle receives no instructions. Both are admin-set only, on purpose."
+        title="Everybody with an account"
+        description="Somebody with a depot role and no depot set is shown no buses at all, rather than the whole state's; a driver with no bus set receives no instructions. Only an administrator can set either, on purpose."
         padded={false}
       >
         {!users ? (
-          <p className="p-4 text-sm text-ops-muted">Loading…</p>
+          <p className="p-4 text-sm text-muted-foreground">Loading…</p>
         ) : users.length === 0 ? (
-          <p className="p-4 text-sm text-ops-muted">
-            No accounts yet. The first admin is seeded out of band; everybody else arrives by
-            invite.
+          <p className="p-4 text-sm text-muted-foreground">
+            No accounts yet. The first administrator is set up when the system is installed;
+            everybody else arrives by invite.
           </p>
         ) : (
           <OpsTableFrame className="rounded-none border-0">
@@ -921,8 +964,8 @@ export function OpsAdminPeoplePanel() {
                   <th className={opsThClass}>Name</th>
                   <th className={opsThClass}>Email</th>
                   <th className={opsThClass}>Role</th>
-                  <th className={opsThClass}>Status</th>
-                  <th className={opsThClass}>Vehicle</th>
+                  <th className={opsThClass}>Can sign in</th>
+                  <th className={opsThClass}>Bus</th>
                   <th className={opsThClass}>Depot</th>
                   <th className={opsThClass} />
                 </tr>
@@ -935,7 +978,9 @@ export function OpsAdminPeoplePanel() {
                     <td className={opsTdClass}>
                       <RoleAssignmentCell user={user} onAssigned={handleRoleAssigned} />
                     </td>
-                    <td className={opsTdMutedClass}>{user.status}</td>
+                    <td className={opsTdMutedClass}>
+                      {user.status === 'active' ? 'Yes' : 'No — disabled'}
+                    </td>
                     <td className={opsTdClass}>
                       {VEHICLE_ASSIGNABLE_ROLES.includes(user.role) ? (
                         <VehicleAssignmentCell
@@ -944,7 +989,14 @@ export function OpsAdminPeoplePanel() {
                           onAssigned={handleVehicleAssigned}
                         />
                       ) : (
-                        <span className="text-ops-faint">—</span>
+                        // Not "nothing to report" and not "unknown": a bus is
+                        // meaningless for this role, so the cell says so
+                        // rather than borrowing the honest-data vocabulary for
+                        // a question that was never asked.
+                        <span className="text-subtle" title="not used for this role">
+                          <span aria-hidden>—</span>
+                          <span className="sr-only">not used for this role</span>
+                        </span>
                       )}
                     </td>
                     <td className={opsTdClass}>
@@ -956,7 +1008,10 @@ export function OpsAdminPeoplePanel() {
                           onAssigned={handleDepotAssigned}
                         />
                       ) : (
-                        <span className="text-ops-faint">—</span>
+                        <span className="text-subtle" title="not used for this role">
+                          <span aria-hidden>—</span>
+                          <span className="sr-only">not used for this role</span>
+                        </span>
                       )}
                     </td>
                     <td className={opsTdClass}>

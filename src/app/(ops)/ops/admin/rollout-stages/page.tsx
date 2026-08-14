@@ -14,11 +14,11 @@ export default async function OpsAdminRolloutStagesPage() {
 
   return (
     <OpsShell
-      title="Admin · Rollout stages"
+      title="Command permissions"
       email={session.email}
       role="admin"
       variant="wide"
-      subtitle="Which corridors the system is permitted to send commands on"
+      subtitle="Which corridors an instruction is allowed to reach a driver on"
     >
       <OpsAdminRolloutStagesPanel />
     </OpsShell>
