@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface QueuedAction {
   id: string;
@@ -28,19 +28,38 @@ type FetchState = { status: 'loading' } | { status: 'error'; message: string } |
  * default). Two render modes:
  *   - canDecide=false (dispatcher dashboard): read-only visibility into
  *     the queue so a dispatcher can track what they've filed.
- *   - canDecide=true (control-room dashboard): adds a "Reject" action
+ *   - canDecide=true (control-room console): adds a "Reject" action
  *     (POST /api/ops/control-room/approvals/:id/reject) and an "Approve —
  *     issue command" button that hands the id to onApprove, which
- *     ApprovalAndCommandPanel wires to ControlRoomCommandForm — approving
- *     *is* issuing the command that consumes this id, per that form's own
- *     doc comment.
+ *     ControlRoomConsole wires to ControlRoomCommandForm — approving *is*
+ *     issuing the command that consumes this id, per that form's own doc
+ *     comment.
  */
 export function ApprovalQueuePanel({
   canDecide,
   onApprove,
+  disruptiveOnly = true,
+  refreshToken,
 }: {
   canDecide: boolean;
   onApprove?: (dispatcherActionId: string) => void;
+  /**
+   * Narrow to the four disruptive action types, as the AC's queue does.
+   *
+   * The control-room console passes `false`, and that is load-bearing rather
+   * than a preference: the decision engine only ever proposes HOLDS, and holds
+   * are not in the disruptive subset. Left at the default, a dispatcher's
+   * approval of the exact hold the engine just recommended would never appear
+   * in the control room's own queue.
+   */
+  disruptiveOnly?: boolean;
+  /**
+   * Reload whenever this changes. The console drives every panel from one
+   * clock so the whole screen describes the same moment; without it this queue
+   * would keep showing whatever was pending when the page was opened, which on
+   * a time-critical queue is the one thing it must not do.
+   */
+  refreshToken?: number;
 }) {
   const [state, setState] = useState<FetchState>({ status: 'loading' });
   const [rejectingId, setRejectingId] = useState<string | null>(null);
@@ -48,29 +67,65 @@ export function ApprovalQueuePanel({
   const [rejectError, setRejectError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const load = useCallback(async () => {
-    setState({ status: 'loading' });
-    try {
-      const response = await fetch('/api/ops/dispatcher/approvals?status=pending&disruptiveOnly=true', {
-        cache: 'no-store',
-      });
-      const data = (await response.json().catch(() => null)) as
-        | { actions: QueuedAction[] }
-        | { error: { message: string } }
-        | null;
-      if (!response.ok || !data || 'error' in data) {
-        setState({ status: 'error', message: (data && 'error' in data && data.error.message) || 'Failed to load the approval queue.' });
-        return;
+  /**
+   * `silent` is what makes an auto-refreshing queue usable.
+   *
+   * A background reload that flips this panel back to its "Loading approval
+   * queue…" placeholder would, every fifteen seconds, blank the list an
+   * operator is reading and tear the half-typed rejection reason out from
+   * under them. So a poll leaves the current list on screen and swaps it only
+   * once the new one has actually arrived; only the first load, and an
+   * explicit reload after the operator's own action, show the placeholder.
+   */
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setState({ status: 'loading' });
+      try {
+        const response = await fetch(
+          `/api/ops/dispatcher/approvals?status=pending&disruptiveOnly=${disruptiveOnly ? 'true' : 'false'}`,
+          { cache: 'no-store' },
+        );
+        const data = (await response.json().catch(() => null)) as
+          | { actions: QueuedAction[] }
+          | { error: { message: string } }
+          | null;
+        if (!response.ok || !data || 'error' in data) {
+          const message =
+            (data && 'error' in data && data.error.message) || 'Failed to load the approval queue.';
+          // A failed BACKGROUND poll must not replace a good list with an
+          // error: the queue on screen is still the last real one. The
+          // console's own status line reports the refresh failure.
+          setState((previous) =>
+            silent && previous.status === 'ready' ? previous : { status: 'error', message },
+          );
+          return;
+        }
+        setState({ status: 'ready', actions: data.actions });
+      } catch {
+        setState((previous) =>
+          silent && previous.status === 'ready'
+            ? previous
+            : { status: 'error', message: 'Something went wrong. Please try again.' },
+        );
       }
-      setState({ status: 'ready', actions: data.actions });
-    } catch {
-      setState({ status: 'error', message: 'Something went wrong. Please try again.' });
-    }
-  }, []);
+    },
+    [disruptiveOnly],
+  );
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
+
+  // Separate from the mount effect so a console tick refreshes quietly while
+  // the first load, and a reload after this operator's own reject, do not.
+  const hasMountedRef = useRef(false);
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+    void load(true);
+  }, [refreshToken, load]);
 
   async function submitReject(id: string) {
     if (submitting) return;
@@ -111,7 +166,13 @@ export function ApprovalQueuePanel({
   if (state.actions.length === 0) {
     return (
       <p className="ops-well px-4 py-3 text-sm text-ops-muted">
-        No disruptive actions awaiting a decision.
+        {/* The wording has to match what was actually asked for. Saying "no
+            disruptive actions" on the control-room console, which reads the
+            queue unfiltered, would imply a narrower search than the one that
+            came back empty. */}
+        {disruptiveOnly
+          ? 'No disruptive actions awaiting a decision.'
+          : 'No dispatcher approvals awaiting a decision, of any action type.'}
       </p>
     );
   }

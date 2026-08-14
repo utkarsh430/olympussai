@@ -5,7 +5,7 @@ import type { CanonicalLiveBus } from '@/models/canonical';
 import type { OpsFleetSnapshot } from '@/lib/ops/fleetData';
 import { DispatcherDashboard } from '@/components/ops/dispatcher/DispatcherDashboard';
 import { DispatcherActionForm } from '@/components/ops/dispatcher/DispatcherActionForm';
-import { ControlRoomDashboard } from '@/components/ops/control-room/ControlRoomDashboard';
+import { ControlRoomFleetPanel } from '@/components/ops/control-room/ControlRoomFleetPanel';
 import { ControlRoomCommandForm } from '@/components/ops/control-room/ControlRoomCommandForm';
 import { ObservabilityDashboard } from '@/components/ops/control-room/ObservabilityDashboard';
 import type { ObservabilitySnapshot } from '@/lib/controlService/observabilityData';
@@ -183,18 +183,34 @@ describe('DataSourceNotice states', () => {
   });
 });
 
-describe('ControlRoomDashboard', () => {
-  it('renders the live fleet status view and the issue-command action form', () => {
-    render(<ControlRoomDashboard snapshot={snapshot()} query="" activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
+describe('ControlRoomFleetPanel', () => {
+  it('renders the live fleet status roster', () => {
+    render(<ControlRoomFleetPanel snapshot={snapshot()} query="" routeDirectionId={null} />);
     expect(screen.getByText('Live fleet status')).toBeInTheDocument();
     expect(screen.getByText('UP25FT4823')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /issue command/i })).toBeInTheDocument();
   });
 
-  it('links to the live observability dashboard', () => {
-    render(<ControlRoomDashboard snapshot={snapshot()} query="" activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
-    const link = screen.getByRole('link', { name: /live observability/i });
-    expect(link).toHaveAttribute('href', '/ops/control-room/observability');
+  it('carries the console tab and corridor through the search navigation', () => {
+    // The search is a plain GET form, which submits only its own fields. Without
+    // these hidden inputs a search would drop the operator back to the default
+    // tab and clear the selected corridor - the console silently discarding
+    // their place the moment they look something up.
+    const { container } = render(
+      <ControlRoomFleetPanel snapshot={snapshot()} query="" routeDirectionId="dir-1" />,
+    );
+    expect(container.querySelector('input[type="hidden"][name="tab"]')).toHaveValue('fleet');
+    expect(container.querySelector('input[type="hidden"][name="routeDirectionId"]')).toHaveValue('dir-1');
+  });
+
+  it('still surfaces a degraded feed rather than an empty-looking roster', () => {
+    render(
+      <ControlRoomFleetPanel
+        snapshot={snapshot({ source: 'unavailable', stale: true, error: 'upstream unreachable', buses: [] })}
+        query=""
+        routeDirectionId={null}
+      />,
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(/this is an outage, not an empty fleet/i);
   });
 });
 

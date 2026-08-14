@@ -38,6 +38,12 @@ export interface OpsFleetMapPanelProps {
   live?: boolean;
   /** Frame minimum height, passed through to the map frame. */
   minHeight?: string;
+  /**
+   * Grow to fill a flex parent rather than sitting at `minHeight`. For a
+   * console whose page does not scroll and whose map is the centrepiece -
+   * see OpsFleetMap's own note.
+   */
+  fill?: boolean;
 }
 
 export function OpsFleetMapPanel({
@@ -47,6 +53,7 @@ export function OpsFleetMapPanel({
   routeDirectionId,
   live = false,
   minHeight,
+  fill = false,
 }: OpsFleetMapPanelProps) {
   const feed = useOpsMapFeed({ routeDirectionId, enabled: live });
 
@@ -66,17 +73,25 @@ export function OpsFleetMapPanel({
     (vehicle) => vehicle.positionSource === 'control-service',
   ).length;
 
+  // No snapshot has landed AND the caller seeded nothing: the vehicle list is
+  // unknown, not empty. A statewide console deliberately does not seed (9,170
+  // vehicles do not belong in a page payload), so this is the normal opening
+  // state there rather than an edge case.
+  const awaitingFirstLoad = live && feed.loading && vehicles.length === 0;
+
   return (
-    <div>
+    <div className={fill ? 'flex min-h-0 flex-1 flex-col' : undefined}>
       <OpsFleetMap
         vehicles={currentVehicles}
         overlays={overlays}
         caption={`${currentScopeLabel} · ${currentVehicles.length} ${currentVehicles.length === 1 ? 'vehicle' : 'vehicles'}`}
         minHeight={minHeight}
+        fill={fill}
+        awaitingFirstLoad={awaitingFirstLoad}
         label={`Fleet map, ${currentScopeLabel}`}
       />
 
-      <div className="mt-2 space-y-1 text-xs text-ops-faint">
+      <div className="mt-2 shrink-0 space-y-1 text-xs text-ops-faint">
         {/* Provenance, per vehicle, aggregated. An operator judging a hold has
             to know whether the chevron is the operational estimate the alerts
             are computed from or the raw GPS fix. */}

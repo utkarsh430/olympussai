@@ -45,18 +45,53 @@ interface SuccessState {
  * route-targeted ones): it is what the route-scoped kill switch and
  * control-service's rollout gate are both checked against.
  *
- * `prefillDispatcherActionId` is set by the approval queue's "Approve — issue
- * command" action (ApprovalQueuePanel via ApprovalAndCommandPanel): issuing a
- * command that consumes a queued action *is* the approval decision, so that
- * flow seeds this field rather than duplicating a separate approve endpoint.
+ * `prefill` is written by two callers, and neither of them relaxes anything:
+ *
+ *   • the approval queue's "Approve — issue command" action, which seeds the
+ *     dispatcher action id — issuing a command that consumes a queued action
+ *     *is* the approval decision, so that flow seeds this field rather than
+ *     duplicating a separate approve endpoint;
+ *   • the decision engine panel, which seeds the action type, vehicle,
+ *     route-direction and audit summary of a proposal the operator chose to
+ *     act on. This is the entire point of surfacing the engine: an operator
+ *     used to type a vehicle registration and two uuids from memory into
+ *     these boxes. A prefilled field is still submitted as an ordinary
+ *     request field with no privileged path, so the APPROVAL_MISMATCH
+ *     cross-check refuses an edited prefill exactly as it refuses a
+ *     mistyped one.
  */
-export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillDispatcherActionId?: string }) {
-  const [dispatcherActionId, setDispatcherActionId] = useState(prefillDispatcherActionId ?? '');
-  const [actionType, setActionType] = useState<ActionType>('self_equalizing_hold');
-  const [vehicleId, setVehicleId] = useState('');
-  const [routeDirectionId, setRouteDirectionId] = useState('');
+export interface CommandPrefill {
+  dispatcherActionId?: string;
+  actionType?: string;
+  vehicleId?: string;
+  routeDirectionId?: string;
+  summary?: string;
+}
+
+function isActionType(value: string | undefined): value is ActionType {
+  return value !== undefined && (ACTION_TYPES as readonly string[]).includes(value);
+}
+
+export function ControlRoomCommandForm({
+  prefill,
+  prefillDispatcherActionId,
+  onIssued,
+}: {
+  prefill?: CommandPrefill;
+  /** Legacy single-field form of `prefill`, kept so existing callers and tests are unaffected. */
+  prefillDispatcherActionId?: string;
+  /** Fired after a command is accepted, so the console can refresh the queue that just lost an approval. */
+  onIssued?: () => void;
+}) {
+  const seed: CommandPrefill = prefill ?? { dispatcherActionId: prefillDispatcherActionId };
+  const [dispatcherActionId, setDispatcherActionId] = useState(seed.dispatcherActionId ?? '');
+  const [actionType, setActionType] = useState<ActionType>(
+    isActionType(seed.actionType) ? seed.actionType : 'self_equalizing_hold',
+  );
+  const [vehicleId, setVehicleId] = useState(seed.vehicleId ?? '');
+  const [routeDirectionId, setRouteDirectionId] = useState(seed.routeDirectionId ?? '');
   const [ttlSeconds, setTtlSeconds] = useState(String(DEFAULT_TTL_SECONDS));
-  const [summary, setSummary] = useState('');
+  const [summary, setSummary] = useState(seed.summary ?? '');
   const [status, setStatus] = useState<'idle' | 'submitting' | 'error' | 'success'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<SuccessState | null>(null);
@@ -67,6 +102,19 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
   useEffect(() => {
     if (prefillDispatcherActionId) setDispatcherActionId(prefillDispatcherActionId);
   }, [prefillDispatcherActionId]);
+
+  // Each field is written only when the prefill actually names it, so seeding
+  // an approval id from the queue never wipes an action type the operator has
+  // already chosen, and seeding an engine proposal never clears an approval id
+  // they pasted a moment earlier.
+  useEffect(() => {
+    if (!prefill) return;
+    if (prefill.dispatcherActionId !== undefined) setDispatcherActionId(prefill.dispatcherActionId);
+    if (isActionType(prefill.actionType)) setActionType(prefill.actionType);
+    if (prefill.vehicleId !== undefined) setVehicleId(prefill.vehicleId);
+    if (prefill.routeDirectionId !== undefined) setRouteDirectionId(prefill.routeDirectionId);
+    if (prefill.summary !== undefined) setSummary(prefill.summary);
+  }, [prefill]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -121,6 +169,10 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
       setRouteDirectionId('');
       setSummary('');
       setTtlSeconds(String(DEFAULT_TTL_SECONDS));
+      // The approval this consumed has left the queue; tell the console so
+      // every panel reflects that on the same beat rather than showing a
+      // spent approval as still pending for up to another poll interval.
+      onIssued?.();
     } catch {
       setError('Something went wrong. Please try again.');
       setStatus('error');

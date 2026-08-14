@@ -1,0 +1,1123 @@
+{
+  "capturedAt": "2026-08-14T03:10:52.039Z",
+  "corridors": [
+    {
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "routeId": "578",
+      "directionCode": "IN",
+      "isLoop": false,
+      "totalDistanceMeters": 326503.8970546374
+    },
+    {
+      "routeDirectionId": "d8d5157f-b5e3-4da9-bb2d-ac87d69b5189",
+      "routeId": "1341",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 271248.3821087038
+    },
+    {
+      "routeDirectionId": "ac23aba2-4a97-4108-82f2-0dcd69e7a433",
+      "routeId": "1348",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 406572.92347590945
+    },
+    {
+      "routeDirectionId": "93a6e4b8-efc7-4c3e-8fe1-69ccd21351c8",
+      "routeId": "1438",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 163922.40636545504
+    },
+    {
+      "routeDirectionId": "81bec903-0b75-4a48-9036-be34124b231e",
+      "routeId": "1568",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 113842.43825179602
+    },
+    {
+      "routeDirectionId": "692c9ec4-652a-40a5-87f9-2d8a0cd11eb6",
+      "routeId": "1650",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 187177.01428601003
+    },
+    {
+      "routeDirectionId": "b9323f32-8816-49de-b421-a0116b6d67ee",
+      "routeId": "1714",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 277689.32530311303
+    },
+    {
+      "routeDirectionId": "72e30e04-0275-4ff4-9087-964b29247ac1",
+      "routeId": "1715",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 277689.3253031131
+    },
+    {
+      "routeDirectionId": "27f466af-44d2-4388-912e-6bc3f85c4bb7",
+      "routeId": "1727",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 183007.00576548444
+    },
+    {
+      "routeDirectionId": "725e5409-396d-40c6-80fe-9f9dd532be10",
+      "routeId": "1728",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 183007.00576548444
+    },
+    {
+      "routeDirectionId": "828800ed-5754-4af8-8a64-1a5e3ea62afd",
+      "routeId": "1794",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 122765.42605610368
+    },
+    {
+      "routeDirectionId": "28a6ba51-89b4-4d98-9246-aecf348a04dd",
+      "routeId": "1940",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 68614.68910101909
+    },
+    {
+      "routeDirectionId": "12369953-63b5-4d39-8be1-7cdf4999f9a7",
+      "routeId": "1964",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 406572.9234759094
+    },
+    {
+      "routeDirectionId": "b71d2714-db67-4799-a348-0c16f1a659d1",
+      "routeId": "1972",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 68614.68910101909
+    },
+    {
+      "routeDirectionId": "7be20f0f-2a00-4a96-b710-891d020b28d9",
+      "routeId": "1978",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 87756.06854517
+    },
+    {
+      "routeDirectionId": "fc57c609-2428-4fa3-94c1-b0483f9dd520",
+      "routeId": "1979",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 87756.06854517001
+    },
+    {
+      "routeDirectionId": "547ca1e4-c0d2-4bf9-b937-8bdc1839c6a1",
+      "routeId": "1980",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 38758.31022486423
+    },
+    {
+      "routeDirectionId": "8ffe7e46-6847-4cfd-8ff0-b142d1c17550",
+      "routeId": "1981",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 38758.31022486424
+    },
+    {
+      "routeDirectionId": "9db585cb-ae8c-4a72-bfb7-f305681671e1",
+      "routeId": "1983",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 279159.4509391244
+    },
+    {
+      "routeDirectionId": "ac70cde8-f123-4775-95e7-769662623bc1",
+      "routeId": "2106",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 134372.75595748576
+    },
+    {
+      "routeDirectionId": "373e6afb-e8c9-4e91-bb00-486b687fd762",
+      "routeId": "2107",
+      "directionCode": "OUT",
+      "isLoop": false,
+      "totalDistanceMeters": 269718.076609333
+    }
+  ],
+  "liveSolve": {
+    "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+    "candidateActions": [
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP78HN2039",
+        "involvedVehicleIds": [
+          "UP78HN2039",
+          "UP78FT8312"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 602.5979027425731,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.543Z",
+        "headwayDeviationSeconds": -3462.989513712865,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP78JT9275",
+        "involvedVehicleIds": [
+          "UP78JT9275",
+          "UP32KN4437"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 610.225237982059,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.547Z",
+        "headwayDeviationSeconds": -3501.1261899102947,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP32MN4304",
+        "involvedVehicleIds": [
+          "UP32MN4304",
+          "UP25FT9230"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 611.7043167865137,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.553Z",
+        "headwayDeviationSeconds": -3508.5215839325683,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP78FT8312",
+        "involvedVehicleIds": [
+          "UP78FT8312",
+          "UP78LT2734"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 613.2559370769593,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.541Z",
+        "headwayDeviationSeconds": -3528.335754361097,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP83AT3675",
+        "involvedVehicleIds": [
+          "UP83AT3675",
+          "UP78LN9246"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 613.3856551893197,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.564Z",
+        "headwayDeviationSeconds": -3516.928275946598,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP78JT7159",
+        "involvedVehicleIds": [
+          "UP78JT7159",
+          "UP84T5257"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 614.4406154008583,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.560Z",
+        "headwayDeviationSeconds": -3522.203077004291,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP25FT9230",
+        "involvedVehicleIds": [
+          "UP25FT9230",
+          "UP78JT9275"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 614.9782102206582,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.548Z",
+        "headwayDeviationSeconds": -3524.891051103291,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP32KN4437",
+        "involvedVehicleIds": [
+          "UP32KN4437",
+          "UP50CT3972"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 615.7662710078248,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.546Z",
+        "headwayDeviationSeconds": -3528.8313550391235,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP81BT6862",
+        "involvedVehicleIds": [
+          "UP81BT6862",
+          "UP83AT3675"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 616.5935272469815,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.565Z",
+        "headwayDeviationSeconds": -3532.967636234907,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP50CT3972",
+        "involvedVehicleIds": [
+          "UP50CT3972",
+          "UP78HN2039"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 616.9036206271873,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.544Z",
+        "headwayDeviationSeconds": -3534.518103135936,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP33AT5332",
+        "involvedVehicleIds": [
+          "UP33AT5332",
+          "UP41BT0377"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 616.9700295961742,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.556Z",
+        "headwayDeviationSeconds": -3534.8501479808706,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP84T5257",
+        "involvedVehicleIds": [
+          "UP84T5257",
+          "UP84T5063"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 617.0060507062194,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.558Z",
+        "headwayDeviationSeconds": -3535.030253531097,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP78JN1562",
+        "involvedVehicleIds": [
+          "UP78JN1562",
+          "UP81BT6862"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 617.4475999346473,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.566Z",
+        "headwayDeviationSeconds": -3537.237999673236,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP78LN9246",
+        "involvedVehicleIds": [
+          "UP78LN9246",
+          "UP80GT6389"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 617.5019130639607,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.563Z",
+        "headwayDeviationSeconds": -3537.509565319803,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP33AT4834",
+        "involvedVehicleIds": [
+          "UP33AT4834",
+          "UP50CT4371"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 618.0083336923226,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.538Z",
+        "headwayDeviationSeconds": -3540.0416684616125,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP41BT0377",
+        "involvedVehicleIds": [
+          "UP41BT0377",
+          "UP32MN4304"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 618.451987646604,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.554Z",
+        "headwayDeviationSeconds": -3542.25993823302,
+        "targetHeadwaySeconds": 3543
+      },
+      {
+        "actionType": "two_way_hold",
+        "vehicleId": "UP78LT2734",
+        "involvedVehicleIds": [
+          "UP78LT2734",
+          "UP33AT4834"
+        ],
+        "holdSeconds": 90,
+        "objectiveCost": 619.8470328394228,
+        "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+        "stateAsOf": "2026-08-14T03:10:22.540Z",
+        "headwayDeviationSeconds": -3541.2787261744256,
+        "targetHeadwaySeconds": 3543
+      }
+    ],
+    "selectedActionType": null,
+    "objectiveCost": null,
+    "expectedRecoverySeconds": null,
+    "constraints": {
+      "maxHoldSeconds": 90,
+      "cooldownSeconds": 60,
+      "staleAfterSeconds": 90
+    },
+    "controllerVersion": "terminal-two-way-self-equalizing-v1",
+    "rejectedCandidates": [
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP78HN2039",
+          "involvedVehicleIds": [
+            "UP78HN2039",
+            "UP78FT8312"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 602.5979027425731,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.543Z",
+          "headwayDeviationSeconds": -3462.989513712865,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP78JT9275",
+          "involvedVehicleIds": [
+            "UP78JT9275",
+            "UP32KN4437"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 610.225237982059,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.547Z",
+          "headwayDeviationSeconds": -3501.1261899102947,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP32MN4304",
+          "involvedVehicleIds": [
+            "UP32MN4304",
+            "UP25FT9230"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 611.7043167865137,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.553Z",
+          "headwayDeviationSeconds": -3508.5215839325683,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP78FT8312",
+          "involvedVehicleIds": [
+            "UP78FT8312",
+            "UP78LT2734"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 613.2559370769593,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.541Z",
+          "headwayDeviationSeconds": -3528.335754361097,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP83AT3675",
+          "involvedVehicleIds": [
+            "UP83AT3675",
+            "UP78LN9246"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 613.3856551893197,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.564Z",
+          "headwayDeviationSeconds": -3516.928275946598,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP78JT7159",
+          "involvedVehicleIds": [
+            "UP78JT7159",
+            "UP84T5257"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 614.4406154008583,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.560Z",
+          "headwayDeviationSeconds": -3522.203077004291,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP25FT9230",
+          "involvedVehicleIds": [
+            "UP25FT9230",
+            "UP78JT9275"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 614.9782102206582,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.548Z",
+          "headwayDeviationSeconds": -3524.891051103291,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP32KN4437",
+          "involvedVehicleIds": [
+            "UP32KN4437",
+            "UP50CT3972"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 615.7662710078248,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.546Z",
+          "headwayDeviationSeconds": -3528.8313550391235,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP81BT6862",
+          "involvedVehicleIds": [
+            "UP81BT6862",
+            "UP83AT3675"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 616.5935272469815,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.565Z",
+          "headwayDeviationSeconds": -3532.967636234907,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP50CT3972",
+          "involvedVehicleIds": [
+            "UP50CT3972",
+            "UP78HN2039"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 616.9036206271873,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.544Z",
+          "headwayDeviationSeconds": -3534.518103135936,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP33AT5332",
+          "involvedVehicleIds": [
+            "UP33AT5332",
+            "UP41BT0377"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 616.9700295961742,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.556Z",
+          "headwayDeviationSeconds": -3534.8501479808706,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP84T5257",
+          "involvedVehicleIds": [
+            "UP84T5257",
+            "UP84T5063"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 617.0060507062194,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.558Z",
+          "headwayDeviationSeconds": -3535.030253531097,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP78JN1562",
+          "involvedVehicleIds": [
+            "UP78JN1562",
+            "UP81BT6862"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 617.4475999346473,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.566Z",
+          "headwayDeviationSeconds": -3537.237999673236,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP78LN9246",
+          "involvedVehicleIds": [
+            "UP78LN9246",
+            "UP80GT6389"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 617.5019130639607,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.563Z",
+          "headwayDeviationSeconds": -3537.509565319803,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP33AT4834",
+          "involvedVehicleIds": [
+            "UP33AT4834",
+            "UP50CT4371"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 618.0083336923226,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.538Z",
+          "headwayDeviationSeconds": -3540.0416684616125,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP41BT0377",
+          "involvedVehicleIds": [
+            "UP41BT0377",
+            "UP32MN4304"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 618.451987646604,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.554Z",
+          "headwayDeviationSeconds": -3542.25993823302,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      },
+      {
+        "candidate": {
+          "actionType": "two_way_hold",
+          "vehicleId": "UP78LT2734",
+          "involvedVehicleIds": [
+            "UP78LT2734",
+            "UP33AT4834"
+          ],
+          "holdSeconds": 90,
+          "objectiveCost": 619.8470328394228,
+          "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+          "stateAsOf": "2026-08-14T03:10:22.540Z",
+          "headwayDeviationSeconds": -3541.2787261744256,
+          "targetHeadwaySeconds": 3543
+        },
+        "reasons": [
+          "stale_state"
+        ]
+      }
+    ],
+    "predictiveAdvisory": {
+      "label": "PREDICTIVE",
+      "horizonControlPoints": 3,
+      "candidates": [],
+      "controllerVersion": "occupancy-weighted-mpc-v1"
+    }
+  },
+  "kpiRow": {
+    "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+    "publicName": "AGRA ISBT TO ALAMBAGH VIA AGRA EXPRESSWAY",
+    "directionCode": "IN",
+    "snapshotDate": "2026-08-14",
+    "sampleCount": 1818,
+    "meanHeadwaySeconds": 8296.334036970222,
+    "ewtSeconds": 40392.69496013256,
+    "cv": 3.027298543936453,
+    "incidentCount": 55,
+    "recoveredIncidentCount": 0,
+    "recoveryRate": 0,
+    "guardrailBreachCount": 0,
+    "complianceSampleCount": 0,
+    "compliancePct": null,
+    "computedAt": "2026-08-14T03:10:51.800Z"
+  },
+  "headway": {
+    "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+    "sampleCount": 25,
+    "meanHeadwaySeconds": 10384.64575211748,
+    "stddevHeadwaySeconds": 28070.535186611338,
+    "cv": 2.703080668966259,
+    "ewtSeconds": 41359.28339129188,
+    "targetHeadwaySeconds": 3543
+  },
+  "vehicles": [
+    {
+      "id": "UP84T5063",
+      "registrationNumber": "UP84T5063",
+      "latitude": 27.144342,
+      "longitude": 79.50325,
+      "headingDegrees": 348.20000000000005,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": -0.09485269416828028,
+      "stopState": "dwelling_at_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-12T18:18:27.000Z"
+    },
+    {
+      "id": "UP32KN4437",
+      "registrationNumber": "UP32KN4437",
+      "latitude": 26.819374,
+      "longitude": 80.90641,
+      "headingDegrees": 47.19999999999999,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": -0.17362215761370592,
+      "stopState": "approaching_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-14T02:42:15.000Z"
+    },
+    {
+      "id": "UP78JN1562",
+      "registrationNumber": "UP78JN1562",
+      "latitude": 27.207361,
+      "longitude": 77.97783,
+      "headingDegrees": 25.600000000000023,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0,
+      "stopState": "departed_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-13T22:55:59.000Z"
+    },
+    {
+      "id": "UP78FT8312",
+      "registrationNumber": "UP78FT8312",
+      "latitude": 26.819,
+      "longitude": 80.906624,
+      "headingDegrees": 89.19999999999999,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0,
+      "stopState": "dwelling_at_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-13T22:47:57.000Z"
+    },
+    {
+      "id": "UP50CT3972",
+      "registrationNumber": "UP50CT3972",
+      "latitude": 26.819515,
+      "longitude": 80.90648,
+      "headingDegrees": 33,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": -0.40049995333060856,
+      "stopState": "approaching_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-12T20:49:54.000Z"
+    },
+    {
+      "id": "UP84T5257",
+      "registrationNumber": "UP84T5257",
+      "latitude": 27.144255,
+      "longitude": 79.503174,
+      "headingDegrees": 133.2,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0.050872611294728455,
+      "stopState": "dwelling_at_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-13T16:54:03.000Z"
+    },
+    {
+      "id": "UP78LN9246",
+      "registrationNumber": "UP78LN9246",
+      "latitude": 27.20753,
+      "longitude": 77.97793,
+      "headingDegrees": 120,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0.11059215584496859,
+      "stopState": "stopped_in_traffic",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-14T03:08:30.000Z"
+    },
+    {
+      "id": "UP25FT9230",
+      "registrationNumber": "UP25FT9230",
+      "latitude": 26.818901,
+      "longitude": 80.90614,
+      "headingDegrees": 149.8,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": -0.08867615192793502,
+      "stopState": "approaching_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-13T23:27:27.000Z"
+    },
+    {
+      "id": "UP81BT6862",
+      "registrationNumber": "UP81BT6862",
+      "latitude": 27.207382,
+      "longitude": 77.977844,
+      "headingDegrees": 18,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0,
+      "stopState": "stopped_in_traffic",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-13T17:45:29.000Z"
+    },
+    {
+      "id": "UP78JT7159",
+      "registrationNumber": "UP78JT7159",
+      "latitude": 27.14436,
+      "longitude": 79.50317,
+      "headingDegrees": 92.85000000000002,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0,
+      "stopState": "dwelling_at_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-14T03:07:06.000Z"
+    },
+    {
+      "id": "UP50CT4371",
+      "registrationNumber": "UP50CT4371",
+      "latitude": 26.8193,
+      "longitude": 80.90693,
+      "headingDegrees": 90,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0,
+      "stopState": "dwelling_at_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-14T00:01:55.000Z"
+    },
+    {
+      "id": "UP78JT9275",
+      "registrationNumber": "UP78JT9275",
+      "latitude": 26.818779,
+      "longitude": 80.906166,
+      "headingDegrees": 118.80000000000001,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0,
+      "stopState": "approaching_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-14T00:54:31.000Z"
+    },
+    {
+      "id": "UP78JT5403",
+      "registrationNumber": "UP78JT5403",
+      "latitude": 26.913473,
+      "longitude": 80.025406,
+      "headingDegrees": 161.44000000000005,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0,
+      "stopState": "departed_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-14T03:08:14.000Z"
+    },
+    {
+      "id": "UP78JT1055",
+      "registrationNumber": "UP78JT1055",
+      "latitude": 26.819857,
+      "longitude": 80.90676,
+      "headingDegrees": 75.30000000000001,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0,
+      "stopState": "approaching_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-14T00:42:30.000Z"
+    },
+    {
+      "id": "UP83AT3675",
+      "registrationNumber": "UP83AT3675",
+      "latitude": 27.207357,
+      "longitude": 77.977875,
+      "headingDegrees": 121.60000000000002,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0,
+      "stopState": "stopped_in_traffic",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-13T11:50:02.000Z"
+    },
+    {
+      "id": "UP83AT6140",
+      "registrationNumber": "UP83AT6140",
+      "latitude": 27.207172,
+      "longitude": 77.978004,
+      "headingDegrees": 0.7400000000000091,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0,
+      "stopState": "stopped_in_traffic",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-13T16:31:04.000Z"
+    },
+    {
+      "id": "UP80HT0499",
+      "registrationNumber": "UP80HT0499",
+      "latitude": 27.20725,
+      "longitude": 77.97804,
+      "headingDegrees": 9.670000000000016,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0.0005712584167126862,
+      "stopState": "stopped_in_traffic",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-13T17:18:43.000Z"
+    },
+    {
+      "id": "UP32MN4304",
+      "registrationNumber": "UP32MN4304",
+      "latitude": 26.819464,
+      "longitude": 80.90616,
+      "headingDegrees": 315.01,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": -0.008175212599783793,
+      "stopState": "approaching_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-13T11:38:52.000Z"
+    },
+    {
+      "id": "UP80GT6389",
+      "registrationNumber": "UP80GT6389",
+      "latitude": 27.207397,
+      "longitude": 77.97796,
+      "headingDegrees": 125.49000000000001,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0.03237811222698904,
+      "stopState": "stopped_in_traffic",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-14T02:47:10.000Z"
+    },
+    {
+      "id": "UP41BT0377",
+      "registrationNumber": "UP41BT0377",
+      "latitude": 26.819523,
+      "longitude": 80.90617,
+      "headingDegrees": 194.22000000000003,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": -0.0030751258449415136,
+      "stopState": "approaching_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-14T00:19:42.000Z"
+    },
+    {
+      "id": "UP33AT4834",
+      "registrationNumber": "UP33AT4834",
+      "latitude": 26.819136,
+      "longitude": 80.90672,
+      "headingDegrees": 139.2,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": -0.23767543011743908,
+      "stopState": "dwelling_at_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-14T03:05:52.000Z"
+    },
+    {
+      "id": "UP33AT5332",
+      "registrationNumber": "UP33AT5332",
+      "latitude": 26.81887,
+      "longitude": 80.90601,
+      "headingDegrees": 80.52999999999997,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 0,
+      "stopState": "approaching_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-14T02:05:32.000Z"
+    },
+    {
+      "id": "UP78LT2734",
+      "registrationNumber": "UP78LT2734",
+      "latitude": 26.81921,
+      "longitude": 80.90671,
+      "headingDegrees": 165,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": 5.622412718112112,
+      "stopState": "approaching_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-13T20:15:19.000Z"
+    },
+    {
+      "id": "UP78HN2039",
+      "registrationNumber": "UP78HN2039",
+      "latitude": 26.819067,
+      "longitude": 80.90641,
+      "headingDegrees": 189,
+      "dataQuality": "good",
+      "depotName": null,
+      "routeName": null,
+      "speedKmph": -0.022952810274595264,
+      "stopState": "approaching_stop",
+      "routeDirectionId": "b1617ece-b9ef-43cf-8056-c35056697a45",
+      "positionSource": "control-service",
+      "observedAt": "2026-08-14T02:29:18.000Z"
+    }
+  ]
+}

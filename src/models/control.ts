@@ -447,6 +447,19 @@ export const commandActionTypeSchema = z.enum([
 ]);
 export type CommandActionType = z.infer<typeof commandActionTypeSchema>;
 
+/**
+ * Every dispatchable instruction, as a value — the counterpart to
+ * ENGINE_ACTION_TYPES above.
+ *
+ * Exported so a console can DERIVE which instructions are human-originated by
+ * subtracting what the engine reports it can propose, instead of hardcoding
+ * the six that happen to be left today. See
+ * `humanOriginatedActions` in src/lib/ops/recommendationView.ts: if the solver
+ * ever learns a fourth action type, the claim "nothing generates these" stops
+ * being made about it automatically, with no UI edit.
+ */
+export const COMMAND_ACTION_TYPES = commandActionTypeSchema.options;
+
 export const commandStatusSchema = z.enum([
   'proposed',
   'awaiting_approval',

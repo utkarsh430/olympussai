@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createFleetLayer, type FleetLayerHandle } from '@/components/map/fleetCanvasLayer';
-import { getMapsLoader, isMapsConfigured } from '@/lib/maps/loader';
+import { getMapsLoader, isMapsConfigured, onMapsAuthFailure } from '@/lib/maps/loader';
 import { MAP_DARK_STYLE, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/lib/constants';
 import { OpsMapFrame, OpsButton } from '@/components/ops/ui';
 import type { FleetMapOverlay } from '@/lib/maps/contract';
@@ -52,8 +52,25 @@ export interface OpsFleetMapProps {
   caption?: string;
   /** Frame minimum height. Passed to OpsMapFrame; see its note on why a definite height is not optional. */
   minHeight?: string;
+  /**
+   * Grow to fill a flex parent instead of sitting at `minHeight`.
+   *
+   * For a console whose page does not scroll (OpsShell `variant="full"`),
+   * where the map is the centrepiece and must take whatever height is left
+   * over. `minHeight` still applies underneath, so the stacked narrow layout
+   * keeps a usable map rather than collapsing to nothing. This adds flex
+   * sizing only - deliberately no `transform`, which would slide every
+   * chevron off the road (see OpsMapFrame).
+   */
+  fill?: boolean;
   /** Accessible name for the map region. */
   label?: string;
+  /**
+   * True while the caller's first fetch is still outstanding, so an empty
+   * `vehicles` means "not yet" rather than "none". Only the caller knows
+   * which.
+   */
+  awaitingFirstLoad?: boolean;
 }
 
 /** Uttar Pradesh, comfortably. Used when the camera cannot be fitted to anything. */
@@ -71,7 +88,9 @@ export function OpsFleetMap({
   autoFit = true,
   caption,
   minHeight,
+  fill = false,
   label = 'Fleet map',
+  awaitingFirstLoad = false,
 }: OpsFleetMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -84,6 +103,20 @@ export function OpsFleetMap({
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // An API-key rejection is not a load failure: the SDK loads, the map is
+  // constructed, and Google then paints its own white error panel over the
+  // container. Without this the console shows that panel - a large white
+  // rectangle where the fleet should be - instead of its own message. See
+  // src/lib/maps/loader.ts.
+  useEffect(
+    () =>
+      onMapsAuthFailure(() => {
+        setStatus('error');
+        setErrorMessage('The basemap rejected this deployment\u2019s API key (check its allowed referrers).');
+      }),
+    [],
+  );
 
   useEffect(() => {
     if (!isMapsConfigured()) {
@@ -115,7 +148,9 @@ export function OpsFleetMap({
         layerRef.current = createFleetLayer<OpsMapVehicle>(map, (vehicle) => {
           onSelectRef.current?.(vehicle);
         });
-        setStatus('ready');
+        // Never promote an already-failed map back to ready: the auth hook can
+        // fire before the constructor resolves.
+        setStatus((current) => (current === 'error' ? current : 'ready'));
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -181,8 +216,8 @@ export function OpsFleetMap({
   const legend = useMemo(() => countByQuality(vehicles), [vehicles]);
 
   return (
-    <div>
-      <OpsMapFrame minHeight={minHeight}>
+    <div className={fill ? 'flex min-h-0 flex-1 flex-col' : undefined}>
+      <OpsMapFrame minHeight={minHeight} className={fill ? 'min-h-0 flex-1' : undefined}>
         <div ref={containerRef} className="absolute inset-0" role="application" aria-label={label} />
 
         {status !== 'ready' && (
@@ -205,12 +240,19 @@ export function OpsFleetMap({
 
         {status === 'ready' && vehicles.length === 0 && (
           <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2 px-6 text-center">
-            <p className="text-sm text-ops-muted">No vehicles to show.</p>
+            {/* "No vehicles" is a claim about the fleet. Before any data has
+                arrived the map has no evidence for it, and on a statewide
+                console - where the vehicles are polled rather than seeded,
+                because 9,170 of them do not belong in a page payload - that
+                gap is a real second of screen time. Saying the wrong one of
+                these is exactly the fabrication this surface exists to
+                remove. */}
+            <p className="text-sm text-ops-muted">{awaitingFirstLoad ? 'Loading vehicle positions…' : 'No vehicles to show.'}</p>
           </div>
         )}
       </OpsMapFrame>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ops-faint">
+      <div className="mt-2 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ops-faint">
         {caption !== undefined && <span className="text-ops-muted">{caption}</span>}
         <LegendSwatch colour="#2bff88" label={`Fresh ${legend.good}`} />
         <LegendSwatch colour="#ffb020" label={`Delayed ${legend.degraded}`} />

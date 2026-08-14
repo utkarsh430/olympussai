@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
 
 /**
@@ -11,8 +11,21 @@ import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
  * attributed and reasoned (POST /api/ops/control-room/kill-switches,
  * .../:id/disengage), enforced at command-creation time by
  * src/app/api/ops/control-room/commands/route.ts.
+ *
+ * `refreshToken` lets the control-room console re-read the active list on its
+ * own clock. Without it this panel only ever updated after THIS operator's own
+ * engage or disengage - so a switch thrown by a colleague, or by the shift
+ * before, stayed invisible here until the page was reloaded by hand. On the
+ * one control that halts commands network-wide, that is not an acceptable
+ * blind spot.
  */
-export function KillSwitchPanel({ initialActive }: { initialActive: KillSwitchRecord[] }) {
+export function KillSwitchPanel({
+  initialActive,
+  refreshToken,
+}: {
+  initialActive: KillSwitchRecord[];
+  refreshToken?: number;
+}) {
   const [active, setActive] = useState<KillSwitchRecord[]>(initialActive);
   const [scope, setScope] = useState<'network' | 'route'>('network');
   const [routeDirectionId, setRouteDirectionId] = useState('');
@@ -24,11 +37,25 @@ export function KillSwitchPanel({ initialActive }: { initialActive: KillSwitchRe
 
   const errorId = useId();
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     const response = await fetch('/api/ops/control-room/kill-switches', { cache: 'no-store' });
     const data = (await response.json().catch(() => null)) as { active: KillSwitchRecord[] } | null;
+    // A failed read leaves the current list alone rather than emptying it: an
+    // empty kill-switch list reads as "nothing is halted", which is the one
+    // conclusion a dropped request must never let an operator draw.
     if (response.ok && data && Array.isArray(data.active)) setActive(data.active);
-  }
+  }, []);
+
+  // Skips the first render: the server already seeded `initialActive`, so
+  // re-reading it immediately would be a wasted request on page open.
+  const hasMountedRef = useRef(false);
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+    void refresh();
+  }, [refreshToken, refresh]);
 
   async function engage(event: React.FormEvent) {
     event.preventDefault();

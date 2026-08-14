@@ -158,3 +158,71 @@ navigates only after the server confirms both sessions ended, and reports a
 failure rather than showing a login page over a live session. See its doc
 comment and `src/tests/unit/opsShellSignOutButton.test.tsx` for why every
 branch exists.
+
+## The console pattern (`/ops/control-room`)
+
+The control room is the first screen built as a *console* rather than a
+document: `OpsShell variant="full"`, a permanent map holding the frame, and a
+tabbed rail beside it. If another surface grows into the same shape, these are
+the decisions worth copying and the traps worth knowing.
+
+- **The page renders, the console owns.** `page.tsx` proves the role, takes the
+  first reading, and renders the two panels that belong on the server (the
+  fleet roster and the breakdown table) — then hands them to the client console
+  as `ReactNode` props. A client component cannot import a server one but can
+  render one it was given, which is what keeps a thousands-of-rows roster and
+  its server-side `?q=` filtering off the client.
+- **One clock, not one per panel.** `useControlRoomFeed` polls the status band,
+  the engine and the approval queue together on a single 15s tick, so
+  everything on screen describes the same moment. Independent timers drift into
+  different moments presented as one instant, and the resulting disagreement
+  looks like a data bug rather than a scheduling one. Panels that fetch for
+  themselves (`ApprovalQueuePanel`, `KillSwitchPanel`) take a `refreshToken`
+  and reload *silently* — a background poll must never blank a list an operator
+  is reading or discard a half-typed reason.
+- **Polling stops when nobody is looking.** Each tick asks the decision engine
+  for a real five-tier solve. The loop pauses while the tab is hidden and
+  refreshes on return.
+- **A retained recommendation is not a retained dashboard number.** The status
+  band keeps its last good reading on a failed poll; the engine's proposal is
+  dropped, because the engine grades candidate freshness against the clock at
+  solve time and a retained proposal wears a safety verdict that has expired.
+  The same reasoning is why `recommendations.ts` refuses to cache.
+- **State that must survive a navigation goes in the URL; state that must not
+  cost a remount stays in React.** The open tab rides in `?tab=`, so a bookmark
+  works and the fleet search's plain GET form can carry it back (see
+  `FleetSearchForm`'s `children`). The selected corridor is client state,
+  because a navigation per corridor change would tear down and rebuild Google
+  Maps mid-shift.
+- **A number is only shown when it was measured.** `src/lib/ops/consoleReadings.ts`
+  is the rule: every reading is `observed`, `not-yet-computed` or `unavailable`,
+  the source's health is checked *before* the value is looked at, and the two
+  empty states render as visibly different glyphs (`—` and `n/a`). Every
+  upstream on this surface degrades to an empty array plus a flag, so without
+  this the console reports a calm, confident `0` during an outage.
+- **A map needs `fill` and a definite height.** `OpsFleetMapPanel fill` makes
+  the map a real flex child inside `variant="full"`. Nothing above it may
+  `transform: scale` — the canvas projects in layout pixels.
+- **Basemap authentication fails silently.** A key the current origin is not
+  allowed to use does not reject `importLibrary`; the map constructs fine and
+  Google paints its own white panel inside the container. `src/lib/maps/loader.ts`
+  registers `gm_authFailure` and exposes `onMapsAuthFailure` so a surface can
+  show its own message instead. Any new map mount should subscribe.
+
+### Reviewing it without a stack
+
+The console cannot be opened without a real operator session, and the
+end-to-end suite's default origin is the port the live app occupies. Instead:
+
+```
+CONTROL_SERVICE_BASE_URL=... CONTROL_SERVICE_SERVICE_TOKEN=... \
+  pnpm tsx --tsconfig scripts/tsconfig.preview.json \
+  scripts/capture-control-room-fixture.ts > scripts/preview-control-room-data.json
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=... node scripts/serve-control-room-preview.mjs 3111
+```
+
+That mounts the real console with the real design system on a scratch port,
+stubbing only the network, and records every request it makes on
+`window.__REQUESTS__` so a flow can be asserted rather than eyeballed. The
+capture step is read-only. The basemap will not draw unless the key's allowed
+referrers include the scratch origin.
