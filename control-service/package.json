@@ -18,7 +18,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:arrival-sql": "node scripts/check-arrival-sql.mjs"
   },
   "dependencies": {
     "@sentry/node": "^8.55.0",

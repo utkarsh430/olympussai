@@ -8,6 +8,7 @@ import { commandsRouter } from './routes/commands.js';
 import { vehicleStatesRouter } from './routes/vehicleStates.js';
 import { mpcRouter } from './routes/mpc.js';
 import { headwayRouter } from './routes/headway.js';
+import { arrivalsRouter } from './routes/arrivals.js';
 import { pilotRouter } from './routes/pilot.js';
 import { positionsRouter } from './routes/positions.js';
 import { requireServiceToken } from './auth/serviceToken.js';
@@ -34,6 +35,11 @@ export function createApp(): Express {
   app.use(vehicleStatesRouter);
   app.use(mpcRouter);
   app.use(headwayRouter);
+  // Per-stop arrival prediction. Read-only and side-effect free: it never
+  // writes a row and never issues a command, so a driver dashboard may poll it
+  // freely - unlike the headway COMPUTE endpoint, which appends the very
+  // history its own detection rule reads back over.
+  app.use(arrivalsRouter);
   app.use(pilotRouter);
   // Telemetry intake (POST /v1/positions) + the geometry-cache
   // invalidation hook. Behind requireServiceToken like every other /v1

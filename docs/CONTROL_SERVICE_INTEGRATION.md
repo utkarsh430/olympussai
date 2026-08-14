@@ -58,6 +58,21 @@ ticket.
   session auth and service-to-service auth are two separate mechanisms; the
   control service never sees or accepts a Supabase auth cookie.
 
+Read endpoints currently consumed this way include the headway/incident reads,
+the MPC recommendation solve, and `GET /v1/vehicles/:vehicleId/arrivals`
+(per-stop arrival prediction, proxied to drivers by
+`/api/ops/pilot-driver/arrivals`). The arrivals read is side-effect free and
+safe to poll — unlike the headway **compute** endpoint, which appends to the
+history its own detection rule reads back over.
+
+Arrival prediction is also the one read that must **not** use the
+last-known-good fallback described in section 2. A cached arrival time is a
+countdown computed from a position that was already minutes old when it was
+computed, re-served with nothing on the wire to say so; the value decays within
+one poll interval and the harm does not. `src/lib/controlService/arrivals.ts`
+therefore has no cache, and an unreachable control service surfaces as an
+outage rather than as an empty prediction.
+
 ### Control service → web (inbound, events/commands)
 
 - Delivered as signed webhooks to a dedicated Next.js Route Handler (e.g.

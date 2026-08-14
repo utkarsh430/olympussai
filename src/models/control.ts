@@ -903,6 +903,170 @@ export const setRolloutStageRequestSchema = z.object({
 });
 export type SetRolloutStageRequest = z.infer<typeof setRolloutStageRequestSchema>;
 
+// ---------------------------------------------------------------------------
+// Arrival prediction
+//
+// Mirrors control-service/src/arrival-prediction/types.ts field for field. That
+// module's header is the authority on what every field MEANS; this is the
+// validation boundary, and it exists so a malformed control-service response
+// becomes a caught parse error rather than a countdown rendered from `undefined`.
+//
+// THE ONE RULE FOR ANY CONSUMER OF THESE TYPES. A prediction and a published
+// timetable time are different KINDS of claim and must never be rendered as the
+// same thing. Nothing in this schema can carry a timetable time - by design, so
+// that substituting one is a visible code change in the consumer rather than an
+// invisible field swap here. Where `prediction.status` is `'unavailable'`,
+// `arrivals` is empty and the honest surface is the reason, not a fallback
+// number dressed up as an estimate.
+// ---------------------------------------------------------------------------
+
+export const predictionUnavailableReasonSchema = z.enum([
+  'vehicle_unknown',
+  'no_live_state',
+  'unreadable_observation_time',
+  'future_dated_state',
+  'stale_state',
+  'implausible_position',
+  'off_route',
+  'low_match_confidence',
+  'held_by_controller',
+  'no_route_geometry',
+  'no_stops_ahead',
+  'no_speed_basis',
+]);
+export type PredictionUnavailableReason = z.infer<typeof predictionUnavailableReasonSchema>;
+
+export const stopUnavailableReasonSchema = z.enum([
+  'beyond_prediction_horizon',
+  'due_or_passed',
+  'confidence_below_floor',
+]);
+export type StopUnavailableReason = z.infer<typeof stopUnavailableReasonSchema>;
+
+/**
+ * Where the running speed behind every time in this response was measured.
+ *
+ * Both values are measurements of buses actually moving. There is deliberately
+ * no value for a configured constant: the service declines instead.
+ */
+export const speedBasisKindSchema = z.enum(['vehicle_smoothed_speed', 'route_peer_median_speed']);
+export type SpeedBasisKind = z.infer<typeof speedBasisKindSchema>;
+
+export const runningSpeedSchema = z.object({
+  basis: speedBasisKindSchema,
+  speedKmph: z.number(),
+  sampleCount: z.number().int().nonnegative(),
+  /** Fractional half-width used for the bounds. 0.25 means the band was computed at +/-25%. */
+  relativeSpread: z.number(),
+  /** Along-route half-window the neighbours were drawn from; null when the bus's own speed was used. */
+  peerWindowMeters: z.number().nullable(),
+});
+export type RunningSpeed = z.infer<typeof runningSpeedSchema>;
+
+export const currentStopDwellBasisSchema = z.enum([
+  'not_at_stop',
+  'observed_dwell_elapsed',
+  'dwell_elapsed_unknown',
+]);
+
+/**
+ * The dwell half of the model. `measured: false` is the honesty flag and is
+ * always false: travel time is measured, dwell is a configured constant, and
+ * the two are reported separately in every arrival's `components` so the
+ * modelled portion of any number stays identifiable.
+ */
+export const dwellModelSchema = z.object({
+  basis: z.literal('configured_default'),
+  measured: z.literal(false),
+  secondsPerIntermediateStop: z.number(),
+  currentStop: z.object({
+    basis: currentStopDwellBasisSchema,
+    remainingSeconds: z.number(),
+  }),
+});
+export type DwellModel = z.infer<typeof dwellModelSchema>;
+
+export const arrivalComponentsSchema = z.object({
+  /** Measured: remaining distance / measured running speed. */
+  travelSeconds: z.number(),
+  /** Modelled: the dwell constant times the number of stops in between. */
+  dwellSeconds: z.number(),
+  /** What is left to serve at the stop the bus is at now. */
+  currentStopDwellSeconds: z.number(),
+  /** How much elapsed time was subtracted to express the answer as "from now". The only extrapolation performed. */
+  stateAgeSeconds: z.number(),
+});
+
+export const confidenceBandSchema = z.enum(['firm', 'usable', 'rough']);
+export type ConfidenceBand = z.infer<typeof confidenceBandSchema>;
+
+const stopArrivalBaseSchema = z.object({
+  stopId: z.string(),
+  stopName: z.string(),
+  sequence: z.number().int(),
+  isControlPoint: z.boolean(),
+  distanceRemainingMeters: z.number(),
+  intermediateStopCount: z.number().int().nonnegative(),
+});
+
+export const stopArrivalSchema = z.discriminatedUnion('status', [
+  stopArrivalBaseSchema.extend({
+    status: z.literal('predicted'),
+    etaSeconds: z.number(),
+    etaAt: z.string(),
+    lowerBoundSeconds: z.number(),
+    upperBoundSeconds: z.number(),
+    confidence: z.number(),
+    confidenceBand: confidenceBandSchema,
+    components: arrivalComponentsSchema,
+  }),
+  stopArrivalBaseSchema.extend({
+    status: z.literal('unavailable'),
+    reason: stopUnavailableReasonSchema,
+  }),
+]);
+export type StopArrival = z.infer<typeof stopArrivalSchema>;
+
+export const predictionEnvelopeSchema = z.discriminatedUnion('status', [
+  z.object({
+    status: z.literal('unavailable'),
+    reason: predictionUnavailableReasonSchema,
+    /** Plain-language statement of what is missing, safe to show an operator verbatim. */
+    detail: z.string(),
+    routeDirectionId: z.string().nullable(),
+    observedAt: z.string().nullable(),
+    stateAgeSeconds: z.number().nullable(),
+    /** Always empty. Present so a consumer that ignores `status` renders nothing rather than something wrong. */
+    arrivals: z.array(z.never()).max(0),
+  }),
+  z.object({
+    status: z.literal('available'),
+    routeDirectionId: z.string(),
+    observedAt: z.string(),
+    stateAgeSeconds: z.number(),
+    vehicle: z.object({
+      distanceAlongRouteMeters: z.number(),
+      matchConfidence: z.number(),
+      stopState: z.string(),
+      currentStopId: z.string().nullable(),
+    }),
+    speed: runningSpeedSchema,
+    dwell: dwellModelSchema,
+    arrivals: z.array(stopArrivalSchema),
+  }),
+]);
+export type PredictionEnvelope = z.infer<typeof predictionEnvelopeSchema>;
+
+export const arrivalPredictionResponseSchema = z.object({
+  vehicleId: z.string(),
+  /** Every `etaSeconds` is relative to this instant, not to when the client received the response. */
+  generatedAt: z.string(),
+  horizonSeconds: z.number(),
+  stopLimit: z.number(),
+  prediction: predictionEnvelopeSchema,
+});
+export type ArrivalPredictionResponse = z.infer<typeof arrivalPredictionResponseSchema>;
+
 // ===========================================================================
 // APPENDED SECTION — inbound control-service -> web webhook envelope
 //

@@ -37,6 +37,16 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
+    // Standalone maintainer scripts. Plain ESM, run with bare `node`, and
+    // deliberately outside the src/test tsconfig program - so, like the config
+    // files above, they get syntax-only rules rather than type-aware ones.
+    files: ['scripts/**/*.mjs'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      globals: { process: 'readonly', console: 'readonly' },
+    },
+  },
+  {
     // Test files assert against loosely-typed fixtures (e.g. supertest's
     // `res.body: any`) - relax the unsafe-* rules here rather than force
     // a response-body type cast in every assertion. Covers both the

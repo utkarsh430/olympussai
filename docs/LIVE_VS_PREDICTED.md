@@ -109,6 +109,53 @@ the live feed. Only the projected *condition* is modelled.
 
 ---
 
+## COMPUTED FROM LIVE DATA — arrival prediction
+
+A third category, and the only one on this page that is neither a live reading
+nor a seeded demo model.
+
+`GET /v1/vehicles/:vehicleId/arrivals`
+(`control-service/src/arrival-prediction/`) computes a per-stop arrival time
+from **measured** inputs only: the vehicle's live distance-along-route, a
+measured running speed, and surveyed route geometry. Nothing is seeded from a
+registration number, and no scenario generator is involved.
+
+It is nonetheless a **prediction**, and it is labelled as one. The one thing it
+never does is present a published timetable time as an arrival estimate.
+
+| Quantity | Kind | Source |
+| --- | --- | --- |
+| Distance from bus to each upcoming stop | **Measured** | Live map-matched position + surveyed `route_direction_stops` |
+| Running speed | **Measured** | The bus's own Kalman-smoothed speed, or the median of other buses within 15 km on the same route-direction *right now* |
+| Dwell at each stop | **Modelled** | A configured constant. Reported on the wire as `dwell.measured: false`, and broken out per arrival in `components.dwellSeconds` so the modelled portion stays identifiable |
+| Arrival time (`etaSeconds`) | **Predicted** | The three above, minus the age of the fix |
+| Arrival bounds (`lower`/`upperBoundSeconds`) | **Predicted** | The same model at the edges of the measured speed band |
+| Confidence (`confidence`, `confidenceBand`) | **Derived** | Match quality x freshness x speed basis x how far ahead |
+| Published stop times (`scheduledArrival`) | **Live schedule** | `getScheduledBusInfo.php`. **Never emitted by the prediction API** — the response schema has no field that can carry one |
+
+### Where it declines
+
+On a fleet-wide run against the live control database on 2026-08-14, the
+service produced an arrival time for **526 of 7,742 vehicles (6.8%)** and
+declined for the rest with a named reason. The reasons are not error states;
+they are the answer:
+
+| Reason | Share of fleet | Meaning |
+| --- | --- | --- |
+| `stale_state` | 51.2% | Last fix older than 10 minutes |
+| `off_route` | 32.3% | Never map-matched to a route, so there is no distance to measure |
+| `no_speed_basis` | 7.5% | Bus is stopped and no neighbour on that stretch is moving |
+| `low_match_confidence` | 2.1% | Matched, but below the estimator's own trust threshold |
+| `no_stops_ahead` / `future_dated_state` | 0.2% | Past the last stop; timestamp ahead of now |
+
+A declined prediction returns HTTP 200 with `prediction.status: 'unavailable'`,
+its reason, and an **empty** `arrivals` array. A surface must render the reason,
+never a substituted timetable time. See
+`control-service/src/arrival-prediction/types.ts` for the field-by-field
+contract.
+
+---
+
 ## Explicitly NOT used
 
 Even where credentials exist in the environment, these are **not** called at
