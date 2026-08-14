@@ -19,9 +19,13 @@
 //     polling compute therefore manufactures the evidence for its own
 //     alerts, and two open dashboards would halve the effective detection
 //     window. Reads read; writes are the scheduler's job.
-//   GET /v1/incidents?routeDirectionId=
+//   GET /v1/incidents?routeDirectionId=&limit=
 //     Currently open (non-closed) bunching incidents, optionally scoped to
-//     one route-direction.
+//     one route-direction. `limit`, when given, caps the number of rows
+//     returned (most recently-started first) and the response's
+//     `totalOpenCount` reports how many actually matched, so a bounded
+//     caller can tell it received a slice rather than the full set. Omit
+//     `limit` for the original unbounded behavior.
 //   GET /v1/route-directions
 //     Active route-directions this service knows about, for a dashboard's
 //     route-direction picker.
@@ -30,6 +34,7 @@ import { z } from 'zod';
 import { asyncHandler, AppError, sendError } from '../lib/errors.js';
 import {
   computeRouteDirectionHeadway,
+  countOpenIncidents,
   getIncident,
   getLatestRouteDirectionHeadway,
   listActiveRouteDirections,
@@ -44,6 +49,11 @@ const routeDirectionParamSchema = z.object({
 
 const incidentsQuerySchema = z.object({
   routeDirectionId: z.string().min(1).optional(),
+  // Defensive server-side ceiling. Callers that care about a tighter bound
+  // (e.g. the web app's copilot grounding path) clamp further on their own
+  // side before ever sending this - this cap only stops a misbehaving or
+  // future caller from asking for an unreasonably large slice.
+  limit: z.coerce.number().int().min(1).max(200).optional(),
 });
 
 const incidentIdParamSchema = z.object({
@@ -84,8 +94,12 @@ headwayRouter.get(
       sendError(res, new AppError('invalid_request', 'Invalid query parameters', 400, parsed.error.flatten()));
       return;
     }
-    const incidents = await listOpenIncidents(parsed.data.routeDirectionId);
-    res.status(200).json({ incidents });
+    const { routeDirectionId, limit } = parsed.data;
+    const incidents = await listOpenIncidents(routeDirectionId, limit);
+    // Free when unlimited (the slice IS the total); only issues the extra
+    // count query when a limit could actually have left rows out.
+    const totalOpenCount = limit === undefined ? incidents.length : await countOpenIncidents(routeDirectionId);
+    res.status(200).json({ incidents, totalOpenCount });
   }),
 );
 

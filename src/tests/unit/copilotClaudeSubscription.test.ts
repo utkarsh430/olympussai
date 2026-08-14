@@ -215,6 +215,36 @@ describe('generateCopilotText (Claude subscription)', () => {
     if (!result.ok) expect(result.error).toMatch(/no text content/);
   });
 
+  it('refuses an oversized prompt before spawning the CLI at all, with a legible product-owned message', async () => {
+    process.env.CLAUDE_CODE_OAUTH_TOKEN = 'sk-ant-oat01-test-token';
+    // One byte over the real "piped stdin input exceeds 10MB" CLI failure
+    // this backstop exists to preempt - well within our own lower budget's
+    // reach, so this proves the backstop trips before the CLI's own cap
+    // would ever be hit.
+    const oversizedPrompt = 'x'.repeat(8_000_001);
+
+    const result = await generateCopilotText({ system: 'sys', prompt: oversizedPrompt });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatch(/8\.0MB/);
+      expect(result.error).toMatch(/narrow the question/i);
+      expect(result.error).not.toMatch(/stdin/i);
+    }
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('accepts a prompt right at the budget boundary and still invokes the CLI', async () => {
+    process.env.CLAUDE_CODE_OAUTH_TOKEN = 'sk-ant-oat01-test-token';
+    spawnMock.mockImplementation(() => fakeChild({ stdout: successPayload('ok') }));
+    const boundaryPrompt = 'x'.repeat(8_000_000);
+
+    const result = await generateCopilotText({ system: 'sys', prompt: boundaryPrompt });
+
+    expect(result.ok).toBe(true);
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+  });
+
   it('runs with no tools, no ambient MCP servers and no host settings', async () => {
     process.env.CLAUDE_CODE_OAUTH_TOKEN = 'sk-ant-oat01-test-token';
     spawnMock.mockImplementation(() => fakeChild({ stdout: successPayload('ok') }));

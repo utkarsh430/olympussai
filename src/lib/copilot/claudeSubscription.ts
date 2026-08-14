@@ -36,6 +36,23 @@ const DEFAULT_MODEL = 'claude-sonnet-4-5';
 const DEFAULT_TIMEOUT_MS = 60_000;
 
 /**
+ * Backstop on `input.prompt` - the only piece of this request that is piped
+ * over stdin (see runClaudeCli below) and therefore the only piece subject
+ * to the CLI's own hard cap, which fails a request with "piped stdin input
+ * exceeds 10MB" rather than any budget of ours. This module's per-source
+ * grounding limits (src/lib/copilot/grounding.ts) are meant to keep every
+ * real prompt far under this, but that is a property of today's call
+ * sites, not something this file can see or enforce on its own - a future
+ * grounding source, or a caller that forgets to bound its evidence, would
+ * reintroduce the same failure. Checking here, at the one place this
+ * module hands text to the CLI, means that mistake fails with a legible,
+ * product-owned message instead of the CLI's raw stdin error, and fails
+ * BEFORE the child process is even spawned. Set comfortably under the
+ * real 10MB limit so this message is the one an operator actually sees.
+ */
+const MAX_PROMPT_BYTES = 8_000_000;
+
+/**
  * Env vars that must never reach the child. `ANTHROPIC_API_KEY` is the
  * important one: claude-code gives an API key precedence over stored OAuth
  * credentials, so a key left in the server's environment would silently move
@@ -175,6 +192,22 @@ function runClaudeCli(args: string[], prompt: string, token: string, timeoutMs: 
  * logs consistently, success or failure).
  */
 export async function generateCopilotText(input: CopilotLlmRequest): Promise<CopilotLlmResult> {
+  const promptBytes = Buffer.byteLength(input.prompt, 'utf8');
+  if (promptBytes > MAX_PROMPT_BYTES) {
+    const mb = (bytes: number) => (bytes / 1_000_000).toFixed(1);
+    console.error('[copilot] assembled prompt exceeded the size budget; refusing before invoking the CLI', {
+      promptBytes,
+      maxPromptBytes: MAX_PROMPT_BYTES,
+    });
+    return {
+      ok: false,
+      error:
+        `This request needs more evidence than can be answered safely in one call (${mb(promptBytes)}MB, ` +
+        `over the ${mb(MAX_PROMPT_BYTES)}MB limit). Narrow the question - a shorter time window, a single ` +
+        `route-direction, or a more specific question - and try again.`,
+    };
+  }
+
   const token = process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim();
   if (!token) {
     return {

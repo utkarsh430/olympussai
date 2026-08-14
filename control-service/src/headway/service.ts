@@ -334,8 +334,15 @@ export async function getLatestRouteDirectionHeadway(
   };
 }
 
-export async function listOpenIncidents(routeDirectionId?: string): Promise<repo.BunchingIncidentRow[]> {
-  return repo.listOpenIncidents(routeDirectionId);
+export async function listOpenIncidents(
+  routeDirectionId?: string,
+  limit?: number
+): Promise<repo.BunchingIncidentRow[]> {
+  return repo.listOpenIncidents(routeDirectionId, limit);
+}
+
+export async function countOpenIncidents(routeDirectionId?: string): Promise<number> {
+  return repo.countOpenIncidents(routeDirectionId);
 }
 
 export async function getIncident(id: string): Promise<repo.BunchingIncidentRow | null> {

@@ -294,9 +294,15 @@ export const headwayComputeResultSchema = z.object({
 });
 export type HeadwayComputeResult = z.infer<typeof headwayComputeResultSchema>;
 
-/** Response body of GET /v1/incidents. */
+/**
+ * Response body of GET /v1/incidents. `totalOpenCount` is the true number of
+ * open incidents matching the query, which can exceed `incidents.length`
+ * when the request passed a `limit` - always present so a bounded caller
+ * (e.g. copilot grounding) can tell a slice from the full set.
+ */
 export const incidentsResponseSchema = z.object({
   incidents: z.array(bunchingIncidentSchema),
+  totalOpenCount: z.number().int().nonnegative().optional(),
 });
 export type IncidentsResponse = z.infer<typeof incidentsResponseSchema>;
 

@@ -10,6 +10,7 @@ vi.mock('../src/headway/service.js', () => ({
   computeRouteDirectionHeadway: vi.fn(),
   getLatestRouteDirectionHeadway: vi.fn(),
   listOpenIncidents: vi.fn(),
+  countOpenIncidents: vi.fn(),
   getIncident: vi.fn(),
   listActiveRouteDirections: vi.fn(),
 }));
@@ -19,6 +20,7 @@ const {
   computeRouteDirectionHeadway,
   getLatestRouteDirectionHeadway,
   listOpenIncidents,
+  countOpenIncidents,
   getIncident,
   listActiveRouteDirections,
 } = await import('../src/headway/service.js');
@@ -32,6 +34,7 @@ describe('headway routes', () => {
     vi.mocked(computeRouteDirectionHeadway).mockReset();
     vi.mocked(getLatestRouteDirectionHeadway).mockReset();
     vi.mocked(listOpenIncidents).mockReset();
+    vi.mocked(countOpenIncidents).mockReset();
     vi.mocked(getIncident).mockReset();
     vi.mocked(listActiveRouteDirections).mockReset();
   });
@@ -202,7 +205,10 @@ describe('headway routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.incidents).toEqual(incidents);
-      expect(listOpenIncidents).toHaveBeenCalledWith('rd-1');
+      expect(res.body.totalOpenCount).toBe(incidents.length);
+      expect(listOpenIncidents).toHaveBeenCalledWith('rd-1', undefined);
+      // Unlimited: the slice IS the total, so no separate count query is issued.
+      expect(countOpenIncidents).not.toHaveBeenCalled();
     });
 
     it('works with no routeDirectionId filter', async () => {
@@ -210,7 +216,46 @@ describe('headway routes', () => {
       const app = createApp();
       const res = await request(app).get('/v1/incidents').set('Authorization', AUTH_HEADER);
       expect(res.status).toBe(200);
-      expect(listOpenIncidents).toHaveBeenCalledWith(undefined);
+      expect(listOpenIncidents).toHaveBeenCalledWith(undefined, undefined);
+    });
+
+    it('applies limit and reports the true total separately when the result was capped', async () => {
+      const incidents = Array.from({ length: 2 }, (_, i) => ({
+        id: `inc-${i}`,
+        routeDirectionId: 'rd-1',
+        severity: 'bunched',
+        causeClass: 'unknown',
+        controllability: 'controllable',
+        status: 'open',
+        startedAt: new Date().toISOString(),
+        endedAt: null,
+        evidence: {},
+        members: [],
+      }));
+      vi.mocked(listOpenIncidents).mockResolvedValueOnce(incidents);
+      vi.mocked(countOpenIncidents).mockResolvedValueOnce(8582);
+
+      const app = createApp();
+      const res = await request(app)
+        .get('/v1/incidents')
+        .query({ routeDirectionId: 'rd-1', limit: '2' })
+        .set('Authorization', AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(res.body.incidents).toEqual(incidents);
+      expect(res.body.totalOpenCount).toBe(8582);
+      expect(listOpenIncidents).toHaveBeenCalledWith('rd-1', 2);
+      expect(countOpenIncidents).toHaveBeenCalledWith('rd-1');
+    });
+
+    it('rejects a limit outside the accepted range', async () => {
+      const app = createApp();
+      const res = await request(app)
+        .get('/v1/incidents')
+        .query({ limit: '0' })
+        .set('Authorization', AUTH_HEADER);
+      expect(res.status).toBe(400);
+      expect(listOpenIncidents).not.toHaveBeenCalled();
     });
   });
 

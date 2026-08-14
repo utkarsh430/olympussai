@@ -415,12 +415,27 @@ export interface BunchingIncidentRow {
   members: { vehicleId: string; role: string }[];
 }
 
+/**
+ * `limit`, when given, caps how many open incidents come back (most
+ * recently-started first, matching the unlimited order below) - added for
+ * the copilot grounding path, which folds every returned incident into an
+ * LLM prompt and must not hand the model an unbounded, ever-growing table
+ * (see src/lib/copilot/grounding.ts in the web app). Every other caller
+ * (map/observability dashboards) omits it and keeps the original unlimited
+ * behavior byte-for-byte.
+ */
 export async function listOpenIncidents(
   routeDirectionId: string | undefined,
+  limit: number | undefined,
   pool: Pool = getPool()
 ): Promise<BunchingIncidentRow[]> {
   const whereClause = routeDirectionId ? "and bi.route_direction_id = $1" : "";
-  const params = routeDirectionId ? [routeDirectionId] : [];
+  const params: (string | number)[] = routeDirectionId ? [routeDirectionId] : [];
+  let limitClause = "";
+  if (limit !== undefined) {
+    params.push(limit);
+    limitClause = `limit $${params.length}`;
+  }
   const { rows } = await pool.query<{
     id: string;
     route_direction_id: string;
@@ -444,7 +459,8 @@ export async function listOpenIncidents(
        left join bunching_incident_members m on m.incident_id = bi.id
       where bi.status <> 'closed' ${whereClause}
       group by bi.id
-      order by bi.started_at desc`,
+      order by bi.started_at desc
+      ${limitClause}`,
     params
   );
   return rows.map((row) => ({
@@ -459,6 +475,26 @@ export async function listOpenIncidents(
     evidence: row.evidence,
     members: row.members,
   }));
+}
+
+/**
+ * Total open (non-closed) incidents matching the same filter listOpenIncidents
+ * uses, ignoring any limit - lets a limited caller state "showing N of TOTAL"
+ * honestly instead of silently dropping the rest. Only called when a caller
+ * actually applies a limit (see routes/headway.ts), so the unlimited default
+ * path pays no extra query.
+ */
+export async function countOpenIncidents(
+  routeDirectionId: string | undefined,
+  pool: Pool = getPool()
+): Promise<number> {
+  const whereClause = routeDirectionId ? "and route_direction_id = $1" : "";
+  const params = routeDirectionId ? [routeDirectionId] : [];
+  const { rows } = await pool.query<{ count: string }>(
+    `select count(*)::text as count from bunching_incidents where status <> 'closed' ${whereClause}`,
+    params
+  );
+  return Number(rows[0]?.count ?? 0);
 }
 
 /**

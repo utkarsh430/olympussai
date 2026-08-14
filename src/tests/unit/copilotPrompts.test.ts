@@ -93,3 +93,60 @@ describe('buildShiftReportPrompt', () => {
     expect(citations).toHaveLength(3);
   });
 });
+
+describe('evidence truncation honesty', () => {
+  it('buildNlQueryPrompt says nothing about truncation when every record fits (no counts passed)', () => {
+    const { prompt } = buildNlQueryPrompt('Why is dir-1 bunched?', [incident], [auditEvent], [breakdownReport]);
+    expect(prompt).not.toContain('[NOTE:');
+  });
+
+  it('buildNlQueryPrompt says nothing about truncation when the total exactly matches what is shown', () => {
+    const { prompt } = buildNlQueryPrompt('Why is dir-1 bunched?', [incident], [auditEvent], [breakdownReport], {
+      totalIncidents: 1,
+      totalAuditEvents: 1,
+      totalBreakdownReports: 1,
+    });
+    expect(prompt).not.toContain('[NOTE:');
+  });
+
+  it('buildNlQueryPrompt states the real total plainly when the incident set was truncated, and only for that source', () => {
+    const { prompt } = buildNlQueryPrompt('Why is dir-1 bunched?', [incident], [auditEvent], [breakdownReport], {
+      totalIncidents: 8582,
+    });
+
+    expect(prompt).toContain('[NOTE: showing the 1 most recent of 8582 open incidents');
+    expect(prompt).toContain('truncated');
+    // Audit/breakdown were not marked truncated, so they get no note.
+    const noteCount = (prompt.match(/\[NOTE:/g) ?? []).length;
+    expect(noteCount).toBe(1);
+  });
+
+  it('buildShiftReportPrompt carries the same truncation note contract', () => {
+    const { prompt } = buildShiftReportPrompt(
+      { shiftLabel: 'Night shift', periodStart: '2026-08-06T00:00:00.000Z', periodEnd: '2026-08-06T08:00:00.000Z' },
+      [incident],
+      [auditEvent],
+      [breakdownReport],
+      { totalIncidents: 50, totalAuditEvents: 200 },
+    );
+
+    expect(prompt).toContain('[NOTE: showing the 1 most recent of 50 open incidents');
+    expect(prompt).toContain('[NOTE: showing the 1 most recent of 200 audit events');
+    expect(prompt).not.toContain('breakdown reports -');
+  });
+
+  it('the system prompt instructs the model to say so when evidence was truncated', () => {
+    const { system } = buildNlQueryPrompt('q', [], [], []);
+    expect(system.toLowerCase()).toContain('truncated');
+  });
+
+  it('caps a single oversized free-text/JSON evidence field rather than letting one record dominate the prompt', () => {
+    const hugeDescription = 'a'.repeat(50_000);
+    const bigBreakdown = { ...breakdownReport, description: hugeDescription };
+
+    const { prompt } = buildNlQueryPrompt('q', [], [], [bigBreakdown]);
+
+    expect(prompt).toContain('[truncated, 50000 chars total]');
+    expect(prompt.length).toBeLessThan(hugeDescription.length);
+  });
+});

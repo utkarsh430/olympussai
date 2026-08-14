@@ -68,7 +68,7 @@ export async function explainIncident(
 ): Promise<ExplainIncidentResponse> {
   const lookup = await findOpenIncidentById(incidentId, routeDirectionId);
   const relatedAuditEvents = lookup.incident
-    ? (await listAuditEventsForGrounding({ limit: 50 })).filter(
+    ? (await listAuditEventsForGrounding({ limit: 50 })).items.filter(
         (event) => event.resourceId === incidentId,
       )
     : [];
@@ -111,13 +111,28 @@ export async function answerCopilotQuery(
   routeDirectionId: string | undefined,
   actor: CopilotActor,
 ): Promise<CopilotQueryResponse> {
-  const [incidents, auditEvents, breakdownReports] = await Promise.all([
-    listOpenIncidentsForGrounding(routeDirectionId).catch(() => []),
+  // Incidents are explicitly limited (matching the same clamp idiom
+  // listAuditEventsForGrounding/listBreakdownReportsForGrounding already
+  // use) so a large open-incident set can't blow the assembled prompt past
+  // the Claude CLI's 10MB stdin cap the way it did unbounded - see
+  // src/lib/copilot/grounding.ts and claudeSubscription.ts's own backstop.
+  const [incidentsSlice, auditSlice, breakdownSlice] = await Promise.all([
+    listOpenIncidentsForGrounding(routeDirectionId, 25).catch(() => ({ items: [], totalCount: 0 })),
     listAuditEventsForGrounding({ limit: 30 }),
     listBreakdownReportsForGrounding({ limit: 15 }),
   ]);
 
-  const { system, prompt, citations } = buildNlQueryPrompt(question, incidents, auditEvents, breakdownReports);
+  const { system, prompt, citations } = buildNlQueryPrompt(
+    question,
+    incidentsSlice.items,
+    auditSlice.items,
+    breakdownSlice.items,
+    {
+      totalIncidents: incidentsSlice.totalCount,
+      totalAuditEvents: auditSlice.totalCount,
+      totalBreakdownReports: breakdownSlice.totalCount,
+    },
+  );
   const llmResult = await generateCopilotText({ system, prompt });
 
   await logCopilotInteraction({
@@ -166,17 +181,22 @@ export async function draftShiftReport(
   const periodStart = new Date(input.periodStart);
   const periodEnd = new Date(input.periodEnd);
 
-  const [incidents, auditEvents, breakdownReports] = await Promise.all([
-    listOpenIncidentsForGrounding(input.routeDirectionId).catch(() => []),
+  const [incidentsSlice, auditSlice, breakdownSlice] = await Promise.all([
+    listOpenIncidentsForGrounding(input.routeDirectionId, 50).catch(() => ({ items: [], totalCount: 0 })),
     listAuditEventsForGrounding({ since: periodStart, until: periodEnd, limit: 50 }),
     listBreakdownReportsForGrounding({ since: periodStart, until: periodEnd, limit: 25 }),
   ]);
 
   const { system, prompt, citations } = buildShiftReportPrompt(
     { shiftLabel: input.shiftLabel, periodStart: input.periodStart, periodEnd: input.periodEnd, routeDirectionId: input.routeDirectionId },
-    incidents,
-    auditEvents,
-    breakdownReports,
+    incidentsSlice.items,
+    auditSlice.items,
+    breakdownSlice.items,
+    {
+      totalIncidents: incidentsSlice.totalCount,
+      totalAuditEvents: auditSlice.totalCount,
+      totalBreakdownReports: breakdownSlice.totalCount,
+    },
   );
   const llmResult = await generateCopilotText({ system, prompt, maxTokens: 1800 });
 
