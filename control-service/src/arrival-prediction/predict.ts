@@ -296,6 +296,11 @@ function buildEnvelope(
       matchConfidence: round(matchConfidence, 3),
       stopState: state.stopState,
       currentStopId: state.currentStopId,
+      // The same fix every distance above was measured from. `state.position`
+      // has already passed the served-network plausibility gate by the time
+      // this branch is reached, so it is safe to draw.
+      latitude: state.position?.lat ?? null,
+      longitude: state.position?.lon ?? null,
     },
     speed: { ...speed, speedKmph: round(speed.speedKmph, 1), relativeSpread: round(speed.relativeSpread, 3) },
     dwell: describeDwellModel(
@@ -403,6 +408,10 @@ function buildStopArrival(input: StopArrivalInput): StopArrival {
     isControlPoint: input.stop.isControlPoint,
     distanceRemainingMeters: round(input.stop.forwardDistanceMeters, 1),
     intermediateStopCount: input.intermediateStopCount,
+    // Passed through untouched, including null. Rounding a coordinate here
+    // would move the marker; substituting a zero would move it to the ocean.
+    latitude: input.stop.latitude,
+    longitude: input.stop.longitude,
   };
 
   const centralSpeedMps = input.speed.speedKmph / 3.6;

@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createFleetLayer, type FleetLayerHandle } from '@/components/map/fleetCanvasLayer';
 import { getMapsLoader, isMapsConfigured, onMapsAuthFailure } from '@/lib/maps/loader';
-import { partitionPlottable } from '@/lib/maps/plottable';
+import { isPlottablePosition, partitionPlottable } from '@/lib/maps/plottable';
 import { MAP_DARK_STYLE, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/lib/constants';
 import { OpsMapFrame, OpsButton } from '@/components/ops/ui';
-import type { FleetMapOverlay } from '@/lib/maps/contract';
+import type { FleetMapOverlay, MapPoint } from '@/lib/maps/contract';
 import type { OpsMapVehicle } from '@/lib/ops/mapVehicles';
 
 /**
@@ -63,6 +63,35 @@ export interface OpsFleetMapProps {
    * the state view.
    */
   autoFit?: boolean;
+  /**
+   * Fit the camera over THESE points instead of over the vehicles.
+   *
+   * Added for the driver's route screen, which draws one bus and the six stops
+   * ahead of it: fitted to the vehicle alone that map opens zoomed onto the
+   * bus with every stop off-screen, which is the opposite of what the driver
+   * opened it for. The alternative was a second map component, and a second
+   * map is how two surfaces end up disagreeing about what a stale fix looks
+   * like.
+   *
+   * Points are still filtered through the same served-network test the
+   * vehicles are, so this cannot become a way to smuggle a garbage coordinate
+   * into `fitBounds` - which is the one call where a single bad reading
+   * decides what every operator sees first. An empty array fits nothing and
+   * leaves the map on its fallback view, exactly as an empty fleet does.
+   */
+  fitPoints?: readonly MapPoint[];
+  /**
+   * Show the Fresh/Delayed/Stale swatch counts under the map. On by default.
+   *
+   * Turned OFF for the driver's own route screen, and the reason is a misread
+   * rather than clutter. The words describe how old each vehicle's GPS FIX is;
+   * on a fleet map, beside hundreds of chevrons, that reads correctly. On a
+   * driver's phone, beside their own single bus and their own arrival times,
+   * "Delayed 1" reads as "your bus is running late" - which is not what it
+   * says, and is a claim this product has no basis for making. That surface
+   * states the same fact in words instead ("Position 1 min old").
+   */
+  showFleetLegend?: boolean;
   /** Caption under the map. Say what boundary is in force, e.g. `Ghaziabad depot - 61 vehicles`. */
   caption?: string;
   /** Frame minimum height. Passed to OpsMapFrame; see its note on why a definite height is not optional. */
@@ -101,6 +130,8 @@ export function OpsFleetMap({
   selectedVehicleId = null,
   onSelectVehicle,
   autoFit = true,
+  fitPoints,
+  showFleetLegend = true,
   caption,
   minHeight,
   fill = false,
@@ -213,17 +244,26 @@ export function OpsFleetMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== 'ready' || !autoFit || hasFittedRef.current) return;
-    if (drawable.length === 0) return;
+
+    // Caller-supplied points win when given, so a surface that needs the
+    // camera over something other than its vehicles (the driver's route, whose
+    // point is the stops ahead) does not need its own map. Filtered through
+    // the same plausibility test as the vehicles: this is `fitBounds`, the one
+    // call where a single bad coordinate decides the opening view.
+    const fitTargets: MapPoint[] = fitPoints
+      ? fitPoints.filter((point) => isPlottablePosition(point.latitude, point.longitude))
+      : drawable;
+    if (fitTargets.length === 0) return;
 
     const bounds = new google.maps.LatLngBounds();
-    for (const vehicle of drawable) bounds.extend({ lat: vehicle.latitude, lng: vehicle.longitude });
+    for (const point of fitTargets) bounds.extend({ lat: point.latitude, lng: point.longitude });
     map.fitBounds(bounds, 48);
     const listener = google.maps.event.addListenerOnce(map, 'idle', () => {
       if ((map.getZoom() ?? 0) > MAX_AUTO_FIT_ZOOM) map.setZoom(MAX_AUTO_FIT_ZOOM);
     });
     hasFittedRef.current = true;
     return () => listener.remove();
-  }, [drawable, status, autoFit]);
+  }, [drawable, fitPoints, status, autoFit]);
 
   // Pan to a selection made elsewhere on the page (a table row, an incident
   // list). Keyed on the id alone so a position refresh never yanks the camera.
@@ -298,6 +338,8 @@ export function OpsFleetMap({
 
       <div className="mt-2 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ops-faint">
         {caption !== undefined && <span className="text-ops-muted">{caption}</span>}
+        {showFleetLegend && (
+          <>
         {/* While the first poll is still out there is nothing to count, and
             "Fresh 0 · Delayed 0 · Stale 0" is the same fabricated zero the
             caption beside it was just taught not to print. The swatches stay -
@@ -306,6 +348,8 @@ export function OpsFleetMap({
         <LegendSwatch colour="#2bff88" label={awaitingFirstLoad ? 'Fresh' : `Fresh ${legend.good}`} />
         <LegendSwatch colour="#ffb020" label={awaitingFirstLoad ? 'Delayed' : `Delayed ${legend.degraded}`} />
         <LegendSwatch colour="#ff4d5e" label={awaitingFirstLoad ? 'Stale' : `Stale ${legend.stale}`} />
+          </>
+        )}
       </div>
 
       {/* The vehicles removed from the picture, declared. These are real buses

@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
+import { OpsAlert, OpsField, OpsInput, OpsPanel, OpsSelect, OpsTextarea } from '@/components/ops/ui';
 
 const CATEGORIES = ['Mechanical', 'Electrical', 'Tyre/wheel', 'Accident', 'Other'] as const;
 
@@ -99,94 +100,101 @@ export function BreakdownReportPanel({
   const submitting = status === 'submitting';
 
   return (
-    <div className="rounded-md border border-ops-line p-4">
-      <h2 className="ops-label mb-1">
-        Report a breakdown
-      </h2>
-      <p className="mb-3 text-xs text-ops-muted">
-        Submits a persisted, audited breakdown report to dispatch. Once submitted, the composed
-        summary below is also shown so you can read it out over radio/phone if that is faster.
-      </p>
-
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label htmlFor={vehicleId} className="mb-1 block text-xs text-ops-muted">
-              Vehicle
-            </label>
-            <input
+    <OpsPanel
+      title="Report a breakdown"
+      headingLevel={2}
+      description="Sent straight to dispatch and recorded. You can also read the summary out over the radio if that is faster."
+      bodyClassName="space-y-4"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Stacked on a phone, two-up from `sm`. The vehicle and category are
+            short fields, but side by side at 360px they are too narrow to read
+            the selected value in. */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <OpsField label="Vehicle" htmlFor={vehicleId}>
+            <OpsInput
               id={vehicleId}
               value={vehicleReg}
               onChange={(e) => setVehicleReg(e.target.value)}
               placeholder="e.g. UP25FT4823"
-              className="ops-input"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              className="min-h-12 text-base"
             />
-          </div>
-          <div>
-            <label htmlFor="breakdown-category" className="mb-1 block text-xs text-ops-muted">
-              Category
-            </label>
-            <select
+          </OpsField>
+          <OpsField label="What kind of problem" htmlFor="breakdown-category">
+            <OpsSelect
               id="breakdown-category"
               value={category}
               onChange={(e) => setCategory(e.target.value as (typeof CATEGORIES)[number])}
-              className="ops-input"
+              className="min-h-12 text-base"
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
               ))}
-            </select>
-          </div>
+            </OpsSelect>
+          </OpsField>
         </div>
 
-        <div>
-          <label htmlFor={descriptionId} className="mb-1 block text-xs text-ops-muted">
-            Details
-          </label>
-          <textarea
+        <OpsField
+          label="What happened, and where"
+          htmlFor={descriptionId}
+          required
+          error={error ?? undefined}
+        >
+          <OpsTextarea
             id={descriptionId}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            rows={3}
+            rows={4}
             required
             minLength={1}
             maxLength={2000}
-            placeholder="What happened, and where"
+            placeholder="e.g. Rear left tyre burst, stopped on the shoulder near Faridpur"
             aria-describedby={error ? errorId : undefined}
-            className="ops-input"
+            className="min-h-32 text-base"
           />
-        </div>
+        </OpsField>
 
         {error && (
-          <p id={errorId} role="alert" className="text-sm text-alert-crimson">
+          <p id={errorId} role="alert" className="text-base text-ops-danger">
             {error}
           </p>
         )}
 
+        {/* Full width and 56px tall: this is pressed at the roadside, often in
+            a hurry, sometimes one-handed. */}
         <button
           type="submit"
           disabled={submitting || description.trim().length === 0}
-          className="ops-button px-4 py-2"
+          className="ops-button-primary min-h-14 w-full text-sm"
         >
-          {submitting ? 'Submitting…' : 'Submit report'}
+          {submitting ? 'Sending…' : 'Send report to dispatch'}
         </button>
       </form>
 
+      {/* ONE live region, not two. `OpsAlert tone="success"` already announces
+          as role="status"; wrapping it in another status container made the
+          confirmation announce twice to a screen reader and left two elements
+          answering to the same role. Everything the driver needs after filing
+          - the reference to read out, and the summary to read out - lives
+          inside that single region. */}
       {success && (
-        <div id={successId} role="status" className="mt-4 space-y-2">
-          <p className="text-sm text-ops-good">
-            Submitted and logged. Report ID:{' '}
-            <code className="rounded bg-ops-line px-1.5 py-0.5 font-mono text-ops-ink">
+        <OpsAlert tone="success" title="Sent and recorded" id={successId}>
+          <p className="text-base leading-relaxed">
+            Report reference{' '}
+            <code className="rounded bg-ops-line px-1.5 py-0.5 font-mono text-sm text-ops-ink">
               {success.breakdownReportId}
             </code>
           </p>
-          <pre className="ops-well whitespace-pre-wrap p-3 text-xs text-ops-ink">
+          <pre className="ops-well mt-2 whitespace-pre-wrap p-3 text-sm leading-relaxed text-ops-ink">
             {success.summary}
           </pre>
-        </div>
+        </OpsAlert>
       )}
-    </div>
+    </OpsPanel>
   );
 }

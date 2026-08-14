@@ -211,6 +211,23 @@ export interface StopArrivalBase {
   distanceRemainingMeters: number;
   /** Stops strictly between the vehicle and this one, each charged one modelled dwell. */
   intermediateStopCount: number;
+  /**
+   * Where the stop physically is, from the same `stops.geom` row this arrival
+   * was sequenced from.
+   *
+   * Carried on the arrival rather than left to the consumer to join, because
+   * the only other stop dataset in this product is the upstream schedule, and
+   * a consumer joining the two would be drawing a marker for THIS prediction
+   * at a position it got from somewhere else. Same row, same answer.
+   *
+   * NULLABLE, and null is not a formality: a stop with no surveyed position
+   * must not be coerced to (0, 0). That is a valid-looking coordinate in the
+   * Gulf of Guinea, and a map fitted over it opens on empty ocean - the exact
+   * defect src/lib/maps/plottable.ts in the web app was written for. Null is
+   * the only value a renderer cannot draw by accident.
+   */
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export type StopArrival = StopArrivalBase &
@@ -243,6 +260,17 @@ export interface PredictionVehicleState {
   matchConfidence: number;
   stopState: string;
   currentStopId: string | null;
+  /**
+   * The estimated position this prediction was computed from.
+   *
+   * Echoed so a consumer drawing the stops below can also draw the bus they
+   * are measured from, without a second read that could return a DIFFERENT
+   * fix and put the bus somewhere the distances do not agree with. Null only
+   * where the state carried no position at all - never a substituted zero,
+   * for the reason on `StopArrivalBase.latitude`.
+   */
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export type PredictionEnvelope =
@@ -312,6 +340,9 @@ export interface PredictionStop {
   sequence: number;
   cumulativeDistanceMeters: number;
   isControlPoint: boolean;
+  /** Surveyed position from `stops.geom`. Null when unsurveyed - see `StopArrivalBase.latitude`. */
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface PredictionRouteGeometry {

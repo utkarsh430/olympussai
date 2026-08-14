@@ -30,6 +30,8 @@ const available: ArrivalPredictionResponse = {
       matchConfidence: 0.8,
       stopState: 'departed_stop',
       currentStopId: null,
+      latitude: 28.35,
+      longitude: 79.42,
     },
     speed: {
       basis: 'vehicle_smoothed_speed',

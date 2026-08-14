@@ -44,7 +44,8 @@ const QUERIES = {
      where rd.id = $1 and rd.is_active = true`,
   loadRouteDirectionStops: `
     select rds.stop_id, s.name as stop_name, rds.sequence,
-           rds.cumulative_distance_meters, rds.is_control_point
+           rds.cumulative_distance_meters, rds.is_control_point,
+           ST_Y(s.geom::geometry) as lat, ST_X(s.geom::geometry) as lon
       from route_direction_stops rds
       join stops s on s.id = rds.stop_id
      where rds.route_direction_id = $1

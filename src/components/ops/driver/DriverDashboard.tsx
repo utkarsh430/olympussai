@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ScheduleLookupForm } from '@/components/ops/ScheduleLookupForm';
 import { BreakdownReportsPanel } from '@/components/ops/BreakdownReportsPanel';
 import { BreakdownReportPanel } from './BreakdownReportPanel';
+import { OpsPanel, OpsStack } from '@/components/ops/ui';
 
 const DRIVER_REG_STORAGE_KEY = 'ops.driver.vehicleReg';
 
@@ -48,28 +49,28 @@ export function DriverDashboard({
   const [reportsRefreshKey, setReportsRefreshKey] = useState(0);
 
   return (
-    <div className="space-y-8">
-      <section>
-        <ScheduleLookupForm
-          title="My schedule"
-          defaultRegNum={assignedVehicleId ?? undefined}
-          rememberKey={assignedVehicleId ? undefined : DRIVER_REG_STORAGE_KEY}
-        />
-      </section>
+    /* ORDER IS BY URGENCY, NOT BY HISTORY.
+       Reporting a breakdown comes first: a driver reaching for this screen at
+       the roadside needs the form, and putting a schedule lookup above it puts
+       a scroll between a stranded bus and the thing that tells dispatch. The
+       driver's own past reports come next, because the question straight after
+       filing one is "did that go through". The schedule lookup is last - it is
+       the only part of this screen nobody opens in a hurry. */
+    <OpsStack gap="tight">
+      <BreakdownReportPanel
+        defaultVehicleReg={assignedVehicleId ?? undefined}
+        onSubmitted={() => setReportsRefreshKey((key) => key + 1)}
+      />
 
-      <section>
-        <BreakdownReportPanel
-          defaultVehicleReg={assignedVehicleId ?? undefined}
-          onSubmitted={() => setReportsRefreshKey((key) => key + 1)}
-        />
-      </section>
+      <OpsPanel title="Reports you have filed" headingLevel={2}>
+        <BreakdownReportsPanel key={reportsRefreshKey} scope="mine" variant="cab" />
+      </OpsPanel>
 
-      <section>
-        <h2 className="ops-label mb-3">
-          My breakdown reports
-        </h2>
-        <BreakdownReportsPanel key={reportsRefreshKey} scope="mine" />
-      </section>
-    </div>
+      <ScheduleLookupForm
+        title="My schedule"
+        defaultRegNum={assignedVehicleId ?? undefined}
+        rememberKey={assignedVehicleId ? undefined : DRIVER_REG_STORAGE_KEY}
+      />
+    </OpsStack>
   );
 }

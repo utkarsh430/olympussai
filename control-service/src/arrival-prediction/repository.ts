@@ -123,9 +123,18 @@ export async function loadRouteDirectionStops(
     sequence: number;
     cumulative_distance_meters: string;
     is_control_point: boolean;
+    lat: string | null;
+    lon: string | null;
   }>(
+    // ST_Y/ST_X on the geometry cast, matching loadVehicleStateForPrediction
+    // above rather than inventing a second spelling for the same projection.
+    // `stops.geom` is NOT NULL in the schema, so these are expected to be
+    // present - but they are read as nullable and passed through as null
+    // rather than defaulted, because a stop drawn at (0, 0) is worse than a
+    // stop not drawn at all (see StopArrivalBase.latitude).
     `select rds.stop_id, s.name as stop_name, rds.sequence,
-            rds.cumulative_distance_meters, rds.is_control_point
+            rds.cumulative_distance_meters, rds.is_control_point,
+            ST_Y(s.geom::geometry) as lat, ST_X(s.geom::geometry) as lon
        from route_direction_stops rds
        join stops s on s.id = rds.stop_id
       where rds.route_direction_id = $1
@@ -138,6 +147,8 @@ export async function loadRouteDirectionStops(
     sequence: row.sequence,
     cumulativeDistanceMeters: Number(row.cumulative_distance_meters),
     isControlPoint: row.is_control_point,
+    latitude: numberOrNull(row.lat),
+    longitude: numberOrNull(row.lon),
   }));
 }
 

@@ -29,10 +29,10 @@ const OBSERVED_AT = '2026-08-14T09:59:30.000Z'; // 30 s old
 
 function stops(): PredictionStop[] {
   return [
-    { stopId: 's1', stopName: 'Bareilly Old Bus Station', sequence: 1, cumulativeDistanceMeters: 0, isControlPoint: true },
-    { stopId: 's2', stopName: 'Faridpur', sequence: 2, cumulativeDistanceMeters: 8_000, isControlPoint: false },
-    { stopId: 's3', stopName: 'Tilhar', sequence: 3, cumulativeDistanceMeters: 16_000, isControlPoint: false },
-    { stopId: 's4', stopName: 'Shahjahanpur', sequence: 4, cumulativeDistanceMeters: 24_000, isControlPoint: true },
+    { stopId: 's1', stopName: 'Bareilly Old Bus Station', sequence: 1, cumulativeDistanceMeters: 0, isControlPoint: true, latitude: 28.2, longitude: 79.4 },
+    { stopId: 's2', stopName: 'Faridpur', sequence: 2, cumulativeDistanceMeters: 8_000, isControlPoint: false, latitude: 28.1, longitude: 79.6 },
+    { stopId: 's3', stopName: 'Tilhar', sequence: 3, cumulativeDistanceMeters: 16_000, isControlPoint: false, latitude: 27.9, longitude: 79.8 },
+    { stopId: 's4', stopName: 'Shahjahanpur', sequence: 4, cumulativeDistanceMeters: 24_000, isControlPoint: true, latitude: 27.88, longitude: 79.91 },
   ];
 }
 
@@ -488,8 +488,8 @@ describe('orderDownstreamStops', () => {
 
   it('breaks a distance tie by timetable sequence, not by input order', () => {
     const tied: PredictionStop[] = [
-      { stopId: 'later', stopName: 'B', sequence: 9, cumulativeDistanceMeters: 5_000, isControlPoint: false },
-      { stopId: 'earlier', stopName: 'A', sequence: 4, cumulativeDistanceMeters: 5_000, isControlPoint: false },
+      { stopId: 'later', stopName: 'B', sequence: 9, cumulativeDistanceMeters: 5_000, isControlPoint: false, latitude: 28.1, longitude: 79.6 },
+      { stopId: 'earlier', stopName: 'A', sequence: 4, cumulativeDistanceMeters: 5_000, isControlPoint: false, latitude: 28.0, longitude: 79.7 },
     ];
     const ordered = orderDownstreamStops(
       tied,
@@ -531,5 +531,82 @@ describe('computeArrivalConfidence', () => {
     expect(bandFor(0.35)).toBe('usable');
     expect(bandFor(0.34)).toBe('rough');
     expect(bandFor(MIN_PUBLISHABLE_CONFIDENCE)).toBe('rough');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// STOP GEOMETRY
+//
+// A driver's screen has to draw these stops on a map, and the only honest
+// source for where a stop IS is the same row the prediction sequenced it
+// from (`stops.geom`, seeded from the upstream survey - see
+// control-service/src/seed/persist.ts). Carrying it on the arrival means the
+// consumer never has to join a second dataset to find out where the stop it
+// was just given a time for actually is.
+// ─────────────────────────────────────────────────────────────────────────
+describe('predictArrivals - stop geometry travels with the stop', () => {
+  it('gives every stop the surveyed position it was sequenced from', () => {
+    const res = predictArrivals(input());
+    expect(res.prediction.status).toBe('available');
+    if (res.prediction.status !== 'available') throw new Error('unreachable');
+
+    expect(res.prediction.arrivals.map((a) => [a.stopId, a.latitude, a.longitude])).toEqual([
+      ['s2', 28.1, 79.6],
+      ['s3', 27.9, 79.8],
+      ['s4', 27.88, 79.91],
+    ]);
+  });
+
+  it('carries the position on a stop it could not put a time on, so the map still shows the stop', () => {
+    // Horizon short enough that everything past the first stop is withdrawn:
+    // those stops keep their name, sequence, distance AND position.
+    const res = predictArrivals(input({ horizonSeconds: 60 }));
+    if (res.prediction.status !== 'available') throw new Error('unreachable');
+
+    const withdrawn = res.prediction.arrivals.filter((a) => a.status === 'unavailable');
+    expect(withdrawn.length).toBeGreaterThan(0);
+    // Asserted against the exact surveyed values, not `not.toBeNull()`:
+    // `expect(undefined).not.toBeNull()` passes, so the loose form would have
+    // gone green against an implementation that carried no coordinates at all.
+    expect(withdrawn.map((a) => [a.stopId, a.latitude, a.longitude])).toEqual(
+      withdrawn.map((a) => [
+        a.stopId,
+        { s2: 28.1, s3: 27.9, s4: 27.88 }[a.stopId],
+        { s2: 79.6, s3: 79.8, s4: 79.91 }[a.stopId],
+      ]),
+    );
+  });
+
+  it('reports an unsurveyed stop as having no position rather than as (0, 0)', () => {
+    // The `latitude 0.000` defect (src/lib/maps/plottable.ts) in its other
+    // form: a missing survey coerced to zero is a valid-looking coordinate in
+    // the Gulf of Guinea, and a map fitted over it opens on empty ocean. Null
+    // is the only answer that cannot be drawn by accident.
+    const unsurveyed = stops().map((stop) =>
+      stop.stopId === 's3' ? { ...stop, latitude: null, longitude: null } : stop,
+    );
+    const res = predictArrivals(input({ stops: unsurveyed }));
+    if (res.prediction.status !== 'available') throw new Error('unreachable');
+
+    const s3 = res.prediction.arrivals.find((a) => a.stopId === 's3');
+    expect(s3).toBeDefined();
+    expect(s3!.latitude).toBeNull();
+    expect(s3!.longitude).toBeNull();
+    // Still listed, still timed - only its position is unknown.
+    expect(s3!.status).toBe('predicted');
+  });
+
+  it('echoes the position the prediction was computed from on the vehicle block', () => {
+    const res = predictArrivals(input());
+    if (res.prediction.status !== 'available') throw new Error('unreachable');
+    expect(res.prediction.vehicle.latitude).toBe(28.35);
+    expect(res.prediction.vehicle.longitude).toBe(79.42);
+  });
+
+  it('reports no vehicle position when the state carried none, rather than inventing one', () => {
+    const res = predictArrivals(input({ state: state({ position: null }) }));
+    if (res.prediction.status !== 'available') throw new Error('unreachable');
+    expect(res.prediction.vehicle.latitude).toBeNull();
+    expect(res.prediction.vehicle.longitude).toBeNull();
   });
 });

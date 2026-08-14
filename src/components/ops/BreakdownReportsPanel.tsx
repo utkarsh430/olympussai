@@ -42,7 +42,27 @@ const ENDPOINT: Record<'fleet' | 'mine', string> = {
  * from ApprovalQueuePanel, so this reads as its sibling rather than a
  * bespoke panel.
  */
-export function BreakdownReportsPanel({ scope }: { scope: 'fleet' | 'mine' }) {
+export function BreakdownReportsPanel({
+  scope,
+  variant = 'console',
+}: {
+  scope: 'fleet' | 'mine';
+  /**
+   * How large to render.
+   *
+   * `console` (default) is the existing treatment, used by the control-room,
+   * dispatcher and depot dashboards - operators at a desk reading a long list.
+   * It is the default so those three surfaces are untouched by this prop
+   * existing.
+   *
+   * `cab` is for the driver's own history on a phone: the same information at
+   * body-copy size with a real tap target on the pager. A driver checking
+   * whether their breakdown report was filed is doing it one-handed, at the
+   * roadside, and 11px timestamps are not readable there.
+   */
+  variant?: 'console' | 'cab';
+}) {
+  const cab = variant === 'cab';
   const [state, setState] = useState<FetchState>({ status: 'loading' });
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -99,18 +119,18 @@ export function BreakdownReportsPanel({ scope }: { scope: 'fleet' | 'mine' }) {
   }
 
   if (state.status === 'loading') {
-    return <p className="text-sm text-ops-muted">Loading breakdown reports…</p>;
+    return <p className={cab ? 'text-base text-ops-muted' : 'text-sm text-ops-muted'}>Loading breakdown reports…</p>;
   }
   if (state.status === 'error') {
     return (
-      <p role="alert" className="text-sm text-alert-crimson">
+      <p role="alert" className={cab ? 'text-base text-ops-danger' : 'text-sm text-alert-crimson'}>
         {state.message}
       </p>
     );
   }
   if (state.reports.length === 0) {
     return (
-      <p className="ops-well px-4 py-3 text-sm text-ops-muted">
+      <p className={cab ? 'ops-well px-4 py-6 text-center text-base text-ops-muted' : 'ops-well px-4 py-3 text-sm text-ops-muted'}>
         {scope === 'mine' ? 'You have not filed any breakdown reports yet.' : 'No breakdown reports filed yet.'}
       </p>
     );
@@ -120,19 +140,28 @@ export function BreakdownReportsPanel({ scope }: { scope: 'fleet' | 'mine' }) {
     <div className="space-y-3">
       <ul className="space-y-3">
         {state.reports.map((report) => (
-          <li key={report.id} className="rounded-md border border-ops-line px-4 py-3">
+          <li key={report.id} className={cab ? 'rounded-md border border-ops-line px-4 py-4' : 'rounded-md border border-ops-line px-4 py-3'}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-mono text-xs uppercase tracking-[0.1em] text-holo-glow">
+              <span className={cab ? 'font-mono text-sm uppercase tracking-[0.1em] text-holo-glow' : 'font-mono text-xs uppercase tracking-[0.1em] text-holo-glow'}>
                 {report.category}
               </span>
-              <span className="text-[11px] text-ops-faint">{new Date(report.createdAt).toLocaleString()}</span>
+              <span className={cab ? 'text-sm text-ops-muted' : 'text-[11px] text-ops-faint'}>
+                {new Date(report.createdAt).toLocaleString()}
+              </span>
             </div>
-            <p className="mt-1 text-sm text-ops-ink">{report.description}</p>
-            <p className="mt-1 font-mono text-[11px] text-ops-faint">
+            <p className={cab ? 'mt-1.5 text-base leading-relaxed text-ops-ink' : 'mt-1 text-sm text-ops-ink'}>
+              {report.description}
+            </p>
+            <p className={cab ? 'mt-1.5 font-mono text-sm text-ops-muted' : 'mt-1 font-mono text-[11px] text-ops-faint'}>
               vehicle {report.vehicleReg}
               {scope === 'fleet' ? ` · reported by ${report.reporterName}` : ''}
             </p>
-            <p className="mt-1 font-mono text-[10px] text-ops-faint">id: {report.id}</p>
+            {/* The report id is what a driver reads out over the radio when
+                dispatch asks which report they mean, so it stays visible in the
+                cab treatment - just not at 10px. */}
+            <p className={cab ? 'mt-1.5 font-mono text-xs text-ops-faint' : 'mt-1 font-mono text-[10px] text-ops-faint'}>
+              id: {report.id}
+            </p>
           </li>
         ))}
       </ul>
@@ -142,7 +171,7 @@ export function BreakdownReportsPanel({ scope }: { scope: 'fleet' | 'mine' }) {
           type="button"
           onClick={loadMore}
           disabled={loadingMore}
-          className="ops-button"
+          className={cab ? 'ops-button min-h-12 w-full text-sm' : 'ops-button'}
         >
           {loadingMore ? 'Loading…' : 'Load more'}
         </button>

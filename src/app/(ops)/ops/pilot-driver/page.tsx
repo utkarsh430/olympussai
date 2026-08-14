@@ -1,6 +1,7 @@
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
 import { CommandConsole } from '@/components/ops/pilot-driver/CommandConsole';
+import { JourneySection } from '@/components/ops/pilot-driver/JourneySection';
 import { PwaRegister } from '@/components/ops/pilot-driver/PwaRegister';
 
 export default async function PilotDriverPage() {
@@ -16,7 +17,20 @@ export default async function PilotDriverPage() {
   return (
     <OpsShell title="Pilot Driver" email={session.email} role="pilot_driver">
       <PwaRegister />
-      <CommandConsole />
+      {/* ORDER IS LOAD-BEARING. The command console stays first, above the
+          fold, on every screen size. It is the only place a driver sees an
+          instruction from the control room, and a driver who has scrolled down
+          to read their route must not be able to scroll an arriving command
+          out of sight - so the route goes below it, never beside or before it.
+
+          JourneySection is an error boundary around the route (see its own
+          note): the console is deliberately OUTSIDE that boundary, because a
+          boundary containing both would let a map failure blank the console it
+          exists to protect. */}
+      <div className="space-y-6">
+        <CommandConsole />
+        <JourneySection />
+      </div>
     </OpsShell>
   );
 }

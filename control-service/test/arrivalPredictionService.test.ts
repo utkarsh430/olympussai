@@ -52,7 +52,7 @@ describe('getVehicleArrivals', () => {
       totalDistanceMeters: 20_000,
     });
     vi.mocked(repo.loadRouteDirectionStops).mockResolvedValue([
-      { stopId: 's2', stopName: 'Faridpur', sequence: 2, cumulativeDistanceMeters: 5_000, isControlPoint: false },
+      { stopId: 's2', stopName: 'Faridpur', sequence: 2, cumulativeDistanceMeters: 5_000, isControlPoint: false, latitude: 28.2, longitude: 79.5 },
     ]);
     vi.mocked(repo.loadPeerSpeeds).mockResolvedValue([]);
     vi.mocked(repo.loadActiveHold).mockResolvedValue(false);
@@ -124,7 +124,7 @@ describe('getVehicleArrivals', () => {
       totalDistanceMeters: 20_000,
     });
     vi.mocked(repo.loadRouteDirectionStops).mockResolvedValue([
-      { stopId: 's2', stopName: 'Faridpur', sequence: 2, cumulativeDistanceMeters: 5_000, isControlPoint: false },
+      { stopId: 's2', stopName: 'Faridpur', sequence: 2, cumulativeDistanceMeters: 5_000, isControlPoint: false, latitude: 28.2, longitude: 79.5 },
     ]);
     vi.mocked(repo.loadPeerSpeeds).mockResolvedValue([]);
     vi.mocked(repo.loadActiveHold).mockResolvedValue(true);

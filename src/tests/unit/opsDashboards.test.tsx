@@ -642,8 +642,8 @@ describe('BreakdownReportPanel action flow', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<BreakdownReportPanel defaultVehicleReg="UP25FT4823" />);
-    fireEvent.change(screen.getByLabelText(/details/i), { target: { value: 'Engine overheating near KM 12' } });
-    fireEvent.click(screen.getByRole('button', { name: /submit report/i }));
+    fireEvent.change(screen.getByLabelText(/what happened/i), { target: { value: 'Engine overheating near KM 12' } });
+    fireEvent.click(screen.getByRole('button', { name: /send report to dispatch/i }));
 
     const summary = await screen.findByRole('status');
     expect(within(summary).getByText(/report-789/)).toBeInTheDocument();
@@ -666,8 +666,8 @@ describe('BreakdownReportPanel action flow', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<BreakdownReportPanel defaultVehicleReg="UP25FT4823" />);
-    fireEvent.change(screen.getByLabelText(/details/i), { target: { value: 'Engine overheating near KM 12' } });
-    fireEvent.click(screen.getByRole('button', { name: /submit report/i }));
+    fireEvent.change(screen.getByLabelText(/what happened/i), { target: { value: 'Engine overheating near KM 12' } });
+    fireEvent.click(screen.getByRole('button', { name: /send report to dispatch/i }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/vehicleReg, category and description/i));
   });
@@ -798,8 +798,8 @@ describe('DriverDashboard breakdown-reports refresh-after-submit', () => {
     await waitFor(() => expect(screen.getByText(/you have not filed any breakdown reports/i)).toBeInTheDocument());
     expect(getCalls).toBe(1);
 
-    fireEvent.change(screen.getByLabelText(/details/i), { target: { value: 'Engine overheating near KM 12' } });
-    fireEvent.click(screen.getByRole('button', { name: /submit report/i }));
+    fireEvent.change(screen.getByLabelText(/what happened/i), { target: { value: 'Engine overheating near KM 12' } });
+    fireEvent.click(screen.getByRole('button', { name: /send report to dispatch/i }));
 
     await screen.findByRole('status');
     await waitFor(() => expect(getCalls).toBe(2));

@@ -1007,6 +1007,20 @@ const stopArrivalBaseSchema = z.object({
   isControlPoint: z.boolean(),
   distanceRemainingMeters: z.number(),
   intermediateStopCount: z.number().int().nonnegative(),
+  /**
+   * Where the stop is, from the same `stops.geom` row control-service
+   * sequenced this arrival from.
+   *
+   * `.nullable()` and NOT `.optional()`, deliberately. Null is a real answer
+   * ("this stop has no surveyed position"), which a renderer must handle by
+   * not drawing it. Undefined is not an answer at all, and a `lat={undefined}`
+   * reaching a map is how a marker ends up at (0, 0) - see
+   * src/lib/maps/plottable.ts for the reading that put the statewide console
+   * on empty ocean. Requiring the key makes a control-service that stops
+   * sending it a caught parse error here rather than a marker in the sea.
+   */
+  latitude: z.number().nullable(),
+  longitude: z.number().nullable(),
 });
 
 export const stopArrivalSchema = z.discriminatedUnion('status', [
@@ -1049,6 +1063,9 @@ export const predictionEnvelopeSchema = z.discriminatedUnion('status', [
       matchConfidence: z.number(),
       stopState: z.string(),
       currentStopId: z.string().nullable(),
+      /** The fix every distance in this response was measured from. Same nullable-not-optional rule as a stop's. */
+      latitude: z.number().nullable(),
+      longitude: z.number().nullable(),
     }),
     speed: runningSpeedSchema,
     dwell: dwellModelSchema,

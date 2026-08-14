@@ -29,6 +29,8 @@ const AVAILABLE: ArrivalPredictionResponse = {
       matchConfidence: 0.81,
       stopState: 'departed_stop',
       currentStopId: null,
+      latitude: 28.35,
+      longitude: 79.42,
     },
     speed: {
       basis: 'vehicle_smoothed_speed',
@@ -51,6 +53,8 @@ const AVAILABLE: ArrivalPredictionResponse = {
         isControlPoint: false,
         distanceRemainingMeters: 4000,
         intermediateStopCount: 0,
+        latitude: 28.1,
+        longitude: 79.6,
         status: 'predicted',
         etaSeconds: 330,
         etaAt: '2026-08-14T10:05:30.000Z',
@@ -72,6 +76,8 @@ const AVAILABLE: ArrivalPredictionResponse = {
         isControlPoint: false,
         distanceRemainingMeters: 40000,
         intermediateStopCount: 1,
+        latitude: 27.9,
+        longitude: 79.8,
         status: 'unavailable',
         reason: 'beyond_prediction_horizon',
       },
@@ -266,5 +272,40 @@ describe('GET /api/ops/pilot-driver/arrivals', () => {
     expect(body.prediction.status).toBe('unavailable');
     expect(body.prediction.reason).toBe('off_route');
     expect(body.prediction.arrivals).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// STOP GEOMETRY CROSSES THE BOUNDARY
+//
+// The driver map draws these stops. Their positions come from control-service
+// on the arrival itself (control-service/src/arrival-prediction/types.ts), so
+// the renderer never has to join a second stop dataset to find out where the
+// stop it was just given a time for actually is.
+// ─────────────────────────────────────────────────────────────────────────
+describe('arrival stop geometry', () => {
+  it('accepts and preserves the surveyed position on every stop', () => {
+    const parsed = arrivalPredictionResponseSchema.parse(AVAILABLE);
+    if (parsed.prediction.status !== 'available') throw new Error('unreachable');
+    expect(parsed.prediction.arrivals[0]!.latitude).toBe(28.1);
+    expect(parsed.prediction.arrivals[0]!.longitude).toBe(79.6);
+    expect(parsed.prediction.vehicle.latitude).toBe(28.35);
+    expect(parsed.prediction.vehicle.longitude).toBe(79.42);
+  });
+
+  it('accepts an unsurveyed stop as null rather than requiring a coordinate', () => {
+    const unsurveyed = structuredClone(AVAILABLE);
+    if (unsurveyed.prediction.status !== 'available') throw new Error('unreachable');
+    unsurveyed.prediction.arrivals[0]!.latitude = null;
+    unsurveyed.prediction.arrivals[0]!.longitude = null;
+    expect(() => arrivalPredictionResponseSchema.parse(unsurveyed)).not.toThrow();
+  });
+
+  it('refuses a stop position that is missing entirely, so a silent undefined cannot reach the map', () => {
+    const missing = structuredClone(AVAILABLE) as unknown as {
+      prediction: { arrivals: Array<Record<string, unknown>> };
+    };
+    delete missing.prediction.arrivals[0]!.latitude;
+    expect(() => arrivalPredictionResponseSchema.parse(missing)).toThrow();
   });
 });

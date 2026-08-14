@@ -149,12 +149,56 @@ describe('the other reads', () => {
     const stops = await loadRouteDirectionStops(
       'rd-1',
       fakePool([
-        { stop_id: 's1', stop_name: 'Faridpur', sequence: 2, cumulative_distance_meters: '8000', is_control_point: true },
+        {
+          stop_id: 's1',
+          stop_name: 'Faridpur',
+          sequence: 2,
+          cumulative_distance_meters: '8000',
+          is_control_point: true,
+          lat: '28.2066',
+          lon: '79.5361',
+        },
       ]),
     );
     expect(stops).toEqual([
-      { stopId: 's1', stopName: 'Faridpur', sequence: 2, cumulativeDistanceMeters: 8000, isControlPoint: true },
+      {
+        stopId: 's1',
+        stopName: 'Faridpur',
+        sequence: 2,
+        cumulativeDistanceMeters: 8000,
+        isControlPoint: true,
+        latitude: 28.2066,
+        longitude: 79.5361,
+      },
     ]);
+  });
+
+  it('reads the stop position out of PostGIS rather than expecting the caller to join for it', async () => {
+    const captured: Captured[] = [];
+    await loadRouteDirectionStops('rd-1', fakePool([], captured));
+    // The projection, not just "a query ran": without these the driver map
+    // has stop names and times and nowhere to draw them.
+    expect(captured[0]!.text).toContain('ST_Y(s.geom::geometry) as lat');
+    expect(captured[0]!.text).toContain('ST_X(s.geom::geometry) as lon');
+  });
+
+  it('reports an unsurveyed stop as having no position rather than as (0, 0)', async () => {
+    const stops = await loadRouteDirectionStops(
+      'rd-1',
+      fakePool([
+        {
+          stop_id: 's1',
+          stop_name: 'Faridpur',
+          sequence: 2,
+          cumulative_distance_meters: '8000',
+          is_control_point: true,
+          lat: null,
+          lon: null,
+        },
+      ]),
+    );
+    expect(stops[0]!.latitude).toBeNull();
+    expect(stops[0]!.longitude).toBeNull();
   });
 
   it('treats an unknown vehicle as not existing', async () => {

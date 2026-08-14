@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { Command, CommandAckOutcome } from '@/models/control';
 import { commandActionLabel, commandReason } from '@/lib/pilotDriver/commandCopy';
 import { enqueueAck, flushQueuedAcks, removeQueuedAck, type QueuedAck } from '@/lib/pilotDriver/ackQueue';
+import { OpsAlert, OpsPanel } from '@/components/ops/ui';
 
 const POLL_INTERVAL_MS = 4_000;
 
@@ -232,68 +233,81 @@ export function CommandConsole() {
   const alreadyResolved = ackPhase === 'sent' || ackPhase === 'queued';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {!isOnline && (
-        <p role="status" className="rounded-md border border-ops-warn/40 bg-ops-warn/10 px-3 py-2 text-xs text-ops-warn">
+        <OpsAlert tone="warning">
           Offline — showing the last known command. Any response you send will be queued and delivered
           automatically once you&rsquo;re back online.
-        </p>
+        </OpsAlert>
       )}
 
-      <section className="rounded-md border border-ops-line p-4">
-        <h2 className="ops-label mb-3">Your vehicle</h2>
-        {vehicleState === 'loading' && <p className="text-sm text-ops-muted">Loading your vehicle assignment…</p>}
+      <OpsPanel title="Your vehicle" headingLevel={2}>
+        {vehicleState === 'loading' && <p className="text-base text-ops-muted">Loading your vehicle assignment…</p>}
         {vehicleState === 'assigned' && (
-          <p className="font-mono text-sm text-ops-ink">{vehicleId}</p>
+          <p className="font-mono text-xl tracking-wide text-ops-ink">{vehicleId}</p>
         )}
         {vehicleState === 'unassigned' && (
-          <p className="text-sm text-ops-warn">
+          <p className="text-base leading-relaxed text-ops-warn">
             No vehicle is assigned to your account yet. Contact your admin to be assigned one.
           </p>
         )}
         {vehicleState === 'error' && (
-          <p className="text-sm text-alert-crimson">Could not load your vehicle assignment. Try reloading.</p>
+          <p className="text-base leading-relaxed text-ops-danger">Could not load your vehicle assignment. Try reloading.</p>
         )}
-      </section>
+      </OpsPanel>
 
-      <section aria-live="polite" id={statusRegionId} className="rounded-md border border-ops-line p-4">
-        <h2 className="ops-label mb-3">Active command</h2>
-
+      <OpsPanel
+        title="Active command"
+        headingLevel={2}
+        tone={command && vehicleState === 'assigned' ? 'accent' : 'default'}
+        aria-live="polite"
+        id={statusRegionId}
+      >
         {vehicleState !== 'assigned' && (
-          <p className="text-sm text-ops-muted">Waiting for a vehicle assignment to receive commands.</p>
+          <p className="text-base text-ops-muted">Waiting for a vehicle assignment to receive commands.</p>
         )}
 
         {vehicleState === 'assigned' && !command && (
-          <p className="text-sm text-ops-muted">
+          <p className="text-base text-ops-muted">
             No active command right now.
-            {pollError && <span className="mt-1 block text-xs text-ops-warn">{pollError}</span>}
+            {pollError && <span className="mt-1.5 block text-sm text-ops-warn">{pollError}</span>}
           </p>
         )}
 
         {vehicleState === 'assigned' && command && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div>
-              <p className="text-lg font-semibold text-ops-ink">{commandActionLabel(command.actionType)}</p>
-              <p className="mt-1 text-sm text-ops-muted">{commandReason(command)}</p>
+              <p className="text-2xl font-semibold leading-tight text-ops-ink">{commandActionLabel(command.actionType)}</p>
+              <p className="mt-2 text-base leading-relaxed text-ops-muted">{commandReason(command)}</p>
             </div>
 
-            <p className="font-mono text-2xl tabular-nums text-holo-glow" aria-label="Time remaining to respond">
-              {remainingSeconds !== null ? formatCountdown(remainingSeconds) : '—'}
-            </p>
+            <div>
+              <p className="ops-eyebrow mb-1">Time to respond</p>
+              <p className="font-mono text-4xl tabular-nums text-holo-glow" aria-label="Time remaining to respond">
+                {remainingSeconds !== null ? formatCountdown(remainingSeconds) : '—'}
+              </p>
+            </div>
 
             {alreadyResolved ? (
-              <p role="status" className="text-sm text-ops-good">
+              <p role="status" className="text-base font-semibold text-ops-good">
                 {ackPhase === 'sent'
                   ? 'Response sent.'
                   : "Response saved on this device — it will be sent automatically once you're back online."}
               </p>
             ) : (
+              /* One full-width button per row on a phone, three across from
+                 `sm` up. Stacked is deliberate: three side-by-side targets on a
+                 360px screen are ~100px wide each, and the difference between
+                 "I can do this" and "this is not safe" is not a tap a driver
+                 should be able to fumble. The min-height is raised from the
+                 44px minimum to 64px for the same reason - this is operated in
+                 a moving cab. */
               <div className="grid gap-3 sm:grid-cols-3">
                 <button
                   type="button"
                   onClick={() => handleAck('accept')}
                   disabled={acknowledging}
-                  className="min-h-11 rounded-md border border-ops-good/50 bg-ops-good/10 px-4 py-3 font-mono text-[12px] uppercase tracking-[0.14em] text-ops-good hover:border-ops-good focus-visible:outline focus-visible:outline-2 focus-visible:outline-ops-good disabled:cursor-not-allowed disabled:opacity-60"
+                  className="min-h-16 rounded-md border border-ops-good/50 bg-ops-good/10 px-4 py-4 font-mono text-base uppercase tracking-[0.14em] text-ops-good hover:border-ops-good focus-visible:outline focus-visible:outline-2 focus-visible:outline-ops-good disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Ack
                 </button>
@@ -301,7 +315,7 @@ export function CommandConsole() {
                   type="button"
                   onClick={() => handleAck('unable')}
                   disabled={acknowledging}
-                  className="min-h-11 rounded-md border border-ops-warn/50 bg-ops-warn/10 px-4 py-3 font-mono text-[12px] uppercase tracking-[0.14em] text-ops-warn hover:border-ops-warn focus-visible:outline focus-visible:outline-2 focus-visible:outline-ops-warn disabled:cursor-not-allowed disabled:opacity-60"
+                  className="min-h-16 rounded-md border border-ops-warn/50 bg-ops-warn/10 px-4 py-4 font-mono text-base uppercase tracking-[0.14em] text-ops-warn hover:border-ops-warn focus-visible:outline focus-visible:outline-2 focus-visible:outline-ops-warn disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Unable
                 </button>
@@ -309,7 +323,7 @@ export function CommandConsole() {
                   type="button"
                   onClick={() => handleAck('unsafe')}
                   disabled={acknowledging}
-                  className="min-h-11 rounded-md border border-alert-crimson/50 bg-alert-crimson/10 px-4 py-3 font-mono text-[12px] uppercase tracking-[0.14em] text-alert-crimson hover:border-alert-crimson focus-visible:outline focus-visible:outline-2 focus-visible:outline-alert-crimson disabled:cursor-not-allowed disabled:opacity-60"
+                  className="min-h-16 rounded-md border border-alert-crimson/50 bg-alert-crimson/10 px-4 py-4 font-mono text-base uppercase tracking-[0.14em] text-alert-crimson hover:border-alert-crimson focus-visible:outline focus-visible:outline-2 focus-visible:outline-alert-crimson disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Unsafe
                 </button>
@@ -317,16 +331,16 @@ export function CommandConsole() {
             )}
 
             {ackError && (
-              <p role="alert" className="text-sm text-alert-crimson">
+              <p role="alert" className="text-base text-ops-danger">
                 {ackError}
               </p>
             )}
-            <p className="text-xs text-ops-faint">
+            <p className="text-sm leading-relaxed text-ops-faint">
               Unable and unsafe are recorded exactly like ack — no penalty is applied either way.
             </p>
           </div>
         )}
-      </section>
+      </OpsPanel>
     </div>
   );
 }
