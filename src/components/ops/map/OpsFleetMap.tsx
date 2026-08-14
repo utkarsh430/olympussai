@@ -115,6 +115,21 @@ export interface OpsFleetMapProps {
    * which.
    */
   awaitingFirstLoad?: boolean;
+  /**
+   * Override the notice shown over an empty map, or `null` to suppress it.
+   *
+   * Added for the control-strategy rehearsal, which passes NO vehicles on
+   * purpose and draws its simulated buses as overlay marks instead (a
+   * simulated bus has no GPS fix, so it cannot honestly carry a
+   * `dataQuality`, and the renderer colours vehicles by exactly that). On
+   * that surface the default notice is a true sentence about the wrong
+   * subject: it reports an empty FLEET over a map full of simulated buses.
+   *
+   * It is an override, not a default change. On every operational surface
+   * an empty map still says so, because a console that quietly shows
+   * nothing is the failure this notice was written for.
+   */
+  emptyMessage?: string | null;
 }
 
 /** Uttar Pradesh, comfortably. Used when the camera cannot be fitted to anything. */
@@ -137,6 +152,7 @@ export function OpsFleetMap({
   fill = false,
   label = 'Fleet map',
   awaitingFirstLoad = false,
+  emptyMessage,
 }: OpsFleetMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -311,7 +327,7 @@ export function OpsFleetMap({
           </div>
         )}
 
-        {status === 'ready' && drawable.length === 0 && (
+        {status === 'ready' && drawable.length === 0 && emptyMessage !== null && (
           <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2 px-6 text-center">
             {/* "No vehicles" is a claim about the fleet. Before any data has
                 arrived the map has no evidence for it, and on a statewide
@@ -326,11 +342,12 @@ export function OpsFleetMap({
                 fleet, and calling it one would hide a feed problem behind a
                 calm, ordinary-looking message. */}
             <p className="text-sm text-ops-muted">
-              {awaitingFirstLoad
-                ? 'Loading vehicle positions…'
-                : vehicles.length === 0
-                  ? 'No vehicles to show.'
-                  : 'No vehicle reported a position on the network.'}
+              {emptyMessage ??
+                (awaitingFirstLoad
+                  ? 'Loading vehicle positions…'
+                  : vehicles.length === 0
+                    ? 'No vehicles to show.'
+                    : 'No vehicle reported a position on the network.')}
             </p>
           </div>
         )}

@@ -1,52 +1,74 @@
 import type { Metadata } from 'next';
 import { requireProjectSurface } from '@/lib/auth/projectPageGuard';
 import { BunchingSimulator } from '@/components/bunching/BunchingSimulator';
+import { listRehearsalCorridors } from '@/lib/controlService/rehearsalData';
+import type { RouteDirectionMeta } from '@/models/control';
 
 /**
- * Bus bunching control simulator — a protected UPSRTC project surface.
+ * Control-strategy rehearsal — a protected UPSRTC project surface.
  *
  * Sits under `/project/*`, so edge middleware gates it exactly like the
- * operations dashboard. This server component then re-decides admission
- * independently (the same defence-in-depth pattern the dashboard layout uses):
- * a request without an ACTIVE ops profile never renders simulator markup.
+ * operations dashboards. This server component then re-decides admission
+ * independently (the same defence-in-depth pattern the dashboard layout
+ * uses): a request without an ACTIVE ops profile never renders simulator
+ * markup.
  *
  * It is its own gate rather than an inherited one BECAUSE it is deliberately
- * not nested under the dashboard layout (see below) — so there is no shared
- * parent to carry the check, and a `/project/*` surface that forgot to call
+ * not nested under the dashboard layout — so there is no shared parent to
+ * carry the check, and a `/project/*` surface that forgot to call
  * `requireProjectSurface` would simply be open. That is a structural risk
  * rather than a stylistic one, so it is held by a test that walks this
  * directory: src/tests/unit/projectSurfaceOpsGate.test.ts.
  *
- * Deliberately *not* nested inside the dashboard's `upsrtc/layout.tsx`. That
- * layout re-creates a fixed-viewport, CSS-zoomed command-centre environment for
- * a page that must never scroll; this simulator is a long analysis surface that
- * scrolls naturally, and CSS `zoom` would also desynchronise Tailwind's
- * viewport-based breakpoints from the real layout width. The visual language
- * is applied here instead, so the page still reads as part of the same product:
- * Orbitron display type and tabular numerals as on the dashboard, but on a light
- * surface (`sim-light` + the `sim-*` palette) rather than the command centre's
- * void background.
+ * ─── WHY IT NOW WEARS THE OPS DESIGN SYSTEM ──────────────────────────────
+ *
+ * The page this replaced had its own light `sim-*` palette and its own
+ * Google Maps mount, because what it showed was a scripted scenario on a
+ * fabricated corridor and it belonged to no operational surface. What runs
+ * here now is the control service's own simulator over a real seeded
+ * corridor, its real stops and its real control policy, driven by the
+ * deployed control laws. It is part of the same product as the control room
+ * and the depot console, so it uses the same shell, the same primitives and
+ * the same map — and the same `sim` badge the design system already carries
+ * for exactly this, so that reusing the operational look never becomes a
+ * claim to be operational.
+ *
+ * ─── THE CORRIDOR LIST IS FETCHED HERE, NOT IN THE BROWSER ───────────────
+ *
+ * One server read on first paint, so the picker is populated before the
+ * operator touches anything. It is the statewide route-direction list — the
+ * same one the depot console reads — and it carries no vehicle, so it is not
+ * a fleet-scoping decision. The runs themselves are POSTed from the client,
+ * because an operator changes an input precisely to get a different answer.
  */
 export const metadata: Metadata = {
-  title: 'Bus Bunching Control Simulator · UPSRTC',
+  title: 'Control Strategy Rehearsal · UPSRTC',
   // Protected surface — never indexed.
   robots: { index: false, follow: false },
 };
 
 export default async function BunchingPage() {
-  await requireProjectSurface('/project/bunching');
+  const claims = await requireProjectSurface('/project/bunching');
+
+  // Degrades rather than throws: a corridor list that could not be read is
+  // an outage to explain, not a 500. The picker is empty and the page says
+  // why, which is the same contract every other control-service-backed ops
+  // surface keeps.
+  let corridors: RouteDirectionMeta[] = [];
+  let corridorsError: string | null = null;
+  try {
+    corridors = await listRehearsalCorridors();
+  } catch {
+    corridorsError =
+      'The corridor list could not be read, so no rehearsal can be set up right now. The simulator service is unreachable or not configured.';
+  }
 
   return (
-    <div className="sim-light bg-sim-page font-display text-sim-ink [font-feature-settings:'tnum'_1] antialiased">
-      <a
-        href="#bunching-main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded focus:bg-sim-accent focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:text-white"
-      >
-        Skip to simulator
-      </a>
-      <div id="bunching-main">
-        <BunchingSimulator />
-      </div>
-    </div>
+    <BunchingSimulator
+      email={claims.email}
+      role={claims.role}
+      corridors={corridors}
+      corridorsError={corridorsError}
+    />
   );
 }

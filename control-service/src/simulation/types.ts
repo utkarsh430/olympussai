@@ -38,6 +38,21 @@ export interface StopDefinition {
   sequence: number;
   isControlPoint: boolean;
   demand: StopDemandModel;
+  /**
+   * Distance along the route-direction at which this stop sits, in metres
+   * (`route_direction_stops.cumulative_distance_meters`).
+   *
+   * OPTIONAL, and its absence is meaningful rather than merely tolerated.
+   * The hand-authored regression fixtures are synthetic corridors with no
+   * real geometry, and inventing a distance for them would put a fabricated
+   * number into the one input the deployed control laws measure headway
+   * from. When it is absent the engine reports `kinematics: null` on every
+   * `ControllerContext`, which is exactly the "input unavailable" case the
+   * deployed solver already has a documented answer for.
+   *
+   * Must be non-decreasing across `stops` when supplied.
+   */
+  cumulativeDistanceMeters?: number;
 }
 
 export interface RouteDirectionDefinition {
@@ -57,6 +72,14 @@ export interface RouteDirectionDefinition {
    * no-overtake-segment simplification, blueprint 11.1 "Operations" row).
    */
   minSeparationSeconds: number;
+  /**
+   * `route_shapes.total_distance_meters`. Supplied together with every
+   * stop's `cumulativeDistanceMeters` (both or neither) - it is the wrap
+   * length the deployed gap computation needs on a loop route-direction,
+   * so a corridor that carries stop distances without it would silently
+   * mis-measure exactly the corridors that wrap.
+   */
+  totalDistanceMeters?: number;
 }
 
 export interface TerminalDispatchPlan {
@@ -96,6 +119,44 @@ export interface ScenarioConfig {
   recordedInputs?: RecordedInputs;
 }
 
+/**
+ * Where a vehicle is on the corridor, and how fast it is moving, at one
+ * instant of simulated time.
+ *
+ * This is the shape the DEPLOYED headway computation consumes
+ * (`src/headway/metrics.ts#computePairHeadways` reads a distance-along-route
+ * and a speed per vehicle, and derives both h_fwd and h_bwd from the single
+ * gap between a leader and its follower). Carrying it on the controller
+ * context is what lets a simulator controller call that real function
+ * instead of approximating its output - see `src/rehearsal/`.
+ *
+ * `speedKmph` is null when the vehicle's position is known but its pace is
+ * not - the same three-state distinction `vehicle_states.speed_kmph`
+ * already carries, and the reason `computePairHeadways` returns a null
+ * headway rather than guessing.
+ */
+export interface CorridorKinematicState {
+  vehicleId: string;
+  distanceAlongRouteMeters: number;
+  speedKmph: number | null;
+}
+
+/**
+ * A synchronized snapshot of the deciding vehicle and the one ahead of it,
+ * plus the wrap length their gap is measured against.
+ *
+ * Null whenever the route-direction was not given real geometry
+ * (`StopDefinition.cumulativeDistanceMeters`), or the vehicle ahead is not
+ * on the corridor at this instant (it has not been dispatched, or has
+ * already completed its trip). A controller must treat null as "no headway
+ * state for this vehicle" - never as a licence to assume one.
+ */
+export interface ControllerKinematics {
+  follower: CorridorKinematicState;
+  leader: CorridorKinematicState;
+  totalDistanceMeters: number;
+}
+
 export interface ControllerContext {
   routeDirectionId: string;
   stopId: string;
@@ -104,6 +165,24 @@ export interface ControllerContext {
   now: number;
   /** Gap (seconds) to the vehicle immediately ahead at this stop, or null if unknown/unavailable/first vehicle. */
   leaderHeadwaySeconds: number | null;
+  /**
+   * Positions and speeds of this vehicle and the one ahead of it at `now`,
+   * when the corridor carries real geometry. See `ControllerKinematics`.
+   * Optional so a test may build a context by hand without it; the engine
+   * always sets it, to a value or explicitly to null.
+   */
+  kinematics?: ControllerKinematics | null;
+  /**
+   * Passengers modelled aboard this vehicle as it arrives, before boarding
+   * and alighting at this stop are applied.
+   *
+   * MODELLED, never observed. Nothing in the production system writes
+   * occupancy (`vehicle_states.occupancy_count` is null fleet-wide), which
+   * is why the deployed occupancy-weighted MPC tier always falls back to a
+   * fixed mid-load assumption. A simulator is allowed to have this number
+   * because it made it up, and every surface that shows it must say so.
+   */
+  onboardCount?: number;
   targetHeadwaySeconds: number;
   maxHoldSeconds: number;
   /**
@@ -118,7 +197,14 @@ export interface ControllerContext {
 
 export interface ControllerDecision {
   holdSeconds: number;
-  actionType: 'no_control' | 'self_equalizing_hold';
+  /**
+   * Mirrors the deployed engine's own action vocabulary
+   * (`src/mpc/types.ts#CandidateAction['actionType']`) plus `no_control`.
+   * `two_way_hold` became reachable when the controller context started
+   * carrying `kinematics`: two-way holding needs h_bwd, and h_bwd needs the
+   * leader's pace, which a headway-difference alone cannot supply.
+   */
+  actionType: 'no_control' | 'self_equalizing_hold' | 'two_way_hold' | 'terminal_dispatch_hold';
 }
 
 export interface Controller {

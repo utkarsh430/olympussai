@@ -1,211 +1,380 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Info } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { FooterDisclaimer } from '@/components/shared/FooterDisclaimer';
-import { TARGET_HEADWAY_MINUTES } from '@/lib/bunching/config';
-import { DEFAULT_SCENARIO_ID, getScenario } from '@/lib/bunching/scenarios';
-import { buildSimulation } from '@/lib/bunching/simulation';
-import { SIMULATION_ROUTE_DESCRIPTION, SIMULATION_ROUTE_LABEL } from '@/lib/bunching/route';
-import type { Policy, ScenarioId, SimulationIteration } from '@/lib/bunching/types';
-import { CalculationPanel } from './CalculationPanel';
-import { ComparisonSummary } from './ComparisonSummary';
-import { RecoverySequence } from './RecoverySequence';
-import { ScenarioExplanation } from './ScenarioExplanation';
-import { ScenarioSelector } from './ScenarioSelector';
-import { SimulationControls } from './SimulationControls';
-import { SimulationPane } from './SimulationPane';
-import { useSimulationPlayer } from './useSimulationPlayer';
+import { useCallback, useMemo, useState } from 'react';
+import { OpsShell } from '@/components/ops/OpsShell';
+import {
+  OpsAlert,
+  OpsBadge,
+  OpsButton,
+  OpsEmptyState,
+  OpsField,
+  OpsInput,
+  OpsPanel,
+  OpsSelect,
+  OpsStack,
+  OpsStat,
+  OpsStatGroup,
+  OpsStatStrip,
+} from '@/components/ops/ui';
+import type { OpsRole } from '@/lib/auth/rbac/roles';
+import type { RouteDirectionMeta } from '@/models/control';
+import {
+  REHEARSAL_DISTURBANCE_DETAIL,
+  REHEARSAL_DISTURBANCE_LABEL,
+  rehearsalResultSchema,
+  type RehearsalDisturbance,
+  type RehearsalResult,
+} from '@/models/rehearsal';
+import { RehearsalMap } from './RehearsalMap';
+import { ComparisonPanel } from './ComparisonPanel';
+import { ProvenancePanel } from './ProvenancePanel';
+import { DecisionsPanel } from './DecisionsPanel';
+import { OccupancyPanel } from './OccupancyPanel';
 
 /**
- * Bus Bunching Control Simulator.
+ * Rehearsing a control strategy on a real corridor, without touching a
+ * single live bus.
  *
- * Two runs of the same corridor, from the same disturbed starting state, on the
- * same clock — one with no control intervention and one under coordinated
- * headway control. A single iteration index drives both, which is what makes
- * the comparison a controlled experiment rather than two animations.
+ * ─── WHAT THIS REPLACED, AND WHY ─────────────────────────────────────────
  *
- * The runs are precomputed by `buildSimulation` and are entirely local: no
- * backend, no live GPS polling, no AI service, and no traffic-signal control of
- * any kind.
+ * A four-bus scripted scenario on a fabricated corridor, with a synthetic
+ * occupancy model, its own Google Maps mount and a hand-tuned recovery
+ * curve. Every number in it was invented, including the target headway it
+ * scored itself against, and it had its own visual language. It was a
+ * demonstration, and it looked like the product.
+ *
+ * What runs now is the control service's own mesoscopic simulator over one
+ * of the 759 seeded route-directions, its real stops and geometry, and its
+ * real `route_policies` row — driven by the DEPLOYED control laws rather
+ * than by a curve written for this page. See
+ * control-service/src/rehearsal/deployedControlLaws.ts for exactly which
+ * production modules are called and which parts of the decision cycle are
+ * not exercised.
+ *
+ * ─── THE SURFACE IT LIVES ON ─────────────────────────────────────────────
+ *
+ * `OpsShell variant="full"`, map on the left, analysis in a scrolling rail
+ * on the right — the same shape as the control room and the depot console,
+ * for the reason the design system exists: four dashboards must not become
+ * four looks. `full` is also what makes the map size at all; a map inside
+ * an auto-height ancestor resolves to zero.
+ *
+ * ─── AND IT MUST NEVER READ AS OPERATIONS ────────────────────────────────
+ *
+ * Every bus on it is invented. The `sim` badge sits in the shell's own
+ * title row and in the status band, the buses carry `SIM-` identifiers
+ * rather than registration numbers, they are drawn as annotations rather
+ * than as vehicles, and the provenance panel is permanent rather than
+ * disclosed. An operator glancing at this page from across a room has to be
+ * able to tell it is not the fleet.
  */
-export function BunchingSimulator() {
-  const [scenarioId, setScenarioId] = useState<ScenarioId>(DEFAULT_SCENARIO_ID);
-  const [mobileTab, setMobileTab] = useState<Policy>('withoutAI');
-  const reduced = useReducedMotion();
 
-  const scenario = useMemo(() => getScenario(scenarioId), [scenarioId]);
-  const simulation = useMemo(() => buildSimulation(scenario), [scenario]);
+/** Which corridors can be rehearsed at all — the same flag live detection answers with. */
+function isSimulable(corridor: RouteDirectionMeta): boolean {
+  return corridor.hasActivePolicy === true;
+}
 
-  const total = scenario.iterations;
-  const player = useSimulationPlayer(total, scenarioId);
+function corridorLabel(corridor: RouteDirectionMeta): string {
+  return `${corridor.routeId} · ${corridor.directionCode}${corridor.isLoop ? ' (loop)' : ''} — ${Math.round(corridor.totalDistanceMeters / 1000)} km`;
+}
 
-  const withoutAI = simulation.withoutAI.iterations[player.index] as SimulationIteration;
-  const withAI = simulation.withAI.iterations[player.index] as SimulationIteration;
+type RailTab = 'outcome' | 'decisions' | 'occupancy' | 'provenance';
 
-  const showPrompt = player.index === 0 && !player.playing;
+const RAIL_TABS: readonly { id: RailTab; label: string }[] = [
+  { id: 'outcome', label: 'Outcome' },
+  { id: 'decisions', label: 'Decisions' },
+  { id: 'occupancy', label: 'Occupancy' },
+  { id: 'provenance', label: 'What is real' },
+];
+
+export interface BunchingSimulatorProps {
+  email: string;
+  role?: OpsRole;
+  corridors: RouteDirectionMeta[];
+  /** Set when the corridor list itself could not be read, so the page explains an outage rather than an empty picker. */
+  corridorsError: string | null;
+}
+
+export function BunchingSimulator({
+  email,
+  role,
+  corridors,
+  corridorsError,
+}: BunchingSimulatorProps) {
+  const simulable = useMemo(() => corridors.filter(isSimulable), [corridors]);
+  const observationOnly = corridors.length - simulable.length;
+
+  const [routeDirectionId, setRouteDirectionId] = useState(
+    () => simulable[0]?.routeDirectionId ?? '',
+  );
+  const [disturbance, setDisturbance] = useState<RehearsalDisturbance>('none');
+  const [vehicleCount, setVehicleCount] = useState(6);
+  const [cruiseSpeedKmph, setCruiseSpeedKmph] = useState(35);
+  const [result, setResult] = useState<RehearsalResult | null>(null);
+  const [arm, setArm] = useState<'controlled' | 'uncontrolled'>('controlled');
+  const [tab, setTab] = useState<RailTab>('outcome');
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = useCallback(async () => {
+    if (!routeDirectionId) return;
+    setRunning(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/ops/rehearsal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ routeDirectionId, disturbance, vehicleCount, cruiseSpeedKmph }),
+      });
+      const payload: unknown = await response.json();
+
+      if (!response.ok) {
+        const message =
+          typeof payload === 'object' &&
+          payload !== null &&
+          typeof (payload as { error?: { message?: unknown } }).error?.message === 'string'
+            ? (payload as { error: { message: string } }).error.message
+            : 'The simulation could not be run.';
+        setError(message);
+        setResult(null);
+        return;
+      }
+
+      // Parsed on this side too. A result whose provenance manifest did not
+      // arrive intact must not be drawn: the labels are the only thing
+      // separating this page from a page of invented operational numbers.
+      const parsed = rehearsalResultSchema.safeParse(payload);
+      if (!parsed.success) {
+        setError('The simulation returned a result this page cannot describe honestly, so it is not shown.');
+        setResult(null);
+        return;
+      }
+      setResult(parsed.data);
+    } catch {
+      setError('The simulation service could not be reached.');
+      setResult(null);
+    } finally {
+      setRunning(false);
+    }
+  }, [routeDirectionId, disturbance, vehicleCount, cruiseSpeedKmph]);
+
+  const selectedCorridor = simulable.find((c) => c.routeDirectionId === routeDirectionId) ?? null;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-sim-page">
-      <header className="sticky top-0 z-30 border-b border-sim-line bg-sim-page/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2.5 sm:px-5">
-          <Link
-            href="/project/upsrtc"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded border border-[#c9a227]/60 bg-[#d6a13a]/[0.08] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#8a6410] transition-colors hover:border-[#a8811a] hover:bg-[#d6a13a]/[0.18]"
-            data-testid="back-to-operations"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-            Back to Operations
-          </Link>
-
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate font-display text-[15px] font-semibold uppercase tracking-[0.14em] text-sim-ink sm:text-[17px]">
-              Bus Bunching Control Simulator
-            </h1>
-            <p className="truncate font-mono text-[9.5px] uppercase tracking-[0.1em] text-sim-muted">
-              Real-time headway instability prediction and coordinated recovery simulation
-            </p>
-          </div>
-
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span
-              className="whitespace-nowrap rounded border border-sim-teal/45 bg-sim-teal/10 px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-sim-teal"
-              title={SIMULATION_ROUTE_DESCRIPTION}
-            >
-              {SIMULATION_ROUTE_LABEL}
-            </span>
-            <span
-              className="whitespace-nowrap rounded border border-sim-line bg-sim-accent/[0.07] px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-sim-ink"
-              title="Simulation assumption for this demonstration, not a universal UPSRTC operating standard."
-            >
-              Target headway {TARGET_HEADWAY_MINUTES.toFixed(1)} min
-            </span>
-          </div>
-        </div>
-      </header>
-
-      {/* Provenance strip. Same disclosure as the dashboard's SimulationBanner,
-          restyled for a light surface — a 7% neon-amber tint on white would be
-          both invisible and below contrast. */}
-      <div className="flex items-center gap-2 border-b border-sim-amber/30 bg-sim-amber/[0.07] px-3 py-1.5 sm:px-5">
-        <span className="inline-flex items-center gap-1.5 rounded border border-sim-amber/45 bg-sim-amber/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-sim-amber">
-          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-sim-amber" />
-          Simulated scenario
+    <OpsShell
+      title="Control strategy rehearsal"
+      email={email}
+      role={role}
+      variant="full"
+      subtitle={
+        <span className="flex flex-wrap items-center gap-2">
+          <OpsBadge variant="sim">Simulation</OpsBadge>
+          <span>
+            Every bus on this page is invented. No live vehicle is read, and nothing here can issue an
+            instruction.
+          </span>
         </span>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-sim-amber/80">
-          Not operational data
-        </span>
-      </div>
+      }
+      statusStrip={
+        <OpsStatStrip>
+          <OpsStatGroup label="Corridor">
+            <OpsStat
+              label="Selected"
+              value={selectedCorridor ? `${selectedCorridor.routeId} ${selectedCorridor.directionCode}` : '—'}
+              hint={result ? (result.corridor.routeName ?? undefined) : undefined}
+            />
+            <OpsStat
+              label="Target headway"
+              // One decimal, not rounded: the provenance panel prints the
+              // same measurement, and a glance stat that says 23 beside a
+              // manifest that says 22.5 invites a reader to wonder which
+              // number the thresholds were computed from.
+              value={result ? (result.policy.targetHeadwaySeconds / 60).toFixed(1) : '—'}
+              unit="min"
+              hint={result ? `measured from the ${result.corridor.calibrationSource.replace('_', ' ')}` : undefined}
+              tone="accent"
+            />
+            <OpsStat
+              label="Control points"
+              value={result ? result.corridor.controlPointCount : '—'}
+              hint={result ? `of ${result.corridor.stops.length} stops` : undefined}
+            />
+          </OpsStatGroup>
+          <OpsStatGroup label="Network coverage">
+            <OpsStat label="Can be rehearsed" value={simulable.length} tone="accent" />
+            <OpsStat
+              label="Observation only"
+              value={observationOnly}
+              hint="no measured target headway"
+              tone="warn"
+            />
+          </OpsStatGroup>
+        </OpsStatStrip>
+      }
+    >
+      {/*
+        TWO LAYOUTS, and the narrow one is not just the wide one squeezed.
+        MEASURED at 820x900 before this: stacked, the map column took
+        `flex-1` inside a shell that never scrolls, so the playback row
+        overflowed onto the map's caption and the "Run the rehearsal"
+        button sat 30px below the fold with no way to reach it.
 
-      <main className="mx-auto w-full max-w-[1800px] flex-1 space-y-3 px-3 py-3 sm:px-5">
-        <ScenarioSelector selected={scenarioId} onSelect={setScenarioId} />
-
-        <section className="rounded-lg border border-sim-line bg-sim-well p-3">
-          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-            <div className="min-w-0 flex-1">
-              <h2 className="font-display text-[14px] font-semibold uppercase tracking-[0.1em] text-sim-ink">
-                <span className="mr-2 text-sim-faint">{scenario.number}</span>
-                {scenario.title}
-              </h2>
-              <p className="mt-1 max-w-4xl font-mono text-[10px] leading-relaxed text-sim-muted">
-                {scenario.description}
-              </p>
-            </div>
-
-            {scenario.figures.length > 0 && (
-              <dl className="flex min-w-0 flex-wrap gap-2">
-                {scenario.figures.map((figure) => (
-                  <div
-                    key={figure.label}
-                    className="min-w-0 rounded border border-sim-line bg-sim-well px-2.5 py-1.5"
+        So below the split, the surface behaves like an ordinary scrolling
+        document and the map takes a definite height. At and above it, the
+        shell's no-scroll pane is what lets the map fill the screen, which
+        is the whole reason this page uses `variant="full"`.
+      */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto lg:flex-row lg:overflow-hidden">
+        <div className="flex h-[26rem] shrink-0 flex-col lg:h-auto lg:min-h-0 lg:w-[60%] lg:flex-1 lg:shrink">
+          {result ? (
+            <>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="ops-eyebrow">Showing</span>
+                {(['controlled', 'uncontrolled'] as const).map((option) => (
+                  <OpsButton
+                    key={option}
+                    variant={arm === option ? 'primary' : 'quiet'}
+                    onClick={() => setArm(option)}
                   >
-                    <dt className="sim-label">{figure.label}</dt>
-                    <dd className="whitespace-nowrap font-mono text-[11px] tabular-nums text-sim-ink">
-                      {figure.expected && (
-                        <span className="text-sim-faint line-through">{figure.expected}</span>
-                      )}
-                      {figure.expected && <span className="mx-1 text-sim-faint">→</span>}
-                      <span className={figure.expected ? 'text-sim-amber' : undefined}>
-                        {figure.observed}
-                      </span>
-                    </dd>
-                  </div>
+                    {option === 'controlled' ? 'With control laws' : 'No control'}
+                  </OpsButton>
                 ))}
-              </dl>
-            )}
-          </div>
-
-          {showPrompt && (
-            <p
-              className="mt-2.5 flex items-start gap-1.5 rounded border border-sim-line bg-sim-accent/[0.05] px-2.5 py-1.5 font-mono text-[10px] leading-relaxed text-sim-ink"
-              data-testid="bunching-prompt"
-            >
-              <Info aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
-              Press Play to compare how the same disturbance evolves with and without coordinated
-              control. Both simulations start from the same state and advance on the same clock.
-            </p>
+              </div>
+              <RehearsalMap
+                result={result}
+                arm={result.arms[arm]}
+                armLabel={arm}
+              />
+            </>
+          ) : (
+            <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-ops-line">
+              <OpsEmptyState>
+                Choose a corridor and a scenario, then run the rehearsal. Both arms — with the
+                control laws acting and without — are simulated over the same conditions.
+              </OpsEmptyState>
+            </div>
           )}
-        </section>
-
-        <SimulationControls player={player} total={total} />
-
-        {/* Small screens get tabs rather than two unreadably narrow maps. */}
-        <div className="flex gap-1.5 lg:hidden" role="tablist" aria-label="Simulation view">
-          {(['withoutAI', 'withAI'] as const).map((policy) => (
-            <button
-              key={policy}
-              type="button"
-              role="tab"
-              aria-selected={mobileTab === policy}
-              onClick={() => setMobileTab(policy)}
-              className={cn(
-                'flex-1 rounded border px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors',
-                mobileTab === policy
-                  ? policy === 'withAI'
-                    ? 'border-sim-teal/60 bg-sim-teal/15 text-sim-teal'
-                    : 'border-sim-crimson/60 bg-sim-crimson/15 text-sim-crimson'
-                  : 'border-sim-line bg-sim-well text-sim-muted',
-              )}
-            >
-              {policy === 'withAI' ? 'With AI' : 'Without AI'}
-            </button>
-          ))}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <SimulationPane
-            policy="withoutAI"
-            iteration={withoutAI}
-            scenario={scenario}
-            reduced={reduced}
-            hidden={mobileTab !== 'withoutAI'}
-          />
-          <SimulationPane
-            policy="withAI"
-            iteration={withAI}
-            scenario={scenario}
-            reduced={reduced}
-            hidden={mobileTab !== 'withAI'}
-          />
+        <div className="flex flex-col gap-4 lg:min-h-0 lg:w-[40%] lg:overflow-y-auto">
+          <OpsPanel
+            title="Set up the rehearsal"
+            description="The corridor and its control policy are real. Everything below the corridor is a modelled assumption you can change."
+          >
+            <OpsStack>
+              {corridorsError ? (
+                <OpsAlert tone="error">{corridorsError}</OpsAlert>
+              ) : simulable.length === 0 ? (
+                <OpsAlert tone="warning">
+                  No corridor in this network has a measured target headway, so there is nothing to
+                  simulate against. All {corridors.length} mapped corridors are observation-only.
+                </OpsAlert>
+              ) : null}
+
+              <OpsField
+                label="Corridor"
+                htmlFor="rehearsal-corridor"
+                hint={`${simulable.length} of ${corridors.length} mapped corridors have a measured target headway. The other ${observationOnly} are observation-only and are not offered here, because every bunching threshold is a ratio of that target.`}
+              >
+                <OpsSelect
+                  id="rehearsal-corridor"
+                  value={routeDirectionId}
+                  onChange={(event) => setRouteDirectionId(event.target.value)}
+                  disabled={simulable.length === 0}
+                >
+                  {simulable.map((corridor) => (
+                    <option key={corridor.routeDirectionId} value={corridor.routeDirectionId}>
+                      {corridorLabel(corridor)}
+                    </option>
+                  ))}
+                </OpsSelect>
+              </OpsField>
+
+              <OpsField
+                label="Scenario"
+                htmlFor="rehearsal-scenario"
+                hint={REHEARSAL_DISTURBANCE_DETAIL[disturbance]}
+              >
+                <OpsSelect
+                  id="rehearsal-scenario"
+                  value={disturbance}
+                  onChange={(event) => setDisturbance(event.target.value as RehearsalDisturbance)}
+                >
+                  {(Object.keys(REHEARSAL_DISTURBANCE_LABEL) as RehearsalDisturbance[]).map((key) => (
+                    <option key={key} value={key}>
+                      {REHEARSAL_DISTURBANCE_LABEL[key]}
+                    </option>
+                  ))}
+                </OpsSelect>
+              </OpsField>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <OpsField
+                  label="Buses on the corridor"
+                  htmlFor="rehearsal-vehicle-count"
+                  hint="Modelled. Dispatched one target headway apart."
+                >
+                  <OpsInput
+                    id="rehearsal-vehicle-count"
+                    type="number"
+                    min={2}
+                    max={24}
+                    value={vehicleCount}
+                    onChange={(event) => setVehicleCount(Number(event.target.value))}
+                  />
+                </OpsField>
+                <OpsField
+                  label="Running speed (km/h)"
+                  htmlFor="rehearsal-cruise-speed"
+                  hint="Modelled. Nothing in this system records a real running time."
+                >
+                  <OpsInput
+                    id="rehearsal-cruise-speed"
+                    type="number"
+                    min={5}
+                    max={120}
+                    value={cruiseSpeedKmph}
+                    onChange={(event) => setCruiseSpeedKmph(Number(event.target.value))}
+                  />
+                </OpsField>
+              </div>
+
+              <OpsButton
+                variant="primary"
+                onClick={() => void run()}
+                disabled={running || !routeDirectionId}
+              >
+                {running ? 'Running…' : 'Run the rehearsal'}
+              </OpsButton>
+
+              {error ? <OpsAlert tone="error">{error}</OpsAlert> : null}
+            </OpsStack>
+          </OpsPanel>
+
+          {result ? (
+            <>
+              <div className="flex flex-wrap gap-2" role="tablist" aria-label="Rehearsal result">
+                {RAIL_TABS.map((entry) => (
+                  <OpsButton
+                    key={entry.id}
+                    role="tab"
+                    aria-selected={tab === entry.id}
+                    variant={tab === entry.id ? 'primary' : 'quiet'}
+                    onClick={() => setTab(entry.id)}
+                  >
+                    {entry.label}
+                  </OpsButton>
+                ))}
+              </div>
+
+              {tab === 'outcome' ? <ComparisonPanel result={result} /> : null}
+              {tab === 'decisions' ? <DecisionsPanel result={result} /> : null}
+              {tab === 'occupancy' ? <OccupancyPanel result={result} /> : null}
+              {tab === 'provenance' ? <ProvenancePanel result={result} /> : null}
+            </>
+          ) : null}
         </div>
-
-        <ComparisonSummary
-          withoutAI={withoutAI}
-          withAI={withAI}
-          isFinal={player.atEnd}
-        />
-
-        <RecoverySequence run={simulation.withAI} currentIndex={player.index} />
-
-        <CalculationPanel withoutAI={withoutAI} withAI={withAI} />
-
-        <ScenarioExplanation scenario={scenario} />
-      </main>
-
-      <FooterDisclaimer variant="light" />
-    </div>
+      </div>
+    </OpsShell>
   );
 }

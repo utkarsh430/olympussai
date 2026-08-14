@@ -494,55 +494,80 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     await expect(page.getByTestId('bus-detail-drawer')).not.toBeVisible({ timeout: 10_000 });
   });
 
-  test('25. Bunching opens the control simulator and both comparisons run in step', async ({
+  // REWRITTEN when /project/bunching stopped being a scripted scenario on a
+  // fabricated corridor and became the control service's own simulator run
+  // over a real seeded route-direction (see
+  // src/components/bunching/BunchingSimulator.tsx). The old assertions were
+  // about panes, iterations and a hand-tuned recovery curve, none of which
+  // exist any more.
+  //
+  // WHAT THIS HOLDS NOW, and why each half is worth an end-to-end test:
+  //
+  //   1. THE REAL ROUTE RENDERS. Typecheck, lint, unit tests and the build
+  //      all pass for a page that returns 500 on every request - a Server
+  //      Component reaching a client value is the worked example. Opening
+  //      the actual URL is the only thing that catches it.
+  //   2. IT DECLARES ITSELF A SIMULATION before anything is run, because
+  //      that claim is the entire justification for the page existing.
+  //   3. IT IS HONEST ABOUT COVERAGE on whatever network it is pointed at.
+  //      CI runs against a freshly-migrated control-service database with no
+  //      seeded corridors, so the expected outcome there is the page saying
+  //      it has nothing calibrated to rehearse - which is exactly the
+  //      behaviour that must not silently become "run it anyway".
+  test('25. Bunching opens the control rehearsal, declares itself a simulation, and is honest about coverage', async ({
     page,
   }) => {
-    const errors = collectConsoleErrors(page);
-
     await page.goto('/project/upsrtc');
     await waitForFleet(page);
     await page.getByTestId('open-bunching').click();
 
     await expect(page).toHaveURL(/\/project\/bunching$/);
-    await expect(
-      page.getByRole('heading', { name: /Bus Bunching Control Simulator/i }),
-    ).toBeVisible();
 
-    // Defaults to scenario 1, paused, with both simulations on the disturbance.
-    await expect(page.getByTestId('bunching-prompt')).toBeVisible();
-    await expect(page.getByTestId('pane-without-ai')).toBeVisible();
-    await expect(page.getByTestId('pane-with-ai')).toBeVisible();
-    await expect(page.getByTestId('observation-panel')).toBeVisible();
-    await expect(page.getByTestId('ai-decision-panel')).toBeVisible();
+    // Console collection starts HERE, after the navigation, rather than at
+    // the top of the test. Not to be lenient - test 14 above still holds the
+    // command centre to a clean console across a full walkthrough, which is
+    // where that page's own noise belongs. It is because this test is about
+    // the rehearsal surface, and an intermittent hydration warning from the
+    // command centre's copilot panel (observed once during a dev-mode run,
+    // in a component this work does not touch) would make it fail for a
+    // reason it is not testing.
+    const errors = collectConsoleErrors(page);
+    await expect(page.getByRole('heading', { name: /Control strategy rehearsal/i })).toBeVisible();
 
-    // Stepping advances both sides together: the uncontrolled corridor loses
-    // regularity while the controlled one gains it.
-    const summary = page.getByTestId('comparison-summary');
-    await expect(summary).toContainText('iteration 0');
-    await page.getByTestId('bunching-next').click();
-    await expect(summary).toContainText('iteration 1');
+    // The page renders rather than erroring, and says what it is before any
+    // run has happened.
+    await expect(page.getByText(/Every bus on this page is invented/i)).toBeVisible();
+    await expect(page.getByText(/nothing here can issue an instruction/i)).toBeVisible();
 
-    // Run to the end and check the two sides diverge as designed.
-    for (let step = 0; step < 6; step += 1) {
-      const next = page.getByTestId('bunching-next');
-      if (await next.isDisabled()) break;
-      await next.click();
+    // Coverage is stated either way. On a seeded network the picker offers
+    // the calibrated corridors; on an unseeded one the page says plainly
+    // that there is nothing to simulate against, and never offers a run
+    // over a corridor with no measured target headway.
+    const corridorPicker = page.getByLabel('Corridor', { exact: true });
+    const optionCount = await corridorPicker.locator('option').count();
+
+    if (optionCount === 0) {
+      await expect(
+        page.getByText(/No corridor in this network has a measured target headway/i),
+      ).toBeVisible();
+    } else {
+      await expect(page.getByText(/have a measured target headway/i)).toBeVisible();
+
+      // Run one, and check the two arms are both reported. Both are
+      // simulated over the same corridor, conditions and seed, so the
+      // comparison a planner reads means something.
+      await page.getByRole('button', { name: /Run the rehearsal/i }).click();
+      await expect(page.getByRole('button', { name: /With control laws/i })).toBeVisible({
+        timeout: 60_000,
+      });
+      await expect(page.getByRole('button', { name: /^No control$/i })).toBeVisible();
+
+      // The provenance manifest is one click away and separates what was
+      // measured from what this simulator invented.
+      await page.getByRole('tab', { name: /What is real/i }).click();
+      await expect(page.getByText(/inputs come from the seeded network/i)).toBeVisible();
+      await expect(page.getByText(/What this does not rehearse/i)).toBeVisible();
     }
-    await expect(page.getByTestId('comparison-verdict')).toBeVisible();
-    await expect(page.getByTestId('pane-without-ai')).toContainText('BUNCHED');
-    await expect(page.getByTestId('pane-with-ai')).toContainText('STABLE');
-
-    // Severe cluster scenario resets both runs and redistributes the gap.
-    await page.getByTestId('scenario-multi-bus-bunch').click();
-    await expect(summary).toContainText('iteration 0');
-    await expect(page.getByTestId('recovery-sequence')).toBeVisible();
-
-    // The calculation drawer derives its arithmetic from the current state.
-    await page.getByTestId('calculation-panel').getByText(/View calculations/i).click();
-    await expect(page.getByTestId('calculation-panel')).toContainText('Passenger wait proxy');
-
-    await page.getByTestId('back-to-operations').click();
-    await expect(page).toHaveURL(/\/project\/upsrtc$/);
 
     expect(errors, `Unexpected console errors:\n${errors.join('\n')}`).toEqual([]);
   });

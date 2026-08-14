@@ -11,6 +11,7 @@ import { headwayRouter } from './routes/headway.js';
 import { arrivalsRouter } from './routes/arrivals.js';
 import { pilotRouter } from './routes/pilot.js';
 import { positionsRouter } from './routes/positions.js';
+import { rehearsalRouter } from './routes/rehearsal.js';
 import { requireServiceToken } from './auth/serviceToken.js';
 import { errorHandler } from './lib/errors.js';
 import { logger } from './lib/logger.js';
@@ -46,6 +47,11 @@ export function createApp(): Express {
   // route: a fix is a write to fleet state, and an unauthenticated caller
   // must not be able to move a bus on the control room's map.
   app.use(positionsRouter);
+  // Control-strategy rehearsal. Read-only: it runs the isolated mesoscopic
+  // simulator over a corridor's real geometry and real policy and returns
+  // the result, without issuing a command or writing a row. See
+  // routes/rehearsal.ts for why an uncalibrated corridor is refused.
+  app.use(rehearsalRouter);
 
   app.use((req, res) => {
     res.status(404).json({ error: { code: 'not_found', message: `No route for ${req.method} ${req.path}` } });
