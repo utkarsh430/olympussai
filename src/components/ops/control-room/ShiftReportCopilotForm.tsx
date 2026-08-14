@@ -93,13 +93,13 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
   }
 
   return (
-    <div className="space-y-4 rounded-md border border-[rgba(255,255,255,0.08)] p-4">
-      <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">Shift-report copilot</h2>
+    <div className="space-y-4 rounded-md border border-ops-line p-4">
+      <h2 className="ops-label">Shift-report copilot</h2>
 
       <form onSubmit={handleDraft} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
-            <label htmlFor="shiftLabel" className="mb-1 block text-xs text-[#9aa0ad]">
+            <label htmlFor="shiftLabel" className="mb-1 block text-xs text-ops-muted">
               Shift label
             </label>
             <input
@@ -108,11 +108,11 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
               value={shiftLabel}
               onChange={(e) => setShiftLabel(e.target.value)}
               placeholder="e.g. Night shift 06 Aug"
-              className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef] placeholder:text-[#707580] focus:border-[#4f8cff]/70 focus:outline-none"
+              className="ops-input"
             />
           </div>
           <div>
-            <label htmlFor="periodStart" className="mb-1 block text-xs text-[#9aa0ad]">
+            <label htmlFor="periodStart" className="mb-1 block text-xs text-ops-muted">
               Period start
             </label>
             <input
@@ -121,11 +121,11 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
               required
               value={periodStart}
               onChange={(e) => setPeriodStart(e.target.value)}
-              className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef] focus:border-[#4f8cff]/70 focus:outline-none"
+              className="ops-input"
             />
           </div>
           <div>
-            <label htmlFor="periodEnd" className="mb-1 block text-xs text-[#9aa0ad]">
+            <label htmlFor="periodEnd" className="mb-1 block text-xs text-ops-muted">
               Period end
             </label>
             <input
@@ -134,13 +134,13 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
               required
               value={periodEnd}
               onChange={(e) => setPeriodEnd(e.target.value)}
-              className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef] focus:border-[#4f8cff]/70 focus:outline-none"
+              className="ops-input"
             />
           </div>
         </div>
 
         {error && (
-          <p id={errorId} role="alert" className="text-sm text-[#f0857d]">
+          <p id={errorId} role="alert" className="text-sm text-alert-crimson">
             {error}
           </p>
         )}
@@ -148,24 +148,24 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
         <button
           type="submit"
           disabled={status === 'drafting' || shiftLabel.trim().length === 0}
-          className="rounded-md border border-[#4f8cff]/60 bg-[#4f8cff]/12 px-5 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8fb4ff] transition-all hover:bg-[#4f8cff]/20 disabled:cursor-not-allowed disabled:opacity-60"
+          className="ops-button-primary px-5 py-2"
         >
           {status === 'drafting' ? 'Drafting…' : 'Generate draft'}
         </button>
       </form>
 
       {draft && (
-        <div className="rounded-md border border-[#e8b34a]/40 bg-[#e8b34a]/5 p-4">
+        <div className="rounded-md border border-alert-amber/40 bg-alert-amber/5 p-4">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <span className="rounded border border-[#e8b34a]/50 bg-[#e8b34a]/15 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e8c07a]">
+            <span className="rounded border border-alert-amber/50 bg-alert-amber/15 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ops-warn">
               AI-drafted — review before sending
             </span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#6f7684]">
+            <span className="ops-eyebrow">
               status: {draft.status}
             </span>
           </div>
 
-          <p className="whitespace-pre-wrap text-sm text-[#e6e9ef]">{draft.content}</p>
+          <p className="whitespace-pre-wrap text-sm text-ops-ink">{draft.content}</p>
 
           {draft.citations.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
@@ -173,7 +173,7 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
                 <span
                   key={`${citation.recordType}-${citation.recordId}`}
                   title={citation.summary}
-                  className="rounded border border-[rgba(255,255,255,0.12)] px-1.5 py-0.5 font-mono text-[9px] text-[#6f7684]"
+                  className="rounded border border-ops-line-strong px-1.5 py-0.5 font-mono text-[9px] text-ops-faint"
                 >
                   {citation.recordType}:{citation.recordId.slice(0, 8)}
                 </span>
@@ -188,7 +188,7 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
                 onClick={() => handleFinalize('save')}
                 disabled={finalizing !== null}
                 data-testid="copilot-shift-report-save"
-                className="rounded-md border border-[rgba(255,255,255,0.14)] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#9aa0ad] hover:border-[#4f8cff]/60 hover:text-[#8fb4ff] disabled:cursor-not-allowed disabled:opacity-60"
+                className="ops-button px-4 py-2"
               >
                 {finalizing === 'save' ? 'Saving…' : 'Save to shift log'}
               </button>
@@ -197,13 +197,13 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
                 onClick={() => handleFinalize('send')}
                 disabled={finalizing !== null}
                 data-testid="copilot-shift-report-send"
-                className="rounded-md border border-[#4f8cff]/60 bg-[#4f8cff]/12 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8fb4ff] hover:bg-[#4f8cff]/20 disabled:cursor-not-allowed disabled:opacity-60"
+                className="ops-button-primary px-4 py-2"
               >
                 {finalizing === 'send' ? 'Sending…' : 'Send to incoming shift'}
               </button>
             </div>
           ) : (
-            <p role="status" className="mt-4 text-sm text-[#7fd9a4]">
+            <p role="status" className="mt-4 text-sm text-ops-good">
               {draft.status === 'saved' ? 'Saved to the shift log.' : 'Sent to the incoming shift.'}
             </p>
           )}

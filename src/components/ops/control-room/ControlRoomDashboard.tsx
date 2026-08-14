@@ -37,33 +37,33 @@ export function ControlRoomDashboard({
       <p className="flex flex-wrap gap-3">
         <Link
           href="/ops/control-room/observability"
-          className="inline-flex items-center gap-2 rounded-md border border-[rgba(255,255,255,0.14)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8fb4ff] hover:border-[#4f8cff]/60"
+          className="ops-button text-holo-glow"
         >
           Live observability &rarr; headway / EWT / CV / incidents / timeline
         </Link>
         <Link
           href="/ops/control-room/copilot"
-          className="inline-flex items-center gap-2 rounded-md border border-[rgba(255,255,255,0.14)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8fb4ff] hover:border-[#4f8cff]/60"
+          className="ops-button text-holo-glow"
         >
           Copilot &rarr; incident explanations / shift reports / ask a question
         </Link>
         <Link
           href="/ops/control-room/pilot"
-          className="inline-flex items-center gap-2 rounded-md border border-[rgba(255,255,255,0.14)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8fb4ff] hover:border-[#4f8cff]/60"
+          className="ops-button text-holo-glow"
         >
           Pilot staging &rarr; daily KPIs / guardrail breaches / war room
         </Link>
       </p>
 
       <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+        <h2 className="ops-label mb-3">
           Kill switches
         </h2>
         <KillSwitchPanel initialActive={activeKillSwitches} />
       </section>
 
       <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+        <h2 className="ops-label mb-3">
           Live fleet status
         </h2>
         <FleetSearchForm query={query} resultCount={rows.length} totalCount={snapshot.buses.length} />
@@ -75,14 +75,14 @@ export function ControlRoomDashboard({
       </section>
 
       <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+        <h2 className="ops-label mb-3">
           Approval queue
         </h2>
         <ApprovalAndCommandPanel />
       </section>
 
       <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+        <h2 className="ops-label mb-3">
           Breakdown reports
         </h2>
         <BreakdownReportsPanel scope="fleet" />

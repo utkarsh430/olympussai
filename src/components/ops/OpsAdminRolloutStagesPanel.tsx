@@ -14,12 +14,16 @@ const STAGE_LABEL: Record<RolloutStage, string> = {
   expanded: 'Expanded',
 };
 
+// Literal hexes because these are applied through `style`, not a class:
+// the stage is data-driven, and Tailwind cannot see a class name it never
+// literally contains. Values are the ops palette's own (tailwind.config.ts
+// `ops.muted` / `holo.glow` / `ops.warn` / `ops.good`) — keep them in step.
 const STAGE_COLOR: Record<RolloutStage, string> = {
-  observation: '#9aa0ad',
-  shadow: '#8fb4ff',
-  advisory: '#e8b34a',
-  limited_auto: '#7ed6a5',
-  expanded: '#7ed6a5',
+  observation: '#9fb6c9',
+  shadow: '#3ff0ff',
+  advisory: '#f5c977',
+  limited_auto: '#8ee7b4',
+  expanded: '#8ee7b4',
 };
 
 function AuditTrail({ routeDirectionId }: { routeDirectionId: string }) {
@@ -47,15 +51,15 @@ function AuditTrail({ routeDirectionId }: { routeDirectionId: string }) {
     };
   }, [routeDirectionId]);
 
-  if (error) return <p className="text-xs text-[#f0857d]">{error}</p>;
-  if (!entries) return <p className="text-xs text-[#6f7684]">Loading audit trail…</p>;
-  if (entries.length === 0) return <p className="text-xs text-[#6f7684]">No stage changes recorded yet.</p>;
+  if (error) return <p className="text-xs text-alert-crimson">{error}</p>;
+  if (!entries) return <p className="text-xs text-ops-faint">Loading audit trail…</p>;
+  if (entries.length === 0) return <p className="text-xs text-ops-faint">No stage changes recorded yet.</p>;
 
   return (
-    <ul className="space-y-1 text-xs text-[#9aa0ad]">
+    <ul className="space-y-1 text-xs text-ops-muted">
       {entries.map((entry) => (
         <li key={entry.id}>
-          <span className="text-[#e6e9ef]">
+          <span className="text-ops-ink">
             {entry.previousStage ?? '(unset)'} &rarr; {entry.newStage}
           </span>{' '}
           by {entry.changedBy} at {new Date(entry.createdAt).toLocaleString()}
@@ -149,16 +153,16 @@ export function OpsAdminRolloutStagesPanel() {
   }
 
   if (loadError) {
-    return <p role="alert" className="text-sm text-[#f0857d]">{loadError}</p>;
+    return <p role="alert" className="text-sm text-alert-crimson">{loadError}</p>;
   }
   if (!snapshot) {
-    return <p className="text-sm text-[#9aa0ad]">Loading rollout stages…</p>;
+    return <p className="text-sm text-ops-muted">Loading rollout stages…</p>;
   }
 
   return (
     <div className="space-y-6">
       {snapshot.source !== 'live' && (
-        <p role="alert" className="rounded-md border border-[#e8b34a]/40 bg-[#e8b34a]/10 px-3 py-2 text-xs text-[#e8c07a]">
+        <p role="alert" className="rounded-md border border-alert-amber/40 bg-alert-amber/10 px-3 py-2 text-xs text-ops-warn">
           Showing the last known data — the control service did not respond{snapshot.error ? ` (${snapshot.error})` : ''}.
         </p>
       )}
@@ -166,11 +170,11 @@ export function OpsAdminRolloutStagesPanel() {
         {snapshot.data.map((row) => {
           const stage = pendingStage[row.routeDirectionId] ?? row.stage;
           return (
-            <li key={row.routeDirectionId} className="rounded-md border border-[rgba(255,255,255,0.1)] p-4">
+            <li key={row.routeDirectionId} className="rounded-md border border-ops-line p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <span className="text-sm text-[#e6e9ef]">
-                    {row.publicName} <span className="text-[#9aa0ad]">({row.directionCode})</span>
+                  <span className="text-sm text-ops-ink">
+                    {row.publicName} <span className="text-ops-muted">({row.directionCode})</span>
                   </span>
                   <span
                     className="ml-3 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em]"
@@ -182,21 +186,21 @@ export function OpsAdminRolloutStagesPanel() {
                 <button
                   type="button"
                   onClick={() => setExpandedAuditId((cur) => (cur === row.routeDirectionId ? null : row.routeDirectionId))}
-                  className="text-xs text-[#8fb4ff] hover:underline"
+                  className="text-xs text-holo-glow hover:underline"
                 >
                   {expandedAuditId === row.routeDirectionId ? 'Hide audit trail' : 'View audit trail'}
                 </button>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-[1fr,2fr,auto] sm:items-end">
-                <label className="flex flex-col gap-1 text-xs text-[#9aa0ad]">
+                <label className="flex flex-col gap-1 text-xs text-ops-muted">
                   Stage
                   <select
                     value={stage}
                     onChange={(e) =>
                       setPendingStage((prev) => ({ ...prev, [row.routeDirectionId]: e.target.value as RolloutStage }))
                     }
-                    className="rounded-md border border-[rgba(255,255,255,0.14)] bg-[rgba(10,11,16,0.6)] px-2 py-1 text-xs text-[#e6e9ef] focus:border-[#4f8cff]/70 focus:outline-none"
+                    className="ops-input w-auto px-2 py-1 text-xs"
                   >
                     {STAGES.map((s) => (
                       <option key={s} value={s}>
@@ -205,52 +209,52 @@ export function OpsAdminRolloutStagesPanel() {
                     ))}
                   </select>
                 </label>
-                <label htmlFor={`${reasonId}-${row.routeDirectionId}`} className="flex flex-col gap-1 text-xs text-[#9aa0ad]">
+                <label htmlFor={`${reasonId}-${row.routeDirectionId}`} className="flex flex-col gap-1 text-xs text-ops-muted">
                   Reason
                   <input
                     id={`${reasonId}-${row.routeDirectionId}`}
                     value={pendingReason[row.routeDirectionId] ?? ''}
                     onChange={(e) => setPendingReason((prev) => ({ ...prev, [row.routeDirectionId]: e.target.value }))}
                     placeholder="e.g. week 3 of pilot cadence, guardrails clean"
-                    className="rounded-md border border-[rgba(255,255,255,0.14)] bg-[rgba(10,11,16,0.6)] px-2 py-1 text-xs text-[#e6e9ef] placeholder:text-[#707580] focus:border-[#4f8cff]/70 focus:outline-none"
+                    className="ops-input w-auto px-2 py-1 text-xs"
                   />
                 </label>
                 <button
                   type="button"
                   onClick={() => void handleSetStage(row)}
                   disabled={busyId === row.routeDirectionId}
-                  className="rounded border border-[rgba(255,255,255,0.14)] px-3 py-1.5 text-xs text-[#9aa0ad] hover:border-[#4f8cff]/60 hover:text-[#8fb4ff] disabled:opacity-60"
+                  className="rounded border border-ops-line-strong px-3 py-1.5 text-xs text-ops-muted hover:border-holo-glow/60 hover:text-holo-glow disabled:opacity-60"
                 >
                   {busyId === row.routeDirectionId ? 'Saving…' : 'Set stage'}
                 </button>
               </div>
 
               {rowSaved[row.routeDirectionId] && !rowError[row.routeDirectionId] && (
-                <p role="status" className="mt-2 text-xs text-[#7ed6a5]">
+                <p role="status" className="mt-2 text-xs text-ops-good">
                   Saved — takes effect immediately, no deploy required.
                 </p>
               )}
               {rowError[row.routeDirectionId] && (
-                <p role="alert" className="mt-2 text-xs text-[#f0857d]">
+                <p role="alert" className="mt-2 text-xs text-alert-crimson">
                   {rowError[row.routeDirectionId]}
                 </p>
               )}
               {row.updatedBy && (
-                <p className="mt-2 text-[11px] text-[#6f7684]">
+                <p className="mt-2 text-[11px] text-ops-faint">
                   Last set by {row.updatedBy}
                   {row.updatedAt ? ` at ${new Date(row.updatedAt).toLocaleString()}` : ''}
                   {row.reason ? ` — ${row.reason}` : ''}.
                 </p>
               )}
               {expandedAuditId === row.routeDirectionId && (
-                <div className="mt-3 border-t border-[rgba(255,255,255,0.08)] pt-3">
+                <div className="mt-3 border-t border-ops-line pt-3">
                   <AuditTrail routeDirectionId={row.routeDirectionId} />
                 </div>
               )}
             </li>
           );
         })}
-        {snapshot.data.length === 0 && <p className="text-sm text-[#9aa0ad]">No active route-directions found.</p>}
+        {snapshot.data.length === 0 && <p className="text-sm text-ops-muted">No active route-directions found.</p>}
       </ul>
     </div>
   );

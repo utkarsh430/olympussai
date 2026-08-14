@@ -46,7 +46,7 @@ export function DepotDashboard({
       <KillSwitchBanner activeKillSwitches={activeKillSwitches} routeDirectionId={routeBoard.selectedRouteDirectionId} />
 
       <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+        <h2 className="ops-label mb-3">
           Vehicle roster · {depotLabel}
         </h2>
         <FleetRosterGroups
@@ -60,7 +60,7 @@ export function DepotDashboard({
       </section>
 
       <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+        <h2 className="ops-label mb-3">
           Route operations board
         </h2>
         <RouteOperationsBoard snapshot={routeBoard} standby={standby} depotLabel={depotLabel} />
@@ -71,7 +71,7 @@ export function DepotDashboard({
       </section>
 
       <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+        <h2 className="ops-label mb-3">
           Breakdown reports
         </h2>
         <BreakdownReportsPanel scope="fleet" />

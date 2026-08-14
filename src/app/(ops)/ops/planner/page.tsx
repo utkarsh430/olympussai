@@ -1,5 +1,6 @@
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
+import { OpsAlert } from '@/components/ops/ui';
 import { getOpsFleetSnapshot } from '@/lib/ops/fleetData';
 import { OPS_FLEET_SCOPE_ALL } from '@/lib/ops/depotScope';
 import { PlannerDashboard } from '@/components/ops/planner/PlannerDashboard';
@@ -17,7 +18,7 @@ export default async function PlannerPage() {
   const session = await requireOpsRolePage('planner', '/ops/planner');
 
   return (
-    <OpsShell title="Planner" email={session.email}>
+    <OpsShell title="Planner" email={session.email} role="planner" variant="wide">
       <DashboardBody />
     </OpsShell>
   );
@@ -31,9 +32,9 @@ async function DashboardBody() {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return (
-      <p role="alert" className="rounded-md border border-[#f0857d]/40 bg-[#f0857d]/10 px-4 py-3 text-sm text-[#f5a89f]">
+      <OpsAlert tone="error">
         Planner data is unavailable right now ({message}). Try refreshing the page.
-      </p>
+      </OpsAlert>
     );
   }
 }

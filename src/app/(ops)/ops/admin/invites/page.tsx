@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
 import { OpsAdminInvitesPanel } from '@/components/ops/OpsAdminInvitesPanel';
@@ -14,12 +13,7 @@ export default async function OpsAdminInvitesPage() {
   const session = await requireOpsRolePage('admin', '/ops/admin/invites');
 
   return (
-    <OpsShell title="Admin · Invites" email={session.email}>
-      <p className="mb-6 text-sm">
-        <Link href="/ops/admin/rollout-stages" className="text-[#8fb4ff] hover:underline">
-          Pilot rollout stages &rarr;
-        </Link>
-      </p>
+    <OpsShell title="Admin · Invites" email={session.email} role="admin">
       <OpsAdminInvitesPanel />
     </OpsShell>
   );

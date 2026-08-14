@@ -7,9 +7,9 @@ const SEVERITY_LABEL: Record<IncidentSeverity, string> = {
 };
 
 const SEVERITY_CLASS: Record<IncidentSeverity, string> = {
-  warning: 'border-[#e8b34a]/40 bg-[#e8b34a]/10 text-[#e8c07a]',
-  bunched: 'border-[#f0857d]/40 bg-[#f0857d]/10 text-[#f5a89f]',
-  severe: 'border-[#f0857d]/70 bg-[#f0857d]/20 text-[#ffb3a8]',
+  warning: 'border-alert-amber/40 bg-alert-amber/10 text-ops-warn',
+  bunched: 'border-alert-crimson/40 bg-alert-crimson/10 text-ops-danger',
+  severe: 'border-alert-crimson/70 bg-alert-crimson/20 text-ops-danger',
 };
 
 /** Same badge shape as LiveBadge/FleetStatusTable's quality chip, so severity reads as part of the same visual language. */

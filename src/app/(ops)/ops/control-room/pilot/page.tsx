@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
+import { OpsAlert } from '@/components/ops/ui';
 import { PilotDashboard } from '@/components/ops/control-room/PilotDashboard';
 import { getDailyKpiSnapshots, getGuardrailBreaches, getWarRoomIncidents } from '@/lib/controlService/pilotData';
 
@@ -33,12 +33,7 @@ export default async function PilotStagingPage({
   const { date, routeDirectionId } = await searchParams;
 
   return (
-    <OpsShell title="Pilot Staging" email={session.email}>
-      <p className="mb-6 text-sm">
-        <Link href="/ops/control-room" className="text-[#8fb4ff] hover:underline">
-          &larr; Back to Control Room
-        </Link>
-      </p>
+    <OpsShell title="Pilot Staging" email={session.email} role="control_room" variant="wide">
       <DashboardBody date={date} routeDirectionId={routeDirectionId} viewerEmail={session.email} />
     </OpsShell>
   );
@@ -64,9 +59,9 @@ async function DashboardBody({
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return (
-      <p role="alert" className="rounded-md border border-[#f0857d]/40 bg-[#f0857d]/10 px-4 py-3 text-sm text-[#f5a89f]">
+      <OpsAlert tone="error">
         Pilot-staging data is unavailable right now ({message}). Try refreshing the page.
-      </p>
+      </OpsAlert>
     );
   }
 }

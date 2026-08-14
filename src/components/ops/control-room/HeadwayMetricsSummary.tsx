@@ -27,10 +27,10 @@ export function HeadwayMetricsSummary({ aggregate }: { aggregate: HeadwayAggrega
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {cards.map((card) => (
-        <div key={card.label} className="rounded-md border border-[rgba(255,255,255,0.08)] px-3 py-3">
-          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#6f7684]">{card.label}</p>
-          <p className="mt-1 text-lg font-semibold text-[#e6e9ef]">{card.value}</p>
-          <p className="mt-0.5 text-[11px] text-[#6f7684]">{card.hint}</p>
+        <div key={card.label} className="rounded-md border border-ops-line px-3 py-3">
+          <p className="ops-eyebrow">{card.label}</p>
+          <p className="mt-1 text-lg font-semibold text-ops-ink">{card.value}</p>
+          <p className="mt-0.5 text-[11px] text-ops-faint">{card.hint}</p>
         </div>
       ))}
     </div>

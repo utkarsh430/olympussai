@@ -41,7 +41,7 @@ export function DispatcherDashboard({
       <KillSwitchBanner activeKillSwitches={activeKillSwitches} routeDirectionId={routeBoard.selectedRouteDirectionId} />
 
       <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+        <h2 className="ops-label mb-3">
           Live fleet status
         </h2>
         <FleetSearchForm query={query} resultCount={rows.length} totalCount={snapshot.buses.length} />
@@ -53,21 +53,21 @@ export function DispatcherDashboard({
       </section>
 
       <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+        <h2 className="ops-label mb-3">
           Route operations board
         </h2>
         <RouteOperationsBoard snapshot={routeBoard} standby={standby} />
       </section>
 
       <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+        <h2 className="ops-label mb-3">
           Approval queue
         </h2>
         <ApprovalQueuePanel canDecide={false} />
       </section>
 
       <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+        <h2 className="ops-label mb-3">
           Breakdown reports
         </h2>
         <BreakdownReportsPanel scope="fleet" />

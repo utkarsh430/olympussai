@@ -25,8 +25,8 @@ export function ControlServiceNotice({
       data-tone={stale ? 'warning' : 'error'}
       className={`mb-6 rounded-md border px-4 py-3 text-sm ${
         stale
-          ? 'border-[#e8b34a]/40 bg-[#e8b34a]/10 text-[#e8c07a]'
-          : 'border-[#f0857d]/40 bg-[#f0857d]/10 text-[#f5a89f]'
+          ? 'border-alert-amber/40 bg-alert-amber/10 text-ops-warn'
+          : 'border-alert-crimson/40 bg-alert-crimson/10 text-ops-danger'
       }`}
     >
       {message}

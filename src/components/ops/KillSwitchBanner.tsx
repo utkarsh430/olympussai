@@ -20,7 +20,7 @@ export function KillSwitchBanner({
   if (relevant.length === 0) return null;
 
   return (
-    <div role="alert" className="mb-6 space-y-2 rounded-md border border-[#f0857d]/40 bg-[#f0857d]/10 px-4 py-3 text-sm text-[#f5a89f]">
+    <div role="alert" className="mb-6 space-y-2 rounded-md border border-alert-crimson/40 bg-alert-crimson/10 px-4 py-3 text-sm text-ops-danger">
       {relevant.map((ks) => (
         <p key={ks.id}>
           <span className="font-mono text-[10px] uppercase tracking-[0.12em]">Kill switch engaged</span> —{' '}

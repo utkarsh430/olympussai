@@ -51,8 +51,8 @@ export function CopilotQueryBox({ routeDirectionId }: { routeDirectionId: string
   }
 
   return (
-    <div className="space-y-4 rounded-md border border-[rgba(255,255,255,0.08)] p-4">
-      <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">Ask the copilot</h2>
+    <div className="space-y-4 rounded-md border border-ops-line p-4">
+      <h2 className="ops-label">Ask the copilot</h2>
 
       <form onSubmit={handleAsk} className="space-y-3">
         <label htmlFor="copilotQuestion" className="sr-only">
@@ -68,11 +68,11 @@ export function CopilotQueryBox({ routeDirectionId }: { routeDirectionId: string
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="e.g. Why is route 12 up currently flagged as bunched?"
           aria-describedby={error ? errorId : undefined}
-          className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef] placeholder:text-[#707580] focus:border-[#4f8cff]/70 focus:outline-none"
+          className="ops-input"
         />
 
         {error && (
-          <p id={errorId} role="alert" className="text-sm text-[#f0857d]">
+          <p id={errorId} role="alert" className="text-sm text-alert-crimson">
             {error}
           </p>
         )}
@@ -80,22 +80,22 @@ export function CopilotQueryBox({ routeDirectionId }: { routeDirectionId: string
         <button
           type="submit"
           disabled={status === 'loading' || question.trim().length < 3}
-          className="rounded-md border border-[#4f8cff]/60 bg-[#4f8cff]/12 px-5 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8fb4ff] transition-all hover:bg-[#4f8cff]/20 disabled:cursor-not-allowed disabled:opacity-60"
+          className="ops-button-primary px-5 py-2"
         >
           {status === 'loading' ? 'Asking…' : 'Ask'}
         </button>
       </form>
 
       {answer && (
-        <div aria-live="polite" className="rounded-md border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] p-3">
-          <p className="whitespace-pre-wrap text-sm text-[#e6e9ef]">{answer}</p>
+        <div aria-live="polite" className="ops-well p-3">
+          <p className="whitespace-pre-wrap text-sm text-ops-ink">{answer}</p>
           {citations.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {citations.map((citation) => (
                 <span
                   key={`${citation.recordType}-${citation.recordId}`}
                   title={citation.summary}
-                  className="rounded border border-[rgba(255,255,255,0.12)] px-1.5 py-0.5 font-mono text-[9px] text-[#6f7684]"
+                  className="rounded border border-ops-line-strong px-1.5 py-0.5 font-mono text-[9px] text-ops-faint"
                 >
                   {citation.recordType}:{citation.recordId.slice(0, 8)}
                 </span>

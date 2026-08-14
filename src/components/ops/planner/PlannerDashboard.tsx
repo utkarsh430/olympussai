@@ -17,7 +17,7 @@ export function PlannerDashboard({ snapshot }: { snapshot: OpsFleetSnapshot }) {
       <DataSourceNotice source={snapshot.source} stale={snapshot.stale} error={snapshot.error} />
 
       <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+        <h2 className="ops-label mb-3">
           Route roster
         </h2>
         <FleetRosterGroups

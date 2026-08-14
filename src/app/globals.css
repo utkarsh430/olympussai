@@ -196,6 +196,126 @@
     background-color: #ffffff;
   }
 
+  /* ── Operations console surface (/ops/*) ────────────────────────────────
+     The command centre's HUD language, held to what a shift console actually
+     has to do: scrolling pages, long forms, wide tables, twelve routes and a
+     persistent navigation.
+
+     These are a calmer sibling of the `hud-*` classes above, not a second
+     design. Same ground, same cyan instrument accent, same mono/uppercase
+     labelling, same corner radius. What is deliberately dialled back is
+     GLOW: `.hud-panel` earns its outer bloom by floating over a live map,
+     and a dozen of them stacked down a settings page is noise an operator
+     reads for eight hours. `.ops-panel` keeps the frame and drops the bloom.
+
+     React wrappers for all of this live in src/components/ops/ui — prefer
+     those; these classes exist so the wrappers (and any markup they cannot
+     reasonably own) speak with one voice. */
+  .ops-panel {
+    @apply relative rounded-lg border border-ops-line bg-ops-surface;
+    box-shadow: 0 10px 30px -24px rgba(0, 0, 0, 0.9);
+  }
+
+  .ops-panel-accent {
+    @apply relative rounded-lg border border-holo-glow/30 bg-ops-surface;
+    box-shadow:
+      0 0 0 1px rgba(63, 240, 255, 0.08),
+      0 10px 30px -24px rgba(0, 0, 0, 0.9);
+  }
+
+  .ops-well {
+    @apply rounded border border-ops-line bg-ops-raised;
+  }
+
+  /* The one label style for the whole surface. Every ops page had its own
+     near-copy of this string (`font-mono text-[11px] uppercase
+     tracking-[0.14em] text-[#6f7684]`); this is that pattern, named. */
+  .ops-label {
+    @apply font-mono text-[11px] uppercase tracking-[0.16em] text-ops-muted;
+  }
+
+  .ops-eyebrow {
+    @apply font-mono text-[10px] uppercase tracking-[0.28em] text-ops-faint;
+  }
+
+  .ops-value {
+    @apply font-mono tabular-nums text-ops-ink;
+  }
+
+  .ops-button {
+    @apply inline-flex items-center justify-center gap-2 rounded border border-ops-line-strong
+      bg-ops-raised px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-ops-ink
+      transition-colors duration-150 hover:border-holo-glow/60 hover:text-holo-glow
+      disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .ops-button-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded border border-holo-glow/60
+      bg-holo-glow/15 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-holo-glow
+      transition-colors duration-150 hover:bg-holo-glow/25
+      disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .ops-button-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded border border-alert-crimson/50
+      bg-alert-crimson/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em]
+      text-alert-crimson transition-colors duration-150 hover:border-alert-crimson
+      hover:bg-alert-crimson/20 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .ops-button-quiet {
+    @apply inline-flex items-center justify-center gap-2 rounded border border-transparent px-2.5
+      py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-ops-muted transition-colors
+      duration-150 hover:border-ops-line hover:text-ops-ink
+      disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  /* Ops inputs are read and typed into for a whole shift, so unlike
+     `.hud-input` they run at the browser's normal control size rather than
+     text-xs, and their text is the neutral ink rather than cyan (cyan-on-void
+     is an instrument readout, not a text field). */
+  .ops-input {
+    @apply w-full rounded border border-ops-line bg-ops-bg/80 px-3 py-2 text-sm text-ops-ink
+      placeholder:text-ops-faint focus:border-holo-glow/60 focus:outline-none
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .ops-nav-link {
+    @apply relative inline-flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent
+      px-1 pb-2 pt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-ops-muted
+      transition-colors duration-150 hover:text-ops-ink;
+  }
+
+  .ops-nav-link-active {
+    @apply border-holo-glow text-holo-glow;
+  }
+
+  /* Static, motionless ambient ground for the ops shell. The command centre's
+     AmbientBackdrop drifts particles and runs a scanline; this surface is read
+     for eight hours at a stretch, so it keeps the grid and the volumetric
+     wash and animates nothing. */
+  .ops-backdrop {
+    background-image:
+      radial-gradient(ellipse 90% 55% at 50% 0%, rgba(34, 217, 245, 0.1), transparent 62%),
+      radial-gradient(ellipse 60% 50% at 100% 100%, rgba(46, 242, 196, 0.06), transparent 60%),
+      linear-gradient(rgba(63, 240, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(63, 240, 255, 0.04) 1px, transparent 1px);
+    background-size:
+      100% 100%,
+      100% 100%,
+      44px 44px,
+      44px 44px;
+  }
+
+  /* Same trick, same reason, as `body:has(.sim-light)` above: the neutral
+     near-black body ground (#050507) is a shade off the console's void
+     (#02040a), and the difference shows on overscroll and behind a short
+     page as a band that looks like a rendering fault. */
+  body:has([data-ops-ground]),
+  body:has([data-ops-shell]) {
+    background-color: #02040a;
+  }
+
   .scanline-overlay {
     background-image: repeating-linear-gradient(
       0deg,

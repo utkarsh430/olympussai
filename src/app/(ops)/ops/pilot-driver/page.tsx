@@ -14,7 +14,7 @@ export default async function PilotDriverPage() {
   const session = await requireOpsRolePage('pilot_driver', '/ops/pilot-driver');
 
   return (
-    <OpsShell title="Pilot Driver" email={session.email}>
+    <OpsShell title="Pilot Driver" email={session.email} role="pilot_driver">
       <PwaRegister />
       <CommandConsole />
     </OpsShell>

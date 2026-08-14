@@ -1,0 +1,5 @@
+{
+  "//": "Only for scripts/preview-ops-shell.tsx, which runs outside Next under tsx. The root tsconfig sets jsx=preserve because Next does its own transform; a standalone Node run needs a real one.",
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "jsx": "react-jsx" }
+}

@@ -5,8 +5,8 @@
   "start_url": "/ops/pilot-driver",
   "scope": "/ops/pilot-driver/",
   "display": "standalone",
-  "background_color": "#0a0b10",
-  "theme_color": "#0a0b10",
+  "background_color": "#02040a",
+  "theme_color": "#02040a",
   "orientation": "portrait-primary",
   "icons": [
     {

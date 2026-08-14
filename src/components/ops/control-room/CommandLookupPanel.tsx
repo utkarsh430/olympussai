@@ -50,7 +50,7 @@ export function CommandLookupPanel() {
     <div className="space-y-3">
       <form onSubmit={lookup} className="flex flex-wrap items-end gap-2">
         <div className="min-w-[280px] flex-1">
-          <label htmlFor="command-lookup-id" className="mb-1 block text-xs text-[#9aa0ad]">
+          <label htmlFor="command-lookup-id" className="mb-1 block text-xs text-ops-muted">
             Control-service command id
           </label>
           <input
@@ -58,49 +58,49 @@ export function CommandLookupPanel() {
             value={commandId}
             onChange={(e) => setCommandId(e.target.value)}
             placeholder="uuid"
-            className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef] placeholder:text-[#707580] focus:border-[#4f8cff]/70 focus:outline-none"
+            className="ops-input"
           />
         </div>
         <button
           type="submit"
           disabled={state.status === 'loading' || commandId.trim().length === 0}
-          className="rounded-md border border-[#4f8cff]/60 bg-[#4f8cff]/12 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8fb4ff] hover:bg-[#4f8cff]/20 disabled:cursor-not-allowed disabled:opacity-60"
+          className="ops-button-primary px-4 py-2"
         >
           {state.status === 'loading' ? 'Looking up…' : 'Look up'}
         </button>
       </form>
 
       {state.status === 'error' && (
-        <p role="alert" className="text-sm text-[#f0857d]">
+        <p role="alert" className="text-sm text-alert-crimson">
           {state.message}
         </p>
       )}
 
       {state.status === 'ready' && (
         <div className="space-y-3">
-          <div className="rounded-md border border-[rgba(255,255,255,0.08)] px-4 py-3 text-sm">
+          <div className="rounded-md border border-ops-line px-4 py-3 text-sm">
             <p>
-              Status: <span className="font-mono text-[#e6e9ef]">{state.command.status}</span>
+              Status: <span className="font-mono text-ops-ink">{state.command.status}</span>
               {state.command.ackOutcome ? (
                 <>
                   {' '}
-                  · Driver ack: <span className="font-mono text-[#e6e9ef]">{state.command.ackOutcome}</span>
+                  · Driver ack: <span className="font-mono text-ops-ink">{state.command.ackOutcome}</span>
                 </>
               ) : null}
             </p>
-            <p className="mt-1 text-[#9aa0ad]">
+            <p className="mt-1 text-ops-muted">
               Delivered: {state.command.deliveredAt ? new Date(state.command.deliveredAt).toLocaleString() : 'not yet'}
             </p>
-            <p className="mt-1 text-[#9aa0ad]">
+            <p className="mt-1 text-ops-muted">
               Acknowledged: {state.command.acknowledgedAt ? new Date(state.command.acknowledgedAt).toLocaleString() : 'not yet'}
               {state.command.acknowledgementReason ? ` — ${state.command.acknowledgementReason}` : ''}
             </p>
           </div>
 
-          <div className="overflow-x-auto rounded-md border border-[rgba(255,255,255,0.08)]">
+          <div className="overflow-x-auto rounded-md border border-ops-line">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-[rgba(255,255,255,0.08)] text-[10px] uppercase tracking-[0.12em] text-[#6f7684]">
+                <tr className="border-b border-ops-line text-[10px] uppercase tracking-[0.12em] text-ops-muted">
                   <th className="px-3 py-2">Event</th>
                   <th className="px-3 py-2">Actor</th>
                   <th className="px-3 py-2">Reason</th>
@@ -109,14 +109,14 @@ export function CommandLookupPanel() {
               </thead>
               <tbody>
                 {state.auditLog.map((entry) => (
-                  <tr key={entry.id} className="border-b border-[rgba(255,255,255,0.05)] last:border-0">
-                    <td className="px-3 py-2 font-mono text-xs text-[#e6e9ef]">{entry.eventType}</td>
-                    <td className="px-3 py-2 text-xs text-[#9aa0ad]">
+                  <tr key={entry.id} className="border-b border-ops-line/60 last:border-0">
+                    <td className="px-3 py-2 font-mono text-xs text-ops-ink">{entry.eventType}</td>
+                    <td className="px-3 py-2 text-xs text-ops-muted">
                       {entry.actorType}
                       {entry.actorId ? ` (${entry.actorId})` : ''}
                     </td>
-                    <td className="px-3 py-2 text-xs text-[#9aa0ad]">{entry.reason ?? '—'}</td>
-                    <td className="px-3 py-2 text-xs text-[#9aa0ad]">{new Date(entry.occurredAt).toLocaleString()}</td>
+                    <td className="px-3 py-2 text-xs text-ops-muted">{entry.reason ?? '—'}</td>
+                    <td className="px-3 py-2 text-xs text-ops-muted">{new Date(entry.occurredAt).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>

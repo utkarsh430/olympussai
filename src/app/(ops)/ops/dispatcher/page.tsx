@@ -1,5 +1,6 @@
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
+import { OpsAlert } from '@/components/ops/ui';
 import { getOpsFleetSnapshot } from '@/lib/ops/fleetData';
 import { OPS_FLEET_SCOPE_ALL } from '@/lib/ops/depotScope';
 import { getRouteOperationsBoardSnapshot } from '@/lib/controlService/routeBoardData';
@@ -24,7 +25,7 @@ export default async function DispatcherPage({
   const { q, routeDirectionId } = await searchParams;
 
   return (
-    <OpsShell title="Dispatcher" email={session.email}>
+    <OpsShell title="Dispatcher" email={session.email} role="dispatcher" variant="wide">
       <DashboardBody query={q ?? ''} routeDirectionId={routeDirectionId} />
     </OpsShell>
   );
@@ -55,9 +56,9 @@ async function DashboardBody({ query, routeDirectionId }: { query: string; route
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return (
-      <p role="alert" className="rounded-md border border-[#f0857d]/40 bg-[#f0857d]/10 px-4 py-3 text-sm text-[#f5a89f]">
+      <OpsAlert tone="error">
         Dispatcher data is unavailable right now ({message}). Try refreshing the page.
-      </p>
+      </OpsAlert>
     );
   }
 }

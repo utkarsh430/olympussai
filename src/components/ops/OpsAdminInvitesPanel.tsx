@@ -46,11 +46,14 @@ const INVITE_STATUS_LABEL: Record<OpsInviteStatus, string> = {
   revoked: 'Revoked',
 };
 
+// Literal hexes, applied through `style` — see STAGE_COLOR in
+// OpsAdminRolloutStagesPanel.tsx for why, and keep both in step with the
+// `ops`/`holo` tokens in tailwind.config.ts.
 const INVITE_STATUS_COLOR: Record<OpsInviteStatus, string> = {
-  pending: '#8fb4ff',
-  expired: '#f0b45d',
-  accepted: '#7ed6a5',
-  revoked: '#f0857d',
+  pending: '#3ff0ff',
+  expired: '#f5c977',
+  accepted: '#8ee7b4',
+  revoked: '#ff9aa4',
 };
 
 function formatExpiry(iso: string): string {
@@ -131,22 +134,22 @@ function VehicleAssignmentCell({
         }}
         placeholder="Unassigned"
         aria-describedby={error ? errorId : undefined}
-        className="w-32 rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-2 py-1 text-xs text-[#e6e9ef] placeholder:text-[#707580] focus:border-[#4f8cff]/70 focus:outline-none"
+        className="ops-input w-32 px-2 py-1 text-xs"
       />
       <button
         type="submit"
         disabled={busy}
-        className="rounded border border-[rgba(255,255,255,0.14)] px-2 py-1 text-xs text-[#9aa0ad] hover:border-[#4f8cff]/60 hover:text-[#8fb4ff] disabled:opacity-60"
+        className="rounded border border-ops-line-strong px-2 py-1 text-xs text-ops-muted hover:border-holo-glow/60 hover:text-holo-glow disabled:opacity-60"
       >
         {busy ? 'Saving…' : 'Assign'}
       </button>
       {saved && !error && (
-        <span role="status" className="text-xs text-[#7ed6a5]">
+        <span role="status" className="text-xs text-ops-good">
           Saved
         </span>
       )}
       {error && (
-        <span id={errorId} role="alert" className="w-full text-right text-xs text-[#f0857d]">
+        <span id={errorId} role="alert" className="w-full text-right text-xs text-alert-crimson">
           {error}
         </span>
       )}
@@ -215,14 +218,14 @@ function DepotAssignmentCell({
   }
 
   if (depots === null) {
-    return <span className="text-[#6f7684]">…</span>;
+    return <span className="text-ops-faint">…</span>;
   }
 
   if (depots.length === 0) {
     // An empty registry is a real, actionable state, not a blank dropdown:
     // nobody can be assigned until the registry is seeded from the feed.
     return (
-      <span className="text-xs text-[#c9b27a]">
+      <span className="text-xs text-ops-warn">
         No depots in registry — run <code>pnpm seed-ops-depots</code>
       </span>
     );
@@ -242,7 +245,7 @@ function DepotAssignmentCell({
           setValue(e.target.value);
           void submit(e.target.value);
         }}
-        className="w-44 rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-2 py-1 text-xs text-[#e6e9ef] focus:border-[#4f8cff]/70 focus:outline-none disabled:opacity-60"
+        className="ops-input w-44 px-2 py-1 text-xs"
       >
         <option value="">Unassigned</option>
         {depots.map((depot) => (
@@ -251,14 +254,14 @@ function DepotAssignmentCell({
           </option>
         ))}
       </select>
-      {busy && <span className="text-xs text-[#9aa0ad]">Saving…</span>}
+      {busy && <span className="text-xs text-ops-muted">Saving…</span>}
       {saved && !busy && !error && (
-        <span role="status" className="text-xs text-[#7ed6a5]">
+        <span role="status" className="text-xs text-ops-good">
           Saved
         </span>
       )}
       {error && (
-        <span id={errorId} role="alert" className="w-full text-right text-xs text-[#f0857d]">
+        <span id={errorId} role="alert" className="w-full text-right text-xs text-alert-crimson">
           {error}
         </span>
       )}
@@ -410,9 +413,9 @@ export function OpsAdminInvitesPanel() {
     <div className="space-y-10">
       <form
         onSubmit={handleInvite}
-        className="space-y-4 rounded-lg border border-[rgba(255,255,255,0.1)] p-5"
+        className="space-y-4 rounded-lg border border-ops-line p-5"
       >
-        <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#a3a7b2]">
+        <h2 className="ops-label">
           Invite a person
         </h2>
         <div className="flex flex-wrap gap-3">
@@ -422,12 +425,12 @@ export function OpsAdminInvitesPanel() {
             placeholder="email@olympuss.us"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="min-w-[220px] flex-1 rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef]"
+            className="ops-input min-w-[220px] flex-1"
           />
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as OpsRole)}
-            className="rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef]"
+            className="ops-input"
           >
             {INVITABLE_ROLES.map((r) => (
               <option key={r} value={r}>
@@ -438,45 +441,45 @@ export function OpsAdminInvitesPanel() {
           <button
             type="submit"
             disabled={busy}
-            className="bg-[#4f8cff]/12 rounded-md border border-[#4f8cff]/60 px-4 py-2 text-sm text-[#8fb4ff] disabled:opacity-60"
+            className="ops-button-primary px-4 py-2 text-sm normal-case tracking-normal"
           >
             Send invite
           </button>
         </div>
-        <label className="flex items-center gap-2 text-xs text-[#9aa0ad]">
+        <label className="flex items-center gap-2 text-xs text-ops-muted">
           <input
             type="checkbox"
             checked={revealAcceptUrl}
             onChange={(e) => setRevealAcceptUrl(e.target.checked)}
-            className="rounded border-[rgba(255,255,255,0.2)]"
+            className="rounded border-ops-line-strong"
           />
           Also show me the accept link (in addition to emailing it)
         </label>
         {error && (
-          <p role="alert" className="text-sm text-[#f0857d]">
+          <p role="alert" className="text-sm text-alert-crimson">
             {error}
           </p>
         )}
-        {notice && !error && <p className="text-sm text-[#7ed6a5]">{notice}</p>}
+        {notice && !error && <p className="text-sm text-ops-good">{notice}</p>}
         {acceptUrl && (
-          <p className="break-all text-sm text-[#9aa0ad]">
+          <p className="break-all text-sm text-ops-muted">
             Accept link (shown because you opted in above — the invitee was also emailed this link):{' '}
-            <span className="text-[#8fb4ff]">{acceptUrl}</span>
+            <span className="text-holo-glow">{acceptUrl}</span>
           </p>
         )}
       </form>
 
       <div className="space-y-3">
-        <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#a3a7b2]">
+        <h2 className="ops-label">
           Outstanding invites
         </h2>
         {!invites ? (
-          <p className="text-sm text-[#9aa0ad]">Loading…</p>
+          <p className="text-sm text-ops-muted">Loading…</p>
         ) : invites.length === 0 ? (
-          <p className="text-sm text-[#9aa0ad]">No outstanding invites.</p>
+          <p className="text-sm text-ops-muted">No outstanding invites.</p>
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="text-[#6f7684]">
+            <thead className="text-ops-faint">
               <tr>
                 <th className="pb-2">Email</th>
                 <th className="pb-2">Role</th>
@@ -487,7 +490,7 @@ export function OpsAdminInvitesPanel() {
             </thead>
             <tbody>
               {invites.map((invite) => (
-                <tr key={invite.id} className="border-t border-[rgba(255,255,255,0.06)]">
+                <tr key={invite.id} className="border-t border-ops-line/70">
                   <td className="py-2">{invite.email}</td>
                   <td className="py-2">{invite.role.replace('_', ' ')}</td>
                   <td className="py-2">
@@ -495,14 +498,14 @@ export function OpsAdminInvitesPanel() {
                       {INVITE_STATUS_LABEL[invite.status]}
                     </span>
                   </td>
-                  <td className="py-2 text-[#9aa0ad]">{formatExpiry(invite.expiresAt)}</td>
+                  <td className="py-2 text-ops-muted">{formatExpiry(invite.expiresAt)}</td>
                   <td className="py-2 text-right">
                     {(invite.status === 'pending' || invite.status === 'expired') && (
                       <button
                         type="button"
                         disabled={resendingId === invite.id}
                         onClick={() => handleResend(invite.id)}
-                        className="rounded border border-[rgba(255,255,255,0.14)] px-2 py-1 text-xs text-[#9aa0ad] hover:border-[#4f8cff]/60 hover:text-[#8fb4ff] disabled:opacity-60"
+                        className="rounded border border-ops-line-strong px-2 py-1 text-xs text-ops-muted hover:border-holo-glow/60 hover:text-holo-glow disabled:opacity-60"
                       >
                         {resendingId === invite.id ? 'Resending…' : 'Resend'}
                       </button>
@@ -516,14 +519,14 @@ export function OpsAdminInvitesPanel() {
       </div>
 
       <div className="space-y-3">
-        <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#a3a7b2]">People</h2>
+        <h2 className="ops-label">People</h2>
         {!users ? (
-          <p className="text-sm text-[#9aa0ad]">Loading…</p>
+          <p className="text-sm text-ops-muted">Loading…</p>
         ) : users.length === 0 ? (
-          <p className="text-sm text-[#9aa0ad]">No accounts yet.</p>
+          <p className="text-sm text-ops-muted">No accounts yet.</p>
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="text-[#6f7684]">
+            <thead className="text-ops-faint">
               <tr>
                 <th className="pb-2">Name</th>
                 <th className="pb-2">Email</th>
@@ -536,7 +539,7 @@ export function OpsAdminInvitesPanel() {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="border-t border-[rgba(255,255,255,0.06)]">
+                <tr key={u.id} className="border-t border-ops-line/70">
                   <td className="py-2">{u.name}</td>
                   <td className="py-2">{u.email}</td>
                   <td className="py-2">{u.role.replace('_', ' ')}</td>
@@ -549,7 +552,7 @@ export function OpsAdminInvitesPanel() {
                         onAssigned={handleVehicleAssigned}
                       />
                     ) : (
-                      <span className="text-[#6f7684]">—</span>
+                      <span className="text-ops-faint">—</span>
                     )}
                   </td>
                   <td className="py-2 text-right">
@@ -561,7 +564,7 @@ export function OpsAdminInvitesPanel() {
                         onAssigned={handleDepotAssigned}
                       />
                     ) : (
-                      <span className="text-[#6f7684]">—</span>
+                      <span className="text-ops-faint">—</span>
                     )}
                   </td>
                   <td className="py-2 text-right">
@@ -570,7 +573,7 @@ export function OpsAdminInvitesPanel() {
                         type="button"
                         disabled={busy}
                         onClick={() => handleDisable(u.id)}
-                        className="rounded border border-[rgba(255,255,255,0.14)] px-2 py-1 text-xs text-[#9aa0ad] hover:border-[#f0857d]/60 hover:text-[#f0857d]"
+                        className="rounded border border-ops-line-strong px-2 py-1 text-xs text-ops-muted hover:border-alert-crimson/60 hover:text-alert-crimson"
                       >
                         Disable
                       </button>

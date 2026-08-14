@@ -39,6 +39,39 @@ export default {
           crimson: '#b3172f',
           green: '#0b6b40',
         },
+        // Operations console palette (/ops/*). NOT a new look: the ground,
+        // the cyan instrument accent and the alert hues are the command
+        // centre's own (`void` / `holo` / `alert` above), and `ops.*` only
+        // adds the named tiers the HUD never needed because it had no long
+        // forms, no tables and no multi-page navigation.
+        //
+        // The reason these are tokens rather than the literal hexes the ops
+        // pages used to inline (#e6e9ef, #9aa0ad, #6f7684, rgba(255,255,255,
+        // 0.08)): four dashboards are being built on this surface by four
+        // different hands, and an un-named grey is how four dashboards end up
+        // with four greys. Every value below clears WCAG AA (4.5:1) against
+        // both `ops.bg` and `ops.surface` — `faint`, the weakest, is 6.0:1 on
+        // a panel, because the tertiary tier still labels which reading is
+        // which.
+        ops: {
+          bg: '#02040a', // page ground — same void the command centre uses
+          surface: '#070f1d', // panel fill — same as .hud-panel
+          raised: '#0b1a2e', // nested well inside a panel
+          line: '#14304d', // ordinary divider/border
+          'line-strong': '#1d4a6e', // emphasised border, focus target
+          ink: '#dbeefb', // primary reading text — 16.1:1 on surface
+          muted: '#9fb6c9', // secondary/label text — 9.1:1 on surface
+          faint: '#7e93a6', // tertiary/annotation text — 6.0:1 on surface
+          // Alert hues at TEXT weight. `alert.crimson/amber/green` above are
+          // instrument colours — right for a border, a fill or a badge, and
+          // thin for a sentence an operator has to read on a dark ground.
+          // These are the same three hues lightened to 8.6:1 or better on
+          // every ops surface, which is what the twelve pages were already
+          // reaching for by hand (#f5a89f, #e8c07a, #7fd9a4).
+          danger: '#ff9aa4',
+          warn: '#f5c977',
+          good: '#8ee7b4',
+        },
         // Olympuss landing palette (Section 18). Namespaced so it cannot
         // collide with the dashboard's cyan HUD tokens above.
         ol: {

@@ -13,8 +13,8 @@ export function LiveBadge({ observedAt, now }: { observedAt: string; now: number
     <span
       className={`rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] ${
         live
-          ? 'border-[#4fbf82]/40 bg-[#4fbf82]/10 text-[#7fd9a4]'
-          : 'border-[#e8b34a]/40 bg-[#e8b34a]/10 text-[#e8c07a]'
+          ? 'border-alert-green/40 bg-alert-green/10 text-ops-good'
+          : 'border-alert-amber/40 bg-alert-amber/10 text-ops-warn'
       }`}
     >
       {live ? 'Live' : 'Stale'}

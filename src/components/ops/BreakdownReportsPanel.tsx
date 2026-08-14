@@ -99,18 +99,18 @@ export function BreakdownReportsPanel({ scope }: { scope: 'fleet' | 'mine' }) {
   }
 
   if (state.status === 'loading') {
-    return <p className="text-sm text-[#9aa0ad]">Loading breakdown reports…</p>;
+    return <p className="text-sm text-ops-muted">Loading breakdown reports…</p>;
   }
   if (state.status === 'error') {
     return (
-      <p role="alert" className="text-sm text-[#f0857d]">
+      <p role="alert" className="text-sm text-alert-crimson">
         {state.message}
       </p>
     );
   }
   if (state.reports.length === 0) {
     return (
-      <p className="rounded-md border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#9aa0ad]">
+      <p className="ops-well px-4 py-3 text-sm text-ops-muted">
         {scope === 'mine' ? 'You have not filed any breakdown reports yet.' : 'No breakdown reports filed yet.'}
       </p>
     );
@@ -120,19 +120,19 @@ export function BreakdownReportsPanel({ scope }: { scope: 'fleet' | 'mine' }) {
     <div className="space-y-3">
       <ul className="space-y-3">
         {state.reports.map((report) => (
-          <li key={report.id} className="rounded-md border border-[rgba(255,255,255,0.08)] px-4 py-3">
+          <li key={report.id} className="rounded-md border border-ops-line px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-mono text-xs uppercase tracking-[0.1em] text-[#8fb4ff]">
+              <span className="font-mono text-xs uppercase tracking-[0.1em] text-holo-glow">
                 {report.category}
               </span>
-              <span className="text-[11px] text-[#6f7684]">{new Date(report.createdAt).toLocaleString()}</span>
+              <span className="text-[11px] text-ops-faint">{new Date(report.createdAt).toLocaleString()}</span>
             </div>
-            <p className="mt-1 text-sm text-[#e6e9ef]">{report.description}</p>
-            <p className="mt-1 font-mono text-[11px] text-[#6f7684]">
+            <p className="mt-1 text-sm text-ops-ink">{report.description}</p>
+            <p className="mt-1 font-mono text-[11px] text-ops-faint">
               vehicle {report.vehicleReg}
               {scope === 'fleet' ? ` · reported by ${report.reporterName}` : ''}
             </p>
-            <p className="mt-1 font-mono text-[10px] text-[#6f7684]">id: {report.id}</p>
+            <p className="mt-1 font-mono text-[10px] text-ops-faint">id: {report.id}</p>
           </li>
         ))}
       </ul>
@@ -142,7 +142,7 @@ export function BreakdownReportsPanel({ scope }: { scope: 'fleet' | 'mine' }) {
           type="button"
           onClick={loadMore}
           disabled={loadingMore}
-          className="rounded-md border border-[rgba(255,255,255,0.14)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#9aa0ad] hover:border-[#4f8cff]/60 disabled:cursor-not-allowed disabled:opacity-60"
+          className="ops-button"
         >
           {loadingMore ? 'Loading…' : 'Load more'}
         </button>

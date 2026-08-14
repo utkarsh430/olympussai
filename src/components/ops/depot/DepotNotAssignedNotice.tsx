@@ -25,13 +25,13 @@ export function DepotNotAssignedNotice({ reason }: { reason: OpsScopeDenial }) {
   return (
     <section
       role="alert"
-      className="rounded-md border border-[#f0c14b]/40 bg-[#f0c14b]/10 px-4 py-4 text-sm text-[#f3d68a]"
+      className="rounded-md border border-ops-warn/40 bg-ops-warn/10 px-4 py-4 text-sm text-ops-warn"
     >
-      <h2 className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#f0c14b]">
+      <h2 className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ops-warn">
         No depot assigned
       </h2>
       <p className="mb-2">{detail}</p>
-      <p className="text-[#c9b27a]">
+      <p className="text-ops-warn">
         A depot dashboard shows the vehicles belonging to one depot, so there is nothing to show until
         an administrator assigns yours. Ask an admin to set your depot, then reload this page.
       </p>

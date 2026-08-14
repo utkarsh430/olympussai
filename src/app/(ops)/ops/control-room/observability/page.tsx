@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
+import { OpsAlert } from '@/components/ops/ui';
 import { ObservabilityDashboard } from '@/components/ops/control-room/ObservabilityDashboard';
 import { getObservabilitySnapshot } from '@/lib/controlService/observabilityData';
 
@@ -30,12 +30,7 @@ export default async function ObservabilityPage({
   const { routeDirectionId } = await searchParams;
 
   return (
-    <OpsShell title="Live Observability" email={session.email}>
-      <p className="mb-6 text-sm">
-        <Link href="/ops/control-room" className="text-[#8fb4ff] hover:underline">
-          &larr; Back to Control Room
-        </Link>
-      </p>
+    <OpsShell title="Live Observability" email={session.email} role="control_room" variant="wide">
       <DashboardBody routeDirectionId={routeDirectionId} />
     </OpsShell>
   );
@@ -50,9 +45,9 @@ async function DashboardBody({ routeDirectionId }: { routeDirectionId?: string }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return (
-      <p role="alert" className="rounded-md border border-[#f0857d]/40 bg-[#f0857d]/10 px-4 py-3 text-sm text-[#f5a89f]">
+      <OpsAlert tone="error">
         Observability data is unavailable right now ({message}). Try refreshing the page.
-      </p>
+      </OpsAlert>
     );
   }
 }

@@ -22,15 +22,15 @@ export default async function OpsForbiddenPage() {
 
   return (
     <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-6 text-center">
-      <h1 className="text-2xl font-semibold text-[#e6e9ef]">Access denied</h1>
-      <p className="max-w-md text-sm text-[#9aa0ad]">
+      <h1 className="text-2xl font-semibold text-ops-ink">Access denied</h1>
+      <p className="max-w-md text-sm text-ops-muted">
         {session
           ? `Your account (${session.role.replace('_', ' ')}) does not have access to that screen.`
           : 'You do not have access to that screen.'}
       </p>
       <Link
         href={home}
-        className="bg-[#4f8cff]/12 mt-2 rounded-md border border-[#4f8cff]/60 px-5 py-2.5 font-mono text-[13px] uppercase tracking-[0.2em] text-[#8fb4ff] hover:bg-[#4f8cff]/20"
+        className="ops-button-primary mt-2 px-5 py-2.5 text-[13px] tracking-[0.2em]"
       >
         {session ? 'Back to your dashboard' : 'Sign in'}
       </Link>

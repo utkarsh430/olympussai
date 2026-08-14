@@ -99,18 +99,18 @@ export function ApprovalQueuePanel({
   }
 
   if (state.status === 'loading') {
-    return <p className="text-sm text-[#9aa0ad]">Loading approval queue…</p>;
+    return <p className="text-sm text-ops-muted">Loading approval queue…</p>;
   }
   if (state.status === 'error') {
     return (
-      <p role="alert" className="text-sm text-[#f0857d]">
+      <p role="alert" className="text-sm text-alert-crimson">
         {state.message}
       </p>
     );
   }
   if (state.actions.length === 0) {
     return (
-      <p className="rounded-md border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#9aa0ad]">
+      <p className="ops-well px-4 py-3 text-sm text-ops-muted">
         No disruptive actions awaiting a decision.
       </p>
     );
@@ -119,15 +119,15 @@ export function ApprovalQueuePanel({
   return (
     <ul className="space-y-3">
       {state.actions.map((action) => (
-        <li key={action.id} className="rounded-md border border-[rgba(255,255,255,0.08)] px-4 py-3">
+        <li key={action.id} className="rounded-md border border-ops-line px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-mono text-xs uppercase tracking-[0.1em] text-[#8fb4ff]">
+            <span className="font-mono text-xs uppercase tracking-[0.1em] text-holo-glow">
               {action.actionType.replace(/_/g, ' ')}
             </span>
-            <span className="text-[11px] text-[#6f7684]">{new Date(action.createdAt).toLocaleString()}</span>
+            <span className="text-[11px] text-ops-faint">{new Date(action.createdAt).toLocaleString()}</span>
           </div>
-          <p className="mt-1 text-sm text-[#e6e9ef]">{action.reason}</p>
-          <p className="mt-1 font-mono text-[11px] text-[#6f7684]">
+          <p className="mt-1 text-sm text-ops-ink">{action.reason}</p>
+          <p className="mt-1 font-mono text-[11px] text-ops-faint">
             {[
               action.vehicleId ? `vehicle ${action.vehicleId}` : null,
               action.routeDirectionId ? `route-direction ${action.routeDirectionId}` : null,
@@ -136,13 +136,13 @@ export function ApprovalQueuePanel({
               .filter(Boolean)
               .join(' · ') || 'no target scoped'}
           </p>
-          <p className="mt-1 font-mono text-[10px] text-[#6f7684]">id: {action.id}</p>
+          <p className="mt-1 font-mono text-[10px] text-ops-faint">id: {action.id}</p>
 
           {canDecide && (
-            <div className="mt-3 space-y-2 border-t border-[rgba(255,255,255,0.06)] pt-3">
+            <div className="mt-3 space-y-2 border-t border-ops-line/70 pt-3">
               {rejectingId === action.id ? (
                 <div className="space-y-2">
-                  <label htmlFor={`reject-reason-${action.id}`} className="block text-xs text-[#9aa0ad]">
+                  <label htmlFor={`reject-reason-${action.id}`} className="block text-xs text-ops-muted">
                     Rejection reason
                   </label>
                   <textarea
@@ -151,10 +151,10 @@ export function ApprovalQueuePanel({
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}
                     rows={2}
-                    className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef] focus:border-[#4f8cff]/70 focus:outline-none"
+                    className="ops-input"
                   />
                   {rejectError && (
-                    <p role="alert" className="text-xs text-[#f0857d]">
+                    <p role="alert" className="text-xs text-alert-crimson">
                       {rejectError}
                     </p>
                   )}
@@ -163,7 +163,7 @@ export function ApprovalQueuePanel({
                       type="button"
                       disabled={submitting || rejectReason.trim().length === 0}
                       onClick={() => submitReject(action.id)}
-                      className="rounded-md border border-[#f0857d]/60 bg-[#f0857d]/12 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#f5a89f] hover:bg-[#f0857d]/20 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="ops-button-danger text-ops-danger"
                     >
                       {submitting ? 'Rejecting…' : 'Confirm reject'}
                     </button>
@@ -173,7 +173,7 @@ export function ApprovalQueuePanel({
                         setRejectingId(null);
                         setRejectError(null);
                       }}
-                      className="rounded-md border border-[rgba(255,255,255,0.14)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#9aa0ad] hover:border-[#4f8cff]/60"
+                      className="ops-button"
                     >
                       Cancel
                     </button>
@@ -184,14 +184,14 @@ export function ApprovalQueuePanel({
                   <button
                     type="button"
                     onClick={() => onApprove?.(action.id)}
-                    className="rounded-md border border-[#4fbf82]/60 bg-[#4fbf82]/12 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#7fd9a4] hover:bg-[#4fbf82]/20"
+                    className="ops-button border-alert-green/60 bg-alert-green/10 text-ops-good hover:border-alert-green hover:bg-alert-green/20 hover:text-ops-good"
                   >
                     Approve — issue command
                   </button>
                   <button
                     type="button"
                     onClick={() => setRejectingId(action.id)}
-                    className="rounded-md border border-[#f0857d]/60 bg-[#f0857d]/12 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#f5a89f] hover:bg-[#f0857d]/20"
+                    className="ops-button-danger text-ops-danger"
                   >
                     Reject
                   </button>

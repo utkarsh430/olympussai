@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
+import { OpsAlert, OpsEmptyState, OpsSection, OpsStack } from '@/components/ops/ui';
 import { getIncidentState } from '@/lib/controlService/incidentTimelineData';
 import { getOpsRepo } from '@/lib/auth/rbac/repo';
 import { ActiveIncidentsPanel } from '@/components/ops/control-room/ActiveIncidentsPanel';
@@ -35,13 +35,11 @@ export default async function IncidentTimelinePage({ params }: { params: Promise
     `/ops/control-room/incidents/${encodeURIComponent(id)}`,
   );
 
+  // The incident id used to be a second <h1> in the page body. One <h1> per
+  // page: the shell owns it, and the id is what qualifies it, so it goes in
+  // the shell's subtitle slot.
   return (
-    <OpsShell title="Incident Timeline" email={session.email}>
-      <p className="mb-6 text-sm">
-        <Link href="/ops/control-room/observability" className="text-[#8fb4ff] hover:underline">
-          &larr; Back to Live Observability
-        </Link>
-      </p>
+    <OpsShell title="Incident Timeline" email={session.email} role="control_room" subtitle={id}>
       <TimelineBody incidentId={id} />
     </OpsShell>
   );
@@ -56,60 +54,48 @@ async function TimelineBody({ incidentId }: { incidentId: string }) {
     ]);
 
     return (
-      <div className="space-y-8">
-        <h1 className="font-mono text-sm text-[#e6e9ef]">
-          Incident <span className="text-[#8fb4ff]">{incidentId}</span>
-        </h1>
-
-        <section>
-          <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">1. State</h2>
+      <OpsStack>
+        <OpsSection title="1. State">
           {error && (
-            <p role="alert" className="mb-3 text-sm text-[#f0857d]">
+            <OpsAlert tone="error" className="mb-3">
               Could not confirm current state from the control service ({error}).
-            </p>
+            </OpsAlert>
           )}
           {incident ? (
             <ActiveIncidentsPanel incidents={[incident]} />
           ) : (
-            !error && (
-              <p className="rounded-md border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#9aa0ad]">
-                No incident found with this id.
-              </p>
-            )
+            !error && <OpsEmptyState>No incident found with this id.</OpsEmptyState>
           )}
-        </section>
+        </OpsSection>
 
-        <section>
-          <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">2. Explanation</h2>
+        <OpsSection title="2. Explanation">
           {incident ? (
             <IncidentCopilotPanel incidents={[incident]} />
           ) : (
-            <p className="text-sm text-[#6f7684]">Unavailable without a confirmed incident state.</p>
+            <p className="text-sm text-ops-faint">
+              Unavailable without a confirmed incident state.
+            </p>
           )}
-        </section>
+        </OpsSection>
 
-        <section>
-          <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">3. Decision</h2>
+        <OpsSection title="3. Decision">
           <IncidentDecisionsList decisions={decisions} />
-        </section>
+        </OpsSection>
 
-        <section>
-          <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">4. Ack &amp; 5. Outcome</h2>
-          <p className="mb-3 text-[11px] text-[#6f7684]">
-            This app does not yet store which control-service command a decision above led to (no REST client that
-            actually dispatches a command exists — docs/CONTROL_SERVICE_INTEGRATION.md). If you know the
-            command id, look it up directly for its driver ack and final status.
-          </p>
+        <OpsSection
+          title="4. Ack & 5. Outcome"
+          description="This app does not yet store which control-service command a decision above led to (no REST client that actually dispatches a command exists — docs/CONTROL_SERVICE_INTEGRATION.md). If you know the command id, look it up directly for its driver ack and final status."
+        >
           <CommandLookupPanel />
-        </section>
-      </div>
+        </OpsSection>
+      </OpsStack>
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return (
-      <p role="alert" className="rounded-md border border-[#f0857d]/40 bg-[#f0857d]/10 px-4 py-3 text-sm text-[#f5a89f]">
+      <OpsAlert tone="error">
         Incident timeline data is unavailable right now ({message}). Try refreshing the page.
-      </p>
+      </OpsAlert>
     );
   }
 }

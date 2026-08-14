@@ -21,31 +21,31 @@ export function ObservabilityDashboard({ snapshot, now }: { snapshot: Observabil
       <RouteDirectionPicker routeDirections={snapshot.routeDirections} selectedId={snapshot.selectedRouteDirectionId} />
 
       {snapshot.routeDirections.length === 0 ? (
-        <p className="text-sm text-[#9aa0ad]">
+        <p className="text-sm text-ops-muted">
           No active route-directions reported by the control service yet.
         </p>
       ) : (
         <>
           <section>
-            <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+            <h2 className="ops-label mb-3">
               Headway / EWT / CV
             </h2>
             {snapshot.headway ? (
               <HeadwayMetricsSummary aggregate={snapshot.headway.aggregate} />
             ) : (
-              <p className="text-sm text-[#9aa0ad]">No headway sample computed yet for this route-direction.</p>
+              <p className="text-sm text-ops-muted">No headway sample computed yet for this route-direction.</p>
             )}
           </section>
 
           <section>
-            <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+            <h2 className="ops-label mb-3">
               Active incidents
             </h2>
             <ActiveIncidentsPanel incidents={snapshot.incidents} />
           </section>
 
           <section>
-            <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+            <h2 className="ops-label mb-3">
               Live vehicle positions
             </h2>
             <LivePositionsTable positions={snapshot.positions} now={now} />

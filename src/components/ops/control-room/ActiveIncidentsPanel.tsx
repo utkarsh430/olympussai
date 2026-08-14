@@ -12,7 +12,7 @@ import { IncidentSeverityBadge } from './IncidentSeverityBadge';
 export function ActiveIncidentsPanel({ incidents }: { incidents: BunchingIncident[] }) {
   if (incidents.length === 0) {
     return (
-      <p className="rounded-md border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#9aa0ad]">
+      <p className="ops-well px-4 py-3 text-sm text-ops-muted">
         No active bunching incidents on this route-direction.
       </p>
     );
@@ -23,28 +23,28 @@ export function ActiveIncidentsPanel({ incidents }: { incidents: BunchingInciden
       {incidents.map((incident) => (
         <li
           key={incident.id}
-          className="rounded-md border border-[rgba(255,255,255,0.08)] border-l-4 border-l-[#f0857d] bg-[rgba(240,133,125,0.06)] px-4 py-3"
+          className="rounded-md border border-ops-line border-l-4 border-l-alert-crimson bg-[rgba(240,133,125,0.06)] px-4 py-3"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <IncidentSeverityBadge severity={incident.severity} />
-              <span className="font-mono text-xs text-[#9aa0ad]">{incident.status}</span>
+              <span className="font-mono text-xs text-ops-muted">{incident.status}</span>
             </div>
-            <span className="text-xs text-[#6f7684]">
+            <span className="text-xs text-ops-faint">
               Started {new Date(incident.startedAt).toLocaleTimeString()}
             </span>
           </div>
-          <p className="mt-2 text-sm text-[#e6e9ef]">
+          <p className="mt-2 text-sm text-ops-ink">
             {incident.members.length === 0
               ? 'No member vehicles recorded.'
               : incident.members.map((m) => `${m.vehicleId} (${m.role})`).join(', ')}
           </p>
-          <p className="mt-1 font-mono text-xs text-[#6f7684]">
+          <p className="mt-1 font-mono text-xs text-ops-faint">
             Cause: {incident.causeClass} · Controllability: {incident.controllability}
           </p>
           <Link
             href={`/ops/control-room/incidents/${encodeURIComponent(incident.id)}`}
-            className="mt-2 inline-block font-mono text-[10px] uppercase tracking-[0.14em] text-[#8fb4ff] hover:underline"
+            className="mt-2 inline-block font-mono text-[10px] uppercase tracking-[0.14em] text-holo-glow hover:underline"
           >
             View full timeline &rarr;
           </Link>

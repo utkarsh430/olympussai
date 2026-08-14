@@ -128,20 +128,19 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
   }
 
   const submitting = status === 'submitting';
-  const inputClass =
-    'w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef] placeholder:text-[#707580] focus:border-[#4f8cff]/70 focus:outline-none';
+  const inputClass = 'ops-input';
 
   return (
     <form
       id="control-room-command-form"
       onSubmit={handleSubmit}
-      className="space-y-4 rounded-md border border-[rgba(255,255,255,0.08)] p-4"
+      className="space-y-4 rounded-md border border-ops-line p-4"
     >
-      <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">Issue command</h2>
+      <h2 className="ops-label">Issue command</h2>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="dispatcherActionId" className="mb-1 block text-xs text-[#9aa0ad]">
+          <label htmlFor="dispatcherActionId" className="mb-1 block text-xs text-ops-muted">
             Dispatcher action id
           </label>
           <input
@@ -155,7 +154,7 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
           />
         </div>
         <div>
-          <label htmlFor="actionType" className="mb-1 block text-xs text-[#9aa0ad]">
+          <label htmlFor="actionType" className="mb-1 block text-xs text-ops-muted">
             Action type
           </label>
           <select
@@ -172,7 +171,7 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
           </select>
         </div>
         <div>
-          <label htmlFor="vehicleId" className="mb-1 block text-xs text-[#9aa0ad]">
+          <label htmlFor="vehicleId" className="mb-1 block text-xs text-ops-muted">
             Vehicle id
           </label>
           <input
@@ -185,7 +184,7 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
           />
         </div>
         <div>
-          <label htmlFor="routeDirectionId" className="mb-1 block text-xs text-[#9aa0ad]">
+          <label htmlFor="routeDirectionId" className="mb-1 block text-xs text-ops-muted">
             Route-direction id
           </label>
           <input
@@ -198,7 +197,7 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
           />
         </div>
         <div>
-          <label htmlFor="ttlSeconds" className="mb-1 block text-xs text-[#9aa0ad]">
+          <label htmlFor="ttlSeconds" className="mb-1 block text-xs text-ops-muted">
             TTL (seconds)
           </label>
           <input
@@ -215,7 +214,7 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
       </div>
 
       <div>
-        <label htmlFor="summary" className="mb-1 block text-xs text-[#9aa0ad]">
+        <label htmlFor="summary" className="mb-1 block text-xs text-ops-muted">
           Summary
         </label>
         <textarea
@@ -231,13 +230,13 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
       </div>
 
       {error && (
-        <p id={errorId} role="alert" className="text-sm text-[#f0857d]">
+        <p id={errorId} role="alert" className="text-sm text-alert-crimson">
           {error}
         </p>
       )}
 
       {success && (
-        <p id={successId} role="status" className="text-sm text-[#7fd9a4]">
+        <p id={successId} role="status" className="text-sm text-ops-good">
           {success.status === 'delivered'
             ? 'Command issued and delivered.'
             : success.status === 'authorized'
@@ -249,11 +248,11 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
                 'Command issued, not yet delivered — will retry automatically.'
               : `Command issued — current status: ${success.status}.`}{' '}
           commandId:{' '}
-          <code className="rounded bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 font-mono text-[#e6e9ef]">
+          <code className="rounded bg-ops-line px-1.5 py-0.5 font-mono text-ops-ink">
             {success.commandId}
           </code>{' '}
           — expires {success.expiresAt}. auditEventId:{' '}
-          <code className="rounded bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 font-mono text-[#e6e9ef]">
+          <code className="rounded bg-ops-line px-1.5 py-0.5 font-mono text-ops-ink">
             {success.auditEventId}
           </code>
         </p>
@@ -268,7 +267,7 @@ export function ControlRoomCommandForm({ prefillDispatcherActionId }: { prefillD
           vehicleId.trim().length === 0 ||
           routeDirectionId.trim().length === 0
         }
-        className="bg-[#4f8cff]/12 rounded-md border border-[#4f8cff]/60 px-5 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#8fb4ff] transition-all hover:bg-[#4f8cff]/20 disabled:cursor-not-allowed disabled:opacity-60"
+        className="ops-button-primary px-5 py-2"
       >
         {submitting ? 'Issuing…' : 'Issue command'}
       </button>

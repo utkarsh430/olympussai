@@ -99,11 +99,11 @@ export function BreakdownReportPanel({
   const submitting = status === 'submitting';
 
   return (
-    <div className="rounded-md border border-[rgba(255,255,255,0.08)] p-4">
-      <h2 className="mb-1 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+    <div className="rounded-md border border-ops-line p-4">
+      <h2 className="ops-label mb-1">
         Report a breakdown
       </h2>
-      <p className="mb-3 text-xs text-[#9aa0ad]">
+      <p className="mb-3 text-xs text-ops-muted">
         Submits a persisted, audited breakdown report to dispatch. Once submitted, the composed
         summary below is also shown so you can read it out over radio/phone if that is faster.
       </p>
@@ -111,7 +111,7 @@ export function BreakdownReportPanel({
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label htmlFor={vehicleId} className="mb-1 block text-xs text-[#9aa0ad]">
+            <label htmlFor={vehicleId} className="mb-1 block text-xs text-ops-muted">
               Vehicle
             </label>
             <input
@@ -119,18 +119,18 @@ export function BreakdownReportPanel({
               value={vehicleReg}
               onChange={(e) => setVehicleReg(e.target.value)}
               placeholder="e.g. UP25FT4823"
-              className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef] placeholder:text-[#707580] focus:border-[#4f8cff]/70 focus:outline-none"
+              className="ops-input"
             />
           </div>
           <div>
-            <label htmlFor="breakdown-category" className="mb-1 block text-xs text-[#9aa0ad]">
+            <label htmlFor="breakdown-category" className="mb-1 block text-xs text-ops-muted">
               Category
             </label>
             <select
               id="breakdown-category"
               value={category}
               onChange={(e) => setCategory(e.target.value as (typeof CATEGORIES)[number])}
-              className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef] focus:border-[#4f8cff]/70 focus:outline-none"
+              className="ops-input"
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
@@ -142,7 +142,7 @@ export function BreakdownReportPanel({
         </div>
 
         <div>
-          <label htmlFor={descriptionId} className="mb-1 block text-xs text-[#9aa0ad]">
+          <label htmlFor={descriptionId} className="mb-1 block text-xs text-ops-muted">
             Details
           </label>
           <textarea
@@ -155,12 +155,12 @@ export function BreakdownReportPanel({
             maxLength={2000}
             placeholder="What happened, and where"
             aria-describedby={error ? errorId : undefined}
-            className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef] placeholder:text-[#707580] focus:border-[#4f8cff]/70 focus:outline-none"
+            className="ops-input"
           />
         </div>
 
         {error && (
-          <p id={errorId} role="alert" className="text-sm text-[#f0857d]">
+          <p id={errorId} role="alert" className="text-sm text-alert-crimson">
             {error}
           </p>
         )}
@@ -168,7 +168,7 @@ export function BreakdownReportPanel({
         <button
           type="submit"
           disabled={submitting || description.trim().length === 0}
-          className="rounded-md border border-[rgba(255,255,255,0.14)] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#9aa0ad] hover:border-[#4f8cff]/60 hover:text-[#8fb4ff] disabled:cursor-not-allowed disabled:opacity-60"
+          className="ops-button px-4 py-2"
         >
           {submitting ? 'Submitting…' : 'Submit report'}
         </button>
@@ -176,13 +176,13 @@ export function BreakdownReportPanel({
 
       {success && (
         <div id={successId} role="status" className="mt-4 space-y-2">
-          <p className="text-sm text-[#7fd9a4]">
+          <p className="text-sm text-ops-good">
             Submitted and logged. Report ID:{' '}
-            <code className="rounded bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 font-mono text-[#e6e9ef]">
+            <code className="rounded bg-ops-line px-1.5 py-0.5 font-mono text-ops-ink">
               {success.breakdownReportId}
             </code>
           </p>
-          <pre className="whitespace-pre-wrap rounded-md border border-[rgba(255,255,255,0.08)] bg-[rgba(10,11,16,0.6)] p-3 text-xs text-[#e6e9ef]">
+          <pre className="ops-well whitespace-pre-wrap p-3 text-xs text-ops-ink">
             {success.summary}
           </pre>
         </div>

@@ -61,7 +61,7 @@ export function IncidentReviewForm({ incident, viewerEmail }: { incident: WarRoo
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-2 sm:grid-cols-[auto,1fr,1fr,auto] sm:items-start">
-      <label className="flex flex-col gap-1 text-xs text-[#9aa0ad]">
+      <label className="flex flex-col gap-1 text-xs text-ops-muted">
         Classification
         <select
           value={classification}
@@ -69,7 +69,7 @@ export function IncidentReviewForm({ incident, viewerEmail }: { incident: WarRoo
             setClassification(e.target.value as WarRoomClassification);
             setSaved(false);
           }}
-          className="rounded-md border border-[rgba(255,255,255,0.14)] bg-[rgba(10,11,16,0.6)] px-2 py-1 text-xs text-[#e6e9ef] focus:border-[#4f8cff]/70 focus:outline-none"
+          className="ops-input w-auto px-2 py-1 text-xs"
         >
           {CLASSIFICATIONS.map((c) => (
             <option key={c} value={c}>
@@ -78,7 +78,7 @@ export function IncidentReviewForm({ incident, viewerEmail }: { incident: WarRoo
           ))}
         </select>
       </label>
-      <label className="flex flex-col gap-1 text-xs text-[#9aa0ad]">
+      <label className="flex flex-col gap-1 text-xs text-ops-muted">
         Action taken
         <input
           value={actionTaken}
@@ -87,10 +87,10 @@ export function IncidentReviewForm({ incident, viewerEmail }: { incident: WarRoo
             setSaved(false);
           }}
           placeholder="e.g. two-way hold on trailing bus"
-          className="rounded-md border border-[rgba(255,255,255,0.14)] bg-[rgba(10,11,16,0.6)] px-2 py-1 text-xs text-[#e6e9ef] placeholder:text-[#707580] focus:border-[#4f8cff]/70 focus:outline-none"
+          className="ops-input w-auto px-2 py-1 text-xs"
         />
       </label>
-      <label className="flex flex-col gap-1 text-xs text-[#9aa0ad]">
+      <label className="flex flex-col gap-1 text-xs text-ops-muted">
         Outcome
         <input
           value={outcome}
@@ -100,30 +100,30 @@ export function IncidentReviewForm({ incident, viewerEmail }: { incident: WarRoo
           }}
           placeholder="e.g. gap closed within 6 min"
           aria-describedby={error ? errorId : undefined}
-          className="rounded-md border border-[rgba(255,255,255,0.14)] bg-[rgba(10,11,16,0.6)] px-2 py-1 text-xs text-[#e6e9ef] placeholder:text-[#707580] focus:border-[#4f8cff]/70 focus:outline-none"
+          className="ops-input w-auto px-2 py-1 text-xs"
         />
       </label>
       <div className="flex flex-col items-start gap-1 sm:items-end">
         <button
           type="submit"
           disabled={busy}
-          className="rounded border border-[rgba(255,255,255,0.14)] px-2 py-1 text-xs text-[#9aa0ad] hover:border-[#4f8cff]/60 hover:text-[#8fb4ff] disabled:opacity-60"
+          className="rounded border border-ops-line-strong px-2 py-1 text-xs text-ops-muted hover:border-holo-glow/60 hover:text-holo-glow disabled:opacity-60"
         >
           {busy ? 'Saving…' : 'Save review'}
         </button>
         {saved && !error && (
-          <span role="status" className="text-xs text-[#7ed6a5]">
+          <span role="status" className="text-xs text-ops-good">
             Saved
           </span>
         )}
       </div>
       {error && (
-        <span id={errorId} role="alert" className="sm:col-span-4 text-xs text-[#f0857d]">
+        <span id={errorId} role="alert" className="sm:col-span-4 text-xs text-alert-crimson">
           {error}
         </span>
       )}
       {reviewedBy && (
-        <p className="sm:col-span-4 text-[11px] text-[#6f7684]">
+        <p className="sm:col-span-4 text-[11px] text-ops-faint">
           Last reviewed by {reviewedBy}
           {reviewedAt ? ` at ${new Date(reviewedAt).toLocaleString()}` : ''}
           {reviewedBy === viewerEmail ? ' (you)' : ''}.

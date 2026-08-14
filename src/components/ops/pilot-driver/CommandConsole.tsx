@@ -234,55 +234,55 @@ export function CommandConsole() {
   return (
     <div className="space-y-6">
       {!isOnline && (
-        <p role="status" className="rounded-md border border-[#c9a24d]/40 bg-[#c9a24d]/10 px-3 py-2 text-xs text-[#e0c17a]">
+        <p role="status" className="rounded-md border border-ops-warn/40 bg-ops-warn/10 px-3 py-2 text-xs text-ops-warn">
           Offline — showing the last known command. Any response you send will be queued and delivered
           automatically once you&rsquo;re back online.
         </p>
       )}
 
-      <section className="rounded-md border border-[rgba(255,255,255,0.08)] p-4">
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">Your vehicle</h2>
-        {vehicleState === 'loading' && <p className="text-sm text-[#9aa0ad]">Loading your vehicle assignment…</p>}
+      <section className="rounded-md border border-ops-line p-4">
+        <h2 className="ops-label mb-3">Your vehicle</h2>
+        {vehicleState === 'loading' && <p className="text-sm text-ops-muted">Loading your vehicle assignment…</p>}
         {vehicleState === 'assigned' && (
-          <p className="font-mono text-sm text-[#e6e9ef]">{vehicleId}</p>
+          <p className="font-mono text-sm text-ops-ink">{vehicleId}</p>
         )}
         {vehicleState === 'unassigned' && (
-          <p className="text-sm text-[#e0c17a]">
+          <p className="text-sm text-ops-warn">
             No vehicle is assigned to your account yet. Contact your admin to be assigned one.
           </p>
         )}
         {vehicleState === 'error' && (
-          <p className="text-sm text-[#f0857d]">Could not load your vehicle assignment. Try reloading.</p>
+          <p className="text-sm text-alert-crimson">Could not load your vehicle assignment. Try reloading.</p>
         )}
       </section>
 
-      <section aria-live="polite" id={statusRegionId} className="rounded-md border border-[rgba(255,255,255,0.08)] p-4">
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">Active command</h2>
+      <section aria-live="polite" id={statusRegionId} className="rounded-md border border-ops-line p-4">
+        <h2 className="ops-label mb-3">Active command</h2>
 
         {vehicleState !== 'assigned' && (
-          <p className="text-sm text-[#9aa0ad]">Waiting for a vehicle assignment to receive commands.</p>
+          <p className="text-sm text-ops-muted">Waiting for a vehicle assignment to receive commands.</p>
         )}
 
         {vehicleState === 'assigned' && !command && (
-          <p className="text-sm text-[#9aa0ad]">
+          <p className="text-sm text-ops-muted">
             No active command right now.
-            {pollError && <span className="mt-1 block text-xs text-[#e0c17a]">{pollError}</span>}
+            {pollError && <span className="mt-1 block text-xs text-ops-warn">{pollError}</span>}
           </p>
         )}
 
         {vehicleState === 'assigned' && command && (
           <div className="space-y-4">
             <div>
-              <p className="text-lg font-semibold text-[#e6e9ef]">{commandActionLabel(command.actionType)}</p>
-              <p className="mt-1 text-sm text-[#9aa0ad]">{commandReason(command)}</p>
+              <p className="text-lg font-semibold text-ops-ink">{commandActionLabel(command.actionType)}</p>
+              <p className="mt-1 text-sm text-ops-muted">{commandReason(command)}</p>
             </div>
 
-            <p className="font-mono text-2xl tabular-nums text-[#8fb4ff]" aria-label="Time remaining to respond">
+            <p className="font-mono text-2xl tabular-nums text-holo-glow" aria-label="Time remaining to respond">
               {remainingSeconds !== null ? formatCountdown(remainingSeconds) : '—'}
             </p>
 
             {alreadyResolved ? (
-              <p role="status" className="text-sm text-[#7fd9a4]">
+              <p role="status" className="text-sm text-ops-good">
                 {ackPhase === 'sent'
                   ? 'Response sent.'
                   : "Response saved on this device — it will be sent automatically once you're back online."}
@@ -293,7 +293,7 @@ export function CommandConsole() {
                   type="button"
                   onClick={() => handleAck('accept')}
                   disabled={acknowledging}
-                  className="min-h-11 rounded-md border border-[#7fd9a4]/50 bg-[#7fd9a4]/10 px-4 py-3 font-mono text-[12px] uppercase tracking-[0.14em] text-[#7fd9a4] hover:border-[#7fd9a4] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7fd9a4] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="min-h-11 rounded-md border border-ops-good/50 bg-ops-good/10 px-4 py-3 font-mono text-[12px] uppercase tracking-[0.14em] text-ops-good hover:border-ops-good focus-visible:outline focus-visible:outline-2 focus-visible:outline-ops-good disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Ack
                 </button>
@@ -301,7 +301,7 @@ export function CommandConsole() {
                   type="button"
                   onClick={() => handleAck('unable')}
                   disabled={acknowledging}
-                  className="min-h-11 rounded-md border border-[#e0c17a]/50 bg-[#e0c17a]/10 px-4 py-3 font-mono text-[12px] uppercase tracking-[0.14em] text-[#e0c17a] hover:border-[#e0c17a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#e0c17a] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="min-h-11 rounded-md border border-ops-warn/50 bg-ops-warn/10 px-4 py-3 font-mono text-[12px] uppercase tracking-[0.14em] text-ops-warn hover:border-ops-warn focus-visible:outline focus-visible:outline-2 focus-visible:outline-ops-warn disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Unable
                 </button>
@@ -309,7 +309,7 @@ export function CommandConsole() {
                   type="button"
                   onClick={() => handleAck('unsafe')}
                   disabled={acknowledging}
-                  className="min-h-11 rounded-md border border-[#f0857d]/50 bg-[#f0857d]/10 px-4 py-3 font-mono text-[12px] uppercase tracking-[0.14em] text-[#f0857d] hover:border-[#f0857d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#f0857d] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="min-h-11 rounded-md border border-alert-crimson/50 bg-alert-crimson/10 px-4 py-3 font-mono text-[12px] uppercase tracking-[0.14em] text-alert-crimson hover:border-alert-crimson focus-visible:outline focus-visible:outline-2 focus-visible:outline-alert-crimson disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Unsafe
                 </button>
@@ -317,11 +317,11 @@ export function CommandConsole() {
             )}
 
             {ackError && (
-              <p role="alert" className="text-sm text-[#f0857d]">
+              <p role="alert" className="text-sm text-alert-crimson">
                 {ackError}
               </p>
             )}
-            <p className="text-xs text-[#6f7684]">
+            <p className="text-xs text-ops-faint">
               Unable and unsafe are recorded exactly like ack — no penalty is applied either way.
             </p>
           </div>

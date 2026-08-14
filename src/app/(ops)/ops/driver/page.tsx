@@ -32,7 +32,7 @@ export default async function DriverPage() {
   }
 
   return (
-    <OpsShell title="Driver" email={session.email}>
+    <OpsShell title="Driver" email={session.email} role="driver">
       <DriverDashboard assignedVehicleId={assignedVehicleId} />
     </OpsShell>
   );

@@ -15,7 +15,7 @@ export function RouteDirectionPicker({
       <div className="min-w-[260px]">
         <label
           htmlFor="observability-route-direction"
-          className="mb-1 block font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]"
+          className="ops-label mb-1 block"
         >
           Route-direction
         </label>
@@ -23,7 +23,7 @@ export function RouteDirectionPicker({
           id="observability-route-direction"
           name="routeDirectionId"
           defaultValue={selectedId ?? undefined}
-          className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-3 py-2 text-sm text-[#e6e9ef] focus:border-[#4f8cff]/70 focus:outline-none"
+          className="ops-input"
         >
           {routeDirections.map((rd) => (
             <option key={rd.routeDirectionId} value={rd.routeDirectionId}>
@@ -35,7 +35,7 @@ export function RouteDirectionPicker({
       </div>
       <button
         type="submit"
-        className="rounded-md border border-[rgba(255,255,255,0.14)] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#9aa0ad] hover:border-[#4f8cff]/60 hover:text-[#8fb4ff]"
+        className="ops-button px-4 py-2"
       >
         View
       </button>

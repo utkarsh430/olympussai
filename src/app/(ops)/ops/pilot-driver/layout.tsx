@@ -17,7 +17,9 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0a0b10',
+  // The console's own ground (tailwind `ops.bg`), so the installed PWA's
+  // status bar does not sit a shade off the page behind it.
+  themeColor: '#02040a',
   width: 'device-width',
   initialScale: 1,
 };

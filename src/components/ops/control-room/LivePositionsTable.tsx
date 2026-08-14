@@ -21,7 +21,7 @@ const STOP_STATE_LABEL: Record<VehicleState['stopState'], string> = {
  */
 export function LivePositionsTable({ positions, now }: { positions: VehicleState[]; now: number }) {
   if (positions.length === 0) {
-    return <p className="text-sm text-[#9aa0ad]">No vehicles currently reporting on this route-direction.</p>;
+    return <p className="text-sm text-ops-muted">No vehicles currently reporting on this route-direction.</p>;
   }
 
   const sorted = [...positions].sort(
@@ -29,11 +29,11 @@ export function LivePositionsTable({ positions, now }: { positions: VehicleState
   );
 
   return (
-    <div className="overflow-x-auto rounded-md border border-[rgba(255,255,255,0.08)]">
+    <div className="overflow-x-auto rounded-md border border-ops-line">
       <table className="w-full min-w-[720px] text-left text-sm">
         <caption className="sr-only">Live vehicle positions, {positions.length} vehicles</caption>
         <thead>
-          <tr className="border-b border-[rgba(255,255,255,0.08)] text-[11px] uppercase tracking-[0.12em] text-[#6f7684]">
+          <tr className="border-b border-ops-line text-[11px] uppercase tracking-[0.12em] text-ops-muted">
             <th scope="col" className="px-3 py-2 font-mono">Vehicle</th>
             <th scope="col" className="px-3 py-2 font-mono">Distance along route</th>
             <th scope="col" className="px-3 py-2 font-mono">Speed</th>
@@ -44,20 +44,20 @@ export function LivePositionsTable({ positions, now }: { positions: VehicleState
         </thead>
         <tbody>
           {sorted.map((vehicle) => (
-            <tr key={vehicle.vehicleId} className="border-b border-[rgba(255,255,255,0.04)] text-[#e6e9ef] last:border-0">
+            <tr key={vehicle.vehicleId} className="border-b border-ops-line/50 text-ops-ink last:border-0">
               <td className="px-3 py-2 font-mono">{vehicle.vehicleId}</td>
-              <td className="px-3 py-2 text-[#9aa0ad]">
+              <td className="px-3 py-2 text-ops-muted">
                 {vehicle.distanceAlongRouteMeters === null ? '—' : `${Math.round(vehicle.distanceAlongRouteMeters)} m`}
               </td>
-              <td className="px-3 py-2 text-[#9aa0ad]">{vehicle.speedKmph === null ? '—' : `${vehicle.speedKmph} km/h`}</td>
-              <td className="px-3 py-2 text-[#9aa0ad]">{STOP_STATE_LABEL[vehicle.stopState]}</td>
-              <td className="px-3 py-2 text-[#9aa0ad]">
+              <td className="px-3 py-2 text-ops-muted">{vehicle.speedKmph === null ? '—' : `${vehicle.speedKmph} km/h`}</td>
+              <td className="px-3 py-2 text-ops-muted">{STOP_STATE_LABEL[vehicle.stopState]}</td>
+              <td className="px-3 py-2 text-ops-muted">
                 {vehicle.confidence === null ? '—' : `${Math.round(vehicle.confidence * 100)}%`}
               </td>
               <td className="px-3 py-2">
                 <div className="flex items-center gap-2">
                   <LiveBadge observedAt={vehicle.observedAt} now={now} />
-                  <span className="text-xs text-[#6f7684]">{new Date(vehicle.observedAt).toLocaleTimeString()}</span>
+                  <span className="text-xs text-ops-faint">{new Date(vehicle.observedAt).toLocaleTimeString()}</span>
                 </div>
               </td>
             </tr>

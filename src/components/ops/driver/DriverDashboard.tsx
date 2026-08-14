@@ -65,7 +65,7 @@ export function DriverDashboard({
       </section>
 
       <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
+        <h2 className="ops-label mb-3">
           My breakdown reports
         </h2>
         <BreakdownReportsPanel key={reportsRefreshKey} scope="mine" />

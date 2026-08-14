@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
+import { OpsAlert, OpsSection, OpsStack } from '@/components/ops/ui';
 import { getObservabilitySnapshot } from '@/lib/controlService/observabilityData';
 import { IncidentCopilotPanel } from '@/components/ops/control-room/IncidentCopilotPanel';
 import { ShiftReportCopilotForm } from '@/components/ops/control-room/ShiftReportCopilotForm';
@@ -35,12 +35,7 @@ export default async function CopilotPage({
   const { routeDirectionId } = await searchParams;
 
   return (
-    <OpsShell title="Copilot" email={session.email}>
-      <p className="mb-6 text-sm">
-        <Link href="/ops/control-room" className="text-[#8fb4ff] hover:underline">
-          &larr; Back to Control Room
-        </Link>
-      </p>
+    <OpsShell title="Copilot" email={session.email} role="control_room">
       <CopilotBody routeDirectionId={routeDirectionId} />
     </OpsShell>
   );
@@ -53,31 +48,28 @@ async function CopilotBody({ routeDirectionId }: { routeDirectionId?: string }) 
     const selected = snapshot.selectedRouteDirectionId;
 
     return (
-      <div className="space-y-8">
+      <OpsStack>
         <RouteDirectionPicker routeDirections={snapshot.routeDirections} selectedId={selected} />
 
-        <section>
-          <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f7684]">
-            Explain active incidents
-          </h2>
+        <OpsSection title="Explain active incidents">
           <IncidentCopilotPanel incidents={snapshot.incidents} />
-        </section>
+        </OpsSection>
 
-        <section>
+        <OpsSection>
           <ShiftReportCopilotForm routeDirectionId={selected} />
-        </section>
+        </OpsSection>
 
-        <section>
+        <OpsSection>
           <CopilotQueryBox routeDirectionId={selected} />
-        </section>
-      </div>
+        </OpsSection>
+      </OpsStack>
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return (
-      <p role="alert" className="rounded-md border border-[#f0857d]/40 bg-[#f0857d]/10 px-4 py-3 text-sm text-[#f5a89f]">
+      <OpsAlert tone="error">
         Copilot data is unavailable right now ({message}). Try refreshing the page.
-      </p>
+      </OpsAlert>
     );
   }
 }
