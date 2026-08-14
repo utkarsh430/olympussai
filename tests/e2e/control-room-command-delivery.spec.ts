@@ -2,7 +2,10 @@ import { test, expect, type APIRequestContext } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { seedGatedRouteDirection, insertVehicle } from './fixtures/controlServiceFixtures';
-import { assertDisposableControlServiceDatabase, assertDisposableOpsDatabase } from './fixtures/dbSafety';
+import {
+  assertDisposableControlServiceDatabase,
+  assertDisposableOpsDatabase,
+} from './fixtures/dbSafety';
 import { assignVehicleToPilotDriver } from './fixtures/opsFixtures';
 import { assertQaRoster, signInThroughFrontDoor } from './fixtures/opsSignIn';
 
@@ -189,7 +192,13 @@ test.describe('Control-room command delivery — the real create-to-driver path'
     await assignVehicleToPilotDriver(opsPool, PILOT_DRIVER_EMAIL!, vehicleId);
     await page.goto('/ops/pilot-driver');
     await expect(page.getByText(vehicleId, { exact: true })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText('No active command right now.')).toBeVisible({ timeout: 15_000 });
+    // Located by test id rather than by the console's visible text: this
+    // assertion is about the console being IDLE before the command exists, and
+    // the driver console's wording is bilingual product copy that is still
+    // being revised. Same reasoning, and the same ids, as
+    // tests/e2e/pilot-driver-command.spec.ts - see its note. The assertion is
+    // unchanged.
+    await expect(page.getByTestId('driver-no-instruction')).toBeVisible({ timeout: 15_000 });
 
     // The dispatcher's human approval — a separate ops session/role from
     // both control-room and the driver, exactly as a real dispatch requires.
@@ -197,13 +206,23 @@ test.describe('Control-room command delivery — the real create-to-driver path'
     const reason = `QA e2e: merging traffic ahead near ${vehicleId} — reduce speed for driver safety.`;
     let dispatcherActionId: string;
     try {
-      const dispatcherCookie = await login(dispatcherContext.request, DISPATCHER_EMAIL!, DISPATCHER_PASSWORD!);
+      const dispatcherCookie = await login(
+        dispatcherContext.request,
+        DISPATCHER_EMAIL!,
+        DISPATCHER_PASSWORD!,
+      );
       const approvalRes = await dispatcherContext.request.post('/api/ops/dispatcher/approvals', {
-        headers: { 'Content-Type': 'application/json', Origin: E2E_ORIGIN, Cookie: dispatcherCookie },
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: E2E_ORIGIN,
+          Cookie: dispatcherCookie,
+        },
         data: { actionType: ACTION_TYPE, reason, routeDirectionId, vehicleId },
       });
       if (!approvalRes.ok()) {
-        throw new Error(`approval creation failed (${approvalRes.status()}): ${await approvalRes.text()}`);
+        throw new Error(
+          `approval creation failed (${approvalRes.status()}): ${await approvalRes.text()}`,
+        );
       }
       ({ dispatcherActionId } = (await approvalRes.json()) as { dispatcherActionId: string });
     } finally {
@@ -215,9 +234,17 @@ test.describe('Control-room command delivery — the real create-to-driver path'
     const controlRoomContext = await browser.newContext();
     let commandBody: CreateCommandResponseBody;
     try {
-      const controlRoomCookie = await login(controlRoomContext.request, CONTROL_ROOM_EMAIL!, CONTROL_ROOM_PASSWORD!);
+      const controlRoomCookie = await login(
+        controlRoomContext.request,
+        CONTROL_ROOM_EMAIL!,
+        CONTROL_ROOM_PASSWORD!,
+      );
       const commandRes = await controlRoomContext.request.post('/api/ops/control-room/commands', {
-        headers: { 'Content-Type': 'application/json', Origin: E2E_ORIGIN, Cookie: controlRoomCookie },
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: E2E_ORIGIN,
+          Cookie: controlRoomCookie,
+        },
         data: {
           dispatcherActionId,
           actionType: ACTION_TYPE,
@@ -229,7 +256,9 @@ test.describe('Control-room command delivery — the real create-to-driver path'
         },
       });
       if (!commandRes.ok()) {
-        throw new Error(`command issuance failed (${commandRes.status()}): ${await commandRes.text()}`);
+        throw new Error(
+          `command issuance failed (${commandRes.status()}): ${await commandRes.text()}`,
+        );
       }
       commandBody = (await commandRes.json()) as CreateCommandResponseBody;
     } finally {
@@ -249,15 +278,18 @@ test.describe('Control-room command delivery — the real create-to-driver path'
 
     // control-service's own authoritative state, read only over `pg` per
     // this file's structural requirement — never a REST client.
-    const { rows: commandRows } = await controlServicePool.query<{ status: string; delivered_at: string | null }>(
-      `select status, delivered_at from commands where id = $1`,
-      [commandBody.commandId],
-    );
+    const { rows: commandRows } = await controlServicePool.query<{
+      status: string;
+      delivered_at: string | null;
+    }>(`select status, delivered_at from commands where id = $1`, [commandBody.commandId]);
     expect(commandRows).toHaveLength(1);
     expect(commandRows[0]?.status).toBe('delivered');
     expect(commandRows[0]?.delivered_at).not.toBeNull();
 
-    const { rows: auditRows } = await controlServicePool.query<{ event_type: string; to_status: string }>(
+    const { rows: auditRows } = await controlServicePool.query<{
+      event_type: string;
+      to_status: string;
+    }>(
       `select event_type, to_status from command_audit_log where command_id = $1 order by occurred_at asc`,
       [commandBody.commandId],
     );

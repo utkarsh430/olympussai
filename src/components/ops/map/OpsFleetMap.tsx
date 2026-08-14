@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createFleetLayer, type FleetLayerHandle } from '@/components/map/fleetCanvasLayer';
 import { getMapsLoader, isMapsConfigured, onMapsAuthFailure } from '@/lib/maps/loader';
 import { isPlottablePosition, partitionPlottable } from '@/lib/maps/plottable';
-import { MAP_DARK_STYLE, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/lib/constants';
+import {
+  MAP_DARK_STYLE,
+  MAP_LIGHT_STYLE,
+  DEFAULT_MAP_CENTER,
+  DEFAULT_MAP_ZOOM,
+} from '@/lib/constants';
 import { OpsMapFrame, OpsButton } from '@/components/ops/ui';
 import type { FleetMapOverlay, MapPoint } from '@/lib/maps/contract';
 import type { OpsMapVehicle } from '@/lib/ops/mapVehicles';
@@ -110,6 +115,21 @@ export interface OpsFleetMapProps {
   /** Accessible name for the map region. */
   label?: string;
   /**
+   * Which basemap to paint under the fleet.
+   *
+   * DEFAULTS TO `dark`, which is what every existing caller gets and what this
+   * component has always drawn. The basemap is a JS style array rather than
+   * CSS, so no theme class can reach it; a surface that wants the basemap to
+   * follow the page has to say so here and re-render when the theme changes.
+   *
+   * The driver's route screen opts in, because it is the one surface in this
+   * product read outdoors, and a dark basemap under a light console in direct
+   * sunlight is unreadable rather than merely inconsistent. Other consoles
+   * keep the dark basemap until their own lane moves them, so this prop adds a
+   * capability without changing a pixel of anything that has not asked for it.
+   */
+  basemapTheme?: 'dark' | 'light';
+  /**
    * True while the caller's first fetch is still outstanding, so an empty
    * `vehicles` means "not yet" rather than "none". Only the caller knows
    * which.
@@ -151,6 +171,7 @@ export function OpsFleetMap({
   minHeight,
   fill = false,
   label = 'Fleet map',
+  basemapTheme = 'dark',
   awaitingFirstLoad = false,
   emptyMessage,
 }: OpsFleetMapProps) {
@@ -162,6 +183,12 @@ export function OpsFleetMap({
   // forces the map to be torn down and rebuilt.
   const onSelectRef = useRef(onSelectVehicle);
   onSelectRef.current = onSelectVehicle;
+  // Read through a ref in the constructor for the same reason as onSelect: a
+  // theme flip must RESTYLE the existing map (the effect below), never tear it
+  // down and rebuild it. Rebuilding would drop the camera, refetch tiles and
+  // make every bus jump.
+  const basemapThemeRef = useRef(basemapTheme);
+  basemapThemeRef.current = basemapTheme;
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
@@ -169,7 +196,10 @@ export function OpsFleetMap({
   // Split before anything is drawn or measured, so a garbage reading cannot
   // reach the renderer, the camera fit, the selection pan or the legend. Every
   // use of `vehicles` below this line is deliberately `drawable` instead.
-  const { plottable: drawable, unplottable } = useMemo(() => partitionPlottable(vehicles), [vehicles]);
+  const { plottable: drawable, unplottable } = useMemo(
+    () => partitionPlottable(vehicles),
+    [vehicles],
+  );
 
   // An API-key rejection is not a load failure: the SDK loads, the map is
   // constructed, and Google then paints its own white error panel over the
@@ -180,7 +210,9 @@ export function OpsFleetMap({
     () =>
       onMapsAuthFailure(() => {
         setStatus('error');
-        setErrorMessage('The basemap rejected this deployment\u2019s API key (check its allowed referrers).');
+        setErrorMessage(
+          'The basemap rejected this deployment\u2019s API key (check its allowed referrers).',
+        );
       }),
     [],
   );
@@ -188,7 +220,9 @@ export function OpsFleetMap({
   useEffect(() => {
     if (!isMapsConfigured()) {
       setStatus('error');
-      setErrorMessage('The basemap is not configured for this environment (NEXT_PUBLIC_GOOGLE_MAPS_API_KEY).');
+      setErrorMessage(
+        'The basemap is not configured for this environment (NEXT_PUBLIC_GOOGLE_MAPS_API_KEY).',
+      );
       return;
     }
 
@@ -202,12 +236,12 @@ export function OpsFleetMap({
         const map = new Map(containerRef.current, {
           center: FALLBACK_CENTER,
           zoom: FALLBACK_ZOOM,
-          styles: MAP_DARK_STYLE,
+          styles: basemapThemeRef.current === 'light' ? MAP_LIGHT_STYLE : MAP_DARK_STYLE,
           disableDefaultUI: true,
           zoomControl: true,
           streetViewControl: false,
           gestureHandling: 'greedy',
-          backgroundColor: '#02040a',
+          backgroundColor: basemapThemeRef.current === 'light' ? '#eef2f7' : '#02040a',
           clickableIcons: false,
         });
         mapRef.current = map;
@@ -222,7 +256,9 @@ export function OpsFleetMap({
       .catch((error: unknown) => {
         if (cancelled) return;
         setStatus('error');
-        setErrorMessage(error instanceof Error ? error.message : 'The basemap failed to initialise.');
+        setErrorMessage(
+          error instanceof Error ? error.message : 'The basemap failed to initialise.',
+        );
       });
 
     return () => {
@@ -243,6 +279,16 @@ export function OpsFleetMap({
   useEffect(() => {
     layerRef.current?.setOverlays(overlays ?? []);
   }, [overlays, status]);
+
+  // Repaint the basemap in place when the page theme changes. `setOptions` is
+  // the only way to reach the style array after construction, and it keeps the
+  // camera, the tiles and the vehicle layer exactly where they are.
+  useEffect(() => {
+    mapRef.current?.setOptions({
+      styles: basemapTheme === 'light' ? MAP_LIGHT_STYLE : MAP_DARK_STYLE,
+      backgroundColor: basemapTheme === 'light' ? '#eef2f7' : '#02040a',
+    });
+  }, [basemapTheme, status]);
 
   useEffect(() => {
     layerRef.current?.setSelected(selectedVehicleId);
@@ -307,7 +353,12 @@ export function OpsFleetMap({
   return (
     <div className={fill ? 'flex min-h-0 flex-1 flex-col' : undefined}>
       <OpsMapFrame minHeight={minHeight} className={fill ? 'min-h-0 flex-1' : undefined}>
-        <div ref={containerRef} className="absolute inset-0" role="application" aria-label={label} />
+        <div
+          ref={containerRef}
+          className="absolute inset-0"
+          role="application"
+          aria-label={label}
+        />
 
         {status !== 'ready' && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-ops-bg px-6 text-center">
@@ -357,14 +408,23 @@ export function OpsFleetMap({
         {caption !== undefined && <span className="text-ops-muted">{caption}</span>}
         {showFleetLegend && (
           <>
-        {/* While the first poll is still out there is nothing to count, and
+            {/* While the first poll is still out there is nothing to count, and
             "Fresh 0 · Delayed 0 · Stale 0" is the same fabricated zero the
             caption beside it was just taught not to print. The swatches stay -
             they explain the chevron colours, which is a fact about the
             renderer rather than a claim about the fleet. */}
-        <LegendSwatch colour="#2bff88" label={awaitingFirstLoad ? 'Fresh' : `Fresh ${legend.good}`} />
-        <LegendSwatch colour="#ffb020" label={awaitingFirstLoad ? 'Delayed' : `Delayed ${legend.degraded}`} />
-        <LegendSwatch colour="#ff4d5e" label={awaitingFirstLoad ? 'Stale' : `Stale ${legend.stale}`} />
+            <LegendSwatch
+              colour="#2bff88"
+              label={awaitingFirstLoad ? 'Fresh' : `Fresh ${legend.good}`}
+            />
+            <LegendSwatch
+              colour="#ffb020"
+              label={awaitingFirstLoad ? 'Delayed' : `Delayed ${legend.degraded}`}
+            />
+            <LegendSwatch
+              colour="#ff4d5e"
+              label={awaitingFirstLoad ? 'Stale' : `Stale ${legend.stale}`}
+            />
           </>
         )}
       </div>
@@ -377,8 +437,9 @@ export function OpsFleetMap({
         <p role="status" className="mt-1 shrink-0 text-xs text-ops-warn">
           {unplottable.length === 1
             ? '1 vehicle reported a position that is not on the network and is not drawn'
-            : `${unplottable.length} vehicles reported positions that are not on the network and are not drawn`}
-          {' '}({unplottable
+            : `${unplottable.length} vehicles reported positions that are not on the network and are not drawn`}{' '}
+          (
+          {unplottable
             .slice(0, UNPLOTTABLE_NAMES_SHOWN)
             .map((vehicle) => vehicle.registrationNumber)
             .join(', ')}
@@ -409,7 +470,11 @@ const UNPLOTTABLE_NAMES_SHOWN = 3;
 function LegendSwatch({ colour, label }: { colour: string; label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 font-mono">
-      <span aria-hidden className="inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: colour }} />
+      <span
+        aria-hidden
+        className="inline-block h-2 w-2 rounded-sm"
+        style={{ backgroundColor: colour }}
+      />
       {label}
     </span>
   );

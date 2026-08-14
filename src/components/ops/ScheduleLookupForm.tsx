@@ -21,9 +21,26 @@ export function ScheduleLookupForm({
   defaultRegNum = '',
   title = 'Look up a schedule',
   rememberKey,
+  size = 'console',
 }: {
   defaultRegNum?: string;
   title?: string;
+  /**
+   * How big the controls are.
+   *
+   * `console` is the default and is what depot and planner get - unchanged.
+   * `cab` raises the field and button to a 48px minimum for the driver
+   * screen, which is operated at the roadside on a phone, often one-handed
+   * and in a hurry. Measured on a real 390px viewport, the console sizing
+   * renders this input at 38px and its button at 34px, both under the 44px
+   * touch minimum.
+   *
+   * An opt-in prop rather than a global change on purpose: this form is
+   * shared with two consoles that are read at a desk, and quietly resizing
+   * their controls is not this screen's decision to make. Same reasoning, and
+   * the same shape, as BreakdownReportsPanel's existing `variant="cab"`.
+   */
+  size?: 'console' | 'cab';
   /**
    * When set, the entered registration is remembered in localStorage under
    * this key: a driver's "own vehicle" convenience for accounts with no
@@ -87,7 +104,9 @@ export function ScheduleLookupForm({
       const response = await fetch(`/api/ops/fleet/schedule?regNum=${encodeURIComponent(trimmed)}`);
 
       if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+        const data = (await response.json().catch(() => null)) as {
+          error?: { message?: string };
+        } | null;
         setFormError(data?.error?.message ?? 'Failed to load the schedule.');
         setStatus('error');
         return;
@@ -114,7 +133,7 @@ export function ScheduleLookupForm({
     <div className="rounded-md border border-ops-line p-4">
       <h2 className="ops-label mb-3">{title}</h2>
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px]">
+        <div className="min-w-[200px] flex-1">
           <label htmlFor={inputId} className="mb-1 block text-xs text-ops-muted">
             Registration number
           </label>
@@ -124,13 +143,15 @@ export function ScheduleLookupForm({
             onChange={(e) => setRegNum(e.target.value)}
             placeholder="e.g. UP25FT4823"
             aria-describedby={formError ? errorId : undefined}
-            className="ops-input"
+            className={size === 'cab' ? 'ops-input min-h-12 text-base' : 'ops-input'}
           />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="ops-button px-4 py-2"
+          className={
+            size === 'cab' ? 'ops-button min-h-12 px-4 py-2 text-base' : 'ops-button px-4 py-2'
+          }
         >
           {loading ? 'Loading…' : 'Load schedule'}
         </button>
@@ -168,19 +189,26 @@ export function ScheduleLookupForm({
           )}
 
           {result.source === 'unavailable' ? null : !result.schedule ? (
-            <p className="text-sm text-ops-muted">{result.message ?? 'No schedule found for this vehicle.'}</p>
+            <p className="text-sm text-ops-muted">
+              {result.message ?? 'No schedule found for this vehicle.'}
+            </p>
           ) : (
             <div className="space-y-3">
               <p className="text-sm text-ops-ink">
-                <span className="text-ops-muted">Route:</span> {result.schedule.routeName ?? result.schedule.routeId ?? '—'}
+                <span className="text-ops-muted">Route:</span>{' '}
+                {result.schedule.routeName ?? result.schedule.routeId ?? '—'}
                 {' · '}
                 <span className="text-ops-muted">Origin:</span> {result.schedule.originName ?? '—'}
                 {' → '}
-                <span className="text-ops-muted">Destination:</span> {result.schedule.destinationName ?? '—'}
+                <span className="text-ops-muted">Destination:</span>{' '}
+                {result.schedule.destinationName ?? '—'}
               </p>
               <ol className="max-h-72 space-y-1 overflow-y-auto text-sm text-ops-muted">
                 {result.schedule.stops.map((stop) => (
-                  <li key={stop.id} className="flex justify-between gap-4 border-b border-ops-line/50 py-1">
+                  <li
+                    key={stop.id}
+                    className="flex justify-between gap-4 border-b border-ops-line/50 py-1"
+                  >
                     <span className="text-ops-ink">
                       {stop.sequence}. {stop.name}
                     </span>

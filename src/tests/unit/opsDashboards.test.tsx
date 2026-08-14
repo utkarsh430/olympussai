@@ -54,7 +54,9 @@ function snapshot(overrides: Partial<OpsFleetSnapshot> = {}): OpsFleetSnapshot {
   };
 }
 
-function routeBoardSnapshot(overrides: Partial<RouteOperationsBoardSnapshot> = {}): RouteOperationsBoardSnapshot {
+function routeBoardSnapshot(
+  overrides: Partial<RouteOperationsBoardSnapshot> = {},
+): RouteOperationsBoardSnapshot {
   return {
     source: 'live',
     stale: false,
@@ -90,24 +92,52 @@ afterEach(() => {
 
 describe('DispatcherDashboard', () => {
   it('renders the live fleet status view and the approval/override action form', () => {
-    render(<DispatcherDashboard snapshot={snapshot()} query="" routeBoard={routeBoardSnapshot()} activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
+    render(
+      <DispatcherDashboard
+        snapshot={snapshot()}
+        query=""
+        routeBoard={routeBoardSnapshot()}
+        activeKillSwitches={NO_ACTIVE_KILL_SWITCHES}
+      />,
+    );
     expect(screen.getByText('Live fleet status')).toBeInTheDocument();
     expect(screen.getByText('UP25FT4823')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /record approval/i })).toBeInTheDocument();
   });
 
   it('shows a visible degraded-data notice when the fleet snapshot fell back to a stale cache', () => {
-    render(<DispatcherDashboard snapshot={snapshot({ source: 'cache', stale: true, error: 'upstream timed out' })} query="" routeBoard={routeBoardSnapshot()} activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
+    render(
+      <DispatcherDashboard
+        snapshot={snapshot({ source: 'cache', stale: true, error: 'upstream timed out' })}
+        query=""
+        routeBoard={routeBoardSnapshot()}
+        activeKillSwitches={NO_ACTIVE_KILL_SWITCHES}
+      />,
+    );
     expect(screen.getByRole('alert')).toHaveTextContent(/last known data/i);
   });
 
   it('shows a visible fixture-fallback notice when the live data source is unavailable', () => {
-    render(<DispatcherDashboard snapshot={snapshot({ source: 'fixture', stale: true, error: 'upstream unreachable' })} query="" routeBoard={routeBoardSnapshot()} activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
+    render(
+      <DispatcherDashboard
+        snapshot={snapshot({ source: 'fixture', stale: true, error: 'upstream unreachable' })}
+        query=""
+        routeBoard={routeBoardSnapshot()}
+        activeKillSwitches={NO_ACTIVE_KILL_SWITCHES}
+      />,
+    );
     expect(screen.getByRole('alert')).toHaveTextContent(/unavailable/i);
   });
 
   it('does not show a data-source notice for a fresh live snapshot', () => {
-    render(<DispatcherDashboard snapshot={snapshot()} query="" routeBoard={routeBoardSnapshot()} activeKillSwitches={NO_ACTIVE_KILL_SWITCHES} />);
+    render(
+      <DispatcherDashboard
+        snapshot={snapshot()}
+        query=""
+        routeBoard={routeBoardSnapshot()}
+        activeKillSwitches={NO_ACTIVE_KILL_SWITCHES}
+      />,
+    );
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -117,7 +147,12 @@ describe('DispatcherDashboard', () => {
   it('renders an empty, explicitly-flagged fleet table for an unavailable snapshot', () => {
     render(
       <DispatcherDashboard
-        snapshot={snapshot({ buses: [], source: 'unavailable', stale: true, error: 'network unreachable' })}
+        snapshot={snapshot({
+          buses: [],
+          source: 'unavailable',
+          stale: true,
+          error: 'network unreachable',
+        })}
         query=""
         routeBoard={routeBoardSnapshot()}
         activeKillSwitches={NO_ACTIVE_KILL_SWITCHES}
@@ -198,13 +233,20 @@ describe('ControlRoomFleetPanel', () => {
       <ControlRoomFleetPanel snapshot={snapshot()} query="" routeDirectionId="dir-1" />,
     );
     expect(container.querySelector('input[type="hidden"][name="tab"]')).toHaveValue('fleet');
-    expect(container.querySelector('input[type="hidden"][name="routeDirectionId"]')).toHaveValue('dir-1');
+    expect(container.querySelector('input[type="hidden"][name="routeDirectionId"]')).toHaveValue(
+      'dir-1',
+    );
   });
 
   it('still surfaces a degraded feed rather than an empty-looking roster', () => {
     render(
       <ControlRoomFleetPanel
-        snapshot={snapshot({ source: 'unavailable', stale: true, error: 'upstream unreachable', buses: [] })}
+        snapshot={snapshot({
+          source: 'unavailable',
+          stale: true,
+          error: 'upstream unreachable',
+          buses: [],
+        })}
         query=""
         routeDirectionId={null}
       />,
@@ -213,14 +255,24 @@ describe('ControlRoomFleetPanel', () => {
   });
 });
 
-function observabilitySnapshot(overrides: Partial<ObservabilitySnapshot> = {}): ObservabilitySnapshot {
+function observabilitySnapshot(
+  overrides: Partial<ObservabilitySnapshot> = {},
+): ObservabilitySnapshot {
   return {
     source: 'live',
     stale: false,
     error: null,
     errorCode: null,
     fetchedAt: new Date().toISOString(),
-    routeDirections: [{ routeDirectionId: 'dir-1', routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000 }],
+    routeDirections: [
+      {
+        routeDirectionId: 'dir-1',
+        routeId: 'R1',
+        directionCode: 'up',
+        isLoop: false,
+        totalDistanceMeters: 18000,
+      },
+    ],
     selectedRouteDirectionId: 'dir-1',
     positions: [
       {
@@ -297,14 +349,23 @@ describe('ObservabilityDashboard', () => {
         observedAt: new Date(now - 5 * 60_000).toISOString(),
       },
     ];
-    render(<ObservabilityDashboard snapshot={observabilitySnapshot({ positions: stalePositions })} now={now} />);
+    render(
+      <ObservabilityDashboard
+        snapshot={observabilitySnapshot({ positions: stalePositions })}
+        now={now}
+      />,
+    );
     expect(screen.getByText('Stale')).toBeInTheDocument();
   });
 
   it('shows the control-service-unavailable notice when the snapshot could not be refreshed', () => {
     render(
       <ObservabilityDashboard
-        snapshot={observabilitySnapshot({ source: 'unavailable', stale: true, error: 'control service circuit open' })}
+        snapshot={observabilitySnapshot({
+          source: 'unavailable',
+          stale: true,
+          error: 'control service circuit open',
+        })}
         now={Date.now()}
       />,
     );
@@ -316,7 +377,10 @@ describe('ObservabilityDashboard', () => {
 // src/tests/unit/depotConsole.test.tsx.
 describe('PlannerDashboard', () => {
   it('renders a roster grouped by route plus a schedule lookup', () => {
-    const buses = [bus({ id: 'a', routeId: 'RT-1', routeName: 'Route One' }), bus({ id: 'b', registrationNumber: 'UP32AB1234', routeId: 'RT-2', routeName: 'Route Two' })];
+    const buses = [
+      bus({ id: 'a', routeId: 'RT-1', routeName: 'Route One' }),
+      bus({ id: 'b', registrationNumber: 'UP32AB1234', routeId: 'RT-2', routeName: 'Route Two' }),
+    ];
     render(<PlannerDashboard snapshot={snapshot({ buses })} />);
     expect(screen.getByText('Route roster')).toBeInTheDocument();
     expect(screen.getAllByText(/Route One/).length).toBeGreaterThan(0);
@@ -327,7 +391,7 @@ describe('PlannerDashboard', () => {
 describe('DriverDashboard', () => {
   it('renders the narrower own-schedule + breakdown-report scope, with no fleet-wide table', () => {
     render(<DriverDashboard />);
-    expect(screen.getByText('My schedule')).toBeInTheDocument();
+    expect(screen.getByText('Your timetable')).toBeInTheDocument();
     expect(screen.getByText('Report a breakdown')).toBeInTheDocument();
     expect(screen.queryByText('Live fleet status')).not.toBeInTheDocument();
   });
@@ -354,12 +418,18 @@ describe('DispatcherActionForm action flow', () => {
   it('submits to POST /api/ops/dispatcher/approvals and shows the returned dispatcherActionId on success', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ ok: true, dispatcherActionId: 'action-123', createdAt: '2026-08-05T00:00:00.000Z' }),
+      json: async () => ({
+        ok: true,
+        dispatcherActionId: 'action-123',
+        createdAt: '2026-08-05T00:00:00.000Z',
+      }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<DispatcherActionForm />);
-    fireEvent.change(screen.getByLabelText(/reason/i), { target: { value: 'Bunching detected, holding vehicle' } });
+    fireEvent.change(screen.getByLabelText(/reason/i), {
+      target: { value: 'Bunching detected, holding vehicle' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /record approval/i }));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('action-123'));
@@ -373,7 +443,9 @@ describe('DispatcherActionForm action flow', () => {
   it('shows a visible error when the approval endpoint rejects the request', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
-      json: async () => ({ error: { code: 'INVALID_BODY', message: 'A valid actionType and reason are required.' } }),
+      json: async () => ({
+        error: { code: 'INVALID_BODY', message: 'A valid actionType and reason are required.' },
+      }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -381,7 +453,9 @@ describe('DispatcherActionForm action flow', () => {
     fireEvent.change(screen.getByLabelText(/reason/i), { target: { value: 'x' } });
     fireEvent.click(screen.getByRole('button', { name: /record approval/i }));
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/actionType and reason/i));
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(/actionType and reason/i),
+    );
   });
 });
 
@@ -399,7 +473,9 @@ describe('ControlRoomCommandForm action flow', () => {
     fireEvent.change(screen.getByLabelText(/dispatcher action id/i), { target: { value: 'da-1' } });
     fireEvent.change(screen.getByLabelText(/vehicle id/i), { target: { value: 'UP25FT4823' } });
     fireEvent.change(screen.getByLabelText(/route-direction id/i), { target: { value: 'rd-1' } });
-    fireEvent.change(screen.getByLabelText(/summary/i), { target: { value: 'Hold at terminal per approval' } });
+    fireEvent.change(screen.getByLabelText(/summary/i), {
+      target: { value: 'Hold at terminal per approval' },
+    });
   }
 
   it('submits to POST /api/ops/control-room/commands and shows the returned commandId and auditEventId on success', async () => {
@@ -454,7 +530,9 @@ describe('ControlRoomCommandForm action flow', () => {
     fillCommandForm();
     fireEvent.click(screen.getByRole('button', { name: /issue command/i }));
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/will retry automatically/i));
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(/will retry automatically/i),
+    );
   });
 
   it('never claims an automatic retry for a reconciled status the sweep does not touch (e.g. already acknowledged)', async () => {
@@ -475,7 +553,9 @@ describe('ControlRoomCommandForm action flow', () => {
     fillCommandForm();
     fireEvent.click(screen.getByRole('button', { name: /issue command/i }));
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/current status: acknowledged/i));
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(/current status: acknowledged/i),
+    );
     expect(screen.getByRole('status')).not.toHaveTextContent(/will retry automatically/i);
   });
 
@@ -496,7 +576,12 @@ describe('ControlRoomCommandForm action flow', () => {
   it('surfaces a 409 dispatcher-action-invalid error from the endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
-      json: async () => ({ error: { code: 'DISPATCHER_ACTION_INVALID', message: 'dispatcherActionId does not reference a valid, unconsumed approval.' } }),
+      json: async () => ({
+        error: {
+          code: 'DISPATCHER_ACTION_INVALID',
+          message: 'dispatcherActionId does not reference a valid, unconsumed approval.',
+        },
+      }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -504,7 +589,9 @@ describe('ControlRoomCommandForm action flow', () => {
     fillCommandForm();
     fireEvent.click(screen.getByRole('button', { name: /issue command/i }));
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/unconsumed approval/i));
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(/unconsumed approval/i),
+    );
   });
 
   it('surfaces a 422 APPROVAL_MISMATCH, which only this app can detect', async () => {
@@ -516,7 +603,8 @@ describe('ControlRoomCommandForm action flow', () => {
       json: async () => ({
         error: {
           code: 'APPROVAL_MISMATCH',
-          message: 'Approval da-1 authorizes stop_skip for vehicle UP25FT4823 on route-direction rd-1; this command does not match it.',
+          message:
+            'Approval da-1 authorizes stop_skip for vehicle UP25FT4823 on route-direction rd-1; this command does not match it.',
         },
       }),
     });
@@ -547,7 +635,17 @@ describe('ScheduleLookupForm action flow', () => {
           scheduledArrival: '12:00:00',
           direction: 'OUT',
           tripCount: 1,
-          stops: [{ id: 'stop-1', name: 'Bareilly Old Bus Station', sequence: 1, latitude: 28.35, longitude: 79.42, scheduledArrival: '10:06:00', scheduledDeparture: '10:06:00' }],
+          stops: [
+            {
+              id: 'stop-1',
+              name: 'Bareilly Old Bus Station',
+              sequence: 1,
+              latitude: 28.35,
+              longitude: 79.42,
+              scheduledArrival: '10:06:00',
+              scheduledDeparture: '10:06:00',
+            },
+          ],
         },
         source: 'live',
         stale: false,
@@ -557,25 +655,39 @@ describe('ScheduleLookupForm action flow', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<ScheduleLookupForm />);
-    fireEvent.change(screen.getByLabelText(/registration number/i), { target: { value: 'UP25FT4823' } });
+    fireEvent.change(screen.getByLabelText(/registration number/i), {
+      target: { value: 'UP25FT4823' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /load schedule/i }));
 
     await waitFor(() => expect(screen.getByText(/Bareilly Old Bus Station/)).toBeInTheDocument());
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/ops/fleet/schedule?regNum=UP25FT4823'));
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/ops/fleet/schedule?regNum=UP25FT4823'),
+    );
   });
 
   it('shows the "no schedule" message when the vehicle has no assignment', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ schedule: null, source: 'live', stale: false, error: null, message: 'No schedule assigned to UP25FT4823.' }),
+      json: async () => ({
+        schedule: null,
+        source: 'live',
+        stale: false,
+        error: null,
+        message: 'No schedule assigned to UP25FT4823.',
+      }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<ScheduleLookupForm />);
-    fireEvent.change(screen.getByLabelText(/registration number/i), { target: { value: 'UP25FT4823' } });
+    fireEvent.change(screen.getByLabelText(/registration number/i), {
+      target: { value: 'UP25FT4823' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /load schedule/i }));
 
-    await waitFor(() => expect(screen.getByText(/No schedule assigned to UP25FT4823/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/No schedule assigned to UP25FT4823/)).toBeInTheDocument(),
+    );
   });
 
   it('requires a registration number before submitting', () => {
@@ -602,7 +714,9 @@ describe('ScheduleLookupForm action flow', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<ScheduleLookupForm />);
-    fireEvent.change(screen.getByLabelText(/registration number/i), { target: { value: 'UP25FT4823' } });
+    fireEvent.change(screen.getByLabelText(/registration number/i), {
+      target: { value: 'UP25FT4823' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /load schedule/i }));
 
     const alert = await screen.findByRole('alert');
@@ -625,7 +739,9 @@ describe('ScheduleLookupForm action flow', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<ScheduleLookupForm />);
-    fireEvent.change(screen.getByLabelText(/registration number/i), { target: { value: 'UP25FT4823' } });
+    fireEvent.change(screen.getByLabelText(/registration number/i), {
+      target: { value: 'UP25FT4823' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /load schedule/i }));
 
     const status = await screen.findByRole('status');
@@ -637,12 +753,18 @@ describe('BreakdownReportPanel action flow', () => {
   it('submits to POST /api/ops/driver/breakdown-reports and shows the returned breakdownReportId plus a read-out summary on success', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ ok: true, breakdownReportId: 'report-789', createdAt: '2026-08-06T00:00:00.000Z' }),
+      json: async () => ({
+        ok: true,
+        breakdownReportId: 'report-789',
+        createdAt: '2026-08-06T00:00:00.000Z',
+      }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<BreakdownReportPanel defaultVehicleReg="UP25FT4823" />);
-    fireEvent.change(screen.getByLabelText(/what happened/i), { target: { value: 'Engine overheating near KM 12' } });
+    fireEvent.change(screen.getByLabelText(/what happened/i), {
+      target: { value: 'Engine overheating near KM 12' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /send report to dispatch/i }));
 
     const summary = await screen.findByRole('status');
@@ -660,16 +782,23 @@ describe('BreakdownReportPanel action flow', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
       json: async () => ({
-        error: { code: 'INVALID_BODY', message: 'A valid vehicleReg, category and description are required.' },
+        error: {
+          code: 'INVALID_BODY',
+          message: 'A valid vehicleReg, category and description are required.',
+        },
       }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<BreakdownReportPanel defaultVehicleReg="UP25FT4823" />);
-    fireEvent.change(screen.getByLabelText(/what happened/i), { target: { value: 'Engine overheating near KM 12' } });
+    fireEvent.change(screen.getByLabelText(/what happened/i), {
+      target: { value: 'Engine overheating near KM 12' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /send report to dispatch/i }));
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/vehicleReg, category and description/i));
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(/vehicleReg, category and description/i),
+    );
   });
 });
 
@@ -697,7 +826,9 @@ describe('BreakdownReportsPanel', () => {
 
     render(<BreakdownReportsPanel scope="fleet" />);
 
-    await waitFor(() => expect(screen.getByText('Engine overheating near KM 12')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('Engine overheating near KM 12')).toBeInTheDocument(),
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/ops/fleet/breakdown-reports',
       expect.objectContaining({ cache: 'no-store' }),
@@ -717,7 +848,9 @@ describe('BreakdownReportsPanel', () => {
 
     render(<BreakdownReportsPanel scope="mine" />);
 
-    await waitFor(() => expect(screen.getByText('Engine overheating near KM 12')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('Engine overheating near KM 12')).toBeInTheDocument(),
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/ops/driver/breakdown-reports',
       expect.objectContaining({ cache: 'no-store' }),
@@ -726,9 +859,16 @@ describe('BreakdownReportsPanel', () => {
   });
 
   it('shows a scope-appropriate empty state', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ reports: [], nextCursor: null }) }));
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue({ ok: true, json: async () => ({ reports: [], nextCursor: null }) }),
+    );
     render(<BreakdownReportsPanel scope="mine" />);
-    await waitFor(() => expect(screen.getByText(/you have not filed any breakdown reports/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/you have not filed any breakdown reports/i)).toBeInTheDocument(),
+    );
   });
 
   it('shows a visible error when the endpoint rejects the request', async () => {
@@ -748,13 +888,22 @@ describe('BreakdownReportsPanel', () => {
       if (url === '/api/ops/fleet/breakdown-reports') {
         return Promise.resolve({
           ok: true,
-          json: async () => ({ reports: [breakdownReport()], nextCursor: '2026-08-05T00:00:00.000Z' }),
+          json: async () => ({
+            reports: [breakdownReport()],
+            nextCursor: '2026-08-05T00:00:00.000Z',
+          }),
         });
       }
-      if (url === `/api/ops/fleet/breakdown-reports?before=${encodeURIComponent('2026-08-05T00:00:00.000Z')}`) {
+      if (
+        url ===
+        `/api/ops/fleet/breakdown-reports?before=${encodeURIComponent('2026-08-05T00:00:00.000Z')}`
+      ) {
         return Promise.resolve({
           ok: true,
-          json: async () => ({ reports: [breakdownReport({ id: 'br-2', description: 'Flat tyre' })], nextCursor: null }),
+          json: async () => ({
+            reports: [breakdownReport({ id: 'br-2', description: 'Flat tyre' })],
+            nextCursor: null,
+          }),
         });
       }
       throw new Error(`unexpected fetch to ${url}`);
@@ -762,7 +911,9 @@ describe('BreakdownReportsPanel', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<BreakdownReportsPanel scope="fleet" />);
-    await waitFor(() => expect(screen.getByText('Engine overheating near KM 12')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('Engine overheating near KM 12')).toBeInTheDocument(),
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /load more/i }));
 
@@ -779,14 +930,21 @@ describe('DriverDashboard breakdown-reports refresh-after-submit', () => {
       if (url === '/api/ops/driver/breakdown-reports' && init?.method === 'POST') {
         return Promise.resolve({
           ok: true,
-          json: async () => ({ ok: true, breakdownReportId: 'report-789', createdAt: '2026-08-06T00:00:00.000Z' }),
+          json: async () => ({
+            ok: true,
+            breakdownReportId: 'report-789',
+            createdAt: '2026-08-06T00:00:00.000Z',
+          }),
         });
       }
       if (url === '/api/ops/driver/breakdown-reports') {
         getCalls += 1;
         return Promise.resolve({
           ok: true,
-          json: async () => ({ reports: getCalls > 1 ? [breakdownReport()] : [], nextCursor: null }),
+          json: async () => ({
+            reports: getCalls > 1 ? [breakdownReport()] : [],
+            nextCursor: null,
+          }),
         });
       }
       throw new Error(`unexpected fetch to ${url}`);
@@ -795,15 +953,21 @@ describe('DriverDashboard breakdown-reports refresh-after-submit', () => {
 
     render(<DriverDashboard assignedVehicleId="UP25FT4823" />);
 
-    await waitFor(() => expect(screen.getByText(/you have not filed any breakdown reports/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/you have not filed any breakdown reports/i)).toBeInTheDocument(),
+    );
     expect(getCalls).toBe(1);
 
-    fireEvent.change(screen.getByLabelText(/what happened/i), { target: { value: 'Engine overheating near KM 12' } });
+    fireEvent.change(screen.getByLabelText(/what happened/i), {
+      target: { value: 'Engine overheating near KM 12' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /send report to dispatch/i }));
 
     await screen.findByRole('status');
     await waitFor(() => expect(getCalls).toBe(2));
-    await waitFor(() => expect(screen.getByText('Engine overheating near KM 12')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('Engine overheating near KM 12')).toBeInTheDocument(),
+    );
   });
 });
 
@@ -903,7 +1067,10 @@ describe('OpsAdminPeoplePanel vehicle and depot assignment', () => {
   });
 
   it('offers a depot picker only for depot-role rows, preselected to the current assignment', async () => {
-    vi.stubGlobal('fetch', routeFetch(() => ({ ok: true, json: { ok: true, vehicleId: null } })));
+    vi.stubGlobal(
+      'fetch',
+      routeFetch(() => ({ ok: true, json: { ok: true, vehicleId: null } })),
+    );
     render(<OpsAdminPeoplePanel />);
 
     const select = (await screen.findByLabelText(/assign depot/i)) as HTMLSelectElement;
@@ -957,12 +1124,17 @@ describe('OpsAdminPeoplePanel vehicle and depot assignment', () => {
       'fetch',
       routeFetch(
         () => ({ ok: true, json: { ok: true, vehicleId: null } }),
-        () => ({ ok: false, json: { error: { code: 'DEPOT_NOT_FOUND', message: 'Depot not found.' } } }),
+        () => ({
+          ok: false,
+          json: { error: { code: 'DEPOT_NOT_FOUND', message: 'Depot not found.' } },
+        }),
       ),
     );
     render(<OpsAdminPeoplePanel />);
 
-    fireEvent.change(await screen.findByLabelText(/assign depot/i), { target: { value: DEPOT_LUCKNOW_ID } });
+    fireEvent.change(await screen.findByLabelText(/assign depot/i), {
+      target: { value: DEPOT_LUCKNOW_ID },
+    });
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Depot not found.'));
   });
 

@@ -152,7 +152,7 @@ export function DriverJourneyPanel() {
   if (state.status === 'loading') {
     return (
       <OpsPanel title="Your route" headingLevel={2}>
-        <p className="py-6 text-center text-base text-ops-muted">Loading your route…</p>
+        <p className="py-6 text-center text-base text-muted-foreground">Loading your route…</p>
       </OpsPanel>
     );
   }
@@ -162,7 +162,7 @@ export function DriverJourneyPanel() {
       <OpsPanel title="Your route" headingLevel={2}>
         <OpsAlert tone="error" title="Arrival times are not available">
           <p className="text-base leading-relaxed">{state.message}</p>
-          <p className="mt-2 text-sm text-ops-muted">Trying again automatically.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Trying again automatically.</p>
         </OpsAlert>
       </OpsPanel>
     );
@@ -196,7 +196,10 @@ export function DriverJourneyPanel() {
               vehicleId={data.vehicleId}
               position={
                 prediction.vehicle.latitude !== null && prediction.vehicle.longitude !== null
-                  ? { latitude: prediction.vehicle.latitude, longitude: prediction.vehicle.longitude }
+                  ? {
+                      latitude: prediction.vehicle.latitude,
+                      longitude: prediction.vehicle.longitude,
+                    }
                   : null
               }
               observedAt={prediction.observedAt}
@@ -254,23 +257,27 @@ function ProvenanceLine({
   const freshness = freshnessNote(stateAgeSeconds);
 
   return (
-    <div className="space-y-1.5 rounded-md border border-ops-line bg-ops-raised px-3 py-2.5">
-      <p className={speed.weaker ? 'text-sm text-ops-warn' : 'text-sm text-ops-muted'}>
-        <span className="font-mono tabular-nums text-ops-ink">{speedKmph.toFixed(0)} kmph</span>
+    <div className="space-y-1.5 rounded-md border border-border bg-muted/40 px-3 py-2.5">
+      <p className={speed.weaker ? 'text-sm text-warning' : 'text-sm text-muted-foreground'}>
+        <span className="font-mono tabular-nums text-foreground">{speedKmph.toFixed(0)} km/h</span>
         {' - '}
         {speed.label}
       </p>
-      <p className={freshness.tone === 'warn' ? 'text-sm text-ops-warn' : 'text-sm text-ops-muted'}>
+      <p
+        className={
+          freshness.tone === 'warn' ? 'text-sm text-warning' : 'text-sm text-muted-foreground'
+        }
+      >
         {freshness.label}
       </p>
-      <p className="text-sm text-ops-faint">
+      <p className="text-sm text-subtle">
         Waiting time at each stop is an estimate of {dwellSeconds}s, not a measurement.
       </p>
       {/* Said once, here, rather than on all six rows. Only shown when there is
           actually a published time below to explain. */}
       {anyScheduled && (
-        <p className="text-sm text-ops-faint">
-          <span className="text-ops-warn">Timetable</span> times are the published schedule, not a
+        <p className="text-sm text-subtle">
+          <span className="text-warning">Timetable</span> times are the published schedule, not a
           measurement of where your bus is.
         </p>
       )}

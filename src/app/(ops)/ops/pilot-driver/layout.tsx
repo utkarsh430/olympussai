@@ -17,11 +17,34 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // The console's own ground (tailwind `ops.bg`), so the installed PWA's
-  // status bar does not sit a shade off the page behind it.
-  themeColor: '#02040a',
+  /**
+   * The installed PWA's status bar, in BOTH themes.
+   *
+   * A single value here was correct while the console was dark-only. It is not
+   * any more: a driver who chooses light mode would get a light page under a
+   * near-black status bar, which on a phone reads as a rendering fault rather
+   * than a theme. These are the measured page grounds from globals.css - dark
+   * #02040a, light #eef2f7 - and the browser picks by the same media query the
+   * stylesheet uses.
+   *
+   * This follows the DEVICE, while the in-app toggle can override the page. A
+   * driver who has explicitly chosen light on a dark-set phone therefore still
+   * gets the dark status bar; there is no web API that lets the page correct
+   * that after the fact, and a wrong-by-one-bar status strip is a far smaller
+   * problem than the unreadable-in-sunlight map this redesign fixes.
+   */
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#eef2f7' },
+    { media: '(prefers-color-scheme: dark)', color: '#02040a' },
+  ],
   width: 'device-width',
   initialScale: 1,
+  /**
+   * A driver reading this in sunlight will pinch to zoom, and must be allowed
+   * to. `maximumScale: 1` is the usual PWA reflex and it is an accessibility
+   * failure on the one screen in this product used outdoors by someone who may
+   * be presbyopic. Left unset deliberately.
+   */
 };
 
 export default async function PilotDriverLayout({ children }: { children: React.ReactNode }) {

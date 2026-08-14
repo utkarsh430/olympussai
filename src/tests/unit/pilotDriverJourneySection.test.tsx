@@ -25,7 +25,13 @@ vi.mock('@/components/ops/pilot-driver/DriverJourneyPanel', () => ({
 beforeEach(() => {
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ authenticated: true, vehicleId: 'UP78FN8125' }) }),
+    vi
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ authenticated: true, vehicleId: 'UP78FN8125' }),
+      }),
   );
   // React logs the caught error; expected, and noise in the run otherwise.
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -50,9 +56,12 @@ describe('JourneySection - the route view cannot take the command console down w
     // The route view really did throw - otherwise this test proves nothing.
     expect(explode).toHaveBeenCalled();
 
-    // ...and the console is still on the page, with its own headings intact.
-    expect(await screen.findByText('Your vehicle')).toBeInTheDocument();
-    expect(screen.getByText('Active command')).toBeInTheDocument();
+    // ...and the console is still on the page. Addressed by test id rather
+    // than by heading text: this test is about the error boundary, and tying
+    // it to product copy is what made it fail when the console was reworded
+    // rather than when the boundary broke.
+    expect(await screen.findByTestId('driver-instruction-region')).toBeInTheDocument();
+    expect(screen.getByTestId('driver-no-instruction')).toBeInTheDocument();
   });
 
   it('says the instructions are still working, so a driver does not assume the console died too', async () => {

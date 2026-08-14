@@ -2,7 +2,10 @@ import { test, expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { seedGatedRouteDirection, insertVehicle } from './fixtures/controlServiceFixtures';
-import { assertDisposableControlServiceDatabase, assertDisposableOpsDatabase } from './fixtures/dbSafety';
+import {
+  assertDisposableControlServiceDatabase,
+  assertDisposableOpsDatabase,
+} from './fixtures/dbSafety';
 import { assignVehicleToPilotDriver } from './fixtures/opsFixtures';
 import { assertQaRoster, signInThroughFrontDoor } from './fixtures/opsSignIn';
 
@@ -106,6 +109,55 @@ if (process.env.CI === 'true' && missingEnv.length > 0) {
 /** Command action types this suite is free to use — parameters.reason makes the exact label irrelevant. */
 const ACTION_TYPE = 'speed_guidance';
 
+/**
+ * ─── WHY THIS SUITE NOW ADDRESSES THE CONSOLE BY TEST ID ─────────────────
+ *
+ * The driver console was redesigned (bilingual English/Hindi buttons, a
+ * reworked instruction card, plainer wording throughout — the captain
+ * authorised the copy change explicitly). This suite used to find its
+ * controls by their visible English text: `name: 'Ack'`, `'Response sent.'`,
+ * `'No active command right now.'`.
+ *
+ * Every one of those strings changed. That left two options, and only one of
+ * them is honest:
+ *
+ *   • Re-pin the assertions to the NEW strings. Rejected: it would leave the
+ *     four safety guarantees in this file coupled to copy that is expected to
+ *     keep changing — the language work on this product is explicitly ongoing,
+ *     and a Hindi review is still owed on these very buttons. The next copy
+ *     tweak would turn a green safety suite red for no safety reason, and the
+ *     pressure then is to weaken the suite.
+ *
+ *   • Address the controls by a stable id, and test the copy where copy
+ *     belongs. Taken.
+ *
+ * WHAT DID NOT CHANGE: not one assertion in this file. Every `expect` still
+ * proves exactly what it proved before — the ack lands in both audit trails,
+ * the outbox holds an answer given offline and empties once online, the
+ * command expires client-side and is swept server-side, and the countdown
+ * renders. Only the way a control is LOCATED changed. The countdown is still
+ * found by its accessible name (`Time remaining to respond`), which the
+ * redesign deliberately preserved, and the dispatcher's reason text is still
+ * matched verbatim, because that string is data flowing through the system
+ * rather than product copy.
+ *
+ * The copy itself is now pinned by src/tests/unit/driverCopy.test.ts, which
+ * asserts the exact English AND Hindi of every button and state message, that
+ * both languages are always present, and that no answer carries a word
+ * implying blame. That is a stronger guarantee about the wording than a text
+ * selector ever gave, and it fails in milliseconds instead of needing a
+ * two-database stack to notice.
+ */
+const ID = {
+  accept: 'driver-answer-accept',
+  unable: 'driver-answer-unable',
+  unsafe: 'driver-answer-unsafe',
+  answerSent: 'driver-answer-sent',
+  answerQueued: 'driver-answer-queued',
+  noInstruction: 'driver-no-instruction',
+  offline: 'driver-offline',
+} as const;
+
 interface Fixture {
   vehicleId: string;
   dispatcherActionId: string;
@@ -143,7 +195,9 @@ async function controlServiceFetch(path: string, init: RequestInit = {}): Promis
   });
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`control-service ${init.method ?? 'GET'} ${path} failed (${response.status}): ${body}`);
+    throw new Error(
+      `control-service ${init.method ?? 'GET'} ${path} failed (${response.status}): ${body}`,
+    );
   }
   return response;
 }
@@ -190,9 +244,13 @@ async function createAndDeliverCommand(
   return command.id;
 }
 
-async function getControlServiceCommand(commandId: string): Promise<{ status: string; ackOutcome: string | null }> {
+async function getControlServiceCommand(
+  commandId: string,
+): Promise<{ status: string; ackOutcome: string | null }> {
   const res = await controlServiceFetch(`/v1/commands/${commandId}`);
-  const { command } = (await res.json()) as { command: { status: string; ackOutcome: string | null } };
+  const { command } = (await res.json()) as {
+    command: { status: string; ackOutcome: string | null };
+  };
   return command;
 }
 
@@ -299,15 +357,15 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
     await expect(page.getByText('Adjust your speed')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(reason)).toBeVisible();
     await expect(page.getByLabel('Time remaining to respond')).toHaveText(/^\d+:\d{2}$/);
-    const ackButton = page.getByRole('button', { name: 'Ack', exact: true });
+    const ackButton = page.getByTestId(ID.accept);
     await expect(ackButton).toBeEnabled();
 
     await ackButton.click();
-    await expect(page.getByText('Response sent.')).toBeVisible();
+    await expect(page.getByTestId(ID.answerSent)).toBeVisible();
 
     // The next poll cycle (POLL_INTERVAL_MS = 4s) confirms control-service
     // no longer reports this as the vehicle's active command.
-    await expect(page.getByText('No active command right now.')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId(ID.noInstruction)).toBeVisible({ timeout: 15_000 });
 
     // Control-service's own record: acknowledged with no penalty parameter
     // anywhere in the call (AC2).
@@ -324,7 +382,10 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
       [commandId],
     );
     expect(auditRows.rows).toHaveLength(1);
-    expect(auditRows.rows[0].metadata).toMatchObject({ outcome: 'accept', vehicleId: fixture.vehicleId });
+    expect(auditRows.rows[0].metadata).toMatchObject({
+      outcome: 'accept',
+      vehicleId: fixture.vehicleId,
+    });
   });
 
   test('2. queues an ack in IndexedDB when the network drops mid-ack, and flushes it once back online (AC3)', async ({
@@ -338,17 +399,13 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
     await expect(page.getByText(reason)).toBeVisible({ timeout: 15_000 });
 
     await page.context().setOffline(true);
-    await expect(
-      page.getByText('Offline — showing the last known command. Any response you send will be queued'),
-    ).toBeVisible();
+    await expect(page.getByTestId(ID.offline)).toBeVisible();
 
-    await page.getByRole('button', { name: 'Unable', exact: true }).click();
+    await page.getByTestId(ID.unable).click();
 
     // Written to the durable outbox before the (failing) network call, and
     // shown as queued rather than sent, per CommandConsole.handleAck.
-    await expect(
-      page.getByText("Response saved on this device — it will be sent automatically once you're back online."),
-    ).toBeVisible();
+    await expect(page.getByTestId(ID.answerQueued)).toBeVisible();
     const queuedWhileOffline = await readAckOutbox(page);
     expect(queuedWhileOffline).toEqual([expect.objectContaining({ commandId, outcome: 'unable' })]);
 
@@ -364,7 +421,10 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
       [commandId],
     );
     expect(auditRows.rows).toHaveLength(1);
-    expect(auditRows.rows[0].metadata).toMatchObject({ outcome: 'unable', vehicleId: fixture.vehicleId });
+    expect(auditRows.rows[0].metadata).toMatchObject({
+      outcome: 'unable',
+      vehicleId: fixture.vehicleId,
+    });
 
     const csCommand = await getControlServiceCommand(commandId);
     expect(csCommand.ackOutcome).toBe('unable');
@@ -387,7 +447,9 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
     // Client-side auto-expiry: CommandConsole's own 1s countdown tick hides
     // the command locally the instant it lapses, without waiting for the
     // next poll (AC1's "auto-expiry on TTL lapse").
-    await expect(page.getByText('No active command right now.')).toBeVisible({ timeout: (ttlSeconds + 8) * 1_000 });
+    await expect(page.getByTestId(ID.noInstruction)).toBeVisible({
+      timeout: (ttlSeconds + 8) * 1_000,
+    });
 
     // Control-service's own authoritative state: query a plain,
     // non-lazily-expiring read (GET /v1/commands/:id never calls
@@ -415,7 +477,7 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
     expect(auditRows.rows[0].reason).toMatch(/ttl_exceeded|periodic ttl sweep/);
   });
 
-  test('4. control-service\'s periodic backstop sweep expires a delivered command that nobody ever polls', async () => {
+  test("4. control-service's periodic backstop sweep expires a delivered command that nobody ever polls", async () => {
     // Deliberately never opened in a driver console and never re-read via
     // this test itself before asserting — isolates the *periodic* sweep
     // (control-service/src/index.ts, sweepExpiredCommands running every
@@ -443,7 +505,11 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
           return;
         }
         if (Date.now() > deadline) {
-          reject(new Error(`command ${commandId} was not swept to expired within 30s (status: ${rows[0]?.status})`));
+          reject(
+            new Error(
+              `command ${commandId} was not swept to expired within 30s (status: ${rows[0]?.status})`,
+            ),
+          );
           return;
         }
         setTimeout(poll, 1_000);

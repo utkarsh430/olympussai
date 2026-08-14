@@ -62,12 +62,13 @@ export function DriverDashboard({
         onSubmitted={() => setReportsRefreshKey((key) => key + 1)}
       />
 
-      <OpsPanel title="Reports you have filed" headingLevel={2}>
+      <OpsPanel title="Reports you have sent" headingLevel={2}>
         <BreakdownReportsPanel key={reportsRefreshKey} scope="mine" variant="cab" />
       </OpsPanel>
 
       <ScheduleLookupForm
-        title="My schedule"
+        size="cab"
+        title="Your timetable"
         defaultRegNum={assignedVehicleId ?? undefined}
         rememberKey={assignedVehicleId ? undefined : DRIVER_REG_STORAGE_KEY}
       />

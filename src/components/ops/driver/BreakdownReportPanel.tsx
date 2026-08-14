@@ -1,9 +1,16 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { OpsAlert, OpsField, OpsInput, OpsPanel, OpsSelect, OpsTextarea } from '@/components/ops/ui';
+import {
+  OpsAlert,
+  OpsField,
+  OpsInput,
+  OpsPanel,
+  OpsSelect,
+  OpsTextarea,
+} from '@/components/ops/ui';
 
-const CATEGORIES = ['Mechanical', 'Electrical', 'Tyre/wheel', 'Accident', 'Other'] as const;
+const CATEGORIES = ['Mechanical', 'Electrical', 'Tyre or wheel', 'Accident', 'Other'] as const;
 
 interface SuccessState {
   breakdownReportId: string;
@@ -77,12 +84,25 @@ export function BreakdownReportPanel({
         | null;
 
       if (!response.ok || !data || !('ok' in data)) {
-        setError((data && 'error' in data && data.error.message) || 'Failed to submit the breakdown report.');
+        setError(
+          (data && 'error' in data && data.error.message) ||
+            'The report was not sent. Try again — nothing you typed has been lost.',
+        );
         setStatus('error');
         return;
       }
 
-      const timestamp = new Date(data.createdAt).toLocaleString();
+      // 24-hour, and never `toLocaleString()`.
+      //
+      // That produced "8/14/2026, 11:40:39 AM": an am/pm suffix is one more
+      // thing to misread at a glance at the roadside - a 22:15 read as 10:15
+      // is a twelve-hour error - and the whole string changes shape with the
+      // device's locale, so two drivers reading the same report out over the
+      // radio would say different things. Same rule, and the same reasoning,
+      // as formatScheduledClock in src/lib/ops/driverJourneyView.ts.
+      const at = new Date(data.createdAt);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const timestamp = `${pad(at.getDate())}/${pad(at.getMonth() + 1)}/${at.getFullYear()} ${pad(at.getHours())}:${pad(at.getMinutes())}`;
       setSuccess({
         breakdownReportId: data.breakdownReportId,
         createdAt: data.createdAt,
@@ -92,7 +112,9 @@ export function BreakdownReportPanel({
       setDescription('');
       onSubmitted?.();
     } catch {
-      setError('Something went wrong. Please try again.');
+      setError(
+        'The report was not sent. Check your signal and try again — nothing you typed has been lost.',
+      );
       setStatus('error');
     }
   }
@@ -160,7 +182,7 @@ export function BreakdownReportPanel({
         </OpsField>
 
         {error && (
-          <p id={errorId} role="alert" className="text-base text-ops-danger">
+          <p id={errorId} role="alert" className="text-base text-destructive">
             {error}
           </p>
         )}
@@ -185,12 +207,12 @@ export function BreakdownReportPanel({
       {success && (
         <OpsAlert tone="success" title="Sent and recorded" id={successId}>
           <p className="text-base leading-relaxed">
-            Report reference{' '}
-            <code className="rounded bg-ops-line px-1.5 py-0.5 font-mono text-sm text-ops-ink">
+            Give this number if you call in:{' '}
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm text-foreground">
               {success.breakdownReportId}
             </code>
           </p>
-          <pre className="ops-well mt-2 whitespace-pre-wrap p-3 text-sm leading-relaxed text-ops-ink">
+          <pre className="ops-well mt-2 whitespace-pre-wrap p-3 text-sm leading-relaxed text-foreground">
             {success.summary}
           </pre>
         </OpsAlert>

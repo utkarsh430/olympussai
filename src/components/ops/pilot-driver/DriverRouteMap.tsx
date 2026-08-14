@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { OpsFleetMap } from '@/components/ops/map/OpsFleetMap';
+import { useTheme } from '@/components/theme/ThemeProvider';
 import { buildRouteStopOverlay, cameraFitPoints } from '@/lib/ops/driverRouteOverlay';
 import { fixQuality } from '@/lib/ops/driverJourneyView';
 import type { JourneyStop } from '@/lib/ops/driverJourney';
@@ -39,6 +40,13 @@ export function DriverRouteMap({
 }) {
   const { overlay, undrawnStopCount } = useMemo(() => buildRouteStopOverlay(stops), [stops]);
 
+  // The basemap does not follow CSS - it is a JS style array - so this screen
+  // subscribes to the resolved theme and hands it down. Without this a driver
+  // who chose light mode gets a light console over a black map, which is the
+  // worst combination this product can produce: this is the one surface read
+  // outdoors, in a cab, in direct sunlight.
+  const { resolved } = useTheme();
+
   // One vehicle: the driver's own. Built from the SAME response the stops came
   // from, so the bus and the distances to those stops can never be measured
   // from two different fixes.
@@ -75,6 +83,7 @@ export function DriverRouteMap({
       fitPoints={fitPoints}
       label="Your route and upcoming stops"
       showFleetLegend={false}
+      basemapTheme={resolved}
       // Tall enough to show a stretch of corridor on a phone held upright,
       // short enough that the stop list below is reachable without a long
       // scroll. OpsMapFrame's definite-height rule is what makes this work

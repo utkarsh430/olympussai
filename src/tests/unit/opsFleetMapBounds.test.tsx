@@ -54,6 +54,12 @@ class FakeLatLngBounds {
 const fitBounds = vi.fn();
 const setZoom = vi.fn();
 const panTo = vi.fn();
+/**
+ * Repaints the basemap style in place. Real on `google.maps.Map`, and the
+ * component calls it whenever the page theme changes so the driver's map can
+ * follow light mode without the map being torn down and rebuilt.
+ */
+const setOptions = vi.fn();
 
 class FakeMap {
   constructor(
@@ -63,6 +69,7 @@ class FakeMap {
   fitBounds = fitBounds;
   setZoom = setZoom;
   panTo = panTo;
+  setOptions = setOptions;
   getZoom = () => 7;
 }
 
@@ -91,6 +98,7 @@ vi.mock('@/components/map/fleetCanvasLayer', () => ({
 
 beforeEach(() => {
   fitBounds.mockClear();
+  setOptions.mockClear();
   setZoom.mockClear();
   panTo.mockClear();
   (globalThis as unknown as { google: unknown }).google = {
@@ -201,7 +209,9 @@ describe('OpsFleetMap opening camera', () => {
     render(<OpsFleetMap vehicles={vehicles} />);
     await waitFor(() => expect(fitBounds).toHaveBeenCalled());
 
-    expect(screen.getByText(/1 vehicle reported a position that is not on the network/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 vehicle reported a position that is not on the network/i),
+    ).toBeInTheDocument();
   });
 
   it('says nothing about unplaceable vehicles when every position is good', async () => {
