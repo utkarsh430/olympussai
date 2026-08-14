@@ -28,11 +28,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function UpsrtcProjectLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function UpsrtcProjectLayout({ children }: { children: React.ReactNode }) {
   await requireProjectSurface('/project/upsrtc');
 
   return (
@@ -49,8 +45,13 @@ export default async function UpsrtcProjectLayout({
     // The dashboard is viewed at ~85% browser zoom, which widens the effective
     // CSS viewport well beyond the 1920px design width, so the top command bar
     // and the map-area overlays have ample room even at this scale.
+    // `dark` pins this subtree to the night palette. `darkMode: 'class'`
+    // resolves against a `.dark` ANCESTOR, so the command centre keeps its
+    // look even while an operator has the console in light mode. Unifying
+    // this surface's own vocabulary is the cinematic lane's work; this only
+    // stops it inverting under a light theme in the meantime.
     <div
-      className="upsrtc-shell relative overflow-hidden bg-void font-display text-[#d6ecf7] [font-feature-settings:'tnum'_1] antialiased"
+      className="upsrtc-shell dark relative overflow-hidden bg-background font-sans text-foreground antialiased"
       style={{ zoom: 1.18, width: 'calc(100vw / 1.18)', height: 'calc(100dvh / 1.18)' }}
     >
       <a

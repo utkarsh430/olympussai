@@ -31,9 +31,16 @@
   overflow-x: clip;
 }
 
-/* Editorial display type. */
+/* Editorial display type.
+
+   Cormorant Garamond is retired along with Manrope and Orbitron — the
+   product is set in one self-hosted family that carries both English and
+   Hindi (see src/app/fonts.ts). `--font-sans` is that family; the generic
+   fallbacks stay so this rule still resolves if the variable is ever
+   unset. The light weight and tight tracking below are what actually
+   carried the editorial voice, and they are unchanged. */
 .ol-display {
-  font-family: var(--font-serif-display), ui-serif, Georgia, serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-weight: 300;
   letter-spacing: -0.01em;
   line-height: 1.02;
@@ -72,12 +79,7 @@
 /* Thin gold hairline. */
 .ol-hairline {
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(214, 161, 58, 0.4),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, rgba(214, 161, 58, 0.4), transparent);
 }
 
 /* Glass surface for the scrolled header. */

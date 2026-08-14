@@ -2,11 +2,165 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE ONE PLACE A COLOUR IS CHOSEN.
+
+   Two complete palettes as HSL triplets, so shadcn/ui's generated components
+   — which expect `hsl(var(--token))` — work unmodified.
+
+   ─── HOW TO READ THIS BLOCK ──────────────────────────────────────────────
+
+     :root   is the LIGHT palette. It is the base, unconditionally defined,
+             so no token can ever resolve to nothing.
+     .dark   overrides with the DARK palette. Applied to <html> by the
+             no-flash script, and applied to a SUBTREE by the cinematic route
+             groups, which are dark-only by design.
+
+   Every ratio below was computed from the hex with the WCAG 2.1 relative-
+   luminance formula, not estimated. Where a value moved during
+   implementation it moved because the measurement failed, and the comment
+   records the measurement rather than the intention.
+
+   ─── THE TWO BORDER TOKENS ARE NOT INTERCHANGEABLE ───────────────────────
+
+     --border  a REGION divider — panel against page, row against row.
+               Decorative, and deliberately below 3:1. A divider at 3:1 turns
+               a dense table into a grid of cages.
+     --input   a CONTROL boundary — the edge of a text field or a select.
+               This is what tells an operator where they may type. WCAG
+               1.4.11 requires 3:1, and both values clear 3:1 against BOTH
+               grounds a control can sit on (the card AND the page). That
+               second ground is the one that is easy to miss: a border tuned
+               only against white fails the moment the field sits on the page
+               ground instead of inside a panel.
+
+   Do not use --border on a form control. Do not use --input as a divider.
+   That is the entire reason there are two.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @layer base {
   :root {
-    --hud-line: rgba(63, 240, 255, 0.22);
-    --hud-line-soft: rgba(63, 240, 255, 0.1);
-    --panel-bg: rgba(6, 14, 28, 0.72);
+    /* ── LIGHT ───────────────────────────────────────────────────────────
+       Ratios measured against the card (#ffffff); the page-ground figure is
+       given wherever it is the binding constraint. */
+
+    --background: 213.3 36% 95.1%; /* #eef2f7  page ground */
+    --foreground: 210 57.1% 11%; /* #0c1c2c  17.24:1 card · 15.33:1 page */
+
+    --card: 0 0% 100%; /* #ffffff  panel fill */
+    --card-foreground: 210 57.1% 11%; /* #0c1c2c */
+
+    --popover: 0 0% 100%; /* #ffffff */
+    --popover-foreground: 210 57.1% 11%; /* #0c1c2c */
+
+    /* The instrument accent. 5.84:1 as text on card, and white on it is the
+       same 5.84:1 — legible both as a link and as a filled button. */
+    --primary: 192.1 84.9% 28.6%; /* #0b6e87 */
+    --primary-foreground: 0 0% 100%; /* #ffffff */
+
+    --secondary: 215 37.5% 93.7%; /* #e9eef5 */
+    --secondary-foreground: 210 57.1% 11%; /* #0c1c2c */
+
+    --muted: 215 37.5% 93.7%; /* #e9eef5  nested well inside a panel */
+    --muted-foreground: 207.3 18.2% 35.5%; /* #4a5c6b  6.92:1 card · 6.16:1 page */
+
+    --accent: 215 37.5% 93.7%; /* #e9eef5 */
+    --accent-foreground: 210 57.1% 11%; /* #0c1c2c */
+
+    /* Third text tier. Still clears AA (4.5:1) on BOTH grounds, because it
+       labels which reading is which — it is not decoration. */
+    --subtle: 206.7 12.7% 41.8%; /* #5d6c78  5.41:1 card · 4.81:1 page */
+
+    --destructive: 350.8 77.2% 39.6%; /* #b3172f  6.82:1 card */
+    --destructive-foreground: 0 0% 100%; /* #ffffff */
+    --warning: 35.9 100% 23.9%; /* #7a4900  7.55:1 card */
+    --warning-foreground: 0 0% 100%; /* #ffffff */
+    --success: 153.4 82.9% 22.9%; /* #0a6b40  6.58:1 card */
+    --success-foreground: 0 0% 100%; /* #ffffff */
+
+    --border: 211.4 31.3% 86.9%; /* #d3dde8  region divider, 1.37:1 — intentional */
+    --input: 208.3 15.8% 55.3%; /* #7b8e9f  control boundary, 3.01:1 page · 3.38:1 card */
+    --ring: 192.1 84.9% 28.6%; /* #0b6e87 */
+
+    /* ── INSTRUMENT HUES ─────────────────────────────────────────────────
+       Alert colours at INSTRUMENT weight — a fill, a dot, a chip border, a
+       map mark. --destructive/--warning/--success above are the same three
+       hues at TEXT weight. They are different values because a hue bright
+       enough to read as a 2px dot on a dark ground is too thin to read as a
+       sentence, and one dark enough to read as a sentence vanishes as a dot.
+
+       COLOUR IS NEVER THE ONLY ENCODING. Simulating deuteranopia on the
+       map's own good-vs-degraded pair separates them by 1.22:1 — a red-green
+       colour-blind operator cannot tell a healthy bus from a degraded one
+       across 9,200 marks, and no palette fixes it (the best achievable triad
+       is ~2.3:1, and only by making "degraded" the brightest thing on
+       screen). Every state using these MUST also carry a distinct shape and
+       be named in text. See OpsBadge and OpsStatusDot. */
+    --instrument-success: 153.4 82.9% 27%; /* #0b8450 */
+    --instrument-warning: 32 100% 30%; /* #995100 */
+    --instrument-danger: 353 78% 45%; /* #cd1a37 */
+    --instrument-info: 192.1 84.9% 28.6%; /* #0b6e87 */
+
+    --radius: 0.5rem;
+
+    /* The ambient ground wash, per theme. Referenced by .ops-backdrop, which
+       must not carry a hard-coded cyan on a white page. */
+    --backdrop-wash-a: rgba(11, 110, 135, 0.06);
+    --backdrop-wash-b: rgba(10, 122, 99, 0.04);
+    --backdrop-grid: rgba(12, 28, 44, 0.05);
+  }
+
+  .dark {
+    /* ── DARK ────────────────────────────────────────────────────────────
+       The night-shift mode, and the proven one: these are the values the
+       console already ran on, re-measured rather than re-invented. Ratios
+       against the card (#070f1d). */
+
+    --background: 225 66.7% 2.4%; /* #02040a  the void ground */
+    --foreground: 204.4 80% 92.2%; /* #dbeefb  16.10:1 card · 17.22:1 page */
+
+    --card: 218.2 61.1% 7.1%; /* #070f1d  panel fill */
+    --card-foreground: 204.4 80% 92.2%; /* #dbeefb */
+
+    --popover: 214.3 61.4% 11.2%; /* #0b1a2e */
+    --popover-foreground: 204.4 80% 92.2%; /* #dbeefb */
+
+    --primary: 188 91.3% 54.7%; /* #22d9f5  11.24:1 card */
+    --primary-foreground: 225 66.7% 2.4%; /* #02040a  12.02:1 on primary */
+
+    --secondary: 214.3 61.4% 11.2%; /* #0b1a2e */
+    --secondary-foreground: 204.4 80% 92.2%; /* #dbeefb */
+
+    --muted: 214.3 61.4% 11.2%; /* #0b1a2e  nested well */
+    --muted-foreground: 207.1 28% 70.6%; /* #9fb6c9  9.14:1 card */
+
+    --accent: 214.3 61.4% 11.2%; /* #0b1a2e */
+    --accent-foreground: 204.4 80% 92.2%; /* #dbeefb */
+
+    --subtle: 208.5 18.3% 57.3%; /* #7e93a6  6.04:1 card */
+
+    --destructive: 354.1 100% 80.2%; /* #ff9aa4  9.51:1 card */
+    --destructive-foreground: 225 66.7% 2.4%; /* #02040a */
+    --warning: 39 86.3% 71.4%; /* #f5c977  12.33:1 card */
+    --warning-foreground: 225 66.7% 2.4%; /* #02040a */
+    --success: 145.6 65% 73.1%; /* #8ee7b4  13.00:1 card */
+    --success-foreground: 225 66.7% 2.4%; /* #02040a */
+
+    --border: 210.5 58.8% 19%; /* #14304d  region divider, 1.42:1 — intentional */
+    --input: 206.7 42.9% 37.1%; /* #366387  control boundary, 3.01:1 card · 3.21:1 page */
+    --ring: 188 91.3% 54.7%; /* #22d9f5 */
+
+    /* Unchanged from the values the map canvas and the cinematic surface
+       already use, so neither shifts under this change. Retuning them is the
+       map lane's work, not the foundation's. */
+    --instrument-success: 146 100% 58%; /* #2bff88 */
+    --instrument-warning: 39 100% 56%; /* #ffb020 */
+    --instrument-danger: 354 100% 65%; /* #ff4d5e */
+    --instrument-info: 187 100% 62%; /* #3ff0ff */
+
+    --backdrop-wash-a: rgba(34, 217, 245, 0.1);
+    --backdrop-wash-b: rgba(46, 242, 196, 0.06);
+    --backdrop-grid: rgba(63, 240, 255, 0.04);
   }
 
   html,
@@ -14,24 +168,28 @@
     height: 100%;
   }
 
-  /* Neutral Olympuss base. Near-black so there is never a white flash before a
-     route group paints its own environment. The protected UPSRTC shell layers
-     its void background, tabular numerals and Orbitron typography back on top;
-     the public landing page sets its own palette and fonts. */
+  /* The page ground is now a token, so it follows the theme instead of being
+     a near-black constant. This also retires the two `body:has(...)` rules
+     that used to repaint the body per route group to stop an overscroll band
+     appearing — with one themed ground there is nothing to disagree with. */
   body {
-    background-color: #050507;
-    color: #f2eee7;
-    -webkit-font-smoothing: antialiased;
-    /* NOTE: the dashboard's `overflow: hidden` was intentionally removed from
-       this global rule and moved onto the `.upsrtc-shell` wrapper, so the
-       landing page scrolls natively while the dashboard stays fixed-viewport. */
+    @apply bg-background font-sans text-foreground antialiased;
+    /* Noto Sans carries a real `tnum`, so tabular figures work on the body
+       face. A readout whose digits change width jitters on every poll, and a
+       jittering number is one an operator stops trusting. */
+    font-feature-settings: 'tnum' 1;
   }
 
-  /* Visible, high-contrast focus for keyboard operators. */
+  /* Visible, high-contrast focus for keyboard operators, in BOTH themes.
+     Previously a hard-coded cyan, which is 1.3:1 on white — invisible. */
   :focus-visible {
-    outline: 2px solid #3ff0ff;
+    outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
     border-radius: 4px;
+  }
+
+  * {
+    border-color: hsl(var(--border));
   }
 
   ::-webkit-scrollbar {
@@ -39,24 +197,108 @@
     height: 8px;
   }
   ::-webkit-scrollbar-track {
-    background: rgba(6, 14, 28, 0.5);
+    background: hsl(var(--muted));
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(63, 240, 255, 0.22);
+    background: hsl(var(--input));
     border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(63, 240, 255, 0.4);
+    background: hsl(var(--ring));
   }
 }
 
 @layer components {
-  /* Frosted holographic panel — the core surface of the command centre. */
-  /* NOTE: deliberately no backdrop-filter. These panels overlay a live map,
-     so a blur layer can never be cached and re-samples every frame. An opaque
-     background is visually equivalent here and dramatically cheaper. */
+  /* ═══ OPERATIONS CONSOLE ═════════════════════════════════════════════════
+     These classes are the fallback vocabulary for markup the React
+     primitives cannot reasonably own. PREFER the primitives in
+     src/components/ops/ui — these exist so both speak with one voice.
+
+     Every value here now resolves to a token, so all eighteen ops pages
+     follow light and dark with no edit to any of them. That is what makes
+     four lanes able to start in parallel. */
+
+  .ops-panel {
+    @apply relative rounded-lg border border-border bg-card shadow-panel;
+  }
+
+  .ops-panel-accent {
+    @apply relative rounded-lg border border-primary/30 bg-card shadow-panel;
+  }
+
+  .ops-well {
+    @apply rounded border border-border bg-muted;
+  }
+
+  /* The one label style for the whole surface. */
+  .ops-label {
+    @apply text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground;
+  }
+
+  .ops-eyebrow {
+    @apply text-[10px] font-medium uppercase tracking-[0.22em] text-subtle;
+  }
+
+  .ops-value {
+    @apply tabular-nums text-foreground;
+  }
+
+  .ops-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-input bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .ops-button-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-transparent bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .ops-button-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive transition-colors duration-150 hover:border-destructive hover:bg-destructive/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .ops-button-quiet {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-transparent px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  /* Ops inputs are typed into for a whole shift, so they run at the
+     browser's normal control size. `border-input`, never `border-border`:
+     this is a control boundary and has to clear 3:1. */
+  .ops-input {
+    @apply w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .ops-nav-link {
+    @apply relative inline-flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-1 pb-2 pt-1 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground;
+  }
+
+  .ops-nav-link-active {
+    @apply border-primary text-foreground;
+  }
+
+  /* Static, motionless ambient ground. The cinematic surface drifts particles
+     and runs a scanline; this one is read for eight hours at a stretch, so it
+     keeps the wash and animates nothing. Now token-driven, so it is a quiet
+     tint on white rather than cyan-on-white. */
+  .ops-backdrop {
+    background-image:
+      radial-gradient(ellipse 90% 55% at 50% 0%, var(--backdrop-wash-a), transparent 62%),
+      radial-gradient(ellipse 60% 50% at 100% 100%, var(--backdrop-wash-b), transparent 60%),
+      linear-gradient(var(--backdrop-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--backdrop-grid) 1px, transparent 1px);
+    background-size:
+      100% 100%,
+      100% 100%,
+      44px 44px,
+      44px 44px;
+  }
+
+  /* ═══ CINEMATIC SURFACE (/project/*) ═════════════════════════════════════
+     Dark-only by design; the route group wraps itself in `.dark`, so these
+     resolve against the dark palette regardless of the operator's theme.
+     Lane 4 unifies them. Deliberately unchanged here beyond pointing the
+     accent at the shared token. */
+
   .hud-panel {
-    @apply relative rounded-lg border border-holo-glow/20 bg-[rgb(7,15,29)];
+    @apply relative rounded-lg border border-primary/20 bg-card;
     box-shadow:
       0 0 0 1px rgba(63, 240, 255, 0.06),
       0 18px 50px -22px rgba(0, 0, 0, 0.9),
@@ -64,14 +306,13 @@
   }
 
   .hud-panel-strong {
-    @apply relative rounded-lg border border-holo-glow/35 bg-[rgb(8,17,32)];
+    @apply relative rounded-lg border border-primary/35 bg-popover;
     box-shadow:
       0 0 0 1px rgba(63, 240, 255, 0.18),
       0 0 34px -10px rgba(63, 240, 255, 0.4),
       0 18px 50px -22px rgba(0, 0, 0, 0.9);
   }
 
-  /* Corner ticks — the "instrument" detail that sells the HUD look. */
   .hud-corners::before,
   .hud-corners::after {
     content: '';
@@ -95,65 +336,60 @@
   }
 
   .hud-label {
-    @apply font-mono text-[10px] uppercase tracking-[0.18em] text-holo-glow/70;
+    @apply font-mono text-[10px] uppercase tracking-[0.18em] text-primary/70;
   }
 
   .hud-value {
-    @apply font-mono tabular-nums text-holo-glow;
+    @apply font-mono tabular-nums text-primary;
   }
 
-  /* Live vs simulated badges — the most important labelling affordance. */
+  /* ═══ PROVENANCE BADGES ══════════════════════════════════════════════════
+     The most important labelling affordance in the product: an operator must
+     always be able to tell observed data from modelled data, and the same
+     source value has to look the same on every surface. Do not introduce a
+     second green chip.
+
+     Each carries a DOT SHAPE as well as a hue — see the colour-blindness note
+     in the token block. Colour alone does not carry these. */
+
   .badge-live {
-    @apply inline-flex whitespace-nowrap items-center gap-1.5 rounded border border-alert-green/45 bg-alert-green/10
-      px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-alert-green;
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-instrument-success/45 bg-instrument-success/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-success;
   }
 
   .badge-sim {
-    @apply inline-flex items-center gap-1.5 rounded border border-alert-amber/50 bg-alert-amber/10
-      px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-alert-amber;
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-instrument-warning/50 bg-instrument-warning/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-warning;
   }
 
   .badge-fixture {
-    @apply inline-flex items-center gap-1.5 rounded border border-holo-glow/40 bg-holo-glow/10
-      px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-holo-glow;
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-primary;
   }
 
   .badge-critical {
-    @apply inline-flex items-center gap-1.5 rounded border border-alert-crimson/50 bg-alert-crimson/10
-      px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-alert-crimson;
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-instrument-danger/50 bg-instrument-danger/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-destructive;
   }
 
   .hud-button {
-    @apply relative inline-flex items-center justify-center gap-2 rounded border border-holo-glow/30
-      bg-holo-glow/[0.06] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em]
-      text-holo-glow/90 transition-all duration-200
-      hover:border-holo-glow/70 hover:bg-holo-glow/15 hover:text-holo-glow
-      focus-visible:border-holo-glow disabled:cursor-not-allowed disabled:opacity-40;
+    @apply relative inline-flex items-center justify-center gap-2 rounded border border-primary/30 bg-primary/[0.06] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-primary/90 transition-all duration-200 hover:border-primary/70 hover:bg-primary/15 hover:text-primary focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .hud-button-primary {
-    @apply relative inline-flex items-center justify-center gap-2 rounded border border-holo-glow/60
-      bg-holo-glow/15 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-holo-glow
-      transition-all duration-200 hover:bg-holo-glow/25 disabled:cursor-not-allowed disabled:opacity-40;
+    @apply relative inline-flex items-center justify-center gap-2 rounded border border-primary/60 bg-primary/15 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-primary transition-all duration-200 hover:bg-primary/25 disabled:cursor-not-allowed disabled:opacity-40;
     box-shadow: 0 0 22px -8px rgba(63, 240, 255, 0.7);
   }
 
   .hud-button-danger {
-    @apply relative inline-flex items-center justify-center gap-2 rounded border border-alert-crimson/50
-      bg-alert-crimson/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em]
-      text-alert-crimson transition-all duration-200 hover:border-alert-crimson hover:bg-alert-crimson/20
-      disabled:cursor-not-allowed disabled:opacity-40;
+    @apply relative inline-flex items-center justify-center gap-2 rounded border border-instrument-danger/50 bg-instrument-danger/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-destructive transition-all duration-200 hover:border-instrument-danger hover:bg-instrument-danger/20 disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .hud-input {
-    @apply w-full rounded border border-holo-glow/20 bg-void-900/70 px-3 py-1.5 font-mono text-xs
-      text-holo-glow placeholder:text-holo-glow/30 focus:border-holo-glow/60 focus:outline-none;
+    @apply w-full rounded border border-primary/20 bg-background/70 px-3 py-1.5 font-mono text-xs text-primary placeholder:text-primary/30 focus:border-primary/60 focus:outline-none;
   }
 
-  /* ── Light operations surface (bunching simulator) ──────────────────────
-     Mirrors the `hud-*` component classes above so the simulator can be a
-     light surface without every component repeating a long class string. The
-     dashboard's dark `hud-*` classes are untouched. */
+  /* ═══ SIMULATOR SURFACE (/project/bunching) ══════════════════════════════
+     A light surface that predates the theme layer. Left on its own literal
+     palette so it renders identically before and after this change; lane 4
+     folds it into the tokens. */
+
   .sim-panel {
     @apply relative rounded-lg border border-sim-line bg-sim-surface;
     box-shadow:
@@ -170,150 +406,19 @@
   }
 
   .sim-button {
-    @apply relative inline-flex items-center justify-center gap-2 rounded border border-sim-line
-      bg-sim-surface px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-sim-ink
-      transition-colors hover:border-sim-accent/60 hover:bg-sim-accent/[0.07]
-      disabled:cursor-not-allowed disabled:opacity-40;
+    @apply relative inline-flex items-center justify-center gap-2 rounded border border-sim-line bg-sim-surface px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-sim-ink transition-colors hover:border-sim-accent/60 hover:bg-sim-accent/[0.07] disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .sim-button-primary {
-    @apply relative inline-flex items-center justify-center gap-2 rounded border border-sim-accent
-      bg-sim-accent px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-white
-      transition-colors hover:bg-sim-accent/90 disabled:cursor-not-allowed disabled:opacity-40;
+    @apply relative inline-flex items-center justify-center gap-2 rounded border border-sim-accent bg-sim-accent px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-white transition-colors hover:bg-sim-accent/90 disabled:cursor-not-allowed disabled:opacity-40;
   }
 
-  /* The global focus ring is tuned for the dark HUD; cyan on white is too
-     faint, so the light surface uses its own accent. */
   .sim-light :focus-visible {
     outline-color: #0b6e87;
   }
 
-  /* The neutral near-black body background would otherwise show through on
-     overscroll and behind a short page, so a route that renders the light
-     surface repaints the body to match. Placed in `@layer components`, which
-     outranks the `body` rule in `@layer base`. */
   body:has(.sim-light) {
     background-color: #ffffff;
-  }
-
-  /* ── Operations console surface (/ops/*) ────────────────────────────────
-     The command centre's HUD language, held to what a shift console actually
-     has to do: scrolling pages, long forms, wide tables, twelve routes and a
-     persistent navigation.
-
-     These are a calmer sibling of the `hud-*` classes above, not a second
-     design. Same ground, same cyan instrument accent, same mono/uppercase
-     labelling, same corner radius. What is deliberately dialled back is
-     GLOW: `.hud-panel` earns its outer bloom by floating over a live map,
-     and a dozen of them stacked down a settings page is noise an operator
-     reads for eight hours. `.ops-panel` keeps the frame and drops the bloom.
-
-     React wrappers for all of this live in src/components/ops/ui — prefer
-     those; these classes exist so the wrappers (and any markup they cannot
-     reasonably own) speak with one voice. */
-  .ops-panel {
-    @apply relative rounded-lg border border-ops-line bg-ops-surface;
-    box-shadow: 0 10px 30px -24px rgba(0, 0, 0, 0.9);
-  }
-
-  .ops-panel-accent {
-    @apply relative rounded-lg border border-holo-glow/30 bg-ops-surface;
-    box-shadow:
-      0 0 0 1px rgba(63, 240, 255, 0.08),
-      0 10px 30px -24px rgba(0, 0, 0, 0.9);
-  }
-
-  .ops-well {
-    @apply rounded border border-ops-line bg-ops-raised;
-  }
-
-  /* The one label style for the whole surface. Every ops page had its own
-     near-copy of this string (`font-mono text-[11px] uppercase
-     tracking-[0.14em] text-[#6f7684]`); this is that pattern, named. */
-  .ops-label {
-    @apply font-mono text-[11px] uppercase tracking-[0.16em] text-ops-muted;
-  }
-
-  .ops-eyebrow {
-    @apply font-mono text-[10px] uppercase tracking-[0.28em] text-ops-faint;
-  }
-
-  .ops-value {
-    @apply font-mono tabular-nums text-ops-ink;
-  }
-
-  .ops-button {
-    @apply inline-flex items-center justify-center gap-2 rounded border border-ops-line-strong
-      bg-ops-raised px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-ops-ink
-      transition-colors duration-150 hover:border-holo-glow/60 hover:text-holo-glow
-      disabled:cursor-not-allowed disabled:opacity-40;
-  }
-
-  .ops-button-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded border border-holo-glow/60
-      bg-holo-glow/15 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-holo-glow
-      transition-colors duration-150 hover:bg-holo-glow/25
-      disabled:cursor-not-allowed disabled:opacity-40;
-  }
-
-  .ops-button-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded border border-alert-crimson/50
-      bg-alert-crimson/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em]
-      text-alert-crimson transition-colors duration-150 hover:border-alert-crimson
-      hover:bg-alert-crimson/20 disabled:cursor-not-allowed disabled:opacity-40;
-  }
-
-  .ops-button-quiet {
-    @apply inline-flex items-center justify-center gap-2 rounded border border-transparent px-2.5
-      py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-ops-muted transition-colors
-      duration-150 hover:border-ops-line hover:text-ops-ink
-      disabled:cursor-not-allowed disabled:opacity-40;
-  }
-
-  /* Ops inputs are read and typed into for a whole shift, so unlike
-     `.hud-input` they run at the browser's normal control size rather than
-     text-xs, and their text is the neutral ink rather than cyan (cyan-on-void
-     is an instrument readout, not a text field). */
-  .ops-input {
-    @apply w-full rounded border border-ops-line bg-ops-bg/80 px-3 py-2 text-sm text-ops-ink
-      placeholder:text-ops-faint focus:border-holo-glow/60 focus:outline-none
-      disabled:cursor-not-allowed disabled:opacity-50;
-  }
-
-  .ops-nav-link {
-    @apply relative inline-flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent
-      px-1 pb-2 pt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-ops-muted
-      transition-colors duration-150 hover:text-ops-ink;
-  }
-
-  .ops-nav-link-active {
-    @apply border-holo-glow text-holo-glow;
-  }
-
-  /* Static, motionless ambient ground for the ops shell. The command centre's
-     AmbientBackdrop drifts particles and runs a scanline; this surface is read
-     for eight hours at a stretch, so it keeps the grid and the volumetric
-     wash and animates nothing. */
-  .ops-backdrop {
-    background-image:
-      radial-gradient(ellipse 90% 55% at 50% 0%, rgba(34, 217, 245, 0.1), transparent 62%),
-      radial-gradient(ellipse 60% 50% at 100% 100%, rgba(46, 242, 196, 0.06), transparent 60%),
-      linear-gradient(rgba(63, 240, 255, 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(63, 240, 255, 0.04) 1px, transparent 1px);
-    background-size:
-      100% 100%,
-      100% 100%,
-      44px 44px,
-      44px 44px;
-  }
-
-  /* Same trick, same reason, as `body:has(.sim-light)` above: the neutral
-     near-black body ground (#050507) is a shade off the console's void
-     (#02040a), and the difference shows on overscroll and behind a short
-     page as a band that looks like a rendering fault. */
-  body:has([data-ops-ground]),
-  body:has([data-ops-shell]) {
-    background-color: #02040a;
   }
 
   .scanline-overlay {
@@ -326,7 +431,6 @@
     );
   }
 
-  /* Digital noise texture, generated inline so no external asset is fetched. */
   .noise-overlay {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
   }
@@ -336,7 +440,7 @@
   }
 
   .divider-h {
-    @apply h-px w-full bg-gradient-to-r from-transparent via-holo-glow/25 to-transparent;
+    @apply h-px w-full bg-gradient-to-r from-transparent via-primary/25 to-transparent;
   }
 }
 
@@ -365,7 +469,7 @@
   }
 }
 
-/* Google Maps chrome suppression — keeps the basemap inside our HUD language. */
+/* Google Maps chrome suppression — keeps the basemap inside our own language. */
 .gm-style-cc,
 .gmnoprint a,
 .gm-style a[href^='https://maps.google.com'] {
@@ -375,7 +479,8 @@
   opacity: 0.35;
 }
 /* Unlayered, like the rule above, so it actually wins: the attribution is set
-   back on the dark basemap but should sit at normal strength on the light one. */
-.sim-light .gm-style img[alt='Google'] {
+   back on a dark basemap but should sit at normal strength on a light one. */
+.sim-light .gm-style img[alt='Google'],
+:root:not(.dark) .gm-style img[alt='Google'] {
   opacity: 0.75;
 }

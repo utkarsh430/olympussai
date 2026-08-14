@@ -1,27 +1,8 @@
 import type { Metadata, Viewport } from 'next';
-import { Orbitron, JetBrains_Mono } from 'next/font/google';
+import { fontVariables } from './fonts';
+import { themeInitScript } from '@/lib/theme/theme';
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import './globals.css';
-
-/**
- * Dashboard typography. Exposed as CSS variables on <html> and consumed only by
- * the protected UPSRTC shell (`font-display` / `font-mono`). The public
- * Olympuss landing page loads its own editorial + interface fonts in a later
- * phase; keeping both families as variables lets each route group opt in
- * without a global default font fighting the other.
- */
-const display = Orbitron({
-  subsets: ['latin'],
-  variable: '--font-display',
-  weight: ['400', '500', '600', '700', '800'],
-  display: 'swap',
-});
-
-const mono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono',
-  weight: ['300', '400', '500', '600'],
-  display: 'swap',
-});
 
 const SITE_URL = process.env.SITE_URL ?? 'https://olympuss.us';
 
@@ -61,15 +42,43 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#050507',
+  // One entry per scheme, so the browser chrome around the page matches the
+  // theme instead of staying near-black behind a light console.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#eef2f7' },
+    { media: '(prefers-color-scheme: dark)', color: '#02040a' },
+  ],
   width: 'device-width',
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${mono.variable}`}>
-      <body className="antialiased">{children}</body>
+    // `suppressHydrationWarning` is required and is scoped to this one
+    // element: the inline script below deliberately mutates <html>'s class and
+    // style before React hydrates, so the server-rendered markup and the
+    // client's first read of it differ BY DESIGN. Without this, React logs a
+    // mismatch on every load. It suppresses the warning for <html>'s own
+    // attributes only — nothing inside the tree is affected.
+    <html lang="en" className={fontVariables} suppressHydrationWarning>
+      <head>
+        {/*
+          Applies the theme BEFORE first paint.
+
+          A theme applied by React runs after hydration, which is after the
+          browser has already painted — so a dark-mode operator would see a
+          white flash on every navigation. Setting the class synchronously in
+          <head> is the only way to avoid it, and that means inline script.
+
+          SAFETY: the script body is composed entirely of literals from
+          src/lib/theme/theme.ts. No request data, no user input and no
+          props reach it, so there is nothing here to escape.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript() }} />
+      </head>
+      <body className="antialiased">
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }

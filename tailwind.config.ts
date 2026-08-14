@@ -1,35 +1,149 @@
 import type { Config } from 'tailwindcss';
 
+/**
+ * ─── THE ALIAS LAYER IS THE LOAD-BEARING PART OF THIS FILE ───────────────
+ *
+ * Four implementers rebuild four dashboards on top of this, in parallel,
+ * starting immediately. That only works if every EXISTING page follows the
+ * new theme — including light mode — without being edited first. Otherwise
+ * step one of the redesign is eighteen broken pages and nobody can start.
+ *
+ * So the old colour names are not deleted. They are REDEFINED as aliases
+ * onto the new CSS variables:
+ *
+ *     ops.ink   →  hsl(var(--foreground))
+ *     ops.line  →  hsl(var(--border))
+ *     holo.glow →  hsl(var(--primary))
+ *     …
+ *
+ * `text-ops-ink` on a page nobody has touched now resolves to the themed
+ * foreground and follows light and dark correctly. Eighteen pages became
+ * theme-aware with no edit to any of them.
+ *
+ * These aliases are a MIGRATION SURFACE, not the vocabulary. New work uses
+ * the semantic names (`text-foreground`, `border-border`, `bg-card`). Each
+ * lane deletes the alias uses in the screens it owns, and the final deletion
+ * PR removes the aliases themselves. Do not add new uses of them.
+ *
+ * ─── WHAT IS DELIBERATELY *NOT* ALIASED ──────────────────────────────────
+ *
+ * `void`, `navy`, `sim` and `ol` stay literal hexes. They belong to the
+ * cinematic and simulator surfaces, which are dark-only and light-only
+ * respectively and render identically before and after this change. Lane 4
+ * owns unifying them. Aliasing them here would have changed three surfaces
+ * this foundation is not responsible for and could not verify.
+ *
+ * ─── DARK MODE IS CLASS-BASED, AND THAT IS WHY SUBTREES CAN OPT OUT ──────
+ *
+ * `darkMode: 'class'` resolves against a `.dark` ANCESTOR, not just <html>.
+ * The cinematic route groups wrap themselves in `<div class="dark">`, which
+ * re-declares the token block for that subtree, so /project/* keeps its
+ * night look while an operator has the console in light mode. Same mechanism,
+ * no second palette.
+ */
 export default {
+  darkMode: 'class',
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        void: { DEFAULT: '#02040a', 900: '#03060e', 800: '#060b18' },
-        navy: { 900: '#07142a', 800: '#0a1c38', 700: '#0f2a4d', 600: '#163a66' },
+        /* ── THE VOCABULARY ────────────────────────────────────────────────
+           shadcn/ui's token names. New work uses these and nothing else. */
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          foreground: 'hsl(var(--warning-foreground))',
+        },
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
+        },
+        /* Third text tier. Named `subtle` rather than folded into `muted`
+           because `muted` is already a BACKGROUND in shadcn's vocabulary and
+           a two-meaning token is how a palette rots. */
+        subtle: 'hsl(var(--subtle))',
+        /* Alert hues at instrument weight — fills, dots, chip borders, map
+           marks. Never the only encoding of a state; see tokens.css. */
+        instrument: {
+          success: 'hsl(var(--instrument-success))',
+          warning: 'hsl(var(--instrument-warning))',
+          danger: 'hsl(var(--instrument-danger))',
+          info: 'hsl(var(--instrument-info))',
+        },
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+
+        /* ── MIGRATION ALIASES — DO NOT ADD NEW USES ──────────────────────
+           Every name below already appears across the eighteen ops pages.
+           Pointed at the new variables so those pages theme correctly today
+           and can be migrated one lane at a time. */
+        ops: {
+          bg: 'hsl(var(--background))',
+          surface: 'hsl(var(--card))',
+          raised: 'hsl(var(--muted))',
+          line: 'hsl(var(--border))',
+          'line-strong': 'hsl(var(--input))',
+          ink: 'hsl(var(--foreground))',
+          muted: 'hsl(var(--muted-foreground))',
+          faint: 'hsl(var(--subtle))',
+          danger: 'hsl(var(--destructive))',
+          warn: 'hsl(var(--warning))',
+          good: 'hsl(var(--success))',
+        },
         holo: {
-          glow: '#3ff0ff',
-          bright: '#22d9f5',
-          core: '#0ea5c9',
-          deep: '#075f77',
-          teal: '#2ef2c4',
+          glow: 'hsl(var(--primary))',
+          bright: 'hsl(var(--primary))',
+          core: 'hsl(var(--primary))',
+          deep: 'hsl(var(--input))',
+          teal: 'hsl(var(--instrument-success))',
         },
         alert: {
-          amber: '#ffb020',
-          crimson: '#ff4d5e',
-          green: '#2bff88',
+          green: 'hsl(var(--instrument-success))',
+          amber: 'hsl(var(--instrument-warning))',
+          crimson: 'hsl(var(--instrument-danger))',
         },
-        // Light operations palette, used by the bunching simulator surface.
-        // Namespaced `sim` so it cannot collide with the dashboard's dark HUD
-        // tokens above; every ink/accent value clears 4.5:1 against white.
+
+        /* ── NOT ALIASED — surfaces this foundation does not own ──────────
+           Unchanged literal values. /project/* and /project/bunching render
+           byte-identically to before this change. */
+        void: { DEFAULT: '#02040a', 900: '#03060e', 800: '#060b18' },
+        navy: { 900: '#07142a', 800: '#0a1c38', 700: '#0f2a4d', 600: '#163a66' },
         sim: {
           page: '#ffffff',
           surface: '#ffffff',
           well: '#f5f8fb',
           line: '#dde5ee',
           'line-strong': '#c3d0de',
-          // ink 15.9:1, muted 5.9:1, faint 4.6:1 against white — the tertiary
-          // tier still has to clear AA because it labels which headway is which.
           ink: '#0b2233',
           muted: '#526677',
           faint: '#5b6e7e',
@@ -39,41 +153,6 @@ export default {
           crimson: '#b3172f',
           green: '#0b6b40',
         },
-        // Operations console palette (/ops/*). NOT a new look: the ground,
-        // the cyan instrument accent and the alert hues are the command
-        // centre's own (`void` / `holo` / `alert` above), and `ops.*` only
-        // adds the named tiers the HUD never needed because it had no long
-        // forms, no tables and no multi-page navigation.
-        //
-        // The reason these are tokens rather than the literal hexes the ops
-        // pages used to inline (#e6e9ef, #9aa0ad, #6f7684, rgba(255,255,255,
-        // 0.08)): four dashboards are being built on this surface by four
-        // different hands, and an un-named grey is how four dashboards end up
-        // with four greys. Every value below clears WCAG AA (4.5:1) against
-        // both `ops.bg` and `ops.surface` — `faint`, the weakest, is 6.0:1 on
-        // a panel, because the tertiary tier still labels which reading is
-        // which.
-        ops: {
-          bg: '#02040a', // page ground — same void the command centre uses
-          surface: '#070f1d', // panel fill — same as .hud-panel
-          raised: '#0b1a2e', // nested well inside a panel
-          line: '#14304d', // ordinary divider/border
-          'line-strong': '#1d4a6e', // emphasised border, focus target
-          ink: '#dbeefb', // primary reading text — 16.1:1 on surface
-          muted: '#9fb6c9', // secondary/label text — 9.1:1 on surface
-          faint: '#7e93a6', // tertiary/annotation text — 6.0:1 on surface
-          // Alert hues at TEXT weight. `alert.crimson/amber/green` above are
-          // instrument colours — right for a border, a fill or a badge, and
-          // thin for a sentence an operator has to read on a dark ground.
-          // These are the same three hues lightened to 8.6:1 or better on
-          // every ops surface, which is what the twelve pages were already
-          // reaching for by hand (#f5a89f, #e8c07a, #7fd9a4).
-          danger: '#ff9aa4',
-          warn: '#f5c977',
-          good: '#8ee7b4',
-        },
-        // Olympuss landing palette (Section 18). Namespaced so it cannot
-        // collide with the dashboard's cyan HUD tokens above.
         ol: {
           bg: '#050507',
           surface: '#0c0d12',
@@ -88,14 +167,37 @@ export default {
           muted: '#707580',
         },
       },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
       fontFamily: {
-        display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-        // Olympuss landing fonts (loaded in the public layout only).
+        /* One body family carrying English and Hindi with identical vertical
+           metrics. See src/app/fonts.ts for the measurements. */
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        serif: ['var(--font-serif-display)', 'ui-serif', 'Georgia', 'serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        /* Migration aliases. Orbitron and the landing serif are retired;
+           these point at the body face so no surface loses its font — and,
+           more importantly, so no bilingual string lands on a face with no
+           Devanagari in it. */
+        display: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        serif: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
+      lineHeight: {
+        /* Devanagari ink spans 1.164em against Latin's 1.005em, so a line
+           height that is comfortable for English lets matras collide in
+           Hindi. Any element that can hold Devanagari uses `leading-hindi`. */
+        hindi: '1.75',
       },
       boxShadow: {
+        /* NOTE: there is no `shadow-xs` in Tailwind 3.4.19 (the scale is
+           sm/DEFAULT/md/lg/xl/2xl/inner/none). shadcn's `new-york-v4`
+           registry emits `shadow-xs`, which compiles to nothing, renders
+           flat and never errors. This project uses the `new-york` (v3)
+           registry style for exactly that reason. */
+        panel: '0 10px 30px -24px rgb(0 0 0 / 0.9)',
+        'panel-raised': '0 18px 50px -22px rgb(0 0 0 / 0.9)',
         hud: '0 0 0 1px rgba(63,240,255,0.18), 0 0 28px -6px rgba(63,240,255,0.35)',
         'hud-strong': '0 0 0 1px rgba(63,240,255,0.35), 0 0 46px -4px rgba(63,240,255,0.5)',
         critical: '0 0 0 1px rgba(255,77,94,0.4), 0 0 40px -6px rgba(255,77,94,0.55)',
@@ -141,6 +243,14 @@ export default {
           '50%': { transform: 'translate3d(6px,-10px,0)' },
           '100%': { transform: 'translate3d(0,0,0)' },
         },
+        'accordion-down': {
+          from: { height: '0' },
+          to: { height: 'var(--radix-accordion-content-height)' },
+        },
+        'accordion-up': {
+          from: { height: 'var(--radix-accordion-content-height)' },
+          to: { height: '0' },
+        },
       },
       animation: {
         'scan-y': 'scan-y 5.5s linear infinite',
@@ -152,6 +262,8 @@ export default {
         flicker: 'flicker 2.6s ease-in-out infinite',
         rise: 'rise 0.4s ease-out both',
         drift: 'drift 7s ease-in-out infinite',
+        'accordion-down': 'accordion-down 0.2s ease-out',
+        'accordion-up': 'accordion-up 0.2s ease-out',
       },
     },
   },
