@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createFleetLayer, type FleetLayerHandle } from './fleetCanvasLayer';
+import type { CanonicalLiveBus } from '@/models/canonical';
 import { useCopilotStore, useSelectedBus } from '@/stores/copilotStore';
 import { MAP_DARK_STYLE, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, SELECTED_BUS_ZOOM } from '@/lib/constants';
 import { getMapsLoader, isMapsConfigured } from '@/lib/maps/loader';
@@ -12,8 +13,13 @@ import { useScenarioOverlays } from './useScenarioOverlays';
 export function FleetMap() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
-  /** Single canvas overlay replaces ~9.5k individual map markers. */
-  const layerRef = useRef<FleetLayerHandle | null>(null);
+  /**
+   * Single canvas overlay replaces ~9.5k individual map markers. The renderer
+   * is shared with the ops dashboards' OpsFleetMap and is generic over the
+   * vehicle record, so this surface keeps its full CanonicalLiveBus in the
+   * click callback with no cast.
+   */
+  const layerRef = useRef<FleetLayerHandle<CanonicalLiveBus> | null>(null);
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
@@ -58,7 +64,7 @@ export function FleetMap() {
 
         mapRef.current = map;
 
-        layerRef.current = createFleetLayer(map, (bus) => {
+        layerRef.current = createFleetLayer<CanonicalLiveBus>(map, (bus) => {
           selectBus(bus.id);
           logAudit('bus-selected', `Operator selected live bus ${bus.registrationNumber} from map`, {
             registrationNumber: bus.registrationNumber,
@@ -66,7 +72,7 @@ export function FleetMap() {
           });
         });
         // Seed with whatever has already arrived from the feed.
-        layerRef.current.setBuses(useCopilotStore.getState().buses);
+        layerRef.current.setVehicles(useCopilotStore.getState().buses);
         layerRef.current.setSelected(useCopilotStore.getState().selectedBusId);
 
         setMapInstance(map);
@@ -93,7 +99,7 @@ export function FleetMap() {
   // Handing the layer a new array is O(1); the redraw it schedules is
   // O(visible vehicles) on the next animation frame.
   useEffect(() => {
-    layerRef.current?.setBuses(buses);
+    layerRef.current?.setVehicles(buses);
   }, [buses]);
 
   useEffect(() => {

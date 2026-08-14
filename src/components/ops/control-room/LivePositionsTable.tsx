@@ -12,12 +12,21 @@ const STOP_STATE_LABEL: Record<VehicleState['stopState'], string> = {
 
 /**
  * Live vehicle positions for the selected route-direction (AC: "Dashboard
- * shows live positions (LIVE badge)"). Distance-along-route + speed rather
- * than a map — control-service's current GET /v1/vehicle-states projection
- * doesn't populate lat/lon yet (see the comment on vehicleStateSchema in
- * src/models/control.ts); this table surfaces exactly the fields that
- * endpoint reliably returns today, each row's freshness stated explicitly
- * rather than assumed.
+ * shows live positions (LIVE badge)"), as distance-along-route and speed.
+ *
+ * This used to carry a note saying the map was impossible because
+ * GET /v1/vehicle-states did not populate lat/lon. That is no longer true:
+ * control-service/src/routes/vehicleStates.ts emits `position`
+ * ({latitude, longitude}) and `headingDegrees` from the state store. The map
+ * exists - src/components/ops/map/OpsFleetMap.tsx, fed by
+ * src/lib/ops/mapData.ts, which merges those positions into the caller's
+ * depot-scoped fleet.
+ *
+ * This table stays, and is not redundant. It is the ordering view: sorted by
+ * distance along the route, it is the closest signal this system has to a
+ * running order, and it states each row's freshness as a number. A map shows
+ * where; this shows how far along and how old. The two answer different
+ * questions and a control room needs both on screen.
  */
 export function LivePositionsTable({ positions, now }: { positions: VehicleState[]; now: number }) {
   if (positions.length === 0) {

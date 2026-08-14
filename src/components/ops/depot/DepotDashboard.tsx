@@ -9,6 +9,8 @@ import { ScheduleLookupForm } from '@/components/ops/ScheduleLookupForm';
 import { RouteOperationsBoard } from '@/components/ops/RouteOperationsBoard';
 import { KillSwitchBanner } from '@/components/ops/KillSwitchBanner';
 import { BreakdownReportsPanel } from '@/components/ops/BreakdownReportsPanel';
+import { OpsFleetMapPanel } from '@/components/ops/map/OpsFleetMapPanel';
+import { toOpsMapVehicles } from '@/lib/ops/mapVehicles';
 
 /**
  * Depot dashboard content (AC1/AC2 plus this ticket's route operations
@@ -39,6 +41,11 @@ export function DepotDashboard({
   const groups = groupByDepot(snapshot.buses);
   const standby = deriveStandbyAvailability(snapshot.buses);
   const depotLabel = scopeLabel(scope);
+  // Built from the two lists this component was already handed, both of which
+  // the page narrowed server-side. No second fetch, and - more to the point -
+  // no path by which a vehicle outside this depot can reach the map: the
+  // scoped roster is the iteration, the scoped vehicle states are a lookup.
+  const mapVehicles = toOpsMapVehicles(snapshot.buses, routeBoard.vehicles);
 
   return (
     <div className="space-y-8">
@@ -56,6 +63,18 @@ export function DepotDashboard({
             snapshot.source,
             `No vehicles from ${depotLabel} are currently reporting.`,
           )}
+        />
+      </section>
+
+      <section>
+        <h2 className="ops-label mb-3">
+          Live map · {depotLabel}
+        </h2>
+        <OpsFleetMapPanel
+          vehicles={mapVehicles}
+          scopeLabel={depotLabel}
+          routeDirectionId={routeBoard.selectedRouteDirectionId ?? undefined}
+          live
         />
       </section>
 

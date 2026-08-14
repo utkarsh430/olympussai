@@ -330,6 +330,24 @@ describe('DepotDashboard', () => {
     // accurate description of an unscoped view and would now be a lie.
     expect(screen.queryByText(/all depots/i)).not.toBeInTheDocument();
   });
+
+  // The map counts what it draws from the list it was handed, which the page
+  // narrowed server-side. If a statewide list ever reached this component the
+  // caption would say so out loud, which is the point of captioning a count
+  // rather than a boundary name alone.
+  it('puts the scoped fleet on a map captioned with the depot and its own count', () => {
+    const buses = [bus({ id: 'a', depotName: 'Bareilly' }), bus({ id: 'b', registrationNumber: 'UP32AB1234', depotName: 'Bareilly' })];
+    render(
+      <DepotDashboard
+        snapshot={snapshot({ buses })}
+        routeBoard={routeBoardSnapshot()}
+        activeKillSwitches={NO_ACTIVE_KILL_SWITCHES}
+        scope={BAREILLY_SCOPE}
+      />,
+    );
+    expect(screen.getByRole('heading', { name: /live map · bareilly/i })).toBeInTheDocument();
+    expect(screen.getByText('Bareilly · 2 vehicles')).toBeInTheDocument();
+  });
 });
 
 describe('PlannerDashboard', () => {

@@ -115,14 +115,20 @@ export const vehicleStateSchema = z.object({
   tripId: z.string().nullable(),
   routeDirectionId: z.string().nullable(),
   // position/headingDegrees/occupancy* are `.optional()` in addition to
-  // `.nullable()`: the control service's GET /v1/vehicle-states (the
-  // in-memory VehicleStateRow projection, control-service/src/state/store.ts)
-  // does not populate these columns yet — they're real vehicle_states
-  // columns but that read path was scoped to what the MPC solver needed at
-  // the time it shipped. Optional here means this schema still validates
-  // today's actual response instead of silently lying about its shape;
-  // widen the endpoint to populate them and this schema keeps working
-  // either way.
+  // `.nullable()`, and the distinction is now load-bearing rather than a
+  // placeholder.
+  //
+  // GET /v1/vehicle-states DOES populate position and headingDegrees
+  // (control-service/src/routes/vehicleStates.ts passes both through from
+  // the in-memory store). A `null` from that endpoint is therefore a real
+  // statement - this vehicle has no fix - and consumers must treat it as
+  // such rather than as a missing feature. `.optional()` remains because an
+  // older control-service build omits the keys entirely, and a map that
+  // cannot tell "no fix" from "this deployment does not send fixes" will
+  // draw a bus somewhere it is not. src/lib/ops/mapVehicles.ts handles both
+  // by falling back to the GPS feed's own position and labelling the source.
+  //
+  // occupancy* genuinely are still unpopulated by every ingestion path.
   position: geoPointSchema.nullable().optional(),
   distanceAlongRouteMeters: z.number().nullable(),
   speedKmph: z.number().nullable(),
