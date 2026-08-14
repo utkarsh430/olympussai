@@ -221,7 +221,14 @@ export function ControlRoomConsole({
         )
       }
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:flex-row lg:overflow-hidden">
+      {/* Below `lg` this row used to carry `overflow-y-auto`, because the shell
+          above it refused to scroll and something had to. The shell scrolls
+          now (see OpsShell's "no variant may clip itself"), so a phone gets one
+          ordinary page scroll — band, then map, then rail — instead of a
+          scrollbox nested inside an unscrollable page. At `lg` and up nothing
+          changes: the row still holds the frame and the rail still scrolls
+          inside it, which is the shape this console is built around. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row lg:overflow-hidden">
         <section
           aria-label="Map of the fleet"
           className="flex min-h-[24rem] shrink-0 flex-col lg:min-h-0 lg:min-w-0 lg:flex-1 lg:shrink"

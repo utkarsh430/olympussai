@@ -150,7 +150,10 @@ export function DepotConsole({
       actions={<CorridorPicker snapshot={snapshot} onSelect={selectCorridor} />}
       statusStrip={<DepotStatusStrip fleet={fleet} console={snapshot} depotLabel={depotLabel} />}
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:flex-row lg:overflow-hidden">
+      {/* No mobile-only `overflow-y-auto`: the shell scrolls now, so a depot
+          tablet gets one page scroll rather than a scrollbox nested inside an
+          unscrollable page. Same reasoning as the control room's row. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row lg:overflow-hidden">
         <section
           aria-label="Depot fleet map"
           className="flex min-h-[24rem] shrink-0 flex-col lg:min-h-0 lg:min-w-0 lg:flex-1 lg:shrink"

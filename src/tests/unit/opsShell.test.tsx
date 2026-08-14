@@ -84,20 +84,69 @@ describe('OpsShell chrome', () => {
   it('gives the map variant a main pane that can actually have a height', () => {
     // Google Maps sizes to its container, and a container inside an
     // auto-height ancestor resolves to zero — which is the whole reason the
-    // full variant exists. The shell must not scroll, and <main> must be a
-    // flex child that is allowed to shrink.
+    // full variant exists. At `lg` <main> must be a flex child of a
+    // screen-height shell, with a floor under it so flex cannot shrink it
+    // below the height the map frame insists on.
     const { container } = render(
-      <OpsShell title="Control Room" email="cr@olympuss.local" role="control_room" variant="full" />,
+      <OpsShell
+        title="Control Room"
+        email="cr@olympuss.local"
+        role="control_room"
+        variant="full"
+      />,
     );
 
     const shell = container.querySelector('[data-ops-shell]');
     expect(shell).toHaveAttribute('data-variant', 'full');
-    expect(shell?.className).toContain('overflow-hidden');
+    expect(String(shell?.className).split(/\s+/)).toContain('lg:h-[100dvh]');
 
     const main = screen.getByRole('main');
-    expect(main.className).toContain('min-h-0');
-    expect(main.className).toContain('flex-1');
+    expect(main.className).toContain('lg:flex-1');
+    expect(main.className).toContain('lg:min-h-[30rem]');
   });
+
+  it.each(['document', 'wide', 'full'] as const)(
+    'never clips its own content away — %s',
+    (variant) => {
+      // The defect this locks out: `full` was `h-[100dvh] overflow-hidden`, so
+      // any console taller than the viewport had its overflow DISCARDED rather
+      // than scrolled to. On a 1280x800 laptop the chrome above <main> took
+      // 63% of the screen and the map's own zoom controls sat below the fold
+      // of an unscrollable box; at phone size the whole console did. Neither
+      // showed a scrollbar, because clipped content does not overflow.
+      //
+      // A shell may size itself to the screen. It may never make the part that
+      // does not fit unreachable — so a screen-height shell must pair that
+      // height with a scrollbar, and `overflow-hidden` is forbidden outright.
+      const { container } = render(
+        <OpsShell
+          title="Control Room"
+          email="cr@olympuss.local"
+          role="control_room"
+          variant={variant}
+        />,
+      );
+
+      // Tokenised, not substring-matched: `min-h-[100dvh]` CONTAINS the string
+      // `h-[100dvh]`, so a substring assertion here would pass on the very
+      // class it is meant to forbid.
+      const classes = String(container.querySelector('[data-ops-shell]')?.className ?? '').split(
+        /\s+/,
+      );
+
+      expect(classes).toContain('min-h-[100dvh]');
+      expect(classes.filter((c) => c.includes('overflow-hidden'))).toEqual([]);
+
+      // Any class that pins a height — at any breakpoint — must be accompanied
+      // by a scroll escape at that same breakpoint.
+      for (const pinned of classes.filter((c) => /(^|:)h-\[100dvh\]$/.test(c))) {
+        const breakpoint = pinned.includes(':') ? `${pinned.split(':')[0]}:` : '';
+        expect(classes, `${pinned} pins a height with no way to scroll past it`).toContain(
+          `${breakpoint}overflow-y-auto`,
+        );
+      }
+    },
+  );
 
   it('offers a skip link straight to the dashboard', () => {
     render(<OpsShell title="Planner" email="p@olympuss.local" role="planner" />);
@@ -229,7 +278,10 @@ describe('the navigation table against the App Router', () => {
     for (const role of OPS_ROLES) {
       for (const item of OPS_NAV[role]) {
         const guard = guardOf.get(item.href);
-        expect(guard, `${item.href} is in ${role}'s nav but is not a guarded ops page`).toBeDefined();
+        expect(
+          guard,
+          `${item.href} is in ${role}'s nav but is not a guarded ops page`,
+        ).toBeDefined();
         expect(guard, `${item.href} is offered to ${role} but is guarded for ${guard}`).toBe(role);
       }
     }

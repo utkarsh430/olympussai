@@ -30,10 +30,58 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle';
  *   document  (default) centred, readable measure. Forms, admin screens, the
  *             incident timeline.
  *   wide      full-width with a sane cap. Table- and panel-heavy dashboards.
- *   full      the page does not scroll and <main> is a real flex child with
- *             `min-h-0`. This is the one a map needs: Google Maps sizes to
- *             its container, and a container inside an auto-height ancestor
- *             resolves to zero. Pair with OpsMapFrame.
+ *   full      at `lg` and up, <main> is a real flex child of a screen-height
+ *             shell, so it resolves to a definite number; below `lg` it is an
+ *             ordinary block that grows. This is the one a map needs: Google
+ *             Maps sizes to its container, and a container inside an
+ *             auto-height ancestor resolves to zero. Pair with OpsMapFrame,
+ *             and see FULL_MAIN for the floor that keeps that true on a short
+ *             screen.
+ *
+ * ─── NO VARIANT MAY CLIP ITSELF ──────────────────────────────────────────
+ *
+ * `full` used to be `h-[100dvh] overflow-hidden` — the page pinned to exactly
+ * one viewport, with the overflow thrown away rather than scrolled to. That
+ * held only while the chrome above <main> stayed small, and the chrome is not
+ * small: `header` and the `statusStrip` slot are both `shrink-0` and both GROW
+ * as the viewport narrows, because their contents wrap. Measured on the
+ * control room:
+ *
+ *     1512 x 945   header 103 + band 289 =  392px   41% of the screen
+ *     1280 x 800   header 145 + band 362 =  507px   63% of the screen
+ *      390 x 844   header 255 + band 704 =  959px  114% of the screen
+ *
+ * At 1280x800 that left 293px for a console whose map frame alone asks for
+ * 384px, so 138px of the working rail — including the map's own zoom
+ * controls — sat below the fold of a container with `overflow: hidden`. At
+ * phone size <main> collapsed to its own padding and the ENTIRE console was
+ * discarded. In neither case was there a scrollbar, because there was nothing
+ * to scroll: the content was clipped, not overflowing.
+ *
+ * `overflow-hidden` is therefore gone from every variant, and it is replaced by
+ * two different escapes, because the two screen shapes want different things.
+ *
+ * AT `lg` AND UP — the wall display and the desk — the shell keeps a DEFINITE
+ * `h-[100dvh]` and scrolls itself with `overflow-y-auto`. The definite height
+ * is what buys the console its shape: <main> resolves to a real number, the
+ * map fills its half of the row, and the working rail scrolls INSIDE itself
+ * rather than growing the page. That is the whole premise of a console built
+ * around a map that must never scroll away, and it survives here untouched.
+ * All that changed is where the part that does not fit goes: down a scrollbar
+ * instead of into the bin. On a 1280x800 laptop that is 187px of scrolling to
+ * reach a map and a rail that were previously unreachable at any scroll
+ * position.
+ *
+ * BELOW `lg` — a phone, a depot tablet — the shell takes a MINIMUM height and
+ * <main> is an ordinary auto-height block. The row has already stacked to one
+ * column by then, so there is no map-beside-rail shape left to protect, and
+ * one plain document scroll down the band, past the map, into the rail beats a
+ * scrollbox nested inside a page that cannot scroll. A phone gets a phone page.
+ *
+ * FULL_MAIN's floor is what keeps the map honest at `lg` on the way down. Flex
+ * would otherwise shrink <main> towards nothing, hand the map a container
+ * shorter than the `minHeight` it insists on, and re-create the clip one level
+ * further in — inside the row instead of around it.
  *
  * ─── NOTHING HERE SCALES ─────────────────────────────────────────────────
  *
@@ -59,6 +107,25 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle';
  * nothing.
  */
 export type OpsShellVariant = 'document' | 'wide' | 'full';
+
+/**
+ * The `full` variant's <main>, and the only place the two screen shapes differ.
+ *
+ * Below `lg` this is a plain auto-height block: the row underneath has already
+ * stacked, so <main> simply grows and the document scrolls.
+ *
+ * At `lg` it becomes the pinned flex pane the map needs, with a 30rem floor.
+ * 30rem leaves 456px inside `p-3`, which clears the 24rem (384px) minimum
+ * every console here gives its map frame and still leaves room for the rail's
+ * tab strip. Without the floor, flex shrinks <main> towards nothing on a short
+ * screen and the map clips inside the row — the same defect one level down.
+ * When there is more room than the floor, `flex-1` is in charge and the floor
+ * never applies.
+ *
+ * A console needing a different floor passes its own through
+ * `contentClassName`; Tailwind's later-wins ordering lets it override.
+ */
+const FULL_MAIN = 'flex flex-col p-3 lg:min-h-[30rem] lg:flex-1';
 
 export function OpsShell({
   title,
@@ -92,8 +159,11 @@ export function OpsShell({
       data-ops-shell
       data-variant={variant}
       className={cn(
-        'relative flex flex-col bg-background text-foreground antialiased',
-        variant === 'full' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]',
+        'relative flex min-h-[100dvh] flex-col bg-background text-foreground antialiased',
+        // The definite height that lets the map-and-rail shape exist, paired
+        // with the scrollbar that keeps the part which does not fit reachable.
+        // Never `overflow-hidden`: see "no variant may clip itself" above.
+        variant === 'full' && 'lg:h-[100dvh] lg:overflow-y-auto',
       )}
     >
       <OpsBackdrop />
@@ -164,7 +234,7 @@ export function OpsShell({
         className={cn(
           'relative z-10',
           variant === 'full'
-            ? 'flex min-h-0 flex-1 flex-col p-3'
+            ? FULL_MAIN
             : variant === 'wide'
               ? 'mx-auto w-full max-w-[1680px] flex-1 px-6 py-8'
               : 'mx-auto w-full max-w-5xl flex-1 px-6 py-8',

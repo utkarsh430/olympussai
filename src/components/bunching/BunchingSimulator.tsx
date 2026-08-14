@@ -258,7 +258,10 @@ export function BunchingSimulator({
         shell's no-scroll pane is what lets the map fill the screen, which
         is the whole reason this page uses `variant="full"`.
       */}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto lg:flex-row lg:overflow-hidden">
+      {/* No mobile-only `overflow-y-auto`: the shell scrolls now, so this is
+          one page scroll rather than a scrollbox nested inside an unscrollable
+          page. Same reasoning as the control room's row. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:overflow-hidden">
         <div className="flex h-[26rem] shrink-0 flex-col lg:h-auto lg:min-h-0 lg:w-[60%] lg:flex-1 lg:shrink">
           {result ? (
             <>

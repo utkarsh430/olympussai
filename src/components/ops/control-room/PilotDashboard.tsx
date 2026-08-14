@@ -53,6 +53,56 @@ import { IncidentReviewForm } from './IncidentReviewForm';
  * operator hunting for damage that does not exist.
  */
 
+/**
+ * How many rows each list on this page draws.
+ *
+ * MEASURED, not guessed. Against the live network this page rendered a
+ * 1,059,454px document: 776 corridor rows and 8,371 incidents, each incident
+ * carrying its own review FORM. Nothing was clipped — it was all technically
+ * reachable — but "scroll a million pixels" is not reachable, and a browser
+ * asked to lay out 8,371 forms at once stops answering long enough that the
+ * page fails to load at all inside a 60s timeout.
+ *
+ * The lists were never meant to be unbounded: the safety feed next door has
+ * capped itself at 20 since it was written. It simply did so SILENTLY, which
+ * on this page is the worse half of the bug — an operator reading a list of
+ * refusals had no way to know it was a partial list. Every cap here says what
+ * it is hiding and how to see the rest.
+ */
+const ROW_CAP = {
+  /** One row per corridor, and the state has 759 of them. */
+  kpi: 100,
+  /** Was already 20, unstated. */
+  safetyBlocks: 20,
+  /** Each one renders an editable review form, so this is the expensive list. */
+  incidents: 50,
+} as const;
+
+/**
+ * The line under a list that had more in it than it drew.
+ *
+ * Renders nothing when nothing was withheld — a console that announces "showing
+ * all 4 of 4" trains operators to skip the line that matters.
+ */
+function TruncationNotice({
+  shown,
+  total,
+  noun,
+  refine,
+}: {
+  shown: number;
+  total: number;
+  noun: string;
+  refine: string;
+}) {
+  if (total <= shown) return null;
+  return (
+    <p className="mt-2 text-[11px] leading-relaxed text-subtle">
+      Showing {shown} of {total} {noun}. The rest are not on this page — {refine}
+    </p>
+  );
+}
+
 function SourceNotice({ label, snapshot }: { label: string; snapshot: PilotSnapshot<unknown> }) {
   if (snapshot.source === 'live') return null;
   return (
@@ -115,7 +165,7 @@ function KpiTable({ snapshots }: { snapshots: DailyKpiSnapshot[] }) {
           </tr>
         </thead>
         <tbody>
-          {snapshots.map((s) => (
+          {snapshots.slice(0, ROW_CAP.kpi).map((s) => (
             <tr key={s.routeDirectionId} className={opsTrClass}>
               <td className={opsTdClass}>
                 {s.publicName}{' '}
@@ -148,24 +198,52 @@ function KpiTable({ snapshots }: { snapshots: DailyKpiSnapshot[] }) {
   );
 }
 
+/**
+ * The KPI table and its truncation line. The line sits OUTSIDE
+ * `OpsTableFrame`, which owns a horizontal scroll container — inside it, the
+ * sentence explaining the table would scroll sideways away from the table it
+ * explains.
+ */
+function KpiSection({ snapshots }: { snapshots: DailyKpiSnapshot[] }) {
+  return (
+    <>
+      <KpiTable snapshots={snapshots} />
+      <TruncationNotice
+        shown={ROW_CAP.kpi}
+        total={snapshots.length}
+        noun="corridors"
+        refine="choose one corridor to see its own figures."
+      />
+    </>
+  );
+}
+
 function SafetyBlockFeed({ breaches }: { breaches: GuardrailBreach[] }) {
   if (breaches.length === 0) {
     return <OpsEmptyState>No action has been blocked by a safety rule.</OpsEmptyState>;
   }
   return (
-    <ul className="space-y-2">
-      {breaches.slice(0, 20).map((b) => (
-        <li key={b.id} className="ops-well px-3 py-2 text-xs">
-          <div className="flex flex-wrap items-center gap-2">
-            <OpsBadge variant={b.severity === 'critical' ? 'critical' : 'neutral'}>
-              {safetyBlockSeverityLabel(b.severity)}
-            </OpsBadge>
-            <span className="text-foreground">{safetyBlockTypeLabel(b.breachType)}</span>
-            <span className="ml-auto text-subtle">{new Date(b.detectedAt).toLocaleString()}</span>
-          </div>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="space-y-2">
+        {breaches.slice(0, ROW_CAP.safetyBlocks).map((b) => (
+          <li key={b.id} className="ops-well px-3 py-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <OpsBadge variant={b.severity === 'critical' ? 'critical' : 'neutral'}>
+                {safetyBlockSeverityLabel(b.severity)}
+              </OpsBadge>
+              <span className="text-foreground">{safetyBlockTypeLabel(b.breachType)}</span>
+              <span className="ml-auto text-subtle">{new Date(b.detectedAt).toLocaleString()}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <TruncationNotice
+        shown={ROW_CAP.safetyBlocks}
+        total={breaches.length}
+        noun="blocked actions"
+        refine="these are the most recent."
+      />
+    </>
   );
 }
 
@@ -180,34 +258,42 @@ function IncidentReviewList({
     return <OpsEmptyState>Nothing was recorded for this day.</OpsEmptyState>;
   }
   return (
-    <ul className="space-y-4">
-      {incidents.map((incident) => (
-        <li key={incident.incidentId}>
-          <OpsPanel>
-            <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-              <span className="font-medium text-foreground">
-                {incidentSeverityLabel(incident.severity)}
-              </span>
-              <span className="text-subtle">
-                started {new Date(incident.startedAt).toLocaleString()}
-              </span>
-              <span className="text-subtle">{incidentStatusLabel(incident.status)}</span>
-              {incident.measuredCompliance && (
-                <span className="text-success">
-                  Driver: {complianceLabel(incident.measuredCompliance).toLowerCase()}
+    <>
+      <ul className="space-y-4">
+        {incidents.slice(0, ROW_CAP.incidents).map((incident) => (
+          <li key={incident.incidentId}>
+            <OpsPanel>
+              <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                <span className="font-medium text-foreground">
+                  {incidentSeverityLabel(incident.severity)}
                 </span>
-              )}
-              {incident.measuredRecoverySeconds !== null && (
-                <span className="text-success">
-                  sorted out in {formatSeconds(incident.measuredRecoverySeconds)}
+                <span className="text-subtle">
+                  started {new Date(incident.startedAt).toLocaleString()}
                 </span>
-              )}
-            </div>
-            <IncidentReviewForm incident={incident} viewerEmail={viewerEmail} />
-          </OpsPanel>
-        </li>
-      ))}
-    </ul>
+                <span className="text-subtle">{incidentStatusLabel(incident.status)}</span>
+                {incident.measuredCompliance && (
+                  <span className="text-success">
+                    Driver: {complianceLabel(incident.measuredCompliance).toLowerCase()}
+                  </span>
+                )}
+                {incident.measuredRecoverySeconds !== null && (
+                  <span className="text-success">
+                    sorted out in {formatSeconds(incident.measuredRecoverySeconds)}
+                  </span>
+                )}
+              </div>
+              <IncidentReviewForm incident={incident} viewerEmail={viewerEmail} />
+            </OpsPanel>
+          </li>
+        ))}
+      </ul>
+      <TruncationNotice
+        shown={ROW_CAP.incidents}
+        total={incidents.length}
+        noun="incidents"
+        refine="narrow the reporting day or the corridor to reach the others."
+      />
+    </>
   );
 }
 
@@ -242,7 +328,7 @@ export function PilotDashboard({
         description="One row per corridor: extra passenger wait, how even the gaps were, how many problems were sorted out, how often a safety rule blocked an action, and how often drivers followed the instruction."
       >
         <SourceNotice label="Today's figures" snapshot={kpi} />
-        <KpiTable snapshots={kpi.data} />
+        <KpiSection snapshots={kpi.data} />
       </OpsSection>
 
       <OpsSection title={`${SAFETY_BLOCK_LABEL} (live)`} description={`The ${SAFETY_BLOCK_HINT}.`}>
