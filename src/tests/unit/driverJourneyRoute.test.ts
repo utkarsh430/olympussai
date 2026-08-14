@@ -219,6 +219,57 @@ describe('GET /api/ops/pilot-driver/journey', () => {
     expect(body).not.toHaveProperty('stops');
   });
 
+  it('reports a control-service ERROR response as an outage too, per its own contract', async () => {
+    // This route's header states the rule: "A control-service failure is an
+    // OUTAGE: 503/502, no envelope." Passing the upstream's own status
+    // through contradicted it — a control service without the arrivals route
+    // made this route answer HTTP 404, which is a statement about the
+    // DRIVER's request, not about the upstream.
+    const { ControlServiceRequestError } = await import('@/lib/controlService/client');
+    fetchVehicleArrivals.mockRejectedValue(
+      new ControlServiceRequestError(
+        `No route for GET /v1/vehicles/${ASSIGNED_VEHICLE}/arrivals`,
+        404,
+        'not_found',
+      ),
+    );
+    const { GET } = await load();
+    const response = await GET();
+    expect(response.status).toBe(502);
+    expect((await response.json()).error.code).toBe('CONTROL_SERVICE_ERROR');
+  });
+
+  it('never leaks the upstream endpoint shape or the vehicle id in that error', async () => {
+    // The message came straight from the control service and named both the
+    // internal route template and the bus. Neither is the client's to learn
+    // from an error body.
+    const { ControlServiceRequestError } = await import('@/lib/controlService/client');
+    fetchVehicleArrivals.mockRejectedValue(
+      new ControlServiceRequestError(
+        `No route for GET /v1/vehicles/${ASSIGNED_VEHICLE}/arrivals`,
+        404,
+        'not_found',
+      ),
+    );
+    const { GET } = await load();
+    const body = JSON.stringify(await (await GET()).json());
+
+    expect(body).not.toContain('/v1/');
+    expect(body).not.toContain(ASSIGNED_VEHICLE);
+    expect(body).not.toContain('No route for');
+    // Still says something an operator can act on.
+    expect(body).toMatch(/control service/i);
+  });
+
+  it('keeps a control-service 5xx as an outage as well', async () => {
+    const { ControlServiceRequestError } = await import('@/lib/controlService/client');
+    fetchVehicleArrivals.mockRejectedValue(new ControlServiceRequestError('upstream exploded', 500, 'internal'));
+    const { GET } = await load();
+    const response = await GET();
+    expect(response.status).toBe(502);
+    expect(JSON.stringify(await response.json())).not.toContain('upstream exploded');
+  });
+
   it('still serves the prediction when the timetable is unavailable', async () => {
     // The timetable is context, never load-bearing. Losing the upstream must
     // not cost the driver the arrival times that were measured successfully.

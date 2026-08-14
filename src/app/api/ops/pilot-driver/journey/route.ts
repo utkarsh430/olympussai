@@ -150,7 +150,31 @@ export async function GET(): Promise<Response> {
       );
     }
     if (error instanceof ControlServiceRequestError) {
-      return errorResponse('CONTROL_SERVICE_ERROR', error.message, error.status ?? 502);
+      // 502, not the upstream's own status, and not the upstream's own
+      // message. Both halves of that were contract violations:
+      //
+      //   • This route's header states the rule - "A control-service failure
+      //     is an OUTAGE: 503/502". Passing 404 through made this endpoint
+      //     answer as though the DRIVER's request were the thing that was not
+      //     found, which is a statement about the client, not the upstream. A
+      //     control service missing the arrivals route produced exactly that.
+      //   • The message came straight from the control service and named both
+      //     the internal endpoint template and the vehicle id
+      //     ("No route for GET /v1/vehicles/<id>/arrivals"). Neither is the
+      //     client's to learn from an error body.
+      //
+      // The detail is kept server-side, where it is what an operator debugging
+      // a version skew actually needs.
+      console.error('[pilot-driver/journey] control service error', {
+        status: error.status,
+        code: error.code,
+        message: error.message,
+      });
+      return errorResponse(
+        'CONTROL_SERVICE_ERROR',
+        'Arrival times are unavailable because the control service answered with an error.',
+        502,
+      );
     }
     throw error;
   }

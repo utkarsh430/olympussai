@@ -7,7 +7,36 @@
  * would never fail a render test.
  */
 import type { HeadwayCountdown } from '@/lib/controlService/headwayCountdown';
+import type { DepotConsoleSnapshot } from '@/lib/controlService/depotConsoleData';
 import type { DepotCorridor } from './depotCorridors';
+
+/**
+ * True when this snapshot carries no corridor reading at all — the control
+ * service was not read and no last-known-good was held.
+ *
+ * The distinction every depot surface has to draw, in one place and under one
+ * name. It is deliberately defined as `coverage === null` rather than as its
+ * own boolean field on the snapshot: two representations of the same fact are
+ * two things that can disagree, and the one the type system already enforces
+ * is the one worth keeping.
+ *
+ * A STALE snapshot is NOT unavailable by this test. Its readings are real
+ * numbers that were really observed and are merely older than they look, and
+ * they must keep being shown, labelled — withholding them would replace an
+ * operator's last known picture with nothing during exactly the incident they
+ * need it for.
+ *
+ * ─── WHY IT LIVES HERE AND NOT BESIDE THE SNAPSHOT ───────────────────────
+ *
+ * depotConsoleData.ts is `server-only`, and every consumer of this predicate
+ * is inside the client graph under DepotConsole's 'use client'. A client
+ * component may import a TYPE from a server module (types are erased) but not
+ * a value — `next build` fails on it, which is how this landed here. The
+ * predicate is pure and has no business being server-side anyway.
+ */
+export function depotReadingsUnavailable(snapshot: Pick<DepotConsoleSnapshot, 'coverage'>): boolean {
+  return snapshot.coverage === null;
+}
 
 /**
  * How many of this depot's vehicles the control service is placing on a mapped

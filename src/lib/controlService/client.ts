@@ -61,6 +61,11 @@ export class ControlServiceUnavailableError extends Error {
 // idempotent reads plus one detect-and-persist compute call, none of which
 // need anything more sophisticated to stay safe.
 //
+// WHAT COUNTS as a failure is the part that matters, and it is not "any
+// non-2xx" — see isOutageStatus() below. The breaker is shared by every
+// control-service consumer in the process, so what trips it decides which
+// unrelated features an error on one endpoint can take down.
+//
 // Two backends, same as the two rate limiters (src/lib/redis/client.ts):
 //
 //   - REDIS_URL unset -> the module-scoped variables below. One breaker per
@@ -95,6 +100,46 @@ const REDIS_FAILURES_TTL_MS = CIRCUIT_COOLDOWN_MS * 10;
 
 let consecutiveFailures = 0;
 let circuitOpenUntil = 0;
+
+/**
+ * Whether a status the control service actually RETURNED is evidence that the
+ * control service cannot be reached.
+ *
+ * ─── AN ANSWER IS NOT AN OUTAGE ──────────────────────────────────────────
+ *
+ * The breaker exists to stop this process hammering a service that cannot
+ * answer, and to stop one slow upstream consuming every request worker. A 404
+ * does neither of those things: it is a complete, cheap, authoritative
+ * response proving the service is up, read the request, and is telling us that
+ * route or resource does not exist. Retrying it is pointless, but so is
+ * opening a circuit over it — the circuit is SHARED by every control-service
+ * consumer in this process, so a 404 on one endpoint would take down all the
+ * others.
+ *
+ * That is not a hypothetical. The driver route screen polls
+ * /api/ops/pilot-driver/journey continuously. Against a control service that
+ * predates the arrivals route, that is a permanent 404 stream, and counting
+ * those toward the streak opened the breaker for everything — including
+ * src/lib/controlService/commands.ts, the path a control room's instruction
+ * takes to reach a driver. The driver's screen then read "Could not reach the
+ * command service" while the control service was entirely healthy. A
+ * safety-critical command path must not be takeable down by another
+ * endpoint's 404.
+ *
+ * ─── THE TWO 4xx CODES THAT ARE OUTAGE SIGNALS ───────────────────────────
+ *
+ * 408 and 429 are not "your request was wrong"; they are "stop sending them".
+ * Polling into either at poll rate is precisely the amplification this
+ * breaker exists to prevent, so they trip it like a 5xx.
+ *
+ * Everything else that is not a returned status — a timeout, a DNS failure, a
+ * refused connection — never reaches this function and always counts, because
+ * those are the cases where nothing answered at all.
+ */
+function isOutageStatus(status: number): boolean {
+  if (status >= 500) return true;
+  return status === 408 || status === 429;
+}
 
 interface BreakerState {
   /** Milliseconds the circuit stays open for. `0` when it is closed. */
@@ -217,7 +262,13 @@ export async function fetchControlService(
     });
 
     if (!response.ok) {
-      await recordFailure(now);
+      // Only an outage signal moves the breaker. A non-outage 4xx deliberately
+      // does NOT call recordSuccess() either: the service answering one
+      // malformed or unknown request is not evidence that a streak of real
+      // failures has ended, and treating it as such would let a 404 poller
+      // interleaved with a genuinely failing service hold the breaker
+      // permanently shut. It leaves the streak exactly as it found it.
+      if (isOutageStatus(response.status)) await recordFailure(now);
       let code: string | null = null;
       let message = `control service responded ${response.status}`;
       try {

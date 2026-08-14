@@ -14,7 +14,7 @@ import {
 import { computeHeadwayCountdowns } from '@/lib/controlService/headwayCountdown';
 import type { DepotConsoleSnapshot } from '@/lib/controlService/depotConsoleData';
 import { depotCorridorLabel, describeCorridorObservationOnly } from '@/lib/ops/depotCorridors';
-import { countdownTone, formatCountdown } from '@/lib/ops/depotConsoleModel';
+import { countdownTone, depotReadingsUnavailable, formatCountdown } from '@/lib/ops/depotConsoleModel';
 
 const COUNTDOWN_TONE_CLASS = {
   default: 'border-ops-line-strong text-ops-muted',
@@ -48,6 +48,21 @@ export function DepotRunningOrderPanel({ snapshot }: { snapshot: DepotConsoleSna
   const { selectedCorridor, vehicles } = snapshot;
 
   if (selectedCorridor === null) {
+    // Two ways to have no corridor, and they are not the same fact. The
+    // first is a reading — the control service answered and places none of
+    // this depot's buses on a mapped corridor — and it comes with a real
+    // explanation about survey coverage. The second is the absence of a
+    // reading, and saying any of that would be inventing the survey claim.
+    if (depotReadingsUnavailable(snapshot)) {
+      return (
+        <OpsSection title="Running order">
+          <OpsAlert tone="warning">
+            The control service did not answer and no earlier reading is held, so which corridors this depot is
+            running is unknown. This is not a statement that it is running none.
+          </OpsAlert>
+        </OpsSection>
+      );
+    }
     return (
       <OpsSection title="Running order">
         <OpsAlert tone="info">

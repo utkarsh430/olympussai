@@ -16,6 +16,10 @@
 //      says so, rather than rendering an empty table.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { CanonicalLiveBus } from '@/models/canonical';
+// Pure predicate over a returned snapshot, so it is safe to hold across the
+// per-test module reload below — unlike getDepotConsoleSnapshot, it closes
+// over no cache.
+import { depotReadingsUnavailable } from '@/lib/ops/depotConsoleModel';
 
 const fetchControlService = vi.fn();
 
@@ -254,7 +258,7 @@ describe('getDepotConsoleSnapshot — honesty about detection', () => {
 
     expect(fetchControlService).toHaveBeenCalledWith(expect.stringContaining('/headway'));
     expect(snapshot.headwayRead).toBe(true);
-    expect(snapshot.coverage.unknown).toBe(1);
+    expect(snapshot.coverage?.unknown).toBe(1);
   });
 
   it('distinguishes a failed headway read from a corridor that cannot report', async () => {
@@ -365,7 +369,41 @@ describe('getDepotConsoleSnapshot — degradation ladder', () => {
     expect(snapshot.error).toContain('ECONNREFUSED');
     expect(snapshot.corridors).toEqual([]);
     expect(snapshot.selectedCorridor).toBeNull();
-    expect(snapshot.coverage).toEqual({ running: 0, detecting: 0, observationOnly: 0, unknown: 0 });
+
+    // NULL, not a zeroed struct. This assertion used to read `toEqual({running:
+    // 0, detecting: 0, observationOnly: 0, unknown: 0})` under the same "no
+    // invented readings" title — which was the fabrication, written down and
+    // then locked in by the test. Those zeros reached the depot strip and were
+    // rendered as measurements: "Corridors running 0", "Can report bunching 0
+    // of 0", "0 corridors mapped statewide".
+    expect(snapshot.coverage).toBeNull();
+    expect(snapshot.mappedCorridorCount).toBeNull();
+    expect(depotReadingsUnavailable(snapshot)).toBe(true);
+  });
+
+  it('reports a stale snapshot as available, because its readings were really taken', async () => {
+    // The counterpart guard: `depotReadingsUnavailable` must not creep into
+    // meaning "degraded". A last-known-good snapshot holds real numbers and
+    // has to keep rendering them, labelled — blanking it would take an
+    // operator's last picture away during the incident they need it for.
+    respond({
+      routeDirections: [routeDirection('rd', true)],
+      vehicleStates: [state('BAREILLY-1', 'rd')],
+      headway: headwayResult([]),
+    });
+    await getDepotConsoleSnapshot({ scope: BAREILLY, scopedFleet: [bus('BAREILLY-1')], now: clock });
+
+    fetchControlService.mockRejectedValue(new Error('control service down'));
+    const degraded = await getDepotConsoleSnapshot({
+      scope: BAREILLY,
+      scopedFleet: [bus('BAREILLY-1')],
+      now: clock + 5 * 60 * 1000,
+    });
+
+    expect(degraded.stale).toBe(true);
+    expect(depotReadingsUnavailable(degraded)).toBe(false);
+    expect(degraded.coverage).toEqual({ running: 1, detecting: 1, observationOnly: 0, unknown: 0 });
+    expect(degraded.mappedCorridorCount).toBe(1);
   });
 
   it('serves the last known good corridor list, labelled stale, rather than an empty depot', async () => {

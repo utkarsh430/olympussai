@@ -10,6 +10,7 @@ import { DataSourceNotice } from '@/components/ops/DataSourceNotice';
 import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
 import type { OpsFleetSnapshot } from '@/lib/ops/fleetData';
 import type { DepotConsoleSnapshot } from '@/lib/controlService/depotConsoleData';
+import { depotReadingsUnavailable } from '@/lib/ops/depotConsoleModel';
 import type { OpsMapVehicle } from '@/lib/ops/mapVehicles';
 import type { BunchingIncident } from '@/models/control';
 import type { StandbyCandidate } from '@/lib/ops/fleetView';
@@ -116,6 +117,7 @@ export function DepotConsole({
   );
 
   const selected = snapshot.selectedCorridor;
+  const readingsUnavailable = depotReadingsUnavailable(snapshot);
   const openIncidentCount = incidents.length;
 
   const badges: Partial<Record<DepotTabId, number>> = {
@@ -131,7 +133,12 @@ export function DepotConsole({
       subtitle={
         selected
           ? `${depotLabel} · corridor ${depotCorridorLabel(selected)}`
-          : `${depotLabel} · no mapped corridor in service`
+          : // "no mapped corridor in service" is a reading. With nothing read
+            // it would be the strip's fabricated zeros restated as a sentence,
+            // in the one place on the page an operator reads first.
+            readingsUnavailable
+            ? `${depotLabel} · corridor readings unavailable`
+            : `${depotLabel} · no mapped corridor in service`
       }
       actions={
         <CorridorPicker snapshot={snapshot} onSelect={selectCorridor} />
@@ -198,12 +205,26 @@ export function DepotConsole({
                 activeKillSwitches={activeKillSwitches}
                 routeDirectionId={selected?.routeDirectionId ?? null}
               />
-              {snapshot.source === 'unavailable' && (
+              {/* "the last ones taken, OR ABSENT" was one notice covering two
+                  different situations, and the reader could not tell which
+                  one they were in. They get their own sentences now: one says
+                  the numbers on screen are real and old, the other says there
+                  are no numbers. */}
+              {readingsUnavailable ? (
                 <OpsAlert tone="warning">
-                  The control service could not be read
-                  {snapshot.error ? ` (${snapshot.error})` : ''}. Corridor readings below are the last ones taken, or
-                  absent — they are not a statement that this depot has nothing running.
+                  The control service did not answer
+                  {snapshot.error ? ` (${snapshot.error})` : ''}, and no earlier reading is held. Every corridor
+                  reading on this page is marked <span className="font-mono">n/a</span> — unknown, not zero. Nothing
+                  here says this depot has anything or nothing running.
                 </OpsAlert>
+              ) : (
+                snapshot.source === 'unavailable' && (
+                  <OpsAlert tone="warning">
+                    The control service could not be read
+                    {snapshot.error ? ` (${snapshot.error})` : ''}. The corridor readings below are the last ones
+                    that were taken, not current ones.
+                  </OpsAlert>
+                )
               )}
 
               {tab === 'running' && <DepotRunningOrderPanel snapshot={snapshot} />}

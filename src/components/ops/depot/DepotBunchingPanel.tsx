@@ -52,14 +52,29 @@ export function DepotBunchingPanel({
   incidents: readonly BunchingIncident[];
   depotLabel: string;
 }) {
-  const { selectedCorridor } = snapshot;
-  const coverageSentence = describeDepotDetectionCoverage(snapshot.coverage, depotLabel);
+  const { selectedCorridor, coverage } = snapshot;
   const observationOnly = selectedCorridor ? describeCorridorObservationOnly(selectedCorridor) : null;
   const countdowns = computeHeadwayCountdowns(snapshot.headwayPairs);
 
   return (
     <OpsStack gap="tight">
-      <OpsAlert tone={snapshot.coverage.detecting === 0 ? 'warning' : 'info'}>{coverageSentence}</OpsAlert>
+      {/* The coverage sentence is a MEASUREMENT of this depot's corridors, so
+          it can only be written when the corridors were measured. With
+          `coverage` null its `running === 0` branch would have said the
+          control service "is not placing any of this depot's vehicles on a
+          mapped corridor right now ... a gap in the mapped route network" —
+          a confident claim about the state's survey coverage, produced by a
+          process that never reached the control service. */}
+      {coverage === null ? (
+        <OpsAlert tone="warning">
+          The control service did not answer and no earlier reading is held, so how many of {depotLabel}&apos;s
+          corridors can report bunching is unknown rather than none. Nothing on this panel is an all-clear.
+        </OpsAlert>
+      ) : (
+        <OpsAlert tone={coverage.detecting === 0 ? 'warning' : 'info'}>
+          {describeDepotDetectionCoverage(coverage, depotLabel)}
+        </OpsAlert>
+      )}
 
       {selectedCorridor === null ? null : (
         <>

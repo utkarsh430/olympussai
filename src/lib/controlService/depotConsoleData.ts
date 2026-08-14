@@ -97,16 +97,49 @@ export interface DepotConsoleSnapshot {
   error: string | null;
   fetchedAt: string;
 
-  /** Corridors this depot's vehicles are on right now, busiest first. Measured, never configured. */
+  /**
+   * Corridors this depot's vehicles are on right now, busiest first. Measured,
+   * never configured.
+   *
+   * EMPTY IS ONLY MEANINGFUL WHEN `coverage` IS NON-NULL. On the bottom rung
+   * of the ladder this is empty because nothing was read, not because the
+   * depot is running nothing — see `coverage` and `depotReadingsUnavailable`.
+   */
   corridors: DepotCorridor[];
-  coverage: DepotDetectionCoverage;
+  /**
+   * How much of what this depot is running can detect bunching, or NULL when
+   * the control service was never successfully read and there is therefore
+   * nothing to count.
+   *
+   * ─── WHY THIS IS NULLABLE AND NOT A ZEROED STRUCT ────────────────────────
+   *
+   * It used to be `{running: 0, detecting: 0, observationOnly: 0, unknown: 0}`
+   * on a failed cold read, and the console rendered those as ordinary
+   * measurements: "Corridors running 0", "Can report bunching 0 of 0". An
+   * operator whose depot had 34 corridors running, 14 of them detecting, was
+   * shown four confident zeros by a process that had not reached the control
+   * service at all. Null is what makes that unrepresentable: there is no
+   * number to render, so every render site has to decide what to say instead,
+   * and TypeScript makes it decide.
+   *
+   * This is `src/lib/ops/consoleReadings.ts`'s rule applied to the depot: the
+   * three reasons a reading is empty are not interchangeable, and a `0` from a
+   * source that did not answer is the one an operations display may never
+   * draw.
+   */
+  coverage: DepotDetectionCoverage | null;
   /**
    * How many corridors the control service has mapped in total. The honest
    * denominator: this depot's corridor list is a slice of a route network only
    * partly surveyed, and a console that showed only the slice would imply the
    * slice was the whole.
+   *
+   * NULL on an unread snapshot, for the reason above — and this one was the
+   * most misleading of the fabricated zeros, because "0 corridors mapped
+   * statewide" is a claim about the control database rather than about this
+   * depot. The real answer is 759.
    */
-  mappedCorridorCount: number;
+  mappedCorridorCount: number | null;
 
   selectedCorridor: DepotCorridor | null;
   /**
@@ -134,11 +167,18 @@ export interface DepotConsoleSnapshot {
   crossDepotPairCount: number;
 }
 
-function emptySnapshot(): Omit<DepotConsoleSnapshot, 'source' | 'stale' | 'error' | 'fetchedAt'> {
+/**
+ * The bottom rung: a snapshot in which nothing was ever read.
+ *
+ * Every count is null rather than zero. The lists are empty because there is
+ * nothing to put in them, and `depotReadingsUnavailable` is what tells a
+ * renderer that their emptiness is ignorance rather than a measurement.
+ */
+function unreadSnapshot(): Omit<DepotConsoleSnapshot, 'source' | 'stale' | 'error' | 'fetchedAt'> {
   return {
     corridors: [],
-    coverage: { running: 0, detecting: 0, observationOnly: 0, unknown: 0 },
-    mappedCorridorCount: 0,
+    coverage: null,
+    mappedCorridorCount: null,
     selectedCorridor: null,
     vehicles: [],
     headwayPairs: [],
@@ -146,6 +186,12 @@ function emptySnapshot(): Omit<DepotConsoleSnapshot, 'source' | 'stale' | 'error
     crossDepotPairCount: 0,
   };
 }
+
+/**
+ * The predicate that reads `coverage === null` as "nothing was ever read"
+ * lives in src/lib/ops/depotConsoleModel.ts, not here: this module is
+ * `server-only` and every consumer of it is a client component.
+ */
 
 /**
  * Everything the depot console reads from the control service, for one depot.
@@ -175,13 +221,18 @@ export async function getDepotConsoleSnapshot({
   // list that was really observed, so it is shown and labelled rather than
   // withheld — withholding it would replace old vehicles with no vehicles,
   // which reads as a depot with nothing running.
+  //
+  // This rung reports its counts as NULL, not as 0. "0 corridors running" and
+  // "0 corridors mapped statewide" are readings, and on this branch nobody
+  // took one; rendering them as numbers is the same substitution one layer up
+  // that the paragraph above refuses to make one layer down.
   if (corridorRead.value === null || stateRead.value === null) {
     return {
       source: 'unavailable',
       stale: true,
       error: corridorRead.error ?? stateRead.error ?? 'The control service could not be read.',
       fetchedAt: new Date(now).toISOString(),
-      ...emptySnapshot(),
+      ...unreadSnapshot(),
     };
   }
 
