@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// THE DEFECT, ON THIS LANE'S SCREEN: a light depot console over a black map.
+// THE DEFECT: a light operations console over a black map.
 //
 // The Google basemap is a JavaScript style array handed to the Maps
 // constructor, so no class, token or `prefers-color-scheme` rule reaches it.
@@ -9,16 +9,25 @@
 //
 // That contract only pays off if each surface actually opts in, and nothing
 // about a prop that was never passed shows up in a render test of the map
-// itself. What these tests hold is the wiring on the depot's side: the depot
+// itself. What these tests hold is the wiring on each console's side: the
 // console reads the resolved theme and hands it down through the panel, and it
 // keeps doing so when the operator changes theme.
 //
-// The map's own restyle behaviour is the map lane's; this is the depot lane
+// The depot came first. The CONTROL ROOM is here because it shipped without
+// the opt-in after two lanes had already flagged the problem — and it is the
+// worst surface to get wrong, being the wall display, the largest map in the
+// product. That every OTHER surface opts in too is asserted structurally over
+// the source in mapBasemapThemeWiring.test.ts, because the failure mode is
+// forgetting, and a behavioural test only ever covers the screens somebody
+// remembered to write one for.
+//
+// The map's own restyle behaviour is the map lane's; this is each console
 // proving its screen is connected to it.
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen } from '@testing-library/react';
 
 import { DepotConsole } from '@/components/ops/depot/DepotConsole';
+import { ControlRoomConsole } from '@/components/ops/control-room/console/ControlRoomConsole';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { THEME_STORAGE_KEY } from '@/lib/theme/theme';
 import type { DepotConsoleSnapshot } from '@/lib/controlService/depotConsoleData';
@@ -159,6 +168,73 @@ describe('the depot map follows the depot console’s theme', () => {
     // handed down rather than merely happening to match.
     stubPrefersDark(true);
     renderDepot();
+
+    expect(basemap()).not.toBe('not-passed');
+  });
+});
+
+/**
+ * Rendered inside `act` and awaited, so the console's mount-time poll has
+ * settled before anything is asserted. Without that the refused fetch resolves
+ * after the test body, which React reports as an unwrapped update.
+ */
+async function renderControlRoom(): Promise<void> {
+  await act(async () => {
+    render(
+      <ThemeProvider>
+        <ControlRoomConsole
+          email="cr@olympuss.us"
+          initialOverview={null}
+          initialOverviewError={null}
+          initialActiveKillSwitches={[]}
+          initialTab="decisions"
+          fleetPanel={<div />}
+          reportsPanel={<div />}
+        />
+      </ThemeProvider>,
+    );
+  });
+}
+
+describe('the control room map follows the wall display’s theme', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    // The console polls on mount. Nothing here depends on what comes back —
+    // the basemap prop is decided by the theme, not the feed — so the poll is
+    // answered with a refusal rather than left to hit a real network.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{}', { status: 503 })),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('asks for the LIGHT basemap when the operator is in light mode', async () => {
+    stubPrefersDark(false);
+    window.localStorage.setItem(THEME_STORAGE_KEY, 'light');
+
+    await renderControlRoom();
+
+    // THE DEFECT. Without the opt-in this read 'dark': a light console
+    // wrapped around a black rectangle, on the biggest screen in the room.
+    expect(basemap()).toBe('light');
+  });
+
+  it('asks for the DARK basemap on the night shift', async () => {
+    stubPrefersDark(true);
+    window.localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+
+    await renderControlRoom();
+
+    expect(basemap()).toBe('dark');
+  });
+
+  it('passes the prop at all, rather than leaving the map on its dark default', async () => {
+    stubPrefersDark(true);
+    await renderControlRoom();
 
     expect(basemap()).not.toBe('not-passed');
   });

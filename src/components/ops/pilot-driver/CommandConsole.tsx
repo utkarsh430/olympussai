@@ -9,7 +9,12 @@ import {
   removeQueuedAck,
   type QueuedAck,
 } from '@/lib/pilotDriver/ackQueue';
-import { CONSOLE_COPY, NO_PENALTY, RESPONSE_CHOICES } from '@/lib/pilotDriver/driverCopy';
+import {
+  CONSOLE_COPY,
+  NO_PENALTY,
+  RESPONSE_CHOICES,
+  type DriverPhrase,
+} from '@/lib/pilotDriver/driverCopy';
 import { OpsBilingual, OpsIdentifier } from '@/components/ops/ui';
 import { cn } from '@/lib/utils';
 
@@ -116,9 +121,20 @@ export function CommandConsole() {
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [command, setCommand] = useState<Command | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
-  const [pollError, setPollError] = useState<string | null>(null);
+  /**
+   * Errors are held as the WHOLE phrase, never as one language of it.
+   *
+   * These two were `string` and were set from `.en`, which discarded the Hindi
+   * at the point of capture — so no render site could have shown it even if it
+   * had tried. `answerNotSaved` is the worst one to lose: it fires exactly when
+   * a driver's acknowledgement failed to reach disk, which is the moment they
+   * most need to understand what happened and that they must press again.
+   * Typing the state as DriverPhrase makes dropping a language a type error
+   * rather than a silent omission.
+   */
+  const [pollError, setPollError] = useState<DriverPhrase | null>(null);
   const [ackPhase, setAckPhase] = useState<AckPhase>('idle');
-  const [ackError, setAckError] = useState<string | null>(null);
+  const [ackError, setAckError] = useState<DriverPhrase | null>(null);
   const [isOnline, setIsOnline] = useState(true);
   /**
    * What the driver last answered, kept on screen after the instruction itself
@@ -260,7 +276,7 @@ export function CommandConsole() {
           setReceipt(null);
         }
       } catch {
-        if (!cancelled) setPollError(CONSOLE_COPY.unreachable.en);
+        if (!cancelled) setPollError(CONSOLE_COPY.unreachable);
       }
     }
 
@@ -323,7 +339,7 @@ export function CommandConsole() {
       await enqueueAck(entry);
     } catch {
       setAckPhase('error');
-      setAckError(CONSOLE_COPY.answerNotSaved.en);
+      setAckError(CONSOLE_COPY.answerNotSaved);
       return;
     }
 
@@ -368,7 +384,13 @@ export function CommandConsole() {
             {vehicleId}
           </OpsIdentifier>
         ) : vehicleState === 'loading' ? (
-          <span className="text-sm text-muted-foreground">{CONSOLE_COPY.findingBus.en}</span>
+          <OpsBilingual
+            en={CONSOLE_COPY.findingBus.en}
+            hi={CONSOLE_COPY.findingBus.hi}
+            className="text-sm"
+            enClassName="text-muted-foreground"
+            hiClassName="text-subtle"
+          />
         ) : null}
       </div>
 
@@ -412,8 +434,13 @@ export function CommandConsole() {
         )}
       >
         {vehicleState !== 'assigned' && vehicleState !== 'loading' && (
-          <p className="px-4 py-6 text-center text-base text-muted-foreground">
-            {CONSOLE_COPY.waitingForBus.en}
+          <p className="px-4 py-6 text-center text-base">
+            <OpsBilingual
+              en={CONSOLE_COPY.waitingForBus.en}
+              hi={CONSOLE_COPY.waitingForBus.hi}
+              enClassName="text-muted-foreground"
+              hiClassName="text-subtle"
+            />
           </p>
         )}
 
@@ -428,7 +455,11 @@ export function CommandConsole() {
             />
             {pollError && (
               <p className="mt-3 text-sm text-warning" data-testid="driver-poll-error">
-                {pollError}
+                <OpsBilingual
+                  en={pollError.en}
+                  hi={pollError.hi}
+                  hiClassName="text-warning/80"
+                />
               </p>
             )}
 
@@ -451,8 +482,13 @@ export function CommandConsole() {
                     {RESPONSE_CHOICES.find((c) => c.outcome === receipt.outcome)?.label.hi}
                   </span>
                 </p>
-                <p className="mt-1.5 text-sm text-muted-foreground">
-                  {receipt.queued ? CONSOLE_COPY.answerQueued.en : CONSOLE_COPY.answerSent.en}
+                <p className="mt-1.5 text-sm">
+                  <OpsBilingual
+                    en={receipt.queued ? CONSOLE_COPY.answerQueued.en : CONSOLE_COPY.answerSent.en}
+                    hi={receipt.queued ? CONSOLE_COPY.answerQueued.hi : CONSOLE_COPY.answerSent.hi}
+                    enClassName="text-muted-foreground"
+                    hiClassName="text-subtle"
+                  />
                 </p>
               </div>
             )}
@@ -530,7 +566,11 @@ export function CommandConsole() {
                   data-testid="driver-ack-error"
                   className="text-base text-destructive"
                 >
-                  {ackError}
+                  <OpsBilingual
+                    en={ackError.en}
+                    hi={ackError.hi}
+                    hiClassName="text-destructive/80"
+                  />
                 </p>
               )}
 

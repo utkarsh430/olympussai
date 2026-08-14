@@ -57,20 +57,135 @@ function chevronCount(path: unknown): number {
   return (path as { subpaths?: number } | null)?.subpaths ?? 0;
 }
 
+const DARK = { good: '#2bff88', degraded: '#ffb020', stale: '#ff4d5e', casing: '#02040a' };
+
+/** How many of each quality `fleet(n)` produces, without restating its rule. */
+function qualityCounts(vehicles: MapVehicle[]) {
+  return {
+    good: vehicles.filter((v) => v.dataQuality === 'good').length,
+    degraded: vehicles.filter((v) => v.dataQuality === 'degraded').length,
+    stale: vehicles.filter((v) => v.dataQuality === 'stale').length,
+  };
+}
+
 describe('fleet canvas layer', () => {
-  it('batches the whole fleet into exactly one fill per data-quality colour', () => {
+  it('gives each data quality its own SHAPE, not merely its own colour', () => {
+    // THE COLOUR-BLINDNESS DEFECT, as a rendering assertion.
+    //
+    // Quality used to be `fillStyle` and nothing else, so on the one surface
+    // where ~9,200 marks are read at a glance, hue was the only channel — and
+    // under simulated protanopia the light palette's degraded/stale pair
+    // separates by 0.038, which is to say not at all. Shape is the channel
+    // that colour blindness cannot take away, so each quality is drawn as a
+    // different one: good filled, degraded filled inside a ring, stale hollow.
     harness = installFakeGoogleMaps();
     const layer = createFleetLayer<MapVehicle>(harness.map, () => {});
-    layer.setVehicles(fleet(3000));
+    const vehicles = fleet(3000);
+    const counts = qualityCounts(vehicles);
+    layer.setVehicles(vehicles);
     harness.flushFrames();
 
-    const fills = harness.context().fills;
-    // Three quality colours, whatever the vehicle count. That ratio is the
-    // property that makes 9k vehicles affordable.
-    expect(fills).toHaveLength(3);
-    expect(fills.map((entry) => entry.colour)).toEqual(['#2bff88', '#ffb020', '#ff4d5e']);
-    const drawn = fills.reduce((total, entry) => total + chevronCount(entry.path), 0);
+    const { fills, strokes } = harness.context();
+
+    // good and degraded are FILLED; stale is not filled at all.
+    expect(fills.map((entry) => entry.colour)).toEqual([DARK.good, DARK.degraded]);
+    expect(chevronCount(fills[0]?.path)).toBe(counts.good);
+    expect(chevronCount(fills[1]?.path)).toBe(counts.degraded);
+
+    // stale is a HOLLOW chevron: stroked in its own colour, never filled.
+    const staleStroke = strokes.find((entry) => entry.colour === DARK.stale);
+    expect(staleStroke, 'stale must be drawn as a hollow chevron').toBeDefined();
+    expect(chevronCount(staleStroke?.path)).toBe(counts.stale);
+
+    // degraded additionally carries a RING, one per degraded vehicle.
+    const ringStroke = strokes.find(
+      (entry) => entry.colour === DARK.degraded && entry !== staleStroke,
+    );
+    expect(ringStroke, 'degraded must be drawn with a ring around it').toBeDefined();
+    expect(chevronCount(ringStroke?.path)).toBe(counts.degraded);
+
+    // And the whole fleet is still accounted for.
+    const drawn =
+      chevronCount(fills[0]?.path) +
+      chevronCount(fills[1]?.path) +
+      chevronCount(staleStroke?.path);
     expect(drawn).toBe(3000);
+  });
+
+  it('cases every mark on a corridor frame, and drops the casing statewide', () => {
+    // The casing is what keeps a chevron legible over white road, grey land
+    // and blue water, and what keeps two overlapping buses countable. It is
+    // also a stroke, and stroking nine thousand chevrons costs four frames —
+    // see CASING_MARK_LIMIT. So it is drawn when the camera is on a corridor
+    // and dropped when it is on the whole state, where an outline around a
+    // five-pixel mark would merge it with its neighbours anyway.
+    //
+    // The SHAPE encoding never degrades; only the casing does. Degrade the
+    // ornament, never the information.
+    function casingsFor(count: number): { casings: number; staleDrawn: boolean } {
+      const local = installFakeGoogleMaps();
+      try {
+        const layer = createFleetLayer<MapVehicle>(local.map, () => {});
+        layer.setVehicles(fleet(count));
+        local.flushFrames();
+        const { strokes } = local.context();
+        return {
+          casings: strokes.filter((entry) => entry.colour === DARK.casing).length,
+          // The redundant encoding must survive the degradation.
+          staleDrawn: strokes.some((entry) => entry.colour === DARK.stale),
+        };
+      } finally {
+        local.restore();
+      }
+    }
+
+    const corridor = casingsFor(200);
+    expect(corridor.casings).toBeGreaterThan(0);
+    expect(corridor.staleDrawn).toBe(true);
+
+    const statewide = casingsFor(9170);
+    expect(statewide.casings).toBe(0);
+    expect(statewide.staleDrawn, 'shape must never degrade with the casing').toBe(true);
+  });
+
+  it('draws the casing wider than the mark that sits on top of it', () => {
+    // A casing no wider than the mark is not a casing.
+    harness = installFakeGoogleMaps();
+    const layer = createFleetLayer<MapVehicle>(harness.map, () => {});
+    layer.setVehicles(fleet(200));
+    harness.flushFrames();
+
+    const { strokes } = harness.context();
+    const casings = strokes.filter((entry) => entry.colour === DARK.casing);
+    const marks = strokes.filter((entry) => entry.colour !== DARK.casing);
+    expect(casings.length).toBeGreaterThan(0);
+    expect(marks.length).toBeGreaterThan(0);
+    expect(Math.min(...casings.map((entry) => entry.width))).toBeGreaterThan(
+      Math.max(...marks.map((entry) => entry.width)),
+    );
+  });
+
+  it('keeps the call count constant as the fleet grows', () => {
+    // The property the whole file is built around, and the one the shape
+    // encoding had to preserve: cost per FRAME, not per vehicle. Doubling the
+    // fleet must not buy a single extra paint call.
+    function callsFor(count: number): number {
+      const local = installFakeGoogleMaps();
+      try {
+        const layer = createFleetLayer<MapVehicle>(local.map, () => {});
+        layer.setVehicles(fleet(count));
+        local.flushFrames();
+        const recorded = local.context();
+        return recorded.fills.length + recorded.strokes.length;
+      } finally {
+        local.restore();
+      }
+    }
+
+    // Both counts sit above CASING_MARK_LIMIT, so this compares like with
+    // like: what is being asserted is that eight times the vehicles costs the
+    // same number of calls, not that the casing is on or off.
+    expect(callsFor(8000)).toBe(callsFor(1000));
   });
 
   it('culls vehicles outside the viewport instead of drawing them off-screen', () => {
@@ -94,8 +209,16 @@ describe('fleet canvas layer', () => {
     layer.setSelected('V3');
     harness.flushFrames();
 
-    const fills = harness.context().fills;
-    const batched = fills.slice(0, 3).reduce((total, entry) => total + chevronCount(entry.path), 0);
+    const { fills, strokes } = harness.context();
+    // Everything except the selected vehicle's own pass, across both the
+    // filled shapes and the hollow one.
+    const batched =
+      fills
+        .filter((entry) => entry.colour !== '#3ff0ff')
+        .reduce((total, entry) => total + chevronCount(entry.path), 0) +
+      strokes
+        .filter((entry) => entry.colour === DARK.stale)
+        .reduce((total, entry) => total + chevronCount(entry.path), 0);
     expect(batched).toBe(9);
     // The selected vehicle gets its own fill in its own colour, above the fleet.
     expect(fills.at(-1)?.colour).toBe('#3ff0ff');
@@ -223,10 +346,13 @@ describe('fleet canvas layer overlays', () => {
     harness.flushFrames();
 
     const recorded = harness.context();
-    // fills: [under-wash, good, degraded, stale, over-wash]
+    // The fleet's own passes sit between the two overlays, so ordering is
+    // asserted at the ends rather than by listing the fleet's calls — which
+    // now vary with which qualities are present.
     expect(recorded.fills[0]?.colour).toBe('#111111');
     expect(recorded.fills.at(-1)?.colour).toBe('#eeeeee');
-    expect(recorded.strokes.map((entry) => entry.colour)).toEqual(['#111111', '#eeeeee']);
+    expect(recorded.strokes[0]?.colour).toBe('#111111');
+    expect(recorded.strokes.at(-1)?.colour).toBe('#eeeeee');
   });
 });
 
@@ -256,12 +382,13 @@ describe('fleet canvas layer render cost at statewide scale', () => {
     // projection calls, which costs seconds, not a few milliseconds of drift.
     expect(msPerFrame).toBeLessThan(50);
 
-    // The last three fills are the final frame's three colour batches; the
-    // recorder accumulates across every frame it saw.
-    const drawn = harness
-      .context()
-      .fills.slice(-3)
-      .reduce((total, entry) => total + chevronCount(entry.path), 0);
+    // The recorder accumulates across every frame it saw, so the final
+    // frame's marks are its last two fills (good, degraded) and its last
+    // stroke (the hollow stale chevrons).
+    const recorded = harness.context();
+    const drawn =
+      recorded.fills.slice(-2).reduce((total, entry) => total + chevronCount(entry.path), 0) +
+      chevronCount(recorded.strokes.at(-1)?.path);
     expect(drawn).toBe(9170);
     console.info(`[render cost] 9,170 vehicles, nothing culled: ${msPerFrame.toFixed(2)} ms/frame (JS only)`);
   });

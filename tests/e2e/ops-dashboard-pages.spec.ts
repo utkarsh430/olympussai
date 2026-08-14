@@ -2,6 +2,7 @@ import { test, expect, type APIRequestContext } from '@playwright/test';
 import { Pool } from 'pg';
 import { assertDisposableOpsDatabase } from './fixtures/dbSafety';
 import { assertQaRoster, isSupabaseAuthCookie, signInThroughFrontDoor } from './fixtures/opsSignIn';
+import { OPS_PAGES, type OpsRoleName } from './fixtures/opsPages';
 
 /**
  * Every ops dashboard page, actually opened — and the mid-render race that
@@ -27,8 +28,8 @@ import { assertQaRoster, isSupabaseAuthCookie, signInThroughFrontDoor } from './
  * So this suite holds two things a per-page smoke test would not:
  *
  *   1. COVERAGE OF ALL TWELVE. Driven from a table, and cross-checked
- *      against the App Router directory, so adding a thirteenth dashboard
- *      without covering it fails here rather than silently.
+ *      against the App Router directory, so adding a dashboard without
+ *      covering it fails here rather than silently.
  *   2. THE RACE ITSELF. Concurrent requests against a page while an admin
  *      toggles that very account's status in `ops_users`. The pass condition
  *      is not "200": mid-flight requests legitimately redirect to sign-in.
@@ -68,7 +69,7 @@ const E2E_ORIGIN = process.env.E2E_ORIGIN ?? 'http://127.0.0.1:3000';
 const OPS_DATABASE_URL = process.env.E2E_OPS_DATABASE_URL;
 
 /** One seeded account per role. Every ops page belongs to exactly one of these. */
-const ROLE_ACCOUNTS = {
+const ROLE_ACCOUNTS: Record<OpsRoleName, { email?: string; password?: string }> = {
   admin: { email: process.env.E2E_ADMIN_EMAIL, password: process.env.E2E_ADMIN_PASSWORD },
   driver: { email: process.env.E2E_DRIVER_EMAIL, password: process.env.E2E_DRIVER_PASSWORD },
   pilot_driver: {
@@ -85,47 +86,14 @@ const ROLE_ACCOUNTS = {
     password: process.env.E2E_CONTROL_ROOM_PASSWORD,
   },
   planner: { email: process.env.E2E_PLANNER_EMAIL, password: process.env.E2E_PLANNER_PASSWORD },
-} as const;
+};
 
-type OpsRoleName = keyof typeof ROLE_ACCOUNTS;
-
-/**
- * All twelve guarded ops pages, with the role that owns each and the heading
- * its shell renders. `expectedTitle` is what makes this an "it opened" check
- * rather than an "it answered 200" one: a redirect chain that lands on the
- * sign-in page is also a 200.
+/*
+ * The page table moved to ./fixtures/opsPages.ts so a plain unit test can
+ * check it without Playwright, a database or a running server — this suite
+ * skips locally, which is why two rounds of heading renames reached CI before
+ * anybody saw them. See that module's note.
  */
-const OPS_PAGES: ReadonlyArray<{ path: string; role: OpsRoleName; title: string }> = [
-  { path: '/ops/driver', role: 'driver', title: 'Driver' },
-  { path: '/ops/pilot-driver', role: 'pilot_driver', title: 'Pilot Driver' },
-  { path: '/ops/dispatcher', role: 'dispatcher', title: 'Dispatcher' },
-  { path: '/ops/depot', role: 'depot', title: 'Depot' },
-  { path: '/ops/planner', role: 'planner', title: 'Planner' },
-  { path: '/ops/control-room', role: 'control_room', title: 'Control Room' },
-  { path: '/ops/control-room/copilot', role: 'control_room', title: 'Assistant' },
-  // Nothing seeded for this id on purpose: the timeline must still render its
-  // shell (the point here is the guard, not the incident data).
-  {
-    path: '/ops/control-room/observability',
-    role: 'control_room',
-    title: 'One Corridor In Detail',
-  },
-  { path: '/ops/control-room/pilot', role: 'control_room', title: 'Rollout' },
-  {
-    path: '/ops/control-room/incidents/e2e-nonexistent-incident',
-    role: 'control_room',
-    title: 'Incident Timeline',
-  },
-  // `/ops/admin` was a 404 for as long as the admin role existed — the segment
-  // had a layout, `invites/` and `rollout-stages/` and no page — and the
-  // landing logic carried a hard-coded detour around it. It is the admin
-  // console's own overview now, and it is where an admin lands.
-  { path: '/ops/admin', role: 'admin', title: 'Admin' },
-  // The URL still says `invites`; the screen is the whole people surface.
-  { path: '/ops/admin/invites', role: 'admin', title: 'Admin · People' },
-  { path: '/ops/admin/rollout-stages', role: 'admin', title: 'Admin · Rollout stages' },
-  { path: '/ops/admin/network', role: 'admin', title: 'Admin · Network' },
-];
 
 const REQUIRED_ENV: Record<string, string | undefined> = {
   E2E_OPS_DATABASE_URL: OPS_DATABASE_URL,
@@ -223,8 +191,8 @@ test.describe('every ops dashboard opens', () => {
   }
 
   test('this table still covers every guarded ops page', async () => {
-    // A thirteenth dashboard added without a row here would otherwise inherit
-    // the same untested shape the first twelve had.
+    // A dashboard added without a row here would otherwise inherit the same
+    // untested shape the original twelve had.
     const { readdirSync } = await import('node:fs');
     const { join, sep } = await import('node:path');
 

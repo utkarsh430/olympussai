@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "check:client-boundary": "tsx scripts/check-client-boundary.ts",
+    "bench:fleet-map": "tsx scripts/bench-fleet-canvas.ts",
     "inspect:api": "tsx scripts/inspect-upsrtc-api.ts",
     "create-project-user": "node scripts/create-project-user.mjs",
     "migrate:ops": "node scripts/migrate-ops.mjs",
@@ -79,6 +80,7 @@
     "tailwindcss": "^3.4.1",
     "tsx": "^4.20.3",
     "typescript": "^5",
+    "vite": "7.3.6",
     "vitest": "^3.2.4"
   }
 }

@@ -320,13 +320,21 @@ describe('the fleet palette reaches the canvas', () => {
     { id: 'C', latitude: 27.0, longitude: 81.1, headingDegrees: 180, dataQuality: 'stale' },
   ];
 
+  /** Every colour that reached the canvas this frame, however it was applied. */
+  function paintedColours(): string[] {
+    const recorded = harness!.context();
+    return [...recorded.fills.map((f) => f.colour), ...recorded.strokes.map((s) => s.colour)];
+  }
+
   it('paints the day colours when the day palette is handed in at construction', () => {
     harness = installFakeGoogleMaps();
     const layer = createFleetLayer<MapVehicle>(harness.map, () => {}, FLEET_PALETTE_LIGHT);
     layer.setVehicles(fleet);
     harness.flushFrames();
 
-    const painted = harness.context().fills.map((f) => f.colour);
+    // Fills AND strokes: quality is drawn as a shape as well as a colour now,
+    // and `stale` is a hollow chevron, so its colour arrives as a stroke.
+    const painted = paintedColours();
     expect(painted).toContain(FLEET_PALETTE_LIGHT.quality.good);
     expect(painted).toContain(FLEET_PALETTE_LIGHT.quality.degraded);
     expect(painted).toContain(FLEET_PALETTE_LIGHT.quality.stale);
@@ -361,9 +369,11 @@ describe('the fleet palette reaches the canvas', () => {
     layer.setVehicles(fleet);
     harness.flushFrames();
 
-    const painted = harness.context().fills.map((f) => f.colour);
+    const painted = paintedColours();
     expect(painted).toContain('#2bff88');
     expect(painted).toContain('#ffb020');
+    // Stale is the hollow chevron, so its colour reaches the canvas as a
+    // stroke rather than a fill — the palette is unchanged either way.
     expect(painted).toContain('#ff4d5e');
   });
 });

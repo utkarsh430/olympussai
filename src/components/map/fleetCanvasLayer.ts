@@ -64,33 +64,103 @@ import type { FleetMapOverlay, FleetMapOverlayMark, MapVehicle } from '@/lib/map
  * the console into light.
  *
  * The palette is therefore a parameter with the night values as its default.
- * That default is what makes this change safe to land while another lane owns
- * the ops dashboards: `OpsFleetMap` calls `createFleetLayer` with no options
- * and gets the exact colours it draws today, byte for byte. Only a caller
- * that asks for the day palette gets different pixels.
- *
  * The day values are darkened and desaturated versions of the same three
- * hues — the operator's learned mapping (green good, amber degraded, red
- * stale) is preserved. And as everywhere else in this product, colour is
- * NOT the only encoding: quality is stated in words in the fleet panel and
- * the bus drawer, because roughly one in twelve male operators cannot
- * separate the good/degraded pair by hue at all.
+ * hues, so the operator's learned mapping (green good, amber degraded, red
+ * stale) is preserved.
+ *
+ * ─── AND COLOUR IS NOT ENOUGH, WHICH IS WHY THERE ARE SHAPES ─────────────
+ *
+ * This file used to say that quality is "stated in words in the fleet panel
+ * and the bus drawer" and treat that as the redundant encoding. It is not one,
+ * for the surface that matters: on the MAP, where ~9,200 marks are read at a
+ * glance, quality was `fillStyle` and nothing else. A panel three hundred
+ * pixels away does not help an operator scanning a corridor.
+ *
+ * Simulating dichromacy on the committed hex values says how badly that
+ * fails. Separation below is Euclidean distance in linear RGB after a Viénot
+ * (1999) simulation; the FILL-ONLY column is the fill colour alone, which is
+ * all the map used to have:
+ *
+ *                              fill-only            rendered mark
+ *                          protan   deutan        protan   deutan
+ *   dark  degraded/stale    0.433    0.351         0.187    0.225
+ *   light good/degraded     0.127    0.087         0.371    0.357
+ *   light degraded/stale    0.038    0.072         0.574    0.546
+ *   light good/stale        0.121    0.100         0.609    0.570
+ *
+ * Light mode collapsed. 0.038 is not "low contrast", it is the same colour:
+ * an operator with the most common form of colour blindness could not tell a
+ * degraded bus from a stale one anywhere on the map. And it is not fixable by
+ * choosing better hues — an exhaustive search over green/amber/red triads
+ * tops out around 2.3:1, and only by making "degraded" the brightest thing on
+ * screen, which is a worse lie than the one it fixes.
+ *
+ * So the marks carry a SECOND channel that colour blindness cannot touch:
+ *
+ *   good      filled chevron
+ *   degraded  filled chevron inside a ring
+ *   stale     hollow chevron
+ *
+ * plus a casing — an outline in the ground colour under every mark — so the
+ * shape survives over road white, land grey and water blue alike, and so
+ * overlapping marks in a dense corridor stay individually countable.
+ *
+ * That is the "rendered mark" column: the same simulation and the same metric,
+ * run over the marks AS DRAWN rather than over three hex strings, averaged
+ * across the pixels either mark inks and taken over the worst of the three
+ * grounds. Light mode's collapsed pair goes from 0.038 to 0.574.
+ *
+ * Shape is decided by `DataQuality`, never by the palette, so it is identical
+ * in both themes and cannot be tuned away by a colour change. The colour
+ * figures and the shape guarantee are pinned in fleetCanvasCvd.test.ts; the
+ * rendered figures need a real canvas and come from
+ * scripts/bench-fleet-canvas.ts (`pnpm bench:fleet-map`).
+ *
+ * COST OF ALL THIS: measured by the same script, statewide, 9,170 marks with
+ * nothing culled and every frame forced to completion, the draw went from
+ * 14.4 ms to 17-20 ms across five runs — a constant handful of extra calls,
+ * not a per-vehicle one. (Those are headless-Chromium figures with a
+ * per-frame readback, so they sit well above the 4.3 ms this file's original
+ * measurement records on GPU hardware; the RATIO is the comparable part.)
+ * What keeps it there is CASING_MARK_LIMIT — read its note before
+ * "simplifying" the casing into an always-on stroke, which measures 71 ms.
  */
 export interface FleetLayerPalette {
   quality: Record<DataQuality, string>;
   selected: string;
+  /**
+   * Drawn under every mark, in the colour of the ground it sits on, so a
+   * chevron keeps its outline over white road, grey land and blue water — and
+   * so two overlapping buses read as two marks rather than one blob.
+   */
+  casing: string;
 }
 
 /** The night palette. Unchanged, and still the default for every caller. */
 export const FLEET_PALETTE_DARK: FleetLayerPalette = {
   quality: { good: '#2bff88', degraded: '#ffb020', stale: '#ff4d5e' },
   selected: '#3ff0ff',
+  casing: '#02040a',
 };
 
 /** The day palette — same three hues, at the luminance a white ground needs. */
 export const FLEET_PALETTE_LIGHT: FleetLayerPalette = {
   quality: { good: '#0b8450', degraded: '#995100', stale: '#cd1a37' },
   selected: '#0b6e87',
+  casing: '#ffffff',
+};
+
+/**
+ * The shape each quality is drawn as.
+ *
+ * The redundant channel, and deliberately a property of the DATA rather than
+ * of the palette: a theme change cannot alter it, and a future palette edit
+ * cannot quietly remove it.
+ */
+export const QUALITY_SHAPE: Record<DataQuality, 'filled' | 'ringed' | 'hollow'> = {
+  good: 'filled',
+  degraded: 'ringed',
+  stale: 'hollow',
 };
 
 const QUALITIES: DataQuality[] = ['good', 'degraded', 'stale'];
@@ -103,6 +173,67 @@ const NOSE_Y = -7;
 const WING_X = 4.4;
 const WING_Y = 5.6;
 const TAIL_Y = 2.8;
+
+/**
+ * The degraded ring, at scale 1. Sits outside the chevron's nose (7px) so it
+ * reads as a ring AROUND the mark rather than a line through it — which also
+ * makes "degraded" the physically largest mark, a third channel after colour
+ * and shape.
+ */
+const RING_RADIUS = 8.4;
+
+/** Stroke weights at scale 1: the casing under every mark, and the two outlined shapes. */
+const CASING_WIDTH = 2.2;
+const RING_WIDTH = 1.3;
+const HOLLOW_WIDTH = 1.6;
+
+/**
+ * Strokes stop thinning below this, in CSS pixels.
+ *
+ * At statewide zoom `markerScale` is 0.55 and a proportionally-scaled outline
+ * would come out near a single device pixel, where antialiasing eats it and
+ * the redundant encoding quietly stops existing at exactly the zoom with the
+ * most marks on screen. The shapes shrink; the lines that distinguish them
+ * hold a floor.
+ */
+const MIN_STROKE = 1;
+
+/**
+ * Above this many marks in a frame, the casing is dropped and the marks are
+ * drawn shape-and-colour only.
+ *
+ * ─── WHY THERE IS A LIMIT AT ALL ─────────────────────────────────────────
+ *
+ * Measured in Chromium (scripts/bench-fleet-canvas.ts), 9,170 marks, whole
+ * frame forced to completion. Canvas stroking has a hairline fast path that
+ * cuts off at one DEVICE pixel, and the cliff on either side of it is the
+ * whole story:
+ *
+ *   stroke 9,170 chevrons, width 1.00 (hairline)      2.0 ms
+ *   stroke 9,170 chevrons, width 1.05                41.3 ms
+ *   stroke 9,170 chevrons, width 1.21, round join    42.4 ms
+ *   fill   9,170 chevrons                             9.9 ms
+ *
+ * A casing thin enough to be free is one physical pixel, which on the wall
+ * display is not a casing. A casing thick enough to read costs four frames.
+ *
+ * So it is drawn when it can be afforded AND when it is worth anything, which
+ * turn out to be the same moment. Nine thousand marks on screen means the
+ * camera is on the whole state, every chevron is four to eight pixels, and an
+ * outline around one would merge it with its neighbours rather than separate
+ * it — at that zoom an operator reads density, and reads an individual bus in
+ * the fleet panel. Once the camera is on a corridor the cull leaves a few
+ * hundred marks, each at full size, and that is exactly where an outline earns
+ * its cost: it is what keeps a chevron legible over white road, grey land and
+ * blue water, and what keeps two overlapping buses countable.
+ *
+ * The SHAPE encoding is not gated this way and never degrades — it is the
+ * accessibility fix, it costs a stroke only on the ringed and hollow marks
+ * rather than on all of them, and it is what carries the distinction when the
+ * casing is off. Same principle as OVERLAY_LABEL_LIMIT above: degrade the
+ * ornament, never the information.
+ */
+const CASING_MARK_LIMIT = 900;
 
 /** Default overlay ring radius, in CSS pixels. */
 const DEFAULT_RING_RADIUS = 9;
@@ -259,8 +390,8 @@ export function createFleetLayer<T extends MapVehicle>(
 
       drawOverlays(ctx, overlays, project, width, height, true);
 
-      // ---- Project every vehicle, batching by colour ----
-      const segments: Record<DataQuality, string[]> = { good: [], degraded: [], stale: [] };
+      // ---- Project every vehicle, batching by the shape its quality draws as ----
+      const batches = emptyMarkBatches();
 
       hits = [];
 
@@ -278,20 +409,12 @@ export function createFleetLayer<T extends MapVehicle>(
           continue;
         }
 
-        segments[vehicle.dataQuality].push(
-          chevronPath(x, y, vehicle.headingDegrees ?? 0, markerScale),
-        );
+        addMark(batches, vehicle.dataQuality, x, y, vehicle.headingDegrees ?? 0, markerScale);
         hits.push({ x, y, vehicle });
       }
 
-      // ---- Paint: one fill per colour, whatever the vehicle count ----
-      ctx.globalAlpha = 0.9;
-      for (const quality of QUALITIES) {
-        const batch = segments[quality];
-        if (batch.length === 0) continue;
-        ctx.fillStyle = palette.quality[quality];
-        ctx.fill(new Path2D(batch.join('')));
-      }
+      // ---- Paint: a fixed handful of calls, whatever the vehicle count ----
+      paintFleetMarks(ctx, batches, palette, markerScale);
       ctx.globalAlpha = 1;
 
       if (selected) {
@@ -394,7 +517,7 @@ export function createFleetLayer<T extends MapVehicle>(
  * rather than one that quietly resamples every marker edge, is the right
  * trade at 4 ms a frame.
  */
-function chevronPath(cx: number, cy: number, heading: number, scale: number): string {
+export function chevronPath(cx: number, cy: number, heading: number, scale: number): string {
   const radians = (heading * Math.PI) / 180;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
@@ -410,6 +533,143 @@ function chevronPath(cx: number, cy: number, heading: number, scale: number): st
     `L${cx - tail * sin} ${cy + tail * cos}` +
     `L${cx - wingX * cos - wingY * sin} ${cy - wingX * sin + wingY * cos}Z`
   );
+}
+
+/**
+ * One ring, as an SVG subpath.
+ *
+ * Two half-arcs rather than a `Path2D.arc()` call for the same reason the
+ * chevron is a string: it joins the batch, so a thousand degraded buses cost
+ * one path construction instead of a thousand binding crossings. Full
+ * precision, like the chevron — see its note.
+ */
+export function ringPath(cx: number, cy: number, radius: number): string {
+  return (
+    `M${cx + radius} ${cy}` +
+    `A${radius} ${radius} 0 1 0 ${cx - radius} ${cy}` +
+    `A${radius} ${radius} 0 1 0 ${cx + radius} ${cy}`
+  );
+}
+
+/**
+ * One frame's mark geometry, already batched.
+ *
+ * Accumulated as strings per quality so the paint below is a fixed handful of
+ * calls whatever the vehicle count — the property the whole file is built
+ * around.
+ */
+export interface FleetMarkBatches {
+  chevrons: Record<DataQuality, string[]>;
+  /** Rings for the degraded marks only. */
+  rings: string[];
+}
+
+export function emptyMarkBatches(): FleetMarkBatches {
+  return { chevrons: { good: [], degraded: [], stale: [] }, rings: [] };
+}
+
+/** Add one vehicle's marks to the batch, in the shape its quality is drawn as. */
+export function addMark(
+  batches: FleetMarkBatches,
+  quality: DataQuality,
+  x: number,
+  y: number,
+  heading: number,
+  markerScale: number,
+): void {
+  batches.chevrons[quality].push(chevronPath(x, y, heading, markerScale));
+  if (QUALITY_SHAPE[quality] === 'ringed') {
+    batches.rings.push(ringPath(x, y, RING_RADIUS * markerScale));
+  }
+}
+
+/**
+ * Paint one frame of fleet marks.
+ *
+ * ─── WHY THIS IS EXPORTED ────────────────────────────────────────────────
+ *
+ * So the frame-cost benchmark and the colour-blindness simulation drive THIS
+ * function rather than a reimplementation of it. A performance budget measured
+ * against a copy of the renderer measures the copy; this file's 4 ms/frame
+ * figure is only meaningful if the thing being timed is the thing that ships.
+ *
+ * ─── THE CALL BUDGET ─────────────────────────────────────────────────────
+ *
+ * Four Path2D constructions and at most eight paint calls, for any number of
+ * vehicles: one casing stroke per non-empty batch, two fills (good, degraded),
+ * and two colour strokes (the degraded rings, the hollow stale chevrons).
+ * Adding shape and casing to the marks therefore costs a constant number of
+ * additional calls, not a per-vehicle one — which is what keeps it inside
+ * budget at 9,200 marks. Measured before and after in fleetCanvasLayer.bench.
+ */
+export function paintFleetMarks(
+  ctx: CanvasRenderingContext2D,
+  batches: FleetMarkBatches,
+  palette: FleetLayerPalette,
+  markerScale: number,
+): void {
+  const chevrons: Record<DataQuality, Path2D | null> = { good: null, degraded: null, stale: null };
+  for (const quality of QUALITIES) {
+    const batch = batches.chevrons[quality];
+    if (batch.length > 0) chevrons[quality] = new Path2D(batch.join(''));
+  }
+  const rings = batches.rings.length > 0 ? new Path2D(batches.rings.join('')) : null;
+
+  const stroke = (width: number) => Math.max(MIN_STROKE, width * markerScale);
+
+  const markCount = QUALITIES.reduce(
+    (total, quality) => total + batches.chevrons[quality].length,
+    0,
+  );
+
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // ---- 1. The casing, under everything, in the colour of the ground ----
+  // One pass over every shape, so a mark keeps its outline over road white,
+  // land grey and water blue, and two overlapping buses stay countable.
+  // Dropped on a statewide frame — see CASING_MARK_LIMIT for the measurements.
+  if (markCount <= CASING_MARK_LIMIT) {
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = palette.casing;
+    ctx.lineWidth = stroke(CASING_WIDTH);
+    for (const quality of QUALITIES) {
+      const path = chevrons[quality];
+      if (path) ctx.stroke(path);
+    }
+    if (rings) ctx.stroke(rings);
+  }
+
+  // ---- 2. The marks themselves, one call per shape ----
+  ctx.globalAlpha = 0.9;
+
+  // good — a solid chevron.
+  if (chevrons.good) {
+    ctx.fillStyle = palette.quality.good;
+    ctx.fill(chevrons.good);
+  }
+
+  // degraded — a solid chevron inside a ring.
+  if (chevrons.degraded) {
+    ctx.fillStyle = palette.quality.degraded;
+    ctx.fill(chevrons.degraded);
+  }
+  if (rings) {
+    ctx.strokeStyle = palette.quality.degraded;
+    ctx.lineWidth = stroke(RING_WIDTH);
+    ctx.stroke(rings);
+  }
+
+  // stale — a hollow chevron. The basemap shows through the middle, which is
+  // the point: it reads as "no solid reading here" without depending on hue.
+  if (chevrons.stale) {
+    ctx.strokeStyle = palette.quality.stale;
+    ctx.lineWidth = stroke(HOLLOW_WIDTH);
+    ctx.stroke(chevrons.stale);
+  }
+
+  ctx.restore();
 }
 
 /** The selected vehicle is drawn on its own, oversized and glowing, above the fleet. */

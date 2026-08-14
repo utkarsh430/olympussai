@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { OpsFleetMap } from '@/components/ops/map/OpsFleetMap';
 import { OpsButton, OpsBadge } from '@/components/ops/ui';
+import { useTheme } from '@/components/theme/ThemeProvider';
 import {
   REHEARSAL_MAP_LEGEND,
   buildCorridorOverlay,
@@ -38,6 +39,9 @@ export function RehearsalMap({
 }) {
   const [frameIndex, setFrameIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
+  // Same opt-in as the depot, driver and control-room consoles: the basemap is
+  // a JS style array, not CSS, so it cannot follow a theme class.
+  const { resolved: basemapTheme } = useTheme();
   const frameCount = arm.frames.length;
 
   // A new run (or a switched arm) restarts the track rather than leaving the
@@ -94,6 +98,7 @@ export function RehearsalMap({
         // the controls do - a map an operator cannot scrub is worse than a
         // slightly shorter map.
         minHeight="16rem"
+        basemapTheme={basemapTheme}
         label={`Simulated buses on ${result.corridor.routeId} ${result.corridor.directionCode}`}
         caption={`${result.corridor.stops.length} stops over ${(result.corridor.totalDistanceMeters / 1000).toFixed(0)} km — real corridor geometry, simulated buses`}
       />

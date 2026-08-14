@@ -68,7 +68,8 @@ export class FakePath2D {
 
 export interface RecordingContext {
   fills: { colour: string; path: FakePath2D | null; alpha: number }[];
-  strokes: { colour: string; path: FakePath2D | null; dash: number[] }[];
+  /** `width` is the lineWidth in force at the call, which is what distinguishes a casing from the mark drawn on top of it. */
+  strokes: { colour: string; path: FakePath2D | null; dash: number[]; width: number }[];
   texts: { text: string; x: number; y: number; colour: string }[];
   clears: number;
 }
@@ -100,7 +101,12 @@ function createRecordingContext(): CanvasRenderingContext2D & { recorded: Record
       recorded.fills.push({ colour: String(ctx.fillStyle), path: path ?? null, alpha: ctx.globalAlpha });
     },
     stroke(path?: FakePath2D) {
-      recorded.strokes.push({ colour: String(ctx.strokeStyle), path: path ?? null, dash: [...ctx.lineDash] });
+      recorded.strokes.push({
+        colour: String(ctx.strokeStyle),
+        path: path ?? null,
+        dash: [...ctx.lineDash],
+        width: ctx.lineWidth,
+      });
     },
     fillText(text: string, x: number, y: number) {
       recorded.texts.push({ text, x, y, colour: String(ctx.fillStyle) });

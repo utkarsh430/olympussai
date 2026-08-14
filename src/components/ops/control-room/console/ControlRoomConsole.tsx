@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { OpsShell } from '@/components/ops/OpsShell';
 import { OpsAlert, OpsButton, OpsSection, OpsStack } from '@/components/ops/ui';
 import { OpsFleetMapPanel } from '@/components/ops/map/OpsFleetMapPanel';
+import { useTheme } from '@/components/theme/ThemeProvider';
 import { buildConsoleKpi, type ControlRoomOverview } from '@/lib/ops/controlRoomOverviewModel';
 import { corridorName } from '@/lib/ops/vocabulary';
 import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
@@ -112,6 +113,12 @@ export function ControlRoomConsole({
     initialOverview?.selectedRouteDirectionId ?? null,
   );
   const [commandPrefill, setCommandPrefill] = useState<CommandPrefill | undefined>(undefined);
+  // The basemap is a JS style array, not CSS, so it cannot follow the theme
+  // through a class the way every other surface here does. OpsFleetMap takes
+  // it as an opt-in prop precisely so one console moving does not move the
+  // others; this is the control room opting in. Without it the wall display —
+  // the largest map in the product — renders a light console over a black map.
+  const { resolved: basemapTheme } = useTheme();
 
   const feed = useControlRoomFeed({ initialOverview, routeDirectionId: corridor });
   const overview = feed.overview;
@@ -233,6 +240,7 @@ export function ControlRoomConsole({
             live
             fill
             minHeight="24rem"
+            basemapTheme={basemapTheme}
           />
         </section>
 
