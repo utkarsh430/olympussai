@@ -13,10 +13,7 @@ export function RouteDirectionPicker({
   return (
     <form method="get" className="mb-4 flex flex-wrap items-end gap-3">
       <div className="min-w-[260px]">
-        <label
-          htmlFor="observability-route-direction"
-          className="ops-label mb-1 block"
-        >
+        <label htmlFor="observability-route-direction" className="ops-label mb-1 block">
           Route-direction
         </label>
         <select
@@ -40,10 +37,7 @@ export function RouteDirectionPicker({
           ))}
         </select>
       </div>
-      <button
-        type="submit"
-        className="ops-button px-4 py-2"
-      >
+      <button type="submit" className="ops-button px-4 py-2">
         View
       </button>
     </form>

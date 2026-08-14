@@ -19,6 +19,14 @@ import { BreakdownReportPanel } from '@/components/ops/driver/BreakdownReportPan
 import { BreakdownReportsPanel } from '@/components/ops/BreakdownReportsPanel';
 import { OpsAdminPeoplePanel } from '@/components/ops/admin/OpsAdminPeoplePanel';
 
+// The corridor picker on the observability page navigates, so it reaches for
+// the App Router. These are unit renders with no router around them; the
+// picker's own behaviour is covered in controlRoomConsole.test.tsx.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => '/ops/control-room/observability',
+}));
+
 function bus(overrides: Partial<CanonicalLiveBus> = {}): CanonicalLiveBus {
   return {
     id: 'UP25FT4823',
@@ -327,11 +335,16 @@ describe('ObservabilityDashboard', () => {
   it('shows live positions with a LIVE badge and active incidents distinctly from the headway summary', () => {
     render(<ObservabilityDashboard snapshot={observabilitySnapshot()} now={Date.now()} />);
 
-    expect(screen.getByText('V1')).toBeInTheDocument();
+    // V1 appears twice on purpose: once in the running-order table and once
+    // in the incident naming the pair. That is the point of the page.
+    expect(screen.getAllByText('V1').length).toBeGreaterThan(0);
     expect(screen.getByText('Live')).toBeInTheDocument();
-    expect(screen.getByText('Excess Wait Time')).toBeInTheDocument();
+    expect(screen.getByText('Extra wait for passengers')).toBeInTheDocument();
     expect(screen.getByText('Bunched')).toBeInTheDocument();
-    expect(screen.getByText(/V1 \(leader\), V2 \(follower\)/)).toBeInTheDocument();
+    // "leader"/"follower" are correct and are the two words most easily read
+    // backwards at speed, so the buses are named by where they are.
+    expect(screen.getByText(/\(in front\)/)).toBeInTheDocument();
+    expect(screen.getByText(/\(behind\)/)).toBeInTheDocument();
   });
 
   it('renders a STALE badge for a position observed well outside the freshness window', () => {
@@ -355,7 +368,7 @@ describe('ObservabilityDashboard', () => {
         now={now}
       />,
     );
-    expect(screen.getByText('Stale')).toBeInTheDocument();
+    expect(screen.getByText('Old')).toBeInTheDocument();
   });
 
   it('shows the control-service-unavailable notice when the snapshot could not be refreshed', () => {
@@ -369,7 +382,9 @@ describe('ObservabilityDashboard', () => {
         now={Date.now()}
       />,
     );
-    expect(screen.getByRole('alert')).toHaveTextContent(/last known control-service data/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /these are the last figures taken, not current ones/i,
+    );
   });
 });
 
@@ -470,10 +485,15 @@ describe('DispatcherActionForm action flow', () => {
 // commandId/expiresAt because the command is now really created.
 describe('ControlRoomCommandForm action flow', () => {
   function fillCommandForm() {
-    fireEvent.change(screen.getByLabelText(/dispatcher action id/i), { target: { value: 'da-1' } });
-    fireEvent.change(screen.getByLabelText(/vehicle id/i), { target: { value: 'UP25FT4823' } });
-    fireEvent.change(screen.getByLabelText(/route-direction id/i), { target: { value: 'rd-1' } });
-    fireEvent.change(screen.getByLabelText(/summary/i), {
+    // Regexes are unanchored on purpose: every required field's label now
+    // carries a visually-hidden required marker, so `/^bus$/` would not match
+    // the label text that actually reaches the accessibility tree.
+    fireEvent.change(screen.getByLabelText(/which approval allows this/i), {
+      target: { value: 'da-1' },
+    });
+    fireEvent.change(screen.getByLabelText(/^bus/i), { target: { value: 'UP25FT4823' } });
+    fireEvent.change(screen.getByLabelText(/^corridor/i), { target: { value: 'rd-1' } });
+    fireEvent.change(screen.getByLabelText(/why you are sending this/i), {
       target: { value: 'Hold at terminal per approval' },
     });
   }
@@ -492,7 +512,7 @@ describe('ControlRoomCommandForm action flow', () => {
 
     render(<ControlRoomCommandForm />);
     fillCommandForm();
-    fireEvent.click(screen.getByRole('button', { name: /issue command/i }));
+    fireEvent.click(screen.getByRole('button', { name: /send instruction/i }));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('audit-456'));
     // The commandId is the operator's handle on a command that now really
@@ -528,10 +548,10 @@ describe('ControlRoomCommandForm action flow', () => {
 
     render(<ControlRoomCommandForm />);
     fillCommandForm();
-    fireEvent.click(screen.getByRole('button', { name: /issue command/i }));
+    fireEvent.click(screen.getByRole('button', { name: /send instruction/i }));
 
     await waitFor(() =>
-      expect(screen.getByRole('status')).toHaveTextContent(/will retry automatically/i),
+      expect(screen.getByRole('status')).toHaveTextContent(/the system will keep trying/i),
     );
   });
 
@@ -551,12 +571,14 @@ describe('ControlRoomCommandForm action flow', () => {
 
     render(<ControlRoomCommandForm />);
     fillCommandForm();
-    fireEvent.click(screen.getByRole('button', { name: /issue command/i }));
+    fireEvent.click(screen.getByRole('button', { name: /send instruction/i }));
 
     await waitFor(() =>
-      expect(screen.getByRole('status')).toHaveTextContent(/current status: acknowledged/i),
+      expect(screen.getByRole('status')).toHaveTextContent(
+        /current state: the driver has answered/i,
+      ),
     );
-    expect(screen.getByRole('status')).not.toHaveTextContent(/will retry automatically/i);
+    expect(screen.getByRole('status')).not.toHaveTextContent(/the system will keep trying/i);
   });
 
   it('never offers "override" as a dispatchable action type', () => {
@@ -566,7 +588,7 @@ describe('ControlRoomCommandForm action flow', () => {
     // switches on actionType and has no 'override' case.
     render(<ControlRoomCommandForm />);
     const options = Array.from(
-      (screen.getByLabelText(/action type/i) as HTMLSelectElement).options,
+      (screen.getByLabelText(/^instruction/i) as HTMLSelectElement).options,
     ).map((option) => option.value);
 
     expect(options).not.toContain('override');
@@ -587,7 +609,7 @@ describe('ControlRoomCommandForm action flow', () => {
 
     render(<ControlRoomCommandForm />);
     fillCommandForm();
-    fireEvent.click(screen.getByRole('button', { name: /issue command/i }));
+    fireEvent.click(screen.getByRole('button', { name: /send instruction/i }));
 
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent(/unconsumed approval/i),
@@ -612,7 +634,7 @@ describe('ControlRoomCommandForm action flow', () => {
 
     render(<ControlRoomCommandForm />);
     fillCommandForm();
-    fireEvent.click(screen.getByRole('button', { name: /issue command/i }));
+    fireEvent.click(screen.getByRole('button', { name: /send instruction/i }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/does not match it/i));
   });

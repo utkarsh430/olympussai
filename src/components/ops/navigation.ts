@@ -54,9 +54,14 @@ export const OPS_NAV: Record<OpsRole, readonly OpsNavItem[]> = {
       // operator would lose their place.
       matches: ['/ops/control-room/incidents'],
     },
-    { href: '/ops/control-room/observability', label: 'Observability' },
-    { href: '/ops/control-room/copilot', label: 'Copilot' },
-    { href: '/ops/control-room/pilot', label: 'Pilot staging' },
+    // Named for what an operator goes there to do, not for the subsystem
+    // behind it. "Observability" and "Pilot staging" are engineering words,
+    // and "Copilot" is not in this audience's vocabulary at all. The hrefs are
+    // unchanged: a live console's addresses are not worth churning, and every
+    // one of these is still guarded by its own segment.
+    { href: '/ops/control-room/observability', label: 'One corridor' },
+    { href: '/ops/control-room/copilot', label: 'Assistant' },
+    { href: '/ops/control-room/pilot', label: 'Rollout' },
   ],
   dispatcher: [{ href: '/ops/dispatcher', label: 'Dispatcher' }],
   depot: [{ href: '/ops/depot', label: 'Depot' }],

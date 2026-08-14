@@ -14,8 +14,16 @@ const CLASSIFICATIONS: WarRoomClassification[] = ['eligible', 'exogenous', 'stru
  * submit/error/success pattern as OpsAdminPeoplePanel's
  * VehicleAssignmentCell.
  */
-export function IncidentReviewForm({ incident, viewerEmail }: { incident: WarRoomIncident; viewerEmail: string }) {
-  const [classification, setClassification] = useState<WarRoomClassification>(incident.classification ?? 'eligible');
+export function IncidentReviewForm({
+  incident,
+  viewerEmail,
+}: {
+  incident: WarRoomIncident;
+  viewerEmail: string;
+}) {
+  const [classification, setClassification] = useState<WarRoomClassification>(
+    incident.classification ?? 'eligible',
+  );
   const [actionTaken, setActionTaken] = useState(incident.actionTaken ?? '');
   const [outcome, setOutcome] = useState(incident.reviewOutcome ?? '');
   const [busy, setBusy] = useState(false);
@@ -42,9 +50,7 @@ export function IncidentReviewForm({ incident, viewerEmail }: { incident: WarRoo
         }),
       });
       const data = (await response.json().catch(() => null)) as
-        | { incident: WarRoomIncident }
-        | { error?: { message?: string } }
-        | null;
+        { incident: WarRoomIncident } | { error?: { message?: string } } | null;
       if (!response.ok || !data || !('incident' in data)) {
         setError((data && 'error' in data && data.error?.message) || 'Could not save the review.');
         return;
@@ -60,8 +66,11 @@ export function IncidentReviewForm({ incident, viewerEmail }: { incident: WarRoo
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-2 sm:grid-cols-[auto,1fr,1fr,auto] sm:items-start">
-      <label className="flex flex-col gap-1 text-xs text-ops-muted">
+    <form
+      onSubmit={handleSubmit}
+      className="grid gap-2 sm:grid-cols-[auto,1fr,1fr,auto] sm:items-start"
+    >
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         Classification
         <select
           value={classification}
@@ -78,7 +87,7 @@ export function IncidentReviewForm({ incident, viewerEmail }: { incident: WarRoo
           ))}
         </select>
       </label>
-      <label className="flex flex-col gap-1 text-xs text-ops-muted">
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         Action taken
         <input
           value={actionTaken}
@@ -90,7 +99,7 @@ export function IncidentReviewForm({ incident, viewerEmail }: { incident: WarRoo
           className="ops-input w-auto px-2 py-1 text-xs"
         />
       </label>
-      <label className="flex flex-col gap-1 text-xs text-ops-muted">
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         Outcome
         <input
           value={outcome}
@@ -107,23 +116,23 @@ export function IncidentReviewForm({ incident, viewerEmail }: { incident: WarRoo
         <button
           type="submit"
           disabled={busy}
-          className="rounded border border-ops-line-strong px-2 py-1 text-xs text-ops-muted hover:border-holo-glow/60 hover:text-holo-glow disabled:opacity-60"
+          className="rounded border border-input px-2 py-1 text-xs text-muted-foreground hover:border-primary/60 hover:text-primary disabled:opacity-60"
         >
           {busy ? 'Saving…' : 'Save review'}
         </button>
         {saved && !error && (
-          <span role="status" className="text-xs text-ops-good">
+          <span role="status" className="text-xs text-success">
             Saved
           </span>
         )}
       </div>
       {error && (
-        <span id={errorId} role="alert" className="sm:col-span-4 text-xs text-alert-crimson">
+        <span id={errorId} role="alert" className="text-xs text-destructive sm:col-span-4">
           {error}
         </span>
       )}
       {reviewedBy && (
-        <p className="sm:col-span-4 text-[11px] text-ops-faint">
+        <p className="text-[11px] text-subtle sm:col-span-4">
           Last reviewed by {reviewedBy}
           {reviewedAt ? ` at ${new Date(reviewedAt).toLocaleString()}` : ''}
           {reviewedBy === viewerEmail ? ' (you)' : ''}.

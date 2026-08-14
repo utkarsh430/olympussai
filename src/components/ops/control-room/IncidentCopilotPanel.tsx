@@ -41,7 +41,9 @@ export function IncidentCopilotPanel({ incidents }: { incidents: BunchingInciden
           ...prev,
           [incidentId]: {
             status: 'error',
-            error: (data && 'error' in data && data.error.message) || 'Could not generate an explanation.',
+            error:
+              (data && 'error' in data && data.error.message) ||
+              'Could not generate an explanation.',
           },
         }));
         return;
@@ -61,7 +63,7 @@ export function IncidentCopilotPanel({ incidents }: { incidents: BunchingInciden
 
   if (incidents.length === 0) {
     return (
-      <p className="ops-well px-4 py-3 text-sm text-ops-muted">
+      <p className="ops-well px-4 py-3 text-sm text-muted-foreground">
         No active bunching incidents to explain right now.
       </p>
     );
@@ -72,14 +74,11 @@ export function IncidentCopilotPanel({ incidents }: { incidents: BunchingInciden
       {incidents.map((incident) => {
         const state = explanations[incident.id] ?? { status: 'idle' as const };
         return (
-          <li
-            key={incident.id}
-            className="ops-well px-4 py-3"
-          >
+          <li key={incident.id} className="ops-well px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <IncidentSeverityBadge severity={incident.severity} />
-                <span className="font-mono text-xs text-ops-faint">{incident.id}</span>
+                <span className="font-mono text-xs text-subtle">{incident.id}</span>
               </div>
               <button
                 type="button"
@@ -93,24 +92,22 @@ export function IncidentCopilotPanel({ incidents }: { incidents: BunchingInciden
             </div>
 
             {state.status === 'error' && (
-              <p role="alert" className="mt-2 text-sm text-alert-crimson">
+              <p role="alert" className="mt-2 text-sm text-destructive">
                 {state.error}
               </p>
             )}
 
             {state.status === 'ready' && (
-              <div className="mt-3 border-t border-ops-line pt-3">
-                <p className="ops-eyebrow mb-1">
-                  AI explanation
-                </p>
-                <p className="whitespace-pre-wrap text-sm text-ops-ink">{state.narrative}</p>
+              <div className="mt-3 border-t border-border pt-3">
+                <p className="ops-eyebrow mb-1">AI explanation</p>
+                <p className="whitespace-pre-wrap text-sm text-foreground">{state.narrative}</p>
                 {state.citations && state.citations.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {state.citations.map((citation) => (
                       <span
                         key={`${citation.recordType}-${citation.recordId}`}
                         title={citation.summary}
-                        className="rounded border border-ops-line-strong px-1.5 py-0.5 font-mono text-[9px] text-ops-faint"
+                        className="rounded border border-input px-1.5 py-0.5 font-mono text-[9px] text-subtle"
                       >
                         {citation.recordType}:{citation.recordId.slice(0, 8)}
                       </span>

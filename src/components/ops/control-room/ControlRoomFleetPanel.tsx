@@ -44,7 +44,9 @@ export function ControlRoomFleetPanel({
 
       <FleetSearchForm query={query} resultCount={rows.length} totalCount={snapshot.buses.length}>
         <input type="hidden" name="tab" value="fleet" />
-        {routeDirectionId !== null && <input type="hidden" name="routeDirectionId" value={routeDirectionId} />}
+        {routeDirectionId !== null && (
+          <input type="hidden" name="routeDirectionId" value={routeDirectionId} />
+        )}
       </FleetSearchForm>
 
       <FleetStatusTable

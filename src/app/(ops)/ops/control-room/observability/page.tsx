@@ -30,7 +30,13 @@ export default async function ObservabilityPage({
   const { routeDirectionId } = await searchParams;
 
   return (
-    <OpsShell title="Live Observability" email={session.email} role="control_room" variant="wide">
+    <OpsShell
+      title="One Corridor In Detail"
+      email={session.email}
+      role="control_room"
+      variant="wide"
+      subtitle="Spacing, buses closing up, and where each bus is — for the corridor you choose"
+    >
       <DashboardBody routeDirectionId={routeDirectionId} />
     </OpsShell>
   );
@@ -46,7 +52,8 @@ async function DashboardBody({ routeDirectionId }: { routeDirectionId?: string }
     const message = error instanceof Error ? error.message : 'Unknown error';
     return (
       <OpsAlert tone="error">
-        Observability data is unavailable right now ({message}). Try refreshing the page.
+        This corridor&apos;s figures could not be read right now ({message}). Try refreshing the
+        page.
       </OpsAlert>
     );
   }

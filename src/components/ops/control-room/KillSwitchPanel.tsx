@@ -2,38 +2,70 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
+import type { RouteDirectionMeta } from '@/models/control';
+import {
+  OpsAlert,
+  OpsButton,
+  OpsEmptyState,
+  OpsField,
+  OpsIdentifier,
+  OpsInput,
+  OpsSelect,
+  OpsTextarea,
+} from '@/components/ops/ui';
+import { STOP_INSTRUCTIONS, corridorName } from '@/lib/ops/vocabulary';
+import { CorridorPicker } from './CorridorPicker';
 
 /**
- * Route-level and network-wide kill switches (this ticket's AC4:
- * "immediately halt new automatic commands ... both logged"). Server-
- * seeded with the currently-active list so the page never renders an
- * empty flash before the first client fetch; every engage/disengage is
- * attributed and reasoned (POST /api/ops/control-room/kill-switches,
- * .../:id/disengage), enforced at command-creation time by
- * src/app/api/ops/control-room/commands/route.ts.
+ * The control that stops new instructions being sent — the one this codebase
+ * calls a kill switch everywhere except on screen.
  *
- * `refreshToken` lets the control-room console re-read the active list on its
- * own clock. Without it this panel only ever updated after THIS operator's own
- * engage or disengage - so a switch thrown by a colleague, or by the shift
- * before, stayed invisible here until the page was reloaded by hand. On the
- * one control that halts commands network-wide, that is not an acceptable
- * blind spot.
+ * ─── WHY IT IS NOT CALLED A KILL SWITCH ANY MORE ─────────────────────────
+ *
+ * Two reasons, and the second is the one that matters.
+ *
+ * It is jargon, and this console is read by UPSRTC operations staff for whom
+ * English is often a second language. And it OVERSTATES what the control does:
+ * engaging it halts NEW instructions. Instructions already sent still stand,
+ * and a driver may still be acting on one. An operator who reads "kill switch"
+ * during an incident may reasonably believe they have just stopped everything
+ * in flight, and they have not. So the wording throughout is "stop new
+ * instructions", and the sentence saying that already-sent instructions still
+ * stand is on the panel rather than in a doc comment.
+ *
+ * The scope words move with it: "network-wide" becomes "whole state", and
+ * "route-direction <uuid>" becomes a corridor an operator can name.
+ *
+ * ─── WHAT DID NOT CHANGE ─────────────────────────────────────────────────
+ *
+ * Every engage and disengage is still attributed and still requires a reason
+ * (POST /api/ops/control-room/kill-switches, .../:id/disengage), and the
+ * enforcement is still at instruction-creation time in
+ * src/app/api/ops/control-room/commands/route.ts. The panel is still seeded
+ * server-side so it never flashes an empty list, and `refreshToken` still lets
+ * the console re-read on its own clock — a switch thrown by a colleague or by
+ * the shift before must not stay invisible here.
  */
 export function KillSwitchPanel({
   initialActive,
   refreshToken,
+  corridors = [],
+  defaultRouteDirectionId,
 }: {
   initialActive: KillSwitchRecord[];
   refreshToken?: number;
+  /** So a corridor can be chosen by name instead of typed as a reference. */
+  corridors?: readonly RouteDirectionMeta[];
+  defaultRouteDirectionId?: string | null;
 }) {
   const [active, setActive] = useState<KillSwitchRecord[]>(initialActive);
   const [scope, setScope] = useState<'network' | 'route'>('network');
-  const [routeDirectionId, setRouteDirectionId] = useState('');
+  const [routeDirectionId, setRouteDirectionId] = useState(defaultRouteDirectionId ?? '');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [disengageReason, setDisengageReason] = useState<Record<string, string>>({});
-  const [disengagingId, setDisengagingId] = useState<string | null>(null);
+  const [releaseReason, setReleaseReason] = useState<Record<string, string>>({});
+  const [releasingId, setReleasingId] = useState<string | null>(null);
 
   const errorId = useId();
 
@@ -41,8 +73,8 @@ export function KillSwitchPanel({
     const response = await fetch('/api/ops/control-room/kill-switches', { cache: 'no-store' });
     const data = (await response.json().catch(() => null)) as { active: KillSwitchRecord[] } | null;
     // A failed read leaves the current list alone rather than emptying it: an
-    // empty kill-switch list reads as "nothing is halted", which is the one
-    // conclusion a dropped request must never let an operator draw.
+    // empty list reads as "nothing is stopped", which is the one conclusion a
+    // dropped request must never let an operator draw.
     if (response.ok && data && Array.isArray(data.active)) setActive(data.active);
   }, []);
 
@@ -67,29 +99,34 @@ export function KillSwitchPanel({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
-          scope === 'network' ? { scope: 'network', reason } : { scope: 'route', routeDirectionId, reason },
+          scope === 'network'
+            ? { scope: 'network', reason }
+            : { scope: 'route', routeDirectionId, reason },
         ),
       });
-      const data = (await response.json().catch(() => null)) as { ok: true } | { error: { message: string } } | null;
+      const data = (await response.json().catch(() => null)) as
+        { ok: true } | { error: { message: string } } | null;
       if (!response.ok || !data || !('ok' in data)) {
-        setError((data && 'error' in data && data.error.message) || 'Failed to engage the kill switch.');
+        setError(
+          (data && 'error' in data && data.error.message) ||
+            'Instructions were not stopped. Try again.',
+        );
         setSubmitting(false);
         return;
       }
       setReason('');
-      setRouteDirectionId('');
       await refresh();
     } catch {
-      setError('Something went wrong. Please try again.');
+      setError('Instructions were not stopped — the console could not be reached. Try again.');
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function disengage(id: string) {
-    const reasonValue = disengageReason[id]?.trim();
+  async function release(id: string) {
+    const reasonValue = releaseReason[id]?.trim();
     if (!reasonValue) return;
-    setDisengagingId(id);
+    setReleasingId(id);
     try {
       const response = await fetch(`/api/ops/control-room/kill-switches/${id}/disengage`, {
         method: 'POST',
@@ -98,88 +135,114 @@ export function KillSwitchPanel({
       });
       if (response.ok) {
         await refresh();
-        setDisengageReason((prev) => ({ ...prev, [id]: '' }));
+        setReleaseReason((prev) => ({ ...prev, [id]: '' }));
       }
     } finally {
-      setDisengagingId(null);
+      setReleasingId(null);
     }
   }
 
   return (
     <div className="space-y-4">
       {active.length === 0 ? (
-        <p className="ops-well px-4 py-3 text-sm text-ops-muted">
-          No kill switches engaged — automatic commands are permitted.
-        </p>
+        <OpsEmptyState>Nothing is stopped. Instructions can be sent as normal.</OpsEmptyState>
       ) : (
         <ul className="space-y-2">
           {active.map((ks) => (
-            <li key={ks.id} className="rounded-md border border-alert-crimson/40 bg-alert-crimson/10 px-4 py-3 text-sm text-ops-danger">
-              <p>
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em]">
-                  {ks.scope === 'network' ? 'Network-wide' : `Route-direction ${ks.routeDirectionId}`}
-                </span>{' '}
-                — engaged {new Date(ks.engagedAt).toLocaleString()}
+            <li
+              key={ks.id}
+              className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            >
+              <p className="font-semibold">
+                {ks.scope === 'network'
+                  ? 'New instructions stopped across the whole state'
+                  : `New instructions stopped on ${corridorLabelFor(ks.routeDirectionId, corridors)}`}
+              </p>
+              <p className="mt-0.5 text-xs">
+                Stopped at {new Date(ks.engagedAt).toLocaleString()}. Instructions sent before then
+                still stand.
               </p>
               <p className="mt-1">Reason: {ks.reason}</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <input
-                  value={disengageReason[ks.id] ?? ''}
-                  onChange={(e) => setDisengageReason((prev) => ({ ...prev, [ks.id]: e.target.value }))}
-                  placeholder="Reason for disengaging"
-                  className="ops-input min-w-[220px] flex-1 py-1.5 text-xs"
-                />
-                <button
-                  type="button"
-                  disabled={disengagingId === ks.id || !(disengageReason[ks.id]?.trim())}
-                  onClick={() => disengage(ks.id)}
-                  className="ops-button border-alert-green/60 bg-alert-green/10 text-ops-good hover:border-alert-green hover:bg-alert-green/20 hover:text-ops-good"
+
+              <div className="mt-2 flex flex-wrap items-end gap-2">
+                <div className="min-w-[220px] flex-1">
+                  <label
+                    htmlFor={`release-reason-${ks.id}`}
+                    className="ops-eyebrow mb-1 block text-foreground"
+                  >
+                    Why you are allowing instructions again
+                  </label>
+                  <OpsInput
+                    id={`release-reason-${ks.id}`}
+                    value={releaseReason[ks.id] ?? ''}
+                    onChange={(e) =>
+                      setReleaseReason((prev) => ({ ...prev, [ks.id]: e.target.value }))
+                    }
+                    className="py-1.5 text-xs"
+                  />
+                </div>
+                <OpsButton
+                  disabled={releasingId === ks.id || !releaseReason[ks.id]?.trim()}
+                  onClick={() => release(ks.id)}
                 >
-                  {disengagingId === ks.id ? 'Disengaging…' : 'Disengage'}
-                </button>
+                  {releasingId === ks.id
+                    ? STOP_INSTRUCTIONS.releasePending
+                    : STOP_INSTRUCTIONS.releaseAction}
+                </OpsButton>
               </div>
             </li>
           ))}
         </ul>
       )}
 
-      <form onSubmit={engage} className="space-y-3 rounded-md border border-ops-line p-4">
-        <h3 className="ops-label">Engage a kill switch</h3>
+      <form onSubmit={engage} className="space-y-3 rounded-md border border-border p-4">
+        <h3 className="ops-label">{STOP_INSTRUCTIONS.title}</h3>
+        <p className="text-[11px] leading-snug text-subtle">{STOP_INSTRUCTIONS.gloss}</p>
+
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="kill-switch-scope" className="mb-1 block text-xs text-ops-muted">
-              Scope
-            </label>
-            <select
+          <OpsField label="Where" htmlFor="kill-switch-scope" required>
+            <OpsSelect
               id="kill-switch-scope"
               value={scope}
               onChange={(e) => setScope(e.target.value as 'network' | 'route')}
-              className="ops-input"
             >
-              <option value="network">Network-wide</option>
-              <option value="route">Route-direction</option>
-            </select>
-          </div>
-          {scope === 'route' && (
-            <div>
-              <label htmlFor="kill-switch-route" className="mb-1 block text-xs text-ops-muted">
-                Route-direction id
-              </label>
-              <input
-                id="kill-switch-route"
-                required
-                value={routeDirectionId}
-                onChange={(e) => setRouteDirectionId(e.target.value)}
-                className="ops-input"
+              <option value="network">{STOP_INSTRUCTIONS.scopeNetwork}</option>
+              <option value="route">{STOP_INSTRUCTIONS.scopeRoute}</option>
+            </OpsSelect>
+          </OpsField>
+
+          {scope === 'route' &&
+            (corridors.length > 0 ? (
+              <CorridorPicker
+                corridors={corridors}
+                value={routeDirectionId === '' ? null : routeDirectionId}
+                onChange={setRouteDirectionId}
+                label="Which corridor"
               />
-            </div>
-          )}
+            ) : (
+              <OpsField
+                label="Which corridor"
+                htmlFor="kill-switch-route"
+                required
+                hint="The corridor list could not be read, so this has to be the reference rather than a name."
+              >
+                <OpsInput
+                  id="kill-switch-route"
+                  required
+                  value={routeDirectionId}
+                  onChange={(e) => setRouteDirectionId(e.target.value)}
+                />
+              </OpsField>
+            ))}
         </div>
-        <div>
-          <label htmlFor="kill-switch-reason" className="mb-1 block text-xs text-ops-muted">
-            Reason
-          </label>
-          <textarea
+
+        <OpsField
+          label="Why you are stopping instructions"
+          htmlFor="kill-switch-reason"
+          required
+          hint="Recorded against your name, permanently."
+        >
+          <OpsTextarea
             id="kill-switch-reason"
             required
             minLength={1}
@@ -187,23 +250,50 @@ export function KillSwitchPanel({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
-            aria-describedby={error ? errorId : undefined}
-            className="ops-input"
+            aria-describedby={error ? errorId : 'kill-switch-reason-hint'}
           />
-        </div>
+        </OpsField>
+
         {error && (
-          <p id={errorId} role="alert" className="text-sm text-alert-crimson">
+          <OpsAlert tone="error" id={errorId}>
             {error}
-          </p>
+          </OpsAlert>
         )}
-        <button
+
+        <OpsButton
           type="submit"
-          disabled={submitting || reason.trim().length === 0 || (scope === 'route' && routeDirectionId.trim().length === 0)}
-          className="ops-button-danger px-5 py-2 text-ops-danger"
+          variant="danger"
+          className="px-5 py-2"
+          disabled={
+            submitting ||
+            reason.trim().length === 0 ||
+            (scope === 'route' && routeDirectionId.trim().length === 0)
+          }
         >
-          {submitting ? 'Engaging…' : 'Engage kill switch'}
-        </button>
+          {submitting ? STOP_INSTRUCTIONS.engagePending : STOP_INSTRUCTIONS.engageAction}
+        </OpsButton>
       </form>
     </div>
   );
+}
+
+/**
+ * A corridor an operator can name, or the raw reference when it cannot be
+ * resolved.
+ *
+ * A stopped-instruction entry reading "Route-direction 5f2c9a1e-…" names
+ * nothing anyone can act on, and this panel usually has the corridor list in
+ * hand. When it does not — the control service is down, or the corridor has
+ * since been deactivated — the reference is shown rather than a guess. An
+ * unresolvable id is a real state and inventing a name for it would be worse
+ * than showing it.
+ */
+function corridorLabelFor(
+  routeDirectionId: string | null,
+  corridors: readonly RouteDirectionMeta[],
+): React.ReactNode {
+  if (routeDirectionId === null) return 'a corridor that was not recorded';
+  const meta = corridors.find((c) => c.routeDirectionId === routeDirectionId);
+  if (meta) return `corridor ${corridorName(meta)}`;
+  return <OpsIdentifier>{routeDirectionId}</OpsIdentifier>;
 }

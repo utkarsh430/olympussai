@@ -33,7 +33,13 @@ export default async function PilotStagingPage({
   const { date, routeDirectionId } = await searchParams;
 
   return (
-    <OpsShell title="Pilot Staging" email={session.email} role="control_room" variant="wide">
+    <OpsShell
+      title="Rollout"
+      email={session.email}
+      role="control_room"
+      variant="wide"
+      subtitle="How the rollout is going, day over day"
+    >
       <DashboardBody date={date} routeDirectionId={routeDirectionId} viewerEmail={session.email} />
     </OpsShell>
   );
@@ -60,7 +66,7 @@ async function DashboardBody({
     const message = error instanceof Error ? error.message : 'Unknown error';
     return (
       <OpsAlert tone="error">
-        Pilot-staging data is unavailable right now ({message}). Try refreshing the page.
+        The rollout figures could not be read right now ({message}). Try refreshing the page.
       </OpsAlert>
     );
   }

@@ -1,6 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ACTION_LABEL } from '@/lib/ops/recommendationView';
+import { humaniseEnum } from '@/lib/ops/vocabulary';
+import type { CommandActionType } from '@/models/control';
 
 interface QueuedAction {
   id: string;
@@ -18,7 +21,10 @@ interface QueuedAction {
   decision: 'pending' | 'approved' | 'rejected';
 }
 
-type FetchState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; actions: QueuedAction[] };
+type FetchState =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; actions: QueuedAction[] };
 
 /**
  * Approval queue for disruptive dispatcher actions (this ticket's AC2:
@@ -28,12 +34,20 @@ type FetchState = { status: 'loading' } | { status: 'error'; message: string } |
  * default). Two render modes:
  *   - canDecide=false (dispatcher dashboard): read-only visibility into
  *     the queue so a dispatcher can track what they've filed.
- *   - canDecide=true (control-room console): adds a "Reject" action
- *     (POST /api/ops/control-room/approvals/:id/reject) and an "Approve —
- *     issue command" button that hands the id to onApprove, which
+ *   - canDecide=true (control-room console): adds a "Refuse" action
+ *     (POST /api/ops/control-room/approvals/:id/reject) and an "Approve and
+ *     send" button that hands the reference to onApprove, which
  *     ControlRoomConsole wires to ControlRoomCommandForm — approving *is*
- *     issuing the command that consumes this id, per that form's own doc
- *     comment.
+ *     sending the instruction that consumes this reference, per that form's
+ *     own doc comment.
+ *
+ * The words on screen were changed with the control room's language pass and
+ * the wire contract was not: the endpoint, its `reject` path and the
+ * `dispatcherActionId` it consumes are all untouched. "Refuse" rather than
+ * "Reject" because this is a person declining a colleague's request, and
+ * every enum that used to render raw here — `terminal_dispatch_hold` with one
+ * underscore swapped, as the headline of a decision — now goes through
+ * src/lib/ops/vocabulary.ts.
  */
 export function ApprovalQueuePanel({
   canDecide,
@@ -86,12 +100,11 @@ export function ApprovalQueuePanel({
           { cache: 'no-store' },
         );
         const data = (await response.json().catch(() => null)) as
-          | { actions: QueuedAction[] }
-          | { error: { message: string } }
-          | null;
+          { actions: QueuedAction[] } | { error: { message: string } } | null;
         if (!response.ok || !data || 'error' in data) {
           const message =
-            (data && 'error' in data && data.error.message) || 'Failed to load the approval queue.';
+            (data && 'error' in data && data.error.message) ||
+            'What is waiting for a decision could not be read. Try again.';
           // A failed BACKGROUND poll must not replace a good list with an
           // error: the queue on screen is still the last real one. The
           // console's own status line reports the refresh failure.
@@ -105,7 +118,10 @@ export function ApprovalQueuePanel({
         setState((previous) =>
           silent && previous.status === 'ready'
             ? previous
-            : { status: 'error', message: 'Something went wrong. Please try again.' },
+            : {
+                status: 'error',
+                message: 'What is waiting for a decision could not be read. Try again.',
+              },
         );
       }
     },
@@ -137,9 +153,13 @@ export function ApprovalQueuePanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: rejectReason }),
       });
-      const data = (await response.json().catch(() => null)) as { ok: true } | { error: { message: string } } | null;
+      const data = (await response.json().catch(() => null)) as
+        { ok: true } | { error: { message: string } } | null;
       if (!response.ok || !data || !('ok' in data)) {
-        setRejectError((data && 'error' in data && data.error.message) || 'Failed to reject this action.');
+        setRejectError(
+          (data && 'error' in data && data.error.message) ||
+            'The refusal was not saved. Try again.',
+        );
         setSubmitting(false);
         return;
       }
@@ -148,31 +168,31 @@ export function ApprovalQueuePanel({
       setSubmitting(false);
       await load();
     } catch {
-      setRejectError('Something went wrong. Please try again.');
+      setRejectError('The refusal was not saved — the console could not be reached. Try again.');
       setSubmitting(false);
     }
   }
 
   if (state.status === 'loading') {
-    return <p className="text-sm text-ops-muted">Loading approval queue…</p>;
+    return <p className="text-sm text-muted-foreground">Loading what is waiting…</p>;
   }
   if (state.status === 'error') {
     return (
-      <p role="alert" className="text-sm text-alert-crimson">
+      <p role="alert" className="text-sm text-destructive">
         {state.message}
       </p>
     );
   }
   if (state.actions.length === 0) {
     return (
-      <p className="ops-well px-4 py-3 text-sm text-ops-muted">
+      <p className="ops-well px-4 py-3 text-sm text-muted-foreground">
         {/* The wording has to match what was actually asked for. Saying "no
             disruptive actions" on the control-room console, which reads the
             queue unfiltered, would imply a narrower search than the one that
             came back empty. */}
         {disruptiveOnly
-          ? 'No disruptive actions awaiting a decision.'
-          : 'No dispatcher approvals awaiting a decision, of any action type.'}
+          ? 'Nothing disruptive is waiting for a decision.'
+          : 'Nothing is waiting for a decision, of any kind.'}
       </p>
     );
   }
@@ -180,31 +200,40 @@ export function ApprovalQueuePanel({
   return (
     <ul className="space-y-3">
       {state.actions.map((action) => (
-        <li key={action.id} className="rounded-md border border-ops-line px-4 py-3">
+        <li key={action.id} className="rounded-md border border-border px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-mono text-xs uppercase tracking-[0.1em] text-holo-glow">
-              {action.actionType.replace(/_/g, ' ')}
+            {/* Named, not the raw enum. This panel printed
+                `terminal_dispatch_hold` with one underscore swapped, in a mono
+                face, as the headline of a decision a person had to make. */}
+            <span className="text-xs font-medium text-primary">
+              {ACTION_LABEL[action.actionType as CommandActionType] ??
+                humaniseEnum(action.actionType)}
             </span>
-            <span className="text-[11px] text-ops-faint">{new Date(action.createdAt).toLocaleString()}</span>
+            <span className="text-[11px] text-subtle">
+              {new Date(action.createdAt).toLocaleString()}
+            </span>
           </div>
-          <p className="mt-1 text-sm text-ops-ink">{action.reason}</p>
-          <p className="mt-1 font-mono text-[11px] text-ops-faint">
+          <p className="mt-1 text-sm text-foreground">{action.reason}</p>
+          <p className="mt-1 text-[11px] text-subtle">
             {[
-              action.vehicleId ? `vehicle ${action.vehicleId}` : null,
-              action.routeDirectionId ? `route-direction ${action.routeDirectionId}` : null,
+              action.vehicleId ? `bus ${action.vehicleId}` : null,
+              action.routeDirectionId ? `corridor ${action.routeDirectionId}` : null,
               action.incidentId ? `incident ${action.incidentId}` : null,
             ]
               .filter(Boolean)
-              .join(' · ') || 'no target scoped'}
+              .join(' · ') || 'nothing specific named'}
           </p>
-          <p className="mt-1 font-mono text-[10px] text-ops-faint">id: {action.id}</p>
+          <p className="mt-1 font-mono text-[10px] text-subtle">Approval reference {action.id}</p>
 
           {canDecide && (
-            <div className="mt-3 space-y-2 border-t border-ops-line/70 pt-3">
+            <div className="mt-3 space-y-2 border-t border-border/70 pt-3">
               {rejectingId === action.id ? (
                 <div className="space-y-2">
-                  <label htmlFor={`reject-reason-${action.id}`} className="block text-xs text-ops-muted">
-                    Rejection reason
+                  <label
+                    htmlFor={`reject-reason-${action.id}`}
+                    className="block text-xs text-muted-foreground"
+                  >
+                    Why you are refusing this
                   </label>
                   <textarea
                     id={`reject-reason-${action.id}`}
@@ -215,7 +244,7 @@ export function ApprovalQueuePanel({
                     className="ops-input"
                   />
                   {rejectError && (
-                    <p role="alert" className="text-xs text-alert-crimson">
+                    <p role="alert" className="text-xs text-destructive">
                       {rejectError}
                     </p>
                   )}
@@ -224,9 +253,9 @@ export function ApprovalQueuePanel({
                       type="button"
                       disabled={submitting || rejectReason.trim().length === 0}
                       onClick={() => submitReject(action.id)}
-                      className="ops-button-danger text-ops-danger"
+                      className="ops-button-danger"
                     >
-                      {submitting ? 'Rejecting…' : 'Confirm reject'}
+                      {submitting ? 'Refusing…' : 'Confirm refusal'}
                     </button>
                     <button
                       type="button"
@@ -245,16 +274,16 @@ export function ApprovalQueuePanel({
                   <button
                     type="button"
                     onClick={() => onApprove?.(action.id)}
-                    className="ops-button border-alert-green/60 bg-alert-green/10 text-ops-good hover:border-alert-green hover:bg-alert-green/20 hover:text-ops-good"
+                    className="ops-button border-success/60 bg-success/10 text-success hover:border-success hover:bg-success/20"
                   >
-                    Approve — issue command
+                    Approve and send
                   </button>
                   <button
                     type="button"
                     onClick={() => setRejectingId(action.id)}
-                    className="ops-button-danger text-ops-danger"
+                    className="ops-button-danger"
                   >
-                    Reject
+                    Refuse
                   </button>
                 </div>
               )}

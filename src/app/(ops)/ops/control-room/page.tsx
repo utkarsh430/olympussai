@@ -98,9 +98,9 @@ async function ConsoleBody({
     try {
       initialOverview = await getControlRoomOverview(routeDirectionId);
     } catch (error) {
-      initialOverviewError = `The first status reading could not be taken (${
+      initialOverviewError = `The first reading could not be taken (${
         error instanceof Error ? error.message : 'unknown error'
-      }). Retrying automatically.`;
+      }). Trying again automatically.`;
     }
 
     return (
@@ -119,8 +119,8 @@ async function ConsoleBody({
         }
         reportsPanel={
           <OpsSection
-            title="Breakdown reports"
-            description="Filed by drivers from the vehicle console, across the whole fleet."
+            title="Breakdowns reported by drivers"
+            description="Filed by drivers from their own console, across the whole fleet."
           >
             <BreakdownReportsPanel scope="fleet" />
           </OpsSection>
@@ -132,7 +132,8 @@ async function ConsoleBody({
     return (
       <OpsShell title="Control Room" email={email} role="control_room" variant="wide">
         <OpsAlert tone="error">
-          Control-room data is unavailable right now ({message}). Try refreshing the page.
+          The control room&apos;s data could not be read right now ({message}). Try refreshing the
+          page.
         </OpsAlert>
       </OpsShell>
     );

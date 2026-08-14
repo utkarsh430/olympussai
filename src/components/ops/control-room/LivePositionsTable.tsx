@@ -1,36 +1,36 @@
 import type { VehicleState } from '@/models/control';
+import {
+  OpsEmptyState,
+  OpsIdentifier,
+  OpsTableFrame,
+  opsTableClass,
+  opsTdClass,
+  opsTdMutedClass,
+  opsTdNumericClass,
+  opsThClass,
+  opsTheadRowClass,
+  opsTrClass,
+} from '@/components/ops/ui';
+import { stopStateLabel } from '@/lib/ops/vocabulary';
 import { LiveBadge } from './LiveBadge';
 
-const STOP_STATE_LABEL: Record<VehicleState['stopState'], string> = {
-  approaching_stop: 'Approaching stop',
-  dwelling_at_stop: 'Dwelling at stop',
-  held_by_controller: 'Held',
-  stopped_in_traffic: 'Stopped in traffic',
-  departed_stop: 'Departed stop',
-  off_route: 'Off route',
-};
-
 /**
- * Live vehicle positions for the selected route-direction (AC: "Dashboard
- * shows live positions (LIVE badge)"), as distance-along-route and speed.
+ * Where each bus on this corridor is, in running order.
  *
- * This used to carry a note saying the map was impossible because
- * GET /v1/vehicle-states did not populate lat/lon. That is no longer true:
- * control-service/src/routes/vehicleStates.ts emits `position`
- * ({latitude, longitude}) and `headingDegrees` from the state store. The map
- * exists - src/components/ops/map/OpsFleetMap.tsx, fed by
- * src/lib/ops/mapData.ts, which merges those positions into the caller's
- * depot-scoped fleet.
- *
- * This table stays, and is not redundant. It is the ordering view: sorted by
+ * This is not the map by another name and is not redundant with it. Sorted by
  * distance along the route, it is the closest signal this system has to a
  * running order, and it states each row's freshness as a number. A map shows
- * where; this shows how far along and how old. The two answer different
- * questions and a control room needs both on screen.
+ * WHERE; this shows how far along and how old. A control room needs both.
+ *
+ * The column headings and the stop-state values are now plain: `Dwelling at
+ * stop` and `Off route` were the raw enum with underscores swapped, and
+ * `Distance along route` / `Last observed` were written for whoever built the
+ * table rather than whoever reads it. Every stop state goes through
+ * src/lib/ops/vocabulary.ts, which the driver console will read from too.
  */
 export function LivePositionsTable({ positions, now }: { positions: VehicleState[]; now: number }) {
   if (positions.length === 0) {
-    return <p className="text-sm text-ops-muted">No vehicles currently reporting on this route-direction.</p>;
+    return <OpsEmptyState>No bus is reporting a position on this corridor.</OpsEmptyState>;
   }
 
   const sorted = [...positions].sort(
@@ -38,41 +38,63 @@ export function LivePositionsTable({ positions, now }: { positions: VehicleState
   );
 
   return (
-    <div className="overflow-x-auto rounded-md border border-ops-line">
-      <table className="w-full min-w-[720px] text-left text-sm">
-        <caption className="sr-only">Live vehicle positions, {positions.length} vehicles</caption>
+    <OpsTableFrame>
+      <table className={`${opsTableClass} min-w-[720px]`}>
+        <caption className="sr-only">
+          Buses on this corridor, {positions.length} in total, furthest along the route first
+        </caption>
         <thead>
-          <tr className="border-b border-ops-line text-[11px] uppercase tracking-[0.12em] text-ops-muted">
-            <th scope="col" className="px-3 py-2 font-mono">Vehicle</th>
-            <th scope="col" className="px-3 py-2 font-mono">Distance along route</th>
-            <th scope="col" className="px-3 py-2 font-mono">Speed</th>
-            <th scope="col" className="px-3 py-2 font-mono">Stop state</th>
-            <th scope="col" className="px-3 py-2 font-mono">Confidence</th>
-            <th scope="col" className="px-3 py-2 font-mono">Last observed</th>
+          <tr className={opsTheadRowClass}>
+            <th scope="col" className={opsThClass}>
+              Bus
+            </th>
+            <th scope="col" className={opsThClass}>
+              How far along the route
+            </th>
+            <th scope="col" className={opsThClass}>
+              Speed
+            </th>
+            <th scope="col" className={opsThClass}>
+              What it is doing
+            </th>
+            <th scope="col" className={opsThClass}>
+              How sure of the position
+            </th>
+            <th scope="col" className={opsThClass}>
+              Last heard from
+            </th>
           </tr>
         </thead>
         <tbody>
           {sorted.map((vehicle) => (
-            <tr key={vehicle.vehicleId} className="border-b border-ops-line/50 text-ops-ink last:border-0">
-              <td className="px-3 py-2 font-mono">{vehicle.vehicleId}</td>
-              <td className="px-3 py-2 text-ops-muted">
-                {vehicle.distanceAlongRouteMeters === null ? '—' : `${Math.round(vehicle.distanceAlongRouteMeters)} m`}
+            <tr key={vehicle.vehicleId} className={opsTrClass}>
+              <td className={opsTdClass}>
+                <OpsIdentifier>{vehicle.vehicleId}</OpsIdentifier>
               </td>
-              <td className="px-3 py-2 text-ops-muted">{vehicle.speedKmph === null ? '—' : `${vehicle.speedKmph} km/h`}</td>
-              <td className="px-3 py-2 text-ops-muted">{STOP_STATE_LABEL[vehicle.stopState]}</td>
-              <td className="px-3 py-2 text-ops-muted">
+              <td className={opsTdNumericClass}>
+                {vehicle.distanceAlongRouteMeters === null
+                  ? '—'
+                  : `${Math.round(vehicle.distanceAlongRouteMeters)} m`}
+              </td>
+              <td className={opsTdNumericClass}>
+                {vehicle.speedKmph === null ? '—' : `${vehicle.speedKmph} km/h`}
+              </td>
+              <td className={opsTdMutedClass}>{stopStateLabel(vehicle.stopState)}</td>
+              <td className={opsTdNumericClass}>
                 {vehicle.confidence === null ? '—' : `${Math.round(vehicle.confidence * 100)}%`}
               </td>
-              <td className="px-3 py-2">
+              <td className={opsTdClass}>
                 <div className="flex items-center gap-2">
                   <LiveBadge observedAt={vehicle.observedAt} now={now} />
-                  <span className="text-xs text-ops-faint">{new Date(vehicle.observedAt).toLocaleTimeString()}</span>
+                  <span className="text-xs text-subtle">
+                    {new Date(vehicle.observedAt).toLocaleTimeString()}
+                  </span>
                 </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-    </div>
+    </OpsTableFrame>
   );
 }

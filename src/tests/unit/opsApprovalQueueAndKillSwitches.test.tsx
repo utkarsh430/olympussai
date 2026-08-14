@@ -45,13 +45,18 @@ describe('ApprovalQueuePanel', () => {
       expect.objectContaining({ cache: 'no-store' }),
     );
     // Read-only mode (dispatcher dashboard): no decision buttons.
-    expect(screen.queryByRole('button', { name: /reject/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /refuse/i })).not.toBeInTheDocument();
   });
 
   it('shows an empty state when there is nothing pending', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ actions: [] }) }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ actions: [] }) }),
+    );
     render(<ApprovalQueuePanel canDecide={false} />);
-    await waitFor(() => expect(screen.getByText(/no disruptive actions awaiting/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/nothing disruptive is waiting for a decision/i)).toBeInTheDocument(),
+    );
   });
 
   it('canDecide=true lets control-room reject an action with a reason, logged via the reject endpoint', async () => {
@@ -60,7 +65,10 @@ describe('ApprovalQueuePanel', () => {
         return Promise.resolve({ ok: true, json: async () => ({ actions: [queuedAction()] }) });
       }
       if (url === '/api/ops/control-room/approvals/da-1/reject') {
-        return Promise.resolve({ ok: true, json: async () => ({ ok: true, dispatcherActionId: 'da-1' }) });
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ ok: true, dispatcherActionId: 'da-1' }),
+        });
       }
       throw new Error(`unexpected fetch to ${url}`);
     });
@@ -69,9 +77,11 @@ describe('ApprovalQueuePanel', () => {
     render(<ApprovalQueuePanel canDecide onApprove={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Blocking incident ahead')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /^reject$/i }));
-    fireEvent.change(screen.getByLabelText(/rejection reason/i), { target: { value: 'Not safe to skip this stop' } });
-    fireEvent.click(screen.getByRole('button', { name: /confirm reject/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^refuse$/i }));
+    fireEvent.change(screen.getByLabelText(/why you are refusing this/i), {
+      target: { value: 'Not safe to skip this stop' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /confirm refusal/i }));
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -84,13 +94,16 @@ describe('ApprovalQueuePanel', () => {
     );
   });
 
-  it('calls onApprove with the dispatcherActionId when "Approve — issue command" is clicked', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ actions: [queuedAction()] }) }));
+  it('calls onApprove with the approval reference when "Approve and send" is clicked', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ actions: [queuedAction()] }) }),
+    );
     const onApprove = vi.fn();
     render(<ApprovalQueuePanel canDecide onApprove={onApprove} />);
     await waitFor(() => expect(screen.getByText('Blocking incident ahead')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /approve.*issue command/i }));
+    fireEvent.click(screen.getByRole('button', { name: /approve and send/i }));
     expect(onApprove).toHaveBeenCalledWith('da-1');
   });
 });
@@ -111,42 +124,59 @@ function killSwitch(overrides: Partial<KillSwitchRecord> = {}): KillSwitchRecord
 }
 
 describe('KillSwitchPanel', () => {
-  it('renders the "no kill switches engaged" state when none are active', () => {
+  it('says plainly that nothing is stopped when no switch is on', () => {
     render(<KillSwitchPanel initialActive={[]} />);
-    expect(screen.getByText(/no kill switches engaged/i)).toBeInTheDocument();
+    expect(screen.getByText(/nothing is stopped/i)).toBeInTheDocument();
   });
 
-  it('shows an active kill switch with its scope and reason', () => {
+  it('shows an active stop with where it applies and why', () => {
     render(<KillSwitchPanel initialActive={[killSwitch()]} />);
-    // "Network-wide" also appears as a <select> option in the engage form below, so scope to at least one match rather than a single unique one.
-    expect(screen.getAllByText(/network-wide/i).length).toBeGreaterThan(0);
+    // "Whole state" also appears as a <select> option in the form below, so
+    // assert at least one match rather than a single unique one.
+    expect(screen.getAllByText(/whole state/i).length).toBeGreaterThan(0);
+    // And the limit of what it does is on the panel, not only in a comment.
+    expect(screen.getByText(/instructions sent before then still stand/i)).toBeInTheDocument();
     expect(screen.getByText(/Signal outage across the network/)).toBeInTheDocument();
   });
 
-  it('engages a route-level kill switch via POST /api/ops/control-room/kill-switches', async () => {
+  it('stops instructions on one corridor via POST /api/ops/control-room/kill-switches', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url === '/api/ops/control-room/kill-switches' && init?.method === 'POST') {
-        return Promise.resolve({ ok: true, json: async () => ({ ok: true, killSwitch: killSwitch() }) });
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ ok: true, killSwitch: killSwitch() }),
+        });
       }
       if (url === '/api/ops/control-room/kill-switches') {
-        return Promise.resolve({ ok: true, json: async () => ({ active: [killSwitch({ scope: 'route', routeDirectionId: 'rd-9' })] }) });
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            active: [killSwitch({ scope: 'route', routeDirectionId: 'rd-9' })],
+          }),
+        });
       }
       throw new Error(`unexpected fetch to ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<KillSwitchPanel initialActive={[]} />);
-    fireEvent.change(screen.getByLabelText(/^scope$/i), { target: { value: 'route' } });
-    fireEvent.change(screen.getByLabelText(/route-direction id/i), { target: { value: 'rd-9' } });
-    fireEvent.change(screen.getByLabelText(/^reason$/i), { target: { value: 'Track maintenance in progress' } });
-    fireEvent.click(screen.getByRole('button', { name: /engage kill switch/i }));
+    fireEvent.change(screen.getByLabelText(/^where/i), { target: { value: 'route' } });
+    fireEvent.change(screen.getByLabelText(/which corridor/i), { target: { value: 'rd-9' } });
+    fireEvent.change(screen.getByLabelText(/why you are stopping instructions/i), {
+      target: { value: 'Track maintenance in progress' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^stop instructions$/i }));
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/ops/control-room/kill-switches',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ scope: 'route', routeDirectionId: 'rd-9', reason: 'Track maintenance in progress' }),
+          body: JSON.stringify({
+            scope: 'route',
+            routeDirectionId: 'rd-9',
+            reason: 'Track maintenance in progress',
+          }),
         }),
       ),
     );
@@ -155,7 +185,9 @@ describe('KillSwitchPanel', () => {
 
 describe('KillSwitchBanner', () => {
   it('renders nothing when there are no active kill switches', () => {
-    const { container } = render(<KillSwitchBanner activeKillSwitches={[]} routeDirectionId="rd-1" />);
+    const { container } = render(
+      <KillSwitchBanner activeKillSwitches={[]} routeDirectionId="rd-1" />,
+    );
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -165,8 +197,15 @@ describe('KillSwitchBanner', () => {
   });
 
   it('only shows a route-level switch when it matches the currently-viewed route-direction', () => {
-    const routeSwitch = killSwitch({ id: 'ks-2', scope: 'route', routeDirectionId: 'rd-9', reason: 'Track work' });
-    const { rerender } = render(<KillSwitchBanner activeKillSwitches={[routeSwitch]} routeDirectionId="rd-1" />);
+    const routeSwitch = killSwitch({
+      id: 'ks-2',
+      scope: 'route',
+      routeDirectionId: 'rd-9',
+      reason: 'Track work',
+    });
+    const { rerender } = render(
+      <KillSwitchBanner activeKillSwitches={[routeSwitch]} routeDirectionId="rd-1" />,
+    );
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
     rerender(<KillSwitchBanner activeKillSwitches={[routeSwitch]} routeDirectionId="rd-9" />);

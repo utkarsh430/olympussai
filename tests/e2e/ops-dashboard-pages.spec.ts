@@ -1,11 +1,7 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { Pool } from 'pg';
 import { assertDisposableOpsDatabase } from './fixtures/dbSafety';
-import {
-  assertQaRoster,
-  isSupabaseAuthCookie,
-  signInThroughFrontDoor,
-} from './fixtures/opsSignIn';
+import { assertQaRoster, isSupabaseAuthCookie, signInThroughFrontDoor } from './fixtures/opsSignIn';
 
 /**
  * Every ops dashboard page, actually opened — and the mid-render race that
@@ -106,11 +102,15 @@ const OPS_PAGES: ReadonlyArray<{ path: string; role: OpsRoleName; title: string 
   { path: '/ops/depot', role: 'depot', title: 'Depot' },
   { path: '/ops/planner', role: 'planner', title: 'Planner' },
   { path: '/ops/control-room', role: 'control_room', title: 'Control Room' },
-  { path: '/ops/control-room/copilot', role: 'control_room', title: 'Copilot' },
+  { path: '/ops/control-room/copilot', role: 'control_room', title: 'Assistant' },
   // Nothing seeded for this id on purpose: the timeline must still render its
   // shell (the point here is the guard, not the incident data).
-  { path: '/ops/control-room/observability', role: 'control_room', title: 'Live Observability' },
-  { path: '/ops/control-room/pilot', role: 'control_room', title: 'Pilot Staging' },
+  {
+    path: '/ops/control-room/observability',
+    role: 'control_room',
+    title: 'One Corridor In Detail',
+  },
+  { path: '/ops/control-room/pilot', role: 'control_room', title: 'Rollout' },
   {
     path: '/ops/control-room/incidents/e2e-nonexistent-incident',
     role: 'control_room',

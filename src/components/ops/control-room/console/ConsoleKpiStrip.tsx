@@ -1,25 +1,33 @@
 'use client';
 
-import { OpsBadge, OpsStat, OpsStatGroup, OpsStatStrip } from '@/components/ops/ui';
-import { isObserved, readingDisplay } from '@/lib/ops/consoleReadings';
-import type { ConsoleKpiModel, ConsoleKpiScope, ConsoleKpiTile } from '@/lib/ops/controlRoomOverviewModel';
+import { OpsBadge, OpsReadingStat, OpsStatGroup, OpsStatStrip } from '@/components/ops/ui';
+import { isObserved } from '@/lib/ops/consoleReadings';
+import type {
+  ConsoleKpiModel,
+  ConsoleKpiScope,
+  ConsoleKpiTile,
+} from '@/lib/ops/controlRoomOverviewModel';
 
 /**
  * What each scope is called on screen.
  *
- * "Statewide" and "Selected corridor" rather than "network" and "corridor":
- * the point of the caption is to make the two populations obviously different
- * sizes at a glance, and "statewide" is the word that does that work. The
- * corridor caption says "selected" because which corridor it is lives in the
- * shell's subtitle and the picker, and repeating the id here would be a third
- * copy to keep in step.
+ * The two populations are genuinely different sizes and must never read as one
+ * set of facts about one thing: the left group counts every bus in Uttar
+ * Pradesh, the right group describes ONE corridor out of 759. "Whole state" is
+ * the phrase that makes that difference land at a glance — plainer than
+ * "network", and it names the actual population rather than a piece of
+ * infrastructure.
+ *
+ * The corridor group says "this corridor" rather than naming it, because which
+ * corridor it is already lives in the page subtitle and in the picker, and a
+ * third copy is a third thing to keep in step.
  */
 const SCOPE_LABEL: Record<ConsoleKpiScope, string> = {
-  network: 'Statewide',
-  corridor: 'Selected corridor',
+  network: 'Whole state',
+  corridor: 'This corridor',
 };
 
-/** Scope order on the strip. Statewide first: it is the context the corridor readings sit inside. */
+/** Scope order on the strip. Whole state first: it is the context the corridor readings sit inside. */
 const SCOPE_ORDER: ConsoleKpiScope[] = ['network', 'corridor'];
 
 /**
@@ -32,8 +40,8 @@ const SCOPE_ORDER: ConsoleKpiScope[] = ['network', 'corridor'];
  *
  * The one presentational rule it does own: a reading that is not observed
  * renders in the muted ink, never in the tone its value would have had. An
- * unavailable incident count drawn in alert red would read as "incidents",
- * which is the same lie by a different route.
+ * unavailable count of buses closing up drawn in alert red would read as
+ * "buses are closing up", which is the same lie by a different route.
  */
 export function ConsoleKpiStrip({
   model,
@@ -64,11 +72,11 @@ export function ConsoleKpiStrip({
 
         <div className="ml-auto flex items-center gap-3 self-center">
           <OpsBadge variant={model.fleetBadge.variant}>{model.fleetBadge.label}</OpsBadge>
-          <span className="font-mono text-[11px] text-ops-faint">
+          <span className="text-[11px] tabular-nums text-subtle">
             {fetchedAt === null
-              ? 'awaiting first reading'
+              ? 'waiting for the first reading'
               : paused
-                ? `paused · ${ageSeconds === null ? 'unknown age' : `${ageSeconds}s old`}`
+                ? `paused · ${ageSeconds === null ? 'age unknown' : `${ageSeconds}s old`}`
                 : ageSeconds === null
                   ? 'updated'
                   : `updated ${ageSeconds}s ago`}
@@ -79,18 +87,19 @@ export function ConsoleKpiStrip({
       {model.killSwitchNotice && (
         <p
           role={model.killSwitchNotice.engaged ? 'alert' : 'status'}
-          className={`border-t px-6 py-2 text-xs ${
+          className={
             model.killSwitchNotice.engaged
-              ? 'border-alert-crimson/40 bg-alert-crimson/10 text-ops-danger'
-              : 'border-alert-amber/40 bg-alert-amber/10 text-ops-warn'
-          }`}
+              ? 'border-t border-destructive/40 bg-destructive/10 px-6 py-2 text-xs text-destructive'
+              : 'border-t border-warning/40 bg-warning/10 px-6 py-2 text-xs text-warning'
+          }
         >
-          <span className="font-semibold">{model.killSwitchNotice.label}</span> — {model.killSwitchNotice.detail}
+          <span className="font-semibold">{model.killSwitchNotice.label}</span> —{' '}
+          {model.killSwitchNotice.detail}
         </p>
       )}
 
       {model.degraded.length > 0 && (
-        <p role="status" className="border-t border-ops-line px-6 py-2 text-xs text-ops-warn">
+        <p role="status" className="border-t border-border px-6 py-2 text-xs text-warning">
           Some readings are unavailable: {model.degraded.join(', ')} did not answer. Tiles marked{' '}
           <span className="font-mono">n/a</span> are unknown, not zero.
         </p>
@@ -101,9 +110,9 @@ export function ConsoleKpiStrip({
           styling it as a fault is how the outage claim got here in the first
           place. */}
       {model.corridorNotice !== null && (
-        <p role="status" className="border-t border-ops-line px-6 py-2 text-xs text-ops-muted">
-          {model.corridorNotice} Tiles marked <span className="font-mono">—</span> have nothing to report, as opposed
-          to <span className="font-mono">n/a</span>, which means unknown.
+        <p role="status" className="border-t border-border px-6 py-2 text-xs text-muted-foreground">
+          {model.corridorNotice} Tiles marked <span className="font-mono">—</span> have nothing to
+          report, as opposed to <span className="font-mono">n/a</span>, which means unknown.
         </p>
       )}
 
@@ -113,7 +122,7 @@ export function ConsoleKpiStrip({
           announce itself to a screen reader every time the band re-renders.
           The two notices above are events; this one is a standing condition. */}
       {model.coverageNotice !== null && (
-        <p className="border-t border-ops-line px-6 py-2 text-[11px] leading-relaxed text-ops-faint">
+        <p className="border-t border-border px-6 py-2 text-[11px] leading-relaxed text-subtle">
           {model.coverageNotice}
         </p>
       )}
@@ -122,19 +131,25 @@ export function ConsoleKpiStrip({
 }
 
 /**
- * One tile. Unchanged in behaviour from when the strip mapped tiles inline —
- * extracted only so the scope groups above stay readable.
+ * One tile, through the shared honest-value primitive.
+ *
+ * This used to call `readingDisplay` and paint the resulting string itself,
+ * which got the two glyphs right and the two ANNOUNCEMENTS wrong: a screen
+ * reader says nothing at all for `—` and "n a" for `n/a`, so the distinction
+ * the whole strip is built on vanished for an operator using one.
+ * `OpsReadingStat` emits the glyph for the eye and the phrase — "nothing to
+ * report" or "unknown, could not be read" — for the accessibility tree, and
+ * suppresses the unit when there is no value to attach it to.
  */
 function ConsoleKpiTileView({ tile }: { tile: ConsoleKpiTile }) {
-  const observedValue = isObserved(tile.reading);
   return (
-    <OpsStat
+    <OpsReadingStat
       label={tile.label}
-      value={readingDisplay(tile.reading, tile.format)}
-      unit={observedValue ? tile.unit : undefined}
-      hint={tile.reading.detail}
-      tone={observedValue ? (tile.tone ?? 'default') : 'default'}
-      className={observedValue ? undefined : 'opacity-70'}
+      reading={tile.reading}
+      format={tile.format}
+      unit={tile.unit}
+      tone={tile.tone}
+      className={isObserved(tile.reading) ? undefined : 'opacity-70'}
     />
   );
 }

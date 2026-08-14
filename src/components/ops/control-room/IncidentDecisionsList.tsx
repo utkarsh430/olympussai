@@ -1,3 +1,7 @@
+import { ACTION_LABEL } from '@/lib/ops/recommendationView';
+import { humaniseEnum } from '@/lib/ops/vocabulary';
+import type { CommandActionType } from '@/models/control';
+
 interface DecisionAction {
   id: string;
   actionType: string;
@@ -21,8 +25,8 @@ interface DecisionAction {
 export function IncidentDecisionsList({ decisions }: { decisions: DecisionAction[] }) {
   if (decisions.length === 0) {
     return (
-      <p className="ops-well px-4 py-3 text-sm text-ops-muted">
-        No dispatcher action has been filed against this incident yet.
+      <p className="ops-well px-4 py-3 text-sm text-muted-foreground">
+        No dispatcher has asked for anything on this incident yet.
       </p>
     );
   }
@@ -32,30 +36,35 @@ export function IncidentDecisionsList({ decisions }: { decisions: DecisionAction
       {decisions.map((d) => {
         const decision = d.rejectedAt ? 'rejected' : d.consumedAt ? 'approved' : 'pending';
         return (
-          <li key={d.id} className="rounded-md border border-ops-line px-4 py-3">
+          <li key={d.id} className="rounded-md border border-border px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-mono text-xs uppercase tracking-[0.1em] text-holo-glow">
-                {d.actionType.replace(/_/g, ' ')}
+              <span className="text-xs font-medium text-primary">
+                {ACTION_LABEL[d.actionType as CommandActionType] ?? humaniseEnum(d.actionType)}
               </span>
               <span
-                className={`rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] ${
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.1em] ${
                   decision === 'approved'
-                    ? 'border-alert-green/40 bg-alert-green/10 text-ops-good'
+                    ? 'border-success/40 bg-success/10 text-success'
                     : decision === 'rejected'
-                      ? 'border-alert-crimson/40 bg-alert-crimson/10 text-ops-danger'
-                      : 'border-alert-amber/40 bg-alert-amber/10 text-ops-warn'
+                      ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                      : 'border-warning/40 bg-warning/10 text-warning'
                 }`}
               >
-                {decision}
+                {decision === 'approved'
+                  ? 'Approved'
+                  : decision === 'rejected'
+                    ? 'Refused'
+                    : 'Waiting'}
               </span>
             </div>
-            <p className="mt-1 text-sm text-ops-ink">{d.reason}</p>
-            <p className="mt-1 text-[11px] text-ops-faint">
-              Filed {new Date(d.createdAt).toLocaleString()} by dispatcher {d.dispatcherUserId}
+            <p className="mt-1 text-sm text-foreground">{d.reason}</p>
+            <p className="mt-1 text-[11px] text-subtle">
+              Asked for {new Date(d.createdAt).toLocaleString()} by dispatcher {d.dispatcherUserId}
             </p>
             {decision === 'rejected' && (
-              <p className="mt-1 text-[11px] text-ops-danger">
-                Rejected {new Date(d.rejectedAt!).toLocaleString()} by {d.rejectedBy}: {d.rejectionReason}
+              <p className="mt-1 text-[11px] text-destructive">
+                Refused {new Date(d.rejectedAt!).toLocaleString()} by {d.rejectedBy}:{' '}
+                {d.rejectionReason}
               </p>
             )}
           </li>

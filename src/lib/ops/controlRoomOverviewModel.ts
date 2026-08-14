@@ -18,7 +18,12 @@
  * this is built on.
  */
 import type { UpstreamSource } from '@/models/canonical';
-import type { BunchingIncident, DailyKpiSnapshot, HeadwayAggregate, RouteDirectionMeta } from '@/models/control';
+import type {
+  BunchingIncident,
+  DailyKpiSnapshot,
+  HeadwayAggregate,
+  RouteDirectionMeta,
+} from '@/models/control';
 import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
 import {
   formatPercent,
@@ -30,6 +35,7 @@ import {
   observed,
   type ConsoleReading,
 } from './consoleReadings';
+import { METRIC, SAFETY_BLOCK_LABEL, corridorName } from './vocabulary';
 
 /** The wire shape of GET /api/ops/control-room/overview. Serializable throughout. */
 export interface ControlRoomOverview {
@@ -191,9 +197,9 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
   // `noPolicy` is deliberately NOT degraded. The line under the strip reads
   // "... did not answer", and the control service did answer.
   if (!overview.observability.ok && !noPolicy) degraded.push('the control service');
-  if (!overview.dailyKpi.ok) degraded.push("today's KPI roll-up");
-  if (!overview.guardrails.ok) degraded.push('guardrail breaches');
-  if (!overview.killSwitches.ok) degraded.push('the kill-switch record');
+  if (!overview.dailyKpi.ok) degraded.push("today's summary figures");
+  if (!overview.guardrails.ok) degraded.push('the record of blocked actions');
+  if (!overview.killSwitches.ok) degraded.push('the record of stopped instructions');
 
   const headwayOk = overview.observability.ok;
   const aggregate = overview.headway;
@@ -212,7 +218,7 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
    * sentence pushed the seven-tile strip onto a second row. The explanation
    * belongs in `corridorNotice`, which has a line to itself.
    */
-  const NO_POLICY_NOTE = 'no active headway policy';
+  const NO_POLICY_NOTE = 'no planned gap set for this corridor';
   const noPolicyReading = () => notYetComputed(NO_POLICY_NOTE);
 
   /**
@@ -229,33 +235,40 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
   const NO_CORRIDOR = 'no corridor selected';
   const sampleNote =
     aggregate === null
-      ? 'no headway sample computed yet'
-      : `${aggregate.sampleCount} pair ${aggregate.sampleCount === 1 ? 'sample' : 'samples'}`;
+      ? 'no gap reading taken yet'
+      : `from ${aggregate.sampleCount} ${aggregate.sampleCount === 1 ? 'pair of buses' : 'pairs of buses'}`;
 
+  // The CV tile's hint is the READING KEY when there is a number, and the
+  // provenance when there is not. The sample count is not lost: the average-gap
+  // tile beside it carries `from N pairs of buses` on the same row, and an
+  // operator staring at "0.31" needs to know what 0.31 means far more than
+  // they need the sample count twice.
   const cv = noPolicy
     ? noPolicyReading()
     : readingFrom(headwayOk, aggregate?.cv, {
-        observed: sampleNote,
+        observed: METRIC.cv.tileHint,
         missing: sampleNote,
         unavailable: 'the control service did not answer',
       });
 
   const tiles: ConsoleKpiTile[] = [
     {
-      label: 'Vehicles reporting',
+      label: 'Buses reporting',
       scope: 'network',
       reading:
         overview.fleet.source === 'unavailable'
           ? unavailable('the vehicle feed did not answer')
           : observed(
               overview.fleet.reporting,
-              overview.fleet.stale ? 'last known positions, feed is behind' : 'every depot, live feed',
+              overview.fleet.stale
+                ? 'last known positions, the feed is behind'
+                : 'every depot, live feed',
             ),
       tone: 'accent',
     },
     coverageTile(overview.corridors),
     {
-      label: 'Mean headway',
+      label: METRIC.meanHeadway.label,
       scope: 'corridor',
       reading: noPolicy
         ? noPolicyReading()
@@ -263,26 +276,26 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
             observed:
               aggregate === null
                 ? sampleNote
-                : `target ${formatSeconds(aggregate.targetHeadwaySeconds)} · ${sampleNote}`,
+                : `planned gap ${formatSeconds(aggregate.targetHeadwaySeconds)} · ${sampleNote}`,
             missing: sampleNote,
             unavailable: 'the control service did not answer',
           }),
       format: formatSeconds,
     },
     {
-      label: 'Headway CV',
+      label: METRIC.cv.label,
       scope: 'corridor',
       reading: cv,
       format: formatRatio,
       tone: cv.availability === 'observed' && (cv.value ?? 0) >= CV_IRREGULAR ? 'warn' : 'default',
     },
     {
-      label: 'Excess wait',
+      label: METRIC.excessWait.label,
       scope: 'corridor',
       reading: noPolicy
         ? noPolicyReading()
         : readingFrom(headwayOk, aggregate?.ewtSeconds, {
-            observed: 'passenger-impact KPI',
+            observed: METRIC.excessWait.hint,
             missing: sampleNote,
             unavailable: 'the control service did not answer',
           }),
@@ -294,7 +307,7 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
       // the headway read failed, so the console holds no answer of its own and
       // printing a confident `0 — this corridor is clear` would be exactly the
       // fabricated zero the strip exists to prevent.
-      label: 'Open incidents',
+      label: 'Buses closing up',
       scope: 'corridor',
       reading: noPolicy
         ? noPolicyReading()
@@ -304,37 +317,41 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
             ? notYetComputed(NO_CORRIDOR)
             : observed(
                 overview.incidents.length,
-                overview.incidents.length === 0 ? 'this corridor is clear' : 'bunching on this corridor',
+                overview.incidents.length === 0
+                  ? 'nothing closing up on this corridor'
+                  : 'happening on this corridor now',
               ),
-      tone:
-        headwayOk && corridorSelected && overview.incidents.length > 0 ? 'critical' : 'default',
+      tone: headwayOk && corridorSelected && overview.incidents.length > 0 ? 'critical' : 'default',
     },
     {
-      label: 'Recovery rate',
+      label: 'Sorted out today',
       scope: 'corridor',
       reading: readingFrom(overview.dailyKpi.ok, overview.dailyKpi.row?.recoveryRate, {
         observed: overview.dailyKpi.row
-          ? `${overview.dailyKpi.row.recoveredIncidentCount}/${overview.dailyKpi.row.incidentCount} incidents today`
+          ? `${overview.dailyKpi.row.recoveredIncidentCount} of ${overview.dailyKpi.row.incidentCount} sorted out today`
           : 'today',
-        missing: overview.dailyKpi.row === null ? 'no roll-up for this corridor yet today' : 'not computed for today yet',
-        unavailable: 'the KPI roll-up could not be read',
+        missing:
+          overview.dailyKpi.row === null
+            ? 'no summary for this corridor yet today'
+            : 'not worked out for today yet',
+        unavailable: "today's summary figures could not be read",
       }),
       format: formatPercent,
     },
     {
-      label: 'Guardrail breaches',
+      label: SAFETY_BLOCK_LABEL,
       scope: 'corridor',
       reading: !overview.guardrails.ok
-        ? unavailable('breaches could not be read')
+        ? unavailable('blocked actions could not be read')
         : !corridorSelected
           ? notYetComputed(NO_CORRIDOR)
           : observed(
               overview.guardrails.total,
               overview.guardrails.critical > 0
-                ? `${overview.guardrails.critical} critical`
+                ? `${overview.guardrails.critical} serious`
                 : overview.guardrails.total === 0
-                  ? 'none recorded'
-                  : 'none critical',
+                  ? 'nothing blocked'
+                  : 'none serious',
             ),
       tone:
         overview.guardrails.ok && corridorSelected && overview.guardrails.critical > 0
@@ -346,10 +363,10 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
   return {
     tiles,
     fleetBadge: fleetBadgeFor(overview.fleet.source, overview.fleet.stale),
-    killSwitchNotice: killSwitchNoticeFor(overview.killSwitches),
+    killSwitchNotice: killSwitchNoticeFor(overview.killSwitches, overview.routeDirections),
     degraded,
     corridorNotice: noPolicy
-      ? 'The control service answered: this corridor has no active headway policy, so bunching detection is off for it and there are no headway readings to show. Choose another corridor for live headway.'
+      ? 'The control service answered: no planned gap has been set for this corridor, so buses closing up cannot be checked here and there are no gap readings to show. Choose a corridor marked as reporting to see live gaps.'
       : null,
     coverageNotice: coverageNoticeFor(overview.corridors),
   };
@@ -368,21 +385,21 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
 function coverageTile(corridors: ControlRoomOverview['corridors']): ConsoleKpiTile {
   const { ok, mapped, detecting } = corridors;
   return {
-    label: 'Corridor coverage',
+    label: 'Corridors that can report',
     scope: 'network',
     // The value is the number of corridors that can actually report, and the
     // unit carries what it is out of. Splitting the pair across two tiles was
     // considered and dropped: "47" and "14" sitting apart invite exactly the
     // reading the pair exists to prevent, that 47 is the size of the network
     // rather than the size of what has been mapped out of it.
-    unit: detecting === null ? 'mapped' : `of ${mapped} mapped`,
+    unit: detecting === null ? 'surveyed' : `of ${mapped} surveyed`,
     reading: !ok
       ? unavailable('the control service did not answer')
       : observed(
           detecting ?? mapped,
           detecting === null
-            ? 'detection coverage not reported'
-            : 'can report bunching',
+            ? 'this control service does not say which can report'
+            : 'can report buses closing up',
         ),
   };
 }
@@ -404,19 +421,23 @@ function coverageNoticeFor(corridors: ControlRoomOverview['corridors']): string 
   const { ok, mapped, detecting } = corridors;
   if (!ok) return null;
 
+  // KEPT, and kept long. Every clause is doing work: the pair says how much
+  // of the state has been surveyed, and the closing sentence says the pair is
+  // NOT a share of the network, because the network's size is not known from
+  // here. A shorter version of this paragraph is a false one.
   const NETWORK_UNKNOWN =
-    'The control database holds only the corridors that have been mapped so far, so the size of the full network is not known here — this is not a whole-network view.';
+    'The control database holds only the corridors surveyed so far, so the size of the full network is not known here — this is not a whole-network view.';
 
   if (mapped === 0) {
-    return `The control service reports no mapped corridors, so the corridor readings above have no subject. ${NETWORK_UNKNOWN}`;
+    return `The control service reports no surveyed corridors, so the corridor figures above have nothing to describe. ${NETWORK_UNKNOWN}`;
   }
   if (detecting === null) {
-    return `${mapped} ${corridorWord(mapped)} ${mapped === 1 ? 'has' : 'have'} mapped geometry and can be selected here. This control service does not report which of them have an active headway policy, so how many can actually detect bunching is unknown. ${NETWORK_UNKNOWN}`;
+    return `${mapped} ${corridorWord(mapped)} ${mapped === 1 ? 'has' : 'have'} been surveyed and can be chosen here. This control service does not say which of them have a planned gap set, so how many can report buses closing up is unknown. ${NETWORK_UNKNOWN}`;
   }
   if (detecting === mapped) {
-    return `All ${mapped} mapped ${corridorWord(mapped)} ${mapped === 1 ? 'has' : 'have'} an active headway policy and can report bunching. ${NETWORK_UNKNOWN}`;
+    return `All ${mapped} surveyed ${corridorWord(mapped)} ${mapped === 1 ? 'has' : 'have'} a planned gap set, so ${mapped === 1 ? 'it' : 'they'} can report buses closing up. ${NETWORK_UNKNOWN}`;
   }
-  return `${detecting} of ${mapped} mapped ${corridorWord(mapped)} ${detecting === 1 ? 'has' : 'have'} an active headway policy and can report bunching; the ${mapped - detecting} ${mapped - detecting === 1 ? 'other' : 'others'} can be selected but will show nothing. ${NETWORK_UNKNOWN}`;
+  return `${detecting} of ${mapped} surveyed ${corridorWord(mapped)} ${detecting === 1 ? 'has' : 'have'} a planned gap set, so ${detecting === 1 ? 'it' : 'they'} can report buses closing up. The other ${mapped - detecting} can be opened but will show nothing. ${NETWORK_UNKNOWN}`;
 }
 
 function corridorWord(count: number): string {
@@ -436,15 +457,19 @@ function fleetBadgeFor(source: UpstreamSource, stale: boolean): ConsoleKpiModel[
   return { variant: 'live', label: 'Live' };
 }
 
-function killSwitchNoticeFor(killSwitches: ControlRoomOverview['killSwitches']): ConsoleKpiModel['killSwitchNotice'] {
+function killSwitchNoticeFor(
+  killSwitches: ControlRoomOverview['killSwitches'],
+  routeDirections: readonly RouteDirectionMeta[],
+): ConsoleKpiModel['killSwitchNotice'] {
   if (!killSwitches.ok) {
     // Unreadable is NOT "clear". The console cannot promise commands will be
     // accepted, and saying "no kill switch engaged" here would be a claim it
     // has no evidence for.
     return {
       engaged: false,
-      label: 'Kill switches unknown',
-      detail: 'The kill-switch record could not be read, so whether commands are halted is unknown.',
+      label: 'Cannot tell whether instructions are stopped',
+      detail:
+        'The record of stopped instructions could not be read, so whether new instructions can be sent is unknown.',
     };
   }
   if (killSwitches.active.length === 0) return null;
@@ -453,18 +478,37 @@ function killSwitchNoticeFor(killSwitches: ControlRoomOverview['killSwitches']):
   if (network) {
     return {
       engaged: true,
-      label: 'Network kill switch engaged',
-      detail: `No new commands can be authorized anywhere. Reason: ${network.reason}`,
+      label: 'All new instructions stopped, whole state',
+      detail: `No new instruction can be sent anywhere. Instructions already sent still stand. Reason: ${network.reason}`,
     };
   }
   const count = killSwitches.active.length;
   return {
     engaged: true,
-    label: `${count} route kill ${count === 1 ? 'switch' : 'switches'} engaged`,
+    label: `New instructions stopped on ${count} ${count === 1 ? 'corridor' : 'corridors'}`,
     detail: killSwitches.active
-      .map((entry) => `${entry.routeDirectionId ?? 'unknown route'}: ${entry.reason}`)
+      .map((entry) => `${corridorLabel(entry.routeDirectionId, routeDirections)}: ${entry.reason}`)
       .join(' · '),
   };
+}
+
+/**
+ * A corridor id, resolved to the name an operator recognises.
+ *
+ * A stopped-instruction notice reading "5f2c9a1e-… : brake fault" names
+ * nothing an operator can act on, and the corridor list needed to resolve it
+ * is already in hand on this same snapshot. When it is NOT in hand the raw id
+ * is returned rather than a guess: an unresolvable id is a real state (a
+ * corridor stopped and since deactivated), and inventing a name for it would
+ * be worse than showing the id.
+ */
+function corridorLabel(
+  routeDirectionId: string | null,
+  routeDirections: readonly RouteDirectionMeta[],
+): string {
+  if (routeDirectionId === null) return 'corridor not recorded';
+  const meta = routeDirections.find((rd) => rd.routeDirectionId === routeDirectionId);
+  return meta ? corridorName(meta) : routeDirectionId;
 }
 
 /**

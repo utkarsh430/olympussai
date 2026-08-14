@@ -36,7 +36,9 @@ export function CopilotQueryBox({ routeDirectionId }: { routeDirectionId: string
         | null;
 
       if (!response.ok || !data || 'error' in data) {
-        setError((data && 'error' in data && data.error.message) || 'Could not answer that question.');
+        setError(
+          (data && 'error' in data && data.error.message) || 'Could not answer that question.',
+        );
         setStatus('error');
         return;
       }
@@ -51,7 +53,7 @@ export function CopilotQueryBox({ routeDirectionId }: { routeDirectionId: string
   }
 
   return (
-    <div className="space-y-4 rounded-md border border-ops-line p-4">
+    <div className="space-y-4 rounded-md border border-border p-4">
       <h2 className="ops-label">Ask the copilot</h2>
 
       <form onSubmit={handleAsk} className="space-y-3">
@@ -72,7 +74,7 @@ export function CopilotQueryBox({ routeDirectionId }: { routeDirectionId: string
         />
 
         {error && (
-          <p id={errorId} role="alert" className="text-sm text-alert-crimson">
+          <p id={errorId} role="alert" className="text-sm text-destructive">
             {error}
           </p>
         )}
@@ -88,14 +90,14 @@ export function CopilotQueryBox({ routeDirectionId }: { routeDirectionId: string
 
       {answer && (
         <div aria-live="polite" className="ops-well p-3">
-          <p className="whitespace-pre-wrap text-sm text-ops-ink">{answer}</p>
+          <p className="whitespace-pre-wrap text-sm text-foreground">{answer}</p>
           {citations.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {citations.map((citation) => (
                 <span
                   key={`${citation.recordType}-${citation.recordId}`}
                   title={citation.summary}
-                  className="rounded border border-ops-line-strong px-1.5 py-0.5 font-mono text-[9px] text-ops-faint"
+                  className="rounded border border-input px-1.5 py-0.5 font-mono text-[9px] text-subtle"
                 >
                   {citation.recordType}:{citation.recordId.slice(0, 8)}
                 </span>

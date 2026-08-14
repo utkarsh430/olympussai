@@ -5,7 +5,7 @@ import { getObservabilitySnapshot } from '@/lib/controlService/observabilityData
 import { IncidentCopilotPanel } from '@/components/ops/control-room/IncidentCopilotPanel';
 import { ShiftReportCopilotForm } from '@/components/ops/control-room/ShiftReportCopilotForm';
 import { CopilotQueryBox } from '@/components/ops/control-room/CopilotQueryBox';
-import { RouteDirectionPicker } from '@/components/ops/control-room/RouteDirectionPicker';
+import { CorridorNavPicker } from '@/components/ops/control-room/CorridorNavPicker';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +35,12 @@ export default async function CopilotPage({
   const { routeDirectionId } = await searchParams;
 
   return (
-    <OpsShell title="Copilot" email={session.email} role="control_room">
+    <OpsShell
+      title="Assistant"
+      email={session.email}
+      role="control_room"
+      subtitle="Explain what happened, write up a shift, or ask about a corridor"
+    >
       <CopilotBody routeDirectionId={routeDirectionId} />
     </OpsShell>
   );
@@ -49,9 +54,12 @@ async function CopilotBody({ routeDirectionId }: { routeDirectionId?: string }) 
 
     return (
       <OpsStack>
-        <RouteDirectionPicker routeDirections={snapshot.routeDirections} selectedId={selected} />
+        <CorridorNavPicker corridors={snapshot.routeDirections} selectedId={selected} />
 
-        <OpsSection title="Explain active incidents">
+        <OpsSection
+          title="Explain what happened"
+          description="Based only on the evidence already recorded for that incident. It never sends anything."
+        >
           <IncidentCopilotPanel incidents={snapshot.incidents} />
         </OpsSection>
 
@@ -68,7 +76,8 @@ async function CopilotBody({ routeDirectionId }: { routeDirectionId?: string }) 
     const message = error instanceof Error ? error.message : 'Unknown error';
     return (
       <OpsAlert tone="error">
-        Copilot data is unavailable right now ({message}). Try refreshing the page.
+        The assistant could not read this corridor&apos;s data right now ({message}). Try refreshing
+        the page.
       </OpsAlert>
     );
   }

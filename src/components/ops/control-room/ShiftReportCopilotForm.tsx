@@ -49,10 +49,13 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
           ...(routeDirectionId ? { routeDirectionId } : {}),
         }),
       });
-      const data = (await response.json().catch(() => null)) as ShiftReportDraft | { error: { message: string } } | null;
+      const data = (await response.json().catch(() => null)) as
+        ShiftReportDraft | { error: { message: string } } | null;
 
       if (!response.ok || !data || 'error' in data) {
-        setError((data && 'error' in data && data.error.message) || 'Could not draft a shift report.');
+        setError(
+          (data && 'error' in data && data.error.message) || 'Could not draft a shift report.',
+        );
         setStatus('error');
         return;
       }
@@ -71,15 +74,21 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
     setError(null);
 
     try {
-      const response = await fetch(`/api/ops/control-room/copilot/shift-reports/${draft.id}/finalize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
-      const data = (await response.json().catch(() => null)) as ShiftReportDraft | { error: { message: string } } | null;
+      const response = await fetch(
+        `/api/ops/control-room/copilot/shift-reports/${draft.id}/finalize`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        },
+      );
+      const data = (await response.json().catch(() => null)) as
+        ShiftReportDraft | { error: { message: string } } | null;
 
       if (!response.ok || !data || 'error' in data) {
-        setError((data && 'error' in data && data.error.message) || `Could not ${action} the report.`);
+        setError(
+          (data && 'error' in data && data.error.message) || `Could not ${action} the report.`,
+        );
         setFinalizing(null);
         return;
       }
@@ -93,13 +102,13 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
   }
 
   return (
-    <div className="space-y-4 rounded-md border border-ops-line p-4">
+    <div className="space-y-4 rounded-md border border-border p-4">
       <h2 className="ops-label">Shift-report copilot</h2>
 
       <form onSubmit={handleDraft} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
-            <label htmlFor="shiftLabel" className="mb-1 block text-xs text-ops-muted">
+            <label htmlFor="shiftLabel" className="mb-1 block text-xs text-muted-foreground">
               Shift label
             </label>
             <input
@@ -112,7 +121,7 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
             />
           </div>
           <div>
-            <label htmlFor="periodStart" className="mb-1 block text-xs text-ops-muted">
+            <label htmlFor="periodStart" className="mb-1 block text-xs text-muted-foreground">
               Period start
             </label>
             <input
@@ -125,7 +134,7 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
             />
           </div>
           <div>
-            <label htmlFor="periodEnd" className="mb-1 block text-xs text-ops-muted">
+            <label htmlFor="periodEnd" className="mb-1 block text-xs text-muted-foreground">
               Period end
             </label>
             <input
@@ -140,7 +149,7 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
         </div>
 
         {error && (
-          <p id={errorId} role="alert" className="text-sm text-alert-crimson">
+          <p id={errorId} role="alert" className="text-sm text-destructive">
             {error}
           </p>
         )}
@@ -155,17 +164,15 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
       </form>
 
       {draft && (
-        <div className="rounded-md border border-alert-amber/40 bg-alert-amber/5 p-4">
+        <div className="rounded-md border border-warning/40 bg-warning/5 p-4">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <span className="rounded border border-alert-amber/50 bg-alert-amber/15 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ops-warn">
+            <span className="rounded border border-warning/50 bg-warning/15 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-warning">
               AI-drafted — review before sending
             </span>
-            <span className="ops-eyebrow">
-              status: {draft.status}
-            </span>
+            <span className="ops-eyebrow">status: {draft.status}</span>
           </div>
 
-          <p className="whitespace-pre-wrap text-sm text-ops-ink">{draft.content}</p>
+          <p className="whitespace-pre-wrap text-sm text-foreground">{draft.content}</p>
 
           {draft.citations.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
@@ -173,7 +180,7 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
                 <span
                   key={`${citation.recordType}-${citation.recordId}`}
                   title={citation.summary}
-                  className="rounded border border-ops-line-strong px-1.5 py-0.5 font-mono text-[9px] text-ops-faint"
+                  className="rounded border border-input px-1.5 py-0.5 font-mono text-[9px] text-subtle"
                 >
                   {citation.recordType}:{citation.recordId.slice(0, 8)}
                 </span>
@@ -203,7 +210,7 @@ export function ShiftReportCopilotForm({ routeDirectionId }: { routeDirectionId:
               </button>
             </div>
           ) : (
-            <p role="status" className="mt-4 text-sm text-ops-good">
+            <p role="status" className="mt-4 text-sm text-success">
               {draft.status === 'saved' ? 'Saved to the shift log.' : 'Sent to the incoming shift.'}
             </p>
           )}

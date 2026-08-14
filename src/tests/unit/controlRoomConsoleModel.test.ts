@@ -16,7 +16,11 @@ import {
   sampleAge,
   type PendingApproval,
 } from '@/lib/ops/recommendationView';
-import { COMMAND_ACTION_TYPES, ENGINE_ACTION_TYPES, type EngineCandidateAction } from '@/models/control';
+import {
+  COMMAND_ACTION_TYPES,
+  ENGINE_ACTION_TYPES,
+  type EngineCandidateAction,
+} from '@/models/control';
 import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
 
 /**
@@ -37,7 +41,13 @@ function overview(patch: Partial<ControlRoomOverview> = {}): ControlRoomOverview
   return {
     fetchedAt: '2026-08-13T10:00:00.000Z',
     routeDirections: [
-      { routeDirectionId: 'dir-1', routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000 },
+      {
+        routeDirectionId: 'dir-1',
+        routeId: 'R1',
+        directionCode: 'up',
+        isLoop: false,
+        totalDistanceMeters: 18000,
+      },
     ],
     selectedRouteDirectionId: 'dir-1',
     corridors: { ok: true, mapped: 1, detecting: 1 },
@@ -69,7 +79,7 @@ function tile(model: ReturnType<typeof buildConsoleKpi>, label: string) {
 describe('console status band — a zero is only ever a measured zero', () => {
   it('reports a real zero as observed when the source answered', () => {
     const model = buildConsoleKpi(overview({ guardrails: { ok: true, total: 0, critical: 0 } }));
-    const breaches = tile(model, 'Guardrail breaches');
+    const breaches = tile(model, 'Blocked by a safety rule');
     expect(breaches.reading.availability).toBe('observed');
     expect(breaches.reading.value).toBe(0);
     expect(readingDisplay(breaches.reading)).toBe('0');
@@ -77,26 +87,34 @@ describe('console status band — a zero is only ever a measured zero', () => {
 
   it('refuses to render a zero when the guardrail source did not answer', () => {
     const model = buildConsoleKpi(overview({ guardrails: { ok: false, total: 0, critical: 0 } }));
-    const breaches = tile(model, 'Guardrail breaches');
+    const breaches = tile(model, 'Blocked by a safety rule');
     expect(breaches.reading.availability).toBe('unavailable');
     expect(breaches.reading.value).toBeNull();
     // The distinction has to survive all the way to the glyph: an operator
     // scanning the strip mid-incident does not read hint lines.
     expect(readingDisplay(breaches.reading)).toBe('n/a');
-    expect(model.degraded).toContain('guardrail breaches');
+    expect(model.degraded).toContain('the record of blocked actions');
   });
 
   it('refuses to report "no open incidents" when the control service is down', () => {
     const down = buildConsoleKpi(
-      overview({ observability: { ok: false, stale: true, error: 'timeout', noActivePolicy: false }, incidents: [] }),
+      overview({
+        observability: { ok: false, stale: true, error: 'timeout', noActivePolicy: false },
+        incidents: [],
+      }),
     );
-    expect(tile(down, 'Open incidents').reading.availability).toBe('unavailable');
-    expect(readingDisplay(tile(down, 'Open incidents').reading)).toBe('n/a');
+    expect(tile(down, 'Buses closing up').reading.availability).toBe('unavailable');
+    expect(readingDisplay(tile(down, 'Buses closing up').reading)).toBe('n/a');
 
-    const up = buildConsoleKpi(overview({ observability: { ok: true, stale: false, error: null, noActivePolicy: false }, incidents: [] }));
-    expect(tile(up, 'Open incidents').reading.availability).toBe('observed');
-    expect(tile(up, 'Open incidents').reading.value).toBe(0);
-    expect(tile(up, 'Open incidents').reading.detail).toMatch(/clear/i);
+    const up = buildConsoleKpi(
+      overview({
+        observability: { ok: true, stale: false, error: null, noActivePolicy: false },
+        incidents: [],
+      }),
+    );
+    expect(tile(up, 'Buses closing up').reading.availability).toBe('observed');
+    expect(tile(up, 'Buses closing up').reading.value).toBe(0);
+    expect(tile(up, 'Buses closing up').reading.detail).toMatch(/nothing closing up/i);
   });
 
   // With no corridor selected these two tiles used to read "0 / this corridor
@@ -106,18 +124,22 @@ describe('console status band — a zero is only ever a measured zero', () => {
   // disagreeing with the rest of it.
   it('reports no corridor as no reading, not as a clear corridor', () => {
     const none = buildConsoleKpi(
-      overview({ selectedRouteDirectionId: null, incidents: [], guardrails: { ok: true, total: 0, critical: 0 } }),
+      overview({
+        selectedRouteDirectionId: null,
+        incidents: [],
+        guardrails: { ok: true, total: 0, critical: 0 },
+      }),
     );
 
-    expect(tile(none, 'Open incidents').reading.availability).toBe('not-yet-computed');
-    expect(readingDisplay(tile(none, 'Open incidents').reading)).toBe('—');
-    expect(tile(none, 'Open incidents').reading.detail).toBe('no corridor selected');
-    expect(tile(none, 'Open incidents').reading.detail).not.toMatch(/clear/i);
+    expect(tile(none, 'Buses closing up').reading.availability).toBe('not-yet-computed');
+    expect(readingDisplay(tile(none, 'Buses closing up').reading)).toBe('—');
+    expect(tile(none, 'Buses closing up').reading.detail).toBe('no corridor selected');
+    expect(tile(none, 'Buses closing up').reading.detail).not.toMatch(/nothing closing up/i);
 
-    expect(tile(none, 'Guardrail breaches').reading.availability).toBe('not-yet-computed');
-    expect(readingDisplay(tile(none, 'Guardrail breaches').reading)).toBe('—');
-    expect(tile(none, 'Guardrail breaches').reading.detail).toBe('no corridor selected');
-    expect(tile(none, 'Guardrail breaches').reading.detail).not.toMatch(/none recorded/i);
+    expect(tile(none, 'Blocked by a safety rule').reading.availability).toBe('not-yet-computed');
+    expect(readingDisplay(tile(none, 'Blocked by a safety rule').reading)).toBe('—');
+    expect(tile(none, 'Blocked by a safety rule').reading.detail).toBe('no corridor selected');
+    expect(tile(none, 'Blocked by a safety rule').reading.detail).not.toMatch(/nothing blocked/i);
 
     // Nothing failed, so nothing is reported as degraded. "No corridor" is not
     // an outage and must not be dressed as one.
@@ -134,8 +156,8 @@ describe('console status band — a zero is only ever a measured zero', () => {
         guardrails: { ok: false, total: 0, critical: 0 },
       }),
     );
-    expect(tile(down, 'Open incidents').reading.availability).toBe('unavailable');
-    expect(tile(down, 'Guardrail breaches').reading.availability).toBe('unavailable');
+    expect(tile(down, 'Buses closing up').reading.availability).toBe('unavailable');
+    expect(tile(down, 'Blocked by a safety rule').reading.availability).toBe('unavailable');
   });
 
   /**
@@ -181,18 +203,23 @@ describe('console status band — a zero is only ever a measured zero', () => {
 
     it('prints the nothing-to-report dash, not the unknown n/a', () => {
       const model = noPolicy();
-      for (const label of ['Mean headway', 'Headway CV', 'Excess wait', 'Open incidents']) {
+      for (const label of [
+        'Average gap',
+        'Gap consistency (CV)',
+        'Extra wait for passengers',
+        'Buses closing up',
+      ]) {
         const reading = tile(model, label).reading;
         expect(reading.availability, label).toBe('not-yet-computed');
         expect(readingDisplay(reading), label).toBe('—');
-        expect(reading.detail, label).toMatch(/no active headway policy/i);
+        expect(reading.detail, label).toMatch(/no planned gap set/i);
       }
     });
 
     it('explains the corridor in its own line, separate from the outage line', () => {
       const model = noPolicy();
       expect(model.corridorNotice).toMatch(/answered/i);
-      expect(model.corridorNotice).toMatch(/no active headway policy/i);
+      expect(model.corridorNotice).toMatch(/no planned gap has been set/i);
       expect(model.corridorNotice).not.toMatch(/did not answer|unavailable|outage/i);
     });
 
@@ -204,9 +231,9 @@ describe('console status band — a zero is only ever a measured zero', () => {
           headway: null,
         }),
       );
-      expect(tile(down, 'Mean headway').reading.availability).toBe('unavailable');
-      expect(readingDisplay(tile(down, 'Mean headway').reading)).toBe('n/a');
-      expect(tile(down, 'Mean headway').reading.detail).toMatch(/did not answer/i);
+      expect(tile(down, 'Average gap').reading.availability).toBe('unavailable');
+      expect(readingDisplay(tile(down, 'Average gap').reading)).toBe('n/a');
+      expect(tile(down, 'Average gap').reading.detail).toMatch(/did not answer/i);
       expect(down.degraded).toContain('the control service');
       expect(down.corridorNotice).toBeNull();
     });
@@ -215,16 +242,16 @@ describe('console status band — a zero is only ever a measured zero', () => {
     // fact about the headway policy, not a reason to blank the whole strip.
     it('leaves unrelated readings alone', () => {
       const model = noPolicy();
-      expect(tile(model, 'Vehicles reporting').reading.availability).toBe('observed');
-      expect(tile(model, 'Vehicles reporting').reading.value).toBe(9170);
-      expect(tile(model, 'Guardrail breaches').reading.availability).toBe('observed');
+      expect(tile(model, 'Buses reporting').reading.availability).toBe('observed');
+      expect(tile(model, 'Buses reporting').reading.value).toBe(9170);
+      expect(tile(model, 'Blocked by a safety rule').reading.availability).toBe('observed');
     });
 
     // The one number it must NOT print is a confident zero: the incident read
     // was abandoned along with the headway read, so the console holds no
     // answer of its own even though the detector cannot have opened one.
     it('does not fabricate a clear corridor', () => {
-      const incidents = tile(noPolicy(), 'Open incidents').reading;
+      const incidents = tile(noPolicy(), 'Buses closing up').reading;
       expect(incidents.value).toBeNull();
       expect(incidents.detail).not.toMatch(/clear/i);
     });
@@ -232,24 +259,28 @@ describe('console status band — a zero is only ever a measured zero', () => {
 
   it('separates "no headway sample yet" from "the control service did not answer"', () => {
     const notYet = buildConsoleKpi(overview({ headway: null }));
-    expect(tile(notYet, 'Mean headway').reading.availability).toBe('not-yet-computed');
-    expect(readingDisplay(tile(notYet, 'Mean headway').reading)).toBe('—');
+    expect(tile(notYet, 'Average gap').reading.availability).toBe('not-yet-computed');
+    expect(readingDisplay(tile(notYet, 'Average gap').reading)).toBe('—');
 
     const down = buildConsoleKpi(
-      overview({ observability: { ok: false, stale: true, error: 'timeout', noActivePolicy: false } }),
+      overview({
+        observability: { ok: false, stale: true, error: 'timeout', noActivePolicy: false },
+      }),
     );
-    expect(tile(down, 'Mean headway').reading.availability).toBe('unavailable');
-    expect(readingDisplay(tile(down, 'Mean headway').reading)).toBe('n/a');
+    expect(tile(down, 'Average gap').reading.availability).toBe('unavailable');
+    expect(readingDisplay(tile(down, 'Average gap').reading)).toBe('n/a');
   });
 
   it('separates "no KPI roll-up for this corridor yet" from "the roll-up could not be read"', () => {
     const notYet = buildConsoleKpi(overview({ dailyKpi: { ok: true, row: null } }));
-    expect(tile(notYet, 'Recovery rate').reading.availability).toBe('not-yet-computed');
-    expect(tile(notYet, 'Recovery rate').reading.detail).toMatch(/no roll-up for this corridor yet/i);
+    expect(tile(notYet, 'Sorted out today').reading.availability).toBe('not-yet-computed');
+    expect(tile(notYet, 'Sorted out today').reading.detail).toMatch(
+      /no summary for this corridor yet/i,
+    );
 
     const down = buildConsoleKpi(overview({ dailyKpi: { ok: false, row: null } }));
-    expect(tile(down, 'Recovery rate').reading.availability).toBe('unavailable');
-    expect(down.degraded).toContain("today's KPI roll-up");
+    expect(tile(down, 'Sorted out today').reading.availability).toBe('unavailable');
+    expect(down.degraded).toContain("today's summary figures");
   });
 
   it('shows the recovery rate only when the roll-up actually carries one', () => {
@@ -271,25 +302,31 @@ describe('console status band — a zero is only ever a measured zero', () => {
       computedAt: '2026-08-13T09:00:00.000Z',
     };
     const model = buildConsoleKpi(overview({ dailyKpi: { ok: true, row } }));
-    const recovery = tile(model, 'Recovery rate');
+    const recovery = tile(model, 'Sorted out today');
     expect(recovery.reading.value).toBe(0.75);
     expect(readingDisplay(recovery.reading, recovery.format)).toBe('75%');
-    expect(recovery.reading.detail).toContain('3/4 incidents today');
+    expect(recovery.reading.detail).toContain('3 of 4 sorted out today');
 
     // A row present but with a null rate is "not computed", never 0%.
-    const nullRate = buildConsoleKpi(overview({ dailyKpi: { ok: true, row: { ...row, recoveryRate: null } } }));
-    expect(tile(nullRate, 'Recovery rate').reading.availability).toBe('not-yet-computed');
+    const nullRate = buildConsoleKpi(
+      overview({ dailyKpi: { ok: true, row: { ...row, recoveryRate: null } } }),
+    );
+    expect(tile(nullRate, 'Sorted out today').reading.availability).toBe('not-yet-computed');
   });
 
   it('never draws a vehicle count when the fleet feed is down', () => {
-    const model = buildConsoleKpi(overview({ fleet: { reporting: 0, source: 'unavailable', stale: true, error: 'x' } }));
-    expect(tile(model, 'Vehicles reporting').reading.availability).toBe('unavailable');
+    const model = buildConsoleKpi(
+      overview({ fleet: { reporting: 0, source: 'unavailable', stale: true, error: 'x' } }),
+    );
+    expect(tile(model, 'Buses reporting').reading.availability).toBe('unavailable');
     expect(model.fleetBadge.variant).toBe('critical');
     expect(model.degraded).toContain('the vehicle feed');
   });
 
   it('marks bundled demo vehicles as demo data, using the shared provenance chip', () => {
-    const model = buildConsoleKpi(overview({ fleet: { reporting: 12, source: 'fixture', stale: true, error: 'x' } }));
+    const model = buildConsoleKpi(
+      overview({ fleet: { reporting: 12, source: 'fixture', stale: true, error: 'x' } }),
+    );
     expect(model.fleetBadge).toEqual({ variant: 'fixture', label: 'Demo data' });
   });
 
@@ -301,9 +338,9 @@ describe('console status band — a zero is only ever a measured zero', () => {
       }),
     );
     // Headway and the fleet were fine and must still read as measured.
-    expect(isObserved(tile(model, 'Mean headway').reading)).toBe(true);
-    expect(isObserved(tile(model, 'Vehicles reporting').reading)).toBe(true);
-    expect(isObserved(tile(model, 'Guardrail breaches').reading)).toBe(false);
+    expect(isObserved(tile(model, 'Average gap').reading)).toBe(true);
+    expect(isObserved(tile(model, 'Buses reporting').reading)).toBe(true);
+    expect(isObserved(tile(model, 'Blocked by a safety rule').reading)).toBe(false);
     expect(model.degraded).toHaveLength(2);
   });
 
@@ -311,7 +348,7 @@ describe('console status band — a zero is only ever a measured zero', () => {
     const model = buildConsoleKpi(overview({ killSwitches: { ok: false, active: [] } }));
     expect(model.killSwitchNotice).not.toBeNull();
     expect(model.killSwitchNotice?.engaged).toBe(false);
-    expect(model.killSwitchNotice?.label).toMatch(/unknown/i);
+    expect(model.killSwitchNotice?.label).toMatch(/cannot tell/i);
   });
 
   it('says nothing at all when the record was read and is genuinely clear', () => {
@@ -363,26 +400,29 @@ describe('console status band — scope is never ambiguous', () => {
 
   it('scopes the statewide vehicle count and the coverage pair apart from the corridor readings', () => {
     const model = buildConsoleKpi(overview());
-    const scoped = (scope: string) => model.tiles.filter((entry) => entry.scope === scope).map((entry) => entry.label);
+    const scoped = (scope: string) =>
+      model.tiles.filter((entry) => entry.scope === scope).map((entry) => entry.label);
 
-    expect(scoped('network')).toEqual(['Vehicles reporting', 'Corridor coverage']);
+    expect(scoped('network')).toEqual(['Buses reporting', 'Corridors that can report']);
     // The six that describe one corridor. Named explicitly rather than counted:
     // a tile silently moving between groups is exactly the regression that
     // would restore the misleading reading.
     expect(scoped('corridor')).toEqual([
-      'Mean headway',
-      'Headway CV',
-      'Excess wait',
-      'Open incidents',
-      'Recovery rate',
-      'Guardrail breaches',
+      'Average gap',
+      'Gap consistency (CV)',
+      'Extra wait for passengers',
+      'Buses closing up',
+      'Sorted out today',
+      'Blocked by a safety rule',
     ]);
   });
 
   it('says the vehicle count covers every depot, not every corridor', () => {
     // The count is of buses reporting GPS anywhere in the state, and it has no
     // relationship at all to the corridors below it.
-    expect(tile(buildConsoleKpi(overview()), 'Vehicles reporting').reading.detail).toBe('every depot, live feed');
+    expect(tile(buildConsoleKpi(overview()), 'Buses reporting').reading.detail).toBe(
+      'every depot, live feed',
+    );
   });
 });
 
@@ -392,11 +432,11 @@ describe('console status band — corridor coverage is derived, and never a netw
 
   it('shows how many corridors can report, out of how many are mapped', () => {
     const model = coverage({});
-    const readout = tile(model, 'Corridor coverage');
+    const readout = tile(model, 'Corridors that can report');
     expect(readout.reading.availability).toBe('observed');
     expect(readout.reading.value).toBe(14);
-    expect(readout.unit).toBe('of 47 mapped');
-    expect(readout.reading.detail).toBe('can report bunching');
+    expect(readout.unit).toBe('of 47 surveyed');
+    expect(readout.reading.detail).toBe('can report buses closing up');
   });
 
   it('follows the numbers it is given rather than holding any of its own', () => {
@@ -404,13 +444,13 @@ describe('console status band — corridor coverage is derived, and never a netw
     // here may be a constant — including at full coverage, which must not
     // still be phrased as a shortfall.
     const early = coverage({ mapped: 3, detecting: 0 });
-    expect(tile(early, 'Corridor coverage').reading.value).toBe(0);
-    expect(tile(early, 'Corridor coverage').unit).toBe('of 3 mapped');
+    expect(tile(early, 'Corridors that can report').reading.value).toBe(0);
+    expect(tile(early, 'Corridors that can report').unit).toBe('of 3 surveyed');
 
     const complete = coverage({ mapped: 651, detecting: 651 });
-    expect(tile(complete, 'Corridor coverage').reading.value).toBe(651);
-    expect(tile(complete, 'Corridor coverage').unit).toBe('of 651 mapped');
-    expect(complete.coverageNotice).toContain('All 651 mapped corridors');
+    expect(tile(complete, 'Corridors that can report').reading.value).toBe(651);
+    expect(tile(complete, 'Corridors that can report').unit).toBe('of 651 surveyed');
+    expect(complete.coverageNotice).toContain('All 651 surveyed corridors');
     expect(complete.coverageNotice).not.toMatch(/will show nothing/);
   });
 
@@ -420,7 +460,12 @@ describe('console status band — corridor coverage is derived, and never a netw
     // "47 of 47" — a claim of complete coverage — and the live feed's route
     // ids did not intersect the seeded ones at all. Neither denominator is
     // real, so the console says it does not have one.
-    for (const patch of [{}, { mapped: 3, detecting: 0 }, { mapped: 651, detecting: 651 }, { mapped: 1, detecting: 1 }]) {
+    for (const patch of [
+      {},
+      { mapped: 3, detecting: 0 },
+      { mapped: 651, detecting: 651 },
+      { mapped: 1, detecting: 1 },
+    ]) {
       const notice = coverage(patch).coverageNotice ?? '';
       expect(notice).toContain('the size of the full network is not known here');
       expect(notice).toContain('not a whole-network view');
@@ -429,8 +474,8 @@ describe('console status band — corridor coverage is derived, and never a netw
 
   it('names the corridors that can be chosen but will show nothing', () => {
     const notice = coverage({ mapped: 47, detecting: 14 }).coverageNotice ?? '';
-    expect(notice).toContain('14 of 47 mapped corridors');
-    expect(notice).toContain('33 others can be selected but will show nothing');
+    expect(notice).toContain('14 of 47 surveyed corridors');
+    expect(notice).toContain('The other 33 can be opened but will show nothing');
   });
 
   it('refuses to print a coverage figure the console did not read', () => {
@@ -438,7 +483,7 @@ describe('console status band — corridor coverage is derived, and never a netw
     // during a control-service outage would be the same fabricated zero the
     // rest of this strip exists to prevent.
     const model = buildConsoleKpi(overview({ corridors: { ok: false, mapped: 0, detecting: 0 } }));
-    const readout = tile(model, 'Corridor coverage');
+    const readout = tile(model, 'Corridors that can report');
     expect(readout.reading.availability).toBe('unavailable');
     expect(readingDisplay(readout.reading)).toBe('n/a');
     // And no coverage sentence at all: the degraded line already says the
@@ -451,11 +496,11 @@ describe('console status band — corridor coverage is derived, and never a netw
     // `detecting: null` is a control service that does not report policy
     // state. Rendering it as 0 would accuse a healthy network of being blind.
     const model = coverage({ mapped: 47, detecting: null });
-    const readout = tile(model, 'Corridor coverage');
+    const readout = tile(model, 'Corridors that can report');
     expect(readout.reading.value).toBe(47);
-    expect(readout.unit).toBe('mapped');
-    expect(readout.reading.detail).toBe('detection coverage not reported');
-    expect(model.coverageNotice).toContain('does not report which of them have an active headway policy');
+    expect(readout.unit).toBe('surveyed');
+    expect(readout.reading.detail).toBe('this control service does not say which can report');
+    expect(model.coverageNotice).toContain('does not say which of them have a planned gap set');
   });
 
   it('keeps the coverage line out of the way of a real fault', () => {
@@ -571,11 +616,13 @@ describe('engine proposal — what the operator is told', () => {
   it('treats "no candidates" as genuinely nothing to regulate', () => {
     const basis = describeBasis('no_candidates', 0);
     expect(basis.tone).toBe('good');
-    expect(basis.detail).toMatch(/at or beyond its target headway/i);
+    expect(basis.detail).toMatch(/at or beyond their planned spacing/i);
   });
 
   it('explains terminal-dispatch priority as a hierarchy, not as a score', () => {
-    expect(describeBasis('terminal_dispatch_priority', 0).detail).toMatch(/least disruptive/i);
+    expect(describeBasis('terminal_dispatch_priority', 0).detail).toMatch(
+      /upsets the fewest passengers/i,
+    );
   });
 
   it('blames the stale reading on the dependency set, not on the named bus', () => {
@@ -583,29 +630,33 @@ describe('engine proposal — what the operator is told', () => {
     // reporting. Copy that says "this bus is stale" sends an operator to
     // inspect the wrong vehicle.
     const copy = describeRejection('stale_state', candidate(), {});
-    expect(copy).toMatch(/data this depends on is stale/i);
+    expect(copy).toMatch(/out-of-date reading/i);
     expect(copy).toContain('UP25FT7778');
-    expect(copy).toMatch(/often the leader/i);
+    expect(copy).toMatch(/often the bus in front/i);
     // "At least one of" — the filter does not say WHICH dependency went quiet,
     // and claiming all of them did would send an operator chasing a bus that
     // is reporting perfectly well.
-    expect(copy).toMatch(/at least one of the readings/i);
+    expect(copy).toMatch(/at least one of the buses/i);
   });
 
   it('names only the bus itself when nothing else was depended on', () => {
     const solo = candidate({ involvedVehicleIds: ['UP25FT4823'] });
     const copy = describeRejection('stale_state', solo, {});
-    expect(copy).toContain("UP25FT4823's own reading");
+    expect(copy).toContain("UP25FT4823's own position");
     // No leader was involved, so the leader hint would be a false lead.
     expect(copy).not.toMatch(/often the leader/i);
   });
 
   it('quotes the corridor policy cap when the hold was too long', () => {
-    expect(describeRejection('max_hold_cap_breach', candidate(), { maxHoldSeconds: 120 })).toContain('120s');
+    expect(
+      describeRejection('max_hold_cap_breach', candidate(), { maxHoldSeconds: 120 }),
+    ).toContain('120s');
   });
 
   it('says an active command conflicts, naming the bus that has one', () => {
-    expect(describeRejection('conflicting_active_command', candidate(), {})).toContain('UP25FT4823');
+    expect(describeRejection('conflicting_active_command', candidate(), {})).toContain(
+      'UP25FT4823',
+    );
   });
 });
 
@@ -644,7 +695,11 @@ describe('engine proposal — expiry and audit text', () => {
   it('records the engine as the author, with the version and the sample it reasoned over', () => {
     // The solve itself is never persisted, so this summary is the only place
     // the engine's authorship survives into the audit record.
-    const summary = engineCommandSummary(candidate(), 'terminal-two-way-self-equalizing-v1', '2026-08-13T10:00:05.000Z');
+    const summary = engineCommandSummary(
+      candidate(),
+      'terminal-two-way-self-equalizing-v1',
+      '2026-08-13T10:00:05.000Z',
+    );
     expect(summary).toContain('terminal-two-way-self-equalizing-v1');
     expect(summary).toContain('2026-08-13T10:00:00.000Z');
     expect(summary).toContain('UP25FT4823');
@@ -684,7 +739,7 @@ describe('sample age — a reading from the future is a state, not a zero', () =
     // The exact thing the old code could not say. "0s" was not merely
     // imprecise here, it was the opposite of the truth.
     expect(described.label).not.toBe('0s');
-    expect(described.label).toContain('ahead');
+    expect(described.label).toContain('into the future');
     expect(described.label).toContain('19.6 years');
     expect(described.tone).toBe('critical');
   });
@@ -707,8 +762,8 @@ describe('sample age — a reading from the future is a state, not a zero', () =
   it('sizes a future span so an operator can read it', () => {
     const ahead = (seconds: number) =>
       describeSampleAge(sampleAge(new Date(NOW + seconds * 1000).toISOString(), NOW)).label;
-    expect(ahead(600)).toBe('dated 10m ahead');
-    expect(ahead(7_200)).toBe('dated 2h ahead');
-    expect(ahead(864_000)).toBe('dated 10d ahead');
+    expect(ahead(600)).toBe('dated 10m into the future');
+    expect(ahead(7_200)).toBe('dated 2h into the future');
+    expect(ahead(864_000)).toBe('dated 10d into the future');
   });
 });

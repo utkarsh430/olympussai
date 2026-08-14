@@ -63,7 +63,11 @@ export interface ObservabilitySnapshot {
   incidents: BunchingIncident[];
 }
 
-function unavailableSnapshot(reason: string, now: number, code: string | null = null): ObservabilitySnapshot {
+function unavailableSnapshot(
+  reason: string,
+  now: number,
+  code: string | null = null,
+): ObservabilitySnapshot {
   const lastGood = snapshotCache.getLastGood('observability');
   if (lastGood) {
     return {
@@ -109,6 +113,51 @@ function unavailableSnapshot(reason: string, now: number, code: string | null = 
  * effective detection window, and a page refresh could manufacture an
  * incident. Reads read.
  */
+/**
+ * Which corridor a console opens on when the operator has not named one.
+ *
+ * ─── THE FIRST IMPRESSION THIS FIXES ─────────────────────────────────────
+ *
+ * This used to be `routeDirections[0]`. The control service returns the list
+ * `order by route_id, direction_code`, so on the live network position zero is
+ * corridor 1000 outbound — which has no planned gap set. Every corridor-scoped
+ * tile therefore rendered `—`, the incident list rendered an explanation
+ * instead of incidents, and the engine panel rendered "no control policy is
+ * configured". Measured against the live control database: 198 of the 759
+ * mapped corridors can report bunching, and the default landed on one of the
+ * 561 that cannot. A new operator's first sight of the control room was a
+ * screen of dashes under a paragraph explaining why.
+ *
+ * Every one of those messages was individually correct. The defect was the
+ * DEFAULT, not the honesty.
+ *
+ * ─── WHY "FIRST THAT CAN DETECT" AND NOT "BUSIEST" ───────────────────────
+ *
+ * The obvious improvement is to open on the corridor with the most buses on
+ * it. That is a better default and it is not available here: this call has the
+ * corridor LIST and nothing else, and finding the busiest would mean a
+ * vehicle-state read per corridor — 759 round trips on every page open — to
+ * pick a starting view the operator changes in one click anyway. So the rule
+ * is the cheapest one that removes the blank screen: the first corridor in the
+ * service's own stable order that can actually report something.
+ *
+ * ─── WHAT IT DOES NOT DO ─────────────────────────────────────────────────
+ *
+ * Hide the corridors that cannot detect. They stay in the list, still marked
+ * before selection, and if NONE of them can detect this falls back to the
+ * first corridor rather than selecting nothing — a console with no corridor
+ * chosen is a worse answer than one that opens on a corridor and says plainly
+ * that it has nothing to report. `hasActivePolicy: undefined` is a control
+ * service that predates the flag, which is unknown and not false, so it is
+ * never preferred and never rejected.
+ */
+export function defaultRouteDirectionId(
+  routeDirections: readonly RouteDirectionMeta[],
+): string | null {
+  const detecting = routeDirections.find((rd) => rd.hasActivePolicy === true);
+  return (detecting ?? routeDirections[0])?.routeDirectionId ?? null;
+}
+
 export async function getObservabilitySnapshot(
   routeDirectionId?: string,
   now: number = Date.now(),
@@ -118,9 +167,9 @@ export async function getObservabilitySnapshot(
     const { routeDirections } = routeDirectionsResponseSchema.parse(routeDirectionsRaw);
 
     const selected =
-      (routeDirectionId && routeDirections.find((rd) => rd.routeDirectionId === routeDirectionId)?.routeDirectionId) ??
-      routeDirections[0]?.routeDirectionId ??
-      null;
+      (routeDirectionId &&
+        routeDirections.find((rd) => rd.routeDirectionId === routeDirectionId)?.routeDirectionId) ??
+      defaultRouteDirectionId(routeDirections);
 
     if (!selected) {
       const snapshot: ObservabilitySnapshot = {
@@ -158,7 +207,8 @@ export async function getObservabilitySnapshot(
       // a corridor it could no longer name. The ladder, cache and contract are
       // unchanged; this only stops known-good facts being thrown away with the
       // error that did not concern them.
-      if (!(cause instanceof ControlServiceRequestError) || cause.code !== 'no_active_policy') throw cause;
+      if (!(cause instanceof ControlServiceRequestError) || cause.code !== 'no_active_policy')
+        throw cause;
       // Built explicitly rather than through `unavailableSnapshot`, which
       // falls back to the last good snapshot: that copy holds ANOTHER
       // corridor's positions and incidents, and carrying them here would

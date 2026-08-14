@@ -121,29 +121,29 @@ export function describeBasis(basis: SelectionBasis, rejectedCount: number): Bas
     case 'terminal_dispatch_priority':
       return {
         tone: 'info',
-        headline: 'Terminal dispatch takes priority',
+        headline: 'Holding at the start terminal comes first',
         detail:
-          'Holding a bus that is already stationary at the origin is the least disruptive lever available, so the engine prefers it over any mid-route hold even when a mid-route option scores lower.',
+          'Holding a bus that is already standing at the terminal upsets the fewest passengers, so the engine prefers it over holding a bus part-way along the route even when the mid-route option scores better.',
       };
     case 'lowest_cost_mid_route':
       return {
         tone: 'info',
-        headline: 'Cheapest safe mid-route hold',
+        headline: 'Least disruptive hold part-way along the route',
         detail:
-          'No terminal-dispatch candidate was available, so the engine picked the lowest-cost hold that survived the safety filter.',
+          'No bus was standing at the terminal to hold, so the engine picked the least disruptive of the holds that passed the safety checks.',
       };
     case 'all_candidates_rejected':
       return {
         tone: 'critical',
-        headline: 'The engine wanted to act and the safety filter refused every option',
-        detail: `This is not a quiet corridor. ${rejectedCount} ${rejectedCount === 1 ? 'candidate was' : 'candidates were'} generated and then rejected on the evidence below — read the reasons before deciding to do nothing.`,
+        headline: 'The engine wanted to act and the safety checks refused every option',
+        detail: `This is not a quiet corridor. ${rejectedCount} ${rejectedCount === 1 ? 'option was' : 'options were'} worked out and then refused, on the evidence below — read the reasons before deciding to do nothing.`,
       };
     case 'no_candidates':
       return {
         tone: 'good',
-        headline: 'Nothing to regulate',
+        headline: 'Nothing needs correcting',
         detail:
-          'No control law produced a candidate, which on a headway-managed corridor means the service is spaced at or beyond its target headway.',
+          'The automatic spacing rules found nothing to do. On a corridor with a planned gap, that means the buses are at or beyond their planned spacing.',
       };
   }
 }
@@ -167,29 +167,32 @@ export function describeRejection(
     case 'stale_state': {
       const others = candidate.involvedVehicleIds.filter((id) => id !== candidate.vehicleId);
       if (others.length === 0) {
-        return `The data this depends on is stale — ${candidate.vehicleId}'s own reading is older than the safety filter allows, so the engine will not vouch for the hold.`;
+        return `Out-of-date reading — ${candidate.vehicleId}'s own position is older than the safety checks allow, so the engine will not vouch for the hold.`;
       }
       // "At least one of", not "the readings ... are": the filter rejects the
       // candidate if ANY vehicle it depends on has gone quiet, and it does not
       // report which. Naming the set and being precise about the quantifier is
       // the difference between an operator checking two buses and an operator
       // wrongly concluding both have failed.
-      return `The data this depends on is stale — at least one of the readings this depends on (${candidate.involvedVehicleIds.join(', ')}) is older than the safety filter allows, so the engine will not vouch for the hold. It is often the leader, not ${candidate.vehicleId}, that stopped reporting.`;
+      return `Out-of-date reading — at least one of the buses this depends on (${candidate.involvedVehicleIds.join(', ')}) has a position older than the safety checks allow, so the engine will not vouch for the hold. It is often the bus in front, not ${candidate.vehicleId}, that stopped reporting.`;
     }
     case 'max_hold_cap_breach': {
-      const cap = typeof constraints.maxHoldSeconds === 'number' ? `${constraints.maxHoldSeconds}s` : 'the policy cap';
-      return `The hold this would need exceeds ${cap}, the maximum this corridor's policy permits.`;
+      const cap =
+        typeof constraints.maxHoldSeconds === 'number'
+          ? `${constraints.maxHoldSeconds}s`
+          : 'the limit set for it';
+      return `The hold this would need is longer than ${cap}, the most this corridor allows.`;
     }
     case 'conflicting_active_command':
-      return `${candidate.vehicleId} already has an instruction in flight; a second one would conflict with it.`;
+      return `${candidate.vehicleId} already has an instruction it has not finished; a second one would clash with it.`;
   }
 }
 
 /** Reading of `objectiveCost`, which is not a score and must not be shown as one. */
 export function describeObjectiveCost(cost: number): string {
   return cost === 0
-    ? 'ideal — the cap and rounding did not pull the hold away from the formula'
-    : `${Math.round(cost)}s between the ideal hold and the one that can actually be applied`;
+    ? 'exactly the hold the formula asked for — nothing rounded it or capped it'
+    : `${Math.round(cost)}s between the hold the formula asked for and the one that can actually be applied`;
 }
 
 /**
@@ -238,7 +241,8 @@ export function sampleAge(stateAsOf: string, now: number): SampleAge {
   const at = Date.parse(stateAsOf);
   if (Number.isNaN(at)) return { state: 'unreadable' };
   const seconds = Math.round((now - at) / 1000);
-  if (seconds < -FUTURE_READING_TOLERANCE_SECONDS) return { state: 'future', secondsAhead: -seconds };
+  if (seconds < -FUTURE_READING_TOLERANCE_SECONDS)
+    return { state: 'future', secondsAhead: -seconds };
   // Inside the tolerance the difference is clock skew between two machines,
   // not a data defect, and an operator reading "-3s" would learn nothing.
   return { state: 'aged', ageSeconds: Math.max(0, seconds) };
@@ -259,7 +263,10 @@ export function describeSampleAge(age: SampleAge): {
     case 'aged':
       return { label: `${age.ageSeconds}s`, tone: age.ageSeconds > 60 ? 'warn' : 'default' };
     case 'future':
-      return { label: `dated ${formatDuration(age.secondsAhead)} ahead`, tone: 'critical' };
+      return {
+        label: `dated ${formatDuration(age.secondsAhead)} into the future`,
+        tone: 'critical',
+      };
     case 'unreadable':
       return { label: 'unknown', tone: 'warn' };
   }

@@ -11,13 +11,16 @@ export function LiveBadge({ observedAt, now }: { observedAt: string; now: number
   const live = isLiveObservation(observedAt, now);
   return (
     <span
-      className={`rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] ${
+      className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.1em] ${
         live
-          ? 'border-alert-green/40 bg-alert-green/10 text-ops-good'
-          : 'border-alert-amber/40 bg-alert-amber/10 text-ops-warn'
+          ? 'border-success/40 bg-success/10 text-success'
+          : 'border-warning/40 bg-warning/10 text-warning'
       }`}
     >
-      {live ? 'Live' : 'Stale'}
+      {/* "Stale" is engineering vocabulary for a reading that has stopped
+          arriving. What an operator needs to know is that this position is
+          old, which is what it now says. */}
+      {live ? 'Live' : 'Old'}
     </span>
   );
 }

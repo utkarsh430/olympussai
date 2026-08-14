@@ -1,4 +1,6 @@
 import type { HeadwayAggregate } from '@/models/control';
+import { OpsGrid, OpsPanel, OpsStat } from '@/components/ops/ui';
+import { METRIC } from '@/lib/ops/vocabulary';
 
 function formatSeconds(value: number | null): string {
   if (value === null) return '—';
@@ -6,33 +8,64 @@ function formatSeconds(value: number | null): string {
 }
 
 /**
- * Route-direction-wide headway/EWT/CV summary (AC: "Time-domain fwd/bwd
- * headways, CV, EWT computed per route-direction"). Individual leader/
- * follower forward/backward headways are shown per-pair in the incidents'
- * evidence and are also what feeds this aggregate — this card is the
- * at-a-glance regularity read a control-room operator scans first.
+ * The four spacing figures for one corridor, at a glance.
+ *
+ * ─── THE LABELS ──────────────────────────────────────────────────────────
+ *
+ * These used to read `Target headway (H*)`, `Mean headway`, `Coefficient of
+ * variation` and `Excess Wait Time`, with hints like "stddev / mean — lower is
+ * more regular" and "Passenger-impact KPI". That is the vocabulary of the
+ * transit-operations literature, and the readers are UPSRTC control-room staff.
+ *
+ * They now come from src/lib/ops/vocabulary.ts, which is also what the console
+ * band uses, so the two surfaces cannot drift into two names for one number.
+ * Two of the four keep their technical term deliberately: CV, because
+ * "regularity %" would name a DIFFERENT statistic; and "extra" wait, because
+ * dropping the word turns it into total passenger wait, which it is not.
+ *
+ * ─── THE DASH ────────────────────────────────────────────────────────────
+ *
+ * A null here is `—`, meaning the sweep ran and produced no value for this
+ * figure — not `n/a`, which is reserved for a source that could not be read at
+ * all. The page above owns that distinction: it only renders this card when
+ * the snapshot actually carries an aggregate.
  */
 export function HeadwayMetricsSummary({ aggregate }: { aggregate: HeadwayAggregate }) {
   const cards: { label: string; value: string; hint: string }[] = [
-    { label: 'Target headway (H*)', value: formatSeconds(aggregate.targetHeadwaySeconds), hint: 'Configured/policy value' },
-    { label: 'Mean headway', value: formatSeconds(aggregate.meanHeadwaySeconds), hint: `${aggregate.sampleCount} pair sample(s)` },
     {
-      label: 'Coefficient of variation',
-      value: aggregate.cv === null ? '—' : aggregate.cv.toFixed(2),
-      hint: 'stddev / mean — lower is more regular',
+      label: METRIC.targetHeadway.label,
+      value: formatSeconds(aggregate.targetHeadwaySeconds),
+      hint: METRIC.targetHeadway.hint,
     },
-    { label: 'Excess Wait Time', value: formatSeconds(aggregate.ewtSeconds), hint: 'Passenger-impact KPI' },
+    {
+      label: METRIC.meanHeadway.label,
+      value: formatSeconds(aggregate.meanHeadwaySeconds),
+      hint: `from ${aggregate.sampleCount} ${aggregate.sampleCount === 1 ? 'pair of buses' : 'pairs of buses'}`,
+    },
+    {
+      label: METRIC.cv.label,
+      value: aggregate.cv === null ? '—' : aggregate.cv.toFixed(2),
+      hint: METRIC.cv.hint,
+    },
+    {
+      label: METRIC.excessWait.label,
+      value: formatSeconds(aggregate.ewtSeconds),
+      hint: METRIC.excessWait.hint,
+    },
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <OpsGrid columns={4}>
       {cards.map((card) => (
-        <div key={card.label} className="rounded-md border border-ops-line px-3 py-3">
-          <p className="ops-eyebrow">{card.label}</p>
-          <p className="mt-1 text-lg font-semibold text-ops-ink">{card.value}</p>
-          <p className="mt-0.5 text-[11px] text-ops-faint">{card.hint}</p>
-        </div>
+        <OpsPanel key={card.label} padded={false} className="px-3 py-3">
+          <OpsStat label={card.label} value={card.value} />
+          {/* Deliberately outside OpsStat's own `hint`, which truncates to keep
+              a console tile's column width stable. Here there is room, and the
+              reading key for CV is the whole reason an operator can use the
+              number at all. */}
+          <p className="mt-1 text-[11px] leading-snug text-subtle">{card.hint}</p>
+        </OpsPanel>
       ))}
-    </div>
+    </OpsGrid>
   );
 }

@@ -38,7 +38,17 @@ describe('getObservabilitySnapshot', () => {
       const path = url.pathname;
       if (path === '/v1/route-directions') {
         return Promise.resolve(
-          jsonResponse({ routeDirections: [{ routeDirectionId: 'dir-1', routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000 }] }),
+          jsonResponse({
+            routeDirections: [
+              {
+                routeDirectionId: 'dir-1',
+                routeId: 'R1',
+                directionCode: 'up',
+                isLoop: false,
+                totalDistanceMeters: 18000,
+              },
+            ],
+          }),
         );
       }
       if (path === '/v1/vehicle-states') {
@@ -102,7 +112,17 @@ describe('getObservabilitySnapshot', () => {
   it('serves the last-known-good cached snapshot (flagged stale) when a later call fails', async () => {
     const goodResponses = (path: string) => {
       if (path === '/v1/route-directions') {
-        return jsonResponse({ routeDirections: [{ routeDirectionId: 'dir-1', routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000 }] });
+        return jsonResponse({
+          routeDirections: [
+            {
+              routeDirectionId: 'dir-1',
+              routeId: 'R1',
+              directionCode: 'up',
+              isLoop: false,
+              totalDistanceMeters: 18000,
+            },
+          ],
+        });
       }
       if (path === '/v1/vehicle-states') return jsonResponse({ vehicleStates: [] });
       if (path.endsWith('/headway')) {
@@ -110,7 +130,15 @@ describe('getObservabilitySnapshot', () => {
           routeDirectionId: 'dir-1',
           computedAt: new Date().toISOString(),
           pairs: [],
-          aggregate: { routeDirectionId: 'dir-1', sampleCount: 0, meanHeadwaySeconds: null, stddevHeadwaySeconds: null, cv: null, ewtSeconds: null, targetHeadwaySeconds: 300 },
+          aggregate: {
+            routeDirectionId: 'dir-1',
+            sampleCount: 0,
+            meanHeadwaySeconds: null,
+            stddevHeadwaySeconds: null,
+            cv: null,
+            ewtSeconds: null,
+            targetHeadwaySeconds: 300,
+          },
           incidents: [],
         });
       }
@@ -150,7 +178,13 @@ describe('getObservabilitySnapshot', () => {
   describe('error provenance', () => {
     const routeDirections = {
       routeDirections: [
-        { routeDirectionId: 'dir-1', routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000 },
+        {
+          routeDirectionId: 'dir-1',
+          routeId: 'R1',
+          directionCode: 'up',
+          isLoop: false,
+          totalDistanceMeters: 18000,
+        },
       ],
     };
 
@@ -158,14 +192,18 @@ describe('getObservabilitySnapshot', () => {
       vi.stubGlobal(
         'fetch',
         vi.fn().mockImplementation((url: URL) => {
-          if (url.pathname === '/v1/route-directions') return Promise.resolve(jsonResponse(routeDirections));
+          if (url.pathname === '/v1/route-directions')
+            return Promise.resolve(jsonResponse(routeDirections));
           if (url.pathname.endsWith('/headway')) {
             // Byte-for-byte what the live control service returns.
             return Promise.resolve({
               ok: false,
               status: 404,
               json: async () => ({
-                error: { code: 'no_active_policy', message: 'No active route policy for route-direction dir-1' },
+                error: {
+                  code: 'no_active_policy',
+                  message: 'No active route policy for route-direction dir-1',
+                },
               }),
             });
           }
@@ -189,12 +227,15 @@ describe('getObservabilitySnapshot', () => {
       vi.stubGlobal(
         'fetch',
         vi.fn().mockImplementation((url: URL) => {
-          if (url.pathname === '/v1/route-directions') return Promise.resolve(jsonResponse(routeDirections));
+          if (url.pathname === '/v1/route-directions')
+            return Promise.resolve(jsonResponse(routeDirections));
           if (url.pathname.endsWith('/headway')) {
             return Promise.resolve({
               ok: false,
               status: 404,
-              json: async () => ({ error: { code: 'no_active_policy', message: 'No active route policy' } }),
+              json: async () => ({
+                error: { code: 'no_active_policy', message: 'No active route policy' },
+              }),
             });
           }
           return Promise.resolve(jsonResponse({ vehicleStates: [], incidents: [] }));
@@ -217,7 +258,8 @@ describe('getObservabilitySnapshot', () => {
       vi.stubGlobal(
         'fetch',
         vi.fn().mockImplementation((url: URL) => {
-          if (url.pathname === '/v1/route-directions') return Promise.resolve(jsonResponse(routeDirections));
+          if (url.pathname === '/v1/route-directions')
+            return Promise.resolve(jsonResponse(routeDirections));
           return Promise.reject(new Error('socket hang up'));
         }),
       );
@@ -233,7 +275,8 @@ describe('getObservabilitySnapshot', () => {
       vi.stubGlobal(
         'fetch',
         vi.fn().mockImplementation((url: URL) => {
-          if (url.pathname === '/v1/route-directions') return Promise.resolve(jsonResponse(routeDirections));
+          if (url.pathname === '/v1/route-directions')
+            return Promise.resolve(jsonResponse(routeDirections));
           if (url.pathname.endsWith('/headway')) {
             return Promise.resolve(
               jsonResponse({
@@ -263,5 +306,177 @@ describe('getObservabilitySnapshot', () => {
       expect(snapshot.source).toBe('live');
       expect(snapshot.errorCode).toBeNull();
     });
+  });
+});
+
+/**
+ * Which corridor a console opens on when the operator has not named one.
+ *
+ * ─── THE DEFECT THIS PINS ────────────────────────────────────────────────
+ *
+ * The default used to be `routeDirections[0]`. The control service returns
+ * that list `order by route_id, direction_code`, so on the live network
+ * position zero is corridor 1000 outbound — which has no planned gap. Every
+ * corridor-scoped tile on the control room's status band therefore rendered a
+ * dash, the incident list rendered an explanation instead of incidents, and
+ * the engine panel rendered "no planned gap is set for this corridor". A new
+ * operator's first sight of the control room was a screen of dashes under a
+ * paragraph explaining them.
+ *
+ * Measured against the live control database at the time of writing: 198 of
+ * 759 surveyed corridors can report, and the old default landed on one of the
+ * 561 that cannot.
+ *
+ * Every one of those messages was individually correct. The defect was the
+ * DEFAULT, and it is the kind that a test asserting "the snapshot has a
+ * corridor selected" passes straight through.
+ */
+describe('defaultRouteDirectionId — the console must not open on a blank corridor', () => {
+  // Own lifecycle rather than the outer describe's: `getObservabilitySnapshot`
+  // keeps a module-level last-good cache, so without a module reset the
+  // end-to-end cases below would read a corridor a previous test seeded.
+  beforeEach(() => {
+    vi.resetModules();
+    process.env.CONTROL_SERVICE_BASE_URL = 'https://control.example.test';
+    process.env.CONTROL_SERVICE_SERVICE_TOKEN = 'test-token';
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.CONTROL_SERVICE_BASE_URL;
+    delete process.env.CONTROL_SERVICE_SERVICE_TOKEN;
+  });
+
+  const CANNOT = {
+    routeDirectionId: 'rd-1000',
+    routeId: '1000',
+    directionCode: 'OUT',
+    isLoop: false,
+    totalDistanceMeters: 1,
+    hasActivePolicy: false,
+  };
+  const CAN = {
+    routeDirectionId: 'rd-1002',
+    routeId: '1002',
+    directionCode: 'OUT',
+    isLoop: false,
+    totalDistanceMeters: 1,
+    hasActivePolicy: true,
+  };
+  const CAN_LATER = {
+    routeDirectionId: 'rd-1043',
+    routeId: '1043',
+    directionCode: 'OUT',
+    isLoop: false,
+    totalDistanceMeters: 1,
+    hasActivePolicy: true,
+  };
+  const UNKNOWN = {
+    routeDirectionId: 'rd-x',
+    routeId: 'X',
+    directionCode: 'OUT',
+    isLoop: false,
+    totalDistanceMeters: 1,
+  };
+
+  it('prefers the first corridor that can actually report, not merely the first one', async () => {
+    const { defaultRouteDirectionId } = await import('@/lib/controlService/observabilityData');
+    expect(defaultRouteDirectionId([CANNOT, CAN, CAN_LATER])).toBe('rd-1002');
+  });
+
+  it('keeps the service’s own order among the corridors that can report', async () => {
+    const { defaultRouteDirectionId } = await import('@/lib/controlService/observabilityData');
+    expect(defaultRouteDirectionId([CAN, CAN_LATER])).toBe('rd-1002');
+  });
+
+  it('still opens on a corridor when none of them can report, rather than on nothing', async () => {
+    // A console with no corridor chosen is a worse answer than one that opens
+    // on a corridor and says plainly that it has nothing to report.
+    const { defaultRouteDirectionId } = await import('@/lib/controlService/observabilityData');
+    expect(defaultRouteDirectionId([CANNOT])).toBe('rd-1000');
+  });
+
+  it('never prefers a corridor whose detection state is unknown over one that reports', async () => {
+    // `hasActivePolicy: undefined` is a control service that predates the
+    // flag. Unknown is not "yes" and it is not "no", so it is neither chosen
+    // ahead of a confirmed corridor nor excluded from the fallback.
+    const { defaultRouteDirectionId } = await import('@/lib/controlService/observabilityData');
+    expect(defaultRouteDirectionId([UNKNOWN, CAN])).toBe('rd-1002');
+    expect(defaultRouteDirectionId([UNKNOWN])).toBe('rd-x');
+  });
+
+  it('returns null for an empty list rather than inventing a corridor', async () => {
+    const { defaultRouteDirectionId } = await import('@/lib/controlService/observabilityData');
+    expect(defaultRouteDirectionId([])).toBeNull();
+  });
+
+  it('opens the snapshot itself on a reporting corridor, end to end', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: URL) => {
+      if (url.pathname === '/v1/route-directions') {
+        return Promise.resolve(jsonResponse({ routeDirections: [CANNOT, CAN] }));
+      }
+      if (url.pathname === '/v1/vehicle-states')
+        return Promise.resolve(jsonResponse({ vehicleStates: [] }));
+      if (url.pathname === '/v1/incidents') return Promise.resolve(jsonResponse({ incidents: [] }));
+      return Promise.resolve(
+        jsonResponse({
+          routeDirectionId: 'rd-1002',
+          computedAt: new Date().toISOString(),
+          pairs: [],
+          aggregate: {
+            routeDirectionId: 'rd-1002',
+            sampleCount: 0,
+            meanHeadwaySeconds: null,
+            stddevHeadwaySeconds: null,
+            cv: null,
+            ewtSeconds: null,
+            targetHeadwaySeconds: 600,
+          },
+          incidents: [],
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { getObservabilitySnapshot } = await import('@/lib/controlService/observabilityData');
+    const snapshot = await getObservabilitySnapshot(undefined, Date.now());
+
+    expect(snapshot.selectedRouteDirectionId).toBe('rd-1002');
+  });
+
+  it('still honours an explicit corridor, including one that cannot report', async () => {
+    // The default is a starting view, never a filter. An operator who names a
+    // corridor gets that corridor.
+    const fetchMock = vi.fn().mockImplementation((url: URL) => {
+      if (url.pathname === '/v1/route-directions') {
+        return Promise.resolve(jsonResponse({ routeDirections: [CANNOT, CAN] }));
+      }
+      if (url.pathname === '/v1/vehicle-states')
+        return Promise.resolve(jsonResponse({ vehicleStates: [] }));
+      if (url.pathname === '/v1/incidents') return Promise.resolve(jsonResponse({ incidents: [] }));
+      return Promise.resolve(
+        jsonResponse({
+          routeDirectionId: 'rd-1000',
+          computedAt: new Date().toISOString(),
+          pairs: [],
+          aggregate: {
+            routeDirectionId: 'rd-1000',
+            sampleCount: 0,
+            meanHeadwaySeconds: null,
+            stddevHeadwaySeconds: null,
+            cv: null,
+            ewtSeconds: null,
+            targetHeadwaySeconds: 600,
+          },
+          incidents: [],
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { getObservabilitySnapshot } = await import('@/lib/controlService/observabilityData');
+    const snapshot = await getObservabilitySnapshot('rd-1000', Date.now());
+
+    expect(snapshot.selectedRouteDirectionId).toBe('rd-1000');
   });
 });

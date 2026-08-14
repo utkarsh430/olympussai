@@ -34,7 +34,13 @@ function expectText(pattern: RegExp): void {
 }
 
 vi.mock('@/components/ops/map/OpsFleetMapPanel', () => ({
-  OpsFleetMapPanel: ({ scopeLabel, routeDirectionId }: { scopeLabel: string; routeDirectionId?: string }) => (
+  OpsFleetMapPanel: ({
+    scopeLabel,
+    routeDirectionId,
+  }: {
+    scopeLabel: string;
+    routeDirectionId?: string;
+  }) => (
     <div data-testid="fleet-map">
       map:{scopeLabel}:{routeDirectionId ?? 'none'}
     </div>
@@ -51,7 +57,13 @@ function overview(patch: Partial<ControlRoomOverview> = {}): ControlRoomOverview
   return {
     fetchedAt: new Date().toISOString(),
     routeDirections: [
-      { routeDirectionId: CORRIDOR, routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000 },
+      {
+        routeDirectionId: CORRIDOR,
+        routeId: 'R1',
+        directionCode: 'up',
+        isLoop: false,
+        totalDistanceMeters: 18000,
+      },
     ],
     selectedRouteDirectionId: CORRIDOR,
     corridors: { ok: true, mapped: 1, detecting: 1 },
@@ -149,7 +161,8 @@ const APPROVAL = {
 
 interface RouteStubs {
   overview?: ControlRoomOverview;
-  recommendation?: RecommendationResult | { error: { code: string; message: string }; status: number };
+  recommendation?:
+    RecommendationResult | { error: { code: string; message: string }; status: number };
   approvals?: unknown[];
   onCommand?: (body: Record<string, unknown>) => { ok: boolean; status: number; payload: unknown };
 }
@@ -181,7 +194,13 @@ function stubFetch(stubs: RouteStubs) {
       const result = stubs.onCommand?.(body) ?? {
         ok: true,
         status: 201,
-        payload: { ok: true, commandId: 'cmd-1', status: 'delivered', expiresAt: 'later', auditEventId: 'audit-1' },
+        payload: {
+          ok: true,
+          commandId: 'cmd-1',
+          status: 'delivered',
+          expiresAt: 'later',
+          auditEventId: 'audit-1',
+        },
       };
       return json(result.payload, result.status);
     }
@@ -240,14 +259,18 @@ describe('control-room console — the map holds the frame and every capability 
     renderConsole();
     fireEvent.click(screen.getByTestId('console-tab-approvals'));
     expect(await screen.findByText(/bunching reported by the depot/i)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /issue command/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/control-service command id/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /send an instruction to a driver/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/instruction reference/i)).toBeInTheDocument();
   });
 
   it('still reaches the kill switches, the fleet roster and the breakdown reports', async () => {
     renderConsole();
     fireEvent.click(screen.getByTestId('console-tab-safety'));
-    expect(await screen.findByRole('heading', { name: /kill switches/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /stop new instructions/i, level: 2 }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('console-tab-fleet'));
     expect(screen.getByTestId('fleet-panel')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('console-tab-reports'));
@@ -264,7 +287,9 @@ describe('control-room console — the map holds the frame and every capability 
   it('reads the approval queue UNFILTERED, or the engine-proposed holds would be invisible', async () => {
     const { calls } = stubFetch({ approvals: [APPROVAL] });
     renderConsole();
-    await waitFor(() => expect(calls.some((url) => url.includes('/api/ops/dispatcher/approvals'))).toBe(true));
+    await waitFor(() =>
+      expect(calls.some((url) => url.includes('/api/ops/dispatcher/approvals'))).toBe(true),
+    );
     // Holds are not in the four "disruptive" action types the default queue
     // filters to, so the default read would never show the approval that
     // authorizes the engine's own proposal.
@@ -306,8 +331,8 @@ describe('control-room console — the status band', () => {
   it('groups the tiles by what they are about, so no number is scope-ambiguous', async () => {
     stubFetch({});
     renderConsole();
-    expect(await screen.findByText('Statewide')).toBeInTheDocument();
-    expect(screen.getByText('Selected corridor')).toBeInTheDocument();
+    expect(await screen.findByText('Whole state')).toBeInTheDocument();
+    expect(screen.getByText('This corridor')).toBeInTheDocument();
   });
 
   it('shows how much of the network it can see, and says the total is not known', async () => {
@@ -316,7 +341,7 @@ describe('control-room console — the status band', () => {
     renderConsole({ initialOverview: partial });
 
     expect(await screen.findByText('14')).toBeInTheDocument();
-    expect(screen.getByText('of 47 mapped')).toBeInTheDocument();
+    expect(screen.getByText('of 47 surveyed')).toBeInTheDocument();
     expectText(/the size of the full network is not known here/i);
   });
 
@@ -326,19 +351,158 @@ describe('control-room console — the status band', () => {
     // it already knew.
     const mixed = overview({
       routeDirections: [
-        { routeDirectionId: CORRIDOR, routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000, hasActivePolicy: true },
-        { routeDirectionId: 'dir-2', routeId: 'R2', directionCode: 'down', isLoop: false, totalDistanceMeters: 9000, hasActivePolicy: false },
+        {
+          routeDirectionId: CORRIDOR,
+          routeId: 'R1',
+          directionCode: 'up',
+          isLoop: false,
+          totalDistanceMeters: 18000,
+          hasActivePolicy: true,
+        },
+        {
+          routeDirectionId: 'dir-2',
+          routeId: 'R2',
+          directionCode: 'down',
+          isLoop: false,
+          totalDistanceMeters: 9000,
+          hasActivePolicy: false,
+        },
       ],
       corridors: { ok: true, mapped: 2, detecting: 1 },
     });
     stubFetch({ overview: mixed });
     renderConsole({ initialOverview: mixed });
 
+    fireEvent.click(await screen.findByTestId('corridor-picker-trigger'));
+
     const options = await screen.findAllByRole('option');
     const labels = options.map((option) => option.textContent ?? '');
-    expect(labels.some((label) => label.includes('R2') && label.includes('no detection'))).toBe(true);
-    // And the corridor that CAN detect carries no marker at all.
-    expect(labels.some((label) => label.includes('R1') && !label.includes('no detection'))).toBe(true);
+    expect(labels.some((label) => label.includes('R2') && label.includes('no detection'))).toBe(
+      true,
+    );
+    // And the corridor that CAN report says so rather than being unmarked, so
+    // the two states are told apart by a word and not only by an absence.
+    expect(labels.some((label) => label.includes('R1') && label.includes('reports'))).toBe(true);
+    expect(labels.some((label) => label.includes('R1') && label.includes('no detection'))).toBe(
+      false,
+    );
+  });
+
+  it('groups the corridors that can report above the ones that cannot, with the count', async () => {
+    // 759 corridors, of which 198 can report anything at all. A flat list of
+    // 759 indistinguishable options is not a control an operator can use
+    // during an incident, and the denominator is the honest part of the pair.
+    const mixed = overview({
+      routeDirections: [
+        {
+          routeDirectionId: CORRIDOR,
+          routeId: 'R1',
+          directionCode: 'up',
+          isLoop: false,
+          totalDistanceMeters: 18000,
+          hasActivePolicy: true,
+        },
+        {
+          routeDirectionId: 'dir-2',
+          routeId: 'R2',
+          directionCode: 'down',
+          isLoop: false,
+          totalDistanceMeters: 9000,
+          hasActivePolicy: false,
+        },
+      ],
+      corridors: { ok: true, mapped: 2, detecting: 1 },
+    });
+    stubFetch({ overview: mixed });
+    renderConsole({ initialOverview: mixed });
+
+    fireEvent.click(await screen.findByTestId('corridor-picker-trigger'));
+    expectText(/1 of 2 can report buses closing up/i);
+    expectText(/can report buses closing up · 1/i);
+    expectText(/cannot report buses closing up · 1/i);
+  });
+
+  it('keeps the corridors that cannot report REACHABLE, not just counted', async () => {
+    // THE DEFECT, caught by opening the real picker in a real browser: the
+    // list is capped so 759 rows are not painted at once, and the corridors
+    // that CAN report are rendered first. With one flat cap the whole budget
+    // went to the first group, so the second group rendered its heading —
+    // "Cannot report buses closing up · 561" — with nothing underneath it, and
+    // the 561 corridors an operator might legitimately open were unreachable
+    // without guessing a route number. A budget per group fixes it.
+    const many = overview({
+      routeDirections: [
+        ...Array.from({ length: 120 }, (_, i) => ({
+          routeDirectionId: `can-${i}`,
+          routeId: `9${String(i).padStart(3, '0')}`,
+          directionCode: 'OUT',
+          isLoop: false,
+          totalDistanceMeters: 1,
+          hasActivePolicy: true,
+        })),
+        {
+          routeDirectionId: 'cannot-1',
+          routeId: '1000',
+          directionCode: 'OUT',
+          isLoop: false,
+          totalDistanceMeters: 1,
+          hasActivePolicy: false,
+        },
+      ],
+      selectedRouteDirectionId: 'can-0',
+      corridors: { ok: true, mapped: 121, detecting: 120 },
+    });
+    stubFetch({ overview: many });
+    renderConsole({ initialOverview: many });
+
+    fireEvent.click(await screen.findByTestId('corridor-picker-trigger'));
+    const options = await screen.findAllByRole('option');
+    const labels = options.map((option) => option.textContent ?? '');
+
+    // The heading still states the true total for its group...
+    expectText(/can report buses closing up · 120/i);
+    // ...the list is still capped rather than painting all 121...
+    expect(options.length).toBeLessThan(121);
+    // ...and the corridor that cannot report is on screen, not merely counted.
+    expect(labels.some((label) => label.includes('1000') && label.includes('no detection'))).toBe(
+      true,
+    );
+    // The rows held back say so, rather than the list trailing off.
+    expectText(/more not shown here/i);
+  });
+
+  it('narrows the corridor list as the operator types, rather than making them scroll', async () => {
+    const mixed = overview({
+      routeDirections: [
+        {
+          routeDirectionId: CORRIDOR,
+          routeId: 'R1',
+          directionCode: 'up',
+          isLoop: false,
+          totalDistanceMeters: 18000,
+          hasActivePolicy: true,
+        },
+        {
+          routeDirectionId: 'dir-2',
+          routeId: 'R2',
+          directionCode: 'down',
+          isLoop: false,
+          totalDistanceMeters: 9000,
+          hasActivePolicy: true,
+        },
+      ],
+      corridors: { ok: true, mapped: 2, detecting: 2 },
+    });
+    stubFetch({ overview: mixed });
+    renderConsole({ initialOverview: mixed });
+
+    fireEvent.click(await screen.findByTestId('corridor-picker-trigger'));
+    expect(await screen.findAllByRole('option')).toHaveLength(2);
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'R2' } });
+    const narrowed = await screen.findAllByRole('option');
+    expect(narrowed).toHaveLength(1);
+    expect(narrowed[0]?.textContent).toContain('R2');
   });
 
   it('warns that commands are halted when a kill switch is engaged', async () => {
@@ -362,7 +526,7 @@ describe('control-room console — the status band', () => {
     });
     stubFetch({ overview: engaged });
     renderConsole({ initialOverview: engaged });
-    await screen.findAllByText(/network kill switch engaged/i);
+    await screen.findAllByText(/all new instructions stopped, whole state/i);
   });
 });
 
@@ -371,39 +535,45 @@ describe('control-room console — the engine proposal', () => {
     stubFetch({ approvals: [APPROVAL] });
     renderConsole();
 
-    await screen.findAllByText(/Proposed: Two-way hold/i);
-    expectText(/Cheapest safe mid-route hold/i);
+    await screen.findAllByText(/Suggested: Two-way hold/i);
+    expectText(/Least disruptive hold part-way along the route/i);
 
     // Rejections are visible, not behind a disclosure, and they blame the
     // dependency set rather than the named bus.
-    expectText(/Refused by the safety filter/i);
-    expectText(/data this depends on is stale/i);
+    expectText(/Refused by the safety checks/i);
+    expectText(/out-of-date reading/i);
     expectText(/UP25FT7778/);
   });
 
   it('states the engine only proposes holds, and names the six it does not', async () => {
     stubFetch({ approvals: [APPROVAL] });
     renderConsole();
-    await screen.findAllByText(/What this engine can and cannot propose/i);
-    expectText(/nothing in this system generates or ranks them/i);
+    await screen.findAllByText(/What this engine can and cannot suggest/i);
+    expectText(/nothing in this system works them out or ranks them/i);
   });
 
   it('keeps the predictive advisory separate and gives it no way to be issued', async () => {
     stubFetch({ approvals: [APPROVAL] });
     renderConsole();
-    const advisory = (await screen.findByText('Predictive advisory')).closest('section');
+    const advisory = (
+      await screen.findByText('Second opinion, weighted by how full the buses are')
+    ).closest('section');
     expect(advisory).not.toBeNull();
-    expect(within(advisory as HTMLElement).getByText('PREDICTIVE')).toBeInTheDocument();
+    expect(within(advisory as HTMLElement).getByText('Second opinion')).toBeInTheDocument();
     // It ranks a different bus, and must say that is not a tie to break.
-    expect(within(advisory as HTMLElement).getByText(/is not the bus the engine proposed/i)).toBeInTheDocument();
+    expect(
+      within(advisory as HTMLElement).getByText(/is not the bus the engine suggested/i),
+    ).toBeInTheDocument();
     expect(within(advisory as HTMLElement).queryByRole('button')).toBeNull();
-    expect(within(advisory as HTMLElement).getByText(/configured horizon, not a horizon/i)).toBeInTheDocument();
+    expect(
+      within(advisory as HTMLElement).getByText(/is a setting, not something this second opinion/i),
+    ).toBeInTheDocument();
   });
 
   it('says the solve was never written down', async () => {
     stubFetch({ approvals: [APPROVAL] });
     renderConsole();
-    await screen.findAllByText(/not an audited record/i);
+    await screen.findAllByText(/there is no history of it to open/i);
   });
 
   it('distinguishes "nothing to regulate" from "the filter refused everything"', async () => {
@@ -429,7 +599,7 @@ describe('control-room console — the engine proposal', () => {
       },
     });
     renderConsole();
-    await screen.findAllByText(/decision engine is unreachable/i);
+    await screen.findAllByText(/engine cannot be reached/i);
     expectText(/may have wanted to act/i);
   });
 
@@ -442,13 +612,16 @@ describe('control-room console — the engine proposal', () => {
       approvals: [],
       recommendation: {
         status: 502,
-        error: { code: 'CONTROL_SERVICE_ERROR', message: 'Unexpected response shape from /v1/mpc/solve' },
+        error: {
+          code: 'CONTROL_SERVICE_ERROR',
+          message: 'Unexpected response shape from /v1/mpc/solve',
+        },
       },
     });
     renderConsole();
-    await screen.findAllByText(/shape this console will not accept/i);
-    expectText(/older than this console/i);
-    expect(screen.queryAllByText(/unreachable/i)).toHaveLength(0);
+    await screen.findAllByText(/could not read the engine's answer/i);
+    expectText(/older version than this screen/i);
+    expect(screen.queryAllByText(/cannot be reached/i)).toHaveLength(0);
   });
 
   it('calls a missing route policy a configuration gap, not an absent recommendation', async () => {
@@ -457,8 +630,8 @@ describe('control-room console — the engine proposal', () => {
       recommendation: { status: 404, error: { code: 'NO_ACTIVE_POLICY', message: 'no policy' } },
     });
     renderConsole();
-    await screen.findAllByText(/No control policy is configured/i);
-    expectText(/configuration gap, not a fault/i);
+    await screen.findAllByText(/No planned gap is set for this corridor/i);
+    expectText(/a setting that has not been filled in/i);
   });
 });
 
@@ -466,16 +639,16 @@ describe('control-room console — a proposal can never issue itself', () => {
   it('offers no issue control when no dispatcher approval authorizes the proposal', async () => {
     stubFetch({ approvals: [] });
     renderConsole();
-    await screen.findAllByText(/Proposed: Two-way hold/i);
+    await screen.findAllByText(/Suggested: Two-way hold/i);
     expect(screen.queryByTestId('engine-issue')).toBeNull();
     expect(screen.getByTestId('engine-prefill')).toBeInTheDocument();
-    expectText(/cannot approve their own proposal/i);
+    expectText(/cannot approve their own suggestion/i);
   });
 
   it('offers no issue control when the approval is for a different vehicle', async () => {
     stubFetch({ approvals: [{ ...APPROVAL, vehicleId: 'UP25FT0000' }] });
     renderConsole();
-    await screen.findAllByText(/Proposed: Two-way hold/i);
+    await screen.findAllByText(/Suggested: Two-way hold/i);
     expect(screen.queryByTestId('engine-issue')).toBeNull();
   });
 
@@ -492,9 +665,9 @@ describe('control-room console — a proposal can never issue itself', () => {
       }),
     });
     renderConsole();
-    await screen.findAllByText(/Proposed: Two-way hold/i);
+    await screen.findAllByText(/Suggested: Two-way hold/i);
     expect(screen.queryByTestId('engine-issue')).toBeNull();
-    expectText(/Commands are halted for this corridor/i);
+    expectText(/New instructions are stopped for this corridor/i);
   });
 
   it('withdraws the issue control once the solve has aged past its safety verdict', async () => {
@@ -503,8 +676,8 @@ describe('control-room console — a proposal can never issue itself', () => {
       recommendation: recommendation({ solvedAt: new Date(Date.now() - 300_000).toISOString() }),
     });
     renderConsole();
-    await screen.findAllByText(/Proposed: Two-way hold/i);
-    expectText(/This recommendation has expired/i);
+    await screen.findAllByText(/Suggested: Two-way hold/i);
+    expectText(/This suggestion is out of date/i);
     expect(screen.queryByTestId('engine-issue')).toBeNull();
   });
 
@@ -515,7 +688,7 @@ describe('control-room console — a proposal can never issue itself', () => {
     fireEvent.click(await screen.findByTestId('engine-issue'));
     // Staging is not issuing. Nothing has been sent yet.
     expect(commandBodies).toHaveLength(0);
-    expectText(/Confirm before this reaches the driver/i);
+    expectText(/Check this before it reaches the driver/i);
   });
 
   it('sends exactly the approved triple, against the approval that authorized it', async () => {
@@ -523,7 +696,7 @@ describe('control-room console — a proposal can never issue itself', () => {
     renderConsole();
 
     fireEvent.click(await screen.findByTestId('engine-issue'));
-    fireEvent.click(screen.getByRole('button', { name: /confirm and issue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirm and send/i }));
 
     await waitFor(() => expect(commandBodies).toHaveLength(1));
     const [body] = commandBodies;
@@ -535,7 +708,7 @@ describe('control-room console — a proposal can never issue itself', () => {
     // The audit summary is the only surviving record that the engine authored
     // this: the solve itself is not persisted anywhere.
     expect(String(body.summary)).toContain('terminal-two-way-self-equalizing-v1');
-    await screen.findAllByText(/Hold issued/i);
+    await screen.findAllByText(/Hold sent/i);
   });
 
   it('surfaces a server refusal rather than claiming the hold went out', async () => {
@@ -544,14 +717,16 @@ describe('control-room console — a proposal can never issue itself', () => {
       onCommand: () => ({
         ok: false,
         status: 422,
-        payload: { error: { code: 'APPROVAL_MISMATCH', message: 'Approval does not match this command.' } },
+        payload: {
+          error: { code: 'APPROVAL_MISMATCH', message: 'Approval does not match this command.' },
+        },
       }),
     });
     renderConsole();
     fireEvent.click(await screen.findByTestId('engine-issue'));
-    fireEvent.click(screen.getByRole('button', { name: /confirm and issue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirm and send/i }));
     await screen.findAllByText(/Approval does not match this command/i);
-    expect(screen.queryAllByText(/Hold issued/i)).toHaveLength(0);
+    expect(screen.queryAllByText(/Hold sent/i)).toHaveLength(0);
   });
 
   it('prefills the command form from a proposal instead of making the operator type uuids', async () => {
@@ -560,15 +735,22 @@ describe('control-room console — a proposal can never issue itself', () => {
     fireEvent.click(await screen.findByTestId('engine-prefill'));
 
     // It switches to the panel that holds the form, and fills it.
-    expect(await screen.findByLabelText(/vehicle id/i)).toHaveValue('UP25FT4823');
-    expect(screen.getByLabelText(/route-direction id/i)).toHaveValue(CORRIDOR);
-    expect(screen.getByLabelText(/action type/i)).toHaveValue('two_way_hold');
-    expect((screen.getByLabelText(/summary/i) as HTMLTextAreaElement).value).toContain(
-      'terminal-two-way-self-equalizing-v1',
-    );
-    // Still no approval id: the one field only a dispatcher's decision can
-    // supply is left empty rather than invented.
-    expect(screen.getByLabelText(/dispatcher action id/i)).toHaveValue('');
+    expect(await screen.findByLabelText(/^bus/i)).toHaveValue('UP25FT4823');
+    // By role rather than by label text: the "Send an instruction" panel also
+    // holds the lookup box labelled "Instruction reference", and a required
+    // field's visible label carries an aria-hidden marker that an anchored
+    // label-text match would trip over.
+    expect(screen.getByRole('combobox', { name: /^instruction$/i })).toHaveValue('two_way_hold');
+    expect(
+      (screen.getByLabelText(/why you are sending this/i) as HTMLTextAreaElement).value,
+    ).toContain('terminal-two-way-self-equalizing-v1');
+    // The corridor is a picker now rather than a box an operator types a uuid
+    // into, so the proof it was seeded is that the picker NAMES the corridor.
+    const pickers = screen.getAllByTestId('corridor-picker-trigger');
+    expect(pickers.some((trigger) => (trigger.textContent ?? '').includes('R1'))).toBe(true);
+    // Still no approval reference: the one field only a dispatcher's decision
+    // can supply is left empty rather than invented.
+    expect(screen.getByLabelText(/which approval allows this/i)).toHaveValue('');
   });
 });
 
@@ -577,20 +759,22 @@ describe('control-room console — approving from the queue still works', () => 
     stubFetch({ approvals: [APPROVAL] });
     renderConsole({ initialTab: 'approvals' });
 
-    fireEvent.click(await screen.findByRole('button', { name: /approve — issue command/i }));
-    expect(screen.getByLabelText(/dispatcher action id/i)).toHaveValue(APPROVAL.id);
+    fireEvent.click(await screen.findByRole('button', { name: /approve and send/i }));
+    expect(screen.getByLabelText(/which approval allows this/i)).toHaveValue(APPROVAL.id);
   });
 
   it('still rejects with a mandatory reason', async () => {
     const { fetchMock } = stubFetch({ approvals: [APPROVAL] });
     renderConsole({ initialTab: 'approvals' });
 
-    fireEvent.click(await screen.findByRole('button', { name: /^reject$/i }));
-    const confirm = screen.getByRole('button', { name: /confirm reject/i });
+    fireEvent.click(await screen.findByRole('button', { name: /^refuse$/i }));
+    const confirm = screen.getByRole('button', { name: /confirm refusal/i });
     // Empty reason cannot be submitted.
     expect(confirm).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText(/rejection reason/i), { target: { value: 'not warranted' } });
+    fireEvent.change(screen.getByLabelText(/why you are refusing this/i), {
+      target: { value: 'not warranted' },
+    });
     expect(confirm).toBeEnabled();
     fireEvent.click(confirm);
 
