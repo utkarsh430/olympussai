@@ -29,7 +29,24 @@
 import Link from 'next/link';
 import { DEFAULT_NEXT } from '@/lib/auth/redirect';
 import type { OpsRole } from '@/lib/auth/rbac/roles';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 
+/**
+ * ─── TONE, AND WHY IT IS `info` ──────────────────────────────────────────
+ *
+ * Same reasoning as NoOpsAccessNotice: this reader is a real operator, quite
+ * possibly mid-shift, and the only thing that has gone wrong is a background
+ * step nobody asked them to perform. A red alert would send them chasing an
+ * account problem that does not exist. The two escapes below are real — both
+ * genuinely open — so this state is a detour, not a wall, and it should read
+ * as one.
+ *
+ * The role is still spelled out, because naming it is what makes the report
+ * actionable ("my account is control room but sign-in cannot see it").
+ * `.replace('_', ' ')` is unchanged and correct here: every ops role is at
+ * most two words.
+ */
 export function OpsAccessPendingNotice({
   role,
   requested,
@@ -38,49 +55,39 @@ export function OpsAccessPendingNotice({
   requested?: string | null;
 }) {
   return (
-    <div
-      role="status"
-      className="w-full max-w-sm space-y-3 rounded-md border border-[#d6a13a]/35 bg-[#d6a13a]/[0.06] p-5"
-    >
-      <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#f3c86a]">
-        Operations access not active yet
-      </p>
-      <p className="text-sm leading-relaxed text-[#d8dae1]">
-        Your account is set up for operations
-        {role ? (
-          <>
-            {' '}
-            as <span className="font-mono text-[12px] text-[#f2eee7]">{role.replace('_', ' ')}</span>
-          </>
-        ) : null}
-        , but that has not been applied to your sign-in yet, so the operations console
-        {requested ? (
-          <>
-            {' '}
-            — including <span className="font-mono text-[12px] text-[#a3a7b2]">{requested}</span> —
-          </>
-        ) : null}{' '}
-        will not open for you.
-      </p>
-      <p className="text-[12px] leading-relaxed text-[#a3a7b2]">
-        Nothing is wrong with your account and there is nothing to retry. Ask an administrator to
-        re-apply your operations role, then sign in again. In the meantime the operations sign-in
-        fallback still works if you have an operations password.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <Link
-          href="/ops/login?legacy=1"
-          className="inline-flex items-center rounded-md border border-[rgba(255,255,255,0.14)] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-[#a3a7b2] transition-colors hover:border-[rgba(255,255,255,0.3)] hover:text-[#f2eee7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6a13a]"
-        >
-          Operations fallback sign-in
-        </Link>
-        <Link
-          href={DEFAULT_NEXT}
-          className="inline-flex items-center rounded-md border border-[rgba(255,255,255,0.14)] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-[#a3a7b2] transition-colors hover:border-[rgba(255,255,255,0.3)] hover:text-[#f2eee7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6a13a]"
-        >
-          Continue to project
-        </Link>
-      </div>
-    </div>
+    <Alert variant="info" role="status" className="w-full">
+      <AlertTitle>Your operations access is not switched on yet</AlertTitle>
+      <AlertDescription className="mt-2 space-y-3 text-muted-foreground">
+        <p>
+          Your account is set up for operations
+          {role ? (
+            <>
+              {' '}
+              as <span className="font-medium text-foreground">{role.replace('_', ' ')}</span>
+            </>
+          ) : null}
+          , but that has not reached your sign-in yet, so the operations console
+          {requested ? (
+            <>
+              {' '}
+              — including <span className="font-mono text-foreground">{requested}</span> —
+            </>
+          ) : null}{' '}
+          will not open for you.
+        </p>
+        <p>
+          Nothing is wrong with your account, and there is nothing to retry. Ask your administrator
+          to apply your operations role again, then sign in once more.
+        </p>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/ops/login?legacy=1">Use the backup operations sign-in</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={DEFAULT_NEXT}>Go to the project workspace</Link>
+          </Button>
+        </div>
+      </AlertDescription>
+    </Alert>
   );
 }

@@ -38,7 +38,7 @@ const ANALYSIS_ACTIONS: Array<{
   { kind: 'bunching', label: 'Bunching Analysis', detail: 'Bus spacing on this corridor', icon: GitMerge, testId: 'analysis-bunching' },
   { kind: 'traffic', label: 'Traffic Analysis', detail: 'Congestion and route options ahead', icon: TrafficCone, testId: 'analysis-traffic' },
   { kind: 'breakdown', label: 'Incident Response', detail: 'Assistance coordination options', icon: Wrench, testId: 'analysis-breakdown' },
-  { kind: 'demand', label: 'Demand - Supply Analysis', detail: 'Loading and fleet distribution', icon: Users, testId: 'analysis-demand' },
+  { kind: 'demand', label: 'Passengers against buses available', detail: 'How full, and how many buses there are', icon: Users, testId: 'analysis-demand' },
   { kind: 'contact', label: 'Contact Driver', detail: 'Prepare a control-room instruction', icon: PhoneCall, testId: 'analysis-contact' },
 ];
 
@@ -248,7 +248,7 @@ export function BusDetailDrawer() {
                             {stop.latitude === null && (
                               <span
                                 className="shrink-0 font-mono text-[8px] text-holo-glow/30"
-                                title="No surveyed coordinates upstream"
+                                title="The feed did not give a position for this stop"
                               >
                                 no geo
                               </span>

@@ -101,6 +101,38 @@
     --instrument-danger: 353 78% 45%; /* #cd1a37 */
     --instrument-info: 192.1 84.9% 28.6%; /* #0b6e87 */
 
+    /* ── THE BRAND ACCENT ────────────────────────────────────────────────
+       Olympuss gold. It is a THIRD accent alongside --primary, not a
+       replacement for it, and the division of labour is strict:
+
+         --primary  is the INSTRUMENT accent. Anything that reports a
+                    measurement wears it — readouts, the map, the console.
+         --brand    is the IDENTITY accent. The wordmark, the front door,
+                    the landing page, the "you are inside an Olympuss
+                    environment" chrome. It never states a reading.
+
+       Keeping them apart is what stops the front door from looking like a
+       dashboard and the dashboard from looking like a brochure. It is also
+       why the gold is not simply aliased onto the primary token — an
+       operator must never learn that gold means something about a bus.
+
+       (And note the shape of that last sentence. Writing a token name
+       immediately followed by a colon inside this comment declares it: the
+       parser in designTokens.test.ts reads this file as CSS, and it caught
+       exactly that mistake in the first draft of this block, silently
+       replacing the light palette's primary value with a paragraph of
+       English. Name tokens in prose without the colon.)
+
+       The literal #d6a13a cannot be the light value. Measured on white it is
+       2.33:1 and on the page ground 2.07:1 — it fails AA as text by a wide
+       margin and fails 1.4.11 as a control boundary. So the identity is the
+       HUE, and each theme carries the luminance that hue needs to be read at:
+       #8a5a00 in light (5.93:1 card · 5.27:1 page) and #d6a13a in dark
+       (8.24:1 card · 8.80:1 page). Side by side they are recognisably one
+       gold; measured, they are both legible. */
+    --brand: 39.1 100% 27.1%; /* #8a5a00  5.93:1 card · 5.27:1 page */
+    --brand-foreground: 0 0% 100%; /* #ffffff  5.93:1 on --brand */
+
     --radius: 0.5rem;
 
     /* The ambient ground wash, per theme. Referenced by .ops-backdrop, which
@@ -108,6 +140,46 @@
     --backdrop-wash-a: rgba(11, 110, 135, 0.06);
     --backdrop-wash-b: rgba(10, 122, 99, 0.04);
     --backdrop-grid: rgba(12, 28, 44, 0.05);
+
+    /* The landing page's own ambient field. Same two-layer construction in
+       both themes — a warm brand core over a cooler depth wash — so the
+       composition is identical and only the luminance flips. */
+    --stage-core: rgba(138, 90, 0, 0.1);
+    --stage-depth: rgba(12, 28, 44, 0.07);
+    --stage-grain: 0.02;
+
+    /*
+      How tall the landing hero stands.
+
+      120vh was sized for the WebGL fly-through: the globe needs scroll travel
+      to move through, and the empty band above the headline is where it sits.
+      On the day ground the globe is not mounted, so that band is just dead
+      space above the fold - measured at ~350px at 1440x900, which is the
+      difference between a hero and a page that looks like it failed to load
+      something. One viewport is the right height for the static edition.
+    */
+    --hero-min-h: 100svh;
+
+    /*
+      The hero's legibility scrim, and the headline's halo behind it.
+
+      Both exist for exactly one reason: to hold text readable where the globe
+      is brightest. No globe, nothing to hold text against - so on the day
+      ground they go to zero rather than becoming a pale disc smeared under
+      the headline.
+    */
+    --stage-scrim: 0;
+
+    /* The command centre's instrument glow, as a bare RGB triplet so the HUD
+       can vary its alpha without hard-coding a colour. In light this is the
+       same teal as --primary at full strength; the glow then reads as a tint
+       rather than as neon, which is the correct behaviour — a bloom that
+       works on a black wall display is a smudge on a white page. */
+    --hud-glow-rgb: 11 110 135;
+    /* How strongly the HUD's decorative bloom is applied. Near-zero in light:
+       the frame, the corner ticks and the scanline are all still drawn, so the
+       instrument geometry survives, but they stop glowing. */
+    --hud-bloom: 0.06;
   }
 
   .dark {
@@ -161,6 +233,22 @@
     --backdrop-wash-a: rgba(34, 217, 245, 0.1);
     --backdrop-wash-b: rgba(46, 242, 196, 0.06);
     --backdrop-grid: rgba(63, 240, 255, 0.04);
+
+    /* Same hue, the luminance the night ground needs. */
+    --brand: 39.6 65.5% 53.3%; /* #d6a13a  8.24:1 card · 8.80:1 page */
+    --brand-foreground: 225 66.7% 2.4%; /* #02040a  8.80:1 on --brand */
+
+    --stage-core: rgba(214, 161, 58, 0.14);
+    --stage-depth: rgba(17, 24, 42, 0.5);
+    --stage-grain: 0.03;
+
+    /* Room for the globe to travel through, and the scrim that keeps the
+       headline readable across it. Both unchanged from before this lane. */
+    --hero-min-h: 120vh;
+    --stage-scrim: 0.55;
+
+    --hud-glow-rgb: 63 240 255;
+    --hud-bloom: 1;
   }
 
   html,
@@ -291,26 +379,34 @@
       44px 44px;
   }
 
-  /* ═══ CINEMATIC SURFACE (/project/*) ═════════════════════════════════════
-     Dark-only by design; the route group wraps itself in `.dark`, so these
-     resolve against the dark palette regardless of the operator's theme.
-     Lane 4 unifies them. Deliberately unchanged here beyond pointing the
-     accent at the shared token. */
+  /* ═══ CINEMATIC SURFACE (/project/upsrtc) ════════════════════════════════
+     THIS BLOCK NOW FOLLOWS THE THEME. It used to be dark-only, pinned by a
+     `.dark` wrapper on the route group, with the cyan bloom baked in as
+     literal rgba.
+
+     What survives into light is the instrument GEOMETRY — the frame, the
+     corner ticks, the scanline, the label/value split. What does not survive
+     is the BLOOM, and that is deliberate rather than a compromise: a glow is
+     light added to a surface, and there is no light to add to white. In light
+     `--hud-bloom` drops to 0.06 and every shadow below scales with it, so the
+     panels resolve into crisp bordered instruments instead of smudges. The
+     corner ticks stay at full strength in both, because they are the thing
+     that actually reads as "instrument" once the glow is gone. */
 
   .hud-panel {
     @apply relative rounded-lg border border-primary/20 bg-card;
     box-shadow:
-      0 0 0 1px rgba(63, 240, 255, 0.06),
-      0 18px 50px -22px rgba(0, 0, 0, 0.9),
-      inset 0 1px 0 0 rgba(63, 240, 255, 0.08);
+      0 0 0 1px rgb(var(--hud-glow-rgb) / calc(0.06 * var(--hud-bloom))),
+      0 18px 50px -22px rgb(0 0 0 / calc(0.28 + 0.62 * var(--hud-bloom))),
+      inset 0 1px 0 0 rgb(var(--hud-glow-rgb) / calc(0.08 * var(--hud-bloom)));
   }
 
   .hud-panel-strong {
     @apply relative rounded-lg border border-primary/35 bg-popover;
     box-shadow:
-      0 0 0 1px rgba(63, 240, 255, 0.18),
-      0 0 34px -10px rgba(63, 240, 255, 0.4),
-      0 18px 50px -22px rgba(0, 0, 0, 0.9);
+      0 0 0 1px rgb(var(--hud-glow-rgb) / calc(0.18 * var(--hud-bloom))),
+      0 0 34px -10px rgb(var(--hud-glow-rgb) / calc(0.4 * var(--hud-bloom))),
+      0 18px 50px -22px rgb(0 0 0 / calc(0.28 + 0.62 * var(--hud-bloom)));
   }
 
   .hud-corners::before,
@@ -319,7 +415,7 @@
     position: absolute;
     width: 10px;
     height: 10px;
-    border-color: rgba(63, 240, 255, 0.55);
+    border-color: hsl(var(--primary) / 0.55);
     pointer-events: none;
   }
   .hud-corners::before {
@@ -374,7 +470,7 @@
 
   .hud-button-primary {
     @apply relative inline-flex items-center justify-center gap-2 rounded border border-primary/60 bg-primary/15 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-primary transition-all duration-200 hover:bg-primary/25 disabled:cursor-not-allowed disabled:opacity-40;
-    box-shadow: 0 0 22px -8px rgba(63, 240, 255, 0.7);
+    box-shadow: 0 0 22px -8px rgb(var(--hud-glow-rgb) / calc(0.7 * var(--hud-bloom)));
   }
 
   .hud-button-danger {
@@ -382,50 +478,31 @@
   }
 
   .hud-input {
-    @apply w-full rounded border border-primary/20 bg-background/70 px-3 py-1.5 font-mono text-xs text-primary placeholder:text-primary/30 focus:border-primary/60 focus:outline-none;
+    @apply w-full rounded border border-input bg-background/70 px-3 py-1.5 font-mono text-xs text-foreground placeholder:text-subtle focus:border-primary/60 focus:outline-none;
   }
 
-  /* ═══ SIMULATOR SURFACE (/project/bunching) ══════════════════════════════
-     A light surface that predates the theme layer. Left on its own literal
-     palette so it renders identically before and after this change; lane 4
-     folds it into the tokens. */
+  /* ═══ IDENTITY CHROME ════════════════════════════════════════════════════
+     The Olympuss surface — the landing page, the front door, the project
+     badge inside the command centre. `--brand`, never `--primary`: this
+     chrome says whose product you are in, and says nothing about a bus. */
 
-  .sim-panel {
-    @apply relative rounded-lg border border-sim-line bg-sim-surface;
-    box-shadow:
-      0 1px 2px rgba(11, 34, 51, 0.05),
-      0 10px 28px -20px rgba(11, 34, 51, 0.25);
+  .brand-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-brand bg-brand px-6 py-3 text-sm font-medium tracking-wide text-brand-foreground transition-colors duration-200 hover:bg-brand/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60;
   }
 
-  .sim-well {
-    @apply rounded border border-sim-line bg-sim-well;
+  .brand-button-quiet {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-border bg-transparent px-6 py-3 text-sm font-medium tracking-wide text-muted-foreground transition-colors duration-200 hover:border-brand hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 
-  .sim-label {
-    @apply font-mono text-[10px] uppercase tracking-[0.18em] text-sim-muted;
-  }
-
-  .sim-button {
-    @apply relative inline-flex items-center justify-center gap-2 rounded border border-sim-line bg-sim-surface px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-sim-ink transition-colors hover:border-sim-accent/60 hover:bg-sim-accent/[0.07] disabled:cursor-not-allowed disabled:opacity-40;
-  }
-
-  .sim-button-primary {
-    @apply relative inline-flex items-center justify-center gap-2 rounded border border-sim-accent bg-sim-accent px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-white transition-colors hover:bg-sim-accent/90 disabled:cursor-not-allowed disabled:opacity-40;
-  }
-
-  .sim-light :focus-visible {
-    outline-color: #0b6e87;
-  }
-
-  body:has(.sim-light) {
-    background-color: #ffffff;
+  .brand-eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.18em] text-brand;
   }
 
   .scanline-overlay {
     background-image: repeating-linear-gradient(
       0deg,
-      rgba(63, 240, 255, 0.035) 0px,
-      rgba(63, 240, 255, 0.035) 1px,
+      rgb(var(--hud-glow-rgb) / calc(0.035 * var(--hud-bloom))) 0px,
+      rgb(var(--hud-glow-rgb) / calc(0.035 * var(--hud-bloom))) 1px,
       transparent 1px,
       transparent 3px
     );
@@ -436,7 +513,7 @@
   }
 
   .text-glow {
-    text-shadow: 0 0 14px rgba(63, 240, 255, 0.55);
+    text-shadow: 0 0 14px rgb(var(--hud-glow-rgb) / calc(0.55 * var(--hud-bloom)));
   }
 
   .divider-h {
@@ -480,7 +557,6 @@
 }
 /* Unlayered, like the rule above, so it actually wins: the attribution is set
    back on a dark basemap but should sit at normal strength on a light one. */
-.sim-light .gm-style img[alt='Google'],
 :root:not(.dark) .gm-style img[alt='Google'] {
   opacity: 0.75;
 }

@@ -24,7 +24,14 @@ import userEvent from '@testing-library/user-event';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { resolveLanding, opsHomePath, landingUrl, NO_OPS_ACCESS_NOTICE, OPS_ACCESS_PENDING_NOTICE, OPS_LEGACY_LOGIN_PATH } from '@/lib/auth/landing';
+import {
+  resolveLanding,
+  opsHomePath,
+  landingUrl,
+  NO_OPS_ACCESS_NOTICE,
+  OPS_ACCESS_PENDING_NOTICE,
+  OPS_LEGACY_LOGIN_PATH,
+} from '@/lib/auth/landing';
 import { sanitizeNext, sanitizeNextOrNull, DEFAULT_NEXT } from '@/lib/auth/redirect';
 import { OPS_ROLES, type OpsRole } from '@/lib/auth/rbac/roles';
 
@@ -243,8 +250,12 @@ describe('redirect loop safety', () => {
   it('settles when the bounce points back at a login page', async () => {
     // ?next=/ops/login is a one-hop loop all by itself.
     getSupabaseUser.mockResolvedValue({ email: 'viewer@example.com' });
-    await expect(walk('/ops/login?next=%2Fops%2Flogin', { hasEdgeCeiling: false })).resolves.toBeTruthy();
-    await expect(walk('/login?next=%2Fops%2Flogin', { hasEdgeCeiling: false })).resolves.toBeTruthy();
+    await expect(
+      walk('/ops/login?next=%2Fops%2Flogin', { hasEdgeCeiling: false }),
+    ).resolves.toBeTruthy();
+    await expect(
+      walk('/login?next=%2Fops%2Flogin', { hasEdgeCeiling: false }),
+    ).resolves.toBeTruthy();
   });
 
   it('/login NEVER redirects, whatever it is handed', async () => {
@@ -321,18 +332,23 @@ describe('role-correct landing', () => {
     for (const role of OPS_ROLES) {
       const home = opsHomePath(role);
       const pageFile = path.join(appRoot, home, 'page.tsx');
-      expect(fs.existsSync(pageFile), `${role} lands on ${home}, but ${pageFile} does not exist`).toBe(true);
+      expect(
+        fs.existsSync(pageFile),
+        `${role} lands on ${home}, but ${pageFile} does not exist`,
+      ).toBe(true);
     }
   });
 
   it('honours an explicit ops deep link over the role home', () => {
-    expect(resolveLanding({ requestedNext: '/ops/control-room/incidents/42', opsRole: 'control_room' })).toEqual({
+    expect(
+      resolveLanding({ requestedNext: '/ops/control-room/incidents/42', opsRole: 'control_room' }),
+    ).toEqual({
       kind: 'go',
       path: '/ops/control-room/incidents/42',
     });
   });
 
-  it('falls back to the role home when the requested ops path is not this role\'s screen', () => {
+  it("falls back to the role home when the requested ops path is not this role's screen", () => {
     // THE REGRESSION. Reproduced in a browser before it was fixed: signed in
     // as `admin`, with a leftover `?next=/ops/control-room` from an earlier
     // navigation, and a SUCCESSFUL sign-in landed on "Access Denied".
@@ -362,7 +378,7 @@ describe('role-correct landing', () => {
     }
   });
 
-  it('falls back to the role home for an ops path that is nobody\'s screen', () => {
+  it("falls back to the role home for an ops path that is nobody's screen", () => {
     // /ops/forbidden and /ops/unavailable render for anyone, so they are
     // "reachable" in the guard's sense - but landing on either after a
     // successful sign-in is the same bad first impression wearing a
@@ -598,7 +614,10 @@ describe('/ops/login', () => {
     render(element as React.ReactElement);
     expect(screen.getByRole('heading', { name: /operations sign in/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /use the main sign-in/i })).toHaveAttribute('href', '/login');
+    expect(screen.getByRole('link', { name: /use the main sign-in/i })).toHaveAttribute(
+      'href',
+      '/login',
+    );
   });
 
   it('serves the legacy form even when the ops database is down', async () => {
@@ -706,9 +725,14 @@ describe('no ops access configured', () => {
     render(element as React.ReactElement);
 
     const notice = screen.getByRole('status');
-    expect(notice).toHaveTextContent(/no operations access configured/i);
+    expect(notice).toHaveTextContent(/has not been linked to an operations role yet/i);
     expect(notice).toHaveTextContent('/ops/depot');
-    expect(notice).toHaveTextContent(/ask an administrator/i);
+    expect(notice).toHaveTextContent(/ask your administrator/i);
+    // The tone is part of the contract, not decoration: this reader may be a
+    // genuine operator mid-cutover, so the notice must separate the half that
+    // worked from the half that has not, rather than reading like a fault.
+    expect(notice).toHaveTextContent(/your sign-in worked/i);
+    expect(notice).toHaveTextContent(/nothing is wrong with your password/i);
   });
 
   it('offers no way onward at all, because there is nowhere that would admit them', async () => {
@@ -741,7 +765,9 @@ describe('no ops access configured', () => {
 
     const { element } = await visit(LoginPage, { notice: NO_OPS_ACCESS_NOTICE });
     render(element as React.ReactElement);
-    expect(screen.getByRole('status')).toHaveTextContent(/no operations access configured/i);
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /has not been linked to an operations role yet/i,
+    );
   });
 
   it('does not accuse an account that does have a role', async () => {
@@ -782,7 +808,7 @@ describe('no ops access configured', () => {
 
     const { element } = await visit(LoginPage, {});
     render(element as React.ReactElement);
-    expect(screen.getByRole('status')).toHaveTextContent(/no operations access/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/not set up yet/i);
     expect(screen.queryByRole('link', { name: /continue/i })).toBeNull();
   });
 
@@ -836,11 +862,11 @@ describe('operations access not applied to the sign-in yet', () => {
     render(element as React.ReactElement);
 
     const notice = screen.getByRole('status');
-    expect(notice).toHaveTextContent(/not been applied to your sign-in yet/i);
+    expect(notice).toHaveTextContent(/has not reached your sign-in yet/i);
     expect(notice).toHaveTextContent(/control room/i);
     // The opposite claim would send an on-shift operator chasing a role they
     // already hold, while the real fault goes unreported.
-    expect(notice.textContent ?? '').not.toMatch(/no operations access configured/i);
+    expect(notice.textContent ?? '').not.toMatch(/has not been linked to an operations role/i);
   });
 
   it('shows the same explanation when the sign-in call sent them back', async () => {
@@ -848,7 +874,7 @@ describe('operations access not applied to the sign-in yet', () => {
 
     const { element } = await visit(LoginPage, { notice: OPS_ACCESS_PENDING_NOTICE });
     render(element as React.ReactElement);
-    expect(screen.getByRole('status')).toHaveTextContent(/not been applied to your sign-in yet/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/has not reached your sign-in yet/i);
   });
 
   it('does not tell a fully working operator their access is pending', async () => {
@@ -870,10 +896,9 @@ describe('operations access not applied to the sign-in yet', () => {
 
     const { element } = await visit(LoginPage, {});
     render(element as React.ReactElement);
-    expect(screen.getByRole('link', { name: /operations fallback sign-in/i })).toHaveAttribute(
-      'href',
-      OPS_LEGACY_LOGIN_PATH,
-    );
+    expect(
+      screen.getByRole('link', { name: /use the backup operations sign-in/i }),
+    ).toHaveAttribute('href', OPS_LEGACY_LOGIN_PATH);
   });
 });
 
@@ -981,8 +1006,8 @@ describe('sign-in form navigation', () => {
     await submit();
 
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent(/your credentials are not the problem/i);
-    expect(screen.getByRole('link', { name: /operations sign-in/i })).toHaveAttribute(
+    expect(alert).toHaveTextContent(/your email and password are not the problem/i);
+    expect(screen.getByRole('link', { name: /backup operations sign-in/i })).toHaveAttribute(
       'href',
       OPS_LEGACY_LOGIN_PATH,
     );

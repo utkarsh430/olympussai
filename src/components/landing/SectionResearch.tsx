@@ -1,5 +1,6 @@
 import { Reveal } from './Reveal';
 import { ProjectDiagram } from './ResearchDiagrams';
+import { Card } from '@/components/ui/card';
 
 /**
  * Scene 03.5 — AI Research Projects (inserted between Fields of Exploration and
@@ -49,21 +50,36 @@ const PROJECTS: readonly Project[] = [
     title: 'Flood Prediction and Mapping',
     description:
       'A geospatial modelling project exploring the use of environmental, topographic and predictive data to identify flood-prone regions and generate interpretable risk maps.',
-    labels: ['Predictive Modelling', 'Geospatial Intelligence', 'Risk Mapping', 'Environmental Data'],
+    labels: [
+      'Predictive Modelling',
+      'Geospatial Intelligence',
+      'Risk Mapping',
+      'Environmental Data',
+    ],
   },
   {
     number: '05',
     title: 'Cross-Domain Text Classification',
     description:
       'A natural-language processing project designed to classify text accurately across multiple subject domains while adapting to differences in vocabulary, context and writing style.',
-    labels: ['Natural Language Processing', 'Domain Adaptation', 'Semantic Analysis', 'Text Classification'],
+    labels: [
+      'Natural Language Processing',
+      'Domain Adaptation',
+      'Semantic Analysis',
+      'Text Classification',
+    ],
   },
   {
     number: '06',
     title: 'High-Speed Self-Driving Car Optimization',
     description:
       'An autonomous-systems research project focused on improving high-speed driving decisions through trajectory planning, vehicle-control optimisation and rapid environmental response.',
-    labels: ['Autonomous Systems', 'Trajectory Planning', 'Control Optimization', 'Real-Time Decisioning'],
+    labels: [
+      'Autonomous Systems',
+      'Trajectory Planning',
+      'Control Optimization',
+      'Real-Time Decisioning',
+    ],
   },
   {
     number: '07',
@@ -87,7 +103,7 @@ function ProjectMarker() {
     <svg
       aria-hidden
       viewBox="0 0 16 16"
-      className="h-4 w-4 text-ol-muted transition-all duration-500 ease-out group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-ol-gold"
+      className="h-4 w-4 text-subtle transition-all duration-500 ease-out group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.4"
@@ -102,10 +118,15 @@ function ProjectMarker() {
 
 function ProjectCard({ project, index }: { project: Project; index: number }) {
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-[var(--ol-border)] bg-[rgba(12,13,18,0.5)] p-7 transition-[transform,border-color,box-shadow] duration-500 ease-out hover:-translate-y-1 hover:border-ol-gold/40 hover:shadow-[0_20px_60px_-28px_rgba(214,161,58,0.55)] md:p-8">
+    // The shared Card, so a research card and a console panel are the same
+    // object at two sizes. The depth — the lift on hover and the warm shadow —
+    // is the character that survives the re-skin; it is one of the few places
+    // on this page where the surface itself moves, and removing it is what
+    // would have turned the portfolio into a table.
+    <Card className="group relative flex h-full flex-col overflow-hidden bg-card/60 p-7 transition-[transform,border-color,box-shadow] duration-500 ease-out hover:-translate-y-1 hover:border-brand/40 hover:shadow-brand md:p-8">
       {/* Number + directional marker */}
       <div className="mb-6 flex items-center justify-between">
-        <span className="font-sans text-[12px] tabular-nums tracking-[0.22em] text-ol-gold/70 transition-colors duration-500 group-hover:text-ol-gold">
+        <span className="text-[12px] tabular-nums tracking-[0.22em] text-brand opacity-70 transition-opacity duration-500 group-hover:opacity-100">
           {project.number}
         </span>
         <ProjectMarker />
@@ -118,11 +139,11 @@ function ProjectCard({ project, index }: { project: Project; index: number }) {
         </div>
       </div>
 
-      <h3 className="ol-display text-2xl leading-tight text-ol-ivory sm:text-[1.7rem]">
+      <h3 className="ol-display text-2xl leading-tight text-foreground sm:text-[1.7rem]">
         {project.title}
       </h3>
 
-      <p className="mt-3 text-[15px] leading-relaxed text-ol-text-secondary">
+      <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
         {project.description}
       </p>
 
@@ -131,27 +152,23 @@ function ProjectCard({ project, index }: { project: Project; index: number }) {
         {project.labels.map((label) => (
           <li
             key={label}
-            className="rounded-full border border-[var(--ol-border)] px-3 py-1 font-sans text-[11px] uppercase tracking-[0.1em] text-ol-muted transition-colors duration-500 group-hover:border-ol-gold/30 group-hover:text-ol-text-secondary"
+            className="rounded-full border border-border px-3 py-1 text-[11px] uppercase tracking-[0.1em] text-subtle transition-colors duration-500 group-hover:border-brand/30 group-hover:text-muted-foreground"
           >
             {label}
           </li>
         ))}
       </ul>
-    </article>
+    </Card>
   );
 }
 
 export function SectionResearch() {
   return (
-    <section
-      id="research"
-      aria-label="AI Research Projects"
-      className="relative px-6 py-32"
-    >
+    <section id="research" aria-label="AI Research Projects" className="relative px-6 py-32">
       <div className="mx-auto w-full max-w-6xl">
         <Reveal>
           <p className="ol-eyebrow">AI Research Projects</p>
-          <h2 className="ol-display ol-h2 mt-5 max-w-3xl text-ol-ivory">
+          <h2 className="ol-display ol-h2 mt-5 max-w-3xl text-foreground">
             Intelligence built across complex domains.
           </h2>
           <p className="ol-body ol-measure-wide mt-7">
@@ -159,7 +176,7 @@ export function SectionResearch() {
             modelling, autonomous systems, language intelligence, audio analysis and digital-content
             verification.
           </p>
-          <p className="ol-body ol-measure-wide mt-4 text-ol-text-secondary/80">
+          <p className="ol-body ol-measure-wide mt-4 text-subtle">
             Each project explores how machine intelligence can interpret complex signals, identify
             emerging risks and support faster, more informed decisions.
           </p>

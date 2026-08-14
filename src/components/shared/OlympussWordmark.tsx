@@ -1,12 +1,21 @@
 /**
- * "OLYMPUSS AI" wordmark — HTML text (Section 17): OLYMPUSS in warm ivory, AI in
- * gold. Rendered in the editorial serif for strong dark-background readability.
+ * "OLYMPUSS AI" wordmark — HTML text rather than an image, so it scales, is
+ * searchable, and is read aloud correctly.
+ *
+ * `font-serif` is gone: it aliased to the body face anyway once the editorial
+ * serif was retired, so it was a name pointing at nothing. The weight and the
+ * tight tracking are what actually carry the mark.
+ *
+ * OLYMPUSS takes the foreground tier and AI takes the identity accent, both
+ * from tokens, so the mark reads correctly on the night ground and on the day
+ * one. It used to be pinned to ivory-on-gold, which was invisible the moment
+ * this surface stopped being dark-only.
  */
 export function OlympussWordmark({ className }: { className?: string }) {
   return (
-    <span className={`font-serif tracking-tight ${className ?? ''}`}>
-      <span className="text-ol-ivory">OLYMPUSS</span>
-      <span className="text-ol-gold">&nbsp;AI</span>
+    <span className={`font-light tracking-tight ${className ?? ''}`}>
+      <span className="text-foreground">OLYMPUSS</span>
+      <span className="text-brand">&nbsp;AI</span>
     </span>
   );
 }

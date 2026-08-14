@@ -146,18 +146,18 @@ export function CopilotPanel() {
               <div className="mb-3">
                 <p className="hud-label mb-1.5">Monitoring Channels</p>
                 <div className="space-y-1">
-                  <Channel label="Fleet telemetry ingest" status="live" detail="15s polling" />
+                  <Channel label="Live bus positions" status="live" detail="checked every 15s" />
                   <Channel label="Schedule retrieval" status="live" detail="on selection" />
                   <Channel label="Bunching analysis" status="model" detail="predictive" />
-                  <Channel label="Corridor traffic model" status="model" detail="predictive" />
-                  <Channel label="Vehicle health monitor" status="model" detail="predictive" />
-                  <Channel label="Demand forecasting" status="model" detail="predictive" />
+                  <Channel label="Traffic estimate" status="model" detail="a forecast, not a reading" />
+                  <Channel label="Bus condition check" status="model" detail="a forecast, not a reading" />
+                  <Channel label="Passenger demand estimate" status="model" detail="a forecast, not a reading" />
                   <Channel label="Driver communications" status="model" detail="predictive" />
                 </div>
               </div>
 
               <div className="mt-auto rounded border border-holo-glow/15 bg-void-900/50 p-3">
-                <p className="hud-label mb-1.5">Operating Principle</p>
+                <p className="hud-label mb-1.5">How this works</p>
                 <p className="font-mono text-[10px] leading-relaxed text-holo-glow/55">
                   The copilot observes, predicts and recommends. It never executes. Every
                   intervention requires explicit authorization from a qualified dispatcher.
@@ -296,7 +296,7 @@ export function CopilotPanel() {
 
                   <button
                     type="button"
-                    onClick={() => handleDecision('call', 'Start VoIP Call')}
+                    onClick={() => handleDecision('call', 'Call the driver (simulated)')}
                     className="hud-button col-span-2 justify-start px-2 text-[9px]"
                     data-testid="copilot-action-voip"
                   >
@@ -314,7 +314,7 @@ export function CopilotPanel() {
               {/* Impact preview */}
               {scenario.impact.length > 0 && (
                 <div className="mt-3 border-t border-holo-glow/12 pt-3">
-                  <p className="hud-label mb-2">Projected Impact</p>
+                  <p className="hud-label mb-2">What this would change</p>
                   <div className="space-y-1.5">
                     {scenario.impact.map((metric) => (
                       <div
@@ -348,7 +348,7 @@ export function CopilotPanel() {
       {selectedBus && (
         <footer className="shrink-0 border-t border-holo-glow/15 px-4 py-2">
           <div className="grid grid-cols-2 gap-2">
-            <Readout label="Anchored Live Bus" value={selectedBus.registrationNumber} />
+            <Readout label="Selected bus" value={selectedBus.registrationNumber} />
             <Readout label="Depot" value={selectedBus.depotName ?? '—'} />
           </div>
         </footer>

@@ -3,116 +3,79 @@
 import { SatelliteDish, TriangleAlert, RotateCw } from 'lucide-react';
 
 /**
- * Polished futuristic fallback for map loading / failure — never a raw stack.
+ * What the map area shows while the basemap is loading, or when it failed.
+ * Never a raw stack.
  *
- * `variant` exists because the bunching simulator is a light surface: the dark
- * default is unchanged for the command centre, which passes nothing.
+ * ─── THE `light` VARIANT IS GONE, AND SO IS ITS COPY ─────────────────────
+ *
+ * This carried a whole second styling branch — twelve conditionals — for the
+ * old light bunching simulator. That page moved onto the ops shell some time
+ * ago and stopped calling this, so by the time this lane arrived the branch
+ * had no caller: it was a hundred lines of dead ternaries that every future
+ * reader had to hold in their head to work out which half was live. The
+ * theme now does what the prop was doing.
+ *
+ * ─── THE WORDING WENT WITH IT ────────────────────────────────────────────
+ *
+ * "Establishing holographic projection and synchronising UPSRTC telemetry"
+ * described nothing that was happening. The map area is the one place on
+ * this screen where a failure could be read as "no buses are running", so
+ * the failure case has to say which half is down and which half still works
+ * — and say it in words an operations reader can act on.
  */
 export function MapFallback({
   status,
   message,
   onRetry,
-  variant = 'dark',
 }: {
   status: 'loading' | 'error';
   message?: string;
   onRetry: () => void;
-  variant?: 'dark' | 'light';
 }) {
   const isError = status === 'error';
-  const light = variant === 'light';
 
   return (
-    <div
-      className={
-        light
-          ? 'absolute inset-0 z-30 flex items-center justify-center bg-sim-surface/95'
-          : 'absolute inset-0 z-30 flex items-center justify-center bg-void-900/92 backdrop-blur-sm'
-      }
-    >
-      {!light && (
-        <div className="pointer-events-none absolute inset-0 bg-hud-grid bg-hud-grid opacity-40" />
-      )}
+    <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/[0.92] backdrop-blur-sm">
+      <div className="pointer-events-none absolute inset-0 bg-hud-grid opacity-40" />
 
-      <div
-        className={
-          light
-            ? 'sim-panel relative max-w-md p-8 text-center'
-            : 'hud-panel hud-corners relative max-w-md p-8 text-center'
-        }
-      >
+      <div className="hud-panel hud-corners relative max-w-md p-8 text-center">
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center">
           <span
             className={`absolute h-16 w-16 rounded-full border ${
-              isError
-                ? light
-                  ? 'border-sim-crimson/40'
-                  : 'border-alert-crimson/40'
-                : light
-                  ? 'animate-pulse-ring border-sim-accent/50'
-                  : 'animate-pulse-ring border-holo-glow/50'
+              isError ? 'border-instrument-danger/40' : 'animate-pulse-ring border-primary/50'
             }`}
           />
           {isError ? (
-            <TriangleAlert
-              className={`h-7 w-7 ${light ? 'text-sim-crimson' : 'text-alert-crimson'}`}
-              aria-hidden
-            />
+            <TriangleAlert className="h-7 w-7 text-destructive" aria-hidden />
           ) : (
-            <SatelliteDish
-              className={`h-7 w-7 animate-flicker ${light ? 'text-sim-accent' : 'text-holo-glow'}`}
-              aria-hidden
-            />
+            <SatelliteDish className="h-7 w-7 animate-flicker text-primary" aria-hidden />
           )}
         </div>
 
         <h3
-          className={`mb-2 font-mono text-sm uppercase tracking-[0.2em] ${
-            isError
-              ? light
-                ? 'text-sim-crimson'
-                : 'text-alert-crimson'
-              : light
-                ? 'text-sim-accent'
-                : 'text-holo-glow'
+          className={`mb-2 text-sm font-semibold uppercase tracking-[0.14em] ${
+            isError ? 'text-destructive' : 'text-primary'
           }`}
         >
-          {isError ? 'Basemap Unavailable' : 'Initialising Command Map'}
+          {isError ? 'The map could not load' : 'Loading the map'}
         </h3>
 
-        <p
-          className={`mb-5 font-mono text-[11px] leading-relaxed ${
-            light ? 'text-sim-muted' : 'text-holo-glow/55'
-          }`}
-        >
+        <p className="mb-5 text-[13px] leading-relaxed text-muted-foreground">
           {isError
             ? (message ??
-              'The Google basemap could not be initialised. Live UPSRTC telemetry continues to stream and remains available in the fleet panel.')
-            : light
-              ? 'Loading the simulation corridor basemap…'
-              : 'Establishing holographic projection and synchronising UPSRTC telemetry…'}
+              'The map itself could not start. This is the map, not the buses — live positions are still arriving and are listed in the fleet panel.')
+            : 'Loading the map and the current bus positions…'}
         </p>
 
         {isError && (
           <>
-            <button
-              type="button"
-              className={`mx-auto ${light ? 'sim-button-primary' : 'hud-button-primary'}`}
-              onClick={onRetry}
-            >
+            <button type="button" className="hud-button-primary mx-auto" onClick={onRetry}>
               <RotateCw className="h-3.5 w-3.5" aria-hidden />
-              Reinitialise Map
+              Try loading it again
             </button>
-            <p
-              className={`mt-4 border-t pt-3 font-mono text-[10px] ${
-                light
-                  ? 'border-sim-line text-sim-faint'
-                  : 'border-holo-glow/10 text-holo-glow/40'
-              }`}
-            >
-              {light
-                ? 'The headway simulation, metrics and calculations below remain fully functional without the basemap.'
-                : 'Fleet data, schedules and all analysis views remain fully operational without the basemap.'}
+            <p className="mt-4 border-t border-border pt-3 text-[12px] text-subtle">
+              Bus positions, timetables and every other panel on this screen keep working without
+              the map.
             </p>
           </>
         )}

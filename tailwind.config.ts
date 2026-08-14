@@ -103,6 +103,18 @@ export default {
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
 
+        /* ── THE IDENTITY ACCENT ──────────────────────────────────────────
+           Olympuss gold, and the ONLY accent that is allowed to be gold.
+           `primary` reports measurements; `brand` says whose product this
+           is. The landing page, the front door and the project chrome
+           inside the command centre wear this; nothing that states a
+           reading ever does. See the long note in globals.css for why the
+           two themes carry different luminances of one hue. */
+        brand: {
+          DEFAULT: 'hsl(var(--brand))',
+          foreground: 'hsl(var(--brand-foreground))',
+        },
+
         /* ── MIGRATION ALIASES — DO NOT ADD NEW USES ──────────────────────
            Every name below already appears across the eighteen ops pages.
            Pointed at the new variables so those pages theme correctly today
@@ -133,38 +145,36 @@ export default {
           crimson: 'hsl(var(--instrument-danger))',
         },
 
-        /* ── NOT ALIASED — surfaces this foundation does not own ──────────
-           Unchanged literal values. /project/* and /project/bunching render
-           byte-identically to before this change. */
-        void: { DEFAULT: '#02040a', 900: '#03060e', 800: '#060b18' },
-        navy: { 900: '#07142a', 800: '#0a1c38', 700: '#0f2a4d', 600: '#163a66' },
-        sim: {
-          page: '#ffffff',
-          surface: '#ffffff',
-          well: '#f5f8fb',
-          line: '#dde5ee',
-          'line-strong': '#c3d0de',
-          ink: '#0b2233',
-          muted: '#526677',
-          faint: '#5b6e7e',
-          accent: '#0b6e87',
-          teal: '#0a7a63',
-          amber: '#8a5200',
-          crimson: '#b3172f',
-          green: '#0b6b40',
+        /* ── THE LAST TWO LITERAL PALETTES ARE NOW ALIASES TOO ────────────
+           The foundation left `void`, `navy`, `sim` and `ol` as literal
+           hexes because it did not own the surfaces that used them. This
+           lane owns them, so:
+
+             `sim` and `ol` are DELETED. `sim` was the old light simulator
+             palette, and the simulator now renders on the ops shell, so its
+             only remaining users were two dead `light` variants. `ol` was
+             the landing page's private palette, and every one of its eleven
+             names had a token equivalent already sitting in globals.css —
+             keeping it would have been a second vocabulary for the same
+             eleven decisions.
+
+             `void` and `navy` survive as ALIASES rather than deletions, for
+             the same reason the foundation kept `ops-*`: ~50 uses across the
+             command centre, and a migration that has to land in one commit
+             to be verifiable is a migration that lands broken. They now
+             follow the theme, so the command centre themes without every
+             one of those call sites being edited first. Same migration
+             surface, same rule — do not add new uses. */
+        void: {
+          DEFAULT: 'hsl(var(--background))',
+          900: 'hsl(var(--background))',
+          800: 'hsl(var(--card))',
         },
-        ol: {
-          bg: '#050507',
-          surface: '#0c0d12',
-          elevated: '#12141b',
-          midnight: '#11182a',
-          gold: '#d6a13a',
-          'gold-light': '#f3c86a',
-          'gold-muted': '#9d7127',
-          ivory: '#f2eee7',
-          text: '#f2eee7',
-          'text-secondary': '#a3a7b2',
-          muted: '#707580',
+        navy: {
+          900: 'hsl(var(--card))',
+          800: 'hsl(var(--popover))',
+          700: 'hsl(var(--border))',
+          600: 'hsl(var(--input))',
         },
       },
       borderRadius: {
@@ -198,16 +208,28 @@ export default {
            registry style for exactly that reason. */
         panel: '0 10px 30px -24px rgb(0 0 0 / 0.9)',
         'panel-raised': '0 18px 50px -22px rgb(0 0 0 / 0.9)',
-        hud: '0 0 0 1px rgba(63,240,255,0.18), 0 0 28px -6px rgba(63,240,255,0.35)',
-        'hud-strong': '0 0 0 1px rgba(63,240,255,0.35), 0 0 46px -4px rgba(63,240,255,0.5)',
-        critical: '0 0 0 1px rgba(255,77,94,0.4), 0 0 40px -6px rgba(255,77,94,0.55)',
-        warn: '0 0 0 1px rgba(255,176,32,0.35), 0 0 36px -8px rgba(255,176,32,0.45)',
+        /* Bloom shadows, scaled by `--hud-bloom` so they read as glow on the
+           night ground and as a plain hairline on the day one. */
+        hud: '0 0 0 1px rgb(var(--hud-glow-rgb) / calc(0.18 * var(--hud-bloom))), 0 0 28px -6px rgb(var(--hud-glow-rgb) / calc(0.35 * var(--hud-bloom)))',
+        'hud-strong':
+          '0 0 0 1px rgb(var(--hud-glow-rgb) / calc(0.35 * var(--hud-bloom))), 0 0 46px -4px rgb(var(--hud-glow-rgb) / calc(0.5 * var(--hud-bloom)))',
+        critical:
+          '0 0 0 1px hsl(var(--instrument-danger) / 0.4), 0 0 40px -6px hsl(var(--instrument-danger) / calc(0.55 * var(--hud-bloom)))',
+        warn: '0 0 0 1px hsl(var(--instrument-warning) / 0.35), 0 0 36px -8px hsl(var(--instrument-warning) / calc(0.45 * var(--hud-bloom)))',
+        /* The landing page's card lift. Warm rather than neutral, because the
+           identity accent is warm and a cool shadow under a gold card reads
+           as a printing error. */
+        brand: '0 24px 60px -32px hsl(var(--brand) / 0.55)',
       },
       backgroundImage: {
         'hud-grid':
-          'linear-gradient(rgba(63,240,255,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(63,240,255,0.055) 1px, transparent 1px)',
+          'linear-gradient(rgb(var(--hud-glow-rgb) / calc(0.055 * var(--hud-bloom))) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--hud-glow-rgb) / calc(0.055 * var(--hud-bloom))) 1px, transparent 1px)',
         volumetric:
-          'radial-gradient(ellipse 80% 60% at 50% 0%, rgba(34,217,245,0.16), transparent 60%), radial-gradient(ellipse 60% 50% at 90% 100%, rgba(46,242,196,0.10), transparent 60%)',
+          'radial-gradient(ellipse 80% 60% at 50% 0%, hsl(var(--primary) / calc(0.16 * var(--hud-bloom))), transparent 60%), radial-gradient(ellipse 60% 50% at 90% 100%, hsl(var(--instrument-success) / calc(0.10 * var(--hud-bloom))), transparent 60%)',
+        /* The landing's ambient field, defined once here so the backdrop
+           component carries no colour of its own. */
+        stage:
+          'radial-gradient(circle at 50% 38%, var(--stage-core), transparent 62%), radial-gradient(ellipse 70% 60% at 70% 100%, var(--stage-depth), transparent 70%)',
       },
       backgroundSize: { 'hud-grid': '44px 44px' },
       keyframes: {

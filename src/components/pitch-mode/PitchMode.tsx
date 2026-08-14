@@ -206,7 +206,7 @@ export function PitchMode() {
         <div className="absolute inset-x-0 top-0 h-0.5 bg-holo-glow/10">
           <motion.div
             className="h-full bg-holo-glow"
-            style={{ width: `${overallProgress * 100}%`, boxShadow: '0 0 12px #3ff0ff' }}
+            style={{ width: `${overallProgress * 100}%`, boxShadow: '0 0 12px hsl(var(--primary) / var(--hud-bloom))' }}
           />
         </div>
 

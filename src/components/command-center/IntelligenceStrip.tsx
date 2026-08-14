@@ -71,9 +71,15 @@ export function IntelligenceStrip() {
       <Panel
         title="Live GPS Stream"
         icon={Radio}
-        badge={<Badge variant={sourceBadge(feedMeta.source).variant} pulse>
-          {feedMeta.source === 'unavailable' ? 'UNAVAILABLE' : feedMeta.source === 'fixture' ? 'FIXTURE' : 'LIVE'}
-        </Badge>}
+        badge={
+          <Badge variant={sourceBadge(feedMeta.source).variant} pulse>
+            {feedMeta.source === 'unavailable'
+              ? 'UNAVAILABLE'
+              : feedMeta.source === 'fixture'
+                ? 'FIXTURE'
+                : 'LIVE'}
+          </Badge>
+        }
         className="w-[240px]"
       >
         <div className="h-9">
@@ -81,14 +87,18 @@ export function IntelligenceStrip() {
             <AreaChart data={stream} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="streamFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2bff88" stopOpacity={0.5} />
-                  <stop offset="100%" stopColor="#2bff88" stopOpacity={0.02} />
+                  <stop offset="0%" stopColor="hsl(var(--instrument-success))" stopOpacity={0.5} />
+                  <stop
+                    offset="100%"
+                    stopColor="hsl(var(--instrument-success))"
+                    stopOpacity={0.02}
+                  />
                 </linearGradient>
               </defs>
               <Area
                 type="monotone"
                 dataKey="v"
-                stroke="#2bff88"
+                stroke="hsl(var(--instrument-success))"
                 strokeWidth={1.4}
                 fill="url(#streamFill)"
                 isAnimationActive={false}
@@ -109,32 +119,42 @@ export function IntelligenceStrip() {
       {/* Network health */}
       <Panel title="Network Health" icon={Activity} className="w-[210px]">
         <div className="space-y-1.5">
-          <HealthBar label="Good fix" value={qualityCounts.good} total={buses.length} tone="green" />
-          <HealthBar label="Degraded" value={qualityCounts.degraded} total={buses.length} tone="amber" />
-          <HealthBar label="Stale" value={qualityCounts.stale} total={buses.length} tone="crimson" />
+          <HealthBar
+            label="Good fix"
+            value={qualityCounts.good}
+            total={buses.length}
+            tone="green"
+          />
+          <HealthBar
+            label="Degraded"
+            value={qualityCounts.degraded}
+            total={buses.length}
+            tone="amber"
+          />
+          <HealthBar
+            label="Stale"
+            value={qualityCounts.stale}
+            total={buses.length}
+            tone="crimson"
+          />
         </div>
       </Panel>
 
       {/* Demand curve */}
-      <Panel
-        title="Demand Curve"
-        icon={BarChart3}
-        badge={<PredictiveChip />}
-        className="w-[200px]"
-      >
+      <Panel title="Demand Curve" icon={BarChart3} badge={<PredictiveChip />} className="w-[200px]">
         <div className="h-11">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={demandCurve} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="demandStripFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3ff0ff" stopOpacity={0.45} />
-                  <stop offset="100%" stopColor="#3ff0ff" stopOpacity={0.02} />
+                  <stop offset="0%" stopColor="hsl(var(--instrument-info))" stopOpacity={0.45} />
+                  <stop offset="100%" stopColor="hsl(var(--instrument-info))" stopOpacity={0.02} />
                 </linearGradient>
               </defs>
               <Area
                 type="monotone"
                 dataKey="demand"
-                stroke="#3ff0ff"
+                stroke="hsl(var(--instrument-info))"
                 strokeWidth={1.4}
                 fill="url(#demandStripFill)"
                 isAnimationActive={false}
@@ -142,17 +162,11 @@ export function IntelligenceStrip() {
             </AreaChart>
           </ResponsiveContainer>
         </div>
-        <p className="mt-0.5 font-mono text-[9px] text-holo-glow/35">
-          Twin-peak weekday profile
-        </p>
+        <p className="mt-0.5 font-mono text-[9px] text-holo-glow/35">Twin-peak weekday profile</p>
       </Panel>
 
       {/* Incidents — narrow panel, so the badge is abbreviated to avoid clipping. */}
-      <Panel
-        title="Active Incidents"
-        icon={TriangleAlert}
-        className="w-[186px]"
-      >
+      <Panel title="Active Incidents" icon={TriangleAlert} className="w-[186px]">
         <div className="flex h-full flex-col items-center justify-center">
           <span
             className={cn(
@@ -208,7 +222,9 @@ export function IntelligenceStrip() {
         </div>
 
         <p className="mt-1.5 font-mono text-[9px] text-holo-glow/35">
-          {isPitchMode ? `Step ${pitchStep + 1} / ${PITCH_STEPS.length}` : 'Idle — ready to present'}
+          {isPitchMode
+            ? `Step ${pitchStep + 1} / ${PITCH_STEPS.length}`
+            : 'Idle — ready to present'}
         </p>
       </Panel>
 

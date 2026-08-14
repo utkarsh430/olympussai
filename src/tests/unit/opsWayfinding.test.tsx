@@ -73,6 +73,11 @@ afterEach(() => {
 describe('landing page sign-in wayfinding', () => {
   it('exposes a link to the operations console', () => {
     render(<LandingPage />);
+    // The landing footer's SIGNPOST, which is a different thing from the
+    // sign-in form's 503 escape hatch below. Operators scanned the footer for
+    // the word "Operations", did not find it, followed "Project Login"
+    // instead and concluded their credentials were wrong. That word is the
+    // entire value of this link.
     const link = screen.getByRole('link', { name: /operations sign-in/i });
     // The single front door. Kept as a signpost, not a second destination.
     expect(link).toHaveAttribute('href', '/login');
@@ -110,9 +115,9 @@ describe('/login error copy', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Authentication is not configured.');
-    expect(alert).toHaveTextContent(/your credentials are not the problem/i);
+    expect(alert).toHaveTextContent(/your email and password are not the problem/i);
 
-    const link = screen.getByRole('link', { name: /operations sign-in/i });
+    const link = screen.getByRole('link', { name: /backup operations sign-in/i });
     expect(link).toHaveAttribute('href', OPS_LEGACY_LOGIN_PATH);
   });
 
@@ -132,12 +137,14 @@ describe('/login error copy', () => {
     mockLoginResponse(503, { error: 'Authentication is not configured.' });
     render(<LoginForm next="/project" />);
     await submit();
-    expect(await screen.findByRole('link', { name: /operations sign-in/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('link', { name: /backup operations sign-in/i }),
+    ).toBeInTheDocument();
 
     mockLoginResponse(401, { error: 'Invalid email or password.' });
     await submit();
     await waitFor(() => {
-      expect(screen.queryByRole('link', { name: /operations sign-in/i })).toBeNull();
+      expect(screen.queryByRole('link', { name: /backup operations sign-in/i })).toBeNull();
     });
   });
 });

@@ -150,8 +150,8 @@ export function VoipCallOverlay() {
                     style={{
                       boxShadow:
                         phase === 'ended'
-                          ? '0 0 40px -6px rgba(255,77,94,0.7)'
-                          : '0 0 40px -6px rgba(63,240,255,0.7)',
+                          ? '0 0 40px -6px hsl(var(--instrument-danger) / calc(0.7 * var(--hud-bloom)))'
+                          : '0 0 40px -6px hsl(var(--primary) / calc(0.7 * var(--hud-bloom)))',
                     }}
                   />
 
@@ -205,7 +205,7 @@ export function VoipCallOverlay() {
                     bars={40}
                     active={phase === 'active' && !muted}
                     className="mt-3 h-10"
-                    color={phase === 'ended' ? '#ff4d5e' : '#3ff0ff'}
+                    color={phase === 'ended' ? 'hsl(var(--instrument-danger))' : 'hsl(var(--instrument-info))'}
                   />
                 </div>
               </div>

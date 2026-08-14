@@ -1,3 +1,5 @@
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
 /**
  * "You are signed in, but this account has no operations access."
  *
@@ -28,28 +30,42 @@
  * disabled" is an account-enumeration oracle. The operator gets an accurate
  * instruction ("ask an administrator"); the administrator has the audit log.
  */
+/**
+ * ─── WHY IT IS NOT AN ERROR ALERT ────────────────────────────────────────
+ *
+ * `info`, not `destructive`, and `role="status"` rather than `role="alert"`.
+ * The brief for this surface asked for "a clear, calm explanation rather than
+ * a refusal that reads like a bug", and the tone is most of that work: a red
+ * box with a warning triangle tells a genuine operator that something has
+ * broken and that they should be worried. Nothing has broken. During a
+ * cutover a real member of staff may simply not be linked yet, and the
+ * correct feeling is "ah, one more step", not "the system is down".
+ *
+ * The wording follows the same rule. "This account has no operations access
+ * configured" describes a database row; "your sign-in works — it has not been
+ * linked to an operations role yet" describes what happened to the reader,
+ * separates the half that worked from the half that has not, and points at
+ * the person who can fix it.
+ */
 export function NoOpsAccessNotice({ requested }: { requested?: string | null }) {
   return (
-    <div
-      role="status"
-      className="w-full max-w-sm space-y-3 rounded-md border border-[#d6a13a]/35 bg-[#d6a13a]/[0.06] p-5"
-    >
-      <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#f3c86a]">
-        No operations access
-      </p>
-      <p className="text-sm leading-relaxed text-[#d8dae1]">
-        You are signed in, but this account has no operations access configured
-        {requested ? (
-          <>
-            , so it cannot open <span className="font-mono text-[12px] text-[#a3a7b2]">{requested}</span>
-          </>
-        ) : null}
-        .
-      </p>
-      <p className="text-[12px] leading-relaxed text-[#a3a7b2]">
-        Ask an administrator to grant your account a role. Both the operations console and the
-        project workspace require one.
-      </p>
-    </div>
+    <Alert variant="info" role="status" className="w-full">
+      <AlertTitle>Your sign-in worked. Your access is not set up yet.</AlertTitle>
+      <AlertDescription className="mt-2 space-y-2 text-muted-foreground">
+        <p>
+          This account has not been linked to an operations role yet
+          {requested ? (
+            <>
+              , so it cannot open <span className="font-mono text-foreground">{requested}</span>
+            </>
+          ) : null}
+          . Nothing is wrong with your password.
+        </p>
+        <p>
+          Ask your administrator to add your account. Both the operations console and the project
+          workspace need a role before they will open.
+        </p>
+      </AlertDescription>
+    </Alert>
   );
 }

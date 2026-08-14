@@ -74,7 +74,7 @@ export function AlertCentre() {
   return (
     <aside
       className="hud-panel hud-corners relative z-20 flex w-[290px] shrink-0 flex-col overflow-hidden"
-      aria-label="Predictive alert centre"
+      aria-label="Things that may be about to go wrong"
       data-testid="alert-centre"
     >
       <header className="shrink-0 border-b border-holo-glow/15 px-3 py-2.5">

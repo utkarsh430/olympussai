@@ -5,11 +5,11 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import type { AiState } from '@/lib/constants';
 
 const STATE_COLOR: Record<AiState, string> = {
-  Listening: '#22d9f5',
-  Analysing: '#3ff0ff',
-  'Recommendation Ready': '#2ef2c4',
-  'Awaiting Authorization': '#ffb020',
-  Monitoring: '#2bff88',
+  Listening: 'hsl(var(--primary))',
+  Analysing: 'hsl(var(--instrument-info))',
+  'Recommendation Ready': 'hsl(var(--instrument-success))',
+  'Awaiting Authorization': 'hsl(var(--instrument-warning))',
+  Monitoring: 'hsl(var(--instrument-success))',
 };
 
 /**

@@ -11,7 +11,12 @@ import {
   opsThClass,
   opsTrClass,
 } from '@/components/ops/ui';
-import { compareArms, verdict, VERDICT_SENTENCE, type ComparedMetric } from '@/lib/rehearsal/comparison';
+import {
+  compareArms,
+  verdict,
+  VERDICT_SENTENCE,
+  type ComparedMetric,
+} from '@/lib/rehearsal/comparison';
 import type { RehearsalResult } from '@/models/rehearsal';
 
 /**
@@ -54,19 +59,21 @@ export function ComparisonPanel({ result }: { result: RehearsalResult }) {
 
   return (
     <OpsStack>
-      <OpsAlert tone={outcome === 'improved' ? 'success' : outcome === 'worse' ? 'warning' : 'info'}>
+      <OpsAlert
+        tone={outcome === 'improved' ? 'success' : outcome === 'worse' ? 'warning' : 'info'}
+      >
         {VERDICT_SENTENCE[outcome]} It is a result about a model, not a measurement of the service.
       </OpsAlert>
 
       <OpsPanel
-        title="With the control laws, and without"
-        description="Both arms ran the same corridor, the same modelled conditions and the same seed. The only difference is whether the deployed control laws were allowed to act."
+        title="With the automatic spacing rules, and without"
+        description="Both runs used the same corridor, the same made-up conditions and the same starting point. The only difference is whether the automatic spacing rules were allowed to act."
         padded={false}
       >
         <OpsTableFrame className="rounded-none border-0">
           <table className={opsTableClass}>
             <caption className="sr-only">
-              Rehearsal outcome with and without control, by measure
+              Practice-run outcome with and without automatic spacing, by measure
             </caption>
             <thead>
               <tr className={opsTheadRowClass}>
@@ -93,8 +100,12 @@ export function ComparisonPanel({ result }: { result: RehearsalResult }) {
                       {metric.meaning}
                     </span>
                   </th>
-                  <td className={opsTdNumericClass}>{formatMetric(metric.uncontrolled, metric.format)}</td>
-                  <td className={opsTdNumericClass}>{formatMetric(metric.controlled, metric.format)}</td>
+                  <td className={opsTdNumericClass}>
+                    {formatMetric(metric.uncontrolled, metric.format)}
+                  </td>
+                  <td className={opsTdNumericClass}>
+                    {formatMetric(metric.controlled, metric.format)}
+                  </td>
                   <td
                     className={
                       metric.improved === true

@@ -126,7 +126,7 @@ export function DiagnosticsDrawer() {
               <Row label="Basemap" value="Google Maps JavaScript API" />
               <Row label="Traffic layer" value="disabled (modelled only)" tone="amber" />
               <Row label="Routes API" value="not used" tone="amber" />
-              <Row label="Marker clustering" value="enabled" tone="green" />
+              <Row label="How buses are drawn" value="one canvas layer, no clustering" tone="green" />
             </Group>
 
             <Group title="Prediction Engine" icon={Activity}>

@@ -116,3 +116,19 @@ export const MAP_LIGHT_STYLE: google.maps.MapTypeStyle[] = [
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#cddced' }] },
   { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#e6ecf3' }] },
 ];
+
+/**
+ * The basemap style and page ground for a resolved theme, as one lookup.
+ *
+ * Two of them, together, because they must never disagree. MAP_LIGHT_STYLE
+ * above is the map lane's, landed with the operations dashboards; this pairs
+ * it with the page ground each theme sits on so a caller cannot swap the
+ * style and forget the backdrop — which shows as a one-frame black flash on
+ * every theme change, and permanently in the letterboxing around a map that
+ * has not filled its container yet.
+ */
+export const MAP_THEME = {
+  dark: { styles: MAP_DARK_STYLE, backgroundColor: '#02040a' },
+  light: { styles: MAP_LIGHT_STYLE, backgroundColor: '#eef2f7' },
+} as const;
+

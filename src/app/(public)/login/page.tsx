@@ -13,6 +13,8 @@ import { LoginForm } from '@/components/auth/LoginForm';
 import { AuthenticatedActions } from '@/components/auth/AuthenticatedActions';
 import { NoOpsAccessNotice } from '@/components/auth/NoOpsAccessNotice';
 import { OpsAccessPendingNotice } from '@/components/auth/OpsAccessPendingNotice';
+import { OlympussWordmark } from '@/components/shared/OlympussWordmark';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
 
 export const metadata: Metadata = {
   title: 'Authorized Project Access',
@@ -95,18 +97,36 @@ export default async function LoginPage({
   const continueTo = decision.kind === 'go' ? decision.path : null;
 
   return (
-    <main className="relative flex min-h-[100dvh] flex-col bg-[#050507] text-[#f2eee7] md:flex-row">
-      {/* Left — atmospheric brand field (~55%) */}
+    /*
+      ─── THE FRONT DOOR IS BUILT PHONE-FIRST ──────────────────────────────
+
+      It used to be a fixed 55/45 split with the brand field FIRST in the
+      document. On a desktop that is a handsome composition; on a phone it
+      meant 38vh of decorative halo above the fold and the email field pushed
+      off the bottom of the screen. A driver opening this at a depot gate had
+      to scroll past a logo to sign in.
+
+      So the order is inverted: the FORM is the first thing in the document
+      and the first thing on a phone, and the brand field is `order-first`
+      only from `md` up, where there is a second column to put it in. Nothing
+      about the desktop composition changes; the phone stops being an
+      afterthought.
+    */
+    <main className="relative flex min-h-[100dvh] flex-col bg-background text-foreground md:flex-row">
+      {/* Brand field (~55% on desktop, a slim band on a phone) */}
       <section
         aria-hidden
-        className="relative flex min-h-[38vh] items-center justify-center overflow-hidden border-b border-[rgba(255,255,255,0.06)] px-8 py-14 md:min-h-0 md:w-[55%] md:border-b-0 md:border-r md:px-14"
+        className="relative order-2 flex items-center justify-center overflow-hidden border-t border-border px-8 py-10 md:order-1 md:min-h-0 md:w-[55%] md:border-r md:border-t-0 md:px-14 md:py-14"
       >
-        {/* Golden halo */}
+        {/* The identity halo. Both stops are tokens, so it is a warm glow on
+            the night ground and a warm wash on the day one — the same
+            composition either way, which is what keeps the two editions
+            recognisably one page. */}
         <div
           className="pointer-events-none absolute left-1/2 top-1/2 h-[85vmin] w-[85vmin] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
           style={{
             background:
-              'radial-gradient(circle, rgba(214,161,58,0.16), rgba(17,24,42,0.10) 42%, transparent 68%)',
+              'radial-gradient(circle, hsl(var(--brand) / 0.16), hsl(var(--muted) / 0.5) 42%, transparent 68%)',
           }}
         />
         {/* Radial line texture */}
@@ -114,7 +134,7 @@ export default async function LoginPage({
           className="pointer-events-none absolute inset-0 opacity-[0.35]"
           style={{
             background:
-              'repeating-conic-gradient(from 0deg at 50% 50%, rgba(214,161,58,0.05) 0deg, transparent 2deg 8deg)',
+              'repeating-conic-gradient(from 0deg at 50% 50%, hsl(var(--brand) / 0.08) 0deg, transparent 2deg 8deg)',
             maskImage: 'radial-gradient(circle at 50% 50%, black 0%, transparent 62%)',
             WebkitMaskImage: 'radial-gradient(circle at 50% 50%, black 0%, transparent 62%)',
           }}
@@ -122,43 +142,42 @@ export default async function LoginPage({
         <div className="relative z-10 flex flex-col items-center text-center">
           <Image
             src="/brand/logonew.png"
-            alt="Olympuss AI"
+            alt=""
             width={690}
             height={677}
             priority
-            sizes="(min-width: 768px) 18rem, 14rem"
-            className="h-auto w-56 md:w-72"
+            sizes="(min-width: 768px) 18rem, 8rem"
+            className="h-auto w-32 md:w-72"
           />
-          <p className="mt-6 font-serif text-3xl font-light tracking-tight">
-            <span className="text-[#f2eee7]">OLYMPUSS</span>{' '}
-            <span className="text-[#d6a13a]">AI</span>
-          </p>
+          <OlympussWordmark className="mt-6 text-2xl md:text-3xl" />
         </div>
       </section>
 
-      {/* Right — authentication interface (~45%) */}
-      <section className="relative flex flex-1 items-center justify-center px-6 py-14 md:w-[45%] md:px-12">
+      {/* Authentication interface */}
+      <section className="relative order-1 flex flex-1 items-center justify-center px-6 py-12 md:order-2 md:w-[45%] md:px-12 md:py-14">
         <div className="flex w-full max-w-sm flex-col items-start">
-          <div className="mb-10">
-            <p className="mb-3 font-serif text-2xl font-light tracking-tight">
-              <span className="text-[#f2eee7]">OLYMPUSS</span>{' '}
-              <span className="text-[#d6a13a]">AI</span>
-            </p>
-            <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#9d7127]">
-              Authorized Project Access
-            </p>
-            <h1 className="mt-6 text-3xl font-light leading-tight text-[#f2eee7]">
-              Enter the project workspace.
+          {/* The theme control is on the front door because the person signing
+              in is the person who will read a dashboard behind it, and the
+              preference is one durable choice for the whole product. */}
+          <div className="mb-8 flex w-full items-center justify-between gap-4">
+            <OlympussWordmark className="text-xl md:hidden" />
+            <ThemeToggle className="ml-auto" />
+          </div>
+
+          <div className="mb-8">
+            <p className="brand-eyebrow">Authorised access</p>
+            <h1 className="ol-display mt-4 text-3xl leading-tight text-foreground sm:text-4xl">
+              Sign in to Olympuss AI
             </h1>
-            <p className="mt-3 max-w-sm text-sm leading-relaxed text-[#a3a7b2]">
+            <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
               {authenticated
-                ? 'You are authenticated. Continue to the protected environment or sign out.'
-                : 'Use your project or operations credentials to continue to the protected environment.'}
+                ? 'You are signed in. Continue below, or sign out to let someone else use this device.'
+                : 'One sign-in for the operations console and the project workspace. You will be taken to your own screen.'}
             </p>
           </div>
 
           {authenticated ? (
-            <div className="w-full max-w-sm space-y-5">
+            <div className="w-full space-y-5">
               {deniedOps && (
                 <NoOpsAccessNotice
                   requested={decision.kind === 'no-ops-access' ? decision.requested : null}
@@ -186,15 +205,15 @@ export default async function LoginPage({
             <LoginForm next={next} />
           )}
 
-          <div className="mt-10 flex w-full max-w-sm items-center justify-between">
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#707580]">
-              Authorized users only.
+          <div className="mt-10 flex w-full flex-wrap items-center justify-between gap-3">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-subtle">
+              Authorised users only
             </p>
             <Link
               href="/"
-              className="text-[12px] text-[#a3a7b2] underline-offset-4 transition-colors hover:text-[#f2eee7] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6a13a]"
+              className="text-[13px] text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
             >
-              Return to Olympuss AI
+              Back to Olympuss AI
             </Link>
           </div>
         </div>

@@ -16,12 +16,28 @@ const buttonVariants = cva(
         secondary: 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
+        /* ── IDENTITY VARIANTS ───────────────────────────────────────────
+           The front door's call to action. Gold, and gold ONLY here: the
+           console's own buttons are `default` and wear --primary, because
+           an operator must never learn that gold means something about a
+           bus. Added as variants rather than as a hand-rolled className on
+           the landing page so there is one button component with one focus
+           ring, one disabled state and one hit target across the product.
+
+           `shadow-brand` is a warm lift rather than the neutral one — a
+           cool shadow under a gold button reads as a printing error. */
+        brand: 'bg-brand text-brand-foreground shadow-brand hover:bg-brand/90',
+        brandOutline: 'border border-brand bg-transparent text-brand hover:bg-brand/10',
       },
       size: {
         default: 'h-9 px-4 py-2',
         sm: 'h-8 rounded-md px-3 text-xs',
         lg: 'h-10 rounded-md px-8',
         icon: 'h-9 w-9',
+        /* Landing-scale. 48px clears the 44px touch minimum with room, which
+           matters because /login is reached from a phone more often than
+           from a desk. */
+        xl: 'h-12 rounded-md px-8 text-[13px] uppercase tracking-[0.18em]',
       },
     },
     defaultVariants: {

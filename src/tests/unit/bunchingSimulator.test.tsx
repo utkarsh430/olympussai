@@ -116,7 +116,13 @@ function result(patch: Record<string, unknown> = {}) {
       },
     ],
     arms: {
-      uncontrolled: { name: 'no-control', kpis: kpis(), frames: [], appliedHoldSeconds: 0, refusedHoldSeconds: 0 },
+      uncontrolled: {
+        name: 'no-control',
+        kpis: kpis(),
+        frames: [],
+        appliedHoldSeconds: 0,
+        refusedHoldSeconds: 0,
+      },
       controlled: {
         name: 'deployed-control-laws',
         kpis: { ...kpis(), bunchingIncidents: 1 },
@@ -171,22 +177,31 @@ describe('the rehearsal surface', () => {
   });
 
   describe('it never reads as operations', () => {
-    it('says it is a simulation in the page chrome, before any run', () => {
+    it('says it is a practice run in the page chrome, before any run', () => {
       renderSimulator();
-      expect(screen.getAllByText(/simulation/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/practice run/i).length).toBeGreaterThan(0);
+      // WORD FOR WORD. The redesign was allowed to change how loudly this is
+      // said and was not allowed to change what is said; this line is what
+      // makes that a rule rather than an intention.
       expect(screen.getByText(/every bus on this page is invented/i)).toBeInTheDocument();
     });
 
-    it('states that nothing here can issue an instruction', () => {
+    it('states that nothing here can send an instruction to a driver', () => {
       renderSimulator();
-      expect(screen.getByText(/cannot issue an instruction|can issue an/i)).toBeInTheDocument();
+      // The old wording was "nothing here can issue an instruction", which
+      // left "to whom?" open. Naming the driver is the point of the sentence,
+      // so the assertion now requires the driver to be named.
+      expect(
+        screen.getByText(/nothing here can send an instruction to a driver/i),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/no real bus is being watched/i)).toBeInTheDocument();
     });
   });
 
   describe('the uncalibrated corridors', () => {
     // 561 of 759. Offering one and then being refused is a worse experience
     // than not offering it, and the reason has to be on the page either way.
-    it('offers only corridors with a measured target headway', () => {
+    it('offers only corridors with a planned gap set', () => {
       renderSimulator();
       const picker = screen.getByLabelText('Corridor');
       const options = Array.from(picker.querySelectorAll('option')).map((o) => o.textContent ?? '');
@@ -195,16 +210,22 @@ describe('the rehearsal surface', () => {
       expect(options.join(' ')).not.toContain('9002');
     });
 
-    it('says how many corridors it cannot simulate, and why', () => {
+    it('says how many corridors it cannot practise on, and why', () => {
       renderSimulator();
-      expect(screen.getByText(/observation-only/i)).toBeInTheDocument();
-      expect(screen.getByText(/every bunching threshold is a ratio of that target/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/watch-only/i).length).toBeGreaterThan(0);
+      // The REASON survives the plain-language pass. It is long because the
+      // truth is: a threshold that is a proportion of a number nobody set
+      // cannot be computed, and an operator who is not told that concludes
+      // the corridor is simply quiet.
+      expect(
+        screen.getByText(/worked out as a proportion of that planned gap/i),
+      ).toBeInTheDocument();
     });
 
-    it('explains itself when every corridor in the network is observation-only', () => {
+    it('explains itself when every corridor in the network is watch-only', () => {
       renderSimulator({ corridors: [corridor({ hasActivePolicy: false })] });
       expect(
-        screen.getByText(/no corridor in this network has a measured target headway/i),
+        screen.getByText(/no corridor in this network has a planned gap set/i),
       ).toBeInTheDocument();
     });
 
@@ -217,12 +238,13 @@ describe('the rehearsal surface', () => {
         body: {
           error: {
             code: 'UNCALIBRATED_CORRIDOR',
-            message: 'Route-direction rd-1 has no measured target headway, so no simulation can be run on it.',
+            message:
+              'Route-direction rd-1 has no measured target headway, so no simulation can be run on it.',
           },
         },
       });
       renderSimulator();
-      fireEvent.click(screen.getByRole('button', { name: /run the rehearsal/i }));
+      fireEvent.click(screen.getByRole('button', { name: /start the practice run/i }));
       await waitFor(() => {
         expect(screen.getByText(/no measured target headway/i)).toBeInTheDocument();
       });
@@ -233,60 +255,73 @@ describe('the rehearsal surface', () => {
     it('shows both arms and lets the planner switch between them', async () => {
       mockFetch({ ok: true, body: result() });
       renderSimulator();
-      fireEvent.click(screen.getByRole('button', { name: /run the rehearsal/i }));
+      fireEvent.click(screen.getByRole('button', { name: /start the practice run/i }));
 
-      await waitFor(() => expect(screen.getByTestId('rehearsal-map')).toHaveTextContent('controlled'));
-      fireEvent.click(screen.getByRole('button', { name: /^no control$/i }));
+      await waitFor(() =>
+        expect(screen.getByTestId('rehearsal-map')).toHaveTextContent('controlled'),
+      );
+      fireEvent.click(screen.getByRole('button', { name: /^without$/i }));
       expect(screen.getByTestId('rehearsal-map')).toHaveTextContent('uncontrolled');
     });
 
     it('keeps the provenance manifest one click away and labels the invented inputs', async () => {
       mockFetch({ ok: true, body: result() });
       renderSimulator();
-      fireEvent.click(screen.getByRole('button', { name: /run the rehearsal/i }));
+      fireEvent.click(screen.getByRole('button', { name: /start the practice run/i }));
       await waitFor(() => expect(screen.getByTestId('rehearsal-map')).toBeInTheDocument());
 
       fireEvent.click(screen.getByRole('tab', { name: /what is real/i }));
       expect(screen.getByText(/passenger demand/i)).toBeInTheDocument();
       expect(screen.getAllByText(/^modelled$/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/^measured$/i).length).toBeGreaterThan(0);
-      expect(screen.getByText(/no boarding data is held anywhere in this system/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/no boarding data is held anywhere in this system/i),
+      ).toBeInTheDocument();
     });
 
-    it('names what it does not rehearse rather than leaving it to be discovered', async () => {
+    it('names what the practice run does not cover rather than leaving it to be discovered', async () => {
       mockFetch({ ok: true, body: result() });
       renderSimulator();
-      fireEvent.click(screen.getByRole('button', { name: /run the rehearsal/i }));
+      fireEvent.click(screen.getByRole('button', { name: /start the practice run/i }));
       await waitFor(() => expect(screen.getByTestId('rehearsal-map')).toBeInTheDocument());
 
       fireEvent.click(screen.getByRole('tab', { name: /what is real/i }));
-      expect(screen.getByText(/terminal dispatch regulation is not exercised/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/terminal dispatch regulation is not exercised/i),
+      ).toBeInTheDocument();
     });
 
     it('reports the occupancy gap as a gap, not as a reading', async () => {
       mockFetch({ ok: true, body: result() });
       renderSimulator();
-      fireEvent.click(screen.getByRole('button', { name: /run the rehearsal/i }));
+      fireEvent.click(screen.getByRole('button', { name: /start the practice run/i }));
       await waitFor(() => expect(screen.getByTestId('rehearsal-map')).toBeInTheDocument());
 
-      fireEvent.click(screen.getByRole('tab', { name: /occupancy/i }));
+      fireEvent.click(screen.getByRole('tab', { name: /how full the buses are/i }));
       expect(screen.getAllByText(/never had a real load to weigh/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/assumes each bus is half full/i).length).toBeGreaterThan(0);
       // The contrast is sized, never presented as a measurement of any bus.
       expect(screen.getByText(/a load this simulator invented/i)).toBeInTheDocument();
     });
 
-    it('sends the operator\'s modelled inputs with the run', async () => {
+    it("sends the operator's modelled inputs with the run", async () => {
       const fetchMock = mockFetch({ ok: true, body: result() });
       renderSimulator();
 
       fireEvent.change(screen.getByLabelText(/buses on the corridor/i), { target: { value: '9' } });
       fireEvent.change(screen.getByLabelText(/scenario/i), { target: { value: 'gps_dropout' } });
-      fireEvent.click(screen.getByRole('button', { name: /run the rehearsal/i }));
+      fireEvent.click(screen.getByRole('button', { name: /start the practice run/i }));
 
       await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-      const body = JSON.parse((fetchMock.mock.calls[0]![1] as { body: string }).body) as Record<string, unknown>;
-      expect(body).toMatchObject({ routeDirectionId: CALIBRATED, vehicleCount: 9, disturbance: 'gps_dropout' });
+      const body = JSON.parse((fetchMock.mock.calls[0]![1] as { body: string }).body) as Record<
+        string,
+        unknown
+      >;
+      expect(body).toMatchObject({
+        routeDirectionId: CALIBRATED,
+        vehicleCount: 9,
+        disturbance: 'gps_dropout',
+      });
     });
   });
 
@@ -299,10 +334,10 @@ describe('the rehearsal surface', () => {
       mockFetch({ ok: true, body: broken });
 
       renderSimulator();
-      fireEvent.click(screen.getByRole('button', { name: /run the rehearsal/i }));
+      fireEvent.click(screen.getByRole('button', { name: /start the practice run/i }));
 
       await waitFor(() => {
-        expect(screen.getByText(/cannot describe honestly/i)).toBeInTheDocument();
+        expect(screen.getByText(/cannot label honestly/i)).toBeInTheDocument();
       });
       expect(screen.queryByTestId('rehearsal-map')).not.toBeInTheDocument();
     });
@@ -310,7 +345,7 @@ describe('the rehearsal surface', () => {
     it('says the service is unreachable rather than showing an empty run', async () => {
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
       renderSimulator();
-      fireEvent.click(screen.getByRole('button', { name: /run the rehearsal/i }));
+      fireEvent.click(screen.getByRole('button', { name: /start the practice run/i }));
 
       await waitFor(() => {
         expect(screen.getByText(/could not be reached/i)).toBeInTheDocument();

@@ -19,7 +19,7 @@ export function SectionIntelligence() {
       <div className="mx-auto w-full max-w-5xl">
         <Reveal>
           <p className="ol-eyebrow">Intelligence in Motion</p>
-          <h2 className="ol-display ol-h2 mt-5 max-w-3xl text-ol-ivory">
+          <h2 className="ol-display ol-h2 mt-5 max-w-3xl text-foreground">
             From signals to understanding.
           </h2>
           <div className="ol-measure-wide mt-8 space-y-5">
@@ -28,7 +28,7 @@ export function SectionIntelligence() {
               structure—revealing context, relationships, and possibilities that would otherwise
               remain hidden.
             </p>
-            <p className="ol-body text-ol-text-secondary/80">
+            <p className="ol-body text-subtle">
               The future of technology lies not only in collecting information, but in understanding
               what it means.
             </p>
@@ -39,12 +39,12 @@ export function SectionIntelligence() {
       {/* Incoming signals — cooler, looser. */}
       <div className="mx-auto w-full max-w-5xl">
         <Reveal>
-          <p className="ol-eyebrow mb-5 text-ol-text-secondary">Signals</p>
+          <p className="ol-eyebrow mb-5 text-muted-foreground">Signals</p>
           <ul className="flex flex-wrap gap-x-8 gap-y-3" aria-label="Incoming signals">
             {INCOMING.map((w, i) => (
               <li
                 key={w}
-                className={`ol-display text-2xl text-ol-text-secondary sm:text-3xl ${i % 2 ? 'opacity-55' : 'opacity-80'}`}
+                className={`ol-display text-2xl text-muted-foreground sm:text-3xl ${i % 2 ? 'opacity-55' : 'opacity-80'}`}
               >
                 {w}
               </li>
@@ -57,8 +57,11 @@ export function SectionIntelligence() {
       <div className="mx-auto flex w-full max-w-5xl justify-center">
         <Reveal>
           <p
-            className="ol-display text-center text-ol-gold-light"
-            style={{ fontSize: 'clamp(3rem, 10vw, 8rem)', textShadow: '0 0 60px rgba(214,161,58,0.35)' }}
+            className="ol-display text-center text-brand"
+            style={{
+              fontSize: 'clamp(3rem, 10vw, 8rem)',
+              textShadow: '0 0 60px hsl(var(--brand) / 0.35)',
+            }}
           >
             Understanding
           </p>
@@ -71,7 +74,7 @@ export function SectionIntelligence() {
           <p className="ol-eyebrow mb-5">Understanding</p>
           <ul className="flex flex-wrap gap-x-8 gap-y-3" aria-label="Resulting understanding">
             {OUTGOING.map((w) => (
-              <li key={w} className="ol-display text-2xl text-ol-ivory sm:text-3xl">
+              <li key={w} className="ol-display text-2xl text-foreground sm:text-3xl">
                 {w}
               </li>
             ))}

@@ -152,10 +152,14 @@ export function verdict(metrics: readonly ComparedMetric[]): RehearsalVerdict {
 }
 
 export const VERDICT_SENTENCE: Record<RehearsalVerdict, string> = {
-  improved: 'On this corridor, with these modelled conditions, the control laws improved every measure.',
-  mixed: 'On this corridor, with these modelled conditions, the control laws improved some measures and worsened others.',
-  'no-change': 'On this corridor, with these modelled conditions, the control laws changed nothing measurable.',
-  worse: 'On this corridor, with these modelled conditions, the control laws made every measure worse.',
+  improved:
+    'On this corridor, with these made-up conditions, the automatic spacing rules improved every measure.',
+  mixed:
+    'On this corridor, with these made-up conditions, the automatic spacing rules improved some measures and worsened others.',
+  'no-change':
+    'On this corridor, with these made-up conditions, the automatic spacing rules changed nothing measurable.',
+  worse:
+    'On this corridor, with these made-up conditions, the automatic spacing rules made every measure worse.',
 };
 
 /** How each action type reads in a decision log. */
@@ -174,7 +178,9 @@ export const REJECTION_REASON_LABEL: Record<string, string> = {
 };
 
 /** Counts of what the control law decided, for a one-line summary above the log. */
-export function summariseDecisions(result: RehearsalResult): { actionType: string; count: number }[] {
+export function summariseDecisions(
+  result: RehearsalResult,
+): { actionType: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const decision of result.decisions) {
     counts.set(decision.selectedActionType, (counts.get(decision.selectedActionType) ?? 0) + 1);

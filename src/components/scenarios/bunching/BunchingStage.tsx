@@ -125,7 +125,7 @@ function BusNode({
   tone: 'amber' | 'live';
   pulse?: boolean;
 }) {
-  const colour = tone === 'live' ? '#2bff88' : '#ffb020';
+  const colour = tone === 'live' ? 'hsl(var(--instrument-success))' : 'hsl(var(--instrument-warning))';
 
   return (
     <div className="relative z-10 flex w-24 flex-col items-center text-center">

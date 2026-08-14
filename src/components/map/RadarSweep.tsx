@@ -86,7 +86,7 @@ export function RadarSweep({ map, bus }: { map: google.maps.Map; bus: CanonicalL
             className="absolute inset-0 animate-radar-sweep rounded-full"
             style={{
               background:
-                'conic-gradient(from 0deg, rgba(63,240,255,0.34) 0deg, rgba(63,240,255,0.10) 26deg, transparent 58deg, transparent 360deg)',
+                'conic-gradient(from 0deg, hsl(var(--primary) / 0.34) 0deg, hsl(var(--primary) / 0.10) 26deg, transparent 58deg, transparent 360deg)',
               maskImage: 'radial-gradient(circle, black 62%, transparent 71%)',
               WebkitMaskImage: 'radial-gradient(circle, black 62%, transparent 71%)',
             }}

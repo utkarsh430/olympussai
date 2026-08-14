@@ -36,11 +36,11 @@ export function TopCommandBar({
   }, [feedMeta]);
 
   return (
-    <header className="relative z-30 flex h-[62px] shrink-0 items-center gap-3 border-b border-holo-glow/20 bg-[rgb(5,11,23)] px-3">
+    <header className="relative z-30 flex h-[62px] shrink-0 items-center gap-3 border-b border-holo-glow/20 bg-card px-3">
       {/* Olympuss project context + Sign Out (restrained, gold) */}
       <ProjectSignOut />
 
-      <div className="h-8 w-px bg-[#d6a13a]/20" />
+      <div className="h-8 w-px bg-brand/20" />
 
       {/* System status with animated pulse */}
       <div className="flex items-center gap-2">
@@ -67,14 +67,14 @@ export function TopCommandBar({
 
       {/* Metrics cluster */}
       <div className="ml-1 flex items-center gap-4">
-        <Metric label="India Time" value={clock} />
-        <Metric label="Last GPS Update" value={formatRelativeAge(feedMeta.lastFetchAt)} />
+        <Metric label="Time in India" value={clock} />
+        <Metric label="Positions last updated" value={formatRelativeAge(feedMeta.lastFetchAt)} />
         <Metric
-          label="Live Buses"
+          label="Buses reporting"
           value={<CountUp value={buses.length} className="text-holo-glow" />}
         />
         <Metric
-          label="Visible"
+          label="On screen"
           value={<CountUp value={visibleCount} className="text-holo-teal" />}
         />
       </div>
@@ -85,9 +85,9 @@ export function TopCommandBar({
           <Badge variant={sourceBadge(feedMeta.source).variant} pulse>
             {sourceBadge(feedMeta.source).label}
           </Badge>
-          <span className="inline-flex whitespace-nowrap items-center gap-1.5 rounded border border-holo-teal/45 bg-holo-teal/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-holo-teal">
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded border border-holo-teal/45 bg-holo-teal/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-holo-teal">
             <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-holo-teal" />
-            Predictive Engine Active
+            Forecasts running
           </span>
         </div>
 
@@ -101,7 +101,11 @@ export function TopCommandBar({
           <GitMerge className="h-3.5 w-3.5" aria-hidden />
           Bunching
         </Link>
-        <button type="button" className="hud-button whitespace-nowrap" onClick={() => toggleScenarioLab()}>
+        <button
+          type="button"
+          className="hud-button whitespace-nowrap"
+          onClick={() => toggleScenarioLab()}
+        >
           <FlaskConical className="h-3.5 w-3.5" aria-hidden />
           Scenario Lab
         </button>

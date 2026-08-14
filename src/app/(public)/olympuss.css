@@ -1,61 +1,68 @@
 /**
- * Olympuss landing design system (Section 18).
+ * The Olympuss front-door surface — the landing page and /login.
  *
- * Tokens are defined here and consumed only under `.ol-scope` (applied by the
- * public layout), so none of this cascades into the protected UPSRTC dashboard.
- * Plain CSS custom properties + a few rhythm helpers; colours are also mirrored
- * in Tailwind as the `ol-*` palette for utility use.
+ * ─── WHAT THIS FILE IS NOW ───────────────────────────────────────────────
+ *
+ * It used to be a second design system: eleven private colour tokens
+ * (`--ol-bg-primary`, `--ol-gold`, `--ol-text-secondary`, …), a private type
+ * scale, and its own motion. The colours are gone. Every one of them had an
+ * exact equivalent already sitting in globals.css, and carrying two names for
+ * one decision is how the product ended up with two looks in the first place.
+ *
+ * What remains is what was actually doing the work: an EDITORIAL TYPE SCALE
+ * and an ENTRANCE CHOREOGRAPHY. Neither is a colour, neither belongs in the
+ * console's vocabulary, and both are the reason the front door reads as a
+ * front door rather than as a settings page. They stay here, scoped to
+ * `.ol-scope`, so they cannot leak into the dashboards.
+ *
+ * ─── AND IT NO LONGER PINS A THEME ───────────────────────────────────────
+ *
+ * The public layout used to wrap this subtree in `.dark`. It does not any
+ * more. Everything below resolves through the shared tokens, so the landing
+ * page and the sign-in page follow the visitor's theme like the rest of the
+ * product. See LandingBackdrop for the one part of the composition that is
+ * genuinely dark-only and what happens to it in light.
  */
 
-:root {
-  --ol-bg-primary: #050507;
-  --ol-bg-secondary: #0c0d12;
-  --ol-bg-elevated: #12141b;
-  --ol-midnight: #11182a;
-  --ol-gold: #d6a13a;
-  --ol-gold-light: #f3c86a;
-  --ol-gold-muted: #9d7127;
-  --ol-ivory: #f2eee7;
-  --ol-text-primary: #f2eee7;
-  --ol-text-secondary: #a3a7b2;
-  --ol-text-muted: #707580;
-  --ol-border: rgba(255, 255, 255, 0.09);
-  --ol-glass: rgba(10, 11, 16, 0.55);
-}
-
 .ol-scope {
-  background-color: var(--ol-bg-primary);
-  color: var(--ol-text-primary);
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  /* Both from tokens, so the front door is the same two grounds as
+     everything behind it. */
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
   /* Prevent horizontal overflow from any wide decorative element. */
   overflow-x: clip;
 }
 
-/* Editorial display type.
+/* ─── EDITORIAL DISPLAY TYPE ─────────────────────────────────────────────
+   Cormorant Garamond, Manrope and Orbitron are all retired; the product is
+   set in one self-hosted family that carries English and Hindi at identical
+   vertical metrics (src/app/fonts.ts).
 
-   Cormorant Garamond is retired along with Manrope and Orbitron — the
-   product is set in one self-hosted family that carries both English and
-   Hindi (see src/app/fonts.ts). `--font-sans` is that family; the generic
-   fallbacks stay so this rule still resolves if the variable is ever
-   unset. The light weight and tight tracking below are what actually
-   carried the editorial voice, and they are unchanged. */
+   The light weight and the tight tracking are what actually carried the
+   editorial voice — not the family — which is why this rule survived the
+   font change unaltered. It inherits `--font-sans` from the root layout
+   rather than restating it, so there is exactly one place a family is
+   chosen. */
 .ol-display {
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-weight: 300;
   letter-spacing: -0.01em;
   line-height: 1.02;
 }
 
 .ol-eyebrow {
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-size: clamp(11px, 1vw, 13px);
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  color: var(--ol-gold-muted);
+  /* The identity accent, measured in both themes: 5.93:1 on the light card
+     and 12.13:1 on the dark one. The old value (#9d7127) was 3.87:1 against
+     the light page ground — it would have failed AA the moment this surface
+     stopped being dark-only. */
+  color: hsl(var(--brand));
 }
 
 .ol-body {
-  color: var(--ol-text-secondary);
+  color: hsl(var(--muted-foreground));
   font-size: clamp(1rem, 1.5vw, 1.2rem);
   line-height: 1.7;
 }
@@ -76,21 +83,23 @@
   max-width: 650px;
 }
 
-/* Thin gold hairline. */
+/* Thin identity hairline. */
 .ol-hairline {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(214, 161, 58, 0.4), transparent);
+  background: linear-gradient(90deg, transparent, hsl(var(--brand) / 0.4), transparent);
 }
 
-/* Glass surface for the scrolled header. */
+/* Glass surface for the scrolled header. `--background` rather than a fixed
+   near-black, so the bar frosts the ground it is actually sitting on. */
 .ol-glass {
-  background: var(--ol-glass);
+  background: hsl(var(--background) / 0.72);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
 
-/* Hero entrance choreography (Section 22). Timed, staggered via inline delay,
-   total under ~2.2s. No loader — repeat visitors are never blocked. */
+/* ─── HERO ENTRANCE CHOREOGRAPHY ────────────────────────────────────────
+   Timed, staggered via inline delay, total under ~2.2s. No loader — repeat
+   visitors are never blocked, and every word is readable without it. */
 @keyframes ol-rise {
   from {
     opacity: 0;

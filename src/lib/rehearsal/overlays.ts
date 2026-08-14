@@ -50,7 +50,7 @@ const DISTURBED_COLOUR = '#ff4d5e';
 export const REHEARSAL_MAP_LEGEND: readonly { colour: string; label: string }[] = [
   { colour: RUNNING_COLOUR, label: 'Running' },
   { colour: DWELLING_COLOUR, label: 'At a stop' },
-  { colour: HELD_COLOUR, label: 'Held by the control law' },
+  { colour: HELD_COLOUR, label: 'Held by the automatic spacing rules' },
   { colour: DISTURBED_COLOUR, label: 'Disturbed in this scenario' },
 ];
 
@@ -71,7 +71,9 @@ export function buildCorridorOverlay(
 ): FleetMapOverlay {
   const marks: FleetMapOverlayMark[] = [];
 
-  const drawableShape = shape.filter((point) => isPlottablePosition(point.latitude, point.longitude));
+  const drawableShape = shape.filter((point) =>
+    isPlottablePosition(point.latitude, point.longitude),
+  );
   if (drawableShape.length >= 2) {
     marks.push({
       id: `${CORRIDOR_OVERLAY_ID}-path`,

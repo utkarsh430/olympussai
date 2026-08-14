@@ -25,6 +25,7 @@ import {
   type RehearsalDisturbance,
   type RehearsalResult,
 } from '@/models/rehearsal';
+import { describeCalibrationSource } from '@/lib/ops/calibrationSource';
 import { RehearsalMap } from './RehearsalMap';
 import { ComparisonPanel } from './ComparisonPanel';
 import { ProvenancePanel } from './ProvenancePanel';
@@ -83,7 +84,7 @@ type RailTab = 'outcome' | 'decisions' | 'occupancy' | 'provenance';
 const RAIL_TABS: readonly { id: RailTab; label: string }[] = [
   { id: 'outcome', label: 'Outcome' },
   { id: 'decisions', label: 'Decisions' },
-  { id: 'occupancy', label: 'Occupancy' },
+  { id: 'occupancy', label: 'How full the buses are' },
   { id: 'provenance', label: 'What is real' },
 ];
 
@@ -134,7 +135,7 @@ export function BunchingSimulator({
           payload !== null &&
           typeof (payload as { error?: { message?: unknown } }).error?.message === 'string'
             ? (payload as { error: { message: string } }).error.message
-            : 'The simulation could not be run.';
+            : 'The practice run could not be started.';
         setError(message);
         setResult(null);
         return;
@@ -145,13 +146,15 @@ export function BunchingSimulator({
       // separating this page from a page of invented operational numbers.
       const parsed = rehearsalResultSchema.safeParse(payload);
       if (!parsed.success) {
-        setError('The simulation returned a result this page cannot describe honestly, so it is not shown.');
+        setError(
+          'The practice run came back with a result this page cannot label honestly, so it is not shown.',
+        );
         setResult(null);
         return;
       }
       setResult(parsed.data);
     } catch {
-      setError('The simulation service could not be reached.');
+      setError('The practice-run service could not be reached.');
       setResult(null);
     } finally {
       setRunning(false);
@@ -162,16 +165,36 @@ export function BunchingSimulator({
 
   return (
     <OpsShell
-      title="Control strategy rehearsal"
+      title="Practice run"
       email={email}
       role={role}
       variant="full"
       subtitle={
+        /*
+          THE STRONGEST SENTENCE ON THIS PAGE, AND IT STAYS STRONG.
+
+          The brief asked for plainer words without losing the force, so each
+          clause was re-checked against what it is actually preventing rather
+          than merely shortened:
+
+            "Every bus on this page is invented" — kept WORD FOR WORD. It is
+            already the plainest possible way to say it, it is the first thing
+            read, and "invented" is doing work that "simulated" and "modelled"
+            do not: those are the words a reader has learned to skim.
+
+            "No live vehicle is read" -> "No real bus is being watched." Same
+            claim, no jargon. `read` is an engineer's verb for it.
+
+            "nothing here can issue an instruction" -> "nothing here can send
+            an instruction to a driver." The old phrasing left open the
+            question "issue to whom?", and the answer — a driver, at a wheel —
+            is the whole reason the sentence exists.
+        */
         <span className="flex flex-wrap items-center gap-2">
-          <OpsBadge variant="sim">Simulation</OpsBadge>
+          <OpsBadge variant="sim">Practice run</OpsBadge>
           <span>
-            Every bus on this page is invented. No live vehicle is read, and nothing here can issue an
-            instruction.
+            Every bus on this page is invented. No real bus is being watched, and nothing here can
+            send an instruction to a driver.
           </span>
         </span>
       }
@@ -180,32 +203,43 @@ export function BunchingSimulator({
           <OpsStatGroup label="Corridor">
             <OpsStat
               label="Selected"
-              value={selectedCorridor ? `${selectedCorridor.routeId} ${selectedCorridor.directionCode}` : '—'}
+              value={
+                selectedCorridor
+                  ? `${selectedCorridor.routeId} ${selectedCorridor.directionCode}`
+                  : '—'
+              }
               hint={result ? (result.corridor.routeName ?? undefined) : undefined}
             />
             <OpsStat
-              label="Target headway"
+              label="Planned gap"
               // One decimal, not rounded: the provenance panel prints the
-              // same measurement, and a glance stat that says 23 beside a
-              // manifest that says 22.5 invites a reader to wonder which
-              // number the thresholds were computed from.
+              // same figure, and a glance stat that says 23 beside a manifest
+              // that says 22.5 invites a reader to wonder which number the
+              // thresholds were computed from.
               value={result ? (result.policy.targetHeadwaySeconds / 60).toFixed(1) : '—'}
               unit="min"
-              hint={result ? `measured from the ${result.corridor.calibrationSource.replace('_', ' ')}` : undefined}
+              // NOT "measured from the od timetable", which was wrong twice —
+              // see src/lib/ops/calibrationSource.ts. Undefined rather than a
+              // guess when the source is one this build does not recognise.
+              hint={
+                result
+                  ? (describeCalibrationSource(result.corridor.calibrationSource) ?? undefined)
+                  : undefined
+              }
               tone="accent"
             />
             <OpsStat
-              label="Control points"
+              label="Stops where a bus can be held"
               value={result ? result.corridor.controlPointCount : '—'}
               hint={result ? `of ${result.corridor.stops.length} stops` : undefined}
             />
           </OpsStatGroup>
           <OpsStatGroup label="Network coverage">
-            <OpsStat label="Can be rehearsed" value={simulable.length} tone="accent" />
+            <OpsStat label="Can be practised on" value={simulable.length} tone="accent" />
             <OpsStat
-              label="Observation only"
+              label="Watch-only"
               value={observationOnly}
-              hint="no measured target headway"
+              hint="no planned gap set"
               tone="warn"
             />
           </OpsStatGroup>
@@ -236,21 +270,18 @@ export function BunchingSimulator({
                     variant={arm === option ? 'primary' : 'quiet'}
                     onClick={() => setArm(option)}
                   >
-                    {option === 'controlled' ? 'With control laws' : 'No control'}
+                    {option === 'controlled' ? 'With automatic spacing' : 'Without'}
                   </OpsButton>
                 ))}
               </div>
-              <RehearsalMap
-                result={result}
-                arm={result.arms[arm]}
-                armLabel={arm}
-              />
+              <RehearsalMap result={result} arm={result.arms[arm]} armLabel={arm} />
             </>
           ) : (
             <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-ops-line">
               <OpsEmptyState>
-                Choose a corridor and a scenario, then run the rehearsal. Both arms — with the
-                control laws acting and without — are simulated over the same conditions.
+                Choose a corridor and a scenario, then start the practice run. It is run twice over
+                the same made-up conditions: once with the automatic spacing rules allowed to act,
+                and once without. The only difference between the two is those rules.
               </OpsEmptyState>
             </div>
           )}
@@ -258,23 +289,23 @@ export function BunchingSimulator({
 
         <div className="flex flex-col gap-4 lg:min-h-0 lg:w-[40%] lg:overflow-y-auto">
           <OpsPanel
-            title="Set up the rehearsal"
-            description="The corridor and its control policy are real. Everything below the corridor is a modelled assumption you can change."
+            title="Set up the practice run"
+            description="The corridor and its planned gap are real. Everything below the corridor is a made-up figure you can change."
           >
             <OpsStack>
               {corridorsError ? (
                 <OpsAlert tone="error">{corridorsError}</OpsAlert>
               ) : simulable.length === 0 ? (
                 <OpsAlert tone="warning">
-                  No corridor in this network has a measured target headway, so there is nothing to
-                  simulate against. All {corridors.length} mapped corridors are observation-only.
+                  No corridor in this network has a planned gap set, so there is nothing to practise
+                  against. All {corridors.length} surveyed corridors are watch-only.
                 </OpsAlert>
               ) : null}
 
               <OpsField
                 label="Corridor"
                 htmlFor="rehearsal-corridor"
-                hint={`${simulable.length} of ${corridors.length} mapped corridors have a measured target headway. The other ${observationOnly} are observation-only and are not offered here, because every bunching threshold is a ratio of that target.`}
+                hint={`${simulable.length} of ${corridors.length} surveyed corridors have a planned gap set. The other ${observationOnly} are watch-only and are not offered here, because every bunching threshold is worked out as a proportion of that planned gap.`}
               >
                 <OpsSelect
                   id="rehearsal-corridor"
@@ -300,11 +331,13 @@ export function BunchingSimulator({
                   value={disturbance}
                   onChange={(event) => setDisturbance(event.target.value as RehearsalDisturbance)}
                 >
-                  {(Object.keys(REHEARSAL_DISTURBANCE_LABEL) as RehearsalDisturbance[]).map((key) => (
-                    <option key={key} value={key}>
-                      {REHEARSAL_DISTURBANCE_LABEL[key]}
-                    </option>
-                  ))}
+                  {(Object.keys(REHEARSAL_DISTURBANCE_LABEL) as RehearsalDisturbance[]).map(
+                    (key) => (
+                      <option key={key} value={key}>
+                        {REHEARSAL_DISTURBANCE_LABEL[key]}
+                      </option>
+                    ),
+                  )}
                 </OpsSelect>
               </OpsField>
 
@@ -312,7 +345,7 @@ export function BunchingSimulator({
                 <OpsField
                   label="Buses on the corridor"
                   htmlFor="rehearsal-vehicle-count"
-                  hint="Modelled. Dispatched one target headway apart."
+                  hint="Made up. Sent out one planned gap apart."
                 >
                   <OpsInput
                     id="rehearsal-vehicle-count"
@@ -326,7 +359,7 @@ export function BunchingSimulator({
                 <OpsField
                   label="Running speed (km/h)"
                   htmlFor="rehearsal-cruise-speed"
-                  hint="Modelled. Nothing in this system records a real running time."
+                  hint="Made up. This system holds no record of a real running time."
                 >
                   <OpsInput
                     id="rehearsal-cruise-speed"
@@ -344,7 +377,7 @@ export function BunchingSimulator({
                 onClick={() => void run()}
                 disabled={running || !routeDirectionId}
               >
-                {running ? 'Running…' : 'Run the rehearsal'}
+                {running ? 'Running…' : 'Start the practice run'}
               </OpsButton>
 
               {error ? <OpsAlert tone="error">{error}</OpsAlert> : null}
@@ -353,7 +386,7 @@ export function BunchingSimulator({
 
           {result ? (
             <>
-              <div className="flex flex-wrap gap-2" role="tablist" aria-label="Rehearsal result">
+              <div className="flex flex-wrap gap-2" role="tablist" aria-label="Practice run result">
                 {RAIL_TABS.map((entry) => (
                   <OpsButton
                     key={entry.id}

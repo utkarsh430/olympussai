@@ -53,15 +53,47 @@ import type { FleetMapOverlay, FleetMapOverlayMark, MapVehicle } from '@/lib/map
  * about incidents; it draws rings and paths at coordinates it is given.
  */
 
-const QUALITY_COLOUR: Record<DataQuality, string> = {
-  good: '#2bff88',
-  degraded: '#ffb020',
-  stale: '#ff4d5e',
+/**
+ * ─── THE MARK PALETTE IS THEMED, AND HAS TO BE ───────────────────────────
+ *
+ * Canvas takes a colour STRING. It cannot read a CSS custom property, cannot
+ * resolve a Tailwind class and does not care what `.dark` is on. So a fleet
+ * layer that hard-codes neon draws neon: `#2bff88` is 1.19:1 against the
+ * light basemap's road white, which is not "a bit low contrast", it is
+ * invisible. Nine thousand buses would simply vanish when an operator moved
+ * the console into light.
+ *
+ * The palette is therefore a parameter with the night values as its default.
+ * That default is what makes this change safe to land while another lane owns
+ * the ops dashboards: `OpsFleetMap` calls `createFleetLayer` with no options
+ * and gets the exact colours it draws today, byte for byte. Only a caller
+ * that asks for the day palette gets different pixels.
+ *
+ * The day values are darkened and desaturated versions of the same three
+ * hues — the operator's learned mapping (green good, amber degraded, red
+ * stale) is preserved. And as everywhere else in this product, colour is
+ * NOT the only encoding: quality is stated in words in the fleet panel and
+ * the bus drawer, because roughly one in twelve male operators cannot
+ * separate the good/degraded pair by hue at all.
+ */
+export interface FleetLayerPalette {
+  quality: Record<DataQuality, string>;
+  selected: string;
+}
+
+/** The night palette. Unchanged, and still the default for every caller. */
+export const FLEET_PALETTE_DARK: FleetLayerPalette = {
+  quality: { good: '#2bff88', degraded: '#ffb020', stale: '#ff4d5e' },
+  selected: '#3ff0ff',
+};
+
+/** The day palette — same three hues, at the luminance a white ground needs. */
+export const FLEET_PALETTE_LIGHT: FleetLayerPalette = {
+  quality: { good: '#0b8450', degraded: '#995100', stale: '#cd1a37' },
+  selected: '#0b6e87',
 };
 
 const QUALITIES: DataQuality[] = ['good', 'degraded', 'stale'];
-
-const SELECTED_COLOUR = '#3ff0ff';
 
 /** Google's world is 256px square at zoom 0; all projection maths derives from this. */
 const TILE_SIZE = 256;
@@ -89,6 +121,11 @@ export interface FleetLayerHandle<T extends MapVehicle = MapVehicle> {
   setSelected(id: string | null): void;
   /** Replace every annotation. Pass `[]` to clear. Cheap: the redraw it schedules is O(visible marks). */
   setOverlays(overlays: readonly FleetMapOverlay[]): void;
+  /**
+   * Repaint the fleet in a different palette. Cheap — it only schedules the
+   * next frame — so a surface may call it straight from a theme change.
+   */
+  setPalette(palette: FleetLayerPalette): void;
   destroy(): void;
 }
 
@@ -123,11 +160,17 @@ function markerScaleFor(zoom: number): number {
 export function createFleetLayer<T extends MapVehicle>(
   map: google.maps.Map,
   onSelectVehicle: (vehicle: T) => void,
+  /**
+   * Defaults to the night palette, so every existing caller — including the
+   * ops dashboards' OpsFleetMap — renders exactly what it rendered before.
+   */
+  initialPalette: FleetLayerPalette = FLEET_PALETTE_DARK,
 ): FleetLayerHandle<T> {
   let vehicles: readonly T[] = [];
   let overlays: readonly FleetMapOverlay[] = [];
   let selectedId: string | null = null;
   let redrawQueued = false;
+  let palette = initialPalette;
 
   /** Screen positions painted in the last frame, so hit-testing matches exactly what is drawn. */
   let hits: HitPoint<T>[] = [];
@@ -235,7 +278,9 @@ export function createFleetLayer<T extends MapVehicle>(
           continue;
         }
 
-        segments[vehicle.dataQuality].push(chevronPath(x, y, vehicle.headingDegrees ?? 0, markerScale));
+        segments[vehicle.dataQuality].push(
+          chevronPath(x, y, vehicle.headingDegrees ?? 0, markerScale),
+        );
         hits.push({ x, y, vehicle });
       }
 
@@ -244,13 +289,19 @@ export function createFleetLayer<T extends MapVehicle>(
       for (const quality of QUALITIES) {
         const batch = segments[quality];
         if (batch.length === 0) continue;
-        ctx.fillStyle = QUALITY_COLOUR[quality];
+        ctx.fillStyle = palette.quality[quality];
         ctx.fill(new Path2D(batch.join('')));
       }
       ctx.globalAlpha = 1;
 
       if (selected) {
-        drawSelectedVehicle(ctx, selected.x, selected.y, selected.vehicle.headingDegrees ?? 0);
+        drawSelectedVehicle(
+          ctx,
+          selected.x,
+          selected.y,
+          selected.vehicle.headingDegrees ?? 0,
+          palette.selected,
+        );
         hits.push(selected);
       }
 
@@ -313,6 +364,10 @@ export function createFleetLayer<T extends MapVehicle>(
       overlays = next;
       scheduleRedraw();
     },
+    setPalette(next: FleetLayerPalette) {
+      palette = next;
+      scheduleRedraw();
+    },
     destroy() {
       clickListener.remove();
       moveListeners.forEach((listener) => listener.remove());
@@ -363,16 +418,17 @@ function drawSelectedVehicle(
   x: number,
   y: number,
   heading: number,
+  colour: string,
 ): void {
   const path = new Path2D(chevronPath(x, y, heading, 1.7));
 
   ctx.save();
-  ctx.fillStyle = SELECTED_COLOUR;
+  ctx.fillStyle = colour;
   ctx.fill(path);
 
   ctx.lineWidth = 1.4;
-  ctx.strokeStyle = SELECTED_COLOUR;
-  ctx.shadowColor = SELECTED_COLOUR;
+  ctx.strokeStyle = colour;
+  ctx.shadowColor = colour;
   ctx.shadowBlur = 10;
   ctx.stroke(path);
   ctx.restore();

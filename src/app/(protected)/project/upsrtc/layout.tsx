@@ -16,11 +16,34 @@ import { requireProjectSurface } from '@/lib/auth/projectPageGuard';
  *    that admitted any stranger who completed a registration form to the whole
  *    command centre. See src/lib/auth/authorize.ts for the full account.
  *
- * 2. Re-establishes the command-centre's fixed-viewport visual environment
- *    (dark void background, Orbitron display font, cyan text, tabular numerals,
- *    no page scroll) *scoped to this route only* — deliberately NOT on the
- *    global <body>, so the public landing page scrolls natively with its own
- *    typography and palette.
+ * 2. Re-establishes the command-centre's fixed-viewport environment (no page
+ *    scroll, the whole surface sized to the viewport) *scoped to this route
+ *    only* — deliberately NOT on the global <body>, so the landing page still
+ *    scrolls natively.
+ *
+ * ─── IT NO LONGER PINS THE NIGHT PALETTE ─────────────────────────────────
+ *
+ * This used to be `<div className="upsrtc-shell dark …">`. The `dark` is
+ * gone, and the command centre follows the operator's theme like everything
+ * else.
+ *
+ * That was a real decision rather than a sweep, because the obvious argument
+ * runs the other way: a wall display in a control room is dark for good
+ * reasons, and this is also the surface shown in a pitch. What settled it is
+ * that neither reason is about the THEME. An operator who wants the night
+ * display picks dark and gets exactly the surface that existed before, to the
+ * pixel — the tokens in the dark block are the same values this page was
+ * built on. What the change buys is the other case: the same command centre
+ * projected in a bright room, or opened on a laptop at a depot in daylight,
+ * where a black HUD is genuinely harder to read and always was.
+ *
+ * What "cinematic" means here survives the flip intact, because none of it
+ * was ever the colour black: the fixed viewport, the instrument density, the
+ * canvas fleet layer, the corner ticks, the scanline, the count-ups, the
+ * drifting ambient particles and the framer-motion transitions are all
+ * unchanged in both. The one thing that genuinely does not survive is the
+ * BLOOM — see the `--hud-bloom` note in globals.css. A glow is light added to
+ * a surface, and there is no light to add to white.
  */
 export const metadata: Metadata = {
   title: 'UPSRTC · Operations Intelligence',
@@ -45,18 +68,13 @@ export default async function UpsrtcProjectLayout({ children }: { children: Reac
     // The dashboard is viewed at ~85% browser zoom, which widens the effective
     // CSS viewport well beyond the 1920px design width, so the top command bar
     // and the map-area overlays have ample room even at this scale.
-    // `dark` pins this subtree to the night palette. `darkMode: 'class'`
-    // resolves against a `.dark` ANCESTOR, so the command centre keeps its
-    // look even while an operator has the console in light mode. Unifying
-    // this surface's own vocabulary is the cinematic lane's work; this only
-    // stops it inverting under a light theme in the meantime.
     <div
-      className="upsrtc-shell dark relative overflow-hidden bg-background font-sans text-foreground antialiased"
+      className="upsrtc-shell relative overflow-hidden bg-background font-sans text-foreground antialiased"
       style={{ zoom: 1.18, width: 'calc(100vw / 1.18)', height: 'calc(100dvh / 1.18)' }}
     >
       <a
         href="#command-main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded focus:bg-holo-glow focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:text-void"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:text-primary-foreground"
       >
         Skip to command centre
       </a>

@@ -50,8 +50,8 @@ export function DecisionsPanel({ result }: { result: RehearsalResult }) {
 
   return (
     <OpsPanel
-      title="What the control laws decided"
-      description={`${result.decisions.length} decisions at ${result.corridor.controlPointCount} control points: ${acted.length} holds issued, ${refused.length} refused by the hard safety filter.`}
+      title="What the automatic spacing rules decided"
+      description={`${result.decisions.length} decisions at ${result.corridor.controlPointCount} stops where a bus can be held: ${acted.length} holds made, ${refused.length} refused by the safety checks.`}
       padded={false}
       actions={
         <div className="flex flex-wrap gap-2">
@@ -74,7 +74,7 @@ export function DecisionsPanel({ result }: { result: RehearsalResult }) {
         <>
           <OpsTableFrame className="rounded-none border-0">
             <table className={opsTableClass}>
-              <caption className="sr-only">Control decisions made during the rehearsal</caption>
+              <caption className="sr-only">Decisions made during the practice run</caption>
               <thead>
                 <tr className={opsTheadRowClass}>
                   <th scope="col" className={opsThClass}>
@@ -98,7 +98,10 @@ export function DecisionsPanel({ result }: { result: RehearsalResult }) {
                 {rows.map((decision, index) => {
                   const refusal = decision.rejected[0];
                   return (
-                    <tr key={`${decision.vehicleId}-${decision.stopId}-${index}`} className={opsTrClass}>
+                    <tr
+                      key={`${decision.vehicleId}-${decision.stopId}-${index}`}
+                      className={opsTrClass}
+                    >
                       <td className={opsTdNumericClass}>{clock(decision.atSeconds)}</td>
                       <td className={opsTdClass}>
                         {decision.vehicleId}
@@ -118,11 +121,12 @@ export function DecisionsPanel({ result }: { result: RehearsalResult }) {
                         {decision.holdSeconds > 0 ? (
                           <span className="text-alert-amber">
                             Hold {decision.holdSeconds}s ·{' '}
-                            {ACTION_TYPE_LABEL[decision.selectedActionType] ?? decision.selectedActionType}
+                            {ACTION_TYPE_LABEL[decision.selectedActionType] ??
+                              decision.selectedActionType}
                           </span>
                         ) : refusal ? (
                           <span className="text-ops-muted">
-                            Hold proposed and refused — {' '}
+                            Hold proposed and refused —{' '}
                             {refusal.reasons
                               .map((reason) => REJECTION_REASON_LABEL[reason] ?? reason)
                               .join('; ')}

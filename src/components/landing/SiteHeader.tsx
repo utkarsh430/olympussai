@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { OlympussWordmark } from '@/components/shared/OlympussWordmark';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
+import { Button } from '@/components/ui/button';
 
 const NAV = [
   { label: 'Vision', target: 'ascent' },
@@ -36,15 +38,13 @@ export function SiteHeader() {
   return (
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ${
-        scrolled
-          ? 'ol-glass border-b border-[var(--ol-border)] py-3'
-          : 'border-b border-transparent py-5'
+        scrolled ? 'ol-glass border-b border-border py-3' : 'border-b border-transparent py-5'
       }`}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 sm:px-8">
         <Link
           href="/"
-          className="group flex items-center gap-2.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ol-gold"
+          className="group flex items-center gap-2.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
           aria-label="Olympuss AI — home"
         >
           <Image
@@ -55,7 +55,9 @@ export function SiteHeader() {
             priority
             className={`transition-all duration-500 ${scrolled ? 'h-7 w-7' : 'h-9 w-9'}`}
           />
-          <OlympussWordmark className={`transition-all duration-500 ${scrolled ? 'text-lg' : 'text-xl'}`} />
+          <OlympussWordmark
+            className={`transition-all duration-500 ${scrolled ? 'text-lg' : 'text-xl'}`}
+          />
         </Link>
 
         <nav className="flex items-center gap-1 sm:gap-2" aria-label="Primary">
@@ -65,19 +67,25 @@ export function SiteHeader() {
                 key={item.target}
                 type="button"
                 onClick={() => scrollTo(item.target)}
-                className="rounded px-3 py-2 font-sans text-[12px] uppercase tracking-[0.16em] text-ol-text-secondary transition-colors hover:text-ol-ivory focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ol-gold"
+                className="rounded px-3 py-2 text-[12px] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
               >
                 {item.label}
               </button>
             ))}
           </div>
-          <Link
-            href="/login"
-            className="rounded border border-ol-gold/45 px-3.5 py-2 font-sans text-[12px] uppercase tracking-[0.16em] text-ol-gold-light transition-all hover:border-ol-gold hover:bg-ol-gold/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ol-gold"
-            style={{ boxShadow: 'inset 0 0 18px -10px rgba(214,161,58,0.7)' }}
-          >
-            Project Login
-          </Link>
+          {/*
+            The theme control lives on the FRONT DOOR, not only inside the
+            console. Whoever opens this page is the same person who will read
+            a dashboard behind it, the preference is one durable choice for the
+            whole product, and a visitor who cannot stand a dark page has no
+            way to say so if the only switch is on the other side of a sign-in.
+            Hidden below `sm` purely for width — the phone gets it back in the
+            footer, where there is room for it to keep its labels.
+          */}
+          <ThemeToggle className="mr-1 hidden sm:inline-flex" />
+          <Button asChild variant="brandOutline" size="sm" className="tracking-[0.16em]">
+            <Link href="/login">Project Login</Link>
+          </Button>
         </nav>
       </div>
     </header>

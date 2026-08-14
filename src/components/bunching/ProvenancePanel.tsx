@@ -14,7 +14,10 @@ import type { ProvenanceSource, RehearsalResult } from '@/models/rehearsal';
  * not open it.
  */
 
-const SOURCE_BADGE: Record<ProvenanceSource, { variant: 'live' | 'sim' | 'neutral'; text: string }> = {
+const SOURCE_BADGE: Record<
+  ProvenanceSource,
+  { variant: 'live' | 'sim' | 'neutral'; text: string }
+> = {
   measured: { variant: 'live', text: 'Measured' },
   configured: { variant: 'neutral', text: 'Configured' },
   modelled: { variant: 'sim', text: 'Modelled' },
@@ -27,7 +30,7 @@ export function ProvenancePanel({ result }: { result: RehearsalResult }) {
     <OpsStack>
       <OpsPanel
         title="What is real here"
-        description={`${result.provenance.length - modelledCount} of ${result.provenance.length} inputs come from the seeded network; ${modelledCount} are invented by this simulator.`}
+        description={`${result.provenance.length - modelledCount} of ${result.provenance.length} inputs come from the real seeded network. The other ${modelledCount} are invented by this page.`}
       >
         <ul className="divide-y divide-ops-line/60">
           {result.provenance.map((entry) => {
@@ -47,8 +50,8 @@ export function ProvenancePanel({ result }: { result: RehearsalResult }) {
       </OpsPanel>
 
       <OpsPanel
-        title="What this does not rehearse"
-        description="Named rather than left to be discovered, because a planner acting on this needs to know where it stops."
+        title="What this practice run does not cover"
+        description="Named here rather than left to be discovered, because anyone acting on this needs to know where it stops."
       >
         <ul className="space-y-3">
           {result.notRehearsed.map((item) => (

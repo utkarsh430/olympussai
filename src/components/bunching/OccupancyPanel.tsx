@@ -29,14 +29,14 @@ export function OccupancyPanel({ result }: { result: RehearsalResult }) {
   return (
     <OpsStack>
       <OpsPanel
-        title="Occupancy"
-        description="The one input the deployed engine wants and has never had."
-        actions={<OpsBadge variant="sim">Modelled</OpsBadge>}
+        title="How full the buses are"
+        description="The one thing the live engine wants and has never had. Every figure here is invented."
+        actions={<OpsBadge variant="sim">Invented</OpsBadge>}
       >
         <OpsStack>
           <p className="max-w-prose text-sm leading-relaxed text-ops-muted">
-            The decision engine weighs the cost of delaying the passengers already aboard against the
-            wait it saves the ones still at the stop. It has never had a real load to weigh:{' '}
+            The decision engine weighs the cost of delaying the passengers already aboard against
+            the wait it saves the ones still at the stop. It has never had a real load to weigh:{' '}
             {result.policy.occupancyCapacity === null
               ? 'this corridor has no configured capacity, and no bus in this fleet reports a passenger count'
               : 'no bus in this fleet reports a passenger count'}
@@ -49,12 +49,12 @@ export function OccupancyPanel({ result }: { result: RehearsalResult }) {
               value={contrast.decisionsScored.toLocaleString('en-IN')}
             />
             <OpsReadout
-              label="Cost as deployed"
+              label="Score as the live engine ranks it"
               value={deployed === null ? '—' : deployed.toFixed(1)}
               tone="default"
             />
             <OpsReadout
-              label="Cost with modelled load"
+              label="Score once how full each bus is counts"
               value={modelled === null ? '—' : modelled.toFixed(1)}
               tone="accent"
             />
@@ -63,9 +63,10 @@ export function OccupancyPanel({ result }: { result: RehearsalResult }) {
           {shiftPercent !== null ? (
             <OpsAlert tone={Math.abs(shiftPercent) > 10 ? 'warning' : 'info'}>
               On this run, the half-full assumption valued the delay to onboard passengers about{' '}
-              {Math.abs(shiftPercent)}% {shiftPercent > 0 ? 'lower' : 'higher'} than the modelled load
-              did. That is what an occupancy feed would change about this tier — measured against a
-              load this simulator invented, so it sizes the question rather than answering it.
+              {Math.abs(shiftPercent)}% {shiftPercent > 0 ? 'lower' : 'higher'} than the modelled
+              load did. That is what an occupancy feed would change about this tier — measured
+              against a load this simulator invented, so it sizes the question rather than answering
+              it.
             </OpsAlert>
           ) : null}
 

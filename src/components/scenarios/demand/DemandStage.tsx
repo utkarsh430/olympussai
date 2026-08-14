@@ -160,24 +160,24 @@ export function DemandStage({ scenario }: { scenario: DemandScenario }) {
             <BarChart data={routeChartData} margin={{ top: 4, right: 4, bottom: 0, left: -26 }}>
               <XAxis
                 dataKey="name"
-                stroke="#3ff0ff40"
-                tick={{ fontSize: 8, fill: '#3ff0ff70', fontFamily: 'monospace' }}
+                stroke="hsl(var(--instrument-info) / 0.25)"
+                tick={{ fontSize: 8, fill: 'hsl(var(--instrument-info) / 0.44)', fontFamily: 'monospace' }}
                 tickLine={false}
               />
               <YAxis
-                stroke="#3ff0ff40"
-                tick={{ fontSize: 8, fill: '#3ff0ff70', fontFamily: 'monospace' }}
+                stroke="hsl(var(--instrument-info) / 0.25)"
+                tick={{ fontSize: 8, fill: 'hsl(var(--instrument-info) / 0.44)', fontFamily: 'monospace' }}
                 tickLine={false}
                 axisLine={false}
               />
               <Tooltip
-                cursor={{ fill: 'rgba(63,240,255,0.06)' }}
+                cursor={{ fill: 'hsl(var(--primary) / 0.06)' }}
                 contentStyle={tooltipStyle}
-                labelStyle={{ color: '#3ff0ff' }}
+                labelStyle={{ color: 'hsl(var(--instrument-info))' }}
               />
               <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
-              <Bar dataKey="Current" fill="#0ea5c9" radius={[2, 2, 0, 0]} />
-              <Bar dataKey="Required" fill="#ffb020" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="Current" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="Required" fill="hsl(var(--instrument-warning))" radius={[2, 2, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -187,24 +187,24 @@ export function DemandStage({ scenario }: { scenario: DemandScenario }) {
             <LineChart data={scenario.demandCurve} margin={{ top: 4, right: 4, bottom: 0, left: -26 }}>
               <XAxis
                 dataKey="window"
-                stroke="#3ff0ff40"
-                tick={{ fontSize: 8, fill: '#3ff0ff70', fontFamily: 'monospace' }}
+                stroke="hsl(var(--instrument-info) / 0.25)"
+                tick={{ fontSize: 8, fill: 'hsl(var(--instrument-info) / 0.44)', fontFamily: 'monospace' }}
                 tickLine={false}
               />
               <YAxis
-                stroke="#3ff0ff40"
-                tick={{ fontSize: 8, fill: '#3ff0ff70', fontFamily: 'monospace' }}
+                stroke="hsl(var(--instrument-info) / 0.25)"
+                tick={{ fontSize: 8, fill: 'hsl(var(--instrument-info) / 0.44)', fontFamily: 'monospace' }}
                 tickLine={false}
                 axisLine={false}
               />
-              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: '#3ff0ff' }} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: 'hsl(var(--instrument-info))' }} />
               <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
-              <ReferenceLine y={100} stroke="#3ff0ff30" strokeDasharray="3 3" />
+              <ReferenceLine y={100} stroke="hsl(var(--instrument-info) / 0.19)" strokeDasharray="3 3" />
               <Line
                 type="monotone"
                 dataKey="morningDemand"
                 name="Morning"
-                stroke="#3ff0ff"
+                stroke="hsl(var(--instrument-info))"
                 strokeWidth={1.8}
                 dot={{ r: 2 }}
               />
@@ -212,7 +212,7 @@ export function DemandStage({ scenario }: { scenario: DemandScenario }) {
                 type="monotone"
                 dataKey="eveningDemand"
                 name="Evening"
-                stroke="#ffb020"
+                stroke="hsl(var(--instrument-warning))"
                 strokeWidth={1.8}
                 dot={{ r: 2 }}
               />
@@ -289,8 +289,8 @@ export function DemandStage({ scenario }: { scenario: DemandScenario }) {
 }
 
 const tooltipStyle = {
-  background: 'rgba(6,14,28,0.95)',
-  border: '1px solid rgba(63,240,255,0.3)',
+  background: 'hsl(var(--popover) / 0.95)',
+  border: '1px solid hsl(var(--primary) / 0.3)',
   borderRadius: 4,
   fontFamily: 'monospace',
   fontSize: 10,

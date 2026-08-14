@@ -39,7 +39,7 @@ export function HudPanel({
         />
       )}
       {label && (
-        <header className="flex items-center justify-between border-b border-holo-glow/12 px-3 py-2">
+        <header className="border-holo-glow/12 flex items-center justify-between border-b px-3 py-2">
           <h2 className="hud-label">{label}</h2>
           {right}
         </header>
@@ -251,7 +251,7 @@ export function ConfidenceRing({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="rgba(63,240,255,0.14)"
+          stroke="hsl(var(--primary) / 0.14)"
           strokeWidth="3"
           fill="none"
         />
@@ -259,7 +259,7 @@ export function ConfidenceRing({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#3ff0ff"
+          stroke="hsl(var(--instrument-info))"
           strokeWidth="3"
           fill="none"
           strokeLinecap="round"
@@ -267,11 +267,11 @@ export function ConfidenceRing({
           initial={{ strokeDashoffset: circumference }}
           animate={{ strokeDashoffset: offset }}
           transition={{ duration: 1.1, ease: 'easeOut' }}
-          style={{ filter: 'drop-shadow(0 0 6px rgba(63,240,255,0.8))' }}
+          style={{ filter: 'drop-shadow(0 0 6px hsl(var(--primary) / 0.8))' }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-mono text-lg font-semibold text-holo-glow text-glow">{percent}%</span>
+        <span className="text-glow font-mono text-lg font-semibold text-holo-glow">{percent}%</span>
         <span className="font-mono text-[8px] uppercase tracking-widest text-holo-glow/50">
           {label}
         </span>
@@ -285,7 +285,7 @@ export function Waveform({
   bars = 28,
   active = true,
   className,
-  color = '#3ff0ff',
+  color = 'hsl(var(--instrument-info))',
 }: {
   bars?: number;
   active?: boolean;
@@ -343,8 +343,8 @@ export function AmbientBackdrop() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       <div className="absolute inset-0 bg-volumetric" />
-      <div className="absolute inset-0 bg-hud-grid bg-hud-grid opacity-60" />
-      <div className="absolute inset-0 scanline-overlay opacity-50" />
+      <div className="absolute inset-0 bg-hud-grid opacity-60" />
+      <div className="scanline-overlay absolute inset-0 opacity-50" />
       <div className="noise-overlay absolute inset-0 opacity-[0.035] mix-blend-overlay" />
 
       {/* Ambient particles. Kept few, transform/opacity only, and GPU-promoted:

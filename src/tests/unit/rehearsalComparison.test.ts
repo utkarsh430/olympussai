@@ -74,8 +74,20 @@ function result(
     },
     provenance: [],
     arms: {
-      uncontrolled: { name: 'no-control', kpis: uncontrolled, frames: [], appliedHoldSeconds: 0, refusedHoldSeconds: 0 },
-      controlled: { name: 'deployed-control-laws', kpis: controlled, frames: [], appliedHoldSeconds: 90, refusedHoldSeconds: 0 },
+      uncontrolled: {
+        name: 'no-control',
+        kpis: uncontrolled,
+        frames: [],
+        appliedHoldSeconds: 0,
+        refusedHoldSeconds: 0,
+      },
+      controlled: {
+        name: 'deployed-control-laws',
+        kpis: controlled,
+        frames: [],
+        appliedHoldSeconds: 90,
+        refusedHoldSeconds: 0,
+      },
     },
     decisions,
     occupancyContrast: {
@@ -104,14 +116,18 @@ describe('compareArms', () => {
   });
 
   it('calls a reduction in bunching an improvement', () => {
-    const metrics = compareArms(result(kpis({ bunchingIncidents: 8 }), kpis({ bunchingIncidents: 3 })));
+    const metrics = compareArms(
+      result(kpis({ bunchingIncidents: 8 }), kpis({ bunchingIncidents: 3 })),
+    );
     const metric = metrics.find((m) => m.key === 'bunchingIncidents')!;
     expect(metric.delta).toBe(-5);
     expect(metric.improved).toBe(true);
   });
 
   it('calls a reduction in passengers carried a worsening, not an improvement', () => {
-    const metrics = compareArms(result(kpis({ totalBoardings: 5000 }), kpis({ totalBoardings: 4200 })));
+    const metrics = compareArms(
+      result(kpis({ totalBoardings: 5000 }), kpis({ totalBoardings: 4200 })),
+    );
     const metric = metrics.find((m) => m.key === 'totalBoardings')!;
     expect(metric.delta).toBe(-800);
     expect(metric.improved).toBe(false);
@@ -140,8 +156,24 @@ describe('compareArms', () => {
 describe('verdict', () => {
   it('says so plainly when control made everything worse', () => {
     const metrics = compareArms(
-      result(kpis({ bunchingIncidents: 2, headwayCv: 0.2, excessWaitSeconds: 100, deniedBoardings: 10, meanHeadwaySeconds: 900, totalBoardings: 5000 }),
-             kpis({ bunchingIncidents: 9, headwayCv: 0.7, excessWaitSeconds: 900, deniedBoardings: 90, meanHeadwaySeconds: 1400, totalBoardings: 4000 })),
+      result(
+        kpis({
+          bunchingIncidents: 2,
+          headwayCv: 0.2,
+          excessWaitSeconds: 100,
+          deniedBoardings: 10,
+          meanHeadwaySeconds: 900,
+          totalBoardings: 5000,
+        }),
+        kpis({
+          bunchingIncidents: 9,
+          headwayCv: 0.7,
+          excessWaitSeconds: 900,
+          deniedBoardings: 90,
+          meanHeadwaySeconds: 1400,
+          totalBoardings: 4000,
+        }),
+      ),
     );
     expect(verdict(metrics)).toBe('worse');
     expect(VERDICT_SENTENCE.worse).toMatch(/worse/i);
@@ -153,29 +185,55 @@ describe('verdict', () => {
 
   it('reports a mixed result as mixed rather than picking the flattering half', () => {
     const metrics = compareArms(
-      result(kpis({ bunchingIncidents: 8, totalBoardings: 5000 }), kpis({ bunchingIncidents: 3, totalBoardings: 4000 })),
+      result(
+        kpis({ bunchingIncidents: 8, totalBoardings: 5000 }),
+        kpis({ bunchingIncidents: 3, totalBoardings: 4000 }),
+      ),
     );
     expect(verdict(metrics)).toBe('mixed');
   });
 
   it('reports an unqualified improvement only when nothing got worse', () => {
     const metrics = compareArms(
-      result(kpis({ bunchingIncidents: 8, headwayCv: 0.7, excessWaitSeconds: 900, deniedBoardings: 90, meanHeadwaySeconds: 1400, totalBoardings: 4000 }),
-             kpis({ bunchingIncidents: 3, headwayCv: 0.4, excessWaitSeconds: 400, deniedBoardings: 20, meanHeadwaySeconds: 950, totalBoardings: 5000 })),
+      result(
+        kpis({
+          bunchingIncidents: 8,
+          headwayCv: 0.7,
+          excessWaitSeconds: 900,
+          deniedBoardings: 90,
+          meanHeadwaySeconds: 1400,
+          totalBoardings: 4000,
+        }),
+        kpis({
+          bunchingIncidents: 3,
+          headwayCv: 0.4,
+          excessWaitSeconds: 400,
+          deniedBoardings: 20,
+          meanHeadwaySeconds: 950,
+          totalBoardings: 5000,
+        }),
+      ),
     );
     expect(verdict(metrics)).toBe('improved');
   });
 
   // Every sentence has to be readable as a claim about a MODEL.
+  //
+  // The qualifier moved from "modelled conditions" to "made-up conditions"
+  // during the plain-language pass — same claim, a word an operations reader
+  // actually uses. What is under test is the QUALIFIER, not the wording, so
+  // this now checks both halves of it: the conditions are declared invented,
+  // and the claim is scoped to this one corridor rather than to the service.
   it('never promises anything about the real service', () => {
     for (const sentence of Object.values(VERDICT_SENTENCE)) {
-      expect(sentence).toMatch(/modelled conditions/);
+      expect(sentence).toMatch(/made-up conditions/);
+      expect(sentence).toMatch(/^On this corridor/);
     }
   });
 });
 
 describe('summariseDecisions', () => {
-  it('counts what the control laws actually chose, commonest first', () => {
+  it('counts what the automatic spacing rules actually chose, commonest first', () => {
     const decisions = [
       { selectedActionType: 'two_way_hold' },
       { selectedActionType: 'no_control' },

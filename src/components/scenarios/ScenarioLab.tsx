@@ -323,7 +323,7 @@ function Slider({
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
         aria-label={label}
-        className="h-1 w-full cursor-pointer appearance-none rounded-full bg-holo-glow/20 accent-[#3ff0ff]"
+        className="h-1 w-full cursor-pointer appearance-none rounded-full bg-holo-glow/20 accent-[hsl(var(--primary))]"
       />
     </label>
   );

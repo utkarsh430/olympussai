@@ -4,9 +4,12 @@ import { useId, useState } from 'react';
 import Link from 'next/link';
 import { OPS_LEGACY_LOGIN_PATH } from '@/lib/auth/landing';
 import { DEFAULT_NEXT } from '@/lib/auth/redirect';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 /**
- * Enterprise authentication form, backed by Supabase Auth (Section 15).
+ * Enterprise authentication form, backed by Supabase Auth.
  *
  * Accounts are provisioned by an administrator only — there is no
  * self-service sign-up, so this form intentionally has no "create account"
@@ -16,7 +19,26 @@ import { DEFAULT_NEXT } from '@/lib/auth/redirect';
  * - Enter submits; button disabled while processing.
  * - Status announced via aria-live; error linked with aria-describedby.
  * - No credential hints, no prefilled values, generic error only.
+ *
+ * ─── THE RE-SKIN CHANGED NO LOGIC ────────────────────────────────────────
+ *
+ * Every branch below — the omitted `next`, the server-chosen destination,
+ * the 503 fallback pointer — is unchanged. What changed is that the controls
+ * are the shared Input and Button rather than eight hand-written literal
+ * hexes, and the labels are readable sentence case rather than 11px letter-
+ * spaced monospace caps. The old labels were styled as HUD chrome; this is a
+ * form a depot clerk fills in on a phone.
+ *
+ * ─── AND THE CONTROLS ARE PHONE-SIZED ────────────────────────────────────
+ *
+ * `h-12` — 48px — rather than the shared Input's 36px default. That clears
+ * the 44px touch minimum with room to spare, which matters here more than
+ * anywhere else in the product: this is the one screen a driver opens
+ * one-handed. The shared Input already sets `text-base` with a `md:text-sm`
+ * step down, so the text stays at 16px on a phone; below 16px iOS Safari
+ * zooms the viewport on focus and throws the layout sideways.
  */
+
 /**
  * `next` is a sanitized deep-link target, or null when the visitor asked for
  * nowhere in particular. NULL IS NOT THE SAME AS THE DEFAULT PATH and must not
@@ -60,9 +82,10 @@ export function LoginForm({ next }: { next: string | null }) {
         body: JSON.stringify({ email, password, ...(next === null ? {} : { next }) }),
       });
 
-      const data = (await response.json().catch(() => null)) as
-        | { error?: string; redirectTo?: string }
-        | null;
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        redirectTo?: string;
+      } | null;
 
       if (response.ok) {
         // The SERVER picks the destination, not this component: only it knows
@@ -81,7 +104,9 @@ export function LoginForm({ next }: { next: string | null }) {
       setAuthUnavailable(response.status === 503);
       setStatus('error');
     } catch {
-      setError('Something went wrong. Please try again.');
+      // Names the thing that failed and what to do about it. "Something went
+      // wrong. Please try again." told the reader neither.
+      setError('Could not reach the sign-in service. Check your connection and try again.');
       setStatus('error');
     }
   }
@@ -89,16 +114,13 @@ export function LoginForm({ next }: { next: string | null }) {
   const submitting = status === 'submitting';
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="w-full max-w-sm">
+    <form onSubmit={handleSubmit} noValidate className="w-full">
       <div className="space-y-5">
-        <div>
-          <label
-            htmlFor="email"
-            className="mb-2 block font-mono text-[11px] uppercase tracking-[0.18em] text-[#a3a7b2]"
-          >
+        <div className="space-y-2">
+          <label htmlFor="email" className="block text-sm font-medium text-foreground">
             Email
           </label>
-          <input
+          <Input
             id="email"
             name="email"
             type="email"
@@ -112,18 +134,15 @@ export function LoginForm({ next }: { next: string | null }) {
             placeholder="you@company.com"
             aria-describedby={error ? errorId : undefined}
             aria-invalid={status === 'error' || undefined}
-            className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-4 py-3 text-[#f2eee7] placeholder:text-[#707580] transition-colors focus:border-[#d6a13a]/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d6a13a]/40"
+            className="h-12"
           />
         </div>
 
-        <div>
-          <label
-            htmlFor="password"
-            className="mb-2 block font-mono text-[11px] uppercase tracking-[0.18em] text-[#a3a7b2]"
-          >
+        <div className="space-y-2">
+          <label htmlFor="password" className="block text-sm font-medium text-foreground">
             Password
           </label>
-          <input
+          <Input
             id="password"
             name="password"
             type="password"
@@ -134,45 +153,42 @@ export function LoginForm({ next }: { next: string | null }) {
             placeholder="Enter password"
             aria-describedby={error ? errorId : undefined}
             aria-invalid={status === 'error' || undefined}
-            className="w-full rounded-md border border-[rgba(255,255,255,0.12)] bg-[rgba(10,11,16,0.6)] px-4 py-3 text-[#f2eee7] placeholder:text-[#707580] transition-colors focus:border-[#d6a13a]/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d6a13a]/40"
+            className="h-12"
           />
         </div>
 
         {error && (
-          <div id={errorId} role="alert" className="space-y-2">
-            <p className="text-sm text-[#f0857d]">{error}</p>
-            {authUnavailable && (
-              <p className="text-[12px] leading-relaxed text-[#a3a7b2]">
-                This sign-in is unavailable on this deployment — your credentials are not the
-                problem. Operations staff can still use the{' '}
-                <Link
-                  href={OPS_LEGACY_LOGIN_PATH}
-                  className="text-[#f3c86a] underline underline-offset-2 transition-colors hover:text-[#d6a13a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6a13a]"
-                >
-                  operations sign-in
-                </Link>
-                .
-              </p>
-            )}
-          </div>
+          <Alert id={errorId} variant="destructive">
+            <AlertDescription className="space-y-2">
+              <p>{error}</p>
+              {authUnavailable && (
+                <p className="text-foreground">
+                  Sign-in is not working on this installation. Your email and password are not the
+                  problem. Operations staff can still use the{' '}
+                  <Link
+                    href={OPS_LEGACY_LOGIN_PATH}
+                    className="font-medium text-brand underline underline-offset-2"
+                  >
+                    backup operations sign-in
+                  </Link>
+                  .
+                </p>
+              )}
+            </AlertDescription>
+          </Alert>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-md border border-[#d6a13a]/60 bg-[#d6a13a]/12 px-6 py-3.5 font-mono text-[13px] uppercase tracking-[0.2em] text-[#f3c86a] transition-all hover:bg-[#d6a13a]/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6a13a] disabled:cursor-not-allowed disabled:opacity-60"
-          style={{ boxShadow: '0 0 30px -12px rgba(214,161,58,0.6)' }}
-        >
-          {submitting ? 'Signing in…' : 'Sign In'}
-        </button>
+        <Button type="submit" variant="brand" size="xl" disabled={submitting} className="w-full">
+          {submitting ? 'Signing in…' : 'Sign in'}
+        </Button>
 
         {/* Screen-reader status region. */}
         <p id={statusId} aria-live="polite" className="sr-only">
-          {submitting ? 'Signing in, please wait.' : status === 'error' ? 'Authentication failed.' : ''}
+          {submitting ? 'Signing in, please wait.' : status === 'error' ? 'Sign-in failed.' : ''}
         </p>
 
-        <p className="text-center text-[11px] leading-relaxed text-[#707580]">
-          Accounts are provisioned by an administrator. There is no self-service sign-up.
+        <p className="text-center text-[13px] leading-relaxed text-subtle">
+          Accounts are created by your administrator. You cannot sign yourself up.
         </p>
       </div>
     </form>

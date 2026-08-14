@@ -17,7 +17,7 @@ export function SectionExploration() {
       <div className="mx-auto w-full max-w-6xl">
         <Reveal>
           <p className="ol-eyebrow">Fields of Exploration</p>
-          <h2 className="ol-display ol-h2 mt-5 max-w-3xl text-ol-ivory">
+          <h2 className="ol-display ol-h2 mt-5 max-w-3xl text-foreground">
             The evolving landscape of intelligence.
           </h2>
           <p className="ol-body ol-measure-wide mt-7">

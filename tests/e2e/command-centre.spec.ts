@@ -19,10 +19,34 @@ const IGNORABLE_CONSOLE = [
   'favicon',
 ];
 
+/**
+ * Scripts whose own console output is not this product's to fix.
+ *
+ * Filtered by SOURCE URL rather than by message text, and that distinction is
+ * the whole value of it. The Maps SDK emits
+ *
+ *     Failed to execute 'observe' on 'IntersectionObserver':
+ *     parameter 1 is not of type 'Element'
+ *
+ * from inside its own bundle when a map is constructed on a container the SDK
+ * has not measured yet — traced to `_.Bp` in maps-api-v3/.../main.js, calling
+ * `observe(undefined)`. Nothing in this repo calls it, and the message carries
+ * no Google marker, so the text-based IGNORABLE_CONSOLE list above cannot see
+ * it. Adding the message text there WOULD have worked and would have been the
+ * wrong fix: it would also silence the identical error thrown by our own code,
+ * which is exactly the kind of regression this assertion exists to catch.
+ *
+ * Matching on origin keeps every application-originated console error failing
+ * the test, and stops a third-party script we do not control from doing so.
+ */
+const THIRD_PARTY_CONSOLE_ORIGINS = ['maps.googleapis.com', 'maps.gstatic.com'];
+
 function collectConsoleErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on('console', (message: ConsoleMessage) => {
     if (message.type() !== 'error') return;
+    const source = message.location().url ?? '';
+    if (THIRD_PARTY_CONSOLE_ORIGINS.some((origin) => source.includes(origin))) return;
     const text = message.text();
     if (IGNORABLE_CONSOLE.some((pattern) => text.includes(pattern))) return;
     errors.push(text);
@@ -78,10 +102,14 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     // product heading + subtitle were removed).
     await expect(page.getByText('Olympuss AI')).toBeVisible();
     await expect(page.getByText('Project Environment')).toBeVisible();
-    await expect(page.getByText(/CONNECTED|FIXTURE|STALE CACHE|DEGRADED|UNAVAILABLE/).first()).toBeVisible();
+    await expect(
+      page.getByText(/CONNECTED|FIXTURE|STALE CACHE|DEGRADED|UNAVAILABLE/).first(),
+    ).toBeVisible();
   });
 
-  test('2. live or fixture buses appear in the fleet panel and on the counter', async ({ page }) => {
+  test('2. live or fixture buses appear in the fleet panel and on the counter', async ({
+    page,
+  }) => {
     await page.goto('/project/upsrtc');
     await waitForFleet(page);
 
@@ -151,7 +179,9 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     await expect(page.getByText('CURRENT ROUTE')).toBeVisible();
     await expect(page.getByText('SUGGESTED ALTERNATIVE')).toBeVisible();
     await expect(
-      page.getByText(/Route diversion and driver instructions require authorized dispatcher approval/),
+      page.getByText(
+        /Route diversion and driver instructions require authorized dispatcher approval/,
+      ),
     ).toBeVisible();
   });
 
@@ -193,7 +223,9 @@ test.describe('UPSRTC AI Operations Copilot', () => {
 
     const modal = page.getByTestId('driver-message-modal');
     await expect(modal).toBeVisible({ timeout: 20_000 });
-    await expect(modal.getByText('NO DRIVER IS CONTACTED FROM THIS PROTOTYPE', { exact: true })).toBeVisible();
+    await expect(
+      modal.getByText('NO DRIVER IS CONTACTED FROM THIS PROTOTYPE', { exact: true }),
+    ).toBeVisible();
 
     // Bilingual draft is present.
     await expect(modal.getByText('English message')).toBeVisible();
@@ -255,16 +287,26 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     await waitForFleet(page);
 
     // The top bar always distinguishes live data from the predictive layer.
-    await expect(page.getByText(/LIVE UPSRTC GPS|UPSRTC FIXTURE FALLBACK|UPSTREAM UNAVAILABLE/).first()).toBeVisible();
-    await expect(page.getByText('Predictive Engine Active')).toBeVisible();
+    await expect(
+      page.getByText(/LIVE UPSRTC GPS|UPSRTC FIXTURE FALLBACK|UPSTREAM UNAVAILABLE/).first(),
+    ).toBeVisible();
+    // "Predictive Engine Active" became "Forecasts running" in the plain-language
+    // pass. The CLAIM under test is unchanged and is the important half: the top
+    // bar must always show, side by side, that the positions are live AND that a
+    // forecasting layer is running on top of them.
+    await expect(page.getByText('Forecasts running')).toBeVisible();
 
     await selectFirstBus(page);
     await page.getByTestId('analysis-breakdown').click();
     await expect(page.getByTestId('breakdown-stage')).toBeVisible({ timeout: 20_000 });
 
     // Simulation labelling survives while a scenario is on screen.
-    await expect(page.getByTestId('scenario-stage').getByText('INCIDENT RESPONSE').first()).toBeVisible();
-    await expect(page.getByText(/LIVE UPSRTC GPS|UPSRTC FIXTURE FALLBACK|UPSTREAM UNAVAILABLE/).first()).toBeVisible();
+    await expect(
+      page.getByTestId('scenario-stage').getByText('INCIDENT RESPONSE').first(),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/LIVE UPSRTC GPS|UPSRTC FIXTURE FALLBACK|UPSTREAM UNAVAILABLE/).first(),
+    ).toBeVisible();
   });
 
   test('13. footer disclaimer is always accessible and expandable', async ({ page }) => {
@@ -287,7 +329,12 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     await page.goto('/project/upsrtc');
     await selectFirstBus(page);
 
-    for (const testId of ['analysis-bunching', 'analysis-traffic', 'analysis-breakdown', 'analysis-demand']) {
+    for (const testId of [
+      'analysis-bunching',
+      'analysis-traffic',
+      'analysis-breakdown',
+      'analysis-demand',
+    ]) {
       await page.getByTestId(testId).click();
       await expect(page.getByTestId('scenario-stage')).toBeVisible({ timeout: 20_000 });
       await page.waitForTimeout(700);
@@ -357,7 +404,9 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     expect(simulatedFlags).toContain(false);
   });
 
-  test('18. alert centre is seeded with five alerts anchored to real vehicles', async ({ page }) => {
+  test('18. alert centre is seeded with five alerts anchored to real vehicles', async ({
+    page,
+  }) => {
     await page.goto('/project/upsrtc');
     await expect(page.getByTestId('alert-centre')).toBeVisible();
 
@@ -366,7 +415,9 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     await expect.poll(() => alerts.count(), { timeout: 30_000 }).toBe(5);
 
     // Provenance marker is present, and exactly once — not on every card.
-    await expect(page.getByTestId('alert-centre').getByText('Predictive', { exact: true })).toBeVisible();
+    await expect(
+      page.getByTestId('alert-centre').getByText('Predictive', { exact: true }),
+    ).toBeVisible();
 
     // Each alert carries a real UPSRTC registration.
     await expect(alerts.first()).toContainText(/[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}/);
@@ -398,7 +449,9 @@ test.describe('UPSRTC AI Operations Copilot', () => {
 
     // The stream raises one alert every 30s; allow headroom.
     await expect(page.getByTestId('alert-toast').first()).toBeVisible({ timeout: 50_000 });
-    await expect.poll(() => page.getByTestId('alert-item').count(), { timeout: 20_000 }).toBeGreaterThan(initial);
+    await expect
+      .poll(() => page.getByTestId('alert-item').count(), { timeout: 20_000 })
+      .toBeGreaterThan(initial);
   });
 
   test('21. no "simulated" or "demonstrate" wording remains anywhere in the interface', async ({
@@ -514,7 +567,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
   //      seeded corridors, so the expected outcome there is the page saying
   //      it has nothing calibrated to rehearse - which is exactly the
   //      behaviour that must not silently become "run it anyway".
-  test('25. Bunching opens the control rehearsal, declares itself a simulation, and is honest about coverage', async ({
+  test('25. Bunching opens the practice run, declares itself invented, and is honest about coverage', async ({
     page,
   }) => {
     await page.goto('/project/upsrtc');
@@ -532,12 +585,20 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     // in a component this work does not touch) would make it fail for a
     // reason it is not testing.
     const errors = collectConsoleErrors(page);
-    await expect(page.getByRole('heading', { name: /Control strategy rehearsal/i })).toBeVisible();
+    // `level: 1` and an exact name, because the page now also carries an h3
+    // "Set up the practice run" and a loose regex matches both. What is being
+    // asserted is the PAGE'S OWN TITLE, so pinning it to the single h1 is both
+    // stricter and closer to the intent.
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Practice run', exact: true }),
+    ).toBeVisible();
 
     // The page renders rather than erroring, and says what it is before any
     // run has happened.
     await expect(page.getByText(/Every bus on this page is invented/i)).toBeVisible();
-    await expect(page.getByText(/nothing here can issue an instruction/i)).toBeVisible();
+    // Strengthened rather than merely renamed: the old copy said "issue an
+    // instruction" and left "to whom?" open. Naming the driver is the point.
+    await expect(page.getByText(/nothing here can send an instruction to a driver/i)).toBeVisible();
 
     // Coverage is stated either way. On a seeded network the picker offers
     // the calibrated corridors; on an unseeded one the page says plainly
@@ -548,25 +609,25 @@ test.describe('UPSRTC AI Operations Copilot', () => {
 
     if (optionCount === 0) {
       await expect(
-        page.getByText(/No corridor in this network has a measured target headway/i),
+        page.getByText(/No corridor in this network has a planned gap set/i),
       ).toBeVisible();
     } else {
-      await expect(page.getByText(/have a measured target headway/i)).toBeVisible();
+      await expect(page.getByText(/have a planned gap set/i)).toBeVisible();
 
       // Run one, and check the two arms are both reported. Both are
       // simulated over the same corridor, conditions and seed, so the
       // comparison a planner reads means something.
-      await page.getByRole('button', { name: /Run the rehearsal/i }).click();
-      await expect(page.getByRole('button', { name: /With control laws/i })).toBeVisible({
+      await page.getByRole('button', { name: /Start the practice run/i }).click();
+      await expect(page.getByRole('button', { name: /With automatic spacing/i })).toBeVisible({
         timeout: 60_000,
       });
-      await expect(page.getByRole('button', { name: /^No control$/i })).toBeVisible();
+      await expect(page.getByRole('button', { name: /^Without$/i })).toBeVisible();
 
       // The provenance manifest is one click away and separates what was
       // measured from what this simulator invented.
       await page.getByRole('tab', { name: /What is real/i }).click();
-      await expect(page.getByText(/inputs come from the seeded network/i)).toBeVisible();
-      await expect(page.getByText(/What this does not rehearse/i)).toBeVisible();
+      await expect(page.getByText(/inputs come from the real seeded network/i)).toBeVisible();
+      await expect(page.getByText(/What this practice run does not cover/i)).toBeVisible();
     }
 
     expect(errors, `Unexpected console errors:\n${errors.join('\n')}`).toEqual([]);

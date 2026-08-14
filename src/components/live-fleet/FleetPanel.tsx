@@ -309,7 +309,7 @@ function SkeletonList() {
       ))}
       <p className="pt-2 text-center font-mono text-[10px] text-holo-glow/40">
         <SignalHigh className="mr-1 inline h-3 w-3" aria-hidden />
-        Acquiring UPSRTC telemetry…
+        Getting live bus positions…
       </p>
     </div>
   );

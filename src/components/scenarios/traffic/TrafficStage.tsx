@@ -60,35 +60,35 @@ export function TrafficStage({ scenario }: { scenario: TrafficScenario }) {
             <AreaChart data={scenario.densityCurve} margin={{ top: 4, right: 4, bottom: 0, left: -22 }}>
               <defs>
                 <linearGradient id="densityFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ff4d5e" stopOpacity={0.55} />
-                  <stop offset="100%" stopColor="#ff4d5e" stopOpacity={0.02} />
+                  <stop offset="0%" stopColor="hsl(var(--instrument-danger))" stopOpacity={0.55} />
+                  <stop offset="100%" stopColor="hsl(var(--instrument-danger))" stopOpacity={0.02} />
                 </linearGradient>
                 <linearGradient id="speedFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3ff0ff" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#3ff0ff" stopOpacity={0.02} />
+                  <stop offset="0%" stopColor="hsl(var(--instrument-info))" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="hsl(var(--instrument-info))" stopOpacity={0.02} />
                 </linearGradient>
               </defs>
               <XAxis
                 dataKey="distanceKm"
-                stroke="#3ff0ff40"
-                tick={{ fontSize: 9, fill: '#3ff0ff70', fontFamily: 'monospace' }}
+                stroke="hsl(var(--instrument-info) / 0.25)"
+                tick={{ fontSize: 9, fill: 'hsl(var(--instrument-info) / 0.44)', fontFamily: 'monospace' }}
                 tickLine={false}
               />
               <YAxis
-                stroke="#3ff0ff40"
-                tick={{ fontSize: 9, fill: '#3ff0ff70', fontFamily: 'monospace' }}
+                stroke="hsl(var(--instrument-info) / 0.25)"
+                tick={{ fontSize: 9, fill: 'hsl(var(--instrument-info) / 0.44)', fontFamily: 'monospace' }}
                 tickLine={false}
                 axisLine={false}
               />
               <Tooltip
                 contentStyle={{
-                  background: 'rgba(6,14,28,0.95)',
-                  border: '1px solid rgba(63,240,255,0.3)',
+                  background: 'hsl(var(--popover) / 0.95)',
+                  border: '1px solid hsl(var(--primary) / 0.3)',
                   borderRadius: 4,
                   fontFamily: 'monospace',
                   fontSize: 10,
                 }}
-                labelStyle={{ color: '#3ff0ff' }}
+                labelStyle={{ color: 'hsl(var(--instrument-info))' }}
                 formatter={(value: number, name: string) => [
                   name === 'densityPercent' ? `${value}%` : `${value} km/h`,
                   name === 'densityPercent' ? 'Density' : 'Speed',
@@ -96,11 +96,11 @@ export function TrafficStage({ scenario }: { scenario: TrafficScenario }) {
               />
               <ReferenceLine
                 x={scenario.distanceToCongestionKm}
-                stroke="#ff4d5e"
+                stroke="hsl(var(--instrument-danger))"
                 strokeDasharray="3 3"
                 label={{
                   value: 'Incident',
-                  fill: '#ff4d5e',
+                  fill: 'hsl(var(--instrument-danger))',
                   fontSize: 9,
                   fontFamily: 'monospace',
                   position: 'top',
@@ -109,14 +109,14 @@ export function TrafficStage({ scenario }: { scenario: TrafficScenario }) {
               <Area
                 type="monotone"
                 dataKey="densityPercent"
-                stroke="#ff4d5e"
+                stroke="hsl(var(--instrument-danger))"
                 strokeWidth={1.6}
                 fill="url(#densityFill)"
               />
               <Area
                 type="monotone"
                 dataKey="speedKmph"
-                stroke="#3ff0ff"
+                stroke="hsl(var(--instrument-info))"
                 strokeWidth={1.6}
                 fill="url(#speedFill)"
               />

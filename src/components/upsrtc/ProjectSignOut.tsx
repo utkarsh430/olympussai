@@ -36,11 +36,11 @@ export function ProjectSignOut() {
           aria-hidden
           className="relative flex h-8 w-8 items-center justify-center"
         >
-          <span className="absolute inset-0 rounded-full border border-[#d6a13a]/45" />
+          <span className="absolute inset-0 rounded-full border border-brand/45" />
           <svg viewBox="0 0 24 24" className="relative h-3.5 w-3.5" fill="none">
             <path
               d="M4 18 L12 6 L20 18"
-              stroke="#f3c86a"
+              stroke="hsl(var(--brand))"
               strokeWidth="1.6"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -48,10 +48,10 @@ export function ProjectSignOut() {
           </svg>
         </span>
         <div className="leading-tight">
-          <div className="font-mono text-[9px] font-semibold uppercase tracking-[0.2em] text-[#e8c477]">
+          <div className="font-mono text-[9px] font-semibold uppercase tracking-[0.2em] text-brand">
             Olympuss AI
           </div>
-          <div className="whitespace-nowrap font-mono text-[8px] uppercase tracking-[0.16em] text-[#d6a13a]/55">
+          <div className="whitespace-nowrap font-mono text-[8px] uppercase tracking-[0.16em] text-brand/55">
             Project Environment
           </div>
         </div>
@@ -62,7 +62,7 @@ export function ProjectSignOut() {
         onClick={handleSignOut}
         disabled={busy}
         data-testid="project-sign-out"
-        className="inline-flex items-center gap-1.5 rounded border border-[#d6a13a]/40 bg-[#d6a13a]/[0.06] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#e8c477] transition-colors hover:border-[#d6a13a]/80 hover:bg-[#d6a13a]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6a13a] disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex items-center gap-1.5 rounded border border-brand/40 bg-brand/[0.06] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-brand transition-colors hover:border-brand/80 hover:bg-brand/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50"
       >
         <LogOut className="h-3.5 w-3.5" aria-hidden />
         {busy ? 'Signing out…' : 'Sign Out'}
