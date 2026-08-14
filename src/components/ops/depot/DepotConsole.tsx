@@ -1,0 +1,269 @@
+'use client';
+
+import { useCallback, useState, type ReactNode } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { OpsShell } from '@/components/ops/OpsShell';
+import { OpsAlert, OpsStack } from '@/components/ops/ui';
+import { OpsFleetMapPanel } from '@/components/ops/map/OpsFleetMapPanel';
+import { KillSwitchBanner } from '@/components/ops/KillSwitchBanner';
+import { DataSourceNotice } from '@/components/ops/DataSourceNotice';
+import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
+import type { OpsFleetSnapshot } from '@/lib/ops/fleetData';
+import type { DepotConsoleSnapshot } from '@/lib/controlService/depotConsoleData';
+import type { OpsMapVehicle } from '@/lib/ops/mapVehicles';
+import type { BunchingIncident } from '@/models/control';
+import type { StandbyCandidate } from '@/lib/ops/fleetView';
+import { depotCorridorLabel, corridorDetection } from '@/lib/ops/depotCorridors';
+import { DepotStatusStrip } from './DepotStatusStrip';
+import { DepotRunningOrderPanel } from './DepotRunningOrderPanel';
+import { DepotBunchingPanel } from './DepotBunchingPanel';
+import { DepotActionsPanel } from './DepotActionsPanel';
+import { DepotStandbyPanel } from './DepotStandbyPanel';
+import { DepotSchedulePanel } from './DepotSchedulePanel';
+// A plain sibling module with no 'use client', because the page above is a
+// Server Component and needs `isDepotTab`. See depotTabs.ts for the 500 that
+// taught this codebase to keep it there.
+import { DEPOT_TAB_LABEL, DEPOT_TAB_ORDER, type DepotTabId } from './depotTabs';
+
+/**
+ * The depot, as one console.
+ *
+ * ─── WHAT THIS REPLACED ──────────────────────────────────────────────────
+ *
+ * A single scrolling column: a roster grouped by depot (in a view that is, by
+ * construction, one depot), a map, a route-operations board defaulting to an
+ * arbitrary statewide corridor, a schedule form, and a placeholder. Every
+ * number in it was real. It read as a report someone generated, not as a
+ * surface an operator watches for eight hours.
+ *
+ * ─── THE SHAPE, AND WHY IT MATCHES THE CONTROL ROOM ──────────────────────
+ *
+ * A permanent map with a tabbed rail beside it, in a shell that does not
+ * scroll. That is deliberately the SAME shape as the control room rather than
+ * a second invention: the two surfaces are the same product, an operator moves
+ * between them, and the design system exists precisely so four dashboards do
+ * not become four looks. What differs is what fills the rail, because a depot
+ * answers a different question — "what has my depot got out, and is any of it
+ * closing up" rather than "what should the network do next".
+ *
+ * The map must never scroll away, for the reason the control room gives: it is
+ * the only surface on which "these two buses have closed up" is a shape rather
+ * than a number.
+ *
+ * ─── CORRIDOR IS A NAVIGATION, NOT CLIENT STATE ──────────────────────────
+ *
+ * The opposite of the control room's choice, and for a concrete reason rather
+ * than inconsistency. There, every reading is refetched by a client poll keyed
+ * on the corridor, so a navigation would be pure cost. Here, the running order
+ * and the headway pairs are taken during the SERVER render — they are scoped
+ * data, and doing that narrowing in the browser is the one thing this page may
+ * not do. So changing corridor has to reach the server, and `router.replace`
+ * with a search parameter is the honest way to say so: it is a soft navigation
+ * that re-runs the server component, keeps the URL shareable and the back
+ * button meaningful, and leaves this component mounted so the map instance and
+ * the operator's camera survive.
+ */
+export interface DepotConsoleProps {
+  email: string;
+  depotLabel: string;
+  fleet: OpsFleetSnapshot;
+  console: DepotConsoleSnapshot;
+  /** Seeded from the page's own scoped read, so the map is populated on first paint. */
+  mapVehicles: OpsMapVehicle[];
+  incidents: BunchingIncident[];
+  /** This depot's vehicles that read as idle on the live feed. Derived server-side from the already-scoped roster. */
+  standby: StandbyCandidate[];
+  activeKillSwitches: KillSwitchRecord[];
+  initialTab: DepotTabId;
+  /**
+   * The roster and the breakdown-report table, rendered on the SERVER and
+   * handed in as nodes. Same reasoning as the control room's fleet panel: a
+   * client component cannot import a server one, but it can render one it was
+   * given, and the roster's rows have no business being re-derived in the
+   * browser on a page whose whole point is a server-side boundary.
+   */
+  rosterPanel: ReactNode;
+  reportsPanel: ReactNode;
+}
+
+export function DepotConsole({
+  email,
+  depotLabel,
+  fleet,
+  console: snapshot,
+  mapVehicles,
+  incidents,
+  standby,
+  activeKillSwitches,
+  initialTab,
+  rosterPanel,
+  reportsPanel,
+}: DepotConsoleProps) {
+  const [tab, setTab] = useState<DepotTabId>(initialTab);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const selectCorridor = useCallback(
+    (routeDirectionId: string) => {
+      const next = new URLSearchParams(searchParams?.toString() ?? '');
+      next.set('routeDirectionId', routeDirectionId);
+      // `replace`, not `push`: flipping between corridors while watching a
+      // depot is browsing, not navigation, and pushing would bury the page an
+      // operator arrived from under a stack of corridor changes.
+      router.replace(`/ops/depot?${next.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  const selected = snapshot.selectedCorridor;
+  const openIncidentCount = incidents.length;
+
+  const badges: Partial<Record<DepotTabId, number>> = {
+    bunching: openIncidentCount,
+  };
+
+  return (
+    <OpsShell
+      title="Depot"
+      email={email}
+      role="depot"
+      variant="full"
+      subtitle={
+        selected
+          ? `${depotLabel} · corridor ${depotCorridorLabel(selected)}`
+          : `${depotLabel} · no mapped corridor in service`
+      }
+      actions={
+        <CorridorPicker snapshot={snapshot} onSelect={selectCorridor} />
+      }
+      statusStrip={<DepotStatusStrip fleet={fleet} console={snapshot} depotLabel={depotLabel} />}
+    >
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:flex-row lg:overflow-hidden">
+        <section
+          aria-label="Depot fleet map"
+          className="flex min-h-[24rem] shrink-0 flex-col lg:min-h-0 lg:min-w-0 lg:flex-1 lg:shrink"
+        >
+          <OpsFleetMapPanel
+            // A real, measured array — never null. Unlike the statewide
+            // console, a depot's fleet is small enough to seed, and it was
+            // already narrowed server-side, so the count in the caption is a
+            // measurement from the moment the page paints.
+            vehicles={mapVehicles}
+            incidents={incidents}
+            scopeLabel={depotLabel}
+            routeDirectionId={selected?.routeDirectionId}
+            live
+            fill
+            minHeight="24rem"
+          />
+        </section>
+
+        <aside
+          aria-label="Depot controls"
+          className="flex min-h-0 w-full flex-col lg:w-[30rem] lg:shrink-0 xl:w-[34rem]"
+        >
+          <nav aria-label="Depot console sections" className="shrink-0">
+            <ul className="flex flex-wrap gap-1 border-b border-ops-line pb-2">
+              {DEPOT_TAB_ORDER.map((id) => {
+                const isCurrent = id === tab;
+                const badge = badges[id];
+                return (
+                  <li key={id}>
+                    <button
+                      type="button"
+                      aria-current={isCurrent ? 'true' : undefined}
+                      data-testid={`depot-tab-${id}`}
+                      onClick={() => setTab(id)}
+                      className={`ops-nav-link rounded px-2 py-1.5 text-[10px] tracking-[0.1em] ${
+                        isCurrent ? 'ops-nav-link-active' : ''
+                      }`}
+                    >
+                      {DEPOT_TAB_LABEL[id]}
+                      {badge !== undefined && badge > 0 && (
+                        <span className="ml-1.5 rounded bg-alert-crimson/20 px-1.5 py-0.5 font-mono text-[10px] text-ops-danger">
+                          {badge}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+
+          <div className="min-h-0 flex-1 overflow-y-auto pt-4 lg:pr-1">
+            <OpsStack gap="tight">
+              <DataSourceNotice source={fleet.source} stale={fleet.stale} error={fleet.error} />
+              <KillSwitchBanner
+                activeKillSwitches={activeKillSwitches}
+                routeDirectionId={selected?.routeDirectionId ?? null}
+              />
+              {snapshot.source === 'unavailable' && (
+                <OpsAlert tone="warning">
+                  The control service could not be read
+                  {snapshot.error ? ` (${snapshot.error})` : ''}. Corridor readings below are the last ones taken, or
+                  absent — they are not a statement that this depot has nothing running.
+                </OpsAlert>
+              )}
+
+              {tab === 'running' && <DepotRunningOrderPanel snapshot={snapshot} />}
+              {tab === 'bunching' && (
+                <DepotBunchingPanel snapshot={snapshot} incidents={incidents} depotLabel={depotLabel} />
+              )}
+              {tab === 'schedule' && <DepotSchedulePanel />}
+              {tab === 'standby' && (
+                <>
+                  <DepotStandbyPanel standby={standby} depotLabel={depotLabel} />
+                  <DepotActionsPanel />
+                </>
+              )}
+              {tab === 'roster' && rosterPanel}
+              {tab === 'reports' && reportsPanel}
+            </OpsStack>
+          </div>
+        </aside>
+      </div>
+    </OpsShell>
+  );
+}
+
+/**
+ * The corridor selector, offering only the corridors this depot is running.
+ *
+ * Marked BEFORE the choice, not after — the same decision the control room's
+ * picker made and for the same reason: a corridor with no measured target
+ * headway can be watched and will report nothing, and a picker that offers it
+ * indistinguishably spends the operator's click before explaining that. Here
+ * the marking matters more, because on many depots EVERY option carries it.
+ */
+function CorridorPicker({
+  snapshot,
+  onSelect,
+}: {
+  snapshot: DepotConsoleSnapshot;
+  onSelect: (routeDirectionId: string) => void;
+}) {
+  if (snapshot.corridors.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-2">
+      <label htmlFor="depot-corridor" className="ops-eyebrow">
+        Corridor
+      </label>
+      <select
+        id="depot-corridor"
+        className="ops-input max-w-[18rem] py-1 text-xs"
+        value={snapshot.selectedCorridor?.routeDirectionId ?? ''}
+        onChange={(event) => onSelect(event.target.value)}
+      >
+        {snapshot.corridors.map((corridor) => (
+          <option key={corridor.routeDirectionId} value={corridor.routeDirectionId}>
+            {depotCorridorLabel(corridor)} · {corridor.depotVehicleCount}{' '}
+            {corridor.depotVehicleCount === 1 ? 'bus' : 'buses'}
+            {corridorDetection(corridor) === 'observation-only' ? ' — no detection' : ''}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}

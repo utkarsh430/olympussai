@@ -11,7 +11,6 @@ import { ObservabilityDashboard } from '@/components/ops/control-room/Observabil
 import type { ObservabilitySnapshot } from '@/lib/controlService/observabilityData';
 import type { RouteOperationsBoardSnapshot } from '@/lib/controlService/routeBoardData';
 import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
-import { DepotDashboard } from '@/components/ops/depot/DepotDashboard';
 import { PlannerDashboard } from '@/components/ops/planner/PlannerDashboard';
 import { DriverDashboard } from '@/components/ops/driver/DriverDashboard';
 import { ScheduleLookupForm } from '@/components/ops/ScheduleLookupForm';
@@ -313,60 +312,8 @@ describe('ObservabilityDashboard', () => {
   });
 });
 
-describe('DepotDashboard', () => {
-  const BAREILLY_SCOPE = { kind: 'depot', depotCode: 'BAREILLY', depotName: 'Bareilly' } as const;
-
-  it('renders the vehicle roster for the scoped depot plus a schedule lookup', () => {
-    // Already scoped by the page — this component does no filtering of its
-    // own (see its doc comment for why a second filter here would be a
-    // liability rather than defence in depth).
-    const buses = [bus({ id: 'a', depotName: 'Bareilly' }), bus({ id: 'b', registrationNumber: 'UP32AB1234', depotName: 'Bareilly' })];
-    render(
-      <DepotDashboard
-        snapshot={snapshot({ buses })}
-        routeBoard={routeBoardSnapshot()}
-        activeKillSwitches={NO_ACTIVE_KILL_SWITCHES}
-        scope={BAREILLY_SCOPE}
-      />,
-    );
-    expect(screen.getByText(/Vehicle roster · Bareilly/)).toBeInTheDocument();
-    expect(screen.getAllByText(/Bareilly/).length).toBeGreaterThan(0);
-    expect(screen.getByRole('heading', { name: /vehicle schedule lookup/i })).toBeInTheDocument();
-  });
-
-  it('names the depot rather than "all depots" on the route operations board', () => {
-    render(
-      <DepotDashboard
-        snapshot={snapshot({ buses: [bus({ id: 'a', depotName: 'Bareilly' })] })}
-        routeBoard={routeBoardSnapshot()}
-        activeKillSwitches={NO_ACTIVE_KILL_SWITCHES}
-        scope={BAREILLY_SCOPE}
-      />,
-    );
-    // The old dashboard hardcoded depotLabel="all depots", which was an
-    // accurate description of an unscoped view and would now be a lie.
-    expect(screen.queryByText(/all depots/i)).not.toBeInTheDocument();
-  });
-
-  // The map counts what it draws from the list it was handed, which the page
-  // narrowed server-side. If a statewide list ever reached this component the
-  // caption would say so out loud, which is the point of captioning a count
-  // rather than a boundary name alone.
-  it('puts the scoped fleet on a map captioned with the depot and its own count', () => {
-    const buses = [bus({ id: 'a', depotName: 'Bareilly' }), bus({ id: 'b', registrationNumber: 'UP32AB1234', depotName: 'Bareilly' })];
-    render(
-      <DepotDashboard
-        snapshot={snapshot({ buses })}
-        routeBoard={routeBoardSnapshot()}
-        activeKillSwitches={NO_ACTIVE_KILL_SWITCHES}
-        scope={BAREILLY_SCOPE}
-      />,
-    );
-    expect(screen.getByRole('heading', { name: /live map · bareilly/i })).toBeInTheDocument();
-    expect(screen.getByText('Bareilly · 2 vehicles')).toBeInTheDocument();
-  });
-});
-
+// The depot dashboard was rebuilt as a console and has its own suite:
+// src/tests/unit/depotConsole.test.tsx.
 describe('PlannerDashboard', () => {
   it('renders a roster grouped by route plus a schedule lookup', () => {
     const buses = [bus({ id: 'a', routeId: 'RT-1', routeName: 'Route One' }), bus({ id: 'b', registrationNumber: 'UP32AB1234', routeId: 'RT-2', routeName: 'Route Two' })];
