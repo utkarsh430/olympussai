@@ -29,6 +29,13 @@ export function RouteDirectionPicker({
             <option key={rd.routeDirectionId} value={rd.routeDirectionId}>
               {rd.routeId} · {rd.directionCode}
               {rd.isLoop ? ' (loop)' : ''}
+              {/* Same marker as the console's picker, for the same reason:
+                  geometry is what puts a corridor in this list, a policy is
+                  what lets it report, and without the marker the two are
+                  indistinguishable until after the navigation. `undefined`
+                  means the control service does not report policy state, which
+                  is not "no policy", so it stays unmarked. */}
+              {rd.hasActivePolicy === false ? ' — no detection' : ''}
             </option>
           ))}
         </select>

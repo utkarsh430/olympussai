@@ -218,3 +218,104 @@ describe('GET /api/ops/control-room/overview — corridor selection', () => {
     expect(body.headway).toBeNull();
   });
 });
+
+/**
+ * Coverage counting, at the layer where the corridor list's provenance is
+ * still known.
+ *
+ * The numbers themselves are the easy part. What these hold is that they are
+ * COUNTED, never assumed: a list the console did not read this cycle produces
+ * no coverage figure at all, and a control service that does not report policy
+ * state produces an explicit unknown rather than a zero. Both failures would
+ * be invisible on screen — a wrong coverage number looks exactly like a right
+ * one — so they are pinned here rather than left to the renderer.
+ */
+describe('GET /api/ops/control-room/overview — corridor coverage is counted, not assumed', () => {
+  function corridor(id: string, hasActivePolicy?: boolean) {
+    return {
+      routeDirectionId: id,
+      routeId: `R-${id}`,
+      directionCode: 'up',
+      isLoop: false,
+      totalDistanceMeters: 1000,
+      ...(hasActivePolicy === undefined ? {} : { hasActivePolicy }),
+    };
+  }
+
+  async function coverageOf(patch: Record<string, unknown>) {
+    getObservabilitySnapshot.mockResolvedValue(healthyObservability(patch));
+    const body = (await (await callGet()).json()) as {
+      corridors: { ok: boolean; mapped: number; detecting: number | null };
+    };
+    return body.corridors;
+  }
+
+  it('counts the corridors it was given, whatever that number happens to be', async () => {
+    // The point of two different lists in one test: nothing in the pipeline is
+    // allowed to hold a constant. The seeder maps more of the network over
+    // time, and the readout has to follow it without a code change.
+    expect(
+      await coverageOf({
+        routeDirections: [corridor('a', true), corridor('b', false), corridor('c', false)],
+        selectedRouteDirectionId: 'a',
+      }),
+    ).toEqual({ ok: true, mapped: 3, detecting: 1 });
+
+    expect(
+      await coverageOf({
+        routeDirections: [corridor('a', true), corridor('b', true)],
+        selectedRouteDirectionId: 'a',
+      }),
+    ).toEqual({ ok: true, mapped: 2, detecting: 2 });
+  });
+
+  it('reports coverage as unreadable — not as zero — when the corridor list is a stale copy', async () => {
+    // THE DEFECT THIS PREVENTS: an unreachable control service leaves a cached
+    // list behind, and counting it would report last week's coverage as
+    // today's. `ok: false` is what makes the tile print n/a instead.
+    const coverage = await coverageOf({
+      source: 'unavailable',
+      stale: true,
+      error: 'timed out',
+      routeDirections: [corridor('a', true)],
+    });
+    expect(coverage.ok).toBe(false);
+  });
+
+  it('still counts coverage when the SELECTED corridor has no policy, because the list itself was read', async () => {
+    // `no_active_policy` fails the per-corridor read after the list has already
+    // arrived, and the snapshot deliberately keeps that fresh list. Treating
+    // this as unreadable would blank a coverage figure the console genuinely
+    // has — and it is the DEFAULT view, so it would be blank most of the time.
+    const coverage = await coverageOf({
+      source: 'unavailable',
+      stale: true,
+      error: 'no active policy',
+      errorCode: 'no_active_policy',
+      routeDirections: [corridor('a', false), corridor('b', true)],
+      headway: null,
+    });
+    expect(coverage).toEqual({ ok: true, mapped: 2, detecting: 1 });
+  });
+
+  it('reports detection as UNKNOWN, never zero, when the control service omits the flag', async () => {
+    // An older control service simply does not send `hasActivePolicy`. Reading
+    // that absence as `false` would report "0 of 47 corridors can detect" at a
+    // network that may be fully policied — a fabricated number dressed as a
+    // measurement, which is the exact failure this strip exists to prevent.
+    const coverage = await coverageOf({
+      routeDirections: [corridor('a'), corridor('b')],
+      selectedRouteDirectionId: 'a',
+    });
+    expect(coverage).toEqual({ ok: true, mapped: 2, detecting: null });
+  });
+
+  it('reports no corridors as a counted zero when the service genuinely lists none', async () => {
+    const coverage = await coverageOf({
+      routeDirections: [],
+      selectedRouteDirectionId: null,
+      headway: null,
+    });
+    expect(coverage).toEqual({ ok: true, mapped: 0, detecting: 0 });
+  });
+});

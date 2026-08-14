@@ -265,6 +265,46 @@ export function OpsStatStrip({
   );
 }
 
+/**
+ * A named cluster of stats inside an `OpsStatStrip`, captioned with what its
+ * numbers are ABOUT.
+ *
+ * A strip that mixes populations needs this. The control room's band puts a
+ * statewide vehicle count beside six readings from a single corridor, and
+ * unlabelled they read as one set of facts about one thing — which overstates
+ * what the console can see. The caption is the cheapest possible fix and it
+ * costs no vertical space beyond one line of eyebrow text.
+ *
+ * The caption sits ABOVE its stats rather than beside them on purpose. Beside
+ * was tried and is worse: a left-hand caption column has to be given a width,
+ * every group then has to agree on that width to stay aligned, and the first
+ * group to wrap breaks the agreement. Above, each group is an independent
+ * block that wraps on its own without disturbing its neighbour — the same
+ * reasoning that removed the hairline dividers from `OpsStatStrip`.
+ */
+export function OpsStatGroup({
+  label,
+  children,
+  className,
+}: {
+  label: ReactNode;
+  children?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn('min-w-0', className)}>
+      {/* Deliberately not `.ops-eyebrow`: that is the caption over a single
+          number, and reusing it here would give a group the same visual weight
+          as the stats it contains. This is one step quieter and wider-tracked,
+          so the eye reads group-then-stats rather than a row of equals. */}
+      <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.34em] text-ops-faint/80">
+        {label}
+      </div>
+      <div className="flex flex-wrap items-start gap-x-8 gap-y-3">{children}</div>
+    </div>
+  );
+}
+
 /** Small key/value pair for a panel body. */
 export function OpsReadout({
   label,

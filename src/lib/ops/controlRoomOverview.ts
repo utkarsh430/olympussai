@@ -73,6 +73,7 @@ export async function getControlRoomOverview(
     fetchedAt: new Date(now).toISOString(),
     routeDirections: observability.routeDirections,
     selectedRouteDirectionId: observability.selectedRouteDirectionId,
+    corridors: corridorCoverageFrom(observability),
     fleet: {
       reporting: fleet.buses.length,
       source: fleet.source,
@@ -131,6 +132,63 @@ export async function getControlRoomOverview(
  */
 function noActivePolicyFrom(observability: { source: string; errorCode: string | null }): boolean {
   return observability.source === 'unavailable' && observability.errorCode === 'no_active_policy';
+}
+
+/**
+ * How much of the network this console can actually see, counted from the
+ * corridor list it was just handed.
+ *
+ * ─── WHY THERE IS NO DENOMINATOR HERE ────────────────────────────────────
+ *
+ * The obvious "N of M corridors" needs an M, and the control database does not
+ * have one. `route_directions` holds what the seeder has harvested so far, not
+ * what UPSRTC runs: at the time of writing every one of its 47 real
+ * route-directions also had geometry, so a ratio drawn from that table would
+ * have printed a confident "47 of 47" — a claim of total coverage, on a
+ * network the same repository documents as roughly 650 route-directions
+ * (docs/LOCAL_DEV_SETUP.md). That is worse than the unlabelled number it
+ * replaced, and it is worse precisely because it looks measured.
+ *
+ * The live vehicle feed was the other candidate, since it is the one runtime
+ * source that sees the whole state, and it was rejected on evidence rather
+ * than on taste. Its route ids are drawn from the same UPSRTC namespace as
+ * `routes.id`, so a cross-source ratio looks reasonable — but measured against
+ * a real feed snapshot, none of the 45 seeded route ids appeared among the 934
+ * the feed was reporting at that moment, and only 1,449 of its 9,189 vehicles
+ * carried a route at all (zero of them overnight, per the same doc). A ratio
+ * built on that would have rendered "0 of 934", inventing a second, louder
+ * falsehood in the name of fixing the first.
+ *
+ * So the honest report is the two numbers that ARE measured — corridors with
+ * geometry, and the subset of those that can detect — plus a caption saying in
+ * words that the network total is not known here. See `coverageNoticeFor` in
+ * src/lib/ops/controlRoomOverviewModel.ts.
+ */
+function corridorCoverageFrom(observability: {
+  source: string;
+  errorCode: string | null;
+  routeDirections: { hasActivePolicy?: boolean }[];
+}): ControlRoomOverview['corridors'] {
+  // The corridor list is trustworthy when THIS cycle fetched it. A
+  // `no_active_policy` snapshot is included deliberately: that path fetches
+  // the list successfully and only then fails the per-corridor read, and it
+  // keeps the fresh list rather than a cached one. Anything else is a stale
+  // copy or an empty fallback, and counting either would report coverage the
+  // console did not observe.
+  const ok = observability.source === 'live' || noActivePolicyFrom(observability);
+  const mapped = observability.routeDirections.length;
+
+  // `undefined` is a control service that predates the flag, NOT a corridor
+  // without a policy. Counting it as false would report detection coverage of
+  // zero against a network that may be fully policied — so it collapses to
+  // "not reported" and the tile says so instead of printing a number.
+  const reportsPolicy = observability.routeDirections.some((rd) => rd.hasActivePolicy !== undefined);
+
+  return {
+    ok,
+    mapped,
+    detecting: mapped === 0 ? 0 : reportsPolicy ? observability.routeDirections.filter((rd) => rd.hasActivePolicy === true).length : null,
+  };
 }
 
 /**

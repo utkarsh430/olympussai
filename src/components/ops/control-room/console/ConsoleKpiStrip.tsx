@@ -1,8 +1,26 @@
 'use client';
 
-import { OpsBadge, OpsStat, OpsStatStrip } from '@/components/ops/ui';
+import { OpsBadge, OpsStat, OpsStatGroup, OpsStatStrip } from '@/components/ops/ui';
 import { isObserved, readingDisplay } from '@/lib/ops/consoleReadings';
-import type { ConsoleKpiModel } from '@/lib/ops/controlRoomOverviewModel';
+import type { ConsoleKpiModel, ConsoleKpiScope, ConsoleKpiTile } from '@/lib/ops/controlRoomOverviewModel';
+
+/**
+ * What each scope is called on screen.
+ *
+ * "Statewide" and "Selected corridor" rather than "network" and "corridor":
+ * the point of the caption is to make the two populations obviously different
+ * sizes at a glance, and "statewide" is the word that does that work. The
+ * corridor caption says "selected" because which corridor it is lives in the
+ * shell's subtitle and the picker, and repeating the id here would be a third
+ * copy to keep in step.
+ */
+const SCOPE_LABEL: Record<ConsoleKpiScope, string> = {
+  network: 'Statewide',
+  corridor: 'Selected corridor',
+};
+
+/** Scope order on the strip. Statewide first: it is the context the corridor readings sit inside. */
+const SCOPE_ORDER: ConsoleKpiScope[] = ['network', 'corridor'];
 
 /**
  * The band of numbers pinned under the console chrome.
@@ -32,18 +50,15 @@ export function ConsoleKpiStrip({
   return (
     <div>
       <OpsStatStrip>
-        {model.tiles.map((tile) => {
-          const observedValue = isObserved(tile.reading);
+        {SCOPE_ORDER.map((scope) => {
+          const tiles = model.tiles.filter((tile) => tile.scope === scope);
+          if (tiles.length === 0) return null;
           return (
-            <OpsStat
-              key={tile.label}
-              label={tile.label}
-              value={readingDisplay(tile.reading, tile.format)}
-              unit={observedValue ? tile.unit : undefined}
-              hint={tile.reading.detail}
-              tone={observedValue ? (tile.tone ?? 'default') : 'default'}
-              className={observedValue ? undefined : 'opacity-70'}
-            />
+            <OpsStatGroup key={scope} label={SCOPE_LABEL[scope]}>
+              {tiles.map((tile) => (
+                <ConsoleKpiTileView key={tile.label} tile={tile} />
+              ))}
+            </OpsStatGroup>
           );
         })}
 
@@ -91,6 +106,35 @@ export function ConsoleKpiStrip({
           to <span className="font-mono">n/a</span>, which means unknown.
         </p>
       )}
+
+      {/* Deliberately NOT a live region, and the faintest line on the strip.
+          This is true of a perfectly healthy console and is present on every
+          shift, so it is context to read once — not a status that should
+          announce itself to a screen reader every time the band re-renders.
+          The two notices above are events; this one is a standing condition. */}
+      {model.coverageNotice !== null && (
+        <p className="border-t border-ops-line px-6 py-2 text-[11px] leading-relaxed text-ops-faint">
+          {model.coverageNotice}
+        </p>
+      )}
     </div>
+  );
+}
+
+/**
+ * One tile. Unchanged in behaviour from when the strip mapped tiles inline —
+ * extracted only so the scope groups above stay readable.
+ */
+function ConsoleKpiTileView({ tile }: { tile: ConsoleKpiTile }) {
+  const observedValue = isObserved(tile.reading);
+  return (
+    <OpsStat
+      label={tile.label}
+      value={readingDisplay(tile.reading, tile.format)}
+      unit={observedValue ? tile.unit : undefined}
+      hint={tile.reading.detail}
+      tone={observedValue ? (tile.tone ?? 'default') : 'default'}
+      className={observedValue ? undefined : 'opacity-70'}
+    />
   );
 }

@@ -397,6 +397,17 @@ function CorridorPicker({
           <option key={rd.routeDirectionId} value={rd.routeDirectionId}>
             {rd.routeId} · {rd.directionCode}
             {rd.isLoop ? ' (loop)' : ''}
+            {/* Marked BEFORE it is chosen, not after. Every corridor in this
+                list has geometry, which is what put it here, but only some
+                have an active headway policy — and picking one of the others
+                blanks six of the seven tiles and prints an explanation. That
+                explanation is correct and it arrives too late: the operator
+                has already spent the click, and a picker that offers
+                indistinguishable options where a third of them can say
+                nothing is its own small dishonesty. `undefined` means the
+                control service does not report policy state, which is not the
+                same as "no policy" and so is left unmarked. */}
+            {rd.hasActivePolicy === false ? ' — no detection' : ''}
           </option>
         ))}
       </select>

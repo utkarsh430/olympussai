@@ -262,7 +262,14 @@ describe('headway routes', () => {
 
     it('returns active route-directions', async () => {
       const routeDirections = [
-        { routeDirectionId: 'rd-1', routeId: 'route-1', directionCode: 'UP', isLoop: false, totalDistanceMeters: 2000 },
+        {
+          routeDirectionId: 'rd-1',
+          routeId: 'route-1',
+          directionCode: 'UP',
+          isLoop: false,
+          totalDistanceMeters: 2000,
+          hasActivePolicy: true,
+        },
       ];
       vi.mocked(listActiveRouteDirections).mockResolvedValueOnce(routeDirections);
 
@@ -271,6 +278,28 @@ describe('headway routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.routeDirections).toEqual(routeDirections);
+    });
+
+    // The picker's own honesty depends on this reaching the wire: a corridor
+    // with geometry but no policy is offered like any other and then shows
+    // nothing. If the flag is dropped in serialization the marker silently
+    // disappears and the list goes back to looking uniform.
+    it('carries hasActivePolicy through to the response for corridors that cannot detect', async () => {
+      vi.mocked(listActiveRouteDirections).mockResolvedValueOnce([
+        {
+          routeDirectionId: 'rd-shaped-only',
+          routeId: 'route-2',
+          directionCode: 'DOWN',
+          isLoop: false,
+          totalDistanceMeters: 3000,
+          hasActivePolicy: false,
+        },
+      ]);
+
+      const res = await request(createApp()).get('/v1/route-directions').set('Authorization', AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(res.body.routeDirections[0].hasActivePolicy).toBe(false);
     });
   });
 });

@@ -18,6 +18,7 @@ import type { Pool } from "pg";
 import { getPool } from "../db/pool.js";
 import type {
   BunchingSeverity,
+  RouteDirectionListing,
   RouteDirectionMeta,
   RoutePolicyForHeadway,
   VehicleForHeadway,
@@ -512,21 +513,58 @@ export async function getIncidentById(
   };
 }
 
+/**
+ * Route ids created by the end-to-end fixtures, which are not corridors.
+ *
+ * `tests/e2e/fixtures/controlServiceFixtures.ts#seedGatedRouteDirection`
+ * inserts a `qa-e2e-route-<uuid8>` route per run so a command has a
+ * rollout-gated route-direction to name, and nothing deletes them: a
+ * long-lived database accumulates them (17 were sitting in the local control
+ * database when this was written). They have never reached this list, because
+ * they carry no `route_shapes` row and the join below is an inner one — but
+ * that is an accident of the fixture, not a property anyone maintains, and it
+ * is the only thing that has been keeping test scaffolding out of an
+ * operator's corridor picker and out of every coverage count derived from it.
+ *
+ * Excluded explicitly so the guarantee survives a fixture that one day seeds
+ * geometry too.
+ */
+const E2E_FIXTURE_ROUTE_PREFIX = 'qa-e2e-route-%';
+
 export async function listActiveRouteDirections(
   pool: Pool = getPool()
-): Promise<RouteDirectionMeta[]> {
+): Promise<RouteDirectionListing[]> {
   const { rows } = await pool.query<{
     route_direction_id: string;
     route_id: string;
     direction_code: string;
     is_loop: boolean;
     total_distance_meters: string;
+    has_active_policy: boolean;
   }>(
-    `select rd.id as route_direction_id, rd.route_id, rd.direction_code, rd.is_loop, rs.total_distance_meters
+    // `has_active_policy` uses the SAME predicate as loadActiveRoutePolicy
+    // above, deliberately: this flag's whole job is to answer, ahead of time,
+    // whether GET /v1/route-directions/:id/headway will return a reading or
+    // the 404 `no_active_policy` that means detection is off for that
+    // corridor. If the two ever disagree, the picker starts promising
+    // readings the headway endpoint then refuses to give — so they are
+    // written to be greppable together. `calibration_source <> 'none'` is the
+    // load-bearing half; a policy row exists for corridors whose timetable
+    // produced no usable target, and it is not a policy that detects anything.
+    `select rd.id as route_direction_id, rd.route_id, rd.direction_code, rd.is_loop,
+            rs.total_distance_meters,
+            exists (
+              select 1 from route_policies p
+               where p.route_direction_id = rd.id
+                 and p.effective_to is null
+                 and p.calibration_source <> 'none'
+            ) as has_active_policy
        from route_directions rd
        join route_shapes rs on rs.route_direction_id = rd.id
       where rd.is_active = true
-      order by rd.route_id, rd.direction_code`
+        and rd.route_id not like $1
+      order by rd.route_id, rd.direction_code`,
+    [E2E_FIXTURE_ROUTE_PREFIX]
   );
   return rows.map((row) => ({
     routeDirectionId: row.route_direction_id,
@@ -534,5 +572,6 @@ export async function listActiveRouteDirections(
     directionCode: row.direction_code,
     isLoop: row.is_loop,
     totalDistanceMeters: Number(row.total_distance_meters),
+    hasActivePolicy: row.has_active_policy,
   }));
 }

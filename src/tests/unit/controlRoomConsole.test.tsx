@@ -54,6 +54,7 @@ function overview(patch: Partial<ControlRoomOverview> = {}): ControlRoomOverview
       { routeDirectionId: CORRIDOR, routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000 },
     ],
     selectedRouteDirectionId: CORRIDOR,
+    corridors: { ok: true, mapped: 1, detecting: 1 },
     fleet: { reporting: 9170, source: 'live', stale: false, error: null },
     observability: { ok: true, stale: false, error: null, noActivePolicy: false },
     headway: {
@@ -296,6 +297,48 @@ describe('control-room console — the status band', () => {
     await waitFor(() => expect(screen.getAllByText('n/a').length).toBeGreaterThan(0));
     expectText(/tiles marked/i);
     expect(screen.queryByText(/this corridor is clear/i)).not.toBeInTheDocument();
+  });
+
+  // THE DEFECT: the strip put a statewide vehicle count beside six readings
+  // from one corridor with nothing separating them, so it read as a report on
+  // the whole network. These assert the separation survives to the DOM — the
+  // model can scope tiles perfectly and still be rendered as one flat row.
+  it('groups the tiles by what they are about, so no number is scope-ambiguous', async () => {
+    stubFetch({});
+    renderConsole();
+    expect(await screen.findByText('Statewide')).toBeInTheDocument();
+    expect(screen.getByText('Selected corridor')).toBeInTheDocument();
+  });
+
+  it('shows how much of the network it can see, and says the total is not known', async () => {
+    const partial = overview({ corridors: { ok: true, mapped: 47, detecting: 14 } });
+    stubFetch({ overview: partial });
+    renderConsole({ initialOverview: partial });
+
+    expect(await screen.findByText('14')).toBeInTheDocument();
+    expect(screen.getByText('of 47 mapped')).toBeInTheDocument();
+    expectText(/the size of the full network is not known here/i);
+  });
+
+  it('marks a corridor that cannot detect before it is chosen, not after', async () => {
+    // A picker whose options all look alike, where a third of them blank the
+    // strip when selected, spends the operator's click to tell them something
+    // it already knew.
+    const mixed = overview({
+      routeDirections: [
+        { routeDirectionId: CORRIDOR, routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000, hasActivePolicy: true },
+        { routeDirectionId: 'dir-2', routeId: 'R2', directionCode: 'down', isLoop: false, totalDistanceMeters: 9000, hasActivePolicy: false },
+      ],
+      corridors: { ok: true, mapped: 2, detecting: 1 },
+    });
+    stubFetch({ overview: mixed });
+    renderConsole({ initialOverview: mixed });
+
+    const options = await screen.findAllByRole('option');
+    const labels = options.map((option) => option.textContent ?? '');
+    expect(labels.some((label) => label.includes('R2') && label.includes('no detection'))).toBe(true);
+    // And the corridor that CAN detect carries no marker at all.
+    expect(labels.some((label) => label.includes('R1') && !label.includes('no detection'))).toBe(true);
   });
 
   it('warns that commands are halted when a kill switch is engaged', async () => {

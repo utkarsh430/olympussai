@@ -224,6 +224,23 @@ export const routeDirectionMetaSchema = z.object({
   directionCode: z.string(),
   isLoop: z.boolean(),
   totalDistanceMeters: z.number(),
+  /**
+   * Whether the control service reports an active headway policy for this
+   * corridor — i.e. whether bunching detection runs on it, or whether asking
+   * for its headway will answer 404 `no_active_policy`.
+   *
+   * OPTIONAL ON PURPOSE, and it must stay optional. A control service that
+   * predates the field simply omits it, and a required field would make
+   * `routeDirectionsResponseSchema.parse` throw — which
+   * `getObservabilitySnapshot` catches as `source: 'unavailable'`, so the
+   * console would report an OUTAGE at a service that had just answered
+   * correctly. That is the exact fabrication
+   * src/lib/ops/controlRoomOverviewModel.ts exists to prevent, and it would
+   * have been introduced by the very change meant to make the console more
+   * honest. `undefined` therefore means "this service does not say", which the
+   * coverage reading renders as unknown rather than as a number.
+   */
+  hasActivePolicy: z.boolean().optional(),
 });
 export type RouteDirectionMeta = z.infer<typeof routeDirectionMetaSchema>;
 

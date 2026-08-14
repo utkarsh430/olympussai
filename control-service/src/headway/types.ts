@@ -23,6 +23,32 @@ export interface RouteDirectionMeta {
   totalDistanceMeters: number;
 }
 
+/**
+ * A route-direction as it appears in the corridor list a dashboard picks from.
+ *
+ * Separate from `RouteDirectionMeta` on purpose. The extra field answers a
+ * question only a LIST has — "which of these can tell me anything?" — and the
+ * headway compute path, which loads one route-direction's geometry and then
+ * loads its policy properly a line later, has no use for a second, weaker
+ * answer to a question it is already asking. Keeping it out of the shared
+ * shape means the two can never drift into disagreeing about the same
+ * corridor.
+ */
+export interface RouteDirectionListing extends RouteDirectionMeta {
+  /**
+   * Whether this corridor has an active headway policy, and therefore whether
+   * bunching detection runs on it at all.
+   *
+   * Geometry is what puts a corridor in the list; a policy is what lets it
+   * report. The two are far apart in practice — 47 shaped corridors against 14
+   * policied ones when this was added — so a list carrying only the former
+   * offered an operator corridors that can never show them a reading. See
+   * `listActiveRouteDirections` for the predicate, which is deliberately the
+   * same one `loadActiveRoutePolicy` uses.
+   */
+  hasActivePolicy: boolean;
+}
+
 export interface RoutePolicyForHeadway {
   routeDirectionId: string;
   targetHeadwaySeconds: number;

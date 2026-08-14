@@ -40,6 +40,7 @@ function overview(patch: Partial<ControlRoomOverview> = {}): ControlRoomOverview
       { routeDirectionId: 'dir-1', routeId: 'R1', directionCode: 'up', isLoop: false, totalDistanceMeters: 18000 },
     ],
     selectedRouteDirectionId: 'dir-1',
+    corridors: { ok: true, mapped: 1, detecting: 1 },
     fleet: { reporting: 9170, source: 'live', stale: false, error: null },
     observability: { ok: true, stale: false, error: null, noActivePolicy: false },
     headway: {
@@ -332,6 +333,137 @@ describe('console status band — a zero is only ever a measured zero', () => {
     const model = buildConsoleKpi(overview({ killSwitches: { ok: true, active: [network] } }));
     expect(model.killSwitchNotice?.engaged).toBe(true);
     expect(model.killSwitchNotice?.detail).toContain('depot-wide comms failure');
+  });
+});
+
+/**
+ * Scope labelling, and the coverage pair that keeps the statewide half honest.
+ *
+ * THE DEFECT: six of the seven tiles described one corridor and the seventh
+ * was a statewide vehicle count, with nothing on the strip distinguishing
+ * them. Read together — 9,190 vehicles beside a corridor's headway — they said
+ * "the whole network is monitored", on a console that could see 47 corridors
+ * of a network the repository documents as roughly 650, and could detect on
+ * only 14 of those. Every number was true and the impression was not.
+ *
+ * The fix is a scope on every tile plus a counted coverage pair, so these
+ * tests care about two things: that no tile is scope-ambiguous, and that the
+ * coverage figures are derived from the corridor list rather than stated.
+ */
+describe('console status band — scope is never ambiguous', () => {
+  it('gives every tile a scope', () => {
+    // An unscoped tile is the original defect returning by the back door: it
+    // would render in whichever group happened to be first and quietly acquire
+    // that group's meaning.
+    const model = buildConsoleKpi(overview());
+    for (const entry of model.tiles) {
+      expect(entry.scope, `tile ${entry.label} has no scope`).toMatch(/^(network|corridor)$/);
+    }
+  });
+
+  it('scopes the statewide vehicle count and the coverage pair apart from the corridor readings', () => {
+    const model = buildConsoleKpi(overview());
+    const scoped = (scope: string) => model.tiles.filter((entry) => entry.scope === scope).map((entry) => entry.label);
+
+    expect(scoped('network')).toEqual(['Vehicles reporting', 'Corridor coverage']);
+    // The six that describe one corridor. Named explicitly rather than counted:
+    // a tile silently moving between groups is exactly the regression that
+    // would restore the misleading reading.
+    expect(scoped('corridor')).toEqual([
+      'Mean headway',
+      'Headway CV',
+      'Excess wait',
+      'Open incidents',
+      'Recovery rate',
+      'Guardrail breaches',
+    ]);
+  });
+
+  it('says the vehicle count covers every depot, not every corridor', () => {
+    // The count is of buses reporting GPS anywhere in the state, and it has no
+    // relationship at all to the corridors below it.
+    expect(tile(buildConsoleKpi(overview()), 'Vehicles reporting').reading.detail).toBe('every depot, live feed');
+  });
+});
+
+describe('console status band — corridor coverage is derived, and never a network total', () => {
+  const coverage = (patch: Partial<ControlRoomOverview['corridors']>) =>
+    buildConsoleKpi(overview({ corridors: { ok: true, mapped: 47, detecting: 14, ...patch } }));
+
+  it('shows how many corridors can report, out of how many are mapped', () => {
+    const model = coverage({});
+    const readout = tile(model, 'Corridor coverage');
+    expect(readout.reading.availability).toBe('observed');
+    expect(readout.reading.value).toBe(14);
+    expect(readout.unit).toBe('of 47 mapped');
+    expect(readout.reading.detail).toBe('can report bunching');
+  });
+
+  it('follows the numbers it is given rather than holding any of its own', () => {
+    // The seeder maps more of the network while the console is open. Nothing
+    // here may be a constant — including at full coverage, which must not
+    // still be phrased as a shortfall.
+    const early = coverage({ mapped: 3, detecting: 0 });
+    expect(tile(early, 'Corridor coverage').reading.value).toBe(0);
+    expect(tile(early, 'Corridor coverage').unit).toBe('of 3 mapped');
+
+    const complete = coverage({ mapped: 651, detecting: 651 });
+    expect(tile(complete, 'Corridor coverage').reading.value).toBe(651);
+    expect(tile(complete, 'Corridor coverage').unit).toBe('of 651 mapped');
+    expect(complete.coverageNotice).toContain('All 651 mapped corridors');
+    expect(complete.coverageNotice).not.toMatch(/will show nothing/);
+  });
+
+  it('never states a network total, at any coverage level', () => {
+    // The load-bearing assertion of the whole change. `route_directions` holds
+    // only what has been seeded, so a ratio drawn from it would have printed
+    // "47 of 47" — a claim of complete coverage — and the live feed's route
+    // ids did not intersect the seeded ones at all. Neither denominator is
+    // real, so the console says it does not have one.
+    for (const patch of [{}, { mapped: 3, detecting: 0 }, { mapped: 651, detecting: 651 }, { mapped: 1, detecting: 1 }]) {
+      const notice = coverage(patch).coverageNotice ?? '';
+      expect(notice).toContain('the size of the full network is not known here');
+      expect(notice).toContain('not a whole-network view');
+    }
+  });
+
+  it('names the corridors that can be chosen but will show nothing', () => {
+    const notice = coverage({ mapped: 47, detecting: 14 }).coverageNotice ?? '';
+    expect(notice).toContain('14 of 47 mapped corridors');
+    expect(notice).toContain('33 others can be selected but will show nothing');
+  });
+
+  it('refuses to print a coverage figure the console did not read', () => {
+    // A stale or empty corridor list must read as unknown. `0 of 0 mapped`
+    // during a control-service outage would be the same fabricated zero the
+    // rest of this strip exists to prevent.
+    const model = buildConsoleKpi(overview({ corridors: { ok: false, mapped: 0, detecting: 0 } }));
+    const readout = tile(model, 'Corridor coverage');
+    expect(readout.reading.availability).toBe('unavailable');
+    expect(readingDisplay(readout.reading)).toBe('n/a');
+    // And no coverage sentence at all: the degraded line already says the
+    // control service did not answer, and a second sentence about coverage
+    // nobody counted would be noise on top of it.
+    expect(model.coverageNotice).toBeNull();
+  });
+
+  it('reports unknown detection as unknown rather than as no detection', () => {
+    // `detecting: null` is a control service that does not report policy
+    // state. Rendering it as 0 would accuse a healthy network of being blind.
+    const model = coverage({ mapped: 47, detecting: null });
+    const readout = tile(model, 'Corridor coverage');
+    expect(readout.reading.value).toBe(47);
+    expect(readout.unit).toBe('mapped');
+    expect(readout.reading.detail).toBe('detection coverage not reported');
+    expect(model.coverageNotice).toContain('does not report which of them have an active headway policy');
+  });
+
+  it('keeps the coverage line out of the way of a real fault', () => {
+    // It is true on a perfectly healthy console and will be read every shift,
+    // so it must never be worded or classed as a problem — the degraded line
+    // is the one that has to keep its power to interrupt.
+    const notice = coverage({}).coverageNotice ?? '';
+    expect(notice).not.toMatch(/unavailable|did not answer|error|fail/i);
   });
 });
 

@@ -38,6 +38,29 @@ export interface ControlRoomOverview {
   routeDirections: RouteDirectionMeta[];
   /** The corridor this snapshot describes, or null when the service listed none. */
   selectedRouteDirectionId: string | null;
+  /**
+   * How much of the network the console can see, counted from that list.
+   *
+   * There is deliberately no total to divide by; see `corridorCoverageFrom` in
+   * src/lib/ops/controlRoomOverview.ts for the two denominators that were
+   * measured and rejected, and why printing either would have been a worse lie
+   * than the unlabelled figure this replaced.
+   */
+  corridors: {
+    /** False when the corridor list is a stale copy or an empty fallback, so nothing below was observed. */
+    ok: boolean;
+    /** Corridors with mapped geometry — exactly the ones the picker offers. */
+    mapped: number;
+    /**
+     * Of those, the ones with an active headway policy, and therefore the only
+     * ones that can report a headway, a CV, an excess wait or a bunching
+     * incident at all.
+     *
+     * Null when the control service does not report policy state — unknown,
+     * never zero.
+     */
+    detecting: number | null;
+  };
   /** Fleet-feed half: statewide vehicle count and its provenance. */
   fleet: {
     reporting: number;
@@ -83,9 +106,25 @@ export interface ControlRoomOverview {
   };
 }
 
+/**
+ * What a tile is a number ABOUT.
+ *
+ * The strip mixes two populations and used to present them as one row. Six
+ * tiles describe the single corridor in the picker; the vehicle count is every
+ * bus in Uttar Pradesh. Read together and unlabelled, a statewide 9,190 beside
+ * a corridor's headway says "the whole network is monitored", which is the
+ * claim this console cannot support — the corridors it can see at all are a
+ * small fraction of the network, and the ones it can detect on are a fraction
+ * of those. Scope is therefore a property of the tile, not a layout decision
+ * taken in the renderer.
+ */
+export type ConsoleKpiScope = 'network' | 'corridor';
+
 export interface ConsoleKpiTile {
   label: string;
   reading: ConsoleReading;
+  /** Whether this number describes the whole state or the selected corridor. */
+  scope: ConsoleKpiScope;
   /** Renders `reading.value` when it is observed. */
   format?: (value: number) => string;
   /** Emphasis for the value, decided from the value itself — never from a threshold this module invents. */
@@ -111,6 +150,16 @@ export interface ConsoleKpiModel {
    * designed — and would train them to ignore the line that matters.
    */
   corridorNotice: string | null;
+  /**
+   * The standing sentence about how much of the network this console can see.
+   *
+   * Always present while the corridor list is readable, and quiet by design:
+   * it is context an operator reads once at the start of a shift, not an
+   * alert. It carries the denominator honesty that the coverage tile cannot —
+   * that the number beside "mapped" is not the size of the network, and that
+   * the console does not know what that size is.
+   */
+  coverageNotice: string | null;
 }
 
 /**
@@ -194,17 +243,20 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
   const tiles: ConsoleKpiTile[] = [
     {
       label: 'Vehicles reporting',
+      scope: 'network',
       reading:
         overview.fleet.source === 'unavailable'
           ? unavailable('the vehicle feed did not answer')
           : observed(
               overview.fleet.reporting,
-              overview.fleet.stale ? 'last known positions, feed is behind' : 'statewide, live feed',
+              overview.fleet.stale ? 'last known positions, feed is behind' : 'every depot, live feed',
             ),
       tone: 'accent',
     },
+    coverageTile(overview.corridors),
     {
       label: 'Mean headway',
+      scope: 'corridor',
       reading: noPolicy
         ? noPolicyReading()
         : readingFrom(headwayOk, aggregate?.meanHeadwaySeconds, {
@@ -219,12 +271,14 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
     },
     {
       label: 'Headway CV',
+      scope: 'corridor',
       reading: cv,
       format: formatRatio,
       tone: cv.availability === 'observed' && (cv.value ?? 0) >= CV_IRREGULAR ? 'warn' : 'default',
     },
     {
       label: 'Excess wait',
+      scope: 'corridor',
       reading: noPolicy
         ? noPolicyReading()
         : readingFrom(headwayOk, aggregate?.ewtSeconds, {
@@ -241,6 +295,7 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
       // printing a confident `0 — this corridor is clear` would be exactly the
       // fabricated zero the strip exists to prevent.
       label: 'Open incidents',
+      scope: 'corridor',
       reading: noPolicy
         ? noPolicyReading()
         : !headwayOk
@@ -256,6 +311,7 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
     },
     {
       label: 'Recovery rate',
+      scope: 'corridor',
       reading: readingFrom(overview.dailyKpi.ok, overview.dailyKpi.row?.recoveryRate, {
         observed: overview.dailyKpi.row
           ? `${overview.dailyKpi.row.recoveredIncidentCount}/${overview.dailyKpi.row.incidentCount} incidents today`
@@ -267,6 +323,7 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
     },
     {
       label: 'Guardrail breaches',
+      scope: 'corridor',
       reading: !overview.guardrails.ok
         ? unavailable('breaches could not be read')
         : !corridorSelected
@@ -294,7 +351,76 @@ export function buildConsoleKpi(overview: ControlRoomOverview): ConsoleKpiModel 
     corridorNotice: noPolicy
       ? 'The control service answered: this corridor has no active headway policy, so bunching detection is off for it and there are no headway readings to show. Choose another corridor for live headway.'
       : null,
+    coverageNotice: coverageNoticeFor(overview.corridors),
   };
+}
+
+/**
+ * The coverage tile: how many corridors this console can see, and how many of
+ * those can actually tell it anything.
+ *
+ * Both halves are counted from the corridor list the control service just
+ * returned, so the number moves on its own as the network seeder maps more of
+ * the state — there is no constant here to go stale. `detecting / mapped` is a
+ * ratio the console genuinely measured; it is NOT coverage of the network, and
+ * the caption under the strip is what says so.
+ */
+function coverageTile(corridors: ControlRoomOverview['corridors']): ConsoleKpiTile {
+  const { ok, mapped, detecting } = corridors;
+  return {
+    label: 'Corridor coverage',
+    scope: 'network',
+    // The value is the number of corridors that can actually report, and the
+    // unit carries what it is out of. Splitting the pair across two tiles was
+    // considered and dropped: "47" and "14" sitting apart invite exactly the
+    // reading the pair exists to prevent, that 47 is the size of the network
+    // rather than the size of what has been mapped out of it.
+    unit: detecting === null ? 'mapped' : `of ${mapped} mapped`,
+    reading: !ok
+      ? unavailable('the control service did not answer')
+      : observed(
+          detecting ?? mapped,
+          detecting === null
+            ? 'detection coverage not reported'
+            : 'can report bunching',
+        ),
+  };
+}
+
+/**
+ * The standing caption that keeps the coverage pair from reading as a network
+ * total.
+ *
+ * Worded as a plain fact and rendered in the faintest ink on the strip,
+ * because it is true on a perfectly healthy console and will be read on every
+ * shift. An operator who is warned about a normal condition twice a day stops
+ * reading warnings.
+ *
+ * Silent when the corridor list could not be read: the degraded line already
+ * says the control service did not answer, and a second sentence about
+ * coverage the console could not count would be noise on top of it.
+ */
+function coverageNoticeFor(corridors: ControlRoomOverview['corridors']): string | null {
+  const { ok, mapped, detecting } = corridors;
+  if (!ok) return null;
+
+  const NETWORK_UNKNOWN =
+    'The control database holds only the corridors that have been mapped so far, so the size of the full network is not known here — this is not a whole-network view.';
+
+  if (mapped === 0) {
+    return `The control service reports no mapped corridors, so the corridor readings above have no subject. ${NETWORK_UNKNOWN}`;
+  }
+  if (detecting === null) {
+    return `${mapped} ${corridorWord(mapped)} ${mapped === 1 ? 'has' : 'have'} mapped geometry and can be selected here. This control service does not report which of them have an active headway policy, so how many can actually detect bunching is unknown. ${NETWORK_UNKNOWN}`;
+  }
+  if (detecting === mapped) {
+    return `All ${mapped} mapped ${corridorWord(mapped)} ${mapped === 1 ? 'has' : 'have'} an active headway policy and can report bunching. ${NETWORK_UNKNOWN}`;
+  }
+  return `${detecting} of ${mapped} mapped ${corridorWord(mapped)} ${detecting === 1 ? 'has' : 'have'} an active headway policy and can report bunching; the ${mapped - detecting} ${mapped - detecting === 1 ? 'other' : 'others'} can be selected but will show nothing. ${NETWORK_UNKNOWN}`;
+}
+
+function corridorWord(count: number): string {
+  return count === 1 ? 'corridor' : 'corridors';
 }
 
 /**

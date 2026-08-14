@@ -16,7 +16,7 @@ import { logger } from "../lib/logger.js";
 import { computeAggregate, computeGapMeters, computePairHeadways } from "./metrics.js";
 import { evaluateBunchingRule } from "./bunching.js";
 import * as repo from "./repository.js";
-import type { HeadwayAggregate, HeadwayPairMetric, RouteDirectionMeta } from "./types.js";
+import type { HeadwayAggregate, HeadwayPairMetric, RouteDirectionListing } from "./types.js";
 
 export interface IncidentChange {
   routeDirectionId: string;
@@ -342,6 +342,6 @@ export async function getIncident(id: string): Promise<repo.BunchingIncidentRow 
   return repo.getIncidentById(id);
 }
 
-export async function listActiveRouteDirections(): Promise<RouteDirectionMeta[]> {
+export async function listActiveRouteDirections(): Promise<RouteDirectionListing[]> {
   return repo.listActiveRouteDirections();
 }
