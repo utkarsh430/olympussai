@@ -317,6 +317,114 @@ export const recommendationSchema = z.object({
 export type Recommendation = z.infer<typeof recommendationSchema>;
 
 // ---------------------------------------------------------------------------
+// Decision engine (POST /v1/mpc/solve)
+// ---------------------------------------------------------------------------
+
+/**
+ * THE COMPLETE SET OF ACTIONS THE DECISION ENGINE CAN EVER PROPOSE.
+ *
+ * Three hold types, and nothing else — this is not a subset chosen for
+ * convenience, it is the whole of `CandidateAction['actionType']` in
+ * control-service/src/mpc/types.ts. Terminal dispatch regulation, two-way
+ * holding and self-equalizing holding are the only control laws the solver
+ * implements, so they are the only actions it can put forward.
+ *
+ * The other six values in `commandActionTypeSchema` — speed_guidance,
+ * stop_skip, short_turn, deadhead, boarding_limit, standby_injection — are
+ * issuable driver instructions that NOTHING in this system generates. They
+ * exist because an operator may decide on one; no model recommends one. Any
+ * UI that renders engine output must keep that line visible, which is why
+ * this enum is exported separately rather than callers reaching for the
+ * nine-value command enum and quietly implying the engine covers all of it.
+ */
+export const engineActionTypeSchema = z.enum([
+  'terminal_dispatch_hold',
+  'two_way_hold',
+  'self_equalizing_hold',
+]);
+export type EngineActionType = z.infer<typeof engineActionTypeSchema>;
+
+/** Every action type the engine can propose, as a value — for a UI that wants to state the boundary rather than hardcode it. */
+export const ENGINE_ACTION_TYPES = engineActionTypeSchema.options;
+
+/** One committable candidate hold, mirroring control-service/src/mpc/types.ts#CandidateAction. */
+export const engineCandidateActionSchema = z.object({
+  actionType: engineActionTypeSchema,
+  vehicleId: z.string(),
+  /** Every vehicle whose live state the computation depended on (the held bus plus its leader/follower). A stale reading on ANY of them rejects the whole candidate. */
+  involvedVehicleIds: z.array(z.string()),
+  holdSeconds: z.number(),
+  /** |ideal hold − applied hold|: 0 when the cap and rounding did not pull the hold away from the formula's raw output. Candidates rank lowest-cost first. */
+  objectiveCost: z.number(),
+  routeDirectionId: z.string(),
+  /** ISO timestamp of the sample this candidate was computed from — what the staleness check is measured against. */
+  stateAsOf: z.string(),
+  /** h_fwd − H*. Negative means the bus is bunched too close to its leader. */
+  headwayDeviationSeconds: z.number(),
+  targetHeadwaySeconds: z.number(),
+});
+export type EngineCandidateAction = z.infer<typeof engineCandidateActionSchema>;
+
+export const safetyRejectionReasonSchema = z.enum([
+  'stale_state',
+  'max_hold_cap_breach',
+  'conflicting_active_command',
+]);
+export type SafetyRejectionReason = z.infer<typeof safetyRejectionReasonSchema>;
+
+/** A candidate the hard safety filter refused, and every reason it refused it. Kept, never dropped: an operator overriding the engine has to be able to see what it would not do. */
+export const engineSafetyRejectionSchema = z.object({
+  candidate: engineCandidateActionSchema,
+  reasons: z.array(safetyRejectionReasonSchema),
+});
+export type EngineSafetyRejection = z.infer<typeof engineSafetyRejectionSchema>;
+
+export const predictiveAdvisoryCandidateSchema = z.object({
+  actionType: engineActionTypeSchema,
+  vehicleId: z.string(),
+  holdSeconds: z.number(),
+  waitCost: z.number(),
+  onboardCost: z.number(),
+  mpcObjectiveCost: z.number(),
+  /** True when occupancy for this vehicle was missing or stale, so the onboard cost used a mid-load assumption rather than a live reading. */
+  occupancyEstimated: z.boolean(),
+});
+export type PredictiveAdvisoryCandidate = z.infer<typeof predictiveAdvisoryCandidateSchema>;
+
+/**
+ * The occupancy-weighted re-score of the safety-filtered candidates.
+ *
+ * ADVISORY ONLY, and structurally so: nothing in the solver can promote an
+ * advisory ranking into `selectedAction`. `label` is a literal so no
+ * consumer can lose that fact while passing the object around.
+ */
+export const predictiveAdvisorySchema = z.object({
+  label: z.literal('PREDICTIVE'),
+  horizonControlPoints: z.number(),
+  candidates: z.array(predictiveAdvisoryCandidateSchema),
+  controllerVersion: z.string(),
+});
+export type PredictiveAdvisory = z.infer<typeof predictiveAdvisorySchema>;
+
+export const mpcSolveResultSchema = z.object({
+  routeDirectionId: z.string(),
+  /** Everything the control laws generated, before the safety filter ran. */
+  candidateActions: z.array(engineCandidateActionSchema),
+  /** The subset that survived the safety filter, in the solver's own priority order. */
+  safeCandidates: z.array(engineCandidateActionSchema),
+  /** The one candidate the selection policy picked, in full. Null when nothing safe was available. */
+  selectedAction: engineCandidateActionSchema.nullable(),
+  selectedActionType: engineActionTypeSchema.nullable(),
+  objectiveCost: z.number().nullable(),
+  expectedRecoverySeconds: z.number().nullable(),
+  constraints: z.record(z.string(), z.unknown()),
+  controllerVersion: z.string(),
+  rejectedCandidates: z.array(engineSafetyRejectionSchema),
+  predictiveAdvisory: predictiveAdvisorySchema,
+});
+export type MpcSolveResult = z.infer<typeof mpcSolveResultSchema>;
+
+// ---------------------------------------------------------------------------
 // Command / outcome
 // ---------------------------------------------------------------------------
 

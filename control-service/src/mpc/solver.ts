@@ -30,6 +30,26 @@ export type { CandidateAction, PredictiveAdvisory, PredictiveAdvisoryCandidate, 
 export interface MpcSolveResult {
   routeDirectionId: string;
   candidateActions: CandidateAction[];
+  /**
+   * The subset of `candidateActions` that survived the hard safety filter,
+   * in the solver's own priority order. Emitted rather than left to the
+   * caller to derive as `candidateActions - rejectedCandidates`: that
+   * subtraction needs a candidate identity the wire shape does not carry,
+   * and getting it subtly wrong in a consumer would mis-label an unsafe
+   * candidate as eligible on a control surface. One producer, no matching
+   * heuristics.
+   */
+  safeCandidates: CandidateAction[];
+  /**
+   * The candidate the selection policy picked, in full - not just its type.
+   * `selectedActionType` alone names WHAT would be done but not to WHICH
+   * vehicle or for how long, so any consumer wanting to propose the action
+   * to a human had to re-implement the selection rule to recover the
+   * vehicle. Re-implementing it is exactly the drift a safety-relevant path
+   * must not have: a second copy of the rule could name a different bus
+   * than the one this solver logged. Null whenever `selectedActionType` is.
+   */
+  selectedAction: CandidateAction | null;
   selectedActionType: CandidateAction['actionType'] | null;
   objectiveCost: number | null;
   expectedRecoverySeconds: number | null;
@@ -125,6 +145,8 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
   return {
     routeDirectionId,
     candidateActions,
+    safeCandidates: [...safeTerminal, ...safeMidRoute],
+    selectedAction: selected,
     selectedActionType: selected?.actionType ?? null,
     objectiveCost: selected?.objectiveCost ?? null,
     expectedRecoverySeconds: selected?.holdSeconds ?? null,
