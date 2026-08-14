@@ -21,6 +21,7 @@ import {
   ingestPositionsRequestSchema,
   type IngestPositionsResponse,
 } from '../models/ingestionSchemas.js';
+import { refreshNetworkCounts } from '../db/rehydrate.js';
 import { ingestPositionEvents } from '../ingestion/pipeline.js';
 import { getNetworkGeometryCache } from '../state-estimation/singleton.js';
 
@@ -66,9 +67,13 @@ positionsRouter.post(
   asyncHandler(async (_req, res) => {
     const cache = getNetworkGeometryCache();
     cache.invalidate();
-    const snapshot = await cache.warm();
+    // Also refreshes /readyz's networkCounts (db/rehydrate.ts) - this is
+    // the immediate path an operator already uses right after reseeding to
+    // make new shapes live, and it must make the new COUNTS live too rather
+    // than leaving /readyz reporting the pre-seed number until a restart.
+    const [snapshot, networkCounts] = await Promise.all([cache.warm(), refreshNetworkCounts()]);
     logger.info(
-      { version: snapshot.version, shapeCount: snapshot.shapes.length },
+      { version: snapshot.version, shapeCount: snapshot.shapes.length, network: networkCounts },
       'network geometry cache refreshed on request',
     );
     res.status(200).json({ refreshed: true, ...cache.stats });

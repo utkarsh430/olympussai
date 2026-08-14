@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { Pool } from 'pg';
+import { assertDisposableOpsDatabase } from './fixtures/dbSafety';
 import {
   assertQaRoster,
   isSupabaseAuthCookie,
@@ -149,12 +150,19 @@ if (process.env.CI === 'true' && missingEnv.length > 0) {
 
 let pool: Pool | undefined;
 
-test.beforeAll(() => {
+test.beforeAll(async () => {
   // Before anything connects or signs in. A stray address here would be
   // driven against the real Supabase directory by a suite whose whole job is
   // to disable accounts.
   assertQaRoster(ROLE_ACCOUNTS);
-  if (missingEnv.length === 0) pool = new Pool({ connectionString: OPS_DATABASE_URL });
+  if (missingEnv.length === 0) {
+    // Before the database gets a fixture write OR an account gets disabled
+    // (this suite's whole point): a stray env var pointing this at a real,
+    // already-seeded ops database must stop the run. See
+    // tests/e2e/fixtures/dbSafety.ts.
+    await assertDisposableOpsDatabase(OPS_DATABASE_URL!);
+    pool = new Pool({ connectionString: OPS_DATABASE_URL });
+  }
 });
 
 test.afterAll(async () => {

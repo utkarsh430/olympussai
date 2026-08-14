@@ -13,7 +13,7 @@ const { pingDb } = await import('../src/db/pool.js');
 const { stateStore } = await import('../src/state/store.js');
 const { createApp } = await import('../src/app.js');
 const { _resetEnvCacheForTests } = await import('../src/config/env.js');
-const { rehydrateState, getNetworkCounts, _resetNetworkCountsForTests } = await import(
+const { rehydrateState, refreshNetworkCounts, getNetworkCounts, _resetNetworkCountsForTests } = await import(
   '../src/db/rehydrate.js'
 );
 const { _resetIngestStatsForTests } = await import('../src/ingestion/pipeline.js');
@@ -176,5 +176,25 @@ describe('GET /readyz network-seeding gate', () => {
 
     const res = await request(createApp()).get('/readyz');
     expect(res.status).toBe(200);
+  });
+
+  // Regression proof for a live incident: a reseed took the real network
+  // from 47 to 759 route-directions-with-shape, but /readyz kept reporting
+  // 47 - and, with REQUIRE_SEEDED_NETWORK on, would have kept passing or
+  // failing the network gate on the STALE number - until the process was
+  // restarted. rehydrateState() only ran once, at boot, so nothing after
+  // startup ever updated the counts /readyz reads. This proves the fix:
+  // /readyz reflects a network change through refreshNetworkCounts() alone,
+  // with no second rehydrateState() (i.e. no restart-equivalent) involved.
+  it('reflects an updated network count via refreshNetworkCounts(), without a second rehydrateState()', async () => {
+    await rehydrateState(fakePool(47, 1200));
+    let res = await request(createApp()).get('/readyz');
+    expect(res.body.counts).toMatchObject({ routeDirectionsWithShape: 47 });
+
+    await refreshNetworkCounts(fakePool(759, 9261));
+
+    res = await request(createApp()).get('/readyz');
+    expect(res.status).toBe(200);
+    expect(res.body.counts).toMatchObject({ routeDirectionsWithShape: 759, vehicles: 9261 });
   });
 });

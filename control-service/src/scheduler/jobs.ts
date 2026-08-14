@@ -20,6 +20,7 @@
 
 import type { Env } from '../config/env.js';
 import { sweepExpiredCommands } from '../db/commands.js';
+import { refreshNetworkCounts } from '../db/rehydrate.js';
 import { logger } from '../lib/logger.js';
 import { getNetworkGeometryCache } from '../state-estimation/singleton.js';
 import { runCommandDeliverySweep } from './commandDeliverySweep.js';
@@ -70,12 +71,20 @@ export function buildJobs(env: Env): ScheduledJob[] {
       // that expires a snapshot on the hot path. The cache is still
       // stale-while-revalidate underneath, so a failure here degrades to
       // "serve the old geometry", not "block ingestion".
+      //
+      // Also the bounded backstop for /readyz's own network counts
+      // (db/rehydrate.ts's refreshNetworkCounts) - see that module for why
+      // they ride this job's cadence instead of being recomputed per
+      // /readyz request or left to a restart.
       name: 'geometryRefresh',
       intervalMs: env.SHAPE_CACHE_TTL_MS,
       run: async () => {
-        const snapshot = await getNetworkGeometryCache().warm();
+        const [snapshot, counts] = await Promise.all([
+          getNetworkGeometryCache().warm(),
+          refreshNetworkCounts(),
+        ]);
         logger.debug(
-          { version: snapshot.version, shapeCount: snapshot.shapes.length },
+          { version: snapshot.version, shapeCount: snapshot.shapes.length, network: counts },
           'network geometry refreshed on schedule',
         );
       },

@@ -41,6 +41,7 @@
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
 import readline from 'node:readline';
+import { assertDisposableOpsDatabase } from './lib/disposable-db.mjs';
 import { identitySeedingEnabled, seedOpsIdentity } from './lib/qa-identity-seed.mjs';
 
 const COST_FACTOR = 12;
@@ -110,6 +111,12 @@ async function main() {
     process.stderr.write('OPS_DATABASE_URL is not set.\n');
     process.exit(1);
   }
+
+  // Before any write, including the password prompt below — this is a CI/
+  // automation-only script (real ops accounts come from an admin invite),
+  // so a database that already holds real-looking accounts is never a
+  // legitimate target for it. See scripts/lib/disposable-db.mjs.
+  await assertDisposableOpsDatabase(connectionString);
 
   const password = await resolvePassword();
   if (!password || password.length < MIN_PASSWORD_LENGTH) {

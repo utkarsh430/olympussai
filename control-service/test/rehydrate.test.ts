@@ -4,7 +4,7 @@
 // store 'failed' (not silently 'complete') if any query errors.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Pool } from 'pg';
-import { rehydrateState } from '../src/db/rehydrate.js';
+import { getNetworkCounts, refreshNetworkCounts, rehydrateState, _resetNetworkCountsForTests } from '../src/db/rehydrate.js';
 import { stateStore } from '../src/state/store.js';
 
 function fakePool(handler: (sql: string) => { rows: unknown[] }): Pool {
@@ -110,5 +110,50 @@ describe('rehydrateState', () => {
     await expect(rehydrateState(pool)).rejects.toThrow('connection refused');
     expect(stateStore.status).toBe('failed');
     expect(stateStore.isReady).toBe(false);
+  });
+});
+
+// Regression proof for the incident this module's refreshNetworkCounts()
+// docstring describes: a live instance whose network went from 47 to 759
+// route-directions-with-shape kept reporting 47 from getNetworkCounts()
+// (and therefore from /readyz - see health.test.ts) until the process was
+// restarted, because networkCounts was set exactly once, at boot, by
+// rehydrateState() alone. This file fails to even IMPORT against the
+// pre-fix code, because refreshNetworkCounts did not exist - proving there
+// was no way to update the published counts without a full rehydrate.
+function networkCountsPool(routeDirectionsWithShape: number, vehicles: number): Pool {
+  return {
+    query: vi.fn((sql: string) => {
+      if (sql.includes('route_directions_with_shape')) {
+        return Promise.resolve({
+          rows: [{ route_directions_with_shape: String(routeDirectionsWithShape), vehicles: String(vehicles) }],
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    }),
+  } as unknown as Pool;
+}
+
+describe('refreshNetworkCounts', () => {
+  beforeEach(() => {
+    _resetNetworkCountsForTests();
+  });
+
+  it('updates getNetworkCounts() on its own, with no rehydrateState() call in between', async () => {
+    await rehydrateState(networkCountsPool(47, 1200));
+    expect(getNetworkCounts()).toMatchObject({ routeDirectionsWithShape: 47 });
+
+    // The reseed that changes the network happens out of process (an
+    // operator re-running the seeder); nothing here calls rehydrateState()
+    // again - exactly the "no restart" scenario the live instance needed.
+    const returned = await refreshNetworkCounts(networkCountsPool(759, 9261));
+
+    expect(getNetworkCounts()).toMatchObject({ routeDirectionsWithShape: 759, vehicles: 9261 });
+    expect(returned).toMatchObject({ routeDirectionsWithShape: 759, vehicles: 9261 });
+  });
+
+  it('is what rehydrateState() itself now delegates to (same counts, one code path)', async () => {
+    await rehydrateState(networkCountsPool(5, 5));
+    expect(getNetworkCounts()).toMatchObject({ routeDirectionsWithShape: 5, vehicles: 5 });
   });
 });

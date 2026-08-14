@@ -21,9 +21,14 @@ vi.mock('../src/state-estimation/singleton.js', () => ({
   getStateEstimationService: vi.fn(() => ({ isRehydrated: false })),
 }));
 
+vi.mock('../src/db/rehydrate.js', () => ({
+  refreshNetworkCounts: vi.fn(),
+}));
+
 const { createApp } = await import('../src/app.js');
 const { ingestPositionEvents } = await import('../src/ingestion/pipeline.js');
 const { getNetworkGeometryCache } = await import('../src/state-estimation/singleton.js');
+const { refreshNetworkCounts } = await import('../src/db/rehydrate.js');
 
 const AUTH_HEADER = 'Bearer test-service-token-secret-value';
 
@@ -178,6 +183,7 @@ describe('POST /v1/admin/geometry/refresh', () => {
       warm,
       stats: { version: 2, shapeCount: 1, loadedAt: '2026-08-05T08:00:00.000Z' },
     } as unknown as ReturnType<typeof getNetworkGeometryCache>);
+    vi.mocked(refreshNetworkCounts).mockResolvedValue({ routeDirectionsWithShape: 1, vehicles: 3 });
 
     const res = await request(createApp())
       .post('/v1/admin/geometry/refresh')
@@ -187,5 +193,26 @@ describe('POST /v1/admin/geometry/refresh', () => {
     expect(invalidate).toHaveBeenCalled();
     expect(warm).toHaveBeenCalled();
     expect(res.body).toMatchObject({ refreshed: true, version: 2, shapeCount: 1 });
+  });
+
+  // Regression proof: this is the exact button an operator presses right
+  // after reseeding to make new shapes live "immediately rather than up to
+  // SHAPE_CACHE_TTL_MS later" (see the handler's own comment) - it must
+  // refresh /readyz's reported counts the same way, or "immediately" is
+  // true for the geometry cache and false for /readyz.
+  it('also refreshes /readyz network counts, not just the geometry cache', async () => {
+    vi.mocked(getNetworkGeometryCache).mockReturnValue({
+      invalidate: vi.fn(),
+      warm: vi.fn().mockResolvedValue({ version: 1, shapes: [] }),
+      stats: { version: 1, shapeCount: 0, loadedAt: null },
+    } as unknown as ReturnType<typeof getNetworkGeometryCache>);
+    vi.mocked(refreshNetworkCounts).mockResolvedValue({ routeDirectionsWithShape: 759, vehicles: 9261 });
+
+    const res = await request(createApp())
+      .post('/v1/admin/geometry/refresh')
+      .set('authorization', AUTH_HEADER);
+
+    expect(res.status).toBe(200);
+    expect(refreshNetworkCounts).toHaveBeenCalled();
   });
 });

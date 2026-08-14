@@ -36,6 +36,7 @@
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
 import readline from 'node:readline';
+import { assertDisposableOpsDatabase } from './lib/disposable-db.mjs';
 import { identitySeedingEnabled, seedOpsIdentity } from './lib/qa-identity-seed.mjs';
 import { isQaIdentityEmail } from './lib/qa-identity.mjs';
 
@@ -94,6 +95,13 @@ async function main() {
     process.stderr.write('OPS_DATABASE_URL is not set.\n');
     process.exit(1);
   }
+
+  // Before any write. A brand new database with no ops_users rows yet
+  // passes this (the legitimate real-first-admin bootstrap this script
+  // exists for); one that already holds real-looking accounts never should
+  // reach this script at all (this repo's CI automation seeds test roles
+  // through seed-ops-user.mjs, not this one). See scripts/lib/disposable-db.mjs.
+  await assertDisposableOpsDatabase(connectionString);
 
   const pool = new pg.Pool({ connectionString });
 

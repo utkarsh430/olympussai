@@ -50,7 +50,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: ops
         ports:
-          - 55433:5432
+          - 25433:5432
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
@@ -123,20 +123,28 @@ jobs:
 
       # Throwaway fixtures in a container created and destroyed with the job,
       # so these credentials are local-only literals rather than secrets -
-      # same reasoning as the e2e job's.
+      # same reasoning as the e2e job's. The port (25433, not Postgres's
+      # default 5432 or this project's own local-dev ports 55432/55433 -
+      # see docker-compose.yml) is also a deliberate choice: those other two
+      # numbers are what a developer's or an agent's own machine may already
+      # be running this project's REAL datastores on, and scripts/lib/
+      # disposable-db.mjs (wired into pnpm test's global setup below) is the
+      # guard that does not depend on this port number ever staying unique.
       - name: Apply ops migrations
         run: pnpm migrate:ops
         env:
-          OPS_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:55433/ops
+          OPS_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:25433/ops
 
       # OPS_DATABASE_URL is scoped to this step (and the migration above)
       # rather than the whole job on purpose: `pnpm build` below must keep
       # building with no database reachable, the way a real build machine
-      # does.
+      # does. src/tests/globalSetup.ts refuses this step outright if
+      # OPS_DATABASE_URL ever points at a database that is not genuinely
+      # disposable, regardless of what port it happens to be on.
       - name: Unit tests
         run: pnpm test
         env:
-          OPS_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:55433/ops
+          OPS_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:25433/ops
 
       - name: Build
         run: pnpm build
@@ -195,7 +203,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: control_service
         ports:
-          - 55432:5432
+          - 25432:5432
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
@@ -214,7 +222,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: ops
         ports:
-          - 55433:5432
+          - 25433:5432
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
@@ -222,8 +230,14 @@ jobs:
           --health-retries 20
 
     env:
-      CONTROL_SERVICE_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:55432/control_service
-      OPS_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:55433/ops
+      # 25432 / 25433, not this project's own local-dev ports 55432/55433
+      # (docker-compose.yml) or Postgres's default 5432 - see the
+      # lint-typecheck-test-build job's "Apply ops migrations" step comment
+      # above for why the port number itself is only half the protection.
+      # tests/e2e/fixtures/dbSafety.ts (scripts/lib/disposable-db.mjs) is
+      # the guard that does not depend on it.
+      CONTROL_SERVICE_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:25432/control_service
+      OPS_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:25433/ops
       # One shared value on both ends of the web -> control-service bearer
       # check, and one on both ends of the webhook HMAC. Mismatching either
       # is the single most common way this integration silently breaks, so

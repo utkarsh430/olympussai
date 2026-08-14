@@ -10,6 +10,10 @@ export default defineConfig({
     include: ['src/tests/**/*.test.ts', 'src/tests/**/*.test.tsx'],
     exclude: ['tests/e2e/**', 'node_modules/**'],
     setupFiles: ['src/tests/setup.ts'],
+    // Runs once, before every test file, in plain Node — see
+    // src/tests/globalSetup.ts for why this must be globalSetup and not
+    // another setupFiles entry.
+    globalSetup: ['src/tests/globalSetup.ts'],
   },
   resolve: {
     alias: {

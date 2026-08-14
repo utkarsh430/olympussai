@@ -181,7 +181,7 @@ export interface NetworkCounts {
 
 let networkCounts: NetworkCounts = { routeDirectionsWithShape: 0, vehicles: 0 };
 
-/** Last counts observed by rehydrateState(). Zeroed until it has run. */
+/** Last counts observed by rehydrateState() or refreshNetworkCounts(). Zeroed until either has run. */
 export function getNetworkCounts(): NetworkCounts {
   return { ...networkCounts };
 }
@@ -214,6 +214,35 @@ async function loadNetworkCounts(pool: Pool): Promise<NetworkCounts> {
 }
 
 /**
+ * Recomputes and publishes the counts /readyz reports (getNetworkCounts()),
+ * independently of a full rehydrateState() run.
+ *
+ * WHY THIS IS SEPARATE FROM rehydrateState(). Before this function existed,
+ * networkCounts was set exactly once, at process boot, by rehydrateState()
+ * alone. A live instance's /readyz then reported whatever the network
+ * looked like at STARTUP forever after: a reseed that took the network from
+ * 47 to 759 route-directions-with-shape left /readyz reporting 47 until the
+ * process was restarted, silently misrepresenting readiness (and, with
+ * REQUIRE_SEEDED_NETWORK on, the actual gate) for as long as the instance
+ * kept running. Restarting to pick up a number is a workaround, not a fix.
+ *
+ * Called from two places that already know the network may have just
+ * changed, rather than from every /readyz request: the geometryRefresh
+ * scheduled job (SHAPE_CACHE_TTL_MS, 15 minutes by default - see
+ * scheduler/jobs.ts) as a bounded backstop, and
+ * POST /v1/admin/geometry/refresh (routes/positions.ts) as the immediate
+ * path an operator already uses right after reseeding to make new shapes
+ * live. /readyz itself stays a cheap in-memory read on every poll -
+ * infrastructure can hit it at a high rate, and a full count(*) join
+ * against route_directions/route_shapes on every one of those requests
+ * would be pure waste on an instance nothing has changed on.
+ */
+export async function refreshNetworkCounts(pool: Pool = getPool()): Promise<NetworkCounts> {
+  networkCounts = await loadNetworkCounts(pool);
+  return { ...networkCounts };
+}
+
+/**
  * Rehydrates the in-memory store from CONTROL_SERVICE_DATABASE_URL. Must
  * complete (or fail) before /readyz can return 200 - Render gates traffic
  * cutover on /readyz, so this function is the load-bearing piece of a safe
@@ -222,18 +251,17 @@ async function loadNetworkCounts(pool: Pool): Promise<NetworkCounts> {
 export async function rehydrateState(pool: Pool = getPool()): Promise<void> {
   stateStore.setStatus('in_progress');
   try {
-    const [vehicleStates, headwayStates, activePolicies, terminalStops, counts] = await Promise.all([
+    const [vehicleStates, headwayStates, activePolicies, terminalStops] = await Promise.all([
       loadVehicleStates(pool),
       loadHeadwayStates(pool),
       loadActivePolicies(pool),
       loadTerminalStops(pool),
-      loadNetworkCounts(pool),
+      refreshNetworkCounts(pool),
     ]);
     stateStore.loadVehicleStates(vehicleStates);
     stateStore.loadHeadwayStates(headwayStates);
     stateStore.loadActivePolicies(activePolicies);
     stateStore.loadTerminalStops(terminalStops);
-    networkCounts = counts;
     stateStore.setStatus('complete');
     logger.info(
       { counts: stateStore.counts(), network: networkCounts },

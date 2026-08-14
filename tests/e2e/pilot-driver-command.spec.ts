@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { seedGatedRouteDirection, insertVehicle } from './fixtures/controlServiceFixtures';
+import { assertDisposableControlServiceDatabase, assertDisposableOpsDatabase } from './fixtures/dbSafety';
 import { assignVehicleToPilotDriver } from './fixtures/opsFixtures';
 import { assertQaRoster, signInThroughFrontDoor } from './fixtures/opsSignIn';
 
@@ -264,6 +265,12 @@ test.describe('Pilot driver command console — live authenticated flow', () => 
     // signs in against the real Supabase directory, so a stray address here
     // must stop the run rather than reach either.
     assertQaRoster({ pilot_driver: { email: PILOT_DRIVER_EMAIL } });
+    // Before either database gets a fixture write: a stray env var pointing
+    // these at a real, already-seeded database must stop the run rather
+    // than write test rows (or, per ops-dashboard-pages.spec.ts, disable
+    // real accounts) into it. See tests/e2e/fixtures/dbSafety.ts.
+    await assertDisposableControlServiceDatabase(CONTROL_SERVICE_DATABASE_URL!);
+    await assertDisposableOpsDatabase(OPS_DATABASE_URL!);
     controlServicePool = new Pool({ connectionString: CONTROL_SERVICE_DATABASE_URL });
     opsPool = new Pool({ connectionString: OPS_DATABASE_URL });
     routeDirectionId = await seedGatedRouteDirection(controlServicePool);
