@@ -17,7 +17,7 @@ import { ScheduleLookupForm } from '@/components/ops/ScheduleLookupForm';
 import { DataSourceNotice } from '@/components/ops/DataSourceNotice';
 import { BreakdownReportPanel } from '@/components/ops/driver/BreakdownReportPanel';
 import { BreakdownReportsPanel } from '@/components/ops/BreakdownReportsPanel';
-import { OpsAdminInvitesPanel } from '@/components/ops/OpsAdminInvitesPanel';
+import { OpsAdminPeoplePanel } from '@/components/ops/admin/OpsAdminPeoplePanel';
 
 function bus(overrides: Partial<CanonicalLiveBus> = {}): CanonicalLiveBus {
   return {
@@ -807,7 +807,7 @@ describe('DriverDashboard breakdown-reports refresh-after-submit', () => {
   });
 });
 
-describe('OpsAdminInvitesPanel vehicle assignment', () => {
+describe('OpsAdminPeoplePanel vehicle and depot assignment', () => {
   function usersResponse() {
     return {
       users: [
@@ -891,7 +891,7 @@ describe('OpsAdminInvitesPanel vehicle assignment', () => {
     const fetchMock = routeFetch(() => ({ ok: true, json: { ok: true, vehicleId: null } }));
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<OpsAdminInvitesPanel />);
+    render(<OpsAdminPeoplePanel />);
 
     expect(await screen.findByDisplayValue('UP25FT4823')).toBeInTheDocument();
     // A dispatcher is neither vehicle- nor depot-assignable, so that row
@@ -904,7 +904,7 @@ describe('OpsAdminInvitesPanel vehicle assignment', () => {
 
   it('offers a depot picker only for depot-role rows, preselected to the current assignment', async () => {
     vi.stubGlobal('fetch', routeFetch(() => ({ ok: true, json: { ok: true, vehicleId: null } })));
-    render(<OpsAdminInvitesPanel />);
+    render(<OpsAdminPeoplePanel />);
 
     const select = (await screen.findByLabelText(/assign depot/i)) as HTMLSelectElement;
     expect(select.value).toBe(DEPOT_BAREILLY_ID);
@@ -922,7 +922,7 @@ describe('OpsAdminInvitesPanel vehicle assignment', () => {
       },
     );
     vi.stubGlobal('fetch', fetchMock);
-    render(<OpsAdminInvitesPanel />);
+    render(<OpsAdminPeoplePanel />);
 
     const select = await screen.findByLabelText(/assign depot/i);
     fireEvent.change(select, { target: { value: DEPOT_LUCKNOW_ID } });
@@ -946,7 +946,7 @@ describe('OpsAdminInvitesPanel vehicle assignment', () => {
         },
       ),
     );
-    render(<OpsAdminInvitesPanel />);
+    render(<OpsAdminPeoplePanel />);
 
     fireEvent.change(await screen.findByLabelText(/assign depot/i), { target: { value: '' } });
     await waitFor(() => expect(seen).toEqual([{ depotId: null }]));
@@ -960,7 +960,7 @@ describe('OpsAdminInvitesPanel vehicle assignment', () => {
         () => ({ ok: false, json: { error: { code: 'DEPOT_NOT_FOUND', message: 'Depot not found.' } } }),
       ),
     );
-    render(<OpsAdminInvitesPanel />);
+    render(<OpsAdminPeoplePanel />);
 
     fireEvent.change(await screen.findByLabelText(/assign depot/i), { target: { value: DEPOT_LUCKNOW_ID } });
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Depot not found.'));
@@ -973,7 +973,7 @@ describe('OpsAdminInvitesPanel vehicle assignment', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<OpsAdminInvitesPanel />);
+    render(<OpsAdminPeoplePanel />);
 
     const input = await screen.findByDisplayValue('UP25FT4823');
     fireEvent.change(input, { target: { value: 'UP25FT9999' } });
@@ -993,7 +993,7 @@ describe('OpsAdminInvitesPanel vehicle assignment', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<OpsAdminInvitesPanel />);
+    render(<OpsAdminPeoplePanel />);
 
     const input = await screen.findByDisplayValue('UP25FT4823');
     fireEvent.change(input, { target: { value: '' } });
@@ -1009,7 +1009,7 @@ describe('OpsAdminInvitesPanel vehicle assignment', () => {
     }));
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<OpsAdminInvitesPanel />);
+    render(<OpsAdminPeoplePanel />);
 
     const input = await screen.findByDisplayValue('UP25FT4823');
     fireEvent.change(input, { target: { value: 'UP25FT9999' } });

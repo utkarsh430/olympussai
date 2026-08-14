@@ -37,7 +37,7 @@ if (process.env.CI === 'true' && !HAS_OPS_DB) {
 
 describe.skipIf(!HAS_OPS_DB)('invite acceptance and role assignment — against a real ops Postgres', () => {
   const adminId = randomUUID();
-  const adminEmail = `invite-admin-${adminId}@example.test`;
+  const adminEmail = `invite-admin-${adminId}.qa@example.test`;
   const createdUserIds: string[] = [adminId];
   const createdInviteIds: string[] = [];
 
@@ -59,7 +59,7 @@ describe.skipIf(!HAS_OPS_DB)('invite acceptance and role assignment — against 
   }> {
     const { hashInviteToken, generateInviteToken } = await import('@/lib/auth/rbac/tokens');
     const tokenHash = hashInviteToken(generateInviteToken());
-    const email = `invitee-${randomUUID()}@example.test`;
+    const email = `invitee-${randomUUID()}.qa@example.test`;
     const invite = await (
       await repo()
     ).createInvite({
@@ -311,7 +311,7 @@ describe.skipIf(!HAS_OPS_DB)('invite acceptance and role assignment — against 
       ).query(
         `insert into ops_users (id, email, name, role, password_hash, status, supabase_user_id)
          values ($1, $2, 'Assignable', $3, 'legacy-bcrypt-hash', 'active', $4)`,
-        [id, `assignable-${id}@example.test`, role, randomUUID()],
+        [id, `assignable-${id}.qa@example.test`, role, randomUUID()],
       );
       return id;
     }
@@ -388,6 +388,57 @@ describe.skipIf(!HAS_OPS_DB)('invite acceptance and role assignment — against 
 
       expect(result).toBeNull();
       expect(called).toBe(false);
+    });
+  });
+  describe('revokeInvite', () => {
+    // Revocation is the one invite lifecycle state that has always been
+    // ENFORCED (acceptInvite refuses it, and ops_invites_pending_email_idx
+    // excludes it) and never SETTABLE. Both of those consequences live in SQL,
+    // so both are asserted here against a real Postgres rather than against a
+    // fake repository that would only be agreeing with itself.
+    it('stamps revoked_at and frees the address for a corrected invite', async () => {
+      const invite = await liveInvite('driver');
+
+      const revoked = await (await repo()).revokeInvite(invite.id);
+      expect(revoked?.revokedAt).not.toBeNull();
+
+      // THE HALF THAT MATTERS. One live invite per email is a partial unique
+      // index, and revoking is what takes the row out of it — which is the
+      // only way an invite sent with the wrong role can be replaced before it
+      // expires seven days later.
+      const { hashInviteToken, generateInviteToken } = await import('@/lib/auth/rbac/tokens');
+      const replacement = await (await repo()).createInvite({
+        email: invite.email,
+        role: 'planner',
+        invitedBy: adminId,
+        tokenHash: hashInviteToken(generateInviteToken()),
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      createdInviteIds.push(replacement.id);
+      expect(replacement.role).toBe('planner');
+    });
+
+    it('refuses to consume an invite that has already been accepted', async () => {
+      const invite = await liveInvite('dispatcher');
+      const user = await (
+        await repo()
+      ).acceptInvite({
+        tokenHash: invite.tokenHash,
+        name: 'Accepted Already',
+        provisionIdentity: async () => ({ supabaseUserId: randomUUID() }),
+        releaseIdentity: async () => undefined,
+      });
+      createdUserIds.push(user.id);
+
+      // The conditional UPDATE matches nothing rather than un-accepting a live
+      // account. Null is what the route turns into "this was accepted a moment
+      // ago"; a repository that returned the row here would have the route
+      // reporting a cancelled invite for an operator who is already signed in.
+      expect(await (await repo()).revokeInvite(invite.id)).toBeNull();
+    });
+
+    it('returns null rather than throwing for an unknown invite', async () => {
+      expect(await (await repo()).revokeInvite(randomUUID())).toBeNull();
     });
   });
 });

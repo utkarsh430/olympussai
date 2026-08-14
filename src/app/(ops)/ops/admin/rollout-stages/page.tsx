@@ -1,6 +1,6 @@
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
-import { OpsAdminRolloutStagesPanel } from '@/components/ops/OpsAdminRolloutStagesPanel';
+import { OpsAdminRolloutStagesPanel } from '@/components/ops/admin/OpsAdminRolloutStagesPanel';
 
 export default async function OpsAdminRolloutStagesPage() {
   // The session comes from the guard itself, not from a second, independent
@@ -13,7 +13,13 @@ export default async function OpsAdminRolloutStagesPage() {
   const session = await requireOpsRolePage('admin', '/ops/admin/rollout-stages');
 
   return (
-    <OpsShell title="Admin · Rollout stages" email={session.email} role="admin">
+    <OpsShell
+      title="Admin · Rollout stages"
+      email={session.email}
+      role="admin"
+      variant="wide"
+      subtitle="Which corridors the system is permitted to send commands on"
+    >
       <OpsAdminRolloutStagesPanel />
     </OpsShell>
   );

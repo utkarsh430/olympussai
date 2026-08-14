@@ -328,13 +328,17 @@ describe('accepting an invite opens a real session on the single front door', ()
     });
   });
 
-  it('sends a new admin to invites, not to /ops/admin, which is not a page', async () => {
+  it('sends a new admin to /ops/admin, which is now a real console', async () => {
+    // This assertion used to read "not to /ops/admin, which is not a page",
+    // and it was right: the segment held no page.tsx, so a new admin accepting
+    // an invite landed on a 404 unless the landing logic detoured them. The
+    // detour is gone because the destination exists.
     repoRunsTheTransaction({ email: INVITE_EMAIL, role: 'admin' });
     signInWithPassword.mockImplementation(async () => signedInAs('admin'));
 
     const body = await (await POST(acceptRequest())).json();
 
-    expect(body.redirectTo).toBe('/ops/admin/invites');
+    expect(body.redirectTo).toBe('/ops/admin');
   });
 
   it('repairs a token that arrived without the ops role claim, and only then lands them', async () => {
@@ -539,5 +543,54 @@ describe('everything that made the invite flow safe still refuses', () => {
     expect(response.status).toBe(400);
     expect(acceptInvite).not.toHaveBeenCalled();
     expect(provisionOpsIdentity).not.toHaveBeenCalled();
+  });
+});
+
+describe('an invite whose address already has an ops_users row', () => {
+  /**
+   * What the ops database raises when `acceptInvite`'s insert collides with
+   * `ops_users.email`'s unique constraint. `pg` puts the driver's own fields
+   * on a plain Error, which is exactly what the route has to recognise —
+   * verified against a real Postgres with the ops migrations applied.
+   */
+  function duplicateEmailViolation(): Error {
+    return Object.assign(new Error('duplicate key value violates unique constraint "ops_users_email_key"'), {
+      code: '23505',
+      constraint: 'ops_users_email_key',
+    });
+  }
+
+  it('answers a clean 409 instead of a 500 carrying the raw constraint name', async () => {
+    // THE DEFECT. Nothing refused an invite for an address that already had an
+    // account (POST /api/ops/admin/invites now does — see
+    // opsInviteExistingAccount.test.ts), so the collision surfaced HERE, to the
+    // invitee, as an unhandled throw. `deleteInvite`-shaped repair is not
+    // available to them and the message named a database constraint.
+    acceptInvite.mockRejectedValue(duplicateEmailViolation());
+
+    const response = await POST(acceptRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.error.code).toBe('ACCOUNT_ALREADY_EXISTS');
+    expect(body.error.message).toMatch(/already has an operations account/i);
+    // Whatever they do next, it is not retrying this link.
+    expect(body.error.message).toMatch(/administrator/i);
+    // And it must not read like a database error.
+    expect(body.error.message).not.toMatch(/constraint|ops_users|23505/i);
+  });
+
+  it('leaves any other unique-constraint failure alone rather than mislabelling it', async () => {
+    // A 23505 on a different constraint is a different fact, and answering
+    // "you already have an account" to it would be a guess. It stays an
+    // unhandled server error, which is the honest report of an unknown state.
+    acceptInvite.mockRejectedValue(
+      Object.assign(new Error('duplicate key value violates unique constraint "ops_invites_token_hash_key"'), {
+        code: '23505',
+        constraint: 'ops_invites_token_hash_key',
+      }),
+    );
+
+    await expect(POST(acceptRequest())).rejects.toThrow(/token_hash/);
   });
 });

@@ -116,8 +116,15 @@ const OPS_PAGES: ReadonlyArray<{ path: string; role: OpsRoleName; title: string 
     role: 'control_room',
     title: 'Incident Timeline',
   },
-  { path: '/ops/admin/invites', role: 'admin', title: 'Admin · Invites' },
+  // `/ops/admin` was a 404 for as long as the admin role existed — the segment
+  // had a layout, `invites/` and `rollout-stages/` and no page — and the
+  // landing logic carried a hard-coded detour around it. It is the admin
+  // console's own overview now, and it is where an admin lands.
+  { path: '/ops/admin', role: 'admin', title: 'Admin' },
+  // The URL still says `invites`; the screen is the whole people surface.
+  { path: '/ops/admin/invites', role: 'admin', title: 'Admin · People' },
   { path: '/ops/admin/rollout-stages', role: 'admin', title: 'Admin · Rollout stages' },
+  { path: '/ops/admin/network', role: 'admin', title: 'Admin · Network' },
 ];
 
 const REQUIRED_ENV: Record<string, string | undefined> = {

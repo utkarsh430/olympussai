@@ -38,8 +38,11 @@ export interface OpsNavItem {
 
 /**
  * The console's persona map. `admin` has no operational dashboard by design
- * (see OPERATIONAL_ROLES in src/lib/auth/rbac/roles.ts) — it manages
- * accounts and rollout stages, and its two screens are its whole surface.
+ * (see OPERATIONAL_ROLES in src/lib/auth/rbac/roles.ts) — it does not drive
+ * the fleet, it decides who may and what they may do to it. `/ops/admin` is
+ * the console that says so, and it is a real page now: for as long as the
+ * admin role has existed, `/ops/admin` was a 404 and the landing logic
+ * carried a hard-coded detour around it (src/lib/auth/landing.ts).
  */
 export const OPS_NAV: Record<OpsRole, readonly OpsNavItem[]> = {
   control_room: [
@@ -61,8 +64,13 @@ export const OPS_NAV: Record<OpsRole, readonly OpsNavItem[]> = {
   driver: [{ href: '/ops/driver', label: 'Driver' }],
   pilot_driver: [{ href: '/ops/pilot-driver', label: 'Commands' }],
   admin: [
-    { href: '/ops/admin/invites', label: 'Invites & users' },
+    { href: '/ops/admin', label: 'Overview' },
+    // The URL still says "invites" because that is where the screen started
+    // and a live console's addresses are not worth churning; the screen itself
+    // is the whole people surface — roster, roles, assignments and invites.
+    { href: '/ops/admin/invites', label: 'People' },
     { href: '/ops/admin/rollout-stages', label: 'Rollout stages' },
+    { href: '/ops/admin/network', label: 'Network' },
   ],
 };
 

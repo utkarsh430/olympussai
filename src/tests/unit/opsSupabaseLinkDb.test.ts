@@ -36,8 +36,8 @@ describe.skipIf(!HAS_OPS_DB)('ops_users.supabase_user_id — against a real ops 
   const unlinkedA = randomUUID();
   const unlinkedB = randomUUID();
   const supabaseUserId = randomUUID();
-  const email = `supabase-link-${opsUserId}@example.test`;
-  const otherEmail = `supabase-link-other-${otherOpsUserId}@example.test`;
+  const email = `supabase-link-${opsUserId}.qa@example.test`;
+  const otherEmail = `supabase-link-other-${otherOpsUserId}.qa@example.test`;
   const createdIds = [opsUserId, otherOpsUserId, unlinkedA, unlinkedB];
 
   beforeAll(async () => {
@@ -57,8 +57,8 @@ describe.skipIf(!HAS_OPS_DB)('ops_users.supabase_user_id — against a real ops 
     for (const [id, addr] of [
       [opsUserId, email],
       [otherOpsUserId, otherEmail],
-      [unlinkedA, `unlinked-a-${unlinkedA}@example.test`],
-      [unlinkedB, `unlinked-b-${unlinkedB}@example.test`],
+      [unlinkedA, `unlinked-a-${unlinkedA}.qa@example.test`],
+      [unlinkedB, `unlinked-b-${unlinkedB}.qa@example.test`],
     ] as const) {
       await pool.query(
         `insert into ops_users (id, email, name, role, password_hash, status)

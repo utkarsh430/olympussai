@@ -369,6 +369,19 @@ export interface OpsRepo {
     expiresAt: Date;
   }): Promise<OpsInviteRecord | null>;
   /**
+   * Cancels an outstanding invite by stamping `revoked_at`, which
+   * `acceptInvite` refuses on and `ops_invites_pending_email_idx` excludes —
+   * so revoking is also what FREES the address for a corrected invite under
+   * the one-live-invite-per-email rule.
+   *
+   * The row is never deleted: it is the audit trail of an invite having been
+   * issued, and an invite issued to the wrong person is precisely the record
+   * worth keeping. Returns null when the invite does not exist or has already
+   * reached a terminal state; callers must treat that as 404/409 rather than
+   * retrying, exactly as with `regenerateInviteToken`.
+   */
+  revokeInvite(id: string): Promise<OpsInviteRecord | null>;
+  /**
    * Atomically consumes the invite and creates the user row, bound to the
    * Supabase Auth identity the invitee will sign in with. Throws if the
    * invite is already consumed, expired or revoked.
@@ -812,6 +825,21 @@ class PgOpsRepo implements OpsRepo {
         where id = $1 and accepted_at is null and revoked_at is null
         returning *`,
       [input.id, input.tokenHash, input.expiresAt.toISOString()],
+    );
+    return rows[0] ? mapInviteRow(rows[0]) : null;
+  }
+
+  async revokeInvite(id: string): Promise<OpsInviteRecord | null> {
+    const pool = getOpsPool();
+    // The `accepted_at is null and revoked_at is null` predicate is the whole
+    // concurrency control: an acceptance committing between a caller's read and
+    // this write updates zero rows rather than un-accepting a live account.
+    const { rows } = await pool.query(
+      `update ops_invites
+          set revoked_at = now()
+        where id = $1 and accepted_at is null and revoked_at is null
+        returning *`,
+      [id],
     );
     return rows[0] ? mapInviteRow(rows[0]) : null;
   }

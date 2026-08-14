@@ -22,6 +22,21 @@
 // run, so the residue is a single row rather than one per run. Every other
 // fixture row is per-test and removed.
 //
+// AND IT LIVES IN THE QA NAMESPACE, which is not cosmetic. `scripts/lib/
+// disposable-db.mjs` refuses to let this suite write fixtures into any ops
+// database holding a row outside `*.qa@example.test`, and the residue above is
+// permanent by construction — so with any other address, the FIRST run of this
+// suite poisoned its own database and every subsequent run against it aborted
+// before a single test executed:
+//
+//   Refusing to write ops fixtures into ...: found 1 ops_users row(s) outside
+//   the QA identity namespace
+//
+// CI never saw it (a fresh container per job); anyone running the suite twice
+// against one disposable database saw it every time. The namespace is exactly
+// the mechanism for "automation put this here", so the deliberate residue
+// belongs inside it.
+//
 // Requires db/migrations/20260812094500__ops_users_supabase_link.sql applied:
 //   OPS_DATABASE_URL=postgres://... pnpm migrate:ops
 //
@@ -44,7 +59,7 @@ if (process.env.CI === 'true' && !HAS_OPS_DB) {
   );
 }
 
-const ACTOR_EMAIL = 'backfill-fixture-admin@example.test';
+const ACTOR_EMAIL = 'backfill-fixture-admin.qa@example.test';
 const LEGACY_HASH = '$2a$12$fixturefixturefixturefixturefixturefixturefixtureXX';
 
 describe.skipIf(!HAS_OPS_DB)('backfill apply - against a real ops Postgres', () => {
@@ -56,7 +71,7 @@ describe.skipIf(!HAS_OPS_DB)('backfill apply - against a real ops Postgres', () 
    * (resource_id is plain text), so these are all deletable. */
   async function makeUser({ role = 'dispatcher', status = 'active' } = {}) {
     const id = randomUUID();
-    const email = `backfill-${role}-${id}@example.test`;
+    const email = `backfill-${role}-${id}.qa@example.test`;
     await pool.query(
       `insert into ops_users (id, email, name, role, password_hash, status)
        values ($1, $2, 'Backfill Fixture', $3, $4, $5)`,
@@ -132,7 +147,7 @@ describe.skipIf(!HAS_OPS_DB)('backfill apply - against a real ops Postgres', () 
     });
 
     it('refuses an unknown address rather than writing an unattributed link', async () => {
-      await expect(resolveActor(pool, `nobody-${randomUUID()}@example.test`)).rejects.toThrow(/No ops_users row/);
+      await expect(resolveActor(pool, `nobody-${randomUUID()}.qa@example.test`)).rejects.toThrow(/No ops_users row/);
     });
   });
 

@@ -1,8 +1,16 @@
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
-import { OpsAdminInvitesPanel } from '@/components/ops/OpsAdminInvitesPanel';
+import { OpsAdminPeoplePanel } from '@/components/ops/admin/OpsAdminPeoplePanel';
 
-export default async function OpsAdminInvitesPage() {
+/**
+ * The people screen.
+ *
+ * The URL still says `invites` because that is where the screen started and a
+ * live console's addresses are not worth churning; what it holds is the whole
+ * people surface — roster, roles, depot and vehicle assignments, and the
+ * invites that create new accounts.
+ */
+export default async function OpsAdminPeoplePage() {
   // The session comes from the guard itself, not from a second, independent
   // resolution of it. Both are database reads now, a layout and its page body
   // render concurrently, and asserting non-null here turned any disagreement
@@ -13,8 +21,14 @@ export default async function OpsAdminInvitesPage() {
   const session = await requireOpsRolePage('admin', '/ops/admin/invites');
 
   return (
-    <OpsShell title="Admin · Invites" email={session.email} role="admin">
-      <OpsAdminInvitesPanel />
+    <OpsShell
+      title="Admin · People"
+      email={session.email}
+      role="admin"
+      variant="wide"
+      subtitle="Who holds operational access, what they may do, and what they are assigned to"
+    >
+      <OpsAdminPeoplePanel />
     </OpsShell>
   );
 }

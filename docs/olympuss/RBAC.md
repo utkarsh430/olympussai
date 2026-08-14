@@ -187,9 +187,22 @@ system rather than a role field bolted onto the project login:
 - **Roles:** `driver`, `dispatcher`, `depot`, `control_room`, `planner`,
   `admin` (`src/lib/auth/rbac/roles.ts`). The first five each get their own
   screen at `/ops/<role-segment>` (control_room's segment is `control-room`).
-  `admin` has no operational screen — its only surface is
-  `/ops/admin/invites`.
-- **Admin-invite only:** there is no self-service signup. An admin creates an
+  `admin` has no operational screen — it does not drive the fleet, it decides
+  who may. Its surface is the administrator console at `/ops/admin`
+  (overview), with `/ops/admin/invites` (people, roles and assignments),
+  `/ops/admin/rollout-stages` and `/ops/admin/network` under it. `/ops/admin`
+  itself was a 404 until that console was built, and `src/lib/auth/landing.ts`
+  carried a hard-coded detour around it.
+- **Admin-invite only:** there is no self-service signup, and an invite only
+  ever creates a NEW account — `POST /api/ops/admin/invites` refuses (`409`
+  `USER_ALREADY_EXISTS`) an address that already has an `ops_users` row, and
+  names the existing role so the admin can change it or disable the account
+  instead. Nothing used to refuse it: `ops_invites` constrains only live
+  invites per email and has no relationship to `ops_users`, so the invite was
+  created and emailed and the collision surfaced to the INVITEE, as an
+  unhandled `ops_users_email_key` violation and an HTTP 500. That pre-check is
+  a read before a write and therefore races, so the accept path now reports the
+  genuine collision as a `409 ACCOUNT_ALREADY_EXISTS` too. An admin creates an
   `ops_invites` row (`POST /api/ops/admin/invites`); the invitee accepts it
   once (`POST /api/ops/auth/accept-invite`), which provisions their Supabase
   Auth account with the password they choose, creates the `ops_users` row
@@ -315,6 +328,7 @@ privileged action writes one row here, attributed to `actor_user_id`:
 | `control_room.command.create`                               | `POST /api/ops/control-room/commands`    | Refuses (`409`) unless `dispatcherActionId` names an existing, unconsumed `ops_dispatcher_actions` row; consumes it atomically.                                                                                                                                   |
 | `admin.invite.create`                                       | `POST /api/ops/admin/invites`            | Metadata includes `emailDelivered` (whether the Resend send succeeded).                                                                                                                                                                                           |
 | `admin.invite.resend`                                       | `POST /api/ops/admin/invites/:id/resend` | Rotates the invite's token/expiry, then re-sends the email. Refuses (`409`) once accepted or revoked.                                                                                                                                                             |
+| `admin.invite.revoke`                                       | `POST /api/ops/admin/invites/:id/revoke` | Stamps `revoked_at`, which the accept path refuses on and the one-live-invite-per-email index excludes — so revoking is also what frees the address for a corrected invite. Refuses (`409`) once accepted, including when an acceptance wins the race. The row is never deleted. |
 | `admin.user.disable`                                        | `POST /api/ops/admin/users/:id/disable`  | Refuses (`409`) to disable the last active admin. Metadata carries `identityRevoked`: `true`/`false` for a linked account, `null` when there was no identity to revoke — "nothing to revoke" and "tried and failed" are different facts. `false` means the enterprise surface is **still open** and the response says so. Rows written before the ban landed carry the older `claimCleared` key. |
 | `admin.user.role_assign`                                    | `POST /api/ops/admin/users/:id/role`     | One event for both writes. Metadata carries `previousRole`, `role`, and `claimWritten` (`false` for an account with no Supabase identity yet). Refuses (`409`) to move the last active admin off `admin`.                                                         |
 | `admin.user.role_assign_failed`                             | `POST /api/ops/admin/users/:id/role`     | The claim write failed and the role change was rolled back. Metadata names the `failure` and records `rolledBack: true`. Written after the rollback, so retries leave one record each.                                                                            |

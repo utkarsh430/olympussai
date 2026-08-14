@@ -277,6 +277,32 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (error instanceof OpsDbConfigError) {
       return errorResponse('NOT_CONFIGURED', 'Ops authentication is not configured.', 503);
     }
+    // The invite was issued for an address that already has an ops_users row.
+    // POST /api/ops/admin/invites refuses that up front now, but that check is
+    // a read before a write and races — two admins, or an admin and an
+    // acceptance already in flight, still reach here. The transaction rolled
+    // back and `releaseIdentity` took the provisioned identity with it, so the
+    // only thing left to get right is what the invitee is told. Until now that
+    // was an unhandled throw: an HTTP 500 quoting `ops_users_email_key`.
+    //
+    // Matched on the CONSTRAINT, not on `code` alone: a 23505 from anywhere
+    // else in this transaction is a different fact, and answering "you already
+    // have an account" to it would be a guess dressed as an explanation.
+    if (isDuplicateOpsUserEmail(error)) {
+      return errorResponse(
+        'ACCOUNT_ALREADY_EXISTS',
+        'This address already has an operations account, so this invite cannot create one. ' +
+          'Sign in with it instead, or ask your administrator to check which account you should be using.',
+        409,
+      );
+    }
     throw error;
   }
+}
+
+/** A Postgres unique violation on `ops_users.email` — see db/migrations/20260805210000__ops_rbac.sql. */
+function isDuplicateOpsUserEmail(error: unknown): boolean {
+  if (!(error instanceof Error) || !('code' in error)) return false;
+  const { code, constraint } = error as { code?: string; constraint?: string };
+  return code === '23505' && constraint === 'ops_users_email_key';
 }

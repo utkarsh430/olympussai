@@ -90,6 +90,54 @@ export async function POST(request: NextRequest): Promise<Response> {
     return errorResponse('INVALID_BODY', 'A valid email and role are required.', 400);
   }
 
+  // ── An address that already has an account cannot be invited ────────────
+  //
+  // Nothing used to stop this. `ops_invites` constrains only LIVE invites per
+  // email (ops_invites_pending_email_idx) and has no relationship to
+  // `ops_users` at all, so the insert below succeeded, the invite was emailed,
+  // and the collision surfaced one step later and to the WRONG PERSON: the
+  // ops_users insert inside repo.acceptInvite hit `ops_users_email_key`, which
+  // no branch of the accept route handled, and the invitee got a 500 quoting a
+  // database constraint.
+  //
+  // The admin is the one who can act on it and they are standing right here,
+  // so the refusal belongs here, with the current role in the message — the
+  // remedy is almost always "change their role" or "they are disabled", and
+  // both are one screen away.
+  //
+  // This is a read followed by a write and therefore races; it is the
+  // convenience half, not the enforcement half. The database settles the
+  // genuine collision, and POST /api/ops/auth/accept-invite now reports THAT
+  // as a clean 409 too.
+  let existing;
+  try {
+    existing = await getOpsRepo().findUserByEmail(parsed.data.email);
+  } catch (error) {
+    if (error instanceof OpsDbConfigError) {
+      return errorResponse('NOT_CONFIGURED', 'Ops authentication is not configured.', 503);
+    }
+    // A pre-check that could not run is not a pre-check. Refusing keeps the
+    // guarantee the admin is about to be given ("this invite will work")
+    // truthful, and the action is retryable.
+    console.error('[ops/admin/invites] could not check for an existing account', error);
+    return errorResponse(
+      'ROSTER_UNAVAILABLE',
+      'The operator roster could not be read, so this invite was not created. Please try again.',
+      503,
+    );
+  }
+
+  if (existing) {
+    return errorResponse(
+      'USER_ALREADY_EXISTS',
+      `${existing.email} already has an operations account (${existing.role}` +
+        `${existing.status === 'disabled' ? ', currently disabled' : ''}). ` +
+        'Invites only create new accounts. To move this person to another role, change their ' +
+        'role on the people screen; to revoke their access, disable them there instead.',
+      409,
+    );
+  }
+
   const token = generateInviteToken();
   const tokenHash = hashInviteToken(token);
   const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
@@ -195,7 +243,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 /**
  * List outstanding (not yet accepted, not revoked) invites for the admin
  * panel — backs the expiry/status state and the resend action on
- * OpsAdminInvitesPanel.tsx. Never returns token_hash.
+ * OpsAdminPeoplePanel.tsx. Never returns token_hash.
  */
 export async function GET(): Promise<Response> {
   const guard = await requireOpsRole(['admin']);

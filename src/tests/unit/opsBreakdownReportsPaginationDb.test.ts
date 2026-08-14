@@ -63,7 +63,7 @@ if (process.env.CI === 'true' && !HAS_OPS_DB) {
 
 describe.skipIf(!HAS_OPS_DB)('listBreakdownReports keyset pagination — against a real ops Postgres', () => {
   const driverUserId = randomUUID();
-  const driverEmail = `pagination-test-${driverUserId}@example.test`;
+  const driverEmail = `pagination-test-${driverUserId}.qa@example.test`;
   // Sorted ascending so this file's own expectations don't accidentally
   // depend on insertion order — the query orders by id DESC as its tiebreak.
   const reportIds = [randomUUID(), randomUUID(), randomUUID()].sort();
@@ -78,7 +78,7 @@ describe.skipIf(!HAS_OPS_DB)('listBreakdownReports keyset pagination — against
   // that truncates it to `.500Z` rounds the boundary DOWN past the other
   // two and loses them.
   const microDriverUserId = randomUUID();
-  const microDriverEmail = `pagination-micro-${microDriverUserId}@example.test`;
+  const microDriverEmail = `pagination-micro-${microDriverUserId}.qa@example.test`;
   const MICRO_CREATED_AT_DESC = [
     '2026-08-10T13:00:00.500900Z',
     '2026-08-10T13:00:00.500500Z',

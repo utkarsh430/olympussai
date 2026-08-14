@@ -42,7 +42,7 @@ function errorResponse(code: string, message: string, status: number) {
  * self-reported-vehicle-registration-in-localStorage convention that
  * DriverDashboard's schedule lookup and BreakdownReportPanel now read from
  * via GET /api/ops/auth/session's `vehicleId`, and it already has an admin
- * UI panel calling it (src/components/ops/OpsAdminInvitesPanel.tsx).
+ * UI panel calling it (src/components/ops/admin/OpsAdminPeoplePanel.tsx).
  */
 export async function POST(
   request: NextRequest,

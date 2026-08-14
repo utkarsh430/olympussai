@@ -281,9 +281,12 @@ describe('an unreadable ops database is not a signed-out user', () => {
 
 /**
  * The behavioural tests above prove the guard is correct. They cannot prove
- * that all twelve pages USE it — and "eleven of them were converted" is
- * exactly the shape this defect had, since only /ops/pilot-driver has any
- * end-to-end coverage at all. So this walks the App Router directory itself.
+ * that EVERY guarded page uses it — and "all but one of them were converted"
+ * is exactly the shape this defect had, since only /ops/pilot-driver has any
+ * end-to-end coverage at all. So this walks the App Router directory itself,
+ * which is also why adding a page (the admin console's overview and its
+ * corridor-coverage screen were the most recent) fails the count below until
+ * somebody has looked at it.
  */
 describe('no ops page resolves its own session to assert on', () => {
   const opsRoot = path.join(process.cwd(), 'src/app/(ops)/ops');
@@ -305,7 +308,9 @@ describe('no ops page resolves its own session to assert on', () => {
   );
 
   it('found every guarded ops page (a move must not silently shrink this set)', () => {
-    expect(guarded.length).toBe(12);
+    // 14 since the admin console gained its own root (/ops/admin, which was a
+    // 404 for as long as the role existed) and a corridor-coverage screen.
+    expect(guarded.length).toBe(14);
   });
 
   it.each(guarded)('%s takes its session from the guard', (file) => {

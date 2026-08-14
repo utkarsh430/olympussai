@@ -303,16 +303,20 @@ describe('role-correct landing', () => {
       depot: '/ops/depot',
       control_room: '/ops/control-room',
       planner: '/ops/planner',
-      admin: '/ops/admin/invites',
+      // No longer a hard-coded detour around a missing page: /ops/admin is
+      // the admin console itself. The test below is what keeps that honest.
+      admin: '/ops/admin',
     });
   });
 
   it('every role home is a page that actually exists', () => {
-    // /ops/admin was a real 404 for every admin who signed in, accepted an
+    // /ops/admin WAS a real 404 for every admin who signed in, accepted an
     // invite, or followed "back to your dashboard" off /ops/forbidden — the
-    // segment map is a URL vocabulary, not a claim that a page is there.
-    // Walking the App Router means a future route move cannot quietly
-    // reintroduce this for a different role.
+    // segment map is a URL vocabulary, not a claim that a page is there. It is
+    // a real console now, and this walk of the App Router is what stopped that
+    // being papered over with a per-role detour: it fails the moment any
+    // role's home stops resolving to a page, for any role, rather than for the
+    // one somebody remembered.
     const appRoot = path.join(process.cwd(), 'src/app/(ops)');
     for (const role of OPS_ROLES) {
       const home = opsHomePath(role);
@@ -341,7 +345,7 @@ describe('role-correct landing', () => {
     // to sign in at all.
     expect(resolveLanding({ requestedNext: '/ops/control-room', opsRole: 'admin' })).toEqual({
       kind: 'go',
-      path: '/ops/admin/invites',
+      path: '/ops/admin',
     });
 
     // Not special to that one pair: EVERY cross-role combination falls back
@@ -385,6 +389,9 @@ describe('role-correct landing', () => {
       }),
     ).toEqual({ kind: 'go', path: '/ops/control-room/incidents/42?tab=timeline' });
 
+    // A deep link into the admin console's own segment is still honoured
+    // rather than collapsed to its root: /ops/admin/invites is a real screen
+    // and reachability is decided on the segment, not the full path.
     expect(resolveLanding({ requestedNext: '/ops/admin/invites', opsRole: 'admin' })).toEqual({
       kind: 'go',
       path: '/ops/admin/invites',
@@ -419,7 +426,7 @@ describe('role-correct landing', () => {
     });
     expect(resolveLanding({ requestedNext: undefined, opsRole: 'admin' })).toEqual({
       kind: 'go',
-      path: '/ops/admin/invites',
+      path: '/ops/admin',
     });
   });
 
@@ -605,7 +612,7 @@ describe('/ops/login', () => {
   it('sends an already-signed-in operator on from the legacy form, admin included', async () => {
     getOpsSession.mockResolvedValue({ role: 'admin', email: 'a@example.com', sub: 'x' });
     const { redirectedTo } = await visit(OpsLoginPage, { legacy: '1' });
-    expect(redirectedTo).toBe('/ops/admin/invites');
+    expect(redirectedTo).toBe('/ops/admin');
   });
 });
 
@@ -653,7 +660,7 @@ describe('the legacy ops form lands a correct sign-in correctly', () => {
     // `?next=/ops/control-room`, types the right password, and is shown
     // "Access Denied" — indistinguishable, from their side, from typing the
     // wrong one.
-    expect(await signIn('/ops/control-room', 'admin')).toBe('/ops/admin/invites');
+    expect(await signIn('/ops/control-room', 'admin')).toBe('/ops/admin');
   });
 
   it('still honours a deep link the account can actually open', async () => {
@@ -786,7 +793,7 @@ describe('no ops access configured', () => {
     const { element } = await visit(LoginPage, {});
     render(element as React.ReactElement);
     const link = screen.getByRole('link', { name: /continue to operations/i });
-    expect(link).toHaveAttribute('href', '/ops/admin/invites');
+    expect(link).toHaveAttribute('href', '/ops/admin');
   });
 });
 

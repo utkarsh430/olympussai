@@ -11,7 +11,7 @@ const CLASSIFICATIONS: WarRoomClassification[] = ['eligible', 'exogenous', 'stru
  * to /api/ops/control-room/pilot/war-room/:incidentId, which is the only
  * write path to war_room_incident_reviews — this component trusts nothing
  * it doesn't get back from that response, same self-contained
- * submit/error/success pattern as OpsAdminInvitesPanel's
+ * submit/error/success pattern as OpsAdminPeoplePanel's
  * VehicleAssignmentCell.
  */
 export function IncidentReviewForm({ incident, viewerEmail }: { incident: WarRoomIncident; viewerEmail: string }) {

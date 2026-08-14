@@ -44,27 +44,29 @@ import { OPS_ROLE_SEGMENT, roleForSegment, type OpsRole } from './rbac/roles';
 import { isOpsPath, sanitizeNextOrNull } from './redirect';
 
 /**
- * Roles whose `/ops/<segment>` path is not actually a page.
+ * The dashboard a role lands on. Always a real page.
  *
- * `admin` is the only one: `OPS_ROLE_SEGMENT.admin` is `'admin'`, but
- * `src/app/(ops)/ops/admin/` contains only `layout.tsx`, `invites/` and
- * `rollout-stages/` — there is no `admin/page.tsx`. Every existing caller
- * that built `/ops/${OPS_ROLE_SEGMENT[role]}` therefore sent an admin to a
- * 404: signing in, accepting an invite, and following "Back to your
- * dashboard" off /ops/forbidden all did it. Invites is the right home —
- * it is the screen an admin actually works in.
+ * ─── THE 404 THIS USED TO ROUTE AROUND ───────────────────────────────────
  *
- * `opsLandingPathsAreReal` in the tests walks the App Router directory and
- * fails if any role's home stops resolving to a real page, so a future
- * route move cannot silently reintroduce this.
+ * `OPS_ROLE_SEGMENT` is a URL vocabulary, not a claim that a page exists
+ * there, and for `admin` it was not one: `src/app/(ops)/ops/admin/` held a
+ * `layout.tsx`, `invites/` and `rollout-stages/` and no `page.tsx` at all. So
+ * every caller that built `/ops/${OPS_ROLE_SEGMENT[role]}` sent an admin to a
+ * 404 — signing in, accepting an invite, and following "back to your
+ * dashboard" off /ops/forbidden all did it. This module carried a hard-coded
+ * detour to `/ops/admin/invites` to cover it, which fixed the landing and left
+ * the address itself broken for anyone who trimmed the URL or typed it.
+ *
+ * `/ops/admin` is now the admin console's own overview, so the detour is gone
+ * and every role's home is once again just its segment. The test that walks the
+ * App Router and fails a role home that does not resolve to a real page
+ * ("every role home is a page that actually exists", in
+ * src/tests/unit/loginFrontDoor.test.tsx) is what keeps it that way — it is the
+ * guard, not the detour, and it catches this for any role rather than for the
+ * one somebody remembered.
  */
-const OPS_ROLE_HOME_OVERRIDES: Partial<Record<OpsRole, string>> = {
-  admin: '/ops/admin/invites',
-};
-
-/** The dashboard a role lands on. Always a real page. */
 export function opsHomePath(role: OpsRole): string {
-  return OPS_ROLE_HOME_OVERRIDES[role] ?? `/ops/${OPS_ROLE_SEGMENT[role]}`;
+  return `/ops/${OPS_ROLE_SEGMENT[role]}`;
 }
 
 /**
