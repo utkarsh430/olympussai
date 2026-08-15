@@ -91,13 +91,16 @@ The definitive field-by-field breakdown is in
 
 **Prerequisites:** Node.js 20+ and pnpm (see `packageManager` in `package.json` for the pinned version).
 
-> **Running the full system locally** — both this app and the independent
-> `control-service/`, against real local databases via Docker, with no cloud
-> accounts required for `/ops/*` — is a longer setup than the quick start
-> below covers. See [`docs/LOCAL_DEV_SETUP.md`](docs/LOCAL_DEV_SETUP.md) for
-> the complete sequence (`docker compose up`, migrations, network seed, ops
-> accounts). This section is the web app alone, against the live UPSRTC
-> upstream and no local database.
+> **Setting the whole system up on a new machine, or operating it, is
+> [`docs/HANDOVER.md`](docs/HANDOVER.md).** That is the complete, executed
+> guide: both databases, every environment variable, migrations, seeding the
+> route network and the timing trap that governs it, accounts, running both
+> services, what each console is for, the honest-data vocabulary, the command
+> path end to end, the verification baselines, and the known open issues.
+> Start there if you are new, and read it before changing anything.
+>
+> The quick start below is the web app alone, against the live UPSRTC upstream
+> and no local database.
 
 ```bash
 pnpm install
@@ -1648,6 +1651,7 @@ backend integration.
 
 | Document | Contents |
 | --- | --- |
+| [`docs/HANDOVER.md`](docs/HANDOVER.md) | **Start here.** Setting the whole system up on a new machine, and operating it |
 | [`docs/olympuss/OVERVIEW.md`](docs/olympuss/OVERVIEW.md) | Unified-app routes, source layout, surface responsibilities |
 | [`docs/olympuss/AUTH.md`](docs/olympuss/AUTH.md) | Authentication design and threat model |
 | [`docs/olympuss/DEPLOYMENT.md`](docs/olympuss/DEPLOYMENT.md) | Host configuration, secrets, domain setup |

@@ -13,7 +13,7 @@
 #   docker compose down          # stop, keep data (named volumes)
 #   docker compose down -v       # stop and WIPE all seeded/ingested data
 #
-# See docs/LOCAL_DEV_SETUP.md for the full first-time setup sequence
+# See docs/HANDOVER.md for the full first-time setup sequence
 # (migrations, network seed, ops accounts) after these are up.
 
 services:

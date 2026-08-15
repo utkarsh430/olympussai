@@ -146,7 +146,7 @@ function noActivePolicyFrom(observability: { source: string; errorCode: string |
  * route-directions also had geometry, so a ratio drawn from that table would
  * have printed a confident "47 of 47" — a claim of total coverage, on a
  * network the same repository documents as roughly 650 route-directions
- * (docs/LOCAL_DEV_SETUP.md). That is worse than the unlabelled number it
+ * (docs/HANDOVER.md). That is worse than the unlabelled number it
  * replaced, and it is worse precisely because it looks measured.
  *
  * The live vehicle feed was the other candidate, since it is the one runtime
