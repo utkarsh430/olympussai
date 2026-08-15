@@ -29,6 +29,7 @@ This document supersedes `docs/LOCAL_DEV_SETUP.md`, which is now a pointer to th
 - [15. Constraints an agent cannot see in the code](#15-constraints-an-agent-cannot-see-in-the-code)
 - [16. Verification suites and their baselines](#16-verification-suites-and-their-baselines)
 - [17. Known open issues](#17-known-open-issues)
+- [18. Moving to another machine: what you must carry](#18-moving-to-another-machine-what-you-must-carry)
 - [Appendix A: what was actually executed](#appendix-a-what-was-actually-executed)
 
 ---
@@ -56,7 +57,7 @@ That commitment is load-bearing in the code, in the seeder, and in the words on 
 
 **Path A: restore this exact system.**
 You have the owner's credentials and want the same Supabase project, the same accounts, and the same data back on a new machine.
-Follow every section, and in section 5 reuse the existing secret values rather than generating new ones.
+Follow every section, and in section 5 reuse the existing secret values rather than generating new ones - section 18 is the exact checklist of what to carry, where each value comes from, and what does not travel.
 The route network in section 7 has to be re-harvested regardless, because it is not in the repository.
 
 **Path B: stand up a fresh instance.**
@@ -130,6 +131,9 @@ This matters more than it sounds: section 15 explains why pointing test tooling 
 cp .env.example .env.local
 cp control-service/.env.example control-service/.env.local
 ```
+
+This section is exhaustive, organized by file: every variable, one row each.
+If you are moving this exact system to a different machine and want the checklist organized by what you must actually do with each value instead, see section 18.
 
 ### The trap that has bitten more than one person
 
@@ -719,6 +723,104 @@ Cosmetic, but it is on the admin's happy path.
 The control-room assistant's grounding payload could exceed the `claude` CLI's 10MB stdin cap, which meant a large evidence set produced a failure rather than an answer.
 **This was fixed and landed on `integration/main` as `d83f895` while this document was being written**, by bounding the grounding evidence so the assembled prompt cannot exceed the cap.
 The baselines in section 16 are measured at that commit and include its new tests.
+
+## 18. Moving to another machine: what you must carry
+
+Section 5 is the reference: every variable, one row each, organized by which file it lives in.
+This section is the checklist: organized by what you must actually *do* with each value when Path A (section 2) moves this exact system to a machine that has never run it.
+Read section 5 for what a variable does and how it fails; read this section for where each value comes from and whether it travels at all.
+
+### 1. Real secrets: carry these, and here is where each one comes from
+
+Three come from Supabase.
+
+**As of this writing**, the path is **Supabase Dashboard -> your project -> Settings -> API Keys**.
+That page name changed recently: it used to be plain "API," and it has since split into two tabs.
+The **Legacy API Keys** tab holds the `anon` and `service_role` keys this project actually uses today (confirmed by inspecting the running configuration for this document: both are the older JWT-format keys, not the newer prefixed ones).
+The newer **API Keys** tab holds Supabase's replacement pair, a **Publishable key** (`sb_publishable_...`) and **Secret keys** (`sb_secret_...`), which do the same two jobs under new names.
+Supabase's own documentation states the legacy `anon`/`service_role` pair will be deprecated by the end of 2026, so this project should plan to migrate to the new pair before then; either format works with this codebase, because the app only cares about the value, not which generation it is.
+The Project URL itself is served from the project's **Connect** dialog (the button on the project's dashboard home), which is also where Supabase's own docs point for it; it is not tucked inside the API Keys page.
+
+Map the three values:
+
+- Project URL -> `NEXT_PUBLIC_SUPABASE_URL`.
+- `anon` / Publishable key -> `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- `service_role` / Secret key -> `SUPABASE_SERVICE_ROLE_KEY`.
+
+Supabase masks the `service_role`/Secret value in the dashboard and expects a click before it displays in full; the exact label on that control was not independently confirmed while writing this document, so treat "there is a click between you and the value" as verified and the exact wording as **unverified**.
+
+The first two are safe to embed in a browser bundle - that is what the `NEXT_PUBLIC_` prefix means, and Next.js only inlines that prefix into client code at build time.
+The third is not: it bypasses every row-level access rule, so it may reach only server code, and this codebase never imports it from a `'use client'` module.
+There is no automated bundle scan in this repository asserting that boundary; it holds because `getSupabaseServiceRoleKey()` (`src/lib/supabase/env.ts`) is called only from server route handlers and Node scripts, and Next.js's build simply never has a reason to inline a non-`NEXT_PUBLIC_` variable into anything shipped to a browser.
+
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` comes from Google Cloud Console, under APIs & Services -> Credentials -> the key's own detail page -> Application restrictions -> HTTP referrers (websites).
+It is **referrer-restricted to the origin it was issued for**.
+A new machine serving the console from a different domain or port is not a silent no-op: `src/lib/maps/loader.ts` documents the observed failure directly - the script loads, `importLibrary` resolves, `new Map()` succeeds, and only then does Google report `RefererNotAllowedMapError` for the new origin, which the app's own `gm_authFailure` hook catches and replaces with its own message rather than leaving Google's blank panel on screen.
+Nothing fails at startup and nothing appears in server logs; the failure is visual, in the browser, on the map itself.
+Add the new machine's origin to the key's referrer allowlist in Google Cloud Console before or immediately after the move.
+
+`CLAUDE_CODE_OAUTH_TOKEN` comes from running `claude setup-token` on the machine that will run the web app.
+Unlike the values above, it can be regenerated freely and carries no continuity requirement - it expires on its own schedule, and re-minting it is the documented recovery path (section 5).
+What does not travel automatically is the `claude` CLI itself: the control-room assistant shells out to a real binary, not just an HTTPS endpoint, so the new machine needs the CLI installed and either resolvable on `PATH` or pointed at explicitly through `CLAUDE_CLI_PATH` (section 3, below).
+
+### 2. Shared secrets that must match between the two services
+
+These are not a keypair.
+Each row below is **one secret value, copied byte-for-byte into both files**.
+Getting this wrong is silent: nothing crashes, calls or webhooks just start failing, and that reads as "nothing is happening" rather than as a configuration error.
+
+| Web app variable (`.env.local`) | control-service variable (`control-service/.env.local`) | What a mismatch looks like |
+| --- | --- | --- |
+| `CONTROL_SERVICE_SERVICE_TOKEN` | `SERVICE_TOKEN_SECRET` | Every web -> control-service REST call fails auth with a 401. |
+| `CONTROL_SERVICE_WEBHOOK_SECRET` | `WEBHOOK_HMAC_SECRET` | Every webhook fails signature verification with a 400, which the sender does not retry, so command-lifecycle events drop silently. |
+
+Generate each with `openssl rand -hex 32`, once, and paste the identical value into both files (section 5 already gives this command for the control-service side).
+
+`OPS_SESSION_SECRET` is not a matching pair with anything, but it belongs in this same "generate fresh on the new machine" bucket: HS256 signing secret, minimum 32 characters, generated with `openssl rand -base64 48`.
+It does not need to match a value anywhere else, including the old machine's copy - a new value is fine and arguably preferable, since it invalidates any legacy-door session tokens signed on the old machine.
+
+### 3. Machine-specific values: set these to the new box, not the old one
+
+Carrying these across from the old machine is the common error, because most of them look like they should just work and instead point at infrastructure that no longer exists on the new host.
+
+- `OPS_DATABASE_URL` and `CONTROL_SERVICE_DATABASE_URL` - the new machine's own Postgres instances (section 4), not the old machine's.
+- `CONTROL_SERVICE_BASE_URL` - where the web app reaches `control-service` from *this* machine.
+- `WEB_APP_WEBHOOK_URL` - where `control-service` delivers webhooks back to, i.e. `http://<this machine's web app>/api/control-service/webhook`.
+- `SITE_URL` - this machine's own canonical origin.
+- `CLAUDE_CLI_PATH` - only needed if `claude` is not already on this machine's `PATH`; leave it unset and try first.
+- `PORT` - control-service's listen port, only if 8080 is unavailable on the new host.
+
+### 4. Not secrets: copy these as-is
+
+`UPSRTC_LIVE_URL` and its siblings `UPSRTC_SCHEDULE_URL` (web app), plus control-service's `UPSRTC_STATIC_DATA_URL`, `UPSRTC_BUS_BETWEEN_STOPS_URL` and `UPSRTC_STOP_AREA_GROUP_URL`, all point at the same public UPSRTC endpoints and all carry a working default in code even when unset - none of them is set in the running configuration inspected for this document, which is itself evidence they are fine left alone.
+The whole `GPS_*`, `HEADWAY_*`, `SHAPE_CACHE_TTL_MS`, `COMMAND_*` (both `COMMAND_TTL_SWEEP_INTERVAL_MS` and `COMMAND_DELIVERY_SWEEP_INTERVAL_MS`), `REQUIRE_SEEDED_NETWORK` and `LOG_LEVEL` group is already-tuned scheduler and logging cadence, none of it secret, none of it machine-specific.
+Copy whatever is currently set for these verbatim; there is no reason to regenerate or reconsider any of them just because the box changed.
+
+### 5. What you do not carry: the databases
+
+Everything above is configuration.
+The data behind it is a different question, and the answer is not "bring it all."
+
+You migrate **empty** databases on the new machine (section 6) and re-seed the route network there (section 7), during Uttar Pradesh service hours - the timing constraint in section 7 is the single most important operational fact in this whole document, and it applies again in full on the new machine.
+Re-run the depot registry seed too (section 8); it is required before any depot account works, and an empty registry is exactly what a freshly migrated database has.
+
+**Supabase identities travel with the project, but the `ops_users` profile rows do not.**
+Reusing the same Supabase project (Path A, section 2) means every existing user's sign-in still works unchanged on the new machine - same email, same password, same session mechanics, because that identity lives in Supabase, not in either local database.
+But `ops_users` lives in `OPS_DATABASE_URL`, which is the new machine's own empty database, so none of those identities are linked to an active profile there yet.
+Section 9 describes exactly what that produces: "a valid Supabase session with no such profile reaches nothing and lands on a plain 'no operations access' explanation."
+That is the most likely way to strand someone on a new machine - a login that works perfectly and an application that refuses to let them past the front door.
+Run the first-admin and account-linking procedure in section 9 again on the new machine before anyone expects normal access, even for a person who was already an administrator on the old one.
+
+### 6. The two traps that bite hardest on moving day
+
+Both already appear elsewhere in this document, and both are worth restating here because this is the chapter someone actually reads while moving machines, not while learning the system for the first time.
+
+**`control-service` does not read its own `control-service/.env.local`** (section 5).
+Source it into the shell instead: `set -a; . ./.env.local; set +a`.
+Skipping this does not fail loudly - under `pnpm dev`'s watch mode it sits re-throwing, which reads as a hang rather than a configuration error.
+
+**`pnpm seed-ops-depots` (section 8) is required before any depot-role account works, on every machine, every time.**
+It is easy to run section 7's network seed, see healthy `/readyz` output, declare the move done, and only discover the gap when the first depot operator signs in to an empty registry.
 
 ---
 
