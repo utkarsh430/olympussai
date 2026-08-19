@@ -5,6 +5,7 @@
 // each control-law module (terminalDispatch.ts, twoWayHold.ts,
 // selfEqualizing.ts, safety.ts, occupancyMpc.ts) can import the shape
 // without a circular import back through solver.ts.
+import type { PassengerCost } from './objective.js';
 
 /** One committable candidate action, per Appendix A / blueprint 8.2-8.4. */
 export interface CandidateAction {
@@ -20,12 +21,41 @@ export interface CandidateAction {
   involvedVehicleIds: string[];
   holdSeconds: number;
   /**
-   * |idealHold - appliedHold|: 0 when the clamped/rounded hold exactly
-   * matches the formula's raw output, positive when the max-hold cap or
-   * rounding pulled it away from ideal. Candidates are ranked lowest cost
-   * first, matching blueprint 9.1 step 6 "optimize_passenger_and_operator_cost".
+   * The candidate's net passenger-and-operator cost in PASSENGER-SECONDS:
+   * how much cost applying this hold removes (negative) or adds (positive)
+   * versus doing nothing, under the quadratic-in-headway objective in
+   * `objective.ts`. This is blueprint 9.1 step 6
+   * "optimize_passenger_and_operator_cost", and candidates are ranked
+   * ascending on it so the most beneficial hold sorts first.
+   *
+   * NOT a hold length, and no longer the clamp residual it used to be -
+   * that value ranked candidates by how hard the cap had bitten, which put
+   * the most bunched pair last. It is still carried, as
+   * `clampResidualSeconds`, because "the cap is what shaped this hold" is
+   * genuinely worth showing a dispatcher; it just must not decide anything.
    */
   objectiveCost: number;
+  /**
+   * |rawHold - holdSeconds| in seconds: 0 when the applied hold is exactly
+   * what the law's formula asked for, positive when `max_hold_seconds` or
+   * rounding pulled it away. Diagnostic only.
+   */
+  clampResidualSeconds: number;
+  /** The three terms behind `objectiveCost`, kept for explainability and for tuning w_h / w_v / w_c against real outcomes. */
+  passengerCost: PassengerCost;
+  /** One sentence saying why this hold was recommended, in the headways and load it was decided from (reference architecture Part J "Explainability"). Deterministic given the same inputs. */
+  rationale: string;
+  /**
+   * How late the held vehicle already is, in seconds, at the moment of the
+   * decision. Positive = behind the timetable, negative = ahead of it.
+   *
+   * NULL means not knowable, not on time - there is no published schedule
+   * for this trip (`trips` / `trip_stop_times` are empty on this
+   * deployment). Every consumer must treat null as unknown: the control
+   * laws omit their schedule term and the safety filter applies no lateness
+   * bound. See schedule/deviation.ts.
+   */
+  scheduleDeviationSeconds: number | null;
   routeDirectionId: string;
   /** ISO timestamp of the headway/vehicle-state sample the candidate was computed from - what the safety filter's staleness check is measured against. */
   stateAsOf: string;
@@ -62,4 +92,26 @@ export interface SafetyRejection {
   reasons: SafetyRejectionReason[];
 }
 
-export type SafetyRejectionReason = 'stale_state' | 'max_hold_cap_breach' | 'conflicting_active_command';
+/**
+ * `max_lateness_breach` is the punctuality guardrail: the hold is feasible
+ * and safe in every other respect, but applying it would push the vehicle
+ * past `route_policies.max_lateness_seconds`. Distinct from
+ * `max_hold_cap_breach`, which bounds the ACTION - this bounds its
+ * CONSEQUENCE for the timetable.
+ */
+/**
+ * `cooldown_active` and `below_minimum_action` are about INSTRUCTION QUALITY
+ * rather than physical safety, and they belong here for the reason the
+ * literature is unanimous on: driver compliance is the dominant real-world
+ * failure mode, and it is destroyed by instructions that are erratic or
+ * pointless. Argote-Cabanero et al. (2015) explicitly constrain instruction
+ * variability to improve it. A bus told to hold 8 seconds, or told to hold
+ * again ninety seconds after the last hold, learns that the system is noise.
+ */
+export type SafetyRejectionReason =
+  | 'stale_state'
+  | 'max_hold_cap_breach'
+  | 'conflicting_active_command'
+  | 'max_lateness_breach'
+  | 'cooldown_active'
+  | 'below_minimum_action';

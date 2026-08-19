@@ -17,6 +17,7 @@ import { logger } from "../lib/logger.js";
 import { CANDIDATE_RADIUS_METERS } from "./cache.js";
 import { LOW_CONFIDENCE_THRESHOLD } from "./confidence.js";
 import { estimateVehicleState } from "./estimator.js";
+import { detectCompletedStopVisit } from "./stopVisit.js";
 import { computeLeaderFollowerOrder, computeCorridorOrder } from "./ordering.js";
 import type { StateEstimationRepository } from "./repository.js";
 import type {
@@ -139,9 +140,46 @@ export class StateEstimationService {
     // already in the table. Advancing the cache anyway is exactly how
     // cache and table diverge, so mirror the table's decision.
     if (persisted) {
+      // Before the cache is overwritten, capture the stop occupancy this fix
+      // just ended. `stopEnteredAt` lives only in the current-state row, so
+      // this is the one moment the arrival time and the departure time are
+      // both in hand - the next fix has already lost the arrival.
+      await this.recordStopVisitIfCompleted(priorState ?? null, estimate);
       this.updateCache(event.vehicleId, estimate);
     }
     return { estimate, persisted };
+  }
+
+  /**
+   * Writes the stop occupancy that just ended, if one did.
+   *
+   * NEVER THROWS. Position estimation is the hot ingestion path and its
+   * contract is that a fix either updates the vehicle's state or fails
+   * loudly; losing one row of stop history is not a reason to fail a fix
+   * that was already durably saved, and a stop_visits outage must not become
+   * a live-tracking outage. The failure is logged, and the gap it leaves is
+   * a missing visit rather than a wrong one.
+   */
+  private async recordStopVisitIfCompleted(
+    prior: PriorVehicleState | null,
+    estimate: VehicleStateEstimate
+  ): Promise<void> {
+    if (!this.repository.recordStopVisit) return;
+    const visit = detectCompletedStopVisit(prior, estimate);
+    if (!visit) return;
+
+    try {
+      await this.repository.recordStopVisit(visit);
+    } catch (error) {
+      logger.warn(
+        {
+          vehicleId: visit.vehicleId,
+          stopId: visit.stopId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "processPositionEvent: stop visit not recorded; live state is unaffected"
+      );
+    }
   }
 
   private updateCache(vehicleId: string, estimate: VehicleStateEstimate): void {

@@ -6,6 +6,7 @@ import type { Pool } from 'pg';
 import { getPool } from './pool.js';
 import { stateStore } from '../state/store.js';
 import { logger } from '../lib/logger.js';
+import { MEASURED_POLICY_PREDICATE } from '../headway/repository.js';
 import type { HeadwayStateRow, RoutePolicyRow, VehicleStateRow } from '../state/store.js';
 
 async function loadVehicleStates(pool: Pool): Promise<VehicleStateRow[]> {
@@ -99,11 +100,13 @@ async function loadHeadwayStates(pool: Pool): Promise<HeadwayStateRow[]> {
 }
 
 /**
- * `calibration_source = 'none'` rows are excluded for the same reason
- * src/headway/repository.ts#loadActiveRoutePolicy excludes them: such a row has
- * no target headway, only the sentinel that the not-null column forced. Loading
- * it into the store would hand every consumer a number to divide by. Absent
- * from the store is the state that already means "unpoliced".
+ * Rows without a MEASURED target headway are excluded for the same reason
+ * src/headway/repository.ts#loadActiveRoutePolicy excludes them, and through
+ * the same exported predicate so the two cannot drift: such a row has no target
+ * headway, only the sentinel the not-null column forced ('none') or a number
+ * written where no evidence was found ('default'). Loading either into the
+ * store would hand every consumer something to divide by. Absent from the store
+ * is the state that already means "unpoliced".
  */
 async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
   const { rows } = await pool.query<{
@@ -119,17 +122,23 @@ async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
     self_equalizing_k: string | null;
     max_hold_seconds: number;
     cooldown_seconds: number;
+    minimum_action_seconds: number;
     prediction_horizon_control_points: number;
     occupancy_stale_seconds: number | null;
     occupancy_capacity: number | null;
+    ks: string | null;
+    max_lateness_seconds: number | null;
+    speed_band_min_kmph: string | null;
+    speed_band_max_kmph: string | null;
   }>(
     `select id, route_direction_id, operating_period, day_type,
             target_headway_seconds, bunched_threshold_ratio, warning_threshold_ratio,
-            kf, kb, self_equalizing_k, max_hold_seconds, cooldown_seconds,
-            prediction_horizon_control_points, occupancy_stale_seconds, occupancy_capacity
+            kf, kb, self_equalizing_k, max_hold_seconds, cooldown_seconds, minimum_action_seconds,
+            prediction_horizon_control_points, occupancy_stale_seconds, occupancy_capacity,
+            ks, max_lateness_seconds, speed_band_min_kmph, speed_band_max_kmph
        from route_policies
       where effective_to is null
-        and calibration_source <> 'none'`,
+        and ${MEASURED_POLICY_PREDICATE}`,
   );
   return rows.map((r) => ({
     id: r.id,
@@ -144,10 +153,32 @@ async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
     selfEqualizingK: r.self_equalizing_k === null ? null : Number(r.self_equalizing_k),
     maxHoldSeconds: r.max_hold_seconds,
     cooldownSeconds: r.cooldown_seconds,
+    minimumActionSeconds: r.minimum_action_seconds,
     predictionHorizonControlPoints: r.prediction_horizon_control_points,
     occupancyStaleSeconds: r.occupancy_stale_seconds,
     occupancyCapacity: r.occupancy_capacity,
+    ks: r.ks === null ? null : Number(r.ks),
+    maxLatenessSeconds: r.max_lateness_seconds,
+    speedBandMinKmph: r.speed_band_min_kmph === null ? null : Number(r.speed_band_min_kmph),
+    speedBandMaxKmph: r.speed_band_max_kmph === null ? null : Number(r.speed_band_max_kmph),
   }));
+}
+
+/**
+ * Every stop a corridor has designated as a control point.
+ *
+ * Separate query from `loadTerminalStops` rather than one pass over the
+ * table: that one wants exactly one row per route-direction (the origin) and
+ * uses `distinct on` to get it, while this wants all of them. Folding the
+ * two together would mean post-processing a result shaped for neither.
+ */
+async function loadControlPointStops(pool: Pool): Promise<{ routeDirectionId: string; stopId: string }[]> {
+  const { rows } = await pool.query<{ route_direction_id: string; stop_id: string }>(
+    `select route_direction_id, stop_id
+       from route_direction_stops
+      where is_control_point`,
+  );
+  return rows.map((r) => ({ routeDirectionId: r.route_direction_id, stopId: r.stop_id }));
 }
 
 async function loadTerminalStops(pool: Pool): Promise<{ routeDirectionId: string; stopId: string }[]> {
@@ -251,17 +282,20 @@ export async function refreshNetworkCounts(pool: Pool = getPool()): Promise<Netw
 export async function rehydrateState(pool: Pool = getPool()): Promise<void> {
   stateStore.setStatus('in_progress');
   try {
-    const [vehicleStates, headwayStates, activePolicies, terminalStops] = await Promise.all([
-      loadVehicleStates(pool),
-      loadHeadwayStates(pool),
-      loadActivePolicies(pool),
-      loadTerminalStops(pool),
-      refreshNetworkCounts(pool),
-    ]);
+    const [vehicleStates, headwayStates, activePolicies, terminalStops, controlPointStops] =
+      await Promise.all([
+        loadVehicleStates(pool),
+        loadHeadwayStates(pool),
+        loadActivePolicies(pool),
+        loadTerminalStops(pool),
+        loadControlPointStops(pool),
+        refreshNetworkCounts(pool),
+      ]);
     stateStore.loadVehicleStates(vehicleStates);
     stateStore.loadHeadwayStates(headwayStates);
     stateStore.loadActivePolicies(activePolicies);
     stateStore.loadTerminalStops(terminalStops);
+    stateStore.loadControlPointStops(controlPointStops);
     stateStore.setStatus('complete');
     logger.info(
       { counts: stateStore.counts(), network: networkCounts },

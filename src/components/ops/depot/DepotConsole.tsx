@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { OpsShell } from '@/components/ops/OpsShell';
 import { OpsAlert, OpsStack } from '@/components/ops/ui';
@@ -123,6 +123,25 @@ export function DepotConsole({
     [router, searchParams],
   );
 
+  // Which incident the map is drawing. The map draws ONE (see
+  // OpsFleetMapPanel's `selectedIncidentId`) and the bunching tab chooses it.
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
+
+  // Derived, not stored: incidents CLOSE now (control-service ends one as soon
+  // as its pair stops being a pair), and a corridor change replaces the list
+  // wholesale. Either can retire the selected incident while it is still
+  // selected, which would leave a mark on the map that nothing in the list can
+  // deselect. Reading through the current list means a retired selection
+  // simply stops being one.
+  const shownIncidentId = useMemo(
+    () =>
+      selectedIncidentId !== null &&
+      incidents.some((incident) => incident.id === selectedIncidentId)
+        ? selectedIncidentId
+        : null,
+    [incidents, selectedIncidentId],
+  );
+
   const selected = snapshot.selectedCorridor;
   const readingsUnavailable = depotReadingsUnavailable(snapshot);
   const openIncidentCount = incidents.length;
@@ -165,6 +184,7 @@ export function DepotConsole({
             // measurement from the moment the page paints.
             vehicles={mapVehicles}
             incidents={incidents}
+            selectedIncidentId={shownIncidentId}
             scopeLabel={depotLabel}
             routeDirectionId={selected?.routeDirectionId}
             live
@@ -248,6 +268,8 @@ export function DepotConsole({
                   snapshot={snapshot}
                   incidents={incidents}
                   depotLabel={depotLabel}
+                  selectedIncidentId={shownIncidentId}
+                  onSelectIncident={setSelectedIncidentId}
                 />
               )}
               {tab === 'schedule' && <DepotSchedulePanel />}

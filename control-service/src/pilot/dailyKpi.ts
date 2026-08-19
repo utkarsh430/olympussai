@@ -6,9 +6,79 @@
 // shape as the web app's src/lib/controlService/observabilityData.ts.
 import type { Pool } from 'pg';
 import { getPool } from '../db/pool.js';
-import { computeAggregate } from '../headway/metrics.js';
+import { computeAggregate, computeDispersion } from '../headway/metrics.js';
+import { computeStopHeadways, dwellSeconds, type StopVisitRecord } from '../headway/stopHeadway.js';
+import { computeLoadBalance, detectDeniedBoarding } from '../headway/deniedBoarding.js';
+import { buildDwellObservations, fitDwellModel, type DwellModel } from '../calibration/dwell.js';
+import { loadScheduleCurves } from '../schedule/repository.js';
+import { buildPunctualityObservations, summarisePunctuality } from '../schedule/punctuality.js';
 import type { HeadwayPairMetric } from '../headway/types.js';
 import { listRolloutStages } from './rolloutStages.js';
+
+/**
+ * Bunching threshold used for the at-stop share, matching the
+ * `route_policies.bunched_threshold_ratio` schema default. Read from the
+ * column rather than hard-coded once this snapshot loads a policy row - it
+ * is config, not code, and only the corridor-level dispersion below is
+ * insensitive to it.
+ */
+const DEFAULT_BUNCHED_RATIO = 0.25;
+
+/**
+ * Suspected left-behind-passenger events across a day's visits.
+ *
+ * Each visit is scored against the gap that preceded it at the same stop -
+ * the same pairing `buildDwellObservations` makes - because the detector's
+ * question is "did this bus dwell less than a gap that long should have
+ * produced". A visit with no predecessor, or at a stop with no fitted dwell
+ * model, is skipped rather than counted as clean: absence of evidence is not
+ * evidence that nobody was left behind.
+ */
+function countDeniedBoardings(
+  visits: readonly StopVisitRecord[],
+  dwellModelByStop: ReadonlyMap<string, DwellModel>,
+  capacity: number,
+): number {
+  const byStop = new Map<string, StopVisitRecord[]>();
+  for (const visit of visits) {
+    const key = `${visit.routeDirectionId} ${visit.stopId}`;
+    const bucket = byStop.get(key) ?? [];
+    bucket.push(visit);
+    byStop.set(key, bucket);
+  }
+
+  let detected = 0;
+  for (const bucket of byStop.values()) {
+    const sorted = [...bucket].sort(
+      (a, b) => new Date(a.departedAt).getTime() - new Date(b.departedAt).getTime(),
+    );
+    for (let i = 1; i < sorted.length; i++) {
+      const previous = sorted[i - 1]!;
+      const current = sorted[i]!;
+      const precedingHeadwaySeconds =
+        (new Date(current.departedAt).getTime() - new Date(previous.departedAt).getTime()) / 1000;
+      if (!Number.isFinite(precedingHeadwaySeconds) || precedingHeadwaySeconds <= 0) continue;
+
+      const detection = detectDeniedBoarding(
+        {
+          stopId: current.stopId,
+          routeDirectionId: current.routeDirectionId,
+          vehicleId: current.vehicleId,
+          precedingHeadwaySeconds,
+          observedDwellSeconds: dwellSeconds(current),
+          // No per-visit occupancy is recorded yet - `stop_visits` carries no
+          // occupancy column because nothing observes one. When ticketing
+          // lands, this is the single field to populate.
+          occupancyCount: null,
+          capacity,
+        },
+        dwellModelByStop.get(current.stopId) ?? null,
+      );
+      if (detection) detected += 1;
+    }
+  }
+  return detected;
+}
 
 export interface DailyKpiSnapshot {
   routeDirectionId: string;
@@ -26,6 +96,25 @@ export interface DailyKpiSnapshot {
   complianceSampleCount: number;
   compliancePct: number | null;
   computedAt: string;
+
+  // ─── THE THREE OPERATOR PRIORITIES, MEASURED ─────────────────────────
+  //
+  // Every one of these is null until its data source exists. Null means NOT
+  // MEASURED and must be rendered as absence, never as zero - see the
+  // migration's column comments.
+
+  /** Punctuality. Share of departures inside the on-time window. Needs a timetable. */
+  onTimeRate: number | null;
+  punctualitySampleCount: number;
+  p90LatenessSeconds: number | null;
+  /** Spacing, MEASURED at the stop from `stop_visits` - distinct from `ewtSeconds`, which is the gap/speed model. */
+  ewtAtStopSeconds: number | null;
+  cvAtStop: number | null;
+  stopHeadwaySampleCount: number;
+  /** Load balance. Needs occupancy, which nothing writes yet. */
+  p90LoadFraction: number | null;
+  loadSpreadFraction: number | null;
+  deniedBoardingCount: number | null;
 }
 
 interface RawSnapshotRow {
@@ -44,6 +133,15 @@ interface RawSnapshotRow {
   compliance_sample_count: number;
   compliance_pct: string | null;
   computed_at: string;
+  on_time_rate: string | null;
+  punctuality_sample_count: number;
+  p90_lateness_seconds: string | null;
+  ewt_at_stop_seconds: string | null;
+  cv_at_stop: string | null;
+  stop_headway_sample_count: number;
+  p90_load_fraction: string | null;
+  load_spread_fraction: string | null;
+  denied_boarding_count: number | null;
 }
 
 function mapRow(row: RawSnapshotRow): DailyKpiSnapshot {
@@ -64,6 +162,15 @@ function mapRow(row: RawSnapshotRow): DailyKpiSnapshot {
     complianceSampleCount: row.compliance_sample_count,
     compliancePct: num(row.compliance_pct),
     computedAt: row.computed_at,
+    onTimeRate: num(row.on_time_rate),
+    punctualitySampleCount: row.punctuality_sample_count,
+    p90LatenessSeconds: num(row.p90_lateness_seconds),
+    ewtAtStopSeconds: num(row.ewt_at_stop_seconds),
+    cvAtStop: num(row.cv_at_stop),
+    stopHeadwaySampleCount: row.stop_headway_sample_count,
+    p90LoadFraction: num(row.p90_load_fraction),
+    loadSpreadFraction: num(row.load_spread_fraction),
+    deniedBoardingCount: row.denied_boarding_count,
   };
 }
 
@@ -130,18 +237,132 @@ export async function computeDailyKpiSnapshot(
   const compliedCount = complianceRows.filter((r) => r.compliance === 'complied').length;
   const compliancePct = complianceSampleCount > 0 ? compliedCount / complianceSampleCount : null;
 
+  // ─── SPACING AS MEASURED AT THE STOP ────────────────────────────────
+  //
+  // Distinct from `aggregate` above, which reduces the gap/speed model in
+  // `headway_states`. This differences actual departures at each stop -
+  // the measurement the blueprint prefers there, and the one the operator's
+  // priority is defined on. Both are stored; where they disagree, that is
+  // information about the model rather than a fault in either.
+  //
+  // Empty until `stop_visits` has been filling for a day, which begins the
+  // moment the estimator that writes it is deployed. No UPSRTC data needed.
+  const { rows: visitRows } = await pool.query<{
+    vehicle_id: string;
+    stop_id: string;
+    route_direction_id: string;
+    arrived_at: string;
+    departed_at: string;
+    trip_id: string | null;
+  }>(
+    `select vehicle_id, stop_id, route_direction_id, arrived_at, departed_at, trip_id
+       from stop_visits
+      where route_direction_id = $1 and departed_at::date = $2::date`,
+    [routeDirectionId, date],
+  );
+  const visits: StopVisitRecord[] = visitRows.map((r) => ({
+    vehicleId: r.vehicle_id,
+    stopId: r.stop_id,
+    routeDirectionId: r.route_direction_id,
+    arrivedAt: r.arrived_at,
+    departedAt: r.departed_at,
+    tripId: r.trip_id,
+  }));
+
+  const stopResults =
+    targetHeadwaySeconds > 0
+      ? computeStopHeadways(visits, targetHeadwaySeconds, DEFAULT_BUNCHED_RATIO)
+      : [];
+
+  // ─── PUNCTUALITY ────────────────────────────────────────────────────
+  //
+  // Needs a loaded timetable, which no corridor has. `loadScheduleCurves`
+  // returns an empty map, no observation is built, and every rate below is
+  // null - which is the honest reading and NOT the same as zero. The chain
+  // is wired now so that populating trip_stop_times is the only step.
+  const curves = await loadScheduleCurves(
+    visits.map((v) => v.tripId).filter((id): id is string => !!id),
+    pool,
+  );
+  const { rows: stopDistanceRows } = await pool.query<{
+    stop_id: string;
+    cumulative_distance_meters: string | null;
+  }>(
+    `select stop_id, cumulative_distance_meters
+       from route_direction_stops
+      where route_direction_id = $1`,
+    [routeDirectionId],
+  );
+  const stopDistanceByStopId = new Map<string, number>();
+  for (const row of stopDistanceRows) {
+    if (row.cumulative_distance_meters === null) continue;
+    const distance = Number(row.cumulative_distance_meters);
+    if (Number.isFinite(distance)) stopDistanceByStopId.set(row.stop_id, distance);
+  }
+  const punctuality = summarisePunctuality(
+    buildPunctualityObservations(visits, curves, stopDistanceByStopId),
+    routeDirectionId,
+  );
+
+  // ─── LOAD BALANCE AND DENIED BOARDING ───────────────────────────────
+  //
+  // Both need occupancy, which nothing writes today, so both resolve to
+  // null. The dwell model the denied-boarding detector needs is fitted
+  // IN PLACE from the same day's visits rather than read from a table: no
+  // new job or schema is required, and a day too thin to fit produces no
+  // model, which correctly produces no detections rather than bad ones.
+  const { rows: occupancyRows } = await pool.query<{
+    occupancy_count: number | null;
+    occupancy_capacity: number | null;
+  }>(
+    `select vs.occupancy_count, rp.occupancy_capacity
+       from vehicle_states vs
+       join route_policies rp
+         on rp.route_direction_id = vs.route_direction_id and rp.effective_to is null
+      where vs.route_direction_id = $1`,
+    [routeDirectionId],
+  );
+  const capacity = occupancyRows.find((r) => r.occupancy_capacity !== null)?.occupancy_capacity ?? null;
+  const loadBalance = computeLoadBalance(
+    occupancyRows.map((r) => r.occupancy_count),
+    capacity,
+  );
+
+  const dwellModelByStop = new Map(
+    fitDwellModel(buildDwellObservations(visits)).map((m) => [m.stopId, m]),
+  );
+  const deniedBoardingCount = capacity === null ? null : countDeniedBoardings(visits, dwellModelByStop, capacity);
+  // Pooled across stops by weight of samples, so a corridor-level number
+  // reflects the stops buses actually pass rather than treating a terminus
+  // seen twice as equal to a hub seen forty times.
+  const allStopHeadways = stopResults.flatMap((r) => r.headwaySeconds);
+  const stopDispersion =
+    allStopHeadways.length > 0 ? computeDispersion(allStopHeadways, targetHeadwaySeconds) : null;
+
   await pool.query(
     `insert into daily_kpi_snapshots
        (route_direction_id, snapshot_date, sample_count, mean_headway_seconds, ewt_seconds, cv,
         incident_count, recovered_incident_count, recovery_rate, guardrail_breach_count,
-        compliance_sample_count, compliance_pct, computed_at)
-     values ($1, $2::date, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())
+        compliance_sample_count, compliance_pct, computed_at,
+        ewt_at_stop_seconds, cv_at_stop, stop_headway_sample_count,
+        on_time_rate, punctuality_sample_count, p90_lateness_seconds,
+        p90_load_fraction, load_spread_fraction, denied_boarding_count)
+     values ($1, $2::date, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), $13, $14, $15,
+             $16, $17, $18, $19, $20, $21)
      on conflict (route_direction_id, snapshot_date)
      do update set sample_count = excluded.sample_count, mean_headway_seconds = excluded.mean_headway_seconds,
                    ewt_seconds = excluded.ewt_seconds, cv = excluded.cv, incident_count = excluded.incident_count,
                    recovered_incident_count = excluded.recovered_incident_count, recovery_rate = excluded.recovery_rate,
                    guardrail_breach_count = excluded.guardrail_breach_count,
                    compliance_sample_count = excluded.compliance_sample_count, compliance_pct = excluded.compliance_pct,
+                   ewt_at_stop_seconds = excluded.ewt_at_stop_seconds, cv_at_stop = excluded.cv_at_stop,
+                   stop_headway_sample_count = excluded.stop_headway_sample_count,
+                   on_time_rate = excluded.on_time_rate,
+                   punctuality_sample_count = excluded.punctuality_sample_count,
+                   p90_lateness_seconds = excluded.p90_lateness_seconds,
+                   p90_load_fraction = excluded.p90_load_fraction,
+                   load_spread_fraction = excluded.load_spread_fraction,
+                   denied_boarding_count = excluded.denied_boarding_count,
                    computed_at = now()`,
     [
       routeDirectionId,
@@ -156,6 +377,15 @@ export async function computeDailyKpiSnapshot(
       guardrailBreachCount,
       complianceSampleCount,
       compliancePct,
+      stopDispersion?.ewtSeconds ?? null,
+      stopDispersion?.cv ?? null,
+      allStopHeadways.length,
+      punctuality.onTimeRate,
+      punctuality.sampleCount,
+      punctuality.p90LatenessSeconds,
+      loadBalance?.p90Fraction ?? null,
+      loadBalance?.spreadFraction ?? null,
+      deniedBoardingCount,
     ],
   );
 }
@@ -190,7 +420,10 @@ export async function listDailyKpiSnapshots(
     `select k.route_direction_id, r.public_name, rd.direction_code, k.snapshot_date::text as snapshot_date,
             k.sample_count, k.mean_headway_seconds, k.ewt_seconds, k.cv, k.incident_count,
             k.recovered_incident_count, k.recovery_rate, k.guardrail_breach_count,
-            k.compliance_sample_count, k.compliance_pct, k.computed_at
+            k.compliance_sample_count, k.compliance_pct, k.computed_at,
+            k.on_time_rate, k.punctuality_sample_count, k.p90_lateness_seconds,
+            k.ewt_at_stop_seconds, k.cv_at_stop, k.stop_headway_sample_count,
+            k.p90_load_fraction, k.load_spread_fraction, k.denied_boarding_count
        from daily_kpi_snapshots k
        join route_directions rd on rd.id = k.route_direction_id
        join routes r on r.id = rd.route_id

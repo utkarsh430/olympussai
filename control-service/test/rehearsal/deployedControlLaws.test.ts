@@ -31,18 +31,30 @@ function policy(overrides: Partial<RoutePolicyRow> = {}): RoutePolicyRow {
     selfEqualizingK: 0.5,
     maxHoldSeconds: 90,
     cooldownSeconds: 60,
+    minimumActionSeconds: 0,
     predictionHorizonControlPoints: 3,
     occupancyStaleSeconds: null,
     occupancyCapacity: null,
+    ks: null,
+    maxLatenessSeconds: null,
+    speedBandMinKmph: null,
+    speedBandMaxKmph: null,
     ...overrides,
   };
 }
 
 /**
- * A bunched pair: the follower is 2 km behind its leader and closing at
- * 60 km/h, so h_fwd is 120 s against a 900 s target. The leader is crawling
- * at 6 km/h, so h_bwd is 1,200 s - the pair is genuinely converging, which
- * is the situation two-way holding exists for.
+ * A bunched vehicle in a three-vehicle chain: SIM-02 is 2 km behind its
+ * leader and closing at 60 km/h, so h_fwd is 120 s against a 900 s target.
+ * SIM-03 sits 2 km behind SIM-02 crawling at 6 km/h, so h_bwd is 1,200 s -
+ * the gap ahead is collapsing while the gap behind yawns open, which is the
+ * exact situation two-way holding exists for.
+ *
+ * THREE vehicles, not two, and that is the point. h_bwd is measured to the
+ * vehicle BEHIND the one being decided about; a leader and a follower alone
+ * cannot supply it, and `engine.ts` never does (see
+ * `ControllerKinematics.trailer`). A hand-built context can, which is what
+ * keeps Algorithm B under test against the real deployed module.
  */
 function bunchedContext(overrides: Partial<ControllerContext> = {}): ControllerContext {
   return {
@@ -58,6 +70,7 @@ function bunchedContext(overrides: Partial<ControllerContext> = {}): ControllerC
     kinematics: {
       follower: { vehicleId: 'SIM-02', distanceAlongRouteMeters: 10_000, speedKmph: 60 },
       leader: { vehicleId: 'SIM-01', distanceAlongRouteMeters: 12_000, speedKmph: 6 },
+      trailer: { vehicleId: 'SIM-03', distanceAlongRouteMeters: 8_000, speedKmph: 6 },
       totalDistanceMeters: 200_000,
     },
     ...overrides,
@@ -76,10 +89,8 @@ describe('deployed-control-laws rehearsal controller', () => {
   });
 
   // THE REUSE CLAIM. two_way_hold is only reachable when h_bwd exists, and
-  // h_bwd only exists because the controller context now carries the
-  // leader's PACE as well as the gap. Before that, `computeTwoWayCandidates`
-  // skipped every pair and the simulator could only ever rehearse the
-  // fallback law. Assert the exact number Algorithm B produces:
+  // h_bwd only exists when a vehicle BEHIND the deciding one is in the
+  // chain. Assert the exact number Algorithm B produces:
   //   Kf*(H* - h_fwd) - Kb*(H* - h_bwd)
   //   = 0.6*(900 - 120) - 0.3*(900 - 1200) = 468 + 90 = 558 -> clamped to 90.
   it('runs Algorithm B (two-way holding) on a converging pair, clamped by the policy hold cap', () => {

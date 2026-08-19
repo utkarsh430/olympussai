@@ -16,6 +16,7 @@ import {
 import {
   actionLabel,
   describeBasis,
+  describeClampResidual,
   describeObjectiveCost,
   describeRejection,
   describeSampleAge,
@@ -268,12 +269,20 @@ export function EngineRecommendationPanel({
               tone={describeSampleAge(sampleAge(selected.stateAsOf, now)).tone}
             />
             <OpsReadout
-              label="Distance from the ideal hold"
-              value={String(Math.round(selected.objectiveCost))}
+              label="Passenger-seconds saved"
+              value={String(-Math.round(selected.objectiveCost))}
             />
           </div>
 
-          <p className="mt-3 text-xs leading-relaxed text-subtle">
+          {/* The engine's own one-sentence reason, verbatim. Part J of the
+              control architecture asks for a reason rather than a
+              confidence score, and the sentence is generated from the same
+              headways and load the decision was made from - so restating it
+              here in different words would be a second, drifting account of
+              the same decision. */}
+          <p className="mt-3 text-xs leading-relaxed text-foreground">{selected.rationale}</p>
+
+          <p className="mt-2 text-xs leading-relaxed text-subtle">
             {describeObjectiveCost(selected.objectiveCost)}. Depends on where{' '}
             {selected.involvedVehicleIds.join(', ')}{' '}
             {selected.involvedVehicleIds.length === 1 ? 'is' : 'are'} right now.{' '}
@@ -281,6 +290,19 @@ export function EngineRecommendationPanel({
               ? 'A minus figure means this bus has closed up on the bus in front.'
               : 'A plus figure means this bus has dropped further behind than planned.'}
           </p>
+
+          {selected.clampResidualSeconds > 0 && (
+            <p className="mt-2 text-xs leading-relaxed text-subtle">
+              {describeClampResidual(selected.clampResidualSeconds)}.
+            </p>
+          )}
+
+          {selected.passengerCost.loadEstimated && (
+            <p className="mt-2 text-xs leading-relaxed text-subtle">
+              No onboard count reached the engine for this bus, so the delay to
+              passengers already aboard was not priced into that figure.
+            </p>
+          )}
 
           <div className="mt-4 border-t border-border pt-4">
             {issueError && (
@@ -434,8 +456,8 @@ export function EngineRecommendationPanel({
                   <OpsIdentifier>{candidate.vehicleId}</OpsIdentifier>
                 </span>
                 <span className="text-xs tabular-nums text-subtle">
-                  {Math.round(candidate.holdSeconds)}s · {Math.round(candidate.objectiveCost)}s from
-                  the ideal hold
+                  {Math.round(candidate.holdSeconds)}s ·{' '}
+                  {-Math.round(candidate.objectiveCost)} passenger-seconds saved
                 </span>
               </li>
             ))}

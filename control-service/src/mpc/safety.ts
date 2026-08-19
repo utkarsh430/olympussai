@@ -4,6 +4,7 @@
 // route_policy)`). Runs after candidate generation and before selection -
 // a candidate that fails ANY check here is never eligible to be selected,
 // regardless of how good its objective cost looks.
+import { wouldBreachLateness } from '../schedule/deviation.js';
 import type { CandidateAction, SafetyRejection, SafetyRejectionReason } from './types.js';
 
 /**
@@ -49,6 +50,38 @@ export interface SafetyFilterContext {
   vehicleObservedAtByVehicleId: ReadonlyMap<string, string>;
   /** vehicleIds that currently have an active (non-terminal-status) command outstanding - see `commands_active_idx` / `listActiveVehicleIds`. Issuing a second hold on top of one already in flight is exactly the "conflicting active command" this filter exists to reject. */
   activeCommandVehicleIds: ReadonlySet<string>;
+  /**
+   * `route_policies.max_lateness_seconds`: the furthest behind its timetable
+   * a vehicle may be left by a hold this filter approves.
+   *
+   * Null disables the check, and it is null on every corridor today because
+   * no timetable is loaded to measure lateness against. That is a deliberate
+   * no-op rather than a fail-open hole: a candidate's
+   * `scheduleDeviationSeconds` is null in exactly the same circumstances, so
+   * there is nothing to compare, and inventing a deviation in order to have
+   * something to reject would make this guardrail vouch for a bound it never
+   * measured. `maxHoldSeconds` still bounds every candidate unconditionally.
+   */
+  maxLatenessSeconds: number | null;
+  /**
+   * `route_policies.cooldown_seconds`, and the set of vehicles that received
+   * an instruction inside that window.
+   *
+   * The column has existed since the core data model and was never enforced -
+   * it was loaded into the store, reported on the solve result's
+   * `constraints`, and checked by nothing. With the decision cycle now asking
+   * the controller for an answer every 90 seconds, an unenforced cooldown
+   * means the same driver can be issued a fresh hold on every sweep.
+   */
+  recentlyCommandedVehicleIds: ReadonlySet<string>;
+  /**
+   * `route_policies.minimum_action_seconds`: the shortest hold worth giving.
+   *
+   * Also never enforced before. A hold shorter than this is not a small
+   * benefit, it is a net cost - it spends the driver's attention and the
+   * dispatcher's, and it teaches both that the instructions are noise.
+   */
+  minimumActionSeconds: number;
 }
 
 function ageSeconds(iso: string | undefined, now: Date): number {
@@ -110,6 +143,33 @@ export function applyHardSafetyFilter(
 
     if (context.activeCommandVehicleIds.has(candidate.vehicleId)) {
       reasons.push('conflicting_active_command');
+    }
+
+    // Punctuality guardrail. Spacing is bought with delay, and this is the
+    // point at which the price becomes too high: the hold is otherwise
+    // sound, but the vehicle would end up further behind its timetable than
+    // the corridor permits. Rejecting here rather than shrinking the hold is
+    // deliberate - a silently shortened hold would be attributed to the
+    // control law, and the operator would never learn that punctuality, not
+    // the headway maths, decided this.
+    // Instruction-quality guardrails. Both are about whether this hold is
+    // worth GIVING, as distinct from whether it is safe to give.
+    if (context.recentlyCommandedVehicleIds.has(candidate.vehicleId)) {
+      reasons.push('cooldown_active');
+    }
+
+    if (candidate.holdSeconds < context.minimumActionSeconds) {
+      reasons.push('below_minimum_action');
+    }
+
+    if (
+      wouldBreachLateness(
+        candidate.scheduleDeviationSeconds,
+        candidate.holdSeconds,
+        context.maxLatenessSeconds,
+      )
+    ) {
+      reasons.push('max_lateness_breach');
     }
 
     if (reasons.length > 0) {

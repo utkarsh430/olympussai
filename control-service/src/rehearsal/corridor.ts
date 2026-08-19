@@ -2,21 +2,22 @@
 //
 // ─── THE REFUSAL IS THE POINT OF THIS FILE ───────────────────────────────
 //
-// 561 of the 759 seeded route-directions carry `calibration_source = 'none'`
-// and a sentinel target headway of 1 second, because neither published
-// source could answer for them. Every threshold in `src/headway/` is a ratio
-// of the target headway, so a rehearsal run on one of those corridors would
-// produce a full set of confident-looking numbers computed against a
-// denominator that is not a measurement. That is the exact fabrication the
-// seeder refuses to commit, and it is refused here too.
+// Most seeded route-directions carry no measured target headway: 'none' with
+// a sentinel of 1 second where neither published source could answer, and
+// 'default' where no evidence was found and a number was written anyway.
+// Every threshold in `src/headway/` is a ratio of the target headway, so a
+// rehearsal run on either kind would produce a full set of confident-looking
+// numbers computed against a denominator that is not a measurement. That is
+// the exact fabrication the seeder refuses to commit, and it is refused here
+// too.
 //
 // The refusal is not re-implemented. `loadActiveRoutePolicy` from
 // `../headway/repository.js` is the reader the live detection path uses, and
-// its `calibration_source <> 'none'` predicate is what makes an uncalibrated
-// corridor indistinguishable from one with no policy at all. Asking it first
-// and stopping when it answers null means the rehearsal surface and the live
-// detector can never disagree about which corridors are calibrated - they
-// are reading through the same function.
+// its MEASURED_POLICY_PREDICATE is what makes an uncalibrated corridor
+// indistinguishable from one with no policy at all. Asking it first and
+// stopping when it answers null means the rehearsal surface and the live
+// detector can never disagree about which corridors are calibrated - they are
+// reading through the same function, against the same exported predicate.
 //
 // The remaining policy columns (the controller gains, the hold cap, the
 // occupancy policy) are then loaded for the SAME row. They are not part of
@@ -26,7 +27,7 @@
 import type { Pool } from 'pg';
 import { getPool } from '../db/pool.js';
 import { AppError } from '../lib/errors.js';
-import { loadActiveRoutePolicy } from '../headway/repository.js';
+import { loadActiveRoutePolicy, MEASURED_POLICY_PREDICATE } from '../headway/repository.js';
 import type { RoutePolicyRow } from '../state/store.js';
 import type { StopDefinition } from '../simulation/types.js';
 
@@ -104,7 +105,7 @@ export async function loadCorridorInputs(
             calibration_source
        from route_policies
       where route_direction_id = $1 and effective_to is null
-        and calibration_source <> 'none'
+        and ${MEASURED_POLICY_PREDICATE}
       order by (operating_period = 'all' and day_type = 'all') desc
       limit 1`,
     [routeDirectionId],
@@ -125,9 +126,14 @@ export async function loadCorridorInputs(
     selfEqualizingK: policyRow.self_equalizing_k === null ? null : Number(policyRow.self_equalizing_k),
     maxHoldSeconds: policyRow.max_hold_seconds,
     cooldownSeconds: policyRow.cooldown_seconds,
+    minimumActionSeconds: 0,
     predictionHorizonControlPoints: policyRow.prediction_horizon_control_points,
     occupancyStaleSeconds: policyRow.occupancy_stale_seconds,
     occupancyCapacity: policyRow.occupancy_capacity,
+    ks: null,
+    maxLatenessSeconds: null,
+    speedBandMinKmph: null,
+    speedBandMaxKmph: null,
   };
 
   const directionResult = await pool.query<{

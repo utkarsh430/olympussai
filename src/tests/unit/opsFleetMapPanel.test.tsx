@@ -108,11 +108,52 @@ describe('OpsFleetMapPanel', () => {
     expect(alert).toHaveTextContent(/still listed in the tables/i);
   });
 
-  it('reports how many bunching incidents it drew', () => {
+  // ─── THE MAP DRAWS ONE INCIDENT, NOT ALL OF THEM ───────────────────────
+  //
+  // It used to draw every open incident at once. On the statewide console that
+  // was a web of hundreds of dashed links across Uttar Pradesh, which is what
+  // let a real detector failure - incidents that never closed, linking buses a
+  // median of 59 km apart - hide in plain sight for as long as it did. The
+  // list beside the map is the index; the map answers one question at a time.
+  it('draws nothing until an incident is selected, and says the list is there', () => {
     render(
-      <OpsFleetMapPanel vehicles={twoVehicles} incidents={[incident('inc-1', ['A', 'B'])]} scopeLabel="Bareilly" />,
+      <OpsFleetMapPanel
+        vehicles={twoVehicles}
+        incidents={[incident('inc-1', ['A', 'B']), incident('inc-2', ['A', 'B'])]}
+        scopeLabel="Bareilly"
+      />,
     );
-    expect(screen.getByText('1 bunching incident drawn.')).toBeInTheDocument();
+    expect(
+      screen.getByText('2 incidents on this corridor. Select one to see it on the map.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Showing 1 of/)).not.toBeInTheDocument();
+  });
+
+  it('says which one of the corridor’s incidents is on the map', () => {
+    render(
+      <OpsFleetMapPanel
+        vehicles={twoVehicles}
+        incidents={[incident('inc-1', ['A', 'B']), incident('inc-2', ['A', 'B'])]}
+        selectedIncidentId="inc-1"
+        scopeLabel="Bareilly"
+      />,
+    );
+    expect(screen.getByText('Showing 1 of 2 incidents on this corridor.')).toBeInTheDocument();
+  });
+
+  // A click that draws nothing must not look like a broken click.
+  it('says so when the selected incident’s buses cannot be placed', () => {
+    render(
+      <OpsFleetMapPanel
+        vehicles={twoVehicles}
+        incidents={[incident('inc-foreign', ['SOMEONE_ELSE'])]}
+        selectedIncidentId="inc-foreign"
+        scopeLabel="Bareilly"
+      />,
+    );
+    expect(
+      screen.getByText(/selected incident's buses are not reporting a position/i),
+    ).toBeInTheDocument();
   });
 
   // The honest half of a scoped overlay: a depot operator SHOULD NOT see an

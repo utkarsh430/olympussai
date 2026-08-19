@@ -185,14 +185,65 @@ export function describeRejection(
     }
     case 'conflicting_active_command':
       return `${candidate.vehicleId} already has an instruction it has not finished; a second one would clash with it.`;
+    case 'max_lateness_breach': {
+      const bound =
+        typeof constraints.maxLatenessSeconds === 'number'
+          ? `${constraints.maxLatenessSeconds}s`
+          : 'the limit set for it';
+      const late =
+        candidate.scheduleDeviationSeconds !== null &&
+        candidate.scheduleDeviationSeconds !== undefined
+          ? ` ${candidate.vehicleId} is already ${Math.round(candidate.scheduleDeviationSeconds)}s behind.`
+          : '';
+      // Deliberately not phrased as a hold-length problem: the hold is within
+      // the cap. What fails is what it would do to the timetable, and an
+      // operator who reads this as "the hold was too long" will reach for the
+      // wrong lever.
+      return `This hold would leave ${candidate.vehicleId} more than ${bound} behind schedule, which this corridor does not allow.${late}`;
+    }
+    case 'cooldown_active':
+      return `${candidate.vehicleId} was given an instruction too recently. Repeated instructions to the same driver get ignored, so the engine waits.`;
+    case 'below_minimum_action': {
+      const minimum =
+        typeof constraints.minimumActionSeconds === 'number'
+          ? `${constraints.minimumActionSeconds}s`
+          : 'the minimum set for it';
+      return `The hold this needs is under ${minimum} — too short to be worth asking a driver for.`;
+    }
   }
 }
 
-/** Reading of `objectiveCost`, which is not a score and must not be shown as one. */
+/**
+ * Reading of `objectiveCost`, which is not a score and must not be shown as
+ * one.
+ *
+ * It is passenger-seconds: the waiting this hold removes downstream, less
+ * the delay it imposes on the people already aboard, less operator cost.
+ * Negative means the hold is worth making. A dispatcher deciding whether to
+ * approve needs the direction and the size of that trade, so both are said
+ * in words rather than left as a signed number to interpret.
+ *
+ * Until this value existed the console reported the clamp residual here,
+ * described as "distance from the ideal hold" — which explained the
+ * controller's own rounding to an operator who has no use for it. That
+ * number is still available as `clampResidualSeconds` and now reads as what
+ * it is: evidence the hold cap shaped this recommendation.
+ */
 export function describeObjectiveCost(cost: number): string {
-  return cost === 0
+  const magnitude = Math.abs(Math.round(cost));
+  if (magnitude === 0) {
+    return 'this hold is projected to break even — it removes about as much waiting as it adds';
+  }
+  return cost < 0
+    ? `this hold is projected to save about ${magnitude} passenger-seconds of waiting, after charging the delay to everyone already on board`
+    : `this hold is projected to COST about ${magnitude} passenger-seconds — it adds more delay than the waiting it removes`;
+}
+
+/** Reading of `clampResidualSeconds` — how far the hold cap and rounding pulled the applied hold from what the control law asked for. */
+export function describeClampResidual(seconds: number): string {
+  return seconds === 0
     ? 'exactly the hold the formula asked for — nothing rounded it or capped it'
-    : `${Math.round(cost)}s between the hold the formula asked for and the one that can actually be applied`;
+    : `${Math.round(seconds)}s shorter than the formula asked for, because the hold cap or rounding pulled it back`;
 }
 
 /**

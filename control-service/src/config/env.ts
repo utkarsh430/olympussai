@@ -82,6 +82,134 @@ const baseEnvSchema = z.object({
   /** A vehicle_states row older than this doesn't count toward "this route-direction has a live pair". */
   HEADWAY_VEHICLE_FRESHNESS_SECONDS: z.coerce.number().int().positive().default(300),
 
+  // ── Decision cycle (src/scheduler/decisionCycle.ts) ───────────────────
+  //
+  // Asks the controller what to do, on a timer, instead of only when a
+  // dispatcher opens the console. Writes `recommendations` rows with status
+  // 'proposed'; it never issues a command.
+  //
+  // 90 s rather than the headway sweep's 60 s: a decision is only as fresh
+  // as the headway state it reads, so solving faster than that state is
+  // recomputed spends database connections re-deriving the same answer.
+  // Slightly out of phase with it on purpose, so the two sweeps do not
+  // contend for the pool on the same tick.
+  DECISION_CYCLE_INTERVAL_MS: z.coerce.number().int().positive().default(90_000),
+  DECISION_CYCLE_BATCH_SIZE: z.coerce.number().int().positive().default(60),
+  // Lower than HEADWAY_COMPUTE_CONCURRENCY: each solve issues its own
+  // queries (active commands, schedule curves, open incidents, the insert)
+  // against a pool that maxes out at 10, and /v1 request traffic has to keep
+  // getting through while this runs.
+  DECISION_CYCLE_CONCURRENCY: z.coerce.number().int().positive().default(3),
+  // How long standing advice may go un-repeated before an unchanged
+  // recommendation is written again. Keeps a long-running situation leaving
+  // a periodic trace that the controller is still watching it, without
+  // writing a near-identical row every cycle - see
+  // src/db/recommendations.ts#isMateriallyNewRecommendation.
+  DECISION_CYCLE_REPEAT_AFTER_SECONDS: z.coerce.number().int().positive().default(900),
+  // Opt-out, like the KPI snapshot and retention sweeps: set to 'false' to
+  // return to the previous behaviour where a recommendation exists only for
+  // the corridor a dispatcher is looking at.
+  DECISION_CYCLE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  /**
+   * An open incident is only reported while at least one of its two member
+   * vehicles has reported a position within this window.
+   *
+   * WHY AN OPEN INCIDENT CAN OUTLIVE ITS OWN EVIDENCE. An incident is closed
+   * in exactly one place - `rule.recovered` in src/headway/service.ts - and
+   * reaching it requires the pair to be RECOMPUTED, which in turn requires
+   * the route-direction to still have two vehicles fresher than
+   * HEADWAY_VEHICLE_FRESHNESS_SECONDS (listRouteDirectionsWithLiveHeadwayPairs).
+   * When those buses stop reporting - a depot going offline, or this service
+   * being stopped overnight - the pair is never revisited, recovery is never
+   * evaluated, and the row stays `open` forever. Left unbounded on the read
+   * side that is not a slow leak but an unbounded one: a single week-long gap
+   * left 30,619 undead incidents that the control room drew as bunching
+   * between buses hundreds of kilometres apart, on week-old positions.
+   *
+   * Bounding on `started_at` instead would be wrong in the opposite
+   * direction - it would hide a genuine incident precisely because it has
+   * lasted a long time, which is when it matters most. Liveness is a property
+   * of the evidence, not of the incident's age, so it is measured on the
+   * member vehicles' last fix.
+   *
+   * Deliberately more generous than HEADWAY_VEHICLE_FRESHNESS_SECONDS: that
+   * one gates a computation that reruns every sweep and can afford to be
+   * tight, whereas this one makes an incident appear and disappear in an
+   * operator's face, and must not flicker for a bus that merely missed a poll.
+   */
+  INCIDENT_VEHICLE_FRESHNESS_SECONDS: z.coerce.number().int().positive().default(900),
+
+  /**
+   * How long a pair may go without a fresh headway sample before the sweep
+   * closes its open incident.
+   *
+   * WHY AN INCIDENT NEEDS AN EXPIRY AT ALL. Detection is a standing sweep over
+   * every corridor, but an incident is an INTERVAL, and until this existed it
+   * had only one way to end: `rule.recovered` in src/headway/service.ts, which
+   * requires that exact leader/follower pair to be recomputed. A pair stops
+   * being a pair for entirely ordinary reasons - a third bus moves between
+   * them, the follower finishes its trip, the corridor drops below two fresh
+   * vehicles - and from that moment the recovery rule is never evaluated
+   * again. Measured on the pilot database: 9,692 open incidents, of which 172
+   * (1.8%) had been evaluated in the last five minutes. The other 96% were
+   * undead, and the control room drew every one of them as a bunching link
+   * between buses a median of 59 km apart.
+   *
+   * Closing on this bound does NOT stop either bus being watched. Both stay
+   * under the same sweep, `findOpenIncidentForPair` only ever matches
+   * non-closed rows, and a pair that closes up again opens a new incident on
+   * the next cycle - which is the honest record: two intervals, not one that
+   * never ended.
+   *
+   * Comfortably longer than one compute cycle x required_samples so a corridor
+   * that merely missed its turn in the round-robin is never closed out from
+   * under an operator who is still looking at it.
+   */
+  INCIDENT_PAIR_SAMPLE_MAX_AGE_SECONDS: z.coerce.number().int().positive().default(1_800),
+  /** How often the staleness sweep runs. Cheap: one indexed anti-join, bounded by INCIDENT_STALENESS_SWEEP_BATCH. */
+  INCIDENT_STALENESS_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(300_000),
+  /**
+   * At most this many incidents closed per sweep tick. A first run against a
+   * database that has been accumulating undead rows for days has thousands of
+   * candidates; draining them over several ticks keeps one tick from holding
+   * the pool while ingestion is trying to use it.
+   */
+  INCIDENT_STALENESS_SWEEP_BATCH: z.coerce.number().int().positive().default(500),
+
+  // ── Retention ────────────────────────────────────────────────────────────
+  //
+  // Nothing in this service used to delete anything, so every table grew for
+  // as long as the process ran: ~270k headway_states rows a day (~120 MB),
+  // forever, to serve a bunching rule that reads the last THREE rows per pair
+  // and a live API that looks back 900 seconds. Retention is what makes "this
+  // system runs on live data" a standing property instead of a manual purge.
+  //
+  // THE SNAPSHOT IS WHAT MAKES PRUNING SAFE, AND THE ORDER MATTERS. A past
+  // day's KPIs live in daily_kpi_snapshots (see src/pilot/dailyKpi.ts), which
+  // is computed FROM the raw rows. Delete the raw before the snapshot exists
+  // and that day's numbers are gone permanently - there is nothing left to
+  // recompute from. So retention never deletes a day's headway_states until
+  // that day's snapshot has been written; see src/scheduler/retention.ts.
+  RETENTION_ENABLED: booleanFromEnv.default(true),
+  RETENTION_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(3_600_000),
+  /** headway_states older than this are pruned - once their day is snapshotted. */
+  HEADWAY_STATE_RETENTION_HOURS: z.coerce.number().int().positive().default(24),
+  /** A vehicle dark this long stops being a dot on the map. Bounded anyway: vehicle_states is keyed on vehicle_id. */
+  VEHICLE_STATE_RETENTION_HOURS: z.coerce.number().int().positive().default(24),
+  /** Incidents are kept longer than raw samples - they are the product history, and are thousands of rows, not millions. */
+  INCIDENT_RETENTION_DAYS: z.coerce.number().int().positive().default(3),
+  /**
+   * How often each day's KPI snapshot is refreshed. Must be comfortably more
+   * frequent than HEADWAY_STATE_RETENTION_HOURS or the sweep would be racing
+   * the pruner for the same day's rows - the `exists` guard in retention.ts
+   * makes losing that race harmless rather than lossy, but a job that is
+   * routinely too late would simply stop anything from ever being pruned.
+   */
+  DAILY_KPI_SNAPSHOT_INTERVAL_MS: z.coerce.number().int().positive().default(900_000),
+
   /**
    * When true, /readyz reports 503 until the network geometry is actually
    * seeded (at least one active route_direction with a route_shape).

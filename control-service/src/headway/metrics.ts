@@ -14,8 +14,39 @@
 //                 follower would take to reach the leader's current
 //                 position if it held its current pace. This is the
 //                 "closing" headway a reactive rule watches for bunching.
-//   hBwdSeconds = gapMeters / leader's current speed - symmetric backward
-//                 headway, using the leader's own pace instead.
+//   hBwdSeconds = the SAME quantity one link further back down the chain:
+//                 the time the follower's OWN follower would take to reach
+//                 the follower's current position. Blueprint 7.1 defines it
+//                 as "predicted time for the follower to reach bus i's
+//                 current route position", and every row here is scored,
+//                 held and commanded against its `followerVehicleId`
+//                 (mpc/twoWayHold.ts), so bus i IS the follower and the bus
+//                 behind it is the third vehicle in the chain. Null when
+//                 there is no such vehicle - the back-most bus on a linear
+//                 route has nothing behind it, which is a real absence and
+//                 not a zero.
+//
+// ─── WHY hBwd IS NOT gapMeters / leader's speed ──────────────────────────
+//
+// It used to be, and that is a different quantity entirely: the same
+// leader->follower gap, divided by the other vehicle's pace. It never
+// observed the bus behind. Substituted into the two-way law
+//
+//   hold = Kf x (H* - h_fwd) - Kb x (H* - h_bwd)
+//
+// two buses travelling at similar speeds give h_fwd ~= h_bwd, and the law
+// collapses to (Kf - Kb) x (H* - h_fwd) - a forward-only proportional
+// controller at a fraction of the intended gain, which is exactly the
+// design defect blueprint 12.4 lists as "Forward-only control creates
+// downstream holding cascades". Worse, the residual backward term was then
+// driven by the speed DIFFERENTIAL between those same two buses, so a
+// follower running slower than its leader grew the backward term and
+// cancelled its own hold precisely as the pair closed up.
+//
+// The correct value needs no new data. It is already in the adjacent row
+// of the same leader/follower chain, which is why this is computed here
+// (where the whole chain is in hand) rather than by having the control law
+// hunt for a sibling row.
 // A stationary/near-stationary vehicle (speed at or below MIN_SPEED_KMPH)
 // is floored to MIN_SPEED_KMPH rather than producing a division-by-zero or
 // an unbounded headway, and every computed headway is capped at
@@ -91,11 +122,33 @@ export function computePairHeadways(
       routeDirection.totalDistanceMeters
     );
 
-    const leaderSpeedMps = toSpeedMetersPerSecond(speedByVehicleId.get(leader.vehicleId) ?? null);
     const followerSpeedMps = toSpeedMetersPerSecond(speedByVehicleId.get(follower.vehicleId) ?? null);
-
     const hFwdSeconds = followerSpeedMps == null ? null : clampHeadwaySeconds(gapMeters / followerSpeedMps);
-    const hBwdSeconds = leaderSpeedMps == null ? null : clampHeadwaySeconds(gapMeters / leaderSpeedMps);
+
+    // Backward headway of the FOLLOWER - the vehicle this row's candidate
+    // would be issued to - measured one link further back: the gap from the
+    // follower to the bus behind it, closed at that bus's own pace. Same
+    // shape as hFwd, one position down the chain. `trailer` is absent for
+    // the back-most vehicle on a linear route-direction (on a loop the wrap
+    // link in state-estimation/ordering.ts always supplies one), and a
+    // null here is the documented trigger for mpc/selfEqualizing.ts to take
+    // the pair instead of mpc/twoWayHold.ts.
+    const trailer = follower.followerVehicleId ? byId.get(follower.followerVehicleId) : undefined;
+    const trailerSpeedMps =
+      trailer == null ? null : toSpeedMetersPerSecond(speedByVehicleId.get(trailer.vehicleId) ?? null);
+    const backGapMeters =
+      trailer == null
+        ? null
+        : computeGapMeters(
+            follower.distanceAlongRouteMeters,
+            trailer.distanceAlongRouteMeters,
+            routeDirection.totalDistanceMeters
+          );
+    const hBwdSeconds =
+      backGapMeters == null || trailerSpeedMps == null
+        ? null
+        : clampHeadwaySeconds(backGapMeters / trailerSpeedMps);
+
     const deviationSeconds = hFwdSeconds == null ? null : hFwdSeconds - targetHeadwaySeconds;
 
     const leaderConfidence = confidenceByVehicleId.get(leader.vehicleId) ?? null;
@@ -129,6 +182,65 @@ export function computePairHeadways(
  * E[h^2] / (2*E[h]) = (variance + mean^2) / (2*mean); scheduled wait is
  * targetHeadwaySeconds / 2. EWT is the (non-negative) difference.
  */
+export interface HeadwayDispersion {
+  sampleCount: number;
+  meanHeadwaySeconds: number | null;
+  stddevHeadwaySeconds: number | null;
+  cv: number | null;
+  ewtSeconds: number | null;
+}
+
+/**
+ * CV and EWT from a bare list of headways in seconds.
+ *
+ * Split out from `computeAggregate` so the MODEL-BASED headways this module
+ * derives from GPS gaps and the MEASURED departure-to-departure headways in
+ * `stopHeadway.ts` are reduced by the same arithmetic. They are different
+ * observations of the same quantity and an operator will compare them
+ * directly; two copies of this formula would eventually make that comparison
+ * a comparison of two methodologies instead.
+ *
+ * EWT follows the standard "actual wait minus scheduled wait" methodology
+ * (e.g. TfL's Excess Wait Time KPI): actual mean wait for a Poisson-ish
+ * arriving passenger is E[h^2] / (2*E[h]) = (variance + mean^2) / (2*mean),
+ * which is governed by the SECOND moment of the headway distribution - so one
+ * long gap costs more than several short headways save, which is precisely
+ * what bunching produces. Scheduled wait is targetHeadwaySeconds / 2, and EWT
+ * is the (non-negative) difference.
+ */
+export function computeDispersion(
+  headwaySeconds: readonly number[],
+  targetHeadwaySeconds: number
+): HeadwayDispersion {
+  const sampleCount = headwaySeconds.length;
+  if (sampleCount === 0) {
+    return {
+      sampleCount: 0,
+      meanHeadwaySeconds: null,
+      stddevHeadwaySeconds: null,
+      cv: null,
+      ewtSeconds: null,
+    };
+  }
+
+  const mean = headwaySeconds.reduce((sum, v) => sum + v, 0) / sampleCount;
+  const variance = headwaySeconds.reduce((sum, v) => sum + (v - mean) ** 2, 0) / sampleCount;
+  const stddev = Math.sqrt(variance);
+  const cv = mean > 0 ? stddev / mean : null;
+
+  const scheduledWaitSeconds = targetHeadwaySeconds / 2;
+  const actualMeanWaitSeconds = mean > 0 ? (variance + mean * mean) / (2 * mean) : 0;
+  const ewtSeconds = Math.max(0, actualMeanWaitSeconds - scheduledWaitSeconds);
+
+  return {
+    sampleCount,
+    meanHeadwaySeconds: mean,
+    stddevHeadwaySeconds: stddev,
+    cv,
+    ewtSeconds,
+  };
+}
+
 export function computeAggregate(
   pairs: readonly HeadwayPairMetric[],
   routeDirectionId: string,
@@ -138,35 +250,9 @@ export function computeAggregate(
     .map((p) => p.hFwdSeconds)
     .filter((v): v is number => v != null);
 
-  const sampleCount = values.length;
-  if (sampleCount === 0) {
-    return {
-      routeDirectionId,
-      sampleCount: 0,
-      meanHeadwaySeconds: null,
-      stddevHeadwaySeconds: null,
-      cv: null,
-      ewtSeconds: null,
-      targetHeadwaySeconds,
-    };
-  }
-
-  const mean = values.reduce((sum, v) => sum + v, 0) / sampleCount;
-  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / sampleCount;
-  const stddev = Math.sqrt(variance);
-  const cv = mean > 0 ? stddev / mean : null;
-
-  const scheduledWaitSeconds = targetHeadwaySeconds / 2;
-  const actualMeanWaitSeconds = mean > 0 ? (variance + mean * mean) / (2 * mean) : 0;
-  const ewtSeconds = Math.max(0, actualMeanWaitSeconds - scheduledWaitSeconds);
-
   return {
     routeDirectionId,
-    sampleCount,
-    meanHeadwaySeconds: mean,
-    stddevHeadwaySeconds: stddev,
-    cv,
-    ewtSeconds,
+    ...computeDispersion(values, targetHeadwaySeconds),
     targetHeadwaySeconds,
   };
 }

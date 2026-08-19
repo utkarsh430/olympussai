@@ -54,10 +54,16 @@ export function DepotBunchingPanel({
   snapshot,
   incidents,
   depotLabel,
+  selectedIncidentId = null,
+  onSelectIncident,
 }: {
   snapshot: DepotConsoleSnapshot;
   incidents: readonly BunchingIncident[];
   depotLabel: string;
+  /** The incident currently drawn on the depot map, so this list can say which one it is. */
+  selectedIncidentId?: string | null;
+  /** Show one of these on the map. Omit and the list is read-only. See OpsFleetMapPanel's `selectedIncidentId`. */
+  onSelectIncident?: (incidentId: string | null) => void;
 }) {
   const { selectedCorridor, coverage } = snapshot;
   const observationOnly = selectedCorridor
@@ -102,7 +108,13 @@ export function DepotBunchingPanel({
             ) : (
               <ul className="space-y-2">
                 {incidents.map((incident) => (
-                  <li key={incident.id} className="ops-well px-4 py-3">
+                  <li
+                    key={incident.id}
+                    aria-current={incident.id === selectedIncidentId ? 'true' : undefined}
+                    className={`ops-well px-4 py-3 ${
+                      incident.id === selectedIncidentId ? 'ring-1 ring-primary/40' : ''
+                    }`}
+                  >
                     <div className="flex flex-wrap items-center gap-2">
                       <IncidentSeverityBadge severity={incident.severity} />
                       <span className="text-xs tabular-nums text-muted-foreground">
@@ -120,6 +132,18 @@ export function DepotBunchingPanel({
                       </OpsIdentifier>
                       . Buses from other depots in the same incident are not listed here.
                     </p>
+                    {onSelectIncident && (
+                      <button
+                        type="button"
+                        aria-pressed={incident.id === selectedIncidentId}
+                        onClick={() =>
+                          onSelectIncident(incident.id === selectedIncidentId ? null : incident.id)
+                        }
+                        className="mt-2 text-xs font-medium text-primary hover:underline"
+                      >
+                        {incident.id === selectedIncidentId ? 'Hide from map' : 'Show on map'}
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

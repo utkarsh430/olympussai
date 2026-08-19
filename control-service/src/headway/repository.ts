@@ -16,6 +16,8 @@
 // every compute call instead.
 import type { Pool } from "pg";
 import { getPool } from "../db/pool.js";
+import { loadEnv } from "../config/env.js";
+import type { StopVisitRecord } from "./stopHeadway.js";
 import type {
   BunchingSeverity,
   RouteDirectionListing,
@@ -23,6 +25,54 @@ import type {
   RoutePolicyForHeadway,
   VehicleForHeadway,
 } from "./types.js";
+
+/**
+ * "This policy row carries a target headway that was MEASURED."
+ *
+ * The one predicate that decides whether a corridor detects at all, written
+ * once and referenced everywhere so the corridor picker's `has_active_policy`
+ * flag, the eligibility sweep and the headway read can never drift apart. They
+ * used to be three hand-copied strings, which is how the second of the two
+ * exclusions below went missing from all three at once.
+ *
+ * ─── BOTH EXCLUSIONS ARE THE SAME RULE ───────────────────────────────────
+ *
+ * `calibration_source` records where a target headway CAME FROM
+ * (src/seed/harvest.ts). Two of its values mean "nowhere":
+ *
+ *   'none'     No target. The timetable had no answer, so
+ *              UNCALIBRATED_HEADWAY_SENTINEL_SECONDS (1) sits in the not-null
+ *              column and detection is off, visibly.
+ *   'default'  FABRICATED - harvest.ts's own word. No evidence was found and a
+ *              number was written anyway, because the column is NOT NULL and
+ *              `> 0` and something had to go in it.
+ *
+ * Only 'none' was excluded. 'default' was not, so nothing stopped the reactive
+ * bunching rule running against an invented number - exactly what "Derive
+ * target headway from the published timetable; never fabricate one" was
+ * supposed to have ended.
+ *
+ * WHAT IT WOULD DO, because "it is only a fallback" reads as harmless. Every
+ * threshold in this directory is a RATIO of H*, so a fabricated H* does not
+ * weaken detection, it INVERTS it. The 679 'default' rows written on this
+ * deployment carry targets from 60 seconds to 50,460 (14 hours). At the top of
+ * that range and the default 0.25 bunched ratio, any pair closer together than
+ * three and a half hours reads as bunched - on a live corridor, every pair,
+ * permanently. At the bottom, nothing can ever flag. seed/index.ts used to
+ * describe these rows as "effectively excluded from bunching detection", which
+ * is the reasoning this predicate corrects.
+ *
+ * SCOPE, stated honestly: all 679 of those rows have since been superseded by
+ * recalibration, so this deployment's ACTIVE set (666 rows: 495 'none', 171
+ * measured) currently contains none of them. This closes the hole rather than
+ * clears a live backlog - a fresh seed of a deployment that has not been
+ * recalibrated writes 'default' rows, and they would have been live inputs.
+ *
+ * A fabricated target is not a weaker measurement, it is the absence of one,
+ * and the honest handling of an absent target is the fail-closed 404
+ * `no_active_policy` that 'none' already gets.
+ */
+export const MEASURED_POLICY_PREDICATE = "calibration_source not in ('none', 'default')";
 
 export async function loadRouteDirectionMeta(
   routeDirectionId: string,
@@ -88,7 +138,7 @@ export async function loadActiveRoutePolicy(
             warning_threshold_ratio, required_samples, operating_period, day_type
        from route_policies
       where route_direction_id = $1 and effective_to is null
-        and calibration_source <> 'none'
+        and ${MEASURED_POLICY_PREDICATE}
       order by (operating_period = 'all' and day_type = 'all') desc
       limit 1`,
     [routeDirectionId]
@@ -239,6 +289,18 @@ export async function loadRecentHeadwayRatios(
  * `exists (select 1 ... offset 1)` is the cheap spelling of "at least two":
  * Postgres can stop as soon as it has skipped one row and found a second,
  * without counting the rest.
+ *
+ * A CORRIDOR WITH NO MEASURED TARGET IS PRUNED HERE TOO, and that is a
+ * correctness fix as much as an efficiency one. computeRouteDirectionHeadway
+ * throws a 404 AppError (`no_active_policy`) for those, which the sweep
+ * catches, counts as `failed` and logs a warning for - once per corridor, per
+ * cycle, forever. So the one signal that means "a route this service should be
+ * controlling has broken" was permanently buried under hundreds of warnings
+ * about corridors that are working exactly as designed, and every one of those
+ * cycles still paid for a metadata read and a policy read to reach a
+ * predetermined answer. Filtering on the same MEASURED_POLICY_PREDICATE the
+ * headway read uses means the sweep attempts only corridors that can actually
+ * produce a reading.
  */
 export async function listRouteDirectionsWithLiveHeadwayPairs(
   freshnessSeconds: number,
@@ -249,6 +311,13 @@ export async function listRouteDirectionsWithLiveHeadwayPairs(
        from route_directions rd
        join route_shapes rs on rs.route_direction_id = rd.id
       where rd.is_active
+        and exists (
+              select 1
+                from route_policies p
+               where p.route_direction_id = rd.id
+                 and p.effective_to is null
+                 and p.${MEASURED_POLICY_PREDICATE}
+            )
         and exists (
               select 1
                 from vehicle_states vs
@@ -340,6 +409,123 @@ export async function findOpenIncidentForPair(
   return row ? { id: row.id, severity: row.severity } : null;
 }
 
+export interface OpenIncidentPair extends OpenIncidentRef {
+  leaderVehicleId: string;
+  followerVehicleId: string;
+}
+
+/**
+ * Every open incident on a route-direction, resolved back to the
+ * leader/follower pair it was opened for.
+ *
+ * Backs `closeSupersededIncidents` in ./service.ts: the compute cycle has just
+ * recomputed which pairs EXIST on this corridor, so any open incident whose
+ * pair is not in that set is describing a pair that has stopped being one.
+ *
+ * Rows whose members do not resolve to exactly one leader and one follower are
+ * returned with nulls and dropped by the caller rather than filtered out here -
+ * a malformed incident is a thing to notice, not a row to silently skip in SQL.
+ */
+export async function listOpenIncidentPairsForRouteDirection(
+  routeDirectionId: string,
+  pool: Pool = getPool()
+): Promise<OpenIncidentPair[]> {
+  const { rows } = await pool.query<{
+    id: string;
+    severity: BunchingSeverity;
+    leader_vehicle_id: string | null;
+    follower_vehicle_id: string | null;
+  }>(
+    `select bi.id, bi.severity,
+            max(m.vehicle_id) filter (where m.member_role = 'leader') as leader_vehicle_id,
+            max(m.vehicle_id) filter (where m.member_role = 'follower') as follower_vehicle_id
+       from bunching_incidents bi
+       join bunching_incident_members m on m.incident_id = bi.id
+      where bi.route_direction_id = $1 and bi.status <> 'closed'
+      group by bi.id`,
+    [routeDirectionId]
+  );
+  const pairs: OpenIncidentPair[] = [];
+  for (const row of rows) {
+    if (row.leader_vehicle_id == null || row.follower_vehicle_id == null) continue;
+    pairs.push({
+      id: row.id,
+      severity: row.severity,
+      leaderVehicleId: row.leader_vehicle_id,
+      followerVehicleId: row.follower_vehicle_id,
+    });
+  }
+  return pairs;
+}
+
+/**
+ * Close every open incident whose pair has not been sampled inside
+ * `maxSampleAgeSeconds`, newest-started last so a backlog drains oldest-first.
+ *
+ * THE BACKSTOP, not the primary path. `closeSupersededIncidents` closes a pair
+ * the moment its own corridor is recomputed without it, which is precise and
+ * immediate. This exists for the case that path structurally cannot reach: a
+ * corridor that stops being computed AT ALL (it drops below two fresh
+ * vehicles, or the service is stopped overnight). Nothing then revisits those
+ * incidents, and without this they stay open forever - which is exactly how
+ * this database accumulated 9,692 of them.
+ *
+ * Bounded by `limit` because a first run against a database that has been
+ * accumulating for days has thousands of candidates, and one tick must not
+ * hold the pool while ingestion is trying to use it. The sweep is idempotent,
+ * so a backlog simply drains over several ticks.
+ *
+ * The anti-join probes `headway_states_leader_idx (leader_vehicle_id,
+ * computed_at desc)`, so it is an index range scan per candidate rather than a
+ * scan of the samples table - which is the largest table in the schema.
+ */
+export async function closeStaleOpenIncidents(
+  maxSampleAgeSeconds: number,
+  limit: number,
+  pool: Pool = getPool()
+): Promise<number> {
+  const { rowCount } = await pool.query(
+    `with open_pairs as (
+       select bi.id,
+              bi.route_direction_id,
+              max(m.vehicle_id) filter (where m.member_role = 'leader') as leader_vehicle_id,
+              max(m.vehicle_id) filter (where m.member_role = 'follower') as follower_vehicle_id
+         from bunching_incidents bi
+         join bunching_incident_members m on m.incident_id = bi.id
+        where bi.status <> 'closed'
+        group by bi.id
+     ),
+     stale as (
+       select p.id
+         from open_pairs p
+        where p.leader_vehicle_id is not null
+          and p.follower_vehicle_id is not null
+          and not exists (
+                select 1
+                  from headway_states hs
+                 where hs.leader_vehicle_id = p.leader_vehicle_id
+                   and hs.computed_at > now() - ($1 || ' seconds')::interval
+                   and hs.follower_vehicle_id = p.follower_vehicle_id
+                   and hs.route_direction_id = p.route_direction_id
+              )
+        limit $2
+     )
+     update bunching_incidents bi
+        set status = 'closed',
+            ended_at = now(),
+            evidence = bi.evidence || jsonb_build_object(
+              'closureReason', 'evidence_went_stale',
+              'closedBy', 'incidentStalenessSweep',
+              'pairSampleMaxAgeSeconds', $1::int,
+              'closedAt', now()
+            )
+       from stale
+      where bi.id = stale.id`,
+    [maxSampleAgeSeconds, limit]
+  );
+  return rowCount ?? 0;
+}
+
 export interface OpenIncidentInput {
   routeDirectionId: string;
   severity: BunchingSeverity;
@@ -416,6 +602,47 @@ export interface BunchingIncidentRow {
 }
 
 /**
+ * "EVERY member vehicle is still reporting, and is still on this incident's
+ * own corridor" - a SQL fragment shared by listOpenIncidents and
+ * countOpenIncidents so the list and the total it is reported against can
+ * never disagree ("showing 12 of 30,619" would be worse than either number
+ * alone).
+ *
+ * WHY EVERY MEMBER AND NOT JUST ONE. This clause first said "at least one
+ * member has reported recently", which is the weaker half of what an incident
+ * claims. Bunching is a statement about a PAIR: it is only still true if both
+ * buses are still out there and still on the corridor the pair was measured
+ * on. Measured on the pilot database, "at least one" let 7,504 of 9,692 undead
+ * incidents straight through - the map still drew a web of links between buses
+ * a median of 59 km apart, because one bus of each pair had been reassigned
+ * and was reporting perfectly well from another district.
+ *
+ * The route-direction match is the half that catches exactly that: a bus that
+ * has moved to another corridor is live, and is no longer part of this pair.
+ *
+ * Written as `not exists (a member that FAILS the test)` rather than a pair of
+ * `exists`, so it holds for whatever members an incident has - two today,
+ * a platoon of four if the detector ever opens one - without the clause having
+ * to know the count.
+ *
+ * See INCIDENT_VEHICLE_FRESHNESS_SECONDS in src/config/env.ts for why this
+ * bound exists at all, and INCIDENT_PAIR_SAMPLE_MAX_AGE_SECONDS for the sweep
+ * that closes these rows properly rather than merely hiding them from a read.
+ */
+function incidentLivenessClause(paramIndex: number): string {
+  return `and not exists (
+            select 1
+              from bunching_incident_members bim
+              left join vehicle_states vs
+                     on vs.vehicle_id = bim.vehicle_id
+                    and vs.route_direction_id = bi.route_direction_id
+                    and vs.observed_at > now() - ($${paramIndex} || ' seconds')::interval
+             where bim.incident_id = bi.id
+               and vs.vehicle_id is null
+          )`;
+}
+
+/**
  * `limit`, when given, caps how many open incidents come back (most
  * recently-started first, matching the unlimited order below) - added for
  * the copilot grounding path, which folds every returned incident into an
@@ -427,10 +654,13 @@ export interface BunchingIncidentRow {
 export async function listOpenIncidents(
   routeDirectionId: string | undefined,
   limit: number | undefined,
-  pool: Pool = getPool()
+  pool: Pool = getPool(),
+  freshnessSeconds: number = loadEnv().INCIDENT_VEHICLE_FRESHNESS_SECONDS
 ): Promise<BunchingIncidentRow[]> {
   const whereClause = routeDirectionId ? "and bi.route_direction_id = $1" : "";
   const params: (string | number)[] = routeDirectionId ? [routeDirectionId] : [];
+  params.push(freshnessSeconds);
+  const livenessClause = incidentLivenessClause(params.length);
   let limitClause = "";
   if (limit !== undefined) {
     params.push(limit);
@@ -457,7 +687,7 @@ export async function listOpenIncidents(
             ) as members
        from bunching_incidents bi
        left join bunching_incident_members m on m.incident_id = bi.id
-      where bi.status <> 'closed' ${whereClause}
+      where bi.status <> 'closed' ${whereClause} ${livenessClause}
       group by bi.id
       order by bi.started_at desc
       ${limitClause}`,
@@ -486,12 +716,16 @@ export async function listOpenIncidents(
  */
 export async function countOpenIncidents(
   routeDirectionId: string | undefined,
-  pool: Pool = getPool()
+  pool: Pool = getPool(),
+  freshnessSeconds: number = loadEnv().INCIDENT_VEHICLE_FRESHNESS_SECONDS
 ): Promise<number> {
-  const whereClause = routeDirectionId ? "and route_direction_id = $1" : "";
-  const params = routeDirectionId ? [routeDirectionId] : [];
+  const whereClause = routeDirectionId ? "and bi.route_direction_id = $1" : "";
+  const params: (string | number)[] = routeDirectionId ? [routeDirectionId] : [];
+  params.push(freshnessSeconds);
   const { rows } = await pool.query<{ count: string }>(
-    `select count(*)::text as count from bunching_incidents where status <> 'closed' ${whereClause}`,
+    `select count(*)::text as count
+       from bunching_incidents bi
+      where bi.status <> 'closed' ${whereClause} ${incidentLivenessClause(params.length)}`,
     params
   );
   return Number(rows[0]?.count ?? 0);
@@ -583,17 +817,16 @@ export async function listActiveRouteDirections(
     // whether GET /v1/route-directions/:id/headway will return a reading or
     // the 404 `no_active_policy` that means detection is off for that
     // corridor. If the two ever disagree, the picker starts promising
-    // readings the headway endpoint then refuses to give — so they are
-    // written to be greppable together. `calibration_source <> 'none'` is the
-    // load-bearing half; a policy row exists for corridors whose timetable
-    // produced no usable target, and it is not a policy that detects anything.
+    // readings the headway endpoint then refuses to give. They shared a
+    // hand-copied string and drifted anyway, so both now reference
+    // MEASURED_POLICY_PREDICATE and cannot.
     `select rd.id as route_direction_id, rd.route_id, rd.direction_code, rd.is_loop,
             rs.total_distance_meters,
             exists (
               select 1 from route_policies p
                where p.route_direction_id = rd.id
                  and p.effective_to is null
-                 and p.calibration_source <> 'none'
+                 and p.${MEASURED_POLICY_PREDICATE}
             ) as has_active_policy
        from route_directions rd
        join route_shapes rs on rs.route_direction_id = rd.id
@@ -609,5 +842,46 @@ export async function listActiveRouteDirections(
     isLoop: row.is_loop,
     totalDistanceMeters: Number(row.total_distance_meters),
     hasActivePolicy: row.has_active_policy,
+  }));
+}
+
+/**
+ * Recent stop occupancies for one route-direction, for the
+ * departure-to-departure headway computation in `./stopHeadway.ts`.
+ *
+ * Ordered by departure so the caller differences consecutive rows without
+ * re-sorting, and bounded by BOTH a lookback window and a row cap: a busy
+ * corridor over a long window is unbounded otherwise, and this feeds a
+ * dashboard read rather than a control decision.
+ */
+export async function listRecentStopVisits(
+  routeDirectionId: string,
+  lookbackHours: number,
+  limit = 5000,
+  pool: Pool = getPool()
+): Promise<StopVisitRecord[]> {
+  const { rows } = await pool.query<{
+    vehicle_id: string;
+    stop_id: string;
+    route_direction_id: string;
+    arrived_at: string;
+    departed_at: string;
+    trip_id: string | null;
+  }>(
+    `select vehicle_id, stop_id, route_direction_id, arrived_at, departed_at, trip_id
+       from stop_visits
+      where route_direction_id = $1
+        and departed_at >= now() - ($2 || ' hours')::interval
+      order by departed_at desc
+      limit $3`,
+    [routeDirectionId, String(lookbackHours), limit]
+  );
+  return rows.map((r) => ({
+    vehicleId: r.vehicle_id,
+    stopId: r.stop_id,
+    routeDirectionId: r.route_direction_id,
+    arrivedAt: r.arrived_at,
+    departedAt: r.departed_at,
+    tripId: r.trip_id,
   }));
 }

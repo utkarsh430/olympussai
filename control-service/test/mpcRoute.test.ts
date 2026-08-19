@@ -18,12 +18,15 @@ import request from 'supertest';
 
 vi.mock('../src/db/commands.js', () => ({
   listActiveVehicleIds: vi.fn(),
+  listRecentlyCommandedVehicleIds: vi.fn(),
 }));
 
 const { createApp } = await import('../src/app.js');
 type MpcSolveResult = import('../src/mpc/solver.js').MpcSolveResult;
 const { stateStore } = await import('../src/state/store.js');
-const { listActiveVehicleIds } = await import('../src/db/commands.js');
+const { listActiveVehicleIds, listRecentlyCommandedVehicleIds } = await import(
+  '../src/db/commands.js'
+);
 
 const AUTH_HEADER = 'Bearer test-service-token-secret-value';
 const ROUTE_DIRECTION_ID = '11111111-1111-1111-1111-111111111111';
@@ -43,9 +46,14 @@ function policy(overrides: Partial<Parameters<typeof stateStore.loadActivePolici
     selfEqualizingK: 0.5,
     maxHoldSeconds: 120,
     cooldownSeconds: 60,
+    minimumActionSeconds: 0,
     predictionHorizonControlPoints: 3,
     occupancyStaleSeconds: 120,
     occupancyCapacity: 60,
+    ks: null,
+    maxLatenessSeconds: null,
+    speedBandMinKmph: null,
+    speedBandMaxKmph: null,
     ...overrides,
   };
 }
@@ -59,8 +67,12 @@ function vehicle(overrides: Partial<Parameters<typeof stateStore.loadVehicleStat
     distanceAlongRouteMeters: null,
     speedKmph: null,
     headingDegrees: null,
-    stopState: 'in_motion',
-    currentStopId: null,
+    // A holdable state, and a real one: 'in_motion' is not among the six
+    // values `vehicle_states.stop_state` admits. mpc/eligibility.ts reads
+    // this field, so a fixture outside the vocabulary silently produced no
+    // candidates.
+    stopState: 'dwelling_at_stop',
+    currentStopId: 'stop-1',
     occupancyCount: null,
     occupancyLoadBand: null,
     confidence: 1,
@@ -90,6 +102,8 @@ describe('POST /v1/mpc/solve', () => {
     stateStore._resetForTests();
     vi.mocked(listActiveVehicleIds).mockReset();
     vi.mocked(listActiveVehicleIds).mockResolvedValue(new Set());
+    vi.mocked(listRecentlyCommandedVehicleIds).mockReset();
+    vi.mocked(listRecentlyCommandedVehicleIds).mockResolvedValue(new Set());
   });
 
   it('rejects an unauthenticated caller before the solver runs', async () => {

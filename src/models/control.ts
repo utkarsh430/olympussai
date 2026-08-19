@@ -383,8 +383,40 @@ export const engineCandidateActionSchema = z.object({
   /** Every vehicle whose live state the computation depended on (the held bus plus its leader/follower). A stale reading on ANY of them rejects the whole candidate. */
   involvedVehicleIds: z.array(z.string()),
   holdSeconds: z.number(),
-  /** |ideal hold − applied hold|: 0 when the cap and rounding did not pull the hold away from the formula's raw output. Candidates rank lowest-cost first. */
+  /**
+   * Net passenger-and-operator cost of applying this hold, in PASSENGER-SECONDS,
+   * versus doing nothing. Negative means the hold removes more cost than it
+   * adds. Candidates rank ascending, so the most beneficial sorts first.
+   *
+   * Not a hold length and not a score. It used to be the clamp residual —
+   * which ranked candidates by how hard the hold cap had bitten, putting the
+   * most bunched pair last — and that value now lives on
+   * `clampResidualSeconds`. See control-service/src/mpc/objective.ts.
+   */
   objectiveCost: z.number(),
+  /** |ideal hold − applied hold| in seconds: 0 when the cap and rounding did not pull the hold away from the formula's raw output. Diagnostic; it decides nothing. */
+  clampResidualSeconds: z.number(),
+  /** The three terms behind `objectiveCost`: waiting saved, in-vehicle delay added, operator cost. */
+  passengerCost: z.object({
+    waitPassengerSeconds: z.number(),
+    onboardPassengerSeconds: z.number(),
+    operatorPassengerSeconds: z.number(),
+    netPassengerSeconds: z.number(),
+    /** True when no live onboard count was available, so no in-vehicle delay was priced in. */
+    loadEstimated: z.boolean(),
+    /** True when no bus was visible behind, so its gap was assumed to be on target. */
+    backwardEstimated: z.boolean(),
+  }),
+  /** One sentence saying why this hold was recommended, in the headways and load it was decided from. */
+  rationale: z.string(),
+  /**
+   * How late this bus already is, in seconds — positive is behind the
+   * timetable, negative is ahead.
+   *
+   * NULL means NOT KNOWABLE, not on time: no timetable is loaded for the
+   * trip. Optional on the wire so an older control-service still parses.
+   */
+  scheduleDeviationSeconds: z.number().nullable().optional(),
   routeDirectionId: z.string(),
   /** ISO timestamp of the sample this candidate was computed from — what the staleness check is measured against. */
   stateAsOf: z.string(),
@@ -398,6 +430,15 @@ export const safetyRejectionReasonSchema = z.enum([
   'stale_state',
   'max_hold_cap_breach',
   'conflicting_active_command',
+  // Punctuality: the hold is feasible, but would leave the bus further behind
+  // its timetable than the corridor permits.
+  'max_lateness_breach',
+  // Instruction quality, not physical safety. A driver told to hold again
+  // ninety seconds after the last hold, or told to hold for eight seconds,
+  // learns the system is noise — and compliance is the dominant real-world
+  // failure mode for this kind of control.
+  'cooldown_active',
+  'below_minimum_action',
 ]);
 export type SafetyRejectionReason = z.infer<typeof safetyRejectionReasonSchema>;
 
@@ -852,6 +893,31 @@ export const dailyKpiSnapshotSchema = z.object({
   complianceSampleCount: z.number().int().min(0),
   compliancePct: z.number().nullable(),
   computedAt: z.string(),
+
+  // ─── THE THREE OPERATOR PRIORITIES, MEASURED ─────────────────────────
+  //
+  // Optional on the wire, not because they are decorative, but because a
+  // control-service that predates them must still parse: these arrive with
+  // the measured-KPI migration and an older deployment simply omits them.
+  //
+  // NULL AND ABSENT BOTH MEAN "NOT MEASURED", NEVER "ZERO". Every one of
+  // these is unmeasurable until its data source exists — punctuality needs a
+  // timetable, load balance needs occupancy — and a UI that renders a
+  // missing on-time rate as 0% states the opposite of the truth. Render
+  // absence as absence.
+
+  /** Punctuality: share of departures inside the on-time window. Needs a loaded timetable. */
+  onTimeRate: z.number().nullable().optional(),
+  punctualitySampleCount: z.number().int().min(0).optional(),
+  p90LatenessSeconds: z.number().nullable().optional(),
+  /** Spacing MEASURED at the stop, from real departures — distinct from `ewtSeconds`/`cv`, which reduce the gap/speed model. The two will disagree; that is diagnostic. */
+  ewtAtStopSeconds: z.number().nullable().optional(),
+  cvAtStop: z.number().nullable().optional(),
+  stopHeadwaySampleCount: z.number().int().min(0).optional(),
+  /** Load balance: needs occupancy, which nothing writes today. */
+  p90LoadFraction: z.number().nullable().optional(),
+  loadSpreadFraction: z.number().nullable().optional(),
+  deniedBoardingCount: z.number().int().min(0).nullable().optional(),
 });
 export type DailyKpiSnapshot = z.infer<typeof dailyKpiSnapshotSchema>;
 

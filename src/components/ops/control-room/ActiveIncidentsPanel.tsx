@@ -44,8 +44,22 @@ import { IncidentSeverityBadge } from './IncidentSeverityBadge';
 export function ActiveIncidentsPanel({
   incidents,
   canDetect,
+  selectedIncidentId = null,
+  onSelectIncident,
 }: {
   incidents: BunchingIncident[];
+  /** The incident currently drawn on the map, so this list can say which one it is. */
+  selectedIncidentId?: string | null;
+  /**
+   * Show one of these on the map. Omit and the list is read-only.
+   *
+   * The map draws ONE incident - see OpsFleetMapPanel's `selectedIncidentId`
+   * for why - so this list is how an operator chooses which. Selecting is a
+   * separate control from "See what happened, step by step": that link
+   * navigates away to the reconstruction, and an operator who wants the buses
+   * framed on the map they are already looking at must not have to leave it.
+   */
+  onSelectIncident?: (incidentId: string | null) => void;
   /**
    * Whether this corridor can raise one of these at all.
    *
@@ -82,7 +96,12 @@ export function ActiveIncidentsPanel({
       {incidents.map((incident) => (
         <li
           key={incident.id}
-          className="rounded-md border border-l-4 border-border border-l-destructive bg-destructive/[0.06] px-4 py-3"
+          aria-current={incident.id === selectedIncidentId ? 'true' : undefined}
+          className={`rounded-md border border-l-4 border-l-destructive px-4 py-3 ${
+            incident.id === selectedIncidentId
+              ? 'border-primary bg-primary/[0.08] ring-1 ring-primary/40'
+              : 'border-border bg-destructive/[0.06]'
+          }`}
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -123,12 +142,29 @@ export function ActiveIncidentsPanel({
             </div>
           </dl>
 
-          <Link
-            href={`/ops/control-room/incidents/${encodeURIComponent(incident.id)}`}
-            className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
-          >
-            See what happened, step by step &rarr;
-          </Link>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            {/* A button, not a link, and outside the card rather than wrapping
+                it: the card already contains a link, and nesting interactive
+                elements is both invalid and unusable with a keyboard. */}
+            {onSelectIncident && (
+              <button
+                type="button"
+                aria-pressed={incident.id === selectedIncidentId}
+                onClick={() =>
+                  onSelectIncident(incident.id === selectedIncidentId ? null : incident.id)
+                }
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                {incident.id === selectedIncidentId ? 'Hide from map' : 'Show on map'}
+              </button>
+            )}
+            <Link
+              href={`/ops/control-room/incidents/${encodeURIComponent(incident.id)}`}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              See what happened, step by step &rarr;
+            </Link>
+          </div>
         </li>
       ))}
     </ul>

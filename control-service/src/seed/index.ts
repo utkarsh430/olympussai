@@ -456,7 +456,7 @@ export function logHeadwayCalibration(
         share: share(calibration.default),
         fallbackSeconds,
       },
-      'seed: these route-directions carry a FABRICATED target headway — every threshold in src/headway/ is a ratio of H*, so they are effectively excluded from bunching detection and their CV/EWT are meaningless. Find them with: select * from route_policies where effective_to is null and calibration_source = \'default\'',
+      'seed: these route-directions carry a FABRICATED target headway — no evidence was found and a number was written anyway. Every threshold in src/headway/ is a RATIO of H*, so a fabricated H* does not merely weaken detection, it inverts it: a too-large H* makes hFwd/H* tiny and flags every pair as permanently bunched, a too-small one can never flag anything. They are therefore refused outright by MEASURED_POLICY_PREDICATE (src/headway/repository.ts) exactly as \'none\' is, and are observation-only. Find them with: select * from route_policies where effective_to is null and calibration_source = \'default\'',
     );
   }
 

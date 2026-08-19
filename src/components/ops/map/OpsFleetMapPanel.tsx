@@ -35,8 +35,26 @@ export interface OpsFleetMapPanelProps {
    * measured empty fleet and is captioned as such.
    */
   vehicles: readonly OpsMapVehicle[] | null;
-  /** Open bunching incidents to draw. Ignored once a live poll has returned its own. */
+  /** Open bunching incidents available to draw. Ignored once a live poll has returned its own. */
   incidents?: readonly BunchingIncident[];
+  /**
+   * The one incident to DRAW, or null to draw none.
+   *
+   * ─── WHY THIS IS NOT "DRAW THEM ALL" ─────────────────────────────────────
+   *
+   * It used to be. Every open incident on the corridor became a dashed link
+   * between its two buses, all painted at once, and on a statewide console
+   * that produced a web of hundreds of lines across Uttar Pradesh - which is
+   * what made a real detector failure invisible for as long as it did. Even
+   * with the lifecycle fixed and only genuinely-live incidents arriving, "all
+   * of them at once" is the wrong picture: an operator handles one incident at
+   * a time, and a mark that is always on screen stops being read.
+   *
+   * So the list beside the map is the index, and the map answers ONE question:
+   * where is the incident I just clicked. Nothing is hidden - the list is the
+   * complete set, and it says how many there are.
+   */
+  selectedIncidentId?: string | null;
   /** The boundary in force, e.g. `Bareilly` or `all depots`. Shown in the caption. */
   scopeLabel: string;
   /**
@@ -71,6 +89,7 @@ export interface OpsFleetMapPanelProps {
 export function OpsFleetMapPanel({
   vehicles,
   incidents = [],
+  selectedIncidentId = null,
   scopeLabel,
   routeDirectionId,
   live = false,
@@ -96,12 +115,41 @@ export function OpsFleetMapPanel({
   // be stating a count nobody has taken.
   const vehicleCountKnown = feed.snapshot !== null || vehicles !== null;
 
-  const { overlay, unresolvedIncidentIds } = useMemo(
+  // Built over EVERY incident, then filtered down to the selected one for
+  // drawing. Building over the selection alone would have been simpler and
+  // would have silently dropped `unresolvedIncidentIds` - the count of
+  // incidents whose buses this operator cannot see at all - which is a
+  // statement about the corridor, not about the mark on the glass, and is
+  // reported below regardless of what is selected.
+  //
+  // A mark carries its incident's own id (see buildIncidentOverlay), so
+  // selecting is a filter on the built marks rather than a second build.
+  const { overlay: resolvedOverlay, unresolvedIncidentIds } = useMemo(
     () => buildIncidentOverlay(currentIncidents, currentVehicles),
     [currentIncidents, currentVehicles],
   );
 
+  const overlay = useMemo(
+    () => ({
+      ...resolvedOverlay,
+      marks:
+        selectedIncidentId === null
+          ? []
+          : resolvedOverlay.marks.filter((mark) => mark.id === selectedIncidentId),
+    }),
+    [resolvedOverlay, selectedIncidentId],
+  );
+
   const overlays = useMemo(() => (overlay.marks.length > 0 ? [overlay] : []), [overlay]);
+
+  // Frame the selected incident's own buses. Taken from the built mark rather
+  // than from the incident's members, so the camera is fitted to exactly the
+  // vehicles that were actually resolvable and drawn - never to a member this
+  // operator cannot see, which would fly them out to an empty rectangle.
+  const focusPoints = useMemo(
+    () => overlay.marks.flatMap((mark) => mark.points),
+    [overlay],
+  );
 
   const controlServicePositions = currentVehicles.filter(
     (vehicle) => vehicle.positionSource === 'control-service',
@@ -118,6 +166,7 @@ export function OpsFleetMapPanel({
       <OpsFleetMap
         vehicles={currentVehicles}
         overlays={overlays}
+        focusPoints={focusPoints}
         basemapTheme={basemapTheme}
         caption={
           vehicleCountKnown
@@ -140,9 +189,21 @@ export function OpsFleetMapPanel({
             the raw GPS feed.
           </p>
         )}
-        {overlay.marks.length > 0 && (
+        {/* What is DRAWN, versus what the corridor has. With one incident on
+            the glass and possibly several in the list, a bare count of open
+            incidents under the map would read as a count of the marks on it. */}
+        {currentIncidents.length > 0 && (
           <p>
-            {overlay.marks.length} bunching {overlay.marks.length === 1 ? 'incident' : 'incidents'} drawn.
+            {selectedIncidentId !== null && overlay.marks.length > 0
+              ? `Showing 1 of ${currentIncidents.length} ${currentIncidents.length === 1 ? 'incident' : 'incidents'} on this corridor.`
+              : `${currentIncidents.length} ${currentIncidents.length === 1 ? 'incident' : 'incidents'} on this corridor. Select one to see it on the map.`}
+          </p>
+        )}
+        {/* Selected, but nothing to draw: the incident's buses are not on this
+            operator's map. Saying nothing would look like a broken click. */}
+        {selectedIncidentId !== null && overlay.marks.length === 0 && currentIncidents.length > 0 && (
+          <p role="status" className="text-ops-warn">
+            The selected incident&apos;s buses are not reporting a position on this map, so it cannot be drawn.
           </p>
         )}
         {unresolvedIncidentIds.length > 0 && (

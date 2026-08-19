@@ -142,8 +142,8 @@ export interface CorridorKinematicState {
 }
 
 /**
- * A synchronized snapshot of the deciding vehicle and the one ahead of it,
- * plus the wrap length their gap is measured against.
+ * A synchronized snapshot of the deciding vehicle and its neighbours, plus
+ * the wrap length their gaps are measured against.
  *
  * Null whenever the route-direction was not given real geometry
  * (`StopDefinition.cumulativeDistanceMeters`), or the vehicle ahead is not
@@ -154,6 +154,31 @@ export interface CorridorKinematicState {
 export interface ControllerKinematics {
   follower: CorridorKinematicState;
   leader: CorridorKinematicState;
+  /**
+   * The vehicle BEHIND the deciding one, which is what the backward headway
+   * h_bwd is measured against (`headway/metrics.ts`) and what makes a
+   * two-way-looking law two-way rather than forward-only.
+   *
+   * ALWAYS null from `engine.ts`, and that is a structural property of this
+   * engine rather than an omission worth patching over. Vehicles are
+   * simulated one complete trip at a time in dispatch order, so at the
+   * instant a vehicle is asked for a decision the vehicle ahead is fully
+   * simulated and the vehicle behind has not been simulated at all - and
+   * cannot be, because its trajectory depends on the hold about to be
+   * decided here. Supplying a guessed trailer position would put a
+   * fabricated number into the one input the control law measures, which is
+   * the same reason `StopDefinition.cumulativeDistanceMeters` is left
+   * absent on synthetic corridors rather than invented.
+   *
+   * The consequence is stated plainly in `rehearsal/deployedControlLaws.ts`:
+   * a rehearsal exercises the self-equalizing fallback, not two-way
+   * holding, and closing that gap needs an engine that advances all
+   * vehicles on one clock. Present on the type (and honoured by the
+   * rehearsal controller) so a hand-built context in a test can supply one,
+   * and so the day the engine gains an interleaved event loop the
+   * controller side already reads it.
+   */
+  trailer?: CorridorKinematicState | null;
   totalDistanceMeters: number;
 }
 

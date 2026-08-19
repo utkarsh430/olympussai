@@ -18,6 +18,7 @@ vi.mock('../src/headway/repository.js', () => ({
   escalateIncident: vi.fn(),
   closeIncident: vi.fn(),
   listOpenIncidents: vi.fn(),
+  listOpenIncidentPairsForRouteDirection: vi.fn(),
   listActiveRouteDirections: vi.fn(),
 }));
 
@@ -58,6 +59,10 @@ describe('computeRouteDirectionHeadway', () => {
     vi.mocked(repo.loadRouteDirectionMeta).mockReset().mockResolvedValue(META);
     vi.mocked(repo.loadActiveRoutePolicy).mockReset().mockResolvedValue(POLICY);
     vi.mocked(repo.loadVehicleStatesForRouteDirection).mockReset().mockResolvedValue([]);
+    // Every compute cycle now ends incidents whose pair is no longer a pair
+    // (closeSupersededIncidents). Default to "this corridor has none open", so
+    // these cases go on asserting only what they were written to assert.
+    vi.mocked(repo.listOpenIncidentPairsForRouteDirection).mockReset().mockResolvedValue([]);
     vi.mocked(repo.insertHeadwaySample)
       .mockReset()
       .mockImplementation((input) =>
@@ -103,27 +108,42 @@ describe('computeRouteDirectionHeadway', () => {
     expect(repo.insertHeadwaySample).not.toHaveBeenCalled();
   });
 
+  // Three vehicles, so the middle one has a gap on both sides and the
+  // persisted row carries a real h_bwd. h_bwd is the gap to the vehicle
+  // BEHIND the follower, at that vehicle's own pace - two vehicles cannot
+  // produce one, which is why the back-most row below persists a null.
   it('persists one headway sample per leader/follower pair with the computed values', async () => {
     vi.mocked(repo.loadVehicleStatesForRouteDirection).mockResolvedValueOnce([
       vehicleRow({ vehicleId: 'leader', distanceAlongRouteMeters: 1000, speedKmph: 36 }),
       vehicleRow({ vehicleId: 'follower', distanceAlongRouteMeters: 500, speedKmph: 18 }),
+      vehicleRow({ vehicleId: 'trailer', distanceAlongRouteMeters: 200, speedKmph: 54 }),
     ]);
 
     const result = await computeRouteDirectionHeadway('rd-1');
 
-    expect(repo.insertHeadwaySample).toHaveBeenCalledTimes(1);
+    expect(repo.insertHeadwaySample).toHaveBeenCalledTimes(2);
     expect(repo.insertHeadwaySample).toHaveBeenCalledWith(
       expect.objectContaining({
         routeDirectionId: 'rd-1',
         leaderVehicleId: 'leader',
         followerVehicleId: 'follower',
-        hFwdSeconds: 100, // 500m / 5 m/s
-        hBwdSeconds: 50, // 500m / 10 m/s
+        hFwdSeconds: 100, // 500m ahead / 5 m/s (follower's own pace)
+        hBwdSeconds: 20, // 300m behind / 15 m/s (trailer's pace)
         targetHeadwaySeconds: 300,
       }),
     );
-    expect(result.pairs).toHaveLength(1);
-    expect(result.aggregate.meanHeadwaySeconds).toBe(100);
+    // The back-most vehicle has nothing behind it: a null h_bwd, not a
+    // substituted one. mpc/selfEqualizing.ts is what takes that pair.
+    expect(repo.insertHeadwaySample).toHaveBeenCalledWith(
+      expect.objectContaining({
+        leaderVehicleId: 'follower',
+        followerVehicleId: 'trailer',
+        hFwdSeconds: 20, // 300m / 15 m/s
+        hBwdSeconds: null,
+      }),
+    );
+    expect(result.pairs).toHaveLength(2);
+    expect(result.aggregate.meanHeadwaySeconds).toBe(60);
   });
 
   it('opens a bunched incident when the reactive rule threshold/sample count is met', async () => {

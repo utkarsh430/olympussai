@@ -693,14 +693,16 @@ describe('od_timetable in the schema', () => {
 
   it('is loaded by the readers, because they exclude \'none\' rather than allow-list', () => {
     // An 'od_timetable' H* is a measurement and detection SHOULD run against it.
-    // Both readers filter with `calibration_source <> 'none'`, which admits it
-    // without either query being touched — assert that, so a future change to an
-    // allow-list cannot silently switch detection off for the OD-calibrated
-    // majority of the network.
+    // Both readers filter with a DENY-list - MEASURED_POLICY_PREDICATE, which
+    // names only the two sources that mean "no measurement" ('none', and
+    // 'default', which harvest.ts calls FABRICATED). A deny-list admits a newly
+    // added measured source without either query being touched; assert that, so
+    // a future change to an allow-list cannot silently switch detection off for
+    // the OD-calibrated majority of the network.
     const repositoryDir = join(dirname(fileURLToPath(import.meta.url)), '../../src');
     for (const file of ['headway/repository.ts', 'db/rehydrate.ts']) {
       const source = readFileSync(join(repositoryDir, file), 'utf8');
-      expect(source).toContain("calibration_source <> 'none'");
+      expect(source).toContain('MEASURED_POLICY_PREDICATE');
       expect(source).not.toContain("calibration_source in (");
     }
   });

@@ -1,0 +1,752 @@
+<title>UPSRTC Data Request</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+  :root {
+    --ground: #f8fafb;
+    --surface: #ffffff;
+    --recessed: #eef2f5;
+    --ink: #111a20;
+    --ink-soft: #52626d;
+    --ink-faint: #7b8992;
+    --rule: #dce3e8;
+    --rule-strong: #c3ced6;
+    --accent: #0b5d6b;
+    --accent-soft: #e2eef0;
+    --accent-ink: #084651;
+    --flag: #9c2b30;
+    --flag-soft: #f7e9e9;
+
+    --measure: 66ch;
+    --pad: clamp(1.25rem, 4vw, 3rem);
+
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0d1317;
+      --surface: #141d23;
+      --recessed: #1a252c;
+      --ink: #e7eef3;
+      --ink-soft: #a2b1bb;
+      --ink-faint: #7c8b95;
+      --rule: #24313a;
+      --rule-strong: #35454f;
+      --accent: #5cb6c6;
+      --accent-soft: #16323a;
+      --accent-ink: #8ed2de;
+      --flag: #e0797c;
+      --flag-soft: #33191b;
+
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0d1317;
+    --surface: #141d23;
+    --recessed: #1a252c;
+    --ink: #e7eef3;
+    --ink-soft: #a2b1bb;
+    --ink-faint: #7c8b95;
+    --rule: #24313a;
+    --rule-strong: #35454f;
+    --accent: #5cb6c6;
+    --accent-soft: #16323a;
+    --accent-ink: #8ed2de;
+    --flag: #e0797c;
+    --flag-soft: #33191b;
+
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+    font-size: 1.0625rem;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: 0 var(--pad) 6rem;
+  }
+
+  /* ---------- masthead ---------- */
+
+  .masthead {
+    border-bottom: 2px solid var(--ink);
+    padding: clamp(2.5rem, 7vw, 4.5rem) 0 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .eyebrow {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  h1 {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(2rem, 5.5vw, 3.25rem);
+    line-height: 1.06;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    max-width: var(--measure);
+    font-size: 1.1875rem;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1rem 1.75rem;
+    border-top: 1px solid var(--rule);
+    padding-top: 1.25rem;
+    margin-top: 0.5rem;
+  }
+
+  .meta dt {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 0.3rem;
+  }
+
+  .meta dd {
+    margin: 0;
+    font-size: 0.9375rem;
+    color: var(--ink);
+  }
+
+  /* ---------- sections ---------- */
+
+  section { margin-top: clamp(3rem, 7vw, 4.5rem); }
+
+  h2 {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(1.375rem, 3vw, 1.75rem);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    text-wrap: balance;
+    margin: 0 0 1.25rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+
+  h3 {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 1.1875rem;
+    letter-spacing: -0.005em;
+    line-height: 1.25;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  p { max-width: var(--measure); margin: 0 0 1rem; }
+  p:last-child { margin-bottom: 0; }
+
+  a { color: var(--accent); text-underline-offset: 0.15em; }
+  a:focus-visible,
+  summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  strong { font-weight: 600; }
+
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.875em;
+  }
+
+  code {
+    background: var(--recessed);
+    padding: 0.1em 0.36em;
+    border-radius: 3px;
+  }
+
+  /* ---------- tables ---------- */
+
+  .scroller {
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    margin: 1.25rem 0;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: "Archivo", system-ui, sans-serif;
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
+
+  thead th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.6875rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    background: var(--recessed);
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--rule-strong);
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    color: var(--ink-soft);
+  }
+
+  tbody tr:last-child td { border-bottom: 0; }
+
+  td .mono {
+    color: var(--ink);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .req-col { width: 1%; white-space: nowrap; }
+
+  .req-yes { color: var(--accent-ink); font-weight: 600; }
+  .req-opt { color: var(--ink-faint); }
+
+  /* ---------- request blocks ---------- */
+
+  .requests {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .req {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-top: 3px solid var(--accent);
+    padding: clamp(1.25rem, 3vw, 1.9rem);
+  }
+
+  .req-head {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem 1.1rem;
+    align-items: baseline;
+    margin-bottom: 1.1rem;
+  }
+
+  .rank {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 1.75rem;
+    line-height: 1;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .req-sub {
+    grid-column: 2;
+    margin: 0.3rem 0 0;
+    font-size: 0.9375rem;
+    color: var(--ink-faint);
+  }
+
+  .chip {
+    display: inline-block;
+    font-family: "Archivo", system-ui, sans-serif;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.55rem;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    border-radius: 2px;
+    margin-top: 0.5rem;
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .spec {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 1rem 1.5rem;
+    margin: 1.25rem 0 0;
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .spec dt {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 0.25rem;
+  }
+
+  .spec dd {
+    margin: 0;
+    font-size: 0.9375rem;
+    color: var(--ink-soft);
+  }
+
+  .blocks {
+    margin: 1.1rem 0 0;
+    padding: 0.8rem 1rem;
+    background: var(--flag-soft);
+    border-left: 3px solid var(--flag);
+    font-size: 0.9375rem;
+    max-width: none;
+    color: var(--ink);
+  }
+
+  .blocks b {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--flag);
+    display: block;
+    margin-bottom: 0.2rem;
+  }
+
+  /* ---------- callout ---------- */
+
+  .callout {
+    background: var(--accent-soft);
+    border: 1px solid var(--rule);
+    padding: clamp(1.25rem, 3vw, 1.75rem);
+    margin: 1.5rem 0 0;
+  }
+
+  .callout h3 { margin-bottom: 0.6rem; color: var(--accent-ink); }
+  .callout p { color: var(--ink); }
+
+  ul.plain {
+    max-width: var(--measure);
+    margin: 0 0 1rem;
+    padding-left: 1.15rem;
+  }
+
+  ul.plain li { margin-bottom: 0.5rem; }
+  ul.plain li:last-child { margin-bottom: 0; }
+
+  footer {
+    margin-top: clamp(3rem, 7vw, 4.5rem);
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--ink);
+    font-size: 0.9375rem;
+    color: var(--ink-soft);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <span class="eyebrow">Data request &middot; Bus bunching control programme</span>
+    <h1>Operational data required from UPSRTC</h1>
+    <p class="standfirst">
+      Seven items, ranked by what each one unlocks. The first two are worth more
+      than the rest combined. Everything here is operational telemetry and
+      ticketing counts &mdash; no passenger personal data is needed at any point.
+    </p>
+    <dl class="meta">
+      <div>
+        <dt>Prepared by</dt>
+        <dd>Olympuss AI &mdash; <em>[name, role]</em></dd>
+      </div>
+      <div>
+        <dt>For the attention of</dt>
+        <dd>UPSRTC IT / VLT data team</dd>
+      </div>
+      <div>
+        <dt>Purpose</dt>
+        <dd>Punctuality, headway regularity and load balancing</dd>
+      </div>
+      <div>
+        <dt>Smallest useful start</dt>
+        <dd>Items 1 and 2, one corridor, two weeks</dd>
+      </div>
+    </dl>
+  </header>
+
+  <section>
+    <h2>Why we are asking</h2>
+    <p>
+      We are building a control system that helps depot and control-room staff keep
+      buses running to time, evenly spaced through the day, and evenly loaded rather
+      than one bus crush-full behind an empty one. It already reads the live GPS feed
+      and detects when two buses have closed up on each other.
+    </p>
+    <p>
+      What it cannot currently do is tell whether a bus is <em>late</em>, measure
+      spacing <em>at the stop</em> where passengers actually wait, or see how many
+      people are on board. Those three gaps are all data gaps, not software gaps.
+      The requests below close them.
+    </p>
+    <p>
+      Every model underneath this &mdash; how long a bus dwells at a stop, how long a
+      link takes at 09:00 versus 16:00, how many passengers accumulate between buses
+      &mdash; has to be fitted from history. We hold none, because the live feed is a
+      current-position snapshot that we overwrite on every poll. That is why item 1
+      leads the list.
+    </p>
+  </section>
+
+  <section>
+    <h2>What we already receive</h2>
+    <p>
+      Please do not re-send these. They are listed so it is clear what the new
+      requests add rather than duplicate.
+    </p>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>What it gives us</th>
+            <th>Cadence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="mono">getGpsLiveData.php</span></td>
+            <td>Live position, speed, heading, journey id, depot, vehicle type, status &mdash; fleet-wide, current instant only</td>
+            <td>Polled every 30&nbsp;s</td>
+          </tr>
+          <tr>
+            <td><span class="mono">getScheduledBusInfo.php</span></td>
+            <td>Published <span class="mono">sta</span> / <span class="mono">std</span> per journey per stop area, line id, direction, service type, garage</td>
+            <td>On demand</td>
+          </tr>
+          <tr>
+            <td><span class="mono">getBusBetweenStops.php</span></td>
+            <td>Origin&ndash;destination departures by line and stop pair</td>
+            <td>On demand</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>The requests</h2>
+
+    <div class="requests">
+
+      <!-- 1 -->
+      <article class="req">
+        <div class="req-head">
+          <span class="rank">1</span>
+          <h3>Historical AVL archive</h3>
+          <p class="req-sub">Raw position pings, 8 consecutive weeks</p>
+          <span class="chip">Unlocks more than the rest combined</span>
+        </div>
+        <p>
+          The same records the live endpoint already returns, but retained over time.
+          We need history, not a live stream &mdash; we have the live stream. Please
+          export the rows exactly as the VLT platform stores them, without cleaning,
+          de-duplication or aggregation.
+        </p>
+        <div class="scroller">
+          <table>
+            <thead>
+              <tr><th>Field</th><th>Notes</th><th class="req-col">Needed</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="mono">reg_num</span></td><td>Vehicle registration, exactly as the live feed spells it</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">vj_id</span></td><td>Vehicle journey id, so a ping can be tied to a trip</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">latitude</span>, <span class="mono">longitude</span></td><td>Decimal degrees, full stored precision</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">device_timestamp</span></td><td>Time the fix was taken on the bus</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">received_timestamp</span></td><td>Time the server received it &mdash; the gap between the two is itself useful</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">speed</span>, <span class="mono">heading</span></td><td>As reported, including zeros</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">route</span>, <span class="mono">depot_name</span>, <span class="mono">vehicle_type</span>, <span class="mono">status</span></td><td>As in the live feed</td><td class="req-col req-opt">Helpful</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <dl class="spec">
+          <div><dt>Period</dt><dd>8 consecutive weeks, all seven days, including any disruption days</dd></div>
+          <div><dt>Scope</dt><dd>Pilot corridors preferred; fleet-wide is welcome if it is easier to extract</dd></div>
+          <div><dt>Format</dt><dd>Gzipped CSV, NDJSON or Parquet &mdash; one file per day</dd></div>
+          <div><dt>Volume</dt><dd>Roughly 2,900 rows per vehicle per day at the 30&nbsp;s cadence</dd></div>
+        </dl>
+        <p class="blocks">
+          <b>Without it</b>
+          No dwell model, no link travel-time distributions, no demand rates, and no
+          way to replay a real day to check the controller would have helped rather
+          than harmed. Every number the system produces stays uncalibrated.
+        </p>
+      </article>
+
+      <!-- 2 -->
+      <article class="req">
+        <div class="req-head">
+          <span class="rank">2</span>
+          <h3>Ticketing / ETM transaction log</h3>
+          <p class="req-sub">Per-ticket records with boarding and alighting stops</p>
+          <span class="chip">The only route to load balancing</span>
+        </div>
+        <p>
+          This is how we learn how many passengers are on each bus. The boarding stop
+          gives us boardings per stop; the destination stop gives us alightings; the
+          running difference reconstructs the load profile along the whole trip. It
+          also tells us how fast passengers accumulate at each stop, which is the one
+          number that decides whether holding a bus is worth it at all.
+        </p>
+        <div class="scroller">
+          <table>
+            <thead>
+              <tr><th>Field</th><th>Notes</th><th class="req-col">Needed</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="mono">issue_timestamp</span></td><td>When the ticket was issued</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">vj_id</span> or <span class="mono">trip_id</span></td><td>Which journey the ticket was sold on</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">reg_num</span></td><td>Which bus, to join against the AVL archive</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">from_stop_code</span></td><td>Boarding stop, in the same code space as the schedule feed</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">to_stop_code</span></td><td>Destination stop &mdash; this is what gives us alightings</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">passenger_count</span></td><td>Adults plus children on the ticket, where one ticket covers several</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">ticket_type</span></td><td>Ordinary, pass, concession, luggage &mdash; lets us exclude non-seat tickets</td><td class="req-col req-opt">Helpful</td></tr>
+              <tr><td><span class="mono">fare_amount</span></td><td>Only if it comes free with the export</td><td class="req-col req-opt">Optional</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <dl class="spec">
+          <div><dt>Period</dt><dd>The same 8 weeks as item 1, so the two can be joined</dd></div>
+          <div><dt>Format</dt><dd>Gzipped CSV or Parquet</dd></div>
+          <div><dt>Personal data</dt><dd>None required &mdash; no names, phone numbers, card or UPI identifiers. Please strip them at source.</dd></div>
+          <div><dt>If unavailable</dt><dd>Automatic passenger counter data, or conductor waybill summaries per trip per stop, would substitute</dd></div>
+        </dl>
+        <p class="blocks">
+          <b>Without it</b>
+          Load balancing cannot be attempted at all, and the trade-off between making
+          people at the stop wait longer and making people on the bus sit longer stays
+          uncalibrated &mdash; which risks a system that holds the wrong buses.
+        </p>
+      </article>
+
+      <!-- 3 -->
+      <article class="req">
+        <div class="req-head">
+          <span class="rank">3</span>
+          <h3>Service calendar and timetable versions</h3>
+          <p class="req-sub">Which journeys run on which days</p>
+          <span class="chip">Required for any punctuality measure</span>
+        </div>
+        <p>
+          We already receive scheduled times per journey per stop area. What is missing
+          is the calendar that turns those times into an actual instant on an actual
+          date. Without it, a scheduled departure of &ldquo;06:40&rdquo; cannot be
+          compared against anything, so no bus can be described as early or late.
+        </p>
+        <div class="scroller">
+          <table>
+            <thead>
+              <tr><th>Field</th><th>Notes</th><th class="req-col">Needed</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="mono">vj_id</span></td><td>Journey id, matching the schedule and live feeds</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">operates_mon</span> &hellip; <span class="mono">operates_sun</span></td><td>Day-of-week operating pattern</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">valid_from</span>, <span class="mono">valid_to</span></td><td>Dates this timetable version is in force</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">exception_date</span>, <span class="mono">exception_type</span></td><td>Festival, holiday and special-working overrides</td><td class="req-col req-opt">Helpful</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <dl class="spec">
+          <div><dt>Also please confirm</dt><dd>That scheduled times are IST, and whether times past midnight are expressed as 24+ hours</dd></div>
+          <div><dt>Coverage</dt><dd>Any journey operating during the 8-week archive window</dd></div>
+          <div><dt>Format</dt><dd>CSV, or GTFS <span class="mono">calendar.txt</span> / <span class="mono">calendar_dates.txt</span> if you publish GTFS</dd></div>
+        </dl>
+        <p class="blocks">
+          <b>Without it</b>
+          &ldquo;Did the bus arrive on time?&rdquo; remains unanswerable, and holds
+          cannot be bounded by how late a bus already is &mdash; so improving spacing
+          would come at an unmeasured cost to punctuality.
+        </p>
+      </article>
+
+      <!-- 4 -->
+      <article class="req">
+        <div class="req-head">
+          <span class="rank">4</span>
+          <h3>Vehicle capacity by bus type</h3>
+          <p class="req-sub">A single small reference table</p>
+          <span class="chip">One-off, no history needed</span>
+        </div>
+        <p>
+          Passenger counts mean nothing without a denominator. We need to know what
+          &ldquo;full&rdquo; is for each class of bus in service.
+        </p>
+        <div class="scroller">
+          <table>
+            <thead>
+              <tr><th>Field</th><th>Notes</th><th class="req-col">Needed</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="mono">vehicle_type</span></td><td>Spelt exactly as the live feed reports it, so it joins without a lookup</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">seated_capacity</span></td><td>Licensed seats</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">standing_capacity</span></td><td>Permitted standees, where standing is allowed</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">reg_num &rarr; vehicle_type</span></td><td>A fleet roster, if the live feed's type field is not dependable</td><td class="req-col req-opt">Helpful</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="blocks">
+          <b>Without it</b>
+          A bus carrying 45 passengers cannot be told apart from a full one, so
+          crowding cannot be reported and holds cannot avoid the fullest buses.
+        </p>
+      </article>
+
+      <!-- 5 -->
+      <article class="req">
+        <div class="req-head">
+          <span class="rank">5</span>
+          <h3>Stop arrival and departure events</h3>
+          <p class="req-sub">If the VLT platform records them &mdash; a yes/no answer is useful on its own</p>
+          <span class="chip">Ground truth, if it exists</span>
+        </div>
+        <p>
+          Spacing matters at the stop, where passengers actually wait. If your platform
+          already logs when each bus reached and left each stop, that is exact ground
+          truth and we would rather use it than infer it.
+        </p>
+        <div class="scroller">
+          <table>
+            <thead>
+              <tr><th>Field</th><th>Notes</th><th class="req-col">Needed</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="mono">reg_num</span>, <span class="mono">vj_id</span></td><td>Bus and journey</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">stop_code</span></td><td>Same code space as the schedule feed</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">arrival_time</span>, <span class="mono">departure_time</span></td><td>Actual, not scheduled</td><td class="req-col req-yes">Required</td></tr>
+              <tr><td><span class="mono">doors_open_time</span>, <span class="mono">doors_close_time</span></td><td>If the platform captures door events</td><td class="req-col req-opt">Helpful</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <dl class="spec">
+          <div><dt>If it does not exist</dt><dd>Please just say so. The 30-second GPS cadence in item 1 is fast enough for us to derive stop crossings ourselves &mdash; we only need to know which path to build.</dd></div>
+        </dl>
+      </article>
+
+      <!-- 6 -->
+      <article class="req">
+        <div class="req-head">
+          <span class="rank">6</span>
+          <h3>Which stops a bus may safely wait at</h3>
+          <p class="req-sub">Depot and traffic knowledge, not a system export</p>
+          <span class="chip">Roughly 20&ndash;30 stops per corridor</span>
+        </div>
+        <p>
+          The system's main tool is asking a driver to wait a little longer at a stop so
+          the gap behind can close. That is only acceptable at stops where a waiting bus
+          does not block traffic. Getting this wrong is the fastest way to lose driver
+          cooperation, and no data feed contains it &mdash; it comes from depot managers
+          and traffic staff.
+        </p>
+        <p>
+          For each stop on the pilot corridors, we need a plain answer to: <strong>can a
+          bus wait here for up to ten minutes without causing a problem?</strong> Useful
+          flags alongside it:
+        </p>
+        <ul class="plain">
+          <li>Has a lay-by or bus bay, versus stopping in the running lane</li>
+          <li>Sits immediately before a signalised junction &mdash; drivers will not wait through a green</li>
+          <li>Narrow carriageway or a known congestion point</li>
+          <li>Terminal or major interchange, where waiting is normal and expected</li>
+        </ul>
+      </article>
+
+      <!-- 7 -->
+      <article class="req">
+        <div class="req-head">
+          <span class="rank">7</span>
+          <h3>Duty and block roster</h3>
+          <p class="req-sub">Please confirm rather than extract, in the first instance</p>
+          <span class="chip">May already be covered</span>
+        </div>
+        <p>
+          To say a <em>trip</em> is late we need to know which bus was scheduled to run
+          it. The live feed already carries <span class="mono">vj_id</span> against each
+          vehicle, so this may already be available to us. Before anyone builds an
+          export, we would like to confirm one thing: <strong>is
+          <span class="mono">vj_id</span> in the live GPS feed the scheduled journey, or
+          is it assigned when the bus actually starts running?</strong>
+        </p>
+        <p>
+          If it is assigned at run time, we would then need the planned roster:
+          <span class="mono">vj_id &rarr; scheduled reg_num</span>, per service day, for
+          the archive window.
+        </p>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>How we would like it delivered</h2>
+    <ul class="plain">
+      <li><strong>Keep the source identifiers.</strong> Registration numbers, journey ids and stop codes exactly as your systems hold them. We join these against the live feed, so any re-keying or tidying breaks the join.</li>
+      <li><strong>Do not pre-aggregate.</strong> Please send per-event rows, not hourly or daily summaries. The whole method depends on individual events.</li>
+      <li><strong>Keep incomplete rows.</strong> Send records with missing fields rather than dropping them. Where coverage is patchy, that is something we need to know rather than have hidden.</li>
+      <li><strong>Delivery</strong> by SFTP drop, a cloud storage bucket, or a one-time archive link &mdash; whichever suits your team. Gzipped CSV, NDJSON or Parquet all work.</li>
+      <li><strong>A data dictionary</strong> for each export, however rough, saves considerable back-and-forth over field meanings and units.</li>
+    </ul>
+
+    <div class="callout">
+      <h3>If the full request is too large to start with</h3>
+      <p>
+        Send items 1 and 2 for a single corridor over two weeks. That alone lets us
+        establish how much of the bunching on that corridor is caused by passenger
+        demand versus by irregular departures from the terminal &mdash; which decides
+        whether en-route holding is the right tool at all, or whether regulating
+        departures from the origin gets most of the benefit at a fraction of the
+        operational disruption.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <p>
+      Questions on any field, or on why a particular item is needed, are welcome &mdash;
+      several of these requests have cheaper substitutes if the exact form is difficult
+      to produce. <em>[Contact name, email, phone]</em>
+    </p>
+  </footer>
+
+</div>

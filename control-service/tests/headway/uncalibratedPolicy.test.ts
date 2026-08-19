@@ -34,7 +34,10 @@ describe('loadActiveRoutePolicy', () => {
   it("will not load a 'none' row, so the sentinel can never become a denominator", async () => {
     const handle = fakePool();
     await loadActiveRoutePolicy('rd-1', handle.pool);
-    expect(handle.queries[0]!.sql).toContain("calibration_source <> 'none'");
+    // 'default' is excluded by the same predicate and for the same reason: it
+    // is a FABRICATED target, not a weaker measurement. See
+    // MEASURED_POLICY_PREDICATE and test/measuredPolicyOnly.test.ts.
+    expect(handle.queries[0]!.sql).toContain("calibration_source not in ('none', 'default')");
   });
 
   it('returns null exactly as it does for a route-direction with no policy at all', async () => {

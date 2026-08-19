@@ -4,6 +4,7 @@
 // database in CI. Not used by production code.
 
 import type { StateEstimationRepository } from "../repository.js";
+import type { CompletedStopVisit } from "../stopVisit.js";
 import type {
   PriorVehicleState,
   RouteDirectionShape,
@@ -13,8 +14,12 @@ import type {
 
 export class InMemoryStateEstimationRepository implements StateEstimationRepository {
   readonly savedStates = new Map<string, VehicleStateEstimate>();
+  /** Completed stop occupancies the service recorded, in the order it recorded them. */
+  readonly stopVisits: CompletedStopVisit[] = [];
   activeHolds = new Set<string>();
   tripsByVehicleAndDirection = new Map<string, string>();
+  /** When set, `recordStopVisit` throws it - covers the "stop history must never break live tracking" path. */
+  stopVisitError: unknown = null;
 
   constructor(
     private readonly shapes: RouteDirectionShape[],
@@ -40,6 +45,14 @@ export class InMemoryStateEstimationRepository implements StateEstimationReposit
     const saved = this.savedStates.get(vehicleId);
     if (!saved) return Promise.resolve(null);
     return Promise.resolve(toPriorState(saved));
+  }
+
+  async recordStopVisit(visit: CompletedStopVisit): Promise<void> {
+    // Cast for the same reason `saveVehicleState` does: the field is
+    // deliberately `unknown` so a test can inject a non-Error rejection.
+    if (this.stopVisitError !== null) throw this.stopVisitError as Error;
+    this.stopVisits.push(visit);
+    return Promise.resolve();
   }
 
   async loadActiveHold(vehicleId: string): Promise<boolean> {

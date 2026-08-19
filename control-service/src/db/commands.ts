@@ -659,6 +659,35 @@ export async function listCommandsAwaitingDelivery(limit: number, pool: Pool = g
  * for an empty input so callers don't need to special-case "no candidates
  * yet".
  */
+/**
+ * Vehicles issued any command within the last `cooldownSeconds`.
+ *
+ * The cooldown's whole purpose is to stop the controller talking to the same
+ * driver over and over, so it counts EVERY command regardless of how it
+ * ended - a hold the driver declined, or one that expired unacknowledged,
+ * still consumed their attention and still means the next instruction
+ * arrives too soon. Filtering to successful commands would make a rejected
+ * instruction free, which is the opposite of true.
+ *
+ * Distinct from `listActiveVehicleIds`, which asks whether an instruction is
+ * still IN FLIGHT. That is a conflict; this is a rate limit.
+ */
+export async function listRecentlyCommandedVehicleIds(
+  vehicleIds: string[],
+  cooldownSeconds: number,
+  pool: Pool = getPool(),
+): Promise<Set<string>> {
+  if (vehicleIds.length === 0 || cooldownSeconds <= 0) return new Set();
+  const { rows } = await pool.query<{ vehicle_id: string }>(
+    `select distinct vehicle_id
+       from commands
+      where vehicle_id = any($1)
+        and created_at > now() - ($2 || ' seconds')::interval`,
+    [vehicleIds, String(cooldownSeconds)],
+  );
+  return new Set(rows.map((r) => r.vehicle_id));
+}
+
 export async function listActiveVehicleIds(
   vehicleIds: string[],
   pool: Pool = getPool(),

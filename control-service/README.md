@@ -129,7 +129,15 @@ blueprint section 8 against the in-memory state for one route-direction:
 - `twoWayHold.ts` / `selfEqualizing.ts` - Algorithms B/C (8.3/8.4), exactly
   the Appendix A formulas. Self-equalizing only fires for a pair two-way
   couldn't cover (missing Kf/Kb or backward headway) - it is a fallback,
-  not a second opinion on the same pair.
+  not a second opinion on the same pair. Both take `h_bwd` to mean the gap
+  to the vehicle BEHIND the one being held, which is what makes two-way
+  holding two-way; a linear route-direction's back-most vehicle has no such
+  gap and is therefore self-equalizing's, by design.
+- `objective.ts` - the passenger-and-operator cost every candidate is
+  ranked by (9.1 step 6), quadratic in headway and charged against the live
+  onboard count. It also carries the closed-form cost-minimising hold and
+  the one-sentence rationale each candidate ships with. Read its header
+  before changing how candidates are ordered.
 - `safety.ts` - the hard safety filter (9.1 step 5): rejects a candidate
   computed from stale state, one that breaches the policy's max-hold cap,
   or one whose vehicle already has a conflicting active command

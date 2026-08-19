@@ -37,29 +37,129 @@ describe("computeGapMeters", () => {
 });
 
 describe("computePairHeadways", () => {
-  it("computes forward/backward headway from gap and each vehicle's own speed", () => {
+  // h_fwd and h_bwd are BOTH about the follower - the vehicle a hold would
+  // be issued to (mpc/twoWayHold.ts uses `followerVehicleId`). h_fwd is its
+  // gap to the bus ahead; h_bwd is the gap from the bus BEHIND it, closed at
+  // that bus's own pace. Three vehicles are needed to have both, which is
+  // the whole point: a two-way-looking law cannot be fed by a pair.
+  it("measures h_fwd to the bus ahead and h_bwd from the bus behind, each at that bus's own speed", () => {
+    const ordered: OrderedVehicle[] = [
+      vehicle({ vehicleId: "leader", distanceAlongRouteMeters: 1000, rank: 0, followerVehicleId: "follower" }),
+      vehicle({
+        vehicleId: "follower",
+        distanceAlongRouteMeters: 500,
+        rank: 1,
+        leaderVehicleId: "leader",
+        followerVehicleId: "trailer",
+      }),
+      vehicle({ vehicleId: "trailer", distanceAlongRouteMeters: 200, rank: 2, leaderVehicleId: "follower" }),
+    ];
+    const speeds = new Map([
+      ["leader", 36], // 10 m/s
+      ["follower", 18], // 5 m/s
+      ["trailer", 54], // 15 m/s
+    ]);
+    const confidences = new Map([
+      ["leader", 0.9],
+      ["follower", 0.8],
+      ["trailer", 0.7],
+    ]);
+
+    const pairs = computePairHeadways(ordered, speeds, confidences, { totalDistanceMeters: 2000 }, "rd-1", 300);
+
+    // One row per leader/follower link: (leader, follower) and (follower, trailer).
+    expect(pairs).toHaveLength(2);
+    const pair = pairs[0]!;
+    expect(pair.followerVehicleId).toBe("follower");
+    expect(pair.gapMeters).toBe(500);
+    expect(pair.hFwdSeconds).toBe(100); // 500m ahead / 5 m/s (follower's own speed)
+    expect(pair.hBwdSeconds).toBe(20); // 300m behind / 15 m/s (trailer's speed)
+    expect(pair.deviationSeconds).toBe(100 - 300);
+    expect(pair.confidence).toBe(0.8);
+  });
+
+  // The regression this definition exists for. Two buses travelling at the
+  // same speed used to report h_fwd == h_bwd, which collapses the two-way
+  // law Kf(H*-h_fwd) - Kb(H*-h_bwd) to a forward-only (Kf-Kb)(H*-h_fwd).
+  // The backward headway must depend on the bus BEHIND and on nothing else.
+  it("does not derive h_bwd from the leader's pace: equal speeds must not make h_bwd mirror h_fwd", () => {
+    const ordered: OrderedVehicle[] = [
+      vehicle({ vehicleId: "leader", distanceAlongRouteMeters: 1000, rank: 0, followerVehicleId: "follower" }),
+      vehicle({
+        vehicleId: "follower",
+        distanceAlongRouteMeters: 500,
+        rank: 1,
+        leaderVehicleId: "leader",
+        followerVehicleId: "trailer",
+      }),
+      vehicle({ vehicleId: "trailer", distanceAlongRouteMeters: 100, rank: 2, leaderVehicleId: "follower" }),
+    ];
+    // Leader and follower keep identical pace; only the trailer differs.
+    const speeds = new Map([
+      ["leader", 36],
+      ["follower", 36], // 10 m/s
+      ["trailer", 72], // 20 m/s - closing fast from behind
+    ]);
+
+    const pairs = computePairHeadways(ordered, speeds, new Map(), { totalDistanceMeters: 2000 }, "rd-1", 300);
+
+    const pair = pairs[0]!;
+    expect(pair.hFwdSeconds).toBe(50); // 500m / 10 m/s
+    expect(pair.hBwdSeconds).toBe(20); // 400m / 20 m/s - a different number entirely
+    expect(pair.hBwdSeconds).not.toBe(pair.hFwdSeconds);
+  });
+
+  // The back-most bus on a linear route has nothing behind it. That is a
+  // real absence, and mpc/twoWayHold.ts's documented response to it is to
+  // decline the pair so mpc/selfEqualizing.ts takes it.
+  it("reports a null h_bwd for the back-most vehicle rather than inventing a neighbour", () => {
     const ordered: OrderedVehicle[] = [
       vehicle({ vehicleId: "leader", distanceAlongRouteMeters: 1000, rank: 0, followerVehicleId: "follower" }),
       vehicle({ vehicleId: "follower", distanceAlongRouteMeters: 500, rank: 1, leaderVehicleId: "leader" }),
     ];
     const speeds = new Map([
-      ["leader", 36], // 10 m/s
-      ["follower", 18], // 5 m/s
-    ]);
-    const confidences = new Map([
-      ["leader", 0.9],
-      ["follower", 0.8],
+      ["leader", 36],
+      ["follower", 18],
     ]);
 
-    const pairs = computePairHeadways(ordered, speeds, confidences, { totalDistanceMeters: 2000 }, "rd-1", 300);
+    const pairs = computePairHeadways(ordered, speeds, new Map(), { totalDistanceMeters: 2000 }, "rd-1", 300);
 
     expect(pairs).toHaveLength(1);
-    const pair = pairs[0]!;
-    expect(pair.gapMeters).toBe(500);
-    expect(pair.hFwdSeconds).toBe(100); // 500m / 5 m/s (follower's speed)
-    expect(pair.hBwdSeconds).toBe(50); // 500m / 10 m/s (leader's speed)
-    expect(pair.deviationSeconds).toBe(100 - 300);
-    expect(pair.confidence).toBe(0.8);
+    expect(pairs[0]!.hFwdSeconds).toBe(100);
+    expect(pairs[0]!.hBwdSeconds).toBeNull();
+  });
+
+  // On a loop every vehicle has a follower via the wrap link, so h_bwd is
+  // always available - including for the vehicle furthest along, whose
+  // trailer is measured across the wrap.
+  it("measures h_bwd across the loop wrap for the leader-most vehicle", () => {
+    const ordered: OrderedVehicle[] = [
+      vehicle({
+        vehicleId: "front",
+        distanceAlongRouteMeters: 1800,
+        rank: 0,
+        leaderVehicleId: "back",
+        followerVehicleId: "back",
+      }),
+      vehicle({
+        vehicleId: "back",
+        distanceAlongRouteMeters: 200,
+        rank: 1,
+        leaderVehicleId: "front",
+        followerVehicleId: "front",
+      }),
+    ];
+    const speeds = new Map([
+      ["front", 36], // 10 m/s
+      ["back", 36],
+    ]);
+
+    const pairs = computePairHeadways(ordered, speeds, new Map(), { totalDistanceMeters: 2000 }, "rd-1", 300);
+
+    const backPair = pairs.find((p) => p.followerVehicleId === "back")!;
+    expect(backPair.hFwdSeconds).toBe(160); // 1600m ahead / 10 m/s
+    // "back"'s own follower is "front" via the wrap: 2000 - (1800 - 200) = 400m.
+    expect(backPair.hBwdSeconds).toBe(40);
   });
 
   it("excludes low-confidence (rank -1) vehicles and skips a leader with no follower link", () => {
@@ -82,7 +182,6 @@ describe("computePairHeadways", () => {
     ]);
     const pairs = computePairHeadways(ordered, speeds, new Map(), { totalDistanceMeters: 200000 }, "rd-1", 300);
     expect(pairs[0]!.hFwdSeconds).toBe(MAX_HEADWAY_SECONDS);
-    expect(pairs[0]!.hBwdSeconds).toBe(MAX_HEADWAY_SECONDS);
   });
 
   it("returns null headways when speed telemetry is missing", () => {
@@ -94,6 +193,7 @@ describe("computePairHeadways", () => {
     expect(pairs[0]!.hFwdSeconds).toBeNull();
     expect(pairs[0]!.hBwdSeconds).toBeNull();
     expect(pairs[0]!.deviationSeconds).toBeNull();
+    expect(pairs[0]!.confidence).toBeNull();
   });
 });
 

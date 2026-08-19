@@ -36,6 +36,19 @@ function candidate(overrides: Partial<CandidateAction> = {}): CandidateAction {
     involvedVehicleIds: [VEHICLE, LEADER],
     holdSeconds: 30,
     objectiveCost: 0,
+    clampResidualSeconds: 0,
+    passengerCost: {
+      waitPassengerSeconds: 0,
+      onboardPassengerSeconds: 0,
+      operatorPassengerSeconds: 0,
+      latenessPassengerSeconds: 0,
+      netPassengerSeconds: 0,
+      loadEstimated: true,
+      backwardEstimated: true,
+      scheduleUnknown: true,
+    },
+    rationale: 'fixture',
+    scheduleDeviationSeconds: null,
     routeDirectionId: '11111111-2222-4333-8444-555555555555',
     stateAsOf: at(-10),
     headwayDeviationSeconds: -120,
@@ -54,6 +67,9 @@ function context(overrides: Partial<SafetyFilterContext> = {}): SafetyFilterCont
       [LEADER, at(-12)],
     ]),
     activeCommandVehicleIds: new Set<string>(),
+    maxLatenessSeconds: null,
+    recentlyCommandedVehicleIds: new Set<string>(),
+    minimumActionSeconds: 0,
     ...overrides,
   };
 }
@@ -141,5 +157,62 @@ describe('hard safety filter', () => {
       context({ activeCommandVehicleIds: new Set([VEHICLE]) }),
     );
     expect(rejected[0]?.reasons).toContain('conflicting_active_command');
+  });
+
+  // ─── INSTRUCTION QUALITY ───────────────────────────────────────────────
+  //
+  // Both of these columns existed since the core data model and neither was
+  // ever enforced. They are not about physical safety; they are about
+  // whether an instruction is worth giving. Driver compliance is the
+  // dominant real-world failure mode for this class of system, and it is
+  // destroyed by instructions that are erratic or pointless.
+
+  it('rejects a hold on a vehicle instructed again inside its cooldown', () => {
+    const { safe, rejected } = applyHardSafetyFilter(
+      [candidate()],
+      context({ recentlyCommandedVehicleIds: new Set([VEHICLE]) }),
+    );
+    expect(safe).toHaveLength(0);
+    expect(rejected[0]?.reasons).toContain('cooldown_active');
+  });
+
+  // Distinct from `conflicting_active_command`: that one asks whether an
+  // instruction is still in flight, this one is a rate limit on how often
+  // the same driver is spoken to at all.
+  it('separates a cooldown from a command still in flight', () => {
+    const { rejected } = applyHardSafetyFilter(
+      [candidate()],
+      context({ recentlyCommandedVehicleIds: new Set([VEHICLE]) }),
+    );
+    expect(rejected[0]?.reasons).toContain('cooldown_active');
+    expect(rejected[0]?.reasons).not.toContain('conflicting_active_command');
+  });
+
+  // A hold shorter than this is not a small benefit, it is a net cost: it
+  // spends the driver's attention and the dispatcher's, and teaches both
+  // that the instructions are noise.
+  it('rejects a hold too short to be worth giving', () => {
+    const { safe, rejected } = applyHardSafetyFilter(
+      [candidate({ holdSeconds: 8 })],
+      context({ minimumActionSeconds: 30 }),
+    );
+    expect(safe).toHaveLength(0);
+    expect(rejected[0]?.reasons).toContain('below_minimum_action');
+  });
+
+  it('permits a hold exactly at the minimum', () => {
+    const { safe } = applyHardSafetyFilter(
+      [candidate({ holdSeconds: 30 })],
+      context({ minimumActionSeconds: 30 }),
+    );
+    expect(safe).toHaveLength(1);
+  });
+
+  it('enforces nothing when the corridor has configured no minimum', () => {
+    const { safe } = applyHardSafetyFilter(
+      [candidate({ holdSeconds: 1 })],
+      context({ minimumActionSeconds: 0 }),
+    );
+    expect(safe).toHaveLength(1);
   });
 });

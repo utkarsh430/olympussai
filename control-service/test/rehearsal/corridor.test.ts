@@ -95,7 +95,7 @@ describe('loadCorridorInputs', () => {
   it('asks the live detection reader first, with its calibration_source predicate intact', async () => {
     const handle = fakePool(calibratedResponses());
     await loadCorridorInputs('rd-1', handle.pool);
-    expect(handle.queries[0]!.sql).toContain("calibration_source <> 'none'");
+    expect(handle.queries[0]!.sql).toContain("calibration_source not in ('none', 'default')");
     expect(handle.queries[0]!.sql).toContain('required_samples');
   });
 

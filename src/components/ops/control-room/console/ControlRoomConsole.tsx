@@ -112,7 +112,20 @@ export function ControlRoomConsole({
   const [corridor, setCorridor] = useState<string | null>(
     initialOverview?.selectedRouteDirectionId ?? null,
   );
+  // Which incident the map is drawing. The map draws ONE (see
+  // OpsFleetMapPanel's `selectedIncidentId`), the list in the Decisions tab
+  // chooses it, and this is the single place the two agree.
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [commandPrefill, setCommandPrefill] = useState<CommandPrefill | undefined>(undefined);
+
+  // Changing corridor replaces the incident list wholesale, so a selection
+  // made on the old corridor is not merely stale - it names an incident that
+  // is no longer in the list the operator can see, leaving a mark on the map
+  // with nothing to deselect it.
+  const selectCorridor = useCallback((next: string | null) => {
+    setCorridor(next);
+    setSelectedIncidentId(null);
+  }, []);
   // The basemap is a JS style array, not CSS, so it cannot follow the theme
   // through a class the way every other surface here does. OpsFleetMap takes
   // it as an opt-in prop precisely so one console moving does not move the
@@ -124,6 +137,20 @@ export function ControlRoomConsole({
   const overview = feed.overview;
 
   const kpi = useMemo(() => (overview ? buildConsoleKpi(overview) : null), [overview]);
+
+  // Derived, not stored. Resetting on corridor change is not enough on its
+  // own: incidents CLOSE now - control-service ends one the moment its pair
+  // stops being a pair - so a poll can retire the selected incident mid-shift.
+  // Reading through the current list means a retired selection simply stops
+  // being one, instead of leaving a mark on the map that the list can no
+  // longer deselect.
+  const shownIncidentId = useMemo(() => {
+    const incidents = overview?.incidents ?? [];
+    return selectedIncidentId !== null &&
+      incidents.some((incident) => incident.id === selectedIncidentId)
+      ? selectedIncidentId
+      : null;
+  }, [overview, selectedIncidentId]);
 
   const ageSeconds = overview
     ? Math.max(0, Math.round((feed.now - Date.parse(overview.fetchedAt)) / 1000))
@@ -184,7 +211,7 @@ export function ControlRoomConsole({
               <CorridorPicker
                 corridors={overview.routeDirections}
                 value={corridor}
-                onChange={setCorridor}
+                onChange={selectCorridor}
                 labelHidden
               />
             </div>
@@ -242,6 +269,7 @@ export function ControlRoomConsole({
             // 9,181 - two numbers from the same console disagreeing on arrival.
             vehicles={null}
             incidents={overview?.incidents ?? []}
+            selectedIncidentId={shownIncidentId}
             scopeLabel="all depots"
             routeDirectionId={corridor ?? undefined}
             live
@@ -319,7 +347,7 @@ export function ControlRoomConsole({
                 />
                 <OpsSection
                   title="Buses closing up on this corridor"
-                  description="Found automatically by the gap check, and drawn on the map beside this."
+                  description="Found automatically by the gap check, which runs continuously on every bus. Pick one to see it on the map."
                 >
                   {/* Two different reasons the list is not a list, and they
                       must not share a message. "Did not answer" is an outage;
@@ -340,6 +368,8 @@ export function ControlRoomConsole({
                     <ActiveIncidentsPanel
                       incidents={overview?.incidents ?? []}
                       canDetect={selectedCorridor?.hasActivePolicy}
+                      selectedIncidentId={shownIncidentId}
+                      onSelectIncident={setSelectedIncidentId}
                     />
                   )}
                 </OpsSection>

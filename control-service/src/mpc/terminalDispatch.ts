@@ -5,11 +5,14 @@
 // bounded by the max-hold cap. This is the "default first line" control
 // lever (blueprint 8.1 table) - the solver tries it before two-way/
 // self-equalizing mid-route holding.
-import { clamp } from './math.js';
+import { clamp, scheduleCorrectionSeconds } from './math.js';
+import { liveOnboardCount, scoreHold } from './objective.js';
 import type { CandidateAction } from './types.js';
 import type { HeadwayStateRow, RoutePolicyRow, VehicleStateRow } from '../state/store.js';
 
 /** True when `vehicleState` is currently dwelling at `terminalStopId` - the only state terminal dispatch regulation applies to. */
+
+
 export function isAtTerminal(
   vehicleState: VehicleStateRow | undefined,
   terminalStopId: string | undefined,
@@ -31,6 +34,8 @@ export function computeTerminalDispatchCandidates(
   vehicleStatesByVehicleId: Map<string, VehicleStateRow>,
   terminalStopId: string | undefined,
   policy: RoutePolicyRow,
+  now: Date = new Date(),
+  scheduleDeviationByVehicleId: ReadonlyMap<string, number | null> = new Map(),
 ): CandidateAction[] {
   if (!terminalStopId) return [];
 
@@ -40,18 +45,28 @@ export function computeTerminalDispatchCandidates(
     const follower = vehicleStatesByVehicleId.get(h.followerVehicleId);
     if (!isAtTerminal(follower, terminalStopId)) continue;
 
-    const rawHold = h.targetHeadwaySeconds - h.hFwdSeconds;
+    // The same schedule correction the two-way law applies, and it matters
+    // most here: this is the lever with no punctuality cost at all. A bus
+    // still at the terminal has not started its trip, so regulating its
+    // departure buys even spacing outright - which is why the literature
+    // puts terminal dispatch first and why the CTA pilots measured their
+    // largest wait-time reduction from terminal holding alone.
+    const deviationSeconds = scheduleDeviationByVehicleId.get(h.followerVehicleId) ?? null;
+    const rawHold =
+      h.targetHeadwaySeconds - h.hFwdSeconds + scheduleCorrectionSeconds(policy.ks, deviationSeconds);
     if (rawHold <= 0) continue; // already spaced at or beyond target - release now, nothing to regulate
 
     const holdSeconds = Math.round(clamp(rawHold, 0, policy.maxHoldSeconds));
     if (holdSeconds <= 0) continue;
+
+    const load = liveOnboardCount(follower, policy, now);
 
     candidates.push({
       actionType: 'terminal_dispatch_hold',
       vehicleId: h.followerVehicleId,
       involvedVehicleIds: [h.followerVehicleId, h.leaderVehicleId],
       holdSeconds,
-      objectiveCost: Math.abs(rawHold - holdSeconds),
+      ...scoreHold(h, h.followerVehicleId, holdSeconds, rawHold, load, deviationSeconds),
       routeDirectionId: h.routeDirectionId,
       stateAsOf: h.computedAt,
       headwayDeviationSeconds: h.hFwdSeconds - h.targetHeadwaySeconds,

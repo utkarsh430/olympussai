@@ -38,6 +38,17 @@
 //     the law to regulate. `terminalVehicleIds` is therefore empty, which
 //     also means two-way and self-equalizing are never suppressed in favour
 //     of a terminal action the way they can be in production.
+//   * TWO-WAY HOLDING, in a scenario run. The law needs the backward
+//     headway to the vehicle BEHIND the deciding one, and `engine.ts`
+//     cannot supply it: it simulates one complete trip at a time in
+//     dispatch order, so the trailing vehicle has not been simulated yet
+//     and its trajectory depends on the very hold under decision. h_bwd
+//     therefore comes back null and `computeSelfEqualizingCandidates`
+//     takes the pair - the deployed fallback, running for the deployed
+//     reason. A hand-built `ControllerKinematics.trailer` (as the tests
+//     supply) does exercise Algorithm B against the real module. Making a
+//     full scenario do so needs an engine that advances every vehicle on
+//     one clock.
 //   * THE STATE ESTIMATOR. Production derives distance-along-route by map-
 //     matching a GPS fix and filtering it, and excludes low-confidence
 //     vehicles from the leader/follower chain before any headway is
@@ -184,6 +195,14 @@ export function createDeployedControlLawsController(
 
     const followerId = kinematics.follower.vehicleId;
     const leaderId = kinematics.leader.vehicleId;
+    // The vehicle behind, when the caller has one. `engine.ts` never does -
+    // see `ControllerKinematics.trailer` - so in a scenario run this stays
+    // null, h_bwd comes back null from the deployed gap computation, and
+    // two-way holding correctly declines the pair in favour of the
+    // self-equalizing fallback. That is the deployed degradation path
+    // running, not a rehearsal shortcut.
+    const trailer = kinematics.trailer ?? null;
+    const trailerId = trailer?.vehicleId ?? null;
 
     const ordered: OrderedVehicle[] = [
       {
@@ -202,14 +221,26 @@ export function createDeployedControlLawsController(
         isLowConfidence: false,
         rank: 1,
         leaderVehicleId: leaderId,
-        followerVehicleId: null,
+        followerVehicleId: trailerId,
       },
     ];
+    if (trailer && trailerId) {
+      ordered.push({
+        vehicleId: trailerId,
+        routeDirectionId: context.routeDirectionId,
+        distanceAlongRouteMeters: trailer.distanceAlongRouteMeters,
+        isLowConfidence: false,
+        rank: 2,
+        leaderVehicleId: followerId,
+        followerVehicleId: null,
+      });
+    }
 
     const speedByVehicleId = new Map<string, number | null>([
       [leaderId, kinematics.leader.speedKmph],
       [followerId, kinematics.follower.speedKmph],
     ]);
+    if (trailerId) speedByVehicleId.set(trailerId, trailer!.speedKmph);
     // Full confidence: the simulator knows its own world exactly. See this
     // file's header - the state estimator's low-confidence exclusion is not
     // rehearsed, and pretending to a fractional confidence here would be
@@ -218,6 +249,7 @@ export function createDeployedControlLawsController(
       [leaderId, 1],
       [followerId, 1],
     ]);
+    if (trailerId) confidenceByVehicleId.set(trailerId, 1);
 
     const pairs = computePairHeadways(
       ordered,
@@ -228,7 +260,12 @@ export function createDeployedControlLawsController(
       policy.targetHeadwaySeconds,
     );
 
-    const pair = pairs[0];
+    // One row per leader/follower link, so a three-vehicle chain yields two.
+    // The decision is about `followerId`, and the row that carries its
+    // headways is the one where it is the FOLLOWER - selecting by index
+    // would silently start deciding about the trailer the day the chain
+    // grows again.
+    const pair = pairs.find((p) => p.followerVehicleId === followerId);
     if (!pair) return noAction();
 
     const headwayStates: HeadwayStateRow[] = [
@@ -245,14 +282,6 @@ export function createDeployedControlLawsController(
       },
     ];
 
-    // Empty on purpose - the engine models no controllable terminal dwell.
-    // See this file's header.
-    const terminalVehicleIds = new Set<string>();
-    const candidates = [
-      ...computeTwoWayCandidates(headwayStates, terminalVehicleIds, policy),
-      ...computeSelfEqualizingCandidates(headwayStates, terminalVehicleIds, policy),
-    ];
-
     // A knocked-out feed does not remove the last known position; it makes
     // its age the reason not to act. Stamping it past the deployed bound is
     // what turns this into a real `stale_state` rejection rather than an
@@ -264,14 +293,6 @@ export function createDeployedControlLawsController(
       [followerId, followerObservedAt],
     ]);
 
-    const { safe, rejected } = applyHardSafetyFilter(candidates, {
-      now,
-      staleAfterSeconds: DEFAULT_STATE_STALE_SECONDS,
-      maxHoldSeconds: policy.maxHoldSeconds,
-      vehicleObservedAtByVehicleId,
-      // No command lifecycle in a rehearsal, so nothing is ever in flight.
-      activeCommandVehicleIds: new Set<string>(),
-    });
 
     const vehicleStates = new Map<string, VehicleStateRow>([
       [
@@ -284,7 +305,11 @@ export function createDeployedControlLawsController(
           distanceAlongRouteMeters: kinematics.follower.distanceAlongRouteMeters,
           speedKmph: kinematics.follower.speedKmph,
           headingDegrees: null,
-          stopState: 'at_stop',
+          // `dwelling_at_stop`, not 'at_stop': the latter is not one of the
+          // six values `vehicle_states.stop_state` admits, and the deployed
+          // hold-eligibility check reads this field. The engine decides at
+          // the moment a vehicle is occupying the stop.
+          stopState: 'dwelling_at_stop',
           currentStopId: context.stopId,
           confidence: 1,
           isLowConfidence: false,
@@ -294,6 +319,55 @@ export function createDeployedControlLawsController(
         },
       ],
     ]);
+    // Empty on purpose - the engine models no controllable terminal dwell.
+    // See this file's header.
+    const terminalVehicleIds = new Set<string>();
+    // The vehicle state map is passed through because the deployed laws now
+    // decline to propose a hold to a vehicle that could not execute one
+    // (mpc/eligibility.ts). The engine only asks for a decision at a stop, so
+    // the state above reports `dwelling_at_stop` and every simulated control
+    // point is eligible - an EMPTY control-point set means "any stop", which
+    // is the right reading for a synthetic corridor that has designated none.
+    const candidates = [
+      ...computeTwoWayCandidates(
+        headwayStates,
+        terminalVehicleIds,
+        policy,
+        vehicleStates,
+        now,
+        new Map(),
+        new Set<string>(),
+      ),
+      ...computeSelfEqualizingCandidates(
+        headwayStates,
+        terminalVehicleIds,
+        policy,
+        vehicleStates,
+        now,
+        new Map(),
+        new Set<string>(),
+      ),
+    ];
+
+    const { safe, rejected } = applyHardSafetyFilter(candidates, {
+      now,
+      staleAfterSeconds: DEFAULT_STATE_STALE_SECONDS,
+      maxHoldSeconds: policy.maxHoldSeconds,
+      vehicleObservedAtByVehicleId,
+      // No command lifecycle in a rehearsal, so nothing is ever in flight.
+      activeCommandVehicleIds: new Set<string>(),
+      // The engine models no timetable, so every candidate's schedule
+      // deviation is null and this bound has nothing to compare against.
+      // Passing the policy's own value rather than null keeps the rehearsal
+      // honest the day a scheduled scenario exists: the bound will start
+      // applying without this file changing.
+      maxLatenessSeconds: policy.maxLatenessSeconds,
+      // Never enforced in a rehearsal: there is no command lifecycle, so no
+      // vehicle has been instructed recently and nothing is rate-limited.
+      recentlyCommandedVehicleIds: new Set<string>(),
+      minimumActionSeconds: 0,
+    });
+
     // Today's behaviour: no occupancy reading reaches the tier at all.
     const asDeployedStates = new Map<string, VehicleStateRow>([
       [followerId, { ...vehicleStates.get(followerId)!, occupancyCount: null }],

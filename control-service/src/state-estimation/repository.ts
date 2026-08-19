@@ -9,6 +9,7 @@
 // ../db/pool.ts, which satisfies this interface as-is.
 
 import { logger } from "../lib/logger.js";
+import type { CompletedStopVisit } from "./stopVisit.js";
 import type {
   KalmanState,
   LatLng,
@@ -41,6 +42,17 @@ export interface StateEstimationRepository {
   saveVehicleState(estimate: VehicleStateEstimate): Promise<boolean>;
   /** Loads every vehicle's persisted prior state - used once at startup to rebuild the in-memory cache. */
   rehydrateAll(): Promise<Map<string, PriorVehicleState>>;
+  /**
+   * Appends one completed stop occupancy. Idempotent on
+   * (vehicle, stop, arrived_at) - a replayed or out-of-order fix must not
+   * be able to write the same departure twice, because a duplicate would
+   * halve the departure-to-departure headway computed over it.
+   *
+   * OPTIONAL so the in-memory test repository stays a valid implementation
+   * without one; a repository that does not record visits simply produces no
+   * stop history, which is the pre-existing behaviour.
+   */
+  recordStopVisit?(visit: CompletedStopVisit): Promise<void>;
   /**
    * Optional spatial prefilter: only the shapes plausibly within
    * `radiusMeters` of `point`. Optional so an implementation without a
@@ -173,6 +185,32 @@ export class PgStateEstimationRepository implements StateEstimationRepository {
       [vehicleId, HOLD_ACTION_TYPES, HOLD_ACTIVE_STATUSES]
     );
     return rows[0]?.held ?? false;
+  }
+
+  /**
+   * Appends a completed stop occupancy, or does nothing if that exact visit
+   * is already recorded.
+   *
+   * `on conflict do nothing` against `stop_visits_unique_idx` rather than a
+   * read-then-write: the ingestion path is concurrent across vehicles and
+   * replays are ordinary, so the database is the only place the uniqueness
+   * can actually be decided.
+   */
+  async recordStopVisit(visit: CompletedStopVisit): Promise<void> {
+    await this.db.query(
+      `insert into stop_visits
+         (vehicle_id, route_direction_id, stop_id, trip_id, arrived_at, departed_at, source)
+       values ($1, $2, $3, $4, $5, $6, 'gps_geofence')
+       on conflict do nothing`,
+      [
+        visit.vehicleId,
+        visit.routeDirectionId,
+        visit.stopId,
+        visit.tripId,
+        visit.arrivedAt,
+        visit.departedAt,
+      ],
+    );
   }
 
   async resolveCurrentTrip(vehicleId: string, routeDirectionId: string, now: Date): Promise<string | null> {

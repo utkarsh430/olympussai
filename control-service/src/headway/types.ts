@@ -65,7 +65,13 @@ export interface HeadwayPairMetric {
   gapMeters: number;
   /** Time for the follower to close the gap at its own current speed. */
   hFwdSeconds: number | null;
-  /** Time it took the leader to open the same gap, at the leader's current speed. */
+  /**
+   * Backward headway of `followerVehicleId`: the time the bus BEHIND it
+   * would take to reach its current position, at that bus's own speed.
+   * Null when nothing is behind it (back-most vehicle on a linear
+   * route-direction), which is what routes the pair to self-equalizing
+   * control instead of two-way. See metrics.ts's header.
+   */
   hBwdSeconds: number | null;
   targetHeadwaySeconds: number;
   /** hFwdSeconds - targetHeadwaySeconds. Negative = running tighter than target (bunching direction). */

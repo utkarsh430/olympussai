@@ -86,6 +86,21 @@ export interface OpsFleetMapProps {
    */
   fitPoints?: readonly MapPoint[];
   /**
+   * Re-frame the camera over THESE points every time they change.
+   *
+   * The counterpart to `fitPoints`, and deliberately a separate prop rather
+   * than a flag on it: `fitPoints` decides the OPENING view and fires once,
+   * because refitting on every poll would drag the camera out from under an
+   * operator who had zoomed into a corridor. This one is the operator ASKING
+   * to be taken somewhere - they clicked an incident in the list beside the
+   * map - so it must fire again on every new selection, and only then.
+   *
+   * Pass an empty array (or omit it) to leave the camera exactly where the
+   * operator put it. Filtered through the same served-network test as
+   * everything else that reaches `fitBounds`.
+   */
+  focusPoints?: readonly MapPoint[];
+  /**
    * Show the Fresh/Delayed/Stale swatch counts under the map. On by default.
    *
    * Turned OFF for the driver's own route screen, and the reason is a misread
@@ -159,6 +174,20 @@ const FALLBACK_ZOOM = DEFAULT_MAP_ZOOM;
 /** Never zoom past this when fitting to a handful of vehicles parked in one yard. */
 const MAX_AUTO_FIT_ZOOM = 14;
 
+/**
+ * Where a focus request lands. Close enough to read the street the buses are
+ * on, wide enough that the second bus of a pair is still on screen if it was
+ * not resolvable and could not be included in the bounds.
+ */
+const FOCUS_ZOOM = 15;
+
+/**
+ * Ceiling for a focused fit. Two bunched buses are metres apart, so their
+ * bounds have almost no extent and an uncapped fitBounds answers "show me this
+ * incident" with a close-up of a rooftop.
+ */
+const MAX_FOCUS_ZOOM = 16;
+
 export function OpsFleetMap({
   vehicles,
   overlays,
@@ -166,6 +195,7 @@ export function OpsFleetMap({
   onSelectVehicle,
   autoFit = true,
   fitPoints,
+  focusPoints,
   showFleetLegend = true,
   caption,
   minHeight,
@@ -326,6 +356,60 @@ export function OpsFleetMap({
     hasFittedRef.current = true;
     return () => listener.remove();
   }, [drawable, fitPoints, status, autoFit]);
+
+  // Re-frame on an explicit focus request (the operator clicked an incident in
+  // the list beside the map).
+  //
+  // Keyed on the POINTS, not on a count: two different incidents can both have
+  // two members, and keying on length would leave the camera on the first one.
+  // The key is built from the coordinates themselves so a poll that returns
+  // the same two buses in the same places is a no-op, while a genuinely new
+  // selection - or the selected buses actually moving - re-frames.
+  //
+  // `hasFittedRef` is deliberately set: an incident selected before the
+  // opening auto-fit has run must win, rather than being overridden a moment
+  // later by a fit to the whole fleet.
+  const focusKey = useMemo(
+    () =>
+      (focusPoints ?? [])
+        .filter((point) => isPlottablePosition(point.latitude, point.longitude))
+        .map((point) => `${point.latitude.toFixed(5)},${point.longitude.toFixed(5)}`)
+        .join('|'),
+    [focusPoints],
+  );
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== 'ready' || focusKey === '') return;
+
+    const points = focusKey.split('|').map((pair) => {
+      const [lat, lng] = pair.split(',');
+      return { lat: Number(lat), lng: Number(lng) };
+    });
+
+    hasFittedRef.current = true;
+
+    // One point cannot make a bounds with any extent - fitBounds on it zooms
+    // to the maximum available level, which on a bunching incident with one
+    // resolvable member would drop the operator onto a blank tile. Pan and
+    // pick a sane zoom instead.
+    if (points.length === 1) {
+      map.panTo(points[0]!);
+      if ((map.getZoom() ?? 0) < FOCUS_ZOOM) map.setZoom(FOCUS_ZOOM);
+      return;
+    }
+
+    const bounds = new google.maps.LatLngBounds();
+    for (const point of points) bounds.extend(point);
+    map.fitBounds(bounds, 96);
+    // Two buses that are genuinely bunched are metres apart, so the fitted
+    // bounds are essentially a point and fitBounds goes to maximum zoom. Cap
+    // it, or "show me this incident" answers with a rooftop.
+    const listener = google.maps.event.addListenerOnce(map, 'idle', () => {
+      if ((map.getZoom() ?? 0) > MAX_FOCUS_ZOOM) map.setZoom(MAX_FOCUS_ZOOM);
+    });
+    return () => listener.remove();
+  }, [focusKey, status]);
 
   // Pan to a selection made elsewhere on the page (a table row, an incident
   // list). Keyed on the id alone so a position refresh never yanks the camera.
