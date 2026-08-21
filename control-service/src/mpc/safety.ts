@@ -5,6 +5,7 @@
 // a candidate that fails ANY check here is never eligible to be selected,
 // regardless of how good its objective cost looks.
 import { wouldBreachLateness } from '../schedule/deviation.js';
+import { isHoldAction } from './types.js';
 import type { CandidateAction, SafetyRejection, SafetyRejectionReason } from './types.js';
 
 /**
@@ -137,7 +138,25 @@ export function applyHardSafetyFilter(
       reasons.push('stale_state');
     }
 
-    if (!Number.isFinite(candidate.holdSeconds) || candidate.holdSeconds < 0 || candidate.holdSeconds > context.maxHoldSeconds) {
+    // ─── THE HOLD-LENGTH CHECKS ONLY APPLY TO HOLDS ──────────────────────
+    //
+    // `boarding_limit` (mpc/boardingLimit.ts) asks a driver to spend LESS
+    // time at a stop, so its holdSeconds is 0. Run through the checks below
+    // unguarded, a corridor with `minimum_action_seconds` set would reject
+    // every alighting-only proposal as "below minimum action" - refusing the
+    // one lever that costs no delay at all, for being zero seconds long.
+    //
+    // The staleness, conflicting-command and cooldown checks above and below
+    // DO apply to it: those are about whether the vehicle can be given an
+    // instruction at all, which is a question about the bus, not the action.
+    const isHold = isHoldAction(candidate.actionType);
+
+    if (
+      isHold &&
+      (!Number.isFinite(candidate.holdSeconds) ||
+        candidate.holdSeconds < 0 ||
+        candidate.holdSeconds > context.maxHoldSeconds)
+    ) {
       reasons.push('max_hold_cap_breach');
     }
 
@@ -158,11 +177,16 @@ export function applyHardSafetyFilter(
       reasons.push('cooldown_active');
     }
 
-    if (candidate.holdSeconds < context.minimumActionSeconds) {
+    if (isHold && candidate.holdSeconds < context.minimumActionSeconds) {
       reasons.push('below_minimum_action');
     }
 
+    // Only a hold can push a bus further behind its timetable. Alighting-only
+    // moves the lateness the other way, so asking whether it "would breach"
+    // a lateness bound is not a check that has been relaxed for it - it is a
+    // question that does not apply.
     if (
+      isHold &&
       wouldBreachLateness(
         candidate.scheduleDeviationSeconds,
         candidate.holdSeconds,

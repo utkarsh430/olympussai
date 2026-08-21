@@ -308,9 +308,10 @@ describe('no ops page resolves its own session to assert on', () => {
   );
 
   it('found every guarded ops page (a move must not silently shrink this set)', () => {
-    // 14 since the admin console gained its own root (/ops/admin, which was a
-    // 404 for as long as the role existed) and a corridor-coverage screen.
-    expect(guarded.length).toBe(14);
+    // 15 since the admin console gained its own root (/ops/admin, which was a
+    // 404 for as long as the role existed), a corridor-coverage screen, and
+    // the network-wide alert inbox (/ops/control-room/alerts).
+    expect(guarded.length).toBe(15);
   });
 
   it.each(guarded)('%s takes its session from the guard', (file) => {

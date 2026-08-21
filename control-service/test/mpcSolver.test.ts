@@ -13,8 +13,24 @@ vi.mock('../src/schedule/repository.js', () => ({
   loadScheduleCurves: vi.fn(() => Promise.resolve(new Map())),
 }));
 
+// The network-wide switches. Mocked rather than left to fall back, because
+// the fallback is occupancy-OFF and several tests below are specifically
+// about what the objective does WITH a load - see "prefers holding the
+// emptier bus", which is the behaviour the switch exists to turn on.
+vi.mock('../src/db/settings.js', () => ({
+  readControlSettings: vi.fn(() =>
+    Promise.resolve({
+      weighOccupancy: false,
+      updatedAt: new Date(0).toISOString(),
+      updatedBy: null,
+      updateReason: null,
+    }),
+  ),
+}));
+
 const { solve } = await import('../src/mpc/solver.js');
 const { stateStore } = await import('../src/state/store.js');
+const { readControlSettings } = await import('../src/db/settings.js');
 const { listActiveVehicleIds, listRecentlyCommandedVehicleIds } = await import(
   '../src/db/commands.js'
 );
@@ -94,6 +110,13 @@ describe('mpc.solve', () => {
     vi.mocked(listRecentlyCommandedVehicleIds).mockResolvedValue(new Set());
     vi.mocked(loadScheduleCurves).mockReset();
     vi.mocked(loadScheduleCurves).mockResolvedValue(new Map());
+    vi.mocked(readControlSettings).mockReset();
+    vi.mocked(readControlSettings).mockResolvedValue({
+      weighOccupancy: false,
+      updatedAt: new Date(0).toISOString(),
+      updatedBy: null,
+      updateReason: null,
+    });
   });
 
   it('throws a 404 AppError when there is no active policy for the route-direction', async () => {
@@ -182,9 +205,19 @@ describe('mpc.solve', () => {
     const result = await solve('rd-1');
 
     // clamp[0.4*(600-400) - 0.4*(600-700), 0, 120] = clamp[80 - (-40), 0, 120] = clamp[120,...] = 120
-    expect(result.candidateActions).toHaveLength(1);
-    expect(result.candidateActions[0]).toMatchObject({ actionType: 'two_way_hold', holdSeconds: 120 });
+    const twoWay = result.candidateActions.filter((c) => c.actionType === 'two_way_hold');
+    expect(twoWay).toHaveLength(1);
+    expect(twoWay[0]).toMatchObject({ actionType: 'two_way_hold', holdSeconds: 120 });
+
+    // The same pair also yields a closed-form candidate - both gaps are
+    // known, so cost-optimal applies - and it is generated, scored and
+    // returned for comparison. Selection is still the tuned law's: the
+    // closed form minimises an objective whose lambda is a 1/H* proxy, and
+    // letting the argmin of that objective win the sort would replace the
+    // controller rather than add to it. See COST_OPTIMAL_SELECTION_ENABLED.
+    expect(result.candidateActions.some((c) => c.actionType === 'cost_optimal_hold')).toBe(true);
     expect(result.selectedActionType).toBe('two_way_hold');
+    expect(result.selectedActions).toHaveLength(1);
   });
 
   it('prefers a terminal dispatch candidate over a mid-route candidate on the same route-direction', async () => {
@@ -259,6 +292,13 @@ describe('mpc.solve', () => {
     expect(result.selectedActionType).toBeNull();
     expect(result.rejectedCandidates).toHaveLength(1);
     expect(result.rejectedCandidates[0]?.reasons).toContain('stale_state');
+
+    // No alighting-only proposal here, and the reason is the threshold rather
+    // than the staleness: this pair sits at ratio 0.33, which is wider than
+    // the corridor's own 0.25 bunched threshold. Imposing a wait on
+    // passengers requires the pair to be at least as bunched as the corridor
+    // says bunched is - see mpc/boardingLimit.ts#maxFollowerGapSeconds.
+    expect(result.boardingLimitCandidates).toEqual([]);
   });
 
   it('hard safety filter rejects a candidate whose vehicle already has a conflicting active command', async () => {
@@ -409,7 +449,18 @@ describe('mpc.solve', () => {
   // Section 7 of the reference architecture: the in-vehicle cost term is
   // where a live onboard count changes a decision the published state of
   // the art has to make on a historical average.
+  // This is the behaviour the occupancy switch turns on, so the switch is on
+  // for this test. With it off (the default), `liveOnboardCount` reports no
+  // load at all and both pairs score identically on wait cost alone - which
+  // is the correct behaviour for a deployment whose lambda is still a proxy,
+  // and is asserted separately below.
   it('prefers holding the emptier bus when two pairs are equally out of position', async () => {
+    vi.mocked(readControlSettings).mockResolvedValue({
+      weighOccupancy: true,
+      updatedAt: new Date(0).toISOString(),
+      updatedBy: 'test',
+      updateReason: 'exercising the occupancy term',
+    });
     const now = new Date().toISOString();
     stateStore.loadActivePolicies([
       basePolicy({ kf: null, kb: null, selfEqualizingK: 1, maxHoldSeconds: 300, occupancyStaleSeconds: 120 }),

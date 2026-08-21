@@ -7,6 +7,12 @@ export const commandActionTypeSchema = z.enum([
   'terminal_dispatch_hold',
   'two_way_hold',
   'self_equalizing_hold',
+  // All four holds are the same instruction to a driver - stand still at this
+  // stop for N seconds. The type records WHICH LAW decided, which is what
+  // lets an outcome review compare the closed-form holds against the
+  // tuned-gain ones. Must stay in step with the commands_action_type_check
+  // constraint (db/migrations/20260820120000__cost_optimal_command_type.sql).
+  'cost_optimal_hold',
   'speed_guidance',
   'stop_skip',
   'short_turn',

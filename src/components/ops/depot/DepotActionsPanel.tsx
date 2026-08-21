@@ -17,12 +17,14 @@ import { actionLabel, humanOriginatedActions } from '@/lib/ops/recommendationVie
  * it is a deliberate division of authority — and rendering an ENABLED one
  * would produce a refusal the operator could only discover by trying.
  *
- * ─── WHY THE SIX ARE DERIVED AND NOT LISTED ──────────────────────────────
+ * ─── WHY THE HUMAN-ONLY SET IS DERIVED AND NOT LISTED ────────────────────
  *
  * `humanOriginatedActions` subtracts what the engine reports it can propose
- * from the nine instructions the system can express. Hardcoding the six would
- * let this panel keep claiming "nothing generates these" about an instruction
- * the engine had since learned. The claim cannot outlive its truth this way.
+ * from every instruction the system can express. Hardcoding that set would let
+ * this panel keep claiming "nothing generates these" about an instruction the
+ * engine had since learned - which has now happened once, when the engine
+ * gained alighting-only (`boarding_limit`). This panel moved it from one list
+ * to the other with no edit, which is what the derivation is for.
  */
 export function DepotActionsPanel() {
   const engineActions = [...ENGINE_ACTION_TYPES];
@@ -39,16 +41,16 @@ export function DepotActionsPanel() {
 
       <OpsSection
         title="What the system can actually work out for you"
-        description="Three kinds of hold, and nothing else. This is the whole of what the recommendation engine can do, not a shorter list chosen for this screen."
+        description="This is the whole of what the recommendation engine can work out, not a shorter list chosen for this screen. Most are kinds of hold; one — drop off only — asks a bus to spend less time at a stop rather than more."
       >
         <ul className="space-y-2">
           {engineActions.map((action) => (
             <li key={action} className="ops-well px-4 py-3 text-sm">
               <span className="font-medium text-foreground">{actionLabel(action)}</span>
               <p className="mt-1 text-xs leading-relaxed text-subtle">
-                Suggested by the recommendation engine when buses close up, approved and sent in the
-                control room, and delivered to the driver&apos;s screen. This one genuinely reaches
-                a driver and is genuinely recorded.
+                {action === 'boarding_limit'
+                  ? 'Suggested when a bus has another right behind it: letting people off but taking none on cuts its stop time so it can recover, and the bus behind picks up who was left. Proposed for a human to weigh, never chosen automatically.'
+                  : 'Suggested by the recommendation engine when buses close up, approved and sent in the control room, and delivered to the driver’s screen. This one genuinely reaches a driver and is genuinely recorded.'}
               </p>
             </li>
           ))}

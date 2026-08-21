@@ -60,9 +60,11 @@ function candidate(overrides: Record<string, unknown> = {}) {
       waitPassengerSeconds: -12,
       onboardPassengerSeconds: 0,
       operatorPassengerSeconds: 0,
+        latenessPassengerSeconds: 0,
       netPassengerSeconds: -12,
       loadEstimated: true,
       backwardEstimated: false,
+        scheduleUnknown: true,
     },
     rationale: 'Hold 36s: UP25FT4823 has closed to 420s behind the bus ahead, 180s tighter than the 600s target and the bus behind is 900s back, so evening the two gaps is worth a net saving of 12 passenger-seconds; no onboard count is available, so no in-vehicle delay was priced in.',
     routeDirectionId: ROUTE_DIRECTION_ID,
@@ -187,22 +189,30 @@ describe('POST /api/ops/control-room/recommendations — the engine is finally r
     expect(body.constraints).toMatchObject({ maxHoldSeconds: 120, staleAfterSeconds: 90 });
   });
 
-  it('states the engine’s action vocabulary in the payload, and it is the three hold types only', async () => {
+  it('states the engine’s action vocabulary in the payload — four holds and one non-hold', async () => {
     const body = await (await postRecommendations({ routeDirectionId: ROUTE_DIRECTION_ID })).json();
 
+    // Every type the engine can actually propose. `cost_optimal_hold` is the
+    // closed-form law; `boarding_limit` is alighting-only, which is NOT a
+    // hold — it asks a bus to spend less time at a stop, not more.
+    //
+    // Both belong here because the console derives "nothing in this system
+    // generates these" by SUBTRACTING this vocabulary from the dispatchable
+    // set. Omitting either would make the console claim an instruction is
+    // human-originated while the engine emits it.
     expect(body.engineActionTypes).toEqual([
       'terminal_dispatch_hold',
       'two_way_hold',
       'self_equalizing_hold',
+      'cost_optimal_hold',
+      'boarding_limit',
     ]);
-    // The six human-originated instructions are absent by construction, so a
-    // console cannot imply the engine covers them.
+    // The five genuinely human-originated instructions are absent by
+    // construction, so a console cannot imply the engine covers them.
     for (const humanOnly of [
-      'speed_skip',
       'stop_skip',
       'short_turn',
       'deadhead',
-      'boarding_limit',
       'standby_injection',
       'speed_guidance',
     ]) {

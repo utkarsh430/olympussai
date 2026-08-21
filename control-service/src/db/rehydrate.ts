@@ -130,12 +130,14 @@ async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
     max_lateness_seconds: number | null;
     speed_band_min_kmph: string | null;
     speed_band_max_kmph: string | null;
+    max_concurrent_actions: number | null;
   }>(
     `select id, route_direction_id, operating_period, day_type,
             target_headway_seconds, bunched_threshold_ratio, warning_threshold_ratio,
             kf, kb, self_equalizing_k, max_hold_seconds, cooldown_seconds, minimum_action_seconds,
             prediction_horizon_control_points, occupancy_stale_seconds, occupancy_capacity,
-            ks, max_lateness_seconds, speed_band_min_kmph, speed_band_max_kmph
+            ks, max_lateness_seconds, speed_band_min_kmph, speed_band_max_kmph,
+            max_concurrent_actions
        from route_policies
       where effective_to is null
         and ${MEASURED_POLICY_PREDICATE}`,
@@ -161,6 +163,7 @@ async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
     maxLatenessSeconds: r.max_lateness_seconds,
     speedBandMinKmph: r.speed_band_min_kmph === null ? null : Number(r.speed_band_min_kmph),
     speedBandMaxKmph: r.speed_band_max_kmph === null ? null : Number(r.speed_band_max_kmph),
+    maxConcurrentActions: r.max_concurrent_actions,
   }));
 }
 

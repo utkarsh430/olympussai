@@ -191,6 +191,17 @@ export interface HeadwaySampleInput {
   targetHeadwaySeconds: number;
   deviationSeconds: number | null;
   confidence: number | null;
+  /**
+   * Projected forward headway at the forecast horizon
+   * (src/headway/riskForecast.ts), or null when no trend could be fitted.
+   *
+   * `headway_states.forecast_h_fwd_seconds` has existed since the core data
+   * model and carried NULL on every row ever written, because this column was
+   * simply absent from the insert. Storing it makes the prediction auditable
+   * after the fact: an operator asking "was this predicted, and how early?"
+   * can be answered from the sample history rather than from a log line.
+   */
+  forecastHFwdSeconds?: number | null;
 }
 
 export interface HeadwaySampleRow extends HeadwaySampleInput {
@@ -218,8 +229,9 @@ export async function insertHeadwaySample(
   }>(
     `insert into headway_states
        (route_direction_id, leader_vehicle_id, follower_vehicle_id, h_fwd_seconds,
-        h_bwd_seconds, target_headway_seconds, deviation_seconds, confidence)
-     values ($1, $2, $3, $4, $5, $6, $7, $8)
+        h_bwd_seconds, target_headway_seconds, deviation_seconds, confidence,
+        forecast_h_fwd_seconds)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      returning id, route_direction_id, leader_vehicle_id, follower_vehicle_id,
                h_fwd_seconds, h_bwd_seconds, target_headway_seconds, deviation_seconds,
                forecast_h_fwd_seconds, confidence, computed_at`,
@@ -232,6 +244,7 @@ export async function insertHeadwaySample(
       input.targetHeadwaySeconds,
       input.deviationSeconds,
       input.confidence,
+      input.forecastHFwdSeconds ?? null,
     ]
   );
   const row = rows[0];
@@ -271,6 +284,41 @@ export async function loadRecentHeadwayRatios(
     [routeDirectionId, leaderVehicleId, followerVehicleId, limit]
   );
   return rows.map((row) => Number(row.ratio));
+}
+
+/**
+ * The same pair's recent samples, but carrying WHEN each was taken.
+ *
+ * `loadRecentHeadwayRatios` above deliberately returns bare ratios: the
+ * reactive rule is a rule about consecutive samples and has no use for the
+ * clock. The predictive tier regresses headway ON time, so it needs the
+ * timestamps, and it needs the raw seconds rather than the ratio - a slope in
+ * ratio-per-second would have to be multiplied back by H* to forecast a
+ * crossing, and doing that at the call site is how the two representations
+ * end up disagreeing.
+ *
+ * Ordered newest-first to match its sibling; the fit sorts for itself.
+ */
+export async function loadRecentHeadwaySamples(
+  routeDirectionId: string,
+  leaderVehicleId: string,
+  followerVehicleId: string,
+  limit: number,
+  pool: Pool = getPool()
+): Promise<{ hFwdSeconds: number; computedAt: string }[]> {
+  const { rows } = await pool.query<{ h_fwd_seconds: string; computed_at: string }>(
+    `select h_fwd_seconds, computed_at
+       from headway_states
+      where route_direction_id = $1 and leader_vehicle_id = $2 and follower_vehicle_id = $3
+        and h_fwd_seconds is not null
+      order by computed_at desc
+      limit $4`,
+    [routeDirectionId, leaderVehicleId, followerVehicleId, limit]
+  );
+  return rows.map((row) => ({
+    hFwdSeconds: Number(row.h_fwd_seconds),
+    computedAt: new Date(row.computed_at).toISOString(),
+  }));
 }
 
 /**
@@ -884,4 +932,147 @@ export async function listRecentStopVisits(
     departedAt: r.departed_at,
     tripId: r.trip_id,
   }));
+}
+
+/**
+ * One row of the network-wide alert inbox.
+ *
+ * Distinct from `BunchingIncidentRow` on purpose. That shape backs a panel
+ * inside a corridor the operator has already chosen, so it can assume the
+ * corridor is known and leave it unnamed. An inbox spanning the whole network
+ * cannot: an operator scanning it has chosen nothing yet, and a list of bare
+ * route-direction uuids is unreadable. The route naming is the difference,
+ * and it is joined here rather than resolved per-row by the caller because
+ * doing it per-row is how a 40-alert list becomes 41 queries.
+ */
+export interface BunchingAlertRow extends BunchingIncidentRow {
+  routeId: string;
+  routePublicName: string;
+  directionCode: string;
+  directionName: string | null;
+  /**
+   * Seconds until the pair is forecast to reach the bunched threshold, lifted
+   * out of `evidence.forecast`. Null for a reactive incident (the collapse has
+   * already happened, so there is nothing to count down to) and also null for
+   * a predicted one whose forecast has since gone quiet.
+   */
+  secondsToBunching: number | null;
+  riskScore: number | null;
+}
+
+/**
+ * Every open incident on the network, most urgent first.
+ *
+ * ─── WHY ORDERING IS THE PRODUCT HERE ────────────────────────────────────
+ *
+ * A per-corridor panel can order by recency because it holds a handful of
+ * rows about one corridor an operator is already looking at. An inbox over
+ * ~1,020 route-directions is read top-down and abandoned partway, so its
+ * order IS the triage: whatever sorts first is what gets acted on, and
+ * anything below the fold effectively does not exist.
+ *
+ * So the sort is by what an operator should do next, in three keys:
+ *
+ *   1. severity, worst first - a collapsed gap outranks a forecast one
+ *   2. within a severity, urgency - the pair closest to its threshold first,
+ *      which for predicted incidents is the shortest time-to-bunching
+ *   3. recency, as the stable tiebreak
+ *
+ * Key 2 is the one that makes the predicted rung useful rather than merely
+ * present. Twelve predicted incidents ordered by when they were opened is a
+ * list in an arbitrary order; ordered by how soon each one bites, it is a
+ * queue. `nulls last` puts a prediction that has gone quiet below every one
+ * that still has a live countdown, which is the right place for it: it is not
+ * evidence of safety, it is absence of evidence, and it should not outrank a
+ * pair actively counting down.
+ */
+export async function listOpenAlerts(
+  limit: number,
+  pool: Pool = getPool(),
+  freshnessSeconds: number = loadEnv().INCIDENT_VEHICLE_FRESHNESS_SECONDS
+): Promise<BunchingAlertRow[]> {
+  const params: (string | number)[] = [freshnessSeconds, limit];
+  const { rows } = await pool.query<{
+    id: string;
+    route_direction_id: string;
+    severity: string;
+    cause_class: string;
+    controllability: string;
+    status: string;
+    started_at: string;
+    ended_at: string | null;
+    evidence: Record<string, unknown>;
+    members: { vehicleId: string; role: string }[];
+    route_id: string;
+    route_public_name: string;
+    direction_code: string;
+    direction_name: string | null;
+    seconds_to_bunching: string | null;
+    risk_score: string | null;
+  }>(
+    `select bi.id, bi.route_direction_id, bi.severity, bi.cause_class, bi.controllability,
+            bi.status, bi.started_at, bi.ended_at, bi.evidence,
+            rd.route_id, rd.direction_code, rd.direction_name,
+            r.public_name as route_public_name,
+            (bi.evidence -> 'forecast' ->> 'secondsToBunching')::numeric as seconds_to_bunching,
+            (bi.evidence -> 'forecast' ->> 'riskScore')::numeric as risk_score,
+            coalesce(
+              json_agg(json_build_object('vehicleId', m.vehicle_id, 'role', m.member_role))
+                filter (where m.vehicle_id is not null),
+              '[]'
+            ) as members
+       from bunching_incidents bi
+       join route_directions rd on rd.id = bi.route_direction_id
+       join routes r on r.id = rd.route_id
+       left join bunching_incident_members m on m.incident_id = bi.id
+      where bi.status <> 'closed' ${incidentLivenessClause(1)}
+      group by bi.id, rd.route_id, rd.direction_code, rd.direction_name, r.public_name
+      order by case bi.severity
+                 when 'severe' then 0
+                 when 'bunched' then 1
+                 when 'warning' then 2
+                 when 'predicted' then 3
+                 else 4
+               end,
+               (bi.evidence -> 'forecast' ->> 'secondsToBunching')::numeric asc nulls last,
+               bi.started_at desc
+      limit $2`,
+    params
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    routeDirectionId: row.route_direction_id,
+    severity: row.severity,
+    causeClass: row.cause_class,
+    controllability: row.controllability,
+    status: row.status,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+    evidence: row.evidence,
+    members: row.members,
+    routeId: row.route_id,
+    routePublicName: row.route_public_name,
+    directionCode: row.direction_code,
+    directionName: row.direction_name,
+    secondsToBunching: row.seconds_to_bunching == null ? null : Number(row.seconds_to_bunching),
+    riskScore: row.risk_score == null ? null : Number(row.risk_score),
+  }));
+}
+
+/** Open incidents network-wide, by severity - the inbox's unread counts. */
+export async function countOpenAlertsBySeverity(
+  pool: Pool = getPool(),
+  freshnessSeconds: number = loadEnv().INCIDENT_VEHICLE_FRESHNESS_SECONDS
+): Promise<Record<string, number>> {
+  const { rows } = await pool.query<{ severity: string; count: string }>(
+    `select bi.severity, count(*)::text as count
+       from bunching_incidents bi
+      where bi.status <> 'closed' ${incidentLivenessClause(1)}
+      group by bi.severity`,
+    [freshnessSeconds]
+  );
+  const counts: Record<string, number> = {};
+  for (const row of rows) counts[row.severity] = Number(row.count);
+  return counts;
 }

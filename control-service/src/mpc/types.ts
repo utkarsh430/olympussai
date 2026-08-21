@@ -9,7 +9,23 @@ import type { PassengerCost } from './objective.js';
 
 /** One committable candidate action, per Appendix A / blueprint 8.2-8.4. */
 export interface CandidateAction {
-  actionType: 'terminal_dispatch_hold' | 'two_way_hold' | 'self_equalizing_hold';
+  actionType:
+    | 'terminal_dispatch_hold'
+    | 'two_way_hold'
+    | 'self_equalizing_hold'
+    /** The closed-form minimiser of the passenger-cost objective - see mpc/costOptimalHold.ts. */
+    | 'cost_optimal_hold'
+    /**
+     * Alighting-only: let people off, take nobody on, because the bus behind
+     * is right there (mpc/boardingLimit.ts).
+     *
+     * The ONE action here that is not a hold, and the only one that improves
+     * spacing by removing delay rather than adding it. `holdSeconds` is 0 on
+     * these, which is a real length and not a missing one - `isHoldAction`
+     * below is what keeps the hold-length checks in safety.ts from reading it
+     * as an empty instruction.
+     */
+    | 'boarding_limit';
   /** The vehicle a hold command would be issued to. */
   vehicleId: string;
   /**
@@ -63,6 +79,22 @@ export interface CandidateAction {
   headwayDeviationSeconds: number;
   /** H* for the pair, carried alongside the deviation so downstream consumers (MPC advisory) don't need to re-look-up the headway state. */
   targetHeadwaySeconds: number;
+}
+
+/**
+ * Is this action a hold, i.e. does its `holdSeconds` mean anything?
+ *
+ * Three of the five action types ask a bus to stand still for a measured
+ * number of seconds. `boarding_limit` asks it to spend LESS time at a stop,
+ * so its `holdSeconds` is 0 - and every check written against hold length
+ * (the cap, the minimum action) has to know the difference, or it will refuse
+ * a valid instruction for being zero seconds long.
+ *
+ * Written as a predicate on the type rather than a boolean field on the
+ * candidate so it cannot disagree with `actionType` on the same object.
+ */
+export function isHoldAction(actionType: CandidateAction['actionType']): boolean {
+  return actionType !== 'boarding_limit';
 }
 
 /** One occupancy-weighted score attached to a candidate for the PREDICTIVE advisory (blueprint 8.6, Appendix A "MPC wait cost" / "MPC onboard cost"). Advisory only - never selected as the automatic action in this ticket. */

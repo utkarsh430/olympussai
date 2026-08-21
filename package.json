@@ -4,7 +4,9 @@
   "private": true,
   "packageManager": "pnpm@10.29.3",
   "scripts": {
-    "dev": "next dev",
+    "dev": "bash scripts/dev.sh",
+    "dev:web": "next dev",
+    "dev:control": "pnpm --dir control-service dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

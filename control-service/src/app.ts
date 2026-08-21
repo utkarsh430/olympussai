@@ -10,6 +10,7 @@ import { mpcRouter } from './routes/mpc.js';
 import { headwayRouter } from './routes/headway.js';
 import { arrivalsRouter } from './routes/arrivals.js';
 import { pilotRouter } from './routes/pilot.js';
+import { settingsRouter } from './routes/settings.js';
 import { positionsRouter } from './routes/positions.js';
 import { rehearsalRouter } from './routes/rehearsal.js';
 import { requireServiceToken } from './auth/serviceToken.js';
@@ -42,6 +43,11 @@ export function createApp(): Express {
   // history its own detection rule reads back over.
   app.use(arrivalsRouter);
   app.use(pilotRouter);
+  // Network-wide controller settings (the occupancy switch). Behind
+  // requireServiceToken like everything else: flipping it changes what the
+  // decision engine optimises on every corridor, so it is at least as
+  // sensitive as anything else on this surface.
+  app.use(settingsRouter);
   // Telemetry intake (POST /v1/positions) + the geometry-cache
   // invalidation hook. Behind requireServiceToken like every other /v1
   // route: a fix is a write to fleet state, and an unauthenticated caller

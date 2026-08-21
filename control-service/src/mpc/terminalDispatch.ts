@@ -36,6 +36,13 @@ export function computeTerminalDispatchCandidates(
   policy: RoutePolicyRow,
   now: Date = new Date(),
   scheduleDeviationByVehicleId: ReadonlyMap<string, number | null> = new Map(),
+  /**
+   * Whether the network-wide occupancy switch is on
+   * (`control_settings.weigh_occupancy`). Defaults true so a direct caller -
+   * a test, a rehearsal - keeps the unswitched behaviour; the solver always
+   * passes the real setting. See mpc/objective.ts#liveOnboardCount.
+   */
+  weighOccupancy = true,
 ): CandidateAction[] {
   if (!terminalStopId) return [];
 
@@ -59,7 +66,7 @@ export function computeTerminalDispatchCandidates(
     const holdSeconds = Math.round(clamp(rawHold, 0, policy.maxHoldSeconds));
     if (holdSeconds <= 0) continue;
 
-    const load = liveOnboardCount(follower, policy, now);
+    const load = liveOnboardCount(follower, policy, now, weighOccupancy);
 
     candidates.push({
       actionType: 'terminal_dispatch_hold',

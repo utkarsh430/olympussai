@@ -14,18 +14,33 @@ import type { VehicleOrderingInput } from "../state-estimation/types.js";
 import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
 import { computeAggregate, computeGapMeters, computePairHeadways } from "./metrics.js";
-import { evaluateBunchingRule } from "./bunching.js";
+import { evaluateBunchingRule, evaluatePredictiveRule } from "./bunching.js";
+import { computeBunchingRisk, forecastHorizonSeconds, type BunchingRisk } from "./riskForecast.js";
 import * as repo from "./repository.js";
-import type { HeadwayAggregate, HeadwayPairMetric, RouteDirectionListing } from "./types.js";
+import { loadEnv } from "../config/env.js";
+import {
+  SEVERITY_RANK,
+  type BunchingSeverity,
+  type HeadwayAggregate,
+  type HeadwayPairMetric,
+  type RouteDirectionListing,
+} from "./types.js";
 
 export interface IncidentChange {
   routeDirectionId: string;
   leaderVehicleId: string;
   followerVehicleId: string;
   action: "opened" | "escalated" | "closed" | "none";
-  severity: "warning" | "bunched" | null;
+  severity: BunchingSeverity | null;
   incidentId: string | null;
   ratio: number | null;
+  /**
+   * Seconds until the pair is forecast to reach the bunched threshold, when
+   * the predictive tier had an opinion. Null means it declined to have one -
+   * NOT that the pair is safe. The two are opposite in meaning and identical
+   * in a boolean, which is why this is a nullable number and never a flag.
+   */
+  secondsToBunching?: number | null;
 }
 
 /**
@@ -51,20 +66,49 @@ export interface HeadwayComputeResult {
   incidents: IncidentChange[];
 }
 
+/**
+ * Open, escalate or close this pair's incident, from BOTH detection tiers.
+ *
+ * ─── HOW THE TWO TIERS COMBINE ───────────────────────────────────────────
+ *
+ * The reactive rule reports a gap that has already collapsed; the predictive
+ * rule reports one that is closing fast enough to collapse soon. They share
+ * one incident row per pair, on one severity ladder, because they are
+ * describing the same event at different stages of it. An operator watching a
+ * predicted incident escalate to `warning` and then `bunched` is watching a
+ * single story; three separate rows about the same two buses would be the
+ * same information made unreadable.
+ *
+ * Reactive evidence always wins where the two disagree. It is an observation
+ * and the forecast is an extrapolation, so a measured `warning` overrides a
+ * forecast that says the pair is fine, and never the other way round.
+ *
+ * ─── WHY CLOSING BRANCHES ON WHAT IS OPEN ────────────────────────────────
+ *
+ * The reactive rule's `recovered` asks: has a collapsed gap reopened above the
+ * warning threshold? For a `predicted` incident that question is meaningless -
+ * its gap never collapsed, so `recovered` is true from the moment it opens.
+ * Closing on it would shut every predicted incident on the sweep that created
+ * it, which is not a subtle bug: prediction would appear to work, write rows,
+ * and leave nothing behind for anyone to act on. A predicted incident closes
+ * only when the FORECAST clears.
+ */
 async function evaluateAndApplyBunchingRule(
   pair: HeadwayPairMetric,
   requiredSamples: number,
   bunchedThresholdRatio: number,
-  warningThresholdRatio: number
+  warningThresholdRatio: number,
+  risk: BunchingRisk | null
 ): Promise<IncidentChange> {
   const base = {
     routeDirectionId: pair.routeDirectionId,
     leaderVehicleId: pair.leaderVehicleId,
     followerVehicleId: pair.followerVehicleId,
   };
+  const secondsToBunching = risk?.secondsToBunching ?? null;
 
   if (pair.hFwdSeconds == null) {
-    return { ...base, action: "none", severity: null, incidentId: null, ratio: null };
+    return { ...base, action: "none", severity: null, incidentId: null, ratio: null, secondsToBunching };
   }
 
   const openIncident = await repo.findOpenIncidentForPair(
@@ -88,6 +132,12 @@ async function evaluateAndApplyBunchingRule(
     openIncident != null
   );
 
+  const openSeverity = openIncident?.severity ?? null;
+  const prediction = evaluatePredictiveRule(risk, openSeverity === "predicted");
+
+  // Reactive first: an observation outranks an extrapolation.
+  const severity: BunchingSeverity | null = rule.severity ?? (prediction.predicted ? "predicted" : null);
+
   const evidence = {
     ratio: rule.ratio,
     gapMeters: pair.gapMeters,
@@ -98,47 +148,138 @@ async function evaluateAndApplyBunchingRule(
     bunchedThresholdRatio,
     warningThresholdRatio,
     sampleRatios: ratios,
+    // The forecast travels with the incident so the alert surface can say WHY
+    // a predicted incident was raised, and so a review after the fact can ask
+    // whether the prediction was any good. `forecast: null` is recorded
+    // explicitly rather than omitted: "the forecaster declined to speak" is a
+    // finding about this pair, and an absent key is indistinguishable from a
+    // key nobody thought to write.
+    forecast: risk
+      ? {
+          forecastHFwdSeconds: risk.forecastHFwdSeconds,
+          forecastRatio: risk.forecastRatio,
+          closingRateSecondsPerSecond: risk.closingRateSecondsPerSecond,
+          secondsToBunching: risk.secondsToBunching,
+          riskScore: risk.riskScore,
+          confidence: risk.confidence,
+          sampleCount: risk.sampleCount,
+          amplification: risk.amplification,
+          horizonSeconds: risk.horizonSeconds,
+          reason: prediction.reason,
+        }
+      : null,
   };
 
-  if (rule.severity && !openIncident) {
+  if (severity && !openIncident) {
     const created = await repo.openIncident({
       routeDirectionId: pair.routeDirectionId,
-      severity: rule.severity,
+      severity,
       leaderVehicleId: pair.leaderVehicleId,
       followerVehicleId: pair.followerVehicleId,
       evidence,
     });
     logger.warn(
-      { ...base, severity: rule.severity, incidentId: created.id },
-      "bunching incident opened"
+      { ...base, severity, incidentId: created.id, secondsToBunching },
+      severity === "predicted" ? "bunching predicted" : "bunching incident opened"
     );
-    return { ...base, action: "opened", severity: rule.severity, incidentId: created.id, ratio: rule.ratio };
+    return { ...base, action: "opened", severity, incidentId: created.id, ratio: rule.ratio, secondsToBunching };
   }
 
-  if (rule.severity && openIncident && rule.severity !== openIncident.severity) {
-    await repo.escalateIncident(openIncident.id, rule.severity, evidence);
+  // Escalation only ever moves UP the ladder. A `warning` incident whose
+  // reactive evidence has lapsed but whose forecast still fires must not be
+  // rewritten as `predicted`: that would report the situation improving on
+  // the strength of an extrapolation, while the measured gap that opened it
+  // is still there.
+  if (severity && openIncident && SEVERITY_RANK[severity] > SEVERITY_RANK[openIncident.severity]) {
+    await repo.escalateIncident(openIncident.id, severity, evidence);
     return {
       ...base,
       action: "escalated",
-      severity: rule.severity,
+      severity,
       incidentId: openIncident.id,
       ratio: rule.ratio,
+      secondsToBunching,
     };
   }
 
-  if (rule.recovered && openIncident) {
-    await repo.closeIncident(openIncident.id, evidence);
-    logger.info({ ...base, incidentId: openIncident.id }, "bunching incident closed (recovered)");
-    return { ...base, action: "closed", severity: null, incidentId: openIncident.id, ratio: rule.ratio };
+  if (openIncident) {
+    const shouldClose =
+      openSeverity === "predicted"
+        ? // Never closed on `rule.recovered`: see the note above the function.
+          // The reactive check is here to stop a predicted incident closing on
+          // a cleared forecast in the same sweep that measured a real collapse.
+          prediction.riskCleared && rule.severity === null
+        : rule.recovered;
+
+    if (shouldClose) {
+      await repo.closeIncident(openIncident.id, evidence);
+      logger.info(
+        { ...base, incidentId: openIncident.id, severity: openSeverity },
+        openSeverity === "predicted" ? "predicted bunching cleared" : "bunching incident closed (recovered)"
+      );
+      return {
+        ...base,
+        action: "closed",
+        severity: null,
+        incidentId: openIncident.id,
+        ratio: rule.ratio,
+        secondsToBunching,
+      };
+    }
   }
 
   return {
     ...base,
     action: "none",
-    severity: openIncident?.severity ?? null,
+    severity: openSeverity,
     incidentId: openIncident?.id ?? null,
     ratio: rule.ratio,
+    secondsToBunching,
   };
+}
+
+/**
+ * This pair's bunching forecast, or null if the tier is off or has no opinion.
+ *
+ * One indexed query per pair on top of the two the reactive rule already
+ * makes. That cost is why prediction rides on this sweep rather than getting
+ * a sweep of its own: the pairs are already loaded, their policy is already
+ * read, and a separate job would repeat both to answer a question about the
+ * same rows.
+ *
+ * No dwell model is passed today. `fitDwellModel` needs a run of `stop_visits`
+ * at a single stop, which the GPS feed is only now beginning to accumulate,
+ * and a forecast steepened by an unfitted amplification would be a guess
+ * wearing a calibration's name. The projection stays linear - the
+ * conservative direction, since amplification only ever makes a closing gap
+ * close faster - and the parameter is wired through so that supplying the
+ * model later is a one-line change here rather than a redesign.
+ */
+async function computeRiskForPair(
+  pair: HeadwayPairMetric,
+  policy: { targetHeadwaySeconds: number; bunchedThresholdRatio: number },
+  env: ReturnType<typeof loadEnv>
+): Promise<BunchingRisk | null> {
+  if (!env.BUNCHING_PREDICTION_ENABLED) return null;
+  if (pair.hFwdSeconds == null) return null;
+
+  const samples = await repo.loadRecentHeadwaySamples(
+    pair.routeDirectionId,
+    pair.leaderVehicleId,
+    pair.followerVehicleId,
+    env.BUNCHING_FORECAST_SAMPLE_WINDOW
+  );
+
+  return computeBunchingRisk({
+    samples,
+    currentHFwdSeconds: pair.hFwdSeconds,
+    targetHeadwaySeconds: policy.targetHeadwaySeconds,
+    bunchedThresholdRatio: policy.bunchedThresholdRatio,
+    horizonSeconds: forecastHorizonSeconds(
+      policy.targetHeadwaySeconds,
+      env.BUNCHING_FORECAST_HORIZON_MULTIPLE
+    ),
+  });
 }
 
 /**
@@ -274,7 +415,17 @@ async function computeRouteDirectionHeadwayInner(routeDirectionId: string): Prom
   // pair reads-then-writes bunching_incidents, and keeping this
   // strictly sequential avoids any possibility of two pairs racing to
   // open a duplicate incident against the same route-direction.
+  const env = loadEnv();
+
   for (const pair of pairs) {
+    // The trend is fitted from samples written by EARLIER sweeps, before this
+    // cycle's sample is appended. Including the row we are about to write
+    // would be harmless arithmetically - it is the same point the forecast
+    // starts from - but it would make the stored `forecast_h_fwd_seconds`
+    // depend on its own row, and an audit reconstructing the forecast from
+    // history would get a different answer than the one recorded.
+    const risk = await computeRiskForPair(pair, policy, env);
+
     const saved = await repo.insertHeadwaySample({
       routeDirectionId: pair.routeDirectionId,
       leaderVehicleId: pair.leaderVehicleId,
@@ -284,6 +435,7 @@ async function computeRouteDirectionHeadwayInner(routeDirectionId: string): Prom
       targetHeadwaySeconds: pair.targetHeadwaySeconds,
       deviationSeconds: pair.deviationSeconds,
       confidence: pair.confidence,
+      forecastHFwdSeconds: risk?.forecastHFwdSeconds ?? null,
     });
     persisted.push({
       ...pair,
@@ -297,7 +449,8 @@ async function computeRouteDirectionHeadwayInner(routeDirectionId: string): Prom
       pair,
       policy.requiredSamples,
       policy.bunchedThresholdRatio,
-      policy.warningThresholdRatio
+      policy.warningThresholdRatio,
+      risk
     );
     if (incidentChange.action !== "none") {
       incidents.push(incidentChange);
@@ -440,4 +593,31 @@ export async function getIncident(id: string): Promise<repo.BunchingIncidentRow 
 
 export async function listActiveRouteDirections(): Promise<RouteDirectionListing[]> {
   return repo.listActiveRouteDirections();
+}
+
+export interface AlertFeed {
+  alerts: repo.BunchingAlertRow[];
+  /** Open incidents per severity across the whole network, ignoring `limit`. */
+  countsBySeverity: Record<string, number>;
+  /** Total open incidents, so a truncated list can say what it is a slice of. */
+  totalOpenCount: number;
+  generatedAt: string;
+}
+
+/**
+ * The network-wide alert feed: what is going wrong, everywhere, worst first.
+ *
+ * The counts are returned alongside a LIMITED list rather than being derived
+ * from it, because they answer a question the list cannot once it is
+ * truncated. "23 predicted, 4 bunched" is the number an operator uses to
+ * decide whether the network needs their attention at all; counting the rows
+ * on screen would answer that question with the page size.
+ */
+export async function listAlerts(limit: number): Promise<AlertFeed> {
+  const [alerts, countsBySeverity] = await Promise.all([
+    repo.listOpenAlerts(limit),
+    repo.countOpenAlertsBySeverity(),
+  ]);
+  const totalOpenCount = Object.values(countsBySeverity).reduce((sum, n) => sum + n, 0);
+  return { alerts, countsBySeverity, totalOpenCount, generatedAt: new Date().toISOString() };
 }

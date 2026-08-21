@@ -287,7 +287,28 @@ export function liveOnboardCount(
   vehicleState: VehicleStateRow | undefined,
   policy: RoutePolicyRow,
   now: Date,
+  weighOccupancy = true,
 ): number | null {
+  // ─── THE NETWORK-WIDE OCCUPANCY SWITCH ─────────────────────────────────
+  //
+  // Gated HERE rather than by zeroing W_ONBOARD, because this function is
+  // already the single place that answers "is there a load worth weighing?",
+  // and null already means "do not weigh one". Every consumer - the four
+  // control laws and `optimalHoldSeconds` - reads load through this, so one
+  // check covers all of them and none of them needs to learn about the
+  // switch.
+  //
+  // Zeroing the weight instead would have meant a mutable module constant
+  // shared by every corridor and every in-flight solve, which is the kind of
+  // global that goes wrong once under concurrency and is never reproduced.
+  //
+  // With the switch OFF the objective reduces to exactly the two terms the
+  // operator named as priorities: the wait cost that even spacing minimises,
+  // and the lateness cost that punctuality minimises. See
+  // db/migrations/20260820130000__control_settings.sql for why OFF is the
+  // right default until lambda is calibrated.
+  if (!weighOccupancy) return null;
+
   if (!vehicleState || vehicleState.occupancyCount === null) return null;
   if (policy.occupancyStaleSeconds !== null) {
     const ageSeconds = (now.getTime() - new Date(vehicleState.observedAt).getTime()) / 1000;

@@ -13,6 +13,7 @@ vi.mock('../src/headway/repository.js', () => ({
   loadVehicleStatesForRouteDirection: vi.fn(),
   insertHeadwaySample: vi.fn(),
   loadRecentHeadwayRatios: vi.fn(),
+  loadRecentHeadwaySamples: vi.fn(),
   findOpenIncidentForPair: vi.fn(),
   openIncident: vi.fn(),
   escalateIncident: vi.fn(),
@@ -74,6 +75,7 @@ describe('computeRouteDirectionHeadway', () => {
         }),
       );
     vi.mocked(repo.loadRecentHeadwayRatios).mockReset().mockResolvedValue([]);
+    vi.mocked(repo.loadRecentHeadwaySamples).mockReset().mockResolvedValue([]);
     vi.mocked(repo.findOpenIncidentForPair).mockReset().mockResolvedValue(null);
     vi.mocked(repo.openIncident)
       .mockReset()

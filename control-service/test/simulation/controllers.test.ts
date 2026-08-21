@@ -35,13 +35,38 @@ describe('pluggable controller interface: no-control vs controlled comparison', 
     expect(controlledResult.visits.some((v) => v.appliedHoldSeconds > 0)).toBe(true);
   });
 
-  it('self-equalizing controller reduces headway coefficient of variation relative to no control', () => {
-    const noControlResult = simulate(configWithDisturbance(), noControlController);
-    const controlledResult = simulate(configWithDisturbance(), selfEqualizing);
+  // ACROSS SEEDS, NOT ON ONE. This assertion used to run a single seed and
+  // require the controlled arm to win on it, which is a claim about one
+  // realisation of a stochastic process rather than about the controller -
+  // `algo_new.md` section 8.3 rules out exactly that comparison. It passed
+  // only because the engine's draw order happened to produce a favourable
+  // day; the day it changed, the assertion failed while the controller was
+  // still better on average. Paired seeds (each seed drives both arms) make
+  // the difference attributable to the controller alone.
+  it('self-equalizing controller reduces mean headway CV across paired seeds', () => {
+    const SEEDS = 60;
+    let noControlTotal = 0;
+    let controlledTotal = 0;
+    let controlledWins = 0;
+    let compared = 0;
 
-    expect(noControlResult.kpis.headwayCv).not.toBeNull();
-    expect(controlledResult.kpis.headwayCv).not.toBeNull();
-    expect(controlledResult.kpis.headwayCv!).toBeLessThanOrEqual(noControlResult.kpis.headwayCv!);
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const noControlResult = simulate({ ...configWithDisturbance(), seed }, noControlController);
+      const controlledResult = simulate({ ...configWithDisturbance(), seed }, selfEqualizing);
+      const before = noControlResult.kpis.headwayCv;
+      const after = controlledResult.kpis.headwayCv;
+      if (before === null || after === null) continue;
+      compared++;
+      noControlTotal += before;
+      controlledTotal += after;
+      if (after <= before) controlledWins++;
+    }
+
+    expect(compared).toBeGreaterThan(SEEDS / 2);
+    expect(controlledTotal / compared).toBeLessThan(noControlTotal / compared);
+    // A control law that helps on average but loses on most days is not a
+    // control law, it is a lottery with a good mean.
+    expect(controlledWins / compared).toBeGreaterThan(0.5);
   });
 
   it('never issues a hold when the vehicle state is stale (gps dropout guardrail)', () => {

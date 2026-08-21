@@ -167,7 +167,28 @@ export type HeadwayState = z.infer<typeof headwayStateSchema>;
 // Bunching incident
 // ---------------------------------------------------------------------------
 
-export const incidentSeveritySchema = z.enum(['warning', 'bunched', 'severe']);
+/**
+ * The bunching severity ladder, low to high.
+ *
+ * `predicted` is the rung below `warning` and is a different KIND of claim
+ * from the rest. The others report a gap MEASURED to be under threshold;
+ * `predicted` reports a gap still inside tolerance but closing fast enough to
+ * breach inside the forecast horizon. Mirrors control-service's
+ * `BunchingSeverity` and the `bunching_incidents_severity_check` constraint.
+ *
+ * A predicted incident escalates in place if it comes true, so a UI must not
+ * treat the rungs as separate kinds of row - it is one incident with a
+ * history.
+ */
+export const incidentSeveritySchema = z.enum(['predicted', 'warning', 'bunched', 'severe']);
+
+/** Ladder position, low to high — mirrors control-service's SEVERITY_RANK. */
+export const INCIDENT_SEVERITY_RANK: Record<IncidentSeverity, number> = {
+  predicted: 0,
+  warning: 1,
+  bunched: 2,
+  severe: 3,
+};
 export type IncidentSeverity = z.infer<typeof incidentSeveritySchema>;
 
 export const causeClassSchema = z.enum(['endogenous', 'exogenous', 'structural', 'unknown']);
@@ -204,6 +225,88 @@ export const bunchingIncidentSchema = z.object({
   evidence: z.record(z.string(), z.unknown()),
 });
 export type BunchingIncident = z.infer<typeof bunchingIncidentSchema>;
+
+// ---------------------------------------------------------------------------
+// The network-wide alert feed
+//
+// Mirrors control-service's `BunchingAlertRow` / `AlertFeed`
+// (GET /v1/alerts). Distinct from `bunchingIncidentSchema` above, which backs
+// a panel INSIDE a corridor the operator has already chosen and can therefore
+// leave the corridor unnamed. An inbox spanning the whole network cannot: its
+// reader has chosen nothing yet, and a list of bare route-direction uuids is
+// unreadable.
+// ---------------------------------------------------------------------------
+
+export const bunchingAlertSchema = bunchingIncidentSchema.extend({
+  routeId: z.string(),
+  routePublicName: z.string(),
+  directionCode: z.string(),
+  directionName: z.string().nullable(),
+  /**
+   * Seconds until the pair is forecast to reach the bunched threshold.
+   *
+   * Null for a reactive incident — the collapse has already happened, so
+   * there is nothing to count down to — and ALSO null for a predicted one
+   * whose forecast has since gone quiet. A UI must not render null as "0" or
+   * as "safe": it means no countdown is being made, which on a predicted row
+   * is the absence of evidence rather than evidence of recovery.
+   */
+  secondsToBunching: z.number().nullable(),
+  riskScore: z.number().nullable(),
+});
+export type BunchingAlert = z.infer<typeof bunchingAlertSchema>;
+
+export const alertFeedSchema = z.object({
+  alerts: z.array(bunchingAlertSchema),
+  /**
+   * Open incidents per severity across the whole network, ignoring the page
+   * limit — so a truncated list can still say what it is a slice of.
+   *
+   * Counted server-side rather than derived from `alerts`, because deriving
+   * it would answer "how bad is the network right now?" with the page size.
+   */
+  countsBySeverity: z.record(z.string(), z.number()),
+  totalOpenCount: z.number(),
+  generatedAt: z.string(),
+});
+export type AlertFeed = z.infer<typeof alertFeedSchema>;
+
+// ---------------------------------------------------------------------------
+// Alighting-only proposals
+//
+// Mirrors control-service's `BoardingLimitEstimate` / `BoardingLimitCandidate`
+// (src/mpc/boardingLimit.ts). Carried separately from the holds on
+// `MpcSolveResult.boardingLimitCandidates` because it is the one action the
+// engine proposes without choosing.
+// ---------------------------------------------------------------------------
+
+export const boardingLimitEstimateSchema = z.object({
+  /**
+   * Passengers estimated to be left standing, or NULL while the arrival rate
+   * is a placeholder — which it is on every corridor today.
+   *
+   * Null rather than a number because under the 1/H* placeholder the figure
+   * lands between 0 and 1 whatever the corridor, the hour, or how busy the
+   * stop is. It is an artefact, not an imprecise count, and rendering it
+   * would put a confident wrong number on the one decision that visibly
+   * inconveniences passengers.
+   */
+  leftBehindPassengers: z.number().nullable(),
+  /** How long each of them waits for the bus behind, seconds. MEASURED — the number to show. */
+  leftBehindWaitSeconds: z.number(),
+  /** Their total extra waiting, passenger-seconds. Null for the same reason `leftBehindPassengers` is. */
+  imposedWaitPassengerSeconds: z.number().nullable(),
+  /**
+   * Dwell the leader would shed, seconds — the BENEFIT side. Null until a
+   * dwell model is fitted for the stop, and deliberately not estimated from a
+   * constant: a fabricated benefit is exactly what would make this look worth
+   * doing when nobody has checked.
+   */
+  dwellSavingSeconds: z.number().nullable(),
+  /** True while the passenger arrival rate is the 1/H* proxy. */
+  lambdaIsProxy: z.boolean(),
+});
+export type BoardingLimitEstimate = z.infer<typeof boardingLimitEstimateSchema>;
 
 // ---------------------------------------------------------------------------
 // Headway/EWT/CV metrics compute result
@@ -370,6 +473,35 @@ export const engineActionTypeSchema = z.enum([
   'terminal_dispatch_hold',
   'two_way_hold',
   'self_equalizing_hold',
+  /**
+   * The closed-form minimiser of the passenger-cost objective — the only
+   * candidate derived from the operator's priorities (even spacing,
+   * punctuality, passenger load) rather than tuned to approximate them.
+   *
+   * Generated and shown on every solve, but NOT selectable until the demand
+   * rate it depends on is measured rather than proxied: it is the argmin of
+   * the same quantity candidates are ranked by, so letting it compete would
+   * replace the controller rather than add to it. See
+   * COST_OPTIMAL_SELECTION_ENABLED in control-service.
+   */
+  'cost_optimal_hold',
+  /**
+   * Alighting-only: let people off, take nobody on, because the bus behind is
+   * right there.
+   *
+   * The only engine action that is not a hold, and the only one that fixes
+   * spacing by REMOVING delay instead of adding it — the leader sheds its
+   * boarding dwell and recovers time, while the follower collects the demand
+   * it was left. Its `holdSeconds` is 0, which is a real length, not a
+   * missing one.
+   *
+   * Proposed but never auto-selected: its cost (passengers left standing) is
+   * estimable, its benefit (the dwell shed) needs a fitted dwell model no
+   * corridor has yet, and ranking a priced cost against an unpriced benefit
+   * would bury it last on every list forever. See
+   * control-service/src/mpc/boardingLimit.ts.
+   */
+  'boarding_limit',
 ]);
 export type EngineActionType = z.infer<typeof engineActionTypeSchema>;
 
@@ -396,16 +528,41 @@ export const engineCandidateActionSchema = z.object({
   objectiveCost: z.number(),
   /** |ideal hold − applied hold| in seconds: 0 when the cap and rounding did not pull the hold away from the formula's raw output. Diagnostic; it decides nothing. */
   clampResidualSeconds: z.number(),
-  /** The three terms behind `objectiveCost`: waiting saved, in-vehicle delay added, operator cost. */
+  /**
+   * The four terms behind `objectiveCost`: waiting saved, in-vehicle delay
+   * added, operator cost, and punctuality cost.
+   *
+   * `latenessPassengerSeconds` and `scheduleUnknown` were MISSING from this
+   * schema while control-service had been returning both. Zod strips
+   * unrecognised keys rather than rejecting them, so nothing failed - the
+   * punctuality term was simply deleted on the way in, and no surface in this
+   * app could show what a hold cost in lateness even when a timetable was
+   * loaded. That is the one term the operator's stated priorities name
+   * explicitly, so its absence was the difference between "we weigh
+   * punctuality" and "we weigh punctuality where you can see it".
+   */
   passengerCost: z.object({
     waitPassengerSeconds: z.number(),
     onboardPassengerSeconds: z.number(),
     operatorPassengerSeconds: z.number(),
+    /**
+     * What this hold costs in lateness. Zero when the bus is early enough to
+     * absorb the whole hold inside its own slack — which is exactly why an
+     * early bus is the right one to hold — and also zero, but flagged by
+     * `scheduleUnknown`, when no timetable is loaded for the trip.
+     */
+    latenessPassengerSeconds: z.number(),
     netPassengerSeconds: z.number(),
     /** True when no live onboard count was available, so no in-vehicle delay was priced in. */
     loadEstimated: z.boolean(),
     /** True when no bus was visible behind, so its gap was assumed to be on target. */
     backwardEstimated: z.boolean(),
+    /**
+     * True when no schedule deviation was available, so NO punctuality cost
+     * was priced in at all. A UI must distinguish this from a zero cost: the
+     * first means unweighed, the second means weighed and found free.
+     */
+    scheduleUnknown: z.boolean(),
   }),
   /** One sentence saying why this hold was recommended, in the headways and load it was decided from. */
   rationale: z.string(),
@@ -476,6 +633,28 @@ export const predictiveAdvisorySchema = z.object({
 });
 export type PredictiveAdvisory = z.infer<typeof predictiveAdvisorySchema>;
 
+/**
+ * Advice to ease off, mirroring control-service's `PaceAdvisory`.
+ *
+ * `action` is a single-value enum rather than a string on purpose: this module
+ * never advises going faster, and encoding that in the type means no consumer
+ * can render a "speed up" instruction even if one somehow arrived. A
+ * controller that tells a late bus to hurry has made road safety its
+ * adjustment variable.
+ */
+export const paceAdvisorySchema = z.object({
+  vehicleId: z.string(),
+  routeDirectionId: z.string(),
+  action: z.literal('reduce_pace'),
+  currentSpeedKmph: z.number(),
+  /** Already clamped to the corridor's configured safe speed band. */
+  targetSpeedKmph: z.number(),
+  /** Seconds the bus is ahead of its timetable — the slack this spends. Null when no schedule is loaded. */
+  scheduleSlackSeconds: z.number().nullable(),
+  rationale: z.string(),
+});
+export type PaceAdvisory = z.infer<typeof paceAdvisorySchema>;
+
 export const mpcSolveResultSchema = z.object({
   routeDirectionId: z.string(),
   /** Everything the control laws generated, before the safety filter ran. */
@@ -491,6 +670,41 @@ export const mpcSolveResultSchema = z.object({
   controllerVersion: z.string(),
   rejectedCandidates: z.array(engineSafetyRejectionSchema),
   predictiveAdvisory: predictiveAdvisorySchema,
+  /**
+   * Every action the selection policy picked this cycle, best first.
+   * `selectedAction` is this list's first element and is kept because every
+   * existing consumer reads it.
+   *
+   * The solver used to return exactly one action per corridor per cycle,
+   * which starved every problem after the first — and on an unstable plant a
+   * queued correction grows while it waits. The cap is
+   * `route_policies.max_concurrent_actions`.
+   *
+   * `.default([])` so a response from a control service that predates the
+   * field parses rather than 502-ing the console during a rolling deploy.
+   */
+  selectedActions: z.array(engineCandidateActionSchema).default([]),
+  /**
+   * Alighting-only proposals that passed the safety filter — "let people off,
+   * take nobody on, the bus behind is right there".
+   *
+   * Separate from `selectedActions` because this is the one action the engine
+   * proposes without choosing: its cost is estimable and its benefit is not,
+   * so a human decides. Each carries an `estimate` stating the trade.
+   */
+  boardingLimitCandidates: z
+    .array(engineCandidateActionSchema.extend({ estimate: boardingLimitEstimateSchema }))
+    .default([]),
+  /**
+   * Buses that should ease off rather than be held.
+   *
+   * The only lever that improves punctuality and spacing at the SAME time: it
+   * spends slack a bus already has instead of adding delay. Computed by the
+   * solver since it shipped, and absent from this schema until now — Zod
+   * strips unrecognised keys, so the product could not show the one advisory
+   * that costs nothing.
+   */
+  paceAdvisories: z.array(paceAdvisorySchema).default([]),
 });
 export type MpcSolveResult = z.infer<typeof mpcSolveResultSchema>;
 
@@ -502,6 +716,7 @@ export const commandActionTypeSchema = z.enum([
   'terminal_dispatch_hold',
   'two_way_hold',
   'self_equalizing_hold',
+  'cost_optimal_hold',
   'speed_guidance',
   'stop_skip',
   'short_turn',

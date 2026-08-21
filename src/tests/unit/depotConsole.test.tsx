@@ -327,7 +327,7 @@ describe('DepotConsole — what it does not claim to do', () => {
     expect(screen.queryByRole('button', { name: /issue|hold|send/i })).not.toBeInTheDocument();
   });
 
-  it('names the six instructions nothing generates, derived rather than hardcoded', () => {
+  it('names the instructions nothing generates, derived rather than hardcoded', () => {
     renderConsole({ initialTab: 'standby' });
 
     expectText(/instructions that exist, but that nothing suggests/i);
@@ -335,13 +335,29 @@ describe('DepotConsole — what it does not claim to do', () => {
       'Stop skip',
       'Short turn',
       'Deadhead',
-      'Boarding limit',
       'Standby injection',
       'Speed guidance',
     ]) {
       expectText(new RegExp(label, 'i'));
     }
     expectText(/changes nothing except the record that it was sent/i);
+
+    // "Drop off only" (boarding_limit) has MOVED between the two lists. The
+    // engine learned to generate it - alighting-only, when the bus behind is
+    // right there - so it left "nothing suggests these" and joined "what the
+    // system can work out". No edit to this console made that happen: the
+    // human-only list is derived by subtracting the engine's own vocabulary,
+    // which is exactly the drift that design exists to survive.
+    const nothingSuggests = screen
+      .getByText(/instructions that exist, but that nothing suggests/i)
+      .closest('section');
+    expect(nothingSuggests).not.toBeNull();
+    expect(within(nothingSuggests as HTMLElement).queryByText(/Drop off only/i)).toBeNull();
+
+    const canWorkOut = screen
+      .getByText(/what the system can actually work out for you/i)
+      .closest('section');
+    expect(within(canWorkOut as HTMLElement).getAllByText(/Drop off only/i).length).toBeGreaterThan(0);
   });
 
   it('says sending a bus another way does not exist, and keeps the bay & crew gap visible', () => {
@@ -358,13 +374,17 @@ describe('DepotConsole — what it does not claim to do', () => {
     expect(screen.queryByText(/follow-up work/i)).not.toBeInTheDocument();
   });
 
-  it('lists exactly the three hold types as what the engine can reason about', () => {
+  it('lists exactly what the engine can reason about, holds and the one non-hold', () => {
     renderConsole({ initialTab: 'standby' });
 
-    expectText(/three kinds of hold, and nothing else/i);
+    expectText(/the whole of what the recommendation engine can work out/i);
     expectText(/Terminal dispatch hold/i);
     expectText(/Two-way hold/i);
     expectText(/Self-equalizing hold/i);
+    expectText(/Balanced hold/i);
+    // The one that is not a hold, and the copy says so rather than letting a
+    // reader assume every entry asks a bus to wait.
+    expectText(/asks a bus to spend less time at a stop rather than more/i);
   });
 });
 

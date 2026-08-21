@@ -61,6 +61,43 @@ export interface RecommendationResult {
     controllerVersion: string;
   };
   constraints: Record<string, unknown>;
+  /**
+   * Alighting-only proposals that passed the safety filter — "let people off,
+   * take nobody on, the bus behind is right there".
+   *
+   * Kept apart from `safeCandidates` in the UI's model even though the engine
+   * includes them there, because these are the one action it proposes without
+   * choosing: the cost (passengers left standing) is estimable, the benefit
+   * (the dwell the leader sheds) is not, so a human decides.
+   *
+   * Optional so a response from a control service that predates the field
+   * still satisfies this type during a rolling deploy.
+   */
+  boardingLimitCandidates?: (EngineCandidateAction & {
+    estimate: {
+      /** Null while the arrival rate is a placeholder — see the Zod schema for why it is not a number. */
+      leftBehindPassengers: number | null;
+      /** Seconds. The one figure here that is measured rather than inferred. */
+      leftBehindWaitSeconds: number;
+      imposedWaitPassengerSeconds: number | null;
+      dwellSavingSeconds: number | null;
+      lambdaIsProxy: boolean;
+    };
+  })[];
+  /**
+   * Buses that should ease off rather than be held — the only lever that
+   * improves punctuality and spacing at the same time, because it spends
+   * slack a bus already has instead of adding delay.
+   */
+  paceAdvisories?: {
+    vehicleId: string;
+    routeDirectionId: string;
+    action: 'reduce_pace';
+    currentSpeedKmph: number;
+    targetSpeedKmph: number;
+    scheduleSlackSeconds: number | null;
+    rationale: string;
+  }[];
   commandsBlockedBy: {
     scope: 'network' | 'route';
     routeDirectionId: string | null;
@@ -75,11 +112,19 @@ export const ACTION_LABEL: Record<CommandActionType, string> = {
   terminal_dispatch_hold: 'Terminal dispatch hold',
   two_way_hold: 'Two-way hold',
   self_equalizing_hold: 'Self-equalizing hold',
+  // Named for what it optimises rather than for the maths behind it. An
+  // operator does not need "closed-form minimiser of the passenger-cost
+  // objective"; they need to know this hold was chosen by weighing waiting
+  // against lateness and load, which is what "balanced" says.
+  cost_optimal_hold: 'Balanced hold',
   speed_guidance: 'Speed guidance',
   stop_skip: 'Stop skip',
   short_turn: 'Short turn',
   deadhead: 'Deadhead',
-  boarding_limit: 'Boarding limit',
+  // The control room's own label. Says what happens rather than naming the
+  // policy: an operator deciding whether to authorise this needs to picture
+  // the bus going past people, not parse "boarding limit".
+  boarding_limit: 'Drop off only',
   standby_injection: 'Standby injection',
 };
 

@@ -93,11 +93,43 @@ export interface HeadwayAggregate {
   targetHeadwaySeconds: number;
 }
 
-export type BunchingSeverity = "warning" | "bunched";
+/**
+ * Severities the REACTIVE rule can reach: both describe a gap that has
+ * already collapsed, and both are observations.
+ */
+export type ReactiveBunchingSeverity = "warning" | "bunched";
+
+/**
+ * Every severity a `bunching_incidents` row can carry.
+ *
+ * `predicted` is the rung below `warning` and is a different KIND of claim
+ * from the other two. Those report a gap measured to be under threshold now;
+ * `predicted` reports a gap that is still acceptable but closing fast enough
+ * to breach inside the forecast horizon (src/headway/riskForecast.ts). It
+ * exists because the cheap correction - a short hold, early, at a stop the
+ * bus was stopping at anyway - is only available BEFORE the collapse, and by
+ * the time `warning` fires it has been spent.
+ *
+ * The ordering matters and is expressed once, in SEVERITY_RANK: an incident
+ * may escalate up the ladder as evidence hardens, and a predicted incident
+ * that becomes real must escalate rather than open a second incident about
+ * the same pair.
+ */
+export type BunchingSeverity = "predicted" | ReactiveBunchingSeverity;
+
+/**
+ * Ladder position, low to high. Used to decide whether a fresh verdict on a
+ * pair is an escalation of the open incident or merely a restatement of it.
+ */
+export const SEVERITY_RANK: Record<BunchingSeverity, number> = {
+  predicted: 0,
+  warning: 1,
+  bunched: 2,
+};
 
 export interface BunchingRuleResult {
   /** null = rule condition not met (not enough samples, or headway within tolerance). */
-  severity: BunchingSeverity | null;
+  severity: ReactiveBunchingSeverity | null;
   /** true when an already-open incident's window has fully recovered above the warning threshold. */
   recovered: boolean;
   /** Most recent hFwd/target ratio, for evidence/logging. */

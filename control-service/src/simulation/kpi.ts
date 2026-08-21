@@ -4,18 +4,13 @@
 // over plain data so both the engine (`engine.ts`) and an independent
 // reference calculation (`replay.ts`, for the historical-reproduction
 // test) can call the same math without sharing mutable state.
+//
+// EWT, CV and mean headway are NOT computed here: they come from
+// `lib/dispersion.ts`, the same function `headway/metrics.ts` reduces the
+// live network's headways with. See that module's header for why a second
+// copy of the formula was a bug and not a duplication.
+import { computeDispersion } from '../lib/dispersion.js';
 import type { KpiSummary, StopVisitRecord } from './types.js';
-
-function mean(values: number[]): number | null {
-  if (values.length === 0) return null;
-  return values.reduce((a, b) => a + b, 0) / values.length;
-}
-
-function stddev(values: number[], m: number): number {
-  if (values.length === 0) return 0;
-  const variance = values.reduce((acc, v) => acc + (v - m) ** 2, 0) / values.length;
-  return Math.sqrt(variance);
-}
 
 /**
  * Headway samples: for each control-point stop, the gap between
@@ -54,18 +49,23 @@ export function summarizeKpis(
   bunchedThresholdRatio: number,
 ): KpiSummary {
   const headwaySamples = computeHeadwaySamples(visits, controlPointStopIds);
-  const meanHeadwaySeconds = mean(headwaySamples);
-  const headwayCv =
-    meanHeadwaySeconds && meanHeadwaySeconds > 0
-      ? stddev(headwaySamples, meanHeadwaySeconds) / meanHeadwaySeconds
-      : null;
+  const dispersion = computeDispersion(headwaySamples, targetHeadwaySeconds);
+  const { meanHeadwaySeconds, cv: headwayCv, ewtSeconds } = dispersion;
+
   const bunchThreshold = bunchedThresholdRatio * targetHeadwaySeconds;
   const bunchingIncidents = headwaySamples.filter((h) => h < bunchThreshold).length;
+  // The SHARE, not the count. A raw count rises with the number of samples,
+  // so it cannot be compared between two runs with different vehicle counts,
+  // corridor lengths or simulated windows - which is exactly what a parameter
+  // sweep does. `algo_new.md` section 8.2 names the rate for this reason.
+  const bunchingRate = headwaySamples.length > 0 ? bunchingIncidents / headwaySamples.length : 0;
 
-  // Excess wait: uniform-arrivals approximation, avg wait = headway / 2.
-  // Excess = actual avg wait - scheduled avg wait, summed over samples
-  // (a standard EWT proxy given only headway data, blueprint 11.1
-  // "Passenger accounting").
+  // LEGACY, kept only so existing readers (the rehearsal UI's comparison
+  // panel, `replay.ts`'s tolerance keys) do not change meaning underneath
+  // them in the same commit that fixes the metric. It is a first-moment
+  // proxy summed over samples, so its UNITS differ from `ewtSeconds` - it is
+  // passenger-seconds-ish across a whole run, not seconds per passenger.
+  // Report `ewtSeconds`. See lib/dispersion.ts.
   const scheduledAvgWait = targetHeadwaySeconds / 2;
   const excessWaitSeconds = headwaySamples.reduce(
     (acc, h) => acc + Math.max(0, h / 2 - scheduledAvgWait),
@@ -87,9 +87,12 @@ export function summarizeKpis(
       : null;
 
   return {
+    headwaySampleCount: dispersion.sampleCount,
     meanHeadwaySeconds,
     headwayCv,
+    ewtSeconds,
     bunchingIncidents,
+    bunchingRate,
     excessWaitSeconds,
     deniedBoardings,
     // Stranded passengers: this engine models per-visit denied boarding

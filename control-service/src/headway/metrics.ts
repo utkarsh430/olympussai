@@ -53,6 +53,8 @@
 // MAX_HEADWAY_SECONDS so a genuinely stalled vehicle reports a large-but-
 // finite, JSON-safe number instead of Infinity.
 
+import { computeDispersion } from "../lib/dispersion.js";
+import type { HeadwayDispersion } from "../lib/dispersion.js";
 import type { OrderedVehicle } from "../state-estimation/types.js";
 import type { HeadwayAggregate, HeadwayPairMetric } from "./types.js";
 
@@ -176,70 +178,16 @@ export function computePairHeadways(
 
 /**
  * Route-direction-wide CV and EWT from one snapshot of forward headways
- * (blueprint 7.1/7.2). EWT follows the standard "actual wait minus
- * scheduled wait" methodology (e.g. TfL's Excess Wait Time KPI):
- * actual mean wait for a Poisson-ish arriving passenger is
- * E[h^2] / (2*E[h]) = (variance + mean^2) / (2*mean); scheduled wait is
- * targetHeadwaySeconds / 2. EWT is the (non-negative) difference.
- */
-export interface HeadwayDispersion {
-  sampleCount: number;
-  meanHeadwaySeconds: number | null;
-  stddevHeadwaySeconds: number | null;
-  cv: number | null;
-  ewtSeconds: number | null;
-}
-
-/**
- * CV and EWT from a bare list of headways in seconds.
+ * (blueprint 7.1/7.2).
  *
- * Split out from `computeAggregate` so the MODEL-BASED headways this module
- * derives from GPS gaps and the MEASURED departure-to-departure headways in
- * `stopHeadway.ts` are reduced by the same arithmetic. They are different
- * observations of the same quantity and an operator will compare them
- * directly; two copies of this formula would eventually make that comparison
- * a comparison of two methodologies instead.
- *
- * EWT follows the standard "actual wait minus scheduled wait" methodology
- * (e.g. TfL's Excess Wait Time KPI): actual mean wait for a Poisson-ish
- * arriving passenger is E[h^2] / (2*E[h]) = (variance + mean^2) / (2*mean),
- * which is governed by the SECOND moment of the headway distribution - so one
- * long gap costs more than several short headways save, which is precisely
- * what bunching produces. Scheduled wait is targetHeadwaySeconds / 2, and EWT
- * is the (non-negative) difference.
+ * The arithmetic itself lives in `lib/dispersion.ts` and is re-exported here
+ * unchanged, so this module's public surface is what it always was. It moved
+ * because `simulation/kpi.ts` needs the identical formula and may not import
+ * `../headway/*` - see that file's header for what a second copy of it was
+ * costing.
  */
-export function computeDispersion(
-  headwaySeconds: readonly number[],
-  targetHeadwaySeconds: number
-): HeadwayDispersion {
-  const sampleCount = headwaySeconds.length;
-  if (sampleCount === 0) {
-    return {
-      sampleCount: 0,
-      meanHeadwaySeconds: null,
-      stddevHeadwaySeconds: null,
-      cv: null,
-      ewtSeconds: null,
-    };
-  }
-
-  const mean = headwaySeconds.reduce((sum, v) => sum + v, 0) / sampleCount;
-  const variance = headwaySeconds.reduce((sum, v) => sum + (v - mean) ** 2, 0) / sampleCount;
-  const stddev = Math.sqrt(variance);
-  const cv = mean > 0 ? stddev / mean : null;
-
-  const scheduledWaitSeconds = targetHeadwaySeconds / 2;
-  const actualMeanWaitSeconds = mean > 0 ? (variance + mean * mean) / (2 * mean) : 0;
-  const ewtSeconds = Math.max(0, actualMeanWaitSeconds - scheduledWaitSeconds);
-
-  return {
-    sampleCount,
-    meanHeadwaySeconds: mean,
-    stddevHeadwaySeconds: stddev,
-    cv,
-    ewtSeconds,
-  };
-}
+export { computeDispersion };
+export type { HeadwayDispersion };
 
 export function computeAggregate(
   pairs: readonly HeadwayPairMetric[],

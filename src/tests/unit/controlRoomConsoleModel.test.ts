@@ -555,9 +555,11 @@ function candidate(patch: Partial<EngineCandidateAction> = {}): EngineCandidateA
       waitPassengerSeconds: -12,
       onboardPassengerSeconds: 0,
       operatorPassengerSeconds: 0,
+        latenessPassengerSeconds: 0,
       netPassengerSeconds: -12,
       loadEstimated: true,
       backwardEstimated: false,
+        scheduleUnknown: true,
     },
     rationale: 'Hold 36s: UP25FT4823 has closed to 420s behind the bus ahead, 180s tighter than the 600s target and the bus behind is 900s back, so evening the two gaps is worth a net saving of 12 passenger-seconds; no onboard count is available, so no in-vehicle delay was priced in.',
     routeDirectionId: 'dir-1',
@@ -670,13 +672,21 @@ describe('engine proposal — what the operator is told', () => {
   });
 });
 
-describe('engine scope — the six human-originated instructions are derived, not hardcoded', () => {
-  it('subtracts what the engine reports it can propose from the nine dispatchable types', () => {
+describe('engine scope — the human-originated instructions are derived, not hardcoded', () => {
+  it('subtracts what the engine reports it can propose from every dispatchable type', () => {
     const human = humanOriginatedActions(ENGINE_ACTION_TYPES);
-    expect(human).toHaveLength(6);
+    // Five, not the original six: the engine learned `boarding_limit`
+    // (alighting-only), so it stopped being human-originated. Nothing in the
+    // console was edited to make that true - the subtraction did it, which is
+    // the whole point of deriving this set.
+    expect(human).toHaveLength(5);
     expect(human).not.toContain('terminal_dispatch_hold');
+    expect(human).not.toContain('boarding_limit');
     expect(human).toContain('stop_skip');
     expect(human).toContain('standby_injection');
+    // The partition is exhaustive and non-overlapping: every dispatchable
+    // instruction is either something the engine proposes or something only a
+    // human originates, and none is both or neither.
     expect(human.length + ENGINE_ACTION_TYPES.length).toBe(COMMAND_ACTION_TYPES.length);
   });
 
@@ -686,7 +696,7 @@ describe('engine scope — the six human-originated instructions are derived, no
     // with no edit to the UI.
     const human = humanOriginatedActions([...ENGINE_ACTION_TYPES, 'stop_skip']);
     expect(human).not.toContain('stop_skip');
-    expect(human).toHaveLength(5);
+    expect(human).toHaveLength(4);
   });
 });
 

@@ -20,12 +20,21 @@ import { logger } from '../lib/logger.js';
 import { listActiveVehicleIds, listRecentlyCommandedVehicleIds } from '../db/commands.js';
 import { computeTerminalDispatchCandidates, isAtTerminal } from './terminalDispatch.js';
 import { computeTwoWayCandidates } from './twoWayHold.js';
+import { computeCostOptimalCandidates } from './costOptimalHold.js';
+import {
+  computeBoardingLimitCandidates,
+  isBoardingLimitCandidate,
+  type BoardingLimitCandidate,
+} from './boardingLimit.js';
+import { readControlSettings } from '../db/settings.js';
+import { loadEnv } from '../config/env.js';
 import { computeSelfEqualizingCandidates } from './selfEqualizing.js';
 import { computePredictiveAdvisory } from './occupancyMpc.js';
 import { computePaceAdvisories, type PaceAdvisory } from './paceGuidance.js';
 import { applyHardSafetyFilter, DEFAULT_STATE_STALE_SECONDS } from './safety.js';
 import { loadScheduleCurves } from '../schedule/repository.js';
 import { computeScheduleDeviationSeconds } from '../schedule/deviation.js';
+import { isHoldAction } from './types.js';
 import type { CandidateAction, PredictiveAdvisory, SafetyRejection } from './types.js';
 
 export type { CandidateAction, PredictiveAdvisory, PredictiveAdvisoryCandidate, SafetyRejection } from './types.js';
@@ -54,6 +63,49 @@ export interface MpcSolveResult {
    * than the one this solver logged. Null whenever `selectedActionType` is.
    */
   selectedAction: CandidateAction | null;
+  /**
+   * Every action the selection policy picked this cycle, best first.
+   *
+   * `selectedAction` is `selectedActions[0]` and is kept because every
+   * existing consumer reads it; this is the whole set.
+   *
+   * ─── WHY MORE THAN ONE ───────────────────────────────────────────────
+   *
+   * The solver used to return exactly one action per corridor per cycle.
+   * That is correct on a corridor with one problem and wrong on a corridor
+   * with several: three bunched pairs got one instruction, and the other two
+   * waited a full decision cycle each for their turn. On an unstable plant
+   * that wait is not neutral - the deviations those pairs are carrying grow
+   * while they queue, so the cheap early correction this system exists to
+   * make is exactly what the queue spends.
+   *
+   * The cap is `route_policies.max_concurrent_actions`, because how many
+   * simultaneous instructions a control room can absorb is an operational
+   * fact about that control room, not a property of the algorithm.
+   *
+   * `cost_optimal_hold` candidates appear in `candidateActions` and
+   * `safeCandidates` but are excluded from here unless
+   * COST_OPTIMAL_SELECTION_ENABLED is set - see that knob for why the argmin
+   * of the ranking function is not automatically the right thing to do.
+   */
+  selectedActions: CandidateAction[];
+  /**
+   * Alighting-only proposals - "let people off, take nobody on, the bus behind
+   * is right there" - that passed the safety filter.
+   *
+   * Returned SEPARATELY from `selectedActions` rather than mixed into it,
+   * because this is the one action the engine proposes that it will not choose
+   * for you. Its cost (passengers left standing) is estimable through the
+   * lambda proxy; its benefit (the dwell the leader sheds) needs a fitted
+   * dwell model no corridor has yet. Ranking a priced cost against an unpriced
+   * benefit would sort it last on every list forever, which reads as "the
+   * engine considered it and rejected it" when the truth is "nobody has
+   * measured the upside".
+   *
+   * So it goes to the operator as an alternative with its trade stated, and
+   * this field is where a UI finds it. See mpc/boardingLimit.ts.
+   */
+  boardingLimitCandidates: BoardingLimitCandidate[];
   selectedActionType: CandidateAction['actionType'] | null;
   objectiveCost: number | null;
   expectedRecoverySeconds: number | null;
@@ -135,6 +187,13 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
   // against clocks a few milliseconds apart.
   const now = new Date();
 
+  // The network-wide switches, read once per solve behind a 10 s cache
+  // (src/db/settings.ts). Read here rather than inside each law so that every
+  // candidate in one solve is generated under the same setting - a switch
+  // flipped mid-solve must not produce a result where two laws disagreed
+  // about what the controller is optimising.
+  const settings = await readControlSettings();
+
   const headwayStates = stateStore.getHeadwayStates(routeDirectionId);
   const vehicleStates = stateStore.listVehicleStates(routeDirectionId);
   const vehicleStatesByVehicleId = new Map(vehicleStates.map((v) => [v.vehicleId, v]));
@@ -155,6 +214,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     policy,
     now,
     scheduleDeviationByVehicleId,
+    settings.weighOccupancy,
   );
 
   // Vehicles dwelling at the terminal are always regulated by terminal
@@ -177,6 +237,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     now,
     scheduleDeviationByVehicleId,
     controlPointStopIds,
+    settings.weighOccupancy,
   );
   const selfEqualizingCandidates = computeSelfEqualizingCandidates(
     headwayStates,
@@ -186,8 +247,42 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     now,
     scheduleDeviationByVehicleId,
     controlPointStopIds,
+    settings.weighOccupancy,
   );
-  const candidateActions = [...terminalCandidates, ...twoWayCandidates, ...selfEqualizingCandidates];
+  // The closed-form minimiser of the passenger-cost objective, competing on
+  // the same ranking as the tuned-gain laws rather than replacing them - see
+  // mpc/costOptimalHold.ts for why both are generated.
+  const costOptimalCandidates = computeCostOptimalCandidates(
+    headwayStates,
+    terminalVehicleIds,
+    policy,
+    vehicleStatesByVehicleId,
+    now,
+    scheduleDeviationByVehicleId,
+    controlPointStopIds,
+    settings.weighOccupancy,
+  );
+
+  // Alighting-only. Generated alongside the holds and returned for the
+  // operator to weigh, but deliberately NOT eligible for automatic selection
+  // - its benefit (the dwell the leader sheds) needs a fitted dwell model
+  // that no corridor has yet, so ranking it against the holds would compare a
+  // priced cost against an unpriced benefit. See mpc/boardingLimit.ts.
+  const boardingLimitCandidates = computeBoardingLimitCandidates(
+    headwayStates,
+    policy,
+    vehicleStatesByVehicleId,
+    scheduleDeviationByVehicleId,
+    controlPointStopIds,
+    terminalStopId,
+  );
+  const candidateActions = [
+    ...terminalCandidates,
+    ...twoWayCandidates,
+    ...selfEqualizingCandidates,
+    ...costOptimalCandidates,
+    ...boardingLimitCandidates,
+  ];
 
   const vehicleObservedAtByVehicleId = new Map(vehicleStates.map((v) => [v.vehicleId, v.observedAt]));
   const involvedVehicleIds = Array.from(new Set(candidateActions.flatMap((c) => c.involvedVehicleIds)));
@@ -241,11 +336,51 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
   // and the cheaper action should win it.
   const safeTerminal = safe.filter((c) => c.actionType === 'terminal_dispatch_hold');
   const safeMidRoute = safe
-    .filter((c) => c.actionType !== 'terminal_dispatch_hold')
+    // `boarding_limit` is excluded from the RANKED pool, not from `safe`:
+    // its objectiveCost is a cost with no benefit term filled in, so it is
+    // not commensurable with the holds' net figures and would pollute an
+    // ordering that is otherwise "most beneficial first".
+    //
+    // It stays in `safeCandidates` below, because that field means "passed
+    // the safety filter" and this did. Dropping it there would break the
+    // invariant `candidateActions === safeCandidates + rejectedCandidates`
+    // that consumers are explicitly told they can rely on, and would leave a
+    // candidate that is neither safe nor rejected - a third state no reader
+    // has a branch for.
+    .filter((c) => c.actionType !== 'terminal_dispatch_hold' && !isBoardingLimitCandidate(c))
     .sort((a, b) => a.objectiveCost - b.objectiveCost);
-  const selected = safeTerminal[0] ?? safeMidRoute[0] ?? null;
 
-  const predictiveAdvisory = computePredictiveAdvisory(safe, vehicleStatesByVehicleId, policy, now);
+  const safeBoardingLimits = safe.filter(isBoardingLimitCandidate);
+
+  const selectedActions = selectActions(
+    safeTerminal,
+    safeMidRoute,
+    policy.maxConcurrentActions ?? DEFAULT_MAX_CONCURRENT_ACTIONS,
+    loadEnv().COST_OPTIMAL_SELECTION_ENABLED,
+  );
+  const selected = selectedActions[0] ?? null;
+
+  // ─── THE ADVISORY IGNORES THE OCCUPANCY SWITCH, ON PURPOSE ───────────
+  //
+  // `settings.weighOccupancy` gates the OBJECTIVE, which decides. This
+  // advisory decides nothing - it is labelled PREDICTIVE, never sources
+  // `selectedActionType`, and exists to show what an occupancy-weighted
+  // ranking would say. Silencing it when the switch is off would remove the
+  // one view an operator could use to judge whether turning the switch on
+  // would change anything, which is the question the switch poses.
+  //
+  // Holds only. The advisory re-scores a candidate by asking what its HOLD
+  // costs the people aboard - `w_v x L x d`, which is identically zero for an
+  // action whose d is 0. Feeding alighting-only candidates in would add rows
+  // scored at zero in-vehicle cost, reading as "this one is free" when in
+  // truth the advisory has no model of its cost at all: the people it affects
+  // are at the roadside, not on the bus.
+  const predictiveAdvisory = computePredictiveAdvisory(
+    safe.filter((c) => isHoldAction(c.actionType)),
+    vehicleStatesByVehicleId,
+    policy,
+    now,
+  );
 
   // Computed over ALL headway states rather than only the ones that produced
   // a hold candidate: a vehicle running early and closing up may be correctly
@@ -262,8 +397,13 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
   return {
     routeDirectionId,
     candidateActions,
-    safeCandidates: [...safeTerminal, ...safeMidRoute],
+    // Every candidate that passed the filter, in one list, so that
+    // `candidateActions.length === safeCandidates.length + rejectedCandidates.length`
+    // holds for every action type including the non-hold one.
+    safeCandidates: [...safeTerminal, ...safeMidRoute, ...safeBoardingLimits],
     selectedAction: selected,
+    selectedActions,
+    boardingLimitCandidates: safeBoardingLimits,
     selectedActionType: selected?.actionType ?? null,
     objectiveCost: selected?.objectiveCost ?? null,
     expectedRecoverySeconds: selected?.holdSeconds ?? null,
@@ -281,6 +421,64 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     predictiveAdvisory,
     paceAdvisories,
   };
+}
+
+/**
+ * Fallback when a corridor's policy sets no concurrency cap.
+ *
+ * Three, not one and not unbounded. One was the old behaviour and starves
+ * every problem after the first. Unbounded would hand a control room twelve
+ * simultaneous instructions on a bad morning, which is the same as handing it
+ * none - nobody triages twelve, and the compliance cost of instructions that
+ * go unactioned falls on the next one that matters.
+ */
+export const DEFAULT_MAX_CONCURRENT_ACTIONS = 3;
+
+/**
+ * Which safe candidates to actually propose, best first.
+ *
+ * ─── ONE ACTION PER VEHICLE, ALWAYS ──────────────────────────────────────
+ *
+ * The de-duplication is the load-bearing part, not the cap. Four laws now
+ * generate candidates and three of them (two-way, self-equalising,
+ * cost-optimal) key on the same follower vehicle, so the same bus routinely
+ * appears two or three times in `safe` with different hold lengths. Taking
+ * the top N off a sorted list would hand a dispatcher "hold UP25FT4823 for
+ * 90s" and "hold UP25FT4823 for 140s" together, which is not two options - it
+ * is one instruction that cannot be followed, and the safety filter's
+ * `conflicting_active_command` check would refuse the second the moment the
+ * first was issued anyway.
+ *
+ * Terminal candidates keep absolute priority over mid-route ones, preserving
+ * the control hierarchy the single-action selection encoded: a hold at the
+ * terminal costs no passenger their seat and no driver their schedule, so it
+ * is always the cheapest place to spend a correction.
+ */
+export function selectActions(
+  safeTerminal: readonly CandidateAction[],
+  safeMidRoute: readonly CandidateAction[],
+  maxConcurrent: number,
+  costOptimalSelectable: boolean,
+): CandidateAction[] {
+  const selected: CandidateAction[] = [];
+  const claimedVehicleIds = new Set<string>();
+
+  const eligible = [...safeTerminal, ...safeMidRoute].filter(
+    // Generated and shown always; selectable only once lambda is measured.
+    // See COST_OPTIMAL_SELECTION_ENABLED in config/env.ts - the closed form is
+    // the argmin of the ranking function, so allowing it to compete IS
+    // replacing the controller, not adding to it.
+    (c) => costOptimalSelectable || c.actionType !== 'cost_optimal_hold',
+  );
+
+  for (const candidate of eligible) {
+    if (selected.length >= maxConcurrent) break;
+    if (claimedVehicleIds.has(candidate.vehicleId)) continue;
+    claimedVehicleIds.add(candidate.vehicleId);
+    selected.push(candidate);
+  }
+
+  return selected;
 }
 
 /** Public entry point: always wrapped in the `mpc.solve` span so solve latency is visible on the Sentry "Control Service Latency" dashboard. */

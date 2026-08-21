@@ -73,6 +73,10 @@ export const OPS_PAGES: readonly OpsPageRow[] = [
   { path: '/ops/planner', role: 'planner', title: 'Planner' },
   { path: '/ops/control-room', role: 'control_room', title: 'Control Room' },
   { path: '/ops/control-room/copilot', role: 'control_room', title: 'Assistant' },
+  // The network-wide alert inbox. Nothing is seeded for it either: an empty
+  // list is a legitimate state and the assertion here is that the guarded
+  // shell renders, not that a bunching incident exists to fill it.
+  { path: '/ops/control-room/alerts', role: 'control_room', title: 'Alerts' },
   // Nothing seeded for this id on purpose: the timeline must still render its
   // shell (the point here is the guard, not the incident data).
   {

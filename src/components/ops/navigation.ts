@@ -59,6 +59,11 @@ export const OPS_NAV: Record<OpsRole, readonly OpsNavItem[]> = {
     // and "Copilot" is not in this audience's vocabulary at all. The hrefs are
     // unchanged: a live console's addresses are not worth churning, and every
     // one of these is still guarded by its own segment.
+    // First after the console, and deliberately so: this is the only entry
+    // that answers "is anything wrong anywhere?" without the operator having
+    // to name a corridor first. Everything else here starts from a corridor
+    // they have already chosen, which is exactly the gap this page closes.
+    { href: '/ops/control-room/alerts', label: 'Alerts' },
     { href: '/ops/control-room/observability', label: 'One corridor' },
     { href: '/ops/control-room/copilot', label: 'Assistant' },
     { href: '/ops/control-room/pilot', label: 'Rollout' },

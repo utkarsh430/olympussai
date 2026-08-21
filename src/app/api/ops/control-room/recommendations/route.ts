@@ -190,11 +190,15 @@ export async function POST(request: NextRequest): Promise<Response> {
       controllerVersion: result.controllerVersion,
       /**
        * The complete set of actions this engine can ever propose — three
-       * hold types. Sent on every response so a console can state the
-       * boundary from data instead of hardcoding a claim that could drift:
-       * the six other command action types (speed_guidance, stop_skip,
-       * short_turn, deadhead, boarding_limit, standby_injection) are
-       * human-originated and no model in this system generates them.
+       * action types. Sent on every response so a console can state the
+       * boundary from DATA instead of hardcoding a claim that could drift.
+       *
+       * That drift is not hypothetical: this comment used to name
+       * `boarding_limit` among the human-originated instructions, and the
+       * engine now generates it (alighting-only). The console never repeated
+       * the stale claim, because `humanOriginatedActions` derives the
+       * human-only set by SUBTRACTING this list rather than hardcoding it —
+       * which is exactly the drift that design was for.
        */
       engineActionTypes: ENGINE_ACTION_TYPES,
       selectedAction: result.selectedAction,
@@ -205,6 +209,14 @@ export async function POST(request: NextRequest): Promise<Response> {
       safeCandidates: result.safeCandidates,
       rejectedCandidates: result.rejectedCandidates,
       predictiveAdvisory: result.predictiveAdvisory,
+      /**
+       * The two levers that fix bunching without adding delay, forwarded so
+       * the console can offer them alongside the hold. Neither is auto-
+       * selected — see AlertSolutionPanel's `AlternativeActions` for why
+       * ranking them against the holds would misrepresent both.
+       */
+      boardingLimitCandidates: result.boardingLimitCandidates,
+      paceAdvisories: result.paceAdvisories,
       constraints: result.constraints,
       commandsBlockedBy,
       /** Nothing about this solve was written down. A console must not describe it as an audited record. */

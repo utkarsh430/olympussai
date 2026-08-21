@@ -3,13 +3,17 @@ import type { IncidentSeverity } from '@/models/control';
 import { INCIDENT_SEVERITY_LABEL } from '@/lib/ops/vocabulary';
 
 /**
- * The three severities, named once in the shared vocabulary. "Warning" said
+ * The four severities, named once in the shared vocabulary. "Warning" said
  * nothing about buses; "Closing up" says what is actually happening, and is
  * the same phrase the console band and the picker use.
  */
 const SEVERITY_LABEL = INCIDENT_SEVERITY_LABEL;
 
 const SEVERITY_CLASS: Record<IncidentSeverity, string> = {
+  // Deliberately the calmest of the four, and deliberately not the same
+  // colour family as the measured rungs. A forecast that reads as loud as a
+  // collapse teaches an operator to discount both.
+  predicted: 'border-primary/40 bg-primary/10 text-primary',
   warning: 'border-warning/40 bg-warning/10 text-warning',
   bunched: 'border-destructive/40 bg-destructive/10 text-destructive',
   severe: 'border-destructive/70 bg-destructive/20 text-destructive',

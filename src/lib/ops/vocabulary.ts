@@ -228,10 +228,37 @@ export function incidentStatusLabel(value: string): string {
 }
 
 export const INCIDENT_SEVERITY_LABEL: Record<IncidentSeverity, string> = {
+  /**
+   * Not "Predicted". An operator reading a list needs to know what to DO, and
+   * the actionable fact about this rung is that the buses are still properly
+   * spaced and the gap is shrinking - there is still time to fix it cheaply.
+   * "Closing in" also sits naturally below "Closing up" as the milder of the
+   * two, which is exactly the ladder relationship.
+   */
+  predicted: 'Closing in',
   warning: 'Closing up',
   bunched: 'Bunched',
   severe: 'Severe',
 };
+
+/**
+ * One sentence on what each rung means, for a surface that has room to say it.
+ *
+ * The predicted rung needs this more than the others: a row saying a bunch is
+ * coming, about two buses an operator can see are correctly spaced, reads as
+ * a mistake unless the reason is on screen next to it.
+ */
+export const INCIDENT_SEVERITY_MEANING: Record<IncidentSeverity, string> = {
+  predicted:
+    'Still correctly spaced, but the gap is closing fast enough to bunch soon. Acting now costs a short hold; acting later costs a long one.',
+  warning: 'The gap has fallen below half the planned headway.',
+  bunched: 'The gap has collapsed to a quarter of the planned headway or less.',
+  severe: 'A sustained collapse across more than one pair.',
+};
+
+export function incidentSeverityMeaning(value: string): string | null {
+  return INCIDENT_SEVERITY_MEANING[value as IncidentSeverity] ?? null;
+}
 
 export function incidentSeverityLabel(value: string): string {
   return INCIDENT_SEVERITY_LABEL[value as IncidentSeverity] ?? humaniseEnum(value);

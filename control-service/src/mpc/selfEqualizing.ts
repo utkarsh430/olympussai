@@ -31,6 +31,13 @@ export function computeSelfEqualizingCandidates(
   now: Date = new Date(),
   scheduleDeviationByVehicleId: ReadonlyMap<string, number | null> = new Map(),
   controlPointStopIds: ReadonlySet<string> = new Set(),
+  /**
+   * Whether the network-wide occupancy switch is on
+   * (`control_settings.weigh_occupancy`). Defaults true so a direct caller -
+   * a test, a rehearsal - keeps the unswitched behaviour; the solver always
+   * passes the real setting. See mpc/objective.ts#liveOnboardCount.
+   */
+  weighOccupancy = true,
 ): CandidateAction[] {
   const k = policy.selfEqualizingK;
   if (k === null) return [];
@@ -57,7 +64,7 @@ export function computeSelfEqualizingCandidates(
     const holdSeconds = Math.round(clamp(rawHold, 0, policy.maxHoldSeconds));
     if (holdSeconds <= 0) continue;
 
-    const load = liveOnboardCount(vehicleStatesByVehicleId.get(h.followerVehicleId), policy, now);
+    const load = liveOnboardCount(vehicleStatesByVehicleId.get(h.followerVehicleId), policy, now, weighOccupancy);
     // REPORTED but not used in the formula above - see this file's header.
     // Reporting it is not cosmetic: `mpc/safety.ts` reads
     // `candidate.scheduleDeviationSeconds` to apply the max-lateness bound,

@@ -159,24 +159,18 @@ export interface ControllerKinematics {
    * h_bwd is measured against (`headway/metrics.ts`) and what makes a
    * two-way-looking law two-way rather than forward-only.
    *
-   * ALWAYS null from `engine.ts`, and that is a structural property of this
-   * engine rather than an omission worth patching over. Vehicles are
-   * simulated one complete trip at a time in dispatch order, so at the
-   * instant a vehicle is asked for a decision the vehicle ahead is fully
-   * simulated and the vehicle behind has not been simulated at all - and
-   * cannot be, because its trajectory depends on the hold about to be
-   * decided here. Supplying a guessed trailer position would put a
-   * fabricated number into the one input the control law measures, which is
-   * the same reason `StopDefinition.cumulativeDistanceMeters` is left
-   * absent on synthetic corridors rather than invented.
+   * Supplied by `engine.ts` since it began advancing every vehicle on one
+   * clock. It was structurally always null before that, because a
+   * vehicle-major engine has not simulated the bus behind at the moment the
+   * bus in front decides - and that single absence meant `mpc/twoWayHold.ts`
+   * declined every pair it was ever offered in simulation, so Algorithm B
+   * and the `kf`/`kb` gains it is tuned by were unmeasurable.
    *
-   * The consequence is stated plainly in `rehearsal/deployedControlLaws.ts`:
-   * a rehearsal exercises the self-equalizing fallback, not two-way
-   * holding, and closing that gap needs an engine that advances all
-   * vehicles on one clock. Present on the type (and honoured by the
-   * rehearsal controller) so a hand-built context in a test can supply one,
-   * and so the day the engine gains an interleaved event loop the
-   * controller side already reads it.
+   * Still null, legitimately, when there is no such vehicle: the back-most
+   * bus on a linear route-direction has nothing behind it, and one whose
+   * follower has not left the origin has nothing behind it YET. Both are
+   * real absences, and `mpc/selfEqualizing.ts` taking the pair instead is
+   * the deployed fallback running for the deployed reason.
    */
   trailer?: CorridorKinematicState | null;
   totalDistanceMeters: number;
@@ -197,6 +191,22 @@ export interface ControllerContext {
    * always sets it, to a value or explicitly to null.
    */
   kinematics?: ControllerKinematics | null;
+  /**
+   * True when this decision point is the route-direction's ORIGIN TERMINAL
+   * (`route_direction_stops` sequence 0), where a bus has not yet begun its
+   * trip.
+   *
+   * The deployed system distinguishes it because Algorithm A - terminal
+   * dispatch regulation - is the one lever that costs no passenger their seat
+   * and no driver their schedule, and the solver tries it before any
+   * mid-route hold (`mpc/solver.ts`, `mpc/terminalDispatch.ts#isAtTerminal`).
+   * A controller that ignores this flag simply treats the origin as another
+   * control point, which is what this engine did before the flag existed.
+   *
+   * Optional so a hand-built test context need not set it; the engine always
+   * does.
+   */
+  isTerminal?: boolean;
   /**
    * Passengers modelled aboard this vehicle as it arrives, before boarding
    * and alighting at this stop are applied.
@@ -229,7 +239,18 @@ export interface ControllerDecision {
    * carrying `kinematics`: two-way holding needs h_bwd, and h_bwd needs the
    * leader's pace, which a headway-difference alone cannot supply.
    */
-  actionType: 'no_control' | 'self_equalizing_hold' | 'two_way_hold' | 'terminal_dispatch_hold';
+  actionType:
+    | 'no_control'
+    | 'self_equalizing_hold'
+    | 'two_way_hold'
+    | 'terminal_dispatch_hold'
+    | 'cost_optimal_hold'
+    // The simulator has no model of boarding demand being refused, so it can
+    // carry this action type but cannot yet REPRODUCE its effect - see
+    // src/simulation/engine.ts, which applies holdSeconds and nothing else.
+    // Present here so a rehearsal replaying real solver output does not fail
+    // to parse a corridor where the law fired.
+    | 'boarding_limit';
 }
 
 export interface Controller {
@@ -257,13 +278,37 @@ export interface StopVisitRecord {
 }
 
 export interface KpiSummary {
+  /** How many headway samples every dispersion figure below rests on. Null-ish KPIs on a zero count are an absence, not a zero. */
+  headwaySampleCount: number;
   /** Mean headway (seconds) sampled at control points, across all vehicles after the first. */
   meanHeadwaySeconds: number | null;
-  /** Coefficient of variation of headway (stddev / mean) at control points - the standard bunching metric. */
+  /**
+   * Coefficient of variation of headway (stddev / mean) at control points.
+   *
+   * DIAGNOSTIC, not the headline. CV is scale-free, so it can improve while
+   * passengers wait longer (a controller that lengthens every headway
+   * uniformly lowers CV). `algo_new.md` section 8.2 makes EWT the headline
+   * and CV the diagnostic for exactly this reason.
+   */
   headwayCv: number | null;
-  /** Count of headway samples below `bunchedThresholdRatio * targetHeadwaySeconds`. */
+  /**
+   * Excess Wait Time, SECONDS PER PASSENGER: the second-moment
+   * `E[h^2] / (2 E[h])` minus the scheduled wait of half a target headway.
+   * The headline control-quality metric, and the same arithmetic the live
+   * network is measured with (`lib/dispersion.ts`, shared with
+   * `headway/metrics.ts`).
+   */
+  ewtSeconds: number | null;
+  /** Count of headway samples below `bunchedThresholdRatio * targetHeadwaySeconds`. Not comparable across runs of different size - use `bunchingRate`. */
   bunchingIncidents: number;
-  /** Sum over all stop visits of (actual wait - scheduled wait), assuming uniform passenger arrivals (avg wait = headway / 2). */
+  /** Share (0-1) of headway samples below `bunchedThresholdRatio * targetHeadwaySeconds`. The comparable form. */
+  bunchingRate: number;
+  /**
+   * @deprecated First-moment proxy, clipped per sample and summed over the
+   * run - it understates exactly the long gaps bunching creates, and its
+   * units are not those of `ewtSeconds`. Retained so existing readers do not
+   * silently change meaning; report `ewtSeconds`.
+   */
   excessWaitSeconds: number;
   /** Passengers who could not board because the vehicle was at capacity. */
   deniedBoardings: number;

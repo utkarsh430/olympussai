@@ -71,6 +71,17 @@ export interface RoutePolicyRow {
   speedBandMinKmph: number | null;
   /** route_policies.speed_band_max_kmph - the fastest pace guidance may name. Pace guidance never advises speeding up, so this only ever binds as a sanity ceiling. */
   speedBandMaxKmph: number | null;
+  /**
+   * route_policies.max_concurrent_actions - most simultaneous holds the
+   * solver may propose for this corridor in one cycle
+   * (mpc/solver.ts#selectActions).
+   *
+   * Optional on this shape rather than required, because a policy row written
+   * before the column existed rehydrates without it and the solver's own
+   * default then applies. An operational limit on what a control room can
+   * absorb, never a claim about how many corridors need help.
+   */
+  maxConcurrentActions?: number | null;
 }
 
 export type RehydrationStatus = 'pending' | 'in_progress' | 'complete' | 'failed';

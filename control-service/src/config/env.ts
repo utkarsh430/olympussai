@@ -82,6 +82,80 @@ const baseEnvSchema = z.object({
   /** A vehicle_states row older than this doesn't count toward "this route-direction has a live pair". */
   HEADWAY_VEHICLE_FRESHNESS_SECONDS: z.coerce.number().int().positive().default(300),
 
+  // ── Predictive bunching detection (src/headway/riskForecast.ts) ───────
+  //
+  // Projects each pair's forward headway forward in time and raises a
+  // `predicted` incident before the gap collapses. Rides on the existing
+  // headway sweep - it reads the samples that sweep already wrote and adds
+  // one indexed query per pair, rather than introducing a second sweep.
+
+  /**
+   * How far ahead the forecast projects, as a MULTIPLE of the corridor's
+   * target headway.
+   *
+   * Not a fixed number of seconds: the natural clock of a bunching process is
+   * the headway itself, and a horizon that suits a 10-minute corridor makes
+   * the tier structurally silent on a 30-minute one - which is this network's
+   * median. See `forecastHorizonSeconds` in src/headway/riskForecast.ts for
+   * the derivation and for the floor and ceiling that bound it.
+   *
+   * One headway of look-ahead is the span over which the current gap
+   * structure plays out. Raise it to catch slower divergence at the cost of
+   * more speculative alerts; lower it for a tier that only speaks about
+   * imminent collapses.
+   */
+  BUNCHING_FORECAST_HORIZON_MULTIPLE: z.coerce.number().positive().default(1.0),
+
+  BUNCHING_FORECAST_SAMPLE_WINDOW: z.coerce.number().int().positive().default(10),
+
+  /**
+   * Master switch for the predictive tier.
+   *
+   * Opt-out rather than opt-in: the reactive rule is unaffected either way,
+   * and a corridor with too few samples to fit a trend already reports
+   * nothing, so the failure mode of leaving this on is silence rather than
+   * noise. Turn it off to compare alert volumes with and without prediction
+   * during a pilot.
+   */
+  BUNCHING_PREDICTION_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+
+  /**
+   * Whether the closed-form cost-optimal hold may be SELECTED, as opposed to
+   * merely generated and shown.
+   *
+   * ─── WHY THIS DEFAULTS OFF ─────────────────────────────────────────────
+   *
+   * `optimalHoldSeconds` minimises the passenger-cost objective exactly, so a
+   * `cost_optimal_hold` candidate will essentially always outrank the
+   * tuned-gain laws on `objectiveCost` - it is the argmin of the very
+   * function the ranking sorts by. Leaving it selectable would therefore not
+   * be "adding a fourth option"; it would silently replace the entire
+   * controller with the closed form, on every corridor, the moment it
+   * shipped.
+   *
+   * That replacement is not yet earned. The closed form's exchange rate
+   * between the time of passengers waiting and the time of passengers aboard
+   * is lambda, and lambda is currently PROXIED as 1/H* (see
+   * `arrivalRatePaxPerSecond`, whose calibration caveat says so at length).
+   * The Kf/Kb gains it would displace are tuned per corridor against real
+   * operating experience. Trading measured experience for an unmeasured
+   * model parameter is a downgrade dressed as an optimisation.
+   *
+   * So the candidate is generated, scored, safety-filtered and returned in
+   * `candidateActions` on every solve - visible, comparable, and auditable
+   * against what the gains chose - but it cannot be the selected action until
+   * this is turned on. Turn it on when `fitDemandModel` is fitting lambda
+   * from real boardings; until then the honest state is that the two
+   * approaches disagree in the open and a human can see by how much.
+   */
+  COST_OPTIMAL_SELECTION_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
   // ── Decision cycle (src/scheduler/decisionCycle.ts) ───────────────────
   //
   // Asks the controller what to do, on a timer, instead of only when a

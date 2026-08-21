@@ -25,6 +25,13 @@ export function computeTwoWayCandidates(
   now: Date = new Date(),
   scheduleDeviationByVehicleId: ReadonlyMap<string, number | null> = new Map(),
   controlPointStopIds: ReadonlySet<string> = new Set(),
+  /**
+   * Whether the network-wide occupancy switch is on
+   * (`control_settings.weigh_occupancy`). Defaults true so a direct caller -
+   * a test, a rehearsal - keeps the unswitched behaviour; the solver always
+   * passes the real setting. See mpc/objective.ts#liveOnboardCount.
+   */
+  weighOccupancy = true,
 ): CandidateAction[] {
   if (policy.kf === null || policy.kb === null) return [];
 
@@ -46,7 +53,7 @@ export function computeTwoWayCandidates(
     const holdSeconds = Math.round(clamp(rawHold, 0, policy.maxHoldSeconds));
     if (holdSeconds <= 0) continue;
 
-    const load = liveOnboardCount(vehicleStatesByVehicleId.get(h.followerVehicleId), policy, now);
+    const load = liveOnboardCount(vehicleStatesByVehicleId.get(h.followerVehicleId), policy, now, weighOccupancy);
 
     candidates.push({
       actionType: 'two_way_hold',

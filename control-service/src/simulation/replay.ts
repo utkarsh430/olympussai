@@ -30,7 +30,13 @@ export const DEFAULT_REPLAY_TOLERANCE_RATIO = 0.02;
 const KPI_KEYS_CHECKED: Array<keyof KpiSummary> = [
   'meanHeadwaySeconds',
   'headwayCv',
+  // The headline metric. Checked alongside the legacy `excessWaitSeconds`
+  // rather than instead of it: the reproduction test's job is to prove two
+  // independent implementations of "what happened that day" agree, and
+  // dropping a key would narrow that proof at the moment the metric changed.
+  'ewtSeconds',
   'bunchingIncidents',
+  'bunchingRate',
   'excessWaitSeconds',
   'deniedBoardings',
   'strandedPassengers',

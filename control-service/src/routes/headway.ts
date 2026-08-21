@@ -19,6 +19,13 @@
 //     polling compute therefore manufactures the evidence for its own
 //     alerts, and two open dashboards would halve the effective detection
 //     window. Reads read; writes are the scheduler's job.
+//   GET /v1/alerts?limit=
+//     THE NETWORK-WIDE ALERT FEED. Every open bunching incident on every
+//     corridor, ordered worst-and-soonest first, with the route named so a
+//     reader who has chosen no corridor can still act. This is the read
+//     behind the control room's alert inbox; `GET /v1/incidents` remains the
+//     per-corridor read behind the console's own panel. Both are reads and
+//     neither computes anything - the scheduled sweep is what detects.
 //   GET /v1/incidents?routeDirectionId=&limit=
 //     Currently open (non-closed) bunching incidents, optionally scoped to
 //     one route-direction. `limit`, when given, caps the number of rows
@@ -38,6 +45,7 @@ import {
   getIncident,
   getLatestRouteDirectionHeadway,
   listActiveRouteDirections,
+  listAlerts,
   listOpenIncidents,
 } from '../headway/service.js';
 
@@ -83,6 +91,36 @@ headwayRouter.post(
     }
     const result = await computeRouteDirectionHeadway(parsed.data.routeDirectionId);
     res.status(200).json(result);
+  }),
+);
+
+/**
+ * `limit` is REQUIRED to have a default and a ceiling here, unlike
+ * `/v1/incidents` where it is optional and unbounded.
+ *
+ * That endpoint's unbounded mode is scoped to one corridor, which bounds it in
+ * practice. This one spans the network, and the undead-incident measurement
+ * on the pilot database (9,692 open rows, see `incidentLivenessClause`) is the
+ * proof that "however many there are" is not a safe answer to give a browser:
+ * the liveness clause hides most of them from a read, but the day it lets more
+ * through is the day this endpoint would try to serialise them all into one
+ * response.
+ *
+ * 200 is far more than an operator will read and small enough to render.
+ */
+const alertsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(200).default(50),
+});
+
+headwayRouter.get(
+  '/v1/alerts',
+  asyncHandler(async (req, res) => {
+    const parsed = alertsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      sendError(res, new AppError('invalid_request', 'Invalid query parameters', 400, parsed.error.flatten()));
+      return;
+    }
+    res.status(200).json(await listAlerts(parsed.data.limit));
   }),
 );
 

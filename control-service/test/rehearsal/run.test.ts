@@ -205,10 +205,16 @@ describe('runRehearsal', () => {
       expect(drawn.has('WARMUP')).toBe(false);
       expect(drawn.size).toBe(DEFAULT_MODELLED_INPUTS.vehicleCount);
       expect(result.decisions.every((d) => d.vehicleId !== 'WARMUP')).toBe(true);
-      // A steady-state six-bus run over a 215 km corridor should strand
-      // hundreds, not thousands: the warm-up artefact was an order of
-      // magnitude larger than the effect being measured.
-      expect(result.arms.uncontrolled.kpis.deniedBoardings).toBeLessThan(2000);
+      // The bound guards the ARTEFACT, which was 5,174 on a six-bus run -
+      // a queue standing since simulated midnight, swept by the first bus.
+      // It is not a claim that this corridor is comfortable: with the
+      // modelled capacity of 52 and a 15-minute headway it saturates, and
+      // most of what is counted here is ordinary overload rather than a
+      // simulation defect. The level rose when the engine started advancing
+      // every vehicle on one clock, because a bus arriving while its leader
+      // is still at the stop now collects the passengers who turned up in
+      // between instead of being credited with zero.
+      expect(result.arms.uncontrolled.kpis.deniedBoardings).toBeLessThan(3000);
     });
 
     // MEASURED before the burst window was scaled to the corridor: a fixed
@@ -218,9 +224,15 @@ describe('runRehearsal', () => {
     it('places a demand burst where the buses actually are, so it changes the run', () => {
       const quiet = runRehearsal(corridor(), DEFAULT_MODELLED_INPUTS);
       const burst = runRehearsal(corridor(), { ...DEFAULT_MODELLED_INPUTS, disturbance: 'demand_burst' });
-      expect(burst.arms.uncontrolled.kpis.totalBoardings).not.toBe(
-        quiet.arms.uncontrolled.kpis.totalBoardings,
-      );
+      // OFFERED demand, not boardings. This corridor saturates at the
+      // modelled capacity, so extra passengers at the burst stop become
+      // DENIED boardings and `totalBoardings` cannot move - asserting on it
+      // would report "the burst did nothing" about a run where 174 more
+      // people were left standing. Offered demand is the quantity the
+      // disturbance actually acts on.
+      const offered = (r: typeof quiet) =>
+        r.arms.uncontrolled.kpis.totalBoardings + r.arms.uncontrolled.kpis.deniedBoardings;
+      expect(offered(burst)).toBeGreaterThan(offered(quiet));
     });
 
     it('refuses a corridor whose target headway is not a measurement', () => {

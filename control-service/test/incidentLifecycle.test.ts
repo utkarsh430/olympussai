@@ -34,6 +34,7 @@ vi.mock("../src/headway/repository.js", () => ({
   insertHeadwaySample: vi.fn(),
   findOpenIncidentForPair: vi.fn(),
   loadRecentHeadwayRatios: vi.fn(),
+  loadRecentHeadwaySamples: vi.fn(),
   openIncident: vi.fn(),
   escalateIncident: vi.fn(),
   closeIncident: vi.fn(),
@@ -80,6 +81,7 @@ beforeEach(() => {
   // No pair trips the rule, so nothing is opened or escalated in these tests.
   mocked.findOpenIncidentForPair.mockResolvedValue(null);
   mocked.loadRecentHeadwayRatios.mockResolvedValue([] as never);
+  mocked.loadRecentHeadwaySamples.mockResolvedValue([] as never);
   mocked.listOpenIncidentPairsForRouteDirection.mockResolvedValue([]);
 });
 

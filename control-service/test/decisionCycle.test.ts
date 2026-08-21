@@ -72,6 +72,8 @@ function solveResult(overrides: Partial<MpcSolveResult> = {}): MpcSolveResult {
     candidateActions: [selected],
     safeCandidates: [selected],
     selectedAction: selected,
+    selectedActions: [selected],
+    boardingLimitCandidates: [],
     selectedActionType: 'two_way_hold',
     objectiveCost: -140,
     expectedRecoverySeconds: 120,

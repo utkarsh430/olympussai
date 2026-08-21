@@ -109,12 +109,17 @@ export function toOpsMapVehicles(
  * incident ring must not be mistaken for a stale-GPS chevron.
  */
 const SEVERITY_COLOUR: Record<IncidentSeverity, string> = {
+  // Blue, outside the warning/bunched/severe ramp entirely: a predicted
+  // incident is drawn about two buses that are still correctly spaced, and
+  // colouring it anywhere on the amber-to-red ramp would say otherwise.
+  predicted: '#4da3ff',
   warning: '#ffd166',
   bunched: '#ff8a3d',
   severe: '#ff4d5e',
 };
 
 const SEVERITY_LABEL: Record<IncidentSeverity, string> = {
+  predicted: 'CLOSING IN',
   warning: 'WARNING',
   bunched: 'BUNCHED',
   severe: 'SEVERE',
