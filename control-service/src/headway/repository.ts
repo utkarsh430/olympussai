@@ -1076,3 +1076,40 @@ export async function countOpenAlertsBySeverity(
   for (const row of rows) counts[row.severity] = Number(row.count);
   return counts;
 }
+
+/**
+ * When the last bus departed one stop, ignoring a vehicle that is there now.
+ *
+ * The input `mpc/terminalDispatch.ts` regulates on. `stop_visits` rows are
+ * written only once a visit has COMPLETED
+ * (`state-estimation/service.ts#recordStopVisitIfCompleted`), so the bus
+ * currently dwelling at the origin has no row for this visit and the most
+ * recent departure is already its predecessor's. `excludeVehicleId` is
+ * defensive rather than load-bearing: on a loop route-direction the same
+ * vehicle's row from an earlier trip round would otherwise be a candidate,
+ * and it would report a bus as its own predecessor.
+ *
+ * One row, indexed lookup, on the solver's hot path - deliberately not
+ * `listRecentStopVisits`, which pulls a lookback window for a dashboard.
+ */
+export async function loadLastStopDeparture(
+  routeDirectionId: string,
+  stopId: string,
+  excludeVehicleId: string | null = null,
+  pool: Pool = getPool()
+): Promise<Date | null> {
+  const { rows } = await pool.query<{ departed_at: string }>(
+    `select departed_at
+       from stop_visits
+      where route_direction_id = $1
+        and stop_id = $2
+        and ($3::text is null or vehicle_id <> $3)
+      order by departed_at desc
+      limit 1`,
+    [routeDirectionId, stopId, excludeVehicleId]
+  );
+  const departedAt = rows[0]?.departed_at;
+  if (!departedAt) return null;
+  const parsed = new Date(departedAt);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}

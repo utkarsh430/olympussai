@@ -67,6 +67,12 @@ interface Controller {
 }
 ```
 
+The controller that matters is **not** in this module: `rehearsal/deployedControlLaws.ts`
+implements the same interface and calls the real `mpc/*` candidate generators
+and `mpc/solver.ts#selectActions` — see `docs/CONTROLLER_EVALUATION.md` for the
+harness that runs it across corridors, scenarios and seeds and reports both
+KPIs and which laws actually fired.
+
 `controllers.ts` ships two: `noControlController` (baseline, never
 intervenes) and `createSelfEqualizingController({ gain })` (mirrors the
 gain-on-headway-deviation law in `../mpc/solver.ts`, reimplemented
@@ -149,14 +155,50 @@ lint/typecheck/build) on every pull request and push touching
 - the existing CI gate for this package is the release gate; a guardrail
 violation fails that job exactly like any other failing unit test.
 
+## One clock, all vehicles
+
+`engine.ts` advances every vehicle on a single simulated clock, popping the
+earliest pending event across the fleet (`dispatch` / `departure` / `arrival`,
+in that rank order at an equal timestamp, then by dispatch order so a leader is
+always processed before its follower).
+
+It did not always. It used to advance one vehicle's complete trip at a time in
+dispatch order, and that had a consequence far larger than its appearance: at
+the instant a vehicle was asked for a decision the bus BEHIND it had not been
+simulated, so `ControllerKinematics.trailer` was always null, `h_bwd` was
+always null, and `mpc/twoWayHold.ts` — Algorithm B, the law `kf` and `kb` tune
+— declined every pair it was ever offered. **Every simulated run exercised the
+self-equalizing fallback and nothing else**, and no output said so. A gain
+sweep over `kf` in that state returns a flat surface.
+
+Two consequences of the change worth knowing:
+
+- **A given seed draws a different day than it used to.** Sampling now happens
+  in simulated-time order rather than vehicle order. Replay mode is unaffected
+  (it consumes recorded inputs and draws nothing), and the 2% reproduction
+  test still passes.
+- **A bus arriving while its leader still dwells now collects the passengers
+  who turned up in between**, instead of being credited with zero. The engine
+  advances each stop's `queueClearedSeconds` at arrival as well as at
+  departure; the vehicle-major engine could only do it at departure, which
+  credited a follower with a wait window measured from a departure that had
+  not happened yet. This raised denied-boarding counts on saturating corridors,
+  because it is the bunched case where the two differ.
+
 ## Scope and simplifications (read before extending)
 
-- **No-overtake is corridor-wide, not per-segment.** Vehicles are
-  processed in terminal-dispatch order and keep that relative order for
-  the whole route-direction (`minSeparationSeconds` clamp in `engine.ts`),
-  rather than modeling specific no-overtake segments vs. passing zones.
-  Sufficient for headway/bunching KPIs on a single route-direction; not a
-  general traffic simulation.
+- **No-overtake is corridor-wide, not per-segment.** Vehicles keep their
+  terminal-dispatch order for the whole route-direction — enforced by the
+  `minSeparationSeconds` clamp, re-checked when each arrival is popped, since
+  the bus ahead may have been delayed after that arrival was scheduled — rather
+  than modeling specific no-overtake segments vs. passing zones. Sufficient for
+  headway/bunching KPIs on a single route-direction; not a general traffic
+  simulation.
+- **A vehicle in transit is interpolated against its currently-expected
+  arrival.** A pending no-overtake clamp can only push that expectation later,
+  so a position read for a bus about to be clamped is a slight over-estimate,
+  bounded by what it covers in `minSeparationSeconds`. Same class of
+  approximation as the constant-pace assumption `kinematics.ts` documents.
 - **Single route-direction per run.** Corridor/shared-trunk interaction
   across multiple route-directions (leader-follower ordering across
   routes, per `state-estimation/ordering.ts`) is out of scope for this

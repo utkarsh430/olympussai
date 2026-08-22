@@ -33,7 +33,7 @@ Verdicts: **PASS** · **PARTIAL** · **FAIL** · **NOT PRESENT**.
 | **A11** | Compliance loop | **PARTIAL** | `control-service/src/commands/deliverAndNotify.ts`; `simulation/kpi.ts:82-86` | The command lifecycle records `authorized → delivered → acknowledged`, so the *instruction* and its confirmation are captured. The **executed** hold is never measured against the instructed one in production — `complianceRate` is computed only inside the simulator, from the simulator's own `compliant` flag. Real compliance is currently unmeasurable. |
 | **A12** | Fallback path | **PARTIAL** | `control-service/src/mpc/selfEqualizing.ts:27`; `safety.ts`; `route_policies.fallback_mode` | Per-pair degradation is real and well-designed: two-way → self-equalizing when Kf/Kb or the backward sample is unavailable, and the safety filter fails closed on stale state. What is missing is a *layer-level* fallthrough: if `solve()` throws, nothing runs instead, and there is no logged fallthrough event distinguishing "no recommendation because nothing was wrong" from "no recommendation because the controller failed". |
 | **A13** | Explainability | **PARTIAL** | `control-service/src/mpc/solver.ts:120-140`; `src/lib/ops/recommendationView.ts:191-196` | Rejections carry structured reasons and the console renders them well. But no recommendation carries a **one-sentence rationale**; the console's headline number is `objectiveCost`, rendered as *"Ns from the ideal hold"* — which, given A1, explains the controller's rounding error to the dispatcher rather than the passenger case for the hold. |
-| **A14** | Evaluation | **PARTIAL** | `control-service/src/simulation/` (engine, kpi, replay, regressionRunner, referenceKpi); `rehearsal/` | A calibrated event-based simulator, seeded PRNG, replay mode, disturbances, denied boardings and stochastic compliance all exist — this is well ahead of the doc's Milestone 2 expectation, and `rehearsal/deployedControlLaws.ts` runs the *real* production laws inside it rather than a reimplementation. The gap is the metric: `simulation/kpi.ts:70-73` computes excess wait as `Σ max(0, h/2 − H*/2)`, a **first-moment** proxy that clips per sample, so it under-reports exactly the large gaps bunching produces. The live path gets this right (`headway/metrics.ts:159-161`), so the two disagree on the headline KPI. |
+| **A14** | Evaluation | **PARTIAL** | `control-service/src/simulation/` (engine, kpi, replay, regressionRunner, referenceKpi); `rehearsal/` | A calibrated event-based simulator, seeded PRNG, replay mode, disturbances, denied boardings and stochastic compliance all exist — this is well ahead of the doc's Milestone 2 expectation, and `rehearsal/deployedControlLaws.ts` runs the *real* production laws inside it rather than a reimplementation. **RESOLVED.** Both gaps this row named are closed. The EWT proxy is replaced: `lib/dispersion.ts` now holds the second-moment formula and `simulation/kpi.ts`, `headway/metrics.ts` and `headway/stopHeadway.ts` all call it, so the simulator and the live path can no longer disagree on the headline KPI. `KpiSummary` gained `ewtSeconds` and `bunchingRate`; the old `excessWaitSeconds` is retained and marked deprecated so existing readers did not change meaning in the same commit. `src/evaluation/` adds the harness the row implied but did not have — paired seeds, bootstrap intervals, and an algorithm-coverage report. See `docs/CONTROLLER_EVALUATION.md`. |
 
 ---
 
@@ -223,12 +223,22 @@ is well advanced. The remaining order:
    quality, and no control law currently consumes `arrival-prediction/` at all.
 2. **Resolve the Part K scoping question** (median headway per route). It
    changes the objective function and should precede any tuning.
-3. **Interleaved simulator clock**, so all vehicles advance together and the
-   corrected two-way law can be validated against the existing controller on
-   seeded days — including the compliance sweep from 100% down to 30%.
-4. **Second-moment EWT in `simulation/kpi.ts`**, so the simulator's headline
-   metric matches the live one and the comparison in step 3 measures the
-   right thing.
+3. ~~**Interleaved simulator clock**~~ — **DONE.** `simulation/engine.ts` advances
+   every vehicle on one clock, so `ControllerKinematics.trailer` is populated and
+   the corrected two-way law generates candidates for the first time (measured:
+   36.6% of decision points on a synthetic corridor, 0% before). The compliance
+   sweep is wired into `evaluation/spec.ts#complianceSweep`.
+4. ~~**Second-moment EWT in `simulation/kpi.ts`**~~ — **DONE.** Shared with the
+   live path via `lib/dispersion.ts`.
+
+   **New, and ahead of the rest of this list: terminal dispatch regulation
+   cannot fire.** `mpc/terminalDispatch.ts` needs `dwelling_at_stop`, which
+   means speed below 2 km/h, which `computePairHeadways` floors at
+   `MIN_SPEED_KMPH = 1` before computing `h_fwd = gap / speed`. A 7.7 km gap
+   becomes `h_fwd = 27,601s` against a 900s target, so `rawHold` is always
+   negative and Algorithm A — the highest-return lever in §4.1 — generates
+   nothing, in production as well as in simulation. Surfaced by the coverage
+   report; see `docs/CONTROLLER_EVALUATION.md`.
 5. **Max-lateness bound** (Part J, non-negotiable), which needs per-stop
    scheduled arrival in the schema first.
 6. **Compliance instrumentation**: instructed hold versus observed departure,

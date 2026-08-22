@@ -21,12 +21,23 @@ vi.mock('../src/db/commands.js', () => ({
   listRecentlyCommandedVehicleIds: vi.fn(),
 }));
 
+// Only the one reader terminal dispatch needs; the rest of the module stays
+// real because this test mounts the whole app and other routers read from it.
+// A bus standing at the origin has no speed to divide a gap by, so
+// `stop_visits.departed_at` is the only thing that can say how long it has
+// been waiting - see mpc/terminalDispatch.ts.
+vi.mock('../src/headway/repository.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/headway/repository.js')>()),
+  loadLastStopDeparture: vi.fn(),
+}));
+
 const { createApp } = await import('../src/app.js');
 type MpcSolveResult = import('../src/mpc/solver.js').MpcSolveResult;
 const { stateStore } = await import('../src/state/store.js');
 const { listActiveVehicleIds, listRecentlyCommandedVehicleIds } = await import(
   '../src/db/commands.js'
 );
+const { loadLastStopDeparture } = await import('../src/headway/repository.js');
 
 const AUTH_HEADER = 'Bearer test-service-token-secret-value';
 const ROUTE_DIRECTION_ID = '11111111-1111-1111-1111-111111111111';
@@ -104,6 +115,11 @@ describe('POST /v1/mpc/solve', () => {
     vi.mocked(listActiveVehicleIds).mockResolvedValue(new Set());
     vi.mocked(listRecentlyCommandedVehicleIds).mockReset();
     vi.mocked(listRecentlyCommandedVehicleIds).mockResolvedValue(new Set());
+    vi.mocked(loadLastStopDeparture).mockReset();
+    // veh-terminal is 120s behind the bus that just left, which is what the
+    // scenario below has always meant - it was previously expressed as an
+    // h_fwd, a quantity a stationary bus cannot produce.
+    vi.mocked(loadLastStopDeparture).mockResolvedValue(new Date(Date.now() - 120_000));
   });
 
   it('rejects an unauthenticated caller before the solver runs', async () => {

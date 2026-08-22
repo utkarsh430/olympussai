@@ -208,6 +208,35 @@ export interface ControllerContext {
    */
   isTerminal?: boolean;
   /**
+   * Simulation clock at which a bus last DEPARTED this stop, or null when
+   * none has.
+   *
+   * At the origin this is what terminal dispatch regulation needs: `now`
+   * minus this is the elapsed departure headway, the quantity blueprint 8.2
+   * regulates and the one production reads from `stop_visits.departed_at`.
+   * A stationary bus's own `h_fwd` cannot answer it - see
+   * `mpc/terminalDispatch.ts` for why that is not a tuning problem but a
+   * category error.
+   *
+   * Null is a real absence (no predecessor yet) and must not be read as zero.
+   */
+  previousDepartureSeconds?: number | null;
+  /**
+   * When this vehicle would leave the stop if no hold were applied:
+   * arrival plus its own dwell.
+   *
+   * The decision instant a departure-based control law has to reason about.
+   * Production asks the solver DURING a dwell, so its `now` is already close
+   * to the release moment and `now - previousDeparture` is the departure
+   * headway that a hold extends from. This engine asks on ARRIVAL, before the
+   * dwell has been served, so `now` understates that gap by exactly the
+   * dwell - and MEASURED, a terminal law reading it compounded: holds of
+   * 20s, 80s, 118s, 168s, 208s down a line of buses dispatched exactly one
+   * target headway apart, each hold paying for a gap its own dwell was
+   * already going to close and enlarging the shortfall for the bus behind.
+   */
+  readyToDepartSeconds?: number;
+  /**
    * Passengers modelled aboard this vehicle as it arrives, before boarding
    * and alighting at this stop are applied.
    *

@@ -56,7 +56,11 @@
 //     computed. The simulator knows its own world exactly, so it reports
 //     full confidence and that exclusion path never fires.
 import { computePairHeadways } from '../headway/metrics.js';
-import { computeTerminalDispatchCandidates, isAtTerminal } from '../mpc/terminalDispatch.js';
+import {
+  computeTerminalDispatchCandidates,
+  departureHeadwaySeconds,
+  isAtTerminal,
+} from '../mpc/terminalDispatch.js';
 import { computeTwoWayCandidates } from '../mpc/twoWayHold.js';
 import { computeSelfEqualizingCandidates } from '../mpc/selfEqualizing.js';
 import { computeCostOptimalCandidates } from '../mpc/costOptimalHold.js';
@@ -117,6 +121,7 @@ export const CONTROL_LAWS: readonly ControlLaw[] = [
 export type DeclineReason =
   | 'no_leader_on_corridor'
   | 'not_at_terminal'
+  | 'no_measured_terminal_departure'
   | 'suppressed_by_terminal_regulation'
   | 'gains_unset'
   | 'self_equalizing_gain_unset'
@@ -451,6 +456,26 @@ export function createDeployedControlLawsController(
     const controlPointStopIds = new Set<string>();
     const scheduleDeviationByVehicleId = new Map<string, number | null>();
 
+    // The elapsed departure headway, from the engine's own record of when a
+    // bus last left this stop - the simulator's equivalent of production
+    // reading `stop_visits.departed_at`. Null before any bus has departed the
+    // origin, which is the same absence production reads out of an empty
+    // table, and it declines rather than substituting anything.
+    const previousDepartureSeconds = context.previousDepartureSeconds ?? null;
+    // Measured to the RELEASE instant, not to `now`. Production decides while
+    // a bus is dwelling, so its `now` already is the release instant and
+    // `mpc/solver.ts` passes `now` unchanged; this engine decides on arrival,
+    // so it must add the dwell back or the law pays for a gap the dwell was
+    // about to close. See `ControllerContext.readyToDepartSeconds`.
+    const releaseSeconds = context.readyToDepartSeconds ?? context.now;
+    const elapsedSinceTerminalDeparture =
+      atTerminal && previousDepartureSeconds !== null
+        ? departureHeadwaySeconds(
+            new Date(epochMs + previousDepartureSeconds * 1000),
+            new Date(epochMs + releaseSeconds * 1000),
+          )
+        : null;
+
     const terminalCandidates = computeTerminalDispatchCandidates(
       headwayStates,
       vehicleStates,
@@ -459,6 +484,7 @@ export function createDeployedControlLawsController(
       now,
       scheduleDeviationByVehicleId,
       weighOccupancy,
+      elapsedSinceTerminalDeparture,
     );
     // Exactly `mpc/solver.ts`: a bus dwelling at the terminal is regulated by
     // terminal dispatch WHETHER OR NOT that produced a candidate, so the
@@ -534,8 +560,8 @@ export function createDeployedControlLawsController(
     if (terminalCandidates.length === 0) {
       coverageBase.declined.terminal_dispatch = !atTerminal
         ? 'not_at_terminal'
-        : pair.hFwdSeconds === null
-          ? 'h_fwd_unavailable'
+        : elapsedSinceTerminalDeparture === null
+          ? 'no_measured_terminal_departure'
           : 'no_hold_indicated';
     }
     if (twoWayCandidates.length === 0) {

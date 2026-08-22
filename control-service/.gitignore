@@ -5,3 +5,6 @@ coverage/
 .env
 *.log
 *.tsbuildinfo
+
+# Evaluation harness output (derived; regenerate with pnpm sim:run)
+experiments/runs/

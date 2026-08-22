@@ -19,7 +19,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:arrival-sql": "node scripts/check-arrival-sql.mjs"
+    "check:arrival-sql": "node scripts/check-arrival-sql.mjs",
+    "sim:run": "tsx --env-file-if-exists=.env.local src/evaluation/cli.ts"
   },
   "dependencies": {
     "@sentry/node": "^8.55.0",

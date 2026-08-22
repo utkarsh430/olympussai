@@ -13,6 +13,17 @@ vi.mock('../src/schedule/repository.js', () => ({
   loadScheduleCurves: vi.fn(() => Promise.resolve(new Map())),
 }));
 
+// The measured departure headway terminal dispatch regulates on. Mocked
+// because it is the one input Algorithm A cannot derive: a bus standing at
+// the origin has no speed to divide a gap by, so `stop_visits.departed_at` is
+// the only thing that can say how long it has been waiting - see
+// mpc/terminalDispatch.ts. A test that wants a terminal hold must state when
+// the previous bus left, exactly as production reads it from the table.
+vi.mock('../src/headway/repository.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/headway/repository.js')>()),
+  loadLastStopDeparture: vi.fn(),
+}));
+
 // The network-wide switches. Mocked rather than left to fall back, because
 // the fallback is occupancy-OFF and several tests below are specifically
 // about what the objective does WITH a load - see "prefers holding the
@@ -35,6 +46,7 @@ const { listActiveVehicleIds, listRecentlyCommandedVehicleIds } = await import(
   '../src/db/commands.js'
 );
 const { loadScheduleCurves } = await import('../src/schedule/repository.js');
+const { loadLastStopDeparture } = await import('../src/headway/repository.js');
 const { buildScheduleCurve } = await import('../src/schedule/deviation.js');
 
 /**
@@ -110,6 +122,10 @@ describe('mpc.solve', () => {
     vi.mocked(listRecentlyCommandedVehicleIds).mockResolvedValue(new Set());
     vi.mocked(loadScheduleCurves).mockReset();
     vi.mocked(loadScheduleCurves).mockResolvedValue(new Map());
+    vi.mocked(loadLastStopDeparture).mockReset();
+    // Nothing observed to have departed, so terminal dispatch declines. Tests
+    // that want it to act override this.
+    vi.mocked(loadLastStopDeparture).mockResolvedValue(null);
     vi.mocked(readControlSettings).mockReset();
     vi.mocked(readControlSettings).mockResolvedValue({
       weighOccupancy: false,
@@ -221,6 +237,11 @@ describe('mpc.solve', () => {
   });
 
   it('prefers a terminal dispatch candidate over a mid-route candidate on the same route-direction', async () => {
+    // The previous bus left 500s ago against a 600s target, so the terminal
+    // shortfall is 100s and the cap takes it to 90. Stated as an elapsed
+    // DEPARTURE time, not as the stationary bus's h_fwd: see
+    // mpc/terminalDispatch.ts for why the latter could never produce a hold.
+    vi.mocked(loadLastStopDeparture).mockResolvedValue(new Date(Date.now() - 500_000));
     stateStore.loadActivePolicies([basePolicy({ kf: 0.3, kb: 0.3, maxHoldSeconds: 90 })]);
     stateStore.loadTerminalStops([{ routeDirectionId: 'rd-1', stopId: 'stop-origin' }]);
     stateStore.loadVehicleStates([

@@ -29,8 +29,10 @@ import {
   summarizeKpis,
   type Disturbance,
   type KpiSummary,
+  type LinkTravelTimeModel,
   type RouteDirectionDefinition,
   type ScenarioConfig,
+  type StopDemandModel,
   type StopVisitRecord,
   type TerminalDispatchPlan,
 } from '../simulation/index.js';
@@ -209,11 +211,34 @@ export interface RehearsalResult {
   horizonSeconds: number;
 }
 
-function buildRouteDirection(corridor: CorridorInputs, inputs: ModelledInputs): RouteDirectionDefinition {
+/**
+ * Per-stop and per-link values fitted from real observations, replacing the
+ * flat invented profile for the stops and links they cover.
+ *
+ * PARTIAL BY CONSTRUCTION. A fit needs enough samples at a stop to mean
+ * anything, and a corridor will have them at some stops and not others. The
+ * uncovered ones keep the modelled value and the run's provenance says which
+ * were which - substituting a corridor-wide average for a stop that was never
+ * observed would turn "we did not measure this" into a measurement.
+ */
+export interface CorridorOverrides {
+  /** Keyed by `stopId`. Merged over the flat modelled demand. */
+  demandByStopId?: ReadonlyMap<string, Partial<StopDemandModel>>;
+  /** Keyed by the stop the link ARRIVES at, matching `links[i]` being the leg into `stops[i]`. */
+  linkByToStopId?: ReadonlyMap<string, LinkTravelTimeModel>;
+}
+
+function buildRouteDirection(
+  corridor: CorridorInputs,
+  inputs: ModelledInputs,
+  overrides: CorridorOverrides = {},
+): RouteDirectionDefinition {
   const metersPerSecond = inputs.cruiseSpeedKmph / 3.6;
   const stops = corridor.stops;
 
   const links = stops.map((stop, index) => {
+    const fitted = overrides.linkByToStopId?.get(stop.stopId);
+    if (fitted) return { meanSeconds: fitted.meanSeconds, stddevSeconds: fitted.stddevSeconds };
     const previous = index > 0 ? (stops[index - 1]?.cumulativeDistanceMeters ?? 0) : 0;
     const linkMeters = Math.max(0, stop.cumulativeDistanceMeters - previous);
     const meanSeconds = metersPerSecond > 0 ? linkMeters / metersPerSecond : 0;
@@ -236,6 +261,7 @@ function buildRouteDirection(corridor: CorridorInputs, inputs: ModelledInputs): 
         baseDwellSeconds: inputs.baseDwellSeconds,
         secondsPerBoarding: inputs.secondsPerBoarding,
         secondsPerAlighting: inputs.secondsPerAlighting,
+        ...(overrides.demandByStopId?.get(stop.stopId) ?? {}),
       },
     })),
     links,
@@ -419,6 +445,44 @@ function buildFrames(
  * regression suite scores every scenario with - not a second copy of the
  * metric definitions.
  */
+/**
+ * The scenario a rehearsal runs, without running it.
+ *
+ * Exported for `src/evaluation/`, which needs the SAME corridor-to-scenario
+ * mapping across thousands of runs but none of the presentation a single
+ * rehearsal produces - `buildFrames` alone would render 60 map frames per
+ * arm per run, which is the dominant cost of a batch and is read by nobody
+ * in a batch. Sharing the builder rather than the whole function is what
+ * keeps a swept corridor and a rehearsed corridor the same corridor.
+ */
+export function buildRehearsalScenario(
+  corridor: CorridorInputs,
+  inputs: ModelledInputs,
+  overrides: CorridorOverrides = {},
+): { scenario: ScenarioConfig; dispatches: TerminalDispatchPlan[] } {
+  if (corridor.policy.targetHeadwaySeconds <= 0) {
+    throw new AppError('no_active_policy', 'Corridor has no usable target headway', 404);
+  }
+  const routeDirection = buildRouteDirection(corridor, inputs, overrides);
+  const dispatches = buildDispatches(inputs, corridor.policy.targetHeadwaySeconds);
+  const disturbances = buildDisturbances(inputs, corridor, dispatches, corridor.policy.targetHeadwaySeconds);
+  return {
+    scenario: {
+      name: `rehearsal:${corridor.routeDirectionId}:${inputs.disturbance}`,
+      routeDirection,
+      dispatches,
+      disturbances,
+      seed: inputs.seed,
+    },
+    dispatches,
+  };
+}
+
+/** The wall-clock instant simulated second 0 maps to. Shared so a rehearsal and an evaluation run age their state identically. */
+export const REHEARSAL_EPOCH_MS = Date.UTC(2026, 0, 1, 0, 0, 0);
+
+export { isReported, summarizeHolds, reportedKpis, WARMUP_VEHICLE_ID };
+
 function reportedKpis(
   visits: readonly StopVisitRecord[],
   corridor: CorridorInputs,
@@ -521,7 +585,7 @@ function buildProvenance(corridor: CorridorInputs, inputs: ModelledInputs): Prov
 }
 
 const NOT_REHEARSED: readonly string[] = [
-  'Terminal dispatch regulation. The model dispatches from a terminal but never holds a vehicle at one, so that first-line control law has nothing to act on and is not exercised.',
+  'Terminal dispatch regulation, unless this corridor marks its origin stop as a control point. The model can now hold a bus before it leaves the terminal, but only where the corridor says a hold may be executed there; on a corridor whose first control point is further out, that first-line law has nothing to act on.',
   'The state estimator. The simulator knows every position exactly, so map matching, the Kalman filter and the low-confidence exclusion that precede live detection never run.',
   'The command lifecycle. Cooldowns, minimum action time, acknowledgement and expiry live in the command path, which a rehearsal never touches. What you see is what the control law intends, not the rate at which instructions would reach a driver.',
   'Interaction between corridors. One route-direction at a time; buses of other routes sharing the same road are not modelled.',
@@ -535,24 +599,13 @@ export function runRehearsal(corridor: CorridorInputs, inputs: ModelledInputs): 
     throw new AppError('no_active_policy', 'Corridor has no usable target headway', 404);
   }
 
-  const routeDirection = buildRouteDirection(corridor, inputs);
-  const dispatches = buildDispatches(inputs, corridor.policy.targetHeadwaySeconds);
-  const disturbances = buildDisturbances(inputs, corridor, dispatches, corridor.policy.targetHeadwaySeconds);
-
-  const scenario: ScenarioConfig = {
-    name: `rehearsal:${corridor.routeDirectionId}:${inputs.disturbance}`,
-    routeDirection,
-    dispatches,
-    disturbances,
-    seed: inputs.seed,
-  };
+  const { scenario, dispatches } = buildRehearsalScenario(corridor, inputs);
 
   const uncontrolled = simulate(scenario, noControlController);
 
-  const epochMs = Date.UTC(2026, 0, 1, 0, 0, 0);
   const controller = createDeployedControlLawsController({
     policy: corridor.policy,
-    epochMs,
+    epochMs: REHEARSAL_EPOCH_MS,
     modelledCapacity: inputs.vehicleCapacity,
   });
   const controlled = simulate(scenario, controller);

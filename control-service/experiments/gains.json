@@ -1,0 +1,14 @@
+{
+  "name": "gain-comparison",
+  "corridors": { "source": "db", "sample": 10 },
+  "scenarios": ["none", "demand_burst", "non_compliance"],
+  "seeds": { "count": 40, "base": 20260820 },
+  "arms": [
+    { "name": "as-deployed", "policyOverrides": {} },
+    { "name": "stronger-forward", "policyOverrides": { "kf": 0.8, "kb": 0.2 } },
+    { "name": "balanced-two-way", "policyOverrides": { "kf": 0.6, "kb": 0.4 } },
+    { "name": "short-holds", "policyOverrides": { "maxHoldSeconds": 180 } }
+  ],
+  "complianceSweep": [1.0, 0.7, 0.5, 0.3],
+  "variabilitySweep": [0.1, 0.2, 0.35]
+}

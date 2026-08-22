@@ -1,0 +1,9 @@
+{
+  "name": "baseline-does-control-help",
+  "corridors": { "source": "db", "sample": 10 },
+  "scenarios": ["none", "demand_burst", "missed_trip", "gps_dropout", "non_compliance"],
+  "seeds": { "count": 40, "base": 20260820 },
+  "arms": [
+    { "name": "as-deployed", "policyOverrides": {} }
+  ]
+}

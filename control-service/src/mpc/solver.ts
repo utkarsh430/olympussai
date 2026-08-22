@@ -18,7 +18,11 @@ import { stateStore, type VehicleStateRow } from '../state/store.js';
 import { AppError } from '../lib/errors.js';
 import { logger } from '../lib/logger.js';
 import { listActiveVehicleIds, listRecentlyCommandedVehicleIds } from '../db/commands.js';
-import { computeTerminalDispatchCandidates, isAtTerminal } from './terminalDispatch.js';
+import {
+  computeTerminalDispatchCandidates,
+  departureHeadwaySeconds,
+  isAtTerminal,
+} from './terminalDispatch.js';
 import { computeTwoWayCandidates } from './twoWayHold.js';
 import { computeCostOptimalCandidates } from './costOptimalHold.js';
 import {
@@ -33,6 +37,7 @@ import { computePredictiveAdvisory } from './occupancyMpc.js';
 import { computePaceAdvisories, type PaceAdvisory } from './paceGuidance.js';
 import { applyHardSafetyFilter, DEFAULT_STATE_STALE_SECONDS } from './safety.js';
 import { loadScheduleCurves } from '../schedule/repository.js';
+import { loadLastStopDeparture } from '../headway/repository.js';
 import { computeScheduleDeviationSeconds } from '../schedule/deviation.js';
 import { isHoldAction } from './types.js';
 import type { CandidateAction, PredictiveAdvisory, SafetyRejection } from './types.js';
@@ -207,6 +212,22 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
   // timetable a data change instead of a code change.
   const scheduleDeviationByVehicleId = await loadScheduleDeviations(vehicleStates, now);
 
+  // How long since the previous bus left the origin. The quantity Algorithm A
+  // regulates on, and MEASURED rather than derived from a stationary bus's
+  // speed - see mpc/terminalDispatch.ts for the arithmetic that made the
+  // derived version incapable of ever proposing a hold. One indexed row, and
+  // only when a bus is actually standing at the terminal for it to be about.
+  const terminalVehicleId =
+    terminalStopId === undefined
+      ? undefined
+      : headwayStates.find((h) =>
+          isAtTerminal(vehicleStatesByVehicleId.get(h.followerVehicleId), terminalStopId),
+        )?.followerVehicleId;
+  const lastTerminalDepartureAt =
+    terminalStopId !== undefined && terminalVehicleId !== undefined
+      ? await loadLastStopDeparture(routeDirectionId, terminalStopId, terminalVehicleId)
+      : null;
+
   const terminalCandidates = computeTerminalDispatchCandidates(
     headwayStates,
     vehicleStatesByVehicleId,
@@ -215,6 +236,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     now,
     scheduleDeviationByVehicleId,
     settings.weighOccupancy,
+    departureHeadwaySeconds(lastTerminalDepartureAt, now),
   );
 
   // Vehicles dwelling at the terminal are always regulated by terminal

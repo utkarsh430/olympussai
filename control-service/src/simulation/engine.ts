@@ -334,6 +334,18 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
    * headway's worth that the leader has already carried away.
    */
   const queueClearedSeconds: number[] = routeDirection.stops.map(() => 0);
+  /**
+   * When a bus last DEPARTED each stop, and nothing else.
+   *
+   * Distinct from `queueClearedSeconds` on purpose, even though the two move
+   * together most of the time. That one answers "how much demand has piled
+   * up here" and is advanced by arrivals as well; this one answers "how long
+   * since a bus pulled out", which is the quantity terminal dispatch
+   * regulation acts on (`mpc/terminalDispatch.ts`) and the one production
+   * reads from `stop_visits.departed_at`. Folding them together would feed
+   * the deployed law an elapsed time that a mere arrival had reset.
+   */
+  const lastDepartureAtStop: Array<number | null> = routeDirection.stops.map(() => null);
 
   const visits: StopVisitRecord[] = [];
   const geometry = corridorGeometry(routeDirection);
@@ -396,6 +408,7 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
     if (event.kind === 'departure') {
       const stopIndex = event.stopIndex;
       queueClearedSeconds[stopIndex] = Math.max(queueClearedSeconds[stopIndex] ?? 0, event.atSeconds);
+      lastDepartureAtStop[stopIndex] = event.atSeconds;
       const nextStopIndex = stopIndex + 1;
       if (nextStopIndex >= stopCount) {
         runtime.phase = 'done';
@@ -514,6 +527,16 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
         // precondition Algorithm A regulates on (`mpc/terminalDispatch.ts`
         // #isAtTerminal), and the engine is the only thing that knows it.
         isTerminal: stopIndex === 0,
+        // When a bus last departed THIS stop, which at the origin is the
+        // departure headway Algorithm A regulates on. Null before any bus has
+        // left - the first bus of the day has no predecessor, and production
+        // reads exactly the same absence out of an empty `stop_visits`.
+        previousDepartureSeconds: lastDepartureAtStop[stopIndex] ?? null,
+        // Arrival plus dwell: when this bus would leave absent a hold, which
+        // is the instant a departure-headway law must measure to. See the
+        // field's own comment for the compounding artefact that reading
+        // `now` here produced.
+        readyToDepartSeconds: arrivalSeconds + dwellSeconds,
         onboardCount: onboard,
         targetHeadwaySeconds: routeDirection.targetHeadwaySeconds,
         maxHoldSeconds: routeDirection.maxHoldSeconds,
