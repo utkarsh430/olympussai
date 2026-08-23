@@ -160,7 +160,9 @@ describe('runRehearsal', () => {
     });
 
     it('marks a held vehicle as held, so a hold is visible on the map and not just in a table', () => {
-      const result = runRehearsal(corridor(), { ...DEFAULT_MODELLED_INPUTS, disturbance: 'demand_burst' });
+      // Needs a hold to exist at all - see `proposingCorridor` above for why
+      // the default six-bus fixture no longer produces one.
+      const result = runRehearsal(proposingCorridor(), { ...CROWDED, disturbance: 'demand_burst' });
       const statuses = new Set(result.arms.controlled.frames.flatMap((f) => f.vehicles.map((v) => v.status)));
       expect(statuses.has('held')).toBe(true);
     });

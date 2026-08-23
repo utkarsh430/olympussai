@@ -390,11 +390,12 @@ function headwaySamplesOf(
 /**
  * Waiting and onboard-delay passenger-seconds, measured off the simulated day.
  *
- * A visit with no `leaderHeadwaySeconds` is the FIRST bus to reach that station
- * in the run: nobody there had been waiting for a predecessor, so there is no
- * gap to halve and its boardings are excluded from the waiting total rather
- * than charged an invented wait. It is excluded identically on both arms, so
- * the contrast is unaffected.
+ * The waiting half comes from the engine rather than being reconstructed here.
+ * It used to be `boardings x leaderHeadway / 2` - the gap between two buses'
+ * arrivals, halved - which is right only while every bus takes everybody
+ * waiting. It parts company with the truth the moment one does not, and it
+ * charged the people who walked on while a bus was HELD the same wait as the
+ * people who had been standing there since the last bus left.
  */
 function passengerOutcome(visits: readonly StopVisitRecord[]): PassengerOutcome {
   let waitPassengerSeconds = 0;
@@ -404,9 +405,9 @@ function passengerOutcome(visits: readonly StopVisitRecord[]): PassengerOutcome 
 
   for (const visit of visits) {
     if (!isReported(visit.vehicleId)) continue;
-    if (visit.leaderHeadwaySeconds !== null) {
-      waitPassengerSeconds += visit.boardings * (visit.leaderHeadwaySeconds / 2);
-    }
+    // Straight from the engine, which is the only thing that knows the two
+    // boarding populations apart - see `StopVisitRecord.boardingWaitPassengerSeconds`.
+    waitPassengerSeconds += visit.boardingWaitPassengerSeconds;
     onboardDelayPassengerSeconds += visit.appliedHoldSeconds * visit.onboardAfter;
     boardings += visit.boardings;
     deniedBoardings += visit.deniedBoardings;

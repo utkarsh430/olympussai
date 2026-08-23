@@ -274,6 +274,7 @@ function provisionalVisit(runtime: VehicleRuntime): StopVisitRecord {
     waitWindowSeconds: 0,
     boardings: 0,
     boardingLimitedPassengers: 0,
+    boardingWaitPassengerSeconds: 0,
     alightings: 0,
     deniedBoardings: 0,
     onboardAfter: runtime.onboard,
@@ -551,6 +552,8 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
     let actualBoardings = Math.min(rawBoardings, capacityAfterAlighting);
     const deniedBoardings = rawBoardings - actualBoardings;
     let boardingLimited = 0;
+    /** Late arrivals the bus could not fit. They stay for the next one. */
+    let lateUnserved = 0;
 
     // Provisional: what the dwell would be if everybody who could board did.
     // An alighting-only decision below shortens it, which is the entire point
@@ -670,11 +673,53 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       }
     }
 
-    const onboardAfter = Math.max(0, onboard - alightings + actualBoardings);
+    let boardedTotal = actualBoardings;
     const dwellSeconds =
       stop.demand.baseDwellSeconds +
       stop.demand.secondsPerBoarding * actualBoardings +
       stop.demand.secondsPerAlighting * alightings;
+    const departureBeforeLateBoarders = arrivalSeconds + dwellSeconds + appliedHoldSeconds;
+
+    // ─── PEOPLE WHO ARRIVE WHILE THE BUS IS STILL THERE ─────────────────
+    //
+    // A bus stands at a stop for its dwell and then, if it was held, for the
+    // hold on top. Passengers turning up during that time walk on. The engine
+    // drew boardings ONCE, at the arrival instant, and then swept the queue to
+    // the DEPARTURE instant - so everyone who arrived in between was deleted
+    // without ever boarding.
+    //
+    // For an ordinary dwell that is a small leak. For a hold it is not, and it
+    // leaked in the direction that flatters holding: a bus held ten minutes
+    // absorbed ten minutes of arrivals for free, so its onboard load - and
+    // therefore the onboard-delay cost of holding it, and the occupancy taper
+    // that prices that cost - were all understated.
+    //
+    // They cost no extra dwell. During a HOLD the bus is standing anyway, and
+    // during the dwell their boarding time is already in the figure above; a
+    // second dwell term here would be charging twice for the same door cycle.
+    let lateBoardings = 0;
+    const standingSeconds = Math.max(0, departureBeforeLateBoarders - arrivalSeconds);
+    if (boardingLimited === 0 && deniedBoardings === 0 && standingSeconds > 0) {
+      const lateOffered =
+        recordedBoardings !== undefined
+          ? 0
+          : rng.nextNonNegativeCount(
+              (stop.demand.boardingRatePerMinute / 60) *
+                standingSeconds *
+                activeDemandBurst(disturbances, stop.stopId, arrivalSeconds),
+            );
+      const roomLeft = Math.max(
+        0,
+        routeDirection.vehicleCapacity - (onboard - alightings + actualBoardings),
+      );
+      lateBoardings = Math.min(lateOffered, roomLeft);
+      boardedTotal += lateBoardings;
+      // Anyone who still could not fit stays for the next bus, exactly like the
+      // ones refused at the arrival instant.
+      lateUnserved = lateOffered - lateBoardings;
+    }
+
+    const onboardAfter = Math.max(0, onboard - alightings + boardedTotal);
 
     // ─── THE QUEUE IS SWEPT ONLY AS FAR AS THE BUS ACTUALLY SERVED IT ───
     //
@@ -695,17 +740,19 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
     // needing separate handling.
     const offered = rawBoardings;
     const servedFraction = offered > 0 ? actualBoardings / offered : 1;
+
     const previouslyCleared = clearedAt ?? arrivalSeconds;
     queueClearedSeconds[stopIndex] = Math.max(
       previouslyCleared,
       previouslyCleared + servedFraction * waitWindowSeconds,
     );
-    // The departure sweep credits this bus with people who turned up during its
-    // dwell. Only a bus that took everybody waiting can claim them: a full one
-    // cannot fit them either, and one told to take nobody on will not try.
-    runtime.skipQueueSweepAtDeparture = servedFraction < 1;
+    // The departure sweep credits this bus with the people who turned up while
+    // it stood there - which it may do only if it actually took them all. A bus
+    // that was full at the arrival instant, that was told to take nobody on, or
+    // that filled up on the late boarders, leaves the rest standing.
+    runtime.skipQueueSweepAtDeparture = servedFraction < 1 || lateUnserved > 0;
 
-    const departureSeconds = arrivalSeconds + dwellSeconds + appliedHoldSeconds;
+    const departureSeconds = departureBeforeLateBoarders;
 
     const visit: StopVisitRecord = {
       vehicleId: runtime.vehicleId,
@@ -713,7 +760,11 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       stopIndex,
       arrivalSeconds,
       waitWindowSeconds,
-      boardings: actualBoardings,
+      // Everyone who got on: those waiting when it pulled in, plus those who
+      // arrived while it was standing there.
+      boardings: boardedTotal,
+      boardingWaitPassengerSeconds:
+        actualBoardings * (waitWindowSeconds / 2) + lateBoardings * (standingSeconds / 2),
       boardingLimitedPassengers: boardingLimited,
       alightings,
       deniedBoardings,

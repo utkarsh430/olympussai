@@ -59,6 +59,7 @@ export function computeReferenceKpisFromRecordedInputs(
         waitWindowSeconds: 0,
         boardings: board,
         boardingLimitedPassengers: 0,
+        boardingWaitPassengerSeconds: 0,
         alightings: alight,
         deniedBoardings: 0,
         onboardAfter: onboard,

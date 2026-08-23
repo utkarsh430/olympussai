@@ -362,7 +362,45 @@ the crowd: a stop's queue now starts when its **first bus arrives**, not at
 second zero. `test/rehearsal/run.test.ts` asserts that directly instead of
 bounding the artefact's size, because the artefact can no longer happen.
 
-### 8. Policy knobs are per-corridor, and fitting one on one shape is a bug
+### 8. A held bus was absorbing passengers for free
+
+The engine drew boardings **once**, at the arrival instant, and then swept the
+queue to the **departure** instant. Everyone who turned up while the bus was
+standing at the stop was therefore deleted without ever boarding.
+
+For an ordinary dwell that is a small leak. For a hold it is not, and it leaked
+in the direction that flatters holding: a bus held ten minutes absorbed ten
+minutes of arrivals for nothing, so its onboard load — and with it the
+onboard-delay cost of holding, and the occupancy taper that prices that cost —
+were all understated.
+
+They now board, capacity permitting, and anyone who still cannot fit stays for
+the next bus. They cost no extra dwell: during a hold the bus is standing
+anyway, and during the dwell their boarding time is already counted — a second
+dwell term would charge twice for the same door cycle.
+
+The waiting figure moved into the engine as part of this
+(`StopVisitRecord.boardingWaitPassengerSeconds`), because only the engine can
+tell the two populations apart. It used to be reconstructed as
+`boardings × leaderHeadway / 2`, which charges someone who walked onto a *held*
+bus the same wait as someone who had been standing there since the last one left.
+
+**Effect on the headline**: with waiting and stranding both counted properly,
+*both* corridors are net-positive — inter-city +0.9% and urban +12.4% of total
+passenger time, at 18.8% and 49.4% excess-wait improvement respectively.
+
+**It broke a regression test, correctly.** `test/simulation/controllers.test.ts`
+asserts a self-equalizing controller lowers headway CV across 60 paired seeds,
+and it started failing. Investigated rather than adjusted: on that fixture — four
+buses, six stops, mild link variance — the controller applies about **sixty
+seconds of hold across an entire run** and wins on 50% of seeds. It was a coin
+flip, and the model change moved which side it landed on. Doubling the link
+standard deviation and running ten buses gives the law something to correct:
+hold rises to ~370 s per run and the controlled arm wins on 62% of seeds with a
+clearly lower mean. Same law, same gain — the difference is a corridor where
+control is the thing being measured.
+
+### 9. Policy knobs are per-corridor, and fitting one on one shape is a bug
 
 `max_lateness_seconds` at 300 s improved the inter-city corridor. The same
 guardrail at 120 s on the urban corridor was, at one point in this work, going to
@@ -377,7 +415,7 @@ first and excess wait only as a tie-break, because ranking on wait alone had
 already handed a recommendation to a setting with a worse net effect when two
 rows tied.
 
-### 9. Alighting-only: the right idea, and it loses anyway
+### 10. Alighting-only: the right idea, and it loses anyway
 
 "Let a bus at a stop drop passengers but pick nobody up when the follower is
 close behind" is `mpc/boardingLimit.ts` — the only lever here that improves

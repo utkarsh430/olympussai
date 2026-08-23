@@ -6,6 +6,39 @@ import type { ScenarioConfig } from '../../src/simulation/types.js';
 
 const selfEqualizing = createSelfEqualizingController({ gain: 0.6 });
 
+/**
+ * A corridor that actually comes apart, and a fleet long enough to feel it.
+ *
+ * ─── WHY THE SAMPLE FIXTURE IS NOT ENOUGH ────────────────────────────────
+ *
+ * `SAMPLE_ROUTE_DIRECTION` with `SAMPLE_DISPATCHES` is four buses over six
+ * stops with mild link variance. MEASURED: the self-equalizing controller
+ * applies about SIXTY SECONDS of hold across a whole run on it, and beats the
+ * uncontrolled arm on 50% of sixty seeds - a coin flip, because there is
+ * almost no dispersion for it to remove. An assertion that the controller
+ * reduces CV on that fixture is not a claim about the controller; it is a
+ * claim about which side of the noise the current draw order happens to land.
+ *
+ * Doubling the link standard deviation and running ten buses gives the law
+ * something to correct: hold rises to ~370 s per run and the controlled arm
+ * wins on 62% of seeds with a clearly lower mean CV. Same law, same gain -
+ * the difference is a corridor where control is the thing being measured.
+ */
+function unstableRouteDirection() {
+  return {
+    ...SAMPLE_ROUTE_DIRECTION,
+    links: SAMPLE_ROUTE_DIRECTION.links.map((link) => ({
+      ...link,
+      stddevSeconds: link.stddevSeconds * 2,
+    })),
+  };
+}
+
+const LONG_FLEET = Array.from({ length: 10 }, (_, index) => ({
+  vehicleId: `SIM-${String(index + 1).padStart(2, '0')}`,
+  scheduledDispatchSeconds: index * SAMPLE_ROUTE_DIRECTION.targetHeadwaySeconds,
+}));
+
 function configWithDisturbance(): ScenarioConfig {
   return {
     name: 'controllers-test',
@@ -15,6 +48,14 @@ function configWithDisturbance(): ScenarioConfig {
     // the kind of deviation a self-equalizing controller should correct.
     disturbances: [{ type: 'demand_burst', stopId: 'stop-3', startSeconds: 0, endSeconds: 900, multiplier: 10 }],
     seed: 7,
+  };
+}
+
+function unstableConfig(): ScenarioConfig {
+  return {
+    ...configWithDisturbance(),
+    routeDirection: unstableRouteDirection(),
+    dispatches: LONG_FLEET,
   };
 }
 
@@ -51,8 +92,8 @@ describe('pluggable controller interface: no-control vs controlled comparison', 
     let compared = 0;
 
     for (let seed = 1; seed <= SEEDS; seed++) {
-      const noControlResult = simulate({ ...configWithDisturbance(), seed }, noControlController);
-      const controlledResult = simulate({ ...configWithDisturbance(), seed }, selfEqualizing);
+      const noControlResult = simulate({ ...unstableConfig(), seed }, noControlController);
+      const controlledResult = simulate({ ...unstableConfig(), seed }, selfEqualizing);
       const before = noControlResult.kpis.headwayCv;
       const after = controlledResult.kpis.headwayCv;
       if (before === null || after === null) continue;

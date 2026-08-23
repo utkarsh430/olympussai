@@ -128,6 +128,7 @@ describe('incident detection', () => {
       waitWindowSeconds: 0,
       boardings: 0,
       boardingLimitedPassengers: 0,
+      boardingWaitPassengerSeconds: 0,
       alightings: 0,
       deniedBoardings: 0,
       onboardAfter: 0,

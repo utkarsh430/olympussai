@@ -397,6 +397,17 @@ export interface StopVisitRecord {
    * operator which had happened.
    */
   boardingLimitedPassengers: number;
+  /**
+   * Passenger-seconds of waiting the people who boarded here actually did.
+   *
+   * Computed by the engine because only the engine knows the two populations
+   * apart. Those already queuing when the bus pulled in waited on average half
+   * the accumulated window; those who turned up while it stood at the stop
+   * waited on average half of THAT, which on a held bus is a completely
+   * different number. A reader reconstructing this as `boardings x window / 2`
+   * charges the second group the first group's wait.
+   */
+  boardingWaitPassengerSeconds: number;
   alightings: number;
   deniedBoardings: number;
   onboardAfter: number;
