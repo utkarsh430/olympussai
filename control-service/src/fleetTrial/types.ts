@@ -277,15 +277,29 @@ export interface OccupancyContrast {
  */
 export interface HoldingPointStudyRow {
   holdingPointCount: number;
-  /** Improvement in excess wait, as a percentage. Higher is better. */
+  /** Mean improvement in excess wait across the study's seeds, as a percentage. Higher is better. */
   ewtImprovementPercent: number | null;
-  /** Effect on TOTAL passenger time. Negative means the controller cost more than it saved. */
+  /** Mean effect on TOTAL passenger time. Negative means the controller cost more than it saved. */
   passengerSecondsSavedPercent: number | null;
   meanHoldSecondsPerVehicle: number;
   holdCount: number;
   deniedBoardings: number;
   incidentsDetected: number;
   incidentsResolved: number;
+  /**
+   * How many seeds this row was averaged over, and how many of them agreed with
+   * the sign of the mean.
+   *
+   * NOT decoration. MEASURED on this corridor, one seed's net passenger-time
+   * figure ranges from -6.0% to +3.9% - so a single run's number is nearly
+   * meaningless on its own, and a difference between two placements can be
+   * entirely seed noise. A gain-tuning result that looked convincing over three
+   * seeds (Kb 0.2 -> 0.4, apparently better on both metrics) reversed to a coin
+   * flip over ten. Any row whose seeds do not agree should be read as "no
+   * effect measured", however large its mean.
+   */
+  seedCount: number;
+  seedsAgreeingWithSign: number;
 }
 
 export interface HoldingPointStudy {
@@ -298,6 +312,8 @@ export interface HoldingPointStudy {
    */
   recommendedCount: number | null;
   verdict: string;
+  /** Seeds each row was averaged over. One would not be enough - see `seedCount`. */
+  seedsPerRow: number;
 }
 
 export interface TrialProvenanceEntry {

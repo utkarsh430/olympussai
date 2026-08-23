@@ -152,6 +152,10 @@ achieves nothing.
 Every report now carries this comparison (`holdingPointStudy`), and the console
 shows it.
 
+Every row is averaged over three seeds and reports how many of them agreed with
+the sign of the mean. That is not decoration — see "one seed is not a
+measurement" below.
+
 **A measurement bug found while doing this**, worth recording because it would
 have produced a confident and completely wrong answer: excess wait was being
 sampled at *control points only*. Changing the placement therefore changed the
@@ -159,6 +163,30 @@ measurement population, and baseline EWT read 61 s with two holding points and
 323 s with ten — on the identical uncontrolled corridor. The trial now samples
 every station, which is also the more honest definition: passengers wait at all
 of them.
+
+### One seed is not a measurement (and a result that did not survive)
+
+Net passenger time on this corridor has a seed-to-seed spread of about ten
+percentage points — single runs of the identical configuration returned −6.0%
+and +3.9%. That is wider than most differences the trial is trying to detect.
+
+A gain-tuning result went the whole way through that trap. Over three seeds,
+raising `Kb` from 0.2 to 0.4 appeared to improve **both** metrics at once (net
+−3.57% → −2.25%, excess wait +10.9% → +14.2%) — an unusually clean result, and
+a plausible mechanism: `Kb` is the backward gain, so raising it means more
+restraint when a bus is close behind, which should damp the holding cascade.
+
+Paired across ten seeds it is a coin flip:
+
+| | Kb = 0.2 | Kb = 0.4 | seeds favouring Kb = 0.4 |
+|---|---|---|---|
+| net passenger time | −1.54% | −1.36% | 4 of 10 |
+| excess wait gain | 12.2% | 12.6% | 5 of 10 |
+
+**No change was made.** This is the rule `control-service/src/evaluation/` already
+states — a difference whose interval spans zero is no effect however large its
+mean — and it is the reason the holding-point study reports seed agreement
+alongside every row rather than a bare average.
 
 ## What the trial still does not test
 

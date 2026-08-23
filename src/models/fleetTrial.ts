@@ -206,10 +206,13 @@ const holdingPointStudySchema = z.object({
       deniedBoardings: z.number(),
       incidentsDetected: z.number(),
       incidentsResolved: z.number(),
+      seedCount: z.number(),
+      seedsAgreeingWithSign: z.number(),
     }),
   ),
   recommendedCount: z.number().nullable(),
   verdict: z.string(),
+  seedsPerRow: z.number(),
 });
 export type HoldingPointStudy = z.infer<typeof holdingPointStudySchema>;
 

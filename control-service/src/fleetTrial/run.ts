@@ -86,6 +86,18 @@ const MAX_TRAJECTORY_VEHICLES = 10;
 /** Incidents carried in full per arm per scenario, deepest bunch first. */
 const MAX_INCIDENT_SAMPLES = 15;
 
+/**
+ * Seeds each holding-point placement is averaged over.
+ *
+ * One is not enough and that is measured, not assumed: a single seed's net
+ * passenger-time figure on this corridor ranges from -6.0% to +3.9%, which is
+ * wider than every difference the study is trying to detect. Three is the
+ * smallest number at which a row can report whether its seeds AGREED, which is
+ * the thing a reader actually needs - a mean whose seeds disagree is not a
+ * small effect, it is no measured effect at all.
+ */
+const STUDY_SEEDS = 3;
+
 export interface FleetTrialSpec {
   corridor: FleetCorridorSpec;
   /** Buses per phase. Two phases of 500 is the thousand-bus trial. */
@@ -1052,55 +1064,92 @@ function runHoldingPointStudy(args: {
   const rows: HoldingPointStudyRow[] = [];
   for (const holdingPointCount of counts) {
     const corridor = buildFleetCorridor({ ...spec.corridor, holdingPointCount });
-    const runs: ScenarioRun[] = [];
-    let busNumber = 0;
-    const base = Math.floor(vehiclesPerPhase / scenarios.length);
-    const remainder = vehiclesPerPhase - base * scenarios.length;
+    const perSeed: { net: number | null; ewt: number | null; hold: number; holds: number; denied: number; detected: number; resolved: number }[] = [];
 
-    for (const [index, scenario] of scenarios.entries()) {
-      const vehicleCount = base + (index < remainder ? 1 : 0);
-      if (vehicleCount < 2) continue;
-      runs.push(
-        runScenario({
-          corridor,
-          scenario,
-          inputs: { ...inputs, ...scenario.inputs },
-          vehicleIds: Array.from(
-            { length: vehicleCount },
-            () => `STUDY-${String(++busNumber).padStart(4, '0')}`,
-          ),
-          seed: (spec.seed + index * 7919) >>> 0,
-          weighOccupancy: false,
-          requiredSamples: spec.requiredSamples,
-          sweepIntervalSeconds: spec.sweepIntervalSeconds,
-          followerSpeedSource: spec.followerSpeedSource,
-        }),
-      );
+    for (let seedIndex = 0; seedIndex < STUDY_SEEDS; seedIndex++) {
+      const runs: ScenarioRun[] = [];
+      let busNumber = 0;
+      const base = Math.floor(vehiclesPerPhase / scenarios.length);
+      const remainder = vehiclesPerPhase - base * scenarios.length;
+
+      for (const [index, scenario] of scenarios.entries()) {
+        const vehicleCount = base + (index < remainder ? 1 : 0);
+        if (vehicleCount < 2) continue;
+        runs.push(
+          runScenario({
+            corridor,
+            scenario,
+            inputs: { ...inputs, ...scenario.inputs },
+            vehicleIds: Array.from(
+              { length: vehicleCount },
+              () => `STUDY-${String(++busNumber).padStart(4, '0')}`,
+            ),
+            // The SAME seed across placements at a given seedIndex, so every
+            // row is scored on the same simulated days and the difference
+            // between rows is the placement rather than the weather.
+            seed: (spec.seed + seedIndex * 104_729 + index * 7919) >>> 0,
+            weighOccupancy: false,
+            requiredSamples: spec.requiredSamples,
+            sweepIntervalSeconds: spec.sweepIntervalSeconds,
+            followerSpeedSource: spec.followerSpeedSource,
+          }),
+        );
+      }
+      if (runs.length === 0) continue;
+
+      const controlled = poolArm(runs, corridor, (r) => r.controlledVisits, (report) => report.controlled);
+      const uncontrolled = poolArm(runs, corridor, (r) => r.uncontrolledVisits, (report) => report.uncontrolled);
+      const armContrast = contrast(controlled, uncontrolled);
+      const holds = holdBreakdown(runs, corridor);
+      perSeed.push({
+        net: armContrast.passengerSecondsSavedPercent,
+        ewt: armContrast.ewtImprovementPercent,
+        hold: controlled.punctuality.meanHoldSecondsPerVehicle,
+        holds: holds.holdCountByActionType.reduce((acc, a) => acc + a.count, 0),
+        denied: controlled.passengers.deniedBoardings,
+        detected: controlled.incidents.detected,
+        resolved: controlled.incidents.resolved,
+      });
     }
-    if (runs.length === 0) continue;
+    if (perSeed.length === 0) continue;
 
-    const controlled = poolArm(runs, corridor, (r) => r.controlledVisits, (report) => report.controlled);
-    const uncontrolled = poolArm(runs, corridor, (r) => r.uncontrolledVisits, (report) => report.uncontrolled);
-    const armContrast = contrast(controlled, uncontrolled);
-    const holds = holdBreakdown(runs, corridor);
+    const mean = (pick: (row: (typeof perSeed)[number]) => number | null): number | null => {
+      const values = perSeed.map(pick).filter((v): v is number => v !== null);
+      return values.length === 0 ? null : values.reduce((a, b) => a + b, 0) / values.length;
+    };
+    const meanNet = mean((row) => row.net);
+    const agreeing =
+      meanNet === null
+        ? 0
+        : perSeed.filter((row) => row.net !== null && Math.sign(row.net) === Math.sign(meanNet)).length;
 
     rows.push({
       holdingPointCount,
-      ewtImprovementPercent: armContrast.ewtImprovementPercent,
-      passengerSecondsSavedPercent: armContrast.passengerSecondsSavedPercent,
-      meanHoldSecondsPerVehicle: controlled.punctuality.meanHoldSecondsPerVehicle,
-      holdCount: holds.holdCountByActionType.reduce((acc, a) => acc + a.count, 0),
-      deniedBoardings: controlled.passengers.deniedBoardings,
-      incidentsDetected: controlled.incidents.detected,
-      incidentsResolved: controlled.incidents.resolved,
+      ewtImprovementPercent: mean((row) => row.ewt),
+      passengerSecondsSavedPercent: meanNet,
+      meanHoldSecondsPerVehicle: mean((row) => row.hold) ?? 0,
+      // Totals rather than means: they are counts of events across the seeds.
+      holdCount: perSeed.reduce((acc, row) => acc + row.holds, 0),
+      deniedBoardings: perSeed.reduce((acc, row) => acc + row.denied, 0),
+      incidentsDetected: perSeed.reduce((acc, row) => acc + row.detected, 0),
+      incidentsResolved: perSeed.reduce((acc, row) => acc + row.resolved, 0),
+      seedCount: perSeed.length,
+      seedsAgreeingWithSign: agreeing,
     });
   }
 
   // The best wait gain among the placements that did not cost passengers time
-  // overall. Ordering it this way rather than by wait gain alone is the whole
-  // lesson of the trial: the biggest wait improvement in every run so far has
-  // also been the one that made passengers collectively worse off.
-  const affordable = rows.filter((row) => (row.passengerSecondsSavedPercent ?? -1) >= 0);
+  // overall AND whose seeds agreed about it. Ordering it this way rather than
+  // by wait gain alone is the whole lesson of the trial - the biggest wait
+  // improvement in every run so far has also been the one that made passengers
+  // collectively worse off - and requiring seed agreement is the lesson of a
+  // gain-tuning result that looked convincing over three seeds and reversed
+  // over ten.
+  const affordable = rows.filter(
+    (row) =>
+      (row.passengerSecondsSavedPercent ?? -1) >= 0 &&
+      row.seedsAgreeingWithSign > row.seedCount / 2,
+  );
   const recommended = affordable.sort(
     (a, b) => (b.ewtImprovementPercent ?? 0) - (a.ewtImprovementPercent ?? 0),
   )[0];
@@ -1118,12 +1167,32 @@ function runHoldingPointStudy(args: {
       `pays for it: ${Math.round((most?.meanHoldSecondsPerVehicle ?? 0) / 60)} minutes per bus and ` +
       `${Math.abs(most?.passengerSecondsSavedPercent ?? 0).toFixed(1)}% MORE total passenger time.`;
   } else {
+    // Nothing was outright affordable - but "all negative" is not "all the
+    // same", and saying only the former would bury the largest actionable
+    // difference in the study. The best trade is the row that buys the most
+    // wait improvement per unit of passenger time spent.
+    const byTrade = [...rows].sort(
+      (a, b) =>
+        (b.ewtImprovementPercent ?? 0) / Math.max(0.1, Math.abs(b.passengerSecondsSavedPercent ?? 0)) -
+        (a.ewtImprovementPercent ?? 0) / Math.max(0.1, Math.abs(a.passengerSecondsSavedPercent ?? 0)),
+    );
+    const best = byTrade[0];
     verdict =
-      'Every placement tried cost passengers more time than it saved on this corridor. The wait improvements ' +
-      'below are real, and they are paid for by the people already on the bus.';
+      'Every placement tried cost passengers a little more time than it saved on this corridor - the wait ' +
+      'improvements are real, and they are paid for by the people already on the bus. They are not equally ' +
+      `expensive, though: ${best?.holdingPointCount} of ${stationCount} stations returns ` +
+      `${(best?.ewtImprovementPercent ?? 0).toFixed(0)}% of the wait improvement for ` +
+      `${Math.abs(best?.passengerSecondsSavedPercent ?? 0).toFixed(1)}% of total passenger time, against ` +
+      `${(most?.ewtImprovementPercent ?? 0).toFixed(0)}% for ` +
+      `${Math.abs(most?.passengerSecondsSavedPercent ?? 0).toFixed(1)}% at all ${stationCount}.`;
   }
 
-  return { rows, recommendedCount: recommended?.holdingPointCount ?? null, verdict };
+  return {
+    rows,
+    recommendedCount: recommended?.holdingPointCount ?? null,
+    verdict,
+    seedsPerRow: STUDY_SEEDS,
+  };
 }
 
 // ─── Provenance ──────────────────────────────────────────────────────────

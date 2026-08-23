@@ -610,7 +610,7 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
 
       <OpsPanel
         title="Where the holding points should be"
-        description="Every station on this corridor can hold a bus. Which of them SHOULD is an operational choice, and it turns out to be the largest single lever in the trial — the same fleet, the same scenarios, the same seeds, run at three placements."
+        description={`Every station on this corridor can hold a bus. Which of them SHOULD is an operational choice, and it is the largest single lever in the trial. Each row is the same fleet and the same scenarios, averaged over ${report.holdingPointStudy.seedsPerRow} seeds.`}
       >
         <p className="mb-4 max-w-prose text-sm text-muted-foreground">
           {report.holdingPointStudy.verdict}
@@ -625,6 +625,7 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
                 <th className={opsThClass}>Hold per bus</th>
                 <th className={opsThClass}>Instructions</th>
                 <th className={opsThClass}>Incidents resolved</th>
+                <th className={opsThClass}>Seeds agreeing</th>
               </tr>
             </thead>
             <tbody>
@@ -656,6 +657,12 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
                     <td className={opsTdNumericClass}>
                       {num(row.incidentsResolved)} of {num(row.incidentsDetected)}
                     </td>
+                    <td className={opsTdNumericClass}>
+                      {row.seedsAgreeingWithSign} of {row.seedCount}
+                      {row.seedsAgreeingWithSign <= row.seedCount / 2 ? (
+                        <div className="text-[11px] text-subtle">no effect measured</div>
+                      ) : null}
+                    </td>
                   </tr>
                 );
               })}
@@ -665,7 +672,9 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
         <p className="mt-3 max-w-prose text-[11px] leading-relaxed text-subtle">
           Excess wait is sampled at <em>every</em> station, not only the ones designated for holding —
           otherwise each row would be scored on a different set of stops and the column could not be
-          compared down the page.
+          compared down the page. One seed is not enough to read: a single run&rsquo;s net figure on this
+          corridor ranges from &minus;6% to +4%, so a row whose seeds do not agree on the sign is no
+          measured effect, however large its mean.
         </p>
       </OpsPanel>
 
