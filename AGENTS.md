@@ -117,16 +117,34 @@ improved 46%. Read `docs/FLEET_TRIAL.md` before changing either guard.
 at `/ops/control-room/simulator`, docs at `docs/FLEET_TRIAL.md`). A thousand buses
 on a 400 km corridor, every result paired against the same seeded day left alone.
 
-Three rules a reader must not undo. **Total passenger time is the headline, not
-EWT** - excess wait counts only people at stops, and holding is paid for by
-everyone aboard, so the two move in opposite directions often enough that
-optimising the second is how the controller ended up net-negative. **One seed is
-not a measurement**: net passenger time has a seed-to-seed spread of ~10
-percentage points, and a Kb tuning result that looked convincing over three seeds
-reversed to a coin flip over ten - report seed agreement, not a bare mean.
-**Excess wait is sampled at every station, not the designated holding points**;
-tying it to them made baseline EWT read 61 s with two holding points and 323 s
-with ten on the identical uncontrolled corridor.
+Three corridor shapes (`presets.ts`), because almost every conclusion is a
+property of the corridor as much as of the controller. What predicts the result
+is ONE number: the standard deviation of a single leg's running time as a
+fraction of H*. Below ~0.03 nothing comes apart and there is little to recover;
+above ~0.16 more deviation accumulates between two stops than a hold at either
+can remove. Inter-city sits at 0.19 and gains least; urban at 0.10 gains most.
+Every report carries the figure and says which side of the band it is on.
+
+Rules a reader must not undo:
+- **Total passenger time is the headline, not EWT.** Excess wait counts only
+  people at stops; holding is paid for by everyone aboard. Optimising the second
+  is how the controller measured net-negative.
+- **One seed is not a measurement.** Net has a ~10-point seed spread. A Kb result
+  that convinced over three seeds was a coin flip over ten. Report seed agreement.
+- **Excess wait is sampled at EVERY station**, not the designated holding points -
+  tying it to them made baseline EWT read 61 s with two holding points and 323 s
+  with ten on the identical uncontrolled corridor.
+- **Nobody may vanish.** A passenger a full bus refuses stays in the queue; one
+  who arrives while a bus stands there boards it. Both used to be deleted, and
+  both deletions flattered holding - the first hid stranding, the second gave a
+  held bus free load. Each reversed a conclusion when fixed.
+- **The timetable is booked from the uncontrolled arm's own arrivals**, not from
+  free-flow arithmetic. A schedule the corridor cannot keep makes every bus late,
+  so `max_lateness_seconds` refuses every hold and the guardrail switches the
+  controller off silently - measured, that cost 33 points of excess-wait gain.
+- **Policy knobs are per-corridor.** `max_lateness_seconds` and holding-point
+  count run OPPOSITE ways on urban and inter-city. The trial sweeps them per
+  corridor rather than baking in a winner.
 
 ## The objective's lambda is a proxy, and it is a loaded gun
 
