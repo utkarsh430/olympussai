@@ -113,38 +113,81 @@ improved 46%. Read `docs/FLEET_TRIAL.md` before changing either guard.
 
 ## The fleet trial is where a control change gets its evidence
 
-`control-service/src/fleetTrial/` (`pnpm --dir control-service sim:fleet`, console
-at `/ops/control-room/simulator`, docs at `docs/FLEET_TRIAL.md`). A thousand buses
-on a 400 km corridor, every result paired against the same seeded day left alone.
+`control-service/src/fleetTrial/`. Console at `/ops/control-room/simulator`,
+long-form findings in `docs/FLEET_TRIAL.md`, operational handover in `HANDOFF.md`.
 
-Three corridor shapes (`presets.ts`), because almost every conclusion is a
-property of the corridor as much as of the controller. What predicts the result
-is ONE number: the standard deviation of a single leg's running time as a
-fraction of H*. Below ~0.03 nothing comes apart and there is little to recover;
-above ~0.16 more deviation accumulates between two stops than a hold at either
-can remove. Inter-city sits at 0.19 and gains least; urban at 0.10 gains most.
-Every report carries the figure and says which side of the band it is on.
+    pnpm --dir control-service sim:fleet --corridor urban --vehicles 250
+    pnpm --dir control-service test              # the whole suite, no Postgres needed
+    npx vitest run test/fleetTrial/              # from control-service/
 
-Rules a reader must not undo:
+Layout: `corridor.ts` builds a synthetic corridor; `presets.ts` holds the three
+shapes and the demand that belongs to each; `scenarios.ts` is ten ways a corridor
+comes apart; `detection.ts` replays the DEPLOYED detector at the live 60 s sweep
+cadence; `run.ts` orchestrates both arms, both phases and the policy sweeps;
+`types.ts` is the wire contract (mirrored by Zod in `src/models/fleetTrial.ts`).
+
+The control laws are IMPORTED from `src/mpc/*` and `src/headway/*` through
+`rehearsal/deployedControlLaws.ts`, never reimplemented. That adapter is where
+fidelity bugs live: it has repeatedly flattered production by giving the laws an
+input production does not have. Check it first when a law's coverage looks wrong.
+
+### Invariants the simulator must preserve
+
 - **Total passenger time is the headline, not EWT.** Excess wait counts only
-  people at stops; holding is paid for by everyone aboard. Optimising the second
-  is how the controller measured net-negative.
-- **One seed is not a measurement.** Net has a ~10-point seed spread. A Kb result
-  that convinced over three seeds was a coin flip over ten. Report seed agreement.
-- **Excess wait is sampled at EVERY station**, not the designated holding points -
-  tying it to them made baseline EWT read 61 s with two holding points and 323 s
-  with ten on the identical uncontrolled corridor.
+  people at stops; holding is paid for by everyone aboard, and the two routinely
+  move in opposite directions. Optimising EWT alone is how the controller
+  measured net-negative.
 - **Nobody may vanish.** A passenger a full bus refuses stays in the queue; one
-  who arrives while a bus stands there boards it. Both used to be deleted, and
-  both deletions flattered holding - the first hid stranding, the second gave a
-  held bus free load. Each reversed a conclusion when fixed.
+  who arrives while a bus stands at the stop boards it. Both used to be deleted
+  and both deletions flattered holding - the first hid stranding, the second gave
+  a held bus free load. Each reversed a conclusion when fixed. The queue is swept
+  only as far as a bus actually served it (`engine.ts`), and a stop's queue
+  starts when its FIRST BUS ARRIVES, never at second zero.
 - **The timetable is booked from the uncontrolled arm's own arrivals**, not from
   free-flow arithmetic. A schedule the corridor cannot keep makes every bus late,
   so `max_lateness_seconds` refuses every hold and the guardrail switches the
-  controller off silently - measured, that cost 33 points of excess-wait gain.
+  controller off silently. Measured: that cost 33 points of excess-wait gain.
+  `scheduleFit` in every report is the tripwire.
+- **Excess wait is sampled at EVERY station**, not the designated holding points.
+  Tying it to them made baseline EWT read 61 s with two holding points and 323 s
+  with ten on the identical uncontrolled corridor.
+- **A scenario is a perturbation, so its inputs are MULTIPLIERS** (`inputScale`),
+  never absolute values. Absolute overrides tuned for one corridor inverted on
+  another - `peak_load` became the lightest scenario the urban corridor ran.
+- **What predicts the result is one number**: the standard deviation of a single
+  leg's running time as a fraction of H*. Below ~0.03 nothing comes apart; above
+  ~0.16 more deviation accumulates between two stops than a hold at either can
+  remove. Inter-city sits at 0.19 and gains least, urban at 0.10 gains most.
+  Report it (`controllability`) before crediting or blaming the laws.
 - **Policy knobs are per-corridor.** `max_lateness_seconds` and holding-point
   count run OPPOSITE ways on urban and inter-city. The trial sweeps them per
-  corridor rather than baking in a winner.
+  corridor rather than baking in a winner. Do not fork the algorithm by corridor
+  type - the laws are identical on all three shapes and the predictor above is a
+  continuum, not three buckets.
+
+### Conventions learned the hard way
+
+- **One seed is not a measurement.** Net passenger time has a ~10-point
+  seed-to-seed spread. A `Kb` result that convinced over three seeds was a coin
+  flip over ten; an alighting-only result reversed entirely once a queue bug was
+  fixed. Compare PAIRED by seed, report how many seeds agreed with the sign, and
+  treat a mean whose seeds disagree as no effect however large it is.
+- **Prefer a config sweep to a code change.** Most levers here are
+  `route_policies` columns. A value fitted on one corridor and shipped for all is
+  the single commonest error in this area.
+- **An ad-hoc `npx tsx` script against control-service needs env vars** -
+  `src/config/env.ts` validates at import. Set `CONTROL_SERVICE_DATABASE_URL`,
+  `SERVICE_TOKEN_SECRET` and `WEBHOOK_HMAC_SECRET` to any syntactically valid
+  values; nothing connects.
+- **A test that fails after a model change is evidence, not an obstacle.**
+  `test/simulation/controllers.test.ts` broke on a queue fix; investigating showed
+  its fixture gave the controller ~60 s of hold across an entire run and a 50%
+  win rate. It was measuring noise. The fixture was made unstable enough to
+  measure the law, not the assertion loosened.
+- **Check the engine against arithmetic, not only against itself.** With both
+  randomness sources off the corridor is deterministic and its steady state is
+  writable in advance; `test/fleetTrial/` asserts headways come out EXACTLY on
+  target. Two simulated arms cannot catch an error they share.
 
 ## The objective's lambda is a proxy, and it is a loaded gun
 
