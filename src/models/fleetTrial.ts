@@ -200,26 +200,31 @@ const phaseReportSchema = z.object({
 });
 export type PhaseReport = z.infer<typeof phaseReportSchema>;
 
-const holdingPointStudySchema = z.object({
+const policyStudySchema = z.object({
+  knob: z.string(),
+  title: z.string(),
+  description: z.string(),
   rows: z.array(
     z.object({
-      holdingPointCount: z.number(),
+      label: z.string(),
       ewtImprovementPercent: z.number().nullable(),
       passengerSecondsSavedPercent: z.number().nullable(),
       meanHoldSecondsPerVehicle: z.number(),
+      worstBusHoldSeconds: z.number(),
       holdCount: z.number(),
       deniedBoardings: z.number(),
       incidentsDetected: z.number(),
       incidentsResolved: z.number(),
       seedCount: z.number(),
       seedsAgreeingWithSign: z.number(),
+      isCurrent: z.boolean(),
     }),
   ),
-  recommendedCount: z.number().nullable(),
+  recommended: z.string().nullable(),
   verdict: z.string(),
   seedsPerRow: z.number(),
 });
-export type HoldingPointStudy = z.infer<typeof holdingPointStudySchema>;
+export type PolicyStudy = z.infer<typeof policyStudySchema>;
 
 export const corridorPresetIdSchema = z.enum(['intercity', 'urban']);
 export type CorridorPresetId = z.infer<typeof corridorPresetIdSchema>;
@@ -257,7 +262,7 @@ export const fleetTrialReportSchema = z.object({
   sweepIntervalSeconds: z.number(),
   requiredSamples: z.number(),
   phases: z.array(phaseReportSchema),
-  holdingPointStudy: holdingPointStudySchema,
+  policyStudies: z.array(policyStudySchema),
   occupancyContrast: z.object({
     decisionsChanged: z.number(),
     decisionsCompared: z.number(),

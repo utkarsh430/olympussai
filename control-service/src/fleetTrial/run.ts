@@ -60,8 +60,8 @@ import type {
 import type {
   ArmContrast,
   ArmReport,
-  HoldingPointStudy,
-  HoldingPointStudyRow,
+  PolicyStudy,
+  PolicyStudyRow,
   FleetTrialReport,
   IncidentSummary,
   LawCoverage,
@@ -1153,40 +1153,52 @@ function compareOccupancySettings(args: {
   };
 }
 
-// ─── Where the holding points should be ──────────────────────────────────
+// ─── What each policy knob is worth, on THIS corridor ────────────────────
+
+/** One variant of the corridor, and the label it is reported under. */
+interface PolicyVariant {
+  label: string;
+  corridor: FleetCorridorSpec;
+  isCurrent: boolean;
+}
 
 /**
- * The same fleet, the same scenarios, the same seeds, run at several holding-
- * point placements.
+ * Runs a list of corridor variants against the same fleet, scenarios and seeds,
+ * and scores them against each other.
  *
- * Run with the occupancy switch OFF for every row, so the only thing varying
- * is the placement. Mixing the taper in would confound the two levers, and the
- * point of this study is to isolate one of them.
+ * Run with the occupancy switch OFF for every row, so the only thing varying is
+ * the knob under test. The SAME seed is used across variants at a given index,
+ * so the difference between two rows is the setting rather than the weather.
  *
  * The excess-wait figures are comparable across rows only because `spacingKpis`
  * samples EVERY station rather than only the designated ones - see
  * `allStopIds`, and the artefact that made these rows meaningless before it.
  */
-function runHoldingPointStudy(args: {
+function runPolicyStudy(args: {
   spec: FleetTrialSpec;
-  corridorSpec: FleetCorridorSpec;
+  knob: string;
+  title: string;
+  description: string;
+  variants: readonly PolicyVariant[];
   scenarios: readonly BunchingScenario[];
   inputs: ModelledInputs;
   vehiclesPerPhase: number;
-}): HoldingPointStudy {
-  const { spec, corridorSpec, scenarios, inputs, vehiclesPerPhase } = args;
-  const stationCount = corridorSpec.stationCount;
+}): PolicyStudy {
+  const { spec, knob, title, description, variants, scenarios, inputs, vehiclesPerPhase } = args;
 
-  // Three placements: a few early stops, half the route, and everything. Enough
-  // to show the shape of the trade without turning one trial into six.
-  const counts = [...new Set([3, Math.max(3, Math.ceil(stationCount / 2)), stationCount])]
-    .filter((n) => n >= 1 && n <= stationCount)
-    .sort((a, b) => a - b);
-
-  const rows: HoldingPointStudyRow[] = [];
-  for (const holdingPointCount of counts) {
-    const corridor = buildFleetCorridor({ ...corridorSpec, holdingPointCount });
-    const perSeed: { net: number | null; ewt: number | null; hold: number; holds: number; denied: number; detected: number; resolved: number }[] = [];
+  const rows: PolicyStudyRow[] = [];
+  for (const variant of variants) {
+    const corridor = buildFleetCorridor(variant.corridor);
+    const perSeed: {
+      net: number | null;
+      ewt: number | null;
+      hold: number;
+      worst: number;
+      holds: number;
+      denied: number;
+      detected: number;
+      resolved: number;
+    }[] = [];
 
     for (let seedIndex = 0; seedIndex < STUDY_SEEDS; seedIndex++) {
       const runs: ScenarioRun[] = [];
@@ -1206,9 +1218,6 @@ function runHoldingPointStudy(args: {
               { length: vehicleCount },
               () => `STUDY-${String(++busNumber).padStart(4, '0')}`,
             ),
-            // The SAME seed across placements at a given seedIndex, so every
-            // row is scored on the same simulated days and the difference
-            // between rows is the placement rather than the weather.
             seed: (spec.seed + seedIndex * 104_729 + index * 7919) >>> 0,
             weighOccupancy: false,
             requiredSamples: spec.requiredSamples,
@@ -1228,6 +1237,7 @@ function runHoldingPointStudy(args: {
         net: armContrast.passengerSecondsSavedPercent,
         ewt: armContrast.ewtImprovementPercent,
         hold: controlled.punctuality.meanHoldSecondsPerVehicle,
+        worst: controlled.punctuality.maxHoldSecondsOnAnyVehicle,
         holds: holds.holdCountByActionType.reduce((acc, a) => acc + a.count, 0),
         denied: controlled.passengers.deniedBoardings,
         detected: controlled.incidents.detected,
@@ -1247,24 +1257,25 @@ function runHoldingPointStudy(args: {
         : perSeed.filter((row) => row.net !== null && Math.sign(row.net) === Math.sign(meanNet)).length;
 
     rows.push({
-      holdingPointCount,
+      label: variant.label,
       ewtImprovementPercent: mean((row) => row.ewt),
       passengerSecondsSavedPercent: meanNet,
       meanHoldSecondsPerVehicle: mean((row) => row.hold) ?? 0,
-      // Totals rather than means: they are counts of events across the seeds.
+      worstBusHoldSeconds: perSeed.reduce((acc, row) => Math.max(acc, row.worst), 0),
       holdCount: perSeed.reduce((acc, row) => acc + row.holds, 0),
       deniedBoardings: perSeed.reduce((acc, row) => acc + row.denied, 0),
       incidentsDetected: perSeed.reduce((acc, row) => acc + row.detected, 0),
       incidentsResolved: perSeed.reduce((acc, row) => acc + row.resolved, 0),
       seedCount: perSeed.length,
       seedsAgreeingWithSign: agreeing,
+      isCurrent: variant.isCurrent,
     });
   }
 
-  // The best wait gain among the placements that did not cost passengers time
+  // The best wait gain among the settings that did not cost passengers time
   // overall AND whose seeds agreed about it. Ordering it this way rather than
   // by wait gain alone is the whole lesson of the trial - the biggest wait
-  // improvement in every run so far has also been the one that made passengers
+  // improvement has repeatedly also been the one that made passengers
   // collectively worse off - and requiring seed agreement is the lesson of a
   // gain-tuning result that looked convincing over three seeds and reversed
   // over ten.
@@ -1273,27 +1284,37 @@ function runHoldingPointStudy(args: {
       (row.passengerSecondsSavedPercent ?? -1) >= 0 &&
       row.seedsAgreeingWithSign > row.seedCount / 2,
   );
-  const recommended = affordable.sort(
-    (a, b) => (b.ewtImprovementPercent ?? 0) - (a.ewtImprovementPercent ?? 0),
+  // Sorted on TOTAL PASSENGER TIME first and excess wait only as a tie-break.
+  //
+  // Ranking on excess wait was wrong for the same reason the whole trial leads
+  // with passenger time: it counts only the people at stops, and the setting
+  // with the best wait figure has repeatedly been the one that made passengers
+  // collectively worse off. It also produced arbitrary answers - two holding
+  // placements tied at 46.1% wait improvement, and the tie-break handed the
+  // recommendation to the one with the WORSE net effect.
+  const recommended = [...affordable].sort(
+    (a, b) =>
+      (b.passengerSecondsSavedPercent ?? 0) - (a.passengerSecondsSavedPercent ?? 0) ||
+      (b.ewtImprovementPercent ?? 0) - (a.ewtImprovementPercent ?? 0),
   )[0];
+  const current = rows.find((row) => row.isCurrent);
 
-  const most = rows[rows.length - 1];
   let verdict: string;
   if (rows.length < 2) {
-    verdict = 'Only one placement was tried, so there is nothing to compare.';
+    verdict = 'Only one setting was tried, so there is nothing to compare.';
+  } else if (recommended && current && recommended.label !== current.label) {
+    verdict =
+      `${recommended.label} beats the configured ${current.label}: ` +
+      `${(recommended.ewtImprovementPercent ?? 0).toFixed(0)}% excess-wait improvement against ` +
+      `${(current.ewtImprovementPercent ?? 0).toFixed(0)}%, and ` +
+      `${(recommended.passengerSecondsSavedPercent ?? 0).toFixed(1)}% of total passenger time saved against ` +
+      `${(current.passengerSecondsSavedPercent ?? 0).toFixed(1)}%.`;
   } else if (recommended) {
     verdict =
-      `Designating ${recommended.holdingPointCount} of ${stationCount} stations improves excess wait by ` +
-      `${(recommended.ewtImprovementPercent ?? 0).toFixed(0)}% without costing passengers time overall, at ` +
-      `${Math.round(recommended.meanHoldSecondsPerVehicle / 60)} minutes of hold per bus. Holding at all ` +
-      `${stationCount} buys a larger wait improvement (${(most?.ewtImprovementPercent ?? 0).toFixed(0)}%) and ` +
-      `pays for it: ${Math.round((most?.meanHoldSecondsPerVehicle ?? 0) / 60)} minutes per bus and ` +
-      `${Math.abs(most?.passengerSecondsSavedPercent ?? 0).toFixed(1)}% MORE total passenger time.`;
+      `The configured ${recommended.label} is the best of those tried: ` +
+      `${(recommended.ewtImprovementPercent ?? 0).toFixed(0)}% excess-wait improvement without costing ` +
+      'passengers time overall.';
   } else {
-    // Nothing was outright affordable - but "all negative" is not "all the
-    // same", and saying only the former would bury the largest actionable
-    // difference in the study. The best trade is the row that buys the most
-    // wait improvement per unit of passenger time spent.
     const byTrade = [...rows].sort(
       (a, b) =>
         (b.ewtImprovementPercent ?? 0) / Math.max(0.1, Math.abs(b.passengerSecondsSavedPercent ?? 0)) -
@@ -1301,20 +1322,69 @@ function runHoldingPointStudy(args: {
     );
     const best = byTrade[0];
     verdict =
-      'Every placement tried cost passengers a little more time than it saved on this corridor - the wait ' +
-      'improvements are real, and they are paid for by the people already on the bus. They are not equally ' +
-      `expensive, though: ${best?.holdingPointCount} of ${stationCount} stations returns ` +
-      `${(best?.ewtImprovementPercent ?? 0).toFixed(0)}% of the wait improvement for ` +
-      `${Math.abs(best?.passengerSecondsSavedPercent ?? 0).toFixed(1)}% of total passenger time, against ` +
-      `${(most?.ewtImprovementPercent ?? 0).toFixed(0)}% for ` +
-      `${Math.abs(most?.passengerSecondsSavedPercent ?? 0).toFixed(1)}% at all ${stationCount}.`;
+      'Every setting tried cost passengers a little more time than it saved on this corridor. They are not ' +
+      `equally expensive: ${best?.label} returns ${(best?.ewtImprovementPercent ?? 0).toFixed(0)}% of the wait ` +
+      `improvement for ${Math.abs(best?.passengerSecondsSavedPercent ?? 0).toFixed(1)}% of total passenger time.`;
   }
 
+  return { knob, title, description, rows, recommended: recommended?.label ?? null, verdict, seedsPerRow: STUDY_SEEDS };
+}
+
+/** The placements and lateness bounds worth trying on this corridor. */
+function policyVariants(corridorSpec: FleetCorridorSpec): {
+  holdingPoints: PolicyVariant[];
+  lateness: PolicyVariant[];
+} {
+  const stationCount = corridorSpec.stationCount;
+  const configuredHolding = corridorSpec.holdingPointCount ?? stationCount;
+  const holdingCounts = [
+    ...new Set([
+      Math.max(2, Math.round(stationCount * 0.25)),
+      Math.max(3, Math.round(stationCount * 0.5)),
+      Math.max(4, Math.round(stationCount * 0.75)),
+      stationCount,
+      configuredHolding,
+    ]),
+  ]
+    .filter((n) => n >= 1 && n <= stationCount)
+    .sort((a, b) => a - b);
+
+  const headway = corridorSpec.targetHeadwaySeconds;
+  // Multiples of the corridor's own headway rather than absolute seconds: what
+  // counts as "very late" on a six-minute service is not what counts on a
+  // thirty-minute one. `null` is included because on a high-frequency corridor
+  // no bound at all measured best - passengers there turn up rather than
+  // consulting a timetable, so headway regularity IS the punctuality objective.
+  const latenessValues: number[] = [
+    ...new Set(
+      [
+        Math.round(headway / 6),
+        Math.round(headway / 3),
+        Math.round(headway),
+        Math.round(headway * 2),
+        corridorSpec.maxLatenessSeconds,
+      ].filter((v): v is number => v !== null),
+    ),
+  ].sort((a, b) => a - b);
+
   return {
-    rows,
-    recommendedCount: recommended?.holdingPointCount ?? null,
-    verdict,
-    seedsPerRow: STUDY_SEEDS,
+    holdingPoints: holdingCounts.map((count) => ({
+      label: `${count} of ${stationCount} stations`,
+      corridor: { ...corridorSpec, holdingPointCount: count },
+      isCurrent: count === configuredHolding,
+    })),
+    lateness: [
+      ...latenessValues.map((seconds) => ({
+        label: `${Math.round(seconds / 60)} min`,
+        corridor: { ...corridorSpec, maxLatenessSeconds: seconds },
+        isCurrent: corridorSpec.maxLatenessSeconds === seconds,
+      })),
+      {
+        label: 'no bound',
+        corridor: { ...corridorSpec, maxLatenessSeconds: null },
+        isCurrent: corridorSpec.maxLatenessSeconds === null,
+      },
+    ],
   };
 }
 
@@ -1523,13 +1593,32 @@ export function runFleetTrial(
     if (phase.weighOccupancy) awarePhaseRuns = runs;
   }
 
-  const holdingPointStudy = runHoldingPointStudy({
-    spec,
-    corridorSpec,
-    scenarios,
-    inputs,
-    vehiclesPerPhase: Math.min(spec.vehiclesPerPhase, MAX_STUDY_VEHICLES),
-  });
+  const variants = policyVariants(corridorSpec);
+  const studyVehicles = Math.min(spec.vehiclesPerPhase, MAX_STUDY_VEHICLES);
+  const policyStudies: PolicyStudy[] = [
+    runPolicyStudy({
+      spec,
+      knob: 'is_control_point',
+      title: 'Where the holding points should be',
+      description:
+        'Every station can hold a bus; which of them SHOULD is an operational choice, counted from the origin so a correction has the rest of the route to propagate through.',
+      variants: variants.holdingPoints,
+      scenarios,
+      inputs,
+      vehiclesPerPhase: studyVehicles,
+    }),
+    runPolicyStudy({
+      spec,
+      knob: 'max_lateness_seconds',
+      title: 'How late a bus may be pushed',
+      description:
+        'The hard safety filter refuses a hold that would put a bus further behind its timetable than this. A tight bound protects punctuality and costs spacing - and on a high-frequency corridor it also costs seats, because uneven buses arrive to double queues they cannot fit.',
+      variants: variants.lateness,
+      scenarios,
+      inputs,
+      vehiclesPerPhase: studyVehicles,
+    }),
+  ];
 
   const occupancyContrast = compareOccupancySettings({
     corridor,
@@ -1570,7 +1659,7 @@ export function runFleetTrial(
     sweepIntervalSeconds: spec.sweepIntervalSeconds,
     requiredSamples: spec.requiredSamples,
     phases: phaseReports,
-    holdingPointStudy,
+    policyStudies,
     occupancyContrast,
     provenance: buildProvenance(corridor, inputs, spec),
     notExercised: NOT_EXERCISED,

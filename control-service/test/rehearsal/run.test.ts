@@ -9,7 +9,13 @@
 //      claim of this surface is that it never passes a model off as a
 //      measurement.
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_MODELLED_INPUTS, runRehearsal, REHEARSAL_FRAME_COUNT } from '../../src/rehearsal/run.js';
+import {
+  DEFAULT_MODELLED_INPUTS,
+  runRehearsal,
+  REHEARSAL_FRAME_COUNT,
+  buildRehearsalScenario,
+} from '../../src/rehearsal/run.js';
+import { simulate, noControlController } from '../../src/simulation/index.js';
 import type { CorridorInputs, CorridorStop } from '../../src/rehearsal/corridor.js';
 
 const STOP_COUNT = 19;
@@ -223,16 +229,33 @@ describe('runRehearsal', () => {
       expect(drawn.has('WARMUP')).toBe(false);
       expect(drawn.size).toBe(DEFAULT_MODELLED_INPUTS.vehicleCount);
       expect(result.decisions.every((d) => d.vehicleId !== 'WARMUP')).toBe(true);
-      // The bound guards the ARTEFACT, which was 5,174 on a six-bus run -
-      // a queue standing since simulated midnight, swept by the first bus.
-      // It is not a claim that this corridor is comfortable: with the
-      // modelled capacity of 52 and a 15-minute headway it saturates, and
-      // most of what is counted here is ordinary overload rather than a
-      // simulation defect. The level rose when the engine started advancing
-      // every vehicle on one clock, because a bus arriving while its leader
-      // is still at the stop now collects the passengers who turned up in
-      // between instead of being credited with zero.
-      expect(result.arms.uncontrolled.kpis.deniedBoardings).toBeLessThan(3000);
+      // ─── AND THE ARTEFACT IS NOW IMPOSSIBLE, NOT MERELY BOUNDED ────────
+      //
+      // This used to assert a ceiling on denied boardings, because the artefact
+      // it guarded - a queue standing since simulated midnight, swept by the
+      // first bus to reach a mid-route stop, worth 5,174 denials on a six-bus
+      // run - could only be detected by its size. It cannot happen at all now:
+      // a stop's queue starts when its FIRST BUS ARRIVES rather than at second
+      // zero, so there is no standing crowd for anyone to sweep. The engine is
+      // asserted directly instead of a magic number.
+      //
+      // A ceiling would in any case no longer measure the artefact. Denied
+      // passengers now persist and wait for the next bus instead of vanishing,
+      // and this fixture saturates by construction - 1.5 boardings/min against
+      // 18% alighting on a 15-minute headway is a steady-state load of about
+      // 125 against 52 seats - so the count is dominated by ordinary overload.
+      const { scenario } = buildRehearsalScenario(corridor(), DEFAULT_MODELLED_INPUTS);
+      const visits = simulate(scenario, noControlController).visits;
+      const firstVisitPerStop = new Map<string, number>();
+      for (const visit of [...visits].sort((a, b) => a.arrivalSeconds - b.arrivalSeconds)) {
+        if (!firstVisitPerStop.has(visit.stopId)) {
+          firstVisitPerStop.set(visit.stopId, visit.waitWindowSeconds);
+        }
+      }
+      expect(firstVisitPerStop.size).toBe(corridor().stops.length);
+      for (const [stopId, window] of firstVisitPerStop) {
+        expect(window, `${stopId} had a queue before any bus called there`).toBe(0);
+      }
     });
 
     // MEASURED before the burst window was scaled to the corridor: a fixed

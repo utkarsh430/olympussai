@@ -117,22 +117,25 @@ function renderReport(report: FleetTrialReport): string {
     `  ${report.vehiclesSimulated} buses simulated in ${(report.durationMs / 1000).toFixed(1)}s`,
   ];
   for (const phase of report.phases) lines.push(...renderPhase(phase));
-  lines.push('', '  Where the holding points should be:');
-  lines.push(
-    '    stations   excess wait   total passenger time   hold/bus   holds   incidents (resolved)',
-  );
-  for (const row of report.holdingPointStudy.rows) {
-    const mark = row.holdingPointCount === report.holdingPointStudy.recommendedCount ? ' <-' : '';
+  for (const study of report.policyStudies) {
+    lines.push('', `  ${study.title}  (${study.knob}, ${study.seedsPerRow} seeds each)`);
     lines.push(
-      `      ${String(row.holdingPointCount).padStart(2)} of ${report.corridor.stationCount}` +
-        `   ${pct(row.ewtImprovementPercent).padStart(8)} better` +
-        `   ${pct(row.passengerSecondsSavedPercent).padStart(14)}` +
-        `   ${(row.meanHoldSecondsPerVehicle / 60).toFixed(1).padStart(6)} min` +
-        `   ${String(row.holdCount).padStart(5)}` +
-        `   ${String(row.incidentsDetected).padStart(6)} (${row.incidentsResolved})${mark}`,
+      '    setting              excess wait   total passenger time   hold/bus   worst bus   denied   seeds',
     );
+    for (const row of study.rows) {
+      const mark = row.label === study.recommended ? ' <-' : row.isCurrent ? '  (configured)' : '';
+      lines.push(
+        `      ${row.label.padEnd(18)}` +
+          `${pct(row.ewtImprovementPercent).padStart(8)} better` +
+          `${pct(row.passengerSecondsSavedPercent).padStart(16)}` +
+          `${(row.meanHoldSecondsPerVehicle / 60).toFixed(1).padStart(9)} min` +
+          `${(row.worstBusHoldSeconds / 60).toFixed(1).padStart(9)} min` +
+          `${String(row.deniedBoardings).padStart(9)}` +
+          `   ${row.seedsAgreeingWithSign}/${row.seedCount}${mark}`,
+      );
+    }
+    lines.push(`    ${study.verdict}`);
   }
-  lines.push(`    ${report.holdingPointStudy.verdict}`);
   lines.push('', '  What weighing passenger load changed:', `    ${report.occupancyContrast.verdict}`);
   lines.push('', '  Per scenario (excess wait, no control -> controlled):');
   for (const phase of report.phases) {

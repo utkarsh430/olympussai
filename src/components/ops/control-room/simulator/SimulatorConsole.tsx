@@ -686,75 +686,80 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
 
       {phase ? <PhaseBody phase={phase} report={report} /> : null}
 
-      <OpsPanel
-        title="Where the holding points should be"
-        description={`Every station on this corridor can hold a bus. Which of them SHOULD is an operational choice, and it is the largest single lever in the trial. Each row is the same fleet and the same scenarios, averaged over ${report.holdingPointStudy.seedsPerRow} seeds.`}
-      >
-        <p className="mb-4 max-w-prose text-sm text-muted-foreground">
-          {report.holdingPointStudy.verdict}
-        </p>
-        <OpsTableFrame>
-          <table className={opsTableClass}>
-            <thead>
-              <tr className={opsTheadRowClass}>
-                <th className={opsThClass}>Stations holding</th>
-                <th className={opsThClass}>Excess wait</th>
-                <th className={opsThClass}>Total passenger time</th>
-                <th className={opsThClass}>Hold per bus</th>
-                <th className={opsThClass}>Instructions</th>
-                <th className={opsThClass}>Incidents resolved</th>
-                <th className={opsThClass}>Seeds agreeing</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.holdingPointStudy.rows.map((row) => {
-                const recommended = row.holdingPointCount === report.holdingPointStudy.recommendedCount;
-                const net = row.passengerSecondsSavedPercent;
-                return (
-                  <tr key={row.holdingPointCount} className={opsTrClass}>
-                    <td className={opsTdClass}>
-                      {row.holdingPointCount} of {report.corridor.stationCount}
-                      {recommended ? (
-                        <span className="ml-2">
-                          <OpsBadge variant="live">best affordable</OpsBadge>
+      {report.policyStudies.map((study) => (
+        <OpsPanel
+          key={study.knob}
+          title={study.title}
+          description={`${study.description} Each row is the same fleet and the same scenarios, averaged over ${study.seedsPerRow} seeds.`}
+        >
+          <p className="mb-4 max-w-prose text-sm text-muted-foreground">{study.verdict}</p>
+          <OpsTableFrame>
+            <table className={opsTableClass}>
+              <thead>
+                <tr className={opsTheadRowClass}>
+                  <th className={opsThClass}>{study.knob}</th>
+                  <th className={opsThClass}>Excess wait</th>
+                  <th className={opsThClass}>Total passenger time</th>
+                  <th className={opsThClass}>Hold per bus</th>
+                  <th className={opsThClass}>Worst bus</th>
+                  <th className={opsThClass}>Refused a seat</th>
+                  <th className={opsThClass}>Seeds agreeing</th>
+                </tr>
+              </thead>
+              <tbody>
+                {study.rows.map((row) => {
+                  const net = row.passengerSecondsSavedPercent;
+                  return (
+                    <tr key={row.label} className={opsTrClass}>
+                      <td className={opsTdClass}>
+                        {row.label}
+                        {row.label === study.recommended ? (
+                          <span className="ml-2">
+                            <OpsBadge variant="live">best</OpsBadge>
+                          </span>
+                        ) : null}
+                        {row.isCurrent ? (
+                          <div className="text-[11px] text-subtle">currently configured</div>
+                        ) : null}
+                      </td>
+                      <td className={opsTdNumericClass}>
+                        <span
+                          className={
+                            (row.ewtImprovementPercent ?? 0) > 0 ? 'text-success' : 'text-destructive'
+                          }
+                        >
+                          {pct(row.ewtImprovementPercent, 0)}
                         </span>
-                      ) : null}
-                    </td>
-                    <td className={opsTdNumericClass}>
-                      <span className={(row.ewtImprovementPercent ?? 0) > 0 ? 'text-success' : 'text-destructive'}>
-                        {pct(row.ewtImprovementPercent, 0)}
-                      </span>
-                    </td>
-                    <td className={opsTdNumericClass}>
-                      <span className={net !== null && net >= 0 ? 'text-success' : 'text-destructive'}>
-                        {net === null ? '—' : `${net > 0 ? '+' : ''}${net.toFixed(1)}%`}
-                      </span>
-                    </td>
-                    <td className={opsTdNumericClass}>{mins(row.meanHoldSecondsPerVehicle)}</td>
-                    <td className={opsTdNumericClass}>{num(row.holdCount)}</td>
-                    <td className={opsTdNumericClass}>
-                      {num(row.incidentsResolved)} of {num(row.incidentsDetected)}
-                    </td>
-                    <td className={opsTdNumericClass}>
-                      {row.seedsAgreeingWithSign} of {row.seedCount}
-                      {row.seedsAgreeingWithSign <= row.seedCount / 2 ? (
-                        <div className="text-[11px] text-subtle">no effect measured</div>
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </OpsTableFrame>
-        <p className="mt-3 max-w-prose text-[11px] leading-relaxed text-subtle">
-          Excess wait is sampled at <em>every</em> station, not only the ones designated for holding —
-          otherwise each row would be scored on a different set of stops and the column could not be
-          compared down the page. One seed is not enough to read: a single run&rsquo;s net figure on this
-          corridor ranges from &minus;6% to +4%, so a row whose seeds do not agree on the sign is no
-          measured effect, however large its mean.
-        </p>
-      </OpsPanel>
+                      </td>
+                      <td className={opsTdNumericClass}>
+                        <span className={net !== null && net >= 0 ? 'text-success' : 'text-destructive'}>
+                          {net === null ? '—' : `${net > 0 ? '+' : ''}${net.toFixed(1)}%`}
+                        </span>
+                      </td>
+                      <td className={opsTdNumericClass}>{mins(row.meanHoldSecondsPerVehicle)}</td>
+                      <td className={opsTdNumericClass}>{mins(row.worstBusHoldSeconds)}</td>
+                      <td className={opsTdNumericClass}>{num(row.deniedBoardings)}</td>
+                      <td className={opsTdNumericClass}>
+                        {row.seedsAgreeingWithSign} of {row.seedCount}
+                        {row.seedsAgreeingWithSign <= row.seedCount / 2 ? (
+                          <div className="text-[11px] text-subtle">no effect measured</div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </OpsTableFrame>
+          <p className="mt-3 max-w-prose text-[11px] leading-relaxed text-subtle">
+            Excess wait is sampled at <em>every</em> station, not only the ones designated for holding —
+            otherwise each row would be scored on a different set of stops. One seed is not enough to
+            read: a row whose seeds do not agree on the sign is no measured effect, however large its
+            mean. These are <code>route_policies</code> columns, and a value fitted on one corridor can
+            be actively harmful on another — which is why they are swept here rather than fixed.
+          </p>
+        </OpsPanel>
+      ))}
 
       <OpsPanel
         title="What weighing passenger load changed"

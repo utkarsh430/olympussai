@@ -374,7 +374,7 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
    * who arrived since the leader pulled in and it collecting an entire
    * headway's worth that the leader has already carried away.
    */
-  const queueClearedSeconds: number[] = routeDirection.stops.map(() => 0);
+  const queueClearedSeconds: Array<number | null> = routeDirection.stops.map(() => null);
   /**
    * When a bus last DEPARTED each stop, and nothing else.
    *
@@ -472,7 +472,10 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       // gained nothing. Both halves of the trade vanished and the lever
       // measured as free.
       if (!runtime.skipQueueSweepAtDeparture) {
-        queueClearedSeconds[stopIndex] = Math.max(queueClearedSeconds[stopIndex] ?? 0, event.atSeconds);
+        queueClearedSeconds[stopIndex] = Math.max(
+          queueClearedSeconds[stopIndex] ?? event.atSeconds,
+          event.atSeconds,
+        );
       }
       runtime.skipQueueSweepAtDeparture = false;
       lastDepartureAtStop[stopIndex] = event.atSeconds;
@@ -511,7 +514,22 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
     // sweep, because whether the sweep happens at all depends on a decision
     // that has not been made yet - an alighting-only instruction leaves the
     // queue standing for the bus behind.
-    const waitWindowSeconds = Math.max(0, arrivalSeconds - (queueClearedSeconds[stopIndex] ?? 0));
+    // NULL means no bus has called here yet, and the honest window is then ZERO,
+    // not "everything since midnight".
+    //
+    // The engine used to start every stop's clock at simulated second 0, so the
+    // first bus to reach a stop 5,000 s down the route swept up 5,000 s of
+    // accumulated passengers - a queue that had been standing since before the
+    // service began. `rehearsal/run.ts` works around it by running a WARM-UP bus
+    // ahead of the reported fleet whose whole job is to absorb that fiction.
+    //
+    // It stopped being a workaround the moment the queue began PERSISTING past a
+    // bus that could not take everybody: the warm-up bus cannot clear a queue it
+    // has no room for, so the invented start-of-day crowd survived into the
+    // reported fleet and denied-boarding counts rose fifteenfold. The fix is to
+    // stop inventing the crowd. A service starts when its first bus arrives.
+    const clearedAt = queueClearedSeconds[stopIndex] ?? null;
+    const waitWindowSeconds = clearedAt === null ? 0 : Math.max(0, arrivalSeconds - clearedAt);
 
     const recordedBoardings = recordedInputs?.boardings[runtime.vehicleId]?.[stopIndex];
     const recordedAlightings = recordedInputs?.alightings[runtime.vehicleId]?.[stopIndex];
@@ -658,12 +676,34 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       stop.demand.secondsPerBoarding * actualBoardings +
       stop.demand.secondsPerAlighting * alightings;
 
-    // Swept only for the passengers this bus actually took. An alighting-only
-    // bus leaves the queue exactly as it found it.
-    if (boardingLimited === 0) {
-      queueClearedSeconds[stopIndex] = Math.max(queueClearedSeconds[stopIndex] ?? 0, arrivalSeconds);
-    }
-    runtime.skipQueueSweepAtDeparture = boardingLimited > 0;
+    // ─── THE QUEUE IS SWEPT ONLY AS FAR AS THE BUS ACTUALLY SERVED IT ───
+    //
+    // Passengers arrive uniformly across the window and board oldest-first, so
+    // a bus that takes `served` of `offered` clears the OLDEST `served/offered`
+    // of the window and leaves the rest standing. Anything else deletes them.
+    //
+    // This used to sweep to the arrival instant unconditionally, which made
+    // every passenger a full bus turned away VANISH: they were counted once in
+    // `deniedBoardings` and then never waited for anything, so the extra time
+    // they spend on the kerb appeared in no metric at all. That is not a small
+    // omission on a corridor where control is what stops buses arriving to
+    // double queues - it meant a configuration that stranded three times as
+    // many people scored the same on total passenger time as one that did not,
+    // and the trial had no way to see the difference.
+    //
+    // Alighting-only is the same rule with `served` = 0, so the two cases stop
+    // needing separate handling.
+    const offered = rawBoardings;
+    const servedFraction = offered > 0 ? actualBoardings / offered : 1;
+    const previouslyCleared = clearedAt ?? arrivalSeconds;
+    queueClearedSeconds[stopIndex] = Math.max(
+      previouslyCleared,
+      previouslyCleared + servedFraction * waitWindowSeconds,
+    );
+    // The departure sweep credits this bus with people who turned up during its
+    // dwell. Only a bus that took everybody waiting can claim them: a full one
+    // cannot fit them either, and one told to take nobody on will not try.
+    runtime.skipQueueSweepAtDeparture = servedFraction < 1;
 
     const departureSeconds = arrivalSeconds + dwellSeconds + appliedHoldSeconds;
 

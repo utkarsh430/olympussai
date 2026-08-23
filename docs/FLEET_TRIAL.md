@@ -329,7 +329,55 @@ dwell against 20 s. The corridor came out four times too lightly loaded, barely
 bunched, and the controller looked useless on it. A shape and its traffic cannot
 be mixed.
 
-### 7. Alighting-only: the right idea, and it loses anyway
+### 7. Passengers a full bus turned away were vanishing
+
+The engine swept a stop's waiting queue to the arrival instant every time a bus
+called, regardless of how many people it could actually take. So everyone a full
+bus refused was counted once in `deniedBoardings` and then **ceased to exist** —
+they waited for nothing, boarded nothing, and appeared in no passenger-time
+figure at all.
+
+That is not a rounding error on a corridor where the whole point of control is
+to stop buses arriving to double queues. A configuration that stranded three
+times as many people scored the *same* on total passenger time as one that did
+not, and the trial had no way to see the difference.
+
+**Fix**: passengers arrive uniformly across the window and board oldest-first, so
+a bus that takes `served` of `offered` now clears exactly the oldest
+`served/offered` of the window and leaves the rest standing — for the next bus,
+and the one after that if it is full too. Alighting-only is the same rule with
+`served = 0`, so the two cases stopped needing separate handling.
+
+**It reversed a conclusion.** Before the fix, relaxing `max_lateness_seconds` on
+the urban corridor looked like a 16-point gain in total passenger time. With
+stranded passengers actually counted it is a 4-point **loss** (13.7% → 9.9%),
+because holding harder strands more people and their waiting time now shows up.
+The shipped setting was right; the metric that said otherwise was blind.
+
+**A second bug surfaced underneath it.** Once the queue persisted, the WARM-UP
+bus could no longer do its job — it exists to absorb the fictional queue standing
+at a stop since simulated second zero, and it cannot absorb a crowd it has no
+room for. Denied boardings rose fifteenfold. The real fix was to stop inventing
+the crowd: a stop's queue now starts when its **first bus arrives**, not at
+second zero. `test/rehearsal/run.test.ts` asserts that directly instead of
+bounding the artefact's size, because the artefact can no longer happen.
+
+### 8. Policy knobs are per-corridor, and fitting one on one shape is a bug
+
+`max_lateness_seconds` at 300 s improved the inter-city corridor. The same
+guardrail at 120 s on the urban corridor was, at one point in this work, going to
+be relaxed on the strength of a measurement that turned out to be the queue bug
+above. Holding points run the other way round entirely: fewer is better
+inter-city, more is better urban.
+
+So the trial no longer bakes in a winner. It sweeps each knob **on the corridor
+being run**, three seeds per row, and reports whether the seeds agreed — and the
+console shows the sweep. The recommendation sorts on **total passenger time**
+first and excess wait only as a tie-break, because ranking on wait alone had
+already handed a recommendation to a setting with a worse net effect when two
+rows tied.
+
+### 9. Alighting-only: the right idea, and it loses anyway
 
 "Let a bus at a stop drop passengers but pick nobody up when the follower is
 close behind" is `mpc/boardingLimit.ts` — the only lever here that improves

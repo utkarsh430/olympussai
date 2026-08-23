@@ -288,53 +288,56 @@ export interface OccupancyContrast {
 }
 
 /**
- * One holding-point placement, scored.
+ * One setting of one policy knob, scored against the same seeded days as the
+ * others in its study.
  *
- * The corridor's stations are all ELIGIBLE for holding; which of them are
- * DESIGNATED is an operational choice, and it turns out to be the single
- * largest lever in the trial. `mpc/eligibility.ts` already records why -
- * holding at three stops early in a 47-stop route produced route-long benefit
- * in the CTA pilot, while holding everywhere spends driver goodwill where it
- * achieves nothing - and this measures it on this corridor.
+ * ─── WHY THESE ARE MEASURED PER CORRIDOR AND NOT FIXED ───────────────────
+ *
+ * Every one of these is a `route_policies` column, and the trial found the hard
+ * way that a value fitted on one corridor can be actively harmful on another.
+ * `max_lateness_seconds` at 300 s improved the inter-city corridor on eight
+ * seeds out of eight; the same guardrail at 120 s on the urban corridor cost
+ * SIXTEEN POINTS of total passenger time and nearly tripled the number of
+ * passengers denied a seat. Holding points run the opposite way too: fewer is
+ * better inter-city, more is better urban.
+ *
+ * So the trial reports the sweep rather than baking in a winner, and each
+ * corridor's own configuration is set from its own row.
  */
-export interface HoldingPointStudyRow {
-  holdingPointCount: number;
-  /** Mean improvement in excess wait across the study's seeds, as a percentage. Higher is better. */
+export interface PolicyStudyRow {
+  /** The setting, as it would be written in configuration. */
+  label: string;
+  /** Mean improvement in excess wait across the study's seeds. Higher is better. */
   ewtImprovementPercent: number | null;
   /** Mean effect on TOTAL passenger time. Negative means the controller cost more than it saved. */
   passengerSecondsSavedPercent: number | null;
   meanHoldSecondsPerVehicle: number;
+  /** The worst-affected single bus, seconds of hold. The user-visible bound on "not very large". */
+  worstBusHoldSeconds: number;
   holdCount: number;
   deniedBoardings: number;
   incidentsDetected: number;
   incidentsResolved: number;
-  /**
-   * How many seeds this row was averaged over, and how many of them agreed with
-   * the sign of the mean.
-   *
-   * NOT decoration. MEASURED on this corridor, one seed's net passenger-time
-   * figure ranges from -6.0% to +3.9% - so a single run's number is nearly
-   * meaningless on its own, and a difference between two placements can be
-   * entirely seed noise. A gain-tuning result that looked convincing over three
-   * seeds (Kb 0.2 -> 0.4, apparently better on both metrics) reversed to a coin
-   * flip over ten. Any row whose seeds do not agree should be read as "no
-   * effect measured", however large its mean.
-   */
+  /** See `seedsAgreeingWithSign` - a mean whose seeds disagree is no measured effect. */
   seedCount: number;
   seedsAgreeingWithSign: number;
+  /** True when this row is the corridor's currently-configured value. */
+  isCurrent: boolean;
 }
 
-export interface HoldingPointStudy {
-  /** Every placement tried, fewest holding points first. */
-  rows: HoldingPointStudyRow[];
+export interface PolicyStudy {
+  /** Which `route_policies` column this sweeps. */
+  knob: string;
+  title: string;
+  description: string;
+  rows: PolicyStudyRow[];
   /**
-   * The placement with the best excess-wait gain among those that did not cost
-   * passengers time overall. Null when every placement was net-negative, which
-   * is a finding and not a missing value.
+   * The setting with the best excess-wait gain among those that did not cost
+   * passengers time overall and whose seeds agreed. Null when none qualified,
+   * which is a finding rather than a missing value.
    */
-  recommendedCount: number | null;
+  recommended: string | null;
   verdict: string;
-  /** Seeds each row was averaged over. One would not be enough - see `seedCount`. */
   seedsPerRow: number;
 }
 
@@ -373,8 +376,11 @@ export interface FleetTrialReport {
   sweepIntervalSeconds: number;
   requiredSamples: number;
   phases: PhaseReport[];
-  /** What designating fewer, earlier holding points would do. Measured, not argued. */
-  holdingPointStudy: HoldingPointStudy;
+  /**
+   * What the corridor's own policy knobs are worth, swept on this corridor.
+   * Never a value carried over from another shape - see `PolicyStudyRow`.
+   */
+  policyStudies: PolicyStudy[];
   occupancyContrast: OccupancyContrast;
   provenance: TrialProvenanceEntry[];
   /** Parts of the live system this trial does NOT exercise, in words, for the surface to print verbatim. */
