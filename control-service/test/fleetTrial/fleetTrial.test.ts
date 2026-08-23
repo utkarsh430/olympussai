@@ -11,7 +11,8 @@ import { runFleetTrial, DEFAULT_FLEET_TRIAL_SPEC } from '../../src/fleetTrial/ru
 import { FLEET_TRIAL_INPUTS } from '../../src/fleetTrial/presets.js';
 import { scenarioRng } from '../../src/fleetTrial/scenarios.js';
 import { CORRIDOR_PRESETS } from '../../src/fleetTrial/presets.js';
-import { simulate } from '../../src/simulation/index.js';
+import { simulate, noControlController, computeHeadwaySamples } from '../../src/simulation/index.js';
+import { computeDispersion } from '../../src/lib/dispersion.js';
 import { createDeployedControlLawsController } from '../../src/rehearsal/deployedControlLaws.js';
 import { buildRehearsalScenario, DEFAULT_MODELLED_INPUTS, REHEARSAL_EPOCH_MS, isReported } from '../../src/rehearsal/run.js';
 import type { ModelledInputs } from '../../src/rehearsal/run.js';
@@ -620,5 +621,88 @@ describe('the timetable', () => {
     expect(arm!.onTimeRate!).toBeLessThan(0.95);
     expect(arm!.p95ScheduleDeviationSeconds).not.toBeNull();
     expect(Math.abs(arm!.p95ScheduleDeviationSeconds!)).toBeGreaterThan(60);
+  });
+});
+
+// ─── A KNOWN-ANSWER TEST ─────────────────────────────────────────────────
+//
+// Every other assertion here compares two simulated arms against each other,
+// which cannot catch an error both arms share. This one compares the engine
+// against arithmetic: strip out both sources of randomness and the corridor is
+// deterministic, so its steady state can be written down in advance.
+//
+// If the engine cannot reproduce a corridor it was told has nothing wrong with
+// it, nothing it says about control means anything.
+describe('the engine against arithmetic', () => {
+  function deterministicRun(presetId: 'intercity' | 'urban', boardingRatePerMinute: number) {
+    const preset = CORRIDOR_PRESETS[presetId];
+    const corridor = buildFleetCorridor(preset.corridor);
+    const inputs: ModelledInputs = {
+      ...DEFAULT_MODELLED_INPUTS,
+      ...preset.inputs,
+      // The two sources of randomness: link travel time, and how many people
+      // are waiting. Both off means the day is fully determined.
+      travelTimeVariation: 0,
+      boardingRatePerMinute,
+      // No capacity denial, so nothing is left behind to perturb a later bus.
+      vehicleCapacity: 1_000_000,
+      vehicleCount: 25,
+      seed: 1,
+      disturbance: 'none',
+    };
+    const { scenario } = buildRehearsalScenario(corridor, inputs);
+    const visits = simulate(scenario, noControlController).visits.filter((v) =>
+      isReported(v.vehicleId),
+    );
+    const samples = computeHeadwaySamples(visits, new Set(corridor.stops.map((s) => s.stopId)));
+    return { corridor, inputs, visits, samples };
+  }
+
+  it.each(['intercity', 'urban'] as const)(
+    'reproduces a perfectly regular %s corridor exactly',
+    (presetId) => {
+      const { corridor, samples } = deterministicRun(presetId, 0);
+      const target = corridor.policy.targetHeadwaySeconds;
+      expect(samples.length).toBeGreaterThan(0);
+      // EXACT, not approximate. Every bus leaves one headway after the last and
+      // nothing between the terminals varies, so every gap is the target gap.
+      for (const headway of samples) expect(headway).toBeCloseTo(target, 6);
+    },
+  );
+
+  it('reproduces the analytic steady-state load once demand is switched back on', () => {
+    // In equilibrium a stop's boardings equal its alightings, so
+    // `rate x H* / 60 = alightingFraction x load`. Convergence from an empty bus
+    // is geometric at `(1 - alightingFraction)` per stop, so the LAST stop
+    // before the terminus is where the model should have arrived.
+    const { corridor, inputs, visits } = deterministicRun('urban', 1.2);
+    const expectedBoardings = (inputs.boardingRatePerMinute * corridor.policy.targetHeadwaySeconds) / 60;
+    const expectedLoad = expectedBoardings / inputs.alightingFraction;
+
+    const lastBeforeTerminus = corridor.stops.length - 2;
+    const atStop = visits.filter((v) => v.stopIndex === lastBeforeTerminus);
+    expect(atStop.length).toBeGreaterThan(5);
+    const meanLoad = atStop.reduce((acc, v) => acc + v.onboardAfter, 0) / atStop.length;
+    // Within 15%: the fleet is still converging and boardings are a random draw
+    // around their mean even with travel time fixed.
+    expect(meanLoad).toBeGreaterThan(expectedLoad * 0.85);
+    expect(meanLoad).toBeLessThan(expectedLoad * 1.15);
+  });
+
+  it('bunches from demand alone, which is the instability the controller exists for', () => {
+    // Travel time is fixed in all three runs, so every difference below is the
+    // dwell feedback: a late bus finds more passengers, takes longer to load
+    // them, and falls further behind. It must grow with demand, and if it ever
+    // stops doing so the engine has lost the mechanism the whole system is about.
+    const cv = (rate: number) => {
+      const { corridor, samples } = deterministicRun('urban', rate);
+      return computeDispersion(samples, corridor.policy.targetHeadwaySeconds).cv ?? 0;
+    };
+    const none = cv(0);
+    const light = cv(0.3);
+    const heavy = cv(1.2);
+    expect(none).toBe(0);
+    expect(light).toBeGreaterThan(none);
+    expect(heavy).toBeGreaterThan(light * 2);
   });
 });

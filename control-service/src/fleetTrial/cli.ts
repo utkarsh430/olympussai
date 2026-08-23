@@ -98,19 +98,19 @@ function renderPhase(phase: PhaseReport): string[] {
     '',
     '    law coverage (decisions where the law produced a candidate):',
   ];
+  for (const law of phase.lawCoverage) {
+    const share = law.decisionsTotal > 0 ? (law.decisionsGenerating / law.decisionsTotal) * 100 : 0;
+    lines.push(
+      `      ${law.law.padEnd(18)} ${String(law.decisionsGenerating).padStart(5)}/${law.decisionsTotal}  ${share.toFixed(1).padStart(5)}%` +
+        (law.commonestDecline ? `   mostly: ${law.commonestDecline}` : ''),
+    );
+  }
   if (phase.safetyRejections.length > 0) {
     lines.push(
       '',
       `    guardrails (candidates refused): ${phase.safetyRejections
         .map((r) => `${r.reason} ${r.count}`)
         .join(', ')}`,
-    );
-  }
-  for (const law of phase.lawCoverage) {
-    const share = law.decisionsTotal > 0 ? (law.decisionsGenerating / law.decisionsTotal) * 100 : 0;
-    lines.push(
-      `      ${law.law.padEnd(18)} ${String(law.decisionsGenerating).padStart(5)}/${law.decisionsTotal}  ${share.toFixed(1).padStart(5)}%` +
-        (law.commonestDecline ? `   mostly: ${law.commonestDecline}` : ''),
     );
   }
   return lines;

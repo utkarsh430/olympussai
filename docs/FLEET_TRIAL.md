@@ -586,6 +586,25 @@ engine swept the stop's waiting queue at *departure* regardless, so the
 passengers left behind vanished and the action measured as free. Both halves of
 its trade had disappeared.
 
+## Is the engine itself right?
+
+Every comparison in this document is between two simulated arms, which cannot
+catch an error both arms share. So there is also a **known-answer test**: strip
+out both sources of randomness — link travel time and how many people are
+waiting — and the corridor is deterministic, its steady state writable in
+advance.
+
+- With demand and travel variance both zero, headways are **exactly** the target
+  on both corridors: CV 0.000000, EWT 0.0000 s, largest deviation 0.0000 s.
+- Switch demand back on and the steady-state load matches
+  `rate × H* / 60 ÷ alightingFraction` within 15% at the last stop before the
+  terminus, the rest being geometric convergence from an empty bus.
+- Travel time still fixed, headway CV rises 0 → 0.07 → 0.37 as demand goes
+  0 → 0.3 → 1.2 per minute. That is the dwell feedback and nothing else: a late
+  bus finds more passengers, takes longer to load them, and falls further behind.
+  It is the instability the whole system exists to fix, and a test asserts it
+  grows with demand — if it ever stops, the engine has lost the mechanism.
+
 ## What the trial still does not test
 
 - **The command lifecycle.** Cooldown, minimum action interval, maximum
