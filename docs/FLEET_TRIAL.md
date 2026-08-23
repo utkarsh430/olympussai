@@ -467,7 +467,63 @@ urban corridor and 17% to 24% on the inter-city one. Mean lateness does go up
 (the holds are real), but the **spread** falls by more, and punctuality is a
 question about the spread.
 
-### 12. Policy knobs are per-corridor, and fitting one on one shape is a bug
+### 12. An unachievable timetable silently switches the controller off
+
+`mpc/safety.ts` refuses a hold that would push a bus past
+`max_lateness_seconds`. If the published schedule is tighter than the corridor
+can run, **every** bus is already late and therefore **every** hold is a breach —
+with no rejection an operator would think to look at, because "the bus is late"
+does not read as a reason the controller has stopped working.
+
+Measured by tightening the booked running time 15% on the urban corridor: the
+excess-wait improvement fell from 52.9% to **19.4%** and holding from 183 s per
+bus to **31 s**. The control laws were unchanged; the timetable had turned them
+off.
+
+**The trial had been doing this to itself.** Its timetable was free-flow running
+plus a nominal dwell, and the new check caught it immediately: buses ran 130 s
+late against it on the urban corridor and **896 s** late on the inter-city one,
+with no control at all. Real running time exceeds free-flow for reasons the
+arithmetic cannot see — the no-overtake clamp, dwells that scale with a queue
+rather than an average, a Gaussian draw floored at zero.
+
+The timetable is now booked from the **uncontrolled arm's own mean arrival at
+each stop**, which is how a scheduler builds one from observed running times.
+The uncontrolled arm is then on time by construction — exactly the baseline
+wanted, because every second of lateness on the controlled arm is a second the
+*controller* added rather than one the schedule invented. Every report carries
+the check, and the console warns when a corridor's schedule does not fit.
+
+With that corrected, the lateness bound is monotonic and a **tight** bound is
+right on both corridors — the opposite of what it measured while the schedule
+was wrong.
+
+### 13. `ks`, the schedule-correction gain, measured for the first time — and it does nothing
+
+`route_policies.ks` is the dial between regulating headway and pursuing the
+timetable (Xuan, Argote & Daganzo 2011). It is null on every corridor, and until
+this trial booked a timetable it could not have been anything else: the term
+needs a schedule deviation and every one of those was null.
+
+Measured across eight paired seeds on the urban corridor at `ks = 0.35`: better
+on total passenger time on **4 of 8** seeds and on excess wait on **5 of 8**,
+with means identical to three significant figures. No effect.
+
+Testing *why* is more useful than the null result. `ks` only has something to
+correct when the schedule is systematically wrong, and then it makes things
+worse in both directions:
+
+| schedule | `ks` off | `ks` = 0.35 | seeds `ks` won |
+|---|---|---|---|
+| tight (buses late) | +5.5% net | +2.5% net | 1 of 5 |
+| matched | +10.4% | +11.3% | 3 of 5 |
+| slack (buses early) | +6.1% | +1.0% | 0 of 5 |
+
+Against a slack schedule it adds holds to buses that are already early and the
+onboard cost swamps the gain; against a tight one it subtracts from every hold
+and joins the lateness bound in switching the controller off. It stays null.
+
+### 14. Policy knobs are per-corridor, and fitting one on one shape is a bug
 
 `max_lateness_seconds` at 300 s improved the inter-city corridor. The same
 guardrail at 120 s on the urban corridor was, at one point in this work, going to
@@ -482,7 +538,7 @@ first and excess wait only as a tie-break, because ranking on wait alone had
 already handed a recommendation to a setting with a worse net effect when two
 rows tied.
 
-### 13. Alighting-only: the right idea, and it loses anyway
+### 15. Alighting-only: the right idea, and it loses anyway
 
 "Let a bus at a stop drop passengers but pick nobody up when the follower is
 close behind" is `mpc/boardingLimit.ts` — the only lever here that improves

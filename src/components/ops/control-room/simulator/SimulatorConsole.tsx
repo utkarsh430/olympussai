@@ -677,6 +677,19 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
           times, the demand, the seat count and the disturbances were all invented, because no corridor
           in this network has ever carried a thousand buses or recorded a single passenger.
         </OpsAlert>
+        {report.scheduleFit.band === 'achievable' ? null : (
+          <OpsAlert
+            tone="warning"
+            className="mt-3"
+            title={
+              report.scheduleFit.band === 'tight'
+                ? 'This timetable is tighter than the corridor can keep'
+                : 'This timetable is looser than the corridor needs'
+            }
+          >
+            {report.scheduleFit.note}
+          </OpsAlert>
+        )}
       </OpsPanel>
 
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Trial phase">

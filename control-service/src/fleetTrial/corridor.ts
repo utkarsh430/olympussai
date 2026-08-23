@@ -92,6 +92,20 @@ export interface FleetCorridorSpec {
    * The trial books its own timetable, which turns the bound on.
    */
   maxLatenessSeconds: number | null;
+  /**
+   * `route_policies.ks`: the dial between regulating HEADWAY and pursuing the
+   * TIMETABLE (Xuan, Argote & Daganzo 2011).
+   *
+   * An early bus has the term ADD to its hold - the delay comes out of slack it
+   * already holds, so spacing is bought at no cost to punctuality - and a late
+   * one has it SUBTRACT, so the gap is closed from the bus behind instead of by
+   * making a late bus later.
+   *
+   * Null on every corridor, and until this trial booked a timetable it could
+   * not have been anything else: the term needs a schedule deviation, and every
+   * one of those was null.
+   */
+  ks: number | null;
 }
 
 /**
@@ -145,6 +159,7 @@ export const DEFAULT_FLEET_CORRIDOR: FleetCorridorSpec = {
   // it, and the timetable tables are empty so there would be no deviation to
   // compare against. See `buildTimetable` in fleetTrial/run.ts.
   maxLatenessSeconds: 300,
+  ks: null,
 };
 
 /** Lucknow, the seeded network's hub. The corridor is drawn outward from it. */
@@ -264,7 +279,7 @@ export function buildFleetCorridor(
     // capacity to the rehearsal adapter, where it is labelled as modelled.
     occupancyCapacity: null,
     occupancyStaleSeconds: null,
-    ks: null,
+    ks: spec.ks,
     maxLatenessSeconds: spec.maxLatenessSeconds,
     speedBandMinKmph: null,
     speedBandMaxKmph: null,

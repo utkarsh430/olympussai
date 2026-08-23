@@ -264,6 +264,12 @@ export const fleetTrialReportSchema = z.object({
     band: z.enum(['too_regular', 'controllable', 'too_disturbed']),
     note: z.string(),
   }),
+  scheduleFit: z.object({
+    meanUncontrolledDeviationSeconds: z.number().nullable(),
+    deviationRatio: z.number().nullable(),
+    band: z.enum(['tight', 'achievable', 'slack']),
+    note: z.string(),
+  }),
   vehiclesSimulated: z.number(),
   sweepIntervalSeconds: z.number(),
   requiredSamples: z.number(),

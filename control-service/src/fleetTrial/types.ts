@@ -402,6 +402,35 @@ export interface FleetTrialReport {
     /** One sentence saying what the band implies, for the surface to print. */
     note: string;
   };
+  /**
+   * Whether the corridor's timetable is one its buses can actually keep, and
+   * what that does to the controller.
+   *
+   * ─── AN UNACHIEVABLE SCHEDULE SWITCHES THE CONTROLLER OFF ────────────
+   *
+   * `mpc/safety.ts` refuses a hold that would push a bus past
+   * `route_policies.max_lateness_seconds`. If the published schedule is tighter
+   * than the corridor can run, EVERY bus is already late and therefore EVERY
+   * hold breaches the bound - silently, with no rejection an operator would
+   * think to look at, because "the bus is late" is not obviously a reason the
+   * controller has stopped working.
+   *
+   * MEASURED on the urban corridor by tightening the booked running time 15%:
+   * the excess-wait improvement fell from 52.9% to 19.4% and holding from 183 s
+   * per bus to 31 s. The control laws were unchanged; the timetable had turned
+   * them off.
+   *
+   * The deviation reported here is from the UNCONTROLLED arm, which is the only
+   * one that measures the schedule rather than the schedule plus the holds.
+   */
+  scheduleFit: {
+    /** Mean lateness at the terminus with no control at all, seconds. Negative = early. */
+    meanUncontrolledDeviationSeconds: number | null;
+    /** As a fraction of the target headway, which is the scale that decides whether the bound bites. */
+    deviationRatio: number | null;
+    band: 'tight' | 'achievable' | 'slack';
+    note: string;
+  };
   /** Total buses simulated across both phases - the trial's headline scale. */
   vehiclesSimulated: number;
   sweepIntervalSeconds: number;

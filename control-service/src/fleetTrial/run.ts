@@ -271,76 +271,78 @@ function buildTrialScenario(args: {
     name: `fleet-trial:${scenario.id}`,
     dispatches: plan.dispatches,
     disturbances: plan.disturbances,
-    // Booked against the PLANNED departures, not the ones the scenario actually
-    // produced. A timetable is what was promised; the scenario is what happened.
+    // Filled in by `runScenario` from the uncontrolled arm - see
+    // `timetableFromRun`. It cannot be built here because it is a measurement of
+    // the run this config is about to produce.
     //
-    // Built from `plan.dispatches` this was self-fulfilling: `terminal_jitter`
-    // moves departures off their slots by up to a third of a headway, and a
-    // timetable derived from those moved departures declared every bus to be
-    // leaving exactly on time. The one scenario whose entire subject is buses
-    // leaving wrong reported no lateness at all, so the objective's punctuality
-    // term and the max-lateness bound both had nothing to bite on there.
-    scheduledArrivalSeconds: buildTimetable(corridor, inputs, named),
+    // Whatever fills it is booked against the PLANNED departures rather than the
+    // ones the scenario produced. A timetable is what was promised; the scenario
+    // is what happened. Built from `plan.dispatches`, `terminal_jitter` - which
+    // moves departures off their slots by up to a third of a headway - would
+    // have declared every bus to be leaving exactly on time, and the one
+    // scenario whose whole subject is buses leaving wrong would have reported no
+    // lateness for either punctuality guard to act on.
+    scheduledArrivalSeconds: undefined,
     seed,
   };
 }
 
 /**
- * The timetable the trial books its buses against.
+ * A timetable booked from what the corridor ACTUALLY does, the way a scheduler
+ * builds one from observed running times.
  *
- * ─── WHY THE TRIAL HAS TO INVENT ONE ─────────────────────────────────────
+ * ─── WHY NOT FREE-FLOW ARITHMETIC ────────────────────────────────────────
  *
- * The deployed system prices punctuality and bounds it - `mpc/objective.ts`
- * charges for the lateness a hold ADDS, and `mpc/safety.ts` refuses a hold that
- * would push a bus past `route_policies.max_lateness_seconds`. Both are inert on
- * the live network, because `trips` and `trip_stop_times` are empty and every
- * schedule deviation is therefore null. A trial that supplied no timetable
- * either would be measuring a controller with its punctuality guardrail
- * switched off - which is what this one was doing, and it showed: single buses
- * accumulated over an hour of hold across a trip, because nothing anywhere
- * asked how late they already were.
+ * The first version of this booked free-flow running plus a nominal dwell, and
+ * `assessScheduleFit` caught it: buses ran 130 s late against it on the urban
+ * corridor and 896 s late on the inter-city one, with no control at all. Real
+ * running time exceeds free-flow for reasons the arithmetic cannot see - the
+ * no-overtake clamp, dwells that scale with a queue rather than with an average,
+ * and a Gaussian draw floored at zero.
  *
- * ─── HOW IT IS BOOKED ────────────────────────────────────────────────────
+ * That is not a cosmetic error. `mpc/safety.ts` refuses a hold that would push a
+ * bus past `max_lateness_seconds`, so a timetable nobody can keep makes EVERY
+ * bus late and therefore EVERY hold a breach - the guardrail switches the
+ * controller off, silently, for a reason that is about the schedule rather than
+ * the corridor. Measured: tightening the booked time 15% cut the excess-wait
+ * improvement from 52.9% to 19.4% and holding from 183 s per bus to 31 s.
  *
- * Free-flow running time plus a nominal dwell at every intermediate stop. The
- * nominal dwell uses the demand a stop sees in steady state - one target
- * headway's worth of boardings, and the same number alighting, which is what
- * balance requires - so the schedule is achievable rather than aspirational. A
- * timetable no bus can keep would report every vehicle late from the first
- * stop and make the lateness term a constant.
- *
- * MODELLED, like everything else about the traffic here, and reported as such.
+ * So the timetable comes from the UNCONTROLLED arm's own mean arrival at each
+ * stop. The uncontrolled arm is then on time by construction, which is exactly
+ * the baseline wanted: every second of lateness on the controlled arm is a
+ * second the CONTROLLER added, not one the schedule invented.
  */
-function buildTimetable(
-  corridor: CorridorInputs,
-  inputs: ModelledInputs,
+function timetableFromRun(
+  visits: readonly StopVisitRecord[],
   dispatches: readonly TerminalDispatchPlan[],
+  stopCount: number,
 ): Record<string, number[]> {
-  const metersPerSecond = inputs.cruiseSpeedKmph / 3.6;
-  const expectedBoardings = (inputs.boardingRatePerMinute * corridor.policy.targetHeadwaySeconds) / 60;
-  const nominalDwellSeconds =
-    inputs.baseDwellSeconds +
-    inputs.secondsPerBoarding * expectedBoardings +
-    inputs.secondsPerAlighting * expectedBoardings;
+  // Mean offset from departure to each stop, across every reported bus.
+  const totals = new Array<number>(stopCount).fill(0);
+  const counts = new Array<number>(stopCount).fill(0);
+  const dispatchByVehicle = new Map(dispatches.map((d) => [d.vehicleId, d.scheduledDispatchSeconds]));
 
-  // Cumulative booked offset from departure, per stop index.
-  const offsets: number[] = [];
-  let elapsed = 0;
-  for (const [index, stop] of corridor.stops.entries()) {
-    const previous = index > 0 ? (corridor.stops[index - 1]?.cumulativeDistanceMeters ?? 0) : 0;
-    const linkMeters = Math.max(0, stop.cumulativeDistanceMeters - previous);
-    elapsed += metersPerSecond > 0 ? linkMeters / metersPerSecond : 0;
-    offsets.push(elapsed);
-    // The dwell at THIS stop is served before the next link, so it lands in
-    // every later stop's booked time and in none of the earlier ones.
-    elapsed += nominalDwellSeconds;
+  for (const visit of visits) {
+    if (!isReported(visit.vehicleId)) continue;
+    const dispatchSeconds = dispatchByVehicle.get(visit.vehicleId);
+    if (dispatchSeconds === undefined) continue;
+    if (visit.stopIndex < 0 || visit.stopIndex >= stopCount) continue;
+    totals[visit.stopIndex] = (totals[visit.stopIndex] ?? 0) + (visit.arrivalSeconds - dispatchSeconds);
+    counts[visit.stopIndex] = (counts[visit.stopIndex] ?? 0) + 1;
+  }
+
+  const offsets = totals.map((total, index) => {
+    const count = counts[index] ?? 0;
+    return count > 0 ? total / count : 0;
+  });
+  // Monotonic by construction: a booked arrival cannot precede the one before it.
+  for (let index = 1; index < offsets.length; index++) {
+    offsets[index] = Math.max(offsets[index] ?? 0, offsets[index - 1] ?? 0);
   }
 
   const timetable: Record<string, number[]> = {};
   for (const dispatch of dispatches) {
-    timetable[dispatch.vehicleId] = offsets.map(
-      (offset) => dispatch.scheduledDispatchSeconds + offset,
-    );
+    timetable[dispatch.vehicleId] = offsets.map((offset) => dispatch.scheduledDispatchSeconds + offset);
   }
   return timetable;
 }
@@ -785,7 +787,16 @@ function runScenario(args: {
   const finalStopIndex = corridor.stops.length - 1;
   const excludeVehicleIds = new Set([WARMUP_VEHICLE_ID]);
 
+  // Uncontrolled FIRST, and its timetable used for both arms: the schedule is a
+  // measurement of what this corridor does when left alone, so the controlled
+  // arm's lateness is the controller's doing rather than the schedule's.
   const uncontrolled = simulate(config, noControlController);
+  const timetable = timetableFromRun(
+    uncontrolled.visits,
+    config.dispatches,
+    corridor.stops.length,
+  );
+  const timetabledConfig: ScenarioConfig = { ...config, scheduledArrivalSeconds: timetable };
   const controller = createDeployedControlLawsController({
     policy: corridor.policy,
     epochMs: REHEARSAL_EPOCH_MS,
@@ -802,7 +813,7 @@ function runScenario(args: {
     // REPLACE the tuned controller rather than add to it - and a trial that
     // silently flipped it would be measuring a different system.
   });
-  const controlled = simulate(config, controller);
+  const controlled = simulate(timetabledConfig, controller);
 
   const decisions = controller.decisions.filter((d) => isReported(d.vehicleId));
 
@@ -829,7 +840,7 @@ function runScenario(args: {
   const controlledArm: ArmReport = {
     spacing: spacingKpis(controlled.visits, corridor),
     punctuality: punctualityKpis(
-      journeysOf(controlled.visits, config.dispatches, finalStopIndex, config.scheduledArrivalSeconds),
+      journeysOf(controlled.visits, config.dispatches, finalStopIndex, timetable),
     ),
     passengers: passengerOutcome(controlled.visits),
     incidents: summarizeIncidents(detectedControlled.incidents),
@@ -837,7 +848,7 @@ function runScenario(args: {
   const uncontrolledArm: ArmReport = {
     spacing: spacingKpis(uncontrolled.visits, corridor),
     punctuality: punctualityKpis(
-      journeysOf(uncontrolled.visits, config.dispatches, finalStopIndex, config.scheduledArrivalSeconds),
+      journeysOf(uncontrolled.visits, config.dispatches, finalStopIndex, timetable),
     ),
     passengers: passengerOutcome(uncontrolled.visits),
     incidents: summarizeIncidents(detectedUncontrolled.incidents),
@@ -878,7 +889,7 @@ function runScenario(args: {
     controlledVisits: controlled.visits,
     uncontrolledVisits: uncontrolled.visits,
     decisions,
-    config,
+    config: timetabledConfig,
   };
 }
 
@@ -1459,6 +1470,51 @@ function assessControllability(
   return { legTimeSigmaSeconds, disturbanceRatio, band, note };
 }
 
+/**
+ * Whether the booked timetable is one the corridor can keep. See
+ * `FleetTrialReport.scheduleFit` for what happens when it is not.
+ */
+function assessScheduleFit(
+  phases: readonly PhaseReport[],
+  corridor: CorridorInputs,
+  maxLatenessSeconds: number | null,
+): FleetTrialReport['scheduleFit'] {
+  // The UNCONTROLLED arm only: the controlled one measures the schedule plus
+  // the holds, and it is the schedule that is on trial here.
+  const deviations = phases
+    .map((phase) => phase.uncontrolled.punctuality.meanScheduleDeviationSeconds)
+    .filter((value): value is number => value !== null);
+  if (deviations.length === 0) {
+    return {
+      meanUncontrolledDeviationSeconds: null,
+      deviationRatio: null,
+      band: 'achievable',
+      note: 'No timetable was booked, so there is nothing to check the schedule against.',
+    };
+  }
+
+  const mean = deviations.reduce((a, b) => a + b, 0) / deviations.length;
+  const headway = corridor.policy.targetHeadwaySeconds;
+  const ratio = headway > 0 ? mean / headway : 0;
+
+  // A tenth of a headway either way. Below that the bias is smaller than the
+  // day-to-day spread and the bound bites on individual buses rather than on
+  // all of them, which is what it is for.
+  const band = ratio > 0.1 ? ('tight' as const) : ratio < -0.1 ? ('slack' as const) : ('achievable' as const);
+
+  const note =
+    band === 'tight'
+      ? `Buses run ${Math.round(mean)}s late against this timetable with no control at all, so it is tighter than the corridor can keep. ` +
+        (maxLatenessSeconds === null
+          ? 'No lateness bound is configured, so the controller still acts - but every hold is being added to a bus that is already behind.'
+          : `With a ${maxLatenessSeconds}s lateness bound, most holds will be refused for a reason that is about the schedule rather than the corridor. Fix the timetable before reading the control result.`)
+      : band === 'slack'
+        ? `Buses arrive ${Math.round(-mean)}s EARLY against this timetable with no control at all, so it is looser than the corridor needs. Holds then look free to the punctuality guardrail and the controller will spend more of them than it should.`
+        : 'Buses keep this timetable without help, so the punctuality guardrail is judging individual late buses rather than refusing everything.';
+
+  return { meanUncontrolledDeviationSeconds: mean, deviationRatio: ratio, band, note };
+}
+
 // ─── Provenance ──────────────────────────────────────────────────────────
 
 function buildProvenance(
@@ -1727,6 +1783,7 @@ export function runFleetTrial(
       })),
     },
     controllability: assessControllability(corridor, inputs),
+    scheduleFit: assessScheduleFit(phaseReports, corridor, corridor.policy.maxLatenessSeconds),
     vehiclesSimulated: nextBusNumber,
     sweepIntervalSeconds: spec.sweepIntervalSeconds,
     requiredSamples: spec.requiredSamples,
