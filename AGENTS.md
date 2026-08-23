@@ -75,6 +75,59 @@ One formula, one place: `lib/dispersion.ts` holds the second-moment EWT/CV arith
 
 **Demand can be fitted without ticketing data.** `pnpm sim:run --calibrate` (`evaluation/calibrate.ts`) fits `dwell = beta_0 + beta_h x h_preceding` from `stop_visits`, then derives `lambda = beta_h / beta_b` — because boardings ≈ lambda x h, the fitted slope IS the compound quantity. `beta_b` (seconds per boarding) is the one assumed number and every derived rate scales inversely with it; alighting fraction and capacity stay modelled. The same fit yields `1 + beta_h`, the headway amplification eigenvalue that says whether a corridor needs control at all. `mpc/objective.ts` still proxies lambda as `1/H*` — wiring the fitted value in is a live-control-law change and has not been made.
 
+## Headway is measured against the corridor's pace, not a bus's own speed
+
+`headway/metrics.ts` converts a gap in METRES into a gap in SECONDS, and the
+divisor cannot be the vehicle's instantaneous speed. A bus standing at a stop
+reports ~0, which the old `MIN_SPEED_KMPH = 1` floor turned into a headway of
+hours - and standing at a stop is the ONLY state a hold can be executed from
+(`mpc/eligibility.ts`), so the system asked "how bunched is this pair?" at
+exactly the moment its own estimator could not answer. The same pair 4 km apart
+read h_fwd 240 s while moving and 14,400 s while dwelling: bunched, then "fine".
+Across a 1,000-bus trial this silenced 95% of two-way holding and cut the
+excess-wait gain from 44% to 10%. It is the same arithmetic that made Algorithm A
+unable to fire (`test/terminalDispatch.test.ts`); that law was given a measured
+departure headway and the mid-route laws were left on the broken divisor.
+
+A stationary vehicle is now measured against `corridorPaceKmph` - the median
+speed of the vehicles that ARE moving. A moving one keeps its own speed. When
+nothing on the corridor is moving the headway is null, "no opinion", never a
+fabricated large number. Do not reintroduce a constant floor.
+
+## A hold has to be worth its cost, and two guards say so
+
+`mpc/actionThreshold.ts`. The mid-route laws are proportional controllers, so
+they proposed for ANY shortfall: 83% of holds went to pairs above the corridor's
+own `warning_threshold_ratio` - pairs its alert surface would never have raised.
+`isWorthActingOn` declines below that bar, reusing the corridor's own ratio
+rather than a new constant. Terminal dispatch is deliberately NOT gated: it holds
+a bus nobody is aboard yet.
+
+`occupancyAdjustedMaxHoldSeconds` makes the load bind on the ACTION. The occupancy
+switch could not: it feeds `objectiveCost`, a RANKING input, and the mid-route
+laws are mutually exclusive so there is never a second selectable candidate to
+reorder - across 4,960 matched decisions it changed the price of every hold and
+none of the decisions. Measured, holding removed 2,251 h of waiting and added
+4,214 h of onboard delay: total passenger time 12% WORSE while excess wait
+improved 46%. Read `docs/FLEET_TRIAL.md` before changing either guard.
+
+## The fleet trial is where a control change gets its evidence
+
+`control-service/src/fleetTrial/` (`pnpm --dir control-service sim:fleet`, console
+at `/ops/control-room/simulator`, docs at `docs/FLEET_TRIAL.md`). A thousand buses
+on a 400 km corridor, every result paired against the same seeded day left alone.
+
+Three rules a reader must not undo. **Total passenger time is the headline, not
+EWT** - excess wait counts only people at stops, and holding is paid for by
+everyone aboard, so the two move in opposite directions often enough that
+optimising the second is how the controller ended up net-negative. **One seed is
+not a measurement**: net passenger time has a seed-to-seed spread of ~10
+percentage points, and a Kb tuning result that looked convincing over three seeds
+reversed to a coin flip over ten - report seed agreement, not a bare mean.
+**Excess wait is sampled at every station, not the designated holding points**;
+tying it to them made baseline EWT read 61 s with two holding points and 323 s
+with ten on the identical uncontrolled corridor.
+
 ## The objective's lambda is a proxy, and it is a loaded gun
 
 `mpc/objective.ts#arrivalRatePaxPerSecond` returns `1/H*`. Under that proxy the closed-form optimum's load penalty is `H*/2 seconds PER ONBOARD PASSENGER` — 900s on a 1800s corridor — so **a single passenger zeroes any hold**. That is inert today only because `vehicle_states.occupancy_count` is NULL everywhere; it becomes live the day occupancy is connected, and it fails silently (a controller proposing nothing looks like a network with no problems). `test/costOptimalAndSelection.test.ts` pins it as a tripwire.

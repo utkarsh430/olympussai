@@ -112,6 +112,17 @@ export function isWorthActingOn(
  * still gets a short hold rather than none, because a corridor whose buses are
  * all full is exactly the one where a bunch strands the most people, and going
  * completely silent there is the failure this system exists to prevent.
+ *
+ * ─── AND IT IS NOT A FLAT CAP IN DISGUISE ────────────────────────────────
+ *
+ * The obvious objection: loads sit near 80% of capacity most of the time, so
+ * the taper is pinned at its floor and amounts to "hold for a quarter as long".
+ * Measured against flat caps on the same corridor, it is not - it beats a flat
+ * 300 s cap on BOTH axes (21.4% excess-wait gain against 19.2%, total passenger
+ * time -1.28% against -2.73%) and beats a flat 200 s cap on wait gain at
+ * comparable cost. A flat cap shortens every hold equally; this spends the
+ * budget where a hold is cheap and withholds it where it is expensive, and that
+ * difference is worth about two points of wait gain. See docs/FLEET_TRIAL.md.
  */
 export const OCCUPANCY_TAPER_FLOOR = 0.25;
 

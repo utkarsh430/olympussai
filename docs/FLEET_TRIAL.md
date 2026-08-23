@@ -200,6 +200,45 @@ Refusing to hold an already-late bus removes the controller's least valuable
 interventions, so nothing is given up by declining them. `max_lateness_seconds`
 is a `route_policies` column — this is a configuration change, not a code one.
 
+### Two things the trial checked and did not change
+
+**The occupancy taper is not a flat cap in disguise.** The obvious objection to
+finding 3 is that loads sit around 80% of capacity most of the time, so
+`max(0.25, 1 − load)` is pinned at its floor and the taper is really just
+"hold for a quarter as long". Measured against flat caps at the same corridor:
+
+| | excess wait gain | total passenger time | hold per bus |
+|---|---|---|---|
+| no cap change (600 s) | 29.8% | −3.89% | 723 s |
+| flat cap 300 s | 19.2% | −2.73% | 448 s |
+| flat cap 200 s | 17.6% | −1.08% | 304 s |
+| **taper (cap 600 s)** | **21.4%** | **−1.28%** | 511 s |
+
+The taper beats the flat 300 s cap on *both* axes and beats the 200 s cap on
+wait gain at comparable net. A flat cap shortens every hold equally; the taper
+spends the budget on the buses where a hold is cheap and withholds it where it
+is expensive, and that is worth about two points of wait gain.
+
+**Letting the closed-form optimum compete changes almost nothing — and going
+silent is exactly what it does with occupancy on.** `cost_optimal_hold` is
+generated and scored on every solve but is not selectable
+(`COST_OPTIMAL_SELECTION_ENABLED`). Flipping it:
+
+| | excess wait gain | total passenger time | which laws issued holds |
+|---|---|---|---|
+| tuned laws only | 29.8% | −3.89% | two-way 1062, terminal 616 |
+| cost-optimal selectable | 30.0% | −4.18% | terminal 621, **cost-optimal 523**, two-way 510 |
+| cost-optimal + occupancy on | 21.4% | −1.28% | two-way 1069, terminal 622, **cost-optimal 0** |
+
+With occupancy off it takes over half the mid-route holds and lands in the same
+place — with no load to weigh, `optimalHoldSeconds` reduces to the even-headway
+split, which is near what the tuned gains already produce. With occupancy on it
+issues **nothing at all**: the proxy `lambda = 1/H*` makes the load penalty
+`H*/2` seconds per onboard passenger, so a single passenger zeroes every hold.
+That is the tripwire `mpc/objective.ts` and `CLAUDE.md` describe, observed for
+the first time rather than reasoned about. The flag stays off, and the argument
+for calibrating lambda before touching it is now a measurement.
+
 ### One seed is not a measurement (and a result that did not survive)
 
 Net passenger time on this corridor has a seed-to-seed spread of about ten

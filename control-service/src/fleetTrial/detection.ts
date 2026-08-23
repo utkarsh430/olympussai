@@ -90,7 +90,21 @@ export interface DetectedIncident {
   holdActionTypes: string[];
   /** Seconds of hold the laws asked for that the driver did not take. */
   holdSecondsRefused: number;
-  /** True when either vehicle's feed was dark for any sweep while this was open. */
+  /**
+   * True when a bus the estimator could not vouch for was sitting INSIDE this
+   * pair's gap while the incident was open.
+   *
+   * A dark vehicle is excluded from the leader/follower chain entirely - that
+   * is what `state-estimation/ordering.ts` does with a low-confidence estimate,
+   * and this replays it. The consequence is easy to miss and worth flagging:
+   * the buses either side of it are then linked to each other, so the pair
+   * spans TWO headways and reads as comfortably spaced. Whatever is happening
+   * around the invisible bus is invisible too.
+   *
+   * This flag is therefore not "one of these two buses was dark" - that can
+   * never happen, because a dark bus is in no pair at all. It is "this
+   * measurement has a hole in it".
+   */
   observationLost: boolean;
 }
 
@@ -295,6 +309,12 @@ export function detectIncidents(inputs: DetectionInputs): DetectionResult {
       isLoop: corridor.isLoop,
       totalDistanceMeters: corridor.totalDistanceMeters,
     });
+    // Where the vehicles nobody can vouch for are, so a pair that spans one can
+    // say so. They are excluded from `ordered` (rank -1) and thus from every
+    // pair, which is exactly why their positions have to be kept separately.
+    const hiddenDistances = [...darkVehicleIds]
+      .map((vehicleId) => distanceByVehicleId.get(vehicleId))
+      .filter((distance): distance is number => distance !== undefined);
     const pairs = computePairHeadways(
       ordered,
       speedByVehicleId,
@@ -303,6 +323,17 @@ export function detectIncidents(inputs: DetectionInputs): DetectionResult {
       corridor.routeDirectionId,
       targetHeadwaySeconds,
     );
+
+    /** Whether an unvouched-for vehicle sits between these two, hiding whatever it is doing. */
+    const spansHiddenVehicle = (leaderVehicleId: string, followerVehicleId: string): boolean => {
+      if (hiddenDistances.length === 0) return false;
+      const leader = distanceByVehicleId.get(leaderVehicleId);
+      const follower = distanceByVehicleId.get(followerVehicleId);
+      if (leader === undefined || follower === undefined) return false;
+      const low = Math.min(leader, follower);
+      const high = Math.max(leader, follower);
+      return hiddenDistances.some((distance) => distance > low && distance < high);
+    };
 
     let bunchedPairs = 0;
     let warningPairs = 0;
@@ -374,7 +405,7 @@ export function detectIncidents(inputs: DetectionInputs): DetectionResult {
           open.minRatio = ratio;
           open.minHFwdSeconds = pair.hFwdSeconds;
         }
-        if (darkVehicleIds.has(pair.followerVehicleId) || darkVehicleIds.has(pair.leaderVehicleId)) {
+        if (spansHiddenVehicle(pair.leaderVehicleId, pair.followerVehicleId)) {
           open.observationLost = true;
         }
       }
@@ -392,8 +423,7 @@ export function detectIncidents(inputs: DetectionInputs): DetectionResult {
           escalations: 0,
           minRatio: ratio,
           minHFwdSeconds: pair.hFwdSeconds,
-          observationLost:
-            darkVehicleIds.has(pair.followerVehicleId) || darkVehicleIds.has(pair.leaderVehicleId),
+          observationLost: spansHiddenVehicle(pair.leaderVehicleId, pair.followerVehicleId),
         });
         continue;
       }

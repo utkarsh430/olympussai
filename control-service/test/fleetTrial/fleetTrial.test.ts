@@ -7,7 +7,12 @@ import { describe, it, expect } from 'vitest';
 import { buildFleetCorridor, DEFAULT_FLEET_CORRIDOR } from '../../src/fleetTrial/corridor.js';
 import { BUNCHING_SCENARIOS, scenarioById } from '../../src/fleetTrial/scenarios.js';
 import { detectIncidents } from '../../src/fleetTrial/detection.js';
-import { runFleetTrial, DEFAULT_FLEET_TRIAL_SPEC } from '../../src/fleetTrial/run.js';
+import { runFleetTrial, DEFAULT_FLEET_TRIAL_SPEC, FLEET_TRIAL_INPUTS } from '../../src/fleetTrial/run.js';
+import { scenarioRng } from '../../src/fleetTrial/scenarios.js';
+import { simulate } from '../../src/simulation/index.js';
+import { createDeployedControlLawsController } from '../../src/rehearsal/deployedControlLaws.js';
+import { buildRehearsalScenario, DEFAULT_MODELLED_INPUTS, REHEARSAL_EPOCH_MS } from '../../src/rehearsal/run.js';
+import type { ModelledInputs } from '../../src/rehearsal/run.js';
 import type { StopVisitRecord, TerminalDispatchPlan } from '../../src/simulation/types.js';
 
 const CORRIDOR = buildFleetCorridor(DEFAULT_FLEET_CORRIDOR);
@@ -315,6 +320,19 @@ describe('a whole trial', () => {
     }
   });
 
+  it('books an achievable timetable, so lateness measures the controller and not the schedule', () => {
+    // A timetable no bus can keep reports every vehicle late from the first
+    // stop, which turns the lateness term into a constant and the max-lateness
+    // bound into a blanket refusal. The UNCONTROLLED arm is the check: with no
+    // holds at all, its buses should be close to their booked times.
+    const phase = report.phases[0];
+    expect(phase?.uncontrolled.punctuality.onTimeRate).not.toBeNull();
+    expect(phase?.uncontrolled.punctuality.meanScheduleDeviationSeconds).not.toBeNull();
+    expect(Math.abs(phase?.uncontrolled.punctuality.meanScheduleDeviationSeconds ?? 1e9)).toBeLessThan(
+      2 * 3600,
+    );
+  });
+
   it('accounts for every incident exactly once across the four ways one can end', () => {
     for (const phase of report.phases) {
       for (const arm of [phase.controlled, phase.uncontrolled]) {
@@ -322,5 +340,107 @@ describe('a whole trial', () => {
         expect(resolved + closedPairGone + unresolvedAtEnd).toBe(detected);
       }
     }
+  });
+});
+
+// ─── THE GUARANTEE THAT MATTERS MOST ─────────────────────────────────────
+//
+// A dropped position feed does not delete the last known position; it makes its
+// AGE the reason not to act. Everything else in this system degrades; this one
+// must not. The gps_dropout scenario exists to prove the rejection fires end to
+// end rather than being a branch nobody reaches.
+describe('a bus nobody can see', () => {
+  const scenario = scenarioById('gps_dropout');
+
+  function runDropout(seed: number) {
+    const inputs: ModelledInputs = {
+      ...DEFAULT_MODELLED_INPUTS,
+      ...FLEET_TRIAL_INPUTS,
+      ...scenario.inputs,
+      vehicleCount: 30,
+      seed,
+      disturbance: 'none',
+    };
+    const built = buildRehearsalScenario(CORRIDOR, inputs);
+    const plan = scenario.build({
+      corridor: CORRIDOR,
+      inputs,
+      dispatches: built.scenario.dispatches,
+      targetHeadwaySeconds: CORRIDOR.policy.targetHeadwaySeconds,
+      freeFlowSecondsTo: (index) =>
+        (CORRIDOR.stops[index]?.cumulativeDistanceMeters ?? 0) / (inputs.cruiseSpeedKmph / 3.6),
+      rng: scenarioRng(seed, scenario.id),
+    });
+    const config = { ...built.scenario, dispatches: plan.dispatches, disturbances: plan.disturbances };
+    const dark = new Set(
+      plan.disturbances
+        .filter((d): d is Extract<typeof d, { type: 'gps_dropout' }> => d.type === 'gps_dropout')
+        .map((d) => d.vehicleId),
+    );
+    const controller = createDeployedControlLawsController({
+      policy: CORRIDOR.policy,
+      epochMs: REHEARSAL_EPOCH_MS,
+      modelledCapacity: inputs.vehicleCapacity,
+      weighOccupancy: false,
+      followerSpeedSource: 'vehicle_state',
+      corridorStops: CORRIDOR.stops,
+    });
+    const result = simulate(config, controller);
+    return { dark, visits: result.visits, decisions: controller.decisions, dispatches: config.dispatches };
+  }
+
+  it('is never held, and the guardrail that refused is named', () => {
+    let darkDecisions = 0;
+    let staleRejections = 0;
+    for (const seed of [3001, 3002, 3003]) {
+      const { dark, visits, decisions } = runDropout(seed);
+      expect(dark.size).toBeGreaterThan(0);
+
+      for (const visit of visits) {
+        if (!dark.has(visit.vehicleId)) continue;
+        expect(visit.appliedHoldSeconds, `${visit.vehicleId} was held at ${visit.stopId}`).toBe(0);
+        expect(visit.intendedHoldSeconds).toBe(0);
+      }
+      for (const decision of decisions) {
+        if (!dark.has(decision.vehicleId)) continue;
+        darkDecisions++;
+        expect(decision.holdSeconds).toBe(0);
+        staleRejections += decision.rejected.filter((r) => r.reasons.includes('stale_state')).length;
+      }
+    }
+    // The decisions have to actually have been ASKED, or the assertions above
+    // are vacuous - and the refusal has to be the deployed staleness filter
+    // rather than the engine quietly never offering the bus a candidate.
+    expect(darkDecisions).toBeGreaterThan(0);
+    expect(staleRejections).toBeGreaterThan(0);
+  });
+
+  it('leaves a hole in the measurement, and the incident says so', () => {
+    // A dark bus is excluded from the leader/follower chain, so the buses
+    // either side of it are linked to EACH OTHER and their pair spans two
+    // headways - reading as comfortably spaced while whatever is happening
+    // around the invisible bus is invisible too.
+    let spanning = 0;
+    for (const seed of [3001, 3002, 3003]) {
+      const { dark, visits, dispatches } = runDropout(seed);
+      const detected = detectIncidents({
+        corridor: CORRIDOR,
+        visits,
+        dispatches,
+        disturbances: [...dark].map((vehicleId) => ({
+          type: 'gps_dropout' as const,
+          vehicleId,
+          startSeconds: 0,
+          endSeconds: Number.MAX_SAFE_INTEGER,
+        })),
+        requiredSamples: 3,
+      });
+      for (const incident of detected.incidents) {
+        expect(dark.has(incident.leaderVehicleId)).toBe(false);
+        expect(dark.has(incident.followerVehicleId)).toBe(false);
+        if (incident.observationLost) spanning++;
+      }
+    }
+    expect(spanning).toBeGreaterThan(0);
   });
 });
