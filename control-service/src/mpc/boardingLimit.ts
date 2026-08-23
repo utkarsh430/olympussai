@@ -283,6 +283,24 @@ export function computeBoardingLimitCandidates(
 
     const estimate: BoardingLimitEstimate = {
       leftBehindPassengers,
+      // ─── A LOWER BOUND, AND MEASURED TO BE A LOOSE ONE ─────────────────
+      //
+      // This is how long until the follower REACHES this stop, and it is the
+      // number an operator is shown as the cost of the action. It assumes the
+      // follower then absorbs the whole queue at once.
+      //
+      // MEASURED in the fleet trial (docs/FLEET_TRIAL.md) on an urban corridor
+      // where this reported ~90 s: the 415 passengers actually left behind
+      // waited 103 extra hours between them, about 15 MINUTES each - roughly
+      // ten times this figure - and 150 more people were denied a seat
+      // entirely. The follower arrives carrying its own load, cannot fit a
+      // double queue, and the overflow rolls forward to the bus after it. On a
+      // corridor with no overtaking it is also stuck behind whatever delayed
+      // the leader in the first place.
+      //
+      // So this number must never be presented as the cost of the action. It
+      // is the best bound available without an occupancy feed on the follower,
+      // and it is the reason this candidate is proposed and never auto-selected.
       leftBehindWaitSeconds: followerGapSeconds,
       imposedWaitPassengerSeconds:
         leftBehindPassengers === null ? null : leftBehindPassengers * followerGapSeconds,

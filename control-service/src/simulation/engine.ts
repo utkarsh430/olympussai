@@ -220,6 +220,8 @@ interface VehicleRuntime {
   pendingArrivalSeconds: number;
   /** When it left the previous stop (or the origin), so a realised link pace can be measured. */
   lastReleaseSeconds: number;
+  /** Set when an alighting-only instruction was served here: the queue must outlive this bus's departure. */
+  skipQueueSweepAtDeparture: boolean;
 }
 
 /**
@@ -269,7 +271,9 @@ function provisionalVisit(runtime: VehicleRuntime): StopVisitRecord {
     stopId: '',
     stopIndex: runtime.pendingArrivalStopIndex,
     arrivalSeconds: runtime.pendingArrivalSeconds,
+    waitWindowSeconds: 0,
     boardings: 0,
+    boardingLimitedPassengers: 0,
     alightings: 0,
     deniedBoardings: 0,
     onboardAfter: runtime.onboard,
@@ -402,6 +406,7 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
     pendingArrivalStopIndex: 0,
     pendingArrivalSeconds: dispatch.scheduledDispatchSeconds,
     lastReleaseSeconds: dispatch.scheduledDispatchSeconds,
+    skipQueueSweepAtDeparture: false,
   }));
 
   const queue: SimEvent[] = [];
@@ -460,7 +465,16 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
 
     if (event.kind === 'departure') {
       const stopIndex = event.stopIndex;
-      queueClearedSeconds[stopIndex] = Math.max(queueClearedSeconds[stopIndex] ?? 0, event.atSeconds);
+      // A bus that was told to take nobody on leaves the queue exactly as it
+      // found it, and that has to survive its DEPARTURE as well as its arrival.
+      // Sweeping here regardless - which is what this did - erased the people
+      // it had just left standing, so the action cost nothing and the follower
+      // gained nothing. Both halves of the trade vanished and the lever
+      // measured as free.
+      if (!runtime.skipQueueSweepAtDeparture) {
+        queueClearedSeconds[stopIndex] = Math.max(queueClearedSeconds[stopIndex] ?? 0, event.atSeconds);
+      }
+      runtime.skipQueueSweepAtDeparture = false;
       lastDepartureAtStop[stopIndex] = event.atSeconds;
       const nextStopIndex = stopIndex + 1;
       if (nextStopIndex >= stopCount) {
@@ -493,6 +507,11 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
 
     const arrivalSeconds = event.atSeconds;
     const onboard = runtime.onboard;
+    // How long this stop has been accumulating passengers. Read BEFORE the
+    // sweep, because whether the sweep happens at all depends on a decision
+    // that has not been made yet - an alighting-only instruction leaves the
+    // queue standing for the bus behind.
+    const waitWindowSeconds = Math.max(0, arrivalSeconds - (queueClearedSeconds[stopIndex] ?? 0));
 
     const recordedBoardings = recordedInputs?.boardings[runtime.vehicleId]?.[stopIndex];
     const recordedAlightings = recordedInputs?.alightings[runtime.vehicleId]?.[stopIndex];
@@ -503,21 +522,23 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       rawBoardings = recordedBoardings;
       alightings = recordedAlightings;
     } else {
-      const waitWindowSeconds = Math.max(0, arrivalSeconds - (queueClearedSeconds[stopIndex] ?? 0));
       const burstMultiplier = activeDemandBurst(disturbances, stop.stopId, arrivalSeconds);
       rawBoardings = rng.nextNonNegativeCount(
         (stop.demand.boardingRatePerMinute / 60) * waitWindowSeconds * burstMultiplier,
       );
       alightings = Math.min(onboard, rng.nextNonNegativeCount(stop.demand.alightingFraction * onboard));
     }
-    queueClearedSeconds[stopIndex] = Math.max(queueClearedSeconds[stopIndex] ?? 0, arrivalSeconds);
 
     const capacityAfterAlighting = Math.max(0, routeDirection.vehicleCapacity - (onboard - alightings));
-    const actualBoardings = Math.min(rawBoardings, capacityAfterAlighting);
+    let actualBoardings = Math.min(rawBoardings, capacityAfterAlighting);
     const deniedBoardings = rawBoardings - actualBoardings;
-    const onboardAfter = Math.max(0, onboard - alightings + actualBoardings);
+    let boardingLimited = 0;
 
-    const dwellSeconds =
+    // Provisional: what the dwell would be if everybody who could board did.
+    // An alighting-only decision below shortens it, which is the entire point
+    // of the action, so the controller is offered this value as the release
+    // instant it would otherwise be measuring against.
+    const dwellIfBoarding =
       stop.demand.baseDwellSeconds +
       stop.demand.secondsPerBoarding * actualBoardings +
       stop.demand.secondsPerAlighting * alightings;
@@ -589,7 +610,7 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
         // is the instant a departure-headway law must measure to. See the
         // field's own comment for the compounding artefact that reading
         // `now` here produced.
-        readyToDepartSeconds: arrivalSeconds + dwellSeconds,
+        readyToDepartSeconds: arrivalSeconds + dwellIfBoarding,
         onboardCount: onboard,
         // How late this bus is against its own booked arrival, when the
         // scenario booked one. Null - not zero - when it did not; see
@@ -601,6 +622,23 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
         maxHoldSeconds: routeDirection.maxHoldSeconds,
         isStateStale,
       });
+      // ── ALIGHTING-ONLY ──
+      //
+      // Let people off, take nobody on. The bus sheds its whole boarding dwell
+      // and pulls away sooner; the passengers it leaves are collected by the
+      // bus behind, which gains that dwell and drops back. Both move toward
+      // where they should be, and unlike every hold in this engine it makes the
+      // instructed bus EARLIER rather than later.
+      //
+      // The queue is deliberately NOT swept: those passengers are still there,
+      // still accumulating wait, and the next bus finds all of them. Sweeping
+      // it would make them vanish, which would credit the action with a benefit
+      // and hide its entire cost.
+      if (decision.actionType === 'boarding_limit') {
+        boardingLimited = actualBoardings;
+        actualBoardings = 0;
+      }
+
       intendedHoldSeconds = Math.max(0, Math.min(decision.holdSeconds, routeDirection.maxHoldSeconds));
 
       if (intendedHoldSeconds > 0) {
@@ -614,6 +652,19 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       }
     }
 
+    const onboardAfter = Math.max(0, onboard - alightings + actualBoardings);
+    const dwellSeconds =
+      stop.demand.baseDwellSeconds +
+      stop.demand.secondsPerBoarding * actualBoardings +
+      stop.demand.secondsPerAlighting * alightings;
+
+    // Swept only for the passengers this bus actually took. An alighting-only
+    // bus leaves the queue exactly as it found it.
+    if (boardingLimited === 0) {
+      queueClearedSeconds[stopIndex] = Math.max(queueClearedSeconds[stopIndex] ?? 0, arrivalSeconds);
+    }
+    runtime.skipQueueSweepAtDeparture = boardingLimited > 0;
+
     const departureSeconds = arrivalSeconds + dwellSeconds + appliedHoldSeconds;
 
     const visit: StopVisitRecord = {
@@ -621,7 +672,9 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       stopId: stop.stopId,
       stopIndex,
       arrivalSeconds,
+      waitWindowSeconds,
       boardings: actualBoardings,
+      boardingLimitedPassengers: boardingLimited,
       alightings,
       deniedBoardings,
       onboardAfter,

@@ -12,7 +12,9 @@ function visit(overrides: Partial<StopVisitRecord> & Pick<StopVisitRecord, 'stop
   return {
     vehicleId: 'SIM-01',
     stopId: `stop-${overrides.stopIndex}`,
+    waitWindowSeconds: 0,
     boardings: 0,
+    boardingLimitedPassengers: 0,
     alightings: 0,
     deniedBoardings: 0,
     onboardAfter: 0,

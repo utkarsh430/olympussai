@@ -31,12 +31,14 @@ import { asyncHandler, AppError, sendError } from '../lib/errors.js';
 import { runFleetTrial, DEFAULT_FLEET_TRIAL_SPEC } from '../fleetTrial/run.js';
 import { BUNCHING_SCENARIOS } from '../fleetTrial/scenarios.js';
 import type { BunchingScenarioId } from '../fleetTrial/scenarios.js';
-import { DEFAULT_FLEET_CORRIDOR } from '../fleetTrial/corridor.js';
+import type { CorridorPresetId } from '../fleetTrial/presets.js';
+import { CORRIDOR_PRESETS } from '../fleetTrial/presets.js';
 import type { FleetTrialReport } from '../fleetTrial/types.js';
 
 export const fleetTrialRouter = Router();
 
 const SCENARIO_IDS = BUNCHING_SCENARIOS.map((s) => s.id) as [string, ...string[]];
+const PRESET_IDS = Object.keys(CORRIDOR_PRESETS) as [string, ...string[]];
 
 /**
  * Bounds on the trial's shape.
@@ -60,6 +62,9 @@ const bodySchema = z
     sweepIntervalSeconds: z.number().int().min(15).max(600),
     requiredSamples: z.number().int().min(1).max(10),
     followerSpeedSource: z.enum(['link_average', 'vehicle_state']),
+    corridorPreset: z.enum(PRESET_IDS),
+    /** Off by default and deliberately so - see FleetTrialSpec.alightingOnlySelectable. */
+    alightingOnlySelectable: z.boolean(),
     corridor: z
       .object({
         totalDistanceMeters: z.number().int().min(10_000).max(1_000_000),
@@ -101,7 +106,12 @@ fleetTrialRouter.post(
       // Narrowed by the schema's own enum, which is derived from the scenario
       // library - so an id that parses is by construction one that exists.
       scenarios: (body.data.scenarios ?? DEFAULT_FLEET_TRIAL_SPEC.scenarios) as BunchingScenarioId[],
-      corridor: { ...DEFAULT_FLEET_CORRIDOR, ...(body.data.corridor ?? {}) },
+      corridorPreset: (body.data.corridorPreset ??
+        DEFAULT_FLEET_TRIAL_SPEC.corridorPreset) as CorridorPresetId,
+      // Overrides ONLY. Spreading DEFAULT_FLEET_CORRIDOR here would replace the
+      // preset's whole shape with the inter-city one, which is the same class of
+      // bug that made the urban corridor run inter-city traffic.
+      corridor: body.data.corridor ?? {},
     });
     lastReport = report;
     res.status(200).json(report);

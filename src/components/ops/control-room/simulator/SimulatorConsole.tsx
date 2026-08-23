@@ -55,6 +55,7 @@ import {
   LAW_LABEL,
   SEVERITY_LABEL,
   type ArmReport,
+  type CorridorPresetId,
   type DetectedIncident,
   type FleetTrialReport,
   type PhaseReport,
@@ -185,6 +186,24 @@ function ArmContrastTable({ arm }: { arm: { uncontrolled: ArmReport; controlled:
               </span>
             </td>
           </tr>
+          {c.punctuality.alightingOnlyActions === 0 ? null : (
+            <tr className={opsTrClass}>
+              <td className={opsTdClass}>
+                Alighting-only instructions
+                <div className="text-[11px] text-subtle">
+                  let people off, take nobody on — the one lever that removes delay instead of adding it
+                </div>
+              </td>
+              <td className={opsTdMutedClass}>none</td>
+              <td className={opsTdNumericClass}>
+                {num(c.punctuality.alightingOnlyActions)}
+                <div className="text-[11px] text-subtle">
+                  {num(c.punctuality.alightingOnlyPassengersPassed)} passengers left for the bus behind
+                </div>
+              </td>
+              <td className={opsTdMutedClass}>—</td>
+            </tr>
+          )}
           {c.punctuality.onTimeRate === null ? null : (
             <>
               <ContrastRow
@@ -533,6 +552,7 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [vehiclesPerPhase, setVehiclesPerPhase] = useState(500);
+  const [corridorPreset, setCorridorPreset] = useState<CorridorPresetId>('intercity');
 
   const run = useCallback(async () => {
     setRunning(true);
@@ -541,7 +561,7 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
       const response = await fetch('/api/ops/control-room/fleet-trial', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vehiclesPerPhase }),
+        body: JSON.stringify({ vehiclesPerPhase, corridorPreset }),
       });
       const body: unknown = await response.json();
       if (!response.ok) {
@@ -559,7 +579,7 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
     } finally {
       setRunning(false);
     }
-  }, [vehiclesPerPhase]);
+  }, [vehiclesPerPhase, corridorPreset]);
 
   const phase = useMemo(
     () => report?.phases.find((p) => p.id === phaseId) ?? report?.phases[0] ?? null,
@@ -568,6 +588,18 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
 
   const controls = (
     <div className="flex flex-wrap items-end gap-3">
+      <label className="text-xs text-muted-foreground">
+        <span className="ops-eyebrow block">Corridor</span>
+        <OpsSelect
+          className="mt-1"
+          value={corridorPreset}
+          onChange={(event) => setCorridorPreset(event.target.value as CorridorPresetId)}
+          disabled={running}
+        >
+          <option value="intercity">400 km inter-city trunk</option>
+          <option value="urban">24 km city trunk</option>
+        </OpsSelect>
+      </label>
       <label className="text-xs text-muted-foreground">
         <span className="ops-eyebrow block">Buses per phase</span>
         <OpsSelect
@@ -620,6 +652,9 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
         description={`${Math.round(report.corridor.totalDistanceMeters / 1000)} km · ${report.corridor.stationCount} stations, all of them holding points · target headway ${Math.round(report.corridor.targetHeadwaySeconds / 60)} min · ${num(report.vehiclesSimulated)} buses simulated in ${(report.durationMs / 1000).toFixed(1)}s`}
         actions={controls}
       >
+        <p className="mb-4 max-w-prose text-sm text-muted-foreground">
+          {report.corridorPreset.description}
+        </p>
         <OpsAlert tone="info" title="What is real here and what is invented">
           The CONTROL is the deployed one: the four control laws, their gains, the hard safety filter,
           the selection rule and both tiers of the bunching detector are the same modules the live

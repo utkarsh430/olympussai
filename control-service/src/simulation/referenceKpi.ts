@@ -54,7 +54,11 @@ export function computeReferenceKpisFromRecordedInputs(
         stopId: stop.stopId,
         stopIndex,
         arrivalSeconds,
+        // The reference calculation replays RECORDED boardings, so there is no
+        // modelled queue behind them and no alighting-only decision to make.
+        waitWindowSeconds: 0,
         boardings: board,
+        boardingLimitedPassengers: 0,
         alightings: alight,
         deniedBoardings: 0,
         onboardAfter: onboard,

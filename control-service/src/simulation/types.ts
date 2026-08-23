@@ -374,7 +374,29 @@ export interface StopVisitRecord {
   stopId: string;
   stopIndex: number;
   arrivalSeconds: number;
+  /**
+   * How long this stop had been accumulating passengers when this bus reached
+   * it: `arrival` minus the last moment the queue was swept.
+   *
+   * The EXACT quantity a passenger wait should be computed from, and not the
+   * same as the gap between two buses' arrivals. They coincide only while every
+   * bus takes everybody waiting. They part company the moment one does not -
+   * after an alighting-only instruction, or a bus that filled to capacity - and
+   * then the gap understates the wait of the people who were passed by, which
+   * is precisely the population an alighting-only law is spending.
+   */
+  waitWindowSeconds: number;
   boardings: number;
+  /**
+   * Passengers left standing because the bus was told to take nobody on.
+   *
+   * Distinct from `deniedBoardings`, which is a bus that was FULL. These two
+   * are the same experience for the passenger and completely different facts
+   * about the system - one is a capacity shortfall, the other is a decision
+   * somebody made - and a surface that added them together could not tell an
+   * operator which had happened.
+   */
+  boardingLimitedPassengers: number;
   alightings: number;
   deniedBoardings: number;
   onboardAfter: number;

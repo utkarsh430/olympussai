@@ -41,7 +41,9 @@ import {
   createDeployedControlLawsController,
   CONTROL_LAWS,
 } from '../rehearsal/deployedControlLaws.js';
-import { buildFleetCorridor, DEFAULT_FLEET_CORRIDOR } from './corridor.js';
+import { buildFleetCorridor } from './corridor.js';
+import { CORRIDOR_PRESETS, FLEET_TRIAL_INPUTS } from './presets.js';
+import type { CorridorPresetId } from './presets.js';
 import { BUNCHING_SCENARIOS, scenarioById, scenarioRng } from './scenarios.js';
 import { detectIncidents, DEFAULT_SWEEP_INTERVAL_SECONDS } from './detection.js';
 import type { DetectedIncident, SweepSample } from './detection.js';
@@ -110,7 +112,8 @@ const STUDY_SEEDS = 3;
 const MAX_STUDY_VEHICLES = 250;
 
 export interface FleetTrialSpec {
-  corridor: FleetCorridorSpec;
+  /** Overrides on the preset's corridor. Empty by default so the preset decides the shape. */
+  corridor: Partial<FleetCorridorSpec>;
   /** Buses per phase. Two phases of 500 is the thousand-bus trial. */
   vehiclesPerPhase: number;
   scenarios: BunchingScenarioId[];
@@ -130,55 +133,51 @@ export interface FleetTrialSpec {
    * is the row the deployed solver actually reads.
    */
   followerSpeedSource: 'link_average' | 'vehicle_state';
+  /** Which corridor shape to run on. See `presets.ts` for why more than one exists. */
+  corridorPreset: CorridorPresetId;
+  /**
+   * Whether an alighting-only proposal may be ACTED on when no hold was
+   * selected.
+   *
+   * Defaults FALSE, matching production: `mpc/solver.ts` proposes the action to
+   * an operator and never issues it, because neither side of its trade can be
+   * priced today.
+   *
+   * The trial can turn it on because it is the one place that CAN price the
+   * trade - it simulates the outcome. Turned on and measured, the action LOSES:
+   * across eight seeds on the urban corridor it made total passenger time worse
+   * on seven of them, and in the `slow_bus` scenario it cost 9% of all
+   * passenger time on every seed. The people left behind wait about ten times
+   * the law's own estimate, because the follower arrives with its own load,
+   * cannot fit a double queue, and the overflow rolls forward.
+   *
+   * So the deployed caution is correct and this stays off. It is kept as a
+   * switch because that conclusion is a measurement, and a measurement has to
+   * be re-runnable.
+   */
+  alightingOnlySelectable: boolean;
 }
 
-/**
- * The trial's own modelled demand, and why it is not the rehearsal's.
- *
- * ─── THE SATURATION TRAP ─────────────────────────────────────────────────
- *
- * A stop boards `rate x H* / 60` passengers and sheds `alightingFraction` of the
- * load, so the steady-state occupancy is `rate x (H* / 60) / alightingFraction`.
- * At 0.38/min against 26% on a 30-minute headway that is about 44 of 55 seats -
- * loaded, with headroom. Push it to the seat count and the corridor SATURATES,
- * and a saturated corridor is the one regime in which the headline metric
- * cannot respond to control at all: waiting time is bounded by how many seats
- * exist rather than by how they are spaced, and holding a full bus only
- * strands more people. An evaluation run there reports "no effect" about a
- * working controller. `evaluation/spec.ts` documents the same trap, and
- * `SpacingKpis.saturated` flags any arm that fell into it anyway.
- *
- * ─── DWELL IS AN INTER-CITY DWELL ────────────────────────────────────────
- *
- * 120 s at the door, not the 20 s of an urban stop. It matters more than it
- * looks: dwell is the feedback path that turns a late bus into a bunched pair,
- * because a late bus finds more passengers waiting and is delayed further by
- * collecting them. A trial with an urban dwell on an inter-city corridor would
- * have almost no such feedback and would be measuring travel-time noise alone.
- *
- * 60 km/h over 44 km legs makes a 400 km trip take about seven hours, which is
- * what an inter-city trunk actually looks like.
- */
-export const FLEET_TRIAL_INPUTS: Partial<ModelledInputs> = {
-  cruiseSpeedKmph: 60,
-  travelTimeVariation: 0.14,
-  boardingRatePerMinute: 0.38,
-  alightingFraction: 0.26,
-  baseDwellSeconds: 120,
-  secondsPerBoarding: 2.5,
-  secondsPerAlighting: 1.5,
-  vehicleCapacity: 55,
-};
 
 export const DEFAULT_FLEET_TRIAL_SPEC: FleetTrialSpec = {
-  corridor: DEFAULT_FLEET_CORRIDOR,
+  corridor: {},
   vehiclesPerPhase: 500,
   scenarios: BUNCHING_SCENARIOS.map((s) => s.id),
   seed: 20260822,
-  inputs: FLEET_TRIAL_INPUTS,
+  // EMPTY, and it has to be. The preset supplies the demand that belongs to its
+  // shape; this field is for a caller overriding one of them deliberately.
+  // MEASURED when it defaulted to the inter-city inputs instead: they were
+  // spread AFTER the preset's, so asking for the urban corridor got urban
+  // GEOMETRY with inter-city TRAFFIC - 0.38 boardings/min against 1.2, a 120 s
+  // dwell against 20 s - and the corridor came out four times more lightly
+  // loaded than it should be, barely bunched at all, with the controller
+  // apparently useless on it. A shape and its traffic cannot be mixed.
+  inputs: {},
   sweepIntervalSeconds: DEFAULT_SWEEP_INTERVAL_SECONDS,
   requiredSamples: 3,
   followerSpeedSource: 'vehicle_state',
+  corridorPreset: 'intercity',
+  alightingOnlySelectable: false,
 };
 
 const PHASES: { id: PhaseId; title: string; weighOccupancy: boolean }[] = [
@@ -439,6 +438,8 @@ interface JourneyRecord {
   refusedHoldSeconds: number;
   /** Lateness at the terminus against the booked timetable, or null when none was booked. */
   scheduleDeviationSeconds: number | null;
+  alightingOnlyActions: number;
+  alightingOnlyPassengersPassed: number;
 }
 
 /**
@@ -455,14 +456,22 @@ function journeysOf(
   scheduledArrivalSeconds?: Record<string, number[]>,
 ): JourneyRecord[] {
   const dispatchByVehicle = new Map(dispatches.map((d) => [d.vehicleId, d.scheduledDispatchSeconds]));
-  const byVehicle = new Map<string, { arrival: number | null; hold: number; refused: number }>();
+  const byVehicle = new Map<
+    string,
+    { arrival: number | null; hold: number; refused: number; limited: number; passed: number }
+  >();
 
   for (const visit of visits) {
     if (!isReported(visit.vehicleId)) continue;
-    const entry = byVehicle.get(visit.vehicleId) ?? { arrival: null, hold: 0, refused: 0 };
+    const entry =
+      byVehicle.get(visit.vehicleId) ?? { arrival: null, hold: 0, refused: 0, limited: 0, passed: 0 };
     if (visit.stopIndex === finalStopIndex) entry.arrival = visit.arrivalSeconds;
     entry.hold += visit.appliedHoldSeconds;
     if (!visit.compliant) entry.refused += visit.intendedHoldSeconds;
+    if (visit.boardingLimitedPassengers > 0) {
+      entry.limited++;
+      entry.passed += visit.boardingLimitedPassengers;
+    }
     byVehicle.set(visit.vehicleId, entry);
   }
 
@@ -477,6 +486,8 @@ function journeysOf(
       holdSeconds: entry.hold,
       refusedHoldSeconds: entry.refused,
       scheduleDeviationSeconds: booked === undefined ? null : entry.arrival - booked,
+      alightingOnlyActions: entry.limited,
+      alightingOnlyPassengersPassed: entry.passed,
     });
   }
   return journeys;
@@ -506,6 +517,8 @@ function punctualityKpis(journeys: readonly JourneyRecord[]): PunctualityKpis {
     meanHoldSecondsPerVehicle: journeys.length > 0 ? totalHoldSeconds / journeys.length : 0,
     maxHoldSecondsOnAnyVehicle: journeys.reduce((acc, j) => Math.max(acc, j.holdSeconds), 0),
     refusedHoldSeconds: journeys.reduce((acc, j) => acc + j.refusedHoldSeconds, 0),
+    alightingOnlyActions: journeys.reduce((acc, j) => acc + j.alightingOnlyActions, 0),
+    alightingOnlyPassengersPassed: journeys.reduce((acc, j) => acc + j.alightingOnlyPassengersPassed, 0),
   };
 }
 
@@ -725,6 +738,7 @@ function runScenario(args: {
   requiredSamples: number;
   sweepIntervalSeconds: number;
   followerSpeedSource: 'link_average' | 'vehicle_state';
+  alightingOnlySelectable: boolean;
 }): ScenarioRun {
   const {
     corridor,
@@ -736,6 +750,7 @@ function runScenario(args: {
     requiredSamples,
     sweepIntervalSeconds,
     followerSpeedSource,
+    alightingOnlySelectable,
   } = args;
   const config = buildTrialScenario({ corridor, scenario, inputs, vehicleIds, seed });
   const finalStopIndex = corridor.stops.length - 1;
@@ -752,6 +767,7 @@ function runScenario(args: {
     // alighting-only could never pass its leader check and reported 0%
     // coverage for a reason that belonged to the harness.
     corridorStops: corridor.stops,
+    alightingOnlySelectable,
     // Left at the deployed switch. The closed-form optimum is the argmin of
     // the very quantity candidates are ranked by, so letting it compete would
     // REPLACE the tuned controller rather than add to it - and a trial that
@@ -1071,6 +1087,7 @@ function compareOccupancySettings(args: {
       weighOccupancy: false,
       followerSpeedSource,
       corridorStops: corridor.stops,
+      alightingOnlySelectable: true,
     });
     simulate(run.config, blindController);
 
@@ -1152,12 +1169,13 @@ function compareOccupancySettings(args: {
  */
 function runHoldingPointStudy(args: {
   spec: FleetTrialSpec;
+  corridorSpec: FleetCorridorSpec;
   scenarios: readonly BunchingScenario[];
   inputs: ModelledInputs;
   vehiclesPerPhase: number;
 }): HoldingPointStudy {
-  const { spec, scenarios, inputs, vehiclesPerPhase } = args;
-  const stationCount = spec.corridor.stationCount;
+  const { spec, corridorSpec, scenarios, inputs, vehiclesPerPhase } = args;
+  const stationCount = corridorSpec.stationCount;
 
   // Three placements: a few early stops, half the route, and everything. Enough
   // to show the shape of the trade without turning one trial into six.
@@ -1167,7 +1185,7 @@ function runHoldingPointStudy(args: {
 
   const rows: HoldingPointStudyRow[] = [];
   for (const holdingPointCount of counts) {
-    const corridor = buildFleetCorridor({ ...spec.corridor, holdingPointCount });
+    const corridor = buildFleetCorridor({ ...corridorSpec, holdingPointCount });
     const perSeed: { net: number | null; ewt: number | null; hold: number; holds: number; denied: number; detected: number; resolved: number }[] = [];
 
     for (let seedIndex = 0; seedIndex < STUDY_SEEDS; seedIndex++) {
@@ -1196,6 +1214,7 @@ function runHoldingPointStudy(args: {
             requiredSamples: spec.requiredSamples,
             sweepIntervalSeconds: spec.sweepIntervalSeconds,
             followerSpeedSource: spec.followerSpeedSource,
+            alightingOnlySelectable: spec.alightingOnlySelectable,
           }),
         );
       }
@@ -1405,10 +1424,16 @@ export function runFleetTrial(
   onProgress?: (done: number, total: number, label: string) => void,
 ): FleetTrialReport {
   const startedAt = Date.now();
-  const corridor = buildFleetCorridor(spec.corridor);
+  const preset = CORRIDOR_PRESETS[spec.corridorPreset];
+  // The spec's own corridor wins over the preset's, so a caller can vary one
+  // field (the placement study varies `holdingPointCount`) without losing the
+  // shape it asked for.
+  const corridorSpec = { ...preset.corridor, ...spec.corridor };
+  const corridor = buildFleetCorridor(corridorSpec);
   const inputs: ModelledInputs = {
     ...DEFAULT_MODELLED_INPUTS,
     ...FLEET_TRIAL_INPUTS,
+    ...preset.inputs,
     ...spec.inputs,
     seed: spec.seed,
     disturbance: 'none',
@@ -1471,6 +1496,7 @@ export function runFleetTrial(
         requiredSamples: spec.requiredSamples,
         sweepIntervalSeconds: spec.sweepIntervalSeconds,
         followerSpeedSource: spec.followerSpeedSource,
+        alightingOnlySelectable: spec.alightingOnlySelectable,
       });
       runs.push(run);
       done++;
@@ -1499,6 +1525,7 @@ export function runFleetTrial(
 
   const holdingPointStudy = runHoldingPointStudy({
     spec,
+    corridorSpec,
     scenarios,
     inputs,
     vehiclesPerPhase: Math.min(spec.vehiclesPerPhase, MAX_STUDY_VEHICLES),
@@ -1515,6 +1542,8 @@ export function runFleetTrial(
   return {
     generatedAt: new Date().toISOString(),
     durationMs: Date.now() - startedAt,
+    corridorPreset: { id: preset.id, title: preset.title, description: preset.description },
+    alightingOnlySelectable: spec.alightingOnlySelectable,
     corridor: {
       routeDirectionId: corridor.routeDirectionId,
       routeName: corridor.routeName ?? corridor.routeDirectionId,

@@ -52,6 +52,8 @@ const punctualityKpisSchema = z.object({
   meanScheduleDeviationSeconds: z.number().nullable(),
   p95ScheduleDeviationSeconds: z.number().nullable(),
   onTimeRate: z.number().nullable(),
+  alightingOnlyActions: z.number(),
+  alightingOnlyPassengersPassed: z.number(),
 });
 
 const passengerOutcomeSchema = z.object({
@@ -219,9 +221,14 @@ const holdingPointStudySchema = z.object({
 });
 export type HoldingPointStudy = z.infer<typeof holdingPointStudySchema>;
 
+export const corridorPresetIdSchema = z.enum(['intercity', 'urban']);
+export type CorridorPresetId = z.infer<typeof corridorPresetIdSchema>;
+
 export const fleetTrialReportSchema = z.object({
   generatedAt: z.string(),
   durationMs: z.number(),
+  corridorPreset: z.object({ id: z.string(), title: z.string(), description: z.string() }),
+  alightingOnlySelectable: z.boolean(),
   corridor: z.object({
     routeDirectionId: z.string(),
     routeName: z.string(),
@@ -279,6 +286,8 @@ export const fleetTrialRequestSchema = z
     scenarios: z.array(bunchingScenarioIdSchema).min(1),
     seed: z.number().int().min(0).max(2_147_483_647),
     followerSpeedSource: z.enum(['link_average', 'vehicle_state']),
+    corridorPreset: corridorPresetIdSchema,
+    alightingOnlySelectable: z.boolean(),
   })
   .partial()
   .strict();

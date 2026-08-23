@@ -298,6 +298,76 @@ states — a difference whose interval spans zero is no effect however large its
 mean — and it is the reason the holding-point study reports seed agreement
 alongside every row rather than a bare average.
 
+### 6. The corridor decides the answer, so there are now two of them
+
+Almost every conclusion above is a property of the corridor as much as of the
+controller. Running one shape reports the corridor's arithmetic as if it were
+the algorithm's — so `fleetTrial/presets.ts` carries two, and the console lets
+you pick.
+
+| | 400 km inter-city | 24 km urban |
+|---|---|---|
+| headway | 30 min | 6 min |
+| stops | 10, 44 km apart | 25, 1 km apart |
+| dwell | 120 s | 20 s |
+| aboard when held | ~44 of 55 | ~29 of 60 |
+| **excess wait** | **−25.3%** | **−51.5%** |
+| **total passenger time** | **−1.0%** | **+17.2% saved** |
+| punctuality cost | 6.8 min/bus | 2.6 min/bus |
+
+The controller is *strongly* net-positive on the urban corridor and roughly
+break-even on the inter-city one. The near-break-even result is not a failure of
+the algorithm — it is the arithmetic of a corridor where forty-four people are
+aboard and eleven are waiting. Holding is worth doing when the ratio runs the
+other way.
+
+**A bug found while building this**, and it is the reason the urban numbers
+appeared for a while to say the opposite: the trial's default `inputs` were
+spread *after* the preset's, so asking for the urban corridor got urban
+*geometry* with inter-city *traffic* — 0.38 boardings/min against 1.2, a 120 s
+dwell against 20 s. The corridor came out four times too lightly loaded, barely
+bunched, and the controller looked useless on it. A shape and its traffic cannot
+be mixed.
+
+### 7. Alighting-only: the right idea, and it loses anyway
+
+"Let a bus at a stop drop passengers but pick nobody up when the follower is
+close behind" is `mpc/boardingLimit.ts` — the only lever here that improves
+spacing by *removing* delay rather than adding it. The trial reported it at
+**0 of 4,960 decisions** for months. That turned out to be two harness bugs, not
+a property of the law:
+
+1. The adapter built only the headway row where the deciding bus is the
+   **follower**, so the law — which acts on the **leader** — was always asked
+   about a bus mid-link, and failed its "is the leader at a stop?" check every
+   time. The row it needed was being computed and discarded.
+2. Every candidate that survived was then rejected `stale_state`, because the
+   safety filter ages every vehicle a candidate *involves* and the **trailer**
+   had no observation timestamp.
+
+Fixed, the law fires — and measured, it **loses**. Across eight seeds on the
+urban corridor it made total passenger time worse on seven; in `slow_bus` it
+cost 9% of all passenger time on **every** seed.
+
+The mechanism, measured directly: 415 passengers passed cost **103 extra hours
+of waiting — about 15 minutes each**, against the ~90 seconds the law reports as
+`leftBehindWaitSeconds`. The follower arrives carrying its own load, cannot fit a
+double queue, 150 more people are denied a seat outright, and the overflow rolls
+forward. On a corridor with no overtaking the follower is also stuck behind
+whatever delayed the leader in the first place.
+
+So `leftBehindWaitSeconds` is a **lower bound and a loose one** — it must never
+be shown as the cost of the action. And the deployed decision to propose this
+and never auto-select it is correct: the law needs a fitted dwell model to know
+its benefit and an occupancy feed on the follower to know its cost, and
+`mpc/boardingLimit.ts` says so itself. The trial now puts numbers on both.
+
+**This finding survived only because a bug in the trial was caught.** The first
+measurement said alighting-only improved things on 7 of 8 seeds — because the
+engine swept the stop's waiting queue at *departure* regardless, so the
+passengers left behind vanished and the action measured as free. Both halves of
+its trade had disappeared.
+
 ## What the trial still does not test
 
 - **The command lifecycle.** Cooldown, minimum action interval, maximum

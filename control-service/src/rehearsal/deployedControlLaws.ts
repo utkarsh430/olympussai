@@ -136,6 +136,8 @@ export type DeclineReason =
   | 'not_eligible_to_hold'
   /** Alighting-only acts on the LEADER, and the leader was not at a stop it could act at. */
   | 'leader_not_at_stop'
+  /** Alighting-only needs a bus behind to collect the people left standing. There was none. */
+  | 'no_trailing_vehicle'
   | 'no_hold_indicated';
 
 export interface DecisionCoverage {
@@ -175,6 +177,13 @@ export interface RehearsalDecisionRecord {
   holdSeconds: number;
   /** Modelled passengers aboard the deciding vehicle on arrival. Modelled, never observed - see `occupancy` below. */
   onboardCount: number | null;
+  /**
+   * Seconds this bus is behind its timetable, or null when the scenario booked
+   * none. Carried because two deployed guards read it and a reader cannot tell
+   * why either fired without it: the objective's lateness term, and
+   * `mpc/boardingLimit.ts`'s refusal to let an EARLY bus leave anybody behind.
+   */
+  scheduleDeviationSeconds: number | null;
   occupancy: {
     /**
      * The occupancy-weighted MPC tier run exactly as production runs it
@@ -240,6 +249,17 @@ export interface DeployedControlLawsOptions {
    * really does must run both ends and report the range.
    */
   followerSpeedSource?: 'link_average' | 'vehicle_state';
+  /**
+   * Whether an alighting-only proposal may be ACTED ON when no hold was
+   * selected, rather than merely generated and shown.
+   *
+   * Defaults false, which is deployed behaviour: `mpc/solver.ts` proposes the
+   * action to an operator and never issues it itself. An evaluation that wants
+   * to know what the lever is worth has to be able to apply it, and this is the
+   * switch that lets it - never displacing a hold, only filling a decision that
+   * would otherwise have been "do nothing".
+   */
+  alightingOnlySelectable?: boolean;
   /**
    * The corridor's stations, so a NEIGHBOUR can be given a vehicle state too.
    *
@@ -329,6 +349,7 @@ export function createDeployedControlLawsController(
   const weighOccupancy = options.weighOccupancy ?? true;
   const followerSpeedSource = options.followerSpeedSource ?? 'link_average';
   const corridorStops = options.corridorStops ?? null;
+  const alightingOnlySelectable = options.alightingOnlySelectable ?? false;
 
   /**
    * The station a neighbour is standing at, or null when it is between them.
@@ -424,6 +445,7 @@ export function createDeployedControlLawsController(
         selectedActionType: 'no_control',
         holdSeconds: 0,
         onboardCount: context.onboardCount ?? null,
+        scheduleDeviationSeconds: context.scheduleDeviationSeconds ?? null,
         occupancy: null,
         coverage: {
           ...base,
@@ -551,6 +573,14 @@ export function createDeployedControlLawsController(
       [leaderId, nowIso],
       [followerId, followerObservedAt],
     ]);
+    // The bus BEHIND needs a reading too, and its absence was not harmless.
+    // `mpc/safety.ts` ages every vehicle a candidate INVOLVES, and treats a
+    // missing timestamp as infinitely old. Alighting-only involves the trailer
+    // by construction - it is the bus that will collect the people left
+    // standing - so every candidate Algorithm E produced was rejected
+    // `stale_state`, on a corridor where nothing was stale. Fresh, like the
+    // leader above: the engine knows exactly where this bus is.
+    if (trailerId) vehicleObservedAtByVehicleId.set(trailerId, nowIso);
 
 
     const vehicleStates = new Map<string, VehicleStateRow>([
@@ -693,8 +723,43 @@ export function createDeployedControlLawsController(
       controlPointStopIds,
       weighOccupancy,
     );
+    // ─── ALIGHTING-ONLY NEEDS THE OTHER ROW ────────────────────────────
+    //
+    // `computeBoardingLimitCandidates` acts on the LEADER of a pair, and asks
+    // whether that leader is standing at a stop it could act at. Handing it
+    // only `headwayStates` - one row, whose leader is the bus AHEAD of the
+    // deciding one and therefore mid-link - meant the answer was always no.
+    // Algorithm E generated zero candidates on every rehearsal and every
+    // evaluation ever run, and coverage attributed it to `no_hold_indicated`.
+    //
+    // `computePairHeadways` had already computed the row that makes the law
+    // answerable: the one where the DECIDING bus is the leader and the bus
+    // behind it is the follower. It was being discarded. That row is exactly
+    // the situation the law is for - a bus at a stop with another close behind
+    // it - so it is passed here, and only here: the hold laws must keep seeing
+    // the deciding vehicle as the follower, or they would start proposing holds
+    // for the bus behind.
+    const trailingPair = pairs.find((p) => p.leaderVehicleId === followerId);
+    const boardingLimitStates: HeadwayStateRow[] = [
+      ...headwayStates,
+      ...(trailingPair
+        ? [
+            {
+              id: `rehearsal-${followerId}-trailing-${context.stopId}-${Math.round(context.now)}`,
+              routeDirectionId: context.routeDirectionId,
+              leaderVehicleId: trailingPair.leaderVehicleId,
+              followerVehicleId: trailingPair.followerVehicleId,
+              hFwdSeconds: trailingPair.hFwdSeconds,
+              hBwdSeconds: trailingPair.hBwdSeconds,
+              targetHeadwaySeconds: trailingPair.targetHeadwaySeconds,
+              deviationSeconds: trailingPair.deviationSeconds,
+              computedAt: nowIso,
+            },
+          ]
+        : []),
+    ];
     const boardingLimitCandidates = computeBoardingLimitCandidates(
-      headwayStates,
+      boardingLimitStates,
       policy,
       vehicleStates,
       scheduleDeviationByVehicleId,
@@ -769,7 +834,11 @@ export function createDeployedControlLawsController(
               ? 'not_eligible_to_hold'
               : 'no_hold_indicated';
     }
-    if (boardingLimitCandidates.length === 0) {
+    if (boardingLimitCandidates.length === 0 && !trailingPair) {
+      // No bus behind at all, so there is nobody for the left-behind passengers
+      // to be collected by and the action has no meaning here.
+      coverageBase.declined.boarding_limit = 'no_trailing_vehicle';
+    } else if (boardingLimitCandidates.length === 0) {
       // Reported precisely, because "no_hold_indicated" was hiding two very
       // different findings behind one word. Alighting-only needs the LEADER to
       // be standing at a stop AND the pair to be within an absolute 240 s of
@@ -835,7 +904,24 @@ export function createDeployedControlLawsController(
       // solver keeps it out of the ranked pool while leaving it in `safe`.
       .filter((c) => c.actionType !== 'terminal_dispatch_hold' && !isBoardingLimitCandidate(c))
       .sort((a, b) => a.objectiveCost - b.objectiveCost);
-    const selected = selectActions(safeTerminal, safeMidRoute, 1, costOptimalSelectable)[0] ?? null;
+    let selected = selectActions(safeTerminal, safeMidRoute, 1, costOptimalSelectable)[0] ?? null;
+
+    // ─── ALIGHTING-ONLY IS OFFERED, NEVER RANKED ───────────────────────
+    //
+    // The deployed solver keeps it out of `safeMidRoute` because its
+    // `objectiveCost` is 0 - unpriced, not free - and a zero would sort FIRST
+    // in a list ranked ascending on cost. That exclusion is correct and is not
+    // touched here.
+    //
+    // What this adds is the only thing an evaluation can honestly do with a
+    // proposal: take it when nothing else was chosen, so the trial can MEASURE
+    // what the lever is worth instead of reporting it at 0% forever. It can
+    // never displace a hold, because it is only consulted once selection has
+    // already returned nothing. Off unless the caller asks.
+    if (!selected && alightingOnlySelectable) {
+      const offered = safe.find((c) => isBoardingLimitCandidate(c) && c.vehicleId === followerId);
+      if (offered) selected = offered;
+    }
 
     const safetyRejectionReasons = [...new Set(rejected.flatMap((r) => r.reasons))].sort();
 
@@ -852,6 +938,7 @@ export function createDeployedControlLawsController(
       selectedActionType: selected?.actionType ?? 'no_control',
       holdSeconds: selected?.holdSeconds ?? 0,
       onboardCount: context.onboardCount ?? null,
+      scheduleDeviationSeconds: context.scheduleDeviationSeconds ?? null,
       occupancy,
       coverage: {
         ...coverageBase,

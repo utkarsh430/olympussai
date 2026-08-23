@@ -7,11 +7,13 @@ import { describe, it, expect } from 'vitest';
 import { buildFleetCorridor, DEFAULT_FLEET_CORRIDOR } from '../../src/fleetTrial/corridor.js';
 import { BUNCHING_SCENARIOS, scenarioById } from '../../src/fleetTrial/scenarios.js';
 import { detectIncidents } from '../../src/fleetTrial/detection.js';
-import { runFleetTrial, DEFAULT_FLEET_TRIAL_SPEC, FLEET_TRIAL_INPUTS } from '../../src/fleetTrial/run.js';
+import { runFleetTrial, DEFAULT_FLEET_TRIAL_SPEC } from '../../src/fleetTrial/run.js';
+import { FLEET_TRIAL_INPUTS } from '../../src/fleetTrial/presets.js';
 import { scenarioRng } from '../../src/fleetTrial/scenarios.js';
+import { CORRIDOR_PRESETS } from '../../src/fleetTrial/presets.js';
 import { simulate } from '../../src/simulation/index.js';
 import { createDeployedControlLawsController } from '../../src/rehearsal/deployedControlLaws.js';
-import { buildRehearsalScenario, DEFAULT_MODELLED_INPUTS, REHEARSAL_EPOCH_MS } from '../../src/rehearsal/run.js';
+import { buildRehearsalScenario, DEFAULT_MODELLED_INPUTS, REHEARSAL_EPOCH_MS, isReported } from '../../src/rehearsal/run.js';
 import type { ModelledInputs } from '../../src/rehearsal/run.js';
 import type { StopVisitRecord, TerminalDispatchPlan } from '../../src/simulation/types.js';
 
@@ -123,7 +125,9 @@ describe('incident detection', () => {
       stopId: stopId(stopIndex),
       stopIndex,
       arrivalSeconds,
+      waitWindowSeconds: 0,
       boardings: 0,
+      boardingLimitedPassengers: 0,
       alightings: 0,
       deniedBoardings: 0,
       onboardAfter: 0,
@@ -442,5 +446,96 @@ describe('a bus nobody can see', () => {
       }
     }
     expect(spanning).toBeGreaterThan(0);
+  });
+});
+
+// ─── ALIGHTING-ONLY: THE LEVER THAT LOOKS FREE AND IS NOT ────────────────
+//
+// `mpc/boardingLimit.ts` is the only law here that improves spacing by
+// REMOVING delay, and the trial exists partly to price it. Two things below,
+// and the second is the reason the deployed solver never auto-selects it.
+describe('alighting-only', () => {
+  const scenario = scenarioById('slow_bus');
+  const urban = buildFleetCorridor(CORRIDOR_PRESETS.urban.corridor);
+
+  function run(seed: number, selectable: boolean) {
+    const inputs: ModelledInputs = {
+      ...DEFAULT_MODELLED_INPUTS,
+      ...CORRIDOR_PRESETS.urban.inputs,
+      ...scenario.inputs,
+      vehicleCount: 30,
+      seed,
+      disturbance: 'none',
+    };
+    const built = buildRehearsalScenario(urban, inputs);
+    const plan = scenario.build({
+      corridor: urban,
+      inputs,
+      dispatches: built.scenario.dispatches,
+      targetHeadwaySeconds: urban.policy.targetHeadwaySeconds,
+      freeFlowSecondsTo: (index) =>
+        (urban.stops[index]?.cumulativeDistanceMeters ?? 0) / (inputs.cruiseSpeedKmph / 3.6),
+      rng: scenarioRng(seed, scenario.id),
+    });
+    const config = { ...built.scenario, dispatches: plan.dispatches, disturbances: plan.disturbances };
+    const controller = createDeployedControlLawsController({
+      policy: urban.policy,
+      epochMs: REHEARSAL_EPOCH_MS,
+      modelledCapacity: inputs.vehicleCapacity,
+      weighOccupancy: false,
+      followerSpeedSource: 'vehicle_state',
+      corridorStops: urban.stops,
+      alightingOnlySelectable: selectable,
+    });
+    return simulate(config, controller).visits.filter((v) => isReported(v.vehicleId));
+  }
+
+  it('is reachable at all — the law must be given a pair it can act on', () => {
+    // It was structurally unreachable for two separate reasons, and both were
+    // in the harness rather than the law: the adapter built only the row where
+    // the deciding bus is the FOLLOWER (so the law was always asked about a bus
+    // mid-link), and it gave the trailer no observation timestamp (so every
+    // candidate that did survive was rejected `stale_state`). A zero here means
+    // one of those has come back and Algorithm E is silently untested again.
+    const visits = run(9001, true);
+    const actions = visits.filter((v) => v.boardingLimitedPassengers > 0);
+    expect(actions.length).toBeGreaterThan(0);
+  });
+
+  it('leaves the queue standing, so the cost of passing people is actually modelled', () => {
+    // The whole trade is that the passengers left behind wait for the next bus.
+    // If the engine swept the queue anyway they would vanish, the action would
+    // measure as free, and the trial would recommend it. That is exactly what
+    // happened before the departure sweep was made conditional.
+    const visits = run(9001, true).sort((a, b) => a.arrivalSeconds - b.arrivalSeconds);
+    const limited = visits.find((v) => v.boardingLimitedPassengers > 0);
+    expect(limited).toBeDefined();
+    const next = visits.find(
+      (v) => v.stopId === limited!.stopId && v.arrivalSeconds > limited!.arrivalSeconds,
+    );
+    expect(next).toBeDefined();
+    // The next bus at that stop inherits a queue reaching back past the bus
+    // that refused, rather than one starting from it.
+    expect(next!.waitWindowSeconds).toBeGreaterThan(
+      next!.arrivalSeconds - limited!.arrivalSeconds,
+    );
+  });
+
+  it('costs more passenger time than it saves, which is why it is not auto-selected', () => {
+    // MEASURED across seeds on the corridor where the law is most applicable.
+    // The people left behind wait about ten times the law's own estimate: the
+    // follower arrives with its own load, cannot fit a double queue, and the
+    // overflow rolls forward. If this ever flips, re-read docs/FLEET_TRIAL.md
+    // before celebrating - the last time it looked like a win, it was a bug.
+    const totalWait = (visits: readonly StopVisitRecord[]) =>
+      visits.reduce((acc, v) => acc + v.boardings * (v.waitWindowSeconds / 2), 0);
+
+    let worseCount = 0;
+    for (const seed of [9001, 9002, 9003]) {
+      const off = totalWait(run(seed, false));
+      const on = totalWait(run(seed, true));
+      if (on > off) worseCount++;
+    }
+    expect(worseCount).toBeGreaterThanOrEqual(2);
   });
 });

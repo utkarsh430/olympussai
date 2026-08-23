@@ -78,6 +78,16 @@ export interface PunctualityKpis {
   /** Holds the laws asked for that a driver did not take. */
   refusedHoldSeconds: number;
   /**
+   * Times a bus was told to let people off and take nobody on, and how many
+   * people that left standing.
+   *
+   * The one lever here whose cost falls on people at the roadside rather than
+   * on the timetable, so the passenger count travels with the action count and
+   * neither is shown without the other.
+   */
+  alightingOnlyActions: number;
+  alightingOnlyPassengersPassed: number;
+  /**
    * Lateness against the booked timetable at the terminus, in seconds
    * (negative = arrived early). Null when the scenario booked no timetable.
    *
@@ -338,6 +348,10 @@ export interface TrialProvenanceEntry {
 export interface FleetTrialReport {
   generatedAt: string;
   durationMs: number;
+  /** Which shape this trial ran on. Almost every conclusion depends on it - see `fleetTrial/presets.ts`. */
+  corridorPreset: { id: string; title: string; description: string };
+  /** Whether an alighting-only proposal was allowed to be ACTED on, or only generated. */
+  alightingOnlySelectable: boolean;
   corridor: {
     routeDirectionId: string;
     routeName: string;

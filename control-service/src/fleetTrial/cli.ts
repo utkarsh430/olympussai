@@ -10,7 +10,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { runFleetTrial, DEFAULT_FLEET_TRIAL_SPEC } from './run.js';
-import { DEFAULT_FLEET_CORRIDOR } from './corridor.js';
+import { CORRIDOR_PRESETS } from './presets.js';
+import type { CorridorPresetId } from './presets.js';
 import { BUNCHING_SCENARIOS } from './scenarios.js';
 import type { BunchingScenarioId } from './scenarios.js';
 import type { ArmContrast, ArmReport, FleetTrialReport, PhaseReport } from './types.js';
@@ -21,6 +22,10 @@ Run the deployed control laws against a thousand buses on a 400 km corridor.
   --vehicles <n>     buses per phase (default ${DEFAULT_FLEET_TRIAL_SPEC.vehiclesPerPhase}); two phases, so twice this many in all
   --scenarios <list> comma-separated (default: all ${BUNCHING_SCENARIOS.length})
                      ${BUNCHING_SCENARIOS.map((s) => s.id).join(', ')}
+  --corridor <shape> intercity | urban (default ${DEFAULT_FLEET_TRIAL_SPEC.corridorPreset})
+                     ${Object.values(CORRIDOR_PRESETS).map((p) => `${p.id}: ${p.title}`).join('\n                     ')}
+  --alighting        ACT on alighting-only proposals. Off by default, matching
+                     production - measured, acting on them costs passenger time
   --seed <n>         base seed (default ${DEFAULT_FLEET_TRIAL_SPEC.seed})
   --speed <source>   link_average | vehicle_state (default ${DEFAULT_FLEET_TRIAL_SPEC.followerSpeedSource})
                      which end of production's speed-reporting range to run against
@@ -29,6 +34,8 @@ Run the deployed control laws against a thousand buses on a 400 km corridor.
 `;
 
 interface Flags {
+  corridor?: string;
+  alighting: boolean;
   vehicles?: number;
   scenarios?: string;
   seed?: number;
@@ -39,10 +46,12 @@ interface Flags {
 }
 
 function parseFlags(argv: readonly string[]): Flags {
-  const flags: Flags = { quiet: false, help: false };
+  const flags: Flags = { quiet: false, help: false, alighting: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--quiet') flags.quiet = true;
+    else if (arg === '--alighting') flags.alighting = true;
+    else if (arg === '--corridor') flags.corridor = argv[++i];
     else if (arg === '--help' || arg === '-h') flags.help = true;
     else if (arg === '--vehicles') flags.vehicles = Number(argv[++i]);
     else if (arg === '--scenarios') flags.scenarios = argv[++i];
@@ -85,6 +94,7 @@ function renderPhase(phase: PhaseReport): string[] {
     renderArm('no control', phase.uncontrolled),
     renderArm('controlled', phase.controlled),
     ...renderContrast(phase.contrast),
+    `    alighting-only   ${phase.controlled.punctuality.alightingOnlyActions} instructions, ${phase.controlled.punctuality.alightingOnlyPassengersPassed} passengers left for the bus behind`,
     '',
     '    law coverage (decisions where the law produced a candidate):',
   ];
@@ -102,6 +112,7 @@ function renderReport(report: FleetTrialReport): string {
   const lines = [
     '',
     `FLEET TRIAL  ${report.corridor.routeName}`,
+    `  ${report.corridorPreset.description}`,
     `  ${(report.corridor.totalDistanceMeters / 1000).toFixed(0)} km, ${report.corridor.stationCount} stations (${report.corridor.holdingPointCount} of them holding points), H* ${(report.corridor.targetHeadwaySeconds / 60).toFixed(0)} min`,
     `  ${report.vehiclesSimulated} buses simulated in ${(report.durationMs / 1000).toFixed(1)}s`,
   ];
@@ -157,10 +168,17 @@ function main(): void {
   }
   const followerSpeedSource = flags.speed ?? DEFAULT_FLEET_TRIAL_SPEC.followerSpeedSource;
 
+  if (flags.corridor !== undefined && !(flags.corridor in CORRIDOR_PRESETS)) {
+    throw new Error(
+      `--corridor must be one of ${Object.keys(CORRIDOR_PRESETS).join(', ')}, got "${flags.corridor}"`,
+    );
+  }
+
   const report = runFleetTrial(
     {
       ...DEFAULT_FLEET_TRIAL_SPEC,
-      corridor: DEFAULT_FLEET_CORRIDOR,
+      corridorPreset: (flags.corridor ?? DEFAULT_FLEET_TRIAL_SPEC.corridorPreset) as CorridorPresetId,
+      alightingOnlySelectable: flags.alighting,
       vehiclesPerPhase: flags.vehicles ?? DEFAULT_FLEET_TRIAL_SPEC.vehiclesPerPhase,
       scenarios,
       seed: flags.seed ?? DEFAULT_FLEET_TRIAL_SPEC.seed,
