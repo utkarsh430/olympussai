@@ -547,7 +547,33 @@ first and excess wait only as a tie-break, because ranking on wait alone had
 already handed a recommendation to a setting with a worse net effect when two
 rows tied.
 
-### 15. Alighting-only: the right idea, and it loses anyway
+### 15. Measuring mid-route headway at the release instant — tried, rejected
+
+`ControllerContext.readyToDepartSeconds` exists because terminal dispatch
+regulating on `now` compounded: each hold paid for a gap its own dwell was
+already going to close. The mid-route laws were never given the same treatment,
+and the argument for doing so looks strong — while a bus dwells its leader pulls
+away, so the forward gap is already closing without it, and the bus behind closes
+up, so the backward gap it is being held to protect is already shrinking. Both
+errors push the same way.
+
+Implemented (estimating both gaps from the neighbours' current pace over the
+dwell, as production could) and measured across six paired seeds:
+
+| | excess wait | total passenger time | hold/bus | seeds it won |
+|---|---|---|---|---|
+| urban, at arrival | 52.4% | +10.1% | 184 s | — |
+| urban, at release | **43.6%** | +9.3% | 162 s | 1 of 6 on wait |
+| inter-city, at arrival | 13.2% | −0.2% | 365 s | — |
+| inter-city, at release | 14.8% | −0.4% | 312 s | 3 of 6 |
+
+It holds less and loses more spacing than it saves. **Reverted.** The analogy to
+Algorithm A does not carry: that was a *category error* — `h_fwd` is a closing
+time and a bus standing at the origin is not closing on anything — whereas a
+mid-route bus's arrival-instant headway is a valid measurement, and adjusting it
+for the dwell simply under-holds.
+
+### 16. Alighting-only: the right idea, and it loses anyway
 
 "Let a bus at a stop drop passengers but pick nobody up when the follower is
 close behind" is `mpc/boardingLimit.ts` — the only lever here that improves
