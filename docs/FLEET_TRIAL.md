@@ -573,7 +573,22 @@ time and a bus standing at the origin is not closing on anything — whereas a
 mid-route bus's arrival-instant headway is a valid measurement, and adjusting it
 for the dwell simply under-holds.
 
-### 16. Alighting-only: the right idea, and it loses anyway
+### 16. Knobs that were already right
+
+Not every sweep finds something. Recorded because a knob nobody has checked is
+indistinguishable from one that has been:
+
+- **`warning_threshold_ratio` (0.50)** — which sets how deviant a pair must be
+  before a mid-route law will act. Swept over 0.30–1.00: 0.50 is the best value
+  on the urban corridor on total passenger time (every alternative worse, 0.30
+  losing on 0 of 6 seeds), and on the inter-city corridor every value is inside
+  the noise. Left alone.
+- **`Kb` (0.2)** — see "one seed is not a measurement".
+- **`ks` (null)** — see above.
+- **`max_lateness_seconds`** — the sweep now *does* find something, but only
+  after the timetable was fixed; a tight bound is right on both corridors.
+
+### 17. Alighting-only: the right idea, and it loses anyway
 
 "Let a bus at a stop drop passengers but pick nobody up when the follower is
 close behind" is `mpc/boardingLimit.ts` — the only lever here that improves
@@ -611,6 +626,29 @@ measurement said alighting-only improved things on 7 of 8 seeds — because the
 engine swept the stop's waiting queue at *departure* regardless, so the
 passengers left behind vanished and the action measured as free. Both halves of
 its trade had disappeared.
+
+## What happens to the incidents
+
+Detected by the deployed rules — both tiers, replayed at the live 60-second sweep
+cadence — over a full 1,000-bus trial:
+
+| | inter-city | urban |
+|---|---|---|
+| incidents left alone | 2,485 | 4,726 |
+| …of which resolved | 51% | **8%** |
+| incidents under control | 2,666 | **2,726** |
+| …of which resolved | **68%** | **40%** |
+| had a hold served while open | 703 | 1,099 |
+| opened as a forecast and became real | 466 | 197 |
+
+Urban is the clearest case: control stops **2,000 incidents opening at all** and
+raises the resolution rate five-fold. Inter-city detects slightly *more* under
+control — holding changes the gaps the forecaster is watching, so it opens more
+`predicted` incidents — while resolving 68% against 51% and cutting the number
+that merely ended because a bus left the route.
+
+A higher detected count is therefore not a failure, and the console says so
+where it shows the number.
 
 ## Is the engine itself right?
 
