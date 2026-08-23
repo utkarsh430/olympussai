@@ -263,7 +263,11 @@ export interface DeployedControlLawsOptions {
    * Omit it and the behaviour is exactly what it was: neighbours carry no
    * state and the laws that need one decline.
    */
-  corridorStops?: readonly { stopId: string; cumulativeDistanceMeters: number }[];
+  corridorStops?: readonly {
+    stopId: string;
+    cumulativeDistanceMeters: number;
+    isControlPoint?: boolean;
+  }[];
   /**
    * Whether the objective weighs the in-vehicle term
    * (`control_settings.weigh_occupancy`).
@@ -595,7 +599,18 @@ export function createDeployedControlLawsController(
     // the state above reports `dwelling_at_stop` and every simulated control
     // point is eligible - an EMPTY control-point set means "any stop", which
     // is the right reading for a synthetic corridor that has designated none.
-    const controlPointStopIds = new Set<string>();
+    // The corridor's OWN designated holding points, when the caller supplied
+    // them. This was unconditionally EMPTY, which `mpc/eligibility.ts` reads as
+    // "hold at any stop" - the right default for a synthetic corridor that has
+    // designated none, and silently wrong for one that has. It decides where a
+    // hold may be executed AND, for alighting-only, where the leader must be
+    // standing, so a corridor that had chosen three holding points was being
+    // rehearsed as though it had chosen all of them.
+    const controlPointStopIds = new Set<string>(
+      (corridorStops ?? [])
+        .filter((stop) => stop.isControlPoint === true)
+        .map((stop) => stop.stopId),
+    );
     const scheduleDeviationByVehicleId = new Map<string, number | null>();
 
     // The elapsed departure headway, from the engine's own record of when a

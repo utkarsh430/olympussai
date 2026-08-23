@@ -130,6 +130,36 @@ Fixed alongside, because a trial that is kinder than reality cannot find defects
   (`followerSpeedSource`); the trial defaults to the pessimistic one, which is
   the row the deployed solver actually reads.
 
+### 4. Holding everywhere is the most expensive way to run the corridor
+
+The corridor's ten stations are all *eligible* to hold a bus. Which of them are
+*designated* turns out to be the largest single lever in the trial. Averaged
+over five seeds, occupancy-blind, 250 buses per phase:
+
+| stations holding | excess wait | total passenger time | hold per bus |
+|---|---|---|---|
+| 3 of 10 | −3.8% | −0.61% | 2.9 min |
+| 5 of 10 | **−13.2%** | **−0.45%** | 5.7 min |
+| 10 of 10 | −20.8% | **−4.95%** | 11.7 min |
+
+Ten holding points buys the largest wait improvement and is net-negative on
+*every* seed (−4.1% to −7.0%). Five gets two-thirds of the benefit at half the
+punctuality cost and is roughly break-even. This is the CTA finding
+`mpc/eligibility.ts` already cites, reproduced on this corridor: placement
+matters more than count, and holding everywhere spends driver goodwill where it
+achieves nothing.
+
+Every report now carries this comparison (`holdingPointStudy`), and the console
+shows it.
+
+**A measurement bug found while doing this**, worth recording because it would
+have produced a confident and completely wrong answer: excess wait was being
+sampled at *control points only*. Changing the placement therefore changed the
+measurement population, and baseline EWT read 61 s with two holding points and
+323 s with ten — on the identical uncontrolled corridor. The trial now samples
+every station, which is also the more honest definition: passengers wait at all
+of them.
+
 ## What the trial still does not test
 
 - **The command lifecycle.** Cooldown, minimum action interval, maximum

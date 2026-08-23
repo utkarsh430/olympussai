@@ -265,6 +265,41 @@ export interface OccupancyContrast {
   verdict: string;
 }
 
+/**
+ * One holding-point placement, scored.
+ *
+ * The corridor's stations are all ELIGIBLE for holding; which of them are
+ * DESIGNATED is an operational choice, and it turns out to be the single
+ * largest lever in the trial. `mpc/eligibility.ts` already records why -
+ * holding at three stops early in a 47-stop route produced route-long benefit
+ * in the CTA pilot, while holding everywhere spends driver goodwill where it
+ * achieves nothing - and this measures it on this corridor.
+ */
+export interface HoldingPointStudyRow {
+  holdingPointCount: number;
+  /** Improvement in excess wait, as a percentage. Higher is better. */
+  ewtImprovementPercent: number | null;
+  /** Effect on TOTAL passenger time. Negative means the controller cost more than it saved. */
+  passengerSecondsSavedPercent: number | null;
+  meanHoldSecondsPerVehicle: number;
+  holdCount: number;
+  deniedBoardings: number;
+  incidentsDetected: number;
+  incidentsResolved: number;
+}
+
+export interface HoldingPointStudy {
+  /** Every placement tried, fewest holding points first. */
+  rows: HoldingPointStudyRow[];
+  /**
+   * The placement with the best excess-wait gain among those that did not cost
+   * passengers time overall. Null when every placement was net-negative, which
+   * is a finding and not a missing value.
+   */
+  recommendedCount: number | null;
+  verdict: string;
+}
+
 export interface TrialProvenanceEntry {
   field: string;
   source: 'deployed' | 'configured' | 'modelled';
@@ -296,6 +331,8 @@ export interface FleetTrialReport {
   sweepIntervalSeconds: number;
   requiredSamples: number;
   phases: PhaseReport[];
+  /** What designating fewer, earlier holding points would do. Measured, not argued. */
+  holdingPointStudy: HoldingPointStudy;
   occupancyContrast: OccupancyContrast;
   provenance: TrialProvenanceEntry[];
   /** Parts of the live system this trial does NOT exercise, in words, for the surface to print verbatim. */

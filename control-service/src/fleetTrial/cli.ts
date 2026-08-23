@@ -106,6 +106,22 @@ function renderReport(report: FleetTrialReport): string {
     `  ${report.vehiclesSimulated} buses simulated in ${(report.durationMs / 1000).toFixed(1)}s`,
   ];
   for (const phase of report.phases) lines.push(...renderPhase(phase));
+  lines.push('', '  Where the holding points should be:');
+  lines.push(
+    '    stations   excess wait   total passenger time   hold/bus   holds   incidents (resolved)',
+  );
+  for (const row of report.holdingPointStudy.rows) {
+    const mark = row.holdingPointCount === report.holdingPointStudy.recommendedCount ? ' <-' : '';
+    lines.push(
+      `      ${String(row.holdingPointCount).padStart(2)} of ${report.corridor.stationCount}` +
+        `   ${pct(row.ewtImprovementPercent).padStart(8)} better` +
+        `   ${pct(row.passengerSecondsSavedPercent).padStart(14)}` +
+        `   ${(row.meanHoldSecondsPerVehicle / 60).toFixed(1).padStart(6)} min` +
+        `   ${String(row.holdCount).padStart(5)}` +
+        `   ${String(row.incidentsDetected).padStart(6)} (${row.incidentsResolved})${mark}`,
+    );
+  }
+  lines.push(`    ${report.holdingPointStudy.verdict}`);
   lines.push('', '  What weighing passenger load changed:', `    ${report.occupancyContrast.verdict}`);
   lines.push('', '  Per scenario (excess wait, no control -> controlled):');
   for (const phase of report.phases) {

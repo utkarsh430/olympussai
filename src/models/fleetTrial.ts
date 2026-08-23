@@ -195,6 +195,24 @@ const phaseReportSchema = z.object({
 });
 export type PhaseReport = z.infer<typeof phaseReportSchema>;
 
+const holdingPointStudySchema = z.object({
+  rows: z.array(
+    z.object({
+      holdingPointCount: z.number(),
+      ewtImprovementPercent: z.number().nullable(),
+      passengerSecondsSavedPercent: z.number().nullable(),
+      meanHoldSecondsPerVehicle: z.number(),
+      holdCount: z.number(),
+      deniedBoardings: z.number(),
+      incidentsDetected: z.number(),
+      incidentsResolved: z.number(),
+    }),
+  ),
+  recommendedCount: z.number().nullable(),
+  verdict: z.string(),
+});
+export type HoldingPointStudy = z.infer<typeof holdingPointStudySchema>;
+
 export const fleetTrialReportSchema = z.object({
   generatedAt: z.string(),
   durationMs: z.number(),
@@ -226,6 +244,7 @@ export const fleetTrialReportSchema = z.object({
   sweepIntervalSeconds: z.number(),
   requiredSamples: z.number(),
   phases: z.array(phaseReportSchema),
+  holdingPointStudy: holdingPointStudySchema,
   occupancyContrast: z.object({
     decisionsChanged: z.number(),
     decisionsCompared: z.number(),

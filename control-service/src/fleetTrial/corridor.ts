@@ -45,6 +45,23 @@ export interface FleetCorridorSpec {
    * propose one to it, which is the deployed behaviour and not a rig rule.
    */
   stationCount: number;
+  /**
+   * How many of the stations are designated HOLDING POINTS, counted from the
+   * origin. Defaults to all of them.
+   *
+   * Not decoration. `mpc/eligibility.ts` records that control-point PLACEMENT
+   * matters more than control-point count - holding at three stops early in a
+   * 47-stop route produced route-long benefit in the CTA pilot, while holding
+   * everywhere spends driver goodwill where it achieves nothing. Counted from
+   * the origin because a correction applied early has the whole rest of the
+   * route to propagate through, and one applied at the terminus has nowhere
+   * left to act.
+   *
+   * The origin is always included, whatever this is set to: terminal dispatch
+   * regulation is the only lever that costs no passenger their seat, and a
+   * corridor that dropped it would be measuring a different controller.
+   */
+  holdingPointCount?: number;
   /** H*. Every bunching threshold in the system is a ratio of this. */
   targetHeadwaySeconds: number;
   /** Ratio of H* at or below which a gap counts as bunched. */
@@ -178,6 +195,12 @@ export function buildFleetCorridor(
     throw new Error(`fleet corridor needs at least 2 stations, got ${spec.stationCount}`);
   }
 
+  // At least the origin, at most every station.
+  const holdingPointCount = Math.max(
+    1,
+    Math.min(spec.stationCount, spec.holdingPointCount ?? spec.stationCount),
+  );
+
   const stops: CorridorStop[] = Array.from({ length: spec.stationCount }, (_, index) => {
     const fraction = index / (spec.stationCount - 1);
     const cumulativeDistanceMeters = Math.round(spec.totalDistanceMeters * fraction);
@@ -187,7 +210,7 @@ export function buildFleetCorridor(
       name: stationName(index, spec.stationCount),
       sequence: index,
       cumulativeDistanceMeters,
-      isControlPoint: true,
+      isControlPoint: index < holdingPointCount,
       // No per-stop override: the policy's cap is the cap everywhere, so a
       // reader comparing two stations is not also comparing two limits.
       maxHoldSeconds: null,

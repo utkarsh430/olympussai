@@ -58,6 +58,8 @@ import type {
 import type {
   ArmContrast,
   ArmReport,
+  HoldingPointStudy,
+  HoldingPointStudyRow,
   FleetTrialReport,
   IncidentSummary,
   LawCoverage,
@@ -240,15 +242,34 @@ function percentile(sorted: readonly number[], fraction: number): number | null 
   return sorted[index] ?? null;
 }
 
+/**
+ * Every station, not only the holding points.
+ *
+ * ─── WHY THE MEASUREMENT POPULATION IS NOT THE ACTION POPULATION ─────────
+ *
+ * `simulation/kpi.ts` samples headway at control points, which is the right
+ * default for a regression fixture: it is where the controller acts, so it is
+ * where a regression would show. It is the wrong population for THIS question.
+ *
+ * Passengers wait at every station, so service quality is a property of every
+ * station. Worse, tying the measurement to the holding points makes the metric
+ * move when the holding points move: MEASURED while sweeping how many stations
+ * were designated, baseline EWT read 61 s with two holding points and 323 s
+ * with ten - on the identical uncontrolled corridor, because each configuration
+ * was being scored on a different set of stops. Any comparison across
+ * placements would have been meaningless, and it would have looked like a
+ * finding.
+ */
+function allStopIds(corridor: CorridorInputs): Set<string> {
+  return new Set(corridor.stops.map((s) => s.stopId));
+}
+
 function spacingKpis(
   visits: readonly StopVisitRecord[],
   corridor: CorridorInputs,
 ): SpacingKpis {
   const reported = visits.filter((v) => isReported(v.vehicleId));
-  const controlPointStopIds = new Set(
-    corridor.stops.filter((s) => s.isControlPoint).map((s) => s.stopId),
-  );
-  const samples = computeHeadwaySamples(reported, controlPointStopIds);
+  const samples = computeHeadwaySamples(reported, allStopIds(corridor));
   const dispersion = computeDispersion(samples, corridor.policy.targetHeadwaySeconds);
   const bunchThreshold = corridor.policy.bunchedThresholdRatio * corridor.policy.targetHeadwaySeconds;
   const deniedBoardings = reported.reduce((acc, v) => acc + v.deniedBoardings, 0);
@@ -280,13 +301,7 @@ function headwaySamplesOf(
   visits: readonly StopVisitRecord[],
   corridor: CorridorInputs,
 ): number[] {
-  const controlPointStopIds = new Set(
-    corridor.stops.filter((s) => s.isControlPoint).map((s) => s.stopId),
-  );
-  return computeHeadwaySamples(
-    visits.filter((v) => isReported(v.vehicleId)),
-    controlPointStopIds,
-  );
+  return computeHeadwaySamples(visits.filter((v) => isReported(v.vehicleId)), allStopIds(corridor));
 }
 
 /**
@@ -1005,6 +1020,112 @@ function compareOccupancySettings(args: {
   };
 }
 
+// ─── Where the holding points should be ──────────────────────────────────
+
+/**
+ * The same fleet, the same scenarios, the same seeds, run at several holding-
+ * point placements.
+ *
+ * Run with the occupancy switch OFF for every row, so the only thing varying
+ * is the placement. Mixing the taper in would confound the two levers, and the
+ * point of this study is to isolate one of them.
+ *
+ * The excess-wait figures are comparable across rows only because `spacingKpis`
+ * samples EVERY station rather than only the designated ones - see
+ * `allStopIds`, and the artefact that made these rows meaningless before it.
+ */
+function runHoldingPointStudy(args: {
+  spec: FleetTrialSpec;
+  scenarios: readonly BunchingScenario[];
+  inputs: ModelledInputs;
+  vehiclesPerPhase: number;
+}): HoldingPointStudy {
+  const { spec, scenarios, inputs, vehiclesPerPhase } = args;
+  const stationCount = spec.corridor.stationCount;
+
+  // Three placements: a few early stops, half the route, and everything. Enough
+  // to show the shape of the trade without turning one trial into six.
+  const counts = [...new Set([3, Math.max(3, Math.ceil(stationCount / 2)), stationCount])]
+    .filter((n) => n >= 1 && n <= stationCount)
+    .sort((a, b) => a - b);
+
+  const rows: HoldingPointStudyRow[] = [];
+  for (const holdingPointCount of counts) {
+    const corridor = buildFleetCorridor({ ...spec.corridor, holdingPointCount });
+    const runs: ScenarioRun[] = [];
+    let busNumber = 0;
+    const base = Math.floor(vehiclesPerPhase / scenarios.length);
+    const remainder = vehiclesPerPhase - base * scenarios.length;
+
+    for (const [index, scenario] of scenarios.entries()) {
+      const vehicleCount = base + (index < remainder ? 1 : 0);
+      if (vehicleCount < 2) continue;
+      runs.push(
+        runScenario({
+          corridor,
+          scenario,
+          inputs: { ...inputs, ...scenario.inputs },
+          vehicleIds: Array.from(
+            { length: vehicleCount },
+            () => `STUDY-${String(++busNumber).padStart(4, '0')}`,
+          ),
+          seed: (spec.seed + index * 7919) >>> 0,
+          weighOccupancy: false,
+          requiredSamples: spec.requiredSamples,
+          sweepIntervalSeconds: spec.sweepIntervalSeconds,
+          followerSpeedSource: spec.followerSpeedSource,
+        }),
+      );
+    }
+    if (runs.length === 0) continue;
+
+    const controlled = poolArm(runs, corridor, (r) => r.controlledVisits, (report) => report.controlled);
+    const uncontrolled = poolArm(runs, corridor, (r) => r.uncontrolledVisits, (report) => report.uncontrolled);
+    const armContrast = contrast(controlled, uncontrolled);
+    const holds = holdBreakdown(runs, corridor);
+
+    rows.push({
+      holdingPointCount,
+      ewtImprovementPercent: armContrast.ewtImprovementPercent,
+      passengerSecondsSavedPercent: armContrast.passengerSecondsSavedPercent,
+      meanHoldSecondsPerVehicle: controlled.punctuality.meanHoldSecondsPerVehicle,
+      holdCount: holds.holdCountByActionType.reduce((acc, a) => acc + a.count, 0),
+      deniedBoardings: controlled.passengers.deniedBoardings,
+      incidentsDetected: controlled.incidents.detected,
+      incidentsResolved: controlled.incidents.resolved,
+    });
+  }
+
+  // The best wait gain among the placements that did not cost passengers time
+  // overall. Ordering it this way rather than by wait gain alone is the whole
+  // lesson of the trial: the biggest wait improvement in every run so far has
+  // also been the one that made passengers collectively worse off.
+  const affordable = rows.filter((row) => (row.passengerSecondsSavedPercent ?? -1) >= 0);
+  const recommended = affordable.sort(
+    (a, b) => (b.ewtImprovementPercent ?? 0) - (a.ewtImprovementPercent ?? 0),
+  )[0];
+
+  const most = rows[rows.length - 1];
+  let verdict: string;
+  if (rows.length < 2) {
+    verdict = 'Only one placement was tried, so there is nothing to compare.';
+  } else if (recommended) {
+    verdict =
+      `Designating ${recommended.holdingPointCount} of ${stationCount} stations improves excess wait by ` +
+      `${(recommended.ewtImprovementPercent ?? 0).toFixed(0)}% without costing passengers time overall, at ` +
+      `${Math.round(recommended.meanHoldSecondsPerVehicle / 60)} minutes of hold per bus. Holding at all ` +
+      `${stationCount} buys a larger wait improvement (${(most?.ewtImprovementPercent ?? 0).toFixed(0)}%) and ` +
+      `pays for it: ${Math.round((most?.meanHoldSecondsPerVehicle ?? 0) / 60)} minutes per bus and ` +
+      `${Math.abs(most?.passengerSecondsSavedPercent ?? 0).toFixed(1)}% MORE total passenger time.`;
+  } else {
+    verdict =
+      'Every placement tried cost passengers more time than it saved on this corridor. The wait improvements ' +
+      'below are real, and they are paid for by the people already on the bus.';
+  }
+
+  return { rows, recommendedCount: recommended?.holdingPointCount ?? null, verdict };
+}
+
 // ─── Provenance ──────────────────────────────────────────────────────────
 
 function buildProvenance(
@@ -1182,6 +1303,13 @@ export function runFleetTrial(
     if (phase.weighOccupancy) awarePhaseRuns = runs;
   }
 
+  const holdingPointStudy = runHoldingPointStudy({
+    spec,
+    scenarios,
+    inputs,
+    vehiclesPerPhase: spec.vehiclesPerPhase,
+  });
+
   const occupancyContrast = compareOccupancySettings({
     corridor,
     runs: awarePhaseRuns,
@@ -1219,6 +1347,7 @@ export function runFleetTrial(
     sweepIntervalSeconds: spec.sweepIntervalSeconds,
     requiredSamples: spec.requiredSamples,
     phases: phaseReports,
+    holdingPointStudy,
     occupancyContrast,
     provenance: buildProvenance(corridor, inputs, spec),
     notExercised: NOT_EXERCISED,
