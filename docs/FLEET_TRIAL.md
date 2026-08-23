@@ -305,15 +305,24 @@ controller. Running one shape reports the corridor's arithmetic as if it were
 the algorithm's — so `fleetTrial/presets.ts` carries two, and the console lets
 you pick.
 
-| | 400 km inter-city | 24 km urban |
-|---|---|---|
-| headway | 30 min | 6 min |
-| stops | 10, 44 km apart | 25, 1 km apart |
-| dwell | 120 s | 20 s |
-| aboard when held | ~44 of 55 | ~29 of 60 |
-| **excess wait** | **−25.3%** | **−51.5%** |
-| **total passenger time** | **−1.0%** | **+17.2% saved** |
-| punctuality cost | 6.8 min/bus | 2.6 min/bus |
+Headline, three seeds each at 250 buses per phase, occupancy-blind phase:
+
+| | 400 km inter-city | 60 km suburban | 24 km urban |
+|---|---|---|---|
+| headway | 30 min | 12 min | 6 min |
+| stops | 10, 44 km apart | 15, 4.3 km apart | 25, 1 km apart |
+| σ_leg / H\* (see below) | 0.19 — **too disturbed** | 0.10 — controllable | 0.10 — controllable |
+| **excess wait** | 317 → 263 s | 105 → 71 s | 110 → **55 s** |
+| **total passenger time** | −1.4% | +1.6% | **+11.1%** |
+| arriving on time | 16% → **26%** | 52% → **63%** | 63% → **81%** |
+| refused a seat | −25% | −29% | −21% |
+| hold per bus | 7.5 min | 3.2 min | 3.4 min |
+
+Two things worth reading twice. **On-time performance improves on every corridor**
+— the controller adds hold time and still leaves more buses inside a five-minute
+window, because it removes far more spread than it adds delay. And **weighing
+occupancy turns the inter-city corridor from net-negative to net-positive**
+(−1.4% → +3.2%): the taper matters most exactly where holding is most expensive.
 
 The controller is *strongly* net-positive on the urban corridor and roughly
 break-even on the inter-city one — and a third shape, a 60 km suburban radial at
