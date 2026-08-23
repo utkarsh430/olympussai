@@ -271,7 +271,16 @@ function buildTrialScenario(args: {
     name: `fleet-trial:${scenario.id}`,
     dispatches: plan.dispatches,
     disturbances: plan.disturbances,
-    scheduledArrivalSeconds: buildTimetable(corridor, inputs, plan.dispatches),
+    // Booked against the PLANNED departures, not the ones the scenario actually
+    // produced. A timetable is what was promised; the scenario is what happened.
+    //
+    // Built from `plan.dispatches` this was self-fulfilling: `terminal_jitter`
+    // moves departures off their slots by up to a third of a headway, and a
+    // timetable derived from those moved departures declared every bus to be
+    // leaving exactly on time. The one scenario whose entire subject is buses
+    // leaving wrong reported no lateness at all, so the objective's punctuality
+    // term and the max-lateness bound both had nothing to bite on there.
+    scheduledArrivalSeconds: buildTimetable(corridor, inputs, named),
     seed,
   };
 }

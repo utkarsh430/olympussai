@@ -448,7 +448,26 @@ the control laws as a leader — with an exact position and a fresh timestamp,
 which is precisely the thing production guarantees cannot happen. `neighbours()`
 now skips it, and a test asserts no decision ever names a dark bus as its leader.
 
-### 11. Policy knobs are per-corridor, and fitting one on one shape is a bug
+### 11. The timetable was absorbing the disturbance it was meant to measure
+
+Each bus's timetable was booked from **its own actual departure**. In
+`terminal_jitter` — the scenario whose entire subject is buses leaving off their
+slots by up to a third of a headway — that made the schedule self-fulfilling:
+every bus left exactly "on time", no lateness was ever recorded, and both
+deployed punctuality guards (the objective's lateness term and the max-lateness
+bound) had nothing to act on in the one scenario built to exercise them.
+
+A timetable is what was *promised*; the scenario is what happened. It is now
+booked from the planned departures.
+
+**And it surfaced a result worth having.** With real lateness measured, the
+controller *improves* schedule adherence rather than only costing it — buses
+arriving within five minutes of their booked time rise from 60% to 77% on the
+urban corridor and 17% to 24% on the inter-city one. Mean lateness does go up
+(the holds are real), but the **spread** falls by more, and punctuality is a
+question about the spread.
+
+### 12. Policy knobs are per-corridor, and fitting one on one shape is a bug
 
 `max_lateness_seconds` at 300 s improved the inter-city corridor. The same
 guardrail at 120 s on the urban corridor was, at one point in this work, going to
@@ -463,7 +482,7 @@ first and excess wait only as a tie-break, because ranking on wait alone had
 already handed a recommendation to a setting with a worse net effect when two
 rows tied.
 
-### 12. Alighting-only: the right idea, and it loses anyway
+### 13. Alighting-only: the right idea, and it loses anyway
 
 "Let a bus at a stop drop passengers but pick nobody up when the follower is
 close behind" is `mpc/boardingLimit.ts` — the only lever here that improves

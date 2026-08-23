@@ -597,3 +597,28 @@ describe('a dark bus is nobody\'s leader', () => {
     expect(decisionsWithLeader).toBeGreaterThan(0);
   });
 });
+
+// A timetable is what was PROMISED. Booking it from the departures a scenario
+// actually produced makes it self-fulfilling: `terminal_jitter` moves buses off
+// their slots by up to a third of a headway, and a timetable derived from those
+// moved departures would declare every one of them exactly on time - so the one
+// scenario whose whole subject is buses leaving wrong would report no lateness,
+// and both deployed punctuality guards would have nothing to act on.
+describe('the timetable', () => {
+  it('is booked against the planned departures, not the ones the scenario produced', () => {
+    const jittered = runFleetTrial({
+      ...DEFAULT_FLEET_TRIAL_SPEC,
+      vehiclesPerPhase: 60,
+      scenarios: ['terminal_jitter'],
+    });
+    const arm = jittered.phases[0]?.scenarios[0]?.uncontrolled.punctuality;
+    expect(arm).toBeDefined();
+    expect(arm!.onTimeRate).not.toBeNull();
+    // Buses deliberately leave up to ~0.35 x H* off their slot, so a meaningful
+    // share of them must miss the five-minute window. A rate at or near 1 means
+    // the timetable has absorbed the disturbance it was supposed to measure.
+    expect(arm!.onTimeRate!).toBeLessThan(0.95);
+    expect(arm!.p95ScheduleDeviationSeconds).not.toBeNull();
+    expect(Math.abs(arm!.p95ScheduleDeviationSeconds!)).toBeGreaterThan(60);
+  });
+});
