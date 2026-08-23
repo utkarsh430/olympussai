@@ -72,8 +72,28 @@ export interface BunchingScenario {
   mechanism: string;
   /** What a reader should look for in this scenario's numbers. */
   whatItTests: string;
-  /** Modelled inputs this scenario changes from the trial's shared defaults. */
-  inputs: Partial<ModelledInputs>;
+  /**
+   * How this scenario perturbs the corridor's own demand and variability,
+   * as MULTIPLIERS rather than absolute values.
+   *
+   * ─── WHY NOT ABSOLUTE ────────────────────────────────────────────────
+   *
+   * These used to be absolute numbers, and they were tuned for the inter-city
+   * corridor. On the urban one they inverted: `peak_load` set 0.48 boardings
+   * per minute against an urban default of 1.2, so the scenario whose entire
+   * purpose is to load the corridor up became the LIGHTEST one it runs, and
+   * `steady_variability` set 0.16 against a default of 0.18 and quietly made
+   * the corridor calmer. Both were still reported under their own names,
+   * describing conditions that were the opposite of what they claim.
+   *
+   * A scenario is a perturbation, and a perturbation only means anything
+   * relative to what it perturbs. 1 leaves a field alone.
+   */
+  inputScale: {
+    boardingRatePerMinute?: number;
+    alightingFraction?: number;
+    travelTimeVariation?: number;
+  };
   build(context: ScenarioBuildContext): ScenarioPlan;
 }
 
@@ -133,10 +153,9 @@ export const BUNCHING_SCENARIOS: readonly BunchingScenario[] = [
       'Nothing goes wrong. Running times between stations simply vary, as they always do, and gaps drift apart and back together on their own.',
     whatItTests:
       'Whether the controller earns its keep when there is no incident to point at. This is the regime the corridor is in for most of every day, so a control law that only helps during a crisis helps almost never.',
-    // Higher than the trial default: over ten 44 km links, ordinary variation
-    // alone is enough to pull a chain of buses apart, and this is the scenario
-    // whose entire content is that variation.
-    inputs: { travelTimeVariation: 0.16 },
+    // Above the corridor's own variability: this is the scenario whose entire
+    // content is that variation, so it has to be more of it than an ordinary day.
+    inputScale: { travelTimeVariation: 1.2 },
     build: ({ dispatches }) => ({ dispatches: [...dispatches], disturbances: [] }),
   },
 
@@ -147,7 +166,7 @@ export const BUNCHING_SCENARIOS: readonly BunchingScenario[] = [
       'Buses leave the origin at irregular intervals rather than one every headway - a driver signing on late, a vehicle swap, a platform conflict.',
     whatItTests:
       'Terminal dispatch regulation, which is the one lever that costs no passenger their seat. A gap that leaves the terminal wrong is a gap that stays wrong for 400 km unless something corrects it there.',
-    inputs: {},
+    inputScale: {},
     build: ({ dispatches, targetHeadwaySeconds, rng }) => {
       // +/- 35% of H*. Large enough that the chain leaves the terminal already
       // unevenly spaced, small enough that dispatch ORDER never changes - a
@@ -177,7 +196,7 @@ export const BUNCHING_SCENARIOS: readonly BunchingScenario[] = [
       'A burst of passengers builds at one mid-route station - a connecting train, a market day, an event ending. The bus that arrives into it dwells far longer than usual and falls behind.',
     whatItTests:
       'The classic dwell-driven bunch: a long dwell makes a bus late, being late means more passengers waiting at the next station, and the bus behind it closes the gap. This is the failure the whole control theory exists for.',
-    inputs: {},
+    inputScale: {},
     build: ({ corridor, dispatches, targetHeadwaySeconds, freeFlowSecondsTo }) => {
       const targets = spreadTargets(dispatches, targetCount(dispatches, 0.12));
       // Mid-corridor: far enough in that a bunch has room to propagate to
@@ -211,7 +230,7 @@ export const BUNCHING_SCENARIOS: readonly BunchingScenario[] = [
       'A vehicle runs well below the fleet pace over the middle third of the route - a mechanical fault, a cautious relief driver, a long boarding sequence repeated at every stop.',
     whatItTests:
       'A bunch with exactly one culprit, which is the case a hold is unambiguously right for: the bus behind should be held, and the gap in front of the slow bus should not be made worse by holding it too.',
-    inputs: {},
+    inputScale: {},
     build: ({ corridor, dispatches }) => {
       const targets = spreadTargets(dispatches, targetCount(dispatches, 0.12));
       const third = Math.max(1, Math.floor(corridor.stops.length / 3));
@@ -236,7 +255,7 @@ export const BUNCHING_SCENARIOS: readonly BunchingScenario[] = [
       'A stretch of the route runs slow for an hour or two, for every bus that enters it - weather, an incident on the carriageway, a diversion.',
     whatItTests:
       'The hardest case for a holding controller, and the reason this scenario is here. Every bus inside the window is delayed and none outside it is, so the platoon compresses with no single bus at fault - and the honest answer may be that holding helps little.',
-    inputs: {},
+    inputScale: {},
     build: ({ corridor, targetHeadwaySeconds, dispatches, freeFlowSecondsTo }) => {
       const lastIndex = corridor.stops.length - 1;
       const fromStopIndex = Math.max(1, Math.floor(corridor.stops.length * 0.3));
@@ -271,7 +290,7 @@ export const BUNCHING_SCENARIOS: readonly BunchingScenario[] = [
       'Scheduled trips do not run at all - no vehicle, no driver, a breakdown before sign-on. The gap in front of the next bus is twice what it should be.',
     whatItTests:
       'Whether the controller makes a double gap worse. The bus following a cancellation is late through no fault of its own and is carrying two headways of passengers; holding it would be exactly the wrong instinct, and the safety filter and the objective both exist to prevent that.',
-    inputs: {},
+    inputScale: {},
     build: ({ dispatches }) => {
       const targets = spreadTargets(dispatches, targetCount(dispatches, 0.08));
       const disturbances: Disturbance[] = targets.map((target) => ({
@@ -289,7 +308,7 @@ export const BUNCHING_SCENARIOS: readonly BunchingScenario[] = [
       'A slow bus runs into a crowded station on a day when running times are already unreliable. Each problem alone is survivable; together they feed each other.',
     whatItTests:
       'Whether a correction that works on an isolated fault still works when the corridor is already unstable. This is the scenario where a controller that only ever reacts arrives too late, and where the predictive tier has something to prove.',
-    inputs: { travelTimeVariation: 0.22 },
+    inputScale: { travelTimeVariation: 1.6 },
     build: (context) => {
       const { corridor, dispatches, targetHeadwaySeconds, freeFlowSecondsTo } = context;
       const targets = spreadTargets(dispatches, targetCount(dispatches, 0.12));
@@ -328,10 +347,12 @@ export const BUNCHING_SCENARIOS: readonly BunchingScenario[] = [
       'Demand across every station is high enough that buses run close to their seat capacity, and dwell time is dominated by boarding rather than by the door cycle.',
     whatItTests:
       'Bunching driven by load rather than by any incident, and the regime where holding a full bus is most expensive. Watch the denied-boarding count next to the wait-time gain: a controller that improves spacing by stranding people has not improved anything.',
-    // Well below the saturation line `evaluation/spec.ts` documents. Past it,
-    // waiting time is bounded by seats rather than spacing and a working
-    // controller correctly reports "no effect" - which reads as a failure.
-    inputs: { boardingRatePerMinute: 0.48, alightingFraction: 0.26 },
+    // Enough to push the corridor towards its seats without going through
+    // them. Past the saturation line waiting time is bounded by how many seats
+    // exist rather than by how they are spaced, and a working controller
+    // correctly reports "no effect" - `SpacingKpis.saturated` flags any arm
+    // that crossed it anyway.
+    inputScale: { boardingRatePerMinute: 1.3 },
     build: ({ dispatches }) => ({ dispatches: [...dispatches], disturbances: [] }),
   },
 
@@ -342,7 +363,7 @@ export const BUNCHING_SCENARIOS: readonly BunchingScenario[] = [
       'Buses stop reporting their position - a dead unit, a coverage hole, a modem that never came back after a depot power cycle.',
     whatItTests:
       'That the system refuses to act rather than guessing. A dropped feed does not delete the last known position; it makes its AGE the reason not to issue a command, and the correct number of holds issued to an unobserved bus is zero.',
-    inputs: {},
+    inputScale: {},
     build: ({ dispatches }) => {
       const targets = spreadTargets(dispatches, targetCount(dispatches, 0.1));
       const disturbances: Disturbance[] = targets.map((target) => ({
@@ -365,7 +386,7 @@ export const BUNCHING_SCENARIOS: readonly BunchingScenario[] = [
       'Drivers receive hold instructions and do not take them - running late already, a passenger dispute, or simply not trusting the screen.',
     whatItTests:
       'Whether the benefit survives partial compliance. A gain set that only wins when every instruction is obeyed is not a recommendation: the reference deployment this controller is modelled on achieved its results at between a third and a half compliance.',
-    inputs: {},
+    inputScale: {},
     build: ({ dispatches }) => {
       // FLEET-WIDE, not one bad actor. The question is whether a service where
       // nobody much follows instructions still improves, which is a different

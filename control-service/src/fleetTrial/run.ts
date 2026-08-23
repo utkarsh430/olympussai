@@ -193,6 +193,25 @@ const PHASES: { id: PhaseId; title: string; weighOccupancy: boolean }[] = [
   },
 ];
 
+/**
+ * The corridor's own inputs with this scenario's perturbation applied.
+ *
+ * Multiplicative, so a scenario means the same thing on every corridor - see
+ * `BunchingScenario.inputScale` for what absolute overrides did to the urban
+ * corridor. `alightingFraction` is additionally clamped to 1: it is a
+ * proportion, and a multiplier that pushed it past 1 would have a bus shed
+ * more passengers than it is carrying.
+ */
+function scaleInputs(inputs: ModelledInputs, scenario: BunchingScenario): ModelledInputs {
+  const scale = scenario.inputScale;
+  return {
+    ...inputs,
+    boardingRatePerMinute: inputs.boardingRatePerMinute * (scale.boardingRatePerMinute ?? 1),
+    alightingFraction: Math.min(1, inputs.alightingFraction * (scale.alightingFraction ?? 1)),
+    travelTimeVariation: inputs.travelTimeVariation * (scale.travelTimeVariation ?? 1),
+  };
+}
+
 // ─── Scenario construction ───────────────────────────────────────────────
 
 /**
@@ -1214,7 +1233,7 @@ function runPolicyStudy(args: {
           runScenario({
             corridor,
             scenario,
-            inputs: { ...inputs, ...scenario.inputs },
+            inputs: scaleInputs(inputs, scenario),
             vehicleIds: Array.from(
               { length: vehicleCount },
               () => `STUDY-${String(++busNumber).padStart(4, '0')}`,
@@ -1560,7 +1579,7 @@ export function runFleetTrial(
       const run = runScenario({
         corridor: phaseCorridor,
         scenario,
-        inputs: { ...inputs, ...scenario.inputs },
+        inputs: scaleInputs(inputs, scenario),
         vehicleIds: takeVehicleIds(vehicleCount),
         seed,
         weighOccupancy: phase.weighOccupancy,

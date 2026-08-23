@@ -400,7 +400,34 @@ hold rises to ~370 s per run and the controlled arm wins on 62% of seeds with a
 clearly lower mean. Same law, same gain — the difference is a corridor where
 control is the thing being measured.
 
-### 9. Policy knobs are per-corridor, and fitting one on one shape is a bug
+### 9. Scenarios were describing the opposite of what they claim
+
+A scenario's demand and variability overrides were **absolute numbers**, tuned
+for the inter-city corridor. On the urban corridor they inverted:
+
+- `peak_load` set 0.48 boardings/min against an urban default of **1.2**, so the
+  scenario whose entire purpose is to load the corridor up became the *lightest*
+  one it runs.
+- `steady_variability` set 0.16 against a default of **0.18**, quietly making the
+  corridor *calmer* than an ordinary day.
+
+Both were still reported under their own names. A scenario is a perturbation,
+and a perturbation only means anything relative to what it perturbs, so
+`BunchingScenario.inputScale` is now multiplicative — `peak_load` is ×1.3
+boardings, `cascade` is ×1.6 variability — and means the same thing on any
+shape.
+
+### 10. A bus nobody can see was still being used as a leader
+
+The deciding vehicle's staleness was modelled; its **neighbours'** was not.
+Production's state estimator drops a low-confidence vehicle from the chain
+*before* any headway is computed, so the buses either side of it are linked to
+each other. The engine was handing a bus whose feed had gone dark straight to
+the control laws as a leader — with an exact position and a fresh timestamp,
+which is precisely the thing production guarantees cannot happen. `neighbours()`
+now skips it, and a test asserts no decision ever names a dark bus as its leader.
+
+### 11. Policy knobs are per-corridor, and fitting one on one shape is a bug
 
 `max_lateness_seconds` at 300 s improved the inter-city corridor. The same
 guardrail at 120 s on the urban corridor was, at one point in this work, going to
@@ -415,7 +442,7 @@ first and excess wait only as a tie-break, because ranking on wait alone had
 already handed a recommendation to a setting with a worse net effect when two
 rows tied.
 
-### 10. Alighting-only: the right idea, and it loses anyway
+### 12. Alighting-only: the right idea, and it loses anyway
 
 "Let a bus at a stop drop passengers but pick nobody up when the follower is
 close behind" is `mpc/boardingLimit.ts` — the only lever here that improves

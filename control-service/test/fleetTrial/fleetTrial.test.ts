@@ -361,7 +361,9 @@ describe('a bus nobody can see', () => {
     const inputs: ModelledInputs = {
       ...DEFAULT_MODELLED_INPUTS,
       ...FLEET_TRIAL_INPUTS,
-      ...scenario.inputs,
+      // The scenario's perturbation is multiplicative now - see
+      // `BunchingScenario.inputScale`. These fixtures only need the corridor's
+      // own demand, so the scale is not applied here.
       vehicleCount: 30,
       seed,
       disturbance: 'none',
@@ -463,7 +465,9 @@ describe('alighting-only', () => {
     const inputs: ModelledInputs = {
       ...DEFAULT_MODELLED_INPUTS,
       ...CORRIDOR_PRESETS.urban.inputs,
-      ...scenario.inputs,
+      // The scenario's perturbation is multiplicative now - see
+      // `BunchingScenario.inputScale`. These fixtures only need the corridor's
+      // own demand, so the scale is not applied here.
       vehicleCount: 30,
       seed,
       disturbance: 'none',
@@ -538,5 +542,58 @@ describe('alighting-only', () => {
       if (on > off) worseCount++;
     }
     expect(worseCount).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// A dark bus must not appear as anybody's neighbour either. Production's state
+// estimator drops a low-confidence vehicle from the chain before any headway is
+// computed, so the buses either side of it are linked to each other; an engine
+// that handed one over as a leader would be giving the control laws an exact
+// position with a fresh timestamp for a bus nobody can see.
+describe('a dark bus is nobody\'s leader', () => {
+  it('is never named as the leader or the trailer of a decision', () => {
+    const scenario = scenarioById('gps_dropout');
+    const inputs: ModelledInputs = {
+      ...DEFAULT_MODELLED_INPUTS,
+      ...CORRIDOR_PRESETS.urban.inputs,
+      vehicleCount: 30,
+      seed: 4242,
+      disturbance: 'none',
+    };
+    const urban = buildFleetCorridor(CORRIDOR_PRESETS.urban.corridor);
+    const built = buildRehearsalScenario(urban, inputs);
+    const plan = scenario.build({
+      corridor: urban,
+      inputs,
+      dispatches: built.scenario.dispatches,
+      targetHeadwaySeconds: urban.policy.targetHeadwaySeconds,
+      freeFlowSecondsTo: (index) =>
+        (urban.stops[index]?.cumulativeDistanceMeters ?? 0) / (inputs.cruiseSpeedKmph / 3.6),
+      rng: scenarioRng(4242, scenario.id),
+    });
+    const dark = new Set(
+      plan.disturbances
+        .filter((d): d is Extract<typeof d, { type: 'gps_dropout' }> => d.type === 'gps_dropout')
+        .map((d) => d.vehicleId),
+    );
+    expect(dark.size).toBeGreaterThan(0);
+
+    const controller = createDeployedControlLawsController({
+      policy: urban.policy,
+      epochMs: REHEARSAL_EPOCH_MS,
+      modelledCapacity: inputs.vehicleCapacity,
+      weighOccupancy: false,
+      followerSpeedSource: 'vehicle_state',
+      corridorStops: urban.stops,
+    });
+    simulate({ ...built.scenario, dispatches: plan.dispatches, disturbances: plan.disturbances }, controller);
+
+    let decisionsWithLeader = 0;
+    for (const decision of controller.decisions) {
+      if (decision.leaderVehicleId === null) continue;
+      decisionsWithLeader++;
+      expect(dark.has(decision.leaderVehicleId), `${decision.leaderVehicleId} was dark`).toBe(false);
+    }
+    expect(decisionsWithLeader).toBeGreaterThan(0);
   });
 });

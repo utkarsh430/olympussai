@@ -303,11 +303,13 @@ function neighbours(
   index: number,
   atSeconds: number,
   cumulativeDistanceMeters: readonly number[],
+  isVisible: (vehicleId: string) => boolean,
 ): { leader: CorridorKinematicState | null; trailer: CorridorKinematicState | null } {
   let leader: CorridorKinematicState | null = null;
   for (let i = index - 1; i >= 0; i--) {
     const runtime = runtimes[i];
     if (!runtime) continue;
+    if (!isVisible(runtime.vehicleId)) continue;
     const state = stateOf(runtime, atSeconds, cumulativeDistanceMeters);
     if (state) {
       leader = state;
@@ -319,6 +321,7 @@ function neighbours(
   for (let i = index + 1; i < runtimes.length; i++) {
     const runtime = runtimes[i];
     if (!runtime) continue;
+    if (!isVisible(runtime.vehicleId)) continue;
     const state = stateOf(runtime, atSeconds, cumulativeDistanceMeters);
     if (state) {
       trailer = state;
@@ -578,11 +581,22 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
         if (followerDistance !== undefined) {
           const previousDistance =
             stopIndex > 0 ? (geometry.cumulativeDistanceMeters[stopIndex - 1] ?? 0) : 0;
+          // ─── A NEIGHBOUR NOBODY CAN SEE IS NOT A NEIGHBOUR ───────────
+          //
+          // Production's state estimator drops a low-confidence vehicle from
+          // the leader/follower chain BEFORE any headway is computed
+          // (`state-estimation/ordering.ts`), so the buses either side of it
+          // are linked to each other. This engine was handing a bus whose feed
+          // had gone dark straight to the controller as a leader, complete
+          // with an exact position and a fresh timestamp - the one thing
+          // production guarantees cannot happen. The deciding vehicle's own
+          // staleness was modelled; its neighbours' was not.
           const { leader, trailer } = neighbours(
             runtimes,
             event.vehicleIndex,
             arrivalSeconds,
             geometry.cumulativeDistanceMeters,
+            (vehicleId) => !isGpsDropout(disturbances, vehicleId, arrivalSeconds),
           );
           if (leader) {
             kinematics = {
