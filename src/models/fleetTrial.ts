@@ -49,6 +49,9 @@ const punctualityKpisSchema = z.object({
   meanHoldSecondsPerVehicle: z.number(),
   maxHoldSecondsOnAnyVehicle: z.number(),
   refusedHoldSeconds: z.number(),
+  meanScheduleDeviationSeconds: z.number().nullable(),
+  p95ScheduleDeviationSeconds: z.number().nullable(),
+  onTimeRate: z.number().nullable(),
 });
 
 const passengerOutcomeSchema = z.object({

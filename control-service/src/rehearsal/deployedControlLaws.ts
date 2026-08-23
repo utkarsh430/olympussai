@@ -611,7 +611,16 @@ export function createDeployedControlLawsController(
         .filter((stop) => stop.isControlPoint === true)
         .map((stop) => stop.stopId),
     );
-    const scheduleDeviationByVehicleId = new Map<string, number | null>();
+    // The deciding vehicle's lateness against its timetable, when the scenario
+    // supplied one. This map was unconditionally EMPTY, which meant every
+    // candidate carried a null deviation - so the objective's punctuality term
+    // contributed nothing and `mpc/safety.ts`'s max-lateness bound had nothing
+    // to compare against and rejected nothing. That is the live network's state
+    // and was correct to reproduce while no scenario had a timetable; it is
+    // silently wrong for one that does.
+    const scheduleDeviationByVehicleId = new Map<string, number | null>([
+      [followerId, context.scheduleDeviationSeconds ?? null],
+    ]);
 
     // The elapsed departure headway, from the engine's own record of when a
     // bus last left this stop - the simulator's equivalent of production

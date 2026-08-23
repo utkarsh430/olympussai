@@ -387,6 +387,12 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
   const visits: StopVisitRecord[] = [];
   const geometry = corridorGeometry(routeDirection);
 
+  /** This vehicle's booked arrival at this stop, or null when no timetable was supplied. */
+  function scheduledArrival(vehicleId: string, stopIndex: number): number | null {
+    const booked = config.scheduledArrivalSeconds?.[vehicleId]?.[stopIndex];
+    return booked === undefined ? null : booked;
+  }
+
   const runtimes: VehicleRuntime[] = dispatches.map((dispatch) => ({
     vehicleId: dispatch.vehicleId,
     dispatchSeconds: dispatch.scheduledDispatchSeconds,
@@ -585,6 +591,12 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
         // `now` here produced.
         readyToDepartSeconds: arrivalSeconds + dwellSeconds,
         onboardCount: onboard,
+        // How late this bus is against its own booked arrival, when the
+        // scenario booked one. Null - not zero - when it did not; see
+        // `ScenarioConfig.scheduledArrivalSeconds`.
+        scheduleDeviationSeconds: scheduledArrival(runtime.vehicleId, stopIndex) === null
+          ? null
+          : arrivalSeconds - scheduledArrival(runtime.vehicleId, stopIndex)!,
         targetHeadwaySeconds: routeDirection.targetHeadwaySeconds,
         maxHoldSeconds: routeDirection.maxHoldSeconds,
         isStateStale,

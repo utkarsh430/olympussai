@@ -98,6 +98,17 @@ const MAX_INCIDENT_SAMPLES = 15;
  */
 const STUDY_SEEDS = 3;
 
+/**
+ * Fleet the placement study runs at, capped below the trial's own.
+ *
+ * The study compares placements against each OTHER, so it needs enough buses
+ * for the corridor to behave like a corridor and no more - and it runs three
+ * placements at three seeds, so it costs nine phase-runs against the trial's
+ * two. Left uncapped it was three quarters of the total time for a comparison
+ * whose precision is already set by the seed count rather than the fleet size.
+ */
+const MAX_STUDY_VEHICLES = 250;
+
 export interface FleetTrialSpec {
   corridor: FleetCorridorSpec;
   /** Buses per phase. Two phases of 500 is the thousand-bus trial. */
@@ -242,8 +253,69 @@ function buildTrialScenario(args: {
     name: `fleet-trial:${scenario.id}`,
     dispatches: plan.dispatches,
     disturbances: plan.disturbances,
+    scheduledArrivalSeconds: buildTimetable(corridor, inputs, plan.dispatches),
     seed,
   };
+}
+
+/**
+ * The timetable the trial books its buses against.
+ *
+ * ─── WHY THE TRIAL HAS TO INVENT ONE ─────────────────────────────────────
+ *
+ * The deployed system prices punctuality and bounds it - `mpc/objective.ts`
+ * charges for the lateness a hold ADDS, and `mpc/safety.ts` refuses a hold that
+ * would push a bus past `route_policies.max_lateness_seconds`. Both are inert on
+ * the live network, because `trips` and `trip_stop_times` are empty and every
+ * schedule deviation is therefore null. A trial that supplied no timetable
+ * either would be measuring a controller with its punctuality guardrail
+ * switched off - which is what this one was doing, and it showed: single buses
+ * accumulated over an hour of hold across a trip, because nothing anywhere
+ * asked how late they already were.
+ *
+ * ─── HOW IT IS BOOKED ────────────────────────────────────────────────────
+ *
+ * Free-flow running time plus a nominal dwell at every intermediate stop. The
+ * nominal dwell uses the demand a stop sees in steady state - one target
+ * headway's worth of boardings, and the same number alighting, which is what
+ * balance requires - so the schedule is achievable rather than aspirational. A
+ * timetable no bus can keep would report every vehicle late from the first
+ * stop and make the lateness term a constant.
+ *
+ * MODELLED, like everything else about the traffic here, and reported as such.
+ */
+function buildTimetable(
+  corridor: CorridorInputs,
+  inputs: ModelledInputs,
+  dispatches: readonly TerminalDispatchPlan[],
+): Record<string, number[]> {
+  const metersPerSecond = inputs.cruiseSpeedKmph / 3.6;
+  const expectedBoardings = (inputs.boardingRatePerMinute * corridor.policy.targetHeadwaySeconds) / 60;
+  const nominalDwellSeconds =
+    inputs.baseDwellSeconds +
+    inputs.secondsPerBoarding * expectedBoardings +
+    inputs.secondsPerAlighting * expectedBoardings;
+
+  // Cumulative booked offset from departure, per stop index.
+  const offsets: number[] = [];
+  let elapsed = 0;
+  for (const [index, stop] of corridor.stops.entries()) {
+    const previous = index > 0 ? (corridor.stops[index - 1]?.cumulativeDistanceMeters ?? 0) : 0;
+    const linkMeters = Math.max(0, stop.cumulativeDistanceMeters - previous);
+    elapsed += metersPerSecond > 0 ? linkMeters / metersPerSecond : 0;
+    offsets.push(elapsed);
+    // The dwell at THIS stop is served before the next link, so it lands in
+    // every later stop's booked time and in none of the earlier ones.
+    elapsed += nominalDwellSeconds;
+  }
+
+  const timetable: Record<string, number[]> = {};
+  for (const dispatch of dispatches) {
+    timetable[dispatch.vehicleId] = offsets.map(
+      (offset) => dispatch.scheduledDispatchSeconds + offset,
+    );
+  }
+  return timetable;
 }
 
 // ─── Metric helpers ──────────────────────────────────────────────────────
@@ -350,11 +422,23 @@ function passengerOutcome(visits: readonly StopVisitRecord[]): PassengerOutcome 
   };
 }
 
+/**
+ * How close to its booked time a bus has to arrive to count as punctual.
+ *
+ * Five minutes either side, which is the operator's own framing of the trade
+ * this trial exists to measure: a little delay is acceptable, a lot is not.
+ * Symmetric, because a bus running five minutes EARLY has left passengers
+ * behind at every stop it passed and is not a success.
+ */
+export const ON_TIME_WINDOW_SECONDS = 300;
+
 interface JourneyRecord {
   vehicleId: string;
   journeySeconds: number;
   holdSeconds: number;
   refusedHoldSeconds: number;
+  /** Lateness at the terminus against the booked timetable, or null when none was booked. */
+  scheduleDeviationSeconds: number | null;
 }
 
 /**
@@ -368,6 +452,7 @@ function journeysOf(
   visits: readonly StopVisitRecord[],
   dispatches: readonly TerminalDispatchPlan[],
   finalStopIndex: number,
+  scheduledArrivalSeconds?: Record<string, number[]>,
 ): JourneyRecord[] {
   const dispatchByVehicle = new Map(dispatches.map((d) => [d.vehicleId, d.scheduledDispatchSeconds]));
   const byVehicle = new Map<string, { arrival: number | null; hold: number; refused: number }>();
@@ -385,11 +470,13 @@ function journeysOf(
   for (const [vehicleId, entry] of byVehicle) {
     const dispatchSeconds = dispatchByVehicle.get(vehicleId);
     if (dispatchSeconds === undefined || entry.arrival === null) continue;
+    const booked = scheduledArrivalSeconds?.[vehicleId]?.[finalStopIndex];
     journeys.push({
       vehicleId,
       journeySeconds: entry.arrival - dispatchSeconds,
       holdSeconds: entry.hold,
       refusedHoldSeconds: entry.refused,
+      scheduleDeviationSeconds: booked === undefined ? null : entry.arrival - booked,
     });
   }
   return journeys;
@@ -398,7 +485,18 @@ function journeysOf(
 function punctualityKpis(journeys: readonly JourneyRecord[]): PunctualityKpis {
   const durations = journeys.map((j) => j.journeySeconds).sort((a, b) => a - b);
   const totalHoldSeconds = journeys.reduce((acc, j) => acc + j.holdSeconds, 0);
+  const deviations = journeys
+    .map((j) => j.scheduleDeviationSeconds)
+    .filter((v): v is number => v !== null);
+  const sortedDeviations = [...deviations].sort((a, b) => a - b);
   return {
+    meanScheduleDeviationSeconds:
+      deviations.length > 0 ? deviations.reduce((a, b) => a + b, 0) / deviations.length : null,
+    p95ScheduleDeviationSeconds: percentile(sortedDeviations, 0.95),
+    onTimeRate:
+      deviations.length > 0
+        ? deviations.filter((v) => Math.abs(v) <= ON_TIME_WINDOW_SECONDS).length / deviations.length
+        : null,
     vehiclesCompleted: journeys.length,
     meanJourneySeconds:
       durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : null,
@@ -685,13 +783,17 @@ function runScenario(args: {
 
   const controlledArm: ArmReport = {
     spacing: spacingKpis(controlled.visits, corridor),
-    punctuality: punctualityKpis(journeysOf(controlled.visits, config.dispatches, finalStopIndex)),
+    punctuality: punctualityKpis(
+      journeysOf(controlled.visits, config.dispatches, finalStopIndex, config.scheduledArrivalSeconds),
+    ),
     passengers: passengerOutcome(controlled.visits),
     incidents: summarizeIncidents(detectedControlled.incidents),
   };
   const uncontrolledArm: ArmReport = {
     spacing: spacingKpis(uncontrolled.visits, corridor),
-    punctuality: punctualityKpis(journeysOf(uncontrolled.visits, config.dispatches, finalStopIndex)),
+    punctuality: punctualityKpis(
+      journeysOf(uncontrolled.visits, config.dispatches, finalStopIndex, config.scheduledArrivalSeconds),
+    ),
     passengers: passengerOutcome(uncontrolled.visits),
     incidents: summarizeIncidents(detectedUncontrolled.incidents),
   };
@@ -767,7 +869,9 @@ function poolArm(
   for (const run of runs) {
     const visits = pick(run);
     samples.push(...headwaySamplesOf(visits, corridor));
-    journeys.push(...journeysOf(visits, run.config.dispatches, finalStopIndex));
+    journeys.push(
+      ...journeysOf(visits, run.config.dispatches, finalStopIndex, run.config.scheduledArrivalSeconds),
+    );
     const outcome = passengerOutcome(visits);
     pooledPassengers.boardings += outcome.boardings;
     pooledPassengers.deniedBoardings += outcome.deniedBoardings;
@@ -1252,6 +1356,27 @@ function buildProvenance(
       note: 'INVENTED. No ticketing feed exists. Chosen to leave headroom below capacity, because a saturated corridor cannot respond to spacing control at all and would report "no effect" about a working controller.',
     },
     {
+      field: 'Timetable',
+      source: 'modelled',
+      value: `free-flow running plus a nominal ${Math.round(inputs.baseDwellSeconds)}s+ dwell at every stop`,
+      note:
+        'INVENTED. `trips` and `trip_stop_times` are empty, so no published departure time exists anywhere ' +
+        'in this system. The trial books one so the deployed punctuality guardrail has something to measure ' +
+        'against - without it the lateness term contributes nothing and the max-lateness bound rejects nothing.',
+    },
+    {
+      field: 'Maximum lateness',
+      source: 'configured',
+      value:
+        corridor.policy.maxLatenessSeconds === null
+          ? 'unbounded'
+          : `${corridor.policy.maxLatenessSeconds}s`,
+      note:
+        'route_policies.max_lateness_seconds, enforced by the same hard safety filter the live decision cycle ' +
+        'runs. Null on every real corridor. Paired across eight seeds, bounding it at 300s cut holding per bus ' +
+        'from 353s to 228s on every seed and improved the excess-wait gain rather than costing it.',
+    },
+    {
       field: 'Occupancy',
       source: 'modelled',
       value: 'Simulated onboard count, fed to the objective in phase 2',
@@ -1270,7 +1395,7 @@ const NOT_EXERCISED = [
   'The command lifecycle. Cooldown, minimum action interval, maximum concurrent actions, driver acknowledgement and command expiry all live in the command path, which this trial deliberately does not touch. A result here is the control law’s INTENT, not the rate at which instructions would actually reach a driver.',
   'The state estimator. Production derives distance along the route by map-matching a GPS fix and filtering it, and excludes low-confidence vehicles before any headway is computed. The simulator knows its own world exactly, so that exclusion path only ever fires for the vehicles a scenario deliberately darkens.',
   'Real demand. Every passenger in this trial was invented. The boarding rate, the alighting fraction and the seat count are chosen numbers, and every figure derived from them inherits that.',
-  'The timetable. The engine models no published departure times, so "punctuality" here is end-to-end journey time and the delay a hold added to it - not lateness against a schedule.',
+  'A REAL timetable. The trial books its own - free-flow running plus a nominal dwell - so lateness is measured and the deployed punctuality guardrail is exercised. It is measured against an invented schedule, not a published one: `trips` and `trip_stop_times` are empty everywhere in this system.',
 ];
 
 // ─── Entry point ─────────────────────────────────────────────────────────
@@ -1376,7 +1501,7 @@ export function runFleetTrial(
     spec,
     scenarios,
     inputs,
-    vehiclesPerPhase: spec.vehiclesPerPhase,
+    vehiclesPerPhase: Math.min(spec.vehiclesPerPhase, MAX_STUDY_VEHICLES),
   });
 
   const occupancyContrast = compareOccupancySettings({

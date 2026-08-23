@@ -185,6 +185,49 @@ function ArmContrastTable({ arm }: { arm: { uncontrolled: ArmReport; controlled:
               </span>
             </td>
           </tr>
+          {c.punctuality.onTimeRate === null ? null : (
+            <>
+              <ContrastRow
+                label="Arriving on time"
+                hint="within five minutes of the booked time, early or late"
+                baseline={pct((u.punctuality.onTimeRate ?? 0) * 100, 0)}
+                controlled={pct((c.punctuality.onTimeRate ?? 0) * 100, 0)}
+                improvement={
+                  u.punctuality.onTimeRate
+                    ? ((c.punctuality.onTimeRate - u.punctuality.onTimeRate) /
+                        u.punctuality.onTimeRate) *
+                      100
+                    : null
+                }
+                betterIsLower={false}
+              />
+              <tr className={opsTrClass}>
+                <td className={opsTdClass}>
+                  Lateness at the terminus
+                  <div className="text-[11px] text-subtle">
+                    mean, and the worst one bus in twenty
+                  </div>
+                </td>
+                <td className={opsTdNumericClass}>
+                  {mins(u.punctuality.meanScheduleDeviationSeconds)}
+                  <div className="text-[11px] text-subtle">
+                    p95 {mins(u.punctuality.p95ScheduleDeviationSeconds)}
+                  </div>
+                </td>
+                <td className={opsTdNumericClass}>
+                  {mins(c.punctuality.meanScheduleDeviationSeconds)}
+                  <div className="text-[11px] text-subtle">
+                    p95 {mins(c.punctuality.p95ScheduleDeviationSeconds)}
+                  </div>
+                </td>
+                <td className={opsTdNumericClass}>
+                  <span className="text-muted-foreground">
+                    worst bus held {mins(c.punctuality.maxHoldSecondsOnAnyVehicle)}
+                  </span>
+                </td>
+              </tr>
+            </>
+          )}
         </tbody>
       </table>
     </OpsTableFrame>

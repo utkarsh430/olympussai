@@ -171,6 +171,24 @@ export interface ScenarioConfig {
   /** PRNG seed - same seed + same config always produces the same result. */
   seed: number;
   recordedInputs?: RecordedInputs;
+  /**
+   * A TIMETABLE: `scheduledArrivalSeconds[vehicleId][stopIndex]` is when this
+   * vehicle was booked to reach that stop.
+   *
+   * Optional, and its absence is meaningful rather than merely tolerated. The
+   * deployed system prices punctuality (`mpc/objective.ts`'s lateness term) and
+   * bounds it (`route_policies.max_lateness_seconds`, enforced in
+   * `mpc/safety.ts`), and BOTH are inert on the live network because the
+   * timetable tables hold no rows - every schedule deviation is null, so the
+   * term contributes nothing and the bound rejects nothing.
+   *
+   * A scenario that supplies one turns both on. A scenario that does not gets
+   * exactly today's behaviour: no deviation, no lateness cost, no bound. The
+   * distinction must not be papered over with a zero - "on time" and "no
+   * schedule exists" are opposite statements, and a zero would tell the
+   * objective every bus was perfectly punctual.
+   */
+  scheduledArrivalSeconds?: Record<string, number[]>;
 }
 
 /**
@@ -290,6 +308,16 @@ export interface ControllerContext {
    * already going to close and enlarging the shortfall for the bus behind.
    */
   readyToDepartSeconds?: number;
+  /**
+   * Seconds this vehicle is behind its timetable on arrival here (negative =
+   * running early), or null when the scenario supplied no timetable.
+   *
+   * Null is the live network's state and must not be read as zero: the
+   * deployed lateness term and the max-lateness bound both distinguish "this
+   * bus is on time" from "nobody knows what time this bus should be here",
+   * and only the second is true today.
+   */
+  scheduleDeviationSeconds?: number | null;
   /**
    * Passengers modelled aboard this vehicle as it arrives, before boarding
    * and alighting at this stop are applied.

@@ -164,6 +164,42 @@ measurement population, and baseline EWT read 61 s with two holding points and
 every station, which is also the more honest definition: passengers wait at all
 of them.
 
+### 5. Nothing stopped the controller compounding its own damage
+
+Single buses were accumulating over an hour of hold across a trip, because no
+part of the system asked how late a bus already was before holding it again.
+
+The deployed system has the guardrail — `mpc/objective.ts` charges for the
+lateness a hold *adds*, and `mpc/safety.ts` refuses one that would push a bus
+past `route_policies.max_lateness_seconds`. Both are inert on the live network
+for the same reason: `trips` and `trip_stop_times` are empty, so every schedule
+deviation is null, the term contributes nothing and the bound rejects nothing.
+The trial had faithfully reproduced that, which meant it was measuring a
+controller with its punctuality guardrail switched off.
+
+**Fix**: the trial now books its own timetable — free-flow running plus a
+nominal dwell at every stop, so the schedule is achievable rather than
+aspirational — and `simulation/` carries it through
+(`ScenarioConfig.scheduledArrivalSeconds`). A scenario that supplies none still
+gets exactly today's behaviour: null deviation, no lateness cost, no bound.
+"On time" and "no schedule exists" are opposite statements and a zero would have
+told the objective every bus was perfectly punctual.
+
+With the bound set to 300 s, paired across eight seeds:
+
+| | unbounded | 300 s bound | seeds favouring the bound |
+|---|---|---|---|
+| hold per bus | 353 s | **228 s** | **8 of 8** |
+| worst single bus | 2,050 s | 1,665 s | — |
+| instructions issued | 270 | 217 | — |
+| excess wait gain | 7.4% | **10.2%** | 5 of 8 |
+| total passenger time | −2.14% | **−0.99%** | 6 of 8 |
+
+Less holding on *every* seed, and the wait benefit went up rather than down.
+Refusing to hold an already-late bus removes the controller's least valuable
+interventions, so nothing is given up by declining them. `max_lateness_seconds`
+is a `route_policies` column — this is a configuration change, not a code one.
+
 ### One seed is not a measurement (and a result that did not survive)
 
 Net passenger time on this corridor has a seed-to-seed spread of about ten
@@ -198,8 +234,8 @@ alongside every row rather than a bare average.
   excludes low-confidence vehicles before any headway is computed. The simulator
   knows its own world exactly.
 - **Real demand.** Every passenger was invented.
-- **The timetable.** "Punctuality" here is end-to-end journey time and what
-  holding added to it, not lateness against a published departure.
+- **A real timetable.** The trial books its own (see finding 5), so lateness is
+  measured — but against an invented schedule, not a published one.
 
 ## The corridor, and why it is shaped this way
 

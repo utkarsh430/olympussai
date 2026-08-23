@@ -77,6 +77,18 @@ export interface PunctualityKpis {
   maxHoldSecondsOnAnyVehicle: number;
   /** Holds the laws asked for that a driver did not take. */
   refusedHoldSeconds: number;
+  /**
+   * Lateness against the booked timetable at the terminus, in seconds
+   * (negative = arrived early). Null when the scenario booked no timetable.
+   *
+   * This is punctuality in the sense an operator means it, as distinct from
+   * `meanJourneySeconds`, which is how long the trip took. A corridor can hold
+   * its journey time and still be late everywhere if it left late.
+   */
+  meanScheduleDeviationSeconds: number | null;
+  p95ScheduleDeviationSeconds: number | null;
+  /** Share of buses arriving within `ON_TIME_WINDOW_SECONDS` of their booked time. */
+  onTimeRate: number | null;
 }
 
 export interface IncidentSummary {
