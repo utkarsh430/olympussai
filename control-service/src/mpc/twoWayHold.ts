@@ -12,6 +12,7 @@
 import { clamp, scheduleCorrectionSeconds } from './math.js';
 import { canExecuteHold } from './eligibility.js';
 import { liveOnboardCount, scoreHold } from './objective.js';
+import { isWorthActingOn, occupancyAdjustedMaxHoldSeconds } from './actionThreshold.js';
 import type { CandidateAction } from './types.js';
 import type { HeadwayStateRow, RoutePolicyRow, VehicleStateRow } from '../state/store.js';
 
@@ -39,6 +40,8 @@ export function computeTwoWayCandidates(
   for (const h of headwayStates) {
     if (terminalVehicleIds.has(h.followerVehicleId)) continue; // terminal dispatch regulation applies instead
     if (h.hFwdSeconds === null || h.hBwdSeconds === null) continue;
+    // Not deviant enough to be worth an instruction - see mpc/actionThreshold.ts.
+    if (!isWorthActingOn(h.hFwdSeconds, policy)) continue;
     // A hold is executed by standing still at a stop. Proposing one to a bus
     // mid-link names an action its driver cannot take - see mpc/eligibility.ts.
     if (!canExecuteHold(vehicleStatesByVehicleId.get(h.followerVehicleId), controlPointStopIds)) continue;
@@ -50,10 +53,16 @@ export function computeTwoWayCandidates(
       scheduleCorrectionSeconds(policy.ks, deviationSeconds);
     if (rawHold <= 0) continue;
 
-    const holdSeconds = Math.round(clamp(rawHold, 0, policy.maxHoldSeconds));
-    if (holdSeconds <= 0) continue;
-
     const load = liveOnboardCount(vehicleStatesByVehicleId.get(h.followerVehicleId), policy, now, weighOccupancy);
+    // The load binds on the ACTION, not just on the ranking - see
+    // mpc/actionThreshold.ts for the measurement that made this necessary.
+    const holdCapSeconds = occupancyAdjustedMaxHoldSeconds(
+      policy.maxHoldSeconds,
+      load,
+      policy.occupancyCapacity,
+    );
+    const holdSeconds = Math.round(clamp(rawHold, 0, holdCapSeconds));
+    if (holdSeconds <= 0) continue;
 
     candidates.push({
       actionType: 'two_way_hold',

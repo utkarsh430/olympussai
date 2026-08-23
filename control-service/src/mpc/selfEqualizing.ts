@@ -20,6 +20,7 @@
 import { clamp } from './math.js';
 import { canExecuteHold } from './eligibility.js';
 import { liveOnboardCount, scoreHold } from './objective.js';
+import { isWorthActingOn, occupancyAdjustedMaxHoldSeconds } from './actionThreshold.js';
 import type { CandidateAction } from './types.js';
 import type { HeadwayStateRow, RoutePolicyRow, VehicleStateRow } from '../state/store.js';
 
@@ -46,6 +47,8 @@ export function computeSelfEqualizingCandidates(
   for (const h of headwayStates) {
     if (terminalVehicleIds.has(h.followerVehicleId)) continue; // terminal dispatch regulation applies instead
     if (h.hFwdSeconds === null) continue; // no data at all for this pair
+    // Not deviant enough to be worth an instruction - see mpc/actionThreshold.ts.
+    if (!isWorthActingOn(h.hFwdSeconds, policy)) continue;
     // Same execution precondition as two-way holding - see mpc/eligibility.ts.
     if (!canExecuteHold(vehicleStatesByVehicleId.get(h.followerVehicleId), controlPointStopIds)) continue;
 
@@ -61,10 +64,17 @@ export function computeSelfEqualizingCandidates(
     const rawHold = k * Math.max(0, hBwd - h.hFwdSeconds);
     if (rawHold <= 0) continue;
 
-    const holdSeconds = Math.round(clamp(rawHold, 0, policy.maxHoldSeconds));
-    if (holdSeconds <= 0) continue;
-
     const load = liveOnboardCount(vehicleStatesByVehicleId.get(h.followerVehicleId), policy, now, weighOccupancy);
+    // The load binds on the ACTION, not just on the ranking - see
+    // mpc/actionThreshold.ts for the measurement that made this necessary.
+    const holdSeconds = Math.round(
+      clamp(
+        rawHold,
+        0,
+        occupancyAdjustedMaxHoldSeconds(policy.maxHoldSeconds, load, policy.occupancyCapacity),
+      ),
+    );
+    if (holdSeconds <= 0) continue;
     // REPORTED but not used in the formula above - see this file's header.
     // Reporting it is not cosmetic: `mpc/safety.ts` reads
     // `candidate.scheduleDeviationSeconds` to apply the max-lateness bound,

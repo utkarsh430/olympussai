@@ -48,6 +48,7 @@
 import { clamp } from './math.js';
 import { canExecuteHold } from './eligibility.js';
 import { liveOnboardCount, optimalHoldSeconds, scoreHold } from './objective.js';
+import { isWorthActingOn, occupancyAdjustedMaxHoldSeconds } from './actionThreshold.js';
 import type { CandidateAction } from './types.js';
 import type { HeadwayStateRow, RoutePolicyRow, VehicleStateRow } from '../state/store.js';
 
@@ -97,6 +98,8 @@ export function computeCostOptimalCandidates(
     // know" - it is a different, worse controller wearing the optimum's name.
     // The pair belongs to selfEqualizing.ts in that case.
     if (h.hFwdSeconds === null || h.hBwdSeconds === null) continue;
+    // Not deviant enough to be worth an instruction - see mpc/actionThreshold.ts.
+    if (!isWorthActingOn(h.hFwdSeconds, policy)) continue;
     if (!canExecuteHold(vehicleStatesByVehicleId.get(h.followerVehicleId), controlPointStopIds)) continue;
 
     const load = liveOnboardCount(vehicleStatesByVehicleId.get(h.followerVehicleId), policy, now, weighOccupancy);
@@ -111,7 +114,13 @@ export function computeCostOptimalCandidates(
     });
     if (rawHold <= 0) continue;
 
-    const holdSeconds = Math.round(clamp(rawHold, 0, policy.maxHoldSeconds));
+    const holdSeconds = Math.round(
+      clamp(
+        rawHold,
+        0,
+        occupancyAdjustedMaxHoldSeconds(policy.maxHoldSeconds, load, policy.occupancyCapacity),
+      ),
+    );
     if (holdSeconds < MIN_MEANINGFUL_HOLD_SECONDS) continue;
 
     const score = scoreHold(h, h.followerVehicleId, holdSeconds, rawHold, load, deviationSeconds);

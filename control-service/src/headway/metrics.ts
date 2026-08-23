@@ -47,11 +47,48 @@
 // of the same leader/follower chain, which is why this is computed here
 // (where the whole chain is in hand) rather than by having the control law
 // hunt for a sibling row.
-// A stationary/near-stationary vehicle (speed at or below MIN_SPEED_KMPH)
-// is floored to MIN_SPEED_KMPH rather than producing a division-by-zero or
-// an unbounded headway, and every computed headway is capped at
-// MAX_HEADWAY_SECONDS so a genuinely stalled vehicle reports a large-but-
-// finite, JSON-safe number instead of Infinity.
+// ─── WHY A STATIONARY BUS IS NOT MEASURED AT ITS OWN SPEED ───────────────
+//
+// h_fwd converts a gap in METRES into a gap in SECONDS, and the divisor has
+// to be the pace at which the follower will actually cover that gap. Its
+// INSTANTANEOUS speed is a poor estimator of that pace and is catastrophically
+// poor in one specific state: standing at a stop.
+//
+// That state is not an edge case, it is the only state in which anything can
+// be done about a bunch. `mpc/eligibility.ts` will only propose a hold to a
+// bus that is `dwelling_at_stop` or `approaching_stop`, because a hold is
+// executed by standing still somewhere passengers can board. So the deployed
+// system asks "how bunched is this pair?" at precisely the moment its own
+// estimator is least able to answer.
+//
+// MEASURED, on one pair 4 km apart on a corridor whose nominal gap is 30 km -
+// the same two buses, the same instant, three different reported speeds:
+//
+//   follower at 60 km/h   h_fwd    240 s   ratio 0.13   BUNCHED, hold 600 s
+//   follower at 12 km/h   h_fwd  1,200 s   ratio 0.67   "fine",  hold 252 s
+//   follower at  0 km/h   h_fwd 14,400 s   ratio 8.00   "fine",  no candidate
+//
+// Flooring at MIN_SPEED_KMPH = 1 is what produces the third line, and the
+// third line is the one production is in. Across a 1,000-bus trial, moving
+// from the engine's link-average pace to the speed `vehicle_states` actually
+// carries collapsed two-way holding from 2,373 generated candidates to 122 -
+// 95% of the control law - and cut the excess-wait improvement from 44% to
+// 10%. This is the same arithmetic that made Algorithm A incapable of ever
+// firing (see mpc/terminalDispatch.ts and test/terminalDispatch.test.ts); that
+// law was given a measured departure headway instead, and the mid-route laws
+// and the bunching detector were left on the broken divisor.
+//
+// THE FIX. A bus standing at a stop is about to resume at roughly the pace the
+// corridor is running at, so that is the divisor - `corridorPaceKmph` below,
+// the MEDIAN speed of the vehicles on this corridor that are actually moving.
+// It is a measurement, not an assumption, it needs no new schema and no new
+// query, and it degrades honestly: when NOTHING on the corridor is moving
+// there is no pace to borrow and the headway is null - "no opinion" - rather
+// than a fabricated number. A vehicle that is genuinely under way keeps its
+// own speed and is completely unaffected.
+//
+// Every computed headway is still capped at MAX_HEADWAY_SECONDS so a genuinely
+// stalled corridor reports a large-but-finite, JSON-safe number, never Infinity.
 
 import { computeDispersion } from "../lib/dispersion.js";
 import type { HeadwayDispersion } from "../lib/dispersion.js";
@@ -61,9 +98,68 @@ import type { HeadwayAggregate, HeadwayPairMetric } from "./types.js";
 export const MIN_SPEED_KMPH = 1;
 export const MAX_HEADWAY_SECONDS = 24 * 60 * 60;
 
-function toSpeedMetersPerSecond(speedKmph: number | null): number | null {
+/**
+ * At or below this a vehicle is not making progress along the route.
+ *
+ * 5 km/h is below the slowest pace at which a bus is meaningfully under way
+ * and above the noise a GPS fix puts on a stationary vehicle. It covers all
+ * three ways a bus stands still - dwelling at a stop, waiting at a signal,
+ * held in a queue - without needing to know which one it is in, because for
+ * this arithmetic they are the same: the gap ahead is not being closed at the
+ * speed currently being reported.
+ */
+export const STATIONARY_SPEED_KMPH = 5;
+
+/**
+ * The pace this corridor is running at right now: the median speed of the
+ * vehicles on it that are actually moving, or null when none of them is.
+ *
+ * MEDIAN rather than mean, because on a short chain one bus pulling out of a
+ * stop at 6 km/h would drag a mean down far enough to matter, and the median
+ * of a handful of moving buses is exactly the robust summary wanted here.
+ *
+ * Low-confidence vehicles are already excluded from `ordered` by
+ * state-estimation/ordering.ts (rank -1), and are skipped here too so a
+ * position nobody vouches for cannot set the pace every other pair is
+ * measured against.
+ */
+function corridorPaceKmph(
+  ordered: readonly OrderedVehicle[],
+  speedByVehicleId: SpeedLookup,
+): number | null {
+  const moving: number[] = [];
+  for (const vehicle of ordered) {
+    if (vehicle.rank < 0) continue;
+    const speed = speedByVehicleId.get(vehicle.vehicleId);
+    if (speed == null || Number.isNaN(speed)) continue;
+    if (speed < STATIONARY_SPEED_KMPH) continue;
+    moving.push(speed);
+  }
+  if (moving.length === 0) return null;
+  moving.sort((a, b) => a - b);
+  const middle = moving.length >> 1;
+  return moving.length % 2 === 1
+    ? moving[middle]!
+    : (moving[middle - 1]! + moving[middle]!) / 2;
+}
+
+/**
+ * The pace to divide this vehicle's gap by, in metres per second.
+ *
+ * Null means "no opinion", and both routes to it are real absences rather
+ * than defaults: the vehicle's speed was never reported, or it is standing
+ * still on a corridor where nothing else is moving either. Callers already
+ * treat a null headway as "no headway state for this pair" and generate no
+ * candidate from it.
+ */
+function closingSpeedMetersPerSecond(
+  speedKmph: number | null | undefined,
+  corridorPace: number | null,
+): number | null {
   if (speedKmph == null || Number.isNaN(speedKmph)) return null;
-  return Math.max(speedKmph, MIN_SPEED_KMPH) / 3.6;
+  if (speedKmph >= STATIONARY_SPEED_KMPH) return speedKmph / 3.6;
+  if (corridorPace == null) return null;
+  return Math.max(corridorPace, MIN_SPEED_KMPH) / 3.6;
 }
 
 function clampHeadwaySeconds(seconds: number): number {
@@ -112,6 +208,10 @@ export function computePairHeadways(
 ): HeadwayPairMetric[] {
   const byId = new Map(ordered.map((v) => [v.vehicleId, v]));
   const pairs: HeadwayPairMetric[] = [];
+  // Computed once for the whole chain: it is a property of the corridor at
+  // this instant, not of any one pair, and re-deriving it per pair would let
+  // two rows in the same snapshot be measured against different paces.
+  const corridorPace = corridorPaceKmph(ordered, speedByVehicleId);
 
   for (const leader of ordered) {
     if (leader.rank < 0 || !leader.followerVehicleId) continue;
@@ -124,7 +224,10 @@ export function computePairHeadways(
       routeDirection.totalDistanceMeters
     );
 
-    const followerSpeedMps = toSpeedMetersPerSecond(speedByVehicleId.get(follower.vehicleId) ?? null);
+    const followerSpeedMps = closingSpeedMetersPerSecond(
+      speedByVehicleId.get(follower.vehicleId) ?? null,
+      corridorPace,
+    );
     const hFwdSeconds = followerSpeedMps == null ? null : clampHeadwaySeconds(gapMeters / followerSpeedMps);
 
     // Backward headway of the FOLLOWER - the vehicle this row's candidate
@@ -137,7 +240,9 @@ export function computePairHeadways(
     // the pair instead of mpc/twoWayHold.ts.
     const trailer = follower.followerVehicleId ? byId.get(follower.followerVehicleId) : undefined;
     const trailerSpeedMps =
-      trailer == null ? null : toSpeedMetersPerSecond(speedByVehicleId.get(trailer.vehicleId) ?? null);
+      trailer == null
+        ? null
+        : closingSpeedMetersPerSecond(speedByVehicleId.get(trailer.vehicleId) ?? null, corridorPace);
     const backGapMeters =
       trailer == null
         ? null

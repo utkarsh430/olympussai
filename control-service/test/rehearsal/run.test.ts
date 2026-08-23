@@ -98,8 +98,26 @@ describe('runRehearsal', () => {
     }
   });
 
+  // ─── A corridor that actually proposes something ───────────────────────
+  //
+  // Both tests below are about what happens to a hold ONCE IT EXISTS - one
+  // that a stale feed must block, one that a driver refuses. Neither is about
+  // when a hold is generated, and both need one to be.
+  //
+  // Since `mpc/actionThreshold.ts`, a mid-route law only proposes for a pair
+  // at or under `warning_threshold_ratio` x H*. This corridor sets that ratio
+  // to 1.0 - "warn me about any gap under target" - which is a legitimate,
+  // deliberately twitchy configuration and restores the proposal rate these
+  // fixtures were written against. The bar is per-corridor config precisely so
+  // that a corridor can make this choice.
+  const proposingCorridor = () => {
+    const base = corridor();
+    return { ...base, policy: { ...base.policy, warningThresholdRatio: 1 } };
+  };
+  const CROWDED = { ...DEFAULT_MODELLED_INPUTS, vehicleCount: 16, travelTimeVariation: 0.45 };
+
   it('refuses to hold a vehicle whose feed has dropped out, and shows the guardrail that refused', () => {
-    const result = runRehearsal(corridor(), { ...DEFAULT_MODELLED_INPUTS, disturbance: 'gps_dropout' });
+    const result = runRehearsal(proposingCorridor(), { ...CROWDED, disturbance: 'gps_dropout' });
     const droppedVehicle = result.disturbedVehicleId;
     expect(droppedVehicle).not.toBeNull();
     const itsDecisions = result.decisions.filter((d) => d.vehicleId === droppedVehicle);
@@ -109,7 +127,7 @@ describe('runRehearsal', () => {
   });
 
   it('records a driver refusing a hold as a refusal, not as a hold that happened', () => {
-    const result = runRehearsal(corridor(), { ...DEFAULT_MODELLED_INPUTS, disturbance: 'non_compliance' });
+    const result = runRehearsal(proposingCorridor(), { ...CROWDED, disturbance: 'non_compliance' });
     expect(result.arms.controlled.refusedHoldSeconds).toBeGreaterThan(0);
   });
 

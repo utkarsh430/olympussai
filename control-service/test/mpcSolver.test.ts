@@ -210,17 +210,21 @@ describe('mpc.solve', () => {
         routeDirectionId: 'rd-1',
         leaderVehicleId: 'veh-leader',
         followerVehicleId: 'veh-follower',
-        hFwdSeconds: 400, // H* - hFwd = 200
+        // 300s against a 600s target is exactly the corridor's own
+        // `warning_threshold_ratio` of 0.5, so the pair clears the mid-route
+        // action bar (mpc/actionThreshold.ts) and the law is asked for its
+        // arithmetic - which is what this test is about.
+        hFwdSeconds: 300, // H* - hFwd = 300
         hBwdSeconds: 700, // H* - hBwd = -100
         targetHeadwaySeconds: 600,
-        deviationSeconds: -200,
+        deviationSeconds: -300,
         computedAt: new Date().toISOString(),
       },
     ]);
 
     const result = await solve('rd-1');
 
-    // clamp[0.4*(600-400) - 0.4*(600-700), 0, 120] = clamp[80 - (-40), 0, 120] = clamp[120,...] = 120
+    // clamp[0.4*(600-300) - 0.4*(600-700), 0, 120] = clamp[120 - (-40), 0, 120] = clamp[160,...] = 120
     const twoWay = result.candidateActions.filter((c) => c.actionType === 'two_way_hold');
     expect(twoWay).toHaveLength(1);
     expect(twoWay[0]).toMatchObject({ actionType: 'two_way_hold', holdSeconds: 120 });
@@ -267,10 +271,14 @@ describe('mpc.solve', () => {
         routeDirectionId: 'rd-1',
         leaderVehicleId: 'veh-mid-leader',
         followerVehicleId: 'veh-mid-follower',
-        hFwdSeconds: 400,
+        // Inside the warning threshold, so a mid-route candidate genuinely
+        // exists for terminal dispatch to be preferred OVER. At 400s it would
+        // now be filtered before generation and the test would pass for the
+        // wrong reason.
+        hFwdSeconds: 300,
         hBwdSeconds: 700,
         targetHeadwaySeconds: 600,
-        deviationSeconds: -200,
+        deviationSeconds: -300,
         computedAt: new Date().toISOString(),
       },
     ]);
@@ -425,16 +433,17 @@ describe('mpc.solve', () => {
     ]);
     stateStore.loadHeadwayStates([
       {
-        // Barely off target, and its raw hold of 40s needs no clamping at
-        // all - clamp residual 0, which used to make it the winner.
+        // Just inside the corridor's warning threshold (0.5 x 600 = 300s), so
+        // it is proposable - but only just. Raw hold 2*(600-280) = 640s,
+        // clamped to 90, residual 550.
         id: 'h-mild',
         routeDirectionId: 'rd-1',
         leaderVehicleId: 'lead-mild',
         followerVehicleId: 'veh-mild',
-        hFwdSeconds: 580,
+        hFwdSeconds: 280,
         hBwdSeconds: 600,
         targetHeadwaySeconds: 600,
-        deviationSeconds: -20,
+        deviationSeconds: -320,
         computedAt: now,
       },
       {
@@ -460,11 +469,55 @@ describe('mpc.solve', () => {
     expect(result.objectiveCost).toBeLessThan(0);
 
     const mild = result.safeCandidates.find((c) => c.vehicleId === 'veh-mild')!;
-    // The mild pair's hold is not merely worse - it is actively harmful:
-    // 580s is already near target, so opening it further costs more waiting
-    // than it saves. Ranked last, exactly as it should be.
-    expect(mild.objectiveCost).toBeGreaterThan(0);
-    expect(mild.clampResidualSeconds).toBe(0);
+    // Both pairs hit the 90s cap, and the SEVERE one hits it far harder
+    // (residual 2190 against 550). Under the old residual-based ranking the
+    // mild pair would have won on exactly that. It loses, because its hold
+    // saves less passenger time.
+    expect(mild.clampResidualSeconds).toBe(550);
+    expect(mild.objectiveCost).toBeGreaterThan(result.objectiveCost!);
+  });
+
+  // ─── AND THE PAIR THAT IS BARELY OFF IS NOT PROPOSED AT ALL ────────────
+  //
+  // The ranking above is the second line of defence. The first is not
+  // generating the candidate: a pair the corridor's own detector would not
+  // raise to a human has no business generating an instruction to a driver.
+  // MEASURED on a 1,000-bus trial before this bar existed, 83% of every hold
+  // proposed went to a pair above `warning_threshold_ratio`, and the onboard
+  // delay they cost exceeded the waiting time they saved.
+  it('does not propose a hold for a pair its own detector would not call a warning', async () => {
+    const now = new Date().toISOString();
+    stateStore.loadActivePolicies([
+      basePolicy({ kf: null, kb: null, selfEqualizingK: 2, maxHoldSeconds: 90, occupancyCapacity: null }),
+    ]);
+    stateStore.loadVehicleStates([
+      vehicleState({ vehicleId: 'lead-mild', observedAt: now }),
+      vehicleState({ vehicleId: 'veh-mild', observedAt: now }),
+    ]);
+    stateStore.loadHeadwayStates([
+      {
+        id: 'h-mild-only',
+        routeDirectionId: 'rd-1',
+        leaderVehicleId: 'lead-mild',
+        followerVehicleId: 'veh-mild',
+        // 580 of 600 is 0.97 of target - comfortably above the 0.5 warning
+        // ratio, and a gap no operator would ever have been shown.
+        hFwdSeconds: 580,
+        hBwdSeconds: 600,
+        targetHeadwaySeconds: 600,
+        deviationSeconds: -20,
+        computedAt: now,
+      },
+    ]);
+
+    const result = await solve('rd-1');
+
+    expect(result.candidateActions).toHaveLength(0);
+    expect(result.selectedActionType).toBeNull();
+    // Skipped, not rejected: being a little early is the normal state of most
+    // pairs most of the time, so it is the absence of an opportunity rather
+    // than a guardrail firing. See mpc/actionThreshold.ts.
+    expect(result.rejectedCandidates).toHaveLength(0);
   });
 
   // Section 7 of the reference architecture: the in-vehicle cost term is

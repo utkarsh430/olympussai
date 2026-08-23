@@ -3,7 +3,6 @@ import {
   computeAggregate,
   computeGapMeters,
   computePairHeadways,
-  MAX_HEADWAY_SECONDS,
 } from "../../src/headway/metrics.js";
 import type { OrderedVehicle } from "../../src/state-estimation/types.js";
 
@@ -171,7 +170,52 @@ describe("computePairHeadways", () => {
     expect(pairs).toHaveLength(0);
   });
 
-  it("floors a near-zero speed instead of dividing by zero, and caps at MAX_HEADWAY_SECONDS", () => {
+  // ─── The stationary-vehicle contract ───────────────────────────────────
+  //
+  // A bus standing at a stop used to be measured at MIN_SPEED_KMPH, which
+  // turned any real gap into hours and reported a bunched pair as "fine". That
+  // mattered far more than it looks: `mpc/eligibility.ts` only permits a hold
+  // when the bus is AT or APPROACHING a stop, so the deployed system asked
+  // "how bunched is this?" at exactly the moment its own estimator could not
+  // answer. See the header of src/headway/metrics.ts.
+
+  it("measures a bus standing at a stop against the pace the corridor is running at", () => {
+    const ordered: OrderedVehicle[] = [
+      vehicle({ vehicleId: "leader", distanceAlongRouteMeters: 4000, rank: 0, followerVehicleId: "follower" }),
+      vehicle({ vehicleId: "follower", distanceAlongRouteMeters: 0, rank: 1, leaderVehicleId: "leader", followerVehicleId: "trailer" }),
+      vehicle({ vehicleId: "trailer", distanceAlongRouteMeters: -4000, rank: 2, leaderVehicleId: "follower" }),
+    ];
+    // The follower is dwelling. The rest of the corridor is doing 36 km/h.
+    const speeds = new Map([
+      ["leader", 36],
+      ["follower", 0],
+      ["trailer", 36],
+    ]);
+    const pairs = computePairHeadways(ordered, speeds, new Map(), { totalDistanceMeters: 200000 }, "rd-1", 300);
+    // 4,000 m at the corridor's 36 km/h (10 m/s) is 400 s - a real, actionable
+    // headway. Measured at the follower's own 0 km/h it would have been
+    // 4,000 / (1 / 3.6) = 14,400 s, thirty-six times the target headway, and
+    // every law and both detection tiers would have called the pair healthy.
+    expect(pairs[0]!.hFwdSeconds).toBe(400);
+  });
+
+  it("keeps its own speed for a vehicle that is genuinely under way", () => {
+    const ordered: OrderedVehicle[] = [
+      vehicle({ vehicleId: "leader", distanceAlongRouteMeters: 4000, rank: 0, followerVehicleId: "follower" }),
+      vehicle({ vehicleId: "follower", distanceAlongRouteMeters: 0, rank: 1, leaderVehicleId: "leader" }),
+    ];
+    // The follower is crawling at 18 km/h while the corridor does 36. It is
+    // moving, so it is measured at its own pace and NOT flattered by the
+    // corridor's - the borrow is for stationary vehicles only.
+    const speeds = new Map([
+      ["leader", 36],
+      ["follower", 18],
+    ]);
+    const pairs = computePairHeadways(ordered, speeds, new Map(), { totalDistanceMeters: 200000 }, "rd-1", 300);
+    expect(pairs[0]!.hFwdSeconds).toBe(800);
+  });
+
+  it("says nothing at all when the whole corridor is stationary", () => {
     const ordered: OrderedVehicle[] = [
       vehicle({ vehicleId: "leader", distanceAlongRouteMeters: 100000, rank: 0, followerVehicleId: "follower" }),
       vehicle({ vehicleId: "follower", distanceAlongRouteMeters: 0, rank: 1, leaderVehicleId: "leader" }),
@@ -181,7 +225,12 @@ describe("computePairHeadways", () => {
       ["follower", 0],
     ]);
     const pairs = computePairHeadways(ordered, speeds, new Map(), { totalDistanceMeters: 200000 }, "rd-1", 300);
-    expect(pairs[0]!.hFwdSeconds).toBe(MAX_HEADWAY_SECONDS);
+    // No vehicle is moving, so there is no pace to borrow and no honest way to
+    // convert a gap in metres into a gap in seconds. Null is "no opinion", and
+    // every consumer already treats it as "no headway state for this pair".
+    // The old MAX_HEADWAY_SECONDS answer was a number that looked like a
+    // measurement and was not one.
+    expect(pairs[0]!.hFwdSeconds).toBeNull();
   });
 
   it("returns null headways when speed telemetry is missing", () => {

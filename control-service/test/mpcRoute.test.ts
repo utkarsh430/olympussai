@@ -202,9 +202,12 @@ describe('POST /v1/mpc/solve', () => {
         id: 'h-mid',
         leaderVehicleId: 'veh-mid-leader',
         followerVehicleId: 'veh-mid',
-        hFwdSeconds: 540,
+        // Inside the corridor's warning threshold (0.5 x 600 = 300s), so a
+        // mid-route candidate is generated at all. At 540s the pair is 90% of
+        // target and mpc/actionThreshold.ts skips it before any law sees it.
+        hFwdSeconds: 240,
         hBwdSeconds: 660,
-        deviationSeconds: -60,
+        deviationSeconds: -360,
         computedAt: fresh,
       }),
       headwayPair({
@@ -397,9 +400,11 @@ describe('POST /v1/mpc/solve', () => {
         id: 'h-a',
         leaderVehicleId: 'veh-a-leader',
         followerVehicleId: 'veh-a',
-        hFwdSeconds: 400,
+        // Inside the warning threshold, so the laws are actually asked - the
+        // point of this test is WHICH action types they may return.
+        hFwdSeconds: 250,
         hBwdSeconds: 600,
-        deviationSeconds: -200,
+        deviationSeconds: -350,
         computedAt: fresh,
       }),
     ]);

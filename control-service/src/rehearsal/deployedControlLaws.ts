@@ -55,7 +55,7 @@
 //     vehicles from the leader/follower chain before any headway is
 //     computed. The simulator knows its own world exactly, so it reports
 //     full confidence and that exclusion path never fires.
-import { computePairHeadways } from '../headway/metrics.js';
+import { computePairHeadways, STATIONARY_SPEED_KMPH } from '../headway/metrics.js';
 import {
   computeTerminalDispatchCandidates,
   departureHeadwaySeconds,
@@ -78,7 +78,12 @@ import type {
 } from '../mpc/types.js';
 import type { RoutePolicyRow, HeadwayStateRow, VehicleStateRow } from '../state/store.js';
 import type { OrderedVehicle } from '../state-estimation/types.js';
-import type { Controller, ControllerContext, ControllerDecision } from '../simulation/types.js';
+import type {
+  Controller,
+  ControllerContext,
+  ControllerDecision,
+  CorridorKinematicState,
+} from '../simulation/types.js';
 
 export const REHEARSAL_CONTROLLER_NAME = 'deployed-control-laws';
 
@@ -129,6 +134,8 @@ export type DeclineReason =
   | 'h_bwd_unavailable'
   | 'two_way_covers_pair'
   | 'not_eligible_to_hold'
+  /** Alighting-only acts on the LEADER, and the leader was not at a stop it could act at. */
+  | 'leader_not_at_stop'
   | 'no_hold_indicated';
 
 export interface DecisionCoverage {
@@ -204,6 +211,60 @@ export interface DeployedControlLawsOptions {
    */
   costOptimalSelectable?: boolean;
   /**
+   * Where the follower's reported SPEED comes from, which decides what h_fwd
+   * the deployed laws are handed at the one instant they can act.
+   *
+   * ─── WHY THIS IS AN OPTION AND NOT A DETAIL ────────────────────────────
+   *
+   * `computePairHeadways` derives h_fwd as `gap / follower speed`. The engine
+   * asks for a decision when a bus ARRIVES at a stop, and supplies the pace it
+   * averaged over the link it just finished - the finest resolution the engine
+   * has. Production reads `vehicle_states.speed_kmph`, and a bus at a stop
+   * reports ~0 there, which `computePairHeadways` floors at MIN_SPEED_KMPH = 1
+   * and turns into an h_fwd of hours.
+   *
+   * Those two inputs describe the same bus and disagree by a factor of sixty.
+   * MEASURED on a 4 km gap where the corridor's nominal gap is 30 km: the link
+   * pace reports h_fwd 240 s (ratio 0.13, bunched, hold 600 s) and the vehicle
+   * state reports 14,400 s (ratio 8.0, "fine", no candidate at all).
+   *
+   *   'link_average'  the engine's pace. The optimistic end of the range, and
+   *                   the historical default, kept so existing rehearsals do
+   *                   not change underneath their readers.
+   *   'vehicle_state' 0 km/h while the bus is at the stop, which is what
+   *                   production's own row says. The pessimistic end.
+   *
+   * Production sits between the two: its headway states are up to one sweep
+   * (60 s) old, so whether the last sweep caught the bus moving or standing is
+   * a lottery. An evaluation that wants to know what the deployed system
+   * really does must run both ends and report the range.
+   */
+  followerSpeedSource?: 'link_average' | 'vehicle_state';
+  /**
+   * The corridor's stations, so a NEIGHBOUR can be given a vehicle state too.
+   *
+   * ─── WHY THIS EXISTS ───────────────────────────────────────────────────
+   *
+   * This adapter used to build exactly one `VehicleStateRow`, for the vehicle
+   * being decided about. Every deployed law that asks a question about a
+   * DIFFERENT bus therefore got `undefined` and silently declined.
+   *
+   * `mpc/boardingLimit.ts` - the alighting-only law, and the only lever in the
+   * system that improves spacing by REMOVING delay rather than adding it -
+   * acts on the LEADER of a bunched pair and checks `canExecuteHold(leader)`
+   * before proposing anything. With no leader row that check could never pass,
+   * so Algorithm D generated zero candidates on every rehearsal and every
+   * evaluation ever run, and the coverage report attributed it to
+   * `no_hold_indicated` - "the law looked and decided not to act" - when the
+   * truth was that the law was never given the input it needed. A law reported
+   * at 0% for a reason that belongs to the harness is worse than no coverage
+   * number at all.
+   *
+   * Omit it and the behaviour is exactly what it was: neighbours carry no
+   * state and the laws that need one decline.
+   */
+  corridorStops?: readonly { stopId: string; cumulativeDistanceMeters: number }[];
+  /**
    * Whether the objective weighs the in-vehicle term
    * (`control_settings.weigh_occupancy`).
    *
@@ -227,6 +288,15 @@ export interface DeployedControlLawsOptions {
  * not a margin chosen here.
  */
 const STALE_READING_AGE_SECONDS = DEFAULT_STATE_STALE_SECONDS + 1;
+
+/**
+ * Below this a neighbouring vehicle is treated as standing at a station.
+ *
+ * Matches `headway/metrics.ts#STATIONARY_SPEED_KMPH`, and for the same reason:
+ * the two modules must agree about which buses are moving, or one of them will
+ * measure a pace against a vehicle the other calls stopped.
+ */
+const NEIGHBOUR_MOVING_SPEED_KMPH = STATIONARY_SPEED_KMPH;
 
 function isoAt(epochMs: number, seconds: number): string {
   return new Date(epochMs + seconds * 1000).toISOString();
@@ -253,6 +323,63 @@ export function createDeployedControlLawsController(
 ): DeployedControlLawsController {
   const { policy, epochMs, modelledCapacity } = options;
   const weighOccupancy = options.weighOccupancy ?? true;
+  const followerSpeedSource = options.followerSpeedSource ?? 'link_average';
+  const corridorStops = options.corridorStops ?? null;
+
+  /**
+   * The station a neighbour is standing at, or null when it is between them.
+   *
+   * A vehicle the engine reports at zero pace is dwelling, and on this corridor
+   * a dwelling bus is at a station by construction - the engine only ever stops
+   * a vehicle at one. The nearest station at or behind its position is the one
+   * it is standing at; a tolerance is not needed because the position is
+   * interpolated from that station's own recorded visit.
+   */
+  const stationAt = (distanceAlongRouteMeters: number): string | null => {
+    if (!corridorStops) return null;
+    let found: string | null = null;
+    for (const stop of corridorStops) {
+      if (stop.cumulativeDistanceMeters <= distanceAlongRouteMeters + 1) found = stop.stopId;
+      else break;
+    }
+    return found;
+  };
+
+  /**
+   * A neighbour's state as `vehicle_states` would carry it.
+   *
+   * Stationary means `dwelling_at_stop` with the station named, which is the
+   * state a hold or a boarding limit can be executed from. Moving means
+   * `departed_stop` with no current stop, which is the state in which nothing
+   * can be asked of it - the same distinction `mpc/eligibility.ts` draws.
+   */
+  const neighbourState = (
+    state: CorridorKinematicState,
+    routeDirectionId: string,
+    observedAtIso: string,
+  ): VehicleStateRow => {
+    const stationary = state.speedKmph !== null && state.speedKmph < NEIGHBOUR_MOVING_SPEED_KMPH;
+    const currentStopId = stationary ? stationAt(state.distanceAlongRouteMeters) : null;
+    return {
+      vehicleId: state.vehicleId,
+      tripId: null,
+      routeDirectionId,
+      position: null,
+      distanceAlongRouteMeters: state.distanceAlongRouteMeters,
+      speedKmph: state.speedKmph,
+      headingDegrees: null,
+      stopState: stationary && currentStopId ? 'dwelling_at_stop' : 'departed_stop',
+      currentStopId,
+      confidence: 1,
+      isLowConfidence: false,
+      observedAt: observedAtIso,
+      // Never modelled for a neighbour. The trial models occupancy for the
+      // deciding vehicle only, and inventing one for a bus nobody asked about
+      // would put a fabricated number into the objective's load term.
+      occupancyCount: null,
+      occupancyLoadBand: null,
+    };
+  };
   const costOptimalSelectable =
     options.costOptimalSelectable ?? loadEnv().COST_OPTIMAL_SELECTION_ENABLED;
   const decisions: RehearsalDecisionRecord[] = [];
@@ -357,9 +484,16 @@ export function createDeployedControlLawsController(
       });
     }
 
+    // The deciding bus is standing at a stop - that is the only state a hold
+    // can be executed from (`mpc/eligibility.ts`). Under 'vehicle_state' it
+    // therefore reports the zero its own `vehicle_states` row would carry,
+    // which is what the deployed h_fwd is actually computed from. See
+    // `followerSpeedSource`.
+    const followerSpeedKmph =
+      followerSpeedSource === 'vehicle_state' ? 0 : kinematics.follower.speedKmph;
     const speedByVehicleId = new Map<string, number | null>([
       [leaderId, kinematics.leader.speedKmph],
-      [followerId, kinematics.follower.speedKmph],
+      [followerId, followerSpeedKmph],
     ]);
     if (trailerId) speedByVehicleId.set(trailerId, trailer!.speedKmph);
     // Full confidence: the simulator knows its own world exactly. See this
@@ -424,7 +558,7 @@ export function createDeployedControlLawsController(
           routeDirectionId: context.routeDirectionId,
           position: null,
           distanceAlongRouteMeters: kinematics.follower.distanceAlongRouteMeters,
-          speedKmph: kinematics.follower.speedKmph,
+          speedKmph: followerSpeedKmph,
           headingDegrees: null,
           // `dwelling_at_stop`, not 'at_stop': the latter is not one of the
           // six values `vehicle_states.stop_state` admits, and the deployed
@@ -440,6 +574,14 @@ export function createDeployedControlLawsController(
         },
       ],
     ]);
+    // The neighbours, when the caller supplied the geometry to place them. See
+    // `corridorStops` for the law this was silencing.
+    if (corridorStops) {
+      vehicleStates.set(leaderId, neighbourState(kinematics.leader, context.routeDirectionId, nowIso));
+      if (trailer && trailerId) {
+        vehicleStates.set(trailerId, neighbourState(trailer, context.routeDirectionId, nowIso));
+      }
+    }
     // `route_direction_stops` sequence 0 is the origin terminal, and the
     // engine says when a decision is being made there. Naming it turns on
     // Algorithm A, which was unreachable for as long as this was undefined:
@@ -604,8 +746,21 @@ export function createDeployedControlLawsController(
               : 'no_hold_indicated';
     }
     if (boardingLimitCandidates.length === 0) {
+      // Reported precisely, because "no_hold_indicated" was hiding two very
+      // different findings behind one word. Alighting-only needs the LEADER to
+      // be standing at a stop AND the pair to be within an absolute 240 s of
+      // each other. On a corridor whose stations are 44 km apart those two
+      // conditions cannot both hold - a follower at a station is never four
+      // minutes behind a leader that is also at one - so the law is not
+      // declining, it is inapplicable to the geometry. Saying so is the
+      // difference between "we tried and it wasn't worth it" and "this lever
+      // does not exist on this kind of route".
       coverageBase.declined.boarding_limit =
-        pair.hFwdSeconds === null ? 'h_fwd_unavailable' : 'no_hold_indicated';
+        pair.hFwdSeconds === null
+          ? 'h_fwd_unavailable'
+          : !canExecuteHold(vehicleStates.get(leaderId), controlPointStopIds)
+            ? 'leader_not_at_stop'
+            : 'no_hold_indicated';
     }
 
     const { safe, rejected } = applyHardSafetyFilter(candidates, {
@@ -624,7 +779,15 @@ export function createDeployedControlLawsController(
       // Never enforced in a rehearsal: there is no command lifecycle, so no
       // vehicle has been instructed recently and nothing is rate-limited.
       recentlyCommandedVehicleIds: new Set<string>(),
-      minimumActionSeconds: 0,
+      // The corridor's OWN value, as `mpc/solver.ts` passes it. This was
+      // hardcoded to 0, which is not the same thing as "not modelled": it
+      // silently disabled a guardrail production does enforce, and it is the
+      // one that decides whether a marginal hold is issued at all. On a
+      // 1,000-bus trial, 83% of the holds the laws proposed went to pairs the
+      // corridor's own detector would not call even a warning - exactly the
+      // population this bound exists to filter - and with it pinned at 0 none
+      // of them was ever filtered.
+      minimumActionSeconds: policy.minimumActionSeconds,
     });
 
     // Today's behaviour: no occupancy reading reaches the tier at all.

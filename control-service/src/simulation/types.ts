@@ -92,7 +92,61 @@ export type Disturbance =
   | { type: 'demand_burst'; stopId: string; startSeconds: number; endSeconds: number; multiplier: number }
   | { type: 'missed_trip'; vehicleId: string }
   | { type: 'gps_dropout'; vehicleId: string; startSeconds: number; endSeconds: number }
-  | { type: 'non_compliance'; vehicleId: string; complianceProbability: number };
+  | { type: 'non_compliance'; vehicleId: string; complianceProbability: number }
+  /**
+   * One vehicle running slower than the rest of the fleet for part or all of
+   * its trip - a bus with a mechanical fault, a driver taking a route
+   * cautiously, a wheelchair boarding sequence repeated at every stop.
+   *
+   * The single most common way a real bunch STARTS, and the one the other
+   * four disturbances cannot express: `demand_burst` slows whichever bus
+   * happens to arrive during its window, `missed_trip` removes a bus
+   * entirely, and neither produces the characteristic pattern of one late
+   * vehicle with a healthy fleet closing on it from behind.
+   *
+   * `multiplier` scales the SAMPLED link travel time, so the vehicle keeps
+   * its stochastic variation and is simply slower on average. Values below 1
+   * model a bus running hot, which bunches from the front instead.
+   */
+  | {
+      type: 'slow_vehicle';
+      vehicleId: string;
+      multiplier: number;
+      /** First affected link, named by the index of the stop it arrives at. Defaults to the whole trip. */
+      fromStopIndex?: number;
+      /** Last affected link, inclusive, named the same way. Defaults to the whole trip. */
+      toStopIndex?: number;
+    }
+  /**
+   * A stretch of the corridor running slow for a WINDOW of clock time, for
+   * every vehicle that enters it - congestion, weather, an incident on the
+   * carriageway.
+   *
+   * Distinct from `slow_vehicle` in the shape of the damage, which is the
+   * reason both exist. A slow vehicle makes ONE gap collapse behind it. A
+   * link slowdown delays every bus inside the window and none outside it, so
+   * it compresses the whole platoon that was in the affected stretch and
+   * leaves a hole after it - the pattern a control law finds hardest,
+   * because there is no single culprit to hold behind.
+   *
+   * MESOSCOPIC SIMPLIFICATION, stated rather than hidden: the multiplier is
+   * applied in full to any link a vehicle ENTERS during the window, and not
+   * at all to one it entered before. This engine samples a link travel TIME
+   * and never a speed profile, so it has no way to slow the second half of a
+   * traversal that was already under way. On a corridor whose links are long
+   * relative to the window that makes the disturbance coarser than reality;
+   * it does not make it milder or harsher on average.
+   */
+  | {
+      type: 'link_slowdown';
+      startSeconds: number;
+      endSeconds: number;
+      multiplier: number;
+      /** First affected link, named by the index of the stop it arrives at. Defaults to the whole corridor. */
+      fromStopIndex?: number;
+      /** Last affected link, inclusive, named the same way. Defaults to the whole corridor. */
+      toStopIndex?: number;
+    };
 
 /**
  * Recorded historical-day inputs for replay mode: when present, the engine

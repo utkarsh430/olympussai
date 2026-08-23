@@ -121,6 +121,43 @@ function isGpsDropout(disturbances: Disturbance[], vehicleId: string, atSeconds:
   );
 }
 
+/**
+ * How much longer this vehicle takes over this link than the fleet does,
+ * from the disturbances aimed at it.
+ *
+ * Multiplicative and cumulative across disturbances, matching
+ * `activeDemandBurst` above: a scenario that puts a slow bus into a
+ * congested stretch gets both effects, which is the compounding case a
+ * control law is least likely to handle and therefore the one most worth
+ * being able to express.
+ */
+function travelTimeMultiplier(
+  disturbances: Disturbance[],
+  vehicleId: string,
+  stopIndex: number,
+  enteredAtSeconds: number,
+): number {
+  let multiplier = 1;
+  for (const d of disturbances) {
+    if (d.type === 'slow_vehicle') {
+      if (d.vehicleId !== vehicleId) continue;
+      if (stopIndex < (d.fromStopIndex ?? 0)) continue;
+      if (d.toStopIndex !== undefined && stopIndex > d.toStopIndex) continue;
+      multiplier *= d.multiplier;
+      continue;
+    }
+    if (d.type === 'link_slowdown') {
+      // Judged on the instant the vehicle ENTERS the link - see the variant's
+      // own comment in types.ts for why a partial traversal cannot be slowed.
+      if (enteredAtSeconds < d.startSeconds || enteredAtSeconds > d.endSeconds) continue;
+      if (stopIndex < (d.fromStopIndex ?? 0)) continue;
+      if (d.toStopIndex !== undefined && stopIndex > d.toStopIndex) continue;
+      multiplier *= d.multiplier;
+    }
+  }
+  return multiplier;
+}
+
 function complianceProbabilityFor(disturbances: Disturbance[], vehicleId: string): number | null {
   for (const d of disturbances) {
     if (d.type === 'non_compliance' && d.vehicleId === vehicleId) return d.complianceProbability;
@@ -371,17 +408,27 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
     });
   });
 
-  /** Link travel time into `stopIndex`: the recorded value on a replay, a fresh draw otherwise. */
-  function sampleTravelSeconds(vehicleId: string, stopIndex: number): number {
+  /**
+   * Link travel time into `stopIndex`: the recorded value on a replay, a
+   * fresh draw otherwise.
+   *
+   * A RECORDED value is returned untouched, disturbances included. Replay
+   * mode exists to reproduce a stored day exactly (`replay.ts`), and a
+   * multiplier applied on top of an observation would return a number that
+   * is neither the day that happened nor a draw from the model - so a
+   * scenario that wants a slowdown must model it rather than replay it.
+   */
+  function sampleTravelSeconds(vehicleId: string, stopIndex: number, enteredAtSeconds: number): number {
     const recorded = recordedInputs?.linkTravelSeconds[vehicleId]?.[stopIndex];
     if (recorded !== undefined) return recorded;
     const link = routeDirection.links[stopIndex];
     if (!link) return 0;
-    return rng.nextNonNegativeGaussian(link.meanSeconds, link.stddevSeconds);
+    const drawn = rng.nextNonNegativeGaussian(link.meanSeconds, link.stddevSeconds);
+    return drawn * travelTimeMultiplier(disturbances, vehicleId, stopIndex, enteredAtSeconds);
   }
 
   function beginTransit(runtime: VehicleRuntime, vehicleIndex: number, stopIndex: number, fromSeconds: number): void {
-    const travelSeconds = sampleTravelSeconds(runtime.vehicleId, stopIndex);
+    const travelSeconds = sampleTravelSeconds(runtime.vehicleId, stopIndex, fromSeconds);
     runtime.phase = 'in_transit';
     runtime.pendingArrivalStopIndex = stopIndex;
     runtime.pendingArrivalSeconds = fromSeconds + travelSeconds;
