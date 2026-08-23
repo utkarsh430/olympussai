@@ -239,6 +239,41 @@ That is the tripwire `mpc/objective.ts` and `CLAUDE.md` describe, observed for
 the first time rather than reasoned about. The flag stays off, and the argument
 for calibrating lambda before touching it is now a measurement.
 
+### How good is the objective's own arithmetic?
+
+`mpc/objective.ts` predicts a passenger cost for every hold it scores. The trial
+can check that prediction against what the simulated day actually did — the same
+quantity, once estimated from one decision and once measured from the outcome.
+Over 2,099 issued holds:
+
+| | change in total passenger time |
+|---|---|
+| **actually measured** | +1,172 h (3.8% worse) |
+| objective predicted, proxy `lambda = 1/H*` | +3,945 h (**3.4× overstated**) |
+| objective predicted, true `lambda` | +2,159 h (**1.8× overstated**) |
+
+Three things follow, and they are not the same thing:
+
+1. **The sign is trustworthy.** The objective said holding was net-harmful on
+   this corridor and it was. That is the part a guardrail needs.
+2. **The magnitude is not.** Even with a correctly calibrated arrival rate it
+   overstates the harm by nearly a factor of two, because the wait term
+   `lambda x d x (d + h_fwd − h_bwd)` is a *one-step marginal* estimate of a
+   *multi-stop* effect: it counts the passengers at the next stop and cannot see
+   that even spacing keeps `sum(h²)` down for the rest of the route.
+3. **Calibrating lambda halves the error** (3.4× → 1.8×). That is a real
+   argument for wiring the fitted value in, and a real limit on what doing so
+   would buy.
+
+This is why `cost_optimal_hold` must not be let loose on the strength of a
+calibration alone. It is the argmin of a function that is directionally right
+and quantitatively pessimistic, so it would hold less than it should — and with
+the proxy in place, not at all.
+
+No code was changed for this finding. It is a measurement about deployed
+arithmetic, recorded so the next person to reach for
+`COST_OPTIMAL_SELECTION_ENABLED` has a number instead of an argument.
+
 ### One seed is not a measurement (and a result that did not survive)
 
 Net passenger time on this corridor has a seed-to-seed spread of about ten

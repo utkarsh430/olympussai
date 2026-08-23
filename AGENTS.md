@@ -132,6 +132,8 @@ with ten on the identical uncontrolled corridor.
 
 `mpc/objective.ts#arrivalRatePaxPerSecond` returns `1/H*`. Under that proxy the closed-form optimum's load penalty is `H*/2 seconds PER ONBOARD PASSENGER` — 900s on a 1800s corridor — so **a single passenger zeroes any hold**. That is inert today only because `vehicle_states.occupancy_count` is NULL everywhere; it becomes live the day occupancy is connected, and it fails silently (a controller proposing nothing looks like a network with no problems). `test/costOptimalAndSelection.test.ts` pins it as a tripwire.
 
+MEASURED against outcomes for the first time by the fleet trial (`docs/FLEET_TRIAL.md`): over 2,099 issued holds the objective got the SIGN right - holding really was net-harmful on that corridor - but overstated the magnitude 3.4x under the proxy and still 1.8x with a correctly calibrated lambda. The residual is structural: the wait term is a one-step marginal estimate of a multi-stop effect, so it cannot see that even spacing keeps `sum(h^2)` down for the rest of the route. Calibrating lambda halves the error; it does not close it.
+
 This is why `cost_optimal_hold` (`mpc/costOptimalHold.ts`) is generated, scored and shown on every solve but is NOT selectable unless `COST_OPTIMAL_SELECTION_ENABLED=true`. It is the argmin of the very quantity candidates are ranked by, so letting it compete would replace the tuned Kf/Kb controller network-wide rather than add to it. Calibrate lambda from real boardings before flipping that flag.
 
 ## Command lifecycle: control-service is the only thing that delivers a command
