@@ -1028,6 +1028,23 @@ function mergeIncidentSummaries(summaries: readonly IncidentSummary[]): Incident
   };
 }
 
+/** Every hard-safety rejection across a phase, counted by reason. */
+function safetyRejections(runs: readonly ScenarioRun[]): { reason: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const run of runs) {
+    for (const decision of run.decisions) {
+      for (const rejection of decision.rejected) {
+        for (const reason of rejection.reasons) {
+          counts.set(reason, (counts.get(reason) ?? 0) + 1);
+        }
+      }
+    }
+  }
+  return [...counts.entries()]
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
 function holdBreakdown(runs: readonly ScenarioRun[], corridor: CorridorInputs) {
   const byStation = new Map<string, { holdSeconds: number; holdCount: number }>();
   const byActionType = new Map<string, { count: number; holdSeconds: number }>();
@@ -1714,6 +1731,7 @@ export function runFleetTrial(
       uncontrolled: uncontrolledArm,
       contrast: contrast(controlledArm, uncontrolledArm),
       lawCoverage: coverageOf(runs.flatMap((r) => [...r.decisions])),
+      safetyRejections: safetyRejections(runs),
       ...holds,
     });
 

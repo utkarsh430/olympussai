@@ -259,6 +259,17 @@ export interface PhaseReport {
   holdSecondsByStation: { stopId: string; name: string; sequence: number; holdSeconds: number; holdCount: number }[];
   /** Holds served, split by the law that produced them. */
   holdCountByActionType: { actionType: string; count: number; holdSeconds: number }[];
+  /**
+   * Every time the hard safety filter threw a candidate out, and why.
+   *
+   * The guardrails doing their job is half the story of what the controller
+   * did, and it was the invisible half. MEASURED on the urban corridor:
+   * `max_lateness_breach` refuses about three quarters as many holds as are
+   * issued - the punctuality bound is not a rare backstop, it is a continuous
+   * part of the control loop, and a reader who cannot see it cannot tell a
+   * controller that declined to act from one that was stopped.
+   */
+  safetyRejections: { reason: string; count: number }[];
 }
 
 /**

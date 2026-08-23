@@ -197,6 +197,7 @@ const phaseReportSchema = z.object({
   holdCountByActionType: z.array(
     z.object({ actionType: z.string(), count: z.number(), holdSeconds: z.number() }),
   ),
+  safetyRejections: z.array(z.object({ reason: z.string(), count: z.number() })),
 });
 export type PhaseReport = z.infer<typeof phaseReportSchema>;
 
@@ -332,6 +333,16 @@ export const LAW_LABEL: Record<string, string> = {
   self_equalizing: 'Self-equalising',
   cost_optimal: 'Closed-form optimum',
   boarding_limit: 'Alighting-only',
+};
+
+/** What each hard-safety rejection means, in the words an operator would use. */
+export const REJECTION_LABEL: Record<string, string> = {
+  stale_state: 'the bus had not reported its position recently enough',
+  max_lateness_breach: 'the hold would have pushed the bus too far behind its timetable',
+  max_hold_cap_breach: 'the hold was longer than the corridor permits',
+  below_minimum_action: 'the hold was too short to be worth giving',
+  cooldown_active: 'the bus had been given an instruction too recently',
+  conflicting_active_command: 'the bus was already carrying an instruction',
 };
 
 export const DECLINE_LABEL: Record<string, string> = {

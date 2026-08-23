@@ -53,6 +53,7 @@ import {
   CLOSE_REASON_LABEL,
   DECLINE_LABEL,
   LAW_LABEL,
+  REJECTION_LABEL,
   SEVERITY_LABEL,
   type ArmReport,
   type CorridorPresetId,
@@ -484,6 +485,29 @@ function PhaseBody({ phase, report }: { phase: PhaseReport; report: FleetTrialRe
               ))}
             </ul>
           )}
+          <div className="mt-5 border-t border-border pt-4">
+            <p className="ops-eyebrow mb-2">Guardrails that refused a hold</p>
+            <p className="mb-3 max-w-prose text-[11px] leading-relaxed text-subtle">
+              The hard safety filter throwing a candidate out is half the story of what the controller
+              did, and it is the half that is usually invisible. A reader who cannot see this cannot
+              tell a controller that decided not to act from one that was stopped.
+            </p>
+            {phase.safetyRejections.length === 0 ? (
+              <p className="text-xs text-subtle">No candidate was refused in this phase.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {phase.safetyRejections.map((rejection) => (
+                  <li key={rejection.reason} className="text-xs">
+                    <span className="tabular-nums text-foreground">{num(rejection.count)}</span>
+                    <span className="text-subtle">
+                      {' — '}
+                      {REJECTION_LABEL[rejection.reason] ?? rejection.reason}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <div className="mt-5 border-t border-border pt-4">
             <p className="ops-eyebrow mb-2">Law coverage</p>
             <p className="mb-3 max-w-prose text-[11px] leading-relaxed text-subtle">

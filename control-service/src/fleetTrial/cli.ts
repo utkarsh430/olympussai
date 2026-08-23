@@ -98,6 +98,14 @@ function renderPhase(phase: PhaseReport): string[] {
     '',
     '    law coverage (decisions where the law produced a candidate):',
   ];
+  if (phase.safetyRejections.length > 0) {
+    lines.push(
+      '',
+      `    guardrails (candidates refused): ${phase.safetyRejections
+        .map((r) => `${r.reason} ${r.count}`)
+        .join(', ')}`,
+    );
+  }
   for (const law of phase.lawCoverage) {
     const share = law.decisionsTotal > 0 ? (law.decisionsGenerating / law.decisionsTotal) * 100 : 0;
     lines.push(
