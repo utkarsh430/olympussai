@@ -1408,6 +1408,48 @@ function policyVariants(corridorSpec: FleetCorridorSpec): {
   };
 }
 
+/**
+ * Where this corridor sits on the controllability curve. See
+ * `FleetTrialReport.controllability` for the measurements behind the bands.
+ */
+function assessControllability(
+  corridor: CorridorInputs,
+  inputs: ModelledInputs,
+): FleetTrialReport['controllability'] {
+  const metersPerSecond = inputs.cruiseSpeedKmph / 3.6;
+  // The MEAN leg, not the longest: a corridor's legs are near-uniform here, and
+  // the mean is what the accumulated deviation between corrections is driven by.
+  const legs = corridor.stops.map((stop, index) => {
+    const previous = index > 0 ? (corridor.stops[index - 1]?.cumulativeDistanceMeters ?? 0) : 0;
+    return Math.max(0, stop.cumulativeDistanceMeters - previous);
+  });
+  const meanLegMeters = legs.length > 0 ? legs.reduce((a, b) => a + b, 0) / legs.length : 0;
+  const meanLegSeconds = metersPerSecond > 0 ? meanLegMeters / metersPerSecond : 0;
+  const legTimeSigmaSeconds = meanLegSeconds * inputs.travelTimeVariation;
+  const disturbanceRatio =
+    corridor.policy.targetHeadwaySeconds > 0
+      ? legTimeSigmaSeconds / corridor.policy.targetHeadwaySeconds
+      : 0;
+
+  // Bounds from the sweep in `FleetTrialReport.controllability`: the gain is
+  // above 40% between about 0.03 and 0.16 and falls away on both sides.
+  const band =
+    disturbanceRatio < 0.03
+      ? ('too_regular' as const)
+      : disturbanceRatio > 0.16
+        ? ('too_disturbed' as const)
+        : ('controllable' as const);
+
+  const note =
+    band === 'too_regular'
+      ? 'This corridor barely comes apart between stops, so there is little dispersion for a controller to remove. A small measured improvement here is the corridor being healthy, not the controller being weak.'
+      : band === 'too_disturbed'
+        ? 'More deviation accumulates between two stops than a hold at either can remove, so both arms come apart together. Expect a modest improvement whatever the controller does, and read the uncontrolled arm before blaming the laws.'
+        : 'This corridor is in the band where holding has the most to work with: enough deviation accumulates between stops to be worth correcting, and not so much that a correction is washed out before the next one.';
+
+  return { legTimeSigmaSeconds, disturbanceRatio, band, note };
+}
+
 // ─── Provenance ──────────────────────────────────────────────────────────
 
 function buildProvenance(
@@ -1675,6 +1717,7 @@ export function runFleetTrial(
         longitude: stop.longitude,
       })),
     },
+    controllability: assessControllability(corridor, inputs),
     vehiclesSimulated: nextBusNumber,
     sweepIntervalSeconds: spec.sweepIntervalSeconds,
     requiredSamples: spec.requiredSamples,

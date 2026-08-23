@@ -226,7 +226,7 @@ const policyStudySchema = z.object({
 });
 export type PolicyStudy = z.infer<typeof policyStudySchema>;
 
-export const corridorPresetIdSchema = z.enum(['intercity', 'urban']);
+export const corridorPresetIdSchema = z.enum(['intercity', 'suburban', 'urban']);
 export type CorridorPresetId = z.infer<typeof corridorPresetIdSchema>;
 
 export const fleetTrialReportSchema = z.object({
@@ -257,6 +257,12 @@ export const fleetTrialReportSchema = z.object({
         longitude: z.number(),
       }),
     ),
+  }),
+  controllability: z.object({
+    legTimeSigmaSeconds: z.number(),
+    disturbanceRatio: z.number(),
+    band: z.enum(['too_regular', 'controllable', 'too_disturbed']),
+    note: z.string(),
   }),
   vehiclesSimulated: z.number(),
   sweepIntervalSeconds: z.number(),

@@ -316,10 +316,31 @@ you pick.
 | punctuality cost | 6.8 min/bus | 2.6 min/bus |
 
 The controller is *strongly* net-positive on the urban corridor and roughly
-break-even on the inter-city one. The near-break-even result is not a failure of
-the algorithm — it is the arithmetic of a corridor where forty-four people are
-aboard and eleven are waiting. Holding is worth doing when the ratio runs the
-other way.
+break-even on the inter-city one — and a third shape, a 60 km suburban radial at
+a twelve-minute headway, sits cleanly between them (38.0% excess wait, +2.3% net).
+It is a **gradient, not a threshold**.
+
+**What predicts it is not what I first assumed.** An earlier version of this
+document said the difference was the arithmetic of a corridor carrying
+forty-four people while eleven wait. That is wrong: the aboard-to-waiting ratio
+is ~4× on *all three* shapes. Varying headway, stop count and route length
+independently from the urban corridor collapses onto one quantity — the standard
+deviation of **one leg's running time as a fraction of the target headway**:
+
+| σ_leg / H\* | 0.02 | 0.03 | 0.05 | 0.10 | 0.16 | 0.24 | 0.30 | 0.48 |
+|---|---|---|---|---|---|---|---|---|
+| excess-wait gain | 14% | 41% | 59% | 59% | 40% | 22% | 13% | 7% |
+
+An inverted U peaking around 0.05–0.10. Below the band the corridor barely comes
+apart and there is little to recover; above it, more deviation accumulates
+between two stops than a hold at either can remove, and both arms come apart
+together. The inter-city corridor sits at **0.19** — above the band, which is
+why holding buys it least — and that is the same effect that made it unusable
+at a 900 s headway (see "The corridor, and why it is shaped this way").
+
+Every report now carries this figure and says which side of the band the
+corridor is on, because it is the first thing that should be read before
+blaming or crediting the control laws.
 
 **A bug found while building this**, and it is the reason the urban numbers
 appeared for a while to say the opposite: the trial's default `inputs` were

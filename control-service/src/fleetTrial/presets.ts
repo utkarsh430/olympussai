@@ -66,7 +66,7 @@ export const FLEET_TRIAL_INPUTS: Partial<ModelledInputs> = {
 };
 
 
-export type CorridorPresetId = 'intercity' | 'urban';
+export type CorridorPresetId = 'intercity' | 'suburban' | 'urban';
 
 export interface CorridorPreset {
   id: CorridorPresetId;
@@ -110,6 +110,31 @@ export const URBAN_CORRIDOR: FleetCorridorSpec = {
   maxLatenessSeconds: 120,
 };
 
+/**
+ * The shape between the other two.
+ *
+ * 60 km, fifteen stops 4.3 km apart, a twelve-minute headway. It exists to
+ * answer a question the two extremes cannot: whether the difference between
+ * them - the controller roughly break-even on one and strongly positive on the
+ * other - is a THRESHOLD the corridor crosses or a GRADIENT it slides along.
+ *
+ * Twelve minutes is also the headway the industry draws its own line at:
+ * below it passengers turn up rather than consulting a timetable, so headway
+ * regularity IS the punctuality objective; above it they plan around a
+ * published departure and lateness starts to matter on its own account.
+ */
+export const SUBURBAN_CORRIDOR: FleetCorridorSpec = {
+  ...DEFAULT_FLEET_CORRIDOR,
+  routeDirectionId: 'fleet-trial-suburban',
+  routeName: 'Trial corridor: 60 km suburban radial',
+  totalDistanceMeters: 60_000,
+  stationCount: 15,
+  targetHeadwaySeconds: 720,
+  holdingPointCount: undefined,
+  maxHoldSeconds: 240,
+  maxLatenessSeconds: 240,
+};
+
 export const CORRIDOR_PRESETS: Record<CorridorPresetId, CorridorPreset> = {
   intercity: {
     id: 'intercity',
@@ -118,6 +143,23 @@ export const CORRIDOR_PRESETS: Record<CorridorPresetId, CorridorPreset> = {
       'Ten stations 44 km apart, a thirty-minute headway, and buses carrying about forty-four of fifty-five seats. Long legs, long dwells, and a large load paying for every hold.',
     corridor: DEFAULT_FLEET_CORRIDOR,
     inputs: FLEET_TRIAL_INPUTS,
+  },
+  suburban: {
+    id: 'suburban',
+    title: '60 km suburban radial',
+    description:
+      'Fifteen stops about four kilometres apart, a twelve-minute headway, and buses around two thirds full. The shape between the other two, and the headway the industry draws its own line at between turning up and consulting a timetable.',
+    corridor: SUBURBAN_CORRIDOR,
+    inputs: {
+      cruiseSpeedKmph: 32,
+      travelTimeVariation: 0.16,
+      boardingRatePerMinute: 0.75,
+      alightingFraction: 0.25,
+      baseDwellSeconds: 45,
+      secondsPerBoarding: 2.5,
+      secondsPerAlighting: 1.5,
+      vehicleCapacity: 55,
+    },
   },
   urban: {
     id: 'urban',

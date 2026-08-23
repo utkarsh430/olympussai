@@ -115,6 +115,9 @@ function renderReport(report: FleetTrialReport): string {
     `  ${report.corridorPreset.description}`,
     `  ${(report.corridor.totalDistanceMeters / 1000).toFixed(0)} km, ${report.corridor.stationCount} stations (${report.corridor.holdingPointCount} of them holding points), H* ${(report.corridor.targetHeadwaySeconds / 60).toFixed(0)} min`,
     `  ${report.vehiclesSimulated} buses simulated in ${(report.durationMs / 1000).toFixed(1)}s`,
+    `  controllability: one leg's running time varies by ${report.controllability.legTimeSigmaSeconds.toFixed(0)}s, ` +
+      `${(report.controllability.disturbanceRatio * 100).toFixed(0)}% of the headway [${report.controllability.band}]`,
+    `    ${report.controllability.note}`,
   ];
   for (const phase of report.phases) lines.push(...renderPhase(phase));
   for (const study of report.policyStudies) {

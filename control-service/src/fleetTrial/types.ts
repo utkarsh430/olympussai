@@ -371,6 +371,37 @@ export interface FleetTrialReport {
     selfEqualizingK: number | null;
     stations: { stopId: string; name: string; sequence: number; cumulativeDistanceMeters: number; latitude: number; longitude: number }[];
   };
+  /**
+   * How disturbed this corridor is between chances to correct it, and what
+   * that implies for how much good control can do.
+   *
+   * ─── THE ONE NUMBER THAT PREDICTS THE RESULT ─────────────────────────
+   *
+   * MEASURED by varying one corridor property at a time from the urban shape -
+   * headway, stop count, and route length independently - and it is neither
+   * headway nor fleet size nor the ratio of passengers aboard to passengers
+   * waiting. Those three sweeps collapse onto a single quantity: the standard
+   * deviation of ONE LEG's running time, as a fraction of the target headway.
+   *
+   *   sigma / H*    0.02   0.03   0.05   0.10   0.16   0.24   0.30   0.48
+   *   EWT gain       14%    41%    59%    59%    40%    22%    13%     7%
+   *
+   * An inverted U peaking around 0.05-0.10. Below the band the corridor barely
+   * comes apart and there is little for a controller to recover; above it, more
+   * deviation accumulates between two stops than a hold at either can remove,
+   * and both arms come apart together. This is the same effect that made the
+   * inter-city corridor unusable at a 900 s headway - see `corridor.ts`.
+   */
+  controllability: {
+    /** Standard deviation of one leg's running time, seconds. */
+    legTimeSigmaSeconds: number;
+    /** That sigma as a fraction of the target headway. The predictor. */
+    disturbanceRatio: number;
+    /** Where this corridor sits: below the band, in it, or above it. */
+    band: 'too_regular' | 'controllable' | 'too_disturbed';
+    /** One sentence saying what the band implies, for the surface to print. */
+    note: string;
+  };
   /** Total buses simulated across both phases - the trial's headline scale. */
   vehiclesSimulated: number;
   sweepIntervalSeconds: number;

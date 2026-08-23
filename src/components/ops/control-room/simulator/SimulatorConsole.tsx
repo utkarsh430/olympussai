@@ -597,6 +597,7 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
           disabled={running}
         >
           <option value="intercity">400 km inter-city trunk</option>
+          <option value="suburban">60 km suburban radial</option>
           <option value="urban">24 km city trunk</option>
         </OpsSelect>
       </label>
@@ -655,6 +656,20 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
         <p className="mb-4 max-w-prose text-sm text-muted-foreground">
           {report.corridorPreset.description}
         </p>
+        <OpsAlert
+          tone={report.controllability.band === 'controllable' ? 'info' : 'warning'}
+          title={
+            report.controllability.band === 'controllable'
+              ? `In the controllable band — one leg varies by ${Math.round(report.controllability.legTimeSigmaSeconds)}s, ${Math.round(report.controllability.disturbanceRatio * 100)}% of the headway`
+              : report.controllability.band === 'too_regular'
+                ? `Barely disturbed — one leg varies by only ${Math.round(report.controllability.legTimeSigmaSeconds)}s, ${Math.round(report.controllability.disturbanceRatio * 100)}% of the headway`
+                : `More disturbed than a hold can recover — one leg varies by ${Math.round(report.controllability.legTimeSigmaSeconds)}s, ${Math.round(report.controllability.disturbanceRatio * 100)}% of the headway`
+          }
+        >
+          {report.controllability.note} Measured by varying headway, stop count and route length
+          independently, the excess-wait improvement peaks around 5&ndash;10% and falls away on both
+          sides — it is neither headway nor fleet size that predicts how much good control can do.
+        </OpsAlert>
         <OpsAlert tone="info" title="What is real here and what is invented">
           The CONTROL is the deployed one: the four control laws, their gains, the hard safety filter,
           the selection rule and both tiers of the bunching detector are the same modules the live
