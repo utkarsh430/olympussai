@@ -85,6 +85,11 @@ export const OPS_PAGES: readonly OpsPageRow[] = [
     title: 'One Corridor In Detail',
   },
   { path: '/ops/control-room/pilot', role: 'control_room', title: 'Rollout' },
+  // The fleet trial. Nothing is seeded for it and nothing needs to be: the
+  // control service holds its last report in memory, so a fresh CI service has
+  // none and the page's job is then to offer to run one. That empty state is
+  // the state this assertion covers - the guarded shell renders either way.
+  { path: '/ops/control-room/simulator', role: 'control_room', title: 'Simulator' },
   {
     path: '/ops/control-room/incidents/e2e-nonexistent-incident',
     role: 'control_room',

@@ -13,6 +13,7 @@ import { pilotRouter } from './routes/pilot.js';
 import { settingsRouter } from './routes/settings.js';
 import { positionsRouter } from './routes/positions.js';
 import { rehearsalRouter } from './routes/rehearsal.js';
+import { fleetTrialRouter } from './routes/fleetTrial.js';
 import { requireServiceToken } from './auth/serviceToken.js';
 import { errorHandler } from './lib/errors.js';
 import { logger } from './lib/logger.js';
@@ -58,6 +59,11 @@ export function createApp(): Express {
   // the result, without issuing a command or writing a row. See
   // routes/rehearsal.ts for why an uncalibrated corridor is refused.
   app.use(rehearsalRouter);
+
+  // Fleet-scale controller trial. Same isolation as the rehearsal above and
+  // then some: it does not even read the database - the corridor it runs on is
+  // built by arithmetic. See routes/fleetTrial.ts.
+  app.use(fleetTrialRouter);
 
   app.use((req, res) => {
     res.status(404).json({ error: { code: 'not_found', message: `No route for ${req.method} ${req.path}` } });

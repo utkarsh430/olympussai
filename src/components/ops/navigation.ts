@@ -65,6 +65,9 @@ export const OPS_NAV: Record<OpsRole, readonly OpsNavItem[]> = {
     // they have already chosen, which is exactly the gap this page closes.
     { href: '/ops/control-room/alerts', label: 'Alerts' },
     { href: '/ops/control-room/observability', label: 'One corridor' },
+    // Last of the analytical entries and deliberately after the live ones: it
+    // is the only page here that is not about a corridor running right now.
+    { href: '/ops/control-room/simulator', label: 'Simulator' },
     { href: '/ops/control-room/copilot', label: 'Assistant' },
     { href: '/ops/control-room/pilot', label: 'Rollout' },
   ],

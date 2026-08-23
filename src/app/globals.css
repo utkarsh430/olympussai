@@ -96,6 +96,48 @@
        is ~2.3:1, and only by making "degraded" the brightest thing on
        screen). Every state using these MUST also carry a distinct shape and
        be named in text. See OpsBadge and OpsStatusDot. */
+    /* ── SIMULATOR CHART INK ─────────────────────────────────────────────
+       The fleet-trial charts. Deliberately NOT a categorical palette: the two
+       arms of every comparison are separated by POSITION (two panels side by
+       side), never by hue, so a colour-blind operator reads them exactly as
+       well as anyone else. These are weights, not identities.
+
+       --sim-baseline    the corridor left alone: recessive, it is the thing
+                         being improved on, not the reading
+       --sim-controlled  the corridor under control: the same ink one step
+                         stronger, so the eye lands on it second
+       --sim-hold        where a hold was actually served - the one mark that
+                         is an EVENT rather than a trace, and the only one
+                         allowed an accent
+       --sim-saved / --sim-added  the diverging pair for the passenger-time
+                         balance. Two poles, and the direction is written in
+                         words above each bar so the hue only reinforces it.
+
+       The diverging pair is BLUE/ORANGE and not the obvious green/red. Green
+       and red at this console's own --success/--destructive values separate by
+       an OKLab deltaE of 5.2 under deuteranopia - below the floor at which two
+       marks can be told apart at all - so a red-green colour-blind operator
+       could not read the one chart that carries the trial's verdict. Blue and
+       orange separate by 23.9. Both pairs were run through the palette
+       validator in both modes; blue/orange passes every check, green/red fails
+       CVD separation outright.
+
+       The trace inks above are deliberately NOT a categorical set and are not
+       held to that standard: the two arms of every comparison sit in separate
+       panels with their own headings, so nothing here depends on telling two
+       hues apart. What does apply - contrast against the chart surface - passes
+       at 3:1 or better for all of them. */
+    --sim-surface: #ffffff;
+    --sim-grid: rgba(12, 28, 44, 0.07);
+    --sim-axis: rgba(12, 28, 44, 0.22);
+    --sim-baseline: #7b8e9f;
+    --sim-baseline-fill: rgba(123, 142, 159, 0.16);
+    --sim-controlled: #0b6e87;
+    --sim-controlled-fill: rgba(11, 110, 135, 0.14);
+    --sim-hold: #995100;
+    --sim-saved: #1a5fb4;
+    --sim-added: #a34a00;
+
     --instrument-success: 153.4 82.9% 27%; /* #0b8450 */
     --instrument-warning: 32 100% 30%; /* #995100 */
     --instrument-danger: 353 78% 45%; /* #cd1a37 */
@@ -225,6 +267,19 @@
     /* Unchanged from the values the map canvas and the cinematic surface
        already use, so neither shifts under this change. Retuning them is the
        map lane's work, not the foundation's. */
+    /* Simulator chart ink, stepped for the dark surface rather than flipped -
+       see the light block for what each one is for. */
+    --sim-surface: #0b1a2e;
+    --sim-grid: rgba(219, 238, 251, 0.08);
+    --sim-axis: rgba(219, 238, 251, 0.25);
+    --sim-baseline: #7e93a6;
+    --sim-baseline-fill: rgba(126, 147, 166, 0.18);
+    --sim-controlled: #3ff0ff;
+    --sim-controlled-fill: rgba(63, 240, 255, 0.14);
+    --sim-hold: #ffb020;
+    --sim-saved: #3f8ad8;
+    --sim-added: #c07d0d;
+
     --instrument-success: 146 100% 58%; /* #2bff88 */
     --instrument-warning: 39 100% 56%; /* #ffb020 */
     --instrument-danger: 354 100% 65%; /* #ff4d5e */

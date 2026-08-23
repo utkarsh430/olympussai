@@ -1,0 +1,132 @@
+// The fleet trial, over HTTP - web -> control-service, service-token
+// authenticated like every other /v1 route.
+//
+//   POST /v1/fleet-trial          run a trial and return the full report
+//   GET  /v1/fleet-trial/latest   the last report this process produced
+//
+// READ-ONLY AND SIDE-EFFECT FREE, structurally rather than by promise:
+// `src/fleetTrial/**` composes `src/simulation/**` (a pure in-memory
+// computation over caller-supplied data) with the deployed control laws and
+// the deployed detector, both of which are pure functions over plain data. It
+// opens no transaction, issues no command, writes no headway sample and
+// touches no live vehicle state. Unlike `routes/rehearsal.ts` it does not even
+// SELECT: the corridor is built by arithmetic, not loaded.
+//
+// ─── WHY THE LAST REPORT IS CACHED IN MEMORY ─────────────────────────────
+//
+// A trial simulates a thousand buses and takes a couple of seconds. That fits
+// inside the web client's 8 s budget, so POST returns the real thing. But an
+// operator opening the console does not want to re-run an experiment to look
+// at it, and re-running would give them DIFFERENT numbers if anything about
+// the corridor had been changed - which is the one thing a page an operator is
+// reading from must not do. GET therefore serves exactly the bytes POST
+// produced, and says when they were produced.
+//
+// The cache is per-process and deliberately not persisted. A trial is
+// reproducible from its own spec, which travels inside the report, so nothing
+// is lost by a restart and nothing has to be migrated.
+import { Router } from 'express';
+import { z } from 'zod';
+import { asyncHandler, AppError, sendError } from '../lib/errors.js';
+import { runFleetTrial, DEFAULT_FLEET_TRIAL_SPEC } from '../fleetTrial/run.js';
+import { BUNCHING_SCENARIOS } from '../fleetTrial/scenarios.js';
+import type { BunchingScenarioId } from '../fleetTrial/scenarios.js';
+import { DEFAULT_FLEET_CORRIDOR } from '../fleetTrial/corridor.js';
+import type { FleetTrialReport } from '../fleetTrial/types.js';
+
+export const fleetTrialRouter = Router();
+
+const SCENARIO_IDS = BUNCHING_SCENARIOS.map((s) => s.id) as [string, ...string[]];
+
+/**
+ * Bounds on the trial's shape.
+ *
+ * Every one is a REFUSAL, not a clamp - the same rule `routes/rehearsal.ts`
+ * follows. A clamp quietly runs a different experiment from the one that was
+ * asked for and returns it as if it were the answer, which on a surface whose
+ * whole purpose is to be trustworthy about what it modelled is the worst
+ * available behaviour.
+ *
+ * The upper bound on `vehiclesPerPhase` also bounds the work: buses x stations
+ * x scenarios x 2 phases x 2 arms is the size of the run, and 1,000 per phase
+ * over ten stations completes in about two seconds - comfortably inside the
+ * web client's request budget.
+ */
+const bodySchema = z
+  .object({
+    vehiclesPerPhase: z.number().int().min(10).max(1000),
+    scenarios: z.array(z.enum(SCENARIO_IDS)).min(1),
+    seed: z.number().int().min(0).max(2_147_483_647),
+    sweepIntervalSeconds: z.number().int().min(15).max(600),
+    requiredSamples: z.number().int().min(1).max(10),
+    followerSpeedSource: z.enum(['link_average', 'vehicle_state']),
+    corridor: z
+      .object({
+        totalDistanceMeters: z.number().int().min(10_000).max(1_000_000),
+        stationCount: z.number().int().min(3).max(40),
+        targetHeadwaySeconds: z.number().int().min(120).max(7200),
+        maxHoldSeconds: z.number().int().min(0).max(3600),
+        minimumActionSeconds: z.number().int().min(0).max(1800),
+      })
+      .partial()
+      .strict(),
+  })
+  .partial()
+  .strict();
+
+/** The last report this process produced, served to anyone opening the console. */
+let lastReport: FleetTrialReport | null = null;
+
+/** Exported for tests, which must not inherit a report an earlier test ran. */
+export function _resetFleetTrialCacheForTests(): void {
+  lastReport = null;
+}
+
+fleetTrialRouter.post(
+  '/v1/fleet-trial',
+  asyncHandler(async (req, res) => {
+    await Promise.resolve();
+    const body = bodySchema.safeParse(req.body ?? {});
+    if (!body.success) {
+      sendError(
+        res,
+        new AppError('invalid_request', 'Invalid fleet trial inputs', 400, body.error.flatten()),
+      );
+      return;
+    }
+
+    const report = runFleetTrial({
+      ...DEFAULT_FLEET_TRIAL_SPEC,
+      ...body.data,
+      // Narrowed by the schema's own enum, which is derived from the scenario
+      // library - so an id that parses is by construction one that exists.
+      scenarios: (body.data.scenarios ?? DEFAULT_FLEET_TRIAL_SPEC.scenarios) as BunchingScenarioId[],
+      corridor: { ...DEFAULT_FLEET_CORRIDOR, ...(body.data.corridor ?? {}) },
+    });
+    lastReport = report;
+    res.status(200).json(report);
+  }),
+);
+
+fleetTrialRouter.get(
+  '/v1/fleet-trial/latest',
+  asyncHandler(async (_req, res) => {
+    await Promise.resolve();
+    if (!lastReport) {
+      // 404 rather than an empty report. "No trial has been run in this
+      // process" and "a trial was run and found nothing" are opposite
+      // statements, and a caller must not have to tell them apart by
+      // inspecting a zero.
+      sendError(
+        res,
+        new AppError(
+          'no_trial_run',
+          'No fleet trial has been run since this service started. POST /v1/fleet-trial to run one.',
+          404,
+        ),
+      );
+      return;
+    }
+    res.status(200).json(lastReport);
+  }),
+);
