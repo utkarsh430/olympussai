@@ -457,6 +457,34 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
 export const DEFAULT_MAX_CONCURRENT_ACTIONS = 3;
 
 /**
+ * Whether this candidate is one the objective's ranking can actually bite on.
+ *
+ * `safe` holds three families the ranking never orders against anything:
+ * a terminal-dispatch hold takes absolute priority whatever it costs,
+ * `boarding_limit` is excluded from the ranked pool above, and
+ * `cost_optimal_hold` is filtered out of `selectActions` unless the closed
+ * form has been made selectable. So a decision with one hold and one of those
+ * beside it has TWO candidates and no ranking at all.
+ *
+ * Exported because two surfaces report whether the occupancy switch had a
+ * ranking to change - `fleetTrial/run.ts#occupancyContrast` and
+ * `rehearsal/run.ts#occupancyContrast` - and each carried its own
+ * approximation of this rule. One of them counted every candidate and
+ * answered "yes, comparable" the first time an unpriced alighting-only
+ * proposal appeared next to a hold; the other remembered `cost_optimal_hold`
+ * and forgot `boarding_limit`. The rule belongs next to the pool it describes.
+ */
+export function isRankedMidRouteCandidate(
+  candidate: CandidateAction,
+  costOptimalSelectable: boolean,
+): boolean {
+  if (candidate.actionType === 'terminal_dispatch_hold') return false;
+  if (isBoardingLimitCandidate(candidate)) return false;
+  if (!costOptimalSelectable && candidate.actionType === 'cost_optimal_hold') return false;
+  return true;
+}
+
+/**
  * Which safe candidates to actually propose, best first.
  *
  * ─── ONE ACTION PER VEHICLE, ALWAYS ──────────────────────────────────────

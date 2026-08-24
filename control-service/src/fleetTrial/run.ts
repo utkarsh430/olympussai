@@ -1152,12 +1152,12 @@ function compareOccupancySettings(args: {
     for (const decision of blindController.decisions) {
       if (!isReported(decision.vehicleId)) continue;
       blindByKey.set(`${decision.vehicleId}|${decision.stopId}`, shapeOf(decision));
-      // More than one SELECTABLE candidate is what a ranking needs to bite on.
-      // `cost_optimal_hold` is generated on nearly every decision but is not
-      // selectable, so counting it here would report a ranking that cannot
-      // actually happen.
-      const selectable = decision.candidates.filter((c) => c.actionType !== 'cost_optimal_hold');
-      if (selectable.length > 1) rankingComparable = true;
+      // More than one RANKED candidate is what a ranking needs to bite on.
+      // Counted by the controller off its own safe pool
+      // (`mpc/solver.ts#isRankedMidRouteCandidate`): `decision.candidates` is
+      // every candidate the laws generated, including the ones the safety
+      // filter refused and the two families the ranked pool never contains.
+      if (decision.rankedCandidateCount > 1) rankingComparable = true;
     }
 
     for (const decision of run.decisions) {

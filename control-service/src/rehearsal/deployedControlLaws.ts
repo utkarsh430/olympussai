@@ -68,7 +68,8 @@ import { computeBoardingLimitCandidates, isBoardingLimitCandidate } from '../mpc
 import { canExecuteHold } from '../mpc/eligibility.js';
 import { applyHardSafetyFilter, DEFAULT_STATE_STALE_SECONDS } from '../mpc/safety.js';
 import { computePredictiveAdvisory } from '../mpc/occupancyMpc.js';
-import { selectActions } from '../mpc/solver.js';
+import { selectActions, isRankedMidRouteCandidate } from '../mpc/solver.js';
+import { isHoldAction } from '../mpc/types.js';
 import { loadEnv } from '../config/env.js';
 import type {
   CandidateAction,
@@ -172,6 +173,19 @@ export interface RehearsalDecisionRecord {
   hFwdSeconds: number | null;
   hBwdSeconds: number | null;
   candidates: CandidateAction[];
+  /**
+   * How many candidates the solver's ranking could actually order here.
+   *
+   * `candidates` is everything the five laws GENERATED, before the safety
+   * filter and before the three families that are never ranked against
+   * anything (see `mpc/solver.ts#isRankedMidRouteCandidate`). Two surfaces
+   * report whether the occupancy switch had a ranking to bite on, and both
+   * were counting `candidates.length` - so a decision offering one hold plus
+   * an unpriced alighting-only proposal, or one hold plus the non-selectable
+   * closed-form optimum, was reported as re-rankable when nothing about it
+   * could be re-ordered. Counted here, where the safe pool exists.
+   */
+  rankedCandidateCount: number;
   rejected: SafetyRejection[];
   selectedActionType: ControllerDecision['actionType'];
   holdSeconds: number;
@@ -441,6 +455,7 @@ export function createDeployedControlLawsController(
         hFwdSeconds: null,
         hBwdSeconds: null,
         candidates: [],
+        rankedCandidateCount: 0,
         rejected: [],
         selectedActionType: 'no_control',
         holdSeconds: 0,
@@ -888,9 +903,24 @@ export function createDeployedControlLawsController(
       [followerId, { ...vehicleStates.get(followerId)!, occupancyCount: null }],
     ]);
 
+    // HOLDS ONLY, exactly as `mpc/solver.ts` feeds it. The advisory re-scores
+    // a candidate by what its hold costs the people aboard (`w_v x L x d`),
+    // which is identically zero for an action whose d is 0 - so an
+    // alighting-only proposal enters the list scored "free" when the truth is
+    // that the advisory has no model of its cost at all. This passed `safe`
+    // whole, and the extra row was not inert: it made a rehearsal's advisory
+    // list two entries long and every consumer counting `candidates.length`
+    // to ask "was there a ranking here?" answered yes to a pair that cannot
+    // be ranked.
+    const advisoryCandidates = safe.filter((c) => isHoldAction(c.actionType));
     const occupancy = {
-      asDeployedToday: computePredictiveAdvisory(safe, asDeployedStates, policy, now),
-      withModelledOccupancy: computePredictiveAdvisory(safe, vehicleStates, modelledOccupancyPolicy, now),
+      asDeployedToday: computePredictiveAdvisory(advisoryCandidates, asDeployedStates, policy, now),
+      withModelledOccupancy: computePredictiveAdvisory(
+        advisoryCandidates,
+        vehicleStates,
+        modelledOccupancyPolicy,
+        now,
+      ),
     };
 
     // The deployed selection rule, CALLED rather than restated - including
@@ -934,6 +964,8 @@ export function createDeployedControlLawsController(
       hFwdSeconds: pair.hFwdSeconds,
       hBwdSeconds: pair.hBwdSeconds,
       candidates,
+      rankedCandidateCount: safe.filter((c) => isRankedMidRouteCandidate(c, costOptimalSelectable))
+        .length,
       rejected,
       selectedActionType: selected?.actionType ?? 'no_control',
       holdSeconds: selected?.holdSeconds ?? 0,

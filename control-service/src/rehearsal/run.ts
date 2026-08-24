@@ -690,9 +690,12 @@ export function runRehearsal(corridor: CorridorInputs, inputs: ModelledInputs): 
       ).length,
       meanOnboardCostAsDeployedToday: mean(deployedOnboardCosts),
       meanOnboardCostWithModelledOccupancy: mean(modelledOnboardCosts),
-      rankingComparable: scored.some(
-        (d) => (d.occupancy?.asDeployedToday.candidates.length ?? 0) > 1,
-      ),
+      // Counted off the SAFE, RANKED pool rather than off the advisory list.
+      // The advisory is holds only and includes the closed-form optimum,
+      // which is generated on nearly every decision and cannot be selected -
+      // so "more than one advisory row" was never the same question as "more
+      // than one candidate a ranking could reorder".
+      rankingComparable: scored.some((d) => d.rankedCandidateCount > 1),
     },
     disturbedVehicleId:
       inputs.disturbance === 'none' ? null : (disturbanceTarget(dispatches)?.vehicleId ?? null),
