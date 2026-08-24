@@ -35,15 +35,78 @@ their spacing is paid for by everyone already aboard, and on this corridor a bus
 carries about forty-five people while eleven wait at the next station — so the
 bill is four times the saving.
 
-The trial measures both halves off the simulated day rather than estimating them:
+The trial measures every second off the simulated day rather than estimating it,
+and counts each one exactly once:
 
-- **waiting** — `boardings × leaderHeadway / 2` over every stop visit
-- **onboard delay** — `applied hold × passengers aboard` over every visit
+- **waiting** — kerb time before the bus arrives, plus (for somebody who walks on
+  while it is standing there) the time from walking on until it leaves. Boarding
+  is oldest-first, so a bus that takes the fraction `f` of a window `W` takes
+  people whose mean wait is `W(1 − f/2)`, not `W/2`.
+- **dwell** — the ordinary door cycle, at the load aboard when the doors opened
+- **hold** — the same population through a hold. Zero on the uncontrolled arm by
+  construction, which is why it is reported separately: it is the price of control.
+- **riding** — between stops, at the load the bus pulled away with
 
 Their sum is the same quantity `mpc/objective.ts` claims to minimise
 (`netPassengerSeconds`), computed from the outcome instead of predicted from one
 decision — so a gap between them is a statement about the objective. The first
 run of this trial cut excess wait 46% and made total passenger time 12% **worse**.
+
+### The metric used to be waiting plus the hold, and that was the wrong half
+
+For most of this trial's life "total passenger time" meant waiting time plus the
+seconds a hold added, and nothing else. Riding and dwelling were outside it
+entirely — so a controller that made every bus slower between stops would have
+scored unchanged, and the only in-vehicle term in the metric was the one control
+makes worse.
+
+Both of the excluded terms move with the controller, and they move in its favour.
+Passenger-weighted dwell is worst in a bunch, where one full bus does a long door
+cycle beside one nearly empty bus doing a short one, and it falls when spacing
+evens out. **Measured, urban, six seeds: holding cost 211–215 h while dwell gave
+back 90–100 h.**
+
+The percentage was wrong for the same reason. Its denominator was the
+uncontrolled arm's total, which — that arm having no holds — was waiting time
+alone. **A saving worth 3% of what passengers actually spend was reported as 12%,
+and the same four- to sevenfold inflation applied to every negative result too.**
+Every figure in this document from before that fix is on the old basis; the table
+below is not.
+
+## Where it stands, with error bars
+
+Six seeds, 250 buses per phase, all ten scenarios, `pnpm sim:fleet --corridor X
+--vehicles 250 --seed S`. Net is total passenger time saved as a share of what
+passengers actually spend — waiting plus every second aboard.
+
+| corridor / phase | net passenger time | excess wait | seeds positive |
+|---|---|---|---|
+| urban, occupancy blind | **+3.0% ± 2.0** | +46% | 6/6 |
+| urban, occupancy aware | **+2.4% ± 1.3** | +43% | 6/6 |
+| suburban, occupancy blind | **+1.3% ± 0.8** | +39% | 6/6 |
+| suburban, occupancy aware | +0.1% ± 0.9 | +36% | 4/6 |
+| inter-city, occupancy blind | +0.7% ± 1.5 | +19% | 4/6 |
+| inter-city, occupancy aware | −0.0% ± 1.5 | +15% | 4/6 |
+
+Read the ± before the mean. **Urban is a win on every seed. Suburban blind is a
+smaller win on every seed. Everything else is indistinguishable from zero** —
+not a small effect, no measured effect, and a single seed there lands anywhere
+in a six-point range. The trial's own headline is one seed per scenario, so any
+claim drawn from a single `sim:fleet` run needs this table beside it.
+
+Where the time goes, urban, occupancy blind, per seed on average:
+
+| | |
+|---|---|
+| waiting removed | +610 h |
+| dwell given back | +100 h |
+| riding | −33 h |
+| holding | −215 h |
+| **net** | **+462 h** |
+
+The hold bill is not the whole in-vehicle story and never was: dwell gives back
+about half of it. On inter-city the same table reads +67 h of dwell against
+−689 h of holding, which is why that corridor cannot make the trade pay.
 
 ## What the trial found, and what was changed
 

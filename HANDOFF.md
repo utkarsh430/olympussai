@@ -58,7 +58,7 @@ cd control-service && pnpm test && pnpm lint && npx tsc --noEmit -p tsconfig.jso
 cd .. && pnpm test && npx tsc --noEmit && pnpm build && npx next lint --dir src
 ```
 
-Green as of handover: **1,073** control-service tests, **1,741** web tests, build clean.
+Green as of handover: **1,090** control-service tests, **1,741** web tests, build clean.
 
 ### The console
 
@@ -81,28 +81,47 @@ report; the client can run a new one.
 
 ### Metrics, and which one is the headline
 
-1. **Total passenger time** (`PassengerOutcome.totalPassengerSeconds`) — waiting
-   at stops **plus** delay to people already aboard. **This is the headline.**
+1. **Total passenger time** (`PassengerOutcome.totalPassengerSeconds`) — every
+   second from arriving at a stop to alighting: **waiting + dwell + hold +
+   riding**. **This is the headline.** It counted only waiting + hold until
+   recently; see §3 bug 17 for why that was the wrong half and what it did to
+   every number in this file's history.
 2. **Excess wait time (EWT)** — seconds per waiting passenger. Secondary. It
    counts only people at stops, so it and (1) routinely move in *opposite*
    directions. Optimising EWT alone is how the controller measured net-negative.
-3. **On-time rate** — share arriving within ±300 s of the booked time.
-4. **Denied boardings** — refused because the bus was full.
-5. **Headway CV** — diagnostic only (scale-free; lengthening every headway
+3. **Total passenger time per boarding** (`passengerSecondsPerBoardingSavedPercent`)
+   — the same trade, population-controlled. The arms do not serve identical
+   crowds: demand is drawn from the stop-clock each arm's buses sweep, so the
+   controlled arm carries 0.4–1.3% more people. Read it beside (1).
+4. **On-time rate** — share arriving within ±300 s of the booked time.
+5. **Denied boardings** — people refused because the bus was full. A HEADCOUNT
+   (`firstTimeDeniedBoardings`); `deniedBoardings` counts refusal events, and one
+   person turned away by three buses is three of those.
+6. **Headway CV** — diagnostic only (scale-free; lengthening every headway
    uniformly "improves" it).
 
 ### Current values
 
-250 buses/phase, 3 seeds, occupancy-blind phase unless noted:
+250 buses/phase, **six seeds**, mean ± SD. `±` before the mean, always.
 
 | | inter-city | suburban | urban |
 |---|---|---|---|
 | σ_leg / H\* | **0.19 (too_disturbed)** | 0.10 | 0.10 |
-| EWT | 317 → 263 s | 105 → 71 s | 110 → 55 s |
-| total passenger time | −1.4% (blind) / **+3.2%** (aware) | +1.6% / +2.1% | **+11.1%** / +9.1% |
-| on-time | 16 → 26% | 52 → 63% | 63 → 81% |
-| denied | −25% | −29% | −21% |
-| hold/bus | 449 s | 194 s | 201 s |
+| net passenger time, blind | +0.7% ± 1.5 (4/6 seeds) | **+1.3% ± 0.8 (6/6)** | **+3.0% ± 2.0 (6/6)** |
+| net passenger time, aware | −0.0% ± 1.5 (4/6) | +0.1% ± 0.9 (4/6) | **+2.4% ± 1.3 (6/6)** |
+| excess wait, blind | +19% | +39% | +46% |
+| hold/bus | 7.2 min | 3.2 min | 3.0 min |
+
+**Urban is a win on every seed. Suburban blind is a smaller win on every seed.
+Everything else is indistinguishable from zero** — not a small effect, no
+measured effect. A single `sim:fleet` run on inter-city lands anywhere in a
+six-point range, so never quote one.
+
+Where the time goes (urban, blind, per seed): waiting removed +610 h, dwell given
+back +100 h, riding −33 h, holding −215 h, **net +462 h**. The hold bill is not
+the whole in-vehicle story — dwell gives back about half of it. Inter-city reads
++67 h of dwell against −689 h of holding, which is why it cannot make the trade
+pay.
 
 Incidents, full 1,000-bus trial (500/phase):
 
@@ -113,8 +132,9 @@ Incidents, full 1,000-bus trial (500/phase):
 
 ### Targets
 
-- Total passenger time **> 0 on every corridor**. Inter-city occupancy-blind is
-  the only failing case (−1.4%).
+- Total passenger time **> 0 with seeds agreeing on every corridor**. Urban and
+  suburban-blind clear it at 6/6. Inter-city and suburban-aware do not: they are
+  not negative, they are ZERO, and the honest statement is "no measured effect".
 - Objective prediction error **< 1.5×** (currently 1.8× with a correct λ, 3.4×
   with the shipped proxy). See §7.
 - No regression in on-time rate on any corridor.
@@ -211,6 +231,95 @@ urban *geometry* with inter-city *traffic* (0.38 boardings/min vs 1.2, 120 s dwe
 vs 20 s). Root cause: `DEFAULT_FLEET_TRIAL_SPEC.inputs` was spread **after**
 `preset.inputs`. Fix: spec `inputs` defaults to `{}`; the preset owns its demand.
 
+**14. The chain handed to the laws was ranked by dispatch order, and sliced to
+three.** Production ranks by POSITION (`state-estimation/ordering.ts`) and never
+slices. Two consequences. A follower whose leader is standing through a hold
+passes it — the arrival clamp enforces separation, not order — and the deciding
+bus was then handed a "leader" physically BEHIND it on **1.5% of urban decisions
+and 4.8% of inter-city ones**; the corridor being linear rather than a loop,
+`computeGapMeters` read each as the wrap-around and invented a gap of 379 km on a
+400 km route. And `corridorPaceKmph` — the divisor for a bus standing at a stop,
+which the deciding bus always is — is the median speed of the MOVING vehicles in
+the chain, so over three vehicles (one stationary by construction) it was null
+whenever the other two were dwelling: **9.0% of pairs with a leader reported no
+forward headway**, and Algorithm B declined 8.1% of all decisions
+`h_fwd_unavailable`. Now 0.4% and 0.1%. Fix:
+`control-service/src/simulation/engine.ts#neighbours` ranks by distance and hands
+over every live vehicle; the adapter calls `computeLeaderFollowerOrder`.
+
+**15. Two buses at one stop drew the same passengers.** The standing-window claim
+happened at the DEPARTURE event, so a bus arriving in between read a queue front
+that had not moved and was offered the same seconds again. **5.4% of the urban
+stop-clock uncontrolled and 3.1% controlled**, so ~5% and ~3% of each arm's
+boardings were invented — and the 2-point asymmetry went straight into the
+contrast. Fix: the window is claimed at ARRIVAL, measured from the queue front.
+
+**16. A hold was charged to people it did not delay.** Somebody who boards during
+a hold was charged a wait term AND the full `appliedHoldSeconds × onboardAfter`.
+Only the controlled arm has holds, so it inflated the price of control. Fix: the
+engine computes `onboardDelayPassengerSeconds` over the pre-door population.
+
+**17. Total passenger time was waiting plus the hold, which is the wrong half.**
+Riding and dwelling were outside the metric entirely — a controller that made
+every bus slower between stops would have scored unchanged. Both excluded terms
+move with the controller and in its favour: passenger-weighted dwell is worst in
+a bunch and falls when spacing evens out. **Urban, six seeds: holding cost 211–215
+h while dwell gave back 90–100 h.** The percentage was wrong for the same reason —
+its denominator was the uncontrolled arm's total, which without holds is waiting
+alone, so **a saving worth 3% was reported as 12%**, and the same 4–7× inflation
+applied to negative results too. Fix: `PassengerOutcome` counts every second
+once, split four ways.
+
+**18. Passengers boarded at the TERMINUS of a one-way corridor.** The last stop
+kept the full boarding rate while emptying every bus, so people queued at the end
+of the route, were charged waiting time, boarded a bus whose trip finished on the
+spot, and were carried nowhere. **4.2% of urban boardings and 9.4% of the
+measured wait saving, from one stop of twenty-five.** Fix:
+`control-service/src/rehearsal/run.ts#isLastStop`.
+
+**19. A truncated queue was charged half the window.** Boarding is oldest-first,
+so a bus taking the fraction `f` takes people whose mean wait is `W(1 − f/2)`, not
+`W/2`. A bus takes only part of a queue because it is FULL, which a bunched
+service does more often — so the undercharge fell mostly on the uncontrolled arm.
+
+**20. `assessScheduleFit` was a tautology.** The timetable is booked from the
+uncontrolled arm's MEAN arrival, so that arm's MEAN deviation against it is
+exactly zero (−1.05e-12 s on a real run, every corridor, every seed). The
+tripwire CLAUDE.md names as the guard against this trial's largest silent failure
+could not fire. Fix: the band is decided on the SHARE OF BUSES ALREADY PAST
+`max_lateness_seconds` with no control — 38% urban, 41% inter-city, and it turns
+at 75%.
+
+**21. Denied boardings counted refusal EVENTS, not people.** A passenger refused
+by three buses is three of them, while `boardings` counts a person once — so
+`saturated` compared a rate with a headcount. And the arms repeat differently:
+**23% of the uncontrolled arm's denials were repeats against 10% of the
+controlled arm's**, so the event counts differed by 9 where the headcounts
+differed by 223. Fix: a second watermark (offered vs carried) and
+`firstTimeDeniedBoardings`.
+
+**22. The detector swept the two arms over different windows.** Each arm stopped
+at its own last departure, and holding makes buses finish later — ~0.5% more
+sweeps for the controlled arm, and `incidentsAvoided` is a difference of the two
+counts. Fix: one horizon for both.
+
+**23. Adapter fidelity, three smaller ones.** The predictive advisory was fed
+every safe candidate where `solver.ts` feeds it holds only. Alighting-only's
+"leader must be at the head of the bunch" guard reads each leader's own gap out
+of the list it is given, and over a two-row list that lookup misses — a missing
+gap means "front-most bus on the corridor", so the guard passed on trust for half
+its rows. Neighbour stop state was derived from a 5 km/h threshold with no
+distance bound; production requires 2 km/h AND the geofence
+(`state-estimation/stopStateClassifier.ts`, now called rather than restated).
+
+**24. The coverage table's largest population was misattributed.** The decline
+ladder had no entry for `mpc/actionThreshold.ts#isWorthActingOn`, the gate all
+three mid-route laws test BEFORE eligibility. **64.8% of urban decisions** were
+reported as `no_hold_indicated` — "the law looked and decided against it" — when
+the law returned before computing a hold at all. Fix: a `not_deviant_enough`
+reason, and `two_way_covers_pair` moved after eligibility where
+`selfEqualizing.ts` tests it.
+
 ---
 
 ## 4. Suspected but NOT confirmed
@@ -228,8 +337,17 @@ vs 20 s). Root cause: `DEFAULT_FLEET_TRIAL_SPEC.inputs` was spread **after**
   untested. Note the related idea (measuring at the release instant) **failed** —
   see §6.
 - **Denied boardings occasionally rise under control.** Seen at +241 on one urban
-  run at 200 buses/phase while the 3-seed mean showed −21%. Not characterised;
-  may be seed noise or a real over-holding-fills-buses mechanism.
+  run at 200 buses/phase while the 3-seed mean showed −21%. Partly explained
+  since: those figures were refusal EVENTS, and the two arms repeat their
+  refusals at very different rates (§3 bug 21). Re-measure as a headcount before
+  treating any of it as a mechanism.
+- **Production's per-corridor action budget does not bind, and that is measured.**
+  The adapter decides one vehicle at a time with an empty command ledger, so
+  `max_concurrent_actions` (3 per corridor per 90 s cycle) and `cooldown_seconds`
+  never apply. Over ten scenarios × three seeds the budget would have refused
+  **3.6% of urban holds, 0% of inter-city ones**, and the cooldown 0% of both —
+  real, small, and inside the seed noise. Not worth a command ledger; worth not
+  claiming the per-vehicle projection is exact.
 - **Neighbour confidence is cruder than production's.** The adapter marks
   leader/trailer as fully confident and freshly observed unless a `gps_dropout`
   disturbance covers them. Production has a continuous confidence model and a
