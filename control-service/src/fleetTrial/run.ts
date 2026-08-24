@@ -144,16 +144,28 @@ export interface FleetTrialSpec {
    * priced today.
    *
    * The trial can turn it on because it is the one place that CAN price the
-   * trade - it simulates the outcome. Turned on and measured, the action LOSES:
-   * across eight seeds on the urban corridor it made total passenger time worse
-   * on seven of them, and in the `slow_bus` scenario it cost 9% of all
-   * passenger time on every seed. The people left behind wait about ten times
-   * the law's own estimate, because the follower arrives with its own load,
-   * cannot fit a double queue, and the overflow rolls forward.
+   * trade - it simulates the outcome.
    *
-   * So the deployed caution is correct and this stays off. It is kept as a
-   * switch because that conclusion is a measurement, and a measurement has to
-   * be re-runnable.
+   * ─── THE MEASUREMENT THAT SAID IT LOSES NO LONGER REPRODUCES ─────────
+   *
+   * It used to read: worse on seven of eight urban seeds, and 9% of all
+   * passenger time in `slow_bus` on every seed. That was taken on the old
+   * headline - waiting plus the hold, over a waiting-only denominator, with
+   * passengers still boarding at the terminus - and it does not survive any
+   * of those being fixed. RE-MEASURED, six seeds, 250 buses per phase, urban,
+   * occupancy-blind: acting on it is better on 3 of 6 seeds by total
+   * passenger time (mean +0.25 points) and 5 of 6 per passenger carried (mean
+   * +0.29). In `slow_bus` specifically it is better on 4 of 6, mean +1.49.
+   *
+   * By this trial's own rule that is NO MEASURED EFFECT, not a win - a mean
+   * whose seeds disagree is not a small effect. So it stays off, but for the
+   * honest reason rather than the old one: the action is unpriced (neither
+   * side of its trade can be costed without a fitted lambda), it leaves real
+   * passengers standing, and nothing measures a benefit that would justify
+   * that. "It loses" is no longer something anyone can say.
+   *
+   * It is kept as a switch because that conclusion is a measurement, and a
+   * measurement has to be re-runnable.
    */
   alightingOnlySelectable: boolean;
 }

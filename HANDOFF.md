@@ -415,7 +415,21 @@ Each was implemented, measured paired-by-seed, and rejected.
 | `MID_ROUTE_ACTION_RATIO` = 0.8 | Scored marginally better on one trial (+0.2% vs −3.1%) but inside seed noise and has **no principle** behind it | Kept at 1.0 = the corridor's own warning ratio |
 | `warning_threshold_ratio` ≠ 0.50 | Swept 0.30–1.00. 0.50 best on urban (0.30 lost on **0/6** seeds); all values inside noise on inter-city | Left alone |
 | `COST_OPTIMAL_SELECTION_ENABLED` | Occupancy off: 29.8% → 30.0% EWT, no real change. Occupancy **on**: issues **nothing at all** (λ proxy makes the load penalty H\*/2 per passenger) | Stays off |
-| Auto-selecting alighting-only | Worse on **7/8** seeds; −9% of all passenger time in `slow_bus` on **every** seed. 415 passengers passed cost **103 extra hours** (~15 min each) vs the ~90 s the law reports | Stays proposal-only |
+| Auto-selecting alighting-only | **This entry no longer reproduces — see below.** Was: worse on 7/8 seeds; −9% of all passenger time in `slow_bus` on every seed | Stays proposal-only, for a different reason |
+
+**Alighting-only was re-measured after the metric fixes and the verdict changed.**
+The old numbers were taken on the old headline — waiting plus the hold, over a
+waiting-only denominator, with passengers still boarding at the terminus — and
+none of them survives. Re-measured, six seeds, 250 buses/phase, urban,
+occupancy-blind: acting on it is better on **3/6 seeds by total passenger time**
+(mean +0.25 points) and **5/6 per passenger** (mean +0.29); in `slow_bus`
+specifically, better on **4/6**, mean +1.49. By this file's own rule that is **no
+measured effect**, not a win. It stays off — but because it is unpriced and
+leaves real passengers standing with no measured benefit to justify it, NOT
+because it loses. Nobody can say it loses any more.
+
+**Every other row in the table above was also measured on the old headline.** Any
+of them could move the same way. Before quoting one, re-run it.
 
 **Two traps that produced false positives — check for these before believing a win:**
 
