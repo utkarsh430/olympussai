@@ -73,6 +73,7 @@ export function summarizeKpis(
   );
 
   const deniedBoardings = visits.reduce((acc, v) => acc + v.deniedBoardings, 0);
+  const firstTimeDeniedBoardings = visits.reduce((acc, v) => acc + v.firstTimeDeniedBoardings, 0);
   const totalBoardings = visits.reduce((acc, v) => acc + v.boardings, 0);
 
   const onTimeSamples = headwaySamples.filter(
@@ -95,10 +96,17 @@ export function summarizeKpis(
     bunchingRate,
     excessWaitSeconds,
     deniedBoardings,
-    // Stranded passengers: this engine models per-visit denied boarding
-    // as the stranded count at simulation end (no later trip is modeled
-    // to pick them up within the simulated window).
-    strandedPassengers: deniedBoardings,
+    // ─── DISTINCT PEOPLE, NOT REFUSAL EVENTS ─────────────────────────────
+    //
+    // This used to be `deniedBoardings`, on the reasoning that "no later trip
+    // is modeled to pick them up within the simulated window". That stopped
+    // being true when the queue began PERSISTING past a bus that could not
+    // take everybody: a refused passenger now stays at the stop, is offered
+    // the next bus, and usually boards it. `deniedBoardings` counts each of
+    // those refusals, so it became a rate rather than a headcount - three
+    // buses passing one stranded passenger reported three stranded
+    // passengers - and the comment describing it went on saying the opposite.
+    strandedPassengers: firstTimeDeniedBoardings,
     onTimeDispatchRate,
     complianceRate,
     totalBoardings,

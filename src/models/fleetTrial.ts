@@ -36,6 +36,7 @@ const spacingKpisSchema = z.object({
   headwayCv: z.number().nullable(),
   bunchingRate: z.number(),
   deniedBoardings: z.number(),
+  firstTimeDeniedBoardings: z.number(),
   totalBoardings: z.number(),
   saturated: z.boolean(),
 });

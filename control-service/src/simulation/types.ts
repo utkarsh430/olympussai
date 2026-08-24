@@ -477,7 +477,25 @@ export interface StopVisitRecord {
    */
   dwellPassengerSeconds: number;
   alightings: number;
+  /**
+   * Refusal EVENTS at this stop: everybody the bus could not take, whether or
+   * not an earlier bus had already turned them away.
+   */
   deniedBoardings: number;
+  /**
+   * Of those, the ones being refused for the FIRST time - a headcount rather
+   * than an event count.
+   *
+   * A passenger a full bus turns away stays in the queue and is offered to
+   * the next bus, and to the one after that; `deniedBoardings` counts each
+   * refusal. Three buses passing one stranded passenger reports three
+   * denials, while `boardings` counts a passenger once - so the denied SHARE
+   * that `SpacingKpis.saturated` is drawn at was measuring a rate against a
+   * headcount. Worked through at an urban stop: a chain of three buses that
+   * refuses seven distinct people, all of whom board in the end, records 14
+   * denials and reads 40% saturated on a stop that saturated nobody.
+   */
+  firstTimeDeniedBoardings: number;
   onboardAfter: number;
   dwellSeconds: number;
   intendedHoldSeconds: number;

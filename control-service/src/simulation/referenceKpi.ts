@@ -65,6 +65,7 @@ export function computeReferenceKpisFromRecordedInputs(
         dwellPassengerSeconds: 0,
         alightings: alight,
         deniedBoardings: 0,
+        firstTimeDeniedBoardings: 0,
         onboardAfter: onboard,
         dwellSeconds,
         intendedHoldSeconds: 0,

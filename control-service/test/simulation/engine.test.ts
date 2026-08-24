@@ -350,3 +350,54 @@ describe('the wait charged when a bus cannot take everybody', () => {
     }
   });
 });
+
+// ─── A REFUSAL EVENT IS NOT A PERSON ─────────────────────────────────────
+//
+// A passenger a full bus turns away stays at the stop, is offered the next
+// bus, and is counted again if that one is full too. `deniedBoardings` counts
+// each refusal; `boardings` counts a person once. Dividing one by the other -
+// which is what the saturation warning did - compares a rate with a headcount
+// and reads high. Worked through at an urban stop: three buses that refuse
+// seven distinct people, every one of whom boards in the end, record 14
+// denials and report 40% saturation on a stop that saturated nobody.
+describe('refusals counted as people rather than as events', () => {
+  const SATURATED: RouteDirectionDefinition = {
+    ...SAMPLE_ROUTE_DIRECTION,
+    vehicleCapacity: 6,
+    stops: SAMPLE_ROUTE_DIRECTION.stops.map((stop) => ({
+      ...stop,
+      demand: { ...stop.demand, boardingRatePerMinute: stop.demand.boardingRatePerMinute * 5 },
+    })),
+  };
+  const visits = simulate(
+    { name: 'saturated', routeDirection: SATURATED, dispatches: SAMPLE_DISPATCHES, disturbances: [], seed: 9 },
+    noControlController,
+  ).visits;
+
+  it('never counts more first-time refusals than refusals', () => {
+    for (const visit of visits) {
+      expect(visit.firstTimeDeniedBoardings).toBeLessThanOrEqual(visit.deniedBoardings);
+      expect(visit.firstTimeDeniedBoardings).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('counts strictly fewer people than events on a corridor that turns people away repeatedly', () => {
+    const events = visits.reduce((a, v) => a + v.deniedBoardings, 0);
+    const people = visits.reduce((a, v) => a + v.firstTimeDeniedBoardings, 0);
+    expect(events).toBeGreaterThan(0);
+    // The fixture has to actually re-refuse somebody, or this proves nothing.
+    expect(people).toBeLessThan(events);
+  });
+
+  it('charges every refusal to somebody the first time it happens', () => {
+    // The first bus to call at a stop meets a queue nobody has been offered
+    // before, so every refusal it makes is a new person.
+    const firstAtStop = new Map<number, (typeof visits)[number]>();
+    for (const visit of [...visits].sort((a, b) => a.arrivalSeconds - b.arrivalSeconds)) {
+      if (!firstAtStop.has(visit.stopIndex)) firstAtStop.set(visit.stopIndex, visit);
+    }
+    for (const visit of firstAtStop.values()) {
+      expect(visit.firstTimeDeniedBoardings).toBe(visit.deniedBoardings);
+    }
+  });
+});

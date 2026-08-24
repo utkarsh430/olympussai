@@ -275,6 +275,7 @@ function provisionalVisit(runtime: VehicleRuntime): StopVisitRecord {
     boardingWaitPassengerSeconds: 0,
     onboardDelayPassengerSeconds: 0,
     dwellPassengerSeconds: 0,
+    firstTimeDeniedBoardings: 0,
     alightings: 0,
     deniedBoardings: 0,
     onboardAfter: runtime.onboard,
@@ -414,6 +415,20 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
    * headway's worth that the leader has already carried away.
    */
   const queueClearedSeconds: Array<number | null> = routeDirection.stops.map(() => null);
+  /**
+   * How far into the clock each stop's arrivals have been OFFERED a bus,
+   * whether or not one took them.
+   *
+   * Distinct from `queueClearedSeconds`, which is how far they have been
+   * CARRIED. The gap between the two is the standing queue, and the two
+   * watermarks are what separate a refusal EVENT from a person refused: a
+   * passenger a full bus turns away stays in the window and is offered to the
+   * next bus, and to the one after that, and `deniedBoardings` counts each of
+   * those. Three buses passing one stranded passenger reports three denials.
+   * Against `boardings`, which counts people once, that inflates the
+   * denied-share the saturation warning is drawn at.
+   */
+  const queueOfferedSeconds: Array<number | null> = routeDirection.stops.map(() => null);
   /**
    * When a bus last DEPARTED each stop, and nothing else.
    *
@@ -824,6 +839,30 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
     const servedFraction = offered > 0 ? actualBoardings / offered : 1;
     const standingServedFraction = lateOffered > 0 ? lateBoardings / lateOffered : 1;
 
+    // ─── HOW MANY OF THOSE REFUSALS WERE NEW PEOPLE ────────────────────
+    //
+    // Boarding is oldest-first, so the refused are the YOUNGEST part of the
+    // window - those who arrived after `cleared + servedFraction x W`. Of
+    // them, only the ones past `queueOfferedSeconds` are being refused for
+    // the first time; the rest were already refused by an earlier bus and are
+    // being counted again.
+    const previouslyOffered = queueOfferedSeconds[stopIndex] ?? arrivalSeconds;
+    const deniedFromSeconds = (clearedAt ?? arrivalSeconds) + servedFraction * waitWindowSeconds;
+    const deniedWindowSeconds = Math.max(0, arrivalSeconds - deniedFromSeconds);
+    const firstTimeWindowSeconds = Math.max(
+      0,
+      arrivalSeconds - Math.max(deniedFromSeconds, previouslyOffered),
+    );
+    const firstTimeShare =
+      deniedWindowSeconds > 0 ? firstTimeWindowSeconds / deniedWindowSeconds : 1;
+    // Anyone the bus filled up on during its own standing window is a refusal
+    // too, and always a new one - that stretch of clock had never been
+    // offered to anybody.
+    const lateUnserved = takesLateBoarders ? Math.max(0, lateOffered - lateBoardings) : 0;
+    const firstTimeDeniedBoardings =
+      Math.round(deniedBoardings * firstTimeShare) + lateUnserved;
+    queueOfferedSeconds[stopIndex] = Math.max(previouslyOffered, arrivalSeconds, departureBeforeLateBoarders);
+
     const previouslyCleared = clearedAt ?? arrivalSeconds;
     let clearedTo = previouslyCleared + servedFraction * waitWindowSeconds;
     if (takesLateBoarders) {
@@ -869,7 +908,8 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       dwellPassengerSeconds: dwellSeconds * Math.max(0, onboardAfter - lateBoardings),
       boardingLimitedPassengers: boardingLimited,
       alightings,
-      deniedBoardings,
+      deniedBoardings: deniedBoardings + lateUnserved,
+      firstTimeDeniedBoardings,
       onboardAfter,
       dwellSeconds,
       intendedHoldSeconds,

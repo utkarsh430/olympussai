@@ -41,7 +41,10 @@ export interface SpacingKpis {
   /** Share of headway samples under `bunchedThresholdRatio x H*`. */
   bunchingRate: number;
   /** Passengers refused because the bus was full. Rises if spacing was bought by stranding people. */
+  /** Refusal EVENTS: a passenger turned away by three buses in a row is three of these. */
   deniedBoardings: number;
+  /** People refused for the first time - a headcount, and what `saturated` is drawn on. */
+  firstTimeDeniedBoardings: number;
   totalBoardings: number;
   /**
    * True when more than a fifth of offered passengers were refused a seat.

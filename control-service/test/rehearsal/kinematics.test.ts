@@ -20,6 +20,7 @@ function visit(overrides: Partial<StopVisitRecord> & Pick<StopVisitRecord, 'stop
     dwellPassengerSeconds: 0,
     alightings: 0,
     deniedBoardings: 0,
+    firstTimeDeniedBoardings: 0,
     onboardAfter: 0,
     dwellSeconds: 0,
     intendedHoldSeconds: 0,

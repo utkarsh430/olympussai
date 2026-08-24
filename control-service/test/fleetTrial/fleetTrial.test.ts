@@ -134,6 +134,7 @@ describe('incident detection', () => {
       dwellPassengerSeconds: 0,
       alightings: 0,
       deniedBoardings: 0,
+      firstTimeDeniedBoardings: 0,
       onboardAfter: 0,
       dwellSeconds: 60,
       intendedHoldSeconds: 0,

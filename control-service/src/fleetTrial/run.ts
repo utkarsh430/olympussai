@@ -386,6 +386,7 @@ function spacingKpis(
   const dispersion = computeDispersion(samples, corridor.policy.targetHeadwaySeconds);
   const bunchThreshold = corridor.policy.bunchedThresholdRatio * corridor.policy.targetHeadwaySeconds;
   const deniedBoardings = reported.reduce((acc, v) => acc + v.deniedBoardings, 0);
+  const firstTimeDeniedBoardings = reported.reduce((acc, v) => acc + v.firstTimeDeniedBoardings, 0);
   const totalBoardings = reported.reduce((acc, v) => acc + v.boardings, 0);
 
   return {
@@ -396,17 +397,29 @@ function spacingKpis(
     bunchingRate:
       samples.length > 0 ? samples.filter((h) => h < bunchThreshold).length / samples.length : 0,
     deniedBoardings,
+    firstTimeDeniedBoardings,
     totalBoardings,
-    saturated: isSaturated(deniedBoardings, totalBoardings),
+    saturated: isSaturated(firstTimeDeniedBoardings, totalBoardings),
   };
 }
 
 /** Offered passengers = those who boarded plus those refused. A fifth refused is the line `evaluation/report.ts` draws. */
 export const SATURATION_DENIED_SHARE = 0.2;
 
-function isSaturated(deniedBoardings: number, totalBoardings: number): boolean {
-  const offered = deniedBoardings + totalBoardings;
-  return offered > 0 && deniedBoardings / offered > SATURATION_DENIED_SHARE;
+/**
+ * Whether waiting time here is bounded by seats rather than by spacing.
+ *
+ * Counted in PEOPLE on both sides. `deniedBoardings` is a count of refusal
+ * EVENTS - a passenger a full bus turns away is offered to the next bus and
+ * counted again - while `boardings` counts a person once, so dividing one by
+ * the other compared a rate with a headcount and read high. Worked through at
+ * an urban stop: three buses that refuse seven distinct people, every one of
+ * whom boards in the end, record 14 denials and report 40% saturation on a
+ * stop that saturated nobody.
+ */
+function isSaturated(firstTimeDeniedBoardings: number, totalBoardings: number): boolean {
+  const offered = firstTimeDeniedBoardings + totalBoardings;
+  return offered > 0 && firstTimeDeniedBoardings / offered > SATURATION_DENIED_SHARE;
 }
 
 /** Headway samples on their own, so a phase can pool every scenario's and reduce them ONCE rather than average means. */
@@ -702,8 +715,14 @@ function contrast(controlled: ArmReport, uncontrolled: ArmReport): ArmContrast {
     ),
     incidentsAvoided: uncontrolled.incidents.detected - controlled.incidents.detected,
     addedJourneySecondsPerVehicle: addedJourney,
+    // PEOPLE, not refusal events. A passenger left behind is one person
+    // harmed however many buses passed them, and the two arms repeat their
+    // refusals at different rates - measured on one urban run, 23% of the
+    // uncontrolled arm's denials were somebody being turned away again
+    // against 10% of the controlled arm's, so the event counts differed by 9
+    // where the headcounts differed by 223.
     additionalDeniedBoardings:
-      controlled.spacing.deniedBoardings - uncontrolled.spacing.deniedBoardings,
+      controlled.spacing.firstTimeDeniedBoardings - uncontrolled.spacing.firstTimeDeniedBoardings,
   };
 }
 
@@ -984,6 +1003,7 @@ function poolArm(
   const samples: number[] = [];
   const journeys: JourneyRecord[] = [];
   let deniedBoardings = 0;
+  let firstTimeDeniedBoardings = 0;
   let totalBoardings = 0;
   const pooledPassengers: PassengerOutcome = {
     boardings: 0,
@@ -1014,6 +1034,7 @@ function poolArm(
     for (const visit of visits) {
       if (!isReported(visit.vehicleId)) continue;
       deniedBoardings += visit.deniedBoardings;
+      firstTimeDeniedBoardings += visit.firstTimeDeniedBoardings;
       totalBoardings += visit.boardings;
     }
   }
@@ -1036,8 +1057,9 @@ function poolArm(
       bunchingRate:
         samples.length > 0 ? samples.filter((h) => h < bunchThreshold).length / samples.length : 0,
       deniedBoardings,
+      firstTimeDeniedBoardings,
       totalBoardings,
-      saturated: isSaturated(deniedBoardings, totalBoardings),
+      saturated: isSaturated(firstTimeDeniedBoardings, totalBoardings),
     },
     punctuality: punctualityKpis(journeys, corridor.policy.maxLatenessSeconds),
     passengers: pooledPassengers,
@@ -1373,7 +1395,9 @@ function runPolicyStudy(args: {
         hold: controlled.punctuality.meanHoldSecondsPerVehicle,
         worst: controlled.punctuality.maxHoldSecondsOnAnyVehicle,
         holds: holds.holdCountByActionType.reduce((acc, a) => acc + a.count, 0),
-        denied: controlled.passengers.deniedBoardings,
+        // Headcount, matching `additionalDeniedBoardings` - the column is read
+        // as "how many people did this setting strand".
+        denied: controlled.spacing.firstTimeDeniedBoardings,
         detected: controlled.incidents.detected,
         resolved: controlled.incidents.resolved,
       });
