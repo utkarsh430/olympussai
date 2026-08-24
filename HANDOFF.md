@@ -355,13 +355,16 @@ reason, and `two_way_covers_pair` moved after eligibility where
   it becomes slow. Holding cannot fix a leader. Urban still reads +1.0% PER
   PASSENGER there. If you want this scenario to win, the lever is an overtake or
   a short-turn, not a gain.
-- **Inter-city is near its seats on half its scenarios.** Uncontrolled denial
-  share (headcount): peak_load 17.5%, station_surge 16.8%, cascade 15.9%,
-  traffic_shock 14.3%, with seeds crossing the 20% saturation bar at 26.2%.
-  Where waiting is bounded by seats rather than spacing, a working controller
-  reports "no effect" - so part of the inter-city zero is the RIG, not the laws.
-  Re-fitting the inter-city demand is probably worth more than any control change
-  on that corridor.
+- **Inter-city saturation is NOT why inter-city measures zero — tested, refuted.**
+  It is near its seats on half its scenarios (denial share 14-18%, seeds to
+  26.2% against a 20% bar), which is the textbook "controller cannot respond"
+  regime. Scaling the boarding rate down x0.8 / x0.65 / x0.5 moves the denial
+  share to 5.2% / 2.4% / 1.6% and moves net passenger time to -0.4% / -0.7% /
+  -0.9% - marginally WORSE - while excess wait stays flat at ~20%. Both sides of
+  the trade scale with demand (`occupancy = rate x H*/60 / alighting`, `waiting
+  per headway = rate x H*/60`), so the ratio that decides it is invariant. Demand
+  is not the lever here; sigma_leg/H* = 0.19 is. Do not re-fit the inter-city
+  demand expecting a control result.
 - **Neighbour confidence is cruder than production's.** The adapter marks
   leader/trailer as fully confident and freshly observed unless a `gps_dropout`
   disturbance covers them. Production has a continuous confidence model and a

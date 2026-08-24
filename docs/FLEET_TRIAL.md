@@ -127,16 +127,37 @@ total reads −0.2%**, because control carries more people. A corridor with a
 persistently slow vehicle needs something holding cannot supply — an overtake, a
 short-turn, or a replacement.
 
-**Inter-city runs close to its seats on half its scenarios, which is a regime the
-headline cannot respond in.** Uncontrolled denial share, as a headcount of people
-refused: `peak_load` 17.5%, `station_surge` 16.8%, `cascade` 15.9%, `traffic_shock`
-14.3%, with individual seeds at 26.2%, 21.6% and 21.1% — over the 20% saturation
-bar. Where waiting time is bounded by how many seats exist rather than by how they
-are spaced, a working controller correctly reports "no effect", and that is part
-of why inter-city measures zero. It is not only that σ_leg/H\* = 0.19 puts the
-corridor above the controllable band. Read `saturated` on the arm before reading
-its KPIs, and treat the inter-city demand as a rig parameter worth re-fitting
-rather than as a property of inter-city operation.
+**Inter-city runs close to its seats on half its scenarios — and that is NOT why
+it measures zero.** Uncontrolled denial share, as a headcount of people refused:
+`peak_load` 17.5%, `station_surge` 16.8%, `cascade` 15.9%, `traffic_shock` 14.3%,
+with individual seeds at 26.2%, 21.6% and 21.1% — over the 20% saturation bar.
+That looks like the textbook explanation, because waiting time bounded by seats
+rather than by spacing is the one regime where a working controller correctly
+reports "no effect".
+
+**It was tested and it is not the answer.** Re-running the whole trial with the
+corridor's boarding rate scaled down — the only field overridden, four seeds at
+120 buses per phase each:
+
+| boarding rate | denial share | net passenger time | per passenger | excess wait |
+|---|---|---|---|---|
+| ×1.00 | 11.1% | +0.5% (2/4 seeds) | +1.7% | +22.9% |
+| ×0.80 | 5.2% | −0.4% (2/4) | +0.7% | +20.4% |
+| ×0.65 | 2.4% | −0.7% (1/4) | +0.2% | +19.4% |
+| ×0.50 | 1.6% | −0.9% (1/4) | +0.9% | +21.7% |
+
+Taking the corridor out of saturation makes the controller marginally WORSE, not
+better, and the excess-wait gain does not move at all. That is the expected
+result once stated properly: steady-state occupancy is `rate × H*/60 ÷
+alightingFraction` and the people waiting at a stop per headway are `rate ×
+H*/60`, so **both sides of the trade scale with the demand and the ratio that
+decides it is invariant.** Demand is not the lever on this corridor.
+
+What is left is the corridor's own shape: σ_leg/H\* = 0.19 puts inter-city above
+the controllable band, where more deviation accumulates between two stops than a
+hold at either can remove. Read `controllability` before crediting or blaming the
+laws — it was right, and the saturation reading was a plausible second
+explanation that does not survive being run.
 
 ## What the trial found, and what was changed
 
