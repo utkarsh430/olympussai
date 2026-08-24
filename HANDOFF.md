@@ -111,20 +111,24 @@ report; the client can run a new one.
 | | inter-city | suburban | urban |
 |---|---|---|---|
 | σ_leg / H\* | **0.19 (too_disturbed)** | 0.10 | 0.10 |
-| net passenger time, blind | +0.7% ± 1.5 (4/6 seeds) | **+1.3% ± 0.8 (6/6)** | **+3.0% ± 2.0 (6/6)** |
-| net passenger time, aware | −0.0% ± 1.5 (4/6) | +0.1% ± 0.9 (4/6) | **+2.4% ± 1.3 (6/6)** |
+| net passenger time, blind | +0.0% ± 0.5 (2/6 seeds) | **+0.4% ± 0.3 (6/6)** | **+2.6% ± 0.4 (6/6)** |
+| net passenger time, aware | −0.3% ± 0.6 (2/6) | +0.3% ± 0.3 (4/6) | **+2.1% ± 0.6 (6/6)** |
 | excess wait, blind | +19% | +39% | +46% |
 | hold/bus | 7.2 min | 3.2 min | 3.0 min |
 
-**Urban is a win on every seed. Suburban blind is a smaller win on every seed.
-Everything else is indistinguishable from zero** — not a small effect, no
-measured effect. A single `sim:fleet` run on inter-city lands anywhere in a
-six-point range, so never quote one.
+**Urban is a win on every seed, and it is now a resolved number** — six seeds
+spanning +2.2% to +3.0%. Suburban blind is a much smaller win on every seed.
+**Inter-city is not "probably nothing", it is nothing** — ±0.5 around zero.
 
-Where the time goes (urban, blind, per seed): waiting removed +610 h, dwell given
-back +100 h, riding −33 h, holding −215 h, **net +462 h**. The hold bill is not
-the whole in-vehicle story — dwell gives back about half of it. Inter-city reads
-+67 h of dwell against −689 h of holding, which is why it cannot make the trade
+These bars are what they are because every draw takes its own keyed stream
+(§3 bug 25). Before that the same table read ±1.5 to ±2.0 and inter-city could
+not be told apart from a half-percent effect.
+
+Where the time goes (urban, blind, per seed): waiting removed +581 h, dwell given
+back +95 h, riding −68 h, holding −211 h, **net ≈ +397 h**. The hold bill is not
+the whole in-vehicle story — dwell gives back about half of it, and riding costs
+a little because a held bus carries more people for the ride. Inter-city reads
++44 h of dwell against −691 h of holding, which is why it cannot make the trade
 pay.
 
 Incidents, full 1,000-bus trial (500/phase):
@@ -136,9 +140,10 @@ Incidents, full 1,000-bus trial (500/phase):
 
 ### Targets
 
-- Total passenger time **> 0 with seeds agreeing on every corridor**. Urban and
-  suburban-blind clear it at 6/6. Inter-city and suburban-aware do not: they are
-  not negative, they are ZERO, and the honest statement is "no measured effect".
+- Total passenger time **> 0 with seeds agreeing on every corridor**. Urban
+  (+2.6% ± 0.4) and suburban-blind (+0.4% ± 0.3) clear it at 6/6. Inter-city does
+  not: it is not negative, it is ZERO to within ±0.5, and the honest statement is
+  "no measured effect".
 - Objective prediction error **< 1.5×** (currently 1.8× with a correct λ, 3.4×
   with the shipped proxy). See §7.
 - No regression in on-time rate on any corridor.
@@ -315,6 +320,20 @@ gap means "front-most bus on the corridor", so the guard passed on trust for hal
 its rows. Neighbour stop state was derived from a 5 km/h threshold with no
 distance bound; production requires 2 km/h AND the geofence
 (`state-estimation/stopStateClassifier.ts`, now called rather than restated).
+
+**25. The two arms of a comparison were not running the same day.** Every draw
+came off one stream in event order, so the NUMBER and ORDER of draws depended on
+what the controller did - a held bus stands longer, so its late-boarder window is
+non-empty where the other arm's was zero, and `nextNonNegativeCount` returns
+early without consuming a draw when its mean is zero. One extra draw shifts every
+subsequent one. **MEASURED: a SINGLE ONE-SECOND HOLD on ONE bus of 250 moved
+whole-network total passenger time by +1.88% on one seed and −2.05% on another**,
+with ~1% SD across eight target buses and a bimodal response (many probes exactly
+0.000%, the rest jumping 1–2%) — a draw being added or reordered, not smooth
+sensitivity. Against headline effects of +0.0% to +2.6%, the noise floor was the
+size of the signal. Fix: every draw takes a stream keyed by `(seed, purpose,
+vehicle, stop)` — `control-service/src/simulation/rng.ts#drawStream`. The same
+probe now moves the network **0.003%**, and the six-seed spread falls 3–5×.
 
 **24. The coverage table's largest population was misattributed.** The decline
 ladder had no entry for `mpc/actionThreshold.ts#isWorthActingOn`, the gate all

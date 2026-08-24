@@ -81,18 +81,22 @@ passengers actually spend — waiting plus every second aboard.
 
 | corridor / phase | net passenger time | excess wait | seeds positive |
 |---|---|---|---|
-| urban, occupancy blind | **+3.0% ± 2.0** | +46% | 6/6 |
-| urban, occupancy aware | **+2.4% ± 1.3** | +43% | 6/6 |
-| suburban, occupancy blind | **+1.3% ± 0.8** | +39% | 6/6 |
-| suburban, occupancy aware | +0.1% ± 0.9 | +36% | 4/6 |
-| inter-city, occupancy blind | +0.7% ± 1.5 | +19% | 4/6 |
-| inter-city, occupancy aware | −0.0% ± 1.5 | +15% | 4/6 |
+| urban, occupancy blind | **+2.6% ± 0.4** | +46% | 6/6 |
+| urban, occupancy aware | **+2.1% ± 0.6** | +43% | 6/6 |
+| suburban, occupancy blind | **+0.4% ± 0.3** | +39% | 6/6 |
+| suburban, occupancy aware | +0.3% ± 0.3 | +36% | 4/6 |
+| inter-city, occupancy blind | +0.0% ± 0.5 | +19% | 2/6 |
+| inter-city, occupancy aware | −0.3% ± 0.6 | +15% | 2/6 |
 
-Read the ± before the mean. **Urban is a win on every seed. Suburban blind is a
-smaller win on every seed. Everything else is indistinguishable from zero** —
-not a small effect, no measured effect, and a single seed there lands anywhere
-in a six-point range. The trial's own headline is one seed per scenario, so any
-claim drawn from a single `sim:fleet` run needs this table beside it.
+Read the ± before the mean. **Urban is a win on every seed and the number is
+resolved** — six seeds spanning +2.2% to +3.0%. Suburban blind is a much smaller
+win on every seed. **Inter-city is not "probably nothing", it is nothing**, to
+within ±0.5.
+
+Those bars are this tight only because every draw takes its own keyed stream. The
+same table before that read ±1.5 to ±2.0, urban was "+3.0% ± 2.0", suburban was
+"+1.3%", and inter-city could not be told apart from a half-percent effect. A
+single `sim:fleet` run is one draw and still needs this table beside it.
 
 Where the time goes, urban, occupancy blind, per seed on average:
 

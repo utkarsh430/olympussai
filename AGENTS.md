@@ -144,11 +144,17 @@ input production does not have. Check it first when a law's coverage looks wrong
   Read `passengerSecondsPerBoardingSavedPercent` beside it - the arms do not
   serve identical crowds, because demand is drawn from the stop-clock each arm's
   buses actually sweep.
+- **Every draw takes a stream of its own**, keyed by (seed, purpose, vehicle,
+  stop) - `simulation/rng.ts#drawStream`. On one shared stream the two arms
+  shared inputs only until the first hold, because a hold changes how many
+  draws are taken and in what order; a single ONE-SECOND hold on one bus of 250
+  moved whole-network passenger time by 2%, which was the size of the effects
+  being measured. Never reintroduce a single stream, and never add a draw whose
+  key can collide with another's.
 - **Report the seed spread, never a single run.** The trial's own headline is one
-  seed per scenario. Over six seeds at 250 buses/phase: urban +3.0% +/- 2.0
-  (6/6 seeds positive), suburban blind +1.3% +/- 0.8 (6/6), and inter-city and
-  suburban-aware are indistinguishable from zero with a six-point range. A single
-  `sim:fleet` number on those corridors means nothing.
+  seed per scenario. Over six seeds at 250 buses/phase: urban +2.6% +/- 0.4
+  (6/6 seeds positive, range 2.2-3.0), suburban blind +0.4% +/- 0.3 (6/6), and
+  inter-city is zero to within +/- 0.5. A single `sim:fleet` number is one draw.
 - **Nobody may vanish.** A passenger a full bus refuses stays in the queue; one
   who arrives while a bus stands at the stop boards it. Both used to be deleted
   and both deletions flattered holding - the first hid stranding, the second gave
