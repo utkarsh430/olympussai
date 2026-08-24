@@ -61,6 +61,9 @@ const passengerOutcomeSchema = z.object({
   deniedBoardings: z.number(),
   waitPassengerSeconds: z.number(),
   onboardDelayPassengerSeconds: z.number(),
+  dwellPassengerSeconds: z.number(),
+  ridePassengerSeconds: z.number(),
+  inVehiclePassengerSeconds: z.number(),
   totalPassengerSeconds: z.number(),
 });
 
@@ -99,6 +102,7 @@ const armContrastSchema = z.object({
   passengerSecondsSavedPercent: z.number().nullable(),
   waitSecondsSaved: z.number(),
   onboardDelayImposed: z.number(),
+  inVehicleSecondsSaved: z.number(),
 });
 export type ArmContrast = z.infer<typeof armContrastSchema>;
 

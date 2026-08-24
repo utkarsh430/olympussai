@@ -458,6 +458,24 @@ export interface StopVisitRecord {
    * direction only, because only the CONTROLLED arm has holds.
    */
   onboardDelayPassengerSeconds: number;
+  /**
+   * Passenger-seconds spent aboard through this stop's ORDINARY dwell.
+   *
+   * The same population as `onboardDelayPassengerSeconds` - everybody aboard
+   * when the doors opened, plus the people who boarded from the queue - and
+   * the door cycle rather than the hold.
+   *
+   * ─── WHY THIS IS NOT A FOOTNOTE ─────────────────────────────────────
+   *
+   * Total dwell across a corridor is nearly conserved: the same passengers
+   * board either way. Passenger-WEIGHTED dwell is not. A bunched pair is one
+   * full bus doing a long door cycle and one nearly empty bus doing a short
+   * one, and `dwell x load` is worst exactly there; evening the spacing out
+   * lowers it. So this term moves with the controller, in the controller's
+   * favour, and a total-passenger-time metric that leaves it out is scoring
+   * only the half of the in-vehicle bill that control makes worse.
+   */
+  dwellPassengerSeconds: number;
   alightings: number;
   deniedBoardings: number;
   onboardAfter: number;

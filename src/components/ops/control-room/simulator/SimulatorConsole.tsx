@@ -405,6 +405,7 @@ function PhaseBody({ phase, report }: { phase: PhaseReport; report: FleetTrialRe
           <PassengerBalance
             waitSecondsSaved={phase.contrast.waitSecondsSaved}
             onboardDelayImposed={phase.contrast.onboardDelayImposed}
+            inVehicleSecondsSaved={phase.contrast.inVehicleSecondsSaved}
             netSeconds={phase.contrast.passengerSecondsSaved}
             netPercent={phase.contrast.passengerSecondsSavedPercent}
           />

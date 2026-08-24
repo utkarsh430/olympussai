@@ -62,6 +62,7 @@ export function computeReferenceKpisFromRecordedInputs(
         boardingWaitPassengerSeconds: 0,
         // No holds in a reference replay, so no onboard delay to charge.
         onboardDelayPassengerSeconds: 0,
+        dwellPassengerSeconds: 0,
         alightings: alight,
         deniedBoardings: 0,
         onboardAfter: onboard,

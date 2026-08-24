@@ -217,23 +217,33 @@ export function MareyComparison({
 /**
  * The trade, from a shared zero.
  *
- * Waiting removed points one way, onboard delay added points the other, and
- * whichever bar is longer is the answer. There is no third bar for the net:
- * the net IS the difference in the lengths, and adding it would let a reader
- * take the verdict without seeing what paid for it.
+ * Waiting removed is one bar and the change in time spent ABOARD is the
+ * other, and whichever is longer is the answer. There is no third bar for the
+ * net: the net IS the difference in the lengths, and adding it would let a
+ * reader take the verdict without seeing what paid for it.
+ *
+ * The second bar used to be the hold bill alone, which is only the part of
+ * the in-vehicle trade that gets WORSE. Dwell and running time move too, and
+ * they move the other way - passenger-weighted dwell is worst in a bunch, and
+ * a bus clamped behind another rides slower than one that is not - so on the
+ * urban corridor the holds cost 246 h while dwell and riding gave back 369 h.
+ * Drawn as the hold alone, the two bars no longer differed by the net, and
+ * the chart's own claim above was false.
  */
 export function PassengerBalance({
   waitSecondsSaved,
   onboardDelayImposed,
+  inVehicleSecondsSaved,
   netSeconds,
   netPercent,
 }: {
   waitSecondsSaved: number;
   onboardDelayImposed: number;
+  inVehicleSecondsSaved: number;
   netSeconds: number;
   netPercent: number | null;
 }) {
-  const scale = Math.max(Math.abs(waitSecondsSaved), Math.abs(onboardDelayImposed), 1);
+  const scale = Math.max(Math.abs(waitSecondsSaved), Math.abs(inVehicleSecondsSaved), 1);
   const hours = (s: number) => `${Math.round(s / 3600).toLocaleString()} h`;
   const good = netSeconds >= 0;
 
@@ -266,7 +276,19 @@ export function PassengerBalance({
   return (
     <div className="space-y-3">
       <Bar label="Waiting time removed at stations" seconds={waitSecondsSaved} direction="saved" />
-      <Bar label="Delay added to people already aboard" seconds={onboardDelayImposed} direction="added" />
+      <Bar
+        label={
+          inVehicleSecondsSaved >= 0
+            ? 'Time aboard given back to passengers'
+            : 'Time added to people already aboard'
+        }
+        seconds={inVehicleSecondsSaved}
+        direction={inVehicleSecondsSaved >= 0 ? 'saved' : 'added'}
+      />
+      <p className="text-xs text-muted-foreground">
+        Holding added {hours(onboardDelayImposed)} of that; the rest is dwell and running time,
+        which even spacing changes in the other direction.
+      </p>
       <p className="pt-1 text-sm">
         <span className="text-muted-foreground">Net effect on total passenger time: </span>
         <span className={good ? 'font-semibold text-success' : 'font-semibold text-destructive'}>

@@ -81,7 +81,8 @@ function renderArm(label: string, arm: ArmReport): string {
 function renderContrast(c: ArmContrast): string[] {
   return [
     `    excess wait      ${pct(c.ewtImprovementPercent)} better  (${c.ewtImprovementSeconds?.toFixed(0) ?? '-'}s per passenger)`,
-    `    total passenger time  ${pct(c.passengerSecondsSavedPercent)}   waiting saved ${hours(c.waitSecondsSaved)}, onboard delay added ${hours(c.onboardDelayImposed)}`,
+    `    total passenger time  ${pct(c.passengerSecondsSavedPercent)}   waiting saved ${hours(c.waitSecondsSaved)}, in-vehicle time ${c.inVehicleSecondsSaved >= 0 ? 'saved' : 'added'} ${hours(Math.abs(c.inVehicleSecondsSaved))}`,
+    `      of which holding added ${hours(c.onboardDelayImposed)} back`,
     `    punctuality      ${c.addedJourneySecondsPerVehicle === null ? '-' : `${(c.addedJourneySecondsPerVehicle / 60).toFixed(1)} min added per bus`}`,
     `    denied boardings ${c.additionalDeniedBoardings > 0 ? '+' : ''}${c.additionalDeniedBoardings}`,
   ];

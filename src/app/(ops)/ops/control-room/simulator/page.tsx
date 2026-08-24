@@ -83,7 +83,10 @@ function TrialStrip({ report }: { report: FleetTrialReport }) {
       passengerSaved: acc.passengerSaved + phase.contrast.passengerSecondsSaved,
       passengerTotal: acc.passengerTotal + phase.uncontrolled.passengers.totalPassengerSeconds,
       waitSaved: acc.waitSaved + phase.contrast.waitSecondsSaved,
-      onboardAdded: acc.onboardAdded + phase.contrast.onboardDelayImposed,
+      // The NET in-vehicle change, not the hold bill: holding is the only
+      // in-vehicle term control makes worse, and dwell and running time move
+      // the other way. See `ArmContrast.inVehicleSecondsSaved`.
+      inVehicleSaved: acc.inVehicleSaved + phase.contrast.inVehicleSecondsSaved,
     }),
     {
       detected: 0,
@@ -92,7 +95,7 @@ function TrialStrip({ report }: { report: FleetTrialReport }) {
       passengerSaved: 0,
       passengerTotal: 0,
       waitSaved: 0,
-      onboardAdded: 0,
+      inVehicleSaved: 0,
     },
   );
   const netPercent = totals.passengerTotal > 0 ? (totals.passengerSaved / totals.passengerTotal) * 100 : null;
@@ -124,8 +127,8 @@ function TrialStrip({ report }: { report: FleetTrialReport }) {
           unit="h"
         />
         <OpsStat
-          label="Onboard delay added"
-          value={`${Math.round(totals.onboardAdded / 3600).toLocaleString()}`}
+          label={totals.inVehicleSaved >= 0 ? 'Time aboard given back' : 'Time aboard added'}
+          value={`${Math.round(Math.abs(totals.inVehicleSaved) / 3600).toLocaleString()}`}
           unit="h"
         />
         <OpsStat

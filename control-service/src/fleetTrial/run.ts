@@ -430,8 +430,14 @@ function headwaySamplesOf(
 function passengerOutcome(visits: readonly StopVisitRecord[]): PassengerOutcome {
   let waitPassengerSeconds = 0;
   let onboardDelayPassengerSeconds = 0;
+  let dwellPassengerSeconds = 0;
+  let ridePassengerSeconds = 0;
   let boardings = 0;
   let deniedBoardings = 0;
+
+  // Riding between stops needs a vehicle's visits in stop order, so the
+  // timeline is assembled once rather than re-scanned per stop.
+  const byVehicle = new Map<string, StopVisitRecord[]>();
 
   for (const visit of visits) {
     if (!isReported(visit.vehicleId)) continue;
@@ -442,16 +448,44 @@ function passengerOutcome(visits: readonly StopVisitRecord[]): PassengerOutcome 
     // `appliedHoldSeconds x onboardAfter` charges the people who walked onto
     // the bus DURING the hold both for turning up then and for the hold.
     onboardDelayPassengerSeconds += visit.onboardDelayPassengerSeconds;
+    dwellPassengerSeconds += visit.dwellPassengerSeconds;
     boardings += visit.boardings;
     deniedBoardings += visit.deniedBoardings;
+    const bucket = byVehicle.get(visit.vehicleId) ?? [];
+    bucket.push(visit);
+    byVehicle.set(visit.vehicleId, bucket);
   }
+
+  for (const timeline of byVehicle.values()) {
+    timeline.sort((a, b) => a.stopIndex - b.stopIndex);
+    for (let index = 0; index < timeline.length - 1; index++) {
+      const from = timeline[index]!;
+      const to = timeline[index + 1]!;
+      const rideSeconds = Math.max(0, to.arrivalSeconds - from.departureSeconds);
+      ridePassengerSeconds += rideSeconds * from.onboardAfter;
+    }
+  }
+
+  // Rounded ONCE, at the leaves, and the totals summed from the rounded parts.
+  // Rounding each of five reals independently and rounding their sum
+  // separately leaves the two disagreeing by a second or two - which is
+  // nothing to a reader and fatal to `total === wait + inVehicle`, an identity
+  // the report states and the console draws two bars against.
+  const wait = Math.round(waitPassengerSeconds);
+  const hold = Math.round(onboardDelayPassengerSeconds);
+  const dwell = Math.round(dwellPassengerSeconds);
+  const ride = Math.round(ridePassengerSeconds);
+  const inVehicle = dwell + hold + ride;
 
   return {
     boardings,
     deniedBoardings,
-    waitPassengerSeconds: Math.round(waitPassengerSeconds),
-    onboardDelayPassengerSeconds: Math.round(onboardDelayPassengerSeconds),
-    totalPassengerSeconds: Math.round(waitPassengerSeconds + onboardDelayPassengerSeconds),
+    waitPassengerSeconds: wait,
+    onboardDelayPassengerSeconds: hold,
+    dwellPassengerSeconds: dwell,
+    ridePassengerSeconds: ride,
+    inVehiclePassengerSeconds: inVehicle,
+    totalPassengerSeconds: wait + inVehicle,
   };
 }
 
@@ -629,6 +663,9 @@ function contrast(controlled: ArmReport, uncontrolled: ArmReport): ArmContrast {
   return {
     waitSecondsSaved,
     onboardDelayImposed: controlled.passengers.onboardDelayPassengerSeconds,
+    inVehicleSecondsSaved:
+      uncontrolled.passengers.inVehiclePassengerSeconds -
+      controlled.passengers.inVehiclePassengerSeconds,
     passengerSecondsSaved,
     passengerSecondsSavedPercent:
       uncontrolled.passengers.totalPassengerSeconds > 0
@@ -922,6 +959,9 @@ function poolArm(
     deniedBoardings: 0,
     waitPassengerSeconds: 0,
     onboardDelayPassengerSeconds: 0,
+    dwellPassengerSeconds: 0,
+    ridePassengerSeconds: 0,
+    inVehiclePassengerSeconds: 0,
     totalPassengerSeconds: 0,
   };
 
@@ -936,6 +976,9 @@ function poolArm(
     pooledPassengers.deniedBoardings += outcome.deniedBoardings;
     pooledPassengers.waitPassengerSeconds += outcome.waitPassengerSeconds;
     pooledPassengers.onboardDelayPassengerSeconds += outcome.onboardDelayPassengerSeconds;
+    pooledPassengers.dwellPassengerSeconds += outcome.dwellPassengerSeconds;
+    pooledPassengers.ridePassengerSeconds += outcome.ridePassengerSeconds;
+    pooledPassengers.inVehiclePassengerSeconds += outcome.inVehiclePassengerSeconds;
     pooledPassengers.totalPassengerSeconds += outcome.totalPassengerSeconds;
     for (const visit of visits) {
       if (!isReported(visit.vehicleId)) continue;

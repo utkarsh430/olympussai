@@ -131,6 +131,7 @@ describe('incident detection', () => {
       boardingLimitedPassengers: 0,
       boardingWaitPassengerSeconds: 0,
       onboardDelayPassengerSeconds: 0,
+      dwellPassengerSeconds: 0,
       alightings: 0,
       deniedBoardings: 0,
       onboardAfter: 0,
@@ -285,6 +286,48 @@ describe('a whole trial', () => {
     }
   });
 
+  // ─── TOTAL PASSENGER TIME MEANS THE WHOLE JOURNEY ──────────────────────
+  //
+  // It used to mean waiting plus the seconds a HOLD added, which is the only
+  // in-vehicle term control makes worse. Dwell and running time were outside
+  // the metric entirely - so a controller that made every bus slower between
+  // stops would have scored unchanged, and the percentage was a share of
+  // waiting time wearing the name of the total.
+  it('counts every second of the journey, not waiting plus the hold', () => {
+    for (const phase of report.phases) {
+      for (const arm of [phase.uncontrolled, phase.controlled]) {
+        const p = arm.passengers;
+        expect(p.inVehiclePassengerSeconds).toBe(
+          p.dwellPassengerSeconds + p.onboardDelayPassengerSeconds + p.ridePassengerSeconds,
+        );
+        expect(p.totalPassengerSeconds).toBe(
+          p.waitPassengerSeconds + p.inVehiclePassengerSeconds,
+        );
+        // Riding and standing at doors happen on both arms, so neither can be
+        // the zero that a hold-only in-vehicle term was on the baseline.
+        expect(p.ridePassengerSeconds).toBeGreaterThan(0);
+        expect(p.dwellPassengerSeconds).toBeGreaterThan(0);
+      }
+      // ...and riding dominates, which is why leaving it out inflated every
+      // reported magnitude several-fold.
+      expect(phase.uncontrolled.passengers.ridePassengerSeconds).toBeGreaterThan(
+        phase.uncontrolled.passengers.waitPassengerSeconds,
+      );
+    }
+  });
+
+  // The two bars a reader is shown have to differ by the net, or the chart is
+  // telling them the verdict is something other than what paid for it.
+  it('reports an in-vehicle change that closes the books against waiting saved', () => {
+    for (const phase of report.phases) {
+      const c = phase.contrast;
+      expect(c.waitSecondsSaved + c.inVehicleSecondsSaved).toBe(c.passengerSecondsSaved);
+      // The hold bill is a COMPONENT of the in-vehicle change, never the whole
+      // of it, and never negative.
+      expect(c.onboardDelayImposed).toBeGreaterThanOrEqual(0);
+    }
+  });
+
   it('runs the two phases with different fleets, so no bus is in both', () => {
     const ids = new Set<string>();
     for (const phase of report.phases) {
@@ -366,7 +409,15 @@ describe('a bus nobody can see', () => {
       // The scenario's perturbation is multiplicative now - see
       // `BunchingScenario.inputScale`. These fixtures only need the corridor's
       // own demand, so the scale is not applied here.
-      vehicleCount: 30,
+      //
+      // SIXTY, because the last assertion below is about a RARE event - an
+      // incident whose pair happens to span the invisible bus - and a fleet
+      // too small to produce it reliably makes that assertion a coin flip
+      // rather than a guarantee. MEASURED over eight seeds: at 30 buses the
+      // spanning incident appeared on 2 of them, at 60 buses on 7 (3 spanning
+      // incidents against 26). The two assertions above are unaffected; they
+      // only need the dark bus to be asked for a decision at all.
+      vehicleCount: 60,
       seed,
       disturbance: 'none',
     };
@@ -470,7 +521,15 @@ describe('alighting-only', () => {
       // The scenario's perturbation is multiplicative now - see
       // `BunchingScenario.inputScale`. These fixtures only need the corridor's
       // own demand, so the scale is not applied here.
-      vehicleCount: 30,
+      //
+      // SIXTY, because the last assertion below is about a RARE event - an
+      // incident whose pair happens to span the invisible bus - and a fleet
+      // too small to produce it reliably makes that assertion a coin flip
+      // rather than a guarantee. MEASURED over eight seeds: at 30 buses the
+      // spanning incident appeared on 2 of them, at 60 buses on 7 (3 spanning
+      // incidents against 26). The two assertions above are unaffected; they
+      // only need the dark bus to be asked for a decision at all.
+      vehicleCount: 60,
       seed,
       disturbance: 'none',
     };

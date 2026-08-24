@@ -139,14 +139,33 @@ export interface IncidentSummary {
  * off, which is not a hypothetical: the first 1,000-bus trial of this corridor
  * cut EWT 44% and raised total passenger time 13%.
  *
- * Both halves are MEASURED from the simulated day rather than estimated from
- * the objective's closed form:
+ * ─── AND WHY IT IS THE WHOLE JOURNEY, NOT WAIT PLUS HOLD ─────────────────
  *
- *   waiting   passengers who boarded arrived uniformly across the gap since
- *             the previous bus, so their mean wait is half that gap. Summed as
- *             `boardings x leaderHeadway / 2` over every stop visit.
- *   onboard   `applied hold x passengers aboard`, over every visit where a
- *             hold was actually served.
+ * This counted waiting time plus the seconds a HOLD added, and nothing else -
+ * so the only in-vehicle time in it was the part control makes worse. Every
+ * second a passenger spent riding or standing at a door was outside the
+ * metric, and those move too: passenger-weighted dwell is worst in a bunch
+ * (one full bus doing a long door cycle beside one empty bus doing a short
+ * one) and falls when spacing evens out, and a bus clamped behind the one in
+ * front rides slower than one that is not. MEASURED on the urban corridor at
+ * six seeds, control added 18.0 s of hold per boarding and gave back 11.3 s
+ * of dwell and running time - 63% of the bill, in a term the headline could
+ * not see. A metric named "total passenger time" that a controller could
+ * improve by making every bus slower between stops is not measuring what its
+ * name says.
+ *
+ * Every second from arriving at a stop to alighting is counted exactly once:
+ *
+ *   waiting   kerb time before the bus arrives, plus - for somebody who walks
+ *             on while it is standing there - the time from walking on until
+ *             it leaves. From the engine, which is the only thing that knows
+ *             those two populations apart.
+ *   dwell     the ordinary door cycle, charged to everybody aboard when the
+ *             doors opened plus whoever boarded from the queue.
+ *   onboard   the same population through a HOLD. Zero on the uncontrolled
+ *             arm by construction, which is why it is kept separate: it is
+ *             the price of control, reported as such.
+ *   riding    between stops, at the load the bus pulled away with.
  *
  * This is the same quantity `mpc/objective.ts` claims to minimise
  * (`netPassengerSeconds`), computed from the outcome instead of predicted from
@@ -159,7 +178,13 @@ export interface PassengerOutcome {
   waitPassengerSeconds: number;
   /** Passenger-seconds added to people already aboard by holding their bus. Zero on the uncontrolled arm by construction. */
   onboardDelayPassengerSeconds: number;
-  /** The sum. Lower is better, and it is the number that decides whether control helped at all. */
+  /** Passenger-seconds spent aboard through ordinary door cycles. */
+  dwellPassengerSeconds: number;
+  /** Passenger-seconds spent riding between stations. */
+  ridePassengerSeconds: number;
+  /** Dwell plus hold plus riding: everything spent aboard. */
+  inVehiclePassengerSeconds: number;
+  /** Waiting plus in-vehicle. Lower is better, and it is the number that decides whether control helped at all. */
   totalPassengerSeconds: number;
 }
 
@@ -184,16 +209,38 @@ export interface ArmContrast {
   /** Extra passengers refused a seat under control. Positive is WORSE, and is the number that vetoes a win. */
   additionalDeniedBoardings: number;
   /**
-   * Passenger-seconds removed from the network in total: waiting saved less
-   * onboard delay imposed. NEGATIVE means the controller cost passengers more
+   * Passenger-seconds removed from the network in total: waiting saved plus
+   * in-vehicle time saved. NEGATIVE means the controller cost passengers more
    * time than it saved them, whatever the excess-wait figure says.
    */
   passengerSecondsSaved: number;
+  /**
+   * The same figure as a share of the uncontrolled arm's WHOLE passenger-time
+   * bill - waiting plus every second spent aboard.
+   *
+   * The denominator used to be waiting time plus holds, which on the
+   * uncontrolled arm (no holds) is waiting time alone. So a saving worth 3% of
+   * what passengers actually spend was reported as 12%, and the same
+   * inflation - between four and seven times, depending on the corridor -
+   * applied to every negative result too.
+   */
   passengerSecondsSavedPercent: number | null;
-  /** Passenger-seconds of waiting removed, before the onboard bill is deducted. */
+  /** Passenger-seconds of waiting removed, before the in-vehicle bill is settled. */
   waitSecondsSaved: number;
   /** Passenger-seconds of onboard delay the holds cost. Always >= 0. */
   onboardDelayImposed: number;
+  /**
+   * Net passenger-seconds of IN-VEHICLE time removed: dwell, riding and holds
+   * together. Positive means control gave time back to the people aboard.
+   *
+   * Not the same thing as `-onboardDelayImposed`, and the difference is the
+   * point. A hold is the only in-vehicle term that gets worse; the other two
+   * get better, because passenger-weighted dwell is worst in a bunch and a bus
+   * clamped behind another rides slower than one that is not. Reporting the
+   * hold alone reports one side of a trade whose other side is comparable in
+   * size and sometimes larger.
+   */
+  inVehicleSecondsSaved: number;
 }
 
 export interface TrajectoryPoint {
