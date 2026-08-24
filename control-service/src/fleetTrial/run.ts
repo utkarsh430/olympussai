@@ -879,6 +879,15 @@ function runScenario(args: {
 
   const decisions = controller.decisions.filter((d) => isReported(d.vehicleId));
 
+  // ONE sweep window for both arms. Each arm's own last departure would give
+  // the controlled one more sweeps than the uncontrolled one, because holding
+  // makes buses finish later - and `incidentsAvoided` is the difference of the
+  // two counts, so the arms have to be watched for the same length of time.
+  const detectionHorizonSeconds = Math.max(
+    ...controlled.visits.map((v) => v.departureSeconds),
+    ...uncontrolled.visits.map((v) => v.departureSeconds),
+    0,
+  );
   const detectedControlled = detectIncidents({
     corridor,
     visits: controlled.visits,
@@ -888,6 +897,7 @@ function runScenario(args: {
     decisions,
     sweepIntervalSeconds,
     excludeVehicleIds,
+    sweepUntilSeconds: detectionHorizonSeconds,
   });
   const detectedUncontrolled = detectIncidents({
     corridor,
@@ -897,6 +907,7 @@ function runScenario(args: {
     requiredSamples,
     sweepIntervalSeconds,
     excludeVehicleIds,
+    sweepUntilSeconds: detectionHorizonSeconds,
   });
 
   const controlledArm: ArmReport = {
@@ -919,11 +930,7 @@ function runScenario(args: {
   };
 
   const trajectoryVehicleIds = pickTrajectoryVehicles(config.dispatches);
-  const horizonSeconds = Math.max(
-    ...controlled.visits.map((v) => v.departureSeconds),
-    ...uncontrolled.visits.map((v) => v.departureSeconds),
-    0,
-  );
+  const horizonSeconds = detectionHorizonSeconds;
 
   const report: ScenarioReport = {
     id: scenario.id,

@@ -141,6 +141,17 @@ export interface DetectionInputs {
   forecastSampleWindow?: number;
   /** Vehicles excluded from every result. The warm-up run is machinery, not a bus. */
   excludeVehicleIds?: ReadonlySet<string>;
+  /**
+   * When to stop sweeping, overriding this arm's own last departure.
+   *
+   * The two arms of a trial must be swept over the SAME window or their
+   * incident counts are not comparable. Holding makes buses finish later, so
+   * the controlled arm's own horizon is about half a percent further out -
+   * half a percent more sweeps, and so more chances to open, escalate and
+   * close an incident - and `ArmContrast.incidentsAvoided` is a difference of
+   * the two counts.
+   */
+  sweepUntilSeconds?: number;
 }
 
 function pairKey(leaderVehicleId: string, followerVehicleId: string): string {
@@ -203,6 +214,7 @@ export function detectIncidents(inputs: DetectionInputs): DetectionResult {
     requiredSamples,
     decisions = [],
     sweepIntervalSeconds = DEFAULT_SWEEP_INTERVAL_SECONDS,
+    sweepUntilSeconds,
     forecastSampleWindow = DEFAULT_FORECAST_SAMPLE_WINDOW,
     excludeVehicleIds = new Set<string>(),
   } = inputs;
@@ -269,7 +281,7 @@ export function detectIncidents(inputs: DetectionInputs): DetectionResult {
     });
   };
 
-  const endOfRun = runHorizonSeconds(visits);
+  const endOfRun = sweepUntilSeconds ?? runHorizonSeconds(visits);
 
   for (let atSeconds = 0; atSeconds <= endOfRun; atSeconds += sweepIntervalSeconds) {
     // ── The corridor as the state estimator would report it at this instant ──
