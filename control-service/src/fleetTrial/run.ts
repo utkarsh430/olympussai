@@ -1534,6 +1534,7 @@ function runPolicyStudy(args: {
 function policyVariants(corridorSpec: FleetCorridorSpec): {
   holdingPoints: PolicyVariant[];
   lateness: PolicyVariant[];
+  actionBar: PolicyVariant[];
 } {
   const stationCount = corridorSpec.stationCount;
   const configuredHolding = corridorSpec.holdingPointCount ?? stationCount;
@@ -1567,7 +1568,30 @@ function policyVariants(corridorSpec: FleetCorridorSpec): {
     ),
   ].sort((a, b) => a - b);
 
+  // ─── HOW DEVIANT A PAIR MUST BE BEFORE ANYONE IS INSTRUCTED ─────────
+  //
+  // `mpc/actionThreshold.ts#isWorthActingOn` bars a mid-route hold for any
+  // pair whose forward headway is above `warning_threshold_ratio x H*` - the
+  // same number the corridor's alert surface uses to decide whether a human is
+  // told. It is the single largest filter in the system: on the urban corridor
+  // it refuses 65% of every decision the mid-route laws are offered.
+  //
+  // It was swept once, by hand, and every value read as noise. That sweep was
+  // taken on the old headline - waiting plus the hold, over a waiting-only
+  // denominator - and the sibling conclusion from the same era (alighting-only
+  // "loses on 7 of 8 seeds") did not survive the metric being fixed. A knob
+  // this consequential belongs in the trial's own swept set, paired by seed
+  // and reported with its agreement count, rather than in a note that says a
+  // measurement was taken once.
+  const configuredBar = corridorSpec.warningThresholdRatio;
+  const actionBars = [...new Set([0.3, 0.5, 0.75, 1.0, configuredBar])].sort((a, b) => a - b);
+
   return {
+    actionBar: actionBars.map((ratio) => ({
+      label: `h_fwd under ${(ratio * 100).toFixed(0)}% of H*`,
+      corridor: { ...corridorSpec, warningThresholdRatio: ratio },
+      isCurrent: ratio === configuredBar,
+    })),
     holdingPoints: holdingCounts.map((count) => ({
       label: `${count} of ${stationCount} stations`,
       corridor: { ...corridorSpec, holdingPointCount: count },
@@ -1952,6 +1976,17 @@ export function runFleetTrial(
       description:
         'The hard safety filter refuses a hold that would put a bus further behind its timetable than this. A tight bound protects punctuality and costs spacing - and on a high-frequency corridor it also costs seats, because uneven buses arrive to double queues they cannot fit.',
       variants: variants.lateness,
+      scenarios,
+      inputs,
+      vehiclesPerPhase: studyVehicles,
+    }),
+    runPolicyStudy({
+      spec,
+      knob: 'warning_threshold_ratio',
+      title: 'How bunched a pair must be before anyone is instructed',
+      description:
+        'A mid-route law only proposes for a pair whose forward headway has fallen under this share of the target - the same bar the corridor uses to decide whether a human is told about it. Lower means fewer, larger interventions; higher means the controller acts on pairs its own alert surface would not raise.',
+      variants: variants.actionBar,
       scenarios,
       inputs,
       vehiclesPerPhase: studyVehicles,

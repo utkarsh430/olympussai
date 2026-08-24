@@ -413,7 +413,7 @@ Each was implemented, measured paired-by-seed, and rejected.
 | `ks` = 0.35 (schedule-correction gain) | 4/8 seeds net, 5/8 EWT, means identical. And *harmful* when the schedule is biased: tight → 1/5 seeds, slack → **0/5** | Stays `null` |
 | Measure mid-route headway at the **release** instant | Urban EWT 52.4% → **43.6%**, won 1/6 seeds. Holds less, loses more than it saves | Reverted; code carries no switch |
 | `MID_ROUTE_ACTION_RATIO` = 0.8 | Scored marginally better on one trial (+0.2% vs −3.1%) but inside seed noise and has **no principle** behind it | Kept at 1.0 = the corridor's own warning ratio |
-| `warning_threshold_ratio` ≠ 0.50 | Swept 0.30–1.00. 0.50 best on urban (0.30 lost on **0/6** seeds); all values inside noise on inter-city | Left alone |
+| `warning_threshold_ratio` ≠ 0.50 | Swept 0.30–1.00 by hand on the old headline, then **re-swept in the trial itself** (`policyStudies`, 3 seeds, paired): 0.50 best on BOTH corridors, 3/3 seeds. 0.75 and 1.00 keep improving excess wait (to 54.6% urban, 27.3% inter-city) while total passenger time falls — the EWT/total divergence, visible in a table | Confirmed. Re-runnable now |
 | `COST_OPTIMAL_SELECTION_ENABLED` | Occupancy off: 29.8% → 30.0% EWT, no real change. Occupancy **on**: issues **nothing at all** (λ proxy makes the load penalty H\*/2 per passenger) | Stays off |
 | Auto-selecting alighting-only | **This entry no longer reproduces — see below.** Was: worse on 7/8 seeds; −9% of all passenger time in `slow_bus` on every seed | Stays proposal-only, for a different reason |
 
