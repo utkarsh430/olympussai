@@ -39,6 +39,10 @@ pnpm sim:fleet --help
 
 Default seed is `20260822`. Runtime: ~5 s urban, ~16 s inter-city at 500/phase.
 
+**Put ad-hoc probes in `experiments/runs/`.** The source imports are relative, so
+`tsx` cannot resolve them from `/tmp`; that directory is gitignored, and ESLint
+skips it, so `pnpm lint` stays green while you investigate.
+
 **Ad-hoc scripts need env vars.** `src/config/env.ts` validates at import, so any
 `npx tsx` script against this package needs:
 

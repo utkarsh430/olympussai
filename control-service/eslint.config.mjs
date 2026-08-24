@@ -7,7 +7,12 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**'],
+    // `experiments/runs/**` is derived output - it is gitignored, it is what
+    // `sim:run --out` and `sim:fleet --out` write, and it is where an ad-hoc
+    // probe against this package has to live because the source imports are
+    // relative and `tsx` will not resolve them from /tmp. Linting it made
+    // `pnpm lint` fail the moment anybody investigated anything.
+    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'experiments/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
