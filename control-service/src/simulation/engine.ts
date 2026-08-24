@@ -51,7 +51,7 @@
 // imported by kpi.ts and is a dependency-free arithmetic module; the
 // isolation guard in test/simulation/replay.test.ts names the five trees
 // that carry live state, and lib/ is not one of them.)
-import { Rng } from './rng.js';
+import { drawStream } from './rng.js';
 import { summarizeKpis } from './kpi.js';
 import { corridorStateAt } from './kinematics.js';
 import type {
@@ -394,7 +394,11 @@ function realisedPaceKmph(linkMeters: number, durationSeconds: number): number |
 export function simulate(config: ScenarioConfig, controller: Controller): SimulationResult {
   const { routeDirection, disturbances, recordedInputs } = config;
   validateRouteDirection(routeDirection);
-  const rng = new Rng(config.seed);
+  // Every draw below takes a stream of its OWN, keyed by what it is for - see
+  // `rng.ts#drawStream`. A single stream makes the two arms of a trial diverge
+  // at the first hold, because a hold changes how many draws are taken and in
+  // what order.
+  const seed = config.seed;
 
   const dispatches = [...config.dispatches]
     .filter((d) => !isMissedTrip(disturbances, d.vehicleId))
@@ -487,7 +491,10 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
     if (recorded !== undefined) return recorded;
     const link = routeDirection.links[stopIndex];
     if (!link) return 0;
-    const drawn = rng.nextNonNegativeGaussian(link.meanSeconds, link.stddevSeconds);
+    const drawn = drawStream(seed, 'link', vehicleId, stopIndex).nextNonNegativeGaussian(
+      link.meanSeconds,
+      link.stddevSeconds,
+    );
     return drawn * travelTimeMultiplier(disturbances, vehicleId, stopIndex, enteredAtSeconds);
   }
 
@@ -587,10 +594,15 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       alightings = recordedAlightings;
     } else {
       const burstMultiplier = activeDemandBurst(disturbances, stop.stopId, arrivalSeconds);
-      rawBoardings = rng.nextNonNegativeCount(
+      rawBoardings = drawStream(seed, 'boardings', runtime.vehicleId, stopIndex).nextNonNegativeCount(
         (stop.demand.boardingRatePerMinute / 60) * waitWindowSeconds * burstMultiplier,
       );
-      alightings = Math.min(onboard, rng.nextNonNegativeCount(stop.demand.alightingFraction * onboard));
+      alightings = Math.min(
+        onboard,
+        drawStream(seed, 'alightings', runtime.vehicleId, stopIndex).nextNonNegativeCount(
+          stop.demand.alightingFraction * onboard,
+        ),
+      );
     }
 
     const capacityAfterAlighting = Math.max(0, routeDirection.vehicleCapacity - (onboard - alightings));
@@ -731,7 +743,12 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
 
       if (intendedHoldSeconds > 0) {
         const complianceProbability = complianceProbabilityFor(disturbances, runtime.vehicleId);
-        if (complianceProbability !== null && !rng.nextBoolean(complianceProbability)) {
+        if (
+          complianceProbability !== null &&
+          !drawStream(seed, 'compliance', runtime.vehicleId, stopIndex).nextBoolean(
+            complianceProbability,
+          )
+        ) {
           compliant = false;
           appliedHoldSeconds = 0;
         } else {
@@ -789,7 +806,7 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       lateOffered =
         recordedBoardings !== undefined
           ? 0
-          : rng.nextNonNegativeCount(
+          : drawStream(seed, 'lateBoardings', runtime.vehicleId, stopIndex).nextNonNegativeCount(
               (stop.demand.boardingRatePerMinute / 60) *
                 standingSeconds *
                 activeDemandBurst(disturbances, stop.stopId, arrivalSeconds),

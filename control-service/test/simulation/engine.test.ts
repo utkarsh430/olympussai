@@ -401,3 +401,83 @@ describe('refusals counted as people rather than as events', () => {
     }
   });
 });
+
+// ─── THE TWO ARMS OF A COMPARISON MUST RUN THE SAME DAY ──────────────────
+//
+// A trial runs one corridor twice - once controlled, once not - and the
+// difference between them is the entire output. On a single random stream
+// they share inputs only until the first hold, because the NUMBER and ORDER
+// of draws depend on what the controller did: a held bus stands longer, so
+// its late-boarder window is non-empty where the other arm's was zero, and
+// `nextNonNegativeCount` returns early without consuming a draw when its mean
+// is zero. One extra draw shifts every subsequent one.
+//
+// MEASURED before the fix, urban, 250 buses: a SINGLE ONE-SECOND HOLD on ONE
+// bus moved whole-network total passenger time by +1.88% on one seed and
+// -2.05% on another. The trial's headline effects are +0.7% to +3.0%. The
+// noise floor was the size of the signal.
+describe('a control action and the day it happens on', () => {
+  const MEASURED: RouteDirectionDefinition = {
+    ...SAMPLE_ROUTE_DIRECTION,
+    totalDistanceMeters: 5_000,
+    stops: SAMPLE_ROUTE_DIRECTION.stops.map((stop, index) => ({
+      ...stop,
+      isControlPoint: true,
+      cumulativeDistanceMeters: index * 1_000,
+    })),
+  };
+  const scenario = {
+    name: 'pairing',
+    routeDirection: MEASURED,
+    dispatches: SAMPLE_DISPATCHES,
+    disturbances: [],
+    seed: 4242,
+  };
+
+  /** One second, on one bus, at one stop - and nothing else, ever. */
+  const oneSecondOnce = (vehicleId: string): Controller => {
+    let spent = false;
+    return {
+      name: 'one-second',
+      decide: (context) => {
+        if (!spent && context.vehicleId === vehicleId && context.stopId === 'stop-4') {
+          spent = true;
+          return { holdSeconds: 1, actionType: 'two_way_hold' };
+        }
+        return { holdSeconds: 0, actionType: 'no_control' };
+      },
+    };
+  };
+
+  it('leaves every bus that is not behind the held one drawing exactly what it drew before', () => {
+    const base = simulate(scenario, noControlController).visits;
+    const nudged = simulate(scenario, oneSecondOnce('veh-3')).visits;
+
+    // veh-1 and veh-2 are ahead of veh-3 and cannot be affected by it at all,
+    // so a single shared stream is detectable here as a changed arrival.
+    const ahead = (visits: typeof base) =>
+      visits
+        .filter((v) => v.vehicleId === 'veh-1' || v.vehicleId === 'veh-2')
+        .sort((a, b) => a.vehicleId.localeCompare(b.vehicleId) || a.stopIndex - b.stopIndex)
+        .map((v) => `${v.vehicleId}@${v.stopIndex}:${v.arrivalSeconds}:${v.boardings}:${v.alightings}`);
+
+    expect(ahead(nudged)).toEqual(ahead(base));
+  });
+
+  it('changes the held bus by about the second it was held, not by a re-rolled day', () => {
+    const base = simulate(scenario, noControlController).visits;
+    const nudged = simulate(scenario, oneSecondOnce('veh-3')).visits;
+    const held = (visits: typeof base) =>
+      visits.filter((v) => v.vehicleId === 'veh-3').sort((a, b) => a.stopIndex - b.stopIndex);
+    const after = held(nudged).filter((v) => v.stopIndex > 4);
+    const before = held(base).filter((v) => v.stopIndex > 4);
+    expect(after.length).toBe(before.length);
+    for (let i = 0; i < after.length; i++) {
+      // The hold pushes it one second later and it collects one second more of
+      // queue; nothing about its link times is re-drawn.
+      const shift = after[i]!.arrivalSeconds - before[i]!.arrivalSeconds;
+      expect(shift).toBeGreaterThanOrEqual(0);
+      expect(shift).toBeLessThan(30);
+    }
+  });
+});
