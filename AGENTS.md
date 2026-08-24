@@ -133,10 +133,22 @@ input production does not have. Check it first when a law's coverage looks wrong
 
 ### Invariants the simulator must preserve
 
-- **Total passenger time is the headline, not EWT.** Excess wait counts only
-  people at stops; holding is paid for by everyone aboard, and the two routinely
-  move in opposite directions. Optimising EWT alone is how the controller
-  measured net-negative.
+- **Total passenger time is the headline, not EWT, and it means the WHOLE
+  journey.** Every second from arriving at a stop to alighting, counted once:
+  kerb wait, dwell, hold, riding. It meant waiting + hold for most of this
+  trial's life, which is the wrong half - holding is the only in-vehicle term
+  control makes worse, and the two it left out (passenger-weighted dwell, which
+  is worst in a bunch, and riding) move the other way and are comparable in size.
+  The percentage was wrong with it: dividing by a denominator that was waiting
+  time alone inflated every result, positive and negative, four- to sevenfold.
+  Read `passengerSecondsPerBoardingSavedPercent` beside it - the arms do not
+  serve identical crowds, because demand is drawn from the stop-clock each arm's
+  buses actually sweep.
+- **Report the seed spread, never a single run.** The trial's own headline is one
+  seed per scenario. Over six seeds at 250 buses/phase: urban +3.0% +/- 2.0
+  (6/6 seeds positive), suburban blind +1.3% +/- 0.8 (6/6), and inter-city and
+  suburban-aware are indistinguishable from zero with a six-point range. A single
+  `sim:fleet` number on those corridors means nothing.
 - **Nobody may vanish.** A passenger a full bus refuses stays in the queue; one
   who arrives while a bus stands at the stop boards it. Both used to be deleted
   and both deletions flattered holding - the first hid stranding, the second gave
@@ -147,7 +159,23 @@ input production does not have. Check it first when a law's coverage looks wrong
   free-flow arithmetic. A schedule the corridor cannot keep makes every bus late,
   so `max_lateness_seconds` refuses every hold and the guardrail switches the
   controller off silently. Measured: that cost 33 points of excess-wait gain.
-  `scheduleFit` in every report is the tripwire.
+  `scheduleFit` is the tripwire, and it is decided on the SHARE OF BUSES ALREADY
+  PAST THE BOUND with no control - never on the mean deviation, which booking
+  from the mean makes exactly zero and which therefore could not fire at all.
+- **The chain handed to the control laws is ranked by POSITION and carries every
+  live vehicle**, exactly as `state-estimation/ordering.ts` and
+  `headway/service.ts` build it. Ranked by dispatch order it named a leader that
+  was physically behind on up to 4.8% of decisions, and `computeGapMeters` folded
+  each into a near-whole-corridor gap. Sliced to three vehicles, `corridorPaceKmph`
+  had no moving vehicle to take a median over and 9% of pairs reported no forward
+  headway at all. Never hand the laws a neighbourhood; hand them the corridor.
+- **One second of stop-clock belongs to one bus.** Two buses stand at one stop
+  routinely - the arrival clamp enforces separation, not a berth - and each was
+  drawing its own passengers from the same seconds. Claim the standing window at
+  ARRIVAL, from the queue front, never at departure.
+- **Denied boardings are a HEADCOUNT** (`firstTimeDeniedBoardings`). One person
+  turned away by three buses is three refusal EVENTS, and the two arms repeat at
+  different rates, so an event count is not comparable across them.
 - **Excess wait is sampled at EVERY station**, not the designated holding points.
   Tying it to them made baseline EWT read 61 s with two holding points and 323 s
   with ten on the identical uncontrolled corridor.
