@@ -309,10 +309,35 @@ function isReported(vehicleId: string): boolean {
   return vehicleId !== WARMUP_VEHICLE_ID;
 }
 
-/** The bus a disturbance is aimed at: the second reported one, so the control laws have both a leader and a follower to work with. */
+/**
+ * The bus a disturbance is aimed at: the MIDDLE of the reported fleet.
+ *
+ * It has both a leader and a follower to work with, which is the requirement,
+ * and it is also somewhere the corridor is actually running. This used to take
+ * the SECOND reported bus, which met the letter of that requirement and missed
+ * its point: the second bus of the day sits in a corridor that is still
+ * filling, behind nothing but the warm-up run, at the one part of the timeline
+ * where the spacing is still exactly what the dispatcher planned. Aiming a
+ * disturbance there and then asking what the control laws did about it is
+ * asking the question at the moment there is least to answer - the enclosing
+ * comment in `buildDisturbances` has always claimed "the middle of the running
+ * fleet" while this returned index 1.
+ *
+ * MEASURED across twelve seeds of a 32-bus rehearsal on the 215 km test
+ * corridor. Aimed at the second bus, a `gps_dropout` run put that bus in a
+ * bunch - so that there was a hold for its stale feed to block - on 10 of 12
+ * seeds, and a `non_compliance` run produced a hold for its driver to refuse
+ * on 9 of 12. Aimed at the middle of the fleet, both happened on all 12.
+ *
+ * That is not a test-fixture convenience. On the seeds where nothing
+ * happened, the rehearsal reported that a dropped feed and a refusing driver
+ * had no consequence - which is a statement about where the disturbance was
+ * put, presented to a planner as a statement about the corridor.
+ */
 function disturbanceTarget(dispatches: readonly TerminalDispatchPlan[]): TerminalDispatchPlan | undefined {
   const reported = dispatches.filter((d) => isReported(d.vehicleId));
-  return reported[Math.min(1, reported.length - 1)];
+  if (reported.length === 0) return undefined;
+  return reported[Math.floor(reported.length / 2)];
 }
 
 function buildDisturbances(

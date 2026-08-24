@@ -71,6 +71,13 @@ function bunchedContext(overrides: Partial<ControllerContext> = {}): ControllerC
       follower: { vehicleId: 'SIM-02', distanceAlongRouteMeters: 10_000, speedKmph: 60 },
       leader: { vehicleId: 'SIM-01', distanceAlongRouteMeters: 12_000, speedKmph: 6 },
       trailer: { vehicleId: 'SIM-03', distanceAlongRouteMeters: 8_000, speedKmph: 6 },
+      // The chain the adapter actually ranks. Three vehicles here and no
+      // more, so this fixture keeps saying exactly what it says above.
+      corridor: [
+        { vehicleId: 'SIM-01', distanceAlongRouteMeters: 12_000, speedKmph: 6 },
+        { vehicleId: 'SIM-02', distanceAlongRouteMeters: 10_000, speedKmph: 60 },
+        { vehicleId: 'SIM-03', distanceAlongRouteMeters: 8_000, speedKmph: 6 },
+      ],
       totalDistanceMeters: 200_000,
     },
     ...overrides,
@@ -245,5 +252,99 @@ describe('deployed-control-laws rehearsal controller', () => {
 
       expect(lightDecision).toEqual(heavyDecision);
     });
+  });
+});
+
+// ─── THE PACE A STANDING BUS IS MEASURED AGAINST IS THE CORRIDOR'S ───────
+//
+// `headway/metrics.ts` turns a gap in METRES into a gap in SECONDS by
+// dividing by the pace the follower will actually cover it at. For a bus
+// standing at a stop - the only state a hold can be executed from - that is
+// `corridorPaceKmph`, the median speed of the vehicles on the corridor that
+// ARE moving. It is a property of the whole chain, and production takes it
+// over every live vehicle on the route-direction (`headway/service.ts`).
+//
+// This adapter used to hand the deployed computation a chain of exactly
+// three: leader, the deciding bus, trailer. One of those three is stationary
+// by construction, so whenever the other two were dwelling at their own stops
+// there was no moving vehicle to take a median over, the pace came back null,
+// and the pair reported NO FORWARD HEADWAY - on a corridor where a dozen
+// other buses were under way and production would have measured it without
+// difficulty. MEASURED over ten scenarios x three seeds before the fix: 9.0%
+// of urban pairs that had a leader reported a null h_fwd, and Algorithm B
+// declined 8.1% of every decision in the trial as `h_fwd_unavailable`.
+describe('the chain handed to the deployed headway computation', () => {
+  /** Leader, decider and trailer all standing at their stops; the rest of the corridor under way. */
+  function stationaryNeighbourhood(others: { vehicleId: string; distanceAlongRouteMeters: number; speedKmph: number | null }[]): ControllerContext {
+    const follower = { vehicleId: 'SIM-02', distanceAlongRouteMeters: 10_000, speedKmph: 0 };
+    const leader = { vehicleId: 'SIM-01', distanceAlongRouteMeters: 12_000, speedKmph: 0 };
+    const trailer = { vehicleId: 'SIM-03', distanceAlongRouteMeters: 8_000, speedKmph: 0 };
+    return {
+      routeDirectionId: 'rd-1',
+      stopId: 'stop-5',
+      vehicleId: 'SIM-02',
+      now: 3600,
+      leaderHeadwaySeconds: 120,
+      targetHeadwaySeconds: 900,
+      maxHoldSeconds: 90,
+      isStateStale: false,
+      onboardCount: 30,
+      kinematics: {
+        follower,
+        leader,
+        trailer,
+        corridor: [leader, follower, trailer, ...others],
+        totalDistanceMeters: 200_000,
+      },
+    };
+  }
+
+  const movingRestOfFleet = [
+    { vehicleId: 'SIM-04', distanceAlongRouteMeters: 20_000, speedKmph: 40 },
+    { vehicleId: 'SIM-05', distanceAlongRouteMeters: 30_000, speedKmph: 44 },
+    { vehicleId: 'SIM-06', distanceAlongRouteMeters: 4_000, speedKmph: 36 },
+  ];
+
+  it('measures a standing bus against the pace of the buses that are moving, wherever on the corridor they are', () => {
+    const controller = createDeployedControlLawsController({
+      policy: policy(),
+      epochMs: EPOCH_MS,
+      modelledCapacity: 52,
+    });
+    controller.decide(stationaryNeighbourhood(movingRestOfFleet));
+    const decision = controller.decisions[0];
+    expect(decision).toBeDefined();
+    // 2,000 m at the 40 km/h median of the moving buses is 180 s.
+    expect(decision!.hFwdSeconds).toBeCloseTo(180, 0);
+  });
+
+  it('reports no opinion, not a fabricated gap, when nothing on the corridor is moving', () => {
+    const controller = createDeployedControlLawsController({
+      policy: policy(),
+      epochMs: EPOCH_MS,
+      modelledCapacity: 52,
+    });
+    controller.decide(
+      stationaryNeighbourhood(
+        movingRestOfFleet.map((v) => ({ ...v, speedKmph: 0 })),
+      ),
+    );
+    expect(controller.decisions[0]?.hFwdSeconds).toBeNull();
+  });
+
+  // The whole corridor is offered, so the deployed ranking picks the pair -
+  // rather than the caller's own idea of who leads whom being taken on trust.
+  it('takes the nearest bus ahead as the leader even when the caller names a further one', () => {
+    const controller = createDeployedControlLawsController({
+      policy: policy(),
+      epochMs: EPOCH_MS,
+      modelledCapacity: 52,
+    });
+    const context = stationaryNeighbourhood([
+      ...movingRestOfFleet,
+      { vehicleId: 'SIM-07', distanceAlongRouteMeters: 10_500, speedKmph: 30 },
+    ]);
+    controller.decide(context);
+    expect(controller.decisions[0]?.leaderVehicleId).toBe('SIM-07');
   });
 });

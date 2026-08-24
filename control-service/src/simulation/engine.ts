@@ -329,9 +329,15 @@ function neighbours(
   cumulativeDistanceMeters: readonly number[],
   isVisible: (vehicleId: string) => boolean,
   selfDistanceMeters: number,
-): { leader: CorridorKinematicState | null; trailer: CorridorKinematicState | null } {
+): {
+  leader: CorridorKinematicState | null;
+  trailer: CorridorKinematicState | null;
+  /** Everyone else visible on the corridor right now - see `ControllerKinematics.corridor`. */
+  others: CorridorKinematicState[];
+} {
   let leader: CorridorKinematicState | null = null;
   let trailer: CorridorKinematicState | null = null;
+  const others: CorridorKinematicState[] = [];
 
   for (let i = 0; i < runtimes.length; i++) {
     if (i === index) continue;
@@ -340,6 +346,7 @@ function neighbours(
     if (!isVisible(runtime.vehicleId)) continue;
     const state = stateOf(runtime, atSeconds, cumulativeDistanceMeters);
     if (!state) continue;
+    others.push(state);
 
     if (state.distanceAlongRouteMeters >= selfDistanceMeters) {
       // Ahead: keep the CLOSEST one ahead, which is the leader.
@@ -355,7 +362,7 @@ function neighbours(
     }
   }
 
-  return { leader, trailer };
+  return { leader, trailer, others };
 }
 
 /**
@@ -607,7 +614,7 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
           // with an exact position and a fresh timestamp - the one thing
           // production guarantees cannot happen. The deciding vehicle's own
           // staleness was modelled; its neighbours' was not.
-          const { leader, trailer } = neighbours(
+          const { leader, trailer, others } = neighbours(
             runtimes,
             event.vehicleIndex,
             arrivalSeconds,
@@ -620,17 +627,25 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
             followerDistance,
           );
           if (leader) {
+            const follower: CorridorKinematicState = {
+              vehicleId: runtime.vehicleId,
+              distanceAlongRouteMeters: followerDistance,
+              speedKmph: realisedPaceKmph(
+                followerDistance - previousDistance,
+                arrivalSeconds - runtime.lastReleaseSeconds,
+              ),
+            };
             kinematics = {
-              follower: {
-                vehicleId: runtime.vehicleId,
-                distanceAlongRouteMeters: followerDistance,
-                speedKmph: realisedPaceKmph(
-                  followerDistance - previousDistance,
-                  arrivalSeconds - runtime.lastReleaseSeconds,
-                ),
-              },
+              follower,
               leader,
               trailer,
+              // The deciding bus is part of its own corridor. Its position
+              // here is the stop's exact distance rather than the
+              // interpolation `stateOf` would produce, which is the same
+              // value `follower` carries - a chain that disagreed with the
+              // pair row built from it would rank the deciding vehicle
+              // against a position it was never told about.
+              corridor: [follower, ...others],
               totalDistanceMeters: geometry.totalDistanceMeters,
             };
           }

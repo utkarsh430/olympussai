@@ -56,6 +56,7 @@
 //     computed. The simulator knows its own world exactly, so it reports
 //     full confidence and that exclusion path never fires.
 import { computePairHeadways, STATIONARY_SPEED_KMPH } from '../headway/metrics.js';
+import { computeLeaderFollowerOrder } from '../state-estimation/ordering.js';
 import {
   computeTerminalDispatchCandidates,
   departureHeadwaySeconds,
@@ -78,7 +79,7 @@ import type {
   SafetyRejectionReason,
 } from '../mpc/types.js';
 import type { RoutePolicyRow, HeadwayStateRow, VehicleStateRow } from '../state/store.js';
-import type { OrderedVehicle } from '../state-estimation/types.js';
+import type { VehicleOrderingInput } from '../state-estimation/types.js';
 import type {
   Controller,
   ControllerContext,
@@ -483,47 +484,47 @@ export function createDeployedControlLawsController(
     const now = new Date(epochMs + context.now * 1000);
 
     const followerId = kinematics.follower.vehicleId;
-    const leaderId = kinematics.leader.vehicleId;
-    // The vehicle behind, when the caller has one. `engine.ts` never does -
-    // see `ControllerKinematics.trailer` - so in a scenario run this stays
-    // null, h_bwd comes back null from the deployed gap computation, and
-    // two-way holding correctly declines the pair in favour of the
-    // self-equalizing fallback. That is the deployed degradation path
-    // running, not a rehearsal shortcut.
-    const trailer = kinematics.trailer ?? null;
-    const trailerId = trailer?.vehicleId ?? null;
 
-    const ordered: OrderedVehicle[] = [
-      {
-        vehicleId: leaderId,
-        routeDirectionId: context.routeDirectionId,
-        distanceAlongRouteMeters: kinematics.leader.distanceAlongRouteMeters,
-        isLowConfidence: false,
-        rank: 0,
-        leaderVehicleId: null,
-        followerVehicleId: followerId,
-      },
-      {
-        vehicleId: followerId,
-        routeDirectionId: context.routeDirectionId,
-        distanceAlongRouteMeters: kinematics.follower.distanceAlongRouteMeters,
-        isLowConfidence: false,
-        rank: 1,
-        leaderVehicleId: leaderId,
-        followerVehicleId: trailerId,
-      },
-    ];
-    if (trailer && trailerId) {
-      ordered.push({
-        vehicleId: trailerId,
-        routeDirectionId: context.routeDirectionId,
-        distanceAlongRouteMeters: trailer.distanceAlongRouteMeters,
-        isLowConfidence: false,
-        rank: 2,
-        leaderVehicleId: followerId,
-        followerVehicleId: null,
-      });
-    }
+    // ─── THE CHAIN IS RANKED BY PRODUCTION'S OWN FUNCTION ──────────────
+    //
+    // This used to hand-build a three-row `ordered` array - leader at rank 0,
+    // the deciding bus at rank 1, its trailer at rank 2 - and that was wrong
+    // in two ways at once.
+    //
+    // It ASSUMED the order rather than computing it, so any disagreement
+    // between the caller's idea of "leader" and the deployed ranking became
+    // an unlabelled fabrication rather than a mismatch anyone could see.
+    //
+    // And a chain of three is not the input production's headway computation
+    // is written against. `headway/metrics.ts#corridorPaceKmph` takes the
+    // MEDIAN SPEED OF THE MOVING VEHICLES IN THE CHAIN and uses it as the
+    // divisor for any vehicle that is standing still - which the deciding bus
+    // always is, because standing at a stop is the only state a hold can be
+    // executed from. Over a population of three, one of which is stationary
+    // by construction, the median is null whenever the other two happen to be
+    // dwelling too, and the whole pair then reports h_fwd null. MEASURED on
+    // the urban corridor: 9.0% of pairs that HAD a leader came back with no
+    // forward headway at all, and Algorithm B declined 8.1% of every decision
+    // in the trial as `h_fwd_unavailable` - a silence that belonged to the
+    // harness, not to the corridor. `headway/service.ts` ranks every live
+    // vehicle on the route-direction, about fifteen of them at any instant on
+    // these corridors, and so does `fleetTrial/detection.ts`.
+    const orderingInputs: VehicleOrderingInput[] = kinematics.corridor.map((vehicle) => ({
+      vehicleId: vehicle.vehicleId,
+      routeDirectionId: context.routeDirectionId,
+      distanceAlongRouteMeters: vehicle.distanceAlongRouteMeters,
+      // Full confidence: the simulator knows its own world exactly. See this
+      // file's header - the state estimator's low-confidence exclusion is not
+      // rehearsed, and pretending to a fractional confidence here would be
+      // inventing an uncertainty the model does not have. A vehicle whose
+      // feed has dropped is not in `corridor` at all, which is the same
+      // exclusion by a different route.
+      isLowConfidence: false,
+    }));
+    const ordered = computeLeaderFollowerOrder(orderingInputs, {
+      isLoop: false,
+      totalDistanceMeters: kinematics.totalDistanceMeters,
+    });
 
     // The deciding bus is standing at a stop - that is the only state a hold
     // can be executed from (`mpc/eligibility.ts`). Under 'vehicle_state' it
@@ -532,20 +533,13 @@ export function createDeployedControlLawsController(
     // `followerSpeedSource`.
     const followerSpeedKmph =
       followerSpeedSource === 'vehicle_state' ? 0 : kinematics.follower.speedKmph;
-    const speedByVehicleId = new Map<string, number | null>([
-      [leaderId, kinematics.leader.speedKmph],
-      [followerId, followerSpeedKmph],
-    ]);
-    if (trailerId) speedByVehicleId.set(trailerId, trailer!.speedKmph);
-    // Full confidence: the simulator knows its own world exactly. See this
-    // file's header - the state estimator's low-confidence exclusion is not
-    // rehearsed, and pretending to a fractional confidence here would be
-    // inventing an uncertainty the model does not have.
-    const confidenceByVehicleId = new Map<string, number>([
-      [leaderId, 1],
-      [followerId, 1],
-    ]);
-    if (trailerId) confidenceByVehicleId.set(trailerId, 1);
+    const speedByVehicleId = new Map<string, number | null>(
+      kinematics.corridor.map((vehicle) => [vehicle.vehicleId, vehicle.speedKmph]),
+    );
+    speedByVehicleId.set(followerId, followerSpeedKmph);
+    const confidenceByVehicleId = new Map<string, number>(
+      kinematics.corridor.map((vehicle) => [vehicle.vehicleId, 1]),
+    );
 
     const pairs = computePairHeadways(
       ordered,
@@ -556,13 +550,23 @@ export function createDeployedControlLawsController(
       policy.targetHeadwaySeconds,
     );
 
-    // One row per leader/follower link, so a three-vehicle chain yields two.
-    // The decision is about `followerId`, and the row that carries its
-    // headways is the one where it is the FOLLOWER - selecting by index
-    // would silently start deciding about the trailer the day the chain
-    // grows again.
+    // One row per leader/follower link. The decision is about `followerId`,
+    // and the row that carries its headways is the one where it is the
+    // FOLLOWER - selecting by index would silently start deciding about
+    // somebody else the moment the chain changed length.
     const pair = pairs.find((p) => p.followerVehicleId === followerId);
     if (!pair) return noAction();
+
+    // Leader and trailer as the DEPLOYED ranking names them, not as the
+    // caller guessed. They agree whenever the caller ranked by position too,
+    // and when they do not, the deployed answer is the one the laws are about
+    // to be scored against.
+    const leaderId = pair.leaderVehicleId;
+    const selfRank = ordered.find((v) => v.vehicleId === followerId);
+    const trailerId = selfRank?.followerVehicleId ?? null;
+    const byVehicleId = new Map(kinematics.corridor.map((v) => [v.vehicleId, v]));
+    const leaderState = byVehicleId.get(leaderId) ?? kinematics.leader;
+    const trailer = trailerId ? (byVehicleId.get(trailerId) ?? null) : null;
 
     const headwayStates: HeadwayStateRow[] = [
       {
@@ -626,7 +630,7 @@ export function createDeployedControlLawsController(
     // The neighbours, when the caller supplied the geometry to place them. See
     // `corridorStops` for the law this was silencing.
     if (corridorStops) {
-      vehicleStates.set(leaderId, neighbourState(kinematics.leader, context.routeDirectionId, nowIso));
+      vehicleStates.set(leaderId, neighbourState(leaderState, context.routeDirectionId, nowIso));
       if (trailer && trailerId) {
         vehicleStates.set(trailerId, neighbourState(trailer, context.routeDirectionId, nowIso));
       }

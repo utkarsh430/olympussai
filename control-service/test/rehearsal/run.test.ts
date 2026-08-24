@@ -120,7 +120,14 @@ describe('runRehearsal', () => {
     const base = corridor();
     return { ...base, policy: { ...base.policy, warningThresholdRatio: 1 } };
   };
-  const CROWDED = { ...DEFAULT_MODELLED_INPUTS, vehicleCount: 16, travelTimeVariation: 0.45 };
+  // Sized so the two tests below actually get the thing they are about.
+  // MEASURED over twelve seeds: at 16 buses and 0.45 variation a hold existed
+  // for the stale feed to block on 11 of 12 and for the driver to refuse on 8
+  // of 12, so each test was a coin flip dressed as an assertion - and each in
+  // turn failed on an unrelated model fix that merely reshuffled which seed
+  // was which. At 32 and 0.60, with the disturbance aimed at the middle of
+  // the fleet (`disturbanceTarget`), both happen on all twelve.
+  const CROWDED = { ...DEFAULT_MODELLED_INPUTS, vehicleCount: 32, travelTimeVariation: 0.6 };
 
   it('refuses to hold a vehicle whose feed has dropped out, and shows the guardrail that refused', () => {
     const result = runRehearsal(proposingCorridor(), { ...CROWDED, disturbance: 'gps_dropout' });

@@ -245,6 +245,38 @@ export interface ControllerKinematics {
    * the deployed fallback running for the deployed reason.
    */
   trailer?: CorridorKinematicState | null;
+  /**
+   * EVERY vehicle on the corridor at this instant that anyone can see,
+   * including the deciding one, in no particular order.
+   *
+   * ─── WHY THE WHOLE CORRIDOR AND NOT JUST THE THREE ──────────────────
+   *
+   * `headway/metrics.ts` does not measure a pair in isolation. A gap in
+   * METRES becomes a gap in SECONDS by dividing by the pace the follower
+   * will actually cover it at, and for a bus standing at a stop - the only
+   * state a hold can be executed from - that pace is `corridorPaceKmph`,
+   * the MEDIAN SPEED OF THE VEHICLES ON THE CORRIDOR THAT ARE MOVING. It is
+   * a property of the whole chain, not of the pair.
+   *
+   * A controller handed only {leader, follower, trailer} is handed a
+   * population of three to take that median over, one of which (the deciding
+   * bus) is stationary by construction. If the other two happen to be
+   * dwelling at their own stops as well, there is no moving vehicle at all,
+   * the pace is null, and the headway comes back null - "no opinion" - for a
+   * pair the deployed system would have measured without difficulty, because
+   * production takes the median over every live vehicle on the
+   * route-direction (`headway/service.ts`, ~fifteen buses at any instant on
+   * these corridors). MEASURED: 9.0% of urban pairs with a leader reported a
+   * null h_fwd for exactly this reason, and Algorithm B declined 8.1% of all
+   * decisions as `h_fwd_unavailable`.
+   *
+   * So the engine hands over the chain rather than a slice of it, and the
+   * adapter ranks it with production's own `computeLeaderFollowerOrder`
+   * instead of assuming an order. Vehicles nobody can see are already
+   * excluded, the same exclusion production's state estimator applies before
+   * any headway is computed.
+   */
+  corridor: readonly CorridorKinematicState[];
   totalDistanceMeters: number;
 }
 
