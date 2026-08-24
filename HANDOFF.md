@@ -369,6 +369,18 @@ reason, and `two_way_covers_pair` moved after eligibility where
   per headway = rate x H*/60`), so the ratio that decides it is invariant. Demand
   is not the lever here; sigma_leg/H* = 0.19 is. Do not re-fit the inter-city
   demand expecting a control result.
+- **The laws act on a zero-lag headway; production's is up to a sweep old.**
+  `headway/service.ts` writes `headway_states` every 60 s and the decision
+  cycle solves against it up to 90 s later, so a deployed law reads a gap
+  measured before the bus reached the stop. The adapter computes it at the
+  decision instant. SIZED (sampling the corridor state 60 s apart, ten
+  scenarios): h_fwd moves a mean of 34 s on urban (9.6% of H\*) and 24 s on
+  inter-city (1.3%), and crosses `isWorthActingOn`'s bar on **5.0% of urban
+  pairs and 0.6% of inter-city ones**. Real, and the same order as the action
+  budget above. Not built, because modelling it properly retires
+  `followerSpeedSource` - with a genuine sweep snapshot there is no
+  speed-reporting range left to choose, you get what the sweep saw. Worth doing
+  if urban's +3.0% ever has to survive a tighter argument than it does today.
 - **Neighbour confidence is cruder than production's.** The adapter marks
   leader/trailer as fully confident and freshly observed unless a `gps_dropout`
   disturbance covers them. Production has a continuous confidence model and a

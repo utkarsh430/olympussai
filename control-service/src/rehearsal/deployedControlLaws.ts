@@ -50,6 +50,15 @@
 //     has nothing to bite on - `selectActions` is called with a cap of one,
 //     which is the correct projection of the deployed rule onto a
 //     single-vehicle decision, not an approximation of it.
+//   * THE INFORMATION DELAY. Production's laws read a `headway_states` row
+//     written by a 60 s sweep and solved against up to 90 s later, so the gap
+//     a deployed law acts on was measured before the bus reached the stop.
+//     This computes it at the decision instant. SIZED by sampling the corridor
+//     state 60 s apart across ten scenarios: h_fwd moves a mean of 34 s on the
+//     urban corridor (9.6% of H*) and 24 s on the inter-city one (1.3%), and
+//     crosses the mid-route action bar on 5.0% and 0.6% of pairs respectively.
+//     A controller on fresher data does better, so this flatters - by about
+//     that much.
 //   * THE STATE ESTIMATOR. Production derives distance-along-route by map-
 //     matching a GPS fix and filtering it, and excludes low-confidence
 //     vehicles from the leader/follower chain before any headway is
