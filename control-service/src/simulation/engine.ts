@@ -93,18 +93,66 @@ function corridorGeometry(
   return { cumulativeDistanceMeters, totalDistanceMeters: total };
 }
 
-function activeDemandBurst(
+/**
+ * Demand-weighted seconds of clock over `[fromSeconds, toSeconds)` at this
+ * stop: the integral of the burst multiplier, not its value at one instant.
+ *
+ * ─── A WINDOW IS NOT AN INSTANT ──────────────────────────────────────────
+ *
+ * A bus draws its boardings from `rate x window`, and that window reaches
+ * back to wherever the queue front is - one headway or more. Reading the
+ * multiplier at the ARRIVAL instant and applying it to the whole window,
+ * which is what this did, invents passengers at the leading edge of a burst
+ * and deletes them at the trailing one.
+ *
+ * MEASURED on the urban corridor, a x9 surge running 11,580-12,120 s: the bus
+ * arriving at 11,841 s had an 811 s window of which 261 s was inside the
+ * surge, and was offered a mean of 145.9 passengers against a correct 58.0 -
+ * it then denied 115 people who mostly did not exist. The bus arriving at
+ * 12,402 s had a 963 s window of which 540 s was inside the surge, and was
+ * offered 19.3 against a correct 105.7 - annihilating the crowd the surge had
+ * actually left standing. Across the run, 6-16% of that stop's demand was
+ * wrong, and the two ARMS were wrong by different amounts (-304 to +478
+ * passengers), which puts the error straight into the contrast.
+ *
+ * Integrated piecewise so overlapping bursts still compound, which is what
+ * `cascade` needs.
+ */
+function demandWeightedSeconds(
   disturbances: Disturbance[],
   stopId: string,
-  atSeconds: number,
+  fromSeconds: number,
+  toSeconds: number,
 ): number {
-  let multiplier = 1;
-  for (const d of disturbances) {
-    if (d.type === 'demand_burst' && d.stopId === stopId && atSeconds >= d.startSeconds && atSeconds <= d.endSeconds) {
-      multiplier *= d.multiplier;
-    }
+  if (toSeconds <= fromSeconds) return 0;
+  const bursts = disturbances.filter(
+    (d): d is Extract<Disturbance, { type: 'demand_burst' }> =>
+      d.type === 'demand_burst' &&
+      d.stopId === stopId &&
+      d.endSeconds > fromSeconds &&
+      d.startSeconds < toSeconds,
+  );
+  if (bursts.length === 0) return toSeconds - fromSeconds;
+
+  const edges = new Set<number>([fromSeconds, toSeconds]);
+  for (const burst of bursts) {
+    if (burst.startSeconds > fromSeconds && burst.startSeconds < toSeconds) edges.add(burst.startSeconds);
+    if (burst.endSeconds > fromSeconds && burst.endSeconds < toSeconds) edges.add(burst.endSeconds);
   }
-  return multiplier;
+  const sorted = [...edges].sort((a, b) => a - b);
+
+  let weighted = 0;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const from = sorted[i]!;
+    const to = sorted[i + 1]!;
+    const middle = (from + to) / 2;
+    let multiplier = 1;
+    for (const burst of bursts) {
+      if (middle >= burst.startSeconds && middle <= burst.endSeconds) multiplier *= burst.multiplier;
+    }
+    weighted += (to - from) * multiplier;
+  }
+  return weighted;
 }
 
 function isMissedTrip(disturbances: Disturbance[], vehicleId: string): boolean {
@@ -136,24 +184,54 @@ function travelTimeMultiplier(
   vehicleId: string,
   stopIndex: number,
   enteredAtSeconds: number,
+  baseSeconds: number,
 ): number {
+  // Per-VEHICLE slowdowns first: they set the pace this bus would run the leg
+  // at, which is what decides how much of a congestion window it sits in.
   let multiplier = 1;
   for (const d of disturbances) {
-    if (d.type === 'slow_vehicle') {
-      if (d.vehicleId !== vehicleId) continue;
-      if (stopIndex < (d.fromStopIndex ?? 0)) continue;
-      if (d.toStopIndex !== undefined && stopIndex > d.toStopIndex) continue;
-      multiplier *= d.multiplier;
-      continue;
-    }
-    if (d.type === 'link_slowdown') {
-      // Judged on the instant the vehicle ENTERS the link - see the variant's
-      // own comment in types.ts for why a partial traversal cannot be slowed.
-      if (enteredAtSeconds < d.startSeconds || enteredAtSeconds > d.endSeconds) continue;
-      if (stopIndex < (d.fromStopIndex ?? 0)) continue;
-      if (d.toStopIndex !== undefined && stopIndex > d.toStopIndex) continue;
-      multiplier *= d.multiplier;
-    }
+    if (d.type !== 'slow_vehicle') continue;
+    if (d.vehicleId !== vehicleId) continue;
+    if (stopIndex < (d.fromStopIndex ?? 0)) continue;
+    if (d.toStopIndex !== undefined && stopIndex > d.toStopIndex) continue;
+    multiplier *= d.multiplier;
+  }
+
+  // ─── A WINDOW SLOWS THE PART OF THE TRAVERSE INSIDE IT ─────────────────
+  //
+  // This used to be judged on the ENTRY INSTANT alone: a bus entering one
+  // second inside the window ran the whole 44-minute leg at x1.9, and one
+  // entering a second earlier ran all of it at x1. Only the CONTROLLED arm
+  // has holds, and a hold is exactly what moves a bus across that boundary.
+  //
+  // MEASURED on inter-city `traffic_shock`, three seeds: the entry rule
+  // over-applied the slowdown by 15-29% against a traverse-overlap model,
+  // and - the part that matters - the excess it invented differed BETWEEN THE
+  // ARMS by 5,211 / -343 / 7,245 travel-seconds. At about forty-four
+  // passengers aboard that is +63.7 h / -4.2 h / +88.6 h charged against the
+  // controlled arm, on measured effects of +1,006.9 h, +400.6 h and -314.8 h.
+  // On one seed the artefact was 28% of the reported loss, on the scenario
+  // this trial names as the hardest case for the laws.
+  //
+  // The share is taken against the leg the bus would have run at its own
+  // pace, not against the slowed one - a single iteration of a fixed point.
+  // A bus slowed by the window sits in it slightly longer than that, so this
+  // still understates a little; it is bounded by the window and no longer
+  // depends on which side of an instant the bus happened to arrive.
+  const vehicleLegSeconds = baseSeconds * multiplier;
+  if (vehicleLegSeconds <= 0) return multiplier;
+  for (const d of disturbances) {
+    if (d.type !== 'link_slowdown') continue;
+    if (stopIndex < (d.fromStopIndex ?? 0)) continue;
+    if (d.toStopIndex !== undefined && stopIndex > d.toStopIndex) continue;
+    const overlapSeconds = Math.max(
+      0,
+      Math.min(enteredAtSeconds + vehicleLegSeconds, d.endSeconds) -
+        Math.max(enteredAtSeconds, d.startSeconds),
+    );
+    if (overlapSeconds <= 0) continue;
+    const share = Math.min(1, overlapSeconds / vehicleLegSeconds);
+    multiplier *= 1 + (d.multiplier - 1) * share;
   }
   return multiplier;
 }
@@ -495,7 +573,7 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       link.meanSeconds,
       link.stddevSeconds,
     );
-    return drawn * travelTimeMultiplier(disturbances, vehicleId, stopIndex, enteredAtSeconds);
+    return drawn * travelTimeMultiplier(disturbances, vehicleId, stopIndex, enteredAtSeconds, drawn);
   }
 
   function beginTransit(runtime: VehicleRuntime, vehicleIndex: number, stopIndex: number, fromSeconds: number): void {
@@ -593,9 +671,16 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       rawBoardings = recordedBoardings;
       alightings = recordedAlightings;
     } else {
-      const burstMultiplier = activeDemandBurst(disturbances, stop.stopId, arrivalSeconds);
+      // The whole accumulation window, weighted by whatever surge covered each
+      // part of it - never the multiplier at the arrival instant.
       rawBoardings = drawStream(seed, 'boardings', runtime.vehicleId, stopIndex).nextNonNegativeCount(
-        (stop.demand.boardingRatePerMinute / 60) * waitWindowSeconds * burstMultiplier,
+        (stop.demand.boardingRatePerMinute / 60) *
+          demandWeightedSeconds(
+            disturbances,
+            stop.stopId,
+            arrivalSeconds - waitWindowSeconds,
+            arrivalSeconds,
+          ),
       );
       alightings = Math.min(
         onboard,
@@ -808,8 +893,12 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
           ? 0
           : drawStream(seed, 'lateBoardings', runtime.vehicleId, stopIndex).nextNonNegativeCount(
               (stop.demand.boardingRatePerMinute / 60) *
-                standingSeconds *
-                activeDemandBurst(disturbances, stop.stopId, arrivalSeconds),
+                demandWeightedSeconds(
+                  disturbances,
+                  stop.stopId,
+                  standingFromSeconds,
+                  departureBeforeLateBoarders,
+                ),
             );
       const roomLeft = Math.max(
         0,

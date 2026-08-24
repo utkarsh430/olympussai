@@ -410,12 +410,19 @@ describe('a whole trial', () => {
     expect(report.notExercised.length).toBeGreaterThan(0);
   });
 
+  // Drawn on the HEADCOUNT of people refused, not on the count of refusal
+  // events: a passenger three full buses turn away is three events and one
+  // person, and `boardings` counts a person once. This restated the rule with
+  // the event count and passed only while the two fell the same side of the
+  // bar.
   it('flags a saturated arm rather than reporting its wait figures as usable', () => {
     for (const phase of report.phases) {
       for (const arm of [phase.controlled, phase.uncontrolled]) {
-        const offered = arm.passengers.boardings + arm.passengers.deniedBoardings;
-        const expected = offered > 0 && arm.passengers.deniedBoardings / offered > 0.2;
-        expect(arm.spacing.saturated).toBe(expected);
+        const refused = arm.spacing.firstTimeDeniedBoardings;
+        const offered = arm.spacing.totalBoardings + refused;
+        expect(arm.spacing.saturated).toBe(offered > 0 && refused / offered > 0.2);
+        // ...and the headcount can never exceed the event count that contains it.
+        expect(refused).toBeLessThanOrEqual(arm.spacing.deniedBoardings);
       }
     }
   });

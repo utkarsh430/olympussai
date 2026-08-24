@@ -481,3 +481,83 @@ describe('a control action and the day it happens on', () => {
     }
   });
 });
+
+// ─── A DISTURBANCE MUST NOT DEPEND ON WHICH SIDE OF AN INSTANT A BUS IS ──
+describe('disturbances applied over a window rather than at an instant', () => {
+  const MEASURED: RouteDirectionDefinition = {
+    ...SAMPLE_ROUTE_DIRECTION,
+    totalDistanceMeters: 5_000,
+    stops: SAMPLE_ROUTE_DIRECTION.stops.map((stop, index) => ({
+      ...stop,
+      isControlPoint: true,
+      cumulativeDistanceMeters: index * 1_000,
+    })),
+  };
+  const run = (disturbances: ScenarioConfig['disturbances']) =>
+    simulate(
+      { name: 'window', routeDirection: MEASURED, dispatches: SAMPLE_DISPATCHES, disturbances, seed: 77 },
+      noControlController,
+    ).visits;
+
+  // A surge that covers only the tail of a bus's accumulation window must
+  // scale only that tail. Judged at the arrival instant it scaled the whole
+  // window, inventing passengers who had queued before the surge began.
+  it('scales only the part of an accumulation window the surge actually covers', () => {
+    const base = run([]);
+    const target = base.find((v) => v.stopIndex === 3 && v.waitWindowSeconds > 60);
+    expect(target).toBeDefined();
+    const arrival = target!.arrivalSeconds;
+    const stopId = target!.stopId;
+    // Opens a third of the way through the window and runs past the arrival,
+    // so an instant-sampled multiplier would apply to all of it.
+    const tail: ScenarioConfig['disturbances'] = [
+      {
+        type: 'demand_burst',
+        stopId,
+        startSeconds: arrival - target!.waitWindowSeconds / 3,
+        endSeconds: arrival + 600,
+        multiplier: 10,
+      },
+    ];
+    const whole: ScenarioConfig['disturbances'] = [
+      { type: 'demand_burst', stopId, startSeconds: 0, endSeconds: arrival + 600, multiplier: 10 },
+    ];
+    // Offered, not boarded: this bus fills up, so `boardings` saturates at the
+    // seat count and would report no difference at all.
+    const offeredAt = (visits: typeof base) => {
+      const v = visits.find((x) => x.stopIndex === 3 && x.arrivalSeconds === arrival);
+      return v ? v.boardings + v.deniedBoardings : -1;
+    };
+
+    const tailOffered = offeredAt(run(tail));
+    const wholeOffered = offeredAt(run(whole));
+    const plain = offeredAt(base);
+    // A surge over a third of the window has to land strictly between no surge
+    // at all and a surge over the whole of it.
+    expect(tailOffered).toBeGreaterThan(plain);
+    expect(tailOffered).toBeLessThan(wholeOffered);
+  });
+
+  // A congestion window that covers a sliver of a leg must cost a sliver of
+  // the delay. Judged on the entry instant it cost the whole leg's worth, and
+  // only the controlled arm has holds that move a bus across that boundary.
+  it('slows the share of a traverse inside a congestion window, not the whole leg', () => {
+    const base = run([]);
+    const arrivalAt = (visits: typeof base, vehicleId: string, stopIndex: number) =>
+      visits.find((v) => v.vehicleId === vehicleId && v.stopIndex === stopIndex)!.arrivalSeconds;
+    const departure = base.find((v) => v.vehicleId === 'veh-2' && v.stopIndex === 2)!.departureSeconds;
+    const legSeconds = arrivalAt(base, 'veh-2', 3) - departure;
+    expect(legSeconds).toBeGreaterThan(60);
+
+    const sliver = run([
+      { type: 'link_slowdown', startSeconds: departure, endSeconds: departure + legSeconds / 4, multiplier: 3, fromStopIndex: 3, toStopIndex: 3 },
+    ]);
+    const whole = run([
+      { type: 'link_slowdown', startSeconds: departure, endSeconds: departure + legSeconds * 10, multiplier: 3, fromStopIndex: 3, toStopIndex: 3 },
+    ]);
+    const sliverDelay = arrivalAt(sliver, 'veh-2', 3) - arrivalAt(base, 'veh-2', 3);
+    const wholeDelay = arrivalAt(whole, 'veh-2', 3) - arrivalAt(base, 'veh-2', 3);
+    expect(sliverDelay).toBeGreaterThan(0);
+    expect(sliverDelay).toBeLessThan(wholeDelay);
+  });
+});

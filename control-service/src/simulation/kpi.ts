@@ -13,10 +13,15 @@ import { computeDispersion } from '../lib/dispersion.js';
 import type { KpiSummary, StopVisitRecord } from './types.js';
 
 /**
- * Headway samples: for each control-point stop, the gap between
- * consecutive vehicles' arrivals at that stop, in dispatch order (the
- * simulator's no-overtake assumption guarantees dispatch order == arrival
- * order at every stop, so consecutive-in-list is consecutive-in-time).
+ * Headway samples: for each control-point stop, the gap between consecutive
+ * vehicles' ARRIVALS at that stop, sorted by arrival time.
+ *
+ * Sorted, not taken in dispatch order. This used to say the simulator's
+ * no-overtake assumption guaranteed the two were the same; it does not. The
+ * arrival clamp in `engine.ts` enforces a minimum SEPARATION between arrivals,
+ * not an ORDER, so a bus whose leader is standing through a long dwell or a
+ * hold passes it and keeps the lead. The code below was already sorting and
+ * was therefore right; the comment was the one a reader would have trusted.
  */
 export function computeHeadwaySamples(
   visits: StopVisitRecord[],

@@ -66,10 +66,18 @@ export interface RouteDirectionDefinition {
   bunchedThresholdRatio: number;
   maxHoldSeconds: number;
   /**
-   * Minimum time separation (seconds) enforced between two vehicles
-   * arriving at the same stop, modeling a no-overtake corridor: vehicles
-   * keep their terminal-dispatch order for the whole trip (single-lane /
-   * no-overtake-segment simplification, blueprint 11.1 "Operations" row).
+   * Minimum time separation (seconds) enforced between two vehicles arriving
+   * at the same stop (single-lane / no-overtake-segment simplification,
+   * blueprint 11.1 "Operations" row).
+   *
+   * SEPARATION, NOT ORDER. This used to claim vehicles "keep their
+   * terminal-dispatch order for the whole trip", and they do not: a bus whose
+   * leader is standing through a long dwell or a hold passes it and keeps the
+   * lead, and the clamp then holds the leader behind. Everything that needs
+   * corridor order therefore derives it from POSITION - `engine.ts#neighbours`
+   * ranks the chain by distance the way `state-estimation/ordering.ts` does,
+   * and `kpi.ts` sorts headway samples by arrival time. Do not reintroduce
+   * anything that treats dispatch index as corridor order.
    */
   minSeparationSeconds: number;
   /**
@@ -129,13 +137,22 @@ export type Disturbance =
    * leaves a hole after it - the pattern a control law finds hardest,
    * because there is no single culprit to hold behind.
    *
-   * MESOSCOPIC SIMPLIFICATION, stated rather than hidden: the multiplier is
-   * applied in full to any link a vehicle ENTERS during the window, and not
-   * at all to one it entered before. This engine samples a link travel TIME
-   * and never a speed profile, so it has no way to slow the second half of a
-   * traversal that was already under way. On a corridor whose links are long
-   * relative to the window that makes the disturbance coarser than reality;
-   * it does not make it milder or harsher on average.
+   * MESOSCOPIC SIMPLIFICATION, stated rather than hidden: the engine samples a
+   * link travel TIME and never a speed profile, so the multiplier is applied to
+   * the SHARE OF THE TRAVERSE that falls inside the window, at the pace the bus
+   * would otherwise have run - a single iteration of a fixed point, since a bus
+   * the window slows sits in it slightly longer than that. It understates a
+   * little, and the error is bounded by the window.
+   *
+   * It used to be applied in full to any link a vehicle ENTERED during the
+   * window and not at all to one it entered a second earlier, on the reasoning
+   * that this "does not make it milder or harsher on average". It does. Only
+   * the CONTROLLED arm has holds, and a hold is exactly what moves a bus across
+   * that boundary - so the rule was a coin flip correlated with the treatment.
+   * MEASURED on inter-city `traffic_shock`: it over-applied the slowdown by
+   * 15-29%, and the excess differed between the arms by up to 7,245
+   * travel-seconds, worth 88.6 h charged against the controlled arm on a run
+   * whose whole measured effect was -314.8 h.
    */
   | {
       type: 'link_slowdown';
