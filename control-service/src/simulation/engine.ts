@@ -845,8 +845,23 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       // Everyone who got on: those waiting when it pulled in, plus those who
       // arrived while it was standing there.
       boardings: boardedTotal,
+      // ─── OLDEST FIRST, SO A TRUNCATED QUEUE WAITED LONGER ────────────
+      //
+      // Passengers arrive uniformly across a window of W seconds and board
+      // oldest first, so a bus that takes the fraction `f` of them takes the
+      // ones who arrived in the first `fW` - whose mean wait is `W(1 - f/2)`,
+      // not `W/2`. The two agree only when the bus takes everybody.
+      //
+      // Charged at `W/2` regardless, a bus that took 4 of 10 was billed
+      // 4 x 180 s on a 360 s window where the truth is 4 x 288 s. The people
+      // it left behind are charged correctly by the NEXT bus, so the error
+      // lives entirely on the visit that truncated the queue - and a bus
+      // truncates a queue because it is full, which the uncontrolled arm does
+      // more often. Same arithmetic for the standing window, where the ones
+      // who fit are again the ones who have been there longest.
       boardingWaitPassengerSeconds:
-        actualBoardings * (waitWindowSeconds / 2) + lateBoardings * (standingSeconds / 2),
+        actualBoardings * waitWindowSeconds * (1 - servedFraction / 2) +
+        lateBoardings * standingSeconds * (1 - standingServedFraction / 2),
       // Everybody aboard when this bus would have pulled away, times the
       // hold. The late boarders are excluded deliberately - see the field.
       onboardDelayPassengerSeconds: appliedHoldSeconds * Math.max(0, onboardAfter - lateBoardings),

@@ -655,6 +655,15 @@ function contrast(controlled: ArmReport, uncontrolled: ArmReport): ArmContrast {
         (uncontrolled.punctuality.meanJourneySeconds ?? 0)
       : null;
 
+  // Per BOARDING, so a difference in how many passengers each arm served
+  // cannot masquerade as a difference in what happened to them.
+  const perBoarding = (arm: ArmReport): number | null =>
+    arm.passengers.boardings > 0
+      ? arm.passengers.totalPassengerSeconds / arm.passengers.boardings
+      : null;
+  const uncontrolledPerBoarding = perBoarding(uncontrolled);
+  const controlledPerBoarding = perBoarding(controlled);
+
   const waitSecondsSaved =
     uncontrolled.passengers.waitPassengerSeconds - controlled.passengers.waitPassengerSeconds;
   const passengerSecondsSaved =
@@ -670,6 +679,10 @@ function contrast(controlled: ArmReport, uncontrolled: ArmReport): ArmContrast {
     passengerSecondsSavedPercent:
       uncontrolled.passengers.totalPassengerSeconds > 0
         ? (passengerSecondsSaved / uncontrolled.passengers.totalPassengerSeconds) * 100
+        : null,
+    passengerSecondsPerBoardingSavedPercent:
+      uncontrolledPerBoarding !== null && controlledPerBoarding !== null && uncontrolledPerBoarding > 0
+        ? ((uncontrolledPerBoarding - controlledPerBoarding) / uncontrolledPerBoarding) * 100
         : null,
     ewtImprovementSeconds: improvement(uncontrolled.spacing.ewtSeconds, controlled.spacing.ewtSeconds),
     ewtImprovementPercent: percent(uncontrolled.spacing.ewtSeconds, controlled.spacing.ewtSeconds),

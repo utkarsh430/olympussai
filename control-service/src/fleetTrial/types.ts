@@ -230,6 +230,26 @@ export interface ArmContrast {
   /** Passenger-seconds of onboard delay the holds cost. Always >= 0. */
   onboardDelayImposed: number;
   /**
+   * Total passenger time per BOARDING, saved, as a percentage.
+   *
+   * ─── WHY A SECOND DENOMINATOR ────────────────────────────────────────
+   *
+   * The two arms do not serve the same passengers. Demand is not an exogenous
+   * stream here: a stop's queue is drawn from the clock its buses actually
+   * sweep, so the arm whose buses stand longer and finish later has more
+   * passengers created for it. MEASURED: the controlled arm sweeps ~0.8% more
+   * stop-clock and serves 0.4-1.3% more people, and `passengerSecondsSaved`
+   * is an absolute sum - so part of what reads as a cost of control is simply
+   * control carrying more passengers.
+   *
+   * That is worth something and worth reporting, which is why the absolute
+   * figure stays. But it is not the same question as "is a passenger better
+   * off", and on the corridors where the totals are close the two answers can
+   * differ in SIGN. Per boarding is the population-controlled comparison and
+   * belongs beside the total, not instead of it.
+   */
+  passengerSecondsPerBoardingSavedPercent: number | null;
+  /**
    * Net passenger-seconds of IN-VEHICLE time removed: dwell, riding and holds
    * together. Positive means control gave time back to the people aboard.
    *

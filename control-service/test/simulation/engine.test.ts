@@ -286,3 +286,67 @@ describe('the onboard-delay a hold imposes', () => {
     }
   });
 });
+
+// ─── A QUEUE A BUS COULD NOT CLEAR WAITED LONGER THAN HALF THE WINDOW ────
+//
+// Passengers arrive uniformly across the gap since the last bus and board
+// OLDEST FIRST, so a bus that takes the fraction f of them takes the ones who
+// arrived first - mean wait W(1 - f/2), not W/2. The two agree only when the
+// bus takes everybody. Charged at W/2 regardless, a bus that took 4 of 10 was
+// billed 4 x 180 s on a 360 s window where the truth is 4 x 288 s.
+//
+// The direction matters: a bus truncates a queue because it is FULL, and a
+// bunched service fills buses more often than an evenly spaced one. So the
+// undercharge fell mostly on the uncontrolled arm.
+describe('the wait charged when a bus cannot take everybody', () => {
+  const CROWDED: RouteDirectionDefinition = {
+    ...SAMPLE_ROUTE_DIRECTION,
+    // Small enough that the corridor's own demand overruns it.
+    vehicleCapacity: 8,
+    stops: SAMPLE_ROUTE_DIRECTION.stops.map((stop) => ({
+      ...stop,
+      demand: { ...stop.demand, boardingRatePerMinute: stop.demand.boardingRatePerMinute * 4 },
+    })),
+  };
+
+  const visits = simulate(
+    { name: 'crowded', routeDirection: CROWDED, dispatches: SAMPLE_DISPATCHES, disturbances: [], seed: 5 },
+    noControlController,
+  ).visits;
+
+  it('charges more than half the window to a bus that left people standing', () => {
+    // A bus that turns anybody away takes nobody during its dwell either, so
+    // every boarder here came off the queue and the comparison is clean.
+    const truncated = visits.filter(
+      (v) => v.deniedBoardings > 0 && v.boardings > 0 && v.waitWindowSeconds > 0,
+    );
+    expect(truncated.length).toBeGreaterThan(0);
+    for (const visit of truncated) {
+      expect(visit.boardingWaitPassengerSeconds).toBeGreaterThan(
+        (visit.boardings * visit.waitWindowSeconds) / 2,
+      );
+      // ...and never more than the whole window each, which is the wait of
+      // somebody who arrived the instant the previous bus pulled out.
+      expect(visit.boardingWaitPassengerSeconds).toBeLessThanOrEqual(
+        visit.boardings * visit.waitWindowSeconds,
+      );
+    }
+  });
+
+  it('charges exactly half the window when the bus took the whole queue', () => {
+    // The uncrowded corridor, where a bus can clear what it finds - the
+    // capacity-bound one above never does, which is what it is for.
+    const roomy = simulate(baseConfig(), noControlController).visits;
+    const cleared = roomy.filter(
+      (v) => v.deniedBoardings === 0 && v.boardings > 0 && v.waitWindowSeconds > 0,
+    );
+    expect(cleared.length).toBeGreaterThan(0);
+    for (const visit of cleared) {
+      // Late boarders are charged their own, shorter window, so this is a
+      // bound rather than an equality wherever anybody walked on.
+      expect(visit.boardingWaitPassengerSeconds).toBeLessThanOrEqual(
+        (visit.boardings * visit.waitWindowSeconds) / 2 + 1e-6,
+      );
+    }
+  });
+});

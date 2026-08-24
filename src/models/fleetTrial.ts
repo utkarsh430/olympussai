@@ -100,6 +100,7 @@ const armContrastSchema = z.object({
   additionalDeniedBoardings: z.number(),
   passengerSecondsSaved: z.number(),
   passengerSecondsSavedPercent: z.number().nullable(),
+  passengerSecondsPerBoardingSavedPercent: z.number().nullable(),
   waitSecondsSaved: z.number(),
   onboardDelayImposed: z.number(),
   inVehicleSecondsSaved: z.number(),
