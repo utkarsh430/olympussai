@@ -568,11 +568,36 @@ export interface KpiSummary {
   totalBoardings: number;
 }
 
+/**
+ * A stop's queue as the run left it: how far its arrivals had been carried,
+ * and the rate they were arriving at.
+ *
+ * ─── THE PEOPLE STILL STANDING WHEN THE LAST BUS HAS GONE ────────────────
+ *
+ * `passengerOutcome` charges waiting time to people who BOARD. Anyone still
+ * queueing when the corridor empties never boards and is therefore charged
+ * nothing - and the two arms do not empty at the same moment, because holding
+ * makes buses finish later. The controlled arm sweeps more of its own tail and
+ * leaves a different amount behind, so the difference between the arms carries
+ * a boundary artefact nobody could see. Exposed here so a trial can charge the
+ * residual explicitly, over a window common to both arms.
+ */
+export interface StopQueueResidual {
+  stopIndex: number;
+  stopId: string;
+  /** How far into the clock this stop's arrivals had been carried when the run ended. Null if no bus ever called. */
+  clearedSeconds: number | null;
+  /** Arrivals per second at this stop, so a caller can turn a span of clock into people. */
+  arrivalRatePerSecond: number;
+}
+
 export interface SimulationResult {
   scenarioName: string;
   controllerName: string;
   visits: StopVisitRecord[];
   kpis: KpiSummary;
+  /** Per stop, the queue the run left standing. See `StopQueueResidual`. */
+  stopQueues: StopQueueResidual[];
 }
 
 export interface HistoricalDayFixture {

@@ -62,6 +62,7 @@ import type {
   KpiSummary,
   RouteDirectionDefinition,
   ScenarioConfig,
+  StopQueueResidual,
   StopVisitRecord,
   SimulationResult,
 } from './types.js';
@@ -1053,7 +1054,17 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
     routeDirection.bunchedThresholdRatio,
   );
 
-  return { scenarioName: config.name, controllerName: controller.name, visits, kpis };
+  // What each stop was still holding when the corridor emptied. See
+  // `StopQueueResidual` - the two arms do not empty at the same instant, so a
+  // trial has to be able to charge this rather than let it fall off the end.
+  const stopQueues: StopQueueResidual[] = routeDirection.stops.map((stop, stopIndex) => ({
+    stopIndex,
+    stopId: stop.stopId,
+    clearedSeconds: queueClearedSeconds[stopIndex] ?? null,
+    arrivalRatePerSecond: stop.demand.boardingRatePerMinute / 60,
+  }));
+
+  return { scenarioName: config.name, controllerName: controller.name, visits, kpis, stopQueues };
 }
 
 function validateRouteDirection(routeDirection: RouteDirectionDefinition): void {
