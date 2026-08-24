@@ -108,6 +108,36 @@ The hold bill is not the whole in-vehicle story and never was: dwell gives back
 about half of it. On inter-city the same table reads +67 h of dwell against
 −689 h of holding, which is why that corridor cannot make the trade pay.
 
+## Two things the per-scenario numbers say that the corridor totals hide
+
+**`slow_bus` is the worst scenario on all three corridors, and it is the one the
+theory says a hold is unambiguously right for.** Net passenger time: urban −0.2%
+(5 of 12 phase-seeds positive), suburban −0.2% (6/12), inter-city −1.8% (4/12) —
+against excess-wait improvements of 16–32%. The controller is not doing the wrong
+thing: measured over three seeds, holds on the slow bus itself land almost
+entirely at the TERMINAL, before it becomes slow, and **0 of 32 urban holds and 1
+of 22 inter-city ones fall inside its slow zone**. It holds the followers, which
+is right, and the trade still does not pay.
+
+The mechanism is that holding cannot fix a leader. The slow bus stays slow, keeps
+collecting a growing queue, and fills up; its followers are held, so they are late
+too, and the pair arrives together anyway with more people aboard. Urban is the
+scenario's one positive: **per passenger it reads +1.0% even where the absolute
+total reads −0.2%**, because control carries more people. A corridor with a
+persistently slow vehicle needs something holding cannot supply — an overtake, a
+short-turn, or a replacement.
+
+**Inter-city runs close to its seats on half its scenarios, which is a regime the
+headline cannot respond in.** Uncontrolled denial share, as a headcount of people
+refused: `peak_load` 17.5%, `station_surge` 16.8%, `cascade` 15.9%, `traffic_shock`
+14.3%, with individual seeds at 26.2%, 21.6% and 21.1% — over the 20% saturation
+bar. Where waiting time is bounded by how many seats exist rather than by how they
+are spaced, a working controller correctly reports "no effect", and that is part
+of why inter-city measures zero. It is not only that σ_leg/H\* = 0.19 puts the
+corridor above the controllable band. Read `saturated` on the arm before reading
+its KPIs, and treat the inter-city demand as a rig parameter worth re-fitting
+rather than as a property of inter-city operation.
+
 ## What the trial found, and what was changed
 
 Each of these was a real defect in deployed code, found by the trial and fixed

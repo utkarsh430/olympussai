@@ -348,6 +348,20 @@ reason, and `two_way_covers_pair` moved after eligibility where
   **3.6% of urban holds, 0% of inter-city ones**, and the cooldown 0% of both —
   real, small, and inside the seed noise. Not worth a command ledger; worth not
   claiming the per-vehicle projection is exact.
+- **`slow_bus` loses on every corridor, and it is not a bug.** Net −0.2% urban,
+  −0.2% suburban, −1.8% inter-city, against 16–32% excess-wait gains. Checked:
+  the controller holds the FOLLOWERS, not the culprit - 0 of 32 urban holds on
+  the slow bus fall inside its slow zone, the rest are terminal-dispatch before
+  it becomes slow. Holding cannot fix a leader. Urban still reads +1.0% PER
+  PASSENGER there. If you want this scenario to win, the lever is an overtake or
+  a short-turn, not a gain.
+- **Inter-city is near its seats on half its scenarios.** Uncontrolled denial
+  share (headcount): peak_load 17.5%, station_surge 16.8%, cascade 15.9%,
+  traffic_shock 14.3%, with seeds crossing the 20% saturation bar at 26.2%.
+  Where waiting is bounded by seats rather than spacing, a working controller
+  reports "no effect" - so part of the inter-city zero is the RIG, not the laws.
+  Re-fitting the inter-city demand is probably worth more than any control change
+  on that corridor.
 - **Neighbour confidence is cruder than production's.** The adapter marks
   leader/trailer as fully confident and freshly observed unless a `gps_dropout`
   disturbance covers them. Production has a continuous confidence model and a
