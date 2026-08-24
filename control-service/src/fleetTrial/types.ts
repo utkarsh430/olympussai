@@ -334,6 +334,35 @@ export interface PhaseReport {
   controlled: ArmReport;
   uncontrolled: ArmReport;
   contrast: ArmContrast;
+  /**
+   * How the phase's own scenarios agreed about the sign of `contrast`.
+   *
+   * The pooled figure above is one number over ten different days on ten
+   * different kinds of bad day, and it can be carried entirely by one of
+   * them. This says whether it was: the count that came out positive, and the
+   * worst and best of them.
+   *
+   * It is NOT an error bar - the scenarios are different conditions, not
+   * replicates of one, and one trial is one draw of each. It answers a
+   * different and equally necessary question: is this result broad, or is it
+   * one scenario?
+   *
+   * On a single urban run it reads 8 of 10 positive, worst `slow_bus` -1.1%,
+   * best `driver_non_compliance` +14.3% - a spread of fifteen points behind a
+   * pooled +5.3%. Inter-city's occupancy-aware phase on the same seed reads 5
+   * of 10 behind a pooled +0.4%, which is the honest shape of a corridor whose
+   * number is indistinguishable from zero. Across six seeds `slow_bus` is the
+   * worst scenario on all three corridors and the only one whose mean is
+   * negative; see docs/FLEET_TRIAL.md for why that is not a defect.
+   */
+  scenarioAgreement: {
+    positive: number;
+    count: number;
+    worstPercent: number | null;
+    worstScenarioId: string | null;
+    bestPercent: number | null;
+    bestScenarioId: string | null;
+  };
   lawCoverage: LawCoverage[];
   /** Holds served, split by the station they were served at. Where on the route the work happens. */
   holdSecondsByStation: { stopId: string; name: string; sequence: number; holdSeconds: number; holdCount: number }[];

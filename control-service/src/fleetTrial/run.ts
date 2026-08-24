@@ -1139,6 +1139,36 @@ function mergeIncidentSummaries(summaries: readonly IncidentSummary[]): Incident
   };
 }
 
+/**
+ * How the phase's own scenarios agreed about the sign of its pooled contrast.
+ *
+ * NOT an error bar - see `PhaseReport.scenarioAgreement`. Ten scenarios are ten
+ * different kinds of bad day, not ten replicates, so this answers "is the
+ * result broad or is it one scenario" rather than "how noisy is it".
+ */
+function scenarioAgreement(reports: readonly ScenarioReport[]): PhaseReport['scenarioAgreement'] {
+  let worst: ScenarioReport | null = null;
+  let best: ScenarioReport | null = null;
+  let positive = 0;
+  let count = 0;
+  for (const report of reports) {
+    const value = report.contrast.passengerSecondsSavedPercent;
+    if (value === null) continue;
+    count++;
+    if (value > 0) positive++;
+    if (worst === null || value < (worst.contrast.passengerSecondsSavedPercent ?? 0)) worst = report;
+    if (best === null || value > (best.contrast.passengerSecondsSavedPercent ?? 0)) best = report;
+  }
+  return {
+    positive,
+    count,
+    worstPercent: worst?.contrast.passengerSecondsSavedPercent ?? null,
+    worstScenarioId: worst?.id ?? null,
+    bestPercent: best?.contrast.passengerSecondsSavedPercent ?? null,
+    bestScenarioId: best?.id ?? null,
+  };
+}
+
 /** Every hard-safety rejection across a phase, counted by reason. */
 function safetyRejections(runs: readonly ScenarioRun[]): { reason: string; count: number }[] {
   const counts = new Map<string, number>();
@@ -1892,6 +1922,7 @@ export function runFleetTrial(
       controlled: controlledArm,
       uncontrolled: uncontrolledArm,
       contrast: contrast(controlledArm, uncontrolledArm),
+      scenarioAgreement: scenarioAgreement(runs.map((r) => r.report)),
       lawCoverage: coverageOf(runs.flatMap((r) => [...r.decisions])),
       safetyRejections: safetyRejections(runs),
       ...holds,

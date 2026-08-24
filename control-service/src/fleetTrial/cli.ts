@@ -89,6 +89,14 @@ function renderContrast(c: ArmContrast): string[] {
   ];
 }
 
+function renderAgreement(phase: PhaseReport): string {
+  const a = phase.scenarioAgreement;
+  if (a.count === 0) return '    scenarios        -';
+  const worst = a.worstPercent === null ? '-' : `${a.worstScenarioId} ${a.worstPercent.toFixed(1)}%`;
+  const best = a.bestPercent === null ? '-' : `${a.bestScenarioId} ${a.bestPercent.toFixed(1)}%`;
+  return `    scenarios        ${a.positive} of ${a.count} positive   worst ${worst}, best ${best}`;
+}
+
 function renderPhase(phase: PhaseReport): string[] {
   const lines = [
     '',
@@ -96,6 +104,7 @@ function renderPhase(phase: PhaseReport): string[] {
     renderArm('no control', phase.uncontrolled),
     renderArm('controlled', phase.controlled),
     ...renderContrast(phase.contrast),
+    renderAgreement(phase),
     `    alighting-only   ${phase.controlled.punctuality.alightingOnlyActions} instructions, ${phase.controlled.punctuality.alightingOnlyPassengersPassed} passengers left for the bus behind`,
     '',
     '    law coverage (decisions where the law produced a candidate):',

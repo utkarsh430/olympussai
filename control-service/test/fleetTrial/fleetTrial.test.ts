@@ -346,6 +346,26 @@ describe('a whole trial', () => {
     }
   });
 
+  // A pooled figure over ten different kinds of bad day can be carried
+  // entirely by one of them, and the headline says nothing about that.
+  it('says how many of its own scenarios agreed with the sign it reports', () => {
+    for (const phase of report.phases) {
+      const a = phase.scenarioAgreement;
+      expect(a.count).toBe(phase.scenarios.length);
+      expect(a.positive).toBeLessThanOrEqual(a.count);
+      const nets = phase.scenarios
+        .map((s) => s.contrast.passengerSecondsSavedPercent)
+        .filter((v): v is number => v !== null);
+      expect(a.positive).toBe(nets.filter((v) => v > 0).length);
+      expect(a.worstPercent).toBe(Math.min(...nets));
+      expect(a.bestPercent).toBe(Math.max(...nets));
+      // The named scenario has to be the one carrying that number, or the line
+      // points a reader at the wrong place to look.
+      const worst = phase.scenarios.find((s) => s.id === a.worstScenarioId);
+      expect(worst?.contrast.passengerSecondsSavedPercent).toBe(a.worstPercent);
+    }
+  });
+
   // The two bars a reader is shown have to differ by the net, or the chart is
   // telling them the verdict is something other than what paid for it.
   it('reports an in-vehicle change that closes the books against waiting saved', () => {

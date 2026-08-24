@@ -191,6 +191,14 @@ const phaseReportSchema = z.object({
   controlled: armReportSchema,
   uncontrolled: armReportSchema,
   contrast: armContrastSchema,
+  scenarioAgreement: z.object({
+    positive: z.number(),
+    count: z.number(),
+    worstPercent: z.number().nullable(),
+    worstScenarioId: z.string().nullable(),
+    bestPercent: z.number().nullable(),
+    bestScenarioId: z.string().nullable(),
+  }),
   lawCoverage: z.array(lawCoverageSchema),
   holdSecondsByStation: z.array(
     z.object({
