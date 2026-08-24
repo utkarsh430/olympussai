@@ -316,6 +316,35 @@ describe('a whole trial', () => {
     }
   });
 
+  // ─── THE SCHEDULE TRIPWIRE HAS TO BE ABLE TO FIRE ──────────────────────
+  //
+  // `timetableFromRun` books each stop's MEAN arrival across the uncontrolled
+  // arm, so measuring that arm's MEAN deviation against it is arithmetically
+  // zero - exactly, on every corridor and every seed. The tripwire CLAUDE.md
+  // names as the guard against this trial's largest documented silent failure
+  // was reporting `achievable` by construction rather than by measurement.
+  //
+  // What it is for is the punctuality guardrail: if the schedule is one nobody
+  // can keep, EVERY bus is late and EVERY hold is a lateness breach, and the
+  // controller is switched off for a reason about the timetable. The quantity
+  // that says so is the share of buses already past the bound with no control
+  // at all - a spread, which booking the mean does not flatten.
+  it('decides the schedule band on something the timetable derivation does not zero', () => {
+    // The mean really is zero, and this pins it so nobody re-bases the band on
+    // it: a future reader seeing 0 should find this test, not re-derive it.
+    expect(Math.abs(report.scheduleFit.meanUncontrolledDeviationSeconds ?? 0)).toBeLessThan(1e-6);
+
+    const share = report.scheduleFit.shareBeyondLatenessBound;
+    expect(share).not.toBeNull();
+    // Strictly inside the range: a degenerate 0 or 1 would mean the statistic
+    // is as uninformative as the mean it replaced.
+    expect(share!).toBeGreaterThan(0);
+    expect(share!).toBeLessThan(1);
+    for (const phase of report.phases) {
+      expect(phase.uncontrolled.punctuality.shareBeyondLatenessBound).not.toBeNull();
+    }
+  });
+
   // The two bars a reader is shown have to differ by the net, or the chart is
   // telling them the verdict is something other than what paid for it.
   it('reports an in-vehicle change that closes the books against waiting saved', () => {

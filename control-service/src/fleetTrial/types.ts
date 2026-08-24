@@ -99,6 +99,16 @@ export interface PunctualityKpis {
   p95ScheduleDeviationSeconds: number | null;
   /** Share of buses arriving within `ON_TIME_WINDOW_SECONDS` of their booked time. */
   onTimeRate: number | null;
+  /**
+   * Share of buses already later than `max_lateness_seconds` against their
+   * booked time, before any hold. Null when the corridor sets no bound.
+   *
+   * This is what `scheduleFit` is actually asking. A bound that bites on a few
+   * genuinely late buses is the guardrail working; one that has already
+   * refused most of the fleet before the controller has done anything has
+   * switched the controller off for a reason about the timetable.
+   */
+  shareBeyondLatenessBound: number | null;
 }
 
 export interface IncidentSummary {
@@ -506,6 +516,15 @@ export interface FleetTrialReport {
     meanUncontrolledDeviationSeconds: number | null;
     /** As a fraction of the target headway, which is the scale that decides whether the bound bites. */
     deviationRatio: number | null;
+    /**
+     * Share of uncontrolled buses already past `max_lateness_seconds`, which
+     * is what the band is actually decided on. Null when no bound is set.
+     *
+     * The mean above cannot decide it: the trial books the timetable from the
+     * uncontrolled arm's own mean arrival, so that arm's mean deviation
+     * against it is exactly zero and always was.
+     */
+    shareBeyondLatenessBound: number | null;
     band: 'tight' | 'achievable' | 'slack';
     note: string;
   };

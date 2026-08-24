@@ -52,6 +52,7 @@ const punctualityKpisSchema = z.object({
   meanScheduleDeviationSeconds: z.number().nullable(),
   p95ScheduleDeviationSeconds: z.number().nullable(),
   onTimeRate: z.number().nullable(),
+  shareBeyondLatenessBound: z.number().nullable(),
   alightingOnlyActions: z.number(),
   alightingOnlyPassengersPassed: z.number(),
 });
@@ -273,6 +274,7 @@ export const fleetTrialReportSchema = z.object({
   scheduleFit: z.object({
     meanUncontrolledDeviationSeconds: z.number().nullable(),
     deviationRatio: z.number().nullable(),
+    shareBeyondLatenessBound: z.number().nullable(),
     band: z.enum(['tight', 'achievable', 'slack']),
     note: z.string(),
   }),

@@ -128,7 +128,13 @@ function renderReport(report: FleetTrialReport): string {
     `  controllability: one leg's running time varies by ${report.controllability.legTimeSigmaSeconds.toFixed(0)}s, ` +
       `${(report.controllability.disturbanceRatio * 100).toFixed(0)}% of the headway [${report.controllability.band}]`,
     `    ${report.controllability.note}`,
-    `  schedule fit: ${report.scheduleFit.meanUncontrolledDeviationSeconds === null ? 'no timetable' : `${report.scheduleFit.meanUncontrolledDeviationSeconds.toFixed(0)}s mean deviation with no control [${report.scheduleFit.band}]`}`,
+    `  schedule fit: ${
+      report.scheduleFit.shareBeyondLatenessBound === null
+        ? report.scheduleFit.meanUncontrolledDeviationSeconds === null
+          ? 'no timetable'
+          : `no lateness bound [${report.scheduleFit.band}]`
+        : `${(report.scheduleFit.shareBeyondLatenessBound * 100).toFixed(0)}% of buses already past the lateness bound with no control [${report.scheduleFit.band}]`
+    }`,
     `    ${report.scheduleFit.note}`,
   ];
   for (const phase of report.phases) lines.push(...renderPhase(phase));

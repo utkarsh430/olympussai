@@ -561,7 +561,10 @@ function journeysOf(
   return journeys;
 }
 
-function punctualityKpis(journeys: readonly JourneyRecord[]): PunctualityKpis {
+function punctualityKpis(
+  journeys: readonly JourneyRecord[],
+  maxLatenessSeconds: number | null,
+): PunctualityKpis {
   const durations = journeys.map((j) => j.journeySeconds).sort((a, b) => a - b);
   const totalHoldSeconds = journeys.reduce((acc, j) => acc + j.holdSeconds, 0);
   const deviations = journeys
@@ -576,6 +579,12 @@ function punctualityKpis(journeys: readonly JourneyRecord[]): PunctualityKpis {
       deviations.length > 0
         ? deviations.filter((v) => Math.abs(v) <= ON_TIME_WINDOW_SECONDS).length / deviations.length
         : null,
+    // How many buses the punctuality guardrail would already refuse to hold
+    // before anybody has held anything. See `scheduleFit`.
+    shareBeyondLatenessBound:
+      maxLatenessSeconds === null || deviations.length === 0
+        ? null
+        : deviations.filter((v) => v > maxLatenessSeconds).length / deviations.length,
     vehiclesCompleted: journeys.length,
     meanJourneySeconds:
       durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : null,
@@ -894,6 +903,7 @@ function runScenario(args: {
     spacing: spacingKpis(controlled.visits, corridor),
     punctuality: punctualityKpis(
       journeysOf(controlled.visits, config.dispatches, finalStopIndex, timetable),
+      corridor.policy.maxLatenessSeconds,
     ),
     passengers: passengerOutcome(controlled.visits),
     incidents: summarizeIncidents(detectedControlled.incidents),
@@ -902,6 +912,7 @@ function runScenario(args: {
     spacing: spacingKpis(uncontrolled.visits, corridor),
     punctuality: punctualityKpis(
       journeysOf(uncontrolled.visits, config.dispatches, finalStopIndex, timetable),
+      corridor.policy.maxLatenessSeconds,
     ),
     passengers: passengerOutcome(uncontrolled.visits),
     incidents: summarizeIncidents(detectedUncontrolled.incidents),
@@ -1021,7 +1032,7 @@ function poolArm(
       totalBoardings,
       saturated: isSaturated(deniedBoardings, totalBoardings),
     },
-    punctuality: punctualityKpis(journeys),
+    punctuality: punctualityKpis(journeys, corridor.policy.maxLatenessSeconds),
     passengers: pooledPassengers,
     incidents: merged,
   };
@@ -1549,6 +1560,30 @@ function assessControllability(
 /**
  * Whether the booked timetable is one the corridor can keep. See
  * `FleetTrialReport.scheduleFit` for what happens when it is not.
+ *
+ * ─── THE MEAN CANNOT ANSWER THIS, AND USED TO BE ASKED ───────────────────
+ *
+ * `timetableFromRun` books each stop's MEAN arrival offset across the
+ * uncontrolled arm. Measuring that same arm's MEAN deviation against it is
+ * then arithmetically zero - not approximately, exactly: a real run returns
+ * -1.05e-12 s and a ratio of -2.9e-15, and it does so on every corridor,
+ * every seed and every phase. So the tripwire CLAUDE.md names as the guard
+ * against the single largest silent failure this trial has ever had could
+ * not fire, and reported `achievable` by construction rather than by
+ * measurement.
+ *
+ * What the tripwire is actually for is the punctuality guardrail:
+ * `mpc/safety.ts` refuses a hold that would push a bus past
+ * `max_lateness_seconds`, and if the schedule is one nobody can keep then
+ * EVERY bus is late and EVERY hold is a breach - the controller is switched
+ * off for a reason about the timetable, silently. The quantity that says so
+ * is the SHARE OF BUSES ALREADY PAST THE BOUND WITH NO CONTROL AT ALL. The
+ * derivation does not zero it, because it is about the spread rather than
+ * the centre: booking the mean leaves half the fleet late by construction and
+ * says nothing about how late.
+ *
+ * The mean is still reported, because a caller who supplies its own timetable
+ * (rather than letting the trial book one) gets a real number there.
  */
 function assessScheduleFit(
   phases: readonly PhaseReport[],
@@ -1564,6 +1599,7 @@ function assessScheduleFit(
     return {
       meanUncontrolledDeviationSeconds: null,
       deviationRatio: null,
+      shareBeyondLatenessBound: null,
       band: 'achievable',
       note: 'No timetable was booked, so there is nothing to check the schedule against.',
     };
@@ -1573,22 +1609,46 @@ function assessScheduleFit(
   const headway = corridor.policy.targetHeadwaySeconds;
   const ratio = headway > 0 ? mean / headway : 0;
 
-  // A tenth of a headway either way. Below that the bias is smaller than the
-  // day-to-day spread and the bound bites on individual buses rather than on
-  // all of them, which is what it is for.
-  const band = ratio > 0.1 ? ('tight' as const) : ratio < -0.1 ? ('slack' as const) : ('achievable' as const);
+  const shares = phases
+    .map((phase) => phase.uncontrolled.punctuality.shareBeyondLatenessBound)
+    .filter((value): value is number => value !== null);
+  const share = shares.length > 0 ? shares.reduce((a, b) => a + b, 0) / shares.length : null;
+
+  // Half the fleet, which is where a bound stops discriminating. A timetable
+  // booked from the mean leaves about half the buses late by construction and
+  // half early, so a HEALTHY corridor sits just under this - what it must not
+  // do is sit near 1, where the guardrail has refused everybody before the
+  // controller has proposed anything.
+  const BOUND_REFUSES_MOST = 0.75;
+
+  const band =
+    share !== null && share > BOUND_REFUSES_MOST
+      ? ('tight' as const)
+      : ratio > 0.1
+        ? ('tight' as const)
+        : ratio < -0.1
+          ? ('slack' as const)
+          : ('achievable' as const);
+
+  const sharePhrase =
+    share === null
+      ? 'No lateness bound is configured, so nothing is refused on punctuality grounds.'
+      : `${(share * 100).toFixed(0)}% of buses are already past the ${maxLatenessSeconds}s lateness bound with no control at all.`;
 
   const note =
     band === 'tight'
-      ? `Buses run ${Math.round(mean)}s late against this timetable with no control at all, so it is tighter than the corridor can keep. ` +
-        (maxLatenessSeconds === null
-          ? 'No lateness bound is configured, so the controller still acts - but every hold is being added to a bus that is already behind.'
-          : `With a ${maxLatenessSeconds}s lateness bound, most holds will be refused for a reason that is about the schedule rather than the corridor. Fix the timetable before reading the control result.`)
+      ? `${sharePhrase} The punctuality guardrail will refuse most holds for a reason that is about the schedule rather than the corridor. Fix the timetable before reading the control result.`
       : band === 'slack'
         ? `Buses arrive ${Math.round(-mean)}s EARLY against this timetable with no control at all, so it is looser than the corridor needs. Holds then look free to the punctuality guardrail and the controller will spend more of them than it should.`
-        : 'Buses keep this timetable without help, so the punctuality guardrail is judging individual late buses rather than refusing everything.';
+        : `${sharePhrase} The guardrail is judging individual late buses rather than refusing everything.`;
 
-  return { meanUncontrolledDeviationSeconds: mean, deviationRatio: ratio, band, note };
+  return {
+    meanUncontrolledDeviationSeconds: mean,
+    deviationRatio: ratio,
+    shareBeyondLatenessBound: share,
+    band,
+    note,
+  };
 }
 
 // ─── Provenance ──────────────────────────────────────────────────────────
