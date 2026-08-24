@@ -438,7 +438,10 @@ function passengerOutcome(visits: readonly StopVisitRecord[]): PassengerOutcome 
     // Straight from the engine, which is the only thing that knows the two
     // boarding populations apart - see `StopVisitRecord.boardingWaitPassengerSeconds`.
     waitPassengerSeconds += visit.boardingWaitPassengerSeconds;
-    onboardDelayPassengerSeconds += visit.appliedHoldSeconds * visit.onboardAfter;
+    // From the engine, like the waiting half above and for the same reason:
+    // `appliedHoldSeconds x onboardAfter` charges the people who walked onto
+    // the bus DURING the hold both for turning up then and for the hold.
+    onboardDelayPassengerSeconds += visit.onboardDelayPassengerSeconds;
     boardings += visit.boardings;
     deniedBoardings += visit.deniedBoardings;
   }

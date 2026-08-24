@@ -223,3 +223,66 @@ describe('the leader/follower chain offered to a controller', () => {
     }
   });
 });
+
+// ─── A HOLD DELAYS THE PEOPLE IT ACTUALLY DELAYED ────────────────────────
+//
+// A hold delays everyone who was aboard when the bus would otherwise have
+// pulled away. It does NOT delay the people who walk on while it is standing
+// there: they were not aboard at that moment, and the time they spend on the
+// stationary bus is already the whole of what `boardingWaitPassengerSeconds`
+// charges them.
+//
+// The trial reconstructed this as `appliedHoldSeconds x onboardAfter`, which
+// charges that last group twice - once for turning up during the hold, once
+// for the hold itself. Holds exist only in the CONTROLLED arm, so the error
+// had one sign: it inflated the price of control in the headline metric.
+describe('the onboard-delay a hold imposes', () => {
+  const HELD_ROUTE: RouteDirectionDefinition = {
+    ...SAMPLE_ROUTE_DIRECTION,
+    maxHoldSeconds: 300,
+    stops: SAMPLE_ROUTE_DIRECTION.stops.map((stop, index) => ({
+      ...stop,
+      isControlPoint: true,
+      cumulativeDistanceMeters: index * 1_000,
+    })),
+    totalDistanceMeters: 5_000,
+  };
+  const holdEveryone: Controller = {
+    name: 'hold-everyone',
+    decide: () => ({ holdSeconds: 300, actionType: 'two_way_hold' }),
+  };
+
+  const visits = simulate(
+    {
+      name: 'held',
+      routeDirection: HELD_ROUTE,
+      dispatches: [
+        { vehicleId: 'veh-1', scheduledDispatchSeconds: 0 },
+        { vehicleId: 'veh-2', scheduledDispatchSeconds: 600 },
+      ],
+      disturbances: [],
+      seed: 11,
+    },
+    holdEveryone,
+  ).visits;
+
+  it('never charges more than everyone aboard, and charges less wherever somebody boarded during the hold', () => {
+    const held = visits.filter((v) => v.appliedHoldSeconds > 0);
+    expect(held.length).toBeGreaterThan(0);
+    for (const visit of held) {
+      expect(visit.onboardDelayPassengerSeconds).toBeLessThanOrEqual(
+        visit.appliedHoldSeconds * visit.onboardAfter,
+      );
+    }
+    // The fixture has to contain the case, or this proves nothing.
+    expect(
+      held.some((v) => v.onboardDelayPassengerSeconds < v.appliedHoldSeconds * v.onboardAfter),
+    ).toBe(true);
+  });
+
+  it('charges nothing at a stop where no hold was served', () => {
+    for (const visit of visits.filter((v) => v.appliedHoldSeconds === 0)) {
+      expect(visit.onboardDelayPassengerSeconds).toBe(0);
+    }
+  });
+});

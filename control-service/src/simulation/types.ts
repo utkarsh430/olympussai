@@ -440,6 +440,24 @@ export interface StopVisitRecord {
    * charges the second group the first group's wait.
    */
   boardingWaitPassengerSeconds: number;
+  /**
+   * Passenger-seconds of delay a HOLD here imposed on people aboard.
+   *
+   * Computed by the engine for the same reason as the wait above: only the
+   * engine knows the populations apart. A hold delays the people who were
+   * already aboard and the people who boarded from the queue when the bus
+   * pulled in - all of whom would have been moving by now had it not been
+   * held. It does NOT delay the people who walked on WHILE it stood there:
+   * they were not aboard when it would have left, and the time they spend on
+   * the stationary bus is already the whole of what
+   * `boardingWaitPassengerSeconds` charges them.
+   *
+   * Reconstructing this as `appliedHoldSeconds x onboardAfter` - which is
+   * what the trial did - charges that last group twice, once for turning up
+   * during the hold and once for the hold itself. It is an error in one
+   * direction only, because only the CONTROLLED arm has holds.
+   */
+  onboardDelayPassengerSeconds: number;
   alightings: number;
   deniedBoardings: number;
   onboardAfter: number;

@@ -273,6 +273,7 @@ function provisionalVisit(runtime: VehicleRuntime): StopVisitRecord {
     boardings: 0,
     boardingLimitedPassengers: 0,
     boardingWaitPassengerSeconds: 0,
+    onboardDelayPassengerSeconds: 0,
     alightings: 0,
     deniedBoardings: 0,
     onboardAfter: runtime.onboard,
@@ -845,6 +846,9 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       boardings: boardedTotal,
       boardingWaitPassengerSeconds:
         actualBoardings * (waitWindowSeconds / 2) + lateBoardings * (standingSeconds / 2),
+      // Everybody aboard when this bus would have pulled away, times the
+      // hold. The late boarders are excluded deliberately - see the field.
+      onboardDelayPassengerSeconds: appliedHoldSeconds * Math.max(0, onboardAfter - lateBoardings),
       boardingLimitedPassengers: boardingLimited,
       alightings,
       deniedBoardings,

@@ -55,8 +55,10 @@
 //     vehicles from the leader/follower chain before any headway is
 //     computed. The simulator knows its own world exactly, so it reports
 //     full confidence and that exclusion path never fires.
-import { computePairHeadways, STATIONARY_SPEED_KMPH } from '../headway/metrics.js';
+import { computePairHeadways } from '../headway/metrics.js';
 import { computeLeaderFollowerOrder } from '../state-estimation/ordering.js';
+import { classifyStopState } from '../state-estimation/stopStateClassifier.js';
+import type { NearestStop } from '../state-estimation/stopStateClassifier.js';
 import {
   computeTerminalDispatchCandidates,
   departureHeadwaySeconds,
@@ -67,6 +69,7 @@ import { computeSelfEqualizingCandidates } from '../mpc/selfEqualizing.js';
 import { computeCostOptimalCandidates } from '../mpc/costOptimalHold.js';
 import { computeBoardingLimitCandidates, isBoardingLimitCandidate } from '../mpc/boardingLimit.js';
 import { canExecuteHold } from '../mpc/eligibility.js';
+import { isWorthActingOn } from '../mpc/actionThreshold.js';
 import { applyHardSafetyFilter, DEFAULT_STATE_STALE_SECONDS } from '../mpc/safety.js';
 import { computePredictiveAdvisory } from '../mpc/occupancyMpc.js';
 import { selectActions, isRankedMidRouteCandidate } from '../mpc/solver.js';
@@ -135,6 +138,22 @@ export type DeclineReason =
   | 'h_fwd_unavailable'
   | 'h_bwd_unavailable'
   | 'two_way_covers_pair'
+  /**
+   * The pair's forward headway had not fallen far enough to be worth an
+   * instruction - `mpc/actionThreshold.ts#isWorthActingOn`, the corridor's own
+   * `warning_threshold_ratio`.
+   *
+   * This ladder had no entry for it at all, and the gate it names refuses
+   * roughly four fifths of everything the mid-route laws would otherwise
+   * propose. Every one of those decisions was being reported as
+   * `not_eligible_to_hold` (untrue - the bus was standing at a stop and could
+   * have executed a hold) or as `no_hold_indicated` (untrue - the law returned
+   * before it ever computed one). So the single largest decline population in
+   * the trial was invisible, and the coverage table - which CLAUDE.md says to
+   * read BEFORE the KPI table - was attributing it to two guards that had not
+   * fired.
+   */
+  | 'not_deviant_enough'
   | 'not_eligible_to_hold'
   /** Alighting-only acts on the LEADER, and the leader was not at a stop it could act at. */
   | 'leader_not_at_stop'
@@ -335,7 +354,16 @@ const STALE_READING_AGE_SECONDS = DEFAULT_STATE_STALE_SECONDS + 1;
  * the two modules must agree about which buses are moving, or one of them will
  * measure a pace against a vehicle the other calls stopped.
  */
-const NEIGHBOUR_MOVING_SPEED_KMPH = STATIONARY_SPEED_KMPH;
+/**
+ * Stop geofence radius for a corridor that carries no measured one.
+ *
+ * 30 m, the `route_direction_stops.geofence_radius_meters` column default in
+ * `db/migrations/20260805190000__core_data_model.sql`. The trial's corridors
+ * are arithmetic and have no surveyed geofences, so the schema's own default
+ * is the honest stand-in; naming it here keeps the number findable rather than
+ * letting a stop-state classification rest on an unlabelled literal.
+ */
+const DEFAULT_GEOFENCE_RADIUS_METERS = 30;
 
 function isoAt(epochMs: number, seconds: number): string {
   return new Date(epochMs + seconds * 1000).toISOString();
@@ -367,39 +395,62 @@ export function createDeployedControlLawsController(
   const alightingOnlySelectable = options.alightingOnlySelectable ?? false;
 
   /**
-   * The station a neighbour is standing at, or null when it is between them.
+   * The station nearest a neighbour's position, as production's state
+   * estimator finds it (`state-estimation/estimator.ts#findNearestStop`).
    *
-   * A vehicle the engine reports at zero pace is dwelling, and on this corridor
-   * a dwelling bus is at a station by construction - the engine only ever stops
-   * a vehicle at one. The nearest station at or behind its position is the one
-   * it is standing at; a tolerance is not needed because the position is
-   * interpolated from that station's own recorded visit.
+   * NEAREST, not "the last one at or behind", which is what this used to do:
+   * combined with a 5 km/h threshold it reported a bus whose link average
+   * happened to dip below walking pace as standing at whatever station it had
+   * last passed, possibly kilometres back, and `mpc/eligibility.ts` then
+   * declared it able to execute an instruction there.
    */
-  const stationAt = (distanceAlongRouteMeters: number): string | null => {
-    if (!corridorStops) return null;
-    let found: string | null = null;
+  const nearestStopTo = (distanceAlongRouteMeters: number): NearestStop | null => {
+    if (!corridorStops || corridorStops.length === 0) return null;
+    let nearest = corridorStops[0]!;
+    let best = Math.abs(distanceAlongRouteMeters - nearest.cumulativeDistanceMeters);
     for (const stop of corridorStops) {
-      if (stop.cumulativeDistanceMeters <= distanceAlongRouteMeters + 1) found = stop.stopId;
-      else break;
+      const delta = Math.abs(distanceAlongRouteMeters - stop.cumulativeDistanceMeters);
+      if (delta < best) {
+        nearest = stop;
+        best = delta;
+      }
     }
-    return found;
+    return {
+      stopId: nearest.stopId,
+      cumulativeDistanceMeters: nearest.cumulativeDistanceMeters,
+      geofenceRadiusMeters: DEFAULT_GEOFENCE_RADIUS_METERS,
+    };
   };
 
   /**
    * A neighbour's state as `vehicle_states` would carry it.
    *
-   * Stationary means `dwelling_at_stop` with the station named, which is the
-   * state a hold or a boarding limit can be executed from. Moving means
-   * `departed_stop` with no current stop, which is the state in which nothing
-   * can be asked of it - the same distinction `mpc/eligibility.ts` draws.
+   * The stop state is CLASSIFIED by production's own
+   * `state-estimation/stopStateClassifier.ts`, not derived here. It used to be
+   * derived here, from a 5 km/h threshold and no distance bound at all, and it
+   * disagreed with production in both directions: production requires 2 km/h
+   * AND the vehicle to be inside the stop's geofence, and it distinguishes
+   * `approaching_stop` from `departed_stop`, which `mpc/eligibility.ts` treats
+   * differently. Every law that asks "is this bus somewhere it could act?"
+   * about a NEIGHBOUR - alighting-only's guard 3, above all - was asking a
+   * question this file was answering on production's behalf.
    */
   const neighbourState = (
     state: CorridorKinematicState,
     routeDirectionId: string,
     observedAtIso: string,
   ): VehicleStateRow => {
-    const stationary = state.speedKmph !== null && state.speedKmph < NEIGHBOUR_MOVING_SPEED_KMPH;
-    const currentStopId = stationary ? stationAt(state.distanceAlongRouteMeters) : null;
+    const nearestStop = nearestStopTo(state.distanceAlongRouteMeters);
+    const { stopState, currentStopId } = classifyStopState({
+      speedKmph: state.speedKmph,
+      distanceAlongRouteMeters: state.distanceAlongRouteMeters,
+      nearestStop,
+      // No command lifecycle in a rehearsal, so nothing is under an
+      // instruction right now; and the engine keeps every vehicle on its
+      // route by construction.
+      isHeldByController: false,
+      isOffRoute: false,
+    });
     return {
       vehicleId: state.vehicleId,
       tripId: null,
@@ -408,7 +459,7 @@ export function createDeployedControlLawsController(
       distanceAlongRouteMeters: state.distanceAlongRouteMeters,
       speedKmph: state.speedKmph,
       headingDegrees: null,
-      stopState: stationary && currentStopId ? 'dwelling_at_stop' : 'departed_stop',
+      stopState,
       currentStopId,
       confidence: 1,
       isLowConfidence: false,
@@ -565,7 +616,6 @@ export function createDeployedControlLawsController(
     const selfRank = ordered.find((v) => v.vehicleId === followerId);
     const trailerId = selfRank?.followerVehicleId ?? null;
     const byVehicleId = new Map(kinematics.corridor.map((v) => [v.vehicleId, v]));
-    const leaderState = byVehicleId.get(leaderId) ?? kinematics.leader;
     const trailer = trailerId ? (byVehicleId.get(trailerId) ?? null) : null;
 
     const headwayStates: HeadwayStateRow[] = [
@@ -588,18 +638,20 @@ export function createDeployedControlLawsController(
     // engine-side veto.
     const readingAgeSeconds = context.isStateStale ? STALE_READING_AGE_SECONDS : 0;
     const followerObservedAt = isoAt(epochMs, context.now - readingAgeSeconds);
-    const vehicleObservedAtByVehicleId = new Map<string, string>([
-      [leaderId, nowIso],
-      [followerId, followerObservedAt],
-    ]);
-    // The bus BEHIND needs a reading too, and its absence was not harmless.
-    // `mpc/safety.ts` ages every vehicle a candidate INVOLVES, and treats a
-    // missing timestamp as infinitely old. Alighting-only involves the trailer
-    // by construction - it is the bus that will collect the people left
-    // standing - so every candidate Algorithm E produced was rejected
-    // `stale_state`, on a corridor where nothing was stale. Fresh, like the
-    // leader above: the engine knows exactly where this bus is.
-    if (trailerId) vehicleObservedAtByVehicleId.set(trailerId, nowIso);
+    //
+    // Every vehicle a candidate could INVOLVE needs a reading, and an absence
+    // is not harmless: `mpc/safety.ts` ages every involved vehicle and treats
+    // a missing timestamp as infinitely old. Alighting-only involves the bus
+    // behind by construction - it is the one that collects the people left
+    // standing - and while that bus had no reading here, every candidate
+    // Algorithm E produced was rejected `stale_state` on a corridor where
+    // nothing was stale. Fresh for everyone but the deciding bus: the engine
+    // knows exactly where they all are, and it is only the deciding bus whose
+    // feed a scenario can knock out.
+    const vehicleObservedAtByVehicleId = new Map<string, string>(
+      kinematics.corridor.map((vehicle) => [vehicle.vehicleId, nowIso]),
+    );
+    vehicleObservedAtByVehicleId.set(followerId, followerObservedAt);
 
 
     const vehicleStates = new Map<string, VehicleStateRow>([
@@ -627,12 +679,21 @@ export function createDeployedControlLawsController(
         },
       ],
     ]);
-    // The neighbours, when the caller supplied the geometry to place them. See
-    // `corridorStops` for the law this was silencing.
+    // EVERY other vehicle on the corridor, when the caller supplied the
+    // geometry to place them. See `corridorStops` for the law this was
+    // silencing, and `boardingLimitStates` for why the chain rather than the
+    // two adjacent buses: alighting-only asks `canExecuteHold` about the
+    // LEADER of each pair it is offered, and a leader with no state row is
+    // read as one that cannot act - which is the same answer as "it is
+    // mid-link", from a completely different cause. Production's solver
+    // carries a row for every vehicle on the route-direction.
     if (corridorStops) {
-      vehicleStates.set(leaderId, neighbourState(leaderState, context.routeDirectionId, nowIso));
-      if (trailer && trailerId) {
-        vehicleStates.set(trailerId, neighbourState(trailer, context.routeDirectionId, nowIso));
+      for (const vehicle of kinematics.corridor) {
+        if (vehicle.vehicleId === followerId) continue;
+        vehicleStates.set(
+          vehicle.vehicleId,
+          neighbourState(vehicle, context.routeDirectionId, nowIso),
+        );
       }
     }
     // `route_direction_stops` sequence 0 is the origin terminal, and the
@@ -742,41 +803,45 @@ export function createDeployedControlLawsController(
       controlPointStopIds,
       weighOccupancy,
     );
-    // ─── ALIGHTING-ONLY NEEDS THE OTHER ROW ────────────────────────────
+    // ─── ALIGHTING-ONLY IS ASKED ABOUT THE WHOLE CHAIN ─────────────────
     //
     // `computeBoardingLimitCandidates` acts on the LEADER of a pair, and asks
-    // whether that leader is standing at a stop it could act at. Handing it
-    // only `headwayStates` - one row, whose leader is the bus AHEAD of the
-    // deciding one and therefore mid-link - meant the answer was always no.
-    // Algorithm E generated zero candidates on every rehearsal and every
-    // evaluation ever run, and coverage attributed it to `no_hold_indicated`.
+    // whether that leader is standing at a stop it could act at. Handed only
+    // `headwayStates` - one row, whose leader is the bus AHEAD of the deciding
+    // one and therefore mid-link - the answer was always no. Algorithm E
+    // generated zero candidates on every rehearsal and every evaluation ever
+    // run, and coverage attributed it to `no_hold_indicated`.
     //
-    // `computePairHeadways` had already computed the row that makes the law
-    // answerable: the one where the DECIDING bus is the leader and the bus
-    // behind it is the follower. It was being discarded. That row is exactly
-    // the situation the law is for - a bus at a stop with another close behind
-    // it - so it is passed here, and only here: the hold laws must keep seeing
-    // the deciding vehicle as the follower, or they would start proposing holds
-    // for the bus behind.
+    // The row that makes the law answerable is the one where the DECIDING bus
+    // is the leader and the bus behind it is the follower: a bus at a stop
+    // with another close behind, which is exactly the situation the action is
+    // for. That row was then supplied on its own alongside the deciding pair,
+    // and a two-row list is still not what the law is written against.
+    //
+    // Its fifth guard reads "does this leader itself have a bus close in front
+    // of it?" out of the SAME list - a leader mid-bunch must not be told to
+    // leave people behind, because the bus ahead of IT is the one with
+    // anything to gain. Over two rows that lookup misses for the bus ahead of
+    // the deciding one, and a missing gap is read as "front-most bus on the
+    // corridor, nothing ahead to be bunched behind" - so the guard passed on
+    // trust for half the rows it was given. Production hands the law every
+    // pair on the corridor (`mpc/solver.ts`), so now this does too.
+    //
+    // The HOLD laws still see one row and must: the engine applies whatever is
+    // selected to the bus that is deciding, so a candidate naming another bus
+    // would hold the wrong vehicle.
+    const boardingLimitStates: HeadwayStateRow[] = pairs.map((p) => ({
+      id: `rehearsal-${p.leaderVehicleId}-${p.followerVehicleId}-${context.stopId}-${Math.round(context.now)}`,
+      routeDirectionId: context.routeDirectionId,
+      leaderVehicleId: p.leaderVehicleId,
+      followerVehicleId: p.followerVehicleId,
+      hFwdSeconds: p.hFwdSeconds,
+      hBwdSeconds: p.hBwdSeconds,
+      targetHeadwaySeconds: p.targetHeadwaySeconds,
+      deviationSeconds: p.deviationSeconds,
+      computedAt: nowIso,
+    }));
     const trailingPair = pairs.find((p) => p.leaderVehicleId === followerId);
-    const boardingLimitStates: HeadwayStateRow[] = [
-      ...headwayStates,
-      ...(trailingPair
-        ? [
-            {
-              id: `rehearsal-${followerId}-trailing-${context.stopId}-${Math.round(context.now)}`,
-              routeDirectionId: context.routeDirectionId,
-              leaderVehicleId: trailingPair.leaderVehicleId,
-              followerVehicleId: trailingPair.followerVehicleId,
-              hFwdSeconds: trailingPair.hFwdSeconds,
-              hBwdSeconds: trailingPair.hBwdSeconds,
-              targetHeadwaySeconds: trailingPair.targetHeadwaySeconds,
-              deviationSeconds: trailingPair.deviationSeconds,
-              computedAt: nowIso,
-            },
-          ]
-        : []),
-    ];
     const boardingLimitCandidates = computeBoardingLimitCandidates(
       boardingLimitStates,
       policy,
@@ -786,12 +851,22 @@ export function createDeployedControlLawsController(
       terminalStopId,
     );
 
+    // Alighting-only is now offered every pair on the corridor, so it can name
+    // a bus other than the one deciding. The engine applies whatever comes
+    // back to the DECIDING bus, so only that bus's own proposal can travel any
+    // further - and counting the rest as this decision's coverage would report
+    // Algorithm E firing at a decision where nothing was proposed for the bus
+    // in question.
+    const ownBoardingLimitCandidates = boardingLimitCandidates.filter(
+      (c) => c.vehicleId === followerId,
+    );
+
     const candidates: CandidateAction[] = [
       ...terminalCandidates,
       ...twoWayCandidates,
       ...selfEqualizingCandidates,
       ...costOptimalCandidates,
-      ...boardingLimitCandidates,
+      ...ownBoardingLimitCandidates,
     ];
 
     const eligibleToHold = canExecuteHold(vehicleStates.get(followerId), controlPointStopIds);
@@ -801,7 +876,7 @@ export function createDeployedControlLawsController(
     coverageBase.generated.two_way = twoWayCandidates.length;
     coverageBase.generated.self_equalizing = selfEqualizingCandidates.length;
     coverageBase.generated.cost_optimal = costOptimalCandidates.length;
-    coverageBase.generated.boarding_limit = boardingLimitCandidates.length;
+    coverageBase.generated.boarding_limit = ownBoardingLimitCandidates.length;
 
     // Why each empty law was empty, read off the preconditions those laws
     // document - see `DeclineReason`. Ordered as the laws test them, so the
@@ -814,6 +889,9 @@ export function createDeployedControlLawsController(
           ? 'no_measured_terminal_departure'
           : 'no_hold_indicated';
     }
+    // The mid-route action bar, tested by all three mid-route laws BEFORE
+    // they test eligibility - see each law's own loop.
+    const deviantEnough = isWorthActingOn(pair.hFwdSeconds, policy);
     if (twoWayCandidates.length === 0) {
       coverageBase.declined.two_way =
         policy.kf === null || policy.kb === null
@@ -824,11 +902,17 @@ export function createDeployedControlLawsController(
               ? 'h_fwd_unavailable'
               : pair.hBwdSeconds === null
                 ? 'h_bwd_unavailable'
-                : !eligibleToHold
-                  ? 'not_eligible_to_hold'
-                  : 'no_hold_indicated';
+                : !deviantEnough
+                  ? 'not_deviant_enough'
+                  : !eligibleToHold
+                    ? 'not_eligible_to_hold'
+                    : 'no_hold_indicated';
     }
     if (selfEqualizingCandidates.length === 0) {
+      // `two_way_covers_pair` sits AFTER eligibility here, which is where
+      // `mpc/selfEqualizing.ts` tests it. It used to sit before, so a pair
+      // that the law had already abandoned as unexecutable was reported as
+      // one two-way had taken off its hands.
       coverageBase.declined.self_equalizing =
         policy.selfEqualizingK === null
           ? 'self_equalizing_gain_unset'
@@ -836,11 +920,13 @@ export function createDeployedControlLawsController(
             ? 'suppressed_by_terminal_regulation'
             : pair.hFwdSeconds === null
               ? 'h_fwd_unavailable'
-              : twoWayCovers
-                ? 'two_way_covers_pair'
+              : !deviantEnough
+                ? 'not_deviant_enough'
                 : !eligibleToHold
                   ? 'not_eligible_to_hold'
-                  : 'no_hold_indicated';
+                  : twoWayCovers
+                    ? 'two_way_covers_pair'
+                    : 'no_hold_indicated';
     }
     if (costOptimalCandidates.length === 0) {
       coverageBase.declined.cost_optimal = terminalVehicleIds.has(followerId)
@@ -849,15 +935,17 @@ export function createDeployedControlLawsController(
           ? 'h_fwd_unavailable'
           : pair.hBwdSeconds === null
             ? 'h_bwd_unavailable'
-            : !eligibleToHold
-              ? 'not_eligible_to_hold'
-              : 'no_hold_indicated';
+            : !deviantEnough
+              ? 'not_deviant_enough'
+              : !eligibleToHold
+                ? 'not_eligible_to_hold'
+                : 'no_hold_indicated';
     }
-    if (boardingLimitCandidates.length === 0 && !trailingPair) {
+    if (ownBoardingLimitCandidates.length === 0 && !trailingPair) {
       // No bus behind at all, so there is nobody for the left-behind passengers
       // to be collected by and the action has no meaning here.
       coverageBase.declined.boarding_limit = 'no_trailing_vehicle';
-    } else if (boardingLimitCandidates.length === 0) {
+    } else if (ownBoardingLimitCandidates.length === 0) {
       // Reported precisely, because "no_hold_indicated" was hiding two very
       // different findings behind one word. Alighting-only needs the LEADER to
       // be standing at a stop AND the pair to be within an absolute 240 s of
