@@ -326,12 +326,28 @@ export interface DeployedControlLawsOptions {
    * Whether the objective weighs the in-vehicle term
    * (`control_settings.weigh_occupancy`).
    *
-   * Defaults TRUE, which is what every generator defaults to for a direct
-   * caller and therefore what this rehearsal has always done - not what the
-   * live network runs, which is OFF. Left as it was rather than quietly
-   * re-pointed at the live setting, because that would change every existing
-   * rehearsal's numbers as a side effect of a different change; an evaluation
-   * run that wants the deployed setting passes it.
+   * Defaults FALSE, which is what the live network runs
+   * (`db/settings.ts#DEFAULT_CONTROL_SETTINGS`, and the seeded value) and
+   * therefore what a surface claiming to show the deployed controller has to
+   * show.
+   *
+   * It defaulted TRUE - the value every candidate generator uses for a direct
+   * caller - on the reasoning that re-pointing it at the live setting would
+   * change existing rehearsal numbers as a side effect of an unrelated change.
+   * That was a reason to defer it once, not a reason forever: a rehearsal is
+   * read by a planner asking what the deployed controller would do on their
+   * corridor, and it was answering about a controller with a switch in the
+   * other position.
+   *
+   * It is not a cosmetic difference. With the switch on and a modelled onboard
+   * count, `mpc/objective.ts#optimalHoldSeconds` charges a load penalty of
+   * `L x H* / 2` - about 39,600 s on the inter-city preset - so the closed-form
+   * optimum is zero for every pair and Algorithm D generates NOTHING, which
+   * the coverage table then reports as the corridor declining it. That is the
+   * loaded gun CLAUDE.md describes, and it was live in every rehearsal.
+   *
+   * The fleet trial is unaffected: it passes the flag explicitly, one phase
+   * each way, which is the whole point of having two phases.
    */
   weighOccupancy?: boolean;
 }
@@ -389,7 +405,7 @@ export function createDeployedControlLawsController(
   options: DeployedControlLawsOptions,
 ): DeployedControlLawsController {
   const { policy, epochMs, modelledCapacity } = options;
-  const weighOccupancy = options.weighOccupancy ?? true;
+  const weighOccupancy = options.weighOccupancy ?? false;
   const followerSpeedSource = options.followerSpeedSource ?? 'link_average';
   const corridorStops = options.corridorStops ?? null;
   const alightingOnlySelectable = options.alightingOnlySelectable ?? false;

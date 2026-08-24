@@ -136,7 +136,20 @@ describe('deployed-control-laws rehearsal controller', () => {
     expect(decision.holdSeconds).toBe(90);
   });
 
-  it('proposes nothing at all when the corridor configures no gains', () => {
+  // ─── NO GAINS SILENCES THE GAIN-BASED LAWS, AND ONLY THOSE ────────────
+  //
+  // `kf`, `kb` and `selfEqualizingK` are Algorithm B's and Algorithm C's.
+  // The closed-form optimum needs none of them - it is the argmin of the
+  // objective, not a proportional controller - so it still speaks, and is
+  // still not selectable. Nothing is issued either way.
+  //
+  // This asserted `candidates` was EMPTY, and passed for a reason that had
+  // nothing to do with gains: the controller defaulted the occupancy switch
+  // ON, which production does not, and with a modelled onboard count the
+  // load penalty is `L x H* / 2` - so the closed form was zero for every pair
+  // and Algorithm D generated nothing anywhere. The test was pinning the
+  // loaded gun rather than the invariant.
+  it('silences the gain-based laws when the corridor configures no gains, and issues nothing', () => {
     const controller = createDeployedControlLawsController({
       policy: policy({ kf: null, kb: null, selfEqualizingK: null }),
       epochMs: EPOCH_MS,
@@ -144,7 +157,39 @@ describe('deployed-control-laws rehearsal controller', () => {
     });
 
     expect(controller.decide(bunchedContext())).toEqual({ holdSeconds: 0, actionType: 'no_control' });
-    expect(controller.decisions[0]!.candidates).toHaveLength(0);
+    const coverage = controller.decisions[0]!.coverage;
+    expect(coverage.generated.two_way).toBe(0);
+    expect(coverage.generated.self_equalizing).toBe(0);
+    expect(coverage.declined.two_way).toBe('gains_unset');
+    expect(coverage.declined.self_equalizing).toBe('self_equalizing_gain_unset');
+    // The closed form is unaffected by the gains and is generated, priced and
+    // shown - but never selected, which is what keeps `no_control` above true.
+    expect(coverage.generated.cost_optimal).toBe(1);
+    expect(controller.decisions[0]!.rankedCandidateCount).toBe(0);
+  });
+
+  // The switch the controller runs with is the one the live network runs
+  // with, not the one a direct caller of a candidate generator gets.
+  it('weighs occupancy the way the deployed network does - which is not at all', () => {
+    const controller = createDeployedControlLawsController({
+      policy: policy(),
+      epochMs: EPOCH_MS,
+      modelledCapacity: 52,
+    });
+    const aware = createDeployedControlLawsController({
+      policy: policy(),
+      epochMs: EPOCH_MS,
+      modelledCapacity: 52,
+      weighOccupancy: true,
+    });
+    controller.decide(bunchedContext({ onboardCount: 50 }));
+    aware.decide(bunchedContext({ onboardCount: 50 }));
+    // A heavy bus prices its hold differently under the two settings; the
+    // default has to be the deployed one, so these must differ.
+    const cost = (c: typeof controller) =>
+      c.decisions[0]!.candidates.find((x) => x.actionType === 'two_way_hold')?.objectiveCost ?? null;
+    expect(cost(controller)).not.toBeNull();
+    expect(cost(controller)).not.toBe(cost(aware));
   });
 
   // The guardrail, and the reason the engine hands over a stale reading

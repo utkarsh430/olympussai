@@ -48,7 +48,7 @@ export const armSchema = z
     policyOverrides: policyOverrideSchema.default({}),
     /** Whether `cost_optimal_hold` may be selected. Defaults to the deployed switch. */
     costOptimalSelectable: z.boolean().optional(),
-    /** Whether the objective weighs the in-vehicle term. Defaults to the rehearsal's own default (true). */
+    /** Whether the objective weighs the in-vehicle term. Defaults to the DEPLOYED setting, which is off. */
     weighOccupancy: z.boolean().optional(),
   })
   .strict();
