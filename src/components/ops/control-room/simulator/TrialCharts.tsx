@@ -286,8 +286,12 @@ export function PassengerBalance({
         direction={inVehicleSecondsSaved >= 0 ? 'saved' : 'added'}
       />
       <p className="text-xs text-muted-foreground">
-        Holding added {hours(onboardDelayImposed)} of that; the rest is dwell and running time,
-        which even spacing changes in the other direction.
+        Holding cost {hours(onboardDelayImposed)}
+        {inVehicleSecondsSaved + onboardDelayImposed >= 0
+          ? `; dwell and running time gave back ${hours(inVehicleSecondsSaved + onboardDelayImposed)}.`
+          : `; dwell and running time cost a further ${hours(Math.abs(inVehicleSecondsSaved + onboardDelayImposed))}.`}{' '}
+        Even spacing usually shortens the door cycle a full bus would otherwise do — usually, not
+        always, which is why both are shown.
       </p>
       <p className="pt-1 text-sm">
         <span className="text-muted-foreground">Net effect on total passenger time: </span>
