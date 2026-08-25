@@ -81,15 +81,15 @@ passengers actually spend — waiting plus every second aboard.
 
 | corridor / phase | net passenger time | excess wait | seeds positive |
 |---|---|---|---|
-| urban, occupancy blind | **+2.6% ± 0.4** | +46% | 6/6 |
-| urban, occupancy aware | **+2.1% ± 0.6** | +43% | 6/6 |
-| suburban, occupancy blind | **+0.4% ± 0.3** | +39% | 6/6 |
+| urban, occupancy blind | **+2.9% ± 0.3** | +46% | 6/6 |
+| urban, occupancy aware | **+2.2% ± 0.7** | +43% | 6/6 |
+| suburban, occupancy blind | **+0.5% ± 0.3** | +39% | 6/6 |
 | suburban, occupancy aware | +0.3% ± 0.3 | +36% | 4/6 |
-| inter-city, occupancy blind | +0.0% ± 0.5 | +19% | 2/6 |
-| inter-city, occupancy aware | −0.3% ± 0.6 | +15% | 2/6 |
+| inter-city, occupancy blind | +0.1% ± 0.5 | +19% | 3/6 |
+| inter-city, occupancy aware | −0.2% ± 0.4 | +15% | 2/6 |
 
 Read the ± before the mean. **Urban is a win on every seed and the number is
-resolved** — six seeds spanning +2.2% to +3.0%. Suburban blind is a much smaller
+resolved** — six seeds spanning +2.5% to +3.3%. Suburban blind is a much smaller
 win on every seed. **Inter-city is not "probably nothing", it is nothing**, to
 within ±0.5.
 

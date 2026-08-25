@@ -152,8 +152,8 @@ input production does not have. Check it first when a law's coverage looks wrong
   being measured. Never reintroduce a single stream, and never add a draw whose
   key can collide with another's.
 - **Report the seed spread, never a single run.** The trial's own headline is one
-  seed per scenario. Over six seeds at 250 buses/phase: urban +2.6% +/- 0.4
-  (6/6 seeds positive, range 2.2-3.0), suburban blind +0.4% +/- 0.3 (6/6), and
+  seed per scenario. Over six seeds at 250 buses/phase: urban +2.9% +/- 0.3
+  (6/6 seeds positive, range 2.5-3.3), suburban blind +0.5% +/- 0.3 (6/6), and
   inter-city is zero to within +/- 0.5. A single `sim:fleet` number is one draw.
 - **Nobody may vanish.** A passenger a full bus refuses stays in the queue; one
   who arrives while a bus stands at the stop boards it. Both used to be deleted

@@ -111,24 +111,24 @@ report; the client can run a new one.
 | | inter-city | suburban | urban |
 |---|---|---|---|
 | σ_leg / H\* | **0.19 (too_disturbed)** | 0.10 | 0.10 |
-| net passenger time, blind | +0.0% ± 0.5 (2/6 seeds) | **+0.4% ± 0.3 (6/6)** | **+2.6% ± 0.4 (6/6)** |
-| net passenger time, aware | −0.3% ± 0.6 (2/6) | +0.3% ± 0.3 (4/6) | **+2.1% ± 0.6 (6/6)** |
+| net passenger time, blind | +0.1% ± 0.5 (3/6 seeds) | **+0.5% ± 0.3 (6/6)** | **+2.9% ± 0.3 (6/6)** |
+| net passenger time, aware | −0.2% ± 0.4 (2/6) | +0.3% ± 0.3 (4/6) | **+2.2% ± 0.7 (6/6)** |
 | excess wait, blind | +19% | +39% | +46% |
 | hold/bus | 7.2 min | 3.2 min | 3.0 min |
 
 **Urban is a win on every seed, and it is now a resolved number** — six seeds
-spanning +2.2% to +3.0%. Suburban blind is a much smaller win on every seed.
+spanning +2.5% to +3.3%. Suburban blind is a much smaller win on every seed.
 **Inter-city is not "probably nothing", it is nothing** — ±0.5 around zero.
 
 These bars are what they are because every draw takes its own keyed stream
 (§3 bug 25). Before that the same table read ±1.5 to ±2.0 and inter-city could
 not be told apart from a half-percent effect.
 
-Where the time goes (urban, blind, per seed): waiting removed +581 h, dwell given
-back +95 h, riding −68 h, holding −211 h, **net ≈ +397 h**. The hold bill is not
+Where the time goes (urban, blind, per seed): waiting removed +611 h, dwell given
+back +109 h, riding −58 h, holding −213 h, **net ≈ +449 h**. The hold bill is not
 the whole in-vehicle story — dwell gives back about half of it, and riding costs
 a little because a held bus carries more people for the ride. Inter-city reads
-+44 h of dwell against −691 h of holding, which is why it cannot make the trade
++42 h of dwell against −708 h of holding, which is why it cannot make the trade
 pay.
 
 Incidents, full 1,000-bus trial (500/phase):
@@ -141,7 +141,7 @@ Incidents, full 1,000-bus trial (500/phase):
 ### Targets
 
 - Total passenger time **> 0 with seeds agreeing on every corridor**. Urban
-  (+2.6% ± 0.4) and suburban-blind (+0.4% ± 0.3) clear it at 6/6. Inter-city does
+  (+2.9% ± 0.3) and suburban-blind (+0.5% ± 0.3) clear it at 6/6. Inter-city does
   not: it is not negative, it is ZERO to within ±0.5, and the honest statement is
   "no measured effect".
 - Objective prediction error **< 1.5×** (currently 1.8× with a correct λ, 3.4×
