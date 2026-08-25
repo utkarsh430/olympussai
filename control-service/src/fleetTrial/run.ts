@@ -1983,7 +1983,7 @@ export function runFleetTrial(
       knob: 'is_control_point',
       title: 'Where the holding points should be',
       description:
-        'Every station can hold a bus; which of them SHOULD is an operational choice, counted from the origin so a correction has the rest of the route to propagate through.',
+        'Every station can hold a bus; which of them SHOULD is an operational choice. Spread evenly along the route, because deviation accumulates between corrections - measured, clustering the same number at the origin is about half as effective wherever holding points are scarce, which is the density the network is configured at.',
       variants: variants.holdingPoints,
       scenarios,
       inputs,

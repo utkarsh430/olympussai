@@ -371,6 +371,27 @@ reason, and `two_way_covers_pair` moved after eligibility where
   **3.6% of urban holds, 0% of inter-city ones**, and the cooldown 0% of both —
   real, small, and inside the seed noise. Not worth a command ledger; worth not
   claiming the per-vehicle projection is exact.
+- **Holding points must be SPREAD along the route, not clustered at the origin
+  — and the trial had it the wrong way round.** Its placement study designated
+  the first n stations, on the CTA-pilot reasoning that an early correction has
+  the rest of the route to propagate through. Measured at the same count, four
+  seeds x ten scenarios:
+
+  | | clustered at origin | spread along the route |
+  |---|---|---|
+  | urban, 6 of 25 | +1.14% | **+2.33%** |
+  | suburban, 4 of 15 | +0.30% | **+0.65%** |
+  | inter-city, 3 of 10 | +0.11% | +0.16% |
+
+  Spreading is about **twice as good wherever holding points are scarce**, and
+  the two converge once most stations are designated (19 of 25: +4.35% against
+  +4.26%). Scarce is the regime that matters — `seed/harvest.ts` configures the
+  real network at **one station in five** — so the study was recommending from
+  a pattern the network does not use and that is half as effective at the
+  density it runs at. Fixed in `fleetTrial/corridor.ts`. Physically it is the
+  same story `controllability` tells: deviation accumulates between
+  corrections, so corrections have to be distributed along the route it
+  accumulates over.
 - **Designating every station a holding point has not been optimal on any
   corridor tried.** A hold can only be executed where a bus is standing at a
   DESIGNATED stop (`mpc/eligibility.ts#holdExecutionStopId`), so the efficiency
