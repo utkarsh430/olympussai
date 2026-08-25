@@ -559,6 +559,22 @@ The COST side is consistently good across all three: 7,914 h predicted against
 6,775 h actual on urban, 7,571 against 6,763 on suburban, 21,727 against 19,180
 on inter-city — 12–17% over, every time.
 
+**A concrete form to try, and the numbers it would have to reproduce.** If the
+benefit of evening a gap decays geometrically along the route — a correction
+worth `b` at the next stop is worth `b·ρ` at the one after — then over `N`
+remaining stops the objective's wait term should carry a factor of
+`(1 − ρᴺ) / (1 − ρ)` rather than 1. Solving that against the three measured
+ratios gives ρ ≈ **0.94** (urban, N≈12.5, ratio 10.0), **0.88** (suburban,
+N≈7.5, 5.4) and **0.65** (inter-city, N≈5, 2.5).
+
+Do not ship those numbers. Three points cannot fit a decay constant, and urban
+and suburban share a σ_leg/H\* of 0.10 while wanting different ρ, so whatever
+sets ρ is not controllability alone — `1 + β_h`, the headway amplification
+eigenvalue `evaluation/calibrate.ts` already fits, is the obvious candidate and
+is derivable rather than fitted. The value of the above is that it says what to
+build and gives three numbers to check it against, which "the residual is
+structural" did not.
+
 **How much can this error actually do?** Not much, today, and that is measured
 too. `objectiveCost` feeds three things: the ranking among mid-route candidates,
 `cost_optimal_hold`'s length (not selectable), and the predictive advisory
