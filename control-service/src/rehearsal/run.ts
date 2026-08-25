@@ -529,16 +529,36 @@ export const REHEARSAL_EPOCH_MS = Date.UTC(2026, 0, 1, 0, 0, 0);
 
 export { isReported, summarizeHolds, reportedKpis, WARMUP_VEHICLE_ID };
 
+/**
+ * KPIs for the reported fleet, sampled at EVERY STATION.
+ *
+ * ─── THE MEASUREMENT POPULATION IS NOT THE ACTION POPULATION ─────────────
+ *
+ * `simulation/kpi.ts` samples headway at control points, which is the right
+ * default for a regression fixture - it is where the controller acts, so it is
+ * where a regression shows. It is the wrong population for a question about
+ * PASSENGERS, who wait at every station.
+ *
+ * Worse, it ties the measurement to the action: change which stops are
+ * holding points and the metric moves because it is being computed over a
+ * different set of stops. The fleet trial measured that directly - baseline
+ * EWT read 61 s with two holding points and 323 s with ten, on the identical
+ * uncontrolled corridor - and moved to every station
+ * (`fleetTrial/run.ts#allStopIds`). This function, which the rehearsal and the
+ * whole `evaluation/` harness both use, kept sampling at control points.
+ * MEASURED on the evaluation harness's own synthetic corridor - twelve stops,
+ * three of them control points - uncontrolled EWT reads 149 s at the control
+ * points and 205 s at every station, so its headline understated what
+ * passengers experience by a factor of 1.4.
+ */
 function reportedKpis(
   visits: readonly StopVisitRecord[],
   corridor: CorridorInputs,
 ): KpiSummary {
-  const controlPointStopIds = new Set(
-    corridor.stops.filter((stop) => stop.isControlPoint).map((stop) => stop.stopId),
-  );
+  const everyStation = new Set(corridor.stops.map((stop) => stop.stopId));
   return summarizeKpis(
     visits.filter((visit) => isReported(visit.vehicleId)),
-    controlPointStopIds,
+    everyStation,
     corridor.policy.targetHeadwaySeconds,
     corridor.policy.bunchedThresholdRatio,
   );

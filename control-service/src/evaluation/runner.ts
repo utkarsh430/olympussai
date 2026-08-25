@@ -29,6 +29,8 @@ import type { Disturbance, KpiSummary } from '../simulation/types.js';
 import type { ModelledInputs, RehearsalDisturbance } from '../rehearsal/run.js';
 import type { ArmSpec, ExperimentSpec } from './spec.js';
 import type { CorridorCalibration } from './calibrate.js';
+import { assessControllability } from '../lib/controllability.js';
+import type { Controllability } from '../lib/controllability.js';
 import { resolveInputs, seedsFor } from './spec.js';
 
 export interface RunCell {
@@ -51,6 +53,19 @@ export interface ExperimentRun {
   cells: RunCell[];
   /** Corridors that produced no headway sample at all, so nothing about them is measurable. Named rather than dropped. */
   emptyCorridors: string[];
+  /**
+   * Where each corridor sits on the controllability curve, so a reader can
+   * tell what a verdict is about.
+   *
+   * This harness reported none of it, and the most dangerous thing it can
+   * print is a damning verdict about the control laws that is really a
+   * statement about the corridor. MEASURED on its own synthetic fixture: an
+   * uncontrolled excess wait of 24-30 s against a 900 s headway, with the
+   * controller reading 48-98% WORSE - which is exactly what holding does to a
+   * corridor that was never bunched, and reads as a controller failure if
+   * nobody says which regime it came from. See `lib/controllability.ts`.
+   */
+  controllability: Map<string, Controllability>;
   durationMs: number;
 }
 
@@ -149,11 +164,26 @@ export function runExperiment(
   const scenarios = spec.scenarios as RehearsalDisturbance[];
   const cells: RunCell[] = [];
   const emptyCorridors = new Set<string>();
+  const controllability = new Map<string, Controllability>();
+  // The corridor's shape does not depend on the seed or the scenario, so one
+  // resolution of the inputs answers for all of them.
+  const baseInputs = resolveInputs(spec, seeds[0] ?? 0, scenarios[0] ?? 'none');
 
   const total = corridors.length * scenarios.length * seeds.length * spec.arms.length;
   let done = 0;
 
   for (const corridor of corridors) {
+    // The corridor's own shape, not any one run's - it depends on geometry,
+    // cruise speed, variability and headway, all of which are fixed here.
+    controllability.set(
+      corridor.routeDirectionId,
+      assessControllability({
+        cumulativeDistanceMeters: corridor.stops.map((stop) => stop.cumulativeDistanceMeters),
+        cruiseSpeedKmph: baseInputs.cruiseSpeedKmph,
+        travelTimeVariation: baseInputs.travelTimeVariation,
+        targetHeadwaySeconds: corridor.policy.targetHeadwaySeconds,
+      }),
+    );
     let sawSample = false;
     for (const scenario of scenarios) {
       for (const seed of seeds) {
@@ -193,6 +223,7 @@ export function runExperiment(
     calibration: new Map(calibration),
     cells,
     emptyCorridors: [...emptyCorridors],
+    controllability,
     durationMs: Date.now() - startedAt,
   };
 }

@@ -417,8 +417,24 @@ reason, and `two_way_covers_pair` moved after eligibility where
   corridor-wide horizon the same residual reads 11% and 6.5%, and all of that
   excess is stops near the origin whose last bus passed hours before the last
   bus anywhere finished.
-- **`sim:run`'s synthetic corridor cannot answer at either end — measured, and
-  left alone.** Its default demand (0.8/min) puts the steady-state load at 48 of
+- **`evaluation/` sampled excess wait at CONTROL POINTS — fixed, and it
+  reversed a verdict.** `rehearsal/run.ts#reportedKpis`, which the rehearsal and
+  the whole evaluation harness share, sampled headway at holding points rather
+  than at every station. That is `simulation/kpi.ts`'s regression-oriented
+  default and the wrong population for a passenger question, and it ties the
+  metric to the action — the fleet trial measured baseline EWT at 61 s with two
+  holding points and 323 s with ten on the identical corridor and moved to every
+  station (§3 bug 11); this never followed. On the harness's own synthetic
+  corridor (12 stops, 3 control points) uncontrolled EWT read 149 s at control
+  points against 205 s at every station. **The verdict changed with it**: the
+  controller read "48% WORSE" on excess wait at control points and "no effect,
+  slightly better" across every station.
+- **`sim:run`'s synthetic corridor is `too_disturbed`, not too calm — and now
+  says so.** σ_leg/H\* = 0.17, just above the 0.16 band, so both arms come apart
+  together and a modest or negative result there is the corridor rather than the
+  laws. `sim:run` computed nothing of the sort; `lib/controllability.ts` is now
+  shared with the fleet trial and the report leads with the caveat.
+- **`sim:run`'s synthetic corridor also saturates — measured, and left alone.** Its default demand (0.8/min) puts the steady-state load at 48 of
   52 seats, so across its own default scenario set 26.9% of offered passengers
   are denied and the report trips its own saturation warning; on the quiet
   `none` scenario alone it is 19%, a hair under, so any disturbance trips it.
