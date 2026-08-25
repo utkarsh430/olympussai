@@ -371,6 +371,26 @@ reason, and `two_way_covers_pair` moved after eligibility where
   **3.6% of urban holds, 0% of inter-city ones**, and the cooldown 0% of both —
   real, small, and inside the seed noise. Not worth a command ledger; worth not
   claiming the per-vehicle projection is exact.
+- **Designating every station a holding point has not been optimal on any
+  corridor tried.** A hold can only be executed where a bus is standing at a
+  DESIGNATED stop (`mpc/eligibility.ts#holdExecutionStopId`), so the efficiency
+  lever is `route_direction_stops.is_control_point` — not a new switch. Swept
+  paired, four seeds x ten scenarios at 120 buses:
+
+  | designated | urban | suburban | inter-city |
+  |---|---|---|---|
+  | ~a quarter | +0.53% @ 0.53 min/bus | +0.30% @ 0.79 | +0.12% @ 2.34 |
+  | ~half | +3.27% @ 1.62 | +0.85% @ 1.73 | +0.39% @ 4.10 |
+  | ~three quarters | +4.35% @ 2.37 | **+1.04% @ 2.43** | **+0.42% @ 5.74** |
+  | every station | **+4.51% @ 2.92** | +0.96% @ 3.07 | +0.34% @ 6.56 |
+
+  Suburban and inter-city both peak BELOW every station, taking 21% and 13%
+  less driver holding with them; urban peaks at every station but 19 of 25
+  returns 96% of the benefit for 81% of the holding. **On inter-city the whole
+  column is inside the noise, and the driver cost varies eightfold across it —
+  0.82 min/bus at two stations against 6.56 at ten.** That is the efficiency
+  finding: on a corridor where holding does nothing, designate few stops rather
+  than switching anything off.
 - **`slow_bus` loses on every corridor, and it is not a bug.** Net −0.2% urban,
   −0.2% suburban, −1.8% inter-city, against 16–32% excess-wait gains. Checked:
   the controller holds the FOLLOWERS, not the culprit - 0 of 32 urban holds on

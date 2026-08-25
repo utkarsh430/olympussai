@@ -1501,23 +1501,63 @@ function runPolicyStudy(args: {
   // collectively worse off. It also produced arbitrary answers - two holding
   // placements tied at 46.1% wait improvement, and the tie-break handed the
   // recommendation to the one with the WORSE net effect.
-  const recommended = [...affordable].sort(
+  const ranked = [...affordable].sort(
     (a, b) =>
       (b.passengerSecondsSavedPercent ?? 0) - (a.passengerSecondsSavedPercent ?? 0) ||
       (b.ewtImprovementPercent ?? 0) - (a.ewtImprovementPercent ?? 0),
-  )[0];
+  );
+
+  // ─── DRIVER TIME BREAKS A TIE, AND ONLY A TIE ──────────────────────────
+  //
+  // A hold is executed by a driver keeping a bus standing at a stop
+  // (`mpc/eligibility.ts` - it can be executed nowhere else), and driver time
+  // is a real cost the passenger-second metric does not price at all. Two
+  // settings whose passenger-time AND excess-wait figures are indistinguishable
+  // are not "one better than the other", and recommending the one that asks
+  // more of drivers spends goodwill on a difference nobody measured.
+  //
+  // It is the LAST key, not the first, and that was measured the wrong way
+  // round first: ranking on holding as soon as passenger time tied recommended
+  // 4 of 15 stations over 15 of 15 on the suburban corridor - saving 2.6
+  // min/bus of holding and throwing away 29 points of excess-wait improvement
+  // for it. Excess wait is the service quality passengers actually experience;
+  // driver time decides only between settings that deliver the same of it,
+  // which is the exact-tie case this file already recorded (two placements
+  // tied at 46.1% and the recommendation went to the worse net effect).
+  const TIE_POINTS = 0.3;
+  const best = ranked[0];
+  const recommended =
+    best === undefined
+      ? undefined
+      : [...ranked]
+          .filter(
+            (row) =>
+              (best.passengerSecondsSavedPercent ?? 0) - (row.passengerSecondsSavedPercent ?? 0) <=
+              TIE_POINTS,
+          )
+          .sort(
+            (a, b) =>
+              (b.ewtImprovementPercent ?? 0) - (a.ewtImprovementPercent ?? 0) ||
+              a.meanHoldSecondsPerVehicle - b.meanHoldSecondsPerVehicle,
+          )[0];
   const current = rows.find((row) => row.isCurrent);
 
   let verdict: string;
   if (rows.length < 2) {
     verdict = 'Only one setting was tried, so there is nothing to compare.';
   } else if (recommended && current && recommended.label !== current.label) {
+    const holdSaved = current.meanHoldSecondsPerVehicle - recommended.meanHoldSecondsPerVehicle;
     verdict =
       `${recommended.label} beats the configured ${current.label}: ` +
       `${(recommended.ewtImprovementPercent ?? 0).toFixed(0)}% excess-wait improvement against ` +
       `${(current.ewtImprovementPercent ?? 0).toFixed(0)}%, and ` +
       `${(recommended.passengerSecondsSavedPercent ?? 0).toFixed(1)}% of total passenger time saved against ` +
-      `${(current.passengerSecondsSavedPercent ?? 0).toFixed(1)}%.`;
+      `${(current.passengerSecondsSavedPercent ?? 0).toFixed(1)}%.` +
+      // Driver time is a real cost the passenger-second metric does not price,
+      // so when the recommendation also asks less of drivers, say so.
+      (holdSaved > 1
+        ? ` It also asks ${(holdSaved / 60).toFixed(1)} fewer minutes of holding per bus.`
+        : '');
   } else if (recommended) {
     verdict =
       `The configured ${recommended.label} is the best of those tried: ` +
