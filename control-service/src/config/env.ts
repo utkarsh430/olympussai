@@ -136,20 +136,35 @@ const baseEnvSchema = z.object({
    * controller with the closed form, on every corridor, the moment it
    * shipped.
    *
-   * That replacement is not yet earned. The closed form's exchange rate
-   * between the time of passengers waiting and the time of passengers aboard
-   * is lambda, and lambda is currently PROXIED as 1/H* (see
-   * `arrivalRatePaxPerSecond`, whose calibration caveat says so at length).
-   * The Kf/Kb gains it would displace are tuned per corridor against real
-   * operating experience. Trading measured experience for an unmeasured
-   * model parameter is a downgrade dressed as an optimisation.
+   * That replacement is not yet earned, and the reason is bigger than lambda.
    *
-   * So the candidate is generated, scored, safety-filtered and returned in
-   * `candidateActions` on every solve - visible, comparable, and auditable
-   * against what the gains chose - but it cannot be the selected action until
-   * this is turned on. Turn it on when `fitDemandModel` is fitting lambda
-   * from real boardings; until then the honest state is that the two
-   * approaches disagree in the open and a human can see by how much.
+   * The closed form's exchange rate between the time of passengers waiting and
+   * the time of passengers aboard is lambda, currently PROXIED as 1/H* (see
+   * `arrivalRatePaxPerSecond`). It was long assumed that fitting lambda from
+   * real boardings was the precondition for turning this on. MEASURED against
+   * simulated outcomes over 20,423 holds (HANDOFF.md section 7), it is not:
+   *
+   *   - the objective's COST side is accurate to about 17%
+   *   - its BENEFIT side sees 1.4% of the waiting time a hold actually
+   *     removes, and 10% with a correctly fitted lambda
+   *   - so on the corridor where holding demonstrably helps, the objective
+   *     reports it as a net COST
+   *
+   * The residual after calibration is the HORIZON, not the rate:
+   * `lambda x d x (d + h_fwd - h_bwd)` estimates one stop's worth of a benefit
+   * that accrues along the whole downstream route and to every following bus.
+   * The argmin of a function that can see a tenth of the benefit will always
+   * choose a hold near zero, so turning this on would not merely replace the
+   * tuned gains - it would switch mid-route holding off.
+   *
+   * So: do NOT turn this on when lambda is fitted. Turn it on when the
+   * objective's predicted benefit matches a measured one - which needs a
+   * multi-stop wait term - and re-run the fleet trial across all three
+   * corridors before and after. Until then the candidate is generated,
+   * scored, safety-filtered and returned in `candidateActions` on every solve,
+   * visible and auditable against what the gains chose, and the honest state
+   * is that the two approaches disagree in the open and a human can see by
+   * how much.
    */
   COST_OPTIMAL_SELECTION_ENABLED: z
     .enum(['true', 'false'])
