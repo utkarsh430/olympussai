@@ -346,6 +346,34 @@ describe('a whole trial', () => {
     }
   });
 
+  // ─── HOLDING POINTS ARE SPREAD, NOT CLUSTERED AT THE ORIGIN ────────────
+  //
+  // A hold can only be executed where a bus is standing at a DESIGNATED stop,
+  // so where those stops are is the operational lever. The study used to
+  // designate the FIRST n stations; measured at the same count, spreading them
+  // along the route is about twice as good wherever they are scarce - and
+  // scarce is the density `seed/harvest.ts` configures the real network at
+  // (one station in five). Deviation accumulates BETWEEN corrections, so the
+  // corrections have to be distributed along the route it accumulates over.
+  it('spreads a corridor\'s holding points along the route rather than bunching them at the origin', () => {
+    const stations = 20;
+    const spread = buildFleetCorridor({ ...DEFAULT_FLEET_CORRIDOR, stationCount: stations, holdingPointCount: 5 });
+    const designated = spread.stops
+      .map((stop, index) => (stop.isControlPoint ? index : -1))
+      .filter((index) => index >= 0);
+
+    expect(designated).toHaveLength(5);
+    // The origin always holds - it is where terminal dispatch acts.
+    expect(designated[0]).toBe(0);
+    // ...and the last one is at or near the far end, which clustering at the
+    // origin could never produce.
+    expect(designated[designated.length - 1]).toBeGreaterThan(stations * 0.75);
+    // No two adjacent, which is what `index < holdingPointCount` gave.
+    for (let i = 1; i < designated.length; i++) {
+      expect(designated[i]! - designated[i - 1]!).toBeGreaterThan(1);
+    }
+  });
+
   // A pooled figure over ten different kinds of bad day can be carried
   // entirely by one of them, and the headline says nothing about that.
   it('says how many of its own scenarios agreed with the sign it reports', () => {
