@@ -397,6 +397,33 @@ calibration alone, and the argument is much stronger than it used to be: it is
 the argmin of a function that can see about a tenth of the benefit, so it will
 always choose a hold near zero.
 
+### And the error has a shape, which is the fix stated as a measurement
+
+The wait term's shortfall, all three corridors, against a correctly fitted
+lambda:
+
+| corridor | stations | actual | objective | ratio | mean stops downstream of a hold | ratio ÷ that | sigma_leg/H\* |
+|---|---|---|---|---|---|---|---|
+| urban | 25 | −10,799 h | −1,081 h | **10.0×** | ~12.5 | 0.80 | 0.10 |
+| suburban | 15 | −6,405 h | −1,196 h | **5.4×** | ~7.5 | 0.72 | 0.10 |
+| inter-city | 10 | −15,333 h | −6,083 h | **2.5×** | ~5 | 0.50 | 0.19 |
+
+The ratio tracks how many stops are left downstream of the hold, discounted by
+how well a correction survives between them — and that discount falls exactly
+where `controllability` says corrections wash out. That is the multi-stop wait
+term stated as a measurement rather than as a hypothesis: the benefit of evening
+a gap accrues at every stop the correction survives to, and it survives fewer of
+them on a corridor where more deviation accumulates between two stations than a
+hold at either can remove.
+
+Three points, one seed-set each, so it is a shape and not a formula. But a
+multi-stop term of that form is the thing to build, and these are the numbers to
+check it against.
+
+The cost side, by contrast, is consistently good: 7,914 h predicted against
+6,775 h actual on urban, 7,571 against 6,763 on suburban, 21,727 against 19,180
+on inter-city — 12–17% over, every time.
+
 No code was changed for this finding. It is a measurement about deployed
 arithmetic, recorded so the next person to reach for
 `COST_OPTIMAL_SELECTION_ENABLED` has a number instead of an argument.

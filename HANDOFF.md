@@ -536,6 +536,29 @@ predicted, onboard +19,180 h against +21,727 h, net +4,395 h actual against
 +21,208 h / +15,644 h predicted — still **4.8× / 3.6×**, worse than the 3.4× /
 1.8× on record.
 
+**The error has a shape, and it points at the fix.** Wait term, all three
+corridors, actual against the objective with a correctly fitted λ:
+
+| corridor | stations | actual waiting removed | objective says | ratio | mean stops downstream of a hold | ratio ÷ that | σ_leg/H\* |
+|---|---|---|---|---|---|---|---|
+| urban | 25 | −10,799 h | −1,081 h | **10.0×** | ~12.5 | 0.80 | 0.10 |
+| suburban | 15 | −6,405 h | −1,196 h | **5.4×** | ~7.5 | 0.72 | 0.10 |
+| inter-city | 10 | −15,333 h | −6,083 h | **2.5×** | ~5 | 0.50 | 0.19 |
+
+The ratio tracks **how many stops are left downstream of the hold**, discounted
+by how well a correction survives between them — and that discount falls exactly
+where `controllability` says corrections wash out. Which is the multi-stop wait
+term stated as a measurement: the benefit of evening a gap accrues at every stop
+the correction survives to, and it survives fewer of them on a corridor where
+more deviation accumulates between two stations than a hold at either can
+remove. Three points, one seed-set each, so treat it as a shape rather than a
+formula — but a multi-stop term of that form is the thing to build, and this is
+the number to check it against.
+
+The COST side is consistently good across all three: 7,914 h predicted against
+6,775 h actual on urban, 7,571 against 6,763 on suburban, 21,727 against 19,180
+on inter-city — 12–17% over, every time.
+
 **What this means for the task list.** Calibrating λ takes the wait term from
 1.4% of the truth to 10% on urban — a real sevenfold improvement, and nowhere
 near enough. The error is the one §4 suspected and it is now measured: the wait
