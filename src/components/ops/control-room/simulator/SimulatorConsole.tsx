@@ -26,6 +26,11 @@
  * wait 46% while making total passenger time 12% WORSE. So the passenger-time
  * balance sits at the top of every phase, above the wait figure, and the page
  * says which one is the verdict.
+ *
+ * Total passenger time here means the WHOLE journey - kerb wait, dwell, hold
+ * and riding, each second counted once. It used to mean waiting plus the hold,
+ * which is the wrong half: holding is the only in-vehicle term control makes
+ * worse. See `fleetTrial/types.ts#PassengerOutcome`.
  */
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -138,7 +143,7 @@ function ArmContrastTable({ arm }: { arm: { uncontrolled: ArmReport; controlled:
         <tbody>
           <ContrastRow
             label="Total passenger time"
-            hint="waiting at stops plus delay to people aboard — the verdict"
+            hint="the whole journey — kerb wait, dwell, hold and riding — the verdict"
             baseline={hrs(u.passengers.totalPassengerSeconds)}
             controlled={hrs(c.passengers.totalPassengerSeconds)}
             improvement={contrast.passengerSecondsSavedPercent}

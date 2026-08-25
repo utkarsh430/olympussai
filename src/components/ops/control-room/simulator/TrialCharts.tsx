@@ -11,9 +11,14 @@
  * converging, is the same fact in a form an operator recognises from the road.
  *
  * THE PASSENGER-TIME BALANCE is the trial's verdict, and it is diverging by
- * nature: waiting removed on one side, onboard delay added on the other, and
- * the honest answer is whichever is longer. Drawn as one number it would hide
- * the trade; drawn as two bars from a shared zero it cannot.
+ * nature: waiting removed on one side, the change in time spent ABOARD on the
+ * other, and the honest answer is whichever is longer. Drawn as one number it
+ * would hide the trade; drawn as two bars from a shared zero it cannot.
+ *
+ * The second bar is the whole in-vehicle change, not the hold bill. Holding is
+ * the only in-vehicle term control makes worse - dwell and running time move
+ * with it too, and usually the other way - so drawn as the hold alone the two
+ * bars stopped differing by the net.
  *
  * HOLDS BY STATION says WHERE the controller does its work, which is the
  * question a planner asks next and the one that decides where a supervisor
