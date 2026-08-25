@@ -82,6 +82,33 @@ describe('runRehearsal', () => {
     expect(b.arms.uncontrolled.kpis).toEqual(a.arms.uncontrolled.kpis);
   });
 
+  // ─── PASSENGERS WAIT AT EVERY STATION, NOT AT THE HOLDING POINTS ──────
+  //
+  // `simulation/kpi.ts` samples headway at control points, which is right for
+  // a regression fixture - it is where the controller acts, so it is where a
+  // regression shows - and wrong for a question about passengers. It also ties
+  // the metric to the action: the fleet trial measured baseline EWT at 61 s
+  // with two holding points and 323 s with ten on the identical corridor.
+  // `reportedKpis` feeds the rehearsal AND the whole `evaluation/` harness, and
+  // sampled at control points until this test existed. On the evaluation
+  // harness's own corridor that understated uncontrolled EWT by a factor of
+  // 1.4 and reversed the verdict on excess wait.
+  it('samples headway at every station, not only where a bus can be held', () => {
+    const corridorUnderTest = corridor();
+    const controlPoints = corridorUnderTest.stops.filter((s) => s.isControlPoint).length;
+    // The fixture has to have fewer control points than stops, or this proves
+    // nothing.
+    expect(controlPoints).toBeGreaterThan(0);
+    expect(controlPoints).toBeLessThan(corridorUnderTest.stops.length);
+
+    const result = runRehearsal(corridorUnderTest, DEFAULT_MODELLED_INPUTS);
+    const samples = result.arms.uncontrolled.kpis.headwaySampleCount;
+    // Every station carries samples, so the count has to exceed anything the
+    // control points alone could produce. One bus fewer than the fleet at each.
+    const perStopAtMost = DEFAULT_MODELLED_INPUTS.vehicleCount;
+    expect(samples).toBeGreaterThan(controlPoints * perStopAtMost);
+  });
+
   it('runs both arms over the same scenario, so the comparison is like for like', () => {
     const result = runRehearsal(corridor(), DEFAULT_MODELLED_INPUTS);
     expect(result.arms.uncontrolled.name).toBe('no-control');
