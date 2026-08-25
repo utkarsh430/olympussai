@@ -432,6 +432,12 @@ reason, and `two_way_covers_pair` moved after eligibility where
 > 1. **Calibrate λ.** `evaluation/calibrate.ts` already fits it from `stop_visits`.
 >    It halves the objective's error (3.4× → 1.8×). This is the highest-value
 >    remaining change and it's the precondition for everything below it.
+
+**(The list below is the original one, kept verbatim. Item 1 has since been
+measured and it is NOT the highest-value change — see §7. Calibrating λ moves
+the objective's wait term from 1.4% of the truth to 10%; the remaining 10× is
+the one-stop horizon, which is item 3. Item 4 now has its evidence: no gain
+setting rescues inter-city, and neither does its demand.)**
 > 2. **Then replace the occupancy taper with the closed form.** My taper is a
 >    deliberately crude, bounded heuristic — it can shorten a hold, never invert
 >    one, precisely because λ is wrong. With λ calibrated, `optimalHoldSeconds` is
@@ -502,12 +508,46 @@ of them could move the same way. Before quoting one, re-run it.
 
 ---
 
-## 7. Repro for the highest-priority open issue (task 1: calibrate λ)
+## 7. The objective, re-measured — and it is not a λ problem
 
-**Claim:** `mpc/objective.ts#arrivalRatePaxPerSecond` returns `1/H*` — one
-passenger per headway, where the trial's own corridors see 11–13. The objective
-therefore overstates the harm of a hold by **3.4×**; with a correct λ it still
-overstates by **1.8×**.
+**The old claim** was that `mpc/objective.ts#arrivalRatePaxPerSecond` returns
+`1/H*` where the corridors see 11–13 passengers per headway, so the objective
+"overstates the harm of a hold by 3.4×, and 1.8× with a correct λ". That was
+measured against a headline counting waiting plus the hold over a waiting-only
+denominator, on arms that diverged at the first hold.
+
+**Re-measured on the corrected metric with the arms paired (10 scenarios × 3
+seeds, 120 buses/phase), the diagnosis changes completely.** The objective's
+COST side is nearly right. Its BENEFIT side is wrong by a factor of ten to
+seventy, and on the corridor where the controller works it therefore has the
+**wrong sign**:
+
+| urban, 20,423 holds | actual | objective, 1/H\* proxy | objective, correct λ |
+|---|---|---|---|
+| waiting | **−10,799 h** | −147 h | −1,081 h |
+| onboard, from the hold | +6,775 h | +7,914 h | +7,914 h |
+| dwell | −2,362 h | *not modelled* | *not modelled* |
+| riding | −81 h | *not modelled* | *not modelled* |
+| **net** | **−6,466 h (a SAVING)** | **+7,768 h (a COST)** | **+6,833 h (a COST)** |
+
+Inter-city has the same shape and keeps its sign only because the cost is
+genuinely larger there: waiting −15,333 h actual against −519 h / −6,083 h
+predicted, onboard +19,180 h against +21,727 h, net +4,395 h actual against
++21,208 h / +15,644 h predicted — still **4.8× / 3.6×**, worse than the 3.4× /
+1.8× on record.
+
+**What this means for the task list.** Calibrating λ takes the wait term from
+1.4% of the truth to 10% on urban — a real sevenfold improvement, and nowhere
+near enough. The error is the one §4 suspected and it is now measured: the wait
+term `λ·d·(d + h_fwd − h_bwd)` is a ONE-STOP marginal estimate of a benefit that
+accrues over the whole downstream route and to every following bus, and urban
+has twenty-five stops. **λ is not the highest-value change; the horizon is.**
+And it is the strongest argument yet for keeping `COST_OPTIMAL_SELECTION_ENABLED`
+off: the argmin of a function that sees a tenth of the benefit will always
+choose a hold near zero.
+
+Repro: `control-service/experiments/runs/probes/probe25.ts` in this branch's
+working tree, or rebuild it from the sketch below.
 
 Save as `/tmp/objaudit.ts` and run with the env vars from §1:
 
