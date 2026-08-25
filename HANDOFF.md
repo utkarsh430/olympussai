@@ -559,6 +559,16 @@ The COST side is consistently good across all three: 7,914 h predicted against
 6,775 h actual on urban, 7,571 against 6,763 on suburban, 21,727 against 19,180
 on inter-city — 12–17% over, every time.
 
+**How much can this error actually do?** Not much, today, and that is measured
+too. `objectiveCost` feeds three things: the ranking among mid-route candidates,
+`cost_optimal_hold`'s length (not selectable), and the predictive advisory
+(decides nothing). The ranked pool is two-way holding OR self-equalizing, and
+those are disjoint by construction — **across 178,500 decisions on all three
+corridors it held more than one candidate on ZERO of them**. So the objective's
+sign error cannot mis-select an instruction today. What it does corrupt is a
+number an operator and a future engineer both read, and it is the number that
+decides whether the closed form ever gets switched on.
+
 **What this means for the task list.** Calibrating λ takes the wait term from
 1.4% of the truth to 10% on urban — a real sevenfold improvement, and nowhere
 near enough. The error is the one §4 suspected and it is now measured: the wait

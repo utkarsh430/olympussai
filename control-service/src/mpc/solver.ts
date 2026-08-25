@@ -473,6 +473,24 @@ export const DEFAULT_MAX_CONCURRENT_ACTIONS = 3;
  * answered "yes, comparable" the first time an unpriced alighting-only
  * proposal appeared next to a hold; the other remembered `cost_optimal_hold`
  * and forgot `boarding_limit`. The rule belongs next to the pool it describes.
+ *
+ * ─── AND THE POOL IS NEVER LONGER THAN ONE, TODAY ────────────────────────
+ *
+ * With `COST_OPTIMAL_SELECTION_ENABLED` off, what survives this filter is
+ * two-way holding OR self-equalizing, and `selfEqualizing.ts` declines any
+ * pair two-way covered - so the two are disjoint by construction and the
+ * ranked pool holds at most one candidate per vehicle. MEASURED across
+ * 178,500 decisions on all three corridors: it held more than one on ZERO of
+ * them.
+ *
+ * That is worth knowing in both directions. The objective's ranking currently
+ * decides nothing that reaches a driver, so the error in it (see
+ * `config/env.ts#COST_OPTIMAL_SELECTION_ENABLED` - the benefit term is off by
+ * ten to seventy times, and on the urban corridor the SIGN is wrong) cannot
+ * mis-select an action today. And the occupancy switch's measured effect on
+ * issued instructions comes entirely from the hold CAP in
+ * `mpc/actionThreshold.ts`, never from re-ordering - which is why the cap had
+ * to exist at all.
  */
 export function isRankedMidRouteCandidate(
   candidate: CandidateAction,
