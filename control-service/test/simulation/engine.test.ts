@@ -561,3 +561,89 @@ describe('disturbances applied over a window rather than at an instant', () => {
     expect(sliverDelay).toBeLessThan(wholeDelay);
   });
 });
+
+// ─── A BUS TOLD TO TAKE NOBODY ON HAS REFUSED PEOPLE ─────────────────────
+//
+// `deniedBoardings` is fixed before an alighting-only instruction zeroes the
+// boardings, so such a visit reported zero denied and zero stranded while a
+// dozen people watched a bus leave. Only `boardingLimitedPassengers` recorded
+// them and nothing aggregated it. It also advanced the OFFERED front to its
+// own departure, though it had drawn no standing window at all, so the next
+// bus to refuse those same people scored them as repeats.
+describe('an alighting-only instruction and the people it leaves', () => {
+  const BUSY: RouteDirectionDefinition = {
+    ...SAMPLE_ROUTE_DIRECTION,
+    stops: SAMPLE_ROUTE_DIRECTION.stops.map((stop, index) => ({
+      ...stop,
+      isControlPoint: true,
+      cumulativeDistanceMeters: index * 1_000,
+    })),
+    totalDistanceMeters: 5_000,
+  };
+  const alightingOnlyAt = (stopId: string): Controller => ({
+    name: 'alighting-only',
+    decide: (context) =>
+      context.stopId === stopId && context.vehicleId === 'veh-2'
+        ? { holdSeconds: 0, actionType: 'boarding_limit' }
+        : { holdSeconds: 0, actionType: 'no_control' },
+  });
+  const config = {
+    name: 'alighting-only',
+    routeDirection: BUSY,
+    dispatches: SAMPLE_DISPATCHES,
+    disturbances: [],
+    seed: 31,
+  };
+
+  it('records the people it passed as stranded, where nothing recorded them before', () => {
+    const limited = simulate(config, alightingOnlyAt('stop-3'));
+    const passed = limited.visits.reduce((a, v) => a + v.boardingLimitedPassengers, 0);
+    // The fixture has to actually leave somebody behind.
+    expect(passed).toBeGreaterThan(0);
+    // Pinned as the formula rather than as a comparison against a run without
+    // the instruction: leaving people behind changes what every later bus
+    // carries, so the two runs' totals are not related by simple addition.
+    const capacityRefusals = limited.visits.reduce((a, v) => a + v.firstTimeDeniedBoardings, 0);
+    expect(limited.kpis.strandedPassengers).toBe(capacityRefusals + passed);
+  });
+
+  // Capacity saturation is a statement about SEATS. An instruction not to
+  // board is a decision, and must not read as the corridor running out of room.
+  it('does not count them as a capacity refusal', () => {
+    const limited = simulate(config, alightingOnlyAt('stop-3'));
+    for (const visit of limited.visits.filter((v) => v.boardingLimitedPassengers > 0)) {
+      expect(visit.firstTimeDeniedBoardings).toBeLessThanOrEqual(visit.deniedBoardings);
+    }
+  });
+
+  // The offered front must not move past the ARRIVAL of a bus that offered
+  // nobody anything. Tested differentially: hold that bus, and the stretch of
+  // clock between its arrival and its departure grows. If the front were
+  // advanced to its departure - which it was - the next bus would report
+  // fewer first-time refusals the longer the alighting-only bus stood there,
+  // which is exactly backwards. With the front at the arrival, holding it
+  // changes nothing about who the next bus is refusing for the first time.
+  it('does not let a longer stay shrink the next bus\'s first-time refusals', () => {
+    const heldToo = (stopId: string): Controller => ({
+      name: 'alighting-only-and-held',
+      decide: (context) =>
+        context.stopId === stopId && context.vehicleId === 'veh-2'
+          ? { holdSeconds: 300, actionType: 'boarding_limit' }
+          : { holdSeconds: 0, actionType: 'no_control' },
+    });
+    const firstTimeAfter = (result: ReturnType<typeof simulate>) => {
+      const atStop = result.visits
+        .filter((v) => v.stopId === 'stop-3')
+        .sort((a, b) => a.arrivalSeconds - b.arrivalSeconds);
+      const index = atStop.findIndex((v) => v.boardingLimitedPassengers > 0);
+      expect(index).toBeGreaterThanOrEqual(0);
+      const next = atStop[index + 1];
+      expect(next).toBeDefined();
+      expect(next!.deniedBoardings).toBeGreaterThan(0);
+      return next!.firstTimeDeniedBoardings;
+    };
+    expect(firstTimeAfter(simulate(config, heldToo('stop-3')))).toBe(
+      firstTimeAfter(simulate(config, alightingOnlyAt('stop-3'))),
+    );
+  });
+});

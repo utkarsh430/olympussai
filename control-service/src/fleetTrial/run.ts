@@ -733,8 +733,16 @@ function contrast(controlled: ArmReport, uncontrolled: ArmReport): ArmContrast {
     // uncontrolled arm's denials were somebody being turned away again
     // against 10% of the controlled arm's, so the event counts differed by 9
     // where the headcounts differed by 223.
+    //
+    // Plus the people an alighting-only instruction left standing. That is a
+    // decision rather than a capacity shortfall - which is why `saturated` is
+    // drawn on the capacity half alone - but to the passenger it is the same
+    // bus leaving without them, and this line is about passengers.
     additionalDeniedBoardings:
-      controlled.spacing.firstTimeDeniedBoardings - uncontrolled.spacing.firstTimeDeniedBoardings,
+      controlled.spacing.firstTimeDeniedBoardings +
+      controlled.punctuality.alightingOnlyPassengersPassed -
+      (uncontrolled.spacing.firstTimeDeniedBoardings +
+        uncontrolled.punctuality.alightingOnlyPassengersPassed),
   };
 }
 

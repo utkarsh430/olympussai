@@ -966,9 +966,18 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
     // too, and always a new one - that stretch of clock had never been
     // offered to anybody.
     const lateUnserved = takesLateBoarders ? Math.max(0, lateOffered - lateBoardings) : 0;
-    const firstTimeDeniedBoardings =
-      Math.round(deniedBoardings * firstTimeShare) + lateUnserved;
-    queueOfferedSeconds[stopIndex] = Math.max(previouslyOffered, arrivalSeconds, departureBeforeLateBoarders);
+    const firstTimeDeniedBoardings = Math.round(deniedBoardings * firstTimeShare) + lateUnserved;
+    // ─── A BUS THAT TOOK NOBODY OFFERED NOBODY A BUS ────────────────────
+    //
+    // The offered front was advanced to this bus's DEPARTURE unconditionally,
+    // including when it had been told to take nobody on and had therefore
+    // drawn no standing window at all. Nobody was offered anything over that
+    // stretch of clock, so when the next bus refuses those same people they
+    // were being scored as repeats rather than as first-time refusals - the
+    // residue of the bug class that once reversed the alighting-only verdict.
+    queueOfferedSeconds[stopIndex] = takesLateBoarders
+      ? Math.max(previouslyOffered, arrivalSeconds, departureBeforeLateBoarders)
+      : Math.max(previouslyOffered, arrivalSeconds);
 
     const previouslyCleared = clearedAt ?? arrivalSeconds;
     let clearedTo = previouslyCleared + servedFraction * waitWindowSeconds;
@@ -1011,8 +1020,24 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       // Everybody aboard when this bus would have pulled away, times the
       // hold. The late boarders are excluded deliberately - see the field.
       onboardDelayPassengerSeconds: appliedHoldSeconds * Math.max(0, onboardAfter - lateBoardings),
-      // The same population through the ordinary door cycle.
-      dwellPassengerSeconds: dwellSeconds * Math.max(0, onboardAfter - lateBoardings),
+      // ─── AND THE PEOPLE GETTING OFF PAY FOR THE DOORS TOO ─────────────
+      //
+      // Charged over `onboardAfter`, which is POST-alighting, everyone who
+      // stepped off here paid nothing for the door cycle they were aboard
+      // for. They are aboard for the alighting half of it - they are what
+      // that half IS - so they are charged `baseDwell + alighting time`, and
+      // not the boarding time that happens after they have gone.
+      //
+      // It is not neutral between the arms: bunching puts a long dwell and a
+      // heavy alighting load on the SAME bus, so the uncontrolled arm carries
+      // the larger uncharged term. Measured upper bound (every alighter paying
+      // the whole dwell): 700.8 h uncontrolled against 680.8 h controlled on
+      // urban, so counting it widens the measured gain by roughly 20 h on a
+      // 425.6 h effect.
+      dwellPassengerSeconds:
+        dwellSeconds * Math.max(0, onboardAfter - lateBoardings) +
+        alightings *
+          (stop.demand.baseDwellSeconds + stop.demand.secondsPerAlighting * alightings),
       boardingLimitedPassengers: boardingLimited,
       alightings,
       deniedBoardings: deniedBoardings + lateUnserved,

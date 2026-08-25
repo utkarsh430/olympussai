@@ -79,6 +79,11 @@ export function summarizeKpis(
 
   const deniedBoardings = visits.reduce((acc, v) => acc + v.deniedBoardings, 0);
   const firstTimeDeniedBoardings = visits.reduce((acc, v) => acc + v.firstTimeDeniedBoardings, 0);
+  // People an alighting-only instruction left standing. A refusal by
+  // construction, and a different FACT from a full bus - see
+  // `StopVisitRecord.boardingLimitedPassengers` - which is why it is added to
+  // the stranded count below and never to the capacity-saturation share.
+  const boardingLimitedPassengers = visits.reduce((acc, v) => acc + v.boardingLimitedPassengers, 0);
   const totalBoardings = visits.reduce((acc, v) => acc + v.boardings, 0);
 
   const onTimeSamples = headwaySamples.filter(
@@ -111,7 +116,13 @@ export function summarizeKpis(
     // those refusals, so it became a rate rather than a headcount - three
     // buses passing one stranded passenger reported three stranded
     // passengers - and the comment describing it went on saying the opposite.
-    strandedPassengers: firstTimeDeniedBoardings,
+    //
+    // Includes the people an alighting-only instruction left behind. They are
+    // stranded in exactly the sense this field means, and they were in no
+    // denial figure anywhere: `deniedBoardings` is fixed before the
+    // instruction zeroes the boardings, so such a visit reported zero denied
+    // and zero stranded while a dozen people watched a bus leave.
+    strandedPassengers: firstTimeDeniedBoardings + boardingLimitedPassengers,
     onTimeDispatchRate,
     complianceRate,
     totalBoardings,
