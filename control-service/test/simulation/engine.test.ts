@@ -721,3 +721,61 @@ describe('every corridor the model admits produces a possible day', () => {
     });
   }
 });
+
+// ─── THE KPI SUMMARY CARRIES THE WHOLE PASSENGER BILL ────────────────────
+//
+// `evaluation/`'s parameter sweep optimises excess wait, which counts only the
+// people standing at stops. Holding a bus to fix their spacing is paid for by
+// everyone already aboard, so a sweep on EWT alone will recommend a setting
+// that buys spacing with everybody's time - which is the fleet trial's
+// founding finding. `totalPassengerSeconds` is what stops it, and it is a
+// guardrail metric in `evaluation/metrics.ts`.
+describe('total passenger time on the KPI summary', () => {
+  const ROUTE: RouteDirectionDefinition = {
+    ...SAMPLE_ROUTE_DIRECTION,
+    totalDistanceMeters: 5_000,
+    stops: SAMPLE_ROUTE_DIRECTION.stops.map((stop, index) => ({
+      ...stop,
+      isControlPoint: true,
+      cumulativeDistanceMeters: index * 1_000,
+    })),
+  };
+  const config = {
+    name: 'kpi',
+    routeDirection: ROUTE,
+    dispatches: SAMPLE_DISPATCHES,
+    disturbances: [],
+    seed: 19,
+  };
+
+  it('is the same four-way split the trial measures, summed over every visit', () => {
+    const result = simulate(config, noControlController);
+    let expected = 0;
+    const byVehicle = new Map<string, typeof result.visits>();
+    for (const v of result.visits) {
+      expected += v.boardingWaitPassengerSeconds + v.dwellPassengerSeconds + v.onboardDelayPassengerSeconds;
+      const bucket = byVehicle.get(v.vehicleId) ?? [];
+      bucket.push(v);
+      byVehicle.set(v.vehicleId, bucket);
+    }
+    for (const timeline of byVehicle.values()) {
+      timeline.sort((a, b) => a.stopIndex - b.stopIndex);
+      for (let i = 0; i < timeline.length - 1; i++) {
+        expected += Math.max(0, timeline[i + 1]!.arrivalSeconds - timeline[i]!.departureSeconds) * timeline[i]!.onboardAfter;
+      }
+    }
+    expect(result.kpis.totalPassengerSeconds).toBe(Math.round(expected));
+  });
+
+  // The point of the guardrail: holding can improve spacing while costing
+  // passengers time, so the two metrics have to be able to disagree.
+  it('rises when a controller holds every bus, even as spacing improves', () => {
+    const plain = simulate(config, noControlController);
+    const held = simulate(config, {
+      name: 'hold-all',
+      decide: () => ({ holdSeconds: 60, actionType: 'two_way_hold' }),
+    });
+    expect(plain.kpis.totalPassengerSeconds).not.toBeNull();
+    expect(held.kpis.totalPassengerSeconds!).toBeGreaterThan(plain.kpis.totalPassengerSeconds!);
+  });
+});
