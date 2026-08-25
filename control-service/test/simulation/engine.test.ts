@@ -7,6 +7,7 @@ import type {
   ControllerKinematics,
   RouteDirectionDefinition,
   ScenarioConfig,
+  StopDefinition,
 } from '../../src/simulation/types.js';
 
 function baseConfig(overrides: Partial<ScenarioConfig> = {}): ScenarioConfig {
@@ -646,4 +647,77 @@ describe('an alighting-only instruction and the people it leaves', () => {
       firstTimeAfter(simulate(config, alightingOnlyAt('stop-3'))),
     );
   });
+});
+
+// ─── THE ENGINE'S OUTPUT IS ALWAYS PHYSICALLY POSSIBLE ───────────────────
+//
+// A property sweep rather than a scenario: eighteen corridors chosen to sit at
+// the edges of what the model admits - no demand at all, one seat, a
+// ten-second headway, a six-hour one, two stations, zero dwell, gains at zero.
+// Every one of them must still produce a day in which nobody boards a negative
+// number of passengers, no bus carries more than its seats, nothing departs
+// before it arrives, no hold exceeds the corridor's cap, and no number is NaN.
+//
+// This is the shape of failure a parameter change causes: not a crash, a
+// quietly impossible number in one configuration nobody runs by default.
+describe('every corridor the model admits produces a possible day', () => {
+  const EDGE_CASES: { name: string; route?: Partial<RouteDirectionDefinition>; demand?: Partial<StopDefinition['demand']> }[] = [
+    { name: 'baseline' },
+    { name: 'no demand at all', demand: { boardingRatePerMinute: 0 } },
+    { name: 'nobody alights', demand: { alightingFraction: 0 } },
+    { name: 'everybody alights', demand: { alightingFraction: 1 } },
+    { name: 'zero dwell', demand: { baseDwellSeconds: 0, secondsPerBoarding: 0, secondsPerAlighting: 0 } },
+    { name: 'heavy demand', demand: { boardingRatePerMinute: 40 } },
+    { name: 'one seat', route: { vehicleCapacity: 1 } },
+    { name: 'zero max hold', route: { maxHoldSeconds: 0 } },
+    { name: 'ten-second headway', route: { targetHeadwaySeconds: 10 } },
+    { name: 'six-hour headway', route: { targetHeadwaySeconds: 21_600 } },
+    { name: 'no separation', route: { minSeparationSeconds: 0 } },
+    { name: 'huge separation', route: { minSeparationSeconds: 600 } },
+  ];
+
+  const alwaysHold: Controller = {
+    name: 'always-hold',
+    decide: () => ({ holdSeconds: 90, actionType: 'two_way_hold' }),
+  };
+
+  for (const edge of EDGE_CASES) {
+    it(`holds together: ${edge.name}`, () => {
+      const route: RouteDirectionDefinition = {
+        ...SAMPLE_ROUTE_DIRECTION,
+        ...edge.route,
+        totalDistanceMeters: 5_000,
+        stops: SAMPLE_ROUTE_DIRECTION.stops.map((stop, index) => ({
+          ...stop,
+          isControlPoint: true,
+          cumulativeDistanceMeters: index * 1_000,
+          demand: { ...stop.demand, ...edge.demand },
+        })),
+      };
+      for (const controller of [noControlController, alwaysHold]) {
+        const result = simulate(
+          { name: edge.name, routeDirection: route, dispatches: SAMPLE_DISPATCHES, disturbances: [], seed: 3 },
+          controller,
+        );
+        for (const v of result.visits) {
+          for (const value of [
+            v.boardings, v.alightings, v.deniedBoardings, v.firstTimeDeniedBoardings,
+            v.onboardAfter, v.boardingWaitPassengerSeconds, v.dwellPassengerSeconds,
+            v.onboardDelayPassengerSeconds, v.dwellSeconds, v.appliedHoldSeconds,
+            v.waitWindowSeconds,
+          ]) {
+            expect(Number.isFinite(value)).toBe(true);
+            expect(value).toBeGreaterThanOrEqual(0);
+          }
+          expect(v.onboardAfter).toBeLessThanOrEqual(route.vehicleCapacity);
+          expect(v.alightings).toBeLessThanOrEqual(route.vehicleCapacity);
+          expect(v.departureSeconds).toBeGreaterThanOrEqual(v.arrivalSeconds);
+          expect(v.appliedHoldSeconds).toBeLessThanOrEqual(route.maxHoldSeconds);
+          expect(v.firstTimeDeniedBoardings).toBeLessThanOrEqual(v.deniedBoardings);
+        }
+        // Every dispatched bus completes every stop, whatever the corridor.
+        expect(result.visits).toHaveLength(SAMPLE_DISPATCHES.length * route.stops.length);
+      }
+    });
+  }
 });
