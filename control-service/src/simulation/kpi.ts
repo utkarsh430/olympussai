@@ -91,6 +91,27 @@ export function summarizeKpis(
   ).length;
   const onTimeDispatchRate = headwaySamples.length > 0 ? onTimeSamples / headwaySamples.length : 1;
 
+  // Every second a passenger spent, counted once - see
+  // `KpiSummary.totalPassengerSeconds`. Riding needs a vehicle's visits in
+  // stop order, so the timelines are assembled here rather than re-scanned.
+  let passengerSeconds = 0;
+  const byVehicle = new Map<string, StopVisitRecord[]>();
+  for (const visit of visits) {
+    passengerSeconds +=
+      visit.boardingWaitPassengerSeconds + visit.dwellPassengerSeconds + visit.onboardDelayPassengerSeconds;
+    const bucket = byVehicle.get(visit.vehicleId) ?? [];
+    bucket.push(visit);
+    byVehicle.set(visit.vehicleId, bucket);
+  }
+  for (const timeline of byVehicle.values()) {
+    timeline.sort((a, b) => a.stopIndex - b.stopIndex);
+    for (let index = 0; index < timeline.length - 1; index++) {
+      const from = timeline[index]!;
+      const to = timeline[index + 1]!;
+      passengerSeconds += Math.max(0, to.arrivalSeconds - from.departureSeconds) * from.onboardAfter;
+    }
+  }
+
   const compliancePool = visits.filter((v) => v.intendedHoldSeconds > 0);
   const complianceRate =
     compliancePool.length > 0
@@ -102,6 +123,7 @@ export function summarizeKpis(
     meanHeadwaySeconds,
     headwayCv,
     ewtSeconds,
+    totalPassengerSeconds: visits.length > 0 ? Math.round(passengerSeconds) : null,
     bunchingIncidents,
     bunchingRate,
     excessWaitSeconds,

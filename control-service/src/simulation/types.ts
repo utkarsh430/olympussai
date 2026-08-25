@@ -546,6 +546,25 @@ export interface KpiSummary {
    * `headway/metrics.ts`).
    */
   ewtSeconds: number | null;
+  /**
+   * Every second the run's passengers spent, from arriving at a stop to
+   * alighting: kerb wait + dwell + hold + riding, each counted once.
+   *
+   * ─── AND WHY A HARNESS THAT TUNES ON EWT NEEDS IT ────────────────────
+   *
+   * EWT counts only the people standing at stops. Holding a bus to fix their
+   * spacing is paid for by everyone already aboard, and the two move in
+   * opposite directions often enough that the fleet trial's founding finding
+   * was a configuration that improved EWT 46% while making total passenger
+   * time 12% WORSE. `evaluation/`'s parameter sweep optimises EWT and had no
+   * passenger-time guardrail at all, so it could recommend exactly that - and
+   * MEASURED on the urban corridor, loosening the mid-route action bar from
+   * 50% to 75% of H* does it: excess wait improves from 50% to 55% while net
+   * passenger time falls from +4.1% to +2.1%.
+   *
+   * Null when the run had no visits to measure.
+   */
+  totalPassengerSeconds: number | null;
   /** Count of headway samples below `bunchedThresholdRatio * targetHeadwaySeconds`. Not comparable across runs of different size - use `bunchingRate`. */
   bunchingIncidents: number;
   /** Share (0-1) of headway samples below `bunchedThresholdRatio * targetHeadwaySeconds`. The comparable form. */

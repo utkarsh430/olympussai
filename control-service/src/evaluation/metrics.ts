@@ -12,6 +12,7 @@ import type { KpiSummary } from '../simulation/types.js';
 
 export type MetricKey =
   | 'ewtSeconds'
+  | 'totalPassengerSeconds'
   | 'bunchingRate'
   | 'headwayCv'
   | 'meanHeadwaySeconds'
@@ -30,6 +31,12 @@ export interface MetricDefinition {
 }
 
 export const KPI_METRICS: readonly MetricDefinition[] = [
+  {
+    key: 'totalPassengerSeconds',
+    label: 'Total passenger time (s)',
+    read: (k) => k.totalPassengerSeconds,
+    lowerIsBetter: true,
+  },
   {
     key: 'ewtSeconds',
     label: 'Excess wait (s/passenger)',
@@ -87,5 +94,22 @@ export const HEADLINE_METRIC: MetricKey = 'ewtSeconds';
  * making buses wait, and a bus made to wait while full leaves people behind.
  * That trade is not visible in EWT at all - the passengers it costs are the
  * ones who never boarded to have a wait measured.
+ *
+ * ─── AND TOTAL PASSENGER TIME, FOR THE SAME REASON ONE STEP UP ───────────
+ *
+ * This sweep optimises EWT, which counts only the people standing at stops.
+ * Holding a bus to fix their spacing is paid for by everyone already aboard,
+ * and the two move in opposite directions often enough that the fleet trial's
+ * founding finding was a configuration improving EWT 46% while making total
+ * passenger time 12% WORSE. With no passenger-time guardrail this sweep would
+ * recommend exactly that, and it is not hypothetical: MEASURED on the urban
+ * corridor, loosening the mid-route action bar from 50% to 75% of H* takes
+ * excess wait from 50% to 55% better while net passenger time falls from
+ * +4.1% to +2.1%. The headline stays EWT - it is the control-quality metric
+ * the field and `algo_new.md` are written in - but nothing may be recommended
+ * that buys it by spending more of what passengers actually have.
  */
-export const GUARDRAIL_METRICS: readonly MetricKey[] = ['deniedBoardings'];
+export const GUARDRAIL_METRICS: readonly MetricKey[] = [
+  'deniedBoardings',
+  'totalPassengerSeconds',
+];
