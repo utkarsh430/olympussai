@@ -500,12 +500,31 @@ Each was implemented, measured paired-by-seed, and rejected.
 |---|---|---|
 | `Kb` 0.2 → 0.4 | Was "coin flip, 4/10 seeds". **RE-RUN paired on common random numbers: 0.4 is worse on 6/6 urban seeds by 0.36 points, 0.3 worse on 6/6, 0.1 worse on 5/6.** Not a coin flip — 0.2 is a resolved optimum | Confirmed |
 | `ks` (schedule-correction gain) | Was "4/8 seeds, means identical". **RE-RUN: every value tested is worse than `null` — 0.15 on 6/6 urban seeds, 0.35 on 5/6, 0.6 on 5/6**, each by about 0.2 points | Stays `null`, now measured |
+| **Joint `kf` × `kb` grid** (12 combinations, paired, timetable booked so the punctuality guardrail binds) | Urban spans **+4.26% to +4.63%** — 0.37 points across a 2× range of `kf` and a 3× range of `kb` — and the best combination beats the shipped one by **0.12 points**, inside the ±0.3 seed noise. Inter-city spans 0.12 points, headroom **0.03**. Decisively: **hold per bus is 2.7–3.0 min across the whole urban grid**, so the GUARDRAILS set how much holding happens, not the gains | Confirmed flat. Do not re-tune |
 | `kf` ≠ 0.4 (never previously swept) | 0.2 worse on **6/6** urban seeds (−0.47 pts); 0.6 indistinguishable (3/6, −0.05); 0.8 worse on 4/6. On **inter-city, holding harder is monotonically worse** — 0.6 and 0.8 lose on 5/6 seeds and even 0.2 is still net-negative | 0.4 confirmed; a local optimum |
 | Measure mid-route headway at the **release** instant | Urban EWT 52.4% → **43.6%**, won 1/6 seeds. Holds less, loses more than it saves | Reverted; code carries no switch |
 | `MID_ROUTE_ACTION_RATIO` = 0.8 | Scored marginally better on one trial (+0.2% vs −3.1%) but inside seed noise and has **no principle** behind it | Kept at 1.0 = the corridor's own warning ratio |
 | `warning_threshold_ratio` ≠ 0.50 | Swept 0.30–1.00 by hand on the old headline, then **re-swept in the trial itself** (`policyStudies`, 3 seeds, paired): 0.50 best on BOTH corridors, 3/3 seeds. 0.75 and 1.00 keep improving excess wait (to 54.6% urban, 27.3% inter-city) while total passenger time falls — the EWT/total divergence, visible in a table | Confirmed. Re-runnable now |
 | `COST_OPTIMAL_SELECTION_ENABLED` | Occupancy off: 29.8% → 30.0% EWT, no real change. Occupancy **on**: issues **nothing at all** (λ proxy makes the load penalty H\*/2 per passenger) | Stays off |
 | Auto-selecting alighting-only | **This entry no longer reproduces — see below.** Was: worse on 7/8 seeds; −9% of all passenger time in `slow_bus` on every seed | Stays proposal-only, for a different reason |
+
+**The gain surface is flat because the guardrails clip it, and that is measured.**
+`isWorthActingOn` gates 65% of decisions before a hold length is ever computed,
+`max_lateness_seconds` refuses roughly three quarters as many holds as are
+issued, and `maxHoldSeconds` caps what survives. A gain only sets the length of
+the holds that get through all three. The proof is that **hold per bus barely
+moves across the whole grid** (2.7–3.0 min on urban over a 2× `kf` range) while
+the POLICY thresholds move the result an order of magnitude more: the mid-route
+action bar swings net passenger time from **+0.6% to +4.1%** across its sweep,
+against 0.37 points for every gain combination put together. **Tune thresholds
+and enablement, not gains.**
+
+**And beware sweeping gains without a timetable.** Run with
+`scheduledArrivalSeconds` unset, `scheduleDeviationSeconds` is null everywhere,
+`max_lateness_seconds` never binds, and the punctuality guardrail is simply off
+— holding doubles to 6.2 min/bus and the apparent optimum moves to a completely
+different corner of the grid (`kf` 0.3 / `kb` 0.3, "0.65 points of headroom").
+That is a different controller, and its answer does not transfer.
 
 **Why these now resolve when they did not before.** Both fixes matter. The
 headline used to be waiting plus the hold over a waiting-only denominator (§3
