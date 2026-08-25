@@ -417,6 +417,21 @@ reason, and `two_way_covers_pair` moved after eligibility where
   corridor-wide horizon the same residual reads 11% and 6.5%, and all of that
   excess is stops near the origin whose last bus passed hours before the last
   bus anywhere finished.
+- **`sim:run`'s synthetic corridor cannot answer at either end — measured, and
+  left alone.** Its default demand (0.8/min) puts the steady-state load at 48 of
+  52 seats, so across its own default scenario set 26.9% of offered passengers
+  are denied and the report trips its own saturation warning; on the quiet
+  `none` scenario alone it is 19%, a hair under, so any disturbance trips it.
+  Lowering the rate to 0.5 removes the saturation (2.6% denied) but the corridor
+  then barely comes apart — uncontrolled EWT 24 s against a 900 s headway, and
+  the controller measures **98% worse** because holding a well-spaced corridor
+  is harmful. At 0.8 the same quiet day reads 30 s and 48% worse. **Demand is
+  not the lever**; σ_leg/H\* is, and `sim:run` does not compute it, so a reader
+  cannot see which regime they are in. Two things worth doing: give `sim:run`
+  the `controllability` diagnostic the fleet trial reports, and re-calibrate
+  that corridor to come apart at a moderate load. Left at 0.8 rather than
+  half-corrected — swapping one trap for the other changes every recorded number
+  without making the harness able to answer.
 - **Neighbour confidence is cruder than production's.** The adapter marks
   leader/trailer as fully confident and freshly observed unless a `gps_dropout`
   disturbance covers them. Production has a continuous confidence model and a

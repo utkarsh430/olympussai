@@ -147,11 +147,36 @@ export function parseExperimentSpec(input: unknown): ExperimentSpec {
  * a full bus only strands more people. An evaluation run on it reports "no
  * effect" about a working controller.
  *
- * These defaults leave headroom (0.8/min against 25% alighting gives a
- * steady-state load near 48 of 52 seats) and carry more travel-time
- * variability, so the corridor actually comes apart and there is something
- * for a control law to fix. Still invented - see `rehearsal/run.ts`'s header.
- * A spec that names its own `inputs` overrides these.
+ * ─── AN OPEN DEFECT, MEASURED AND LEFT AS IT IS ──────────────────────────
+ *
+ * These read 0.8/min against 25% alighting on the reasoning that a
+ * steady-state load "near 48 of 52 seats" left headroom. It does not - 48 of
+ * 52 is 92% full before any variance, and the peak load is the seat count on
+ * every seed. MEASURED across this harness's own DEFAULT scenario set (all
+ * five, `demand_burst` included), 26.9% of offered passengers are denied,
+ * over the 20% bar the report itself prints a saturation warning at. On the
+ * quiet `none` scenario alone it is 19% - a hair under, so any disturbance at
+ * all trips it.
+ *
+ * Lowering the demand does not fix it, and that was measured too. At 0.5/min
+ * the denied share falls to 2.6% and the warning goes away, but the corridor
+ * then barely comes apart: uncontrolled EWT on a quiet day is 24 s against a
+ * 900 s headway, and the controller measures 98% WORSE because holding a
+ * well-spaced corridor is harmful. At the shipped 0.8 the same quiet day
+ * reads 30 s and 48% worse. **This corridor is below the controllable band at
+ * one end and above the saturation line at the other, and demand is not the
+ * lever between them** - the fleet trial's `controllability` figure
+ * (sigma_leg / H*) is, and this harness does not compute it, so a reader
+ * cannot see which regime they are in.
+ *
+ * Left at 0.8 deliberately rather than half-corrected: swapping one trap for
+ * the other would change every recorded evaluation number without making the
+ * harness able to answer. What it needs is a corridor that comes apart at a
+ * moderate load - more travel-time variability or a shorter headway, checked
+ * against `controllability` - and that is a calibration, not a constant.
+ *
+ * Still invented - see `rehearsal/run.ts`'s header. A spec that names its own
+ * `inputs` overrides these.
  */
 export const EVALUATION_DEFAULT_INPUTS: Partial<ModelledInputs> = {
   boardingRatePerMinute: 0.8,
