@@ -581,6 +581,17 @@ export interface KpiSummary {
  * leaves a different amount behind, so the difference between the arms carries
  * a boundary artefact nobody could see. Exposed here so a trial can charge the
  * residual explicitly, over a window common to both arms.
+ *
+ * MEASURED, and it is small: priced against each STOP's own service window -
+ * the later of the two arms' last departure THERE - it changes the measured
+ * wait saving by 1.0% on urban and 0.3% on inter-city. Not folded into the
+ * headline on that evidence.
+ *
+ * Measure it per stop or not at all. Against a single corridor-wide horizon
+ * the same residual reads 11% and 6.5%, and all of that excess is stops near
+ * the origin whose last bus passed hours before the last bus anywhere
+ * finished - a stop that has not been served since morning is not
+ * accumulating a queue anyone should be charged for.
  */
 export interface StopQueueResidual {
   stopIndex: number;

@@ -400,6 +400,16 @@ reason, and `two_way_covers_pair` moved after eligibility where
   `followerSpeedSource` - with a genuine sweep snapshot there is no
   speed-reporting range left to choose, you get what the sweep saw. Worth doing
   if urban's +3.0% ever has to survive a tighter argument than it does today.
+- **The end-of-run residual queue is real and small — measured, don't redo it.**
+  People still standing when the corridor empties never board, so
+  `passengerOutcome` charges them nothing, and the arms do not empty together.
+  `SimulationResult.stopQueues` exposes it. Priced against each STOP's own
+  service window (the later of the two arms' last departure THERE) it changes
+  the measured wait saving by **1.0% on urban, 0.3% on inter-city**. Not folded
+  into the headline. **Measure it per stop or not at all**: against a single
+  corridor-wide horizon the same residual reads 11% and 6.5%, and all of that
+  excess is stops near the origin whose last bus passed hours before the last
+  bus anywhere finished.
 - **Neighbour confidence is cruder than production's.** The adapter marks
   leader/trailer as fully confident and freshly observed unless a `gps_dropout`
   disturbance covers them. Production has a continuous confidence model and a
