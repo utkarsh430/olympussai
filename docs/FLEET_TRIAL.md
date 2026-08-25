@@ -362,31 +362,40 @@ for calibrating lambda before touching it is now a measurement.
 `mpc/objective.ts` predicts a passenger cost for every hold it scores. The trial
 can check that prediction against what the simulated day actually did — the same
 quantity, once estimated from one decision and once measured from the outcome.
-Over 2,099 issued holds:
+Over 20,423 urban holds, term by term — which is the only way to see what is
+actually wrong:
 
-| | change in total passenger time |
-|---|---|
-| **actually measured** | +1,172 h (3.8% worse) |
-| objective predicted, proxy `lambda = 1/H*` | +3,945 h (**3.4× overstated**) |
-| objective predicted, true `lambda` | +2,159 h (**1.8× overstated**) |
+| urban | actual | objective, proxy `lambda = 1/H*` | objective, true `lambda` |
+|---|---|---|---|
+| waiting | **−10,799 h** | −147 h | −1,081 h |
+| onboard, from the hold | +6,775 h | +7,914 h | +7,914 h |
+| dwell | −2,362 h | *not modelled* | *not modelled* |
+| riding | −81 h | *not modelled* | *not modelled* |
+| **net** | **−6,466 h — a SAVING** | **+7,768 h — a COST** | **+6,833 h — a COST** |
 
-Three things follow, and they are not the same thing:
+Three things follow, and they are not what an earlier version of this section
+said:
 
-1. **The sign is trustworthy.** The objective said holding was net-harmful on
-   this corridor and it was. That is the part a guardrail needs.
-2. **The magnitude is not.** Even with a correctly calibrated arrival rate it
-   overstates the harm by nearly a factor of two, because the wait term
-   `lambda x d x (d + h_fwd − h_bwd)` is a *one-step marginal* estimate of a
-   *multi-stop* effect: it counts the passengers at the next stop and cannot see
-   that even spacing keeps `sum(h²)` down for the rest of the route.
-3. **Calibrating lambda halves the error** (3.4× → 1.8×). That is a real
-   argument for wiring the fitted value in, and a real limit on what doing so
-   would buy.
+1. **The cost side is nearly right.** The objective says a hold costs the people
+   aboard 7,914 h where the truth is 6,775 h — 17% over. That half of the
+   arithmetic works.
+2. **The benefit side is wrong by a factor of ten to seventy**, and it is
+   therefore the SIGN that fails. On the corridor where the controller actually
+   works, the objective says control costs passengers time while it saves them
+   6,466 h. Inter-city keeps its sign only because the cost is genuinely larger
+   there, and still overstates 4.8× / 3.6×.
+3. **Calibrating lambda is not the fix.** It moves the wait term from 1.4% of
+   the truth to 10% — a real sevenfold improvement, and nowhere near enough. The
+   remaining tenfold is the HORIZON: `lambda x d x (d + h_fwd − h_bwd)` is a
+   *one-stop marginal* estimate of a benefit that accrues over the whole
+   downstream route and to every following bus, and this corridor has
+   twenty-five stops. It also models dwell and riding not at all, and those are
+   another 2,443 h of benefit it cannot see.
 
 This is why `cost_optimal_hold` must not be let loose on the strength of a
-calibration alone. It is the argmin of a function that is directionally right
-and quantitatively pessimistic, so it would hold less than it should — and with
-the proxy in place, not at all.
+calibration alone, and the argument is much stronger than it used to be: it is
+the argmin of a function that can see about a tenth of the benefit, so it will
+always choose a hold near zero.
 
 No code was changed for this finding. It is a measurement about deployed
 arithmetic, recorded so the next person to reach for
