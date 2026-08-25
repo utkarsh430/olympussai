@@ -378,6 +378,13 @@ reason, and `two_way_covers_pair` moved after eligibility where
   it becomes slow. Holding cannot fix a leader. Urban still reads +1.0% PER
   PASSENGER there. If you want this scenario to win, the lever is an overtake or
   a short-turn, not a gain.
+- **No gain setting rescues inter-city — tested.** Sweeping the forward gain
+  paired across six seeds, holding HARDER is monotonically worse (`kf` 0.6 and
+  0.8 lose on 5/6 seeds) and holding more gently does not help either (`kf` 0.2
+  is still net-negative). Combined with the demand sweep below, that closes both
+  obvious levers: inter-city's answer is the CORRIDOR (σ_leg/H\* = 0.19, above
+  the controllable band), not the tuning. This is the evidence for task 4,
+  per-corridor enablement.
 - **Inter-city saturation is NOT why inter-city measures zero — tested, refuted.**
   It is near its seats on half its scenarios (denial share 14-18%, seeds to
   26.2% against a 20% bar), which is the textbook "controller cannot respond"
@@ -454,13 +461,22 @@ Each was implemented, measured paired-by-seed, and rejected.
 
 | Idea | Result | Verdict |
 |---|---|---|
-| `Kb` 0.2 → 0.4 | Looked great over 3 seeds (net −3.57→−2.25%, EWT +10.9→+14.2%). Over **10** seeds: better on **4/10** net, **5/10** EWT, means identical | Coin flip. Not shipped |
-| `ks` = 0.35 (schedule-correction gain) | 4/8 seeds net, 5/8 EWT, means identical. And *harmful* when the schedule is biased: tight → 1/5 seeds, slack → **0/5** | Stays `null` |
+| `Kb` 0.2 → 0.4 | Was "coin flip, 4/10 seeds". **RE-RUN paired on common random numbers: 0.4 is worse on 6/6 urban seeds by 0.36 points, 0.3 worse on 6/6, 0.1 worse on 5/6.** Not a coin flip — 0.2 is a resolved optimum | Confirmed |
+| `ks` (schedule-correction gain) | Was "4/8 seeds, means identical". **RE-RUN: every value tested is worse than `null` — 0.15 on 6/6 urban seeds, 0.35 on 5/6, 0.6 on 5/6**, each by about 0.2 points | Stays `null`, now measured |
+| `kf` ≠ 0.4 (never previously swept) | 0.2 worse on **6/6** urban seeds (−0.47 pts); 0.6 indistinguishable (3/6, −0.05); 0.8 worse on 4/6. On **inter-city, holding harder is monotonically worse** — 0.6 and 0.8 lose on 5/6 seeds and even 0.2 is still net-negative | 0.4 confirmed; a local optimum |
 | Measure mid-route headway at the **release** instant | Urban EWT 52.4% → **43.6%**, won 1/6 seeds. Holds less, loses more than it saves | Reverted; code carries no switch |
 | `MID_ROUTE_ACTION_RATIO` = 0.8 | Scored marginally better on one trial (+0.2% vs −3.1%) but inside seed noise and has **no principle** behind it | Kept at 1.0 = the corridor's own warning ratio |
 | `warning_threshold_ratio` ≠ 0.50 | Swept 0.30–1.00 by hand on the old headline, then **re-swept in the trial itself** (`policyStudies`, 3 seeds, paired): 0.50 best on BOTH corridors, 3/3 seeds. 0.75 and 1.00 keep improving excess wait (to 54.6% urban, 27.3% inter-city) while total passenger time falls — the EWT/total divergence, visible in a table | Confirmed. Re-runnable now |
 | `COST_OPTIMAL_SELECTION_ENABLED` | Occupancy off: 29.8% → 30.0% EWT, no real change. Occupancy **on**: issues **nothing at all** (λ proxy makes the load penalty H\*/2 per passenger) | Stays off |
 | Auto-selecting alighting-only | **This entry no longer reproduces — see below.** Was: worse on 7/8 seeds; −9% of all passenger time in `slow_bus` on every seed | Stays proposal-only, for a different reason |
+
+**Why these now resolve when they did not before.** Both fixes matter. The
+headline used to be waiting plus the hold over a waiting-only denominator (§3
+bug 17), and the two arms used to draw different random numbers the moment
+anything was held (§3 bug 25) — a noise floor of ±1 to ±2 points against
+effects of a few tenths. Paired properly, differences of 0.2 points separate
+cleanly on 6 seeds. **Anything in this table measured before those two fixes
+should be re-run before it is quoted.**
 
 **Alighting-only was re-measured after the metric fixes and the verdict changed.**
 The old numbers were taken on the old headline — waiting plus the hold, over a
