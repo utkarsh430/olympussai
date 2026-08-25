@@ -626,8 +626,12 @@ And it is the strongest argument yet for keeping `COST_OPTIMAL_SELECTION_ENABLED
 off: the argmin of a function that sees a tenth of the benefit will always
 choose a hold near zero.
 
-Repro: `control-service/experiments/runs/probes/probe25.ts` in this branch's
-working tree, or rebuild it from the sketch below.
+**Repro.** `experiments/runs/` is gitignored, so no probe survives a clone —
+rebuild it from the sketch below, which is the same shape. The one change that
+matters against the old version: compare the objective's two terms against the
+measured wait and onboard changes SEPARATELY, not against the net. The net hides
+that one half is right and the other is off by an order of magnitude, which is
+the whole finding.
 
 Save as `/tmp/objaudit.ts` and run with the env vars from §1:
 
