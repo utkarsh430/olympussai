@@ -40,6 +40,7 @@
 import 'server-only';
 import { redirect } from 'next/navigation';
 import { resolveOpsSession } from './server';
+import { isAuthDisabled } from '@/lib/auth/publicPreview';
 import type { OpsRole } from './roles';
 import type { OpsSessionClaims } from './session';
 
@@ -51,6 +52,19 @@ export async function requireOpsRolePage(
   nextPath: string,
 ): Promise<OpsSessionClaims> {
   const resolution = await resolveOpsSession();
+
+  // PUBLIC PREVIEW: refuse nothing, and hand this screen the role it just
+  // asked for rather than the one the borrowed profile happens to hold.
+  //
+  // The substitution is the whole point. Without it a single anonymous
+  // visitor holds one role, so exactly one console renders and the strict
+  // `!==` below sends them to /ops/forbidden on every other one — which is
+  // indistinguishable, to someone being shown the product, from the login
+  // this branch removed. See src/lib/auth/publicPreview.ts.
+  if (isAuthDisabled() && resolution.ok) {
+    return { ...resolution.claims, role };
+  }
+
   if (!resolution.ok) {
     if (resolution.reason === 'unavailable') {
       // Carries `next` for the same reason the sign-in bounce does: the retry

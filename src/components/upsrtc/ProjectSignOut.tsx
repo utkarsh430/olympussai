@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { LogOut } from 'lucide-react';
+import { isAuthDisabled } from '@/lib/auth/publicPreview';
 
 /**
  * Restrained Olympuss project context + Sign Out, mounted into the dashboard's
@@ -12,9 +13,15 @@ import { LogOut } from 'lucide-react';
  * Sign Out calls the server logout endpoint (clears the HttpOnly cookie) then
  * hard-navigates to /login, so the now-unauthenticated client cannot keep
  * rendering protected state.
+ *
+ * The button — and only the button — is dropped in public preview: there is
+ * no session to end and /login forwards straight back in, so it would be an
+ * inert control. The Olympuss context mark beside it is not about the
+ * session and stays. Same reasoning as OpsSignOut.tsx.
  */
 export function ProjectSignOut() {
   const [busy, setBusy] = useState(false);
+  const signOutAvailable = !isAuthDisabled();
 
   async function handleSignOut() {
     setBusy(true);
@@ -57,16 +64,18 @@ export function ProjectSignOut() {
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={handleSignOut}
-        disabled={busy}
-        data-testid="project-sign-out"
-        className="inline-flex items-center gap-1.5 rounded border border-brand/40 bg-brand/[0.06] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-brand transition-colors hover:border-brand/80 hover:bg-brand/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <LogOut className="h-3.5 w-3.5" aria-hidden />
-        {busy ? 'Signing out…' : 'Sign Out'}
-      </button>
+      {signOutAvailable ? (
+        <button
+          type="button"
+          onClick={handleSignOut}
+          disabled={busy}
+          data-testid="project-sign-out"
+          className="inline-flex items-center gap-1.5 rounded border border-brand/40 bg-brand/[0.06] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-brand transition-colors hover:border-brand/80 hover:bg-brand/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <LogOut className="h-3.5 w-3.5" aria-hidden />
+          {busy ? 'Signing out…' : 'Sign Out'}
+        </button>
+      ) : null}
     </div>
   );
 }

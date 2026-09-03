@@ -34,5 +34,15 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: true,
     timeout: 120_000,
+    // This branch ships with authentication OFF by default
+    // (src/lib/auth/publicPreview.ts) and every spec here signs in as a role
+    // and asserts that the wrong role is refused, so a loginless build makes
+    // them pass while testing nothing.
+    //
+    // This covers the Node-runtime guards only. Middleware resolves its
+    // process.env reads at BUILD time, so the app under test must also have
+    // been built with it — `DISABLE_AUTH=false pnpm build` — which is what
+    // .github/workflows/ci-web.yml does.
+    env: { DISABLE_AUTH: 'false' },
   },
 });

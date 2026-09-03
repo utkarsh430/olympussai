@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { isAuthDisabled } from '@/lib/auth/publicPreview';
 
 /**
  * The "Sign out" control, extracted from OpsShell unchanged.
@@ -34,10 +35,20 @@ import { cn } from '@/lib/utils';
  *
  * This file's move out of OpsShell.tsx is presentation-only — the logic is
  * byte-for-byte the behaviour it had there.
+ *
+ * IT RENDERS NOTHING IN PUBLIC PREVIEW. With authentication switched off
+ * there is no session to end, so every one of the four guarantees above is
+ * vacuous: the endpoint would clear cookies nobody holds, and the /login it
+ * navigates to forwards straight back into the console. A control that
+ * appears to sign you out and demonstrably does not is exactly the lie this
+ * component was rewritten to stop telling, so on a preview build it is
+ * absent instead. `isAuthDisabled()` reads NEXT_PUBLIC_DISABLE_AUTH here —
+ * see src/lib/auth/publicPreview.ts for why one function serves both halves.
  */
 export function OpsSignOut({ className }: { className?: string }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const hidden = isAuthDisabled();
 
   async function handleLogout() {
     setBusy(true);
@@ -58,6 +69,8 @@ export function OpsSignOut({ className }: { className?: string }) {
     // The single front door.
     window.location.assign('/login');
   }
+
+  if (hidden) return null;
 
   return (
     <div className={cn('flex flex-col items-end gap-1.5', className)}>

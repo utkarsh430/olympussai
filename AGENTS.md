@@ -245,6 +245,30 @@ A command goes `authorized` (on create/supersede) -> `delivered` -> `acknowledge
 `tests/e2e/control-room-command-delivery.spec.ts` asserts control-service's own state by reading `pg` directly via `E2E_CONTROL_SERVICE_DATABASE_URL`, and is structurally incapable of constructing a control-service REST client — see its file header for the incident this convention prevents (a sibling spec's REST-backed fixture helper stayed green while the real create -> deliver product path was silently broken end to end). `tests/e2e/pilot-driver-command.spec.ts` is that sibling and is NOT held to this convention: it does construct one (`controlServiceFetch`), because no REST endpoint anywhere in this repo creates a `dispatcher_actions` approval or a `vehicles` row for it to seed through instead — see that spec's own file header. When a spec exists specifically to prove a product code path works end-to-end (not just to seed fixtures) — that is `control-room-command-delivery.spec.ts`'s job, not the pilot-driver spec's — keep it structurally incapable of reaching the backend endpoint(s) that path is supposed to reach. Shared fixture helpers (route-direction/vehicle seeding, pilot-driver vehicle assignment) live in `tests/e2e/fixtures/`.
 Both specs require a live control-service + web app + seeded ops accounts (dispatcher/control_room/pilot_driver) and skip locally when their `E2E_*` env vars are unset; `.github/workflows/ci-web.yml` provisions all of it (all three accounts, all `E2E_*` vars, both specs run by name in one job) and sets `CI=true`, which turns a missing var into a hard failure instead of a skip.
 
+## THIS BRANCH SHIPS WITH AUTHENTICATION OFF
+
+`simulator-preview` exists to be deployed to a domain and shown to people who
+have no ops account, so `src/lib/auth/publicPreview.ts#isAuthDisabled()`
+defaults to TRUE and five call sites ask it first: the edge gate
+(`src/middleware.ts`), the session authority (`rbac/server.ts`), both role
+guards (`rbac/pageGuard.ts`, `rbac/guard.ts`) and the two sign-in pages, which
+forward into the console instead of rendering a form. MERGING THIS BRANCH INTO
+`main` SHIPS AN APP WITH NO AUTHENTICATION - `DISABLE_AUTH=false` restores
+every gate, and must be set at BUILD time as well as run time because
+middleware resolves its `process.env` reads when `next build` runs.
+
+Three things that look optional and are not. The switch defaults to auth ON
+under vitest, because the ~30 auth test files all assert what a REFUSED
+request does and would pass vacuously against a loginless build
+(`src/tests/unit/publicPreview.test.ts` is the tripwire; CI's e2e job sets
+`DISABLE_AUTH=false` explicitly, never via `CI`, which several platforms also
+set while building). The preview branch of `resolveOpsSession` still calls
+`cookies()` and throws the answer away - without it the ops dashboards become
+statically prerenderable and `next build` renders `/ops/driver` against a
+database that is not running. And each guard substitutes the role its own
+screen or endpoint asked for, so one anonymous visitor opens all seven
+consoles rather than `/ops/forbidden` on six of them.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.

@@ -68,6 +68,7 @@ import { createOpsSessionToken, verifyOpsSessionToken, type OpsSessionClaims } f
 import { readSupabaseOpsClaim, type SupabaseOpsClaim } from './supabaseClaims';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getOpsRepo, type OpsUserRecord } from './repo';
+import { isAuthDisabled, previewClaimsFor } from '@/lib/auth/publicPreview';
 import type { OpsRole } from './roles';
 
 function baseCookieOptions() {
@@ -168,7 +169,78 @@ async function readLegacyClaims(): Promise<OpsSessionClaims | null> {
  */
 export const resolveOpsSession: () => Promise<OpsSessionResolution> = cache(resolveOpsSessionUncached);
 
+/**
+ * The ops row a public-preview visitor borrows, or null when there is none to
+ * borrow.
+ *
+ * WHY THIS BOTHERS TO READ THE DATABASE AT ALL. `claims.sub` is written
+ * straight into fourteen columns with an FK to `ops_users(id)` (audit actor,
+ * dispatcher action, breakdown reporter, kill-switch operator, …), five of
+ * them `not null on delete restrict`. A wholly synthetic id therefore does not
+ * degrade gracefully in a preview — it turns the first button anyone presses
+ * during a demo into a constraint violation. Borrowing a real row keeps every
+ * write path working exactly as it does behind a login.
+ *
+ * `PREVIEW_OPS_USER_EMAIL` names the row explicitly; without it this takes the
+ * widest active account it can find, preferring the two roles that can reach
+ * the most surfaces. Never throws: a preview with no ops database at all is a
+ * legitimate deployment of this branch (the simulator console reads
+ * control-service, not Postgres), and it falls back to the synthetic identity
+ * in publicPreview.ts.
+ */
+async function findPreviewProfile(): Promise<OpsUserRecord | null> {
+  try {
+    const repo = getOpsRepo();
+    const named = process.env.PREVIEW_OPS_USER_EMAIL?.trim();
+    if (named) {
+      const match = await repo.findUserByEmail(named);
+      if (match?.status === 'active') return match;
+    }
+    const active = (await repo.listUsers()).filter((user) => user.status === 'active');
+    return (
+      active.find((user) => user.role === 'control_room') ??
+      active.find((user) => user.role === 'admin') ??
+      active[0] ??
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
 async function resolveOpsSessionUncached(): Promise<OpsSessionResolution> {
+  // PUBLIC PREVIEW: there is no credential to resolve, so this authority
+  // answers "yes" and says who. Placed above everything else because the two
+  // front doors below both reach for configuration a preview deployment need
+  // not have (Supabase, and the ops session secret), and because the whole
+  // point is that no request here carries a session.
+  //
+  // The ROLE returned is the default one; the two guards that actually care
+  // about a role (pageGuard.ts, guard.ts) substitute the one their own screen
+  // or endpoint asked for. See src/lib/auth/publicPreview.ts.
+  if (isAuthDisabled()) {
+    // READ THE COOKIE STORE AND THROW THE ANSWER AWAY. This is not dead code.
+    //
+    // Every guarded page in this app is dynamically rendered for one implicit
+    // reason: this function calls `cookies()`, which opts the route out of
+    // static prerendering. Returning early without touching it made the ops
+    // dashboards look prerenderable to Next, and `next build` then tried to
+    // render /ops/driver — profile read and all — against an ops database
+    // that is not running at build time, failing the whole build with
+    // ECONNREFUSED. One preserved read restores exactly the rendering mode
+    // these surfaces have always had.
+    await cookies();
+
+    const profile = await findPreviewProfile();
+    return {
+      ok: true,
+      claims: previewClaimsFor(
+        undefined,
+        profile ? { sub: profile.id, email: profile.email } : undefined,
+      ),
+    };
+  }
+
   let identity: Awaited<ReturnType<typeof resolveIdentity>>;
   try {
     identity = await resolveIdentity();

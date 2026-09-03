@@ -489,10 +489,19 @@ jobs:
         run: pnpm build
         env:
           NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+          # This branch ships with authentication OFF by default
+          # (src/lib/auth/publicPreview.ts). Every spec below signs in as a
+          # specific role and asserts what a WRONG role is refused, so a
+          # loginless build would make all three pass without testing
+          # anything. Set at BUILD time as well as run time: middleware
+          # resolves its process.env reads when `next build` runs, so a
+          # start-time-only value would leave the edge gate switched off.
+          DISABLE_AUTH: "false"
 
       - name: Start web app
         env:
           PORT: "3000"
+          DISABLE_AUTH: "false"
           CONTROL_SERVICE_BASE_URL: http://127.0.0.1:8081
           CONTROL_SERVICE_SERVICE_TOKEN: ${{ env.SERVICE_TOKEN }}
           CONTROL_SERVICE_WEBHOOK_SECRET: ${{ env.WEBHOOK_SECRET }}
