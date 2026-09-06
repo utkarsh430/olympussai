@@ -23,6 +23,19 @@ export const bunchingScenarioIdSchema = z.enum([
   'peak_load',
   'gps_dropout',
   'driver_non_compliance',
+  // The adversarial set. Each attacks a specific assumption in the control
+  // laws rather than describing another way a corridor comes apart - see
+  // `control-service/src/fleetTrial/scenarios.ts`, which this mirrors and
+  // which carries the reason for each one.
+  'phantom_position',
+  'frozen_feed',
+  'blind_slowdown',
+  'hotspot_demand',
+  'partial_compliance',
+  'oversaturated',
+  'shock_and_recovery',
+  'oscillating_shock',
+  'building_peak',
 ]);
 export type BunchingScenarioId = z.infer<typeof bunchingScenarioIdSchema>;
 

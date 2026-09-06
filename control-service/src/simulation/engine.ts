@@ -170,6 +170,58 @@ function isGpsDropout(disturbances: Disturbance[], vehicleId: string, atSeconds:
   );
 }
 
+type GpsBias = Extract<Disturbance, { type: 'gps_bias' }>;
+
+/** The wrong-feed disturbance covering this vehicle right now, if any. First match wins, as with every other per-vehicle lookup here. */
+function activeGpsBias(
+  disturbances: Disturbance[],
+  vehicleId: string,
+  atSeconds: number,
+): GpsBias | null {
+  for (const d of disturbances) {
+    if (d.type !== 'gps_bias') continue;
+    if (d.vehicleId !== vehicleId) continue;
+    if (atSeconds < d.startSeconds || atSeconds > d.endSeconds) continue;
+    return d;
+  }
+  return null;
+}
+
+/**
+ * The instant a frozen feed is stuck at.
+ *
+ * `startSeconds` normally, but never before the vehicle was dispatched: a
+ * window that opens while the bus is still in the depot has no fix to freeze,
+ * so the freeze would silently do nothing and the scenario would report an
+ * undisturbed run under a disturbed name. A modem that hung before sign-on
+ * publishes the first fix it ever got, which is the origin terminal.
+ */
+function frozenAtSeconds(
+  bias: GpsBias,
+  runtime: { dispatchSeconds: number },
+): number {
+  return Math.max(bias.startSeconds, runtime.dispatchSeconds);
+}
+
+/**
+ * The along-route distance the FEED reports, given where the vehicle is.
+ *
+ * Clamped to the corridor: a reported position off either end is not a
+ * plausible fix and would put the vehicle outside the geometry every
+ * downstream measurement is taken against. The lie has to be one a real
+ * receiver could tell.
+ */
+function reportedDistanceMeters(
+  bias: GpsBias,
+  truthfulDistanceMeters: number,
+  atSeconds: number,
+  totalDistanceMeters: number,
+): number {
+  const drift = (bias.driftMetersPerSecond ?? 0) * Math.max(0, atSeconds - bias.startSeconds);
+  const reported = truthfulDistanceMeters + (bias.offsetMeters ?? 0) + drift;
+  return Math.max(0, Math.min(totalDistanceMeters, reported));
+}
+
 /**
  * How much longer this vehicle takes over this link than the fleet does,
  * from the disturbances aimed at it.
@@ -237,9 +289,12 @@ function travelTimeMultiplier(
   return multiplier;
 }
 
-function complianceProbabilityFor(disturbances: Disturbance[], vehicleId: string): number | null {
+function nonComplianceFor(
+  disturbances: Disturbance[],
+  vehicleId: string,
+): Extract<Disturbance, { type: 'non_compliance' }> | null {
   for (const d of disturbances) {
-    if (d.type === 'non_compliance' && d.vehicleId === vehicleId) return d.complianceProbability;
+    if (d.type === 'non_compliance' && d.vehicleId === vehicleId) return d;
   }
   return null;
 }
@@ -407,10 +462,16 @@ function provisionalVisit(runtime: VehicleRuntime): StopVisitRecord {
 function neighbours(
   runtimes: readonly VehicleRuntime[],
   index: number,
-  atSeconds: number,
-  cumulativeDistanceMeters: readonly number[],
   isVisible: (vehicleId: string) => boolean,
   selfDistanceMeters: number,
+  /**
+   * What the feed SAYS about a neighbour at this instant, which under a
+   * `gps_bias` is not where it is. The clock and the geometry it reads
+   * against are the caller's, so this function no longer takes either - the
+   * ranking below is over reported positions, and it must not be possible to
+   * hand it one set of positions and rank against another.
+   */
+  observe: (runtime: VehicleRuntime) => CorridorKinematicState | null,
 ): {
   leader: CorridorKinematicState | null;
   trailer: CorridorKinematicState | null;
@@ -426,7 +487,7 @@ function neighbours(
     const runtime = runtimes[i];
     if (!runtime) continue;
     if (!isVisible(runtime.vehicleId)) continue;
-    const state = stateOf(runtime, atSeconds, cumulativeDistanceMeters);
+    const state = observe(runtime);
     if (!state) continue;
     others.push(state);
 
@@ -729,26 +790,81 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
           // with an exact position and a fresh timestamp - the one thing
           // production guarantees cannot happen. The deciding vehicle's own
           // staleness was modelled; its neighbours' was not.
+          //
+          // ─── AND A NEIGHBOUR EVERYONE CAN SEE MAY STILL BE ELSEWHERE ──
+          //
+          // `observed` is the only thing that reads a position here, for both
+          // the neighbours and the deciding bus, so a `gps_bias` perturbs the
+          // whole chain coherently: whatever the feed says is what gets
+          // ranked, what gets measured, and what the pace median is taken
+          // over. The vehicles themselves are untouched - the engine's own
+          // physics never calls this.
+          const observed = (other: VehicleRuntime): CorridorKinematicState | null => {
+            const bias = activeGpsBias(disturbances, other.vehicleId, arrivalSeconds);
+            // A frozen feed is republishing the last fix it obtained, so both
+            // halves of that fix come from the freeze instant - a position
+            // that has not moved cannot arrive with a pace that has.
+            const truth = stateOf(
+              other,
+              bias?.freeze ? frozenAtSeconds(bias, other) : arrivalSeconds,
+              geometry.cumulativeDistanceMeters,
+            );
+            if (!truth || !bias) return truth;
+            return {
+              ...truth,
+              distanceAlongRouteMeters: reportedDistanceMeters(
+                bias,
+                truth.distanceAlongRouteMeters,
+                arrivalSeconds,
+                geometry.totalDistanceMeters,
+              ),
+            };
+          };
+
+          // What the deciding bus's own feed says. Standing at a stop it is
+          // the stop's exact distance, and its pace is the leg it just ran -
+          // unless its own feed is lying, in which case the controller is
+          // handed the lie, exactly as production would be.
+          const selfBias = activeGpsBias(disturbances, runtime.vehicleId, arrivalSeconds);
+          const frozenSelf =
+            selfBias?.freeze === true
+              ? stateOf(runtime, frozenAtSeconds(selfBias, runtime), geometry.cumulativeDistanceMeters)
+              : null;
+          const truthfulSelfDistance = frozenSelf?.distanceAlongRouteMeters ?? followerDistance;
+          const reportedSelfDistance = selfBias
+            ? reportedDistanceMeters(
+                selfBias,
+                truthfulSelfDistance,
+                arrivalSeconds,
+                geometry.totalDistanceMeters,
+              )
+            : followerDistance;
+          const reportedSelfSpeed =
+            frozenSelf?.speedKmph ??
+            realisedPaceKmph(
+              followerDistance - previousDistance,
+              arrivalSeconds - runtime.lastReleaseSeconds,
+            );
+
           const { leader, trailer, others } = neighbours(
             runtimes,
             event.vehicleIndex,
-            arrivalSeconds,
-            geometry.cumulativeDistanceMeters,
             (vehicleId) => !isGpsDropout(disturbances, vehicleId, arrivalSeconds),
             // The deciding bus is standing AT this stop, so its position is
-            // the stop's own - the same exact value handed to the controller
-            // as `follower.distanceAlongRouteMeters` below, so the chain it
-            // receives is ranked against the position it is told about.
-            followerDistance,
+            // the stop's own - the same value handed to the controller as
+            // `follower.distanceAlongRouteMeters` below, so the chain it
+            // receives is ranked against the position it is told about. Under
+            // a bias that is the REPORTED position on both sides, which is
+            // how a wrong fix reorders a chain rather than only mismeasuring
+            // one gap in it.
+            reportedSelfDistance,
+            observed,
           );
           if (leader) {
             const follower: CorridorKinematicState = {
               vehicleId: runtime.vehicleId,
-              distanceAlongRouteMeters: followerDistance,
-              speedKmph: realisedPaceKmph(
-                followerDistance - previousDistance,
-                arrivalSeconds - runtime.lastReleaseSeconds,
-              ),
+              distanceAlongRouteMeters: reportedSelfDistance,
+              speedKmph: reportedSelfSpeed,
             };
             kinematics = {
               follower,
@@ -828,17 +944,22 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       intendedHoldSeconds = Math.max(0, Math.min(decision.holdSeconds, routeDirection.maxHoldSeconds));
 
       if (intendedHoldSeconds > 0) {
-        const complianceProbability = complianceProbabilityFor(disturbances, runtime.vehicleId);
+        const nonCompliance = nonComplianceFor(disturbances, runtime.vehicleId);
         if (
-          complianceProbability !== null &&
+          nonCompliance !== null &&
           !drawStream(seed, 'compliance', runtime.vehicleId, stopIndex).nextBoolean(
-            complianceProbability,
+            nonCompliance.complianceProbability,
           )
         ) {
           compliant = false;
           appliedHoldSeconds = 0;
         } else {
-          appliedHoldSeconds = intendedHoldSeconds;
+          // A driver who took the instruction may still not serve all of it -
+          // see `Disturbance`'s `compliedHoldFraction`. Absent the field this
+          // is exactly `intendedHoldSeconds`, which is the historical
+          // behaviour and what every scenario without one still gets.
+          const fraction = Math.max(0, Math.min(1, nonCompliance?.compliedHoldFraction ?? 1));
+          appliedHoldSeconds = intendedHoldSeconds * fraction;
         }
       }
     }

@@ -562,7 +562,11 @@ function journeysOf(
       byVehicle.get(visit.vehicleId) ?? { arrival: null, hold: 0, refused: 0, limited: 0, passed: 0 };
     if (visit.stopIndex === finalStopIndex) entry.arrival = visit.arrivalSeconds;
     entry.hold += visit.appliedHoldSeconds;
-    if (!visit.compliant) entry.refused += visit.intendedHoldSeconds;
+    // The seconds the instruction asked for that the kerb did not get.
+    // A refusal is the whole hold; a driver who took the instruction and
+    // served part of it (`compliedHoldFraction`) leaves the rest here too,
+    // and the difference is exactly zero for a hold that was fully served.
+    entry.refused += visit.intendedHoldSeconds - visit.appliedHoldSeconds;
     if (visit.boardingLimitedPassengers > 0) {
       entry.limited++;
       entry.passed += visit.boardingLimitedPassengers;

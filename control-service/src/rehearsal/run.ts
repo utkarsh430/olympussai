@@ -569,7 +569,9 @@ function summarizeHolds(visits: readonly StopVisitRecord[]): { applied: number; 
   let refused = 0;
   for (const visit of visits) {
     applied += visit.appliedHoldSeconds;
-    if (!visit.compliant) refused += visit.intendedHoldSeconds;
+    // See `fleetTrial/run.ts`: the shortfall, not the refusal, so a hold
+    // a driver took and did not serve is counted rather than lost.
+    refused += visit.intendedHoldSeconds - visit.appliedHoldSeconds;
   }
   return { applied, refused };
 }
