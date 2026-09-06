@@ -280,6 +280,52 @@ const baseEnvSchema = z.object({
     .default('false')
     .transform((v) => v === 'true'),
 
+  /**
+   * Whether the decision cycle PERSISTS pace guidance alongside the holds it
+   * already writes to `recommendations`.
+   *
+   * OFF, and off is a true no-op: with this false the decision cycle writes
+   * exactly the rows it wrote before, on exactly the same conditions, and
+   * `pace_advisories` stays `[]` on every one of them.
+   *
+   * ─── WHAT THIS DOES AND DOES NOT TURN ON ─────────────────────────────
+   *
+   * It does NOT turn pace guidance on. `mpc/paceGuidance.ts` runs on every
+   * solve regardless, and the control room has been rendering its output
+   * under "Alternatives that cost no delay" since it shipped - a dispatcher
+   * asking about one corridor already gets this advice today, flag or no
+   * flag. Turning this off does not take that away, and turning it on does
+   * not change a single control law.
+   *
+   * What it turns on is the AUTOMATIC half. The gap is the same one
+   * `decisionCycle.ts` was built to close for holds: the advice existed only
+   * for the corridor a human happened to be looking at. Pace guidance is
+   * still on the wrong side of that gap, and worse than holds are - because
+   * the cycle returns early whenever no hold was selected, which is exactly
+   * the case where easing a bus off is the ONLY thing worth saying. A bus
+   * running early and closing on its leader is often correctly refused a
+   * hold (it would breach the lateness bound) and is precisely the bus that
+   * should ease off.
+   *
+   * ─── WHY IT IS OFF DESPITE COSTING NOTHING ───────────────────────────
+   *
+   * Because the rows have no reader. `recommendations` is written by this
+   * cycle and read by exactly two things: the cycle's own dedupe fingerprint
+   * (src/db/recommendations.ts#findLatestRecommendation) and a retention
+   * guard (src/scheduler/retention.ts). No route serves the table and no
+   * console fetches it. Until something reads it, turning this on writes
+   * rows nobody sees, at a cost in write volume and retention - so the
+   * honest default is off, and the flag is here so the decision to start
+   * writing them is a deliberate one rather than a side effect.
+   *
+   * Turn it on when a surface reads `recommendations`. Nothing here issues a
+   * command, on or off: every row is `status = 'proposed'`.
+   */
+  PACE_GUIDANCE_ON_DECISION_CYCLE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
   // ── Decision cycle (src/scheduler/decisionCycle.ts) ───────────────────
   //
   // Asks the controller what to do, on a timer, instead of only when a

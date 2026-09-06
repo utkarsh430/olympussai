@@ -19,6 +19,7 @@
 import type { Pool } from 'pg';
 import { getPool } from './pool.js';
 import type { CandidateAction } from '../mpc/types.js';
+import type { PaceAdvisory } from '../mpc/paceGuidance.js';
 
 export interface RecommendationInput {
   routeDirectionId: string;
@@ -29,6 +30,20 @@ export interface RecommendationInput {
   expectedRecoverySeconds: number | null;
   constraints: Record<string, unknown>;
   controllerVersion: string;
+  /**
+   * Pace advice for this corridor - buses that should ease off rather than be
+   * held.
+   *
+   * Its own field, never folded into `candidateActions`, for the reason the
+   * column exists: an advisory is not a rankable, approvable, dispatchable
+   * action, and `findLatestRecommendation` reads `candidate_actions -> 0` as
+   * the SELECTED action, so one landing there would be read back as the hold
+   * the controller chose.
+   *
+   * Empty unless PACE_GUIDANCE_ON_DECISION_CYCLE_ENABLED is set; the caller
+   * decides, not this module.
+   */
+  paceAdvisories?: readonly PaceAdvisory[];
 }
 
 /** The fields that decide whether a new proposal says anything new. */
@@ -36,7 +51,34 @@ export interface RecommendationFingerprint {
   selectedActionType: string | null;
   vehicleId: string | null;
   holdSeconds: number | null;
+  /** The standing pace advice, reduced to what identifies it. See `paceSignature`. */
+  paceSignature: string;
   createdAt: string;
+}
+
+/**
+ * Pace advice reduced to the advice it carries, for change detection.
+ *
+ * WHY THIS IS NEEDED AT ALL. The existing fingerprint is
+ * (action type, vehicle, hold length), and every one of those is null for a
+ * corridor whose only useful answer is "ease off" - no hold was selected, so
+ * there is no action type and no vehicle. Without a pace term two genuinely
+ * different pieces of advice ("ease UP25FT1001 to 33" and "ease UP25FT4823
+ * to 28") fingerprint identically, and the second would be discarded as
+ * repeating the first.
+ *
+ * Which bus and what target: those are the whole of the instruction a
+ * dispatcher reads out. The rationale text is deliberately NOT in the
+ * signature - it restates the same facts in prose and would make every row
+ * look new whenever a rounded number in it moved. Sorted so the signature is
+ * about the advice and not about the order the solver happened to emit it in.
+ */
+export function paceSignature(advisories: readonly PaceAdvisory[] | null | undefined): string {
+  if (!advisories || advisories.length === 0) return '';
+  return advisories
+    .map((a) => `${a.vehicleId}@${Math.round(a.targetSpeedKmph)}`)
+    .sort()
+    .join(',');
 }
 
 export async function insertRecommendation(
@@ -46,8 +88,9 @@ export async function insertRecommendation(
   const { rows } = await pool.query<{ id: string }>(
     `insert into recommendations
        (route_direction_id, incident_id, candidate_actions, selected_action_type,
-        objective_cost, expected_recovery_seconds, constraints, controller_version, status)
-     values ($1, $2, $3::jsonb, $4, $5, $6, $7::jsonb, $8, 'proposed')
+        objective_cost, expected_recovery_seconds, constraints, controller_version,
+        pace_advisories, status)
+     values ($1, $2, $3::jsonb, $4, $5, $6, $7::jsonb, $8, $9::jsonb, 'proposed')
      returning id`,
     [
       input.routeDirectionId,
@@ -58,6 +101,7 @@ export async function insertRecommendation(
       input.expectedRecoverySeconds,
       JSON.stringify(input.constraints),
       input.controllerVersion,
+      JSON.stringify(input.paceAdvisories ?? []),
     ],
   );
   return rows[0]!.id;
@@ -82,11 +126,13 @@ export async function findLatestRecommendation(
     selected_action_type: string | null;
     vehicle_id: string | null;
     hold_seconds: string | null;
+    pace_advisories: PaceAdvisory[] | null;
     created_at: string;
   }>(
     `select selected_action_type,
             candidate_actions -> 0 ->> 'vehicleId'   as vehicle_id,
             candidate_actions -> 0 ->> 'holdSeconds' as hold_seconds,
+            pace_advisories,
             created_at
        from recommendations
       where route_direction_id = $1
@@ -100,6 +146,10 @@ export async function findLatestRecommendation(
     selectedActionType: row.selected_action_type,
     vehicleId: row.vehicle_id,
     holdSeconds: row.hold_seconds === null ? null : Number(row.hold_seconds),
+    // Computed through the same function the new proposal's signature goes
+    // through, so the two sides can never disagree about what "same advice"
+    // means.
+    paceSignature: paceSignature(row.pace_advisories),
     createdAt: row.created_at,
   };
 }
@@ -132,13 +182,23 @@ export const RECOMMENDATION_HOLD_EPSILON_SECONDS = 30;
  */
 export function isMateriallyNewRecommendation(
   latest: RecommendationFingerprint | null,
-  next: { selectedActionType: string | null; vehicleId: string | null; holdSeconds: number | null },
+  next: {
+    selectedActionType: string | null;
+    vehicleId: string | null;
+    holdSeconds: number | null;
+    /** Omitted by callers that persist no pace advice; absent and empty mean the same thing. */
+    paceSignature?: string;
+  },
   now: Date,
   maxAgeSeconds: number,
 ): boolean {
   if (!latest) return true;
   if (latest.selectedActionType !== next.selectedActionType) return true;
   if (latest.vehicleId !== next.vehicleId) return true;
+  // Advice to ease a different bus off, or to ease the same bus to a
+  // different pace, is different advice - and on a corridor where no hold
+  // was selected it is the ONLY thing that distinguishes two rows.
+  if (latest.paceSignature !== (next.paceSignature ?? '')) return true;
 
   const ageSeconds = (now.getTime() - new Date(latest.createdAt).getTime()) / 1000;
   if (!Number.isFinite(ageSeconds) || ageSeconds > maxAgeSeconds) return true;

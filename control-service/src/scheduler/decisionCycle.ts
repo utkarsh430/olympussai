@@ -35,6 +35,7 @@ import {
   findLatestRecommendation,
   insertRecommendation,
   isMateriallyNewRecommendation,
+  paceSignature,
 } from '../db/recommendations.js';
 import { logger } from '../lib/logger.js';
 import { solve } from '../mpc/solver.js';
@@ -62,7 +63,22 @@ export interface DecisionCycleResult {
   attempted: number;
   /** Corridors where the solver produced a safe, selectable action. */
   withAction: number;
-  /** Proposals actually written - `withAction` minus the ones that repeated standing advice. */
+  /**
+   * Corridors carrying pace advice on the row written for them.
+   *
+   * Counted separately from `withAction` because easing a bus off is not a
+   * selectable action and never competes with one - a corridor can have both,
+   * either, or neither. Always 0 while
+   * PACE_GUIDANCE_ON_DECISION_CYCLE_ENABLED is false.
+   */
+  withPaceAdvisory: number;
+  /**
+   * Proposals actually written, minus the ones that repeated standing advice.
+   *
+   * Not simply `withAction` minus repeats: a corridor with no hold worth
+   * making but a bus worth easing off writes a row and is counted here
+   * without ever being counted in `withAction`.
+   */
   proposed: number;
   failed: number;
   /**
@@ -184,6 +200,7 @@ export async function runDecisionCycle(
   cursor = nextCursor;
 
   let withAction = 0;
+  let withPaceAdvisory = 0;
   let proposed = 0;
   let failed = 0;
 
@@ -192,20 +209,41 @@ export async function runDecisionCycle(
       const result = await solveRouteDirection(routeDirectionId);
       const selected = result.selectedAction;
 
+      // Pace advice is carried only when the flag says so. With it off this
+      // is always empty, every predicate below reduces to what it was
+      // before, and the sweep writes exactly the rows it wrote before.
+      //
+      // It is READ from a solve that computed it either way: paceGuidance
+      // runs on every solve and the control room already renders it for the
+      // corridor a dispatcher is looking at. The flag governs whether this
+      // automatic sweep writes it down, not whether it is worked out.
+      const paceAdvisories = env.PACE_GUIDANCE_ON_DECISION_CYCLE_ENABLED
+        ? (result.paceAdvisories ?? [])
+        : [];
+
       // No safe candidate is the ordinary, healthy answer: the corridor is
       // evenly spaced, or every candidate was rejected by the hard safety
       // filter. Either way there is nothing to propose, and writing a row
       // saying so would fill the operator's history with non-events.
-      if (!selected) return;
-      withAction += 1;
+      //
+      // Pace advice is the one exception, and it is the case this sweep was
+      // most blind to. A bus running EARLY and closing on its leader is
+      // routinely refused a hold - holding it would breach the lateness
+      // bound, or the cap makes the hold pointless - and is exactly the bus
+      // that should ease off. Returning here whenever no hold was selected
+      // threw away the only advice that corridor had, every 90 seconds,
+      // forever.
+      if (!selected && paceAdvisories.length === 0) return;
+      if (selected) withAction += 1;
 
       const latest = await findLatest(routeDirectionId);
       const isNew = isMateriallyNewRecommendation(
         latest,
         {
           selectedActionType: result.selectedActionType,
-          vehicleId: selected.vehicleId,
-          holdSeconds: selected.holdSeconds,
+          vehicleId: selected?.vehicleId ?? null,
+          holdSeconds: selected?.holdSeconds ?? null,
+          paceSignature: paceSignature(paceAdvisories),
         },
         new Date(now()),
         env.DECISION_CYCLE_REPEAT_AFTER_SECONDS,
@@ -221,20 +259,33 @@ export async function runDecisionCycle(
       // the controller can still correct cheaply has not yet crossed the
       // detection thresholds, so no incident exists to attach to.
       const openPairs = await listOpenIncidentPairs(routeDirectionId);
+      // For a pace-only row there is no selected vehicle to attach by, so
+      // fall back to the bus the advice is about. Same rule either way:
+      // attach to the incident about THIS vehicle or to none at all, never
+      // to whichever incident on the corridor happened to be open.
+      const subjectVehicleId = selected?.vehicleId ?? paceAdvisories[0]?.vehicleId ?? null;
       const incidentId =
-        openPairs.find((pair) => pair.followerVehicleId === selected.vehicleId)?.id ?? null;
+        subjectVehicleId === null
+          ? null
+          : (openPairs.find((pair) => pair.followerVehicleId === subjectVehicleId)?.id ?? null);
 
       await insert({
         routeDirectionId,
         incidentId,
+        // `safeCandidates` regardless: on a pace-only row this is the empty
+        // list the solver returned, and the advisory goes in its own field.
+        // Putting it here instead would disguise it as a hold and would be
+        // read back as the selected action by findLatestRecommendation.
         candidateActions: result.safeCandidates,
         selectedActionType: result.selectedActionType,
         objectiveCost: result.objectiveCost,
         expectedRecoverySeconds: result.expectedRecoverySeconds,
         constraints: result.constraints,
         controllerVersion: result.controllerVersion,
+        paceAdvisories,
       });
       proposed += 1;
+      if (paceAdvisories.length > 0) withPaceAdvisory += 1;
     } catch (error) {
       failed += 1;
       logger.warn(
@@ -248,6 +299,7 @@ export async function runDecisionCycle(
     eligible: eligible.length,
     attempted: batch.length,
     withAction,
+    withPaceAdvisory,
     proposed,
     failed,
     gateExcluded,
