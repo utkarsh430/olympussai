@@ -70,7 +70,13 @@ export interface DecisionCycleResult {
    * PACE_GUIDANCE_ON_DECISION_CYCLE_ENABLED is false.
    */
   withPaceAdvisory: number;
-  /** Proposals actually written - `withAction` minus the ones that repeated standing advice. */
+  /**
+   * Proposals actually written, minus the ones that repeated standing advice.
+   *
+   * Not simply `withAction` minus repeats: a corridor with no hold worth
+   * making but a bus worth easing off writes a row and is counted here
+   * without ever being counted in `withAction`.
+   */
   proposed: number;
   failed: number;
   durationMs: number;
