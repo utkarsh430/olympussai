@@ -160,6 +160,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: null, // missing -> two-way can't run, self-equalizing is the designated fallback (Appendix E)
         targetHeadwaySeconds: 600,
         deviationSeconds: -300,
+        forecastHFwdSeconds: null,
         computedAt: new Date().toISOString(),
       },
     ]);
@@ -192,6 +193,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: null,
         targetHeadwaySeconds: 600,
         deviationSeconds: 0,
+        forecastHFwdSeconds: null,
         computedAt: new Date().toISOString(),
       },
     ]);
@@ -218,6 +220,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: 700, // H* - hBwd = -100
         targetHeadwaySeconds: 600,
         deviationSeconds: -300,
+        forecastHFwdSeconds: null,
         computedAt: new Date().toISOString(),
       },
     ]);
@@ -264,6 +267,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: null,
         targetHeadwaySeconds: 600,
         deviationSeconds: -100,
+        forecastHFwdSeconds: null,
         computedAt: new Date().toISOString(),
       },
       {
@@ -279,6 +283,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: 700,
         targetHeadwaySeconds: 600,
         deviationSeconds: -300,
+        forecastHFwdSeconds: null,
         computedAt: new Date().toISOString(),
       },
     ]);
@@ -311,6 +316,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: null,
         targetHeadwaySeconds: 600,
         deviationSeconds: -400,
+        forecastHFwdSeconds: null,
         computedAt: staleTimestamp,
       },
     ]);
@@ -346,6 +352,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: null,
         targetHeadwaySeconds: 600,
         deviationSeconds: -400,
+        forecastHFwdSeconds: null,
         computedAt: new Date().toISOString(),
       },
     ]);
@@ -374,6 +381,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: null,
         targetHeadwaySeconds: 600,
         deviationSeconds: -400,
+        forecastHFwdSeconds: null,
         computedAt: new Date().toISOString(),
       },
     ]);
@@ -403,6 +411,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: null,
         targetHeadwaySeconds: 600,
         deviationSeconds: -400,
+        forecastHFwdSeconds: null,
         computedAt: new Date().toISOString(),
       },
     ]);
@@ -444,6 +453,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: 600,
         targetHeadwaySeconds: 600,
         deviationSeconds: -320,
+        forecastHFwdSeconds: null,
         computedAt: now,
       },
       {
@@ -457,6 +467,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: 1200,
         targetHeadwaySeconds: 600,
         deviationSeconds: -540,
+        forecastHFwdSeconds: null,
         computedAt: now,
       },
     ]);
@@ -506,6 +517,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: 600,
         targetHeadwaySeconds: 600,
         deviationSeconds: -20,
+        forecastHFwdSeconds: null,
         computedAt: now,
       },
     ]);
@@ -554,6 +566,7 @@ describe('mpc.solve', () => {
       hBwdSeconds: 1100,
       targetHeadwaySeconds: 600,
       deviationSeconds: -500,
+      forecastHFwdSeconds: null,
       computedAt: now,
     });
     stateStore.loadHeadwayStates([
@@ -591,6 +604,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: 900,
         targetHeadwaySeconds: 600,
         deviationSeconds: -480,
+        forecastHFwdSeconds: null,
         computedAt: now,
       },
     ]);
@@ -630,6 +644,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: 900,
         targetHeadwaySeconds: 600,
         deviationSeconds: -400,
+        forecastHFwdSeconds: null,
         computedAt: now,
       },
     ]);
@@ -679,6 +694,7 @@ describe('mpc.solve', () => {
         hBwdSeconds: 500,
         targetHeadwaySeconds: 600,
         deviationSeconds: -500,
+        forecastHFwdSeconds: null,
         computedAt: now,
       },
     ]);

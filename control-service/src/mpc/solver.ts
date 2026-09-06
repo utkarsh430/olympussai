@@ -235,6 +235,13 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
   // carries the derivation and the measurement, and mpc/objective.ts.
   const multiStopWaitTerm = loadEnv().MULTI_STOP_WAIT_TERM_ENABLED;
 
+  // Whether the mid-route laws may act on a pair the ordinary bar declines
+  // because its forecast says it is deteriorating toward that bar. Read here,
+  // once, so every law in one solve is gated under the same rule - the same
+  // reason `multiStopWaitTerm` is read here. See
+  // FORECAST_ACTION_GATE_ENABLED in config/env.ts and mpc/actionThreshold.ts.
+  const forecastGateEnabled = loadEnv().FORECAST_ACTION_GATE_ENABLED;
+
   const headwayStates = stateStore.getHeadwayStates(routeDirectionId);
   const vehicleStates = stateStore.listVehicleStates(routeDirectionId);
   const vehicleStatesByVehicleId = new Map(vehicleStates.map((v) => [v.vehicleId, v]));
@@ -322,6 +329,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     settings.weighOccupancy,
     selfHarmCheckEnabled,
     downstreamStopsByVehicleId,
+    forecastGateEnabled,
   );
   const selfEqualizingCandidates = computeSelfEqualizingCandidates(
     headwayStates,
@@ -334,6 +342,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     settings.weighOccupancy,
     selfHarmCheckEnabled,
     downstreamStopsByVehicleId,
+    forecastGateEnabled,
   );
   // The closed-form minimiser of the passenger-cost objective, competing on
   // the same ranking as the tuned-gain laws rather than replacing them - see
@@ -348,6 +357,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     controlPointStopIds,
     settings.weighOccupancy,
     downstreamStopsByVehicleId,
+    forecastGateEnabled,
   );
 
   // Alighting-only. Generated alongside the holds and returned for the
