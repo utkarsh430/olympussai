@@ -29,10 +29,36 @@ const SPEC = {
   vehiclesPerPhase: SCENARIOS.length * 6,
 };
 
+/**
+ * A whole trial takes seconds, and this file needs several of them.
+ *
+ * Memoised per spec key and given an explicit per-test budget: vitest's 10 s
+ * default is tuned for unit tests and a CI runner is slower than a laptop, so
+ * a real trial run under it fails as a TIMEOUT - a red that says nothing about
+ * the behaviour under test. Never shrink the trial to fit the default instead;
+ * a fixture with two buses per scenario has no trailer to measure against.
+ */
+const TRIAL_TIMEOUT_MS = 180_000;
+const cache = new Map<string, ReturnType<typeof runFleetTrial>>();
+function trial(preset: CorridorPresetId, lifecycle?: { deliveryLatencySeconds: number }) {
+  const key = `${preset}:${lifecycle ? lifecycle.deliveryLatencySeconds : 'off'}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const report = runFleetTrial({
+    ...SPEC,
+    corridorPreset: preset,
+    ...(lifecycle
+      ? { commandLifecycle: { enabled: true, deliveryLatencySeconds: lifecycle.deliveryLatencySeconds } }
+      : {}),
+  });
+  cache.set(key, report);
+  return report;
+}
+
 describe('default OFF is not merely the old behaviour, it is the old bytes', () => {
   for (const preset of PRESETS) {
     it(`changes nothing on the ${preset} preset`, () => {
-      const report = runFleetTrial({ ...SPEC, corridorPreset: preset });
+      const report = trial(preset);
 
       // 1. The report carries no lifecycle key at all. An ABSENT key is the
       //    statement that the command path was not in this loop; a present
@@ -52,7 +78,7 @@ describe('default OFF is not merely the old behaviour, it is the old bytes', () 
       expect(report.notExercised[0]).toBe(
         'The command lifecycle. Cooldown, minimum action interval, maximum concurrent actions, driver acknowledgement and command expiry all live in the command path, which this trial deliberately does not touch. A result here is the control law’s INTENT, not the rate at which instructions would actually reach a driver.',
       );
-    });
+    }, TRIAL_TIMEOUT_MS);
   }
 
   it('is the default in the shipped spec, so nobody gets it by accident', () => {
@@ -62,14 +88,13 @@ describe('default OFF is not merely the old behaviour, it is the old bytes', () 
 });
 
 describe('with the command path on, the report keeps intent and delivery apart', () => {
-  const report = runFleetTrial({
-    ...SPEC,
-    corridorPreset: 'urban',
-    commandLifecycle: { enabled: true, deliveryLatencySeconds: 0 },
-  });
-  const lifecycle = report.commandLifecycle!;
+  // Run INSIDE the tests, never in the describe body: work at collect time is
+  // charged to no test's budget and shows up as a suite-wide timeout instead
+  // of a named failure.
+  const on = () => trial('urban', { deliveryLatencySeconds: 0 });
 
   it('publishes both numbers, never one', () => {
+    const lifecycle = on().commandLifecycle!;
     expect(lifecycle).toBeDefined();
     expect(lifecycle.intendedHoldSeconds).toBeGreaterThan(0);
     // THE FINDING. Delivered is strictly less than intended, because limits
@@ -79,9 +104,10 @@ describe('with the command path on, the report keeps intent and delivery apart',
     expect(lifecycle.deliveredHoldSeconds).toBeLessThan(lifecycle.intendedHoldSeconds);
     expect(lifecycle.servedHoldSeconds).toBeLessThanOrEqual(lifecycle.deliveredHoldSeconds);
     expect(lifecycle.deliveredShareOfIntent).toBeLessThan(1);
-  });
+  }, TRIAL_TIMEOUT_MS);
 
   it('refuses instructions through the limits that carry a real seeded value', () => {
+    const lifecycle = on().commandLifecycle!;
     const refused = COMMAND_BLOCK_REASONS.reduce((n, r) => n + lifecycle.blockedBy[r], 0);
     expect(lifecycle.proposals).toBeGreaterThan(0);
     expect(refused).toBeGreaterThan(0);
@@ -93,9 +119,10 @@ describe('with the command path on, the report keeps intent and delivery apart',
     // Seeded at 0, minimum action excludes nothing. That it stays at zero
     // here is the same finding `inertLimits` states in prose.
     expect(lifecycle.blockedBy.below_minimum_action).toBe(0);
-  });
+  }, TRIAL_TIMEOUT_MS);
 
   it('prices each refusal in hold seconds, not only in instructions', () => {
+    const lifecycle = on().commandLifecycle!;
     for (const reason of COMMAND_BLOCK_REASONS) {
       if (lifecycle.blockedBy[reason] === 0) {
         expect(lifecycle.holdSecondsLostTo[reason]).toBe(0);
@@ -103,9 +130,10 @@ describe('with the command path on, the report keeps intent and delivery apart',
         expect(lifecycle.holdSecondsLostTo[reason]).toBeGreaterThan(0);
       }
     }
-  });
+  }, TRIAL_TIMEOUT_MS);
 
   it('names the dead columns in the report rather than implementing what they imply', () => {
+    const lifecycle = on().commandLifecycle!;
     const dead = lifecycle.inertLimits.filter((l) => l.kind === 'dead_column').map((l) => l.column);
     expect(dead).toContain('route_policies.command_ttl_seconds');
     expect(dead).toContain('route_policies.ack_timeout_seconds');
@@ -114,32 +142,24 @@ describe('with the command path on, the report keeps intent and delivery apart',
     // not the column with the matching name.
     expect(lifecycle.limitProvenance.effectiveTtlSeconds).toBe('ui_constant');
     expect(lifecycle.limitProvenance.deliveryLatencySeconds).toBe('assumed');
-  });
+  }, TRIAL_TIMEOUT_MS);
 
   it('rewrites the notExercised entry instead of deleting it', () => {
+    const report = on();
+    const lifecycle = report.commandLifecycle!;
     // The entry does not go away when the path is modelled; it changes what it
     // says. Deleting it would leave a reader believing more is exercised than
     // is - dispatcher approval, redelivery and supersede are all still out.
     expect(report.notExercised[0]).toContain('PARTLY');
-    expect(report.notExercised.slice(1)).toEqual(
-      runFleetTrial({ ...SPEC, corridorPreset: 'urban' }).notExercised.slice(1),
-    );
+    expect(report.notExercised.slice(1)).toEqual(trial('urban').notExercised.slice(1));
     expect(lifecycle.notModelled.length).toBeGreaterThan(0);
-  });
+  }, TRIAL_TIMEOUT_MS);
 });
 
 describe('urban is the one preset whose hold cap the TTL cannot cut', () => {
   it('truncates on inter-city, where holds may run to 600 s against a 120 s TTL', () => {
-    const intercity = runFleetTrial({
-      ...SPEC,
-      corridorPreset: 'intercity',
-      commandLifecycle: { enabled: true, deliveryLatencySeconds: 0 },
-    }).commandLifecycle!;
-    const urban = runFleetTrial({
-      ...SPEC,
-      corridorPreset: 'urban',
-      commandLifecycle: { enabled: true, deliveryLatencySeconds: 0 },
-    }).commandLifecycle!;
+    const intercity = trial('intercity', { deliveryLatencySeconds: 0 }).commandLifecycle!;
+    const urban = trial('urban', { deliveryLatencySeconds: 0 }).commandLifecycle!;
 
     // Urban caps a hold at exactly the TTL, so expiry can never cut one there.
     // Inter-city caps at 600 s, so a long hold is taken off the driver's
@@ -148,5 +168,5 @@ describe('urban is the one preset whose hold cap the TTL cannot cut', () => {
     expect(urban.policy.effectiveTtlSeconds).toBe(120);
     expect(urban.truncatedByExpiry).toBe(0);
     expect(intercity.truncatedByExpiry).toBeGreaterThan(0);
-  });
+  }, TRIAL_TIMEOUT_MS);
 });
