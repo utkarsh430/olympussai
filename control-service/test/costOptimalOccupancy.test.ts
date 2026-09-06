@@ -125,29 +125,72 @@ describe('cost_optimal under the network-wide occupancy switch', () => {
   // ─── THE REPRODUCTION ──────────────────────────────────────────────────
   //
   // Same corridor, same bunch, same bus. The only thing that moves is the
-  // switch. Occupancy off: a hold. Occupancy on: nothing, at every load a
-  // real bus on this corridor carries.
+  // switch. Before the fix this returned nothing at EVERY load, including a
+  // single passenger, because the closed form had already floored d* to 0.
   it('still proposes a hold for a bunched bus when occupancy weighting is on', () => {
     const blind = candidatesFor(29, false);
     expect(blind).toHaveLength(1);
-    expect(blind[0]!.holdSeconds).toBeGreaterThan(0);
+    expect(blind[0]!.holdSeconds).toBe(120);
 
-    // A half-full bus is the steady state on this corridor, not an edge case.
-    expect(candidatesFor(29, true)).toHaveLength(1);
-    // And it is not a threshold effect at the top of the range either: the law
-    // goes silent for every load down to a single passenger.
-    expect(candidatesFor(1, true)).toHaveLength(1);
-    expect(candidatesFor(15, true)).toHaveLength(1);
-    expect(candidatesFor(55, true)).toHaveLength(1);
+    // The closed form no longer prices the uncalibrated load, so the law has
+    // something to say again. The taper binds the load on the ACTION instead:
+    // a lightly loaded bus keeps nearly the whole 120 s cap.
+    const light = candidatesFor(1, true);
+    expect(light).toHaveLength(1);
+    expect(light[0]!.holdSeconds).toBe(118);
+    expect(light[0]!.objectiveCost).toBeLessThan(0);
+  });
+
+  // ─── WHAT THIS FIX DOES NOT DO, PINNED SO IT IS NOT MISREAD ────────────
+  //
+  // The law is restored, not made unconditional. Above about five passengers
+  // it still declines - but for a DIFFERENT and legitimate reason, and the
+  // distinction is the point of this test.
+  //
+  // The closed form is now clean. What still bites is the self-harm check:
+  // `scoreHold` charges `w_v x L x d` in REAL passenger-seconds while the
+  // wait term it is netted against is scaled by the SAME understated
+  // lambda = 1/H*, so the objective genuinely scores these holds as harmful
+  // and `cost_optimal` - alone among the five laws - declines to emit one it
+  // judges harmful. That is the check doing its job on a mis-calibrated
+  // objective, not the defect this change fixes.
+  //
+  // Removing the load from the score here as well would restore every load,
+  // and must NOT be done: the other four laws all price through the same
+  // `computePassengerCost`, so this law would get a systematically lower cost
+  // than the candidates it is ranked against and would win a sort it is not
+  // entitled to win until lambda is measured. See
+  // costOptimalAndSelection.test.ts and COST_OPTIMAL_SELECTION_ENABLED.
+  //
+  // The remedy for the residual is calibrating lambda from real boardings, or
+  // giving the other four laws the same self-check. Both are separate work.
+  it('still declines a heavily loaded bus, now via the self-harm check', () => {
+    for (const load of [15, 29, 55]) {
+      expect(candidatesFor(load, true), `load ${load}`).toHaveLength(0);
+    }
+
+    // And the reason really is the score, not the closed form: d* is now a
+    // healthy 270 s at every one of those loads.
+    expect(
+      optimalHoldSeconds({
+        hFwdSeconds: 90,
+        hBwdSeconds: 630,
+        targetHeadwaySeconds: 360,
+        loadPassengers: null,
+      }),
+    ).toBe(270);
   });
 
   // ─── WHICH MECHANISM: (1), NOT (2) ─────────────────────────────────────
   //
-  // The law never reaches its self-harm check. `optimalHoldSeconds` has
-  // already returned 0 for every one of these loads, so `costOptimalHold.ts`
-  // drops the pair at `if (rawHold <= 0) continue` - twenty lines earlier, and
-  // for a different reason.
-  it('degenerates the closed-form optimum to zero before anything is scored', () => {
+  // `optimalHoldSeconds` itself is UNCHANGED by the fix and still charges the
+  // full penalty - it is a faithful argmin and is the right answer the day
+  // lambda is measured. This pins why it could not be fed the live load: the
+  // penalty is L x H*/2 seconds per passenger, so it returned 0 for every load
+  // above one and `costOptimalHold.ts` dropped the pair at
+  // `if (rawHold <= 0) continue` - twenty lines before the self-harm check the
+  // original diagnosis blamed.
+  it('would still degenerate to zero if the live load were fed to the argmin', () => {
     const evenHeadwaySplit = optimalHoldSeconds({
       hFwdSeconds: 90,
       hBwdSeconds: 630,
