@@ -47,6 +47,25 @@
 // That is the same precondition `COST_OPTIMAL_SELECTION_ENABLED` waits on, for
 // the same reason, and neither should be flipped without the other.
 //
+// ─── HALF OF THAT PRECONDITION NOW EXISTS, AND IT MOVED THIS ─────────────
+//
+// `MULTI_STOP_WAIT_TERM_ENABLED` (config/env.ts, also off) sums the wait term
+// over the stops a hold's correction is actually experienced at instead of the
+// one it is issued from. Re-measured with BOTH on, occupancy weighted: urban
+// goes from 246 holds and +0.17% total passenger time to 3,309 holds and
+// +1.62%, against +0.68% with the check off. Suburban and inter-city stop being
+// losses. The check's damage is PROPORTIONAL to the objective's error, which is
+// what you would expect if the error is the whole problem.
+//
+// That is a large improvement and it is still not the condition above, for
+// three reasons that belong together: it measures the GUARDRAIL and not excess
+// wait, which is the headline this check was measured to spend 2.5-4.3 points
+// of; the objective it now believes still sees only 14-16% of the benefit it is
+// meant to price, the rest being lambda; and 3,309 of 70,317 holds is a
+// controller still mostly silenced, just less catastrophically. Full tables in
+// docs/MULTI_STOP_WAIT_TERM.md sections 3 and 7. Do not read the improvement as
+// permission: flip both, with lambda, or neither.
+//
 // ─── WHAT IT DELIBERATELY DOES NOT COVER ─────────────────────────────────
 //
 // `boarding_limit` sets `objectiveCost: 0` as a documented placeholder - its

@@ -97,6 +97,18 @@ class ControlStateStore {
   private terminalStopByRouteDirection = new Map<string, string>();
   /** route-direction -> the stop_ids flagged `route_direction_stops.is_control_point`. Where a hold may actually be executed (mpc/eligibility.ts). An absent or empty set means the corridor has designated none, which is read as "any stop" rather than "no stop". */
   private controlPointStopsByRouteDirection = new Map<string, Set<string>>();
+  /**
+   * route-direction -> stop_id -> how many stops remain from it to the end of
+   * the route-direction, counting itself.
+   *
+   * The horizon the objective's waiting term is summed over
+   * (`mpc/objective.ts`). Stored as the ANSWER rather than as the sequence,
+   * because "stops left" is the only question anything asks of it and
+   * `route_direction_stops.sequence` is not guaranteed dense - a corridor
+   * whose stops are numbered 0, 10, 20 would make `count - sequence`
+   * nonsense.
+   */
+  private downstreamStopsByRouteDirection = new Map<string, Map<string, number>>();
   private _status: RehydrationStatus = 'pending';
   private _rehydratedAt: string | undefined;
   private _lastError: string | undefined;
@@ -206,6 +218,46 @@ class ControlStateStore {
       byDirection.set(row.routeDirectionId, set);
     }
     this.controlPointStopsByRouteDirection = byDirection;
+  }
+
+  /**
+   * Boot-time load of every route-direction's stop sequence, reduced to the
+   * one thing the control laws ask of it.
+   *
+   * Ordered HERE by `sequence` rather than trusted from the query, so a
+   * reader of `db/rehydrate.ts` cannot silently break the horizon by dropping
+   * an `order by` - the same defensiveness `loadTerminalStops` gets from
+   * `distinct on ... order by sequence asc`.
+   */
+  loadStopSequences(rows: { routeDirectionId: string; stopId: string; sequence: number }[]): void {
+    const byDirection = new Map<string, { stopId: string; sequence: number }[]>();
+    for (const row of rows) {
+      const bucket = byDirection.get(row.routeDirectionId) ?? [];
+      bucket.push({ stopId: row.stopId, sequence: row.sequence });
+      byDirection.set(row.routeDirectionId, bucket);
+    }
+    const reduced = new Map<string, Map<string, number>>();
+    for (const [routeDirectionId, stops] of byDirection) {
+      stops.sort((a, b) => a.sequence - b.sequence);
+      const counts = new Map<string, number>();
+      stops.forEach((stop, index) => counts.set(stop.stopId, stops.length - index));
+      reduced.set(routeDirectionId, counts);
+    }
+    this.downstreamStopsByRouteDirection = reduced;
+  }
+
+  /**
+   * How many stops a vehicle standing at `stopId` still has to serve,
+   * counting that one.
+   *
+   * NULL, never a fallback, when the corridor's sequence is not loaded or the
+   * stop is not on it: `mpc/objective.ts` prices a null horizon as the
+   * one-stop term it has always used, and inventing a length here would put a
+   * guessed multiplier on every candidate that corridor ever scores.
+   */
+  getDownstreamStopCount(routeDirectionId: string, stopId: string | null): number | null {
+    if (stopId === null) return null;
+    return this.downstreamStopsByRouteDirection.get(routeDirectionId)?.get(stopId) ?? null;
   }
 
   getControlPointStopIds(routeDirectionId: string): ReadonlySet<string> {

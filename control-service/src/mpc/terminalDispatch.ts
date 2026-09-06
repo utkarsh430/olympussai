@@ -135,6 +135,14 @@ export function computeTerminalDispatchCandidates(
    * loss - see docs/SELF_HARM_CHECK.md.
    */
   selfHarmCheckEnabled = false,
+  /**
+   * Stops each vehicle still has to serve, for the objective's waiting
+   * horizon. Empty - the default - leaves every candidate on the one-stop
+   * term, which is the deployed behaviour; `mpc/solver.ts` populates it only
+   * when `MULTI_STOP_WAIT_TERM_ENABLED` is on, so every candidate in one
+   * solve is priced under the same rule. See mpc/objective.ts.
+   */
+  downstreamStopsByVehicleId: ReadonlyMap<string, number | null> = new Map(),
 ): CandidateAction[] {
   if (!terminalStopId) return [];
   if (elapsedSinceTerminalDepartureSeconds === null) return [];
@@ -178,6 +186,7 @@ export function computeTerminalDispatchCandidates(
       rawHold,
       load,
       deviationSeconds,
+      downstreamStopsByVehicleId.get(h.followerVehicleId) ?? null,
     );
     // See mpc/selfHarmCheck.ts. Off by default; measured harmful when on.
     if (selfHarmCheckEnabled && isScoredSelfHarmful(score.objectiveCost)) continue;

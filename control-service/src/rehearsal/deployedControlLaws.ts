@@ -384,6 +384,20 @@ export interface DeployedControlLawsOptions {
    * docs/SELF_HARM_CHECK.md.
    */
   selfHarmCheckEnabled?: boolean;
+  /**
+   * Whether the objective's waiting term is summed over the stops a hold's
+   * correction is experienced at, rather than only the control point it is
+   * issued from.
+   *
+   * Defaults to the deployed switch (`MULTI_STOP_WAIT_TERM_ENABLED`, off) so
+   * a rehearsal reproduces today's behaviour; overridable so an evaluation
+   * can measure what flipping it would do before anyone flips it. Needs
+   * `corridorStops` to have anything to count - without it there is no stop
+   * sequence to read a horizon out of and every candidate stays on the
+   * one-stop term, which is the same "null means one stop" rule production
+   * follows when a corridor's sequence is not loaded.
+   */
+  multiStopWaitTerm?: boolean;
 }
 
 /**
@@ -444,6 +458,27 @@ export function createDeployedControlLawsController(
     options.selfHarmCheckEnabled ?? loadEnv().SELF_HARM_CHECK_ENABLED;
   const followerSpeedSource = options.followerSpeedSource ?? 'link_average';
   const corridorStops = options.corridorStops ?? null;
+  const multiStopWaitTerm =
+    options.multiStopWaitTerm ?? loadEnv().MULTI_STOP_WAIT_TERM_ENABLED;
+
+  /**
+   * stop_id -> stops left to serve from it, counting itself.
+   *
+   * The rehearsal's stand-in for `stateStore.getDownstreamStopCount`, built
+   * from the same thing production builds it from - the route-direction's
+   * stop sequence, in order. `corridorStops` is already in sequence order
+   * (`fleetTrial/corridor.ts` and `rehearsal/corridor.ts` both build it that
+   * way), and `cumulativeDistanceMeters` is carried here anyway, so it is
+   * sorted on that rather than trusted, for the same reason the store sorts
+   * on `sequence` rather than trusting the query.
+   */
+  const downstreamStopsByStopId = ((): ReadonlyMap<string, number> => {
+    if (!multiStopWaitTerm || !corridorStops || corridorStops.length === 0) return new Map();
+    const ordered = [...corridorStops].sort(
+      (a, b) => a.cumulativeDistanceMeters - b.cumulativeDistanceMeters,
+    );
+    return new Map(ordered.map((stop, index) => [stop.stopId, ordered.length - index]));
+  })();
   const alightingOnlySelectable = options.alightingOnlySelectable ?? false;
 
   /**
@@ -748,6 +783,21 @@ export function createDeployedControlLawsController(
         );
       }
     }
+    // The objective's waiting horizon, per vehicle, built exactly as
+    // `mpc/solver.ts` builds it: off each vehicle's own `currentStopId`,
+    // through the corridor's stop sequence, empty when the switch is off.
+    const downstreamStopsByVehicleId = new Map<string, number | null>();
+    if (downstreamStopsByStopId.size > 0) {
+      for (const [vehicleId, state] of vehicleStates) {
+        downstreamStopsByVehicleId.set(
+          vehicleId,
+          state.currentStopId === null
+            ? null
+            : (downstreamStopsByStopId.get(state.currentStopId) ?? null),
+        );
+      }
+    }
+
     // `route_direction_stops` sequence 0 is the origin terminal, and the
     // engine says when a decision is being made there. Naming it turns on
     // Algorithm A, which was unreachable for as long as this was undefined:
@@ -814,6 +864,7 @@ export function createDeployedControlLawsController(
       weighOccupancy,
       elapsedSinceTerminalDeparture,
       selfHarmCheckEnabled,
+      downstreamStopsByVehicleId,
     );
     // Exactly `mpc/solver.ts`: a bus dwelling at the terminal is regulated by
     // terminal dispatch WHETHER OR NOT that produced a candidate, so the
@@ -845,6 +896,7 @@ export function createDeployedControlLawsController(
           weighOccupancy,
           elapsedSinceTerminalDeparture,
           false,
+          downstreamStopsByVehicleId,
         )
       : terminalCandidates;
 
@@ -858,6 +910,7 @@ export function createDeployedControlLawsController(
       controlPointStopIds,
       weighOccupancy,
       selfHarmCheckEnabled,
+      downstreamStopsByVehicleId,
     );
     const selfEqualizingCandidates = computeSelfEqualizingCandidates(
       headwayStates,
@@ -869,6 +922,7 @@ export function createDeployedControlLawsController(
       controlPointStopIds,
       weighOccupancy,
       selfHarmCheckEnabled,
+      downstreamStopsByVehicleId,
     );
     const uncheckedTwoWay = selfHarmCheckEnabled
       ? computeTwoWayCandidates(
@@ -881,6 +935,7 @@ export function createDeployedControlLawsController(
           controlPointStopIds,
           weighOccupancy,
           false,
+          downstreamStopsByVehicleId,
         )
       : twoWayCandidates;
     const uncheckedSelfEqualizing = selfHarmCheckEnabled
@@ -894,6 +949,7 @@ export function createDeployedControlLawsController(
           controlPointStopIds,
           weighOccupancy,
           false,
+          downstreamStopsByVehicleId,
         )
       : selfEqualizingCandidates;
 
@@ -906,6 +962,7 @@ export function createDeployedControlLawsController(
       scheduleDeviationByVehicleId,
       controlPointStopIds,
       weighOccupancy,
+      downstreamStopsByVehicleId,
     );
     // ─── ALIGHTING-ONLY IS ASKED ABOUT THE WHOLE CHAIN ─────────────────
     //

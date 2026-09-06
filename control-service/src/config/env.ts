@@ -198,8 +198,84 @@ const baseEnvSchema = z.object({
    * which needs a multi-stop wait term, not merely a calibrated lambda - and
    * re-run all three corridors before and after. Same precondition, and the
    * same reason, as COST_OPTIMAL_SELECTION_ENABLED.
+   *
+   * MULTI_STOP_WAIT_TERM_ENABLED below is half of that precondition and moves
+   * this measurably - with both on and occupancy weighted, urban goes from 246
+   * holds to 3,309 and total passenger time from +0.17% to +1.62%, against
+   * +0.68% unchecked. Still not the condition: that measures the GUARDRAIL and
+   * not excess wait, and the other half is lambda.
+   * docs/MULTI_STOP_WAIT_TERM.md section 7.
    */
   SELF_HARM_CHECK_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
+  /**
+   * Whether the objective's waiting term is summed over the stops a hold's
+   * correction is actually experienced at, instead of only the control point
+   * the hold is issued from.
+   *
+   * OFF by default, and off is byte-identical: with this false nothing
+   * supplies `mpc/objective.ts#PassengerCostInputs.downstreamStopCount`, a
+   * null horizon prices as 1, and 1 is today's term exactly.
+   *
+   * ─── WHAT IT CHANGES ──────────────────────────────────────────────────
+   *
+   *   w_h x lambda x d x (d + h_fwd - h_bwd)   ->   ... x N
+   *
+   * where N is the stops the held vehicle still has to serve, counting the
+   * one it is standing at. Reference architecture 2.2's waiting term is
+   * `SUM_s` over stops; `mpc/objective.ts` evaluated it at one, which its own
+   * header has always said. A hold does not move a headway at one stop - the
+   * held bus arrives d later at every stop it has left, and the passengers at
+   * all of them experience `h_fwd + d` and `h_bwd - d`. The derivation, and
+   * why the perturbation is carried forward with no decay coefficient, is in
+   * that file's header.
+   *
+   * ─── WHY IT IS WORTH DOING, AND WHAT IT DOES NOT FIX ──────────────────
+   *
+   * MEASURED (19 scenarios x 3 seeds x 120 vehicles, all three corridors, both
+   * occupancy phases - full tables and reproduction in
+   * docs/MULTI_STOP_WAIT_TERM.md). The objective's cost side is accurate to
+   * 12-17%; its benefit side sees 1.3-3.0% of the waiting a hold actually
+   * removes. The horizon is most of that error - it multiplies the benefit
+   * term by the stops downstream, 13.5 on urban, 9.1 on suburban, 6.5 on
+   * inter-city - and it is measured to be the right size: the wait term goes
+   * to 14-16% of the truth, i.e. the shortfall divided by the horizon is O(1).
+   * No decay coefficient, because three measurements of that residual give
+   * three different orderings across the corridors and a decay constant is
+   * exactly a claim about that ordering.
+   *
+   * It is NOT the whole fix, and this must not be read as one. The other
+   * factor is lambda: `arrivalRatePaxPerSecond` proxies it as 1/H*, which is
+   * 7.2x (urban) to 11.4x (inter-city) below the rate the corridor sees. The
+   * two multiply - with a fitted lambda as well the wait term lands at
+   * 117-177% of the measured truth. A positive multiplier CANNOT flip a sign
+   * on its own, so on its own this flag does not make an occupancy-weighed
+   * hold price as beneficial (urban's selected mean objectiveCost goes
+   * +1,297.5 -> +1,135.5, and to +42.4 only with lambda), and it leaves the
+   * occupancy-BLIND share of candidates priced >= 0 identical to the digit.
+   *
+   * It also does not touch terminal dispatch, and the reason is worth
+   * recording because it looked like the same defect and is not. An
+   * unclamped terminal hold sets d = H* - h_fwd, and with no bus observed
+   * behind, `computePassengerCost` substitutes h_bwd = H*; the bracket
+   * `d + h_fwd - h_bwd` is then EXACTLY zero, because under that substitution
+   * the hold merely swaps the two gaps rather than evening them. Measured:
+   * 47-49% of terminal candidates score exactly 0.0 and 97% score >= 0, on all
+   * three corridors and under both occupancy phases, with and without this
+   * flag. A positive multiplier leaves zero at zero. That is the
+   * neutral-backward assumption at the origin, not the horizon, and it is the
+   * cheapest remaining item on this objective.
+   *
+   * So: turn this on together with a calibrated lambda, re-run all three
+   * corridors both phases across seeds, and only then revisit
+   * COST_OPTIMAL_SELECTION_ENABLED and SELF_HARM_CHECK_ENABLED - which wait
+   * on "the objective's predicted benefit matches a measured one", a
+   * condition this flag advances and does not complete.
+   */
+  MULTI_STOP_WAIT_TERM_ENABLED: z
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),

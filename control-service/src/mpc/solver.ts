@@ -205,6 +205,13 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
   // the measurement that says it must stay off is recorded.
   const selfHarmCheckEnabled = loadEnv().SELF_HARM_CHECK_ENABLED;
 
+  // The objective's waiting horizon, read once per solve for the same reason
+  // the two above are: a switch flipped mid-solve must not leave two laws
+  // pricing the same corridor against different objectives. OFF on every
+  // deployment - see MULTI_STOP_WAIT_TERM_ENABLED in config/env.ts, which
+  // carries the derivation and the measurement, and mpc/objective.ts.
+  const multiStopWaitTerm = loadEnv().MULTI_STOP_WAIT_TERM_ENABLED;
+
   const headwayStates = stateStore.getHeadwayStates(routeDirectionId);
   const vehicleStates = stateStore.listVehicleStates(routeDirectionId);
   const vehicleStatesByVehicleId = new Map(vehicleStates.map((v) => [v.vehicleId, v]));
@@ -217,6 +224,28 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
   // nothing. Wiring it now rather than later is what makes loading a
   // timetable a data change instead of a code change.
   const scheduleDeviationByVehicleId = await loadScheduleDeviations(vehicleStates, now);
+
+  // How many stops each vehicle still has to serve, counting the one it is
+  // standing at - N in the objective's waiting term. Built only when the
+  // switch is on, so with it off nothing supplies a horizon and every
+  // candidate is priced on exactly the one-stop term it is priced on today.
+  //
+  // Read from the vehicle's OWN stop association (`current_stop_id`, the one
+  // definition of "which stop is this vehicle at" - see
+  // state-estimation/stopStateClassifier.ts), never from its distance along
+  // the route: a hold is only executable while a bus is at a stop
+  // (mpc/eligibility.ts), so any vehicle that can take one has an
+  // association, and a vehicle that does not gets a null horizon rather than
+  // a horizon interpolated from a position.
+  const downstreamStopsByVehicleId = new Map<string, number | null>();
+  if (multiStopWaitTerm) {
+    for (const vehicle of vehicleStates) {
+      downstreamStopsByVehicleId.set(
+        vehicle.vehicleId,
+        stateStore.getDownstreamStopCount(routeDirectionId, vehicle.currentStopId),
+      );
+    }
+  }
 
   // How long since the previous bus left the origin. The quantity Algorithm A
   // regulates on, and MEASURED rather than derived from a stationary bus's
@@ -244,6 +273,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     settings.weighOccupancy,
     departureHeadwaySeconds(lastTerminalDepartureAt, now),
     selfHarmCheckEnabled,
+    downstreamStopsByVehicleId,
   );
 
   // Vehicles dwelling at the terminal are always regulated by terminal
@@ -268,6 +298,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     controlPointStopIds,
     settings.weighOccupancy,
     selfHarmCheckEnabled,
+    downstreamStopsByVehicleId,
   );
   const selfEqualizingCandidates = computeSelfEqualizingCandidates(
     headwayStates,
@@ -279,6 +310,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     controlPointStopIds,
     settings.weighOccupancy,
     selfHarmCheckEnabled,
+    downstreamStopsByVehicleId,
   );
   // The closed-form minimiser of the passenger-cost objective, competing on
   // the same ranking as the tuned-gain laws rather than replacing them - see
@@ -292,6 +324,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     scheduleDeviationByVehicleId,
     controlPointStopIds,
     settings.weighOccupancy,
+    downstreamStopsByVehicleId,
   );
 
   // Alighting-only. Generated alongside the holds and returned for the

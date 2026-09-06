@@ -12,6 +12,24 @@
 > passengers time. The check is shipped default-OFF as an instrument and a
 > record, not as a fix. The real fix is a multi-stop wait term.
 
+> **Update: half the fix now exists, and it moves this a long way.**
+> `MULTI_STOP_WAIT_TERM_ENABLED` (also default off,
+> `docs/MULTI_STOP_WAIT_TERM.md`) sums the wait term over the stops a hold's
+> correction is experienced at. Re-run with BOTH switches on, occupancy
+> weighted, on the 19-scenario set: **urban goes from 246 holds and +0.17%
+> total passenger time to 3,309 holds and +1.62%**, against +0.68% with the
+> check off; suburban and inter-city stop being losses. The check's damage is
+> PROPORTIONAL to the objective's error, which is what you would expect if the
+> error is the whole problem.
+>
+> That is not permission to flip either switch. It measures the GUARDRAIL, not
+> excess wait — the headline this check was measured below to spend 2.5–4.3
+> points of, and which is not re-tested. The objective it now believes still
+> sees only 14–16% of the benefit it is meant to price; the remaining factor of
+> 7–11 is λ. And 3,309 of 70,317 holds is a controller still mostly silenced,
+> just less catastrophically. Flip both, with λ, or neither. Every figure in
+> the tables below is the ONE-STOP objective and stands as written.
+
 ## The question
 
 `mpc/costOptimalHold.ts` is the only one of the five control laws that scores its

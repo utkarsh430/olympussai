@@ -88,6 +88,14 @@ export function computeCostOptimalCandidates(
    * passes the real setting. See mpc/objective.ts#liveOnboardCount.
    */
   weighOccupancy = true,
+  /**
+   * Stops each vehicle still has to serve, for the objective's waiting
+   * horizon. Empty - the default - leaves every candidate on the one-stop
+   * term, which is the deployed behaviour; `mpc/solver.ts` populates it only
+   * when `MULTI_STOP_WAIT_TERM_ENABLED` is on, so every candidate in one
+   * solve is priced under the same rule. See mpc/objective.ts.
+   */
+  downstreamStopsByVehicleId: ReadonlyMap<string, number | null> = new Map(),
 ): CandidateAction[] {
   const candidates: CandidateAction[] = [];
 
@@ -136,12 +144,22 @@ export function computeCostOptimalCandidates(
     // alone would hand this law a systematically lower cost than the four it
     // is sorted against, which is the sort it must not win until lambda is
     // measured. See COST_OPTIMAL_SELECTION_ENABLED in config/env.ts.
+    // The horizon the objective's waiting term is summed over. It divides the
+    // argmin's load penalty, so it belongs here as much as in the score - but
+    // the penalty is already zero with `loadPassengers: null` and W_OPERATOR
+    // at 0, so today this changes d* by nothing at all. Passed anyway,
+    // because the two must not be able to disagree about which objective this
+    // law is the minimiser of: the day either of those changes, an argmin
+    // computed against a one-stop objective and scored against a multi-stop
+    // one would be minimising a function nothing evaluates.
+    const downstreamStopCount = downstreamStopsByVehicleId.get(h.followerVehicleId) ?? null;
     const rawHold = optimalHoldSeconds({
       hFwdSeconds: h.hFwdSeconds,
       hBwdSeconds: h.hBwdSeconds,
       targetHeadwaySeconds: h.targetHeadwaySeconds,
       loadPassengers: null,
       scheduleDeviationSeconds: deviationSeconds,
+      downstreamStopCount,
     });
     if (rawHold <= 0) continue;
 
@@ -154,7 +172,15 @@ export function computeCostOptimalCandidates(
     );
     if (holdSeconds < MIN_MEANINGFUL_HOLD_SECONDS) continue;
 
-    const score = scoreHold(h, h.followerVehicleId, holdSeconds, rawHold, load, deviationSeconds);
+    const score = scoreHold(
+      h,
+      h.followerVehicleId,
+      holdSeconds,
+      rawHold,
+      load,
+      deviationSeconds,
+      downstreamStopCount,
+    );
 
     // The optimum of a cost function should not increase that cost. When it
     // does, the reason is always that the hold was clamped away from d* - by
