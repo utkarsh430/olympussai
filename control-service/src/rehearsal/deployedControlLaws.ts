@@ -746,9 +746,17 @@ export function createDeployedControlLawsController(
       );
       const seen = new Set<string>();
       for (const sweepPair of sweepPairs) {
-        if (sweepPair.hFwdSeconds === null) continue;
         const key = `${sweepPair.leaderVehicleId}\u0000${sweepPair.followerVehicleId}`;
+        // Marked seen BEFORE the null check, and the distinction matters. A
+        // pair whose forward headway is momentarily unmeasurable is still a
+        // pair - production writes its row, keeps its earlier samples in
+        // `headway_states` and simply has one fewer point to fit - whereas the
+        // pruning below is for a pair that has ceased to exist. Conflating the
+        // two would discard the trend history of any pair that ever reported a
+        // null h_fwd, which on this corridor is 9% of them, and the forecaster
+        // would then refuse far more often here than it does in production.
         seen.add(key);
+        if (sweepPair.hFwdSeconds === null) continue;
         const history = samplesByPair.get(key) ?? [];
         // Fitted from EARLIER samples and projected from this sweep's h_fwd,
         // then stored - the exact order `headway/service.ts` uses so a
