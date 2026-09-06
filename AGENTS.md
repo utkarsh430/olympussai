@@ -160,6 +160,39 @@ alert surface). Read the constant's docblock before changing it — it carries t
 was rejected before it. Terminal dispatch is deliberately NOT gated: it holds a
 bus nobody is aboard yet.
 
+The bar reads the CURRENT gap and nothing else, which makes it structurally
+late on an unstable plant. The forecast that could fix that now REACHES the
+laws - `HeadwayStateRow.forecastHFwdSeconds`, populated by
+`scheduler/headwayCompute.ts` and `db/rehydrate.ts`, read by
+`isPairActionable`. It had existed since the predictive detection tier and
+reached detection ONLY, because the row every control law reads had no field
+for it. `FORECAST_ACTION_GATE_ENABLED` acts on it and ships OFF: measured at 12
+paired seeds per corridor against the current 0.6 bar, it buys 4-22% more holds
+and real excess-wait gains on suburban (+2.1pp) and inter-city (+2.6pp), and
+worsens total passenger time on EVERY corridor 12/12 - so under this harness's
+own rule the headline gains do not qualify. On urban it buys nothing (interval
+spans zero, 6/12) and still costs.
+
+**The second finding is as important as the first, and it is about where a
+forecast helps at all: LEAST where control works best, MOST where the corridor
+is most disturbed - the opposite of the prior model.** Urban (sigma_leg/H\*
+0.096, `controllable`) gains nothing; inter-city (0.187, `too_disturbed`,
+gains least from control overall) gains most. Do not shorten that to
+"dispersion drives it" - urban and suburban are 0.004 apart and both
+controllable, yet buy +0.23pp and +2.12pp; what orders all three is the
+headroom left in the baseline excess-wait gain (50.97/38.30/17.95%). Both are
+three-point patterns. The ESTABLISHED result is the negative, and it should be
+the starting point for choosing where to try a forecast-driven mechanism next
+rather than the intuition it replaced.
+
+Two properties are worth carrying forward whatever happens to the flag: a null
+forecast must NEVER admit (absence of a prediction is not a prediction - the
+control-side mirror of the null-risk rule above), and the gate only ever
+WIDENS, so a reassuring forecast cannot veto a measured deviation.
+`docs/FORECAST_ACTION_GATE.md` has the tables, and records one OPEN QUESTION
+for the captain rather than answering it: whether total passenger time may
+ever be traded against excess wait at a rate instead of held as a constraint.
+
 `occupancyAdjustedMaxHoldSeconds` makes the load bind on the ACTION. The occupancy
 switch could not: it feeds `objectiveCost`, a RANKING input, and the mid-route
 laws are mutually exclusive so there is never a second selectable candidate to

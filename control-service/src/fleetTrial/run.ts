@@ -935,6 +935,8 @@ function runScenario(args: {
   sweepIntervalSeconds: number;
   followerSpeedSource: 'link_average' | 'vehicle_state';
   alightingOnlySelectable: boolean;
+  /** See `mpc/actionThreshold.ts#isPairActionable` and the `forecast_gate` study. */
+  forecastGateEnabled?: boolean;
 }): ScenarioRun {
   const {
     corridor,
@@ -947,6 +949,7 @@ function runScenario(args: {
     sweepIntervalSeconds,
     followerSpeedSource,
     alightingOnlySelectable,
+    forecastGateEnabled = false,
   } = args;
   const config = buildTrialScenario({ corridor, scenario, inputs, vehicleIds, seed });
   const finalStopIndex = corridor.stops.length - 1;
@@ -973,6 +976,12 @@ function runScenario(args: {
     // coverage for a reason that belonged to the harness.
     corridorStops: corridor.stops,
     alightingOnlySelectable,
+    forecastGateEnabled,
+    // The forecast's sample history is appended on the SAME cadence the trial
+    // replays the detector at, because production fits it from `headway_states`
+    // and that table is written by the headway sweep. See
+    // `rehearsal/deployedControlLaws.ts#forecastSweepIntervalSeconds`.
+    forecastSweepIntervalSeconds: sweepIntervalSeconds,
     // Left at the deployed switch. The closed-form optimum is the argmin of
     // the very quantity candidates are ranked by, so letting it compete would
     // REPLACE the tuned controller rather than add to it - and a trial that
@@ -1593,6 +1602,14 @@ interface PolicyVariant {
    * Empty for every corridor-knob study, which is the common case.
    */
   inputs?: Partial<ModelledInputs>;
+  /**
+   * Whether this variant runs with the forecast-admission gate on. A CONTROL
+   * LAW switch rather than a corridor column or a modelled input, which is why
+   * it is a third override kind here: the gate is not something a corridor
+   * has, it is something the controller does. Absent means the deployed state,
+   * off.
+   */
+  forecastGate?: boolean;
   isCurrent: boolean;
 }
 
@@ -1663,6 +1680,7 @@ function runPolicyStudy(args: {
             sweepIntervalSeconds: spec.sweepIntervalSeconds,
             followerSpeedSource: spec.followerSpeedSource,
             alightingOnlySelectable: spec.alightingOnlySelectable,
+            forecastGateEnabled: variant.forecastGate ?? false,
           }),
         );
       }
@@ -1916,6 +1934,7 @@ function policyVariants(corridorSpec: FleetCorridorSpec): {
   holdingPoints: PolicyVariant[];
   lateness: PolicyVariant[];
   actionBar: PolicyVariant[];
+  forecastGate: PolicyVariant[];
 } {
   const stationCount = corridorSpec.stationCount;
   const configuredHolding = corridorSpec.holdingPointCount ?? stationCount;
@@ -1967,7 +1986,28 @@ function policyVariants(corridorSpec: FleetCorridorSpec): {
   const configuredBar = corridorSpec.warningThresholdRatio;
   const actionBars = [...new Set([0.3, 0.5, 0.75, 1.0, configuredBar])].sort((a, b) => a - b);
 
+  // ─── ACTING EARLY ON THE PAIRS PREDICTED TO COME APART ──────────────
+  //
+  // Two rows, and the pairing is the whole point. The corridor is IDENTICAL
+  // in both - same `warningThresholdRatio`, so the same 0.6 effective action
+  // bar the `actionBar` study above sweeps and the bar this repo currently
+  // ships. The only thing that differs is whether the mid-route laws may also
+  // act on a pair that bar declines when the pair's own forecast says it is
+  // heading through it.
+  //
+  // Read against the raised bar, not the old one. `MID_ROUTE_ACTION_RATIO`
+  // already moved the effective bar 0.5 -> 0.6 and took the timing win that
+  // did not spend the guardrail; the question this study asks is what the
+  // forecast buys ON TOP of that, which is the only question left worth
+  // asking. Comparing the gate against the old bar would credit it with a
+  // win that is already shipped.
+  const forecastGateVariants: PolicyVariant[] = [
+    { label: 'off (deployed)', corridor: corridorSpec, forecastGate: false, isCurrent: true },
+    { label: 'on', corridor: corridorSpec, forecastGate: true, isCurrent: false },
+  ];
+
   return {
+    forecastGate: forecastGateVariants,
     actionBar: actionBars.map((ratio) => ({
       label: `h_fwd under ${(ratio * 100).toFixed(0)}% of H*`,
       corridor: { ...corridorSpec, warningThresholdRatio: ratio },
@@ -2361,6 +2401,17 @@ export function runFleetTrial(
       description:
         'A mid-route law only proposes for a pair whose forward headway has fallen under this share of the target - the same bar the corridor uses to decide whether a human is told about it. Lower means fewer, larger interventions; higher means the controller acts on pairs its own alert surface would not raise.',
       variants: variants.actionBar,
+      scenarios,
+      inputs,
+      vehiclesPerPhase: studyVehicles,
+    }),
+    runPolicyStudy({
+      spec,
+      knob: 'forecast_action_gate',
+      title: 'Acting early on the pairs predicted to come apart',
+      description:
+        'Whether a mid-route law may act on a pair the action bar declines, when that pair\'s own forecast says it is closing through the bar inside the horizon. Both rows run the SAME corridor and the SAME 0.6 action bar, so this measures what the forecast buys on top of the raised bar rather than re-measuring the bar. A pair with no forecast - which is most of them, the forecaster refuses on fit, sample count and window - is left exactly where the bar left it.',
+      variants: variants.forecastGate,
       scenarios,
       inputs,
       vehiclesPerPhase: studyVehicles,

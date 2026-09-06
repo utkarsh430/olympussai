@@ -133,11 +133,130 @@ export const MID_ROUTE_ACTION_RATIO = 1.2;
  */
 export function isWorthActingOn(
   hFwdSeconds: number | null,
-  policy: Pick<RoutePolicyRow, 'targetHeadwaySeconds' | 'warningThresholdRatio'>,
+  policy: MidRoutePolicy,
 ): boolean {
   if (hFwdSeconds === null || !Number.isFinite(hFwdSeconds)) return false;
-  const bar = policy.warningThresholdRatio * policy.targetHeadwaySeconds * MID_ROUTE_ACTION_RATIO;
-  return hFwdSeconds <= bar;
+  return hFwdSeconds <= midRouteActionBarSeconds(policy);
+}
+
+/** The corridor config the mid-route bar and its forecast gate are drawn on. */
+export type MidRoutePolicy = Pick<
+  RoutePolicyRow,
+  'targetHeadwaySeconds' | 'warningThresholdRatio'
+>;
+
+/**
+ * The forward headway, in seconds, at or below which this corridor's mid-route
+ * laws may act.
+ *
+ * Extracted so the ordinary bar and the forecast gate below are ONE
+ * expression. They are two readings of the same threshold - one taken on the
+ * measured gap, one on the projected one - and a second copy is how they come
+ * to disagree about the same corridor. Same rule `deniedShare`/`saturated` is
+ * held to in the fleet trial.
+ */
+export function midRouteActionBarSeconds(policy: MidRoutePolicy): number {
+  return policy.warningThresholdRatio * policy.targetHeadwaySeconds * MID_ROUTE_ACTION_RATIO;
+}
+
+// ─── ACTING EARLY, BUT ONLY WHERE EARLY IS WORTH IT ──────────────────────
+//
+// The bar above is a bar: it reads the CURRENT gap and nothing else. That
+// makes it structurally late on an unstable plant - by the time a pair has
+// reached the bar the correction it needs is already larger than the one it
+// needed a minute ago - and the obvious remedy, moving the bar, is measured
+// and it costs. Loosening the mid-route bar from 50% to 75% of H* took excess
+// wait from 51% to 56% and spent total passenger time from 3.3% to 1.9%,
+// because a looser bar cannot tell a pair heading for a bunch from a pair
+// that is merely a little early and would have re-spaced on its own. It
+// admits both and charges the second group's holds to everyone aboard.
+// `MID_ROUTE_ACTION_RATIO = 1.2` already took the half of that trade that did
+// not spend the guardrail; there is no more of it to take by moving a bar.
+//
+// `headway/riskForecast.ts` can tell the two groups apart. It fits h_fwd
+// against time over the pair's own sample history and projects it to a
+// horizon scaled by the corridor's headway, and - the part that matters here
+// - it REFUSES to speak far more often than it speaks: under four samples,
+// under 150 s of observation, r-squared under 0.5, or a closing rate beyond
+// what a stationary leader could produce, and it returns null. So a non-null
+// forecast is already a filtered claim rather than an extrapolation of noise,
+// and the gate below can be a plain reading of it rather than a second
+// credibility model.
+//
+// ─── WHY A NULL FORECAST MUST NEVER ADMIT ────────────────────────────────
+//
+// This is the property the whole mechanism rests on. Null is "the forecaster
+// declined to speak", not "no risk" - the same distinction `headway/
+// bunching.ts` is pinned on, where reading null as an all-clear closed every
+// predicted incident on the sweep that opened it. Here the failure would run
+// the other way and be worse: a gate that treated absence as permission would
+// act earliest on precisely the corridors whose sample history is too sparse
+// or too noisy to fit, which is to say on the corridors where the controller
+// knows least. Absence of a prediction is not a prediction.
+//
+// ─── WHY IT ONLY EVER WIDENS ─────────────────────────────────────────────
+//
+// A reassuring forecast never withdraws a pair the ordinary bar admits.
+// `headway/service.ts` already settles this ordering for detection - reactive
+// evidence outranks an extrapolation, because one is an observation and the
+// other is a guess about the future - and the control side must not settle it
+// the other way. So the gate is `ordinary OR forecast`, never `ordinary AND
+// forecast`, and switching it off can only ever remove actions.
+
+/**
+ * True when this pair's forecast says it is deteriorating toward the
+ * mid-route action bar, and is therefore worth acting on BEFORE its measured
+ * gap has got there.
+ *
+ * Two conditions, and both are load-bearing:
+ *
+ *   DETERIORATING - the projected gap is strictly smaller than the measured
+ *   one. `computeBunchingRisk` reports an OPENING gap calmly rather than
+ *   refusing, so "has a forecast" and "is coming apart" are different
+ *   questions; only the second is grounds for an early instruction. A flat
+ *   gap is not deteriorating either.
+ *
+ *   REACHING THE BAR - the projected gap lands at or below the same bar
+ *   `isWorthActingOn` uses. This is what keeps the gate from becoming the
+ *   indiscriminate loosening it exists to avoid: a pair closing steadily from
+ *   1.5 to 0.8 of H* is genuinely closing and still will not be in trouble at
+ *   the horizon, and holding it buys spacing nobody needed. The horizon is
+ *   roughly one headway (`forecastHorizonSeconds`), so "reaches the bar
+ *   inside the horizon" is already a bounded claim and no further ceiling is
+ *   invented here.
+ *
+ * A null h_fwd refuses for the reason `isWorthActingOn` refuses it: a
+ * forecast is a projection FROM a measurement, and with no measured present
+ * state there is nothing to project from and nothing for a hold to correct.
+ */
+export function forecastAdmitsEarlyAction(
+  hFwdSeconds: number | null,
+  forecastHFwdSeconds: number | null,
+  policy: MidRoutePolicy,
+): boolean {
+  if (forecastHFwdSeconds === null || !Number.isFinite(forecastHFwdSeconds)) return false;
+  if (hFwdSeconds === null || !Number.isFinite(hFwdSeconds)) return false;
+  if (forecastHFwdSeconds >= hFwdSeconds) return false;
+  return forecastHFwdSeconds <= midRouteActionBarSeconds(policy);
+}
+
+/**
+ * The one question every mid-route law asks of a pair: may this be acted on?
+ *
+ * With `forecastGateEnabled` false - the deployed state, see
+ * `FORECAST_ACTION_GATE_ENABLED` in config/env.ts - this is exactly
+ * `isWorthActingOn` and the forecast is not read at all. That equality is
+ * pinned by test rather than left to inspection, because "off is a no-op" is
+ * the claim a flag makes and the one nobody checks.
+ */
+export function isPairActionable(
+  pair: { hFwdSeconds: number | null; forecastHFwdSeconds: number | null },
+  policy: MidRoutePolicy,
+  forecastGateEnabled: boolean,
+): boolean {
+  if (isWorthActingOn(pair.hFwdSeconds, policy)) return true;
+  if (!forecastGateEnabled) return false;
+  return forecastAdmitsEarlyAction(pair.hFwdSeconds, pair.forecastHFwdSeconds, policy);
 }
 
 /**

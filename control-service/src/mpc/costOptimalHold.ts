@@ -48,7 +48,7 @@
 import { clamp } from './math.js';
 import { canExecuteHold } from './eligibility.js';
 import { liveOnboardCount, optimalHoldSeconds, scoreHold } from './objective.js';
-import { isWorthActingOn, occupancyAdjustedMaxHoldSeconds } from './actionThreshold.js';
+import { isPairActionable, occupancyAdjustedMaxHoldSeconds } from './actionThreshold.js';
 import type { CandidateAction } from './types.js';
 import type { HeadwayStateRow, RoutePolicyRow, VehicleStateRow } from '../state/store.js';
 
@@ -96,6 +96,14 @@ export function computeCostOptimalCandidates(
    * solve is priced under the same rule. See mpc/objective.ts.
    */
   downstreamStopsByVehicleId: ReadonlyMap<string, number | null> = new Map(),
+  /**
+   * Whether the forecast-admission gate may widen this law's action bar for a
+   * pair predicted to deteriorate toward it. Defaults FALSE - today's
+   * behaviour and the deployed default - so a direct caller keeps the
+   * ungated law; `mpc/solver.ts` passes the real setting
+   * (`FORECAST_ACTION_GATE_ENABLED`). See mpc/actionThreshold.ts.
+   */
+  forecastGateEnabled = false,
 ): CandidateAction[] {
   const candidates: CandidateAction[] = [];
 
@@ -106,8 +114,10 @@ export function computeCostOptimalCandidates(
     // know" - it is a different, worse controller wearing the optimum's name.
     // The pair belongs to selfEqualizing.ts in that case.
     if (h.hFwdSeconds === null || h.hBwdSeconds === null) continue;
-    // Not deviant enough to be worth an instruction - see mpc/actionThreshold.ts.
-    if (!isWorthActingOn(h.hFwdSeconds, policy)) continue;
+    // Not deviant enough to be worth an instruction, and not forecast to
+    // become so - see mpc/actionThreshold.ts. With the gate off this is
+    // exactly `isWorthActingOn` and the forecast is not read.
+    if (!isPairActionable(h, policy, forecastGateEnabled)) continue;
     if (!canExecuteHold(vehicleStatesByVehicleId.get(h.followerVehicleId), controlPointStopIds)) continue;
 
     const load = liveOnboardCount(vehicleStatesByVehicleId.get(h.followerVehicleId), policy, now, weighOccupancy);

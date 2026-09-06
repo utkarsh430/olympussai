@@ -39,6 +39,41 @@ export interface HeadwayStateRow {
   hBwdSeconds: number | null;
   targetHeadwaySeconds: number;
   deviationSeconds: number | null;
+  /**
+   * `headway_states.forecast_h_fwd_seconds` - the forward headway this pair is
+   * PROJECTED to have at the forecast horizon, roughly one H* ahead. Written
+   * by `headway/riskForecast.ts#computeBunchingRisk` via `headway/service.ts`.
+   *
+   * ─── WHY THIS IS ON THE ROW AT ALL ───────────────────────────────────────
+   *
+   * The forecast has existed since the predictive detection tier shipped and
+   * was consumed by DETECTION ALONE. This row is what every control law reads
+   * (`mpc/*` all take `HeadwayStateRow[]`), and it carried no forecast field,
+   * so the system could predict a corridor coming apart and had no way to act
+   * on the prediction. This field is that carry-through, and
+   * `mpc/actionThreshold.ts#isPairActionable` is its only reader.
+   *
+   * ─── NULL IS "NO OPINION", NEVER "NO RISK" ───────────────────────────────
+   *
+   * `computeBunchingRisk` refuses far more often than it speaks - under four
+   * samples, under 150 s of observation, r-squared below 0.5, or a physically
+   * impossible closing rate - and returns null for every one of those. Null
+   * here therefore means the forecaster declined to speak. Reading it as an
+   * all-clear is the failure `headway/bunching.ts` is pinned against on the
+   * detection side; on the control side the mirror-image failure would be to
+   * read it as permission, which is why the gate refuses null explicitly.
+   *
+   * REQUIRED, not optional, unlike `alightingOnlyEnabled` on the policy row
+   * below. That one is optional because a `route_policies` row written before
+   * its column existed genuinely rehydrates without it. Nothing analogous
+   * applies here: every HeadwayStateRow is constructed in-process, by
+   * `db/rehydrate.ts` at boot and `scheduler/headwayCompute.ts` per sweep, and
+   * an optional member is precisely how one of those quietly stops populating
+   * it - the `recordStopVisit` omission that left `stop_visits` empty for the
+   * life of the service is the same shape of bug. A construction site must
+   * state its answer, and `null` is a perfectly good answer.
+   */
+  forecastHFwdSeconds: number | null;
   computedAt: string;
 }
 

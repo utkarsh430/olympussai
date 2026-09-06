@@ -103,6 +103,8 @@ function headwayPair(overrides: Partial<Parameters<typeof stateStore.loadHeadway
     hBwdSeconds: 600,
     targetHeadwaySeconds: 600,
     deviationSeconds: 0,
+    /** Nothing here exercises the forecast gate; a pair with no forecast is the deployed state on every corridor. */
+    forecastHFwdSeconds: null,
     computedAt: new Date().toISOString(),
     ...overrides,
   };

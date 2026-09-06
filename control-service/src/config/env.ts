@@ -281,6 +281,106 @@ const baseEnvSchema = z.object({
     .transform((v) => v === 'true'),
 
   /**
+   * Whether the mid-route laws may act on a pair the ordinary action bar
+   * declines, when this corridor's own FORECAST says that pair is
+   * deteriorating toward the bar.
+   *
+   * OFF, and off is a true no-op: with this false
+   * `mpc/actionThreshold.ts#isPairActionable` is `isWorthActingOn` and the
+   * forecast field is not read at all (`test/forecastActionGate.test.ts` pins
+   * that equality over the whole ratio range).
+   *
+   * ─── THE GAP IT CLOSES ────────────────────────────────────────────────
+   *
+   * `headway/riskForecast.ts` has projected every pair's forward headway
+   * since the predictive detection tier shipped, and until now DETECTION was
+   * its only consumer: `HeadwayStateRow` carried no forecast field, so no
+   * control law could read one. The system could predict a corridor coming
+   * apart and had no way to act on the prediction.
+   *
+   * ─── WHY A GATE AND NOT A LOOSER BAR ──────────────────────────────────
+   *
+   * Acting earlier INDISCRIMINATELY is already measured and it costs:
+   * loosening the mid-route bar from 50% to 75% of H* moved excess wait 51%
+   * -> 56% and spent total passenger time 3.3% -> 1.9%. A bar cannot tell a
+   * pair heading for a bunch from a pair that is merely a little early and
+   * would have re-spaced on its own, so it buys both and charges the second
+   * group's holds to everyone aboard. `MID_ROUTE_ACTION_RATIO = 1.2` already
+   * took the half of that trade that did not spend the guardrail (12
+   * out-of-sample paired seeds), so there is no more timing to be had by
+   * moving a bar. A forecast can tell the two groups apart, which is the only
+   * mechanism in this codebase that could buy more timing without the cost.
+   *
+   * ─── WHY IT IS OFF: IT WORKS, AND IT SPENDS THE GUARDRAIL ─────────────
+   *
+   * Measured against the CURRENT 0.6 bar - the comparison that matters, since
+   * comparing against the old 0.5 would credit the gate with a win already
+   * shipped. 19 scenarios x 250 vehicles/phase at 12 PAIRED base seeds per
+   * corridor, both rows on the identical corridor and the identical bar, 95%
+   * bootstrap intervals over the seed-level differences. Full tables,
+   * headline-scoped re-runs and reproduction in
+   * `docs/FORECAST_ACTION_GATE.md`.
+   *
+   *   corridor    excess wait (headline)         total passenger time (GUARD)
+   *   urban       +0.23pp [-0.24, +0.73]  6/12   -0.24pp [-0.27, -0.20]  12/12
+   *   suburban    +2.12pp [+1.53, +2.72] 12/12   -0.37pp [-0.41, -0.34]  12/12
+   *   intercity   +2.64pp [+2.19, +3.06] 12/12   -0.16pp [-0.18, -0.14]  12/12
+   *
+   * The mechanism is reachable and it is not cosmetic: it buys 4-22% more
+   * holds, and on suburban and inter-city those are real spacing gains with
+   * every seed agreeing. But total passenger time worsens on EVERY corridor
+   * with 12/12 agreement, and the guardrail is a constraint here rather than
+   * a term in a ratio - a proposal that worsens it is not an improvement, so
+   * the headline gains do not qualify. The cost is not an artefact of the
+   * saturated scenario either; it survives re-running over each corridor's
+   * own `headlineScope`.
+   *
+   * On URBAN - the corridor where holding demonstrably works - it buys
+   * nothing at all: the headline effect spans zero with seeds splitting 6/12,
+   * while still paying the guardrail.
+   *
+   * ─── THE SECOND FINDING, WHICH MATTERS AS MUCH AS THE FIRST ───────────
+   *
+   * A forecast helps LEAST where control works best and MOST where the
+   * corridor is most disturbed - the OPPOSITE of the prior model, which said a
+   * forecast is worth least on a `too_disturbed` corridor because corrections
+   * there wash out. Measured (band from `lib/controllability.ts`):
+   *
+   *   corridor    sigma_leg/H*  band            gate buys
+   *   urban       0.096         controllable    +0.23pp, spans zero
+   *   suburban    0.100         controllable    +2.12pp
+   *   intercity   0.187         too_disturbed   +2.64pp
+   *
+   * Do NOT read that as "dispersion drives it". Urban and suburban are 0.004
+   * apart and both controllable, and the gate buys nothing on one and
+   * +2.12pp on the other. What orders all three is the headroom left in the
+   * baseline excess-wait gain (50.97% / 38.30% / 17.95%). Both are three-point
+   * patterns and this trial cannot separate them; what it establishes is the
+   * negative, and that negative should be the starting point for anyone
+   * choosing where to try a forecast-driven mechanism next.
+   *
+   * ─── WHAT WOULD CHANGE THE ANSWER ─────────────────────────────────────
+   *
+   * A LOWER action bar (the gate's reachable population is the band between
+   * the bar and what the forecast can see), or a forecaster that speaks more
+   * often (it declines on r-squared, sample count and window today, and
+   * passes no dwell model).
+   *
+   * There is also an OPEN QUESTION, recorded here and not answered: whether
+   * total passenger time should ever be traded against excess wait at some
+   * rate rather than held as a constraint. On inter-city this gate's trade is
+   * +2.64pp for -0.16pp, about 16:1, against the 3.6:1 of the 50%->75% bar
+   * loosening that was rejected. That is a service-policy decision for the
+   * captain, of the same kind as whether alighting-only may be offered at
+   * all - not a simulation result, and nothing here argues for it. The number
+   * is on record only so it is available if the question is ever put.
+   */
+  FORECAST_ACTION_GATE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
+  /**
    * Whether terminal dispatch prices an unobserved bus behind against the
    * LEADER'S DEPARTURE rather than against the standing vehicle's own
    * position.
