@@ -10,6 +10,7 @@
 // live network's headways with. See that module's header for why a second
 // copy of the formula was a bug and not a duplication.
 import { computeDispersion } from '../lib/dispersion.js';
+import { rollUpHoldSeconds } from './commandLifecycle.js';
 import type { KpiSummary, StopVisitRecord } from './types.js';
 
 /**
@@ -112,11 +113,32 @@ export function summarizeKpis(
     }
   }
 
-  const compliancePool = visits.filter((v) => v.intendedHoldSeconds > 0);
+  // ─── TWO COMPLIANCE NUMBERS, BECAUSE ONE OF THEM FLATTERS ──────────────
+  //
+  // `complianceRate` counts INSTRUCTIONS a driver took. `holdSecondsServedRate`
+  // counts the SECONDS they actually stood for. `partial_compliance` pulls
+  // them apart by construction - its four driver tiers accept 65% of
+  // instructions and serve 42% of the hold seconds - and reporting only the
+  // first describes a corridor as half again as obedient as it is.
+  //
+  // `complianceRate` keeps its exact former meaning so a reader comparing to
+  // an old run can tell what changed: the second figure is new, the first is
+  // not redefined.
+  //
+  // The POOL is instructions that reached a driver. `deliveredHoldSeconds` is
+  // undefined on a run with no command path modelled, and falls back to the
+  // intent there - which is what makes this identical to the old
+  // `intendedHoldSeconds > 0` pool on every such run. With a command path in
+  // the loop the two differ, and using the intent would report the control
+  // room's own refusals as driver disobedience.
+  const rollup = rollUpHoldSeconds(visits);
+  const compliancePool = visits.filter((v) => (v.deliveredHoldSeconds ?? v.intendedHoldSeconds) > 0);
   const complianceRate =
     compliancePool.length > 0
       ? compliancePool.filter((v) => v.compliant).length / compliancePool.length
       : null;
+  const holdSecondsServedRate =
+    rollup.deliveredHoldSeconds > 0 ? rollup.servedHoldSeconds / rollup.deliveredHoldSeconds : null;
 
   return {
     headwaySampleCount: dispersion.sampleCount,
@@ -147,6 +169,10 @@ export function summarizeKpis(
     strandedPassengers: firstTimeDeniedBoardings + boardingLimitedPassengers,
     onTimeDispatchRate,
     complianceRate,
+    holdSecondsServedRate,
+    intendedHoldSeconds: rollup.intendedHoldSeconds,
+    deliveredHoldSeconds: rollup.deliveredHoldSeconds,
+    servedHoldSeconds: rollup.servedHoldSeconds,
     totalBoardings,
   };
 }

@@ -12,6 +12,16 @@
 // write, or a signed webhook. Callers (tests, an offline CLI/report) are
 // responsible for anything they do with the returned `SimulationResult`;
 // the module itself has no side-effecting sink.
+//
+// The command-lifecycle types below are TYPE-ONLY imports from a sibling that
+// imports `StopVisitRecord` back from here. Both directions are erased at
+// compile time, so there is no runtime cycle - and the model belongs beside
+// the engine that runs it, not inlined here where the wire shapes live.
+import type {
+  CommandBlockReason,
+  CommandLifecycleLedger,
+  CommandLifecyclePolicy,
+} from './commandLifecycle.js';
 
 export interface LinkTravelTimeModel {
   /** Mean travel time (seconds) for this link under normal conditions. */
@@ -274,6 +284,25 @@ export interface ScenarioConfig {
    * objective every bus was perfectly punctual.
    */
   scheduledArrivalSeconds?: Record<string, number[]>;
+  /**
+   * Put every hold the controller proposes through the COMMAND PATH before the
+   * engine applies it: one live command per vehicle, cooldown, the decision
+   * cycle's `max_concurrent_actions` budget, driver acknowledgement, and TTL.
+   *
+   * ─── ABSENT IS THE DEFAULT AND IT MEANS SOMETHING ────────────────────────
+   *
+   * Absent, the engine behaves exactly as it always has: every proposal
+   * reaches its driver, `deliveredHoldSeconds` is left undefined on every
+   * visit, `SimulationResult.commandLifecycle` is absent, and the run's
+   * numbers are the control law's INTENT. That is the shipped default and it
+   * is byte-identical to the behaviour before this field existed.
+   *
+   * Present, the same run reports what the command path would actually have
+   * delivered, beside the intent rather than instead of it. Build the policy
+   * with `commandLifecycle.ts#commandLifecyclePolicyFrom` so the limits come
+   * from `route_policies` and not from a caller's imagination.
+   */
+  commandLifecycle?: CommandLifecyclePolicy;
 }
 
 /**
@@ -583,9 +612,45 @@ export interface StopVisitRecord {
   firstTimeDeniedBoardings: number;
   onboardAfter: number;
   dwellSeconds: number;
+  /**
+   * What the CONTROL LAW asked for, clamped to the corridor's hold cap.
+   *
+   * The INTENT, and it stays the intent whatever the command path does with
+   * it. When a command is refused before it reaches anybody, this is still the
+   * seconds the law wanted and `deliveredHoldSeconds` is zero - the two fields
+   * are how a reader tells "the law did not ask" from "the law asked and the
+   * control room could not carry it".
+   */
   intendedHoldSeconds: number;
+  /**
+   * What the COMMAND PATH put on a driver's screen, out of `intendedHoldSeconds`.
+   *
+   * ─── ABSENT MEANS "NOT MODELLED", WHICH IS NOT THE SAME AS ZERO ────────
+   *
+   * Undefined on any run that did not model the command lifecycle - the
+   * default, and every run this simulator did before
+   * `simulation/commandLifecycle.ts` existed. Read it as
+   * `deliveredHoldSeconds ?? intendedHoldSeconds`: on such a run every
+   * instruction reaches its driver by construction, because there is nothing
+   * in between, and saying so explicitly is the honest form of a result that
+   * is an upper bound. A zero here would claim the command path refused it.
+   */
+  deliveredHoldSeconds?: number;
+  /** What the DRIVER actually stood for, out of `deliveredHoldSeconds`. */
   appliedHoldSeconds: number;
+  /**
+   * Whether the driver took the instruction they were given.
+   *
+   * ABOUT THE DRIVER ONLY, and true on a visit where no instruction ever
+   * arrived - a driver cannot refuse what they were never shown. Anything
+   * counting a compliance RATE must therefore draw its pool from
+   * `deliveredHoldSeconds > 0`, not from `intendedHoldSeconds > 0`; see
+   * `kpi.ts#summarizeKpis`, where getting that wrong would report a command
+   * path's refusals as driver obedience.
+   */
   compliant: boolean;
+  /** Why the command path refused this instruction, when it did. Undefined when it was not modelled or did not refuse. */
+  commandBlockedBy?: CommandBlockReason;
   departureSeconds: number;
   leaderHeadwaySeconds: number | null;
   /** True when this visit occurred while a `gps_dropout` disturbance was active for this vehicle. */
@@ -650,8 +715,48 @@ export interface KpiSummary {
   strandedPassengers: number;
   /** Fraction of terminal dispatches within `targetHeadwaySeconds * bunchedThresholdRatio` of their scheduled headway. */
   onTimeDispatchRate: number;
-  /** Fraction of issued (non-zero, non-stale) hold decisions the simulated driver actually complied with. */
+  /**
+   * Fraction of the hold INSTRUCTIONS reaching a driver that the driver took.
+   *
+   * ─── UNCHANGED IN MEANING, AND HALF THE ANSWER ───────────────────────────
+   *
+   * This is the same figure it has always been - accepted instructions over
+   * instructions - so a reader comparing against an older run is comparing
+   * like with like. It is published beside `holdSecondsServedRate` because on
+   * its own it flatters, and by a lot: a driver who accepts a ninety-second
+   * hold and pulls away after twenty has complied by this measure while buying
+   * almost none of the spacing, having paid the whole onboard cost of stopping.
+   *
+   * MEASURED by the `partial_compliance` fleet-trial scenario, whose four
+   * driver tiers accept 65% of instructions and serve 42% of the hold seconds
+   * asked for. Reporting only this number describes that corridor as half
+   * again as obedient as it is.
+   *
+   * The POOL is instructions that reached a driver (`deliveredHoldSeconds > 0`,
+   * which falls back to `intendedHoldSeconds` on a run with no command path
+   * modelled). A hold the command path refused before anybody saw it is not a
+   * driver's non-compliance and must never be counted as one.
+   */
   complianceRate: number | null;
+  /**
+   * Fraction of the hold SECONDS put in front of drivers that were actually
+   * served: `sum(appliedHoldSeconds) / sum(deliveredHoldSeconds)`.
+   *
+   * The other half of `complianceRate`, added rather than folded into it. One
+   * number cannot carry both without destroying the comparison - and the gap
+   * between them IS the finding, because the two failures have different
+   * remedies: refusing instructions is a training and interface problem, and
+   * serving a quarter of the ones you accept is a scheduling-pressure problem.
+   *
+   * Null when no instruction reached a driver at all - an absence, not a zero.
+   */
+  holdSecondsServedRate: number | null;
+  /** Hold seconds the control laws asked for. THE INTENT, and the denominator a delivered figure is read against. */
+  intendedHoldSeconds: number;
+  /** Hold seconds that reached a driver. Equals `intendedHoldSeconds` when no command path was modelled - see `StopVisitRecord.deliveredHoldSeconds`. */
+  deliveredHoldSeconds: number;
+  /** Hold seconds a driver actually stood for. */
+  servedHoldSeconds: number;
   totalBoardings: number;
 }
 
@@ -696,6 +801,16 @@ export interface SimulationResult {
   kpis: KpiSummary;
   /** Per stop, the queue the run left standing. See `StopQueueResidual`. */
   stopQueues: StopQueueResidual[];
+  /**
+   * What the command path did with this run's instructions, and which of its
+   * configured limits are inert.
+   *
+   * Absent unless `ScenarioConfig.commandLifecycle` asked for it. Absent means
+   * the command path was not in this loop, so every number in this result is
+   * the control law's INTENT and an upper bound on what a fleet would see -
+   * not that the path delivered everything.
+   */
+  commandLifecycle?: CommandLifecycleLedger;
 }
 
 export interface HistoricalDayFixture {
