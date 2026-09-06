@@ -135,7 +135,7 @@ long-form findings in `docs/FLEET_TRIAL.md`, operational handover in `HANDOFF.md
     npx vitest run test/fleetTrial/              # from control-service/
 
 Layout: `corridor.ts` builds a synthetic corridor; `presets.ts` holds the three
-shapes and the demand that belongs to each; `scenarios.ts` is ten ways a corridor
+shapes and the demand that belongs to each; `scenarios.ts` is nineteen ways a corridor
 comes apart; `detection.ts` replays the DEPLOYED detector at the live 60 s sweep
 cadence; `run.ts` orchestrates both arms, both phases and the policy sweeps;
 `types.ts` is the wire contract (mirrored by Zod in `src/models/fleetTrial.ts`).
@@ -202,6 +202,19 @@ input production does not have. Check it first when a law's coverage looks wrong
 - **A scenario is a perturbation, so its inputs are MULTIPLIERS** (`inputScale`),
   never absolute values. Absolute overrides tuned for one corridor inverted on
   another - `peak_load` became the lightest scenario the urban corridor ran.
+  The same rule reaches window PLACEMENT: place against
+  `modelledArrivalSecondsTo`, which counts dwell, not `freeFlowSecondsTo`,
+  which does not. On the urban preset the difference is ten minutes by
+  mid-route - nearly two headways - so any window shorter than that placed on
+  free flow is a window the target bus never enters.
+- **`vehiclesPerPhase` is split ACROSS scenarios, so scenario count costs
+  statistical power and not runtime.** Nineteen scenarios at the default 500
+  give each 26 buses per arm, and the per-scenario sign flips freely there:
+  four scenarios reversed between 500 and 2,000 buses over the same six seeds.
+  Screen with the default; run `--vehicles 2000` before calling any single
+  scenario a controller failure. Test fixtures must size themselves per
+  scenario (`BUNCHING_SCENARIOS.length * 4`) or they silently thin out as the
+  library grows.
 - **What predicts the result is one number**: the standard deviation of a single
   leg's running time as a fraction of H*. Below ~0.03 nothing comes apart; above
   ~0.16 more deviation accumulates between two stops than a hold at either can
@@ -212,6 +225,27 @@ input production does not have. Check it first when a law's coverage looks wrong
   corridor rather than baking in a winner. Do not fork the algorithm by corridor
   type - the laws are identical on all three shapes and the predictor above is a
   continuum, not three buckets.
+
+### Attacking the estimator, not only the corridor
+
+`simulation/types.ts#Disturbance` carries `gps_bias` (a feed that is PRESENT and
+WRONG - constant offset, growing drift, or `freeze`, which republishes the last
+fix with a current timestamp) next to `gps_dropout` (a feed that is absent).
+They are different failures and only one of them is handled: staleness is a
+named rejection reason in `mpc/safety.ts`, and nothing anywhere refuses a fresh,
+well-formed, self-consistent fix that is half a kilometre wrong.
+
+`gps_bias` moves ONLY what the controller is told - the deciding vehicle's own
+reported position and its whole reported chain, coherently, since a corridor
+that held two positions for one bus is a thing no real feed can do. It never
+moves the bus. `test/simulation/engine.test.ts` pins both halves; without the
+first, every estimator scenario would be confounded with the ordinary "make a
+bus late" disturbances the library already has.
+
+An estimator attack therefore CANNOT raise the uncontrolled arm's bunching rate,
+because that arm never reads the estimator. It is the one exception to "a
+scenario the uncontrolled arm sails through is not hard", and its hardness shows
+as the controlled arm's gain collapsing instead.
 
 ### Conventions learned the hard way
 

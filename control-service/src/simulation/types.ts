@@ -100,7 +100,75 @@ export type Disturbance =
   | { type: 'demand_burst'; stopId: string; startSeconds: number; endSeconds: number; multiplier: number }
   | { type: 'missed_trip'; vehicleId: string }
   | { type: 'gps_dropout'; vehicleId: string; startSeconds: number; endSeconds: number }
-  | { type: 'non_compliance'; vehicleId: string; complianceProbability: number }
+  /**
+   * A feed that is PRESENT and WRONG, which is the failure `gps_dropout`
+   * cannot express and the one the deployed guards were not built for.
+   *
+   * `gps_dropout` makes a vehicle's state stale, and staleness is a named,
+   * handled condition: `mpc/safety.ts` refuses to command an unobserved bus
+   * and the refusal is counted. Nothing anywhere refuses a feed that is
+   * fresh, well-formed, internally consistent and reporting a bus 600 m from
+   * where it is. Every downstream quantity is then confidently wrong:
+   * `computeGapMeters` measures the gap against a fiction,
+   * `computeLeaderFollowerOrder` can rank a bus on the wrong side of its
+   * neighbour, and `corridorPaceKmph` converts the fiction into seconds.
+   *
+   * Three real shapes, one primitive:
+   *   * `offsetMeters` - snapped to the wrong place. A map-match onto the
+   *     opposite carriageway of a divided road, or onto the return leg of a
+   *     loop, which reads as a constant along-route error of one block.
+   *   * `driftMetersPerSecond` - an error that grows. A dead-reckoning unit
+   *     with no satellite fix, integrating a wheel-tick bias.
+   *   * `freeze` - STALE BUT FRESH-LOOKING. The modem keeps publishing, so
+   *     the timestamp advances, but the payload is the fix it last obtained.
+   *     This is the one that defeats an age-based guard by construction: the
+   *     data is old and nothing about it says so.
+   *
+   * Applied to the REPORTED position only. The bus itself keeps running
+   * exactly where it was going - a wrong fix does not move a vehicle - so
+   * this perturbs the estimator and nothing else, which is what makes it an
+   * estimator attack rather than another way of making a bus late. Under
+   * `freeze` the reported SPEED is frozen with the position, because a fix
+   * that has not moved and a pace that has cannot come from the same modem.
+   */
+  | {
+      type: 'gps_bias';
+      vehicleId: string;
+      startSeconds: number;
+      endSeconds: number;
+      /** Constant error in the reported distance along the route, metres. Positive reports the bus AHEAD of where it is. */
+      offsetMeters?: number;
+      /** Error accumulating from `startSeconds`, metres per second of window elapsed. */
+      driftMetersPerSecond?: number;
+      /** Report the fix this vehicle last obtained at `startSeconds`, position and speed together, with a current timestamp. */
+      freeze?: boolean;
+    }
+  | {
+      type: 'non_compliance';
+      vehicleId: string;
+      /** Probability this driver takes an instruction at all. */
+      complianceProbability: number;
+      /**
+       * When they DO take it, the share of the instructed hold they actually
+       * serve. Defaults to 1 - full compliance, the historical behaviour.
+       *
+       * Compliance is not a coin. A driver who pulls away after twenty
+       * seconds of a ninety-second hold, or who starts serving it seventy
+       * seconds late, has done neither thing the binary models: they have
+       * paid the whole onboard cost of a hold and bought none of the spacing.
+       * In this engine both look the same - a shorter stand at the kerb - so
+       * one fraction expresses both.
+       *
+       * `SimulatedStopVisit.compliant` stays TRUE for such a visit: the
+       * driver took the instruction. What they did not do is serve it, and
+       * that shows up as `appliedHoldSeconds` short of `intendedHoldSeconds`
+       * rather than as a refusal. A compliance RATE therefore reads high on a
+       * corridor whose holds are mostly not being served, which is a real
+       * property of the metric and the thing `partial_compliance` is there to
+       * expose.
+       */
+      compliedHoldFraction?: number;
+    }
   /**
    * One vehicle running slower than the rest of the fleet for part or all of
    * its trip - a bus with a mechanical fault, a driver taking a route

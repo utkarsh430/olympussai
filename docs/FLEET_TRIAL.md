@@ -2,8 +2,8 @@
 
 A thousand simulated buses on a 400 km corridor with ten holding points, run
 twice — once through the deployed control laws, once with nobody intervening —
-across ten ways a corridor comes apart, in two phases that differ in exactly one
-input.
+across nineteen ways a corridor comes apart, in two phases that differ in exactly
+one input.
 
     pnpm --dir control-service sim:fleet
     pnpm --dir control-service sim:fleet --vehicles 250 --out experiments/runs/fleet
@@ -75,7 +75,7 @@ below is not.
 
 ## Where it stands, with error bars
 
-Six seeds, 250 buses per phase, all ten scenarios, `pnpm sim:fleet --corridor X
+Six seeds, 250 buses per phase, the original ten scenarios, `pnpm sim:fleet --corridor X
 --vehicles 250 --seed S`. Net is total passenger time saved as a share of what
 passengers actually spend — waiting plus every second aboard.
 
@@ -855,7 +855,14 @@ offered passengers are refused a seat, waiting time is bounded by how many seats
 exist rather than by how they are spaced — `SpacingKpis.saturated` flags any arm
 that crossed it anyway.
 
-## The ten scenarios
+## The scenarios
+
+Ten of them describe ways a CORRIDOR comes apart. Nine more, added afterwards,
+describe ways the CONTROLLER comes apart — each attacks a named assumption in
+the control laws rather than adding another kind of bad day. They exist because
+the first ten were being passed: measured, the laws improved net passenger time
+on 9 of 10 urban scenarios, 8 of 10 suburban and 7 of 10 inter-city, and a
+library a controller mostly passes is not measuring its limits.
 
 | id | what goes wrong |
 |---|---|
@@ -870,7 +877,60 @@ that crossed it anyway.
 | `gps_dropout` | buses stop reporting position |
 | `driver_non_compliance` | fleet-wide 45% compliance |
 
-`traffic_shock` and `cascade` are the ones a holding controller handles worst, and
-they are in the library for that reason: every bus inside the window is delayed
-and none outside it is, so there is no single culprit to hold behind and the
-honest answer may be that holding helps little.
+And the adversarial set:
+
+| id | what it attacks |
+|---|---|
+| `phantom_position` | the feed is fresh, consistent and WRONG, drifting a headway's distance per trip |
+| `frozen_feed` | a modem republishing its last fix with a current timestamp — old data that nothing can tell is old |
+| `blind_slowdown` | a congestion window AND a map-match error on the buses inside it |
+| `hotspot_demand` | five stops carry the route, against an objective whose arrival rate is uniform by construction |
+| `partial_compliance` | four tiers of driver, some of whom take an instruction and serve a quarter of it |
+| `oversaturated` | the far side of the denied-boarding line, where a working controller must report no effect |
+| `oscillating_shock` | a stretch alternating slow and fast once a headway, against proportional laws with a transport lag |
+| `building_peak` | a corridor with no steady state, so no booked timetable fits any bus |
+| `shock_and_recovery` | one severe shock, then a long clean stretch: does the corridor come back, and does holding delay that |
+
+`traffic_shock` and `cascade` are the ones a holding controller handles worst
+among the original ten, and they are in the library for that reason: every bus
+inside the window is delayed and none outside it is, so there is no single
+culprit to hold behind and the honest answer may be that holding helps little.
+
+### What the adversarial set found
+
+Six seeds at 2,000 buses per phase, occupancy-blind. Read the excess-wait
+column against `steady_variability`'s own gain on the same corridor (urban 53%,
+suburban 43%, inter-city 22%) — that is the controller working normally.
+
+| scenario | corridor | uncontrolled EWT | net passenger time | excess wait |
+|---|---|---|---|---|
+| `oversaturated` | all three | 41–236 s | **−2.7% / −0.9% / −0.6%, 0/6 seeds positive** | 49–54% |
+| `oscillating_shock` | inter-city | 489 s, 27.6% bunched | +1.1% | **6.4%** on 502 s/bus of holding |
+| `partial_compliance` | inter-city | 247 s | +0.3% | **12.4%** on 180 s/bus |
+| `building_peak` | inter-city | **781 s** | +1.3% | **12.7%** |
+| `blind_slowdown` | inter-city | 371 s | +0.2%, 3/6 | **13.2%** |
+
+`oversaturated` is the only scenario the controller loses outright, and it is
+supposed to: it is the harness's own saturation reporting under test, and the
+flag fires on 6/6 seeds on every preset. The other four are the finding — the
+controller stays positive but its gain collapses by two to three times while it
+issues as many hold seconds as ever, which is a controller working hard and
+buying little rather than one that has stopped.
+
+Two cautions a reader needs before acting on any per-scenario row.
+
+**The default trial has no statistical power per scenario.** `vehiclesPerPhase`
+is split ACROSS scenarios, so a nineteen-scenario trial at the default 500 gives
+each scenario 26 buses per arm. Measured, the per-scenario sign flips freely at
+that budget: at 500 buses `phantom_position` read −0.5% on suburban over 6 seeds
+and at 2,000 buses it read +0.7%, and the same reversal happened to `slow_bus`,
+`frozen_feed` and `blind_slowdown`. The phase-level `scenarioAgreement` count is
+a screening number; run `--vehicles 2000` before calling any single scenario a
+failure. Runtime is unaffected by scenario count (the buses are shared out, not
+added), so this costs vehicles rather than scenarios.
+
+**An estimator attack cannot raise the uncontrolled arm's bunching**, because
+the uncontrolled arm does not read the estimator. `phantom_position`,
+`frozen_feed` and the GPS half of `blind_slowdown` are the exceptions to the
+rule that a hard scenario must be a hard corridor: their hardness shows up as
+the controlled arm's gain collapsing, never as a worse baseline.

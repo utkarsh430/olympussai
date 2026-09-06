@@ -17,11 +17,24 @@ import { createDeployedControlLawsController } from '../../src/rehearsal/deploye
 import { buildRehearsalScenario, DEFAULT_MODELLED_INPUTS, REHEARSAL_EPOCH_MS, isReported } from '../../src/rehearsal/run.js';
 import type { ModelledInputs } from '../../src/rehearsal/run.js';
 import type { StopVisitRecord, TerminalDispatchPlan } from '../../src/simulation/types.js';
+import type { BunchingScenarioId } from '../../src/fleetTrial/scenarios.js';
 
 const CORRIDOR = buildFleetCorridor(DEFAULT_FLEET_CORRIDOR);
 
-/** A small but real trial: every scenario, few enough buses to run in a test. */
-const SMALL = { ...DEFAULT_FLEET_TRIAL_SPEC, vehiclesPerPhase: 40 };
+/**
+ * A small but real trial: every scenario, few enough buses to run in a test.
+ *
+ * Sized PER SCENARIO rather than as a total. It was a flat 40, which was four
+ * buses each across a ten-scenario library and two each once the library grew
+ * to nineteen - and two buses on a corridor is a fixture with no trailer to
+ * measure h_bwd against, so several assertions here would have gone on passing
+ * while measuring almost nothing. Four is the density every rule below was
+ * written against; the arithmetic keeps it there as scenarios are added.
+ */
+const SMALL = {
+  ...DEFAULT_FLEET_TRIAL_SPEC,
+  vehiclesPerPhase: BUNCHING_SCENARIOS.length * 4,
+};
 
 describe('the trial corridor', () => {
   it('makes every station a holding point, including the origin', () => {
@@ -108,6 +121,119 @@ describe('the scenario library', () => {
     });
     const times = plan.dispatches.map((d) => d.scheduledDispatchSeconds);
     for (let i = 1; i < times.length; i++) expect(times[i]!).toBeGreaterThanOrEqual(times[i - 1]!);
+  });
+
+  /** The context every scenario is built against here: the trial corridor, its own inputs, twenty buses. */
+  function buildContext(seed: number) {
+    const dispatches: TerminalDispatchPlan[] = [
+      { vehicleId: 'WARMUP', scheduledDispatchSeconds: 0 },
+      ...Array.from({ length: 20 }, (_, i) => ({
+        vehicleId: `BUS-${i}`,
+        scheduledDispatchSeconds: (i + 1) * 1800,
+      })),
+    ];
+    return (id: BunchingScenarioId) => ({
+      corridor: CORRIDOR,
+      inputs: { ...DEFAULT_MODELLED_INPUTS, ...FLEET_TRIAL_INPUTS },
+      dispatches,
+      targetHeadwaySeconds: 1800,
+      freeFlowSecondsTo: (i: number) => (CORRIDOR.stops[i]?.cumulativeDistanceMeters ?? 0) / 16.67,
+      rng: scenarioRng(seed, id),
+    });
+  }
+
+  it('builds the same plan twice from the same seed, for every scenario', () => {
+    // The hard requirement on this library: a scenario nobody can reproduce
+    // cannot be a finding about the controller, because the next run may not
+    // be the same experiment. `terminal_jitter` is the only one that draws at
+    // all today, and it is the one this would catch - but the assertion is
+    // over the whole library so the next scenario to take a draw inherits it.
+    for (const scenario of BUNCHING_SCENARIOS) {
+      const context = buildContext(20260822);
+      const first = scenario.build(context(scenario.id));
+      const second = scenario.build(context(scenario.id));
+      expect(second, `${scenario.id} is not reproducible from its seed`).toEqual(first);
+    }
+  });
+
+  it('gives each scenario its own draw sequence, so one seed is not one experiment', () => {
+    // `scenarioRng` mixes the id into the seed. Without that, two scenarios in
+    // one trial would draw the identical numbers and their disturbances would
+    // be correlated in a way nothing downstream could see.
+    const drawing = BUNCHING_SCENARIOS.filter(
+      (s) => JSON.stringify(s.build(buildContext(1)(s.id))) !== JSON.stringify(s.build(buildContext(2)(s.id))),
+    );
+    expect(drawing.length, 'no scenario draws at all, so this rule is unenforced').toBeGreaterThan(0);
+    for (const scenario of drawing) {
+      const a = scenarioRng(7, scenario.id).next();
+      const b = scenarioRng(7, BUNCHING_SCENARIOS.find((s) => s.id !== scenario.id)!.id).next();
+      expect(a).not.toBe(b);
+    }
+  });
+
+  it('puts every disturbance window where the buses actually are', () => {
+    // The trap this library's own header records, and the one every new
+    // scenario is most likely to fall into: a window placed against the wrong
+    // clock closes before the first bus reaches the stop it names, and the
+    // "disturbed" run comes back identical to the undisturbed one under a
+    // disturbed name. Nothing downstream can tell.
+    const context = buildContext(20260822);
+    const lastDispatch = 20 * 1800;
+    const tripSeconds = CORRIDOR.totalDistanceMeters / 16.67;
+    const horizon = lastDispatch + tripSeconds * 3;
+    for (const scenario of BUNCHING_SCENARIOS) {
+      const plan = scenario.build(context(scenario.id));
+      const windows = plan.disturbances.filter(
+        (d): d is Extract<typeof d, { startSeconds: number; endSeconds: number }> =>
+          'startSeconds' in d,
+      );
+      for (const window of windows) {
+        expect(window.endSeconds).toBeGreaterThan(window.startSeconds);
+        expect(
+          window.startSeconds,
+          `${scenario.id} opens a window after the last bus has finished`,
+        ).toBeLessThan(horizon);
+      }
+      // Some scenarios legitimately place a window over the warm-up run alone
+      // (`oscillating_shock` alternates from second zero), so the rule is on
+      // the SET: at least one window has to reach the buses this trial
+      // actually reports on, or the scenario disturbs nothing that is
+      // measured and says so nowhere.
+      if (windows.length > 0) {
+        expect(
+          windows.some((w) => w.endSeconds > 1800 && w.startSeconds < horizon),
+          `${scenario.id} places no window over any reported bus`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('says what it is trying to break, in words an operator can read', () => {
+    // These two strings are the whole interface between this library and the
+    // person reading a report. A scenario whose `whatItTests` is a restatement
+    // of its own id tells that reader nothing, and the failure is silent.
+    const seen = new Set<string>();
+    for (const scenario of BUNCHING_SCENARIOS) {
+      expect(scenario.mechanism.length, `${scenario.id} has no mechanism`).toBeGreaterThan(80);
+      expect(scenario.whatItTests.length, `${scenario.id} does not say what it tests`).toBeGreaterThan(120);
+      expect(scenario.title.length).toBeGreaterThan(4);
+      for (const text of [scenario.mechanism, scenario.whatItTests, scenario.title]) {
+        expect(seen.has(text), `${scenario.id} repeats another scenario's prose`).toBe(false);
+        seen.add(text);
+      }
+    }
+  });
+
+  it('perturbs the corridor as multipliers, never as absolute values', () => {
+    // A scenario means the same thing on every corridor or it means nothing.
+    // 1 leaves a field alone; 0 would silence it entirely, which no
+    // perturbation of a real corridor does.
+    for (const scenario of BUNCHING_SCENARIOS) {
+      for (const [field, value] of Object.entries(scenario.inputScale)) {
+        expect(value, `${scenario.id}.${field}`).toBeGreaterThan(0);
+        expect(value, `${scenario.id}.${field} is not a plausible multiplier`).toBeLessThan(10);
+      }
+    }
   });
 });
 
@@ -363,11 +489,42 @@ describe('a whole trial', () => {
     for (const phase of report.phases) expect(phase.vehicleCount).toBe(SMALL.vehiclesPerPhase);
   });
 
-  it('is deterministic: the same spec produces the same numbers', () => {
+  it('is deterministic: the same spec produces the same numbers, scenario by scenario', () => {
+    // Per SCENARIO, not only per phase. A phase aggregate can be stable while
+    // an individual scenario is not, and it is the scenario rows a reader acts
+    // on - "the controller failed on X by Y%" is a finding about the
+    // controller only if the next run says the same thing.
     const again = runFleetTrial(SMALL);
     expect(again.phases[0]?.controlled.spacing).toEqual(report.phases[0]?.controlled.spacing);
     expect(again.phases[0]?.uncontrolled.spacing).toEqual(report.phases[0]?.uncontrolled.spacing);
     expect(again.occupancyContrast.decisionsChanged).toBe(report.occupancyContrast.decisionsChanged);
+
+    for (const [i, phase] of report.phases.entries()) {
+      const rerun = again.phases[i];
+      expect(rerun?.scenarios.map((s) => s.id)).toEqual(phase.scenarios.map((s) => s.id));
+      for (const [j, scenario] of phase.scenarios.entries()) {
+        const repeat = rerun?.scenarios[j];
+        expect(repeat?.uncontrolled.spacing, `${scenario.id} uncontrolled`).toEqual(
+          scenario.uncontrolled.spacing,
+        );
+        expect(repeat?.controlled.spacing, `${scenario.id} controlled`).toEqual(
+          scenario.controlled.spacing,
+        );
+        expect(repeat?.contrast, `${scenario.id} contrast`).toEqual(scenario.contrast);
+      }
+    }
+  });
+
+  it('is not deterministic because the seed is ignored', () => {
+    // The other half of the reproducibility requirement, and the one a
+    // constant would pass. If a different seed produced the identical report,
+    // every "same seed, same result" assertion above would be vacuous.
+    const other = runFleetTrial({ ...SMALL, seed: SMALL.seed + 1 });
+    const changed = report.phases[0]!.scenarios.filter((scenario, j) => {
+      const otherScenario = other.phases[0]?.scenarios[j];
+      return otherScenario?.uncontrolled.spacing.ewtSeconds !== scenario.uncontrolled.spacing.ewtSeconds;
+    });
+    expect(changed.length).toBe(report.phases[0]!.scenarios.length);
   });
 
   it('never reports a controlled arm without the arm it is compared against', () => {
