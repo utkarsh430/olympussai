@@ -19,6 +19,7 @@ import request from 'supertest';
 vi.mock('../src/db/commands.js', () => ({
   listActiveVehicleIds: vi.fn(),
   listRecentlyCommandedVehicleIds: vi.fn(),
+  countBoardingLimitCommands: vi.fn(),
 }));
 
 // Only the one reader terminal dispatch needs; the rest of the module stays
@@ -34,9 +35,8 @@ vi.mock('../src/headway/repository.js', async (importOriginal) => ({
 const { createApp } = await import('../src/app.js');
 type MpcSolveResult = import('../src/mpc/solver.js').MpcSolveResult;
 const { stateStore } = await import('../src/state/store.js');
-const { listActiveVehicleIds, listRecentlyCommandedVehicleIds } = await import(
-  '../src/db/commands.js'
-);
+const { listActiveVehicleIds, listRecentlyCommandedVehicleIds, countBoardingLimitCommands } =
+  await import('../src/db/commands.js');
 const { loadLastStopDeparture } = await import('../src/headway/repository.js');
 
 const AUTH_HEADER = 'Bearer test-service-token-secret-value';
@@ -115,6 +115,13 @@ describe('POST /v1/mpc/solve', () => {
     vi.mocked(listActiveVehicleIds).mockResolvedValue(new Set());
     vi.mocked(listRecentlyCommandedVehicleIds).mockReset();
     vi.mocked(listRecentlyCommandedVehicleIds).mockResolvedValue(new Set());
+    vi.mocked(countBoardingLimitCommands).mockReset();
+    // Never called on a corridor that has not enabled alighting-only, which is
+    // every corridor unless a test says otherwise. Resolving 0 here would let
+    // an accidental call pass unnoticed; rejecting makes it a failure.
+    vi.mocked(countBoardingLimitCommands).mockRejectedValue(
+      new Error('the refusal meter must not be read on a corridor with alighting-only off'),
+    );
     vi.mocked(loadLastStopDeparture).mockReset();
     // veh-terminal is 120s behind the bus that just left, which is what the
     // scenario below has always meant - it was previously expressed as an
@@ -265,20 +272,41 @@ describe('POST /v1/mpc/solve', () => {
       body.safeCandidates.some((c) => c.vehicleId === 'veh-mid' && c.actionType === 'cost_optimal_hold'),
     ).toBe(true);
 
-    // An alighting-only proposal on the LEADER of the tightest pair: 120s of
-    // gap on a 600s corridor, and the bus behind is close enough that anyone
-    // left standing waits two minutes. Note the vehicle is the leader, not
-    // the follower every hold names.
-    expect(
-      body.boardingLimitCandidates.map((c) => c.vehicleId),
-    ).toEqual(['veh-terminal-leader']);
+    // ─── ALIGHTING-ONLY IS WITHHELD, AND SAYS SO ────────────────────────
+    //
+    // The structural conditions for it hold on the tightest pair - 120s of gap
+    // on a 600s corridor, with the bus behind close enough that anyone left
+    // standing waits two minutes - and `veh-terminal-leader` is the LEADER,
+    // which is the bus this law acts on. This policy does not enable it, which
+    // is the shipped state of every corridor, so the proposal is not offered.
+    //
+    // The empty list is not the assertion that matters. `boardingLimitAvailability`
+    // is: it distinguishes this corridor, where the law found something and is
+    // not allowed to say so, from a corridor where it found nothing.
+    expect(body.boardingLimitCandidates).toEqual([]);
+    expect(body.boardingLimitAvailability).toMatchObject({
+      offered: false,
+      withheldReason: 'disabled_for_corridor',
+      refusalsInWindow: null,
+      withheldCandidateCount: 1,
+    });
+
+    // AND it is absent from `safeCandidates` too, which is the assertion with
+    // teeth: the control-room console renders every safe candidate that is not
+    // the selected one as an approvable alternative
+    // (EngineRecommendationPanel), so a withheld proposal left in this list
+    // would still be issuable to a driver.
+    expect(body.safeCandidates.some((c) => c.actionType === 'boarding_limit')).toBe(false);
+    expect(body.candidateActions.some((c) => c.actionType === 'boarding_limit')).toBe(false);
 
     // safeCandidates is exactly candidateActions minus the rejected ones, so
-    // a consumer never has to compute that difference itself. This must hold
-    // for the non-hold action type too - it passed the filter, so it is safe.
+    // a consumer never has to compute that difference itself. A WITHHELD
+    // candidate is not a rejected one - the safety filter had no opinion about
+    // it - so it must appear in neither list rather than becoming a third
+    // state no reader has a branch for.
     expect(body.candidateActions).toHaveLength(body.safeCandidates.length + body.rejectedCandidates.length);
     expect(new Set(body.safeCandidates.map((c) => c.vehicleId))).toEqual(
-      new Set(['veh-terminal', 'veh-mid', 'veh-terminal-leader']),
+      new Set(['veh-terminal', 'veh-mid']),
     );
 
     // Both refusals survive to the wire with their reasons attached — this is
@@ -313,6 +341,139 @@ describe('POST /v1/mpc/solve', () => {
     expect(body.controllerVersion).toBe('terminal-two-way-self-equalizing-v1');
     expect(body.constraints).toMatchObject({ maxHoldSeconds: 120, cooldownSeconds: 60, staleAfterSeconds: 90 });
   });
+
+  /**
+   * The same corridor and the same buses as the test above, switched on.
+   *
+   * Read the two together: nothing about the geometry, the demand or the law
+   * changed between them. The only difference is one column of
+   * `route_policies`, which is the whole point - saying yes on one corridor is
+   * a row, not a deploy, and saying no again is the same row.
+   */
+  function bunchedPairAtTheTerminal(policyOverrides: Record<string, unknown>) {
+    const fresh = new Date().toISOString();
+    stateStore.loadActivePolicies([policy(policyOverrides)]);
+    stateStore.loadTerminalStops([{ routeDirectionId: ROUTE_DIRECTION_ID, stopId: TERMINAL_STOP_ID }]);
+    stateStore.loadVehicleStates([
+      vehicle({
+        vehicleId: 'veh-follower',
+        stopState: 'dwelling_at_stop',
+        currentStopId: 'stop-mid-route',
+        observedAt: fresh,
+      }),
+      // The LEADER is the bus this law acts on, and it has to be standing
+      // somewhere it could act. Not the terminal: people START journeys there,
+      // so refusing them is refusing the service rather than rebalancing it.
+      vehicle({
+        vehicleId: 'veh-leader',
+        stopState: 'dwelling_at_stop',
+        currentStopId: 'stop-mid-route',
+        observedAt: fresh,
+      }),
+    ]);
+    stateStore.loadHeadwayStates([
+      headwayPair({
+        id: 'h-pair',
+        leaderVehicleId: 'veh-leader',
+        followerVehicleId: 'veh-follower',
+        hFwdSeconds: 120,
+        hBwdSeconds: 600,
+        deviationSeconds: -480,
+        computedAt: fresh,
+      }),
+    ]);
+  }
+
+  const solveBody = async (): Promise<MpcSolveResult> => {
+    const response = await request(createApp())
+      .post('/v1/mpc/solve')
+      .set('Authorization', AUTH_HEADER)
+      .send({ routeDirectionId: ROUTE_DIRECTION_ID });
+    expect(response.status).toBe(200);
+    return response.body as MpcSolveResult;
+  };
+
+  it('offers alighting-only on a corridor that has enabled it, with its refusal budget attached', async () => {
+    bunchedPairAtTheTerminal({
+      alightingOnlyEnabled: true,
+      alightingOnlyMaxRefusals: 4,
+      alightingOnlyRefusalWindowSeconds: 1800,
+    });
+    // Two of these instructions already issued on this corridor in the window.
+    vi.mocked(countBoardingLimitCommands).mockResolvedValue(2);
+
+    const body = await solveBody();
+
+    expect(body.boardingLimitCandidates.map((c) => c.vehicleId)).toEqual(['veh-leader']);
+    // The cost travels WITH the proposal. An operator approving this is shown
+    // how much of the corridor's refusal budget it has already spent, not only
+    // what the action is supposed to buy.
+    expect(body.boardingLimitAvailability).toEqual({
+      offered: true,
+      withheldReason: null,
+      refusalsInWindow: 2,
+      maxRefusals: 4,
+      windowSeconds: 1800,
+      remainingRefusals: 2,
+      withheldCandidateCount: 0,
+    });
+    // The meter is read for the corridor being solved, over its own window.
+    expect(countBoardingLimitCommands).toHaveBeenCalledWith(ROUTE_DIRECTION_ID, 1800);
+  });
+
+  it('stops proposing alighting-only once the corridor hits its refusal bound, and says why', async () => {
+    bunchedPairAtTheTerminal({
+      alightingOnlyEnabled: true,
+      alightingOnlyMaxRefusals: 4,
+      alightingOnlyRefusalWindowSeconds: 1800,
+    });
+    vi.mocked(countBoardingLimitCommands).mockResolvedValue(4);
+
+    const body = await solveBody();
+
+    expect(body.boardingLimitCandidates).toEqual([]);
+    expect(body.boardingLimitAvailability).toMatchObject({
+      offered: false,
+      withheldReason: 'refusal_tripwire',
+      refusalsInWindow: 4,
+      maxRefusals: 4,
+      remainingRefusals: 0,
+      // The law DID want to act. That is the difference between a tripped
+      // corridor and a quiet one, and it is the number an operator deciding
+      // whether to raise the bound is deciding about.
+      withheldCandidateCount: 1,
+    });
+
+    // The bound has to bind on every path out of the solver, not only the one
+    // the alternatives panel reads. A candidate left in `safeCandidates` is
+    // stageable and issuable from the engine console.
+    expect(body.safeCandidates.some((c) => c.actionType === 'boarding_limit')).toBe(false);
+    expect(body.candidateActions.some((c) => c.actionType === 'boarding_limit')).toBe(false);
+    expect(body.candidateActions).toHaveLength(
+      body.safeCandidates.length + body.rejectedCandidates.length,
+    );
+  });
+
+  it('withholds alighting-only when the refusal meter cannot be read, rather than assuming zero', async () => {
+    bunchedPairAtTheTerminal({ alightingOnlyEnabled: true });
+    vi.mocked(countBoardingLimitCommands).mockRejectedValue(new Error('database is unreachable'));
+
+    // Failing closed must not mean failing the solve: the other four laws are
+    // unaffected by this one's meter, and taking the whole corridor's control
+    // offline because a count could not be read would be a far larger harm
+    // than the one this tripwire exists to bound.
+    const body = await solveBody();
+
+    expect(body.boardingLimitCandidates).toEqual([]);
+    expect(body.boardingLimitAvailability).toMatchObject({
+      offered: false,
+      withheldReason: 'refusal_tripwire',
+      refusalsInWindow: null,
+      remainingRefusals: null,
+    });
+    expect(body.safeCandidates.some((c) => c.actionType === 'boarding_limit')).toBe(false);
+  });
+
 
   it('proposes nothing but still reports the refusals when every candidate is unsafe', async () => {
     const fresh = new Date().toISOString();

@@ -23,6 +23,10 @@ import {
 import { runDecisionCycle, _resetDecisionCursorForTests } from '../src/scheduler/decisionCycle.js';
 import type { Env } from '../src/config/env.js';
 import type { MpcSolveResult } from '../src/mpc/solver.js';
+import {
+  DEFAULT_MAX_REFUSALS_PER_WINDOW,
+  DEFAULT_REFUSAL_WINDOW_SECONDS,
+} from '../src/mpc/boardingLimit.js';
 import type { CandidateAction } from '../src/mpc/types.js';
 
 const NOW = new Date('2026-08-19T10:00:00.000Z');
@@ -74,6 +78,17 @@ function solveResult(overrides: Partial<MpcSolveResult> = {}): MpcSolveResult {
     selectedAction: selected,
     selectedActions: [selected],
     boardingLimitCandidates: [],
+    // The shipped state of every corridor: alighting-only is switched off, so
+    // nothing is offered and the refusal meter is never read.
+    boardingLimitAvailability: {
+      offered: false,
+      withheldReason: 'disabled_for_corridor',
+      refusalsInWindow: null,
+      maxRefusals: DEFAULT_MAX_REFUSALS_PER_WINDOW,
+      windowSeconds: DEFAULT_REFUSAL_WINDOW_SECONDS,
+      remainingRefusals: null,
+      withheldCandidateCount: 0,
+    },
     selectedActionType: 'two_way_hold',
     objectiveCost: -140,
     expectedRecoverySeconds: 120,

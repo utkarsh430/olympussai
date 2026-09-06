@@ -82,6 +82,29 @@ export interface RoutePolicyRow {
    * absorb, never a claim about how many corridors need help.
    */
   maxConcurrentActions?: number | null;
+  /**
+   * route_policies.alighting_only_enabled - whether this corridor may be
+   * OFFERED alighting-only proposals (mpc/boardingLimit.ts).
+   *
+   * Optional on this shape, and absent is read as FALSE rather than as "the
+   * module default applies" - the opposite of `maxConcurrentActions` above,
+   * deliberately. A policy row written before the column existed, or a
+   * synthetic policy in a test, must not acquire the one action in this system
+   * whose cost is paid visibly by passengers at a kerb. Absent means off.
+   */
+  alightingOnlyEnabled?: boolean | null;
+  /**
+   * route_policies.alighting_only_max_refusals - the refusal tripwire's bound.
+   *
+   * Most alighting-only instructions this corridor may have issued inside
+   * `alightingOnlyRefusalWindowSeconds` before the law stops offering more.
+   * Absent falls back to `mpc/boardingLimit.ts#DEFAULT_MAX_REFUSALS_PER_WINDOW`,
+   * never to "unbounded": the bound is what makes enabling the law a bounded
+   * experiment rather than an open one.
+   */
+  alightingOnlyMaxRefusals?: number | null;
+  /** route_policies.alighting_only_refusal_window_seconds - the tripwire's rolling window. Absent falls back to `DEFAULT_REFUSAL_WINDOW_SECONDS`. */
+  alightingOnlyRefusalWindowSeconds?: number | null;
 }
 
 export type RehydrationStatus = 'pending' | 'in_progress' | 'complete' | 'failed';

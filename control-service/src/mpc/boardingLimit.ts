@@ -62,6 +62,55 @@
 // choice to the operator. `dwellSavingSeconds` on the estimate is where the
 // number goes once a dwell model exists, and at that point this can be ranked
 // against the holds on one scale and selected like any other candidate.
+//
+// ─── AND WHY IT IS OFF ON EVERY CORRIDOR ─────────────────────────────────
+//
+// Measured, this law is not merely unpriced, it is negative on the corridor
+// shape it was supposed to suit. Three independent investigations agree; the
+// most recent is 16 paired phase-seeds on the urban preset:
+//
+//   excess wait                +3.6 points   16/16 seeds
+//   total passenger time       +0.24 points  14/16 seeds
+//   refused boardings          +1,295        16/16 seeds
+//
+// (Total passenger time is a GUARDRAIL here and positive means passengers
+// SAVED time, so +0.24 is the arm WITHOUT this law doing better.) That is
+// within a point of Delgado, Munoz & Giesen (2012) - 7.1% here against their
+// 6.3% incremental - which is the strongest thing that can be said for the
+// simulator and the worst thing that can be said for the lever. On suburban
+// and inter-city it costs passenger time outright.
+//
+// So `boardingLimitAvailability` below is not a feature flag waiting to be
+// flipped. It exists so that the day an operator decides the trade IS
+// acceptable on one route - a service-policy decision about real riders,
+// which no measurement in this repository can make for them - saying yes is
+// one row of `route_policies`, bounded, visible and reversible, instead of a
+// code change. It ships disabled on every corridor including urban.
+//
+// ─── WHAT THE TRIPWIRE CAN AND CANNOT DO ─────────────────────────────────
+//
+// State it plainly, because a safety control that is believed to do more than
+// it does is worse than none.
+//
+// It CAN bound how many alighting-only INSTRUCTIONS a corridor issues in a
+// rolling window, and it does so BEFORE the next one: once the count reaches
+// the bound the law stops offering, so no operator can approve a proposal
+// that is not on the screen. That is prevention, not just observation, and it
+// is what makes switching one corridor on a bounded experiment.
+//
+// It CANNOT bound the harm. The unit it counts is "one bus told to take
+// nobody on at one stop"; the harm is the number of people at that stop and
+// how long each of them then waits, and this deployment measures neither.
+// `leftBehindPassengers` is null for want of a fitted lambda, and
+// `headway/deniedBoarding.ts` answers "cannot say" on every visit for want of
+// an occupancy feed. One tripped instruction at a busy interchange can cost
+// more than six at a quiet kerb, and nothing here can tell those apart.
+//
+// It is also NECESSARILY late by one: the count only reaches the bound
+// because the bound-th instruction was already issued. So the honest
+// description is a circuit breaker on the ACTION COUNT, evaluated before each
+// offer, sizing an unmeasured harm by a measured proxy - and the reason the
+// default bound is small.
 import { canExecuteHold } from './eligibility.js';
 import { arrivalRatePaxPerSecond } from './objective.js';
 import type { CandidateAction } from './types.js';
@@ -124,6 +173,176 @@ export function maxFollowerGapSeconds(policy: {
   bunchedThresholdRatio: number;
 }): number {
   return policy.bunchedThresholdRatio * policy.targetHeadwaySeconds;
+}
+
+/**
+ * Refusal bound applied when a policy row carries none.
+ *
+ * NOT FITTED, and recorded as unfitted. No measurement supports any particular
+ * number of refusals as acceptable, because nothing in this deployment counts
+ * the people a bus refuses. It is small so that the first corridor switched on
+ * trips the wire and comes back for a decision, rather than running a season on
+ * a number nobody chose. Matches the column default in
+ * `db/migrations/20260821100000__alighting_only_per_corridor.sql`, so a policy
+ * row predating that column behaves like one written after it.
+ */
+export const DEFAULT_MAX_REFUSALS_PER_WINDOW = 6;
+
+/**
+ * Rolling window the refusal bound is counted over, seconds. One hour.
+ *
+ * Rolling rather than cumulative so the wire stays ARMED after it trips: a
+ * corridor that stops refusing recovers on its own an hour later, instead of
+ * being latched off until somebody notices and resets it. A latched breaker
+ * turns a bounded experiment into an outage nobody is watching for.
+ */
+export const DEFAULT_REFUSAL_WINDOW_SECONDS = 3600;
+
+/**
+ * Why alighting-only proposals are not being offered on a corridor.
+ *
+ * An enum and not a sentence. The operator-facing wording for each of these
+ * belongs in the web app's `src/lib/ops/recommendationView.ts`, which is where
+ * this codebase decides what the console SAYS about a solve and where those
+ * claims are tested; a sentence composed here would be a second copy of that
+ * copy, out of reach of those tests. What crosses the wire is the fact.
+ */
+export type BoardingLimitWithheldReason =
+  /** `route_policies.alighting_only_enabled` is false. The shipped state of every corridor. */
+  | 'disabled_for_corridor'
+  /** The corridor has issued as many alighting-only instructions in the window as its policy allows. */
+  | 'refusal_tripwire';
+
+/**
+ * Whether this corridor may be shown alighting-only proposals, and the refusal
+ * budget behind that answer.
+ *
+ * Returned on every solve whether or not anything was proposed, because the
+ * two states a bare empty list collapses are the ones an operator most needs
+ * apart: "the law looked and found nothing" and "the law found something and
+ * is not allowed to tell you". The second is a fact about the corridor's
+ * configuration and its recent refusals, and it has to arrive as one.
+ */
+export interface BoardingLimitAvailability {
+  /** True only when the corridor is enabled AND under its refusal bound. */
+  offered: boolean;
+  /** Null when `offered`. */
+  withheldReason: BoardingLimitWithheldReason | null;
+  /**
+   * Alighting-only instructions ISSUED on this corridor inside `windowSeconds`.
+   *
+   * Null means the meter was not read, which is the case on every disabled
+   * corridor - reading it would be a database query per solve to inform a
+   * decision already made. Null is "not read", never "zero".
+   */
+  refusalsInWindow: number | null;
+  /** The bound `refusalsInWindow` is tested against. */
+  maxRefusals: number;
+  windowSeconds: number;
+  /** `maxRefusals - refusalsInWindow`, floored at 0. Null whenever `refusalsInWindow` is. */
+  remainingRefusals: number | null;
+  /**
+   * Proposals this decision withheld - what the operator is NOT being shown.
+   *
+   * Reported rather than silently dropped: a withheld count of zero and a
+   * withheld count of four are the difference between a quiet corridor and a
+   * suppressed one, and an operator deciding whether to raise the bound is
+   * deciding about exactly this number.
+   */
+  withheldCandidateCount: number;
+}
+
+/** The corridor's alighting-only configuration, with the module defaults filled in. */
+export function boardingLimitPolicy(policy: RoutePolicyRow): {
+  enabled: boolean;
+  maxRefusals: number;
+  windowSeconds: number;
+} {
+  return {
+    // Absent is OFF. See RoutePolicyRow.alightingOnlyEnabled for why this one
+    // field does not fall back to a module default the way the others do.
+    enabled: policy.alightingOnlyEnabled === true,
+    maxRefusals: policy.alightingOnlyMaxRefusals ?? DEFAULT_MAX_REFUSALS_PER_WINDOW,
+    windowSeconds: policy.alightingOnlyRefusalWindowSeconds ?? DEFAULT_REFUSAL_WINDOW_SECONDS,
+  };
+}
+
+/**
+ * The per-corridor gate and the refusal tripwire, in one decision.
+ *
+ * Pure: the caller reads the meter (`db/commands.ts#countBoardingLimitCommands`)
+ * and hands the count in, or hands in null when it did not read it. Keeping the
+ * query out of here is what lets a disabled corridor - every corridor today -
+ * cost nothing extra per solve, and what lets this rule be tested without a
+ * database.
+ *
+ * ─── THE COMPARISON IS `>=`, NOT `>` ───────────────────────────────────────
+ *
+ * `maxRefusals` is the most this corridor may have issued, so at exactly the
+ * bound the next proposal is the one too many and is withheld. Reading it as
+ * strictly-greater would let every corridor issue `maxRefusals + 1`, which is
+ * the wrong direction to be wrong in for a control whose whole job is to bound
+ * a harm nobody is counting.
+ */
+export function boardingLimitAvailability(
+  policy: RoutePolicyRow,
+  refusalsInWindow: number | null,
+  candidateCount: number,
+): BoardingLimitAvailability {
+  const { enabled, maxRefusals, windowSeconds } = boardingLimitPolicy(policy);
+
+  if (!enabled) {
+    return {
+      offered: false,
+      withheldReason: 'disabled_for_corridor',
+      refusalsInWindow: null,
+      maxRefusals,
+      windowSeconds,
+      remainingRefusals: null,
+      withheldCandidateCount: candidateCount,
+    };
+  }
+
+  // Read the meter or refuse to guess. A null count on an ENABLED corridor
+  // means the caller could not answer "how many refusals already?", and a
+  // tripwire that cannot read its own meter must fail closed - the alternative
+  // is that a database hiccup silently removes the bound at the moment the law
+  // is live.
+  if (refusalsInWindow === null) {
+    return {
+      offered: false,
+      withheldReason: 'refusal_tripwire',
+      refusalsInWindow: null,
+      maxRefusals,
+      windowSeconds,
+      remainingRefusals: null,
+      withheldCandidateCount: candidateCount,
+    };
+  }
+
+  const remainingRefusals = Math.max(0, maxRefusals - refusalsInWindow);
+
+  if (refusalsInWindow >= maxRefusals) {
+    return {
+      offered: false,
+      withheldReason: 'refusal_tripwire',
+      refusalsInWindow,
+      maxRefusals,
+      windowSeconds,
+      remainingRefusals: 0,
+      withheldCandidateCount: candidateCount,
+    };
+  }
+
+  return {
+    offered: true,
+    withheldReason: null,
+    refusalsInWindow,
+    maxRefusals,
+    windowSeconds,
+    remainingRefusals,
+    withheldCandidateCount: 0,
+  };
 }
 
 export interface BoardingLimitEstimate {

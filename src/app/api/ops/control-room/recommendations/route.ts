@@ -216,6 +216,14 @@ export async function POST(request: NextRequest): Promise<Response> {
        * ranking them against the holds would misrepresent both.
        */
       boardingLimitCandidates: result.boardingLimitCandidates,
+      /**
+       * Why that list is the length it is. Forwarded on every solve, including
+       * — especially — when it is empty: alighting-only is switched off on
+       * every corridor, so without this the console cannot tell a corridor
+       * where the engine found nothing from one where it found something and
+       * is not allowed to offer it.
+       */
+      boardingLimitAvailability: result.boardingLimitAvailability,
       paceAdvisories: result.paceAdvisories,
       constraints: result.constraints,
       commandsBlockedBy,
