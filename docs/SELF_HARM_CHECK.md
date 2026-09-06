@@ -1,6 +1,16 @@
-# The self-harm check, and why it ships OFF
+# The self-harm check switches the controller off. It ships DISABLED.
 
 `SELF_HARM_CHECK_ENABLED` (default `false`). Code: `control-service/src/mpc/selfHarmCheck.ts`.
+
+> **The finding, first.** Giving the four unguarded control laws the same
+> self-harm check `cost_optimal` has does not trim harmful holds — it stops the
+> controller holding at all. With occupancy weighting on, two of three corridors
+> issue **zero** instructions on every seed and urban's passenger-time benefit
+> falls from **+4.04% to +0.02%**. The `+1,028.8` passenger-second figure that
+> motivated this work is real, but it means **the objective is wrong, not that
+> the controller is doing harm** — those same holds are measured to save
+> passengers time. The check is shipped default-OFF as an instrument and a
+> record, not as a fix. The real fix is a multi-stop wait term.
 
 ## The question
 
@@ -133,6 +143,54 @@ corridors, both phases, several seeds, before and after — and flip this knob a
 Until then the honest state is the one this switch records: the controller is
 issuing holds its objective calls harmful, the objective is wrong about that, and
 we can now measure exactly how wrong by flipping one flag.
+
+## The deployed configuration is unchanged
+
+The switch defaults off, and off is a no-op rather than a near-no-op. Proven by
+running the fleet trial on all three corridors from the tree BEFORE any of this
+landed and from the tree AFTER, at the default setting, and comparing
+`lawCoverage`, `contrast`, `holdCountByActionType`, `occupancyContrast` and the
+whole report (minus timestamps):
+
+```
+urban
+  IDENTICAL  lawCoverage
+  IDENTICAL  contrast
+  IDENTICAL  holdCountByActionType
+  IDENTICAL  occupancyContrast
+  IDENTICAL  whole report (minus timestamps)
+   occupancy_blind  lawCoverage terminal_dispatch=417 two_way=1997 self_equalizing=56 cost_optimal=578 boarding_limit=322
+                    totalPaxTime 3.30%  EWT 50.4%
+   occupancy_aware  lawCoverage terminal_dispatch=419 two_way=2110 self_equalizing=60 cost_optimal=0 boarding_limit=293
+                    totalPaxTime 3.59%  EWT 43.1%
+
+suburban
+  IDENTICAL  lawCoverage
+  IDENTICAL  contrast
+  IDENTICAL  holdCountByActionType
+  IDENTICAL  occupancyContrast
+  IDENTICAL  whole report (minus timestamps)
+   occupancy_blind  lawCoverage terminal_dispatch=421 two_way=786 self_equalizing=20 cost_optimal=310 boarding_limit=89
+                    totalPaxTime 0.73%  EWT 38.2%
+   occupancy_aware  lawCoverage terminal_dispatch=420 two_way=889 self_equalizing=25 cost_optimal=0 boarding_limit=73
+                    totalPaxTime 1.49%  EWT 35.8%
+
+intercity
+  IDENTICAL  lawCoverage
+  IDENTICAL  contrast
+  IDENTICAL  holdCountByActionType
+  IDENTICAL  occupancyContrast
+  IDENTICAL  whole report (minus timestamps)
+   occupancy_blind  lawCoverage terminal_dispatch=416 two_way=746 self_equalizing=30 cost_optimal=435 boarding_limit=55
+                    totalPaxTime 0.69%  EWT 22.6%
+   occupancy_aware  lawCoverage terminal_dispatch=405 two_way=841 self_equalizing=28 cost_optimal=0 boarding_limit=74
+                    totalPaxTime 0.30%  EWT 10.0%
+
+PROOF HOLDS: the deployed configuration is unchanged on all three corridors.
+```
+
+Nothing about what the controller does today moves. The only new cost when the
+switch is off is one boolean read per solve.
 
 ## Reproducing
 
