@@ -154,17 +154,27 @@ export interface FleetTrialSpec {
    * passenger time in `slow_bus` on every seed. That was taken on the old
    * headline - waiting plus the hold, over a waiting-only denominator, with
    * passengers still boarding at the terminus - and it does not survive any
-   * of those being fixed. RE-MEASURED, six seeds, 250 buses per phase, urban,
-   * occupancy-blind: acting on it is better on 3 of 6 seeds by total
-   * passenger time (mean +0.25 points) and 5 of 6 per passenger carried (mean
-   * +0.29). In `slow_bus` specifically it is better on 4 of 6, mean +1.49.
+   * of those being fixed. RE-MEASURED at six seeds, 250 buses per phase,
+   * urban, occupancy-blind, it read as better on only 3 of 6 seeds by total
+   * passenger time - NO MEASURED EFFECT by this trial's own rule (a mean
+   * whose seeds disagree is not a small effect), which is where this file's
+   * verdict stood for a while: "it loses" is no longer something anyone can
+   * say, but nor could anyone yet say it wins.
    *
-   * By this trial's own rule that is NO MEASURED EFFECT, not a win - a mean
-   * whose seeds disagree is not a small effect. So it stays off, but for the
-   * honest reason rather than the old one: the action is unpriced (neither
-   * side of its trade can be costed without a fitted lambda), it leaves real
-   * passengers standing, and nothing measures a benefit that would justify
-   * that. "It loses" is no longer something anyone can say.
+   * RE-MEASURED AGAIN at sixteen paired phase-seeds - the same corridor,
+   * phase and selectability, just more of them - it is better on 14 of 16 by
+   * total passenger time and 16 of 16 by excess wait. Both figures clear the
+   * trial's own agreement bar (`seedsAgreeingWithSign > seedCount / 2`), so
+   * this IS a measured effect now, and a positive one. See
+   * `docs/FLEET_TRIAL.md` section 17 for both measurements side by side and
+   * which seed count backs each.
+   *
+   * It stays off regardless, but for a reason that does not depend on which
+   * way the sign points: the action is unpriced (neither side of its trade
+   * can be costed without a fitted lambda), it leaves real passengers
+   * standing, and auto-selecting a lever this trial cannot yet cost is a
+   * production policy decision the trial's own positive mean does not settle
+   * by itself.
    *
    * It is kept as a switch because that conclusion is a measurement, and a
    * measurement has to be re-runnable.
@@ -1484,6 +1494,12 @@ function runSelfEqualizingCoverage(args: {
 interface PolicyVariant {
   label: string;
   corridor: FleetCorridorSpec;
+  /**
+   * Overrides on the shared modelled inputs, for a study that sweeps an INPUT
+   * rather than a `route_policies` column - see `runDispersionSensitivityStudy`.
+   * Empty for every corridor-knob study, which is the common case.
+   */
+  inputs?: Partial<ModelledInputs>;
   isCurrent: boolean;
 }
 
@@ -1514,6 +1530,10 @@ function runPolicyStudy(args: {
   const rows: PolicyStudyRow[] = [];
   for (const variant of variants) {
     const corridor = buildFleetCorridor(variant.corridor);
+    // A variant that overrides an INPUT (dispersion) rather than a corridor
+    // column merges over the study's shared inputs; every other study leaves
+    // this untouched and gets `inputs` back unchanged.
+    const variantInputs: ModelledInputs = variant.inputs ? { ...inputs, ...variant.inputs } : inputs;
     const perSeed: {
       net: number | null;
       ewt: number | null;
@@ -1523,6 +1543,7 @@ function runPolicyStudy(args: {
       denied: number;
       detected: number;
       resolved: number;
+      incidentsAvoided: number;
     }[] = [];
 
     for (let seedIndex = 0; seedIndex < STUDY_SEEDS; seedIndex++) {
@@ -1538,7 +1559,7 @@ function runPolicyStudy(args: {
           runScenario({
             corridor,
             scenario,
-            inputs: scaleInputs(inputs, scenario),
+            inputs: scaleInputs(variantInputs, scenario),
             vehicleIds: Array.from(
               { length: vehicleCount },
               () => `STUDY-${String(++busNumber).padStart(4, '0')}`,
@@ -1569,6 +1590,7 @@ function runPolicyStudy(args: {
         denied: controlled.spacing.firstTimeDeniedBoardings,
         detected: controlled.incidents.detected,
         resolved: controlled.incidents.resolved,
+        incidentsAvoided: armContrast.incidentsAvoided,
       });
     }
     if (perSeed.length === 0) continue;
@@ -1593,6 +1615,7 @@ function runPolicyStudy(args: {
       deniedBoardings: perSeed.reduce((acc, row) => acc + row.denied, 0),
       incidentsDetected: perSeed.reduce((acc, row) => acc + row.detected, 0),
       incidentsResolved: perSeed.reduce((acc, row) => acc + row.resolved, 0),
+      incidentsAvoided: perSeed.reduce((acc, row) => acc + row.incidentsAvoided, 0),
       seedCount: perSeed.length,
       seedsAgreeingWithSign: agreeing,
       isCurrent: variant.isCurrent,
@@ -1695,6 +1718,104 @@ function runPolicyStudy(args: {
   }
 
   return { knob, title, description, rows, recommended: recommended?.label ?? null, verdict, seedsPerRow: STUDY_SEEDS };
+}
+
+/**
+ * Dispersion levels worth trying on this corridor, as MULTIPLES of the
+ * preset's own configured value.
+ *
+ * Multiplicative for the same reason `BunchingScenario.inputScale` is: what
+ * counts as noisy on a calm corridor is not what counts on a disturbed one,
+ * and an absolute value tuned to read sensibly on one preset reads as either
+ * "barely perturbed" or "impossible" on another (urban ships at 0.18,
+ * inter-city at 0.14). The top multiple, 3.3x, is wider than any single
+ * scenario's own `travelTimeVariation` scaling (`cascade`'s 1.6x is the
+ * largest in `scenarios.ts`) - chosen to reproduce the range this trial's own
+ * investigation measured on the urban preset (`docs/FLEET_TRIAL.md`), not to
+ * match an existing scenario.
+ */
+function dispersionVariants(
+  current: number,
+): { label: string; travelTimeVariation: number; isCurrent: boolean }[] {
+  const multiples = [0.5, 1, 2, 10 / 3];
+  const values = [...new Set(multiples.map((m) => Number((current * m).toFixed(4))))]
+    .filter((v) => v > 0)
+    .sort((a, b) => a - b);
+  return values.map((v) => ({
+    label: `${(v * 100).toFixed(0)}% travel-time variation`,
+    travelTimeVariation: v,
+    isCurrent: Math.abs(v - current) < 1e-9,
+  }));
+}
+
+/**
+ * How sensitive the headline is to corridor dispersion, holding demand fixed.
+ *
+ * ─── WHY THIS EXISTS ──────────────────────────────────────────────────────
+ *
+ * `NOT_EXERCISED` names the invented demand, the untouched command lifecycle,
+ * the absent state estimator and the booked timetable - and used to leave out
+ * the one input the headline is most sensitive to. Measured by sweeping
+ * `travelTimeVariation` alone with demand held at the preset's own value: the
+ * excess-wait improvement moves an order of magnitude more than it does
+ * across an equivalent swing in the INVENTED boarding rate. So the headline
+ * is never quoted again without this sweep sitting beside it - see
+ * `docs/FLEET_TRIAL.md` for the specific figures this measured on the urban
+ * preset.
+ *
+ * Built ON `runPolicyStudy` - identical rows, seeds and pairing to every
+ * other study - because dispersion is swept exactly like a policy knob would
+ * be. What differs is what the result MEANS: nobody configures corridor
+ * dispersion, so there is no "best" setting, and the verdict says so instead
+ * of picking one.
+ */
+function runDispersionSensitivityStudy(args: {
+  spec: FleetTrialSpec;
+  scenarios: readonly BunchingScenario[];
+  inputs: ModelledInputs;
+  vehiclesPerPhase: number;
+  corridorSpec: FleetCorridorSpec;
+}): PolicyStudy {
+  const { spec, scenarios, inputs, vehiclesPerPhase, corridorSpec } = args;
+  const variants: PolicyVariant[] = dispersionVariants(inputs.travelTimeVariation).map((v) => ({
+    label: v.label,
+    corridor: corridorSpec,
+    inputs: { travelTimeVariation: v.travelTimeVariation },
+    isCurrent: v.isCurrent,
+  }));
+
+  const study = runPolicyStudy({
+    spec,
+    knob: 'travel_time_variation',
+    title: 'How sensitive the headline is to corridor dispersion',
+    description:
+      'NOT a policy knob - nobody configures how noisy a corridor is. The shipped preset states one INVENTED dispersion value among many; this sweeps it, as a multiple of that value, with demand held fixed, because it is the input the headline moves most against.',
+    variants,
+    scenarios,
+    inputs,
+    vehiclesPerPhase,
+  });
+
+  const shipped = study.rows.find((row) => row.isCurrent);
+  const ranked = [...study.rows].sort(
+    (a, b) => (b.ewtImprovementPercent ?? -Infinity) - (a.ewtImprovementPercent ?? -Infinity),
+  );
+  const best = ranked[0];
+  const worst = ranked[ranked.length - 1];
+
+  const verdict =
+    study.rows.length < 2 || !best || !worst
+      ? 'Only one dispersion level was tried, so there is nothing to compare.'
+      : `From ${best.label} to ${worst.label}, excess-wait improvement runs ` +
+        `${(best.ewtImprovementPercent ?? 0).toFixed(1)}% down to ${(worst.ewtImprovementPercent ?? 0).toFixed(1)}%, ` +
+        `and incidents avoided ${best.incidentsAvoided} down to ${worst.incidentsAvoided}` +
+        (shipped
+          ? ` - the shipped preset (${shipped.label}) is measured at ${(shipped.ewtImprovementPercent ?? 0).toFixed(1)}% ` +
+            `and ${shipped.incidentsAvoided} incidents avoided.`
+          : '.') +
+        ' This is not a setting to tune; it is the range the headline is exposed to before any control law runs, and it is far wider than the range demand alone produces.';
+
+  return { ...study, recommended: null, verdict };
 }
 
 /** The placements and lateness bounds worth trying on this corridor. */
@@ -1983,6 +2104,7 @@ const NOT_EXERCISED = [
   'The state estimator. Production derives distance along the route by map-matching a GPS fix and filtering it, and excludes low-confidence vehicles before any headway is computed. The simulator knows its own world exactly, so that exclusion path only ever fires for the vehicles a scenario deliberately darkens.',
   'Real demand. Every passenger in this trial was invented. The boarding rate, the alighting fraction and the seat count are chosen numbers, and every figure derived from them inherits that.',
   'A REAL timetable. The trial books its own - free-flow running plus a nominal dwell - so lateness is measured and the deployed punctuality guardrail is exercised. It is measured against an invented schedule, not a published one: `trips` and `trip_stop_times` are empty everywhere in this system.',
+  'Corridor dispersion. `travelTimeVariation` is invented like every other running-time input, and it is the one this headline is most sensitive to: holding demand fixed, excess-wait improvement measured 60.7% at the shipped preset\'s own value, 43.7% at roughly double it, and 14.1% at roughly 3.3x it - against 60.7-64.5% across a 3.3x swing in the invented boarding rate over the same range. The bunching result IS robust to demand; it is not robust to dispersion, and that is roughly an order of magnitude difference in sensitivity. See the `travel_time_variation` row in `policyStudies` for the re-runnable sweep behind this and `docs/FLEET_TRIAL.md` for how it was measured.',
 ];
 
 // ─── Entry point ─────────────────────────────────────────────────────────
@@ -2128,6 +2250,13 @@ export function runFleetTrial(
       scenarios,
       inputs,
       vehiclesPerPhase: studyVehicles,
+    }),
+    runDispersionSensitivityStudy({
+      spec,
+      scenarios,
+      inputs,
+      vehiclesPerPhase: studyVehicles,
+      corridorSpec,
     }),
   ];
 

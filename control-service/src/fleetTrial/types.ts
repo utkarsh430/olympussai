@@ -487,6 +487,8 @@ export interface PolicyStudyRow {
   deniedBoardings: number;
   incidentsDetected: number;
   incidentsResolved: number;
+  /** Summed across seeds: how many fewer incidents the deployed detector opened than on the paired uncontrolled arm. */
+  incidentsAvoided: number;
   /** See `seedsAgreeingWithSign` - a mean whose seeds disagree is no measured effect. */
   seedCount: number;
   seedsAgreeingWithSign: number;

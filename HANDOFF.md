@@ -576,16 +576,25 @@ effects of a few tenths. Paired properly, differences of 0.2 points separate
 cleanly on 6 seeds. **Anything in this table measured before those two fixes
 should be re-run before it is quoted.**
 
-**Alighting-only was re-measured after the metric fixes and the verdict changed.**
+**Alighting-only was re-measured after the metric fixes, and the verdict changed twice.**
 The old numbers were taken on the old headline — waiting plus the hold, over a
 waiting-only denominator, with passengers still boarding at the terminus — and
-none of them survives. Re-measured, six seeds, 250 buses/phase, urban,
-occupancy-blind: acting on it is better on **3/6 seeds by total passenger time**
-(mean +0.25 points) and **5/6 per passenger** (mean +0.29); in `slow_bus`
-specifically, better on **4/6**, mean +1.49. By this file's own rule that is **no
-measured effect**, not a win. It stays off — but because it is unpriced and
-leaves real passengers standing with no measured benefit to justify it, NOT
-because it loses. Nobody can say it loses any more.
+none of them survives. First re-measurement: six seeds, 250 buses/phase, urban,
+occupancy-blind — better on **3/6 seeds by total passenger time** (mean +0.25
+points) and **5/6 per passenger** (mean +0.29); in `slow_bus` specifically,
+better on **4/6**, mean +1.49. By this file's own rule that was **no measured
+effect**, not a win, because a mean whose seeds disagree is not a small effect.
+
+**That verdict was itself provisional, and it has since flipped positive.**
+Re-measured again at **sixteen** paired phase-seeds — same corridor, phase and
+selectability, just more of them — acting on it is better on **14/16 by total
+passenger time** and **16/16 by excess wait**. Both clear this file's own
+agreement bar. This IS a measured effect now, and it is a positive one; see
+`docs/FLEET_TRIAL.md` §17 for the two measurements side by side. It still stays
+proposal-only, but that no longer rests on "no measured benefit" — it rests on
+the action being unpriced (neither side of its trade can be costed without a
+fitted lambda) and on auto-selection being a production policy decision this
+trial's mean does not settle by itself.
 
 **Every other row in the table above was also measured on the old headline.** Any
 of them could move the same way. Before quoting one, re-run it.

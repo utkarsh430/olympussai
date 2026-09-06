@@ -761,6 +761,7 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
                   <th className={opsThClass}>Hold per bus</th>
                   <th className={opsThClass}>Worst bus</th>
                   <th className={opsThClass}>Refused a seat</th>
+                  <th className={opsThClass}>Incidents avoided</th>
                   <th className={opsThClass}>Seeds agreeing</th>
                 </tr>
               </thead>
@@ -797,6 +798,7 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
                       <td className={opsTdNumericClass}>{mins(row.meanHoldSecondsPerVehicle)}</td>
                       <td className={opsTdNumericClass}>{mins(row.worstBusHoldSeconds)}</td>
                       <td className={opsTdNumericClass}>{num(row.deniedBoardings)}</td>
+                      <td className={opsTdNumericClass}>{num(row.incidentsAvoided)}</td>
                       <td className={opsTdNumericClass}>
                         {row.seedsAgreeingWithSign} of {row.seedCount}
                         {row.seedsAgreeingWithSign <= row.seedCount / 2 ? (
