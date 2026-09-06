@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { buildFleetCorridor, DEFAULT_FLEET_CORRIDOR } from '../../src/fleetTrial/corridor.js';
 import { BUNCHING_SCENARIOS, scenarioById } from '../../src/fleetTrial/scenarios.js';
 import { detectIncidents } from '../../src/fleetTrial/detection.js';
-import { runFleetTrial, DEFAULT_FLEET_TRIAL_SPEC } from '../../src/fleetTrial/run.js';
+import { runFleetTrial, DEFAULT_FLEET_TRIAL_SPEC, summarizeIncidents } from '../../src/fleetTrial/run.js';
 import { FLEET_TRIAL_INPUTS } from '../../src/fleetTrial/presets.js';
 import { scenarioRng } from '../../src/fleetTrial/scenarios.js';
 import { CORRIDOR_PRESETS } from '../../src/fleetTrial/presets.js';
@@ -248,6 +248,109 @@ describe('incident detection', () => {
       expect(incident.followerVehicleId).not.toBe('WARMUP');
     }
   });
+
+  // ─── SEVERITY-WEIGHTED INCIDENT MEASURE ────────────────────────────────
+  //
+  // `incidentsAvoided` is a plain headcount: a shallow `predicted` incident
+  // and a deep `bunched` one both count as 1. That is exactly backwards for a
+  // controller whose main effect is converting deep bunches into shallow ones
+  // - the count can go UP while every corridor gets measurably safer. See
+  // `report.md` section 2. These pin `bunchedSecondsOpen`, the seconds a
+  // PEAK-BUNCHED incident spent open, so the report can show depth alongside
+  // the raw count rather than in place of it.
+  describe('bunched-seconds open', () => {
+  it('is zero when nothing ever reached bunched severity', () => {
+    // 700s apart: under the 900s warning bar but over the 450s bunched one,
+    // so the peak severity never exceeds 'warning'.
+    const { visits, dispatches } = twoBuses(700);
+    const endOfRun = Math.max(...visits.map((v) => v.departureSeconds));
+    const result = detectIncidents({
+      corridor: CORRIDOR,
+      visits,
+      dispatches,
+      disturbances: [],
+      requiredSamples: 3,
+      sweepUntilSeconds: endOfRun,
+    });
+    expect(result.incidents.some((i) => i.peakSeverity === 'bunched')).toBe(false);
+    expect(summarizeIncidents(result.incidents, endOfRun).bunchedSecondsOpen).toBe(0);
+  });
+
+  it('charges a still-open bunched incident through the end of the run, not zero', () => {
+    // 200s apart, sustained for the whole run - but the sweep window is cut
+    // off mid-route, well before either bus reaches the final stop, so the
+    // pair is still adjacent and still bunched when the window closes
+    // (`closeReason: 'run_ended'`, `durationSeconds: null`). That is the
+    // exact case a naive sum over `incident.durationSeconds` would silently
+    // drop to zero.
+    const { visits, dispatches } = twoBuses(200);
+    const cutoffSeconds = 5 * 2600;
+    const result = detectIncidents({
+      corridor: CORRIDOR,
+      visits,
+      dispatches,
+      disturbances: [],
+      requiredSamples: 3,
+      sweepUntilSeconds: cutoffSeconds,
+    });
+    const bunched = result.incidents.filter((i) => i.peakSeverity === 'bunched');
+    expect(bunched.length).toBeGreaterThan(0);
+    for (const incident of bunched) {
+      expect(incident.closeReason).toBe('run_ended');
+      expect(incident.durationSeconds).toBeNull();
+    }
+    const expected = bunched.reduce((acc, i) => acc + (cutoffSeconds - i.openedAtSeconds), 0);
+    expect(expected).toBeGreaterThan(0);
+    expect(summarizeIncidents(result.incidents, cutoffSeconds).bunchedSecondsOpen).toBe(expected);
+  });
+
+  it('sums across every bunched incident and ignores shallower ones sharing the run', () => {
+    // Four buses: LEAD1/FOLLOW1 run bunched throughout; LEAD2/FOLLOW2 run
+    // exactly one target headway apart and never bunch at all. The total must
+    // count only the first pair.
+    const paceSecondsPerStop = 2600;
+    const visits: StopVisitRecord[] = [];
+    const dispatches: TerminalDispatchPlan[] = [
+      { vehicleId: 'LEAD1', scheduledDispatchSeconds: 0 },
+      { vehicleId: 'FOLLOW1', scheduledDispatchSeconds: 200 },
+      { vehicleId: 'LEAD2', scheduledDispatchSeconds: 10_000 },
+      { vehicleId: 'FOLLOW2', scheduledDispatchSeconds: 10_000 + CORRIDOR.policy.targetHeadwaySeconds },
+    ];
+    for (let i = 0; i < CORRIDOR.stops.length; i++) {
+      visits.push(visit('LEAD1', i, i * paceSecondsPerStop));
+      visits.push(visit('FOLLOW1', i, i * paceSecondsPerStop + 200));
+      visits.push(visit('LEAD2', i, 10_000 + i * paceSecondsPerStop));
+      visits.push(
+        visit('FOLLOW2', i, 10_000 + i * paceSecondsPerStop + CORRIDOR.policy.targetHeadwaySeconds),
+      );
+    }
+    const endOfRun = Math.max(...visits.map((v) => v.departureSeconds));
+    const result = detectIncidents({
+      corridor: CORRIDOR,
+      visits,
+      dispatches,
+      disturbances: [],
+      requiredSamples: 3,
+      sweepUntilSeconds: endOfRun,
+    });
+    const bunched = result.incidents.filter((i) => i.peakSeverity === 'bunched');
+    const notBunched = result.incidents.filter((i) => i.peakSeverity !== 'bunched');
+    expect(bunched.length).toBeGreaterThan(0);
+    const expected = bunched.reduce(
+      (acc, i) => acc + (i.durationSeconds ?? endOfRun - i.openedAtSeconds),
+      0,
+    );
+    const summary = summarizeIncidents(result.incidents, endOfRun);
+    expect(summary.bunchedSecondsOpen).toBe(expected);
+    // A pin on the filter itself: including the non-bunched incidents' time
+    // would only inflate the total if there were any open time to add, and
+    // there had better be none counted from them.
+    for (const incident of notBunched) {
+      const soloSummary = summarizeIncidents([incident], endOfRun);
+      expect(soloSummary.bunchedSecondsOpen).toBe(0);
+    }
+  });
+  });
 });
 
 describe('a whole trial', () => {
@@ -476,6 +579,60 @@ describe('a whole trial', () => {
       }
     }
   });
+
+  // ─── incidentsAvoided IS SEVERITY-BLIND, AND SAYS SO BESIDE THE FIX ────
+  //
+  // Section 2 of report.md: the raw headcount weights a shallow `predicted`
+  // incident the same as a deep `bunched` one, and on 8 of 8 measured seeds
+  // across two corridors that inverted the sign of what the controller
+  // actually did. The fix supplements the count rather than replacing it -
+  // `incidentsAvoided` must keep meaning exactly what it always has.
+  it('keeps the raw incident headcount exactly as it was', () => {
+    for (const phase of report.phases) {
+      expect(phase.contrast.incidentsAvoided).toBe(
+        phase.uncontrolled.incidents.detected - phase.controlled.incidents.detected,
+      );
+    }
+  });
+
+  it('reports deep-incident avoidance as the peak-bunched headcount difference, not the blind total', () => {
+    for (const phase of report.phases) {
+      const deepUncontrolled = phase.uncontrolled.incidents.byPeakSeverity['bunched'] ?? 0;
+      const deepControlled = phase.controlled.incidents.byPeakSeverity['bunched'] ?? 0;
+      expect(phase.contrast.deepIncidentsAvoided).toBe(deepUncontrolled - deepControlled);
+      for (const scenario of phase.scenarios) {
+        const su = scenario.uncontrolled.incidents.byPeakSeverity['bunched'] ?? 0;
+        const sc = scenario.controlled.incidents.byPeakSeverity['bunched'] ?? 0;
+        expect(scenario.contrast.deepIncidentsAvoided).toBe(su - sc);
+      }
+    }
+  });
+
+  it('reports bunched-seconds-open reduced, matching the sum of its own arms', () => {
+    for (const phase of report.phases) {
+      const expected =
+        phase.uncontrolled.incidents.bunchedSecondsOpen - phase.controlled.incidents.bunchedSecondsOpen;
+      expect(phase.contrast.bunchedSecondsOpenReduced).toBe(expected);
+      if (phase.uncontrolled.incidents.bunchedSecondsOpen > 0) {
+        expect(phase.contrast.bunchedSecondsOpenReducedPercent).toBeCloseTo(
+          (expected / phase.uncontrolled.incidents.bunchedSecondsOpen) * 100,
+          6,
+        );
+      }
+    }
+  });
+
+  it('pools bunched-seconds-open across scenarios additively, the same as every other incident total', () => {
+    for (const phase of report.phases) {
+      for (const arm of ['controlled', 'uncontrolled'] as const) {
+        const summed = phase.scenarios.reduce(
+          (acc, s) => acc + s[arm].incidents.bunchedSecondsOpen,
+          0,
+        );
+        expect(phase[arm].incidents.bunchedSecondsOpen).toBe(summed);
+      }
+    }
+  });
 });
 
 // ─── THE GUARANTEE THAT MATTERS MOST ─────────────────────────────────────
@@ -484,6 +641,60 @@ describe('a whole trial', () => {
 // AGE the reason not to act. Everything else in this system degrades; this one
 // must not. The gps_dropout scenario exists to prove the rejection fires end to
 // end rather than being a branch nobody reaches.
+// ─── self_equalizing IS UNTESTED ON THE DEPLOYED PRESETS ─────────────────
+//
+// report.md section 3: `self_equalizing` only ever competes for a pair
+// `two_way` cannot cover, and on every deployed preset `kf`/`kb` are both
+// set, so its only route in is a null `h_bwd` - 0.4-0.7% of decisions. By
+// AGENTS.md's own rule ("a law that never fired was not tested"), 20-60
+// firings on that population is not a test, even though the law is correctly
+// conservative rather than broken. This is trial COVERAGE, not a control
+// change: `kb = null` disables two-way holding for one extra re-run of the
+// same scenarios, so self-equalizing is actually exercised - the deployed
+// configuration (`report.phases`) must come out of this identical.
+describe('self-equalizing coverage', () => {
+  const report = runFleetTrial(SMALL);
+  const coverage = report.selfEqualizingCoverage;
+
+  it('disables two-way holding entirely in the coverage arm', () => {
+    const twoWay = coverage.lawCoverage.find((l) => l.law === 'two_way');
+    expect(twoWay).toBeDefined();
+    expect(twoWay?.decisionsGenerating).toBe(0);
+  });
+
+  it('exercises self-equalizing on more of its eligible pool than the deployed configuration', () => {
+    const deployedSelfEq = report.phases[0]?.lawCoverage.find((l) => l.law === 'self_equalizing');
+    const coverageSelfEq = coverage.lawCoverage.find((l) => l.law === 'self_equalizing');
+    expect(deployedSelfEq).toBeDefined();
+    expect(coverageSelfEq).toBeDefined();
+    expect(coverageSelfEq!.decisionsTotal).toBe(deployedSelfEq!.decisionsTotal);
+    const deployedShare = deployedSelfEq!.decisionsGenerating / deployedSelfEq!.decisionsTotal;
+    const coverageShare = coverageSelfEq!.decisionsGenerating / coverageSelfEq!.decisionsTotal;
+    // Removing two_way's gate can only widen self-equalizing's eligible
+    // pool, never shrink it - so more than double the deployed generation
+    // count is a floor the mechanism guarantees, not a number tuned to this
+    // fixture. (At production scale, report.md section 3 measured the
+    // deployed share at 0.45-0.56% and the kb=null share at double digits.)
+    expect(coverageSelfEq!.decisionsGenerating).toBeGreaterThan(deployedSelfEq!.decisionsGenerating * 2);
+    expect(coverageShare).toBeGreaterThan(deployedShare * 2);
+  });
+
+  it('leaves the deployed configuration\'s own coverage untouched', () => {
+    expect(report.corridor.kb).not.toBeNull();
+    for (const phase of report.phases) {
+      const deployedTwoWay = phase.lawCoverage.find((l) => l.law === 'two_way');
+      expect(deployedTwoWay?.decisionsGenerating).toBeGreaterThan(0);
+    }
+  });
+
+  it('runs real, comparable arms rather than a stub', () => {
+    expect(coverage.vehicleCount).toBeGreaterThan(0);
+    expect(coverage.controlled.spacing.headwaySampleCount).toBeGreaterThan(0);
+    expect(coverage.uncontrolled.spacing.headwaySampleCount).toBeGreaterThan(0);
+    expect(coverage.contrast.passengerSecondsSavedPercent).not.toBeNull();
+  });
+});
+
 describe('a bus nobody can see', () => {
   const scenario = scenarioById('gps_dropout');
 

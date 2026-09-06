@@ -137,6 +137,22 @@ export interface IncidentSummary {
   /** Incidents where at least one hold was served on the follower while open. */
   withIntervention: number;
   totalHoldSecondsServed: number;
+  /**
+   * Total seconds this arm spent with a PEAK-BUNCHED pair open: for each
+   * incident whose `peakSeverity` reached `'bunched'`, its resolved duration,
+   * or - if it was still open when the window closed - the seconds from
+   * opening to the window's end. Never a naive sum of `durationSeconds`
+   * alone, which is null for exactly the incidents still open, and would
+   * silently count them as zero.
+   *
+   * Exists alongside `incidentsAvoided` because that count is severity-blind:
+   * it weights a shallow `predicted` incident the same as a deep `bunched`
+   * one. MEASURED, 8 of 8 seeds across two corridors: the controller can
+   * raise the raw count while cutting this figure by a third to two thirds,
+   * because its actual effect is converting deep bunches into shallow ones -
+   * see `ArmContrast.deepIncidentsAvoided` and `report.md` section 2.
+   */
+  bunchedSecondsOpen: number;
 }
 
 /**
@@ -215,8 +231,41 @@ export interface ArmContrast {
   ewtImprovementPercent: number | null;
   cvImprovementPercent: number | null;
   bunchingRateImprovementPercent: number | null;
-  /** Incidents that never opened at all because the corridor was controlled. Negative means the controller opened MORE. */
+  /**
+   * Incidents that never opened at all because the corridor was controlled.
+   * Negative means the controller opened MORE.
+   *
+   * ─── THIS IS A HEADCOUNT, AND A HEADCOUNT IS SEVERITY-BLIND ─────────────
+   *
+   * A shallow `predicted` incident and a deep `bunched` one both count as 1.
+   * MEASURED, 8 of 8 seeds across two corridors: this figure can be negative
+   * - reading as "the controller creates more incidents than it prevents" -
+   * on the exact runs where `deepIncidentsAvoided` is strongly positive,
+   * because the controller's actual effect is converting deep bunches into
+   * shallow warning/predicted ones, which this count weights the same as
+   * preventing them outright. Kept, unchanged, because the raw count is not
+   * worthless - it is one number that misleads read alone. See
+   * `deepIncidentsAvoided` and `bunchedSecondsOpenReduced` for the severity
+   * this number cannot see, and `report.md` section 2 for the measurement.
+   */
   incidentsAvoided: number;
+  /**
+   * Peak-`bunched` incidents that never opened at all because the corridor
+   * was controlled - the same subtraction as `incidentsAvoided`, restricted
+   * to the severity tier a human would call a real bunch. Where the blind
+   * count can be negative, this is the number that says whether the
+   * controller is actually making bunches worse or actually removing them.
+   */
+  deepIncidentsAvoided: number;
+  /**
+   * Seconds of PEAK-BUNCHED open time removed by control: the uncontrolled
+   * arm's `bunchedSecondsOpen` minus the controlled arm's. Positive means
+   * control shortened how long deep bunches stayed open, in total, across
+   * every incident that ever reached that tier.
+   */
+  bunchedSecondsOpenReduced: number;
+  /** The same figure as a share of the uncontrolled arm's own bunched-seconds-open total. */
+  bunchedSecondsOpenReducedPercent: number | null;
   /** Seconds of end-to-end journey time added per bus. The price paid, and it should be small. */
   addedJourneySecondsPerVehicle: number | null;
   /** Extra passengers refused a seat under control. Positive is WORSE, and is the number that vetoes a win. */
@@ -461,6 +510,36 @@ export interface PolicyStudy {
   seedsPerRow: number;
 }
 
+/**
+ * Whether `self_equalizing` actually gets exercised, measured rather than
+ * assumed from its gate.
+ *
+ * On every deployed preset `kf` and `kb` are both set, so `two_way` covers
+ * almost every pair it could - and `self_equalizing`'s only route in
+ * (`selfEqualizing.ts:55-56`) is a null `h_bwd`, 0.4-0.7% of decisions. It
+ * fires on 69-88% of THAT population, so it is not misconfigured or timid -
+ * but by `AGENTS.md`'s own rule ("a law that never fired was not tested"),
+ * a fallback exercised on well under 1% of decisions has not been tested.
+ *
+ * This re-runs the SAME scenarios and seeds as phase 1 with `kb` forced to
+ * null, which disables `two_way` outright (`twoWayHold.ts:37`) and removes
+ * its gate entirely (`selfEqualizing.ts:55`), making self-equalizing the one
+ * law left to cover the corridor. It is trial COVERAGE, not a control
+ * change: this variant is never wired into `phases`, so the deployed
+ * configuration's own `lawCoverage` and `contrast` are unaffected by its
+ * existence - see `report.md` section 3, which measured this arm delivering
+ * 95% of two-way's net passenger-time and excess-wait benefit alone.
+ */
+export interface SelfEqualizingCoverageReport {
+  vehicleCount: number;
+  controlled: ArmReport;
+  uncontrolled: ArmReport;
+  contrast: ArmContrast;
+  lawCoverage: LawCoverage[];
+  /** One sentence stating what was exercised and how that compares with the deployed configuration. */
+  verdict: string;
+}
+
 export interface TrialProvenanceEntry {
   field: string;
   source: 'deployed' | 'configured' | 'modelled';
@@ -571,6 +650,8 @@ export interface FleetTrialReport {
    */
   policyStudies: PolicyStudy[];
   occupancyContrast: OccupancyContrast;
+  /** Whether `self_equalizing` gets exercised at all under the deployed presets, and what it does when it is. See `SelfEqualizingCoverageReport`. */
+  selfEqualizingCoverage: SelfEqualizingCoverageReport;
   provenance: TrialProvenanceEntry[];
   /** Parts of the live system this trial does NOT exercise, in words, for the surface to print verbatim. */
   notExercised: string[];
