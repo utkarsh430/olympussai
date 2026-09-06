@@ -47,7 +47,24 @@ export interface SpacingKpis {
   firstTimeDeniedBoardings: number;
   totalBoardings: number;
   /**
-   * True when more than a fifth of offered passengers were refused a seat.
+   * `firstTimeDeniedBoardings / (firstTimeDeniedBoardings + totalBoardings)`.
+   * Null when nobody was offered a seat at all - an absence, not a zero.
+   *
+   * ─── THE NUMBER THE FLAG BELOW IS DRAWN ON, PUBLISHED ────────────────
+   *
+   * It was absent, and a reader who needed a share had only `deniedBoardings`
+   * (refusal EVENTS) and `totalBoardings` (a HEADCOUNT) to build one from.
+   * That quotient divides a rate by a headcount and reads about four times
+   * high: MEASURED on urban at 500 buses/phase it gave 52% beside a `saturated`
+   * flag reading false, and the only available reading was that the report
+   * contradicted itself. It did not - the two numbers were about different
+   * things and neither said which. This one says.
+   */
+  deniedShare: number | null;
+  /**
+   * True when more than a fifth of offered passengers were refused a seat -
+   * exactly `deniedShare > SATURATION_DENIED_SHARE`, and nothing else, so the
+   * flag and the share above cannot drift apart.
    *
    * A SATURATION WARNING, and the reason it travels with the KPIs rather than
    * being left for a reader to derive: past this line waiting time is bounded
@@ -379,10 +396,47 @@ export interface PhaseReport {
   weighOccupancy: boolean;
   vehicleCount: number;
   scenarios: ScenarioReport[];
-  /** Pooled across every scenario in the phase: all headway samples reduced once, never a mean of means. */
+  /**
+   * THE HEADLINE POOL: every scenario in `FleetTrialReport.headlineScope
+   * .includedScenarioIds`, all headway samples reduced once, never a mean of
+   * means.
+   *
+   * ─── WHY THIS IS NOT EVERY SCENARIO ──────────────────────────────────
+   *
+   * The library contains scenarios that exist to prove the harness reports
+   * NOTHING - `oversaturated` runs the corridor past the denied-boarding line,
+   * where waiting time is bounded by how many seats exist rather than by how
+   * they are spaced, so spacing control CANNOT move the headline and a working
+   * controller correctly reports no effect. Pooling one of those in with
+   * eighteen readable scenarios does not average an effect; it dilutes one
+   * towards zero with a measurement that was never able to carry a signal.
+   *
+   * MEASURED on urban at 500 buses/phase: pooling all nineteen gave a net
+   * passenger time of +0.8% and a pooled denied share of 50%; the eighteen
+   * readable ones gave +2.5% and 4%. A reader comparing that +0.8% with last
+   * week's number would conclude the controller had got three times worse
+   * overnight, when what had changed was the scenario library.
+   *
+   * So the exclusion is on MEASURED saturation - either arm of a scenario past
+   * `SATURATION_DENIED_SHARE` - never on an id list, which would go stale the
+   * first time a scenario was renamed or a new one saturated. `allScenarios`
+   * below carries the full pool, unrounded and uncensored: this hides nothing,
+   * it only stops one figure from standing for two different populations.
+   */
   controlled: ArmReport;
   uncontrolled: ArmReport;
   contrast: ArmContrast;
+  /**
+   * The same three pooled over EVERY scenario the phase ran, saturated ones
+   * included. Published beside the headline rather than instead of it, because
+   * "what does the whole library say" is a real question with a real answer -
+   * it is just not the question the top line is asking.
+   */
+  allScenarios: {
+    controlled: ArmReport;
+    uncontrolled: ArmReport;
+    contrast: ArmContrast;
+  };
   /**
    * How the phase's own scenarios agreed about the sign of `contrast`.
    *
@@ -395,6 +449,13 @@ export interface PhaseReport {
    * replicates of one, and one trial is one draw of each. It answers a
    * different and equally necessary question: is this result broad, or is it
    * one scenario?
+   *
+   * It counts EVERY scenario the phase ran, including any the headline pool
+   * left out for saturation, and deliberately so: this is the surface on which
+   * a scenario designed to lose should be visible, and restricting it to the
+   * headline set would hide the very thing a reader is here to check. Read it
+   * beside `FleetTrialReport.headlineScope`, which says which of these
+   * scenarios are behind `contrast` above.
    *
    * On a single urban run it reads 8 of 10 positive, worst `slow_bus` -1.1%,
    * best `driver_non_compliance` +14.3% - a spread of fifteen points behind a
@@ -556,6 +617,41 @@ export interface FleetTrialReport {
   corridorPreset: { id: string; title: string; description: string };
   /** Whether an alighting-only proposal was allowed to be ACTED on, or only generated. */
   alightingOnlySelectable: boolean;
+  /**
+   * Which scenarios the headline figures are an average of, and which were
+   * left out because their numbers cannot be read.
+   *
+   * ─── A TOP LINE HAS TO MEAN THE SAME THING TWICE ─────────────────────
+   *
+   * Decided ONCE for the whole trial, from every arm of every phase, rather
+   * than per phase: saturation is measured per arm, so two phases could in
+   * principle exclude different scenarios, and a comparison between two
+   * figures averaged over two different scenario sets is not a comparison.
+   *
+   * See `PhaseReport.controlled` for the measurement that motivates the
+   * exclusion, and `PhaseReport.allScenarios` for the figure over the full
+   * library, which is always published beside the headline.
+   */
+  headlineScope: {
+    /** In library order. The population behind every phase's `controlled`/`uncontrolled`/`contrast`. */
+    includedScenarioIds: string[];
+    /** Left out, each with the measured share that decided it. Empty when nothing saturated. */
+    excludedScenarios: { id: string; title: string; deniedShare: number }[];
+    /**
+     * True when EVERY scenario saturated, so there was nothing readable to
+     * pool and the headline is the full set after all.
+     *
+     * Excluding everything would leave the headline averaging nothing: zero
+     * headway samples, a null EWT, a null passenger-time percent - which
+     * renders as an em dash and reads as "the trial found nothing" rather than
+     * "every scenario in this trial was past the saturation line". Falling
+     * back and saying so is the only honest option; silently reporting the
+     * empty pool is the worst.
+     */
+    fellBackToAllScenarios: boolean;
+    /** One line a surface can render verbatim, so the exclusion is never invisible. */
+    note: string;
+  };
   corridor: {
     routeDirectionId: string;
     routeName: string;

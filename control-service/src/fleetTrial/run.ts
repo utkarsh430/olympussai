@@ -423,6 +423,7 @@ function spacingKpis(
     deniedBoardings,
     firstTimeDeniedBoardings,
     totalBoardings,
+    deniedShare: deniedShare(firstTimeDeniedBoardings, totalBoardings),
     saturated: isSaturated(firstTimeDeniedBoardings, totalBoardings),
   };
 }
@@ -431,19 +432,42 @@ function spacingKpis(
 export const SATURATION_DENIED_SHARE = 0.2;
 
 /**
+ * The share of offered passengers refused a seat, in PEOPLE on both sides.
+ *
+ * ─── WHY THIS IS PUBLISHED AND NOT LEFT TO THE READER ────────────────────
+ *
+ * It was not on the wire at all. `SpacingKpis` carried `deniedBoardings` (a
+ * count of refusal EVENTS - a passenger a full bus turns away is offered to
+ * the next bus and counted again), `totalBoardings` (a HEADCOUNT, each person
+ * once) and a `saturated` flag, and nothing said which arithmetic the flag was
+ * drawn on. A reader who built a share from the two numbers in front of them
+ * got `deniedBoardings / totalBoardings`, which divides a rate by a headcount:
+ * MEASURED on urban at 500 buses/phase it read 52% beside a flag reading
+ * false. Both numbers were honest and they described different things.
+ *
+ * So the flag is now `deniedShare > SATURATION_DENIED_SHARE` and nothing else,
+ * and the share travels beside it. They cannot disagree because they are one
+ * expression.
+ *
+ * Null - not zero - when nobody was offered a seat at all: "no passenger
+ * reached this arm" and "every passenger boarded" are opposite statements.
+ */
+function deniedShare(firstTimeDeniedBoardings: number, totalBoardings: number): number | null {
+  const offered = firstTimeDeniedBoardings + totalBoardings;
+  return offered > 0 ? firstTimeDeniedBoardings / offered : null;
+}
+
+/**
  * Whether waiting time here is bounded by seats rather than by spacing.
  *
- * Counted in PEOPLE on both sides. `deniedBoardings` is a count of refusal
- * EVENTS - a passenger a full bus turns away is offered to the next bus and
- * counted again - while `boardings` counts a person once, so dividing one by
- * the other compared a rate with a headcount and read high. Worked through at
- * an urban stop: three buses that refuse seven distinct people, every one of
- * whom boards in the end, record 14 denials and report 40% saturation on a
- * stop that saturated nobody.
+ * Worked through at an urban stop, for why the numerator is the headcount:
+ * three buses that refuse seven distinct people, every one of whom boards in
+ * the end, record 14 denial EVENTS and would report 40% saturation on a stop
+ * that saturated nobody.
  */
 function isSaturated(firstTimeDeniedBoardings: number, totalBoardings: number): boolean {
-  const offered = firstTimeDeniedBoardings + totalBoardings;
-  return offered > 0 && firstTimeDeniedBoardings / offered > SATURATION_DENIED_SHARE;
+  const share = deniedShare(firstTimeDeniedBoardings, totalBoardings);
+  return share !== null && share > SATURATION_DENIED_SHARE;
 }
 
 /** Headway samples on their own, so a phase can pool every scenario's and reduce them ONCE rather than average means. */
@@ -1119,6 +1143,7 @@ function poolArm(
       deniedBoardings,
       firstTimeDeniedBoardings,
       totalBoardings,
+      deniedShare: deniedShare(firstTimeDeniedBoardings, totalBoardings),
       saturated: isSaturated(firstTimeDeniedBoardings, totalBoardings),
     },
     punctuality: punctualityKpis(journeys, corridor.policy.maxLatenessSeconds),
@@ -1187,6 +1212,70 @@ function mergeIncidentSummaries(summaries: readonly IncidentSummary[]): Incident
     withIntervention,
     totalHoldSecondsServed,
     bunchedSecondsOpen,
+  };
+}
+
+// ─── What the headline is allowed to be an average of ────────────────────
+
+/**
+ * The scenarios whose numbers can be READ, decided by measurement.
+ *
+ * A scenario is excluded when EITHER arm is past the saturation line. Either,
+ * not both: the contrast between the two arms is a difference of quantities
+ * that saturation bounds, so one saturated side is enough to make the
+ * difference uninterpretable. It is decided on the measured `saturated` flag
+ * rather than on an id list - `oversaturated` is the scenario this was built
+ * for, but naming it would go stale the first time it was renamed, and would
+ * silently keep including the next scenario that crossed the line.
+ *
+ * Computed across EVERY phase, so all phases pool an identical scenario set
+ * and remain comparable with each other.
+ */
+function headlineScopeOf(
+  runsByPhase: readonly (readonly ScenarioRun[])[],
+): FleetTrialReport['headlineScope'] {
+  const excluded = new Map<string, { id: string; title: string; deniedShare: number }>();
+  const order: string[] = [];
+
+  for (const runs of runsByPhase) {
+    for (const run of runs) {
+      const report = run.report;
+      if (!order.includes(report.id)) order.push(report.id);
+      for (const arm of [report.controlled, report.uncontrolled]) {
+        if (!arm.spacing.saturated) continue;
+        const share = arm.spacing.deniedShare ?? 0;
+        const seen = excluded.get(report.id);
+        // The worst share across the arms and phases that flagged it: the
+        // number shown should be the one that most clearly justifies the call.
+        if (!seen || share > seen.deniedShare) {
+          excluded.set(report.id, { id: report.id, title: report.title, deniedShare: share });
+        }
+      }
+    }
+  }
+
+  const included = order.filter((id) => !excluded.has(id));
+  if (included.length === 0) {
+    return {
+      includedScenarioIds: order,
+      excludedScenarios: [],
+      fellBackToAllScenarios: true,
+      note:
+        'Every scenario in this trial ran past the saturation line, so there was no readable subset to average. The headline is the whole set, and past that line spacing control cannot move it.',
+    };
+  }
+
+  const excludedList = order.filter((id) => excluded.has(id)).map((id) => excluded.get(id)!);
+  return {
+    includedScenarioIds: included,
+    excludedScenarios: excludedList,
+    fellBackToAllScenarios: false,
+    note:
+      excludedList.length === 0
+        ? `Averaged over all ${included.length} scenarios. None ran past the saturation line.`
+        : `Averaged over ${included.length} of ${order.length} scenarios. ${excludedList
+            .map((s) => `${s.title} (${(s.deniedShare * 100).toFixed(0)}% refused a seat)`)
+            .join(', ')} ${excludedList.length === 1 ? 'was' : 'were'} left out: past the saturation line waiting time is bounded by how many seats exist rather than by how they are spaced, so spacing control cannot move the figure there and averaging it in only pulls the headline towards zero.`,
   };
 }
 
@@ -2146,7 +2235,10 @@ export function runFleetTrial(
   const totalRuns = PHASES.length * scenarios.length;
   let done = 0;
 
-  const phaseReports: PhaseReport[] = [];
+  // Every phase's runs are collected BEFORE any of them is pooled, because
+  // which scenarios the headline may average is decided once for the trial
+  // from every arm of every phase - see `headlineScopeOf`.
+  const runsByPhase: ScenarioRun[][] = [];
   let awarePhaseRuns: ScenarioRun[] = [];
 
   for (const phase of PHASES) {
@@ -2197,27 +2289,45 @@ export function runFleetTrial(
       onProgress?.(done, totalRuns, `${phase.id}/${scenario.id}`);
     }
 
-    const controlledArm = poolArm(runs, corridor, (r) => r.controlledVisits, (report) => report.controlled);
-    const uncontrolledArm = poolArm(runs, corridor, (r) => r.uncontrolledVisits, (report) => report.uncontrolled);
-    const holds = holdBreakdown(runs, corridor);
+    runsByPhase.push(runs);
+    if (phase.weighOccupancy) awarePhaseRuns = runs;
+  }
 
-    phaseReports.push({
+  const headlineScope = headlineScopeOf(runsByPhase);
+  const inHeadline = new Set(headlineScope.includedScenarioIds);
+
+  const phaseReports: PhaseReport[] = PHASES.map((phase, phaseIndex) => {
+    const runs = runsByPhase[phaseIndex] ?? [];
+    const headlineRuns = runs.filter((run) => inHeadline.has(run.report.id));
+    const pool = (subset: readonly ScenarioRun[]) => {
+      const controlledArm = poolArm(subset, corridor, (r) => r.controlledVisits, (report) => report.controlled);
+      const uncontrolledArm = poolArm(subset, corridor, (r) => r.uncontrolledVisits, (report) => report.uncontrolled);
+      return {
+        controlled: controlledArm,
+        uncontrolled: uncontrolledArm,
+        contrast: contrast(controlledArm, uncontrolledArm),
+      };
+    };
+
+    // The law coverage, the safety rejections and the hold breakdown stay over
+    // EVERY scenario. They are counts of what the controller did and what
+    // stopped it, and a saturated corridor is still a corridor the laws ran
+    // on - dropping it would understate the work rather than sharpen a
+    // headline. Only the pooled KPI comparison is scoped.
+    return {
       id: phase.id,
       title: phase.title,
       weighOccupancy: phase.weighOccupancy,
       vehicleCount: runs.reduce((acc, r) => acc + r.report.vehicleCount, 0),
       scenarios: runs.map((r) => r.report),
-      controlled: controlledArm,
-      uncontrolled: uncontrolledArm,
-      contrast: contrast(controlledArm, uncontrolledArm),
+      ...pool(headlineRuns),
+      allScenarios: pool(runs),
       scenarioAgreement: scenarioAgreement(runs.map((r) => r.report)),
       lawCoverage: coverageOf(runs.flatMap((r) => [...r.decisions])),
       safetyRejections: safetyRejections(runs),
-      ...holds,
-    });
-
-    if (phase.weighOccupancy) awarePhaseRuns = runs;
-  }
+      ...holdBreakdown(runs, corridor),
+    };
+  });
 
   const variants = policyVariants(corridorSpec);
   const studyVehicles = Math.min(spec.vehiclesPerPhase, MAX_STUDY_VEHICLES);
@@ -2287,6 +2397,7 @@ export function runFleetTrial(
     durationMs: Date.now() - startedAt,
     corridorPreset: { id: preset.id, title: preset.title, description: preset.description },
     alightingOnlySelectable: spec.alightingOnlySelectable,
+    headlineScope,
     corridor: {
       routeDirectionId: corridor.routeDirectionId,
       routeName: corridor.routeName ?? corridor.routeDirectionId,

@@ -211,6 +211,38 @@ input production does not have. Check it first when a law's coverage looks wrong
 - **Excess wait is sampled at EVERY station**, not the designated holding points.
   Tying it to them made baseline EWT read 61 s with two holding points and 323 s
   with ten on the identical uncontrolled corridor.
+- **The headline may not average a scenario built to lose, and the exclusion
+  is MEASURED.** The library contains scenarios that exist to prove the harness
+  reports NOTHING - `oversaturated` runs the corridor past the denied-boarding
+  line, where waiting time is bounded by seats rather than spacing. Pooled into
+  one top line it does not average an effect, it dilutes one: measured on urban
+  at 500, all nineteen gave +0.95% and the eighteen readable ones +2.46%, so a
+  reader comparing across weeks would read a controller three times worse when
+  only the test set had changed. `FleetTrialReport.headlineScope` decides the
+  pool ONCE for the whole trial (so phases stay comparable) from the measured
+  `saturated` flag on EITHER arm, never from an id list - on inter-city that
+  catches `station_surge` and `building_peak` too, and neither is named in the
+  code. `PhaseReport.allScenarios` carries the full pool beside the headline,
+  never instead of it, and `scenarioAgreement` still counts every scenario
+  because that is where a scenario designed to lose should be visible.
+- **A flag and the number it describes are one expression, or they drift.**
+  `SpacingKpis` carried refusal EVENTS, a boarding HEADCOUNT and a `saturated`
+  flag, and no share. A reader dividing the two fields present got 52% beside a
+  flag reading false - both honest, about different things. `deniedShare` is now
+  published and `saturated` is `deniedShare > SATURATION_DENIED_SHARE` and
+  nothing else. Same rule applies to any future flag: publish the quantity it is
+  drawn on, from the same expression.
+- **`GET /v1/fleet-trial/latest` is ONE module-level variable served to
+  everybody.** A trial anyone runs through the API becomes what the next person
+  opening `/ops/control-room/simulator` sees, and a restart loses it. That is
+  not fixed with per-user state at that layer - the trial is a pure computation
+  over a spec that travels inside its own result, writes nothing, reads no
+  database, and has no user to attach a report to; sessions would add state to a
+  deliberately stateless endpoint and still leave a stale report of your own
+  looking authoritative. It is fixed by the console saying what the report IS:
+  `src/lib/ops/fleetTrialView.ts#trialProvenance`. The page's controls are
+  seeded from the report for the same reason - a control reading 1,000 above a
+  60-bus report is the whole defect.
 - **A scenario is a perturbation, so its inputs are MULTIPLIERS** (`inputScale`),
   never absolute values. Absolute overrides tuned for one corridor inverted on
   another - `peak_load` became the lightest scenario the urban corridor ran.

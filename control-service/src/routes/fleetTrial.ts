@@ -25,6 +25,29 @@
 // The cache is per-process and deliberately not persisted. A trial is
 // reproducible from its own spec, which travels inside the report, so nothing
 // is lost by a restart and nothing has to be migrated.
+//
+// ─── AND WHY IT IS NOT PER-CALLER, WHICH IT LOOKS LIKE IT SHOULD BE ──────
+//
+// One variable, served to everybody: a trial anyone runs through this endpoint
+// becomes what the next person opening the console sees. That is exactly how a
+// 60-bus diagnostic run reporting -7.9% came to be read off a console whose own
+// controls said 1,000 buses.
+//
+// The answer is NOT session state here. A trial is a pure computation over a
+// spec that travels inside its own result; it writes nothing, reads no
+// database, and produces no private data, so there is no user at this layer to
+// attach a report to and no confidentiality argument for doing so. Sessions
+// would add state to a deliberately stateless endpoint and STILL leave the real
+// defect in place, because a stale report of your own misleads a reader exactly
+// as much as a fresh one of somebody else's. What a reader needs is to be told
+// what the report IS.
+//
+// So the provenance already in the payload - `generatedAt`, `corridorPreset`,
+// and each phase's `vehicleCount` - is rendered by the console rather than
+// ignored by it: see `ProvenanceBanner` in the web app's SimulatorConsole and
+// `src/lib/ops/fleetTrialView.ts#trialProvenance`. If per-caller results are
+// ever genuinely wanted, that is a persistence feature with an owner and a
+// retention rule, not a module-level Map.
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, AppError, sendError } from '../lib/errors.js';
@@ -79,7 +102,13 @@ const bodySchema = z
   .partial()
   .strict();
 
-/** The last report this process produced, served to anyone opening the console. */
+/**
+ * The last report this process produced, served to ANYONE opening the console.
+ *
+ * Shared, not per-caller, and deliberately - see the header. Every caller gets
+ * the same bytes, so the console must say when they were produced and at what
+ * fleet size rather than presenting them as the reader's own.
+ */
 let lastReport: FleetTrialReport | null = null;
 
 /** Exported for tests, which must not inherit a report an earlier test ran. */

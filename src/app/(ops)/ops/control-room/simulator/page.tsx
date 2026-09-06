@@ -3,6 +3,7 @@ import { OpsShell } from '@/components/ops/OpsShell';
 import { OpsAlert, OpsStat, OpsStatGroup, OpsStatStrip } from '@/components/ops/ui';
 import { SimulatorConsole } from '@/components/ops/control-room/simulator/SimulatorConsole';
 import { readLatestFleetTrial } from '@/lib/controlService/fleetTrial';
+import { headlineNetPassengerTime } from '@/lib/ops/fleetTrialView';
 import type { FleetTrialReport } from '@/models/fleetTrial';
 
 export const dynamic = 'force-dynamic';
@@ -73,6 +74,15 @@ export default async function SimulatorPage() {
  * an unlabelled strip that mixed them would overstate what a single number
  * covers. The passenger-time figure leads: it is the only one on the page that
  * can say the controller made things worse while every other number improved.
+ *
+ * ─── AND IT LEADS WITH THE READABLE SCENARIOS ────────────────────────────
+ *
+ * It used to pool every scenario the trial ran, including `oversaturated`,
+ * which exists to prove the harness reports NOTHING past the denied-boarding
+ * line. On urban at 500 buses/phase that one scenario pulled the figure from
+ * +2.5% to +0.8%. The strip now leads with the pool that can be read and
+ * carries the all-scenarios figure in the hint beneath it, so the reader sees
+ * both and knows which is which. See `lib/ops/fleetTrialView.ts`.
  */
 function TrialStrip({ report }: { report: FleetTrialReport }) {
   const totals = report.phases.reduce(
@@ -80,8 +90,6 @@ function TrialStrip({ report }: { report: FleetTrialReport }) {
       detected: acc.detected + phase.controlled.incidents.detected,
       resolved: acc.resolved + phase.controlled.incidents.resolved,
       baselineDetected: acc.baselineDetected + phase.uncontrolled.incidents.detected,
-      passengerSaved: acc.passengerSaved + phase.contrast.passengerSecondsSaved,
-      passengerTotal: acc.passengerTotal + phase.uncontrolled.passengers.totalPassengerSeconds,
       waitSaved: acc.waitSaved + phase.contrast.waitSecondsSaved,
       // The NET in-vehicle change, not the hold bill: holding is the only
       // in-vehicle term control makes worse, and dwell and running time move
@@ -92,13 +100,13 @@ function TrialStrip({ report }: { report: FleetTrialReport }) {
       detected: 0,
       resolved: 0,
       baselineDetected: 0,
-      passengerSaved: 0,
-      passengerTotal: 0,
       waitSaved: 0,
       inVehicleSaved: 0,
     },
   );
-  const netPercent = totals.passengerTotal > 0 ? (totals.passengerSaved / totals.passengerTotal) * 100 : null;
+  const headline = headlineNetPassengerTime(report);
+  const netPercent = headline.headlinePercent;
+  const signed = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
 
   return (
     <OpsStatStrip>
@@ -107,7 +115,11 @@ function TrialStrip({ report }: { report: FleetTrialReport }) {
         <OpsStat
           label="Scenarios"
           value={String(report.phases[0]?.scenarios.length ?? 0)}
-          hint="× 2 phases"
+          hint={
+            headline.excludedScenarios.length === 0
+              ? '× 2 phases'
+              : `× 2 phases · ${headline.includedScenarioCount} in the headline`
+          }
         />
         <OpsStat label="Ran in" value={`${(report.durationMs / 1000).toFixed(1)}`} unit="s" />
       </OpsStatGroup>
@@ -133,8 +145,16 @@ function TrialStrip({ report }: { report: FleetTrialReport }) {
         />
         <OpsStat
           label="Net passenger time"
-          value={netPercent === null ? '—' : `${netPercent > 0 ? '+' : ''}${netPercent.toFixed(1)}%`}
-          hint={netPercent !== null && netPercent < 0 ? 'the controller cost more than it saved' : 'saved overall'}
+          value={netPercent === null ? '—' : signed(netPercent)}
+          hint={
+            headline.differs && headline.allScenariosPercent !== null
+              ? `over the ${headline.includedScenarioCount} readable scenarios; ${signed(
+                  headline.allScenariosPercent,
+                )} over all ${headline.totalScenarioCount}`
+              : netPercent !== null && netPercent < 0
+                ? 'the controller cost more than it saved'
+                : 'saved overall'
+          }
           tone={netPercent !== null && netPercent < 0 ? 'critical' : 'accent'}
         />
       </OpsStatGroup>
