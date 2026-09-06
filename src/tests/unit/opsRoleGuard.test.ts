@@ -19,7 +19,7 @@ vi.mock('@/lib/auth/rbac/server', () => ({
 }));
 
 vi.mock('@/lib/auth/publicPreview', () => ({
-  isAuthDisabled: (...args: unknown[]) => isAuthDisabled(...args),
+  isAuthDisabled: () => isAuthDisabled(),
   previewClaimsFor: vi.fn(),
 }));
 

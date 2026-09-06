@@ -15,11 +15,11 @@ name: CI - control service
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, simulator-preview]
     paths:
       - "control-service/**"
   push:
-    branches: [main, dev]
+    branches: [main, dev, simulator-preview]
     paths:
       - "control-service/**"
 
