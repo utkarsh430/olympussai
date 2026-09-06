@@ -105,11 +105,42 @@ export function computeCostOptimalCandidates(
     const load = liveOnboardCount(vehicleStatesByVehicleId.get(h.followerVehicleId), policy, now, weighOccupancy);
     const deviationSeconds = scheduleDeviationByVehicleId.get(h.followerVehicleId) ?? null;
 
+    // ─── THE LOAD IS BOUND ON THE ACTION, NOT ON THE CLOSED FORM ─────────
+    //
+    // `loadPassengers: null` here is deliberate and it is the whole fix for
+    // the silence described below. `optimalHoldSeconds` is a faithful argmin
+    // and stays one - it is the right answer the day lambda is measured - but
+    // the penalty it subtracts is
+    //
+    //     (w_v x L + w_c) / (2 x w_h x lambda)
+    //
+    // and `arrivalRatePaxPerSecond` proxies lambda as 1/H*, so that is
+    // L x H*/2 SECONDS PER PASSENGER: 180 s each on the urban corridor's 360 s
+    // headway, ~39,600 s on the inter-city preset. d* is floored at 0, so a
+    // bus carrying two people asked for no hold at all and this law returned
+    // here on every pair - three fleet trials reported `lawCoverage` of
+    // exactly 0 for `cost_optimal` in the occupancy-weighed phase against
+    // 310-578 in the blind phase of the same trial. Feeding an uncalibrated
+    // term into the argmin does not price the load, it deletes the law.
+    //
+    // `actionThreshold.ts#occupancyAdjustedMaxHoldSeconds` is where the load
+    // binds instead, exactly as that module already argues it must ("the load
+    // has to bind on the ACTION, not on the ordering") and exactly as the
+    // other four laws already do it. The taper can shorten a hold and can
+    // never invert one, so it cannot silence the controller the way an
+    // uncalibrated argmin can. It is applied below, on `load`.
+    //
+    // The SCORE still weighs `load` - see `scoreHold` below. That is not an
+    // oversight and must not be "tidied up": every law prices its candidate
+    // through the same `computePassengerCost`, and dropping the term here
+    // alone would hand this law a systematically lower cost than the four it
+    // is sorted against, which is the sort it must not win until lambda is
+    // measured. See COST_OPTIMAL_SELECTION_ENABLED in config/env.ts.
     const rawHold = optimalHoldSeconds({
       hFwdSeconds: h.hFwdSeconds,
       hBwdSeconds: h.hBwdSeconds,
       targetHeadwaySeconds: h.targetHeadwaySeconds,
-      loadPassengers: load,
+      loadPassengers: null,
       scheduleDeviationSeconds: deviationSeconds,
     });
     if (rawHold <= 0) continue;
