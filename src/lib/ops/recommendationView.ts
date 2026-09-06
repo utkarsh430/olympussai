@@ -13,15 +13,19 @@
  * src/tests/unit/controlRoomConsole.test.ts.
  *
  * The engine's own limits are derived, never restated. `humanOriginatedActions`
- * SUBTRACTS what the engine reports it can propose from the nine dispatchable
- * command types, so if the solver ever learns a fourth action the console
- * stops calling it human-originated on its own, with no edit here.
+ * SUBTRACTS what the engine reports it works out from the nine dispatchable
+ * command types, so if the solver ever learns a new action the console stops
+ * calling it human-originated on its own, with no edit here. It subtracts two
+ * sets, not one — see that function for why an advisory the engine computes
+ * but never ranks needed its own category rather than joining the candidates.
  */
 import {
   type BoardingLimitAvailability,
   COMMAND_ACTION_TYPES,
+  ENGINE_ADVISORY_ACTION_TYPES,
   type CommandActionType,
   type EngineActionType,
+  type EngineAdvisoryActionType,
   type EngineCandidateAction,
   type EngineSafetyRejection,
   type SafetyRejectionReason,
@@ -40,6 +44,15 @@ export interface RecommendationResult {
   solvedAt: string;
   controllerVersion: string;
   engineActionTypes: EngineActionType[];
+  /**
+   * What the engine works out but never ranks — pace guidance today.
+   *
+   * Optional so a response from a control service or an app build that
+   * predates the field still satisfies this type; `humanOriginatedActions`
+   * falls back to the compiled-in set rather than silently re-asserting that
+   * nothing generates speed guidance.
+   */
+  engineAdvisoryActionTypes?: EngineAdvisoryActionType[];
   selectedAction: EngineCandidateAction | null;
   selectionBasis: SelectionBasis;
   objectiveCost: number | null;
@@ -148,10 +161,28 @@ export function actionLabel(actionType: string): string {
  * proposes them. Hardcoding the six would let the UI keep making that claim
  * after the engine grew a seventh; subtracting the engine's own reported
  * vocabulary means the claim cannot outlive its truth.
+ *
+ * ─── WHY TWO SETS ARE SUBTRACTED AND NOT ONE ─────────────────────────────
+ *
+ * The derivation was built for one shape of drift — the engine learning a new
+ * CANDIDATE — and `boarding_limit` moved across it with no edit here, which is
+ * what it was for. `speed_guidance` is a different shape and the derivation
+ * did NOT absorb it: the engine works out a pace advisory on every solve, but
+ * it is not a candidate and must never become one, so it never entered
+ * `engineActionTypes` and this function kept calling it human-originated while
+ * the control room rendered it two panels away.
+ *
+ * Subtracting `engineAdvisoryActionTypes` as well is what makes the claim true
+ * again without widening the candidate type that keeps a speed instruction out
+ * of the ranking. The set is passed in, defaulted rather than hardcoded, for
+ * the same reason the first one is: a console states this from data.
  */
-export function humanOriginatedActions(engineActionTypes: readonly string[]): CommandActionType[] {
-  const engine = new Set(engineActionTypes);
-  return COMMAND_ACTION_TYPES.filter((type) => !engine.has(type));
+export function humanOriginatedActions(
+  engineActionTypes: readonly string[],
+  engineAdvisoryActionTypes: readonly string[] = ENGINE_ADVISORY_ACTION_TYPES,
+): CommandActionType[] {
+  const worked = new Set([...engineActionTypes, ...engineAdvisoryActionTypes]);
+  return COMMAND_ACTION_TYPES.filter((type) => !worked.has(type));
 }
 
 export interface BasisCopy {

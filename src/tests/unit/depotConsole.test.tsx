@@ -331,13 +331,7 @@ describe('DepotConsole — what it does not claim to do', () => {
     renderConsole({ initialTab: 'standby' });
 
     expectText(/instructions that exist, but that nothing suggests/i);
-    for (const label of [
-      'Stop skip',
-      'Short turn',
-      'Deadhead',
-      'Standby injection',
-      'Speed guidance',
-    ]) {
+    for (const label of ['Stop skip', 'Short turn', 'Deadhead', 'Standby injection']) {
       expectText(new RegExp(label, 'i'));
     }
     expectText(/changes nothing except the record that it was sent/i);
@@ -358,6 +352,40 @@ describe('DepotConsole — what it does not claim to do', () => {
       .getByText(/what the system can actually work out for you/i)
       .closest('section');
     expect(within(canWorkOut as HTMLElement).getAllByText(/Drop off only/i).length).toBeGreaterThan(0);
+  });
+
+  // "Speed guidance" has moved too, and NOT into the engine list. This test
+  // used to assert it sat under "nothing suggests" - which was false for as
+  // long as pace guidance had been shipping, because the engine works out a
+  // pace advisory on every solve and the control room renders it. But it does
+  // not belong with the holds either: those are ranked, approved, sent and
+  // shown on a driver's screen, and pace guidance is none of those. So it has
+  // a section of its own that promises neither.
+  it('puts speed guidance where it is true: worked out, with no way to reach a driver', () => {
+    renderConsole({ initialTab: 'standby' });
+
+    const nothingSuggests = screen
+      .getByText(/instructions that exist, but that nothing suggests/i)
+      .closest('section');
+    expect(within(nothingSuggests as HTMLElement).queryByText(/Speed guidance/i)).toBeNull();
+
+    const canWorkOut = screen
+      .getByText(/what the system can actually work out for you/i)
+      .closest('section');
+    // Not here either: this section's copy promises delivery to a driver.
+    expect(within(canWorkOut as HTMLElement).queryByText(/Speed guidance/i)).toBeNull();
+
+    const advisory = screen
+      .getByText(/worked out, but with no way to reach a driver/i)
+      .closest('section');
+    expect(advisory).not.toBeNull();
+    expect(within(advisory as HTMLElement).getAllByText(/Speed guidance/i).length).toBeGreaterThan(
+      0,
+    );
+    // The honest limit, said out loud rather than left for an operator to
+    // discover: there is no in-cab display, so this travels by radio or not
+    // at all.
+    expectText(/no in-cab display/i);
   });
 
   it('says sending a bus another way does not exist, and keeps the bay & crew gap visible', () => {

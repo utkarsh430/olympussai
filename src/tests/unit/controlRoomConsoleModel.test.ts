@@ -19,6 +19,7 @@ import {
 import {
   COMMAND_ACTION_TYPES,
   ENGINE_ACTION_TYPES,
+  ENGINE_ADVISORY_ACTION_TYPES,
   type EngineCandidateAction,
 } from '@/models/control';
 import type { KillSwitchRecord } from '@/lib/auth/rbac/repo';
@@ -675,19 +676,50 @@ describe('engine proposal — what the operator is told', () => {
 describe('engine scope — the human-originated instructions are derived, not hardcoded', () => {
   it('subtracts what the engine reports it can propose from every dispatchable type', () => {
     const human = humanOriginatedActions(ENGINE_ACTION_TYPES);
-    // Five, not the original six: the engine learned `boarding_limit`
-    // (alighting-only), so it stopped being human-originated. Nothing in the
-    // console was edited to make that true - the subtraction did it, which is
-    // the whole point of deriving this set.
-    expect(human).toHaveLength(5);
+    // Four, down from five: the engine learned `boarding_limit`
+    // (alighting-only), so it stopped being human-originated, and
+    // `speed_guidance` left too - not as a candidate but as an ADVISORY the
+    // engine works out on every solve. Nothing in the console was edited to
+    // make either true; the subtraction did it, which is the point of
+    // deriving this set.
+    expect(human).toHaveLength(4);
     expect(human).not.toContain('terminal_dispatch_hold');
     expect(human).not.toContain('boarding_limit');
     expect(human).toContain('stop_skip');
     expect(human).toContain('standby_injection');
-    // The partition is exhaustive and non-overlapping: every dispatchable
-    // instruction is either something the engine proposes or something only a
-    // human originates, and none is both or neither.
-    expect(human.length + ENGINE_ACTION_TYPES.length).toBe(COMMAND_ACTION_TYPES.length);
+  });
+
+  // The regression this pins: `speed_guidance` sat in the human-originated
+  // set - the console telling an operator "nothing in this system works this
+  // out" - for as long as pace guidance had been shipping. The control room
+  // was rendering an engine-computed pace advisory under "Alternatives that
+  // cost no delay" on the same screen. One list said the engine had never
+  // heard of it while another showed its answer.
+  it('does not call speed guidance human-originated while the engine works it out', () => {
+    expect(humanOriginatedActions(ENGINE_ACTION_TYPES)).not.toContain('speed_guidance');
+    expect(ENGINE_ADVISORY_ACTION_TYPES).toContain('speed_guidance');
+  });
+
+  // Why speed_guidance must NOT simply join ENGINE_ACTION_TYPES: that enum
+  // types `EngineCandidateAction['actionType']`, and keeping a speed
+  // instruction off the candidate list is what makes dispatching one
+  // impossible rather than merely discouraged - the selection rule ranks in
+  // passenger-seconds and would otherwise happily pick one no delivery path
+  // can carry.
+  it('keeps the advisory out of the rankable candidate vocabulary', () => {
+    expect([...ENGINE_ACTION_TYPES]).not.toContain('speed_guidance');
+  });
+
+  it('partitions every dispatchable instruction into exactly one of the three', () => {
+    // Exhaustive and non-overlapping: every dispatchable instruction is
+    // something the engine ranks, something it works out but never ranks, or
+    // something only a human originates - and none is two of those or none.
+    const human = humanOriginatedActions(ENGINE_ACTION_TYPES);
+    expect(
+      human.length + ENGINE_ACTION_TYPES.length + ENGINE_ADVISORY_ACTION_TYPES.length,
+    ).toBe(COMMAND_ACTION_TYPES.length);
+    const all = new Set([...human, ...ENGINE_ACTION_TYPES, ...ENGINE_ADVISORY_ACTION_TYPES]);
+    expect(all.size).toBe(COMMAND_ACTION_TYPES.length);
   });
 
   it('stops calling an action human-originated the moment the engine can propose it', () => {
@@ -696,7 +728,15 @@ describe('engine scope — the human-originated instructions are derived, not ha
     // with no edit to the UI.
     const human = humanOriginatedActions([...ENGINE_ACTION_TYPES, 'stop_skip']);
     expect(human).not.toContain('stop_skip');
-    expect(human).toHaveLength(4);
+    expect(human).toHaveLength(3);
+  });
+
+  // The same derivation, for the advisory set: an advisory the engine gains
+  // later must leave the "nothing suggests these" list on its own too.
+  it('stops calling an action human-originated the moment the engine advises it', () => {
+    const human = humanOriginatedActions(ENGINE_ACTION_TYPES, ['speed_guidance', 'short_turn']);
+    expect(human).not.toContain('short_turn');
+    expect(human).toHaveLength(3);
   });
 });
 
