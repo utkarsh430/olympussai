@@ -59,6 +59,7 @@
 // left the terminal thirty seconds behind another one.
 import { clamp, scheduleCorrectionSeconds } from './math.js';
 import { liveOnboardCount, scoreHold } from './objective.js';
+import { isScoredSelfHarmful } from './selfHarmCheck.js';
 import type { CandidateAction } from './types.js';
 import type { HeadwayStateRow, RoutePolicyRow, VehicleStateRow } from '../state/store.js';
 
@@ -119,6 +120,21 @@ export function computeTerminalDispatchCandidates(
    */
   weighOccupancy = true,
   elapsedSinceTerminalDepartureSeconds: number | null = null,
+  /**
+   * Whether to decline a candidate this law's own objective scores as net
+   * harmful, the way `mpc/costOptimalHold.ts` always has. Defaults FALSE - the
+   * deployed default and today's behaviour. See mpc/selfHarmCheck.ts, and read
+   * why it is off before turning it on.
+   *
+   * It bites hardest here of the three. Terminal dispatch is the one lever with
+   * no punctuality cost - the bus has not started its trip and nobody is aboard
+   * to be delayed - yet the objective still charges `w_c` for standing still
+   * against a wait term it can barely see, so it prices most terminal holds as
+   * harmful. Declining them removes the highest-return, lowest-cost lever the
+   * literature knows of. That shows up in the measurement as the largest single
+   * loss - see docs/SELF_HARM_CHECK.md.
+   */
+  selfHarmCheckEnabled = false,
 ): CandidateAction[] {
   if (!terminalStopId) return [];
   if (elapsedSinceTerminalDepartureSeconds === null) return [];
@@ -146,28 +162,32 @@ export function computeTerminalDispatchCandidates(
 
     const load = liveOnboardCount(follower, policy, now, weighOccupancy);
 
+    // The objective is scored on the DEPARTURE headway too, not on the
+    // stationary bus's h_fwd. Its wait term prices the gap passengers are
+    // standing through, and at the origin that gap is the elapsed one; a
+    // 27,601s h_fwd fed straight into `computePassengerCost` produced an
+    // objectiveCost as meaningless as the hold it never proposed.
+    const score = scoreHold(
+      {
+        hFwdSeconds: elapsedSinceTerminalDepartureSeconds,
+        hBwdSeconds: h.hBwdSeconds,
+        targetHeadwaySeconds: h.targetHeadwaySeconds,
+      },
+      h.followerVehicleId,
+      holdSeconds,
+      rawHold,
+      load,
+      deviationSeconds,
+    );
+    // See mpc/selfHarmCheck.ts. Off by default; measured harmful when on.
+    if (selfHarmCheckEnabled && isScoredSelfHarmful(score.objectiveCost)) continue;
+
     candidates.push({
       actionType: 'terminal_dispatch_hold',
       vehicleId: h.followerVehicleId,
       involvedVehicleIds: [h.followerVehicleId, h.leaderVehicleId],
       holdSeconds,
-      // The objective is scored on the DEPARTURE headway too, not on the
-      // stationary bus's h_fwd. Its wait term prices the gap passengers are
-      // standing through, and at the origin that gap is the elapsed one; a
-      // 27,601s h_fwd fed straight into `computePassengerCost` produced an
-      // objectiveCost as meaningless as the hold it never proposed.
-      ...scoreHold(
-        {
-          hFwdSeconds: elapsedSinceTerminalDepartureSeconds,
-          hBwdSeconds: h.hBwdSeconds,
-          targetHeadwaySeconds: h.targetHeadwaySeconds,
-        },
-        h.followerVehicleId,
-        holdSeconds,
-        rawHold,
-        load,
-        deviationSeconds,
-      ),
+      ...score,
       routeDirectionId: h.routeDirectionId,
       stateAsOf: h.computedAt,
       headwayDeviationSeconds: elapsedSinceTerminalDepartureSeconds - h.targetHeadwaySeconds,

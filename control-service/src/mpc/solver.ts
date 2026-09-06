@@ -199,6 +199,12 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
   // about what the controller is optimising.
   const settings = await readControlSettings();
 
+  // Read once per solve for the same reason the settings are: every law in one
+  // solve must be generated under the same rule. OFF on every deployment - see
+  // mpc/selfHarmCheck.ts and SELF_HARM_CHECK_ENABLED in config/env.ts, where
+  // the measurement that says it must stay off is recorded.
+  const selfHarmCheckEnabled = loadEnv().SELF_HARM_CHECK_ENABLED;
+
   const headwayStates = stateStore.getHeadwayStates(routeDirectionId);
   const vehicleStates = stateStore.listVehicleStates(routeDirectionId);
   const vehicleStatesByVehicleId = new Map(vehicleStates.map((v) => [v.vehicleId, v]));
@@ -237,6 +243,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     scheduleDeviationByVehicleId,
     settings.weighOccupancy,
     departureHeadwaySeconds(lastTerminalDepartureAt, now),
+    selfHarmCheckEnabled,
   );
 
   // Vehicles dwelling at the terminal are always regulated by terminal
@@ -260,6 +267,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     scheduleDeviationByVehicleId,
     controlPointStopIds,
     settings.weighOccupancy,
+    selfHarmCheckEnabled,
   );
   const selfEqualizingCandidates = computeSelfEqualizingCandidates(
     headwayStates,
@@ -270,6 +278,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     scheduleDeviationByVehicleId,
     controlPointStopIds,
     settings.weighOccupancy,
+    selfHarmCheckEnabled,
   );
   // The closed-form minimiser of the passenger-cost objective, competing on
   // the same ranking as the tuned-gain laws rather than replacing them - see
