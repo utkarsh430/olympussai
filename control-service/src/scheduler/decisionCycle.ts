@@ -38,6 +38,7 @@ import {
 } from '../db/recommendations.js';
 import { logger } from '../lib/logger.js';
 import { solve } from '../mpc/solver.js';
+import { loadInBandRouteDirectionIds } from '../evaluation/eligibilityRepository.js';
 import { selectBatch } from './headwayCompute.js';
 
 /**
@@ -56,6 +57,7 @@ export function _resetDecisionCursorForTests(): void {
 }
 
 export interface DecisionCycleResult {
+  /** Corridors the cycle would solve for - AFTER the eligibility gate, when it is on. */
   eligible: number;
   attempted: number;
   /** Corridors where the solver produced a safe, selectable action. */
@@ -63,11 +65,18 @@ export interface DecisionCycleResult {
   /** Proposals actually written - `withAction` minus the ones that repeated standing advice. */
   proposed: number;
   failed: number;
+  /**
+   * Corridors the eligibility gate removed before the batch was cut. Always 0
+   * with the gate off, and 0 when the band lookup failed - the gate fails OPEN.
+   */
+  gateExcluded: number;
   durationMs: number;
 }
 
 export interface DecisionCycleDeps {
   listEligible?: (freshnessSeconds: number) => Promise<string[]>;
+  /** Of the corridors offered, the ones inside `CONTROLLABLE_BAND`. Only consulted when the gate is on. */
+  listInBand?: (routeDirectionIds: readonly string[]) => Promise<Set<string>>;
   solveRouteDirection?: typeof solve;
   listOpenIncidentPairs?: typeof listOpenIncidentPairsForRouteDirection;
   findLatest?: typeof findLatestRecommendation;
@@ -92,6 +101,58 @@ async function mapWithConcurrency<T>(
 }
 
 /**
+ * WHERE the controller is allowed to run, when the operator has asked for the
+ * question to be asked at all.
+ *
+ * Three properties, each of which the gate is worthless without:
+ *
+ *   OFF IS A TRUE NO-OP. With `DECISION_CYCLE_ELIGIBILITY_GATE_ENABLED` unset
+ *   this returns the offered list untouched and never issues the query. A gate
+ *   that costs a round trip per sweep while claiming to be off is not off.
+ *
+ *   IT FAILS OPEN. A database hiccup must not silence the controller
+ *   network-wide; the failure is logged and the sweep runs on everything, which
+ *   is exactly today's behaviour.
+ *
+ *   IT DECIDES NOTHING ABOUT HOW. The band comes from `lib/controllability.ts`
+ *   and no control law is consulted, changed, or aware of this.
+ */
+async function applyEligibilityGate(
+  env: Env,
+  offered: readonly string[],
+  listInBand: DecisionCycleDeps['listInBand'],
+): Promise<{ eligible: string[]; gateExcluded: number }> {
+  if (!env.DECISION_CYCLE_ELIGIBILITY_GATE_ENABLED) {
+    return { eligible: [...offered], gateExcluded: 0 };
+  }
+
+  const lookup =
+    listInBand ??
+    ((ids: readonly string[]) =>
+      loadInBandRouteDirectionIds(
+        ids,
+        {
+          cruiseSpeedKmph: env.ELIGIBILITY_CRUISE_SPEED_KMPH,
+          travelTimeVariation: env.ELIGIBILITY_TRAVEL_TIME_VARIATION,
+          provenance: 'modelled',
+        },
+        env.HEADWAY_VEHICLE_FRESHNESS_SECONDS,
+      ));
+
+  try {
+    const inBand = await lookup(offered);
+    const eligible = offered.filter((id) => inBand.has(id));
+    return { eligible, gateExcluded: offered.length - eligible.length };
+  } catch (error) {
+    logger.warn(
+      { error: error instanceof Error ? error.message : String(error), offered: offered.length },
+      'eligibility gate could not read the controllability band; running on every eligible corridor',
+    );
+    return { eligible: [...offered], gateExcluded: 0 };
+  }
+}
+
+/**
  * One decision sweep.
  *
  * Never rejects for a single corridor's failure, for the same reason the
@@ -113,7 +174,12 @@ export async function runDecisionCycle(
   // The same eligibility predicate the headway sweep uses: corridors with at
   // least two fresh, map-matched vehicles. Anything else cannot produce a
   // leader/follower pair, so the solver would have nothing to reason from.
-  const eligible = await listEligible(env.HEADWAY_VEHICLE_FRESHNESS_SECONDS);
+  const offered = await listEligible(env.HEADWAY_VEHICLE_FRESHNESS_SECONDS);
+  const { eligible, gateExcluded } = await applyEligibilityGate(env, offered, deps.listInBand);
+
+  // The gate runs BEFORE the batch is cut, which is the whole point of it.
+  // Filtering afterwards would still spend the batch's slots on corridors
+  // holding cannot help, and the corridors it can help would keep waiting.
   const { batch, nextCursor } = selectBatch(eligible, cursor, env.DECISION_CYCLE_BATCH_SIZE);
   cursor = nextCursor;
 
@@ -184,6 +250,7 @@ export async function runDecisionCycle(
     withAction,
     proposed,
     failed,
+    gateExcluded,
     durationMs: now() - startedAt,
   };
 

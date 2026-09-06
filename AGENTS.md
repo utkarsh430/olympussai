@@ -237,6 +237,34 @@ input production does not have. Check it first when a law's coverage looks wrong
   writable in advance; `test/fleetTrial/` asserts headways come out EXACTLY on
   target. Two simulated arms cannot catch an error they share.
 
+## WHERE the controller runs is a separate question from HOW it decides
+
+`pnpm --dir control-service sim:eligibility` (`evaluation/eligibility*.ts`,
+long form in `docs/CORRIDOR_ELIGIBILITY.md`) places every ACTIVE
+route-direction against `lib/controllability.ts`'s band and returns one verdict
+each: `eligible`, `out_of_band`, `uncalibrated`, `too_few_vehicles`. The band
+is IMPORTED, never re-derived - a second copy of `CONTROLLABLE_BAND` is how it
+drifts from the sweep it was fitted on, and a test pins that.
+
+Measured on the seeded network, of the 78 corridors the decision cycle actually
+reaches, **26 (33%) are outside the band** and account for 24% of the
+recommendations written. Outside the band a hold costs full operational effort
+- dispatcher attention, driver instructions, control-room load - and returns
+nothing, and `DECISION_CYCLE_BATCH_SIZE` is 60, so those slots come out of the
+corridors that could have benefited.
+
+`DECISION_CYCLE_ELIGIBILITY_GATE_ENABLED` acts on it and ships OFF, filtering
+BEFORE the batch is cut (filtering after would still spend the slots) and
+failing OPEN. **It is off because the band is currently an assumption, not
+because the finding is weak.** sigma_leg is `meanLeg / cruiseSpeed x
+travelTimeVariation`; `stop_visits` is empty network-wide, so both of those come
+from `DEFAULT_MODELLED_INPUTS` and the report's own sensitivity table moves
+`too_disturbed` from 0 to 112 corridors across a 5x span of the assumed
+variation. Read `inputs_provenance` in the report before believing any verdict,
+exactly as you read algorithm coverage before believing a KPI. Until it reads
+`measured`, this is a rollout PRIORITY ORDER and not a licence to switch
+corridors off.
+
 ## The objective's lambda is a proxy, and it is a loaded gun
 
 `mpc/objective.ts#arrivalRatePaxPerSecond` returns `1/H*`. Under that proxy the closed-form optimum's load penalty is `H*/2 seconds PER ONBOARD PASSENGER` — 900s on a 1800s corridor — so a single passenger zeroed any hold. That gun went off: three fleet trials (urban/suburban/intercity) each reported `lawCoverage` of exactly **0** for `cost_optimal` in the occupancy-weighed phase against 310–578 in the blind phase of the same trial, and it failed silently exactly as predicted.
