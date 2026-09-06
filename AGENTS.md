@@ -368,6 +368,24 @@ database that is not running. And each guard substitutes the role its own
 screen or endpoint asked for, so one anonymous visitor opens all seven
 consoles rather than `/ops/forbidden` on six of them.
 
+## Node version: CI pins 20.x, and a plain `nvm use` may not give you it
+
+Both `.github/workflows/*.yml` install Node via `actions/setup-node@v4` with
+`node-version: "20"` — check those files directly if this ever needs
+reconfirming, don't trust a memory of it. `.nvmrc` (repo root and
+`control-service/`) and each `package.json`'s `engines.node` pin `20.x` to
+match. Node 26 is not just untested here, it is known-broken: it installs its
+own `globalThis.localStorage` accessor that vitest's jsdom `populateGlobal`
+assigns through, so `localStorage.clear()` is `undefined` and every test that
+touches it (`theme.test.tsx`, `opsFleetMapTheme.test.tsx`) fails — Node 24
+does not have this problem, but only Node 20.x matches what CI actually runs.
+On a machine with Homebrew's Node ahead of nvm's on `PATH` (`/opt/homebrew/bin`
+before `~/.nvm/versions/node/*/bin`), running `nvm use` does not fix `node
+--version` — Homebrew's copy still wins. Neither `.nvmrc` nor `engines` is
+enforced (no `engine-strict` in `.npmrc`); pnpm only warns on a mismatch, npm
+stays silent. Prepend the intended Node's bin dir to `PATH` explicitly if
+`nvm use` doesn't visibly change `node --version`.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.
