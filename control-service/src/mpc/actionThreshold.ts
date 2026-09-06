@@ -47,17 +47,82 @@ import type { RoutePolicyRow } from '../state/store.js';
 /**
  * Multiplier on `warning_threshold_ratio` that sets the mid-route action bar.
  *
- * ONE, deliberately, and not a fitted number. A sweep over this constant on the
- * 1,000-bus trial scored marginally better at 0.8 (net passenger time +0.2%
- * against -3.1%), and 0.8 was rejected anyway: it is a number with a good score
- * and no argument behind it, and the difference was inside the seed-to-seed
- * noise of a single trial. At 1.0 the bar is exactly the corridor's own
- * `warning_threshold_ratio` - the same number its alert surface uses to decide
- * whether a human is told - which is a rule that can be stated, defended, and
- * changed per corridor by changing the corridor's configuration rather than
- * this file.
+ * ─── WHY THIS IS NOT 1.0, AND WHY 0.8 WAS STILL RIGHT TO REJECT ──────────
+ *
+ * This constant was 1.0, and the reasoning that put it there was sound and is
+ * preserved here because it is the bar any replacement has to clear. A sweep
+ * on a single 1,000-bus trial scored marginally better at 0.8 (net passenger
+ * time +0.2% against -3.1%), and 0.8 was rejected: it was a number with a good
+ * score and no argument behind it, and the difference was inside the
+ * seed-to-seed noise of one trial. That rejection still stands on its own
+ * terms - nothing below changes it.
+ *
+ * 1.2 clears that bar on both counts 0.8 failed.
+ *
+ * ─── THE EVIDENCE ────────────────────────────────────────────────────────
+ *
+ * Not one trial and not one seed. The constant was swept over
+ * {0.3, 0.4, 0.5, 0.6, 0.75, 1.0} at 10 paired seeds, which found an inverted
+ * U peaking at an effective bar of 0.6 on all three corridors - and because
+ * 0.6 was SELECTED on that set, it was then re-run against 0.5 on a DISJOINT
+ * set of 12 seeds as an honest out-of-sample test. Paired by seed, with 95%
+ * bootstrap intervals over the seed-level differences:
+ *
+ *   corridor    excess wait (headline)          net passenger time (guardrail)
+ *   urban       +8.92pp [7.71, 9.97]  12/12     +0.37pp [0.18, 0.56]  11/12
+ *   suburban    +7.30pp [6.54, 8.07]  12/12     +0.07pp [-0.02, 0.15]  no effect
+ *   intercity   +3.88pp [3.25, 4.60]  12/12     +0.05pp [-0.01, 0.12]  no effect
+ *
+ * Read against the harness's own decision rule - excess wait is the headline,
+ * total passenger time is the guardrail, and a proposal that worsens the
+ * guardrail is not an improvement - urban improves both, and suburban and
+ * intercity improve the headline with 12/12 seed agreement while the guardrail
+ * interval spans zero. The urban in-sample (+0.36pp net) and out-of-sample
+ * (+0.37pp net) figures are nearly identical, so it replicates.
+ *
+ * ─── THE ARGUMENT ────────────────────────────────────────────────────────
+ *
+ * And there IS a statable rule, which is what 0.8 never had. At 1.0 the
+ * controller may only act once a pair has ALREADY reached the deviation at
+ * which a human is alarmed. These laws are proportional controllers; a
+ * proportional controller that may not act until the disturbance has reached
+ * the alarm threshold is structurally always behind the disturbance. 1.2 lets
+ * it act just before the alarm, which is what a controller is for. The
+ * inverted U is the measured shape of that: below 0.6 effective the bar is so
+ * tight the controller barely acts, above it the controller is buying wait
+ * time for pairs that were not in trouble and charging it to everyone aboard.
+ *
+ * ─── WHAT THIS COSTS, STATED PLAINLY ─────────────────────────────────────
+ *
+ * The "one number, two uses" elegance. At 1.0 the action bar and the alert bar
+ * were the same number and needed no explanation; they no longer are, and this
+ * comment is the price of that. The bar still moves with the corridor - it is
+ * still `warning_threshold_ratio` x H*, per route-direction config, scaled by
+ * this constant.
+ *
+ * ─── WHY THE CONSTANT AND NOT THE CORRIDOR CONFIG ────────────────────────
+ *
+ * The same effective 0.6 bar could be had by setting `warning_threshold_ratio`
+ * to 0.6 and leaving this at 1.0. It must not be done that way.
+ * `warning_threshold_ratio` also drives the DETECTOR - `headway/bunching.ts`
+ * #evaluateBunchingRule in the service, `fleetTrial/detection.ts` in the trial
+ * - so moving it would silently change what operators are alerted about while
+ * intending only to change what the controller acts on. The two forms were
+ * measured to be identical for control to three decimal places (net 4.136% /
+ * EWT 58.09% / bunching 64.00%); they differ only in that the config form also
+ * moves the alert surface. This form leaves it untouched.
+ *
+ * ─── WHAT IS STILL UNTESTED ──────────────────────────────────────────────
+ *
+ * Every sweep behind this number ran occupancy-blind, which is the deployed
+ * state (`occupancy_capacity` is NULL everywhere), so the phase-2 behaviour of
+ * this bar - how it interacts with the load taper below once occupancy is
+ * populated - is not evidenced here. Nor is the command lifecycle: these are
+ * the control law's PROPOSALS, and cooldown, `max_concurrent_actions`, TTL and
+ * driver acknowledgement all sit downstream of this file and outside the trial
+ * that measured it.
  */
-export const MID_ROUTE_ACTION_RATIO = 1.0;
+export const MID_ROUTE_ACTION_RATIO = 1.2;
 
 /**
  * True when this pair's forward headway has fallen far enough to be worth a
