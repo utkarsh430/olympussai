@@ -8,6 +8,8 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 
 Two independent pnpm packages, each with its own `node_modules`/lockfile/test suite/db: the Next.js app at the repo root (`src/`), and `control-service/` (Express + Postgres/PostGIS, deployed separately). Run `pnpm install` in both before `pnpm typecheck`/`pnpm lint`/`pnpm test` work in either — root only covers the web app; `control-service/`'s suite mocks the DB per-test, no Postgres needed to run it.
 
+`pnpm test:coverage` (`vitest run --coverage`, `@vitest/coverage-v8`) is wired in both packages and both suites are fully green under it.
+
 The web app's suite is the opposite: `src/tests/unit/*Db.test.ts` prove the guarantees that live in SQL rather than TypeScript (keyset pagination not losing safety records, `ON CONFLICT` dedupe) and need a real `OPS_DATABASE_URL`. They skip when it is unset locally and hard-FAIL when `CI=true` - `.github/workflows/ci-web.yml` gives its lint/typecheck/test job an `ops-db` service and runs `pnpm migrate:ops` against it, so nothing in `pnpm test` skips in CI. That guard exists because those files skipped on every CI run this repo had ever done, which made a green suite say nothing about the SQL it was supposed to be protecting; never "fix" a skip by relaxing it.
 
 The web app's own datastore (`db/migrations/`, applied via `OPS_DATABASE_URL=... pnpm migrate:ops`) is separate from `control-service/db/` by design — see `docs/CONTROL_SERVICE_INTEGRATION.md` section 3 for why, `db/README.md` for the migration runner's guarantees (one transaction per file, checksum drift detection, idempotent `IF NOT EXISTS` SQL), and `control-service/src/config/env.ts` / `.env.example` for connection vars. Both Postgres instances in local dev are shared Docker containers another process may depend on — never assume you own them; prove a new migration idempotent against a scratch container, not the shared one.
@@ -21,6 +23,8 @@ Waiting for the databases is the point of it. control-service rehydrates its in-
 ## Ops RBAC: middleware is a ceiling, route guards are the decision
 
 `src/middleware.ts` and every `/api/ops/*` route handler both check roles, independently — middleware's check (via `rolesForOpsApiPath` / `OPS_API_ROLE_OVERRIDES` in `src/lib/auth/rbac/roles.ts`) is a coarse, edge-safe approximation; `requireOpsRole(...)` inside the route handler (`src/lib/auth/rbac/guard.ts`) is the real, narrow, authoritative allowlist. When a route's `requireOpsRole` allowlist is wider than (or undeterminable from) its URL segment alone, add an entry to `OPS_API_ROLE_OVERRIDES` rather than loosening the segment-derived default — it is matched on exact pathname (never a prefix) and must only ever widen a segment's role, never re-home an endpoint to an unrelated one (enforced by a guard test in `src/tests/unit/rbac.test.ts`). Pages (`/ops/<segment>/*`) stay on strict segment equality; only `/api/ops/*` uses the override map.
+
+Every route-level test mocks `@/lib/auth/rbac/guard` itself (proves the route calls `requireOpsRole` with the right allowlist, not that the function does the right thing with it). `src/tests/unit/opsRoleGuard.test.ts` is the one file that imports the real `guard.ts`, mocking only its two dependencies (`./server`, `@/lib/auth/publicPreview`) — it is where the 403-on-wrong-role decision itself is pinned.
 
 ## Detection has two tiers, and they share one incident row
 
@@ -37,7 +41,7 @@ Three rules that are easy to get wrong and are each pinned by a test in `test/pr
 
 `GET /v1/alerts` (network-wide, ranked worst-and-soonest-first in SQL — the ordering IS the triage) backs `/ops/control-room/alerts`. Before it, an incident reached a human only if somebody had already opened the console on that exact corridor, out of ~1,020.
 
-The inbox distinguishes three states that a naive implementation collapses into one: nothing wrong / nothing read yet / feed unreadable. `src/lib/controlService/alerts.ts` serves the last good feed flagged `stale` rather than an empty list on an outage, because an empty alert list reads as an all-clear. `src/tests/unit/alertInbox.test.tsx` is where that rule is enforced — do not "simplify" those branches into one empty state.
+The inbox distinguishes three states that a naive implementation collapses into one: nothing wrong / nothing read yet / feed unreadable. `src/lib/controlService/alerts.ts` serves the last good feed flagged `stale` rather than an empty list on an outage, because an empty alert list reads as an all-clear. `src/tests/unit/alertInbox.test.tsx` is where that rule is enforced — do not "simplify" those branches into one empty state. The stale-fallback path only actually triggers once the fresh TTL cache entry has expired while `lastGood` is still populated; `_resetAlertCacheForTests()` wipes both, so a test using it to "force expiry" is exercising a normal cache hit, not the fallback — `src/tests/unit/controlRoomAlerts.test.ts`'s `vi.useFakeTimers()` test is the one that genuinely reaches it.
 
 Solving is deliberately NOT done on the list. A solve carries a 90s freshness verdict from the safety filter, so solving every corridor per render produces a page of silently-lapsed proposals. The operator asks per alert (`AlertSolutionPanel`), and issuing still goes through the console's approval path — never duplicated.
 

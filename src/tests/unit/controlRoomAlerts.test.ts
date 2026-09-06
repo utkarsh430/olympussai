@@ -158,6 +158,39 @@ describe('when the control service cannot be reached', () => {
     expect(cachedThenFailed.feed.alerts).toHaveLength(1);
   });
 
+  // The test above never actually reaches the fallback branch: resetting the
+  // cache wipes lastGood too, so the "failed" read above is served by a fresh
+  // cache hit, not by the outage path. This one genuinely expires the TTL
+  // while leaving lastGood in place, so the fetch really fails and the
+  // fallback really runs.
+  it('genuinely falls back to a stale last-good feed once the cache has actually expired', async () => {
+    vi.useFakeTimers();
+    try {
+      fetchControlService.mockResolvedValueOnce(feed());
+      const first = await readAlertFeed();
+      expect(first.stale).toBe(false);
+
+      // Past the 15s TTL: the fresh entry is gone, lastGood is not.
+      vi.advanceTimersByTime(20_000);
+      fetchControlService.mockRejectedValue(new ControlServiceUnavailableError('down'));
+
+      const afterOutage = await readAlertFeed();
+      expect(afterOutage.stale).toBe(true);
+      expect(afterOutage.feed.alerts).toHaveLength(1);
+      expect(afterOutage.ageMs).toBeGreaterThanOrEqual(20_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // The mirror case: no lastGood exists yet (first-ever read fails), so there
+  // is nothing to fall back to and the caller must see the failure rather
+  // than a fabricated empty feed.
+  it('propagates the failure when there is no last-good feed to fall back to', async () => {
+    fetchControlService.mockRejectedValue(new ControlServiceUnavailableError('down'));
+    await expect(readAlertFeed()).rejects.toBeInstanceOf(ControlServiceUnavailableError);
+  });
+
   it('answers 503 with an explicit "unknown, not empty" message on a cold outage', async () => {
     fetchControlService.mockRejectedValue(new ControlServiceUnavailableError('down'));
 
