@@ -131,13 +131,18 @@ async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
     speed_band_min_kmph: string | null;
     speed_band_max_kmph: string | null;
     max_concurrent_actions: number | null;
+    alighting_only_enabled: boolean | null;
+    alighting_only_max_refusals: number | null;
+    alighting_only_refusal_window_seconds: number | null;
   }>(
     `select id, route_direction_id, operating_period, day_type,
             target_headway_seconds, bunched_threshold_ratio, warning_threshold_ratio,
             kf, kb, self_equalizing_k, max_hold_seconds, cooldown_seconds, minimum_action_seconds,
             prediction_horizon_control_points, occupancy_stale_seconds, occupancy_capacity,
             ks, max_lateness_seconds, speed_band_min_kmph, speed_band_max_kmph,
-            max_concurrent_actions
+            max_concurrent_actions,
+            alighting_only_enabled, alighting_only_max_refusals,
+            alighting_only_refusal_window_seconds
        from route_policies
       where effective_to is null
         and ${MEASURED_POLICY_PREDICATE}`,
@@ -164,6 +169,11 @@ async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
     speedBandMinKmph: r.speed_band_min_kmph === null ? null : Number(r.speed_band_min_kmph),
     speedBandMaxKmph: r.speed_band_max_kmph === null ? null : Number(r.speed_band_max_kmph),
     maxConcurrentActions: r.max_concurrent_actions,
+    // Absent (a row predating the column) is read as OFF, not as a default to
+    // be filled in - see RoutePolicyRow.alightingOnlyEnabled.
+    alightingOnlyEnabled: r.alighting_only_enabled ?? false,
+    alightingOnlyMaxRefusals: r.alighting_only_max_refusals,
+    alightingOnlyRefusalWindowSeconds: r.alighting_only_refusal_window_seconds,
   }));
 }
 

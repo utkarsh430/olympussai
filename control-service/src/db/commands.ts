@@ -688,6 +688,51 @@ export async function listRecentlyCommandedVehicleIds(
   return new Set(rows.map((r) => r.vehicle_id));
 }
 
+/**
+ * How many alighting-only instructions this corridor has ISSUED in a window.
+ *
+ * The meter behind the refusal tripwire in `mpc/boardingLimit.ts`. Three
+ * things about it a reader has to know, because each is a place the number
+ * could be mistaken for something it is not:
+ *
+ *  - It counts INSTRUCTIONS, not people. Nobody counts the people a bus
+ *    refuses: `headway/deniedBoarding.ts` returns "cannot say" on every visit
+ *    on this deployment, for want of an occupancy feed and a fitted dwell
+ *    model. So the unit here is "one bus told to take nobody on at one stop",
+ *    which is the finest grain that is actually measured. A bound expressed in
+ *    passengers would be a bound on a number this system cannot read.
+ *
+ *  - It counts every status, including `expired` and `cancelled`. An expired
+ *    command may never have reached a driver, so this OVER-counts, and that is
+ *    the deliberate direction: a harm bound that errs must err toward tripping
+ *    early. Filtering to delivered commands would make an instruction that
+ *    failed on the way to the driver free, and the tripwire would then be
+ *    loosest exactly when the delivery path was least healthy.
+ *
+ *  - The corridor comes from the APPROVAL, not from the command. `commands`
+ *    has no route_direction_id (it is keyed to a vehicle), and a vehicle can be
+ *    reassigned; `dispatcher_actions.route_direction_id` records the corridor
+ *    the human was actually deciding about. The join is on a primary key and
+ *    `dispatcher_action_id` is `not null unique`, so this cannot double-count.
+ */
+export async function countBoardingLimitCommands(
+  routeDirectionId: string,
+  windowSeconds: number,
+  pool: Pool = getPool(),
+): Promise<number> {
+  if (windowSeconds <= 0) return 0;
+  const { rows } = await pool.query<{ refusals: string }>(
+    `select count(*) as refusals
+       from commands c
+       join dispatcher_actions da on da.id = c.dispatcher_action_id
+      where c.action_type = 'boarding_limit'
+        and da.route_direction_id = $1
+        and c.created_at > now() - ($2 || ' seconds')::interval`,
+    [routeDirectionId, String(windowSeconds)],
+  );
+  return Number(rows[0]?.refusals ?? 0);
+}
+
 export async function listActiveVehicleIds(
   vehicleIds: string[],
   pool: Pool = getPool(),

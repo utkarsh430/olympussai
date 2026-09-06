@@ -18,6 +18,7 @@
  * stops calling it human-originated on its own, with no edit here.
  */
 import {
+  type BoardingLimitAvailability,
   COMMAND_ACTION_TYPES,
   type CommandActionType,
   type EngineActionType,
@@ -84,6 +85,14 @@ export interface RecommendationResult {
       lambdaIsProxy: boolean;
     };
   })[];
+  /**
+   * Why `boardingLimitCandidates` is the length it is.
+   *
+   * Optional and nullable: a control service that predates the per-corridor
+   * gate sends nothing, and null means "this service cannot say" — never
+   * "available", never "no refusals".
+   */
+  boardingLimitAvailability?: BoardingLimitAvailability | null;
   /**
    * Buses that should ease off rather than be held — the only lever that
    * improves punctuality and spacing at the same time, because it spends
@@ -462,4 +471,112 @@ export function isRecommendationExpired(solvedAt: string, now: number): boolean 
   const at = Date.parse(solvedAt);
   if (Number.isNaN(at)) return true;
   return now - at > RECOMMENDATION_ACTIONABLE_MS;
+}
+
+/**
+ * What the console says about alighting-only on this corridor.
+ *
+ * ─── WHY THIS IS NOT JUST A COUNT ────────────────────────────────────────
+ *
+ * "Let people off, take nobody on" is the one instruction here whose cost is
+ * paid, visibly, by somebody who is not on the bus: a person stands at a stop
+ * and watches a bus with room on it decline them. Every other lever spends the
+ * timetable. So the console's job when it shows one of these is to put the
+ * cost beside the benefit, and its job when it does NOT show one is to say
+ * whether that is because there was nothing to show or because the corridor is
+ * not allowed to be offered it. Those are different facts and a bare empty
+ * list is the same shape for both.
+ *
+ * Three states, and the copy for each says what it is and what to do:
+ *
+ *  - `offered`   — proposals are being shown, with how much of the corridor's
+ *                  refusal budget they have already spent.
+ *  - `disabled`  — the corridor has not switched this on. The shipped state of
+ *                  every corridor on the network.
+ *  - `tripped`   — the corridor has issued as many of these instructions as its
+ *                  policy allows, so it has stopped proposing.
+ *
+ * Null (a control service that predates the gate) returns null, and the panel
+ * renders nothing: an absent field must never be dressed as a known state. So
+ * does the disabled state when it withheld nothing — see the branch for why.
+ *
+ * ─── THE COUNT IS INSTRUCTIONS, NOT PEOPLE ───────────────────────────────
+ *
+ * Said in the copy every time, because the number is small enough to be
+ * mistaken for a headcount and the difference matters enormously: six
+ * instructions at a busy interchange is not six people, and nothing in this
+ * system counts the people. Same rule as `leftBehindPassengers` being null —
+ * a quotable wrong number about refused passengers is the worst thing this
+ * page could carry.
+ */
+export interface BoardingLimitAvailabilityCopy {
+  tone: 'info' | 'warn';
+  headline: string;
+  detail: string;
+}
+
+export function describeBoardingLimitAvailability(
+  availability: BoardingLimitAvailability | null | undefined,
+): BoardingLimitAvailabilityCopy | null {
+  if (!availability) return null;
+
+  const minutes = Math.max(1, Math.round(availability.windowSeconds / 60));
+  const window = minutes >= 60 && minutes % 60 === 0 ? `${minutes / 60} h` : `${minutes} min`;
+  const instructions = (n: number) => `${n} ${n === 1 ? 'instruction' : 'instructions'}`;
+
+  if (availability.offered) {
+    const used = availability.refusalsInWindow ?? 0;
+    return {
+      tone: 'info',
+      headline: `${used} of ${availability.maxRefusals} drop-off-only instructions used in the last ${window}`,
+      detail: `${availability.remainingRefusals ?? 0} left before this corridor stops proposing them. That counts instructions sent to drivers, not the people refused — how many people a bus leaves behind is not measured.`,
+    };
+  }
+
+  if (availability.withheldReason === 'disabled_for_corridor') {
+    // ─── SILENT WHEN THERE WAS NOTHING TO WITHHOLD ─────────────────────
+    //
+    // Every corridor on this network has alighting-only switched off, so a
+    // notice shown unconditionally here would appear on every solve of every
+    // corridor forever. Copy that is always on screen is copy nobody reads,
+    // and it would be sitting directly above the two states that must be read
+    // — a suppressed proposal and a tripped wire.
+    //
+    // So the disabled state speaks only when it actually cost something: the
+    // engine worked out a proposal here and was not allowed to offer it. That
+    // number is precisely what an operator being asked whether to switch this
+    // on for their corridor is being asked about.
+    const withheld = availability.withheldCandidateCount;
+    if (withheld === 0) return null;
+
+    return {
+      tone: 'info',
+      headline: 'Drop-off only is switched off for this corridor',
+      detail:
+        `The engine worked out ${withheld} of ${withheld === 1 ? 'this instruction' : 'these instructions'} here and is not offering ${withheld === 1 ? 'it' : 'them'}. ` +
+        'Measured on this network it makes waiting worse and leaves more people behind, and its cost falls on passengers watching a bus with room on it go past. Turning it on for one corridor is a service decision, not something the engine can settle.',
+    };
+  }
+
+  // The tripwire. A warning and not an error: the corridor did what it was
+  // configured to allow, and the bound then did its job.
+  if (availability.refusalsInWindow === null) {
+    return {
+      tone: 'warn',
+      headline: 'Drop-off only is paused — its refusal limit could not be checked',
+      detail:
+        'How many of these instructions this corridor has already issued could not be read, so none are being proposed. Nothing else about this recommendation is affected.',
+    };
+  }
+
+  return {
+    tone: 'warn',
+    headline: `Drop-off only has stopped on this corridor — ${instructions(availability.refusalsInWindow)} in the last ${window}`,
+    detail:
+      `That is its limit of ${availability.maxRefusals}. ` +
+      (availability.withheldCandidateCount > 0
+        ? `${availability.withheldCandidateCount} ${availability.withheldCandidateCount === 1 ? 'proposal is' : 'proposals are'} being withheld. `
+        : '') +
+      'It starts proposing again on its own as those instructions age out of the window. This counts instructions, not the people refused, which is not measured.',
+  };
 }
