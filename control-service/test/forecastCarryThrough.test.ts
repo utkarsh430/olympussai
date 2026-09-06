@@ -53,7 +53,7 @@ describe('the sweep publishes the forecast into the MPC read model', () => {
           // The whole point: the sweep computed a forecast for this pair.
           forecastHFwdSeconds: 300,
           computedAt: '2026-09-06T00:00:00.000Z',
-        } as HeadwayComputeResult['pairs'][number],
+        },
       ],
       aggregate: {
         routeDirectionId: ROUTE_DIRECTION_ID,
@@ -63,8 +63,8 @@ describe('the sweep publishes the forecast into the MPC read model', () => {
     };
 
     await runHeadwayComputeSweep(loadEnv(), {
-      listEligible: async () => [ROUTE_DIRECTION_ID],
-      compute: async () => result,
+      listEligible: () => Promise.resolve([ROUTE_DIRECTION_ID]),
+      compute: () => Promise.resolve(result),
     });
 
     const published = stateStore.getHeadwayStates(ROUTE_DIRECTION_ID);
@@ -95,7 +95,7 @@ describe('the sweep publishes the forecast into the MPC read model', () => {
           confidence: 1,
           forecastHFwdSeconds: null,
           computedAt: '2026-09-06T00:00:00.000Z',
-        } as HeadwayComputeResult['pairs'][number],
+        },
       ],
       aggregate: {
         routeDirectionId: ROUTE_DIRECTION_ID,
@@ -105,8 +105,8 @@ describe('the sweep publishes the forecast into the MPC read model', () => {
     };
 
     await runHeadwayComputeSweep(loadEnv(), {
-      listEligible: async () => [ROUTE_DIRECTION_ID],
-      compute: async () => result,
+      listEligible: () => Promise.resolve([ROUTE_DIRECTION_ID]),
+      compute: () => Promise.resolve(result),
     });
 
     const published = stateStore.getHeadwayStates(ROUTE_DIRECTION_ID);
