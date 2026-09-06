@@ -42,9 +42,17 @@ import { stateStore, type HeadwayStateRow } from '../state/store.js';
 
 /**
  * Project a compute result onto the store's row shape. Deliberately explicit
- * rather than a spread: HeadwayPairResult carries `gapMeters`, `confidence`
- * and `forecastHFwdSeconds` that HeadwayStateRow has no place for, and the
- * MPC must read exactly the fields the boot-time rehydrate would have loaded.
+ * rather than a spread: HeadwayPairResult carries `gapMeters` and
+ * `confidence` that HeadwayStateRow has no place for, and the MPC must read
+ * exactly the fields the boot-time rehydrate would have loaded.
+ *
+ * `forecastHFwdSeconds` IS one of those fields now. It used to be dropped
+ * here, which is why the forecast reached detection and never reached a
+ * control law: `db/rehydrate.ts` did not load the column either, so nothing
+ * the MPC could see had ever carried it. Both sites now do, and they must
+ * stay in step - a row published by this sweep and a row rehydrated at boot
+ * are read by the same laws and cannot disagree about what a pair's forecast
+ * is. See mpc/actionThreshold.ts.
  */
 function toHeadwayStateRows(result: HeadwayComputeResult): HeadwayStateRow[] {
   return result.pairs.map((pair) => ({
@@ -56,6 +64,7 @@ function toHeadwayStateRows(result: HeadwayComputeResult): HeadwayStateRow[] {
     hBwdSeconds: pair.hBwdSeconds,
     targetHeadwaySeconds: pair.targetHeadwaySeconds,
     deviationSeconds: pair.deviationSeconds,
+    forecastHFwdSeconds: pair.forecastHFwdSeconds,
     computedAt: pair.computedAt,
   }));
 }

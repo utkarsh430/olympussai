@@ -71,6 +71,8 @@ function bunchedPair(overrides: Partial<HeadwayStateRow> = {}): HeadwayStateRow 
     hBwdSeconds: 630,
     targetHeadwaySeconds: 360,
     deviationSeconds: -270,
+    /** Nothing here exercises the forecast gate; a pair with no forecast is the deployed state on every corridor. */
+    forecastHFwdSeconds: null,
     computedAt: NOW.toISOString(),
     ...overrides,
   };

@@ -281,6 +281,58 @@ const baseEnvSchema = z.object({
     .transform((v) => v === 'true'),
 
   /**
+   * Whether the mid-route laws may act on a pair the ordinary action bar
+   * declines, when this corridor's own FORECAST says that pair is
+   * deteriorating toward the bar.
+   *
+   * OFF, and off is a true no-op: with this false
+   * `mpc/actionThreshold.ts#isPairActionable` is `isWorthActingOn` and the
+   * forecast field is not read at all (`test/forecastActionGate.test.ts` pins
+   * that equality over the whole ratio range).
+   *
+   * ─── THE GAP IT CLOSES ────────────────────────────────────────────────
+   *
+   * `headway/riskForecast.ts` has projected every pair's forward headway
+   * since the predictive detection tier shipped, and until now DETECTION was
+   * its only consumer: `HeadwayStateRow` carried no forecast field, so no
+   * control law could read one. The system could predict a corridor coming
+   * apart and had no way to act on the prediction.
+   *
+   * ─── WHY A GATE AND NOT A LOOSER BAR ──────────────────────────────────
+   *
+   * Acting earlier INDISCRIMINATELY is already measured and it costs:
+   * loosening the mid-route bar from 50% to 75% of H* moved excess wait 51%
+   * -> 56% and spent total passenger time 3.3% -> 1.9%. A bar cannot tell a
+   * pair heading for a bunch from a pair that is merely a little early and
+   * would have re-spaced on its own, so it buys both and charges the second
+   * group's holds to everyone aboard. `MID_ROUTE_ACTION_RATIO = 1.2` already
+   * took the half of that trade that did not spend the guardrail (12
+   * out-of-sample paired seeds), so there is no more timing to be had by
+   * moving a bar. A forecast can tell the two groups apart, which is the only
+   * mechanism in this codebase that could buy more timing without the cost.
+   *
+   * ─── WHY IT IS OFF ────────────────────────────────────────────────────
+   *
+   * Because it was measured against the CURRENT 0.6 bar and did not pay. See
+   * `docs/FORECAST_ACTION_GATE.md` for the table and the reproduction: on all
+   * three corridors the gate reaches almost no decisions, because the pairs
+   * whose forecast clears it are overwhelmingly pairs the 0.6 bar had already
+   * admitted. The mechanism is correct, the carry-through is real, and the
+   * effect on top of the raised bar is not distinguishable from zero.
+   *
+   * Revisit it if the action bar is ever LOWERED (the gate's reachable
+   * population is exactly the band between the bar and the forecast horizon,
+   * and a tighter bar widens that band), or if the forecaster starts speaking
+   * more often - it declines on r-squared, sample count and window today, and
+   * a fitted dwell model would steepen closing trends on corridors measured
+   * to amplify them.
+   */
+  FORECAST_ACTION_GATE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
+  /**
    * Whether the decision cycle PERSISTS pace guidance alongside the holds it
    * already writes to `recommendations`.
    *

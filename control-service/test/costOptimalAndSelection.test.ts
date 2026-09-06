@@ -58,6 +58,8 @@ function headway(overrides: Partial<HeadwayStateRow> = {}): HeadwayStateRow {
     hBwdSeconds: 900,
     targetHeadwaySeconds: 600,
     deviationSeconds: -300,
+    /** Nothing here exercises the forecast gate; a pair with no forecast is the deployed state on every corridor. */
+    forecastHFwdSeconds: null,
     computedAt: NOW.toISOString(),
     ...overrides,
   };

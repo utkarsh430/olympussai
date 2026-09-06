@@ -78,7 +78,12 @@ import { computeSelfEqualizingCandidates } from '../mpc/selfEqualizing.js';
 import { computeCostOptimalCandidates } from '../mpc/costOptimalHold.js';
 import { computeBoardingLimitCandidates, isBoardingLimitCandidate } from '../mpc/boardingLimit.js';
 import { canExecuteHold } from '../mpc/eligibility.js';
-import { isWorthActingOn } from '../mpc/actionThreshold.js';
+import { isPairActionable } from '../mpc/actionThreshold.js';
+import {
+  computeBunchingRisk,
+  forecastHorizonSeconds,
+  type HeadwaySampleObservation,
+} from '../headway/riskForecast.js';
 import { applyHardSafetyFilter, DEFAULT_STATE_STALE_SECONDS } from '../mpc/safety.js';
 import { computePredictiveAdvisory } from '../mpc/occupancyMpc.js';
 import { selectActions, isRankedMidRouteCandidate } from '../mpc/solver.js';
@@ -398,6 +403,36 @@ export interface DeployedControlLawsOptions {
    * follows when a corridor's sequence is not loaded.
    */
   multiStopWaitTerm?: boolean;
+  /**
+   * Whether the mid-route laws may act on a pair the ordinary action bar
+   * declines, because this pair's FORECAST says it is deteriorating toward
+   * that bar (`mpc/actionThreshold.ts#isPairActionable`).
+   *
+   * Defaults to the deployed switch (`FORECAST_ACTION_GATE_ENABLED`, off) so
+   * a rehearsal reproduces today's behaviour; overridable so the fleet trial
+   * can measure what flipping it would do before anyone flips it.
+   *
+   * Off is byte-identical here in the strong sense: with this false the
+   * forecast is not merely ignored, the sweep below never runs and no risk is
+   * ever fitted.
+   */
+  forecastGateEnabled?: boolean;
+  /**
+   * How often the forecast's sample history is appended to, seconds.
+   *
+   * This is NOT a tuning knob, it is a fidelity one. In production the
+   * forecast a control law reads was computed by the headway SWEEP
+   * (`scheduler/headwayCompute.ts`, 60 s) and stored on the row the law then
+   * reads out of `stateStore`, so it is up to one sweep old and it was fitted
+   * from samples taken on that cadence. A rehearsal that re-fitted the trend
+   * at every decision point would give the laws a forecast production does
+   * not have - fresher, and fitted from a denser series than `headway_states`
+   * ever contains - which is exactly the way this adapter has flattered the
+   * deployed system before.
+   */
+  forecastSweepIntervalSeconds?: number;
+  /** Samples the trend is fitted from, matching `BUNCHING_FORECAST_SAMPLE_WINDOW`. */
+  forecastSampleWindow?: number;
 }
 
 /**
@@ -460,6 +495,33 @@ export function createDeployedControlLawsController(
   const corridorStops = options.corridorStops ?? null;
   const multiStopWaitTerm =
     options.multiStopWaitTerm ?? loadEnv().MULTI_STOP_WAIT_TERM_ENABLED;
+  const forecastGateEnabled =
+    options.forecastGateEnabled ?? loadEnv().FORECAST_ACTION_GATE_ENABLED;
+  const forecastSweepIntervalSeconds = options.forecastSweepIntervalSeconds ?? 60;
+  const forecastSampleWindow = options.forecastSampleWindow ?? 10;
+  const forecastHorizon = forecastHorizonSeconds(policy.targetHeadwaySeconds);
+
+  // ─── THE FORECAST THE LAWS READ, ON PRODUCTION'S OWN CADENCE ─────────
+  //
+  // `headway_states` carries one sample per pair per sweep, and
+  // `headway/service.ts` fits the trend from the samples EARLIER sweeps wrote
+  // - never including the row it is about to write - then stores the
+  // projection on that row. A control law reads the stored value, so what it
+  // sees is the forecast as of the last sweep.
+  //
+  // Both halves of that are reproduced here. `samplesByPair` is the sample
+  // history, appended once per sweep interval; `forecastByPair` is the stored
+  // projection, which the decision path reads and never recomputes. Fitting
+  // at decision time instead would hand the laws a fresher and denser series
+  // than production has - see `forecastSweepIntervalSeconds`.
+  //
+  // Keyed by (leader, follower) with a NUL separator for the same reason
+  // `headway/service.ts#pairKey` uses one: both halves are vehicle
+  // registrations, so a plain concatenation makes (AB, CD) and (ABC, D) the
+  // same pair.
+  const samplesByPair = new Map<string, HeadwaySampleObservation[]>();
+  const forecastByPair = new Map<string, number | null>();
+  let lastForecastSweepSeconds: number | null = null;
 
   /**
    * stop_id -> stops left to serve from it, counting itself.
@@ -664,6 +726,65 @@ export function createDeployedControlLawsController(
       totalDistanceMeters: kinematics.totalDistanceMeters,
     });
 
+    // One headway sweep, if one is due. Runs over the WHOLE corridor and with
+    // every vehicle's natural speed - a sweep is not about a deciding bus, and
+    // `followerSpeedSource`'s forced zero below belongs to the decision path
+    // only. Decisions land far more often than every sweep interval on a
+    // corridor of this size, so the cadence is set by the clock rather than by
+    // how often this function happens to be called.
+    if (forecastGateEnabled && (lastForecastSweepSeconds === null || context.now - lastForecastSweepSeconds >= forecastSweepIntervalSeconds)) {
+      lastForecastSweepSeconds = context.now;
+      const sweepPairs = computePairHeadways(
+        ordered,
+        new Map<string, number | null>(
+          kinematics.corridor.map((vehicle) => [vehicle.vehicleId, vehicle.speedKmph]),
+        ),
+        new Map<string, number>(kinematics.corridor.map((vehicle) => [vehicle.vehicleId, 1])),
+        { totalDistanceMeters: kinematics.totalDistanceMeters },
+        context.routeDirectionId,
+        policy.targetHeadwaySeconds,
+      );
+      const seen = new Set<string>();
+      for (const sweepPair of sweepPairs) {
+        if (sweepPair.hFwdSeconds === null) continue;
+        const key = `${sweepPair.leaderVehicleId}\u0000${sweepPair.followerVehicleId}`;
+        seen.add(key);
+        const history = samplesByPair.get(key) ?? [];
+        // Fitted from EARLIER samples and projected from this sweep's h_fwd,
+        // then stored - the exact order `headway/service.ts` uses so a
+        // recorded forecast never depends on its own row.
+        const risk = computeBunchingRisk({
+          samples: history,
+          currentHFwdSeconds: sweepPair.hFwdSeconds,
+          targetHeadwaySeconds: policy.targetHeadwaySeconds,
+          bunchedThresholdRatio: policy.bunchedThresholdRatio,
+          horizonSeconds: forecastHorizon,
+          // No dwell model, matching production and `fleetTrial/detection.ts`:
+          // `fitDwellModel` needs a run of stop visits at one stop and no
+          // corridor has ever had one, so the projection stays linear.
+          dwellModel: null,
+        });
+        forecastByPair.set(key, risk?.forecastHFwdSeconds ?? null);
+        history.push({
+          hFwdSeconds: sweepPair.hFwdSeconds,
+          computedAt: isoAt(epochMs, context.now),
+        });
+        if (history.length > forecastSampleWindow) history.shift();
+        samplesByPair.set(key, history);
+      }
+      // A pair that stopped being a pair - a third bus moved between them, one
+      // finished its trip - must not leave a stale forecast behind for the day
+      // those two vehicles are adjacent again. Production gets this for free:
+      // `upsertHeadwayStates` REPLACES a direction's whole slice per cycle, so
+      // a vanished pair's row simply disappears. Keeping it here would be the
+      // rehearsal inventing a forecast production does not have.
+      for (const key of [...samplesByPair.keys()]) {
+        if (seen.has(key)) continue;
+        samplesByPair.delete(key);
+        forecastByPair.delete(key);
+      }
+    }
+
     // The deciding bus is standing at a stop - that is the only state a hold
     // can be executed from (`mpc/eligibility.ts`). Under 'vehicle_state' it
     // therefore reports the zero its own `vehicle_states` row would carry,
@@ -715,6 +836,12 @@ export function createDeployedControlLawsController(
         hBwdSeconds: pair.hBwdSeconds,
         targetHeadwaySeconds: pair.targetHeadwaySeconds,
         deviationSeconds: pair.deviationSeconds,
+        // What the last sweep recorded for this pair, not a fresh fit - see
+        // the sweep above. Null whenever the gate is off, the pair is new, or
+        // the forecaster declined to speak, and `isPairActionable` refuses to
+        // act on any of the three.
+        forecastHFwdSeconds:
+          forecastByPair.get(`${pair.leaderVehicleId}\u0000${pair.followerVehicleId}`) ?? null,
         computedAt: nowIso,
       },
     ];
@@ -911,6 +1038,7 @@ export function createDeployedControlLawsController(
       weighOccupancy,
       selfHarmCheckEnabled,
       downstreamStopsByVehicleId,
+      forecastGateEnabled,
     );
     const selfEqualizingCandidates = computeSelfEqualizingCandidates(
       headwayStates,
@@ -923,6 +1051,7 @@ export function createDeployedControlLawsController(
       weighOccupancy,
       selfHarmCheckEnabled,
       downstreamStopsByVehicleId,
+      forecastGateEnabled,
     );
     const uncheckedTwoWay = selfHarmCheckEnabled
       ? computeTwoWayCandidates(
@@ -936,6 +1065,7 @@ export function createDeployedControlLawsController(
           weighOccupancy,
           false,
           downstreamStopsByVehicleId,
+          forecastGateEnabled,
         )
       : twoWayCandidates;
     const uncheckedSelfEqualizing = selfHarmCheckEnabled
@@ -950,6 +1080,7 @@ export function createDeployedControlLawsController(
           weighOccupancy,
           false,
           downstreamStopsByVehicleId,
+          forecastGateEnabled,
         )
       : selfEqualizingCandidates;
 
@@ -963,6 +1094,7 @@ export function createDeployedControlLawsController(
       controlPointStopIds,
       weighOccupancy,
       downstreamStopsByVehicleId,
+      forecastGateEnabled,
     );
     // ─── ALIGHTING-ONLY IS ASKED ABOUT THE WHOLE CHAIN ─────────────────
     //
@@ -1000,6 +1132,11 @@ export function createDeployedControlLawsController(
       hBwdSeconds: p.hBwdSeconds,
       targetHeadwaySeconds: p.targetHeadwaySeconds,
       deviationSeconds: p.deviationSeconds,
+      // Carried for shape rather than for use: alighting-only does not consult
+      // the mid-route action bar at all (`mpc/boardingLimit.ts` has its own
+      // `bunchedThresholdRatio` guard), so the gate never reaches it.
+      forecastHFwdSeconds:
+        forecastByPair.get(`${p.leaderVehicleId}\u0000${p.followerVehicleId}`) ?? null,
       computedAt: nowIso,
     }));
     const trailingPair = pairs.find((p) => p.leaderVehicleId === followerId);
@@ -1053,8 +1190,13 @@ export function createDeployedControlLawsController(
             : 'no_hold_indicated';
     }
     // The mid-route action bar, tested by all three mid-route laws BEFORE
-    // they test eligibility - see each law's own loop.
-    const deviantEnough = isWorthActingOn(pair.hFwdSeconds, policy);
+    // they test eligibility - see each law's own loop. Asked through the same
+    // predicate the laws ask, gate included: with the gate on, a pair the
+    // forecast admitted is one the laws DID consider, and reporting it as
+    // `not_deviant_enough` would attribute the largest decline population in
+    // the trial to a guard that had not fired - the defect that reason code
+    // was added to fix.
+    const deviantEnough = isPairActionable(headwayStates[0]!, policy, forecastGateEnabled);
     if (twoWayCandidates.length === 0) {
       coverageBase.declined.two_way =
         policy.kf === null || policy.kb === null

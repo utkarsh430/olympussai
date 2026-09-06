@@ -77,12 +77,13 @@ async function loadHeadwayStates(pool: Pool): Promise<HeadwayStateRow[]> {
     h_bwd_seconds: string | null;
     target_headway_seconds: string;
     deviation_seconds: string | null;
+    forecast_h_fwd_seconds: string | null;
     computed_at: string;
   }>(
     `select distinct on (leader_vehicle_id, follower_vehicle_id)
             id, route_direction_id, leader_vehicle_id, follower_vehicle_id,
             h_fwd_seconds, h_bwd_seconds, target_headway_seconds,
-            deviation_seconds, computed_at
+            deviation_seconds, forecast_h_fwd_seconds, computed_at
        from headway_states
       order by leader_vehicle_id, follower_vehicle_id, computed_at desc`,
   );
@@ -93,6 +94,12 @@ async function loadHeadwayStates(pool: Pool): Promise<HeadwayStateRow[]> {
     followerVehicleId: r.follower_vehicle_id,
     hFwdSeconds: r.h_fwd_seconds === null ? null : Number(r.h_fwd_seconds),
     hBwdSeconds: r.h_bwd_seconds === null ? null : Number(r.h_bwd_seconds),
+    // The forecast the last sweep recorded for this pair. NULL on every row
+    // written before the predictive tier shipped, and NULL whenever the
+    // forecaster declined to speak - `mpc/actionThreshold.ts` refuses to act
+    // on either, which is what makes rehydrating an absent forecast safe.
+    forecastHFwdSeconds:
+      r.forecast_h_fwd_seconds === null ? null : Number(r.forecast_h_fwd_seconds),
     targetHeadwaySeconds: Number(r.target_headway_seconds),
     deviationSeconds: r.deviation_seconds === null ? null : Number(r.deviation_seconds),
     computedAt: r.computed_at,
