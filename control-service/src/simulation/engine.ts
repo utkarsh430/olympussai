@@ -54,6 +54,8 @@
 import { drawStream } from './rng.js';
 import { summarizeKpis } from './kpi.js';
 import { corridorStateAt } from './kinematics.js';
+import { CommandPath } from './commandLifecycle.js';
+import type { CommandBlockReason } from './commandLifecycle.js';
 import type {
   Controller,
   ControllerKinematics,
@@ -589,6 +591,15 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
   const visits: StopVisitRecord[] = [];
   const geometry = corridorGeometry(routeDirection);
 
+  // ─── THE COMMAND PATH ────────────────────────────────────────────────────
+  //
+  // One per RUN, never shared between two arms of a trial: the uncontrolled
+  // arm issues nothing, so a shared gate would leak the controlled arm's
+  // cooldowns and per-cycle budget into it and make the comparison meaningless.
+  // Undefined by default, which is what keeps every existing run exactly as it
+  // was - see `ScenarioConfig.commandLifecycle`.
+  const commandPath = config.commandLifecycle ? new CommandPath(config.commandLifecycle) : undefined;
+
   /** This vehicle's booked arrival at this stop, or null when no timetable was supplied. */
   function scheduledArrival(vehicleId: string, stopIndex: number): number | null {
     const booked = config.scheduledArrivalSeconds?.[vehicleId]?.[stopIndex];
@@ -772,6 +783,9 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
     let intendedHoldSeconds = 0;
     let appliedHoldSeconds = 0;
     let compliant = true;
+    /** Left UNDEFINED unless a command path was modelled - see `StopVisitRecord.deliveredHoldSeconds`. */
+    let deliveredHoldSeconds: number | undefined;
+    let commandBlockedBy: CommandBlockReason | undefined;
 
     if (stop.isControlPoint) {
       let kinematics: ControllerKinematics | null = null;
@@ -945,22 +959,61 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
 
       if (intendedHoldSeconds > 0) {
         const nonCompliance = nonComplianceFor(disturbances, runtime.vehicleId);
-        if (
-          nonCompliance !== null &&
-          !drawStream(seed, 'compliance', runtime.vehicleId, stopIndex).nextBoolean(
+        // Drawn HERE and passed into the command path rather than drawn inside
+        // it. The stream is keyed per (seed, purpose, vehicle, stop)
+        // (`rng.ts#drawStream`), so a command the path refuses before the
+        // driver ever sees it skips this draw without shifting anybody else's
+        // - and driver behaviour is not a command-path limit, so keeping the
+        // draw out of `CommandPath` is what lets the report separate what the
+        // control room refused from what the driver did.
+        const acceptsInstruction =
+          nonCompliance === null ||
+          drawStream(seed, 'compliance', runtime.vehicleId, stopIndex).nextBoolean(
             nonCompliance.complianceProbability,
-          )
-        ) {
+          );
+
+        // ─── THE COMMAND PATH, WHEN ONE IS MODELLED ────────────────────────
+        //
+        // Absent (the default), every proposal reaches its driver, this whole
+        // branch is skipped and the visit records no `deliveredHoldSeconds` at
+        // all - an absence meaning "not modelled", never a zero meaning
+        // "refused". See `ScenarioConfig.commandLifecycle`.
+        const command = commandPath?.submit({
+          vehicleId: runtime.vehicleId,
+          atSeconds: arrivalSeconds,
+          intendedHoldSeconds,
+          // When this bus would leave absent a hold - the instant after which
+          // an instruction has missed it. The same value the controller was
+          // offered as `readyToDepartSeconds`.
+          readyToDepartSeconds: arrivalSeconds + dwellIfBoarding,
+          acceptsInstruction,
+        });
+        if (command) {
+          deliveredHoldSeconds = command.deliveredHoldSeconds;
+          commandBlockedBy = command.blockedBy ?? undefined;
+        }
+        const delivered = command ? command.deliveredHoldSeconds : intendedHoldSeconds;
+
+        // A driver can only refuse an instruction they were given. When the
+        // command path stopped it earlier than the acknowledgement, `compliant`
+        // stays TRUE and the loss is attributed to the path - which is the
+        // whole reason `KpiSummary.complianceRate` draws its pool from the
+        // delivered seconds and not from the intended ones.
+        const reachedDriver = command === undefined || command.blockedBy === null || command.blockedBy === 'ack_refused';
+
+        if (reachedDriver && !acceptsInstruction) {
           compliant = false;
           appliedHoldSeconds = 0;
         } else {
           // A driver who took the instruction may still not serve all of it -
           // see `Disturbance`'s `compliedHoldFraction`. Absent the field this
-          // is exactly `intendedHoldSeconds`, which is the historical
-          // behaviour and what every scenario without one still gets.
+          // is exactly `delivered`, which with no command path modelled is
+          // exactly `intendedHoldSeconds` - the historical behaviour, and what
+          // every scenario without one still gets.
           const fraction = Math.max(0, Math.min(1, nonCompliance?.compliedHoldFraction ?? 1));
-          appliedHoldSeconds = intendedHoldSeconds * fraction;
+          appliedHoldSeconds = delivered * fraction;
         }
+        commandPath?.recordServed(appliedHoldSeconds);
       }
     }
 
@@ -1166,6 +1219,12 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
       onboardAfter,
       dwellSeconds,
       intendedHoldSeconds,
+      // Spread rather than assigned, so a run with no command path modelled
+      // leaves the keys OFF the record entirely instead of writing
+      // `undefined`. The distinction is what makes "not modelled" readable in
+      // a serialized visit, and it keeps a default run byte-identical.
+      ...(deliveredHoldSeconds === undefined ? {} : { deliveredHoldSeconds }),
+      ...(commandBlockedBy === undefined ? {} : { commandBlockedBy }),
       appliedHoldSeconds,
       compliant,
       departureSeconds,
@@ -1210,7 +1269,15 @@ export function simulate(config: ScenarioConfig, controller: Controller): Simula
     arrivalRatePerSecond: stop.demand.boardingRatePerMinute / 60,
   }));
 
-  return { scenarioName: config.name, controllerName: controller.name, visits, kpis, stopQueues };
+  return {
+    scenarioName: config.name,
+    controllerName: controller.name,
+    visits,
+    kpis,
+    stopQueues,
+    // Absent unless a command path was asked for. See `SimulationResult`.
+    ...(commandPath ? { commandLifecycle: commandPath.result() } : {}),
+  };
 }
 
 function validateRouteDirection(routeDirection: RouteDirectionDefinition): void {

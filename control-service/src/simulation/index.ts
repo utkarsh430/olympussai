@@ -10,6 +10,26 @@ export { Rng } from './rng.js';
 export { simulate } from './engine.js';
 export { noControlController, createSelfEqualizingController } from './controllers.js';
 export { summarizeKpis, computeHeadwaySamples } from './kpi.js';
+export {
+  CommandPath,
+  commandLifecyclePolicyFrom,
+  limitProvenance,
+  inertLimitsFor,
+  rollUpHoldSeconds,
+  COMMAND_BLOCK_REASONS,
+  SEEDED_MAX_CONCURRENT_ACTIONS,
+  DEPLOYED_DECISION_CYCLE_SECONDS,
+  CONSOLE_DEFAULT_TTL_SECONDS,
+} from './commandLifecycle.js';
+export type {
+  CommandLifecyclePolicy,
+  CommandLifecycleLedger,
+  CommandBlockReason,
+  CommandDecision,
+  HoldSecondsRollup,
+  InertLimit,
+  LimitProvenance,
+} from './commandLifecycle.js';
 export { computeReferenceKpisFromRecordedInputs } from './referenceKpi.js';
 export {
   runHistoricalReplay,

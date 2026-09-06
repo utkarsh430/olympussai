@@ -52,6 +52,19 @@ import type { BunchingScenario, BunchingScenarioId } from './scenarios.js';
 import type { FleetCorridorSpec } from './corridor.js';
 import type { CorridorInputs } from '../rehearsal/corridor.js';
 import type { ModelledInputs } from '../rehearsal/run.js';
+import {
+  COMMAND_BLOCK_REASONS,
+  commandLifecyclePolicyFrom,
+  inertLimitsFor,
+  limitProvenance,
+} from '../simulation/commandLifecycle.js';
+import type {
+  CommandBlockReason,
+  CommandLifecycleLedger,
+  CommandLifecyclePolicy,
+  InertLimit,
+  LimitProvenance,
+} from '../simulation/commandLifecycle.js';
 import type { DeclineReason, RehearsalDecisionRecord } from '../rehearsal/deployedControlLaws.js';
 import type {
   ScenarioConfig,
@@ -180,6 +193,51 @@ export interface FleetTrialSpec {
    * measurement has to be re-runnable.
    */
   alightingOnlySelectable: boolean;
+  /**
+   * Put every hold through the COMMAND PATH before the engine applies it, and
+   * report what would actually have been served beside what the laws intended.
+   *
+   * ─── OFF BY DEFAULT, AND OFF MEANS BYTE-IDENTICAL ────────────────────────
+   *
+   * `false` is not merely the old behaviour, it is the same bytes: the engine
+   * takes no different branch, no visit gains a field, and the report gains no
+   * key. `test/fleetTrial/commandLifecycle.test.ts` pins that on all three
+   * presets by comparing serialized reports.
+   *
+   * ─── AND WHY IT IS NOT ON ────────────────────────────────────────────────
+   *
+   * Not because the modelling is doubtful - three of its five limits carry a
+   * value read straight from the seeded `route_policies` - but because turning
+   * it on changes what every existing number MEANS. A trial run with this on
+   * reports a delivered rate; one run with it off reports the control law's
+   * intent. Those are different quantities and a reader comparing across weeks
+   * must be told which they are looking at, which is what
+   * `commandLifecycle.enabled` in the report is for.
+   */
+  commandLifecycle: CommandLifecycleTrialOptions;
+}
+
+/**
+ * How the trial should model the command path.
+ *
+ * The LIMITS are not here on purpose. They come from `route_policies` through
+ * `simulation/commandLifecycle.ts#commandLifecyclePolicyFrom`, so no caller
+ * can hand this trial an invented cooldown or an invented concurrency cap and
+ * have the report present it as measured. The only value a caller may set is
+ * the one nothing in this system measures.
+ */
+export interface CommandLifecycleTrialOptions {
+  enabled: boolean;
+  /**
+   * Seconds between a law deciding and the instruction reaching the driver:
+   * the decision cycle's own lag, a dispatcher's approval, delivery.
+   *
+   * ASSUMED - nothing here measures it - so it defaults to 0, which makes the
+   * headline delivered figure rest only on limits with a real seeded or
+   * shipped value behind them. Sweep it to size the sensitivity and report
+   * that separately; never fold a swept value into the headline.
+   */
+  deliveryLatencySeconds: number;
 }
 
 
@@ -202,6 +260,7 @@ export const DEFAULT_FLEET_TRIAL_SPEC: FleetTrialSpec = {
   followerSpeedSource: 'vehicle_state',
   corridorPreset: 'intercity',
   alightingOnlySelectable: false,
+  commandLifecycle: { enabled: false, deliveryLatencySeconds: 0 },
 };
 
 const PHASES: { id: PhaseId; title: string; weighOccupancy: boolean }[] = [
@@ -922,6 +981,8 @@ interface ScenarioRun {
   uncontrolledVisits: StopVisitRecord[];
   decisions: readonly RehearsalDecisionRecord[];
   config: ScenarioConfig;
+  /** What the command path did with this run's instructions. Absent unless the spec asked for one. */
+  commandLifecycle?: CommandLifecycleLedger;
 }
 
 function runScenario(args: {
@@ -935,6 +996,7 @@ function runScenario(args: {
   sweepIntervalSeconds: number;
   followerSpeedSource: 'link_average' | 'vehicle_state';
   alightingOnlySelectable: boolean;
+  commandLifecycle: CommandLifecycleTrialOptions;
   /** See `mpc/actionThreshold.ts#isPairActionable` and the `forecast_gate` study. */
   forecastGateEnabled?: boolean;
 }): ScenarioRun {
@@ -949,6 +1011,7 @@ function runScenario(args: {
     sweepIntervalSeconds,
     followerSpeedSource,
     alightingOnlySelectable,
+    commandLifecycle,
     forecastGateEnabled = false,
   } = args;
   const config = buildTrialScenario({ corridor, scenario, inputs, vehicleIds, seed });
@@ -964,7 +1027,25 @@ function runScenario(args: {
     config.dispatches,
     corridor.stops.length,
   );
-  const timetabledConfig: ScenarioConfig = { ...config, scheduledArrivalSeconds: timetable };
+  // ─── THE COMMAND PATH GOES ON THE CONTROLLED ARM ONLY ──────────────────
+  //
+  // The uncontrolled arm proposes nothing, so a gate there would refuse
+  // nothing and report an empty ledger - but it must not SHARE one with the
+  // controlled arm either, or the controlled arm's cooldowns and per-cycle
+  // budget would be charged against a run that issued no instructions. The
+  // limits come from the corridor's own policy, never from the caller: see
+  // `commandLifecyclePolicyFrom`.
+  const timetabledConfig: ScenarioConfig = {
+    ...config,
+    scheduledArrivalSeconds: timetable,
+    ...(commandLifecycle.enabled
+      ? {
+          commandLifecycle: commandLifecyclePolicyFrom(corridor.policy, {
+            deliveryLatencySeconds: commandLifecycle.deliveryLatencySeconds,
+          }),
+        }
+      : {}),
+  };
   const controller = createDeployedControlLawsController({
     policy: corridor.policy,
     epochMs: REHEARSAL_EPOCH_MS,
@@ -1073,6 +1154,7 @@ function runScenario(args: {
     uncontrolledVisits: uncontrolled.visits,
     decisions,
     config: timetabledConfig,
+    ...(controlled.commandLifecycle ? { commandLifecycle: controlled.commandLifecycle } : {}),
   };
 }
 
@@ -1552,6 +1634,7 @@ function runSelfEqualizingCoverage(args: {
         sweepIntervalSeconds: spec.sweepIntervalSeconds,
         followerSpeedSource: spec.followerSpeedSource,
         alightingOnlySelectable: spec.alightingOnlySelectable,
+        commandLifecycle: spec.commandLifecycle,
       }),
     );
   }
@@ -1680,6 +1763,7 @@ function runPolicyStudy(args: {
             sweepIntervalSeconds: spec.sweepIntervalSeconds,
             followerSpeedSource: spec.followerSpeedSource,
             alightingOnlySelectable: spec.alightingOnlySelectable,
+            commandLifecycle: spec.commandLifecycle,
             forecastGateEnabled: variant.forecastGate ?? false,
           }),
         );
@@ -2240,12 +2324,195 @@ const NOT_EXERCISED = [
   'Corridor dispersion. `travelTimeVariation` is invented like every other running-time input, and it is the one this headline is most sensitive to: holding demand fixed, excess-wait improvement measured 60.7% at the shipped preset\'s own value, 43.7% at roughly double it, and 14.1% at roughly 3.3x it - against 60.7-64.5% across a 3.3x swing in the invented boarding rate over the same range. The bunching result IS robust to demand; it is not robust to dispersion, and that is roughly an order of magnitude difference in sensitivity. See the `travel_time_variation` row in `policyStudies` for the re-runnable sweep behind this and `docs/FLEET_TRIAL.md` for how it was measured.',
 ];
 
+/**
+ * `NOT_EXERCISED` with its command-lifecycle entry REPLACED rather than
+ * deleted, for a trial that modelled the command path.
+ *
+ * Modelling it does not make the entry go away, it changes what the entry
+ * says: five limits are now in the loop, three configured columns are dead and
+ * still are, and the delivery latency is still assumed. A reader who knows the
+ * old sentence needs to be told which parts of it stopped being true, not to
+ * find it silently missing.
+ *
+ * Derived from `NOT_EXERCISED` by replacing element 0, so the four entries
+ * this task did not touch cannot drift between the two lists.
+ */
+const NOT_EXERCISED_WITH_COMMAND_PATH = [
+  'The command lifecycle, PARTLY. This trial put every proposed hold through a modelled command path: the one-active-command-per-vehicle unique index, `cooldown_seconds`, the decision cycle\u2019s `max_concurrent_actions` budget, driver acknowledgement, and TTL expiry. So these numbers are what would have been DELIVERED, not only what the laws intended - read `commandLifecycle` for both side by side, `commandLifecycle.inertLimits` for the three `route_policies` columns no code in control-service/src reads, and `commandLifecycle.notModelled` for what is still outside the loop: dispatcher approval, delivery failure and redelivery, alighting-only instructions, and supersede.',
+  ...NOT_EXERCISED.slice(1),
+];
+
+// ─── The command lifecycle's own report ──────────────────────────────────
+
+/**
+ * What the command path would have delivered, beside what the laws intended.
+ *
+ * ─── TWO NUMBERS, NEVER ONE ──────────────────────────────────────────────
+ *
+ * The whole point of this block is the GAP. `intendedHoldSeconds` is what the
+ * control laws asked for and is the quantity every trial before this one
+ * reported; `deliveredHoldSeconds` is what would have reached a driver;
+ * `servedHoldSeconds` is what a driver would actually have stood for. Collapse
+ * them into a single "compliance" figure and the comparison this exists to
+ * expose is destroyed - which is exactly what `KpiSummary.complianceRate` did
+ * on its own, reporting a corridor that serves 42% of its hold seconds as 65%
+ * obedient.
+ *
+ * ─── AND IT IS ABSENT UNLESS ASKED FOR ───────────────────────────────────
+ *
+ * `FleetTrialSpec.commandLifecycle.enabled` is false by default, and then this
+ * key is not on the report at all. An absent block means the command path was
+ * not in the loop and every number in the report is the control law's INTENT -
+ * an upper bound - which is what `notExercised` has always said in prose.
+ */
+export interface CommandLifecycleTrialReport {
+  enabled: true;
+  /** The limits the run applied, and where each value came from. Nothing here is invented. */
+  policy: CommandLifecyclePolicy;
+  limitProvenance: Record<keyof CommandLifecyclePolicy, LimitProvenance>;
+  /** Configured limits that do nothing, and which kind of nothing. THE OPERATOR-FACING FINDING. */
+  inertLimits: InertLimit[];
+  /** Hold instructions the control laws proposed, over the whole trial. */
+  proposals: number;
+  /** Of those, how many reached a driver's screen. */
+  issued: number;
+  /** Instructions a driver accepted. */
+  acknowledged: number;
+  /** Instructions the TTL cut short of what was delivered. */
+  truncatedByExpiry: number;
+  intendedHoldSeconds: number;
+  deliveredHoldSeconds: number;
+  servedHoldSeconds: number;
+  /** `deliveredHoldSeconds / intendedHoldSeconds`. What the COMMAND PATH costs. Null when nothing was proposed. */
+  deliveredShareOfIntent: number | null;
+  /** `servedHoldSeconds / intendedHoldSeconds`. What the path AND the drivers cost together. Null when nothing was proposed. */
+  servedShareOfIntent: number | null;
+  /** Instructions each limit refused. */
+  blockedBy: Record<CommandBlockReason, number>;
+  /** Intended hold seconds each limit refused - the same losses, priced, which is the ordering an operator should act on. */
+  holdSecondsLostTo: Record<CommandBlockReason, number>;
+  /** Stated rather than left to be discovered. */
+  notModelled: string[];
+}
+
+function emptyBlockCounts(): Record<CommandBlockReason, number> {
+  const out = {} as Record<CommandBlockReason, number>;
+  for (const reason of COMMAND_BLOCK_REASONS) out[reason] = 0;
+  return out;
+}
+
+/**
+ * Sums the ledgers of the runs it is given into one trial-level answer.
+ *
+ * Sums rather than averages: an instruction is an instruction whichever
+ * scenario produced it, and `vehiclesPerPhase` is split across scenarios, so a
+ * mean of per-scenario rates would weight a scenario with four instructions
+ * the same as one with four hundred. The same reason `poolArm` pools samples.
+ *
+ * ─── SCOPE: THE TWO PHASES, NOT THE STUDIES ──────────────────────────────
+ *
+ * Called on the two headline phases only. The policy studies and the
+ * self-equalizing coverage arm run with the same command path applied - so
+ * their KPIs are delivered figures too, and stay comparable with the headline
+ * - but their instructions are not pooled in here, because those arms exist to
+ * compare CONFIGURATIONS against each other and folding their volume into one
+ * corridor-level delivered rate would describe a fleet nobody ran.
+ *
+ * ─── AND ONE THING THE PER-SCENARIO SPLIT UNDERSTATES ────────────────────
+ *
+ * `max_concurrent_actions` is a budget per CORRIDOR per cycle, and each
+ * scenario runs as its own corridor with `vehiclesPerPhase / scenarios.length`
+ * buses on it - six to thirteen at the sizes this trial is run at. A real
+ * corridor carries its whole fleet, so the concurrency cap would bind harder
+ * there than it does here. Read `blockedBy.max_concurrent_actions` as a LOWER
+ * bound on that limit specifically; every other limit here is per vehicle and
+ * is unaffected by the split.
+ */
+function commandLifecycleReport(
+  runs: readonly ScenarioRun[],
+  policy: CommandLifecyclePolicy,
+): CommandLifecycleTrialReport {
+  const blockedBy = emptyBlockCounts();
+  const holdSecondsLostTo = emptyBlockCounts();
+  let proposals = 0;
+  let issued = 0;
+  let acknowledged = 0;
+  let truncatedByExpiry = 0;
+  let intendedHoldSeconds = 0;
+  let deliveredHoldSeconds = 0;
+  let servedHoldSeconds = 0;
+
+  for (const run of runs) {
+    const ledger = run.commandLifecycle;
+    if (!ledger) continue;
+    proposals += ledger.proposals;
+    issued += ledger.issued;
+    acknowledged += ledger.acknowledged;
+    truncatedByExpiry += ledger.truncatedByExpiry;
+    intendedHoldSeconds += ledger.intendedHoldSeconds;
+    deliveredHoldSeconds += ledger.deliveredHoldSeconds;
+    servedHoldSeconds += ledger.servedHoldSeconds;
+    for (const reason of COMMAND_BLOCK_REASONS) {
+      blockedBy[reason] += ledger.blockedBy[reason];
+      holdSecondsLostTo[reason] += ledger.holdSecondsLostTo[reason];
+    }
+  }
+
+  return {
+    enabled: true,
+    policy,
+    limitProvenance: limitProvenance(),
+    inertLimits: inertLimitsFor(policy),
+    proposals,
+    issued,
+    acknowledged,
+    truncatedByExpiry,
+    intendedHoldSeconds: Math.round(intendedHoldSeconds),
+    deliveredHoldSeconds: Math.round(deliveredHoldSeconds),
+    servedHoldSeconds: Math.round(servedHoldSeconds),
+    deliveredShareOfIntent:
+      intendedHoldSeconds > 0 ? deliveredHoldSeconds / intendedHoldSeconds : null,
+    servedShareOfIntent: intendedHoldSeconds > 0 ? servedHoldSeconds / intendedHoldSeconds : null,
+    blockedBy,
+    holdSecondsLostTo,
+    notModelled: COMMAND_LIFECYCLE_NOT_MODELLED,
+  };
+}
+
+/**
+ * What this model still does NOT do, said here rather than left for a reader
+ * to find out by being wrong about it.
+ */
+const COMMAND_LIFECYCLE_NOT_MODELLED = [
+  'Dispatcher approval. Every authorized_actions entry the trial runs on is automatic, and no human sits between the solver and the command. A real corridor whose action needs approval adds a person\u2019s reaction time to the delivery latency below, and this models that only through `deliveryLatencySeconds`, which defaults to 0.',
+  'The delivery latency itself. Nothing in this system measures how long an instruction takes to reach a driver, so it is declared (`limitProvenance.deliveryLatencySeconds` = "assumed"), defaulted to 0, and swept separately rather than folded into any headline. At 0 the only limits that bite are ones with a real seeded or shipped value behind them.',
+  'Webhook delivery failure and the redelivery sweep. `commandDeliverySweep` re-attempts commands resting in `authorized`; a command that never leaves that state is not modelled here, and `route_policies.retry_count` would not govern it if it were.',
+  'Alighting-only instructions. `boarding_limit` is a real command and would take a slot in the same budget, but it is off on every corridor and off by default in this trial (`alightingOnlySelectable`), so gating it here would change a lever nobody has switched on. Holds only.',
+  'Supersede. A newer command replacing a live one (`POST /v1/commands/:id/supersede`) is a path out of the one-active-command constraint that this models as a plain refusal, so the `conflicting_active_command` count is an upper bound on that limit specifically.',
+];
+
+
 // ─── Entry point ─────────────────────────────────────────────────────────
+
+/**
+ * A trial report, plus the command-lifecycle block when one was asked for.
+ *
+ * The extra key is declared HERE rather than on `FleetTrialReport` in
+ * `types.ts` deliberately: it is optional, so an absent key leaves the wire
+ * shape and every existing reader exactly as they were, and the default-off
+ * report is byte-identical to one produced before this file knew about the
+ * command path. Promoting it into the wire type (and its Zod mirror in the web
+ * app, `src/models/fleetTrial.ts`) is what a console would need to RENDER it;
+ * until then it reaches a reader through `sim:fleet --out`'s `report.json`.
+ */
+export type FleetTrialReportWithLifecycle = FleetTrialReport & {
+  commandLifecycle?: CommandLifecycleTrialReport;
+};
 
 export function runFleetTrial(
   spec: FleetTrialSpec = DEFAULT_FLEET_TRIAL_SPEC,
   onProgress?: (done: number, total: number, label: string) => void,
-): FleetTrialReport {
+): FleetTrialReportWithLifecycle {
   const startedAt = Date.now();
   const preset = CORRIDOR_PRESETS[spec.corridorPreset];
   // The spec's own corridor wins over the preset's, so a caller can vary one
@@ -2323,6 +2590,7 @@ export function runFleetTrial(
         sweepIntervalSeconds: spec.sweepIntervalSeconds,
         followerSpeedSource: spec.followerSpeedSource,
         alightingOnlySelectable: spec.alightingOnlySelectable,
+        commandLifecycle: spec.commandLifecycle,
       });
       runs.push(run);
       done++;
@@ -2481,6 +2749,18 @@ export function runFleetTrial(
     occupancyContrast,
     selfEqualizingCoverage,
     provenance: buildProvenance(corridor, inputs, spec),
-    notExercised: NOT_EXERCISED,
+    notExercised: spec.commandLifecycle.enabled ? NOT_EXERCISED_WITH_COMMAND_PATH : NOT_EXERCISED,
+    // Absent when the command path was not modelled. An absent key IS the
+    // statement that every number above is the control law's intent.
+    ...(spec.commandLifecycle.enabled
+      ? {
+          commandLifecycle: commandLifecycleReport(
+            runsByPhase.flat(),
+            commandLifecyclePolicyFrom(corridor.policy, {
+              deliveryLatencySeconds: spec.commandLifecycle.deliveryLatencySeconds,
+            }),
+          ),
+        }
+      : {}),
   };
 }
