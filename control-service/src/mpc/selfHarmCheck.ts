@@ -13,8 +13,8 @@
 // `objective.ts#computePassengerCost` and then emit it whatever the answer.
 // MEASURED on the urban fleet trial with occupancy weighting ON, the mean
 // objectiveCost of the SELECTED candidates - which are exactly these laws'
-// holds, `cost_optimal` being unselectable - is +1,028.8 passenger-seconds.
-// Suburban is +1,744.6 and inter-city +4,008.0. On its own reading the
+// holds, `cost_optimal` being unselectable - is +1,021.4 passenger-seconds.
+// Suburban is +1,874.0 and inter-city +4,271.4. On its own reading the
 // controller is issuing thousands of instructions it scores as net harmful.
 //
 // ─── AND WHY IT IS OFF BY DEFAULT ────────────────────────────────────────
@@ -31,9 +31,13 @@
 // that number does not decline harmful holds; it declines holds the objective
 // cannot see the benefit of, which is nearly all of them.
 //
-// That is not an argument, it is the measurement: with this switch ON, total
-// passenger time - the guardrail - gets WORSE on all three corridors in both
-// occupancy phases. See docs/SELF_HARM_CHECK.md for the full table.
+// That is not an argument, it is the measurement. With this switch ON and
+// occupancy weighting on, the controller stops holding: urban goes 2,086 holds
+// to 3 and total passenger time +4.69% -> +0.02%, while suburban and inter-city
+// issue ZERO on every seed. Occupancy-blind it halves the holds and spends
+// 2.5-4.3 points of excess-wait gain - the headline - to raise an
+// already-satisfied guardrail by about a third of a point, which is optimising
+// the tripwire instead of the target. See docs/SELF_HARM_CHECK.md.
 //
 // So this ships OFF, as an instrument rather than a fix. It is the cheapest way
 // to answer "what would the controller do if it believed its own objective?",

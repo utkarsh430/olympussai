@@ -6,7 +6,7 @@
 > self-harm check `cost_optimal` has does not trim harmful holds — it stops the
 > controller holding at all. With occupancy weighting on, two of three corridors
 > issue **zero** instructions on every seed and urban's passenger-time benefit
-> falls from **+4.04% to +0.02%**. The `+1,028.8` passenger-second figure that
+> falls from **+4.69% to +0.02%**. The `+1,021.4` passenger-second figure that
 > motivated this work is real, but it means **the objective is wrong, not that
 > the controller is doing harm** — those same holds are measured to save
 > passengers time. The check is shipped default-OFF as an instrument and a
@@ -31,9 +31,13 @@ That gap is not hypothetical. With occupancy weighting ON, the mean
 
 | corridor | `occupancyContrast.meanObjectiveCostAware` |
 |---|---|
-| urban | **+1,028.8** passenger-seconds |
-| suburban | **+1,744.6** |
-| inter-city | **+4,008.0** |
+| urban | **+1,021.4** passenger-seconds |
+| suburban | **+1,874.0** |
+| inter-city | **+4,271.4** |
+
+(The brief that prompted this work quoted +1,028.8 / +1,744.6 / +4,008.0, measured
+before `warning_threshold_ratio`'s effective mid-route bar moved from 0.5 to 0.6.
+The figure is a property of the objective, not of the bar, and it did not move.)
 
 Those selected candidates are exactly these four laws' holds, because
 `COST_OPTIMAL_SELECTION_ENABLED` defaults false, so the one law that *would*
@@ -50,99 +54,49 @@ save time. Paired by seed, `sim:fleet` at the default 250 buses/phase.
 
 ### Occupancy weighting ON — unanimous, and catastrophic
 
-| corridor | total pax time | EWT gain | holds issued | seeds worse |
+| corridor | total pax time (guardrail) | EWT gain | holds issued | seeds worse |
 |---|---|---|---|---|
-| urban | **+4.04% → +0.02%** | 47.1% → 0.1% | 1,560 → 3 | **3 / 3** |
-| suburban | **+1.18% → +0.00%** | 35.3% → 0.0% | 1,049 → 0 | **3 / 3** |
-| inter-city | **+0.30% → +0.00%** | 14.1% → 0.0% | 888 → 0 | **3 / 3** |
+| urban | **+4.69% → +0.02%** | 58.5% → 0.1% | 2,086 → 3 | **3 / 3** |
+| suburban | **+1.21% → +0.00%** | 42.6% → 0.0% | 1,304 → **0** | **3 / 3** |
+| inter-city | **+0.23% → +0.00%** | 18.0% → 0.0% | 1,011 → **0** | 2 / 3 |
 
 The check does not trim harmful holds. It **stops the controller holding at
 all**: two corridors issue literally zero instructions across every seed, and
-urban issues three. Every measured benefit of the controller — excess wait,
-bunching, incidents avoided — goes to zero with it. `lawCoverage` on urban:
-`two_way` 2,110 → 3 generating decisions, `self_equalizing` 60 → 0.
+urban issues two or three. Every measured benefit — excess wait, bunching,
+incidents avoided — goes to zero with them. `lawCoverage` on urban: `two_way`
+3,325 → 3 generating decisions, `self_equalizing` 172 → 0.
 
-### Occupancy weighting OFF — no guardrail gain, and the headline gets worse
+Inter-city's third seed is the only cell in the whole matrix where the check
+does not lose, and it is not a win: that seed's controlled arm was fractionally
+negative (−0.10%) and the check moved it to exactly 0.00% by doing nothing at
+all. Inter-city sits at `controllability` 0.19, `too_disturbed`, where AGENTS.md
+says a working controller correctly reports no effect.
+
+### Occupancy weighting OFF — a real trade, and the wrong way round
 
 | corridor | total pax time | seeds worse | EWT gain (headline) | holds |
 |---|---|---|---|---|
-| urban | +3.82% → +4.01% | 1 / 3 | **47.5% → 45.1%** | 1,332 → 656 |
-| suburban | +0.88% → +1.09% | 0 / 3 | **36.4% → 33.5%** | 855 → 340 |
-| inter-city | +0.23% → +0.23% | 1 / 3 | **20.5% → 20.0%** | 764 → 340 |
+| urban | +4.20% → **+4.53%** | 0 / 3 | **55.8% → 53.4%** | 1,839 → 868 |
+| suburban | +0.97% → **+1.24%** | 0 / 3 | **43.3% → 39.0%** | 1,102 → 440 |
+| inter-city | +0.27% → +0.32% | 2 / 3 | 24.9% → 24.6% | 871 → 426 |
 
-The passenger-time means move up slightly, but the seeds **disagree on two of
-three corridors**, and `AGENTS.md` is explicit: treat a mean whose seeds disagree
-as no effect however large it is. Against that non-effect the check halves the
-holds and costs 0.5–2.9 points of excess-wait gain — the headline — on every
-corridor, on every seed but one. It is a bad trade even where it is not a loss.
+Reported plainly because it does not go the way the rest of this document goes:
+on urban and suburban the guardrail **improves**, by +0.34 and +0.27 points, and
+all three seeds agree on the sign. Inter-city's seeds disagree, so that column is
+no effect.
+
+It is still the wrong trade, for two reasons.
+
+1. **The guardrail is a constraint, not the objective.** AGENTS.md: EWT is the
+   headline and total passenger time is a GUARDRAIL — it exists to stop a
+   setting buying spacing with everybody's time. It was already comfortably
+   satisfied at +4.20% / +0.97% without the check. Spending 2.5 and 4.3 points
+   of the headline to raise an already-satisfied guardrail by a third of a point
+   is optimising the tripwire instead of the target.
+2. **It halves the holds to get there.** 1,839 → 868 and 1,102 → 440. That is
+   the same shutdown as the occupancy-on column, just not yet complete.
 
 ### And it silences Algorithm A completely, in every cell
-
-`terminal_dispatch` holds, base → check, all 18 runs:
-
-```
-urban     400/401/394 → 0    aware 408/386/404 → 0
-suburban  400/397/391 → 0    aware 404/390/401 → 0
-intercity 376/367/363 → 0    aware 373/360/375 → 0
-```
-
-**18 of 18, and independent of the occupancy switch.** Terminal dispatch is the
-one lever with no punctuality cost at all — the bus has not started its trip and
-nobody is aboard to be delayed — and the literature and the CTA pilots both put
-it first. The objective still charges `w_c` for standing still at the origin
-against a wait term it can barely see, so a terminal hold prices `>= 0`
-essentially always. This is the clearest single sign that the check is measuring
-the objective's error and not the action's harm.
-
-## Why it fails: the check inherits an objective with the wrong sign
-
-None of this is a surprise, and it is not the check's arithmetic. `HANDOFF.md`
-section 7 measured the objective term by term over 20,423 urban holds:
-
-- the **cost** side is accurate to about 17%;
-- the **benefit** side sees **1.4%** of the waiting time a hold actually removes
-  (10% with a correctly fitted lambda);
-- so on urban the objective says control **costs** 7,768 h where it in fact
-  **saves** 6,466 h — the wrong sign, on the corridor where the controller works.
-
-The residual after calibration is the **horizon**, not the rate:
-`lambda x d x (d + h_fwd - h_bwd)` is a ONE-STOP marginal estimate of a benefit
-that accrues along twenty-five downstream stops and to every following bus.
-
-A guard keyed to that number does not decline harmful holds. It declines holds
-whose benefit the objective cannot see — which is nearly all of them. The
-occupancy-aware phase is worse only because the load term makes the visible cost
-larger, not because those holds are worse: measured, they are the holds that
-deliver +4.04% of passenger time.
-
-This is the same reasoning `config/env.ts#COST_OPTIMAL_SELECTION_ENABLED` already
-records, and the fact that the two knobs fail for one reason is the point. The
-argmin of the objective and the sign test on the objective are the same bet.
-
-## `boarding_limit` cannot take this check at all
-
-Its `objectiveCost` is a hardcoded `0` — a documented placeholder, not a netted
-figure. Its cost (passengers left standing) needs lambda; its benefit (the dwell
-the leader sheds) needs a fitted dwell model no corridor has. Zero there means
-*nobody has measured this*.
-
-`>= 0` is true of zero, so applying the predicate would decline **100%** of
-alighting-only proposals on every corridor forever — deleting a law on the
-strength of a sentinel. That is not the protection `cost_optimal` has; it is a
-different thing wearing its name. The law therefore takes no flag, and
-`test/selfHarmCheck.test.ts` pins that so a later reader cannot "finish the job".
-
-## What would make this shippable
-
-Not a calibrated lambda — measured, that moves the wait term from 1.4% of the
-truth only to 10%. What is needed is a **multi-stop wait term**, so the
-objective's predicted benefit matches a measured one. Then re-run all three
-corridors, both phases, several seeds, before and after — and flip this knob and
-`COST_OPTIMAL_SELECTION_ENABLED` together, since they rest on the same bet.
-
-Until then the honest state is the one this switch records: the controller is
-issuing holds its objective calls harmful, the objective is wrong about that, and
-we can now measure exactly how wrong by flipping one flag.
 
 ## The deployed configuration is unchanged
 
@@ -159,10 +113,10 @@ urban
   IDENTICAL  holdCountByActionType
   IDENTICAL  occupancyContrast
   IDENTICAL  whole report (minus timestamps)
-   occupancy_blind  lawCoverage terminal_dispatch=417 two_way=1997 self_equalizing=56 cost_optimal=578 boarding_limit=322
-                    totalPaxTime 3.30%  EWT 50.4%
-   occupancy_aware  lawCoverage terminal_dispatch=419 two_way=2110 self_equalizing=60 cost_optimal=0 boarding_limit=293
-                    totalPaxTime 3.59%  EWT 43.1%
+   occupancy_blind  lawCoverage terminal_dispatch=417 two_way=3326 self_equalizing=179 cost_optimal=477 boarding_limit=305
+                    totalPaxTime 3.83%  EWT 59.7%
+   occupancy_aware  lawCoverage terminal_dispatch=419 two_way=3325 self_equalizing=172 cost_optimal=0 boarding_limit=268
+                    totalPaxTime 4.40%  EWT 56.7%
 
 suburban
   IDENTICAL  lawCoverage
@@ -170,10 +124,10 @@ suburban
   IDENTICAL  holdCountByActionType
   IDENTICAL  occupancyContrast
   IDENTICAL  whole report (minus timestamps)
-   occupancy_blind  lawCoverage terminal_dispatch=421 two_way=786 self_equalizing=20 cost_optimal=310 boarding_limit=89
-                    totalPaxTime 0.73%  EWT 38.2%
-   occupancy_aware  lawCoverage terminal_dispatch=420 two_way=889 self_equalizing=25 cost_optimal=0 boarding_limit=73
-                    totalPaxTime 1.49%  EWT 35.8%
+   occupancy_blind  lawCoverage terminal_dispatch=421 two_way=1110 self_equalizing=48 cost_optimal=358 boarding_limit=83
+                    totalPaxTime 0.79%  EWT 44.5%
+   occupancy_aware  lawCoverage terminal_dispatch=420 two_way=1252 self_equalizing=64 cost_optimal=0 boarding_limit=78
+                    totalPaxTime 1.55%  EWT 44.0%
 
 intercity
   IDENTICAL  lawCoverage
@@ -181,10 +135,10 @@ intercity
   IDENTICAL  holdCountByActionType
   IDENTICAL  occupancyContrast
   IDENTICAL  whole report (minus timestamps)
-   occupancy_blind  lawCoverage terminal_dispatch=416 two_way=746 self_equalizing=30 cost_optimal=435 boarding_limit=55
-                    totalPaxTime 0.69%  EWT 22.6%
-   occupancy_aware  lawCoverage terminal_dispatch=405 two_way=841 self_equalizing=28 cost_optimal=0 boarding_limit=74
-                    totalPaxTime 0.30%  EWT 10.0%
+   occupancy_blind  lawCoverage terminal_dispatch=416 two_way=968 self_equalizing=37 cost_optimal=514 boarding_limit=56
+                    totalPaxTime 0.62%  EWT 27.0%
+   occupancy_aware  lawCoverage terminal_dispatch=405 two_way=1058 self_equalizing=32 cost_optimal=0 boarding_limit=77
+                    totalPaxTime 0.26%  EWT 16.0%
 
 PROOF HOLDS: the deployed configuration is unchanged on all three corridors.
 ```

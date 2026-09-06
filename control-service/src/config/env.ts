@@ -180,7 +180,7 @@ const baseEnvSchema = z.object({
    *
    * The gap it closes is real. With occupancy weighting on, the mean
    * `objectiveCost` of the candidates the controller actually SELECTS is
-   * +1,028.8 passenger-seconds on urban, +1,744.6 on suburban and +4,008.0 on
+   * +1,021.4 passenger-seconds on urban, +1,874.0 on suburban and +4,271.4 on
    * inter-city - thousands of instructions the controller prices as harmful on
    * its own reading, with the one law that would have declined them silent
    * because it is not selectable (see COST_OPTIMAL_SELECTION_ENABLED above).
@@ -191,7 +191,7 @@ const baseEnvSchema = z.object({
    * demonstrably works. MEASURED with this on, across all three corridors and
    * both occupancy phases, total passenger time - the GUARDRAIL - gets worse
    * every time, and on urban the controller stops holding almost entirely:
-   * two-way coverage 2,110 -> 25 generating decisions. Full table in
+   * two-way coverage 3,325 -> 3 generating decisions. Full table in
    * docs/SELF_HARM_CHECK.md.
    *
    * Turn it on when the objective's predicted benefit matches a measured one -
