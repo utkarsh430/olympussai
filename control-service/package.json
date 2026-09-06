@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "check:arrival-sql": "node scripts/check-arrival-sql.mjs",
     "sim:run": "tsx --env-file-if-exists=.env.local src/evaluation/cli.ts",
     "sim:fleet": "tsx --env-file-if-exists=.env.local src/fleetTrial/cli.ts"
@@ -38,6 +39,7 @@
     "@types/node": "^20.17.14",
     "@types/pg": "^8.11.10",
     "@types/supertest": "^6.0.2",
+    "@vitest/coverage-v8": "3.2.7",
     "eslint": "^9.18.0",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",
