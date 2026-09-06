@@ -94,14 +94,14 @@ async function loadHeadwayStates(pool: Pool): Promise<HeadwayStateRow[]> {
     followerVehicleId: r.follower_vehicle_id,
     hFwdSeconds: r.h_fwd_seconds === null ? null : Number(r.h_fwd_seconds),
     hBwdSeconds: r.h_bwd_seconds === null ? null : Number(r.h_bwd_seconds),
+    targetHeadwaySeconds: Number(r.target_headway_seconds),
+    deviationSeconds: r.deviation_seconds === null ? null : Number(r.deviation_seconds),
     // The forecast the last sweep recorded for this pair. NULL on every row
     // written before the predictive tier shipped, and NULL whenever the
     // forecaster declined to speak - `mpc/actionThreshold.ts` refuses to act
     // on either, which is what makes rehydrating an absent forecast safe.
     forecastHFwdSeconds:
       r.forecast_h_fwd_seconds === null ? null : Number(r.forecast_h_fwd_seconds),
-    targetHeadwaySeconds: Number(r.target_headway_seconds),
-    deviationSeconds: r.deviation_seconds === null ? null : Number(r.deviation_seconds),
     computedAt: r.computed_at,
   }));
 }

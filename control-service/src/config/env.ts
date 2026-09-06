@@ -311,21 +311,47 @@ const baseEnvSchema = z.object({
    * moving a bar. A forecast can tell the two groups apart, which is the only
    * mechanism in this codebase that could buy more timing without the cost.
    *
-   * ─── WHY IT IS OFF ────────────────────────────────────────────────────
+   * ─── WHY IT IS OFF: IT WORKS, AND IT SPENDS THE GUARDRAIL ─────────────
    *
-   * Because it was measured against the CURRENT 0.6 bar and did not pay. See
-   * `docs/FORECAST_ACTION_GATE.md` for the table and the reproduction: on all
-   * three corridors the gate reaches almost no decisions, because the pairs
-   * whose forecast clears it are overwhelmingly pairs the 0.6 bar had already
-   * admitted. The mechanism is correct, the carry-through is real, and the
-   * effect on top of the raised bar is not distinguishable from zero.
+   * Measured against the CURRENT 0.6 bar - the comparison that matters, since
+   * comparing against the old 0.5 would credit the gate with a win already
+   * shipped. 19 scenarios x 250 vehicles/phase at 12 PAIRED base seeds per
+   * corridor, both rows on the identical corridor and the identical bar, 95%
+   * bootstrap intervals over the seed-level differences. Full tables,
+   * headline-scoped re-runs and reproduction in
+   * `docs/FORECAST_ACTION_GATE.md`.
    *
-   * Revisit it if the action bar is ever LOWERED (the gate's reachable
-   * population is exactly the band between the bar and the forecast horizon,
-   * and a tighter bar widens that band), or if the forecaster starts speaking
-   * more often - it declines on r-squared, sample count and window today, and
-   * a fitted dwell model would steepen closing trends on corridors measured
-   * to amplify them.
+   *   corridor    excess wait (headline)         total passenger time (GUARD)
+   *   urban       +0.23pp [-0.24, +0.73]  6/12   -0.24pp [-0.27, -0.20]  12/12
+   *   suburban    +2.12pp [+1.53, +2.72] 12/12   -0.37pp [-0.41, -0.34]  12/12
+   *   intercity   +2.64pp [+2.19, +3.06] 12/12   -0.16pp [-0.18, -0.14]  12/12
+   *
+   * The mechanism is reachable and it is not cosmetic: it buys 4-22% more
+   * holds, and on suburban and inter-city those are real spacing gains with
+   * every seed agreeing. But total passenger time worsens on EVERY corridor
+   * with 12/12 agreement, and the guardrail is a constraint here rather than
+   * a term in a ratio - a proposal that worsens it is not an improvement, so
+   * the headline gains do not qualify. The cost is not an artefact of the
+   * saturated scenario either; it survives re-running over each corridor's
+   * own `headlineScope`.
+   *
+   * On URBAN - the corridor where holding demonstrably works - it buys
+   * nothing at all: the headline effect spans zero with seeds splitting 6/12,
+   * while still paying the guardrail.
+   *
+   * Note the corridor ordering is the OPPOSITE of the expected one. The gate
+   * buys most where the corridor is most disturbed (inter-city, sigma_leg/H*
+   * 0.19, which gains least from control overall) and least where control
+   * works best. See section 6 of the doc.
+   *
+   * Three things would change the answer, and only three: a LOWER action bar
+   * (the gate's reachable population is the band between the bar and what the
+   * forecast can see); a forecaster that speaks more often (it declines on
+   * r-squared, sample count and window today, and passes no dwell model);
+   * or relaxing the guardrail from a constraint to a ratio - on inter-city
+   * this trade is +2.64pp for -0.16pp, about 16:1, against the 3.6:1 of the
+   * 50%->75% bar loosening that was rejected. That last is a service-policy
+   * question and not a simulation result.
    */
   FORECAST_ACTION_GATE_ENABLED: z
     .enum(['true', 'false'])

@@ -497,8 +497,13 @@ export function createDeployedControlLawsController(
     options.multiStopWaitTerm ?? loadEnv().MULTI_STOP_WAIT_TERM_ENABLED;
   const forecastGateEnabled =
     options.forecastGateEnabled ?? loadEnv().FORECAST_ACTION_GATE_ENABLED;
-  const forecastSweepIntervalSeconds = options.forecastSweepIntervalSeconds ?? 60;
-  const forecastSampleWindow = options.forecastSampleWindow ?? 10;
+  // Both defaults come from the deployed configuration rather than from a
+  // literal here, so a rehearsal that does not override them is fitting the
+  // trend from the same cadence and the same depth of history production has.
+  const forecastSweepIntervalSeconds =
+    options.forecastSweepIntervalSeconds ?? loadEnv().HEADWAY_COMPUTE_INTERVAL_MS / 1000;
+  const forecastSampleWindow =
+    options.forecastSampleWindow ?? loadEnv().BUNCHING_FORECAST_SAMPLE_WINDOW;
   const forecastHorizon = forecastHorizonSeconds(policy.targetHeadwaySeconds);
 
   // ─── THE FORECAST THE LAWS READ, ON PRODUCTION'S OWN CADENCE ─────────

@@ -129,6 +129,25 @@ alert surface). Read the constant's docblock before changing it — it carries t
 was rejected before it. Terminal dispatch is deliberately NOT gated: it holds a
 bus nobody is aboard yet.
 
+The bar reads the CURRENT gap and nothing else, which makes it structurally
+late on an unstable plant. The forecast that could fix that now REACHES the
+laws - `HeadwayStateRow.forecastHFwdSeconds`, populated by
+`scheduler/headwayCompute.ts` and `db/rehydrate.ts`, read by
+`isPairActionable`. It had existed since the predictive detection tier and
+reached detection ONLY, because the row every control law reads had no field
+for it. `FORECAST_ACTION_GATE_ENABLED` acts on it and ships OFF: measured at 12
+paired seeds per corridor against the current 0.6 bar, it buys 4-22% more holds
+and real excess-wait gains on suburban (+2.1pp) and inter-city (+2.6pp), and
+worsens total passenger time on EVERY corridor 12/12 - so under this harness's
+own rule the headline gains do not qualify. On urban it buys nothing (interval
+spans zero, 6/12) and still costs. Two things there are worth carrying forward
+whatever happens to the flag: a null forecast must NEVER admit (absence of a
+prediction is not a prediction - the control-side mirror of the null-risk rule
+above), and the gate only ever WIDENS, so a reassuring forecast cannot veto a
+measured deviation. `docs/FORECAST_ACTION_GATE.md` has the tables and the one
+surprise - the gate helps MOST where the corridor is most disturbed, the
+opposite of the expected ordering.
+
 `occupancyAdjustedMaxHoldSeconds` makes the load bind on the ACTION. The occupancy
 switch could not: it feeds `objectiveCost`, a RANKING input, and the mid-route
 laws are mutually exclusive so there is never a second selectable candidate to
