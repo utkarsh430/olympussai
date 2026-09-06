@@ -93,6 +93,37 @@ One formula, one place: `lib/dispersion.ts` holds the second-moment EWT/CV arith
 
 **Demand can be fitted without ticketing data.** `pnpm sim:run --calibrate` (`evaluation/calibrate.ts`) fits `dwell = beta_0 + beta_h x h_preceding` from `stop_visits`, then derives `lambda = beta_h / beta_b` — because boardings ≈ lambda x h, the fitted slope IS the compound quantity. `beta_b` (seconds per boarding) is the one assumed number and every derived rate scales inversely with it; alighting fraction and capacity stay modelled. The same fit yields `1 + beta_h`, the headway amplification eigenvalue that says whether a corridor needs control at all. `mpc/objective.ts` still proxies lambda as `1/H*` — wiring the fitted value in is a live-control-law change and has not been made.
 
+## The two invented inputs, measured - and what a fit here is really grouped by
+
+`docs/CALIBRATION_MEASURED.md` (flag `CALIBRATION_CONTAMINATION_FILTER_ENABLED`, default off,
+`control-service/src/calibration/{contamination,dispersion,flags}.ts`) is the measurement of
+lambda and `travelTimeVariation` against the first day `stop_visits` filled. Four things from it
+that a session will otherwise re-derive or get wrong.
+
+**`fitDwellModel` groups by (route_direction_id, stop_id), not by stop, and drops the first visit
+in each group.** So a network-wide "N stops have enough visits" count is not the number of stops
+that can fit, and it overstates it by roughly a third on this network. `isCalibrated` then wants
+half of ONE corridor's stops. Count at the fitter's own grouping before predicting what a
+calibration run will yield.
+
+**`travelTimeVariation` is the CV of one LEG's running time, never a headway CV.** The network's
+1.78 headway CV is a real and severe irregularity - it survives removing the sub-second gaps
+(1.79 -> 1.73) and gets WORSE when parked and laying-over buses are excluded - but it is an
+outcome, it is already ~1.51 in the first quarter of a route, and substituting it here would put
+a road input an order of magnitude above anything a road produces. Measured leg-time dispersion
+is 0.21 (95% CI [0.18, 0.26]) against a shipped 0.14-0.18.
+
+**A layover is the dangerous dwell, not the noisy one.** Its length comes from the same timetable
+as the dispatch interval, so regressing it on preceding headway returns a confident slope with no
+boarding in it - unfiltered, that produces corridors whose fitted `1 + beta_h` reaches 2.5, which
+is a corridor that cannot run. Bound a dwell by what boarding could produce
+(`beta_0 + beta_b x capacity`), never by a percentile.
+
+**`buildLinkObservations` pairs visits adjacent in a VEHICLE's timeline, not stops adjacent on the
+ROUTE**, and `fitLinkTravelTimes` keys on `toStopId` - so a missed geofence files a two-leg time
+against the last leg of the run. Measured, 44.6% of the traversals the shipped fit uses are not
+one leg of the route they are filed against.
+
 ## Headway is measured against the corridor's pace, not a bus's own speed
 
 `headway/metrics.ts` converts a gap in METRES into a gap in SECONDS, and the
@@ -381,7 +412,7 @@ A command goes `authorized` (on create/supersede) -> `delivered` -> `acknowledge
 
 `getStateEstimationService()` (`control-service/src/state-estimation/singleton.ts`) is the only construction path used by both HTTP ingestion and the GPS poller, and it wraps `PgStateEstimationRepository` in `CachedGeometryRepository`. A method the decorator forgets to forward simply does not exist in the running service. That is not hypothetical: `recordStopVisit` was missing from it, the interface member was `?`-optional so `implements StateEstimationRepository` still type-checked, and `stop_visits` stayed at 0 for the life of the service while every other writer on the same path worked - 77 minutes of healthy ingestion with 302 vehicles inside a geofence produced not one row, and `calibration/dwell.ts`, `calibration/linkTravelTime.ts`, `schedule/punctuality.ts` and the `ewt_at_stop_seconds`/`cv_at_stop`/`on_time_rate` KPI columns all silently had no input. Every member of `StateEstimationRepository` is now non-optional and `test/stopVisitWiring.test.ts` asserts the decorator implements every method the Pg repository does, so the next omission fails at compile time and in CI. **Never make a repository member optional to spare an implementer, and construct the decorator - not the raw repository - in any test that claims to prove ingestion behaviour.**
 
-**One definition of "which stop is this vehicle at."** `stopStateClassifier.isAtStop` is it (30 m geofence, or within the 150 m approach window and still closing), and `current_stop_id`, `stop_state_entered_at` and the `held_by_controller` association all answer from it. When the estimator asked the geofence while the classifier also associated on the approach window, 43% of live stop associations (measured: 649 with a stop id, 368 with an entry time) carried a stop with no entry time, and `stopVisit.ts#detectCompletedStopVisit` needs both - so they could never close. `stop_state_entered_at` means "when this vehicle's association with `current_stop_id` began", not "when it became stationary"; `arrival-prediction/dwell.ts` charges elapsed dwell from it and inherits that. Measured by replaying one captured feed window through both candidate rules: associating on the approach window is strictly additive (it doubles recorded visits and loses none), but the visits it adds are passages rather than arrivals - 22% show the bus ever reporting <= 2 km/h, against 38% of geofence visits, median closest approach 76 m. Right for `computeStopHeadways`/`schedule/punctuality.ts`, which difference departures; wrong for `calibration/dwell.ts`, whose `dwellSeconds` is `departedAt - arrivedAt`. **Before `fitDwellModel` ever has its 12 samples per stop, split the two on `stop_visits.source` (`gps_approach` vs `gps_geofence`) and filter the dwell fit to geofence visits.**
+**One definition of "which stop is this vehicle at."** `stopStateClassifier.isAtStop` is it (30 m geofence, or within the 150 m approach window and still closing), and `current_stop_id`, `stop_state_entered_at` and the `held_by_controller` association all answer from it. When the estimator asked the geofence while the classifier also associated on the approach window, 43% of live stop associations (measured: 649 with a stop id, 368 with an entry time) carried a stop with no entry time, and `stopVisit.ts#detectCompletedStopVisit` needs both - so they could never close. `stop_state_entered_at` means "when this vehicle's association with `current_stop_id` began", not "when it became stationary"; `arrival-prediction/dwell.ts` charges elapsed dwell from it and inherits that. Measured by replaying one captured feed window through both candidate rules: associating on the approach window is strictly additive (it doubles recorded visits and loses none), but the visits it adds are passages rather than arrivals - 22% show the bus ever reporting <= 2 km/h, against 38% of geofence visits, median closest approach 76 m. Right for `computeStopHeadways`/`schedule/punctuality.ts`, which difference departures; wrong for `calibration/dwell.ts`, whose `dwellSeconds` is `departedAt - arrivedAt`. That comparison chose the geofence rule and the estimator writes ONLY `gps_geofence`: `stop_visits.source` admits `gps_geofence` and `avl_stop_event` and nothing else, `gps_approach` exists nowhere in this repo, and every row recorded on the live feed is `gps_geofence`. **There is no source split to make** - a session sent looking for one will not find it. The dwell contamination that IS present is a different one, and `docs/CALIBRATION_MEASURED.md` measures it.
 
 ## E2E testing convention: don't give a spec the REST client it's proving doesn't need to exist
 
