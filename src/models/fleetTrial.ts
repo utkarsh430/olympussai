@@ -51,6 +51,13 @@ const spacingKpisSchema = z.object({
   deniedBoardings: z.number(),
   firstTimeDeniedBoardings: z.number(),
   totalBoardings: z.number(),
+  /**
+   * The share the `saturated` flag is drawn on, published so a reader never
+   * has to build one from `deniedBoardings / totalBoardings` - refusal EVENTS
+   * over a HEADCOUNT, which reads about four times high and put 52% beside a
+   * flag saying false. See `fleetTrial/types.ts#SpacingKpis`.
+   */
+  deniedShare: z.number().nullable(),
   saturated: z.boolean(),
 });
 
@@ -201,9 +208,19 @@ const phaseReportSchema = z.object({
   weighOccupancy: z.boolean(),
   vehicleCount: z.number(),
   scenarios: z.array(scenarioReportSchema),
+  /**
+   * THE HEADLINE POOL: the scenarios named in `headlineScope`, which excludes
+   * any that ran past the saturation line. See `fleetTrial/types.ts#PhaseReport`.
+   */
   controlled: armReportSchema,
   uncontrolled: armReportSchema,
   contrast: armContrastSchema,
+  /** The same three over EVERY scenario the phase ran, published beside the headline. */
+  allScenarios: z.object({
+    controlled: armReportSchema,
+    uncontrolled: armReportSchema,
+    contrast: armContrastSchema,
+  }),
   scenarioAgreement: z.object({
     positive: z.number(),
     count: z.number(),
@@ -264,6 +281,22 @@ export const fleetTrialReportSchema = z.object({
   durationMs: z.number(),
   corridorPreset: z.object({ id: z.string(), title: z.string(), description: z.string() }),
   alightingOnlySelectable: z.boolean(),
+  /**
+   * Which scenarios every phase's headline figures are an average of.
+   *
+   * A top-line number that silently changes population as the scenario library
+   * grows is not comparable with last week's, and one of the scenarios exists
+   * to prove the harness reports NOTHING past the denied-boarding line. See
+   * `fleetTrial/types.ts#FleetTrialReport`.
+   */
+  headlineScope: z.object({
+    includedScenarioIds: z.array(z.string()),
+    excludedScenarios: z.array(
+      z.object({ id: z.string(), title: z.string(), deniedShare: z.number() }),
+    ),
+    fellBackToAllScenarios: z.boolean(),
+    note: z.string(),
+  }),
   corridor: z.object({
     routeDirectionId: z.string(),
     routeName: z.string(),

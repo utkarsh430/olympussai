@@ -779,14 +779,22 @@ describe('a whole trial', () => {
     }
   });
 
-  it('pools bunched-seconds-open across scenarios additively, the same as every other incident total', () => {
+  // Additive across scenarios, and additive across the RIGHT scenarios. An
+  // `ArmReport` describes one population: the headline pool covers the
+  // scenarios in `headlineScope`, `allScenarios` covers every one the phase
+  // ran, and an incident total that summed a different set from the spacing
+  // and passenger figures beside it would be the same class of quiet
+  // incoherence the headline scope exists to remove.
+  it('pools bunched-seconds-open across scenarios additively, over the population each pool claims', () => {
+    const inHeadline = new Set(report.headlineScope.includedScenarioIds);
     for (const phase of report.phases) {
       for (const arm of ['controlled', 'uncontrolled'] as const) {
-        const summed = phase.scenarios.reduce(
-          (acc, s) => acc + s[arm].incidents.bunchedSecondsOpen,
-          0,
+        const sumOver = (scenarios: typeof phase.scenarios) =>
+          scenarios.reduce((acc, s) => acc + s[arm].incidents.bunchedSecondsOpen, 0);
+        expect(phase[arm].incidents.bunchedSecondsOpen).toBe(
+          sumOver(phase.scenarios.filter((s) => inHeadline.has(s.id))),
         );
-        expect(phase[arm].incidents.bunchedSecondsOpen).toBe(summed);
+        expect(phase.allScenarios[arm].incidents.bunchedSecondsOpen).toBe(sumOver(phase.scenarios));
       }
     }
   });

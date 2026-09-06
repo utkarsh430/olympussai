@@ -72,7 +72,12 @@ function renderArm(label: string, arm: ArmReport): string {
     `EWT ${arm.spacing.ewtSeconds?.toFixed(0) ?? '-'}s`.padEnd(12),
     `CV ${arm.spacing.headwayCv?.toFixed(3) ?? '-'}`.padEnd(11),
     `bunched ${(arm.spacing.bunchingRate * 100).toFixed(1)}%`.padEnd(15),
-    `denied ${arm.spacing.deniedBoardings}`.padEnd(14),
+    // The refusal-EVENT count and the HEADCOUNT share the flag is drawn on,
+    // side by side and labelled. Printing the event count alone invited the
+    // reader to divide it by boardings, which reads about four times high.
+    `denied ${arm.spacing.deniedBoardings} (${
+      arm.spacing.deniedShare === null ? '-' : `${(arm.spacing.deniedShare * 100).toFixed(1)}% of people offered`
+    })`.padEnd(38),
     `incidents ${arm.incidents.detected} (${arm.incidents.resolved} resolved)`,
     arm.spacing.saturated ? '  [SATURATED - see report]' : '',
   ].join('');
@@ -116,6 +121,12 @@ function renderPhase(phase: PhaseReport): string[] {
     renderArm('no control', phase.uncontrolled),
     renderArm('controlled', phase.controlled),
     ...renderContrast(phase.contrast),
+    // Never the headline alone. The all-scenarios figure is the same trial
+    // over a population that includes any scenario built to report nothing,
+    // and a reader has to be able to see both to know which they are quoting.
+    `    all ${phase.scenarios.length} scenarios  net passenger time ${pct(
+      phase.allScenarios.contrast.passengerSecondsSavedPercent,
+    )}   excess wait ${pct(phase.allScenarios.contrast.ewtImprovementPercent)} better`,
     renderAgreement(phase),
     `    alighting-only   ${phase.controlled.punctuality.alightingOnlyActions} instructions, ${phase.controlled.punctuality.alightingOnlyPassengersPassed} passengers left for the bus behind`,
     '',
@@ -157,6 +168,10 @@ function renderReport(report: FleetTrialReport): string {
         : `${(report.scheduleFit.shareBeyondLatenessBound * 100).toFixed(0)}% of buses already past the lateness bound with no control [${report.scheduleFit.band}]`
     }`,
     `    ${report.scheduleFit.note}`,
+    `  headline scope: ${report.headlineScope.includedScenarioIds.length} of ${
+      report.headlineScope.includedScenarioIds.length + report.headlineScope.excludedScenarios.length
+    } scenarios`,
+    `    ${report.headlineScope.note}`,
   ];
   for (const phase of report.phases) lines.push(...renderPhase(phase));
   for (const study of report.policyStudies) {

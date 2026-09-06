@@ -962,6 +962,95 @@ controller stays positive but its gain collapses by two to three times while it
 issues as many hold seconds as ever, which is a controller working hard and
 buying little rather than one that has stopped.
 
+### The headline may not average a scenario built to lose
+
+`oversaturated` exists to prove the harness reports NO effect past the
+denied-boarding line. Pooled into the single top-line "net passenger time"
+figure with the eighteen readable scenarios it does not report an effect — it
+dilutes one, with a measurement that was never able to carry a signal.
+
+Measured, same code, same run, urban at the default 500 buses/phase:
+
+| scenario set | net passenger time | first-time denied share |
+|---|---|---|
+| all 19 | **+0.95%** | 12.2% |
+| the 18 that are not saturated | **+2.46%** | 3.9% |
+
+Anyone comparing +0.95% with a figure from before `oversaturated` was added
+would read a controller that had got three times worse overnight, when what had
+changed was the test set. So every phase now carries two pools:
+
+* `PhaseReport.controlled` / `.uncontrolled` / `.contrast` — **the headline**,
+  pooled over `FleetTrialReport.headlineScope.includedScenarioIds`;
+* `PhaseReport.allScenarios` — the same three over every scenario the phase ran,
+  published beside the headline and never in place of it. It reproduces the
+  previous figure exactly.
+
+Three properties of the rule are the point of it, and undoing any of them
+re-opens the defect:
+
+1. **The exclusion is MEASURED, never an id list.** A scenario is out when
+   either arm is past `SATURATION_DENIED_SHARE`. A list would go stale the first
+   time a scenario was renamed, and would silently keep including the next one
+   that crossed the line — on inter-city at 500 that is `station_surge` (21%)
+   and `building_peak` (25%) as well as `oversaturated` (57%), and none of the
+   three is named anywhere in the code.
+2. **Either arm, not both.** The contrast is a difference of quantities
+   saturation bounds, so one saturated side is enough to make it unreadable.
+3. **Decided once for the trial, across every phase.** Saturation is measured
+   per arm, so two phases could exclude different scenarios — and a comparison
+   between two figures averaged over two different scenario sets is not a
+   comparison.
+
+`scenarioAgreement` deliberately still counts EVERY scenario, excluded ones
+included: it is the surface on which a scenario designed to lose should be
+visible, and it is where `oversaturated` shows up as the worst row.
+
+When every scenario saturates there is nothing readable to pool, so the headline
+falls back to the full set and `headlineScope.fellBackToAllScenarios` says so.
+Reporting the empty pool instead would render as an em dash, which reads as "the
+trial found nothing" rather than "every scenario was past the line".
+
+### The saturation flag and the denied share are one expression
+
+`SpacingKpis` published `deniedBoardings` (refusal EVENTS — a passenger three
+full buses turn away is three of these) and `totalBoardings` (a HEADCOUNT, each
+person once) and a `saturated` flag, and said nothing about which arithmetic the
+flag was drawn on. A reader building a share from the two numbers in front of
+them got `deniedBoardings / totalBoardings`, which divides a rate by a headcount:
+measured on urban at 500 it read **52%** beside a flag reading **false**. Both
+numbers were honest and they were about different things.
+
+`SpacingKpis.deniedShare` now carries
+`firstTimeDeniedBoardings / (firstTimeDeniedBoardings + totalBoardings)`, and
+`saturated` is `deniedShare > SATURATION_DENIED_SHARE` and nothing else. They
+cannot disagree, because they are the same expression. Null — not zero — when
+nobody was offered a seat at all.
+
+### The console says whose report it is showing
+
+`GET /v1/fleet-trial/latest` serves the last report the control-service PROCESS
+produced, from one module-level variable, to every caller. A trial anyone runs
+through the API becomes what the next person opening the console sees, and a
+restart loses it entirely. The page rendered that on load with no statement of
+when it ran, on what corridor, or at what fleet size — which is how a 60-bus
+diagnostic run reporting −7.9% was read off a page whose own controls said
+1,000 buses.
+
+The fix is provenance, not per-user state in the control service. Deliberately:
+the trial is a pure computation over a spec that travels inside its own result,
+it writes nothing and reads no database, and the report is not private data —
+there is no user at that layer to attach it to. Sessions there would add state
+to a deliberately stateless endpoint and still leave the defect, because a stale
+report of your own misleads exactly as much as a fresh one of somebody else's.
+
+So the console states what the report IS: when it ran, on which corridor, at
+what fleet size, whether it is the reader's own run or whatever ran last, and
+whether it is old enough that the deployed laws it measured may have moved. The
+page's own controls are seeded from the report rather than from a fixed default,
+and offer the size it actually ran even when that is not one of the presets —
+a control reading 1,000 above a 60-bus report is the mismatch itself.
+
 Two cautions a reader needs before acting on any per-scenario row.
 
 **The default trial has no statistical power per scenario.** `vehiclesPerPhase`

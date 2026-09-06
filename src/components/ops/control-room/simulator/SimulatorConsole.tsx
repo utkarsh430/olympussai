@@ -32,7 +32,7 @@
  * which is the wrong half: holding is the only in-vehicle term control makes
  * worse. See `fleetTrial/types.ts#PassengerOutcome`.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   OpsAlert,
   OpsBadge,
@@ -55,6 +55,11 @@ import {
 } from '@/components/ops/ui';
 import { MareyComparison, PassengerBalance, StationHolds, SweepBands } from './TrialCharts';
 import {
+  headlineNetPassengerTime,
+  trialProvenance,
+  type TrialOrigin,
+} from '@/lib/ops/fleetTrialView';
+import {
   CLOSE_REASON_LABEL,
   DECLINE_LABEL,
   LAW_LABEL,
@@ -73,6 +78,8 @@ const secs = (value: number | null, digits = 0) => (value === null ? '—' : `${
 const mins = (value: number | null) => (value === null ? '—' : `${(value / 60).toFixed(1)} min`);
 const pct = (value: number | null, digits = 1) => (value === null ? '—' : `${value.toFixed(digits)}%`);
 const hrs = (value: number) => `${Math.round(value / 3600).toLocaleString()} h`;
+/** Null is "nobody was offered a seat", which is not zero. */
+const deniedShareLabel = (share: number | null) => (share === null ? 'no passenger reached this arm' : pct(share * 100));
 
 /**
  * Severity as one of the console's own chips.
@@ -170,7 +177,16 @@ function ArmContrastTable({ arm }: { arm: { uncontrolled: ArmReport; controlled:
           />
           <ContrastRow
             label="Passengers refused a seat"
-            hint="rises if spacing was bought by stranding people"
+            // The refusal-EVENT count with the HEADCOUNT share beside it. A
+            // reader shown only the event count builds a share by dividing it
+            // by boardings, which divides a rate by a headcount and reads
+            // about four times high - 52% on a corridor whose saturation flag
+            // correctly said false.
+            hint={`rises if spacing was bought by stranding people — ${deniedShareLabel(
+              u.spacing.deniedShare,
+            )} of people offered a seat were refused one, ${deniedShareLabel(
+              c.spacing.deniedShare,
+            )} under control`}
             baseline={num(u.spacing.deniedBoardings)}
             controlled={num(c.spacing.deniedBoardings)}
             improvement={
@@ -388,19 +404,77 @@ function ScenarioPanel({
   );
 }
 
+/**
+ * What the figures below are an average of, said before they are read.
+ *
+ * ─── WHY THIS IS NOT THE OLD SATURATION BANNER ───────────────────────────
+ *
+ * There was one, and it fired on the POOLED arm: "this phase ran a saturated
+ * corridor". Pooling eighteen readable scenarios with one built to saturate
+ * put the pooled first-time denied share at 12% - under the one-fifth bar - so
+ * the banner stayed silent while one of the ingredients behind every number on
+ * the page was a scenario that cannot respond to control at all.
+ *
+ * The scope is now decided per scenario on the service and named here. Three
+ * states, and each is a different thing to tell a reader:
+ *
+ *   * scenarios were excluded — say which, and what the full set says;
+ *   * nothing was excluded — say that too, so silence is never ambiguous;
+ *   * everything saturated — the headline IS the full set, and the figures
+ *     below cannot be read as a verdict on the controller.
+ */
+function HeadlineScopeNotice({ phase, report }: { phase: PhaseReport; report: FleetTrialReport }) {
+  const headline = headlineNetPassengerTime(report);
+  const allPercent = phase.allScenarios.contrast.passengerSecondsSavedPercent;
+  const headlinePercent = phase.contrast.passengerSecondsSavedPercent;
+  const signed = (value: number | null) =>
+    value === null ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
+
+  if (headline.fellBackToAllScenarios) {
+    return (
+      <OpsAlert tone="warning" title="Every scenario in this trial ran past the saturation line">
+        {headline.note} There was no readable subset to average, so the figures below are the whole
+        set — and past that line a working controller correctly reports very little effect. Read them
+        as a check on the harness, not as a verdict on the controller.
+      </OpsAlert>
+    );
+  }
+
+  if (headline.excludedScenarios.length === 0) {
+    return (
+      <OpsAlert tone="info" title={`Averaged over all ${headline.totalScenarioCount} scenarios`}>
+        None of them ran past the saturation line, so every scenario this phase ran is behind the
+        figures below.
+      </OpsAlert>
+    );
+  }
+
+  return (
+    <OpsAlert
+      tone="info"
+      title={`The figures below average ${headline.includedScenarioCount} of ${headline.totalScenarioCount} scenarios`}
+    >
+      {headline.excludedScenarios
+        .map((s) => `${s.title} (${pct(s.deniedShare * 100, 0)} of people offered a seat were refused one)`)
+        .join(', ')}{' '}
+      {headline.excludedScenarios.length === 1 ? 'is' : 'are'} left out. Past the saturation line
+      waiting time is bounded by how many seats exist rather than by how they are spaced, so spacing
+      control cannot move the figure there and averaging it in only pulls the headline towards zero.
+      Over all {headline.totalScenarioCount} this phase reads{' '}
+      <span className="tabular-nums text-foreground">{signed(allPercent)}</span> net passenger time
+      against <span className="tabular-nums text-foreground">{signed(headlinePercent)}</span> here;
+      the excluded scenarios are still shown in full below, and in the agreement count.
+    </OpsAlert>
+  );
+}
+
 function PhaseBody({ phase, report }: { phase: PhaseReport; report: FleetTrialReport }) {
   const [scenarioId, setScenarioId] = useState(phase.scenarios[0]?.id ?? null);
   const scenario = phase.scenarios.find((s) => s.id === scenarioId) ?? phase.scenarios[0] ?? null;
 
   return (
     <div className="space-y-6">
-      {phase.controlled.spacing.saturated || phase.uncontrolled.spacing.saturated ? (
-        <OpsAlert tone="warning" title="This phase ran a saturated corridor">
-          More than a fifth of offered passengers were refused a seat. Past that line waiting time is
-          bounded by how many seats exist rather than by how they are spaced, so the wait figures below
-          cannot respond to control and a working controller correctly reports very little effect.
-        </OpsAlert>
-      ) : null}
+      <HeadlineScopeNotice phase={phase} report={report} />
 
       <OpsGrid columns={2}>
         <OpsPanel
@@ -576,13 +650,116 @@ function PhaseBody({ phase, report }: { phase: PhaseReport; report: FleetTrialRe
   );
 }
 
+/**
+ * When this report was produced, on what, and whether it is the reader's own.
+ *
+ * ─── THE PAGE LOAD IS THE DEFECT, NOT THE RUN ────────────────────────────
+ *
+ * Clicking Run does update the page: the POST returns a fresh report and it is
+ * rendered. What was wrong is the LOAD. `GET /v1/fleet-trial/latest` serves the
+ * last report the control-service PROCESS produced, to every caller, from a
+ * single module-level variable - so a trial anyone runs through the API becomes
+ * what the next person sees, and a restart loses it. A 60-bus diagnostic run
+ * reporting -7.9% was read this way off a page whose own controls said 1,000
+ * buses.
+ *
+ * The fix is to say what the report is rather than to give the control service
+ * per-user state. Deliberately: the trial is a pure computation over its own
+ * spec, it writes nothing and reads no database, and the report is not private
+ * data - there is no user at that layer to attach it to. Sessions there would
+ * add state to a deliberately stateless endpoint AND still leave the label
+ * missing, because a stale report of your own is just as misleading as a fresh
+ * one of somebody else's. What a reader needs is when, what, and whose.
+ */
+function ProvenanceBanner({
+  report,
+  origin,
+}: {
+  report: FleetTrialReport;
+  origin: TrialOrigin;
+}) {
+  // The clock arrives only after mount. This component is server-rendered for
+  // the first paint and hydrated in the browser; a relative age read off
+  // `new Date()` in both places is two different strings and a hydration
+  // mismatch. Everything the report itself knows renders on the first paint.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+  }, [report.generatedAt, origin]);
+
+  const view = trialProvenance(report, origin, now);
+  return (
+    <OpsAlert
+      tone={view.stale ? 'warning' : 'info'}
+      title={view.isThisSessionsRun ? 'Your run' : 'A stored result — not necessarily yours'}
+    >
+      <p>{view.ownership}</p>
+      <p className="mt-1">
+        <span className="text-foreground">{view.summary}</span>
+        {view.generatedAtLabel === null ? (
+          <span className="text-subtle">
+            {' '}
+            — the service did not send a readable timestamp, so how old this is cannot be said.
+          </span>
+        ) : (
+          <span className="text-subtle">
+            {' '}
+            (<time dateTime={view.generatedAtLabel}>{view.generatedAtLabel}</time>,{' '}
+            {num(view.vehiclesSimulated)} buses in all)
+          </span>
+        )}
+      </p>
+      {view.stale ? (
+        <p className="mt-1">
+          Old enough that the deployed control laws it measured may not be the deployed laws any
+          more. Run it again before quoting it.
+        </p>
+      ) : null}
+    </OpsAlert>
+  );
+}
+
+/** The fleet sizes the control offers by default. */
+const FLEET_SIZES = [100, 250, 500, 1000] as const;
+
+/**
+ * The sizes the control offers, with whatever the loaded report actually ran.
+ *
+ * A report run through the API at a size this list does not hold - a 60-bus
+ * diagnostic run, say - would otherwise leave the control showing a size the
+ * report on screen was not run at, which is precisely the mismatch that let
+ * that run be read as a fleet trial. The control has to be able to say what
+ * happened before it can be trusted to say what will.
+ */
+function fleetSizeOptions(ran: number | null): number[] {
+  const sizes = new Set<number>(FLEET_SIZES);
+  if (ran !== null && ran > 0) sizes.add(ran);
+  return [...sizes].sort((a, b) => a - b);
+}
+
 export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialReport | null }) {
   const [report, setReport] = useState(initialReport);
   const [phaseId, setPhaseId] = useState(initialReport?.phases[0]?.id ?? 'occupancy_blind');
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [vehiclesPerPhase, setVehiclesPerPhase] = useState(500);
-  const [corridorPreset, setCorridorPreset] = useState<CorridorPresetId>('intercity');
+  /**
+   * Where the report on screen came from. NOT a property of the report - the
+   * control service serves the same bytes to everyone - so it cannot come off
+   * the wire and is tracked here, for this page load only.
+   */
+  const [origin, setOrigin] = useState<TrialOrigin>('stored');
+  // Seeded from the loaded report, not from a fixed default. The controls
+  // describe the next run, and a control saying 1,000 above a 60-bus report is
+  // exactly how a 60-bus diagnostic run came to be read as a fleet trial.
+  const initialProvenance = initialReport
+    ? trialProvenance(initialReport, 'stored')
+    : null;
+  const [vehiclesPerPhase, setVehiclesPerPhase] = useState<number>(
+    initialProvenance?.vehiclesPerPhase ?? 500,
+  );
+  const [corridorPreset, setCorridorPreset] = useState<CorridorPresetId>(
+    initialProvenance?.corridorPresetId ?? 'intercity',
+  );
 
   const run = useCallback(async () => {
     setRunning(true);
@@ -603,6 +780,7 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
         return;
       }
       setReport(body as FleetTrialReport);
+      setOrigin('this-session');
       setPhaseId((body as FleetTrialReport).phases[0]?.id ?? 'occupancy_blind');
     } catch {
       setError('The trial could not be reached. Nothing was changed.');
@@ -639,7 +817,7 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
           onChange={(event) => setVehiclesPerPhase(Number(event.target.value))}
           disabled={running}
         >
-          {[100, 250, 500, 1000].map((n) => (
+          {fleetSizeOptions(initialProvenance?.vehiclesPerPhase ?? null).map((n) => (
             <option key={n} value={n}>
               {n} ({n * 2} in all)
             </option>
@@ -676,6 +854,8 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
   return (
     <div className="space-y-6">
       {error ? <OpsAlert tone="error" title="The last run failed">{error}</OpsAlert> : null}
+
+      <ProvenanceBanner report={report} origin={origin} />
 
       <OpsPanel
         title={report.corridor.routeName}
