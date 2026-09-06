@@ -105,9 +105,17 @@ fabricated large number. Do not reintroduce a constant floor.
 `mpc/actionThreshold.ts`. The mid-route laws are proportional controllers, so
 they proposed for ANY shortfall: 83% of holds went to pairs above the corridor's
 own `warning_threshold_ratio` - pairs its alert surface would never have raised.
-`isWorthActingOn` declines below that bar, reusing the corridor's own ratio
-rather than a new constant. Terminal dispatch is deliberately NOT gated: it holds
-a bus nobody is aboard yet.
+`isWorthActingOn` declines below that bar. The bar is the corridor's own ratio
+scaled by `MID_ROUTE_ACTION_RATIO`, which is **1.2** — so with the seeded
+`warning_threshold_ratio` of 0.5 it sits at 0.6 of H*, just ABOVE the alert bar
+rather than exactly on it. That multiplier is where a change to the action bar
+belongs: `warning_threshold_ratio` also drives the detector, so moving the
+corridor config to get the same effective bar would silently change what
+operators are alerted about (measured: identical control results, different
+alert surface). Read the constant's docblock before changing it — it carries the
+12-seed out-of-sample evidence and the argument, and the weaker fitted 0.8 that
+was rejected before it. Terminal dispatch is deliberately NOT gated: it holds a
+bus nobody is aboard yet.
 
 `occupancyAdjustedMaxHoldSeconds` makes the load bind on the ACTION. The occupancy
 switch could not: it feeds `objectiveCost`, a RANKING input, and the mid-route
