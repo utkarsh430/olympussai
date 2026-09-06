@@ -309,17 +309,21 @@ const baseEnvSchema = z.object({
    *
    * ─── WHY IT IS OFF DESPITE COSTING NOTHING ───────────────────────────
    *
-   * Because the rows have no reader. `recommendations` is written by this
-   * cycle and read by exactly two things: the cycle's own dedupe fingerprint
-   * (src/db/recommendations.ts#findLatestRecommendation) and a retention
-   * guard (src/scheduler/retention.ts). No route serves the table and no
-   * console fetches it. Until something reads it, turning this on writes
-   * rows nobody sees, at a cost in write volume and retention - so the
-   * honest default is off, and the flag is here so the decision to start
-   * writing them is a deliberate one rather than a side effect.
+   * It was off because the rows had no reader at all: `recommendations` was
+   * written by this cycle and read by exactly two things, the cycle's own
+   * dedupe fingerprint (src/db/recommendations.ts#findLatestRecommendation)
+   * and a retention guard (src/scheduler/retention.ts). No route served the
+   * table and no console fetched it.
    *
-   * Turn it on when a surface reads `recommendations`. Nothing here issues a
-   * command, on or off: every row is `status = 'proposed'`.
+   * That is no longer true - `RECOMMENDATION_FEED_ENABLED` below mounts
+   * `GET /v1/recommendations`, which the web app's standing-proposal panel
+   * reads - but this stays off, because the reader is off too and because
+   * these two are separate decisions. This one governs how much the cycle
+   * WRITES; that one governs whether anything reads it. Turning this on
+   * while the feed is off still writes rows nobody sees.
+   *
+   * The feed does surface `paceAdvisories` when both are on. Nothing here
+   * issues a command in any combination: every row is `status = 'proposed'`.
    */
   PACE_GUIDANCE_ON_DECISION_CYCLE_ENABLED: z
     .enum(['true', 'false'])
@@ -393,6 +397,59 @@ const baseEnvSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+
+  /**
+   * Whether `GET /v1/recommendations` is mounted - the read that gives the
+   * decision cycle's stored proposals a consumer at last.
+   *
+   * OFF, and off is a TRUE no-op: `createApp()` does not mount the router,
+   * so the path 404s exactly as it did before this existed, no query is ever
+   * issued, and no other handler's behaviour changes by a byte.
+   * `test/recommendationFeedRoute.test.ts` pins that.
+   *
+   * ─── WHAT IT IS FOR ─────────────────────────────────────────────────────
+   *
+   * `scheduler/decisionCycle.ts` has solved every eligible corridor on a 90 s
+   * timer and written a `recommendations` row the whole time, and until this
+   * endpoint the only thing that ever read one back was the next cycle's own
+   * duplicate check (`db/recommendations.ts#findLatestRecommendation`). No
+   * route served the table and no console fetched it, so everything a
+   * dispatcher saw came from the SYNCHRONOUS solve taken when they opened a
+   * corridor themselves - which is the very thing the cycle exists to stop
+   * being the only path. The automatic controller's output was written and
+   * discarded.
+   *
+   * ─── WHY IT IS NOT ON BY DEFAULT ────────────────────────────────────────
+   *
+   * Not because the read is risky - it writes nothing, runs no control law,
+   * and its response shape deliberately cannot carry an approvable candidate
+   * (see `db/recommendations.ts#StandingRecommendation`). Because the two
+   * halves deploy separately: the web app has its own switch of the same name
+   * and there is no ordering of two independent deploys in which one is not
+   * briefly ahead of the other. Off on both is the state where neither half
+   * can be surprised by the other, and turning the pair on is then a
+   * deliberate act rather than a deploy-order accident.
+   *
+   * Nothing here issues a command, on or off. Every row it serves is
+   * `status = 'proposed'` and reaches a bus only through a dispatcher
+   * approval and POST /v1/commands.
+   */
+  RECOMMENDATION_FEED_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
+  /**
+   * How many corridors' standing proposals one page of the feed asks for.
+   *
+   * A ceiling for the same reason `/v1/alerts` has one: this read spans the
+   * network rather than a corridor an operator has already narrowed to, so
+   * "however many there are" is not a safe answer to serialise into a
+   * browser. `DECISION_CYCLE_BATCH_SIZE` is 60, so one sweep cannot produce
+   * more standing rows than that; 200 leaves room for the batch size to grow
+   * without the cap becoming the thing that truncates the list.
+   */
+  RECOMMENDATION_FEED_MAX_LIMIT: z.coerce.number().int().positive().default(200),
   /**
    * The running-time assumptions the band is decided on when a corridor has no
    * fitted link travel times - which today is every corridor.
