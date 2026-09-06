@@ -498,6 +498,17 @@ enforced (no `engine-strict` in `.npmrc`); pnpm only warns on a mismatch, npm
 stays silent. Prepend the intended Node's bin dir to `PATH` explicitly if
 `nvm use` doesn't visibly change `node --version`.
 
+The trap runs BOTH ways, so a green suite on the wrong Node proves nothing in
+either direction. On Node 26 the web suite fails as above while
+`control-service` goes fully green; on Node 20 the web suite is green and two
+to three `test/fleetTrial/fleetTrial.test.ts` cases fail instead — "is
+deterministic…", "is not deterministic because the seed is ignored", "the
+timetable > is booked against the planned departures…" — because they are
+WALL-CLOCK timeouts at vitest's 10s default and take 10.5-13.5s on Node 20.
+They are what both CI jobs currently fail on, and they trip on any slow runner.
+So: run on 20.x, and when checking whether a failure is yours, re-run the base
+on THE SAME Node - a base checkout on a different runtime is not a control.
+
 ## Demand is a property of the CORRIDOR, and the three presets do not span this network
 
 `evaluation/demand.ts`, findings in `docs/REAL_CORRIDOR_EVALUATION.md`, run it
