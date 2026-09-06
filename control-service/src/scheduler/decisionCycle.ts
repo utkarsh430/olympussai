@@ -26,6 +26,25 @@
 // and reaches a bus only if a dispatcher approves it through the existing
 // approval path. See src/db/recommendations.ts's header. Nothing here
 // imports the command or webhook modules, and that should stay true.
+//
+// ─── WHERE THESE ROWS GO ─────────────────────────────────────────────────
+//
+// For most of this file's life: nowhere. The rows it wrote were read by this
+// cycle's own dedupe fingerprint and by nothing else - no route served the
+// table and no console fetched it - so the loop above closed the DECISION gap
+// and left the DELIVERY gap wide open, and everything a dispatcher saw still
+// came from the synchronous solve they took by opening a corridor themselves.
+//
+// `GET /v1/recommendations` (src/routes/recommendations.ts, behind
+// RECOMMENDATION_FEED_ENABLED) is the reader that closes it. Two consequences
+// for anything changed here. What this cycle writes is now something a person
+// can see, so a row written for a corridor is a row an operator may act on the
+// existence of - though never the CONTENT of, because the feed serves a
+// summary and not the approvable candidates. And the feed's window is
+// DECISION_CYCLE_REPEAT_AFTER_SECONDS, the same value
+// `isMateriallyNewRecommendation` uses below: changing how often unchanged
+// advice is re-written also changes how long a proposal is treated as
+// standing.
 import { loadEnv, type Env } from '../config/env.js';
 import {
   listOpenIncidentPairsForRouteDirection,

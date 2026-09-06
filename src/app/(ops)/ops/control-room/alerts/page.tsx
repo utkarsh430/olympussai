@@ -4,6 +4,11 @@ import { OpsAlert } from '@/components/ops/ui';
 import { AlertInbox } from '@/components/ops/control-room/alerts/AlertInbox';
 import { OccupancyToggle } from '@/components/ops/control-room/alerts/OccupancyToggle';
 import { readAlertFeed } from '@/lib/controlService/alerts';
+import {
+  isStandingProposalFeedEnabled,
+  readStandingProposals,
+} from '@/lib/controlService/standingProposals';
+import { StandingProposalsPanel } from '@/components/ops/control-room/recommendations/StandingProposalsPanel';
 import { readControlSettings } from '@/lib/controlService/settings';
 
 export const dynamic = 'force-dynamic';
@@ -47,9 +52,59 @@ export default async function AlertsPage() {
       subtitle="Every corridor where buses are bunched, or closing in on each other"
     >
       <AlertsBody />
+      <StandingProposals />
       <ControllerSettings />
     </OpsShell>
   );
+}
+
+/**
+ * What the automatic decision cycle proposed, on the page where an operator is
+ * already looking at what is wrong.
+ *
+ * ─── WHY IT BELONGS HERE ─────────────────────────────────────────────────
+ *
+ * The list above says what IS wrong. This one says what the controller would
+ * DO about it — and until now nobody could see that at all. control-service's
+ * decision cycle has solved every eligible corridor every 90 seconds since it
+ * landed and written a `recommendations` row each time, and nothing read that
+ * table: no route served it and no console fetched it. Every proposal a
+ * dispatcher ever saw came from the live solve taken when they opened a
+ * corridor themselves, which is the exact problem the automatic cycle exists
+ * to remove. Its output was written and discarded.
+ *
+ * Placed BELOW the alerts and above the settings. It is the second question an
+ * operator asks, never the first, and it must not be mistaken for a second
+ * alert feed: an empty proposal list is not an all-clear, and the list it sits
+ * under is what actually answers "is anything wrong anywhere".
+ *
+ * ─── BEHIND A FLAG, DEFAULT OFF, AND OFF RENDERS NOTHING ─────────────────
+ *
+ * Not "renders an empty panel" — returns null before any read is attempted, so
+ * with `RECOMMENDATION_FEED_ENABLED` unset this page is byte-identical to what
+ * it was, takes the same one upstream read it always took, and the control
+ * service does not mount its endpoint either.
+ *
+ * Its own error boundary, like the toggle below: an unreachable control
+ * service must cost this panel and not the alert list.
+ */
+async function StandingProposals() {
+  if (!isStandingProposalFeedEnabled()) return null;
+
+  try {
+    const { feed, stale, ageMs } = await readStandingProposals();
+    return <StandingProposalsPanel initialFeed={{ ...feed, stale, ageMs }} />;
+  } catch {
+    // `initialFeed={null}` is NOT an empty list. The panel renders the two
+    // differently, because an empty list here reads as "the controller has
+    // nothing to say" and an unreadable one means nobody knows what it said.
+    return (
+      <StandingProposalsPanel
+        initialFeed={null}
+        initialError="The control service did not answer, so what the automatic controller has proposed is unknown - not nothing."
+      />
+    );
+  }
 }
 
 /**
