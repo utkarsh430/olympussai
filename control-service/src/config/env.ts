@@ -339,19 +339,41 @@ const baseEnvSchema = z.object({
    * nothing at all: the headline effect spans zero with seeds splitting 6/12,
    * while still paying the guardrail.
    *
-   * Note the corridor ordering is the OPPOSITE of the expected one. The gate
-   * buys most where the corridor is most disturbed (inter-city, sigma_leg/H*
-   * 0.19, which gains least from control overall) and least where control
-   * works best. See section 6 of the doc.
+   * ─── THE SECOND FINDING, WHICH MATTERS AS MUCH AS THE FIRST ───────────
    *
-   * Three things would change the answer, and only three: a LOWER action bar
-   * (the gate's reachable population is the band between the bar and what the
-   * forecast can see); a forecaster that speaks more often (it declines on
-   * r-squared, sample count and window today, and passes no dwell model);
-   * or relaxing the guardrail from a constraint to a ratio - on inter-city
-   * this trade is +2.64pp for -0.16pp, about 16:1, against the 3.6:1 of the
-   * 50%->75% bar loosening that was rejected. That last is a service-policy
-   * question and not a simulation result.
+   * A forecast helps LEAST where control works best and MOST where the
+   * corridor is most disturbed - the OPPOSITE of the prior model, which said a
+   * forecast is worth least on a `too_disturbed` corridor because corrections
+   * there wash out. Measured (band from `lib/controllability.ts`):
+   *
+   *   corridor    sigma_leg/H*  band            gate buys
+   *   urban       0.096         controllable    +0.23pp, spans zero
+   *   suburban    0.100         controllable    +2.12pp
+   *   intercity   0.187         too_disturbed   +2.64pp
+   *
+   * Do NOT read that as "dispersion drives it". Urban and suburban are 0.004
+   * apart and both controllable, and the gate buys nothing on one and
+   * +2.12pp on the other. What orders all three is the headroom left in the
+   * baseline excess-wait gain (50.97% / 38.30% / 17.95%). Both are three-point
+   * patterns and this trial cannot separate them; what it establishes is the
+   * negative, and that negative should be the starting point for anyone
+   * choosing where to try a forecast-driven mechanism next.
+   *
+   * ─── WHAT WOULD CHANGE THE ANSWER ─────────────────────────────────────
+   *
+   * A LOWER action bar (the gate's reachable population is the band between
+   * the bar and what the forecast can see), or a forecaster that speaks more
+   * often (it declines on r-squared, sample count and window today, and
+   * passes no dwell model).
+   *
+   * There is also an OPEN QUESTION, recorded here and not answered: whether
+   * total passenger time should ever be traded against excess wait at some
+   * rate rather than held as a constraint. On inter-city this gate's trade is
+   * +2.64pp for -0.16pp, about 16:1, against the 3.6:1 of the 50%->75% bar
+   * loosening that was rejected. That is a service-policy decision for the
+   * captain, of the same kind as whether alighting-only may be offered at
+   * all - not a simulation result, and nothing here argues for it. The number
+   * is on record only so it is available if the question is ever put.
    */
   FORECAST_ACTION_GATE_ENABLED: z
     .enum(['true', 'false'])

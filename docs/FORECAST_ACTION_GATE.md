@@ -8,6 +8,49 @@ reads), `rehearsal/deployedControlLaws.ts` (how the trial fits the forecast),
 
 ---
 
+## Two findings, and the second matters as much as the first
+
+**One — the gate does not pay.** It works and it is reachable, buying 4–22%
+more holds and real excess-wait gains on two of three corridors. But total
+passenger time worsens on **every** corridor with 12/12 seed agreement, and
+the guardrail is a constraint rather than a term in a ratio, so the headline
+gains do not qualify. On urban — where holding demonstrably works — it buys
+nothing at all and still costs.
+
+**Two — a forecast helps LEAST where control works best, and MOST where the
+corridor is most disturbed. That is the opposite of what was expected.** The
+prior model was that a forecast is worth least on a `too_disturbed` corridor,
+because corrections there are washed out before the next one. Measured, the
+ordering runs the other way and it is not marginal:
+
+| corridor | σ_leg/H\* | band | baseline EWT gain | excess wait the gate buys |
+|---|---|---|---|---|
+| urban | 0.096 | `controllable` | 50.97% | **+0.23 pp, spans zero** (6/12) |
+| suburban | 0.100 | `controllable` | 38.30% | +2.12 pp (12/12) |
+| inter-city | 0.187 | `too_disturbed` | 17.95% | **+2.64 pp** (12/12) |
+
+**Dispersion alone does not explain it, and that is worth being precise
+about.** Urban and suburban sit 0.004 apart in σ_leg/H\* — both squarely
+`controllable` — and the gate buys nothing on one and +2.12 pp on the other.
+So "more disturbed corridors give the least-squares fit more to work with" is
+*not* a sufficient account, however tempting it is from the inter-city row
+alone.
+
+What does run monotonically across all three is the **headroom left in the
+baseline**: the gate buys most where the controller's own excess-wait gain is
+smallest (17.95% → +2.64 pp) and nothing where that gain is already largest
+(50.97% → +0.23 pp). On that reading the gate is not reaching pairs the bar
+was missing so much as it is finding room only where the bar had not already
+taken it.
+
+**Both of those are three-point patterns, not laws, and this measurement was
+not designed to separate them.** What it does establish is the negative: the
+expected ordering is wrong. That matters beyond this flag, because the same
+assumption would shape where anyone would try a forecast-driven mechanism
+next. Section 6 has the rest.
+
+---
+
 ## 1. The gap this closes, which is real and is now closed
 
 `headway/riskForecast.ts` has projected every leader/follower pair's forward
@@ -151,24 +194,37 @@ indistinguishable from zero with seeds splitting 6/12 — while still paying the
 guardrail. Whatever the gate is doing, it is not helping where the controller
 is most effective.
 
-**The corridor ordering is the opposite of the expected one, and worth
-recording.** The prior guess was that a forecast is worth least where a
-corridor is `too_disturbed`. Measured, inter-city — σ_leg/H\* = 0.19, the most
-disturbed of the three and the one that gains least from control overall — is
-where the gate buys the *most* headline. The likely mechanism is that high
-dispersion produces more pairs closing fast enough for the least-squares fit
-to clear r² 0.5 and reach the bar inside the horizon, so the gate simply
-reaches more decisions there. That is a hypothesis this measurement does not
-test; what it does establish is that the expected ordering is wrong.
+**The corridor ordering is the opposite of the expected one.** This is a
+finding in its own right and not a footnote to the one above — see the summary
+at the top of this document. The prior model said a forecast is worth least
+where a corridor is `too_disturbed`. Measured, inter-city — σ_leg/H\* = 0.19,
+the most disturbed of the three and the one that gains least from control
+overall — is where the gate buys the *most* headline, and urban, the corridor
+squarely in the controllable band, is where it buys nothing.
 
-**How this compares to the loosening that was rejected.** The 50% → 75% bar
-change bought roughly +5 pp of excess wait for −1.4 pp of guardrail, about
-3.6:1. The gate on inter-city buys +2.64 pp for −0.16 pp, about 16:1 — a
-materially better trade of the same shape. It is still a trade, and the
-guardrail is written down here as a constraint rather than as a term in a
-ratio, so the constraint decides. **Whether that constraint should become a
-ratio is a service-policy question and not a simulation result** — if it is
-ever relaxed, this is the first mechanism to revisit.
+Be careful about the mechanism, though. The obvious account — high dispersion
+gives the least-squares fit more closing pairs to clear r² 0.5 on — does not
+survive the urban/suburban comparison: those two are 0.004 apart in σ_leg/H\*
+and 1.9 pp apart in what the gate buys. The quantity that does order all three
+is the headroom left in the baseline excess-wait gain (50.97% / 38.30% /
+17.95%, against +0.23 / +2.12 / +2.64 pp). Both readings are three-point
+patterns and this trial was not built to tell them apart. What it establishes
+is the negative — the expected ordering is wrong — and anyone reasoning about
+where a forecast-driven mechanism should be tried next should start from the
+measurement rather than from the intuition.
+
+**An open question, recorded rather than answered.** The 50% → 75% bar
+loosening bought roughly +5 pp of excess wait for −1.4 pp of guardrail, about
+3.6:1. The gate on inter-city buys +2.64 pp for −0.16 pp, about 16:1 — the
+same shape of trade at a different exchange rate. The guardrail is written
+down in this repo as a **constraint**, not as a term in a ratio, and on that
+reading the constraint decides and the flag is off; this change does not
+propose otherwise. Whether total passenger time should ever be traded against
+excess wait at some rate — and if so what rate — is a **service-policy
+decision for the captain**, of the same kind as whether alighting-only may be
+offered at all. It is not a simulation result and nothing here should be read
+as arguing for it. It is written down only so the number is on record if that
+question is ever put.
 
 ## 7. Reproducing it
 
@@ -193,4 +249,7 @@ share a seed set and therefore pair exactly.
   steepen closing trends on corridors measured to amplify them, but
   `fitDwellModel` has never had its samples. See the `stop_visits` note in
   AGENTS.md.
-- **Relaxing the guardrail from a constraint to a ratio**, per section 6.
+- **A decision that total passenger time may be traded against excess wait at
+  some rate**, rather than held as a constraint — an open service-policy
+  question for the captain, not a recommendation from this measurement. See
+  section 6.
