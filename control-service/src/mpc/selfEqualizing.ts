@@ -48,6 +48,14 @@ export function computeSelfEqualizingCandidates(
    * turning it on.
    */
   selfHarmCheckEnabled = false,
+  /**
+   * Stops each vehicle still has to serve, for the objective's waiting
+   * horizon. Empty - the default - leaves every candidate on the one-stop
+   * term, which is the deployed behaviour; `mpc/solver.ts` populates it only
+   * when `MULTI_STOP_WAIT_TERM_ENABLED` is on, so every candidate in one
+   * solve is priced under the same rule. See mpc/objective.ts.
+   */
+  downstreamStopsByVehicleId: ReadonlyMap<string, number | null> = new Map(),
 ): CandidateAction[] {
   const k = policy.selfEqualizingK;
   if (k === null) return [];
@@ -91,7 +99,15 @@ export function computeSelfEqualizingCandidates(
     // guarantee that is supposed to hold across every law.
     const deviationSeconds = scheduleDeviationByVehicleId.get(h.followerVehicleId) ?? null;
 
-    const score = scoreHold(h, h.followerVehicleId, holdSeconds, rawHold, load, deviationSeconds);
+    const score = scoreHold(
+      h,
+      h.followerVehicleId,
+      holdSeconds,
+      rawHold,
+      load,
+      deviationSeconds,
+      downstreamStopsByVehicleId.get(h.followerVehicleId) ?? null,
+    );
     // See mpc/selfHarmCheck.ts. Off by default; measured harmful when on.
     if (selfHarmCheckEnabled && isScoredSelfHarmful(score.objectiveCost)) continue;
 

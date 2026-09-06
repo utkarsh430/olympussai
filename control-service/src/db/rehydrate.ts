@@ -194,6 +194,36 @@ async function loadControlPointStops(pool: Pool): Promise<{ routeDirectionId: st
   return rows.map((r) => ({ routeDirectionId: r.route_direction_id, stopId: r.stop_id }));
 }
 
+/**
+ * Every route-direction's stop sequence, for the horizon the objective's
+ * waiting term is summed over (`mpc/objective.ts`, `MULTI_STOP_WAIT_TERM_ENABLED`).
+ *
+ * A third pass over the same table rather than a widening of
+ * `loadControlPointStops`: that one is filtered to `is_control_point` and
+ * this one must not be. Holds are executed at control points, but a hold's
+ * benefit is experienced at EVERY station the vehicle has left - and
+ * `route_direction_stops` is static config read once at boot, so the extra
+ * pass costs one query per process.
+ */
+async function loadStopSequences(
+  pool: Pool,
+): Promise<{ routeDirectionId: string; stopId: string; sequence: number }[]> {
+  const { rows } = await pool.query<{
+    route_direction_id: string;
+    stop_id: string;
+    sequence: number;
+  }>(
+    `select route_direction_id, stop_id, sequence
+       from route_direction_stops
+      order by route_direction_id, sequence asc`,
+  );
+  return rows.map((r) => ({
+    routeDirectionId: r.route_direction_id,
+    stopId: r.stop_id,
+    sequence: Number(r.sequence),
+  }));
+}
+
 async function loadTerminalStops(pool: Pool): Promise<{ routeDirectionId: string; stopId: string }[]> {
   // The lowest `sequence` row per route-direction is its origin terminal
   // (blueprint 8.2 Algorithm A). `distinct on` + `order by sequence asc`
@@ -295,19 +325,27 @@ export async function refreshNetworkCounts(pool: Pool = getPool()): Promise<Netw
 export async function rehydrateState(pool: Pool = getPool()): Promise<void> {
   stateStore.setStatus('in_progress');
   try {
-    const [vehicleStates, headwayStates, activePolicies, terminalStops, controlPointStops] =
-      await Promise.all([
-        loadVehicleStates(pool),
-        loadHeadwayStates(pool),
-        loadActivePolicies(pool),
-        loadTerminalStops(pool),
-        loadControlPointStops(pool),
-        refreshNetworkCounts(pool),
-      ]);
+    const [
+      vehicleStates,
+      headwayStates,
+      activePolicies,
+      terminalStops,
+      controlPointStops,
+      stopSequences,
+    ] = await Promise.all([
+      loadVehicleStates(pool),
+      loadHeadwayStates(pool),
+      loadActivePolicies(pool),
+      loadTerminalStops(pool),
+      loadControlPointStops(pool),
+      loadStopSequences(pool),
+      refreshNetworkCounts(pool),
+    ]);
     stateStore.loadVehicleStates(vehicleStates);
     stateStore.loadHeadwayStates(headwayStates);
     stateStore.loadActivePolicies(activePolicies);
     stateStore.loadTerminalStops(terminalStops);
+    stateStore.loadStopSequences(stopSequences);
     stateStore.loadControlPointStops(controlPointStops);
     stateStore.setStatus('complete');
     logger.info(

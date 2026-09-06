@@ -755,6 +755,46 @@ console.log(`proxy λ  ${h(predProxy)}  = ${(predProxy / actual).toFixed(1)}x ov
 console.log(`true λ   ${h(predTrue)}  = ${(predTrue / actual).toFixed(1)}x overstated`);
 ```
 
+### Outcome: the horizon was built, and here is what it did
+
+`MULTI_STOP_WAIT_TERM_ENABLED` (off by default) now sums the wait term over the
+stops a hold's correction is experienced at. Full evidence in
+`docs/MULTI_STOP_WAIT_TERM.md`; the short version, because it changes what the
+rest of this section says to expect:
+
+(All re-measured at base `4ec2ef8`, i.e. WITH the nine adversarial scenarios -
+19 scenarios × 3 seeds × 120 buses/phase - so these are not comparable
+digit-for-digit with the ten-scenario table above.)
+
+* **No decay constant was shipped.** The `ρ ≈ 0.94 / 0.88 / 0.65` above does not
+  survive a second measurement. Re-measured as a per-hold marginal (suppress one
+  hold under common random numbers, diff the engine's own waiting figure) the
+  residual `ratio ÷ N` comes out 0.58 / 0.51 / 0.88 on the ten-scenario set and
+  1.71 / 0.52 / 2.14 on the nineteen-scenario one, against 0.80 / 0.72 / 0.50 in
+  the table above. Three measurements, three orderings, all O(1) - which
+  justifies `× N` and refutes a per-corridor ρ. The mechanism a decay would need
+  is absent too: perturbation survival per stop is ~1.0 at +1 everywhere, falls
+  to 0.29 by +4 on urban, and on inter-city RISES to 1.78 by +8. Inter-city
+  persists most and benefits least.
+* **Magnitude:** the wait term goes from 1.3-3.0% of the waiting a hold removes
+  to 14-16%. The missing factor of 7.2-11.4 is λ - exactly `λ_true × H*` - and
+  with λ fitted as well the same term lands at 117% / 126% / 177%.
+* **Sign: unchanged, and it cannot change.** A positive multiplier widens a
+  benefit and a cost alike; occupancy-blind, the share of selected candidates
+  priced ≥ 0 is identical to the digit either way (35.6 / 36.7 / 37.6%).
+  Occupancy weighted, urban's selected mean `objectiveCost` goes +1,297.5 →
+  +1,135.5; with λ as well it goes to +42.4.
+* **Terminal dispatch: unchanged at 97% ≥ 0, and it is a different defect.** An
+  unclamped origin hold sets `d = H* − h_fwd`, the neutral substitution sets
+  `h_bwd = H*`, and the bracket is then EXACTLY zero - the hold swaps the two
+  gaps rather than evening them. 47-49% of terminal candidates score exactly 0.0.
+* **`cost_optimal` coverage under occupancy weighting:** urban 1 → 582,
+  suburban 0 → 54, inter-city 3 → 68, against 46,750 / 16,268 / 14,113
+  occupancy-blind (with λ as well: 15,806 / 4,238 / 6,389).
+* **Self-harm check on, occupancy weighted:** urban 246 holds / +0.17% total
+  passenger time → 3,309 / +1.62%, against +0.68% unchecked. That is the
+  GUARDRAIL, not excess wait; the check's cost in the headline is not re-tested.
+
 **Expected (the defect):** `proxy λ ≈ 3.4x`, `true λ ≈ 1.8x`.
 **Wanted after the fix:** proxy row gone (λ read from the fitted model);
 `true λ` row unchanged at ~1.8× — that residual is task 3, not task 1.

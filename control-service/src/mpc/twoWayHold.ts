@@ -42,6 +42,14 @@ export function computeTwoWayCandidates(
    * turning it on.
    */
   selfHarmCheckEnabled = false,
+  /**
+   * Stops each vehicle still has to serve, for the objective's waiting
+   * horizon. Empty - the default - leaves every candidate on the one-stop
+   * term, which is the deployed behaviour; `mpc/solver.ts` populates it only
+   * when `MULTI_STOP_WAIT_TERM_ENABLED` is on, so every candidate in one
+   * solve is priced under the same rule. See mpc/objective.ts.
+   */
+  downstreamStopsByVehicleId: ReadonlyMap<string, number | null> = new Map(),
 ): CandidateAction[] {
   if (policy.kf === null || policy.kb === null) return [];
 
@@ -73,7 +81,15 @@ export function computeTwoWayCandidates(
     const holdSeconds = Math.round(clamp(rawHold, 0, holdCapSeconds));
     if (holdSeconds <= 0) continue;
 
-    const score = scoreHold(h, h.followerVehicleId, holdSeconds, rawHold, load, deviationSeconds);
+    const score = scoreHold(
+      h,
+      h.followerVehicleId,
+      holdSeconds,
+      rawHold,
+      load,
+      deviationSeconds,
+      downstreamStopsByVehicleId.get(h.followerVehicleId) ?? null,
+    );
     // The law declining an action its own objective prices as doing no good -
     // see mpc/selfHarmCheck.ts. Off by default and measured to be harmful when
     // on, because the objective's benefit term is a one-stop estimate of a

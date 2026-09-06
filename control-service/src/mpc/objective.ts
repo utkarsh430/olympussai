@@ -61,11 +61,64 @@
 // better, so the ascending sort every law and the solver already perform is
 // unchanged - it now sorts by passenger benefit rather than by rounding
 // error.
+
+// ─── ONE STOP, OR THE STOPS THAT ARE LEFT ────────────────────────────────
+//
+// Note what section 2.2's waiting term actually says: `SUM_s`, over stops.
+// The expression above evaluates it at ONE stop, the control point the hold
+// is issued from, and that restriction is stated at the top of this file. It
+// is also the single largest error in this module, and it is measured.
+//
+// A hold does not move a headway at one stop. It moves the pair's two
+// headways for the REST OF THE TRIP: the held bus arrives d later at every
+// stop it has yet to serve, so `h_fwd + d` and `h_bwd - d` are what the
+// passengers at all of those stops experience, not just the ones at this
+// one. Summing the same expression over the N stops the vehicle still has to
+// serve gives
+//
+//   netWait = w_h x lambda x d x (d + h_fwd - h_bwd) x N
+//
+// with the perturbation carried forward UNCHANGED between stops. That is a
+// neutral assumption of exactly the kind this module already makes for an
+// unobserved backward neighbour, and it is neutral in a specific sense: the
+// fitted dwell model says a headway deviation GROWS by `1 + beta_h` per stop
+// (`calibration/dwell.ts#headwayAmplification`), while re-regulation
+// downstream shrinks it, and the measurement below says the two roughly
+// cancel over the horizons these corridors have.
+//
+// MEASURED, and this is the check the form has to pass. HANDOFF.md section 7
+// grades the objective's wait term against the waiting a hold really removes,
+// on all three corridors, with a correctly fitted lambda: it is short by
+// 10.0x on urban, 5.4x on suburban and 2.5x on inter-city, against mean stops
+// downstream of a hold of ~12.5, ~7.5 and ~5. Divide one by the other and the
+// residual is 0.80, 0.72 and 0.50 - i.e. the missing factor IS the horizon.
+//
+// It is O(1) and it is not a constant. Re-measured as a per-hold marginal
+// (suppress one hold in an otherwise identical run under common random numbers
+// and diff the engine's own waiting figure) the same residual comes out
+// 0.58 / 0.51 / 0.88 on the ten-scenario set and 1.71 / 0.52 / 2.14 on the
+// nineteen-scenario one: three measurements, three orderings across the same
+// three corridors. A decay coefficient is exactly a claim about that ordering.
+// And the mechanism one would need is absent - a hold's correction survives
+// ~1.0 of itself at +1 stop everywhere, decays on urban and suburban, and on
+// inter-city AMPLIFIES past +3 while that corridor benefits least of the
+// three. So N carries no decay coefficient: the term is the sum the
+// architecture already specifies, over the stops that are left. Fitting one to
+// three points that swap rank is the error `mpc/actionThreshold.ts` records
+// rejecting. Full tables in docs/MULTI_STOP_WAIT_TERM.md.
+//
+// N is `downstreamStopCount` below. It is null wherever the corridor's stop
+// sequence is not loaded, and null means 1 - today's one-stop term exactly -
+// so this is a strict generalisation and the deployed default is unchanged.
+// See `MULTI_STOP_WAIT_TERM_ENABLED` in config/env.ts for the switch that
+// decides whether a count is supplied at all, and for what is still missing
+// after it (lambda: the horizon is worth 5-13x, the 1/H* proxy a further
+// 7-11x, and the two multiply).
 //
 // Setting the derivative to zero gives the cost-minimising hold in closed
 // form (`optimalHoldSeconds` below):
 //
-//   d* = (h_bwd - h_fwd) / 2  -  (w_v x L + w_c) / (2 x w_h x lambda)
+//   d* = (h_bwd - h_fwd) / 2  -  (w_v x L + w_c) / (2 x w_h x lambda x N)
 //
 // The first term is exactly the even-headway "split the difference" rule -
 // the Tier 0 baseline deployed in Stockholm and Santiago falls out of the
@@ -168,10 +221,22 @@ export interface PassengerCostInputs {
    * punctuality term entirely rather than assuming the vehicle is on time.
    */
   scheduleDeviationSeconds?: number | null;
+  /**
+   * How many stops the held vehicle still has to serve, COUNTING the one it
+   * is standing at - the N the waiting term is summed over. See this file's
+   * header for the derivation and for the measurement it is checked against.
+   *
+   * Null / absent means the horizon is not known here, and is priced as 1:
+   * exactly today's one-stop term. Every caller that cannot answer the
+   * question therefore keeps the deployed behaviour rather than guessing a
+   * horizon, and the multi-stop term ships off by supplying nothing (see
+   * `MULTI_STOP_WAIT_TERM_ENABLED`).
+   */
+  downstreamStopCount?: number | null;
 }
 
 export interface PassengerCost {
-  /** w_h x lambda x d x (d + h_fwd - h_bwd). Negative when the hold moves both headways toward even spacing. */
+  /** w_h x lambda x d x (d + h_fwd - h_bwd) x N. Negative when the hold moves both headways toward even spacing. */
   waitPassengerSeconds: number;
   /** w_v x L x d. Always >= 0 - holding never helps the people already aboard. */
   onboardPassengerSeconds: number;
@@ -191,8 +256,51 @@ export interface PassengerCost {
   loadEstimated: boolean;
   /** True when `hBwdSeconds` was null and the neutral assumption below was used instead. */
   backwardEstimated: boolean;
+  /**
+   * The N the wait term was summed over: stops the vehicle still has to
+   * serve, or 1 when no horizon was supplied.
+   *
+   * Reported rather than inferred because `explainHold` states it to a
+   * dispatcher and a surface must not be able to claim a horizon the
+   * arithmetic did not use.
+   *
+   * OPTIONAL for one reason only, and it is not "to spare an implementer":
+   * `mpc/boardingLimit.ts` publishes an all-zero `PassengerCost` as a
+   * documented sentinel meaning "neither side of this trade is priced". A
+   * horizon of 1 there would be a claim about a wait term that was never
+   * computed. Absent therefore means exactly that - no waiting was priced -
+   * and `computePassengerCost` always sets it.
+   */
+  waitHorizonStops?: number;
   /** True when no schedule deviation was available, so no punctuality cost was priced in. */
   scheduleUnknown: boolean;
+}
+
+/**
+ * The N the waiting term is summed over, normalised.
+ *
+ * NEVER less than 1, and that floor is load-bearing rather than defensive: 0
+ * would multiply the whole benefit side away and leave a hold priced as pure
+ * in-vehicle cost, which is a strictly worse objective than the one-stop term
+ * this generalises. A vehicle standing at its LAST stop still has one stop's
+ * worth of waiting to move - the one it is at - so 1 is also the physically
+ * right floor, not merely a safe one.
+ *
+ * Whole stops. A fractional horizon would be a claim about how far a
+ * correction survives, and this module deliberately makes no such claim -
+ * see the file header for the two measurements that disagree about it.
+ *
+ * Not gated on `MULTI_STOP_WAIT_TERM_ENABLED` here. The switch decides
+ * whether a caller SUPPLIES a count at all (`mpc/solver.ts` and
+ * `rehearsal/deployedControlLaws.ts` each read it once per solve, so every
+ * candidate in one solve is priced under the same rule); this function is
+ * total over whatever it is handed, which is what keeps it testable and keeps
+ * the hot path free of an env read per candidate.
+ */
+export function waitHorizonStops(downstreamStopCount: number | null | undefined): number {
+  if (downstreamStopCount === null || downstreamStopCount === undefined) return 1;
+  if (!Number.isFinite(downstreamStopCount)) return 1;
+  return Math.max(1, Math.floor(downstreamStopCount));
 }
 
 /**
@@ -213,8 +321,9 @@ export function computePassengerCost(inputs: PassengerCostInputs): PassengerCost
   const hBwd = inputs.hBwdSeconds ?? targetHeadwaySeconds;
 
   const lambda = arrivalRatePaxPerSecond(targetHeadwaySeconds);
+  const horizonStops = waitHorizonStops(inputs.downstreamStopCount);
   const waitPassengerSeconds =
-    W_WAIT * lambda * holdSeconds * (holdSeconds + hFwdSeconds - hBwd);
+    W_WAIT * lambda * holdSeconds * (holdSeconds + hFwdSeconds - hBwd) * horizonStops;
 
   const loadEstimated = loadPassengers === null;
   const onboardPassengerSeconds = W_ONBOARD * (loadPassengers ?? 0) * holdSeconds;
@@ -242,6 +351,7 @@ export function computePassengerCost(inputs: PassengerCostInputs): PassengerCost
       latenessPassengerSeconds,
     loadEstimated,
     backwardEstimated,
+    waitHorizonStops: horizonStops,
     scheduleUnknown,
   };
 }
@@ -249,7 +359,14 @@ export function computePassengerCost(inputs: PassengerCostInputs): PassengerCost
 /**
  * The hold that minimises J, in closed form, before any clamping:
  *
- *   d* = (h_bwd - h_fwd)/2 - (w_v x L + w_c) / (2 x w_h x lambda)
+ *   d* = (h_bwd - h_fwd)/2 - (w_v x L + w_c) / (2 x w_h x lambda x N)
+ *
+ * N is the horizon the waiting term is summed over (`downstreamStopCount`,
+ * 1 when unknown). It divides the load penalty because it multiplies the term
+ * that penalty is traded against, and that is the whole of its effect here:
+ * the even-headway split has no lambda in it and does not move. This is the
+ * same argmin it has always been, of the objective this module actually
+ * scores - see the file header.
  *
  * Not currently the source of any candidate - the deployed laws
  * (terminalDispatch / twoWayHold / selfEqualizing) generate the holds and
@@ -266,8 +383,10 @@ export function optimalHoldSeconds(
   const evenHeadwaySplit = (hBwd - inputs.hFwdSeconds) / 2;
   if (lambda <= 0 || W_WAIT <= 0) return Math.max(0, evenHeadwaySplit);
 
+  const horizonStops = waitHorizonStops(inputs.downstreamStopCount);
   const loadPenalty =
-    (W_ONBOARD * (inputs.loadPassengers ?? 0) + W_OPERATOR) / (2 * W_WAIT * lambda);
+    (W_ONBOARD * (inputs.loadPassengers ?? 0) + W_OPERATOR) /
+    (2 * W_WAIT * lambda * horizonStops);
   return Math.max(0, evenHeadwaySplit - loadPenalty);
 }
 
@@ -368,7 +487,13 @@ export function explainHold(
       ? `a net saving of ${round(-cost.netPassengerSeconds)} passenger-seconds`
       : `a net cost of ${round(cost.netPassengerSeconds)} passenger-seconds`;
 
-  return `Hold ${holdSeconds}s: ${ahead} and ${behind}, so evening the two gaps is worth ${verdict}; ${punctuality}; ${load}.`;
+  // Said only when it is more than one, so the sentence a dispatcher reads on
+  // every corridor today is unchanged, and so "over N stops" never appears
+  // when the arithmetic was done at a single stop.
+  const horizonStops = cost.waitHorizonStops ?? 1;
+  const horizon = horizonStops > 1 ? ` over the ${horizonStops} stops it has left` : '';
+
+  return `Hold ${holdSeconds}s: ${ahead} and ${behind}, so evening the two gaps${horizon} is worth ${verdict}; ${punctuality}; ${load}.`;
 }
 
 /** The scoring fields every control law attaches to the candidate it generates. */
@@ -397,6 +522,12 @@ export function scoreHold(
   rawHoldSeconds: number,
   loadPassengers: number | null,
   scheduleDeviationSeconds: number | null = null,
+  /**
+   * Stops the held vehicle still has to serve, for the waiting term's
+   * horizon. Null - the default - is the one-stop term every deployment
+   * scores on today. See `PassengerCostInputs.downstreamStopCount`.
+   */
+  downstreamStopCount: number | null = null,
 ): HoldScore {
   const inputs: PassengerCostInputs = {
     hFwdSeconds: headwayState.hFwdSeconds ?? headwayState.targetHeadwaySeconds,
@@ -405,6 +536,7 @@ export function scoreHold(
     holdSeconds,
     loadPassengers,
     scheduleDeviationSeconds,
+    downstreamStopCount,
   };
   const passengerCost = computePassengerCost(inputs);
   return {
