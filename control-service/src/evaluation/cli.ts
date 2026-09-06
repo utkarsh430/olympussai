@@ -20,6 +20,8 @@ import { buildReport, renderCsv, renderMarkdown } from './report.js';
 import { sweepCorridor, renderApplySql, DEFAULT_COARSE_GRID } from './sweep.js';
 import { runComplianceSweep, runVariabilitySweep, renderCurve } from './robustness.js';
 import { calibrateCorridor, describeCalibration, type CorridorCalibration } from './calibrate.js';
+import { DERIVED_PEAK_LOAD_SHARE } from './demand.js';
+import { resolveInputs } from './spec.js';
 import { REHEARSAL_DISTURBANCES } from '../rehearsal/run.js';
 import { AppError } from '../lib/errors.js';
 
@@ -29,6 +31,8 @@ interface Flags {
   scenarios?: string;
   seeds?: string;
   out?: string;
+  demand?: string;
+  peakLoadShare?: string;
   sweep: boolean;
   calibrate: boolean;
   quiet: boolean;
@@ -48,6 +52,8 @@ function parseFlags(argv: readonly string[]): Flags {
     else if (arg === '--scenarios') flags.scenarios = argv[++i];
     else if (arg === '--seeds') flags.seeds = argv[++i];
     else if (arg === '--out') flags.out = argv[++i];
+    else if (arg === '--demand') flags.demand = argv[++i];
+    else if (arg === '--peak-load-share') flags.peakLoadShare = argv[++i];
     else if (arg?.startsWith('--')) throw new Error(`Unknown flag ${arg}`);
   }
   return flags;
@@ -57,8 +63,16 @@ const USAGE = `
 Evaluate the deployed bunching control laws in the mesoscopic simulator.
 
   --config <path>       experiment spec JSON. Every other flag overrides it.
-  --corridors <source>  "synthetic", "synthetic:N", "sample:N", or a comma-separated
-                        list of route-direction ids. Default: synthetic:1
+  --corridors <source>  "synthetic", "synthetic:N", "sample:N", "eligible[:N]",
+                        "in-band[:N]", "preset", or a comma-separated list of
+                        route-direction ids. Default: synthetic:1
+                          eligible  the corridors sim:eligibility passes: calibrated,
+                                    inside the controllable band AT THIS RUN'S assumed
+                                    running-time spread, and carrying two live buses.
+                          in-band   the same without the live-vehicle snapshot, which
+                                    is the corridor-intrinsic and reproducible question.
+                          preset    the three fleet-trial shapes, each under its own
+                                    published inputs, for comparing against the network.
   --scenarios <list>    comma-separated, or "all". One of: ${REHEARSAL_DISTURBANCES.join(', ')}
   --seeds <n>           seeds per cell. Default 20.
   --sweep               search the gain grid instead of comparing fixed arms.
@@ -67,6 +81,13 @@ Evaluate the deployed bunching control laws in the mesoscopic simulator.
                         database and a populated stop_visits; a corridor with no
                         visits stays modelled and the report says so.
   --out <dir>           write results.json, summary.csv, summary.md and spec.json here.
+  --demand <mode>       "derived" (default) sizes each corridor's boarding rate from its
+                        own headway, stop count, alighting fraction and seats; "global"
+                        applies the one invented rate to every corridor, which is what
+                        this harness did before and what saturated every real corridor.
+  --peak-load-share <s> load the derived rate aims at, as a share of the seats.
+                        Default ${DERIVED_PEAK_LOAD_SHARE}. Sweep it: a verdict that moves a
+                        long way across it is a verdict about this assumption.
   --quiet               suppress the console summary.
 
 Everything is read-only. A sweep prints the SQL it would apply; it never applies it.
@@ -74,11 +95,21 @@ Everything is read-only. A sweep prints the SQL it would apply; it never applies
 
 function corridorsFromFlag(value: string | undefined): ExperimentSpec['corridors'] {
   if (!value || value === 'synthetic') return { source: 'synthetic', count: 1 };
+  if (value === 'preset') return { source: 'preset' };
   if (value.startsWith('synthetic:')) {
     return { source: 'synthetic', count: Number(value.slice('synthetic:'.length)) };
   }
   if (value.startsWith('sample:')) {
     return { source: 'db', sample: Number(value.slice('sample:'.length)) };
+  }
+  for (const [prefix, requireLivePair] of [
+    ['eligible', true],
+    ['in-band', false],
+  ] as const) {
+    if (value === prefix) return { source: 'eligible', requireLivePair };
+    if (value.startsWith(`${prefix}:`)) {
+      return { source: 'eligible', requireLivePair, sample: Number(value.slice(prefix.length + 1)) };
+    }
   }
   return { source: 'db', routeDirectionIds: value.split(',').map((id) => id.trim()).filter(Boolean) };
 }
@@ -105,6 +136,15 @@ function buildSpec(flags: Flags): ExperimentSpec {
         : flags.scenarios.split(',').map((s) => s.trim());
   }
   if (flags.seeds) spec.seeds = { ...spec.seeds, count: Number(flags.seeds) };
+  if (flags.demand) {
+    if (flags.demand !== 'derived' && flags.demand !== 'global') {
+      throw new Error(`--demand takes "derived" or "global", got ${flags.demand}`);
+    }
+    spec.demand = { ...spec.demand, mode: flags.demand };
+  }
+  if (flags.peakLoadShare) {
+    spec.demand = { ...spec.demand, peakLoadShare: Number(flags.peakLoadShare) };
+  }
   return parseExperimentSpec(spec);
 }
 
@@ -123,11 +163,34 @@ async function main(): Promise<void> {
   }
 
   const spec = buildSpec(flags);
-  const { corridors, provenance } = await selectCorridors(spec.corridors);
+  // The band a corridor lands in is a ratio of sigma_leg, which scales with
+  // the running-time spread - so the corridors an `eligible` run selects have
+  // to be selected under the spread that run will SIMULATE at, not under the
+  // eligibility CLI's own default. Anything else selects one set of corridors
+  // and reports on another.
+  const runInputs = resolveInputs(spec, spec.seeds.base, 'none');
+  const { corridors, provenance, presetInputs, excluded } = await selectCorridors(spec.corridors, {
+    cruiseSpeedKmph: runInputs.cruiseSpeedKmph,
+    travelTimeVariation: runInputs.travelTimeVariation,
+    provenance: 'modelled',
+  });
   const log = (message: string) => {
     if (!flags.quiet) process.stderr.write(`${message}\n`);
   };
   log(`${spec.name}: ${corridors.length} corridor(s) (${provenance}), ${spec.scenarios.length} scenario(s)`);
+  if (excluded && excluded.length > 0) {
+    log(`  ${excluded.length} route-direction(s) not evaluated (see spec.json / excluded.json)`);
+  }
+  // The resolved ids are written back with the run. `eligible` reads a LIVE
+  // vehicle count inside a 300 s window, so the same flag on the same database
+  // does not select the same corridors an hour later; a spec that carries the
+  // ids it resolved to is the only thing that makes the run re-runnable.
+  if (spec.corridors.source === 'eligible') {
+    spec.corridors = {
+      source: 'db',
+      routeDirectionIds: corridors.map((corridor) => corridor.routeDirectionId),
+    };
+  }
 
   // Fitted demand, when asked for. Attempted per corridor rather than as an
   // all-or-nothing switch: a corridor with no recorded visits keeps the
@@ -227,6 +290,7 @@ async function main(): Promise<void> {
     provenance,
     (done, total) => log(`  ${done}/${total} cells`),
     calibration,
+    presetInputs,
   );
   const report = buildReport(run);
   const markdown = renderMarkdown(report);
@@ -238,6 +302,7 @@ async function main(): Promise<void> {
       'results.json': `${JSON.stringify({ report, cells: run.cells }, null, 2)}\n`,
       'summary.csv': renderCsv(report),
       'summary.md': `${markdown}\n`,
+      'excluded.json': `${JSON.stringify(excluded ?? [], null, 2)}\n`,
     });
     log(`wrote ${flags.out}`);
   }

@@ -27,9 +27,9 @@
 // The other axis, and the cheaper one: a controller tuned on a quiet corridor
 // can be actively harmful on a variable one, because every hold it adds is
 // spent against noise it cannot predict.
-import { runCell, fleetWideNonCompliance } from './runner.js';
+import { runCell, fleetWideNonCompliance, resolveCorridorInputs } from './runner.js';
 import { pairedDifference, type PairedDifference } from './statistics.js';
-import { resolveInputs, seedsFor } from './spec.js';
+import { seedsFor } from './spec.js';
 import { HEADLINE_METRIC } from './metrics.js';
 import { KPI_METRICS } from './metrics.js';
 import type { CorridorInputs } from '../rehearsal/corridor.js';
@@ -94,7 +94,10 @@ export function runComplianceSweep(
     const pairs: Array<{ baseline: number | null; controlled: number | null }> = [];
     let refused = 0;
     for (const seed of seeds) {
-      const inputs = resolveInputs(spec, seed, scenario);
+      // Through `resolveCorridorInputs`, so the curve is drawn at the demand
+      // `runExperiment` gives this corridor. A curve drawn at a different
+      // demand from the run it qualifies is a curve about another corridor.
+      const { inputs } = resolveCorridorInputs(spec, corridor, seed, scenario);
       const result = runCell(
         corridor,
         arm,
@@ -128,7 +131,9 @@ export function runVariabilitySweep(
     const pairs: Array<{ baseline: number | null; controlled: number | null }> = [];
     let refused = 0;
     for (const seed of seeds) {
-      const inputs = resolveInputs(spec, seed, scenario, { travelTimeVariation: level });
+      const { inputs } = resolveCorridorInputs(spec, corridor, seed, scenario, {
+        travelTimeVariation: level,
+      });
       const result = runCell(corridor, arm, inputs);
       pairs.push({
         baseline: headlineMetric?.read(result.baseline) ?? null,
