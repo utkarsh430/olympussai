@@ -395,6 +395,10 @@ Measured, that is exactly what happens. With the check on and occupancy weightin
 
 **`boarding_limit` structurally cannot take this check.** Its `objectiveCost` is a sentinel `0` meaning "neither side of this trade is priced", not "this breaks even" - and `>= 0` is true of zero, so wiring the predicate in would decline 100% of alighting-only proposals on every corridor forever, deleting a law on the strength of a placeholder. `test/selfHarmCheck.test.ts` pins that so nobody "finishes the job".
 
+**The origin's neutral backward gap is now correctable, and correcting it is measured NOT to be enough.** `ORIGIN_BACKWARD_NEUTRAL_ENABLED` (off, `mpc/objective.ts` + `mpc/terminalDispatch.ts`, evidence in `docs/ORIGIN_BACKWARD_NEUTRAL.md`) anchors the unobserved-follower substitution at an origin to the LEADER'S DEPARTURE - `h_bwd = 2H* - h_fwd`, derived from the target the law already regulates - instead of to the standing vehicle. That removes a wait term of exactly zero on **39-46%** of terminal candidates. It moves the share priced `>= 0` by **nothing at all**: 100.0% to 100.0%, to the digit, on all three corridors. The arithmetic is exact - occupancy-blind a terminal hold is a benefit only when `lambda x N x d > 1`, which under the `1/H*` proxy at N=1 needs `d > H*` while a terminal hold is bounded by `H* - h_fwd`. So the zero, the horizon and lambda are three factors on ONE term and terminal dispatch needs all three; the self-harm check still declines 100% of terminal candidates with the anchor corrected. Read that as the objective's error, not the action's harm, exactly as the +1,021 figure above.
+
+**`W_LATENESS` IS LAMBDA IN DISGUISE, and this is the trap for whoever calibrates it.** The constant is 1 because it means *riders per departure*, which under the same `1/H*` proxy is `lambda x H* = 1` - its own docblock says so. Nothing scales it. It is not small: on urban, occupancy-blind, the mean punctuality term of a selected candidate is **+37.88** against a mean wait term of **-24.20**, so it is larger than the benefit it is netted against and it takes the share priced `>= 0` from 27.0% on the wait term alone to 76.4% on the net. Consequence, measured: if a fitted lambda enters the wait term ONLY, the occupancy-blind `>= 0` share falls 41 / 26 / 5 points; if it enters both terms - which is what the constant means - it changes the share by **exactly nothing**, because occupancy-blind the net is `lambda x (wait + punctuality)` and a positive factor on a sum cannot move it across zero. Decide what `W_LATENESS` does in the same change as lambda, or the calibration will report a sign flip it did not earn.
+
 **The real fix is a MULTI-STOP WAIT TERM, and half of it now exists.** `MULTI_STOP_WAIT_TERM_ENABLED` (off, `mpc/objective.ts`, evidence in `docs/MULTI_STOP_WAIT_TERM.md`) sums the wait term over the stops a hold's correction is experienced at rather than the one it is issued from - N = stops the vehicle has left, no decay coefficient, because two honest measurements of the residual REVERSE its ordering across the three corridors and three points that swap rank cannot fit one. It takes the wait term from 1.3-3.0% of the truth to 14-16%, moves `cost_optimal` off zero under occupancy weighting (urban 1 -> 582 generated against 46,750 occupancy-blind), and takes the self-harm check from 246 holds to 3,309 on urban. It fixes NEITHER the sign NOR terminal dispatch, and both reasons are measured: a positive multiplier cannot flip a net sign (occupancy-blind, the share of candidates priced >= 0 is identical to the digit with and without it), and terminal dispatch's pathology is the neutral `h_bwd = H*` substitution making an unclamped origin hold score EXACTLY zero - 47-49% of terminal candidates do - which is a different defect and the cheapest one left. The remaining factor of 7-11 is lambda; with lambda fitted as well the wait term lands at 117-177% of measured truth. Flip this knob, `COST_OPTIMAL_SELECTION_ENABLED` and `SELF_HARM_CHECK_ENABLED` together WITH lambda, or none of them. `test/costOptimalOccupancy.test.ts` pins the mechanism; `test/multiStopWaitTerm.test.ts` pins the horizon and that off is byte-identical.
 
 MEASURED against outcomes, term by term, over 20,423 urban holds (`HANDOFF.md` section 7). The objective's COST side is nearly right - it says a hold costs the people aboard 7,914 h where the truth is 6,775 h. Its BENEFIT side is wrong by a factor of ten to seventy: it says holding removes 147 h of waiting under the proxy, or 1,081 h with a correct lambda, where the truth is 10,799 h. It models dwell and riding not at all, and those are another 2,443 h of benefit. So on urban the objective says control COSTS 7,768 h where it actually SAVES 6,466 h - **the wrong sign, on the corridor where the controller works.** Inter-city keeps its sign only because the cost is genuinely larger there, and still overstates 4.8x / 3.6x.
@@ -470,6 +474,45 @@ before `~/.nvm/versions/node/*/bin`), running `nvm use` does not fix `node
 enforced (no `engine-strict` in `.npmrc`); pnpm only warns on a mismatch, npm
 stays silent. Prepend the intended Node's bin dir to `PATH` explicitly if
 `nvm use` doesn't visibly change `node --version`.
+
+## Demand is a property of the CORRIDOR, and the three presets do not span this network
+
+`evaluation/demand.ts`, findings in `docs/REAL_CORRIDOR_EVALUATION.md`, run it
+with `pnpm sim:run --config experiments/real-corridors.json`.
+
+A stop boards `lambda x H` and sheds `alightingFraction` of the load, so a
+modelled bus's load is **proportional to the corridor's own target headway**.
+One global boarding rate is therefore not one experimental condition, it is a
+different load on every corridor: the 0.8/min default was picked against a 900 s
+synthetic corridor, this network's 198 measured headways run 300-12,497 s with a
+median of 1,800 s, and real corridors consequently ran at 2-13x their seat count
+and returned 74.6-96.4% denied boardings. Never put a flat demand on corridors of
+different headway. `demand.ts` inverts the rate out of a target PEAK load (a
+share of the seats, ramped for stop count because load reaches steady state
+geometrically); a rate NAMED per route-direction beats it, which is the seam a
+fit from `stop_visits` arrives through; `--demand global` reproduces the old
+behaviour.
+
+**The three presets overstate the excess-wait gain by about 4x** (median −52.2%
+against the network's −13.7% over 103 in-band corridors, consistent across all
+five scenarios, and 76% of real groups are weaker than the WEAKEST preset
+result). Not the travel-time spread - re-run at the evaluation's 0.2 the presets
+still give −51.5%. Two of the three sit BELOW the entire real headway range (0%
+and 3% of in-band corridors are shorter than urban and suburban), the presets
+give every shape a hold budget of H*/3 while `route_policies` ships a flat
+`max_hold_seconds` of 600 to all 198 (so 11 in-band corridors have under a tenth
+of their headway and gain 2.5%), and the law mix differs - terminal dispatch does
+3x as much of the work on the real network as on the presets. Treat any
+preset-sourced figure as an upper bound, and note the preset corpus contains no
+case where control makes excess wait worse while the network has seven.
+
+Two traps in reading any of this. The evaluation harness reports
+`controlled - no control`, so **positive passenger time is time SPENT** - the
+opposite sign from the fleet trial's `passengerSecondsSavedPercent`. And
+`PairedDifference.meanRelativeDifference` is null whenever ANY seed's baseline
+was zero, which is right for that field and a silent selection in a roll-up: it
+drops exactly the corridors that had least to fix. Aggregate with a ratio of the
+group means (`report.ts#buildHeadlineScope`), never by averaging it.
 
 ## Maintaining this file
 
