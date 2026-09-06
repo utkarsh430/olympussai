@@ -67,19 +67,40 @@ export interface HeadlineScope {
   /** Corridors with at least one saturated group. Named, because a reader needs to know which. */
   excludedCorridors: string[];
   /**
-   * Mean of the per-group RELATIVE differences, per metric, over the pooled
-   * groups - never a mean of the absolute ones. Corridors on this network run
-   * from a 300 s headway to a 12,497 s one, so an absolute second of excess
-   * wait means something different on each and a pooled absolute mean is
-   * dominated by the longest corridor in the set.
+   * Per metric, over the pooled groups.
+   *
+   * ─── WHY NOT A MEAN OF `meanRelativeDifference` ──────────────────────────
+   *
+   * Relative, never absolute: corridors on this network run from a 300 s
+   * headway to a 12,497 s one, so an absolute second of excess wait means
+   * something different on each and a pooled absolute mean is dominated by the
+   * longest corridor in the set.
+   *
+   * But NOT by averaging `PairedDifference.meanRelativeDifference`, which is
+   * null whenever ANY seed's baseline was exactly zero - correct for that
+   * field, and a silent selection here. A group has a zero-baseline seed
+   * exactly when the uncontrolled arm came out perfectly regular on that day,
+   * which is the case where control has least to gain and most to lose.
+   * MEASURED on the 103 in-band corridors: 146 of 433 readable groups were
+   * dropped by it, unevenly by scenario (45 each of `none`, `gps_dropout` and
+   * `non_compliance`), so the surviving average was taken over the corridors
+   * that had something to fix and flattered the controller.
+   *
+   * `relativeOfMeans` is `(meanControlled - meanBaseline) / meanBaseline` for
+   * each group, which is defined whenever the group's MEAN baseline is
+   * non-zero and therefore keeps those groups. `groupsMissingRelative` says
+   * how many still could not contribute.
    */
   metrics: Record<
     MetricKey,
     {
-      meanRelativeDifference: number | null;
+      /** Median across pooled groups of each group's `(controlled - baseline) / baseline` on the means. */
+      medianRelativeOfMeans: number | null;
+      meanRelativeOfMeans: number | null;
       groupsBetter: number;
       groupsWorse: number;
       groupsNoEffect: number;
+      groupsMissingRelative: number;
     }
   >;
 }
@@ -154,22 +175,30 @@ function buildHeadlineScope(summaries: readonly ArmSummary[]): HeadlineScope {
     let groupsBetter = 0;
     let groupsWorse = 0;
     let groupsNoEffect = 0;
+    let groupsMissingRelative = 0;
     for (const summary of pooled) {
       const difference = summary.metrics[metric.key];
       if (difference.sampleCount === 0) continue;
-      if (difference.meanRelativeDifference !== null) {
-        relatives.push(difference.meanRelativeDifference);
+      const { meanBaseline, meanControlled } = difference;
+      if (meanBaseline !== null && meanControlled !== null && meanBaseline !== 0) {
+        relatives.push((meanControlled - meanBaseline) / meanBaseline);
+      } else {
+        groupsMissingRelative += 1;
       }
       if (isImprovement(difference, metric.lowerIsBetter)) groupsBetter += 1;
       else if (difference.significant) groupsWorse += 1;
       else groupsNoEffect += 1;
     }
+    const sorted = [...relatives].sort((a, b) => a - b);
     metrics[metric.key] = {
-      meanRelativeDifference:
+      medianRelativeOfMeans:
+        sorted.length > 0 ? (sorted[Math.floor((sorted.length - 1) / 2)] ?? null) : null,
+      meanRelativeOfMeans:
         relatives.length > 0 ? relatives.reduce((a, b) => a + b, 0) / relatives.length : null,
       groupsBetter,
       groupsWorse,
       groupsNoEffect,
+      groupsMissingRelative,
     };
   }
 
@@ -533,17 +562,19 @@ function renderHeadline(scope: HeadlineScope): string {
       : `Pooled over the **${scope.pooledGroups}** corridor/scenario/arm groups whose wait metrics could respond to control. **${scope.excludedGroups}** group(s) on ${scope.excludedCorridors.length} corridor(s) are excluded because they saturated — they are still in the table below, and they are named in the saturation section above. Excluding them is the same rule the fleet trial's \`headlineScope\` applies, and for the same measured reason: pooling a group that cannot move does not average an effect, it dilutes one.`,
   );
   lines.push('');
-  lines.push('| Metric | Good direction | Mean change | Groups better | No effect | Groups WORSE |');
-  lines.push('|---|---|---:|---:|---:|---:|');
+  lines.push(
+    '| Metric | Good direction | Median change | Mean change | Groups better | No effect | Groups WORSE |',
+  );
+  lines.push('|---|---|---:|---:|---:|---:|---:|');
   for (const metric of KPI_METRICS) {
     const entry = scope.metrics[metric.key];
     lines.push(
-      `| ${metric.label}${metric.diagnostic ? ' *(diagnostic)*' : ''} | ${metric.lowerIsBetter ? 'lower ↓' : 'higher ↑'} | ${pct(entry.meanRelativeDifference)} | ${entry.groupsBetter} | ${entry.groupsNoEffect} | ${entry.groupsWorse} |`,
+      `| ${metric.label}${metric.diagnostic ? ' *(diagnostic)*' : ''} | ${metric.lowerIsBetter ? 'lower down' : 'higher up'} | ${pct(entry.medianRelativeOfMeans)} | ${pct(entry.meanRelativeOfMeans)} | ${entry.groupsBetter} | ${entry.groupsNoEffect} | ${entry.groupsWorse} |`,
     );
   }
   lines.push('');
   lines.push(
-    'The change column is the mean of each group\'s own RELATIVE difference, never a mean of absolute seconds: these corridors run from a five-minute headway to a three-hour one, so a second of excess wait does not mean the same thing on each. A group counts as better only when its bootstrap interval excludes zero.',
+    "Change is each group's `(controlled - baseline) / baseline` taken on the group MEANS, never a mean of absolute seconds: these corridors run from a five-minute headway to a three-hour one, so a second of excess wait does not mean the same thing on each. It is not an average of the per-seed relative difference, which is null whenever any one seed's baseline was zero and would silently drop exactly the corridors with least to fix. The median is quoted first because a few near-zero-baseline corridors give the mean a long tail. A group counts as better only when its interval excludes zero AND it wins on more seeds than it loses (`statistics.ts#isImprovement`); the WORSE column is therefore everything significant that failed that bar, which includes a group moving the right way on its mean while losing on half its seeds.",
   );
   lines.push('');
   lines.push(

@@ -306,3 +306,36 @@ describe('a rate that belongs to the corridor', () => {
     expect(resolved.boardingRatePerMinute).toBe(0.9);
   });
 });
+
+describe('the network headline\'s relative change', () => {
+  // The per-seed `meanRelativeDifference` is null whenever ANY seed's baseline
+  // was exactly zero, which is right for that field and a silent SELECTION in
+  // a roll-up: a zero-baseline seed is a day the uncontrolled arm came out
+  // perfectly regular, which is where control has least to gain. Measured on
+  // the 103 in-band corridors, averaging it dropped 146 of 433 readable groups
+  // and did so unevenly by scenario. This is the assertion that stops the
+  // headline being taken over the corridors that had something to fix.
+  it('keeps a group whose baseline was zero on one seed', () => {
+    const zeroBaselineOnOneSeed = {
+      name: 'zero-baseline',
+      corridors: { source: 'synthetic', count: 1 },
+      scenarios: ['none'],
+      seeds: { count: 3, base: 11 },
+      arms: [{ name: 'as-deployed', policyOverrides: {} }],
+    };
+    const parsed = parseExperimentSpec(zeroBaselineOnOneSeed);
+    const run = runExperiment(parsed, [corridorWith(1200)], 'measured');
+    // Force one seed's baseline excess wait to zero, which is what a perfectly
+    // regular uncontrolled day produces.
+    const first = run.cells[0];
+    if (first) first.baseline = { ...first.baseline, ewtSeconds: 0 };
+
+    const report = buildReport(run);
+    const ewt = report.summaries[0]!.metrics.ewtSeconds;
+    expect(ewt.meanRelativeDifference).toBeNull();
+
+    const headline = report.headlineScope.metrics.ewtSeconds;
+    expect(headline.medianRelativeOfMeans).not.toBeNull();
+    expect(headline.groupsMissingRelative).toBe(0);
+  });
+});
