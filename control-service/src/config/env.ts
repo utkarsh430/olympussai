@@ -171,6 +171,39 @@ const baseEnvSchema = z.object({
     .default('false')
     .transform((v) => v === 'true'),
 
+  /**
+   * Whether the four laws that never had one apply a self-harm check: refusing
+   * to emit a hold their own objective scores as net harmful, exactly as
+   * `mpc/costOptimalHold.ts` already does.
+   *
+   * OFF, and it should stay off. This is an instrument, not a fix.
+   *
+   * The gap it closes is real. With occupancy weighting on, the mean
+   * `objectiveCost` of the candidates the controller actually SELECTS is
+   * +1,021.4 passenger-seconds on urban, +1,874.0 on suburban and +4,271.4 on
+   * inter-city - thousands of instructions the controller prices as harmful on
+   * its own reading, with the one law that would have declined them silent
+   * because it is not selectable (see COST_OPTIMAL_SELECTION_ENABLED above).
+   *
+   * The check inherits that objective's error whole. Its benefit term is a
+   * ONE-STOP marginal estimate and sees 1.4% of the waiting time a hold really
+   * removes, so on urban it reports a net cost on the corridor where holding
+   * demonstrably works. MEASURED with this on, across all three corridors and
+   * both occupancy phases, total passenger time - the GUARDRAIL - gets worse
+   * every time, and on urban the controller stops holding almost entirely:
+   * two-way coverage 3,325 -> 3 generating decisions. Full table in
+   * docs/SELF_HARM_CHECK.md.
+   *
+   * Turn it on when the objective's predicted benefit matches a measured one -
+   * which needs a multi-stop wait term, not merely a calibrated lambda - and
+   * re-run all three corridors before and after. Same precondition, and the
+   * same reason, as COST_OPTIMAL_SELECTION_ENABLED.
+   */
+  SELF_HARM_CHECK_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
   // ── Decision cycle (src/scheduler/decisionCycle.ts) ───────────────────
   //
   // Asks the controller what to do, on a timer, instead of only when a

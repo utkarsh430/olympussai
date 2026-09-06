@@ -12,6 +12,7 @@
 import { clamp, scheduleCorrectionSeconds } from './math.js';
 import { canExecuteHold } from './eligibility.js';
 import { liveOnboardCount, scoreHold } from './objective.js';
+import { isScoredSelfHarmful } from './selfHarmCheck.js';
 import { isWorthActingOn, occupancyAdjustedMaxHoldSeconds } from './actionThreshold.js';
 import type { CandidateAction } from './types.js';
 import type { HeadwayStateRow, RoutePolicyRow, VehicleStateRow } from '../state/store.js';
@@ -33,6 +34,14 @@ export function computeTwoWayCandidates(
    * passes the real setting. See mpc/objective.ts#liveOnboardCount.
    */
   weighOccupancy = true,
+  /**
+   * Whether to decline a candidate this law's own objective scores as net
+   * harmful, the way `mpc/costOptimalHold.ts` always has. Defaults FALSE - the
+   * deployed default and today's behaviour - so a direct caller keeps the
+   * unchecked law. See mpc/selfHarmCheck.ts, and read why it is off before
+   * turning it on.
+   */
+  selfHarmCheckEnabled = false,
 ): CandidateAction[] {
   if (policy.kf === null || policy.kb === null) return [];
 
@@ -64,12 +73,19 @@ export function computeTwoWayCandidates(
     const holdSeconds = Math.round(clamp(rawHold, 0, holdCapSeconds));
     if (holdSeconds <= 0) continue;
 
+    const score = scoreHold(h, h.followerVehicleId, holdSeconds, rawHold, load, deviationSeconds);
+    // The law declining an action its own objective prices as doing no good -
+    // see mpc/selfHarmCheck.ts. Off by default and measured to be harmful when
+    // on, because the objective's benefit term is a one-stop estimate of a
+    // multi-stop benefit; the switch exists so that stays measurable.
+    if (selfHarmCheckEnabled && isScoredSelfHarmful(score.objectiveCost)) continue;
+
     candidates.push({
       actionType: 'two_way_hold',
       vehicleId: h.followerVehicleId,
       involvedVehicleIds: [h.followerVehicleId, h.leaderVehicleId],
       holdSeconds,
-      ...scoreHold(h, h.followerVehicleId, holdSeconds, rawHold, load, deviationSeconds),
+      ...score,
       routeDirectionId: h.routeDirectionId,
       stateAsOf: h.computedAt,
       headwayDeviationSeconds: h.hFwdSeconds - h.targetHeadwaySeconds,
