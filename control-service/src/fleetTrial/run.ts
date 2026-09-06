@@ -72,6 +72,7 @@ import type {
   PunctualityKpis,
   PassengerOutcome,
   ScenarioReport,
+  SelfEqualizingCoverageReport,
   SpacingKpis,
   TrialProvenanceEntry,
   VehicleTrajectory,
@@ -625,7 +626,17 @@ function punctualityKpis(
   };
 }
 
-function summarizeIncidents(incidents: readonly DetectedIncident[]): IncidentSummary {
+/**
+ * `endOfRunSeconds` is the same sweep-window bound `detectIncidents` was
+ * given (`sweepUntilSeconds`) - needed here because an incident still open
+ * when the window closed carries `durationSeconds: null`, and charging it
+ * zero bunched-seconds-open would understate exactly the incidents that were
+ * open the LONGEST.
+ */
+export function summarizeIncidents(
+  incidents: readonly DetectedIncident[],
+  endOfRunSeconds: number,
+): IncidentSummary {
   const byOpeningSeverity: Record<string, number> = {};
   const byPeakSeverity: Record<string, number> = {};
   const resolutionDurations: number[] = [];
@@ -636,6 +647,7 @@ function summarizeIncidents(incidents: readonly DetectedIncident[]): IncidentSum
   let withIntervention = 0;
   let totalHoldSecondsServed = 0;
   let worstRatio: number | null = null;
+  let bunchedSecondsOpen = 0;
 
   for (const incident of incidents) {
     byOpeningSeverity[incident.openedSeverity] = (byOpeningSeverity[incident.openedSeverity] ?? 0) + 1;
@@ -654,6 +666,9 @@ function summarizeIncidents(incidents: readonly DetectedIncident[]): IncidentSum
     if (incident.holdCount > 0) withIntervention++;
     totalHoldSecondsServed += incident.holdSecondsApplied;
     if (worstRatio === null || incident.minRatio < worstRatio) worstRatio = incident.minRatio;
+    if (incident.peakSeverity === 'bunched') {
+      bunchedSecondsOpen += incident.durationSeconds ?? endOfRunSeconds - incident.openedAtSeconds;
+    }
   }
 
   resolutionDurations.sort((a, b) => a - b);
@@ -675,6 +690,7 @@ function summarizeIncidents(incidents: readonly DetectedIncident[]): IncidentSum
     worstRatio,
     withIntervention,
     totalHoldSecondsServed,
+    bunchedSecondsOpen,
   };
 }
 
@@ -727,6 +743,15 @@ function contrast(controlled: ArmReport, uncontrolled: ArmReport): ArmContrast {
       controlled.spacing.bunchingRate,
     ),
     incidentsAvoided: uncontrolled.incidents.detected - controlled.incidents.detected,
+    deepIncidentsAvoided:
+      (uncontrolled.incidents.byPeakSeverity['bunched'] ?? 0) -
+      (controlled.incidents.byPeakSeverity['bunched'] ?? 0),
+    bunchedSecondsOpenReduced:
+      uncontrolled.incidents.bunchedSecondsOpen - controlled.incidents.bunchedSecondsOpen,
+    bunchedSecondsOpenReducedPercent: percent(
+      uncontrolled.incidents.bunchedSecondsOpen,
+      controlled.incidents.bunchedSecondsOpen,
+    ),
     addedJourneySecondsPerVehicle: addedJourney,
     // PEOPLE, not refusal events. A passenger left behind is one person
     // harmed however many buses passed them, and the two arms repeat their
@@ -957,7 +982,7 @@ function runScenario(args: {
       corridor.policy.maxLatenessSeconds,
     ),
     passengers: passengerOutcome(controlled.visits),
-    incidents: summarizeIncidents(detectedControlled.incidents),
+    incidents: summarizeIncidents(detectedControlled.incidents, detectionHorizonSeconds),
   };
   const uncontrolledArm: ArmReport = {
     spacing: spacingKpis(uncontrolled.visits, corridor),
@@ -966,7 +991,7 @@ function runScenario(args: {
       corridor.policy.maxLatenessSeconds,
     ),
     passengers: passengerOutcome(uncontrolled.visits),
-    incidents: summarizeIncidents(detectedUncontrolled.incidents),
+    incidents: summarizeIncidents(detectedUncontrolled.incidents, detectionHorizonSeconds),
   };
 
   const trajectoryVehicleIds = pickTrajectoryVehicles(config.dispatches);
@@ -1101,6 +1126,7 @@ function mergeIncidentSummaries(summaries: readonly IncidentSummary[]): Incident
   let worstRatio: number | null = null;
   let resolutionSecondsWeighted = 0;
   let resolutionCount = 0;
+  let bunchedSecondsOpen = 0;
   const medians: number[] = [];
 
   for (const summary of summaries) {
@@ -1111,6 +1137,7 @@ function mergeIncidentSummaries(summaries: readonly IncidentSummary[]): Incident
     escalatedFromPrediction += summary.escalatedFromPrediction;
     withIntervention += summary.withIntervention;
     totalHoldSecondsServed += summary.totalHoldSecondsServed;
+    bunchedSecondsOpen += summary.bunchedSecondsOpen;
     for (const [key, count] of Object.entries(summary.byOpeningSeverity)) {
       byOpeningSeverity[key] = (byOpeningSeverity[key] ?? 0) + count;
     }
@@ -1145,6 +1172,7 @@ function mergeIncidentSummaries(summaries: readonly IncidentSummary[]): Incident
     worstRatio,
     withIntervention,
     totalHoldSecondsServed,
+    bunchedSecondsOpen,
   };
 }
 
@@ -1356,6 +1384,96 @@ function compareOccupancySettings(args: {
     meanObjectiveCostBlind: meanBlind,
     meanObjectiveCostAware: meanAware,
     rankingComparable,
+    verdict,
+  };
+}
+
+// ─── Is self_equalizing actually exercised? A coverage re-run, not a study ─
+
+/**
+ * Re-runs phase 1's scenarios and seeds with `kb` forced to null, which
+ * disables `two_way` outright (`twoWayHold.ts:37`) and removes
+ * `self_equalizing`'s only gate (`selfEqualizing.ts:55-56`), making it the
+ * one law left to cover the corridor.
+ *
+ * NEVER wired into `phases` or any other field `runFleetTrial` uses to build
+ * the deployed configuration's own numbers - this corridor and its decisions
+ * exist only for this function's return value, so the deployed `lawCoverage`
+ * and `contrast` cannot be affected by its existence. See
+ * `SelfEqualizingCoverageReport`.
+ */
+function runSelfEqualizingCoverage(args: {
+  corridor: CorridorInputs;
+  scenarios: readonly BunchingScenario[];
+  inputs: ModelledInputs;
+  spec: FleetTrialSpec;
+  vehiclesPerPhase: number;
+  deployedSelfEqualizing: LawCoverage | undefined;
+}): SelfEqualizingCoverageReport {
+  const { corridor, scenarios, inputs, spec, vehiclesPerPhase, deployedSelfEqualizing } = args;
+  const coverageCorridor: CorridorInputs = {
+    ...corridor,
+    policy: { ...corridor.policy, kb: null },
+  };
+
+  const base = Math.floor(vehiclesPerPhase / scenarios.length);
+  const remainder = vehiclesPerPhase - base * scenarios.length;
+  let busNumber = 0;
+  const runs: ScenarioRun[] = [];
+  for (const [index, scenario] of scenarios.entries()) {
+    const vehicleCount = base + (index < remainder ? 1 : 0);
+    if (vehicleCount < 2) continue;
+    runs.push(
+      runScenario({
+        corridor: coverageCorridor,
+        scenario,
+        inputs: scaleInputs(inputs, scenario),
+        vehicleIds: Array.from(
+          { length: vehicleCount },
+          () => `COVERAGE-${String(++busNumber).padStart(4, '0')}`,
+        ),
+        // Same seeds as phase 1 (occupancy-blind, no phase offset), so this
+        // arm is paired against the same days the deployed configuration ran.
+        seed: (spec.seed + index * 7919) >>> 0,
+        weighOccupancy: false,
+        requiredSamples: spec.requiredSamples,
+        sweepIntervalSeconds: spec.sweepIntervalSeconds,
+        followerSpeedSource: spec.followerSpeedSource,
+        alightingOnlySelectable: spec.alightingOnlySelectable,
+      }),
+    );
+  }
+
+  const controlled = poolArm(runs, coverageCorridor, (r) => r.controlledVisits, (report) => report.controlled);
+  const uncontrolled = poolArm(
+    runs,
+    coverageCorridor,
+    (r) => r.uncontrolledVisits,
+    (report) => report.uncontrolled,
+  );
+  const lawCoverage = coverageOf(runs.flatMap((r) => [...r.decisions]));
+  const selfEqualizing = lawCoverage.find((l) => l.law === 'self_equalizing');
+
+  const coverageShare =
+    selfEqualizing && selfEqualizing.decisionsTotal > 0
+      ? (selfEqualizing.decisionsGenerating / selfEqualizing.decisionsTotal) * 100
+      : 0;
+  const deployedShare =
+    deployedSelfEqualizing && deployedSelfEqualizing.decisionsTotal > 0
+      ? (deployedSelfEqualizing.decisionsGenerating / deployedSelfEqualizing.decisionsTotal) * 100
+      : 0;
+  const verdict =
+    `With two-way holding disabled (kb = null), self-equalizing generated on ` +
+    `${selfEqualizing?.decisionsGenerating ?? 0} of ${selfEqualizing?.decisionsTotal ?? 0} decisions ` +
+    `(${coverageShare.toFixed(2)}%) - against ${deployedShare.toFixed(2)}% on the deployed configuration, ` +
+    'which this variant never changes.';
+
+  return {
+    vehicleCount: runs.reduce((acc, r) => acc + r.report.vehicleCount, 0),
+    controlled,
+    uncontrolled,
+    contrast: contrast(controlled, uncontrolled),
+    lawCoverage,
     verdict,
   };
 }
@@ -2021,6 +2139,16 @@ export function runFleetTrial(
     followerSpeedSource: spec.followerSpeedSource,
   });
 
+  const occupancyBlindPhase = phaseReports.find((phase) => phase.id === 'occupancy_blind');
+  const selfEqualizingCoverage = runSelfEqualizingCoverage({
+    corridor,
+    scenarios,
+    inputs,
+    spec,
+    vehiclesPerPhase: studyVehicles,
+    deployedSelfEqualizing: occupancyBlindPhase?.lawCoverage.find((l) => l.law === 'self_equalizing'),
+  });
+
   return {
     generatedAt: new Date().toISOString(),
     durationMs: Date.now() - startedAt,
@@ -2056,6 +2184,7 @@ export function runFleetTrial(
     phases: phaseReports,
     policyStudies,
     occupancyContrast,
+    selfEqualizingCoverage,
     provenance: buildProvenance(corridor, inputs, spec),
     notExercised: NOT_EXERCISED,
   };

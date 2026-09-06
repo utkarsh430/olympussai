@@ -92,6 +92,12 @@ function renderContrast(c: ArmContrast): string[] {
     `      per passenger carried  ${pct(c.passengerSecondsPerBoardingSavedPercent)}   (the arms do not serve identical crowds)`,
     `    punctuality      ${c.addedJourneySecondsPerVehicle === null ? '-' : `${(c.addedJourneySecondsPerVehicle / 60).toFixed(1)} min added per bus`}`,
     `    denied boardings ${c.additionalDeniedBoardings > 0 ? '+' : ''}${c.additionalDeniedBoardings}`,
+    // The raw count is severity-blind and can read negative while the
+    // controller is making every corridor measurably safer - see
+    // `deepIncidentsAvoided` and `bunchedSecondsOpenReduced` on `ArmContrast`.
+    // Reported side by side, never one in place of the other.
+    `    incidents avoided ${c.incidentsAvoided} raw   ${c.deepIncidentsAvoided} deep (peak-bunched)   ` +
+      `bunched-open ${hours(c.bunchedSecondsOpenReduced)} ${pct(c.bunchedSecondsOpenReducedPercent)}`,
   ];
 }
 
@@ -173,13 +179,22 @@ function renderReport(report: FleetTrialReport): string {
     lines.push(`    ${study.verdict}`);
   }
   lines.push('', '  What weighing passenger load changed:', `    ${report.occupancyContrast.verdict}`);
+  lines.push(
+    '',
+    '  self_equalizing coverage (kb = null, two-way disabled - not the deployed configuration):',
+    `    ${report.selfEqualizingCoverage.verdict}`,
+    `    net passenger time ${pct(report.selfEqualizingCoverage.contrast.passengerSecondsSavedPercent)}   excess wait ${pct(report.selfEqualizingCoverage.contrast.ewtImprovementPercent)} better`,
+  );
   lines.push('', '  Per scenario (excess wait, no control -> controlled):');
   for (const phase of report.phases) {
     lines.push(`    ${phase.id}`);
     for (const scenario of phase.scenarios) {
+      const deepUncontrolled = scenario.uncontrolled.incidents.byPeakSeverity['bunched'] ?? 0;
+      const deepControlled = scenario.controlled.incidents.byPeakSeverity['bunched'] ?? 0;
       lines.push(
         `      ${scenario.id.padEnd(24)} ${scenario.uncontrolled.spacing.ewtSeconds?.toFixed(0).padStart(4) ?? '   -'}s -> ${scenario.controlled.spacing.ewtSeconds?.toFixed(0).padStart(4) ?? '   -'}s` +
           `   incidents ${String(scenario.uncontrolled.incidents.detected).padStart(4)} -> ${String(scenario.controlled.incidents.detected).padStart(4)}` +
+          `  (deep ${String(deepUncontrolled).padStart(4)} -> ${String(deepControlled).padStart(4)})` +
           `   net passenger time ${pct(scenario.contrast.passengerSecondsSavedPercent)}`,
       );
     }
