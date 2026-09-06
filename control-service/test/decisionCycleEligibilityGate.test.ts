@@ -15,6 +15,10 @@ import { runDecisionCycle, _resetDecisionCursorForTests } from '../src/scheduler
 import type { Env } from '../src/config/env.js';
 import type { MpcSolveResult } from '../src/mpc/solver.js';
 import type { CandidateAction } from '../src/mpc/types.js';
+import {
+  DEFAULT_MAX_REFUSALS_PER_WINDOW,
+  DEFAULT_REFUSAL_WINDOW_SECONDS,
+} from '../src/mpc/boardingLimit.js';
 
 const NOW = new Date('2026-09-06T10:00:00.000Z');
 
@@ -61,6 +65,20 @@ function solveResult(routeDirectionId: string): MpcSolveResult {
     selectedAction: selected,
     selectedActions: [selected],
     boardingLimitCandidates: [],
+    // What `boardingLimitAvailability` returns for a corridor with
+    // `alighting_only_enabled` unset - i.e. every corridor today, and the state
+    // the empty `boardingLimitCandidates` above already describes. The bound
+    // and the window come from the module's own defaults rather than being
+    // written out here, so a fixture cannot drift from them.
+    boardingLimitAvailability: {
+      offered: false,
+      withheldReason: 'disabled_for_corridor',
+      refusalsInWindow: null,
+      maxRefusals: DEFAULT_MAX_REFUSALS_PER_WINDOW,
+      windowSeconds: DEFAULT_REFUSAL_WINDOW_SECONDS,
+      remainingRefusals: null,
+      withheldCandidateCount: 0,
+    },
     selectedActionType: 'two_way_hold',
     objectiveCost: -100,
     expectedRecoverySeconds: 60,
