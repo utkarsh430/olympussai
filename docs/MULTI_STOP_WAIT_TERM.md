@@ -102,7 +102,10 @@ the architecture already specifies, over the stops that are left.
 
 All figures below: the fleet-trial corridors, **19 bunching scenarios × 3 seeds
 (501–503), 120 vehicles per phase**, `followerSpeedSource: 'vehicle_state'`, the
-DEPLOYED laws through `rehearsal/deployedControlLaws.ts`, base commit `4ec2ef8`.
+DEPLOYED laws through `rehearsal/deployedControlLaws.ts`. Measured at base
+`4ec2ef8` and re-confirmed unchanged at `31ed5e1`, which is expected: the
+alighting-only per-corridor work that landed between them ships disabled on
+every corridor, so it moves nothing these runs observe.
 The scenario set includes the nine adversarial scenarios, which is why the
 controller's measured benefit is smaller here than in `docs/FLEET_TRIAL.md` and
 negative on two corridors — that is the adversarial set doing its job, not this
@@ -303,7 +306,7 @@ whole-day passenger-time terms, hashed over 19 scenarios × 3 seeds × 120
 vehicles on all three corridors and both occupancy phases:
 
 ```
-                                  origin/simulator-preview (4ec2ef8)   this branch, flag off
+                                  origin/simulator-preview (31ed5e1)   this branch merged, flag off
 urban      weighOccupancy=false   f3d4328cd70a4bfe…                    f3d4328cd70a4bfe…   identical
 urban      weighOccupancy=true    a88606d5877827b3…                    a88606d5877827b3…   identical
 suburban   weighOccupancy=false   7ca916c297500ce9…                    7ca916c297500ce9…   identical
@@ -311,6 +314,13 @@ suburban   weighOccupancy=true    3a3716c8918a43c6…                    3a3716c
 intercity  weighOccupancy=false   4215fa245edc7efc…                    4215fa245edc7efc…   identical
 intercity  weighOccupancy=true    24357a61ff7e613a…                    24357a61ff7e613a…   identical
 ```
+
+The proof is re-run against the base this branch is actually merged with, not
+the one it was branched from — a digest taken against an older base says nothing
+about what merging produces. Re-confirmed at `31ed5e1` after merging it in; the
+six digests are also unchanged from `4ec2ef8`, which is itself worth recording,
+because it says the alighting-only per-corridor change that landed in between
+moves nothing on these corridors while it ships disabled.
 
 The mechanism, not just the result: with the switch off neither `mpc/solver.ts`
 nor `rehearsal/deployedControlLaws.ts` builds a `downstreamStopsByVehicleId`
