@@ -1,0 +1,8 @@
+{
+  "name": "real-corridors-do-the-presets-predict-them",
+  "corridors": { "source": "eligible", "requireLivePair": false },
+  "scenarios": ["none", "demand_burst", "missed_trip", "gps_dropout", "non_compliance"],
+  "seeds": { "count": 20, "base": 20260820 },
+  "demand": { "mode": "derived", "peakLoadShare": 0.65 },
+  "arms": [{ "name": "as-deployed", "policyOverrides": {} }]
+}

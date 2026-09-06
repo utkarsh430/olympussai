@@ -381,6 +381,74 @@ const baseEnvSchema = z.object({
     .transform((v) => v === 'true'),
 
   /**
+   * Whether terminal dispatch prices an unobserved bus behind against the
+   * LEADER'S DEPARTURE rather than against the standing vehicle's own
+   * position.
+   *
+   * OFF by default, and off is byte-identical: with this false
+   * `mpc/terminalDispatch.ts` asks for the `'vehicle'` anchor,
+   * `computePassengerCost` substitutes `h_bwd = H*` exactly as it always has,
+   * and no other law asks for the other anchor at all.
+   *
+   * ─── THE DEFECT ──────────────────────────────────────────────────────
+   *
+   * An unclamped terminal hold is `d = H* - h_fwd`, and with nothing observed
+   * behind - the ordinary case at an origin - the neutral substitution is
+   * `h_bwd = H*`. The objective's bracket is then
+   *
+   *   d + h_fwd - h_bwd  =  (H* - h_fwd) + h_fwd - H*  =  0,  EXACTLY.
+   *
+   * Under that substitution the hold does not even the two gaps, it SWAPS
+   * them - `(h_fwd, H*)` becomes `(H*, h_fwd)`, whose second moment is
+   * identical - so it is priced at precisely zero. MEASURED: 47-49% of all
+   * terminal candidates score exactly 0.0 and ~97% score `>= 0`, on all three
+   * corridors, under both occupancy phases, with and without
+   * MULTI_STOP_WAIT_TERM_ENABLED (a positive multiplier leaves zero at zero).
+   * `>= 0` is true of zero, so every guard keyed on that comparison declines
+   * them - and terminal dispatch is the one lever in this system with no cost
+   * to anybody aboard, because the bus has not started its trip and nobody is
+   * on it. docs/MULTI_STOP_WAIT_TERM.md section 5; full evidence for this
+   * flag, including what it is measured NOT to fix, in
+   * docs/ORIGIN_BACKWARD_NEUTRAL.md.
+   *
+   * ─── WHAT IT CHANGES ─────────────────────────────────────────────────
+   *
+   * The neutral value, and nothing else. At an origin `h_fwd` is elapsed time
+   * since the leader pulled out - a fixed observed instant - and the bus
+   * behind has not departed, so the neutral claim is that the departures
+   * either side of this one fall on target: `h_bwd = 2 x H* - h_fwd`. The
+   * gaps then go `(h_fwd, 2H* - h_fwd) -> (H*, H*)` at the on-target hold,
+   * evened rather than swapped, and the wait term becomes
+   * `-w_h x lambda x d^2` - a benefit, quadratic in the hold. DERIVED from
+   * the target the law already regulates, with no fitted constant anywhere in
+   * it; `mpc/actionThreshold.ts`'s docblock records why this codebase
+   * declines those. Full derivation in `mpc/objective.ts`'s header.
+   *
+   * ─── WHAT IT DOES NOT CHANGE ─────────────────────────────────────────
+   *
+   * Not a single decision, on its own. `objectiveCost` gates nothing on the
+   * deployed defaults: terminal dispatch generates its candidate on `rawHold`
+   * and has absolute priority in `selectActions`, so with
+   * SELF_HARM_CHECK_ENABLED and COST_OPTIMAL_SELECTION_ENABLED both off this
+   * flag moves the PRICE and no coverage, hold length, guardrail or headline
+   * figure. What it fixes is the price those two knobs would read - which is
+   * why it is a precondition for them and not a controller change.
+   *
+   * It is also measured NOT to be sufficient, and that is the useful half of
+   * the result. Occupancy-blind a terminal hold is priced as a benefit only
+   * when `lambda x N x d > 1`; under the 1/H* proxy at N = 1 that needs a hold
+   * longer than H*, and a terminal hold is bounded by `H* - h_fwd`. So the
+   * share of terminal candidates priced `>= 0` goes 100.0% -> 100.0% with this
+   * flag alone, 68.6% / 94.7% / 97.1% with MULTI_STOP_WAIT_TERM_ENABLED as
+   * well, and 12.3% / 29.3% / 67.0% with a fitted lambda on top. The zero, the
+   * horizon and lambda are three factors on one term. Flip them together.
+   */
+  ORIGIN_BACKWARD_NEUTRAL_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
+  /**
    * Whether the decision cycle PERSISTS pace guidance alongside the holds it
    * already writes to `recommendations`.
    *
@@ -409,17 +477,21 @@ const baseEnvSchema = z.object({
    *
    * ─── WHY IT IS OFF DESPITE COSTING NOTHING ───────────────────────────
    *
-   * Because the rows have no reader. `recommendations` is written by this
-   * cycle and read by exactly two things: the cycle's own dedupe fingerprint
-   * (src/db/recommendations.ts#findLatestRecommendation) and a retention
-   * guard (src/scheduler/retention.ts). No route serves the table and no
-   * console fetches it. Until something reads it, turning this on writes
-   * rows nobody sees, at a cost in write volume and retention - so the
-   * honest default is off, and the flag is here so the decision to start
-   * writing them is a deliberate one rather than a side effect.
+   * It was off because the rows had no reader at all: `recommendations` was
+   * written by this cycle and read by exactly two things, the cycle's own
+   * dedupe fingerprint (src/db/recommendations.ts#findLatestRecommendation)
+   * and a retention guard (src/scheduler/retention.ts). No route served the
+   * table and no console fetched it.
    *
-   * Turn it on when a surface reads `recommendations`. Nothing here issues a
-   * command, on or off: every row is `status = 'proposed'`.
+   * That is no longer true - `RECOMMENDATION_FEED_ENABLED` below mounts
+   * `GET /v1/recommendations`, which the web app's standing-proposal panel
+   * reads - but this stays off, because the reader is off too and because
+   * these two are separate decisions. This one governs how much the cycle
+   * WRITES; that one governs whether anything reads it. Turning this on
+   * while the feed is off still writes rows nobody sees.
+   *
+   * The feed does surface `paceAdvisories` when both are on. Nothing here
+   * issues a command in any combination: every row is `status = 'proposed'`.
    */
   PACE_GUIDANCE_ON_DECISION_CYCLE_ENABLED: z
     .enum(['true', 'false'])
@@ -493,6 +565,59 @@ const baseEnvSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+
+  /**
+   * Whether `GET /v1/recommendations` is mounted - the read that gives the
+   * decision cycle's stored proposals a consumer at last.
+   *
+   * OFF, and off is a TRUE no-op: `createApp()` does not mount the router,
+   * so the path 404s exactly as it did before this existed, no query is ever
+   * issued, and no other handler's behaviour changes by a byte.
+   * `test/recommendationFeedRoute.test.ts` pins that.
+   *
+   * ─── WHAT IT IS FOR ─────────────────────────────────────────────────────
+   *
+   * `scheduler/decisionCycle.ts` has solved every eligible corridor on a 90 s
+   * timer and written a `recommendations` row the whole time, and until this
+   * endpoint the only thing that ever read one back was the next cycle's own
+   * duplicate check (`db/recommendations.ts#findLatestRecommendation`). No
+   * route served the table and no console fetched it, so everything a
+   * dispatcher saw came from the SYNCHRONOUS solve taken when they opened a
+   * corridor themselves - which is the very thing the cycle exists to stop
+   * being the only path. The automatic controller's output was written and
+   * discarded.
+   *
+   * ─── WHY IT IS NOT ON BY DEFAULT ────────────────────────────────────────
+   *
+   * Not because the read is risky - it writes nothing, runs no control law,
+   * and its response shape deliberately cannot carry an approvable candidate
+   * (see `db/recommendations.ts#StandingRecommendation`). Because the two
+   * halves deploy separately: the web app has its own switch of the same name
+   * and there is no ordering of two independent deploys in which one is not
+   * briefly ahead of the other. Off on both is the state where neither half
+   * can be surprised by the other, and turning the pair on is then a
+   * deliberate act rather than a deploy-order accident.
+   *
+   * Nothing here issues a command, on or off. Every row it serves is
+   * `status = 'proposed'` and reaches a bus only through a dispatcher
+   * approval and POST /v1/commands.
+   */
+  RECOMMENDATION_FEED_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
+  /**
+   * How many corridors' standing proposals one page of the feed asks for.
+   *
+   * A ceiling for the same reason `/v1/alerts` has one: this read spans the
+   * network rather than a corridor an operator has already narrowed to, so
+   * "however many there are" is not a safe answer to serialise into a
+   * browser. `DECISION_CYCLE_BATCH_SIZE` is 60, so one sweep cannot produce
+   * more standing rows than that; 200 leaves room for the batch size to grow
+   * without the cap becoming the thing that truncates the list.
+   */
+  RECOMMENDATION_FEED_MAX_LIMIT: z.coerce.number().int().positive().default(200),
   /**
    * The running-time assumptions the band is decided on when a corridor has no
    * fitted link travel times - which today is every corridor.

@@ -49,13 +49,13 @@ Solving is deliberately NOT done on the list. A solve carries a 90s freshness ve
 
 `mpc/boardingLimit.ts` proposes "let people off, take nobody on" on the LEADER of a bunched pair — note the inversion, every other law acts on the follower. In a bunch the leader absorbs all the demand, and its own long dwells are what drag it late and let the follower close; cutting its boarding dwell lets it recover while the follower collects who was left. It reuses the existing `boarding_limit` command type, so no new command vocabulary was needed — but that moved it out of the "instructions nothing generates" set, which the depot console and control-room console both derive by subtracting `ENGINE_ACTION_TYPES`. Both updated with no edit; that derivation is why.
 
-## Three action-type sets, not two — and `recommendations` rows have no reader
+## Three action-type sets, not two — and who reads `recommendations`
 
 Two facts a session usually assumes wrongly.
 
 **The engine's vocabulary is a THREE-way partition.** `ENGINE_ACTION_TYPES` (rankable candidates), `ENGINE_ADVISORY_ACTION_TYPES` (worked out, never ranked — `speed_guidance` today), and the human-originated remainder that `humanOriginatedActions` in `src/lib/ops/recommendationView.ts` derives by subtracting BOTH. The `boarding_limit` precedent above — "the derivation absorbed it with no console edit" — did NOT repeat for pace guidance, and assuming it does is the trap. `boarding_limit` is a `CandidateAction`, so it moved sets on its own; pace guidance is deliberately not one (keeping it off the candidate list is what makes dispatching a speed instruction impossible rather than merely discouraged, since the ranking would pick one no delivery path can carry). It therefore never entered `engineActionTypes`, and both consoles told operators "nothing in this system works out speed guidance" while the control room rendered its answer two panels away. Adding it to the candidate enum would have been worse than the bug: both consoles promise an engine action is approved, sent and shown on a driver's screen, and there is no in-cab display in this system. Hence the third set. A new engine output needs the same question asked: is it ranked, or only worked out?
 
-**Nothing reads the `recommendations` table.** It is written by `scheduler/decisionCycle.ts` alone, and read by exactly two things: that cycle's own dedupe fingerprint (`db/recommendations.ts#findLatestRecommendation`) and a retention guard (`scheduler/retention.ts`). No route serves it and no console fetches it — the control room's engine output comes from the SYNCHRONOUS solve (`POST /v1/mpc/solve` → `/api/ops/control-room/recommendations`), which is why that response says `persistence: 'none'`. So "put it on the recommendations path" and "get it in front of an operator" are two different jobs, and only the second is done by the live-solve path. Check before assuming a persisted row is visible anywhere.
+**The `recommendations` table now has a reader, and it is switched off.** For most of this repo's life nothing read it: `scheduler/decisionCycle.ts` wrote a row every 90 s and the only readers were that cycle's own dedupe fingerprint (`db/recommendations.ts#findLatestRecommendation`) and a retention guard (`scheduler/retention.ts`, which reads it to keep a referenced incident from being deleted and never deletes from it). The automatic controller's whole output was written and discarded. `GET /v1/recommendations` -> `/api/ops/control-room/recommendations/feed` -> the standing-proposal panel on `/ops/control-room/alerts` is that reader, behind `RECOMMENDATION_FEED_ENABLED` (default false, one switch per package because the halves deploy separately; off, the control-service router is not mounted and the web route 404s). Three things about it a future session will otherwise get wrong. **A stored row is never approvable, structurally**: the wire contract carries a SUMMARY of what the row said and never the `CandidateAction` objects, because their safety verdict was graded against `mpc/safety.ts`'s 90 s window at solve time and nobody reads a list inside 90 s - so a console cannot render an approve affordance because it never receives the object one would act on. **The live solve is authoritative when the two disagree** (`src/lib/ops/standingProposalView.ts#reconcileWithLiveSolve` says so in the copy every time; showing both without naming one is the failure mode). And **the feed carries `latestCreatedAt` for the WHOLE table, not just its window** - a proposal list empties both when the controller proposed nothing and when the controller is not running, which is the alert inbox's empty-list trap with an extra state in it. The control room's own engine output still comes from the SYNCHRONOUS solve (`POST /v1/mpc/solve` -> `/api/ops/control-room/recommendations`), which is why that response still says `persistence: 'none'`. "Put it on the recommendations path" and "get it in front of an operator" remain two different jobs.
 
 Four guards, each of which a live solve proved necessary: at least as bunched as the corridor's own `bunchedThresholdRatio` (never a constant — a hardcoded 0.35 was *looser* than the 0.25 default, firing on pairs the corridor did not call bunched); an ABSOLUTE 240s cap on how long anyone waits (a ratio would permit 450s on a 1800s corridor); a 30s floor (a live solve produced a 0.675s "gap" — one position reported twice); and one proposal per vehicle (a live solve named the same bus three times, because `db/rehydrate.ts` keeps the latest sample per (leader, follower) across *all* history, so stale pairings survive until the first sweep).
 
@@ -92,6 +92,37 @@ One formula, one place: `lib/dispersion.ts` holds the second-moment EWT/CV arith
 **Algorithm A regulates an ELAPSED departure headway, never `h_fwd`.** It used to read `h_fwd`, and could therefore never fire: `dwelling_at_stop` means speed < 2 km/h, `computePairHeadways` floors speed at `MIN_SPEED_KMPH = 1`, so a 7.7 km gap gave `h_fwd = 27,601s` against a 900s target and `rawHold` was always negative. `h_fwd` is a CLOSING time and a bus at the origin is not closing on anything; the quantity blueprint 8.2 regulates is how long since the previous bus pulled out, now read from `stop_visits.departed_at` via `headway/repository.ts#loadLastStopDeparture`. A null departure declines — never fall back to `h_fwd`. Note that terminal dispatch has absolute priority in `selectActions` and suppresses the mid-route laws for any bus at the terminal, so this CHANGED which buses get held rather than only adding holds.
 
 **Demand can be fitted without ticketing data.** `pnpm sim:run --calibrate` (`evaluation/calibrate.ts`) fits `dwell = beta_0 + beta_h x h_preceding` from `stop_visits`, then derives `lambda = beta_h / beta_b` — because boardings ≈ lambda x h, the fitted slope IS the compound quantity. `beta_b` (seconds per boarding) is the one assumed number and every derived rate scales inversely with it; alighting fraction and capacity stay modelled. The same fit yields `1 + beta_h`, the headway amplification eigenvalue that says whether a corridor needs control at all. `mpc/objective.ts` still proxies lambda as `1/H*` — wiring the fitted value in is a live-control-law change and has not been made.
+
+## The two invented inputs, measured - and what a fit here is really grouped by
+
+`docs/CALIBRATION_MEASURED.md` (flag `CALIBRATION_CONTAMINATION_FILTER_ENABLED`, default off,
+`control-service/src/calibration/{contamination,dispersion,flags}.ts`) is the measurement of
+lambda and `travelTimeVariation` against the first day `stop_visits` filled. Four things from it
+that a session will otherwise re-derive or get wrong.
+
+**`fitDwellModel` groups by (route_direction_id, stop_id), not by stop, and drops the first visit
+in each group.** So a network-wide "N stops have enough visits" count is not the number of stops
+that can fit, and it overstates it by roughly a third on this network. `isCalibrated` then wants
+half of ONE corridor's stops. Count at the fitter's own grouping before predicting what a
+calibration run will yield.
+
+**`travelTimeVariation` is the CV of one LEG's running time, never a headway CV.** The network's
+1.78 headway CV is a real and severe irregularity - it survives removing the sub-second gaps
+(1.79 -> 1.73) and gets WORSE when parked and laying-over buses are excluded - but it is an
+outcome, it is already ~1.51 in the first quarter of a route, and substituting it here would put
+a road input an order of magnitude above anything a road produces. Measured leg-time dispersion
+is 0.21 (95% CI [0.18, 0.26]) against a shipped 0.14-0.18.
+
+**A layover is the dangerous dwell, not the noisy one.** Its length comes from the same timetable
+as the dispatch interval, so regressing it on preceding headway returns a confident slope with no
+boarding in it - unfiltered, that produces corridors whose fitted `1 + beta_h` reaches 2.5, which
+is a corridor that cannot run. Bound a dwell by what boarding could produce
+(`beta_0 + beta_b x capacity`), never by a percentile.
+
+**`buildLinkObservations` pairs visits adjacent in a VEHICLE's timeline, not stops adjacent on the
+ROUTE**, and `fitLinkTravelTimes` keys on `toStopId` - so a missed geofence files a two-leg time
+against the last leg of the run. Measured, 44.6% of the traversals the shipped fit uses are not
+one leg of the route they are filed against.
 
 ## Headway is measured against the corridor's pace, not a bus's own speed
 
@@ -397,6 +428,10 @@ Measured, that is exactly what happens. With the check on and occupancy weightin
 
 **`boarding_limit` structurally cannot take this check.** Its `objectiveCost` is a sentinel `0` meaning "neither side of this trade is priced", not "this breaks even" - and `>= 0` is true of zero, so wiring the predicate in would decline 100% of alighting-only proposals on every corridor forever, deleting a law on the strength of a placeholder. `test/selfHarmCheck.test.ts` pins that so nobody "finishes the job".
 
+**The origin's neutral backward gap is now correctable, and correcting it is measured NOT to be enough.** `ORIGIN_BACKWARD_NEUTRAL_ENABLED` (off, `mpc/objective.ts` + `mpc/terminalDispatch.ts`, evidence in `docs/ORIGIN_BACKWARD_NEUTRAL.md`) anchors the unobserved-follower substitution at an origin to the LEADER'S DEPARTURE - `h_bwd = 2H* - h_fwd`, derived from the target the law already regulates - instead of to the standing vehicle. That removes a wait term of exactly zero on **39-46%** of terminal candidates. It moves the share priced `>= 0` by **nothing at all**: 100.0% to 100.0%, to the digit, on all three corridors. The arithmetic is exact - occupancy-blind a terminal hold is a benefit only when `lambda x N x d > 1`, which under the `1/H*` proxy at N=1 needs `d > H*` while a terminal hold is bounded by `H* - h_fwd`. So the zero, the horizon and lambda are three factors on ONE term and terminal dispatch needs all three; the self-harm check still declines 100% of terminal candidates with the anchor corrected. Read that as the objective's error, not the action's harm, exactly as the +1,021 figure above.
+
+**`W_LATENESS` IS LAMBDA IN DISGUISE, and this is the trap for whoever calibrates it.** The constant is 1 because it means *riders per departure*, which under the same `1/H*` proxy is `lambda x H* = 1` - its own docblock says so. Nothing scales it. It is not small: on urban, occupancy-blind, the mean punctuality term of a selected candidate is **+37.88** against a mean wait term of **-24.20**, so it is larger than the benefit it is netted against and it takes the share priced `>= 0` from 27.0% on the wait term alone to 76.4% on the net. Consequence, measured: if a fitted lambda enters the wait term ONLY, the occupancy-blind `>= 0` share falls 41 / 26 / 5 points; if it enters both terms - which is what the constant means - it changes the share by **exactly nothing**, because occupancy-blind the net is `lambda x (wait + punctuality)` and a positive factor on a sum cannot move it across zero. Decide what `W_LATENESS` does in the same change as lambda, or the calibration will report a sign flip it did not earn.
+
 **The real fix is a MULTI-STOP WAIT TERM, and half of it now exists.** `MULTI_STOP_WAIT_TERM_ENABLED` (off, `mpc/objective.ts`, evidence in `docs/MULTI_STOP_WAIT_TERM.md`) sums the wait term over the stops a hold's correction is experienced at rather than the one it is issued from - N = stops the vehicle has left, no decay coefficient, because two honest measurements of the residual REVERSE its ordering across the three corridors and three points that swap rank cannot fit one. It takes the wait term from 1.3-3.0% of the truth to 14-16%, moves `cost_optimal` off zero under occupancy weighting (urban 1 -> 582 generated against 46,750 occupancy-blind), and takes the self-harm check from 246 holds to 3,309 on urban. It fixes NEITHER the sign NOR terminal dispatch, and both reasons are measured: a positive multiplier cannot flip a net sign (occupancy-blind, the share of candidates priced >= 0 is identical to the digit with and without it), and terminal dispatch's pathology is the neutral `h_bwd = H*` substitution making an unclamped origin hold score EXACTLY zero - 47-49% of terminal candidates do - which is a different defect and the cheapest one left. The remaining factor of 7-11 is lambda; with lambda fitted as well the wait term lands at 117-177% of measured truth. Flip this knob, `COST_OPTIMAL_SELECTION_ENABLED` and `SELF_HARM_CHECK_ENABLED` together WITH lambda, or none of them. `test/costOptimalOccupancy.test.ts` pins the mechanism; `test/multiStopWaitTerm.test.ts` pins the horizon and that off is byte-identical.
 
 MEASURED against outcomes, term by term, over 20,423 urban holds (`HANDOFF.md` section 7). The objective's COST side is nearly right - it says a hold costs the people aboard 7,914 h where the truth is 6,775 h. Its BENEFIT side is wrong by a factor of ten to seventy: it says holding removes 147 h of waiting under the proxy, or 1,081 h with a correct lambda, where the truth is 10,799 h. It models dwell and riding not at all, and those are another 2,443 h of benefit. So on urban the objective says control COSTS 7,768 h where it actually SAVES 6,466 h - **the wrong sign, on the corridor where the controller works.** Inter-city keeps its sign only because the cost is genuinely larger there, and still overstates 4.8x / 3.6x.
@@ -414,7 +449,7 @@ A command goes `authorized` (on create/supersede) -> `delivered` -> `acknowledge
 
 `getStateEstimationService()` (`control-service/src/state-estimation/singleton.ts`) is the only construction path used by both HTTP ingestion and the GPS poller, and it wraps `PgStateEstimationRepository` in `CachedGeometryRepository`. A method the decorator forgets to forward simply does not exist in the running service. That is not hypothetical: `recordStopVisit` was missing from it, the interface member was `?`-optional so `implements StateEstimationRepository` still type-checked, and `stop_visits` stayed at 0 for the life of the service while every other writer on the same path worked - 77 minutes of healthy ingestion with 302 vehicles inside a geofence produced not one row, and `calibration/dwell.ts`, `calibration/linkTravelTime.ts`, `schedule/punctuality.ts` and the `ewt_at_stop_seconds`/`cv_at_stop`/`on_time_rate` KPI columns all silently had no input. Every member of `StateEstimationRepository` is now non-optional and `test/stopVisitWiring.test.ts` asserts the decorator implements every method the Pg repository does, so the next omission fails at compile time and in CI. **Never make a repository member optional to spare an implementer, and construct the decorator - not the raw repository - in any test that claims to prove ingestion behaviour.**
 
-**One definition of "which stop is this vehicle at."** `stopStateClassifier.isAtStop` is it (30 m geofence, or within the 150 m approach window and still closing), and `current_stop_id`, `stop_state_entered_at` and the `held_by_controller` association all answer from it. When the estimator asked the geofence while the classifier also associated on the approach window, 43% of live stop associations (measured: 649 with a stop id, 368 with an entry time) carried a stop with no entry time, and `stopVisit.ts#detectCompletedStopVisit` needs both - so they could never close. `stop_state_entered_at` means "when this vehicle's association with `current_stop_id` began", not "when it became stationary"; `arrival-prediction/dwell.ts` charges elapsed dwell from it and inherits that. Measured by replaying one captured feed window through both candidate rules: associating on the approach window is strictly additive (it doubles recorded visits and loses none), but the visits it adds are passages rather than arrivals - 22% show the bus ever reporting <= 2 km/h, against 38% of geofence visits, median closest approach 76 m. Right for `computeStopHeadways`/`schedule/punctuality.ts`, which difference departures; wrong for `calibration/dwell.ts`, whose `dwellSeconds` is `departedAt - arrivedAt`. **Before `fitDwellModel` ever has its 12 samples per stop, split the two on `stop_visits.source` (`gps_approach` vs `gps_geofence`) and filter the dwell fit to geofence visits.**
+**One definition of "which stop is this vehicle at."** `stopStateClassifier.isAtStop` is it (30 m geofence, or within the 150 m approach window and still closing), and `current_stop_id`, `stop_state_entered_at` and the `held_by_controller` association all answer from it. When the estimator asked the geofence while the classifier also associated on the approach window, 43% of live stop associations (measured: 649 with a stop id, 368 with an entry time) carried a stop with no entry time, and `stopVisit.ts#detectCompletedStopVisit` needs both - so they could never close. `stop_state_entered_at` means "when this vehicle's association with `current_stop_id` began", not "when it became stationary"; `arrival-prediction/dwell.ts` charges elapsed dwell from it and inherits that. Measured by replaying one captured feed window through both candidate rules: associating on the approach window is strictly additive (it doubles recorded visits and loses none), but the visits it adds are passages rather than arrivals - 22% show the bus ever reporting <= 2 km/h, against 38% of geofence visits, median closest approach 76 m. Right for `computeStopHeadways`/`schedule/punctuality.ts`, which difference departures; wrong for `calibration/dwell.ts`, whose `dwellSeconds` is `departedAt - arrivedAt`. That comparison chose the geofence rule and the estimator writes ONLY `gps_geofence`: `stop_visits.source` admits `gps_geofence` and `avl_stop_event` and nothing else, `gps_approach` exists nowhere in this repo, and every row recorded on the live feed is `gps_geofence`. **There is no source split to make** - a session sent looking for one will not find it. The dwell contamination that IS present is a different one, and `docs/CALIBRATION_MEASURED.md` measures it.
 
 ## E2E testing convention: don't give a spec the REST client it's proving doesn't need to exist
 
@@ -462,6 +497,45 @@ before `~/.nvm/versions/node/*/bin`), running `nvm use` does not fix `node
 enforced (no `engine-strict` in `.npmrc`); pnpm only warns on a mismatch, npm
 stays silent. Prepend the intended Node's bin dir to `PATH` explicitly if
 `nvm use` doesn't visibly change `node --version`.
+
+## Demand is a property of the CORRIDOR, and the three presets do not span this network
+
+`evaluation/demand.ts`, findings in `docs/REAL_CORRIDOR_EVALUATION.md`, run it
+with `pnpm sim:run --config experiments/real-corridors.json`.
+
+A stop boards `lambda x H` and sheds `alightingFraction` of the load, so a
+modelled bus's load is **proportional to the corridor's own target headway**.
+One global boarding rate is therefore not one experimental condition, it is a
+different load on every corridor: the 0.8/min default was picked against a 900 s
+synthetic corridor, this network's 198 measured headways run 300-12,497 s with a
+median of 1,800 s, and real corridors consequently ran at 2-13x their seat count
+and returned 74.6-96.4% denied boardings. Never put a flat demand on corridors of
+different headway. `demand.ts` inverts the rate out of a target PEAK load (a
+share of the seats, ramped for stop count because load reaches steady state
+geometrically); a rate NAMED per route-direction beats it, which is the seam a
+fit from `stop_visits` arrives through; `--demand global` reproduces the old
+behaviour.
+
+**The three presets overstate the excess-wait gain by about 4x** (median −52.2%
+against the network's −13.7% over 103 in-band corridors, consistent across all
+five scenarios, and 76% of real groups are weaker than the WEAKEST preset
+result). Not the travel-time spread - re-run at the evaluation's 0.2 the presets
+still give −51.5%. Two of the three sit BELOW the entire real headway range (0%
+and 3% of in-band corridors are shorter than urban and suburban), the presets
+give every shape a hold budget of H*/3 while `route_policies` ships a flat
+`max_hold_seconds` of 600 to all 198 (so 11 in-band corridors have under a tenth
+of their headway and gain 2.5%), and the law mix differs - terminal dispatch does
+3x as much of the work on the real network as on the presets. Treat any
+preset-sourced figure as an upper bound, and note the preset corpus contains no
+case where control makes excess wait worse while the network has seven.
+
+Two traps in reading any of this. The evaluation harness reports
+`controlled - no control`, so **positive passenger time is time SPENT** - the
+opposite sign from the fleet trial's `passengerSecondsSavedPercent`. And
+`PairedDifference.meanRelativeDifference` is null whenever ANY seed's baseline
+was zero, which is right for that field and a silent selection in a roll-up: it
+drops exactly the corridors that had least to fix. Aggregate with a ratio of the
+group means (`report.ts#buildHeadlineScope`), never by averaging it.
 
 ## Maintaining this file
 

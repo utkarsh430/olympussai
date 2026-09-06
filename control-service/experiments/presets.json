@@ -1,0 +1,7 @@
+{
+  "name": "the-three-presets-through-this-harness",
+  "corridors": { "source": "preset" },
+  "scenarios": ["none", "demand_burst", "missed_trip", "gps_dropout", "non_compliance"],
+  "seeds": { "count": 20, "base": 20260820 },
+  "arms": [{ "name": "as-deployed", "policyOverrides": {} }]
+}

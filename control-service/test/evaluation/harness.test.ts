@@ -10,8 +10,8 @@
 //    mean it surrounds.
 import { describe, it, expect } from 'vitest';
 import { selectCorridors } from '../../src/evaluation/corridors.js';
-import { parseExperimentSpec, resolveInputs, seedsFor } from '../../src/evaluation/spec.js';
-import { runCell, runExperiment } from '../../src/evaluation/runner.js';
+import { parseExperimentSpec, seedsFor } from '../../src/evaluation/spec.js';
+import { runCell, runExperiment, resolveCorridorInputs } from '../../src/evaluation/runner.js';
 import { buildReport, renderCsv, renderMarkdown, SATURATION_WARN_SHARE } from '../../src/evaluation/report.js';
 import { summarizeCoverage, silentLaws } from '../../src/evaluation/coverage.js';
 import { pairedDifference, isImprovement } from '../../src/evaluation/statistics.js';
@@ -62,11 +62,15 @@ describe('evaluation harness', () => {
     expect(run.cells).toHaveLength(seeds.length);
     // Same seed, same scenario, run twice: the baseline must be identical,
     // because it is the same simulation. If it drifts, the pairing is a lie.
+    //
+    // Resolved through `resolveCorridorInputs`, which is the point: demand is
+    // per corridor, so inputs built without the corridor in hand describe a
+    // different simulation and this assertion is what says so.
     for (const cell of run.cells) {
       const repeat = runCell(
         corridor,
         spec().arms[0]!,
-        resolveInputs(spec(), cell.seed, 'none'),
+        resolveCorridorInputs(spec(), corridor, cell.seed, 'none').inputs,
       );
       expect(repeat.baseline).toEqual(cell.baseline);
     }
@@ -144,8 +148,15 @@ describe('evaluation harness', () => {
     const corridor = await syntheticCorridor();
     // The rehearsal's own demand profile against a small bus: steady-state
     // load far exceeds the seats, so the run saturates by construction.
+    //
+    // `demand.mode` is named explicitly because it has to be: the harness now
+    // SIZES each corridor's boarding rate to leave headroom, so a fixture that
+    // states a rate and expects the corridor to drown has to say it means the
+    // rate it stated. That the default no longer saturates here is the fix, not
+    // a weakening of this test - the warning itself is what is under test.
     const saturating = spec({
       inputs: { vehicleCapacity: 12, boardingRatePerMinute: 3, alightingFraction: 0.1 },
+      demand: { mode: 'global' },
       seeds: { count: 3, base: 9 },
     });
     const report = buildReport(runExperiment(saturating, [corridor], 'synthetic'));
