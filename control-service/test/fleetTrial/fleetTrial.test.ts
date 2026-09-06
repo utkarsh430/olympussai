@@ -790,6 +790,46 @@ describe('a whole trial', () => {
       }
     }
   });
+
+  // `NOT_EXERCISED` used to name the invented demand, the untouched command
+  // lifecycle, the absent state estimator and the booked timetable, but not
+  // corridor dispersion - the input the headline is most sensitive to. A
+  // trial that stopped naming it would be silently un-fixing this.
+  it('admits to inventing corridor dispersion, not just demand and the timetable', () => {
+    expect(report.notExercised.some((entry) => /dispersion/i.test(entry))).toBe(true);
+  });
+
+  // The sensitivity has to be RE-RUNNABLE, not just asserted in prose - see
+  // `runDispersionSensitivityStudy`. It is built on `runPolicyStudy`, so it
+  // must report the same shape as every other row in `policyStudies`.
+  describe('the corridor-dispersion sensitivity sweep', () => {
+    const study = report.policyStudies.find((s) => s.knob === 'travel_time_variation');
+
+    it('is present alongside the other policy studies', () => {
+      expect(study).toBeDefined();
+    });
+
+    it('sweeps more than one dispersion level, with exactly one matching the shipped preset', () => {
+      expect(study!.rows.length).toBeGreaterThan(1);
+      expect(study!.rows.filter((row) => row.isCurrent).length).toBe(1);
+    });
+
+    // Nobody configures how noisy a corridor is, so unlike every other study
+    // here there is no "best" setting to recommend - the verdict says so
+    // instead of picking one.
+    it('never recommends a dispersion level as if it were a policy choice', () => {
+      expect(study!.recommended).toBeNull();
+    });
+
+    it('reports incidents avoided, like every other policy study now does', () => {
+      for (const s of report.policyStudies) {
+        for (const row of s.rows) {
+          expect(typeof row.incidentsAvoided).toBe('number');
+          expect(Number.isFinite(row.incidentsAvoided)).toBe(true);
+        }
+      }
+    });
+  });
 });
 
 // ─── THE GUARANTEE THAT MATTERS MOST ─────────────────────────────────────

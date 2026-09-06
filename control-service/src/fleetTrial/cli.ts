@@ -162,7 +162,7 @@ function renderReport(report: FleetTrialReport): string {
   for (const study of report.policyStudies) {
     lines.push('', `  ${study.title}  (${study.knob}, ${study.seedsPerRow} seeds each)`);
     lines.push(
-      '    setting              excess wait   total passenger time   hold/bus   worst bus   denied   seeds',
+      '    setting              excess wait   total passenger time   hold/bus   worst bus   denied   incidents avoided   seeds',
     );
     for (const row of study.rows) {
       const mark = row.label === study.recommended ? ' <-' : row.isCurrent ? '  (configured)' : '';
@@ -173,6 +173,7 @@ function renderReport(report: FleetTrialReport): string {
           `${(row.meanHoldSecondsPerVehicle / 60).toFixed(1).padStart(9)} min` +
           `${(row.worstBusHoldSeconds / 60).toFixed(1).padStart(9)} min` +
           `${String(row.deniedBoardings).padStart(9)}` +
+          `${String(row.incidentsAvoided).padStart(15)}` +
           `   ${row.seedsAgreeingWithSign}/${row.seedCount}${mark}`,
       );
     }

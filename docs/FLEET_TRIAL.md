@@ -742,7 +742,7 @@ indistinguishable from one that has been:
 - **`max_lateness_seconds`** — the sweep now *does* find something, but only
   after the timetable was fixed; a tight bound is right on both corridors.
 
-### 17. Alighting-only: the right idea, and it loses anyway
+### 17. Alighting-only: the right idea, retracted twice, and now measured to help
 
 "Let a bus at a stop drop passengers but pick nobody up when the follower is
 close behind" is `mpc/boardingLimit.ts` — the only lever here that improves
@@ -758,28 +758,58 @@ a property of the law:
    safety filter ages every vehicle a candidate *involves* and the **trailer**
    had no observation timestamp.
 
-Fixed, the law fires — and measured, it **loses**. Across eight seeds on the
-urban corridor it made total passenger time worse on seven; in `slow_bus` it
-cost 9% of all passenger time on **every** seed.
+Fixed, the law fires — and this section's verdict has moved twice since, on
+three progressively larger measurements. **Each is reported below with its own
+seed count, because that count is exactly what changed between them.**
 
-The mechanism, measured directly: 415 passengers passed cost **103 extra hours
-of waiting — about 15 minutes each**, against the ~90 seconds the law reports as
-`leftBehindWaitSeconds`. The follower arrives carrying its own load, cannot fit a
-double queue, 150 more people are denied a seat outright, and the overflow rolls
-forward. On a corridor with no overtaking the follower is also stuck behind
-whatever delayed the leader in the first place.
+**First measurement (eight seeds, urban, old headline): it loses.** Total
+passenger time came out worse on seven of eight seeds; in `slow_bus` it cost 9%
+of all passenger time on every seed. This is also the measurement behind the
+mechanism below: 415 passengers passed cost **103 extra hours of waiting — about
+15 minutes each** — against the ~90 seconds the law reports as
+`leftBehindWaitSeconds`. The follower arrives carrying its own load, cannot fit
+a double queue, 150 more people are denied a seat outright, and the overflow
+rolls forward. On a corridor with no overtaking the follower is also stuck
+behind whatever delayed the leader in the first place. So
+`leftBehindWaitSeconds` is a **lower bound and a loose one** — it must never be
+shown as the cost of the action, and this mechanism is real regardless of which
+way the seed-count verdicts below land.
 
-So `leftBehindWaitSeconds` is a **lower bound and a loose one** — it must never
-be shown as the cost of the action. And the deployed decision to propose this
-and never auto-select it is correct: the law needs a fitted dwell model to know
-its benefit and an occupancy feed on the follower to know its cost, and
-`mpc/boardingLimit.ts` says so itself. The trial now puts numbers on both.
+**This first "it loses" verdict survived only because an earlier trial bug was
+caught first.** Before it, the trial had reported alighting-only winning on 7 of
+8 seeds — because the engine swept a stop's waiting queue at *departure*
+regardless, so the passengers left behind vanished and the action measured as
+free. Fixing that queue bug is what turned the 7/8 win into the 7/8 loss above;
+both halves of the action's trade had been invisible until then.
 
-**This finding survived only because a bug in the trial was caught.** The first
-measurement said alighting-only improved things on 7 of 8 seeds — because the
-engine swept the stop's waiting queue at *departure* regardless, so the
-passengers left behind vanished and the action measured as free. Both halves of
-its trade had disappeared.
+**Second measurement (six seeds, 250 buses/phase, urban, occupancy-blind, on
+the metric now used throughout this document): no measured effect.** The first
+loss was itself taken on the *old headline* — waiting plus the hold, over a
+waiting-only denominator, with passengers still boarding at the terminus — and
+does not survive that being fixed. Re-measured on the corrected metric, acting
+on it was better on only 3 of 6 seeds by total passenger time (mean +0.25
+points) and 5 of 6 per passenger carried (mean +0.29); in `slow_bus`
+specifically, better on 4 of 6, mean +1.49. By this trial's own rule — a mean
+whose seeds disagree is not a small effect — that was **no measured effect**,
+not a win. "It loses" stopped being something anyone could say, but nor yet
+could "it wins".
+
+**Third measurement (sixteen paired phase-seeds, same corridor and phase, on
+the same corrected metric): it helps.** Acting on it is better on **14 of 16
+seeds by total passenger time** and **16 of 16 by excess wait**. Both clear the
+trial's own seed-agreement bar (`seedsAgreeingWithSign > seedCount / 2`), so
+unlike the six-seed measurement this one IS a measured effect, and it is
+positive.
+
+**None of this changes the deployed decision, but it changes the reason for
+it.** The law is proposed and never auto-selected, and that stays correct: it
+needs a fitted dwell model to know its benefit and an occupancy feed on the
+follower to know its cost (`mpc/boardingLimit.ts` says so itself), and the
+mechanism above is a real, unpriced cost this trial's positive mean does not
+retire. What changes is that the reason is no longer "it loses" — by the most
+recent and largest measurement, it does not. See `HANDOFF.md` §6 for the same
+history in the dead-ends table and `fleetTrial/run.ts`'s
+`FleetTrialSpec.alightingOnlySelectable` doc comment for the switch itself.
 
 ## What happens to the incidents
 
@@ -835,6 +865,21 @@ advance.
 - **Real demand.** Every passenger was invented.
 - **A real timetable.** The trial books its own (see finding 5), so lateness is
   measured — but against an invented schedule, not a published one.
+- **Corridor dispersion.** `travelTimeVariation` is invented like every other
+  running-time input, and it is the one the headline is most sensitive to.
+  Holding demand fixed and sweeping it alone (urban preset): excess-wait
+  improvement measures **60.7%** at the shipped value (0.18), **43.7%** at
+  roughly double it, and **14.1%** at roughly 3.3x it. Across the same 3.3x
+  swing applied to the invented boarding rate instead, the headline stays
+  within **60.7–64.5%** — roughly an order of magnitude less sensitive. **The
+  bunching result IS robust to demand** — that swing barely moves it, and it is
+  a genuinely reassuring finding — **it is not robust to dispersion.** The real
+  network's measured median headway CV is **1.78** (an upper bound, contaminated
+  by parked buses that map-match onto a route), while this trial reaches only
+  **0.87** at its noisiest tested setting — the direction that costs the
+  headline. This sensitivity is re-runnable, not just stated: see the
+  `travel_time_variation` row in `policyStudies`, printed by `sim:fleet`
+  alongside every other policy sweep.
 
 ## The corridor, and why it is shaped this way
 

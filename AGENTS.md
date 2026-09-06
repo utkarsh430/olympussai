@@ -257,6 +257,13 @@ as the controlled arm's gain collapsing instead.
 - **Prefer a config sweep to a code change.** Most levers here are
   `route_policies` columns. A value fitted on one corridor and shipped for all is
   the single commonest error in this area.
+- **The headline is far more sensitive to corridor dispersion than to demand.**
+  Holding demand fixed and sweeping `travelTimeVariation` alone moves the
+  excess-wait improvement about an order of magnitude more than an equivalent
+  swing in the invented boarding rate does - see the `travel_time_variation`
+  row in `fleetTrial`'s `policyStudies` (re-runnable) and `docs/FLEET_TRIAL.md`
+  ("What the trial still does not test") for the measured figures. The bunching
+  result IS robust to demand; it is not robust to dispersion.
 - **An ad-hoc `npx tsx` script against control-service needs env vars** -
   `src/config/env.ts` validates at import. Set `CONTROL_SERVICE_DATABASE_URL`,
   `SERVICE_TOKEN_SECRET` and `WEBHOOK_HMAC_SECRET` to any syntactically valid

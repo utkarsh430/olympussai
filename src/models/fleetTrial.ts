@@ -244,6 +244,7 @@ const policyStudySchema = z.object({
       deniedBoardings: z.number(),
       incidentsDetected: z.number(),
       incidentsResolved: z.number(),
+      incidentsAvoided: z.number(),
       seedCount: z.number(),
       seedsAgreeingWithSign: z.number(),
       isCurrent: z.boolean(),
