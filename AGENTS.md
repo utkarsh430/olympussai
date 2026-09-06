@@ -480,17 +480,25 @@ fit from `stop_visits` arrives through; `--demand global` reproduces the old
 behaviour.
 
 **The three presets overstate the excess-wait gain by about 4x** (median −52.2%
-against the network's −13.7% over 103 in-band corridors, consistent across all
-five scenarios, and 76% of real groups are weaker than the WEAKEST preset
-result). Not the travel-time spread - re-run at the evaluation's 0.2 the presets
-still give −51.5%. Two of the three sit BELOW the entire real headway range (0%
+against the network's −13.6% over 104 in-band corridors, consistent across all
+five scenarios, and 75% of real groups are weaker than the WEAKEST preset
+result). Not the travel-time spread - re-run at the MEASURED 0.21 the presets
+still give −51.2%, though all three do ship below it (0.18/0.16/0.14), so every
+preset result comes off a corridor calmer than this network's. Two of the three sit BELOW the entire real headway range (0%
 and 3% of in-band corridors are shorter than urban and suburban), the presets
 give every shape a hold budget of H*/3 while `route_policies` ships a flat
 `max_hold_seconds` of 600 to all 198 (so 11 in-band corridors have under a tenth
-of their headway and gain 2.5%), and the law mix differs - terminal dispatch does
+of their headway and gain 2.6%), and the law mix differs - terminal dispatch does
 3x as much of the work on the real network as on the presets. Treat any
 preset-sourced figure as an upper bound, and note the preset corpus contains no
-case where control makes excess wait worse while the network has seven.
+case where control makes excess wait worse while the network has eleven.
+
+`EVALUATION_DEFAULT_INPUTS` carries the MEASURED dispersion 0.210 and cruise
+speed 37.5 km/h (`docs/CALIBRATION_MEASURED.md`), not the old assumed 0.2/35,
+because `corridors.ts`'s `eligible` source SELECTS on `sigma_leg / H*` - those
+two numbers decide which corridors a run contains, so an assumption there is
+load-bearing. It is one day of data and the band stays sensitive: 132
+route-directions are in band at 0.12 and 104 at 0.21.
 
 Two traps in reading any of this. The evaluation harness reports
 `controlled - no control`, so **positive passenger time is time SPENT** - the

@@ -246,7 +246,27 @@ export function parseExperimentSpec(input: unknown): ExperimentSpec {
 export const EVALUATION_DEFAULT_INPUTS: Partial<ModelledInputs> = {
   boardingRatePerMinute: 0.8,
   alightingFraction: 0.25,
-  travelTimeVariation: 0.2,
+  // ─── MEASURED, and the only two here that are ──────────────────────────
+  //
+  // `stop_visits` began filling on 2026-09-06 and `calibration/dispersion.ts`
+  // fitted both from it: dispersion 0.210 [0.176, 0.255] and cruise speed
+  // 37.5 km/h over clean single-leg traversals, on the 158 corridors control
+  // can run on. Full provenance and caveats in `docs/CALIBRATION_MEASURED.md`
+  // - notably that it is ONE DAY, 10.7 hours, which is not a measurement by
+  // this repo's own seed-spread convention.
+  //
+  // They are here rather than left at the modelled 0.2 / 35 because this
+  // harness DECIDES SOMETHING with them: `corridors.ts`'s `eligible` source
+  // selects on `sigma_leg / H*`, which scales linearly with the first and
+  // inversely with the second, so a corridor's presence in a run is a
+  // function of these two numbers. Selecting on an assumption when a
+  // measurement exists is the thing `sim:eligibility` warns about.
+  //
+  // All three corridor presets sit BELOW the measured dispersion (0.18, 0.16,
+  // 0.14), so every preset result is produced on a corridor calmer than this
+  // network's.
+  travelTimeVariation: 0.21,
+  cruiseSpeedKmph: 37.5,
 };
 
 /**
