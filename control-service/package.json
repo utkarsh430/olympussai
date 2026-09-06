@@ -22,7 +22,8 @@
     "test:coverage": "vitest run --coverage",
     "check:arrival-sql": "node scripts/check-arrival-sql.mjs",
     "sim:run": "tsx --env-file-if-exists=.env.local src/evaluation/cli.ts",
-    "sim:fleet": "tsx --env-file-if-exists=.env.local src/fleetTrial/cli.ts"
+    "sim:fleet": "tsx --env-file-if-exists=.env.local src/fleetTrial/cli.ts",
+    "sim:eligibility": "tsx --env-file-if-exists=.env.local src/evaluation/eligibilityCli.ts"
   },
   "dependencies": {
     "@sentry/node": "^8.55.0",

@@ -235,6 +235,55 @@ const baseEnvSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
+
+  /**
+   * Whether the decision cycle skips corridors outside `CONTROLLABLE_BAND`
+   * instead of spending its batch on them.
+   *
+   * OFF, and off is a TRUE no-op: with this unset the cycle does not merely
+   * behave the same, it never issues the band query at all
+   * (`test/decisionCycleEligibilityGate.test.ts` pins that).
+   *
+   * ─── WHY THE GATE IS WORTH HAVING ───────────────────────────────────────
+   *
+   * The same laws measure +2.9% total passenger time on the urban corridor,
+   * +0.5% on suburban and zero on inter-city, and what separates them is
+   * `lib/controllability.ts`'s sigma_leg / H*. This network's median planned
+   * headway is 1,800 s. A corridor under control costs dispatcher attention,
+   * driver instructions and control-room load whether the holds help or not,
+   * so running outside the band is operational effort spent for nothing - and
+   * `DECISION_CYCLE_BATCH_SIZE` is 60 against an eligible set larger than
+   * that, so those slots are taken from corridors that could have benefited.
+   * `pnpm sim:eligibility` reports exactly which corridors this would exclude.
+   *
+   * ─── WHY IT IS NOT ON ───────────────────────────────────────────────────
+   *
+   * The band is a ratio of sigma_leg, and sigma_leg is
+   * `meanLeg / cruiseSpeed x travelTimeVariation`. Nothing on this network has
+   * recorded a stop visit yet, so both of those come from the two settings
+   * below rather than from a fit, and a corridor's band is currently a
+   * property of two assumed numbers. Turning this on would silence the
+   * controller on real corridors on the strength of an assumption. Fill
+   * `stop_visits`, confirm `sim:eligibility` reports `measured` provenance,
+   * and re-read the report before flipping it.
+   */
+  DECISION_CYCLE_ELIGIBILITY_GATE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  /**
+   * The running-time assumptions the band is decided on when a corridor has no
+   * fitted link travel times - which today is every corridor.
+   *
+   * Defaults are `rehearsal/run.ts#DEFAULT_MODELLED_INPUTS`, so the gate and
+   * the report place a corridor in the same band the simulator would. They are
+   * settings rather than constants precisely because they are assumptions: the
+   * verdict is sensitive to them, and an operator must be able to see how
+   * sensitive before trusting it (`sim:eligibility --travel-time-variation`).
+   */
+  ELIGIBILITY_CRUISE_SPEED_KMPH: z.coerce.number().positive().max(120).default(35),
+  ELIGIBILITY_TRAVEL_TIME_VARIATION: z.coerce.number().min(0).max(1).default(0.12),
+
   /**
    * An open incident is only reported while at least one of its two member
    * vehicles has reported a position within this window.

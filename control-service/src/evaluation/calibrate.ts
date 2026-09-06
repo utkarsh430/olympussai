@@ -60,7 +60,6 @@ import {
 } from '../calibration/dwell.js';
 import { buildLinkObservations, fitLinkTravelTimes } from '../calibration/linkTravelTime.js';
 import { listRecentStopVisits } from '../headway/repository.js';
-import type { CorridorInputs } from '../rehearsal/corridor.js';
 import type { CorridorOverrides } from '../rehearsal/run.js';
 import type { LinkTravelTimeModel, StopDemandModel } from '../simulation/types.js';
 import type { StopVisitRecord } from '../headway/stopHeadway.js';
@@ -83,6 +82,21 @@ export const DEFAULT_SECONDS_PER_BOARDING = 2.5;
 
 /** How far back to read stop visits. Long enough for a fit, short enough that a timetable change months ago is not being fitted. */
 export const DEFAULT_LOOKBACK_HOURS = 24 * 14;
+
+/**
+ * The only two things a calibration needs to know about a corridor: which
+ * route-direction it is, and which stops belong to it.
+ *
+ * `CorridorInputs` satisfies this structurally, so every existing caller is
+ * unchanged. It is stated separately because a caller that has a corridor's
+ * stop list WITHOUT its policy, geometry and shape - `evaluation/eligibilityCli.ts`
+ * reporting on corridors the simulator refuses to load - must be able to fit
+ * one without fabricating the rest of a `CorridorInputs`.
+ */
+export interface CalibrationCorridor {
+  routeDirectionId: string;
+  stops: readonly { stopId: string }[];
+}
 
 export interface StopCalibration {
   stopId: string;
@@ -130,7 +144,7 @@ function median(values: readonly number[]): number | null {
  * and the loader below is the only thing that needs one.
  */
 export function calibrateFromVisits(
-  corridor: CorridorInputs,
+  corridor: CalibrationCorridor,
   visits: readonly StopVisitRecord[],
   secondsPerBoarding: number = DEFAULT_SECONDS_PER_BOARDING,
 ): CorridorCalibration {
@@ -196,7 +210,7 @@ export function calibrateFromVisits(
 
 /** Read a corridor's observed stop visits and fit them. Read-only; returns a calibration that may cover nothing. */
 export async function calibrateCorridor(
-  corridor: CorridorInputs,
+  corridor: CalibrationCorridor,
   lookbackHours: number = DEFAULT_LOOKBACK_HOURS,
   secondsPerBoarding: number = DEFAULT_SECONDS_PER_BOARDING,
 ): Promise<CorridorCalibration> {
