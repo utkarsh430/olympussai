@@ -164,6 +164,19 @@ export type DeclineReason =
    */
   | 'not_deviant_enough'
   | 'not_eligible_to_hold'
+  /**
+   * The law computed a hold and then dropped it, because its own objective
+   * scored the hold at >= 0 passenger-seconds - `mpc/selfHarmCheck.ts`.
+   *
+   * Only ever reported when `SELF_HARM_CHECK_ENABLED` is on, which is never on
+   * a deployment. It exists because without it every one of those declines
+   * lands on `no_hold_indicated`, which is untrue in the way that matters: the
+   * law DID indicate a hold, it was the objective that refused it. A reader
+   * comparing a checked run against an unchecked one could not otherwise tell
+   * the check's declines apart from a corridor that simply went quiet, and
+   * telling those apart is the entire point of running the check.
+   */
+  | 'scored_self_harmful'
   /** Alighting-only acts on the LEADER, and the leader was not at a stop it could act at. */
   | 'leader_not_at_stop'
   /** Alighting-only needs a bus behind to collect the people left standing. There was none. */
@@ -359,6 +372,18 @@ export interface DeployedControlLawsOptions {
    * each way, which is the whole point of having two phases.
    */
   weighOccupancy?: boolean;
+  /**
+   * Whether the four laws that have no self-harm check apply one: declining a
+   * hold their own objective scores as net harmful, exactly as
+   * `mpc/costOptimalHold.ts` always has.
+   *
+   * Defaults to the deployed switch (`SELF_HARM_CHECK_ENABLED`, off) so a
+   * rehearsal reproduces today's behaviour; overridable so the fleet trial can
+   * measure what flipping it would do before anyone flips it. It was measured,
+   * and the answer is don't - see mpc/selfHarmCheck.ts and
+   * docs/SELF_HARM_CHECK.md.
+   */
+  selfHarmCheckEnabled?: boolean;
 }
 
 /**
@@ -415,6 +440,8 @@ export function createDeployedControlLawsController(
 ): DeployedControlLawsController {
   const { policy, epochMs, modelledCapacity } = options;
   const weighOccupancy = options.weighOccupancy ?? false;
+  const selfHarmCheckEnabled =
+    options.selfHarmCheckEnabled ?? loadEnv().SELF_HARM_CHECK_ENABLED;
   const followerSpeedSource = options.followerSpeedSource ?? 'link_average';
   const corridorStops = options.corridorStops ?? null;
   const alightingOnlySelectable = options.alightingOnlySelectable ?? false;
@@ -786,6 +813,7 @@ export function createDeployedControlLawsController(
       scheduleDeviationByVehicleId,
       weighOccupancy,
       elapsedSinceTerminalDeparture,
+      selfHarmCheckEnabled,
     );
     // Exactly `mpc/solver.ts`: a bus dwelling at the terminal is regulated by
     // terminal dispatch WHETHER OR NOT that produced a candidate, so the
@@ -798,6 +826,28 @@ export function createDeployedControlLawsController(
       terminalVehicleIds.add(followerId);
     }
 
+    // ─── WHAT THE LAWS WOULD HAVE SAID WITHOUT THE CHECK ──────────────
+    //
+    // Attribution only, and computed ONLY while the check is on - which is
+    // never on a deployment, so this costs a production solve nothing. A law
+    // that generated nothing under the check looks identical, from the outside,
+    // to a law whose preconditions were unmet; the coverage table is the half
+    // CLAUDE.md says to read before the KPIs, and it would be reporting the
+    // check's work as `no_hold_indicated` on every one of those decisions.
+    const uncheckedTerminal = selfHarmCheckEnabled
+      ? computeTerminalDispatchCandidates(
+          headwayStates,
+          vehicleStates,
+          terminalStopId,
+          policy,
+          now,
+          scheduleDeviationByVehicleId,
+          weighOccupancy,
+          elapsedSinceTerminalDeparture,
+          false,
+        )
+      : terminalCandidates;
+
     const twoWayCandidates = computeTwoWayCandidates(
       headwayStates,
       terminalVehicleIds,
@@ -807,6 +857,7 @@ export function createDeployedControlLawsController(
       scheduleDeviationByVehicleId,
       controlPointStopIds,
       weighOccupancy,
+      selfHarmCheckEnabled,
     );
     const selfEqualizingCandidates = computeSelfEqualizingCandidates(
       headwayStates,
@@ -817,7 +868,35 @@ export function createDeployedControlLawsController(
       scheduleDeviationByVehicleId,
       controlPointStopIds,
       weighOccupancy,
+      selfHarmCheckEnabled,
     );
+    const uncheckedTwoWay = selfHarmCheckEnabled
+      ? computeTwoWayCandidates(
+          headwayStates,
+          terminalVehicleIds,
+          policy,
+          vehicleStates,
+          now,
+          scheduleDeviationByVehicleId,
+          controlPointStopIds,
+          weighOccupancy,
+          false,
+        )
+      : twoWayCandidates;
+    const uncheckedSelfEqualizing = selfHarmCheckEnabled
+      ? computeSelfEqualizingCandidates(
+          headwayStates,
+          terminalVehicleIds,
+          policy,
+          vehicleStates,
+          now,
+          scheduleDeviationByVehicleId,
+          controlPointStopIds,
+          weighOccupancy,
+          false,
+        )
+      : selfEqualizingCandidates;
+
     const costOptimalCandidates = computeCostOptimalCandidates(
       headwayStates,
       terminalVehicleIds,
@@ -912,7 +991,9 @@ export function createDeployedControlLawsController(
         ? 'not_at_terminal'
         : elapsedSinceTerminalDeparture === null
           ? 'no_measured_terminal_departure'
-          : 'no_hold_indicated';
+          : uncheckedTerminal.length > 0
+            ? 'scored_self_harmful'
+            : 'no_hold_indicated';
     }
     // The mid-route action bar, tested by all three mid-route laws BEFORE
     // they test eligibility - see each law's own loop.
@@ -931,7 +1012,9 @@ export function createDeployedControlLawsController(
                   ? 'not_deviant_enough'
                   : !eligibleToHold
                     ? 'not_eligible_to_hold'
-                    : 'no_hold_indicated';
+                    : uncheckedTwoWay.length > 0
+                      ? 'scored_self_harmful'
+                      : 'no_hold_indicated';
     }
     if (selfEqualizingCandidates.length === 0) {
       // `two_way_covers_pair` sits AFTER eligibility here, which is where
@@ -951,7 +1034,9 @@ export function createDeployedControlLawsController(
                   ? 'not_eligible_to_hold'
                   : twoWayCovers
                     ? 'two_way_covers_pair'
-                    : 'no_hold_indicated';
+                    : uncheckedSelfEqualizing.length > 0
+                      ? 'scored_self_harmful'
+                      : 'no_hold_indicated';
     }
     if (costOptimalCandidates.length === 0) {
       coverageBase.declined.cost_optimal = terminalVehicleIds.has(followerId)
