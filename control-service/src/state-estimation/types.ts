@@ -103,7 +103,7 @@ export interface PriorVehicleState {
   kalmanState: KalmanState | null;
   confidence: number | null;
   currentStopId: string | null;
-  /** ISO-8601 timestamp the vehicle entered currentStopId's geofence. */
+  /** ISO-8601 timestamp this vehicle's association with currentStopId began (see stopStateClassifier.isAtStop). */
   stopEnteredAt: string | null;
 }
 
