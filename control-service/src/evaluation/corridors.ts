@@ -262,6 +262,11 @@ async function selectEligibleRouteDirectionIds(
 
     if (verdict.eligible || (!requireLivePair && onlyBlockerIsVehicles)) {
       ids.push(shape.routeDirectionId);
+      // Uncalibrated corridors are not listed as exclusions. There are 561 of
+      // them and they are refused by every reader in this service, not by this
+      // selection - `sim:eligibility` is where that population is reported.
+      // What belongs here is a corridor this run could plausibly have taken
+      // and did not.
     } else if (verdict.verdict !== 'uncalibrated') {
       excluded.push({
         routeDirectionId: shape.routeDirectionId,
@@ -274,6 +279,11 @@ async function selectEligibleRouteDirectionIds(
 
 /**
  * Thin a list to `limit`, evenly across its order rather than from the top.
+ *
+ * What this drops is NOT recorded as an exclusion: a corridor left out by a
+ * cap the caller asked for is not a corridor that failed anything. The run
+ * writes the ids it resolved to into its own `spec.json`, which is what makes
+ * the sample re-runnable.
  *
  * The list is ordered by corridor length, and corridor length is the variable
  * that most changes how a control law behaves. Ten of the longest corridors is
