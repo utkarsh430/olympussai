@@ -102,7 +102,7 @@ export function resolveCorridorInputs(
   corridorInputs: Partial<ModelledInputs> = {},
 ): { inputs: ModelledInputs; demand: CorridorDemand } {
   const base = resolveInputs(spec, seed, disturbance, overrides, corridorInputs);
-  const demand = resolveCorridorDemand(corridor, base, spec.demand);
+  const demand = resolveCorridorDemand(corridor, base, spec.demand, corridorInputs);
   return {
     inputs: resolveInputs(
       spec,
@@ -240,7 +240,10 @@ export function runExperiment(
         targetHeadwaySeconds: corridor.policy.targetHeadwaySeconds,
       }),
     );
-    demand.set(corridor.routeDirectionId, resolveCorridorDemand(corridor, baseInputs, spec.demand));
+    demand.set(
+      corridor.routeDirectionId,
+      resolveCorridorDemand(corridor, baseInputs, spec.demand, corridorInputs),
+    );
 
     let sawSample = false;
     for (const scenario of scenarios) {

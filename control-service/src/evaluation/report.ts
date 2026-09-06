@@ -1,6 +1,7 @@
 // What an evaluation run says, and the three forms it says it in.
 //
-//   results.json  every cell, full fidelity, plus the spec that produced it
+//   results.json  every cell and the spec that produced it (the raw per-decision
+//                 log is summarised into coverage, not repeated - `cli.ts#cellForOutput`)
 //   summary.csv   one row per (corridor, scenario, arm), for a spreadsheet
 //   summary.md    the readable verdict, which is also what prints to console
 //
@@ -434,7 +435,7 @@ export function renderMarkdown(report: ExperimentReport): string {
     const derived = report.demand.filter((entry) => entry.demand.provenance === 'derived').length;
     if (derived > 0) {
       lines.push(
-        `> ${derived} corridor(s) ran on a DERIVED rate: inverted out of the corridor\'s own headway, stop count, alighting fraction and seats to hit a stated share of the seats. That is not a measurement - it is the same invention applied per corridor instead of once - and the share it targets is the one free parameter left (\`demand.ts#DERIVED_PEAK_LOAD_SHARE\`). A rate fitted from \`stop_visits\` beats it wherever one exists.`,
+        `> ${derived} corridor(s) ran on a DERIVED rate: inverted out of the corridor's own headway, stop count, alighting fraction and seats to hit a stated share of the seats. That is not a measurement - it is the same invention applied per corridor instead of once - and the share it targets is the one free parameter left (\`demand.ts#DERIVED_PEAK_LOAD_SHARE\`). A rate fitted from \`stop_visits\` beats it wherever one exists.`,
       );
       lines.push('');
     }

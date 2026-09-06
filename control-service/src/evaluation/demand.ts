@@ -195,6 +195,17 @@ export function resolveCorridorDemand(
   corridor: Pick<CorridorInputs, 'routeDirectionId' | 'stops' | 'policy'>,
   inputs: ModelledInputs,
   spec: DemandSpecResolved,
+  /**
+   * Inputs that belong to THIS corridor rather than to the run.
+   *
+   * A `boardingRatePerMinute` here is a rate named for this corridor and ranks
+   * as `specified`, above anything derived. The three trial presets arrive
+   * this way: each of them already chose its own demand against its own
+   * headway and seats (48%, 65% and 80% of capacity), and deriving over the
+   * top would mean the preset row in a preset-versus-network comparison was
+   * not the preset. Only the spec's own named map outranks it.
+   */
+  corridorInputs: Partial<ModelledInputs> = {},
 ): CorridorDemand {
   const targetHeadwaySeconds = corridor.policy.targetHeadwaySeconds;
   const stopCount = corridor.stops.length;
@@ -206,7 +217,9 @@ export function resolveCorridorDemand(
     vehicleCapacity: inputs.vehicleCapacity,
   };
 
-  const named = spec.boardingRatePerMinuteByRouteDirectionId[corridor.routeDirectionId];
+  const named =
+    spec.boardingRatePerMinuteByRouteDirectionId[corridor.routeDirectionId] ??
+    corridorInputs.boardingRatePerMinute;
   const rateAndProvenance: { rate: number; provenance: DemandProvenance } = (() => {
     if (named !== undefined && Number.isFinite(named) && named >= 0) {
       return { rate: named, provenance: 'specified' as const };

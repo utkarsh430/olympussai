@@ -15,7 +15,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { selectCorridors } from './corridors.js';
 import { parseExperimentSpec, type ExperimentSpec } from './spec.js';
-import { runExperiment } from './runner.js';
+import { runExperiment, type RunCell } from './runner.js';
 import { buildReport, renderCsv, renderMarkdown } from './report.js';
 import { sweepCorridor, renderApplySql, DEFAULT_COARSE_GRID } from './sweep.js';
 import { runComplianceSweep, runVariabilitySweep, renderCurve } from './robustness.js';
@@ -81,6 +81,9 @@ Evaluate the deployed bunching control laws in the mesoscopic simulator.
                         database and a populated stop_visits; a corridor with no
                         visits stays modelled and the report says so.
   --out <dir>           write results.json, summary.csv, summary.md and spec.json here.
+                        results.json carries every cell with a decisionCount rather than
+                        its decision log — the log is what report coverage summarises,
+                        and on a full-network run it does not fit in one JSON string.
   --demand <mode>       "derived" (default) sizes each corridor's boarding rate from its
                         own headway, stop count, alighting fraction and seats; "global"
                         applies the one invented rate to every corridor, which is what
@@ -146,6 +149,25 @@ function buildSpec(flags: Flags): ExperimentSpec {
     spec.demand = { ...spec.demand, peakLoadShare: Number(flags.peakLoadShare) };
   }
   return parseExperimentSpec(spec);
+}
+
+/**
+ * The per-cell record, minus the raw decision log.
+ *
+ * A decision record is written for every control point every bus reaches, so
+ * `cells` carries hundreds of thousands of them on a full network run - 103
+ * in-band corridors x 5 scenarios x 20 seeds overflowed `JSON.stringify`'s
+ * maximum string length outright and the run wrote nothing at all after
+ * finishing its work. They are RAW MATERIAL for `coverage.ts`, and the
+ * summary they produce is already in `report.summaries[].coverage`, which is
+ * the half `AGENTS.md` tells a reader to read before believing a KPI.
+ *
+ * So the count is kept and the log is dropped, and the file says which. Re-run
+ * one corridor (`--corridors <id>`) to get the log itself.
+ */
+function cellForOutput(cell: RunCell): Record<string, unknown> {
+  const { decisions, ...rest } = cell;
+  return { ...rest, decisionCount: decisions.length };
 }
 
 function writeOut(dir: string, files: Record<string, string>): void {
@@ -299,7 +321,17 @@ async function main(): Promise<void> {
   if (flags.out) {
     writeOut(flags.out, {
       'spec.json': `${JSON.stringify(spec, null, 2)}\n`,
-      'results.json': `${JSON.stringify({ report, cells: run.cells }, null, 2)}\n`,
+      'results.json': `${JSON.stringify(
+        {
+          report,
+          cellsOmit: 'decisions',
+          cellsOmitNote:
+            'Each cell carries decisionCount instead of its decision log; the log is summarised into report.summaries[].coverage. See cli.ts#cellForOutput.',
+          cells: run.cells.map(cellForOutput),
+        },
+        null,
+        2,
+      )}\n`,
       'summary.csv': renderCsv(report),
       'summary.md': `${markdown}\n`,
       'excluded.json': `${JSON.stringify(excluded ?? [], null, 2)}\n`,

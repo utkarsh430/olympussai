@@ -267,3 +267,42 @@ describe('the three presets, as corridors this harness can run', () => {
     );
   });
 });
+
+describe('a rate that belongs to the corridor', () => {
+  it('is SPECIFIED, not derived over: a preset run at a derived rate is not that preset', async () => {
+    const { corridors, presetInputs } = await selectCorridors({ source: 'preset' });
+    const urban = corridors.find((c) => c.routeDirectionId === 'fleet-trial-urban')!;
+    const own = presetInputs!.get('fleet-trial-urban')!;
+
+    const resolved = resolveCorridorDemand(
+      urban,
+      { ...DEFAULT_MODELLED_INPUTS, ...own },
+      { mode: 'derived', peakLoadShare: 0.65, boardingRatePerMinuteByRouteDirectionId: {} },
+      own,
+    );
+    expect(resolved.provenance).toBe('specified');
+    expect(resolved.boardingRatePerMinute).toBe(CORRIDOR_PRESETS.urban.inputs.boardingRatePerMinute);
+    // And the preset's own load regime survives: the urban preset runs about
+    // half full, which is the number its docblock states and the reason it is
+    // a different regime from the inter-city shape.
+    expect(resolved.peakLoadShare).toBeGreaterThan(0.4);
+    expect(resolved.peakLoadShare).toBeLessThan(0.55);
+  });
+
+  it('still lets the spec name a rate for that corridor, which outranks it', async () => {
+    const { corridors, presetInputs } = await selectCorridors({ source: 'preset' });
+    const urban = corridors.find((c) => c.routeDirectionId === 'fleet-trial-urban')!;
+    const own = presetInputs!.get('fleet-trial-urban')!;
+    const resolved = resolveCorridorDemand(
+      urban,
+      { ...DEFAULT_MODELLED_INPUTS, ...own },
+      {
+        mode: 'derived',
+        peakLoadShare: 0.65,
+        boardingRatePerMinuteByRouteDirectionId: { 'fleet-trial-urban': 0.9 },
+      },
+      own,
+    );
+    expect(resolved.boardingRatePerMinute).toBe(0.9);
+  });
+});
