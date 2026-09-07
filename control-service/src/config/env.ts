@@ -40,6 +40,46 @@ const baseEnvSchema = z.object({
   // nobody happens to touch - it doesn't need to be aggressive.
   COMMAND_TTL_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(30_000),
 
+  /**
+   * Whether the process sweeps `executing` commands whose ACTION HAS FINISHED
+   * to `completed` (scheduler/jobs.ts#commandCompletionSweep ->
+   * db/commands.ts#sweepCompletedCommands ->
+   * control_service_complete_finished_commands()).
+   *
+   * OFF by default, and off is byte-identical: with this false the job is not
+   * registered, nothing calls the function the migration created, and no
+   * command status changes.
+   *
+   * WHAT IT FIXES. `executing` is inside
+   * `commands_one_active_per_vehicle_idx` and nothing in this service ever
+   * wrote `completed`, so a command a driver ACCEPTED had no exit from
+   * `executing` and held its vehicle's slot on that unique index
+   * indefinitely. Measured on the live control database 2026-09-06: four
+   * `executing` rows, all `ack_outcome = 'accept'`, aged 24-26 days, past
+   * their own `expires_at` by the same margin, and the only non-terminal rows
+   * in the database past their TTL.
+   *
+   * WHY IT IS A FLAG AND NOT JUST A FIX. Releasing the slot when the action
+   * ends lets the controller issue instructions the unique index used to
+   * refuse. That is a change to which instructions reach a driver, so it is a
+   * deliberate act and not a side effect of deploying a migration.
+   *
+   * The expected consequence was that `route_policies.cooldown_seconds` (60 s)
+   * would take over as the binding guardrail, having previously been able to
+   * refuse only an instruction following a driver REFUSAL. MEASURED, IT DOES
+   * NOT: across 3 seeds x 3 presets the cooldown fires zero times with this on
+   * or off, and so does the unique index - no preset's leg is short enough for
+   * a bus to return inside either window. At 1 000 buses/phase on urban the
+   * index refuses 4 of 9 072 proposals and this flag releases them; the
+   * cooldown still fires zero times. docs/COMMAND_COMPLETION.md has the
+   * tables. Do not assume the cooldown is now live without re-measuring on a
+   * real corridor.
+   */
+  COMMAND_COMPLETION_SWEEP_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
   // How often commandDeliverySweep (src/scheduler/commandDeliverySweep.ts)
   // retries commands stuck in `authorized`. The primary delivery path is
   // now in-process and immediate (POST /v1/commands and .../supersede both

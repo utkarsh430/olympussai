@@ -240,6 +240,22 @@ export interface CommandLifecycleTrialOptions {
    * that separately; never fold a swept value into the headline.
    */
   deliveryLatencySeconds: number;
+  /**
+   * Release an accepted command's slot on
+   * `commands_one_active_per_vehicle_idx` when its ACTION finishes, instead of
+   * holding it for the whole TTL. Models `COMMAND_COMPLETION_SWEEP_ENABLED`
+   * (config/env.ts) so the flag's effect can be measured before it is turned
+   * on anywhere.
+   *
+   * Unlike `deliveryLatencySeconds` this is not an invented limit - it is a
+   * choice between two real behaviours of the deployed service, the one it has
+   * and the one the flag gives it - which is why it is settable here.
+   *
+   * Defaults false, and false is the deployed behaviour. Only meaningful when
+   * `enabled` is true; with the command path out of the loop there is no slot
+   * to release. See `simulation/commandLifecycle.ts#releaseSlotOnCompletion`.
+   */
+  releaseSlotOnCompletion: boolean;
 }
 
 
@@ -262,7 +278,7 @@ export const DEFAULT_FLEET_TRIAL_SPEC: FleetTrialSpec = {
   followerSpeedSource: 'vehicle_state',
   corridorPreset: 'intercity',
   alightingOnlySelectable: false,
-  commandLifecycle: { enabled: false, deliveryLatencySeconds: 0 },
+  commandLifecycle: { enabled: false, deliveryLatencySeconds: 0, releaseSlotOnCompletion: false },
 };
 
 const PHASES: { id: PhaseId; title: string; weighOccupancy: boolean }[] = [
@@ -1062,6 +1078,7 @@ function runScenario(args: {
       ? {
           commandLifecycle: commandLifecyclePolicyFrom(corridor.policy, {
             deliveryLatencySeconds: commandLifecycle.deliveryLatencySeconds,
+            releaseSlotOnCompletion: commandLifecycle.releaseSlotOnCompletion,
           }),
         }
       : {}),

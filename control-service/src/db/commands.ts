@@ -627,6 +627,51 @@ export async function sweepExpiredCommands(pool: Pool = getPool()): Promise<Comm
 }
 
 /**
+ * Sweeps every `executing` command whose ACTION HAS FINISHED to `completed`
+ * (see `control_service_complete_finished_commands()`,
+ * control-service/db/migrations/20260907093000__command_completion.sql).
+ *
+ * The mirror of `sweepExpiredCommands` above, and the two never contend for a
+ * row: `control_service_expire_commands()` covers every non-terminal status
+ * EXCEPT `executing`, this covers `executing` and nothing else.
+ *
+ * WHY IT EXISTS. `executing` is inside `commands_one_active_per_vehicle_idx`,
+ * and nothing in this service ever wrote `completed` - so a command a driver
+ * ACCEPTED had no exit from `executing` at all and held its vehicle's slot on
+ * that unique index permanently. Measured on the live control database
+ * 2026-09-06: four `executing` rows, all `ack_outcome = 'accept'`, aged 24-26
+ * days and past their own `expires_at` by the same margin; the only
+ * non-terminal rows in the database past their TTL, because the TTL sweep
+ * structurally cannot reach them.
+ *
+ * "Finished" is defined in SQL, in the migration, and it is the whole fix:
+ * `acknowledged_at + parameters.holdSeconds` capped at `expires_at` when the
+ * action states a duration, and `expires_at` alone when it does not. Ack is
+ * the START of the action and never frees the slot on its own; `expired` is
+ * not reused for an accepted command, because it means "the driver never did
+ * it" and would record a served hold as unserved.
+ *
+ * Gated in the scheduler by `COMMAND_COMPLETION_SWEEP_ENABLED` (default
+ * false). Nothing else calls it, so with that flag off this function never
+ * runs and no command status changes.
+ */
+export async function sweepCompletedCommands(pool: Pool = getPool()): Promise<CommandRow[]> {
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    await setAuditContext(client, { actorType: 'system', reason: 'action finished' });
+    const { rows } = await client.query<RawCommandRow>('select * from control_service_complete_finished_commands()');
+    await client.query('commit');
+    return rows.map(mapRow);
+  } catch (err) {
+    await client.query('rollback').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Ids of commands sitting in `authorized`, not yet expired, oldest first -
  * the candidate set for `commandDeliverySweep`
  * (control-service/src/scheduler/commandDeliverySweep.ts). A command only
