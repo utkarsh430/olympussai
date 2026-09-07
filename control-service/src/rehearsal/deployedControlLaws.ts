@@ -66,6 +66,12 @@
 //     full confidence and that exclusion path never fires.
 import { computePairHeadways } from '../headway/metrics.js';
 import { computeLeaderFollowerOrder } from '../state-estimation/ordering.js';
+import {
+  PositionPlausibilityTracker,
+  type PlausibilityAudit,
+  type PlausibilityConfig,
+  type PlausibilityMode,
+} from '../state-estimation/positionPlausibility.js';
 import { classifyStopState } from '../state-estimation/stopStateClassifier.js';
 import type { NearestStop } from '../state-estimation/stopStateClassifier.js';
 import {
@@ -433,6 +439,29 @@ export interface DeployedControlLawsOptions {
   forecastSweepIntervalSeconds?: number;
   /** Samples the trend is fitted from, matching `BUNCHING_FORECAST_SAMPLE_WINDOW`. */
   forecastSampleWindow?: number;
+  /**
+   * Whether the chain and the corridor pace are built from fixes that have
+   * been CHECKED for being true, rather than merely fresh
+   * (`state-estimation/positionPlausibility.ts`).
+   *
+   * Defaults to the deployed switch (`GPS_POSITION_PLAUSIBILITY_ENABLED`,
+   * off) so a rehearsal reproduces today's behaviour; overridable so the
+   * fleet trial can measure what flipping it would do before anyone flips
+   * it. Off is byte-identical in the strong sense - no tracker is
+   * constructed and no distance is substituted.
+   */
+  positionPlausibilityEnabled?: boolean;
+  /** `correct` (substitute the dead-reckoned belief) or `exclude` (drop from the chain). */
+  positionPlausibilityMode?: PlausibilityMode;
+  /** The residual bound, as travel time at the corridor's pace. See that module's header. */
+  positionPlausibilityBoundSeconds?: number;
+  /**
+   * The rest of the tracker's configuration, for a study that sweeps
+   * something other than the bound. Every field defaults to
+   * `DEFAULT_PLAUSIBILITY_CONFIG`; `positionPlausibilityBoundSeconds` wins
+   * over a `residualBoundSeconds` given here.
+   */
+  positionPlausibilityConfig?: Partial<PlausibilityConfig>;
 }
 
 /**
@@ -471,6 +500,15 @@ function isoAt(epochMs: number, seconds: number): string {
 export interface DeployedControlLawsController extends Controller {
   /** Every control-point decision this controller made, in the order it made them. */
   readonly decisions: readonly RehearsalDecisionRecord[];
+  /**
+   * What the position-plausibility check did, or null when it was not
+   * enabled. Published rather than merely counted because the RISK this
+   * correction carries is exclusion of the HEALTHY, and a flag whose benefit
+   * is reported without the population it excluded is a flag nobody can
+   * judge - the same rule `AGENTS.md` states for algorithm coverage beside a
+   * KPI, and for publishing the quantity a flag is drawn on.
+   */
+  readonly plausibilityAudit: PlausibilityAudit | null;
 }
 
 /** An all-laws-zero starting point, so a coverage record always names every law rather than only the ones that happened to run. */
@@ -504,6 +542,25 @@ export function createDeployedControlLawsController(
     options.forecastSweepIntervalSeconds ?? loadEnv().HEADWAY_COMPUTE_INTERVAL_MS / 1000;
   const forecastSampleWindow =
     options.forecastSampleWindow ?? loadEnv().BUNCHING_FORECAST_SAMPLE_WINDOW;
+
+  // ─── THE FIX IS CHECKED FOR BEING TRUE, NOT ONLY FOR BEING FRESH ─────
+  //
+  // Constructed only when the switch is on, so off is byte-identical rather
+  // than merely equivalent: nothing observes, nothing accumulates, and the
+  // ordering below is handed the reported distances unaltered.
+  const plausibilityEnabled =
+    options.positionPlausibilityEnabled ?? loadEnv().GPS_POSITION_PLAUSIBILITY_ENABLED;
+  const plausibilityMode: PlausibilityMode =
+    options.positionPlausibilityMode ?? loadEnv().GPS_POSITION_PLAUSIBILITY_MODE;
+  const plausibilityTracker = plausibilityEnabled
+    ? new PositionPlausibilityTracker({
+        ...options.positionPlausibilityConfig,
+        residualBoundSeconds:
+          options.positionPlausibilityBoundSeconds ??
+          options.positionPlausibilityConfig?.residualBoundSeconds ??
+          loadEnv().GPS_POSITION_PLAUSIBILITY_BOUND_SECONDS,
+      })
+    : null;
   const forecastHorizon = forecastHorizonSeconds(policy.targetHeadwaySeconds);
 
   // ─── THE FORECAST THE LAWS READ, ON PRODUCTION'S OWN CADENCE ─────────
@@ -714,10 +771,60 @@ export function createDeployedControlLawsController(
     // harness, not to the corridor. `headway/service.ts` ranks every live
     // vehicle on the route-direction, about fifteen of them at any instant on
     // these corridors, and so does `fleetTrial/detection.ts`.
+    // ─── THE FIX IS CHECKED BEFORE THE CHAIN IS BUILT FROM IT ──────────
+    //
+    // `kinematics.corridor` carries what the CONTROLLER IS TOLD, which under
+    // a `gps_bias` disturbance is not where the buses are (the disturbance
+    // moves the reported position only - `simulation/types.ts`). Every
+    // quantity below is built from these positions, so this is the last
+    // point at which a lie can be taken out of all of them at once: the
+    // ranking, the gap, and the pace median the gap is divided by.
+    //
+    // Null verdicts when the switch is off, and then the two maps below are
+    // built exactly as they always were.
+    const plausibility =
+      plausibilityTracker?.observe(
+        context.now,
+        kinematics.corridor.map((vehicle) => ({
+          vehicleId: vehicle.vehicleId,
+          distanceAlongRouteMeters: vehicle.distanceAlongRouteMeters,
+          speedKmph: vehicle.speedKmph,
+        })),
+      ) ?? null;
+    const isImplausible = (vehicleId: string): boolean =>
+      plausibility?.get(vehicleId)?.isImplausible === true;
+    /**
+     * The distance this vehicle is RANKED and MEASURED at.
+     *
+     * In `correct` mode a rejected fix is replaced by the dead-reckoned
+     * belief - the position the vehicle's own reported speed says it reached
+     * since its last plausible fix - which keeps it in the chain and
+     * therefore keeps it eligible for control. That is the whole difference
+     * between this and a refusal, and refusal was measured to recover none
+     * of the loss and cost a further 1.9 points.
+     */
+    const rankedDistance = (vehicle: { vehicleId: string; distanceAlongRouteMeters: number }): number => {
+      if (plausibilityMode !== 'correct') return vehicle.distanceAlongRouteMeters;
+      const verdict = plausibility?.get(vehicle.vehicleId);
+      return verdict?.isImplausible
+        ? verdict.believedDistanceAlongRouteMeters
+        : vehicle.distanceAlongRouteMeters;
+    };
+    /**
+     * A rejected vehicle's SPEED is withheld from the pace median in both
+     * modes, and it has to be withheld explicitly in `correct` mode because
+     * there the vehicle keeps its rank and `corridorPaceKmph` only skips
+     * rank -1. Under a frozen feed the position and the speed are frozen
+     * together by construction, so a fix nobody believes comes with a pace
+     * nobody should believe either.
+     */
+    const reportedSpeedOf = (vehicle: { vehicleId: string; speedKmph: number | null }): number | null =>
+      isImplausible(vehicle.vehicleId) ? null : vehicle.speedKmph;
+
     const orderingInputs: VehicleOrderingInput[] = kinematics.corridor.map((vehicle) => ({
       vehicleId: vehicle.vehicleId,
       routeDirectionId: context.routeDirectionId,
-      distanceAlongRouteMeters: vehicle.distanceAlongRouteMeters,
+      distanceAlongRouteMeters: rankedDistance(vehicle),
       // Full confidence: the simulator knows its own world exactly. See this
       // file's header - the state estimator's low-confidence exclusion is not
       // rehearsed, and pretending to a fractional confidence here would be
@@ -725,6 +832,12 @@ export function createDeployedControlLawsController(
       // feed has dropped is not in `corridor` at all, which is the same
       // exclusion by a different route.
       isLowConfidence: false,
+      // Only `exclude` mode drops the vehicle from the chain. Absent (not
+      // false) when the check is off, so the object is byte-identical to the
+      // one this file has always built.
+      ...(plausibilityMode === 'exclude' && isImplausible(vehicle.vehicleId)
+        ? { isImplausiblePosition: true }
+        : {}),
     }));
     const ordered = computeLeaderFollowerOrder(orderingInputs, {
       isLoop: false,
@@ -742,7 +855,7 @@ export function createDeployedControlLawsController(
       const sweepPairs = computePairHeadways(
         ordered,
         new Map<string, number | null>(
-          kinematics.corridor.map((vehicle) => [vehicle.vehicleId, vehicle.speedKmph]),
+          kinematics.corridor.map((vehicle) => [vehicle.vehicleId, reportedSpeedOf(vehicle)]),
         ),
         new Map<string, number>(kinematics.corridor.map((vehicle) => [vehicle.vehicleId, 1])),
         { totalDistanceMeters: kinematics.totalDistanceMeters },
@@ -806,8 +919,28 @@ export function createDeployedControlLawsController(
     const followerSpeedKmph =
       followerSpeedSource === 'vehicle_state' ? 0 : kinematics.follower.speedKmph;
     const speedByVehicleId = new Map<string, number | null>(
-      kinematics.corridor.map((vehicle) => [vehicle.vehicleId, vehicle.speedKmph]),
+      kinematics.corridor.map((vehicle) => [vehicle.vehicleId, reportedSpeedOf(vehicle)]),
     );
+    // ─── AND THE DECIDING BUS KEEPS ITS SPEED EVEN WHEN REJECTED ───────
+    //
+    // This line overrides the map built above, deliberately, and it is the
+    // one place the suppression must NOT reach. `closingSpeedMetersPerSecond`
+    // divides this pair's gap by the FOLLOWER's speed, so a null here is not
+    // a vehicle left out of the pace median - it is a null h_fwd, no
+    // candidate, and a hold declined. That is a refusal wearing a
+    // correction's clothes, and refusal is the thing measured not to work.
+    //
+    // MEASURED, and the size of it is why this comment exists: suppressing
+    // the deciding bus's speed here takes `blind_slowdown` on urban from
+    // +7.26 points of excess-wait gain (6/6 seeds) to -1.33 (3/6), an 8.6
+    // point swing, and turns suburban's +8.75 into +2.35. The correction is
+    // to the POSITION the corridor is ranked and measured on; the vehicle's
+    // own closing speed is what it still needs to be controlled at all.
+    //
+    // Nothing is lost by it. A rejected vehicle is kept out of the pace
+    // median by the map above, and the deciding bus is standing at a stop by
+    // construction - the only state a hold can be executed from - so under
+    // `vehicle_state` this is zero and below `STATIONARY_SPEED_KMPH` anyway.
     speedByVehicleId.set(followerId, followerSpeedKmph);
     const confidenceByVehicleId = new Map<string, number>(
       kinematics.corridor.map((vehicle) => [vehicle.vehicleId, 1]),
@@ -1399,5 +1532,12 @@ export function createDeployedControlLawsController(
     return { holdSeconds: selected.holdSeconds, actionType: selected.actionType };
   }
 
-  return { name: REHEARSAL_CONTROLLER_NAME, decide, decisions };
+  return {
+    name: REHEARSAL_CONTROLLER_NAME,
+    decide,
+    decisions,
+    get plausibilityAudit() {
+      return plausibilityTracker?.audit() ?? null;
+    },
+  };
 }

@@ -130,6 +130,24 @@ export interface VehicleOrderingInput {
   routeDirectionId: string;
   distanceAlongRouteMeters: number;
   isLowConfidence: boolean;
+  /**
+   * Set when `state-estimation/positionPlausibility.ts` has rejected this
+   * vehicle's reported position - a fix that is fresh, well-formed and
+   * self-consistent but inconsistent with the vehicle's own reported speed
+   * and the corridor's pace.
+   *
+   * OPTIONAL, and absent means false, because that is what makes the whole
+   * correction byte-identical when its flag is off: every existing caller
+   * builds this object without the field and gets exactly today's ranking.
+   *
+   * A vehicle carrying it is dropped from the chain the same way a
+   * low-confidence match is - see `ordering.ts` - which also keeps it out of
+   * `headway/metrics.ts#corridorPaceKmph`, since that skips rank -1. The
+   * OTHER handling of a rejected fix, substituting the dead-reckoned belief
+   * for the reported distance and leaving the vehicle in the chain, needs no
+   * field at all: it is a different `distanceAlongRouteMeters`.
+   */
+  isImplausiblePosition?: boolean;
 }
 
 export interface OrderedVehicle extends VehicleOrderingInput {
