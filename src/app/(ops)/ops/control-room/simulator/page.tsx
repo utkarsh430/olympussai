@@ -54,7 +54,7 @@ export default async function SimulatorPage() {
       email={session.email}
       role="control_room"
       variant="wide"
-      subtitle="A thousand buses, ten ways a corridor comes apart, and what would have happened without us"
+      subtitle="A thousand buses, every way a corridor comes apart, and what would have happened without us"
       statusStrip={report ? <TrialStrip report={report} /> : undefined}
     >
       {readError ? (

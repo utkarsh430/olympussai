@@ -23,6 +23,7 @@ import { describe, it, expect } from 'vitest';
 import {
   headlineNetPassengerTime,
   trialProvenance,
+  trialVerdict,
   type NetPassengerTimeInput,
   type TrialProvenanceInput,
 } from '@/lib/ops/fleetTrialView';
@@ -169,17 +170,19 @@ describe('whose report is on the screen', () => {
 
   it('states the age of the report, so a stale one cannot pass for a fresh one', () => {
     expect(trialProvenance(REPORT, 'stored', NOW).age).toBe('41 minutes ago');
-    expect(
-      trialProvenance(REPORT, 'stored', new Date('2026-09-06T09:00:20.000Z')).age,
-    ).toBe('just now');
-    expect(
-      trialProvenance(REPORT, 'stored', new Date('2026-09-07T11:00:00.000Z')).age,
-    ).toBe('26 hours ago');
+    expect(trialProvenance(REPORT, 'stored', new Date('2026-09-06T09:00:20.000Z')).age).toBe(
+      'just now',
+    );
+    expect(trialProvenance(REPORT, 'stored', new Date('2026-09-07T11:00:00.000Z')).age).toBe(
+      '26 hours ago',
+    );
   });
 
   it('flags a report old enough that the code under test may have moved since', () => {
     expect(trialProvenance(REPORT, 'stored', NOW).stale).toBe(false);
-    expect(trialProvenance(REPORT, 'stored', new Date('2026-09-06T21:00:00.000Z')).stale).toBe(true);
+    expect(trialProvenance(REPORT, 'stored', new Date('2026-09-06T21:00:00.000Z')).stale).toBe(
+      true,
+    );
     // A run the reader just triggered is never stale, whatever the clock says:
     // its timestamp comes from the service, and a skewed service clock must
     // not make a fresh run look old.
@@ -208,5 +211,197 @@ describe('whose report is on the screen', () => {
     expect(view.generatedAtLabel).toBeNull();
     // ...and still says everything it does know.
     expect(view.vehiclesPerPhase).toBe(60);
+  });
+});
+
+// ─── 3. THE ONE-LINE ANSWER ──────────────────────────────────────────────
+//
+// The page's first job is to say whether the controller helped. Two ways that
+// sentence can lie, and both are guarded here:
+//
+//   * taking it off excess wait, which counts only the people at stops. The
+//     trial has already found a configuration that improved excess wait 46%
+//     while making total passenger time 12% worse; a page that led on excess
+//     wait would have called that a success.
+//   * claiming a direction off a mean the scenarios do not agree on. The
+//     headline is ONE SEED per scenario, and the page already refuses to read
+//     a policy-sweep row whose seeds disagree. The verdict gets the same test.
+describe('the one-line verdict', () => {
+  function verdictPhase(over: {
+    saved: number;
+    total: number;
+    positive: number;
+    count: number;
+    ewt?: number | null;
+    id?: string;
+    title?: string;
+  }) {
+    return {
+      id: over.id ?? 'occupancy_blind',
+      title: over.title ?? 'Load ignored',
+      contrast: {
+        passengerSecondsSaved: over.saved,
+        ewtImprovementPercent: over.ewt === undefined ? 20 : over.ewt,
+      },
+      uncontrolled: { passengers: { totalPassengerSeconds: over.total } },
+      allScenarios: {
+        contrast: { passengerSecondsSaved: over.saved },
+        uncontrolled: { passengers: { totalPassengerSeconds: over.total } },
+      },
+      scenarioAgreement: { positive: over.positive, count: over.count },
+    };
+  }
+
+  const scope = (over: Partial<NetPassengerTimeInput['headlineScope']> = {}) => ({
+    includedScenarioIds: Array.from({ length: 16 }, (_, i) => `s${i}`),
+    excludedScenarios: [
+      { id: 'oversaturated', title: 'Oversaturated', deniedShare: 0.5 },
+      { id: 'station_surge', title: 'Station surge', deniedShare: 0.4 },
+      { id: 'building_peak', title: 'Building peak', deniedShare: 0.3 },
+    ],
+    fellBackToAllScenarios: false,
+    note: 'Averaged over 16 of 19 scenarios.',
+    ...over,
+  });
+
+  it('says the controller helped when the total fell and the scenarios agree', () => {
+    const view = trialVerdict({
+      headlineScope: scope(),
+      phases: [
+        verdictPhase({ saved: 290, total: 10_000, positive: 16, count: 19 }),
+        verdictPhase({ saved: 290, total: 10_000, positive: 16, count: 19 }),
+      ],
+    });
+    expect(view.verdict).toBe('helped');
+    expect(view.statement).toBe('The controller helped.');
+    expect(view.passengerTimePercent).toBeCloseTo(2.9, 6);
+    expect(view.agreeingScenarios).toBe(32);
+    expect(view.totalScenariosCounted).toBe(38);
+  });
+
+  it('takes the verdict off passenger time, NOT off excess wait', () => {
+    // The measured trap: excess wait improves hugely while the whole journey
+    // gets worse, because the hold is paid for by everyone already aboard.
+    const view = trialVerdict({
+      headlineScope: scope(),
+      phases: [
+        verdictPhase({ saved: -1_200, total: 10_000, positive: 2, count: 19, ewt: 46 }),
+        verdictPhase({ saved: -1_200, total: 10_000, positive: 2, count: 19, ewt: 46 }),
+      ],
+    });
+    expect(view.verdict).toBe('cost_more');
+    expect(view.statement).toBe('The controller cost more than it saved.');
+    // And the excess-wait figure is still published, per phase, never pooled.
+    expect(view.excessWaitByPhase.map((p) => p.percent)).toEqual([46, 46]);
+  });
+
+  it('counts agreement against the sign the total actually has', () => {
+    // 17 of 19 scenarios NEGATIVE is a broad bad result, not a weak one.
+    // Counting only the positive scenarios would report "no effect measured".
+    const view = trialVerdict({
+      headlineScope: scope(),
+      phases: [verdictPhase({ saved: -500, total: 10_000, positive: 2, count: 19 })],
+    });
+    expect(view.verdict).toBe('cost_more');
+    expect(view.agreeingScenarios).toBe(17);
+  });
+
+  it('refuses a direction the trial cannot resolve, however many scenarios agree', () => {
+    // MEASURED on inter-city at 1,000 buses/phase: +0.1% net passenger time
+    // with 21 of 38 scenarios agreeing. The agreement test alone passed that
+    // - 21 of 38 is a majority - and the page said "the controller helped"
+    // about a corridor this repo already records as zero to within +/- 0.5.
+    const view = trialVerdict({
+      headlineScope: scope(),
+      phases: [
+        verdictPhase({ saved: 10, total: 10_000, positive: 11, count: 19 }),
+        verdictPhase({ saved: 10, total: 10_000, positive: 10, count: 19 }),
+      ],
+    });
+    expect(view.passengerTimePercent).toBeCloseTo(0.1, 6);
+    expect(view.verdict).toBe('no_effect');
+    expect(view.because).toMatch(/single draw/i);
+  });
+
+  it('clears the noise floor on a corridor where the effect is real', () => {
+    // Urban, measured: +2.9% +/- 0.3 over six seeds — six times the spread.
+    const view = trialVerdict({
+      headlineScope: scope(),
+      phases: [verdictPhase({ saved: 290, total: 10_000, positive: 16, count: 19 })],
+    });
+    expect(view.verdict).toBe('helped');
+  });
+
+  it('applies the noise floor to a negative result too, not only a positive one', () => {
+    const view = trialVerdict({
+      headlineScope: scope(),
+      phases: [verdictPhase({ saved: -10, total: 10_000, positive: 2, count: 19 })],
+    });
+    expect(view.verdict).toBe('no_effect');
+  });
+
+  it('refuses to claim a direction the scenarios do not agree on', () => {
+    const view = trialVerdict({
+      headlineScope: scope(),
+      phases: [verdictPhase({ saved: 900, total: 10_000, positive: 9, count: 19 })],
+    });
+    expect(view.verdict).toBe('no_effect');
+    expect(view.statement).toBe('This trial did not measure an effect.');
+  });
+
+  it('reads an even split as disagreement, never as agreement', () => {
+    const view = trialVerdict({
+      headlineScope: scope(),
+      phases: [verdictPhase({ saved: 900, total: 10_000, positive: 10, count: 20 })],
+    });
+    expect(view.verdict).toBe('no_effect');
+  });
+
+  it('says it cannot answer at all when every scenario saturated', () => {
+    const view = trialVerdict({
+      headlineScope: scope({ fellBackToAllScenarios: true, excludedScenarios: [] }),
+      phases: [verdictPhase({ saved: 290, total: 10_000, positive: 19, count: 19 })],
+    });
+    expect(view.verdict).toBe('unreadable');
+    expect(view.statement).toBe('This trial cannot say whether the controller helped.');
+  });
+
+  it('says it cannot answer when no passenger time was billed at all', () => {
+    const view = trialVerdict({
+      headlineScope: scope(),
+      phases: [verdictPhase({ saved: 0, total: 0, positive: 0, count: 0 })],
+    });
+    expect(view.verdict).toBe('unreadable');
+    expect(view.passengerTimePercent).toBeNull();
+  });
+
+  it('never pools excess wait across phases, and names which phase each figure is', () => {
+    const view = trialVerdict({
+      headlineScope: scope(),
+      phases: [
+        verdictPhase({
+          saved: 290,
+          total: 10_000,
+          positive: 16,
+          count: 19,
+          ewt: 24,
+          id: 'occupancy_blind',
+          title: 'Load ignored',
+        }),
+        verdictPhase({
+          saved: 290,
+          total: 10_000,
+          positive: 16,
+          count: 19,
+          ewt: 22,
+          id: 'occupancy_aware',
+          title: 'Load weighed',
+        }),
+      ],
+    });
+    expect(view.excessWaitByPhase).toEqual([
+      { id: 'occupancy_blind', title: 'Load ignored', percent: 24 },
+      { id: 'occupancy_aware', title: 'Load weighed', percent: 22 },
+    ]);
   });
 });

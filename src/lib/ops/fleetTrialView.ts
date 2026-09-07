@@ -124,6 +124,189 @@ export function headlineNetPassengerTime(report: NetPassengerTimeInput): NetPass
   };
 }
 
+// ─── The one-line answer ──────────────────────────────────────────────────
+
+/**
+ * Did the controller help, or not.
+ *
+ * ─── WHY THE SENTENCE IS DECIDED ON PASSENGER TIME ───────────────────────
+ *
+ * Excess wait is the field's headline metric and it is on the page beside
+ * this, but it cannot be the verdict: it counts only the people standing at
+ * stops, and holding a bus to help them is paid for by everyone already
+ * aboard. This trial has already found a configuration that improved excess
+ * wait 46% while making total passenger time 12% WORSE. A page whose one-line
+ * answer came off excess wait would have called that a success.
+ *
+ * So the sentence comes off net total passenger time - the whole journey,
+ * every second counted once - pooled across phases by `headlineNetPassengerTime`,
+ * which divides once rather than averaging two percents over two different
+ * passenger bills.
+ *
+ * ─── AND WHY A SIGN IS NOT ENOUGH TO CLAIM ONE ───────────────────────────
+ *
+ * The trial's own headline is ONE SEED per scenario, so a small mean with the
+ * scenarios split about evenly either side of zero is not a small effect, it
+ * is no measured effect. The page already applies exactly this rule to the
+ * policy sweeps ("a row whose seeds do not agree on the sign is no measured
+ * effect, however large its mean") and this applies the same test to the
+ * verdict rather than inventing a second, softer one for the top line: the
+ * scenarios have to agree with the sign of the pooled figure before the page
+ * will say the word "helped".
+ *
+ * TWO tests, and both have to pass, because each catches a different lie.
+ * Agreement catches a large mean carried by one scenario. It does NOT catch a
+ * figure too small to have been resolved at all: on the inter-city preset a
+ * measured +0.1% came with 21 of 38 scenarios agreeing - a coin flip on a
+ * corridor the repo already records as "zero to within +/- 0.5" - and the
+ * agreement test alone let the page say "the controller helped" about it.
+ *
+ * `NET_PASSENGER_TIME_NOISE_PCT` is that second test and it is a MEASUREMENT,
+ * not a taste: over six seeds at 250 buses/phase the trial reads urban
+ * +2.9% +/- 0.3, suburban +0.5% +/- 0.3, and inter-city zero to within +/- 0.5
+ * (AGENTS.md, "Report the seed spread, never a single run"). Half a point is
+ * the seed-to-seed spread on the flattest of the three, and the headline is a
+ * SINGLE draw, so a pooled figure smaller than that in magnitude is inside the
+ * noise of the one draw it came from. Urban's +2.9% clears it by six times
+ * over; inter-city's +0.1% does not clear it at all, which is the right answer.
+ *
+ * Both figures are still published either way - this decides the WORD, never
+ * which numbers are shown.
+ *
+ * `scenarioAgreement` deliberately counts EVERY scenario, including any the
+ * headline pool excludes, because a scenario built to lose is exactly where a
+ * broad claim should be visible. That is why the agreement count here can name
+ * a larger denominator than the headline's scenario count, and why both are
+ * reported rather than reconciled.
+ */
+export type TrialVerdict = 'helped' | 'cost_more' | 'no_effect' | 'unreadable';
+
+/** Just enough of a phase to decide a verdict from. */
+interface VerdictPhase extends NetPassengerTimePhase {
+  id: string;
+  title: string;
+  scenarioAgreement: { positive: number; count: number };
+  contrast: { passengerSecondsSaved: number; ewtImprovementPercent: number | null };
+}
+
+export interface TrialVerdictInput extends NetPassengerTimeInput {
+  phases: readonly VerdictPhase[];
+}
+
+export interface TrialVerdictView {
+  verdict: TrialVerdict;
+  /** The whole answer in one sentence, with no number in it. */
+  statement: string;
+  /** Why that word and not another one, in one more sentence. */
+  because: string;
+  /** Net total passenger time, pooled across phases. The figure the verdict is taken on. */
+  passengerTimePercent: number | null;
+  /**
+   * Excess wait per phase, never pooled. `poolArm` recomputes excess wait from
+   * the raw headway samples rather than averaging per-run means, so there is no
+   * honest way to combine two phases' published figures into one - and the two
+   * phases are two configurations of the controller, which is worth seeing
+   * separately anyway.
+   */
+  excessWaitByPhase: readonly { id: string; title: string; percent: number | null }[];
+  /** How many scenarios landed on the same side of zero as the pooled figure, of how many ran. */
+  agreeingScenarios: number;
+  totalScenariosCounted: number;
+}
+
+/**
+ * The seed-to-seed spread of net passenger time, in percentage points.
+ *
+ * MEASURED, over six seeds at 250 buses/phase: urban +2.9% +/- 0.3, suburban
+ * +0.5% +/- 0.3, inter-city zero to within +/- 0.5. Half a point is the spread
+ * on the flattest of the three corridors, and the page's headline is ONE draw,
+ * so a pooled figure smaller than this cannot be told apart from the noise of
+ * the draw it came from. Raise it only against a new measurement of the same
+ * kind, never to make a result look stronger.
+ */
+export const NET_PASSENGER_TIME_NOISE_PCT = 0.5;
+
+const signed = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
+
+export function trialVerdict(report: TrialVerdictInput): TrialVerdictView {
+  const headline = headlineNetPassengerTime(report);
+  const percent = headline.headlinePercent;
+
+  // The agreement test runs on the sign the pooled figure actually has. A
+  // controller that made things worse on sixteen of nineteen scenarios is a
+  // BROAD result, not a weak one, and counting only the positive scenarios
+  // would have reported it as "no effect measured".
+  let positive = 0;
+  let counted = 0;
+  for (const phase of report.phases) {
+    positive += phase.scenarioAgreement.positive;
+    counted += phase.scenarioAgreement.count;
+  }
+  const agreeing = percent === null || percent >= 0 ? positive : counted - positive;
+
+  const excessWaitByPhase = report.phases.map((phase) => ({
+    id: phase.id,
+    title: phase.title,
+    percent: phase.contrast.ewtImprovementPercent,
+  }));
+
+  const base = {
+    passengerTimePercent: percent,
+    excessWaitByPhase,
+    agreeingScenarios: agreeing,
+    totalScenariosCounted: counted,
+  };
+
+  if (headline.fellBackToAllScenarios || percent === null) {
+    return {
+      ...base,
+      verdict: 'unreadable',
+      statement: 'This trial cannot say whether the controller helped.',
+      because:
+        percent === null
+          ? 'No passenger time was billed on either arm, so there is nothing to compare.'
+          : 'Every scenario it ran went past the saturation line, where waiting is bounded by how many seats exist rather than by how they are spaced — so a working controller correctly moves nothing, and the figures below are a check on the harness rather than a verdict on the controller.',
+    };
+  }
+
+  // Inside the seed-to-seed spread the trial itself shows on its flattest
+  // corridor, so this single draw cannot resolve a direction at all.
+  if (Math.abs(percent) < NET_PASSENGER_TIME_NOISE_PCT) {
+    return {
+      ...base,
+      verdict: 'no_effect',
+      statement: 'This trial did not measure an effect.',
+      because: `At ${signed(percent)} the figure is smaller than the ${NET_PASSENGER_TIME_NOISE_PCT}-point spread the same trial shows between seeds on its flattest corridor, and this headline is a single draw. Run it again on more seeds before reading a direction into it.`,
+    };
+  }
+
+  // Strictly more than half, so an even split is never read as agreement.
+  if (counted > 0 && agreeing * 2 <= counted) {
+    return {
+      ...base,
+      verdict: 'no_effect',
+      statement: 'This trial did not measure an effect.',
+      because: `The scenarios do not agree on the sign — ${agreeing} of ${counted} landed on the same side of zero as the ${percent >= 0 ? 'positive' : 'negative'} total. One seed per scenario is one draw, so a mean without agreement behind it is not a result, however large it looks.`,
+    };
+  }
+
+  if (percent >= 0) {
+    return {
+      ...base,
+      verdict: 'helped',
+      statement: 'The controller helped.',
+      because: `It gave passengers back ${percent.toFixed(1)}% of their total journey time, and ${agreeing} of ${counted} scenarios agreed on the sign.`,
+    };
+  }
+
+  return {
+    ...base,
+    verdict: 'cost_more',
+    statement: 'The controller cost more than it saved.',
+    because: `It added ${Math.abs(percent).toFixed(1)}% to total passenger time — the waiting it removed at stops was smaller than the delay it imposed on people already aboard — and ${agreeing} of ${counted} scenarios agreed on the sign.`,
+  };
+}
+
 // ─── Whose report this is ─────────────────────────────────────────────────
 
 export interface TrialProvenanceInput {
@@ -206,12 +389,9 @@ export function trialProvenance(
     : null;
   const age = parsed && now !== null ? ageInWords(elapsedMs) : null;
 
-  const fleet = vehiclesPerPhase === null ? null : `${vehiclesPerPhase.toLocaleString()} buses per phase`;
-  const summary = [
-    report.corridorPreset.title,
-    fleet,
-    age === null ? null : `run ${age}`,
-  ]
+  const fleet =
+    vehiclesPerPhase === null ? null : `${vehiclesPerPhase.toLocaleString()} buses per phase`;
+  const summary = [report.corridorPreset.title, fleet, age === null ? null : `run ${age}`]
     .filter((part): part is string => part !== null)
     .join(' · ');
 

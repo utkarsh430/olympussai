@@ -23,21 +23,49 @@
  * The headline metric of this whole field - excess wait time - counts only the
  * people standing at stops, and holding a bus to help them is paid for by
  * everyone already aboard. The trial found a configuration that improved excess
- * wait 46% while making total passenger time 12% WORSE. So the passenger-time
- * balance sits at the top of every phase, above the wait figure, and the page
- * says which one is the verdict.
+ * wait 46% while making total passenger time 12% WORSE. So the two sit side by
+ * side at the top of the page, and the VERDICT is taken on passenger time.
  *
  * Total passenger time here means the WHOLE journey - kerb wait, dwell, hold
  * and riding, each second counted once. It used to mean waiting plus the hold,
  * which is the wrong half: holding is the only in-vehicle term control makes
  * worse. See `fleetTrial/types.ts#PassengerOutcome`.
+ *
+ * ─── THE PAGE ANSWERS BEFORE IT EXPLAINS ─────────────────────────────────
+ *
+ * It did not. On a completed 1,000-bus trial it rendered 1,055 separate blocks
+ * of visible text, everything expanded at once, five banners stacked above a
+ * report, and no particular place where "did the controller help" was
+ * answered. Every individual piece was worth having; none of it was ordered,
+ * so a reader had to consume all of it to find any of it.
+ *
+ * An operator opens this to learn four things IN THAT ORDER - did it help, by
+ * how much, can I trust that, and why - so the page is now those four:
+ *
+ *   1-3. `TrialAnswer`, on one screen. The verdict sentence, the two figures,
+ *        and the qualifications ATTACHED to the figure they qualify rather
+ *        than stacked beside it as banners nobody correlates by hand.
+ *   4.   Everything else, in `OpsDisclosure`s, closed until asked for.
+ *
+ * NOTHING WAS DELETED. The default view is 87 blocks and the fully expanded
+ * page is 1,121 - more text than before, not less, because saying the
+ * timetable IS fine turns out to be worth a line too. The reasoning that
+ * filled the old banners is one click away on the line it belongs to, and
+ * several of those paragraphs exist to prevent a specific misreading that has
+ * already happened once. Shorten one, move one, hide one behind a disclosure -
+ * but a caveat is never removed to make this page look calmer.
+ *
+ * The one thing that may not move is what became of the RUN. `TrialRunStatus`
+ * stays first and outside every disclosure: a progress or failure notice below
+ * a full report reads as though the report were the answer to it.
  */
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react';
 import {
   OpsAlert,
   OpsBadge,
   OpsButton,
   OpsCoverage,
+  OpsDisclosure,
   OpsEmptyState,
   OpsGrid,
   OpsPanel,
@@ -54,11 +82,15 @@ import {
   opsThClass,
   opsTrClass,
 } from '@/components/ops/ui';
+import { cn } from '@/lib/utils';
 import { MareyComparison, PassengerBalance, StationHolds, SweepBands } from './TrialCharts';
 import {
   headlineNetPassengerTime,
   trialProvenance,
+  trialVerdict,
   type TrialOrigin,
+  type TrialProvenanceView,
+  type TrialVerdictView,
 } from '@/lib/ops/fleetTrialView';
 import {
   initialTrialConsoleState,
@@ -83,12 +115,15 @@ import {
 } from '@/models/fleetTrial';
 
 const num = (value: number) => value.toLocaleString();
-const secs = (value: number | null, digits = 0) => (value === null ? '—' : `${value.toFixed(digits)}s`);
+const secs = (value: number | null, digits = 0) =>
+  value === null ? '—' : `${value.toFixed(digits)}s`;
 const mins = (value: number | null) => (value === null ? '—' : `${(value / 60).toFixed(1)} min`);
-const pct = (value: number | null, digits = 1) => (value === null ? '—' : `${value.toFixed(digits)}%`);
+const pct = (value: number | null, digits = 1) =>
+  value === null ? '—' : `${value.toFixed(digits)}%`;
 const hrs = (value: number) => `${Math.round(value / 3600).toLocaleString()} h`;
 /** Null is "nobody was offered a seat", which is not zero. */
-const deniedShareLabel = (share: number | null) => (share === null ? 'no passenger reached this arm' : pct(share * 100));
+const deniedShareLabel = (share: number | null) =>
+  share === null ? 'no passenger reached this arm' : pct(share * 100);
 
 /**
  * Severity as one of the console's own chips.
@@ -143,7 +178,11 @@ function ContrastRow({
   );
 }
 
-function ArmContrastTable({ arm }: { arm: { uncontrolled: ArmReport; controlled: ArmReport; contrast: PhaseReport['contrast'] } }) {
+function ArmContrastTable({
+  arm,
+}: {
+  arm: { uncontrolled: ArmReport; controlled: ArmReport; contrast: PhaseReport['contrast'] };
+}) {
   const { uncontrolled: u, controlled: c, contrast } = arm;
   return (
     <OpsTableFrame>
@@ -200,14 +239,18 @@ function ArmContrastTable({ arm }: { arm: { uncontrolled: ArmReport; controlled:
             controlled={num(c.spacing.deniedBoardings)}
             improvement={
               u.spacing.deniedBoardings > 0
-                ? ((u.spacing.deniedBoardings - c.spacing.deniedBoardings) / u.spacing.deniedBoardings) * 100
+                ? ((u.spacing.deniedBoardings - c.spacing.deniedBoardings) /
+                    u.spacing.deniedBoardings) *
+                  100
                 : null
             }
           />
           <tr className={opsTrClass}>
             <td className={opsTdClass}>
               Journey time per bus
-              <div className="text-[11px] text-subtle">the punctuality cost of being controlled</div>
+              <div className="text-[11px] text-subtle">
+                the punctuality cost of being controlled
+              </div>
             </td>
             <td className={opsTdNumericClass}>{mins(u.punctuality.meanJourneySeconds)}</td>
             <td className={opsTdNumericClass}>{mins(c.punctuality.meanJourneySeconds)}</td>
@@ -222,14 +265,16 @@ function ArmContrastTable({ arm }: { arm: { uncontrolled: ArmReport; controlled:
               <td className={opsTdClass}>
                 Alighting-only instructions
                 <div className="text-[11px] text-subtle">
-                  let people off, take nobody on — the one lever that removes delay instead of adding it
+                  let people off, take nobody on — the one lever that removes delay instead of
+                  adding it
                 </div>
               </td>
               <td className={opsTdMutedClass}>none</td>
               <td className={opsTdNumericClass}>
                 {num(c.punctuality.alightingOnlyActions)}
                 <div className="text-[11px] text-subtle">
-                  {num(c.punctuality.alightingOnlyPassengersPassed)} passengers left for the bus behind
+                  {num(c.punctuality.alightingOnlyPassengersPassed)} passengers left for the bus
+                  behind
                 </div>
               </td>
               <td className={opsTdMutedClass}>—</td>
@@ -284,7 +329,13 @@ function ArmContrastTable({ arm }: { arm: { uncontrolled: ArmReport; controlled:
   );
 }
 
-function IncidentTable({ incidents, emptyLabel }: { incidents: DetectedIncident[]; emptyLabel: string }) {
+function IncidentTable({
+  incidents,
+  emptyLabel,
+}: {
+  incidents: DetectedIncident[];
+  emptyLabel: string;
+}) {
   if (incidents.length === 0) return <OpsEmptyState>{emptyLabel}</OpsEmptyState>;
   return (
     <OpsTableFrame>
@@ -320,7 +371,9 @@ function IncidentTable({ incidents, emptyLabel }: { incidents: DetectedIncident[
                   </div>
                 ) : null}
               </td>
-              <td className={opsTdNumericClass}>{(incident.minRatio * 100).toFixed(0)}% of target</td>
+              <td className={opsTdNumericClass}>
+                {(incident.minRatio * 100).toFixed(0)}% of target
+              </td>
               <td className={opsTdNumericClass}>
                 {incident.durationSeconds === null ? '—' : mins(incident.durationSeconds)}
               </td>
@@ -413,8 +466,96 @@ function ScenarioPanel({
   );
 }
 
+const signedPct = (value: number | null) =>
+  value === null ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
+
 /**
- * What the figures below are an average of, said before they are read.
+ * One qualification, attached to the number it qualifies.
+ *
+ * ─── WHY THESE ARE NOT BANNERS ANY MORE ──────────────────────────────────
+ *
+ * They were: five stacked alerts above the report — the controllability band,
+ * what is invented, the timetable fit, which scenarios the headline pools, and
+ * whose run this is. Each was true and each was worth saying, but a reader had
+ * to hold all five in their head and correlate them with a figure further down
+ * the page by hand. Nobody does that. What they qualify is ONE number, so they
+ * belong beside that number, in one list, in the order a reader would ask.
+ *
+ * ─── THE STATE IS IN THE WORDS FIRST ─────────────────────────────────────
+ *
+ * `headline` is written to be readable on its own: "In the controllable band",
+ * "16 of 19 scenarios averaged", "This timetable is tighter than the corridor
+ * can keep". The glyph is a SHAPE and the colour is third, for the same reason
+ * OpsBadge's dot is a shape — a hue pair this console has already measured at
+ * 1.22:1 under deuteranopia cannot be the thing carrying a caveat.
+ *
+ * Deliberately not `OpsBadge`'s live/sim/fixture vocabulary: those three mean
+ * something specific about where data came from, and every number in this
+ * trial is simulated.
+ *
+ * ─── AND NOTHING IS DELETED TO MAKE THE LIST SHORT ───────────────────────
+ *
+ * The reasoning that used to fill each banner is still here in full, one click
+ * away, and several of these paragraphs exist to stop a specific misreading
+ * that has already happened once. `children` is where they live; the summary
+ * line never replaces them.
+ */
+function Qualification({
+  state,
+  headline,
+  children,
+}: {
+  state: 'ok' | 'caution' | 'note';
+  headline: ReactNode;
+  children?: ReactNode;
+}) {
+  const glyph = state === 'ok' ? '✓' : state === 'caution' ? '!' : '·';
+  const tone =
+    state === 'ok' ? 'text-success' : state === 'caution' ? 'text-warning' : 'text-subtle';
+
+  const line = (
+    <>
+      <span aria-hidden className={cn('mt-px w-3 shrink-0 text-center text-xs font-bold', tone)}>
+        {glyph}
+      </span>
+      <span className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">
+        {headline}
+      </span>
+    </>
+  );
+
+  // A qualification with nothing more to say is a plain line, not a control
+  // that opens onto nothing.
+  if (!children) {
+    return <li className="flex items-start gap-2 py-1.5">{line}</li>;
+  }
+
+  return (
+    <li>
+      <details className="group">
+        <summary
+          className={cn(
+            'flex cursor-pointer list-none items-start gap-2 rounded py-1.5',
+            'hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            '[&::-webkit-details-marker]:hidden',
+          )}
+        >
+          {line}
+          <span className="shrink-0 pt-px text-[11px] font-medium text-subtle group-hover:text-muted-foreground">
+            <span className="group-open:hidden">why</span>
+            <span className="hidden group-open:inline">close</span>
+          </span>
+        </summary>
+        <div className="max-w-prose pb-2 pl-5 text-[11px] leading-relaxed text-subtle">
+          {children}
+        </div>
+      </details>
+    </li>
+  );
+}
+
+/**
+ * Which scenarios the headline is an average of.
  *
  * ─── WHY THIS IS NOT THE OLD SATURATION BANNER ───────────────────────────
  *
@@ -424,56 +565,77 @@ function ScenarioPanel({
  * the banner stayed silent while one of the ingredients behind every number on
  * the page was a scenario that cannot respond to control at all.
  *
- * The scope is now decided per scenario on the service and named here. Three
- * states, and each is a different thing to tell a reader:
+ * The scope is decided per scenario on the service. Three states, and each is
+ * a different thing to tell a reader:
  *
  *   * scenarios were excluded — say which, and what the full set says;
  *   * nothing was excluded — say that too, so silence is never ambiguous;
  *   * everything saturated — the headline IS the full set, and the figures
- *     below cannot be read as a verdict on the controller.
+ *     cannot be read as a verdict on the controller.
+ *
+ * It now renders as a qualification ON the headline rather than as a banner
+ * beside it, because that is what it is: "16 of 19" is a property of the
+ * number, not a separate topic a reader should have to join up by hand.
  */
-function HeadlineScopeNotice({ phase, report }: { phase: PhaseReport; report: FleetTrialReport }) {
+function ScopeQualification({ report }: { report: FleetTrialReport }) {
   const headline = headlineNetPassengerTime(report);
-  const allPercent = phase.allScenarios.contrast.passengerSecondsSavedPercent;
-  const headlinePercent = phase.contrast.passengerSecondsSavedPercent;
-  const signed = (value: number | null) =>
-    value === null ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
 
   if (headline.fellBackToAllScenarios) {
     return (
-      <OpsAlert tone="warning" title="Every scenario in this trial ran past the saturation line">
-        {headline.note} There was no readable subset to average, so the figures below are the whole
-        set — and past that line a working controller correctly reports very little effect. Read them
-        as a check on the harness, not as a verdict on the controller.
-      </OpsAlert>
+      <Qualification
+        state="caution"
+        headline="Every scenario in this trial ran past the saturation line"
+      >
+        {headline.note} There was no readable subset to average, so the figures are the whole set —
+        and past that line a working controller correctly reports very little effect. Read them as a
+        check on the harness, not as a verdict on the controller.
+      </Qualification>
     );
   }
 
   if (headline.excludedScenarios.length === 0) {
     return (
-      <OpsAlert tone="info" title={`Averaged over all ${headline.totalScenarioCount} scenarios`}>
-        None of them ran past the saturation line, so every scenario this phase ran is behind the
-        figures below.
-      </OpsAlert>
+      <Qualification
+        state="ok"
+        headline={`Averaged over all ${headline.totalScenarioCount} scenarios — none saturated`}
+      >
+        None of them ran past the saturation line, so every scenario this trial ran is behind the
+        figures above.
+      </Qualification>
     );
   }
 
   return (
-    <OpsAlert
-      tone="info"
-      title={`The figures below average ${headline.includedScenarioCount} of ${headline.totalScenarioCount} scenarios`}
+    <Qualification
+      state="caution"
+      headline={
+        <>
+          Averaged over{' '}
+          <span className="tabular-nums text-foreground">
+            {headline.includedScenarioCount} of {headline.totalScenarioCount}
+          </span>{' '}
+          scenarios — {headline.excludedScenarios.length} ran past the saturation line
+        </>
+      }
     >
       {headline.excludedScenarios
-        .map((s) => `${s.title} (${pct(s.deniedShare * 100, 0)} of people offered a seat were refused one)`)
+        .map(
+          (s) =>
+            `${s.title} (${pct(s.deniedShare * 100, 0)} of people offered a seat were refused one)`,
+        )
         .join(', ')}{' '}
       {headline.excludedScenarios.length === 1 ? 'is' : 'are'} left out. Past the saturation line
       waiting time is bounded by how many seats exist rather than by how they are spaced, so spacing
       control cannot move the figure there and averaging it in only pulls the headline towards zero.
-      Over all {headline.totalScenarioCount} this phase reads{' '}
-      <span className="tabular-nums text-foreground">{signed(allPercent)}</span> net passenger time
-      against <span className="tabular-nums text-foreground">{signed(headlinePercent)}</span> here;
-      the excluded scenarios are still shown in full below, and in the agreement count.
-    </OpsAlert>
+      Over all {headline.totalScenarioCount} the trial reads{' '}
+      <span className="tabular-nums text-foreground">
+        {signedPct(headline.allScenariosPercent)}
+      </span>{' '}
+      net passenger time against{' '}
+      <span className="tabular-nums text-foreground">{signedPct(headline.headlinePercent)}</span>{' '}
+      here; the excluded scenarios are still shown in full under &ldquo;Scenario by scenario&rdquo;,
+      and in the agreement count.
+    </Qualification>
   );
 }
 
@@ -482,179 +644,222 @@ function PhaseBody({ phase, report }: { phase: PhaseReport; report: FleetTrialRe
   const scenario = phase.scenarios.find((s) => s.id === scenarioId) ?? phase.scenarios[0] ?? null;
 
   return (
-    <div className="space-y-6">
-      <HeadlineScopeNotice phase={phase} report={report} />
-
-      <OpsGrid columns={2}>
-        <OpsPanel
-          title="The trade, in passenger-seconds"
-          description="Waiting removed at stations against delay added to people already aboard. Whichever bar is longer is the answer."
-        >
-          <PassengerBalance
-            waitSecondsSaved={phase.contrast.waitSecondsSaved}
-            onboardDelayImposed={phase.contrast.onboardDelayImposed}
-            inVehicleSecondsSaved={phase.contrast.inVehicleSecondsSaved}
-            netSeconds={phase.contrast.passengerSecondsSaved}
-            netPercent={phase.contrast.passengerSecondsSavedPercent}
-          />
-        </OpsPanel>
-        <OpsPanel
-          title="Incidents this phase"
-          description={`Detected by the deployed rules, replayed at the live ${report.sweepIntervalSeconds}-second sweep cadence.`}
-        >
-          <div className="grid grid-cols-2 gap-4">
-            <OpsStat
-              label="Detected, left alone"
-              value={num(phase.uncontrolled.incidents.detected)}
-              hint={`${num(phase.uncontrolled.incidents.resolved)} resolved on their own`}
+    <div className="space-y-3">
+      <OpsDisclosure
+        title="How the answer was arrived at"
+        description="The passenger-time trade this phase struck, and what the deployed detector saw while it was being struck."
+      >
+        <OpsGrid columns={2}>
+          <OpsPanel
+            title="The trade, in passenger-seconds"
+            description="Waiting removed at stations against delay added to people already aboard. Whichever bar is longer is the answer."
+          >
+            <PassengerBalance
+              waitSecondsSaved={phase.contrast.waitSecondsSaved}
+              onboardDelayImposed={phase.contrast.onboardDelayImposed}
+              inVehicleSecondsSaved={phase.contrast.inVehicleSecondsSaved}
+              netSeconds={phase.contrast.passengerSecondsSaved}
+              netPercent={phase.contrast.passengerSecondsSavedPercent}
             />
-            <OpsStat
-              label="Detected, under control"
-              value={num(phase.controlled.incidents.detected)}
-              hint={`${num(phase.controlled.incidents.resolved)} resolved`}
-            />
-            <OpsStat
-              label="Resolution rate"
-              value={pct(
-                phase.controlled.incidents.detected > 0
-                  ? (phase.controlled.incidents.resolved / phase.controlled.incidents.detected) * 100
-                  : null,
-                0,
-              )}
-              hint={`against ${pct(
-                phase.uncontrolled.incidents.detected > 0
-                  ? (phase.uncontrolled.incidents.resolved / phase.uncontrolled.incidents.detected) * 100
-                  : null,
-                0,
-              )} left alone`}
-              tone="accent"
-            />
-            <OpsStat
-              label="Median time to resolve"
-              value={mins(phase.controlled.incidents.medianResolutionSeconds)}
-              hint={`against ${mins(phase.uncontrolled.incidents.medianResolutionSeconds)} left alone`}
-            />
-          </div>
-          <p className="mt-4 max-w-prose text-[11px] leading-relaxed text-subtle">
-            A higher detected count under control is not a failure. Holding changes the gaps the
-            forecaster is watching, so it opens more <em>predicted</em> incidents — and far more of them
-            reach a real resolution instead of merely ending when a bus left the route.
-          </p>
-        </OpsPanel>
-      </OpsGrid>
-
-      <OpsPanel title="Everything, both arms" headingLevel={2}>
-        <ArmContrastTable
-          arm={{ uncontrolled: phase.uncontrolled, controlled: phase.controlled, contrast: phase.contrast }}
-        />
-      </OpsPanel>
-
-      <OpsGrid columns={2}>
-        <OpsPanel
-          title="Where the holding happens"
-          description="Seconds of hold served at each station, and how many instructions that was."
-        >
-          <StationHolds stations={phase.holdSecondsByStation} />
-        </OpsPanel>
-        <OpsPanel
-          title="Which law did the work"
-          description="Every hold served, split by the deployed law that produced it."
-        >
-          {phase.holdCountByActionType.length === 0 ? (
-            <OpsEmptyState>No hold was served in this phase.</OpsEmptyState>
-          ) : (
-            <ul className="space-y-2">
-              {phase.holdCountByActionType.map((action) => (
-                <li key={action.actionType}>
-                  <OpsReadout
-                    label={action.actionType.replace(/_/g, ' ')}
-                    value={`${num(action.count)} holds · ${mins(action.holdSeconds)}`}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="mt-5 border-t border-border pt-4">
-            <p className="ops-eyebrow mb-2">Guardrails that refused a hold</p>
-            <p className="mb-3 max-w-prose text-[11px] leading-relaxed text-subtle">
-              The hard safety filter throwing a candidate out is half the story of what the controller
-              did, and it is the half that is usually invisible. A reader who cannot see this cannot
-              tell a controller that decided not to act from one that was stopped.
+            {/* This PHASE's own two pools. The trial-level pair is attached to
+              the headline above; these are the same comparison for this phase
+              alone, and dropping them would put a figure on the page (the
+              headline pool) whose full-set counterpart was unreachable. */}
+            <p className="mt-4 max-w-prose text-[11px] leading-relaxed text-subtle">
+              Over the{' '}
+              <span className="tabular-nums text-foreground">
+                {report.headlineScope.includedScenarioIds.length}
+              </span>{' '}
+              scenarios in the headline this phase reads{' '}
+              <span className="tabular-nums text-foreground">
+                {signedPct(phase.contrast.passengerSecondsSavedPercent)}
+              </span>
+              ; over all{' '}
+              <span className="tabular-nums text-foreground">{phase.scenarios.length}</span> it ran,{' '}
+              <span className="tabular-nums text-foreground">
+                {signedPct(phase.allScenarios.contrast.passengerSecondsSavedPercent)}
+              </span>
+              .
             </p>
-            {phase.safetyRejections.length === 0 ? (
-              <p className="text-xs text-subtle">No candidate was refused in this phase.</p>
+          </OpsPanel>
+          <OpsPanel
+            title="Incidents this phase"
+            description={`Detected by the deployed rules, replayed at the live ${report.sweepIntervalSeconds}-second sweep cadence.`}
+          >
+            <div className="grid grid-cols-2 gap-4">
+              <OpsStat
+                label="Detected, left alone"
+                value={num(phase.uncontrolled.incidents.detected)}
+                hint={`${num(phase.uncontrolled.incidents.resolved)} resolved on their own`}
+              />
+              <OpsStat
+                label="Detected, under control"
+                value={num(phase.controlled.incidents.detected)}
+                hint={`${num(phase.controlled.incidents.resolved)} resolved`}
+              />
+              <OpsStat
+                label="Resolution rate"
+                value={pct(
+                  phase.controlled.incidents.detected > 0
+                    ? (phase.controlled.incidents.resolved / phase.controlled.incidents.detected) *
+                        100
+                    : null,
+                  0,
+                )}
+                hint={`against ${pct(
+                  phase.uncontrolled.incidents.detected > 0
+                    ? (phase.uncontrolled.incidents.resolved /
+                        phase.uncontrolled.incidents.detected) *
+                        100
+                    : null,
+                  0,
+                )} left alone`}
+                tone="accent"
+              />
+              <OpsStat
+                label="Median time to resolve"
+                value={mins(phase.controlled.incidents.medianResolutionSeconds)}
+                hint={`against ${mins(phase.uncontrolled.incidents.medianResolutionSeconds)} left alone`}
+              />
+            </div>
+            <p className="mt-4 max-w-prose text-[11px] leading-relaxed text-subtle">
+              A higher detected count under control is not a failure. Holding changes the gaps the
+              forecaster is watching, so it opens more <em>predicted</em> incidents — and far more
+              of them reach a real resolution instead of merely ending when a bus left the route.
+            </p>
+          </OpsPanel>
+        </OpsGrid>
+      </OpsDisclosure>
+
+      <OpsDisclosure
+        title="Everything, both arms"
+        count={`${phase.controlled.punctuality.onTimeRate === null ? 6 : 8} measurements`}
+        description="Every KPI this phase produced, with the arm it is being compared against beside it."
+      >
+        <ArmContrastTable
+          arm={{
+            uncontrolled: phase.uncontrolled,
+            controlled: phase.controlled,
+            contrast: phase.contrast,
+          }}
+        />
+      </OpsDisclosure>
+
+      <OpsDisclosure
+        title="What the controller did, and what stopped it"
+        description="Where the holds landed, which law produced them, and every candidate the hard safety filter threw out."
+      >
+        <OpsGrid columns={2}>
+          <OpsPanel
+            title="Where the holding happens"
+            description="Seconds of hold served at each station, and how many instructions that was."
+          >
+            <StationHolds stations={phase.holdSecondsByStation} />
+          </OpsPanel>
+          <OpsPanel
+            title="Which law did the work"
+            description="Every hold served, split by the deployed law that produced it."
+          >
+            {phase.holdCountByActionType.length === 0 ? (
+              <OpsEmptyState>No hold was served in this phase.</OpsEmptyState>
             ) : (
-              <ul className="space-y-1.5">
-                {phase.safetyRejections.map((rejection) => (
-                  <li key={rejection.reason} className="text-xs">
-                    <span className="tabular-nums text-foreground">{num(rejection.count)}</span>
-                    <span className="text-subtle">
-                      {' — '}
-                      {REJECTION_LABEL[rejection.reason] ?? rejection.reason}
-                    </span>
+              <ul className="space-y-2">
+                {phase.holdCountByActionType.map((action) => (
+                  <li key={action.actionType}>
+                    <OpsReadout
+                      label={action.actionType.replace(/_/g, ' ')}
+                      value={`${num(action.count)} holds · ${mins(action.holdSeconds)}`}
+                    />
                   </li>
                 ))}
               </ul>
             )}
-          </div>
-          <div className="mt-5 border-t border-border pt-4">
-            <p className="ops-eyebrow mb-2">Law coverage</p>
-            <p className="mb-3 max-w-prose text-[11px] leading-relaxed text-subtle">
-              How often each law produced a candidate at all. A law at zero is the first thing worth
-              knowing about a controller — and the reason it declined matters more than the number.
-            </p>
-            <ul className="space-y-1.5">
-              {phase.lawCoverage.map((law) => (
-                <li key={law.law} className="text-xs">
-                  <span className="text-foreground">{LAW_LABEL[law.law] ?? law.law}</span>
-                  <span className="text-subtle">
-                    {' — '}
-                    {num(law.decisionsGenerating)} of {num(law.decisionsTotal)} decisions
-                    {law.commonestDecline
-                      ? `; mostly ${DECLINE_LABEL[law.commonestDecline] ?? law.commonestDecline}`
-                      : ''}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </OpsPanel>
-      </OpsGrid>
+            <div className="mt-5 border-t border-border pt-4">
+              <p className="ops-eyebrow mb-2">Guardrails that refused a hold</p>
+              <p className="mb-3 max-w-prose text-[11px] leading-relaxed text-subtle">
+                The hard safety filter throwing a candidate out is half the story of what the
+                controller did, and it is the half that is usually invisible. A reader who cannot
+                see this cannot tell a controller that decided not to act from one that was stopped.
+              </p>
+              {phase.safetyRejections.length === 0 ? (
+                <p className="text-xs text-subtle">No candidate was refused in this phase.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {phase.safetyRejections.map((rejection) => (
+                    <li key={rejection.reason} className="text-xs">
+                      <span className="tabular-nums text-foreground">{num(rejection.count)}</span>
+                      <span className="text-subtle">
+                        {' — '}
+                        {REJECTION_LABEL[rejection.reason] ?? rejection.reason}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="mt-5 border-t border-border pt-4">
+              <p className="ops-eyebrow mb-2">Law coverage</p>
+              <p className="mb-3 max-w-prose text-[11px] leading-relaxed text-subtle">
+                How often each law produced a candidate at all. A law at zero is the first thing
+                worth knowing about a controller — and the reason it declined matters more than the
+                number.
+              </p>
+              <ul className="space-y-1.5">
+                {phase.lawCoverage.map((law) => (
+                  <li key={law.law} className="text-xs">
+                    <span className="text-foreground">{LAW_LABEL[law.law] ?? law.law}</span>
+                    <span className="text-subtle">
+                      {' — '}
+                      {num(law.decisionsGenerating)} of {num(law.decisionsTotal)} decisions
+                      {law.commonestDecline
+                        ? `; mostly ${DECLINE_LABEL[law.commonestDecline] ?? law.commonestDecline}`
+                        : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </OpsPanel>
+        </OpsGrid>
+      </OpsDisclosure>
 
-      <OpsSection
+      <OpsDisclosure
         title="Scenario by scenario"
-        description="Ten ways a corridor comes apart. Each ran the same fleet on the same corridor with one thing different."
+        count={`${phase.scenarios.length} scenarios`}
+        description="Every way this corridor was made to come apart. Each ran the same fleet on the same corridor with one thing different — including any the headline leaves out."
       >
-        <div className="mb-4 flex flex-wrap gap-2">
-          {phase.scenarios.map((s) => {
-            const net = s.contrast.passengerSecondsSavedPercent;
-            const active = s.id === scenario?.id;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setScenarioId(s.id)}
-                aria-pressed={active}
-                className={
-                  active
-                    ? 'rounded-md border border-ring bg-accent px-3 py-1.5 text-left text-xs text-accent-foreground'
-                    : 'rounded-md border border-border px-3 py-1.5 text-left text-xs text-muted-foreground hover:border-input'
-                }
-              >
-                <span className="block">{s.title}</span>
-                <span className="block text-[10px] tabular-nums text-subtle">
-                  passenger time {net === null ? '—' : `${net > 0 ? '+' : ''}${net.toFixed(1)}%`}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        {scenario ? (
-          <ScenarioPanel scenario={scenario} report={report} />
-        ) : (
-          <OpsEmptyState>This phase ran no scenarios.</OpsEmptyState>
-        )}
-      </OpsSection>
+        <OpsSection>
+          <div className="mb-4 flex flex-wrap gap-2">
+            {phase.scenarios.map((s) => {
+              const net = s.contrast.passengerSecondsSavedPercent;
+              const active = s.id === scenario?.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setScenarioId(s.id)}
+                  aria-pressed={active}
+                  className={
+                    active
+                      ? 'rounded-md border border-ring bg-accent px-3 py-1.5 text-left text-xs text-accent-foreground'
+                      : 'rounded-md border border-border px-3 py-1.5 text-left text-xs text-muted-foreground hover:border-input'
+                  }
+                >
+                  <span className="block">{s.title}</span>
+                  <span className="block text-[10px] tabular-nums text-subtle">
+                    passenger time {net === null ? '—' : `${net > 0 ? '+' : ''}${net.toFixed(1)}%`}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {scenario ? (
+            <ScenarioPanel scenario={scenario} report={report} />
+          ) : (
+            <OpsEmptyState>This phase ran no scenarios.</OpsEmptyState>
+          )}
+        </OpsSection>
+      </OpsDisclosure>
     </div>
   );
 }
@@ -680,12 +885,77 @@ function PhaseBody({ phase, report }: { phase: PhaseReport; report: FleetTrialRe
  * missing, because a stale report of your own is just as misleading as a fresh
  * one of somebody else's. What a reader needs is when, what, and whose.
  */
-function ProvenanceBanner({
+function ProvenanceQualification({ view }: { view: TrialProvenanceView }) {
+  return (
+    <Qualification
+      state={view.stale ? 'caution' : 'note'}
+      headline={
+        <>
+          <span className="text-foreground">
+            {view.isThisSessionsRun ? 'Your run' : 'A stored result — not necessarily yours'}
+          </span>
+          {' — '}
+          {view.summary}
+        </>
+      }
+    >
+      <p>{view.ownership}</p>
+      <p className="mt-1">
+        {view.generatedAtLabel === null ? (
+          'The service did not send a readable timestamp, so how old this is cannot be said.'
+        ) : (
+          <>
+            Produced <time dateTime={view.generatedAtLabel}>{view.generatedAtLabel}</time>,{' '}
+            {num(view.vehiclesSimulated)} buses in all.
+          </>
+        )}
+      </p>
+      {view.stale ? (
+        <p className="mt-1 text-warning">
+          Old enough that the deployed control laws it measured may not be the deployed laws any
+          more. Run it again before quoting it.
+        </p>
+      ) : null}
+    </Qualification>
+  );
+}
+
+/**
+ * The answer, in the order an operator asks for it.
+ *
+ * ─── WHY THIS PANEL EXISTS ───────────────────────────────────────────────
+ *
+ * The page used to open with five stacked banners and then a report, and a
+ * reader had to consume all of it to find any of it: 1,106 separate blocks of
+ * text on a completed 1,000-bus trial. Every piece was worth having and none
+ * of it was ordered. An operator opens this to learn four things IN ORDER —
+ * did it help, by how much, can I trust that, and why — and this panel is the
+ * first three of them, on one screen, with the fourth reachable underneath.
+ *
+ * ─── THE VERDICT IS ONE SENTENCE AND IT COMES OFF PASSENGER TIME ─────────
+ *
+ * See `fleetTrialView.ts#trialVerdict` for why it may not come off excess
+ * wait, and why a sign the scenarios do not agree on is not a result. Excess
+ * wait is beside it, per phase, because it is the field's headline metric and
+ * because the two figures disagreeing is the single most important thing this
+ * trial can tell anybody.
+ *
+ * ─── THE QUALIFICATIONS ARE ATTACHED, NOT STACKED ────────────────────────
+ *
+ * Controllability, saturation scope, timetable fit, what is invented and whose
+ * run this is were five separate banners a reader had to correlate with a
+ * number further down by hand. They all qualify the same figure, so they sit
+ * under it in one list. Nothing was deleted: every paragraph is one click away
+ * on the line it belongs to.
+ */
+function TrialAnswer({
   report,
   origin,
+  controls,
 }: {
   report: FleetTrialReport;
   origin: TrialOrigin;
+  controls: ReactNode;
 }) {
   // The clock arrives only after mount. This component is server-rendered for
   // the first paint and hydrated in the browser; a relative age read off
@@ -696,35 +966,150 @@ function ProvenanceBanner({
     setNow(new Date());
   }, [report.generatedAt, origin]);
 
-  const view = trialProvenance(report, origin, now);
+  const provenance = trialProvenance(report, origin, now);
+  const verdict = trialVerdict(report);
+  const controllable = report.controllability.band === 'controllable';
+  const sigma = Math.round(report.controllability.legTimeSigmaSeconds);
+  const ratio = Math.round(report.controllability.disturbanceRatio * 100);
+
   return (
-    <OpsAlert
-      tone={view.stale ? 'warning' : 'info'}
-      title={view.isThisSessionsRun ? 'Your run' : 'A stored result — not necessarily yours'}
+    <OpsPanel
+      headingLevel={2}
+      title={report.corridor.routeName}
+      description={`${Math.round(report.corridor.totalDistanceMeters / 1000)} km · ${report.corridor.stationCount} stations, all of them holding points · target headway ${Math.round(report.corridor.targetHeadwaySeconds / 60)} min · ${num(report.vehiclesSimulated)} buses simulated in ${(report.durationMs / 1000).toFixed(1)}s`}
+      actions={controls}
+      tone={verdict.verdict === 'helped' ? 'accent' : 'default'}
     >
-      <p>{view.ownership}</p>
-      <p className="mt-1">
-        <span className="text-foreground">{view.summary}</span>
-        {view.generatedAtLabel === null ? (
-          <span className="text-subtle">
-            {' '}
-            — the service did not send a readable timestamp, so how old this is cannot be said.
-          </span>
-        ) : (
-          <span className="text-subtle">
-            {' '}
-            (<time dateTime={view.generatedAtLabel}>{view.generatedAtLabel}</time>,{' '}
-            {num(view.vehiclesSimulated)} buses in all)
-          </span>
-        )}
+      <VerdictHeadline verdict={verdict} />
+
+      <div className="mt-5 border-t border-border pt-4">
+        <p className="ops-eyebrow mb-1">Can I trust this?</p>
+        <ul className="divide-y divide-border/60">
+          <Qualification
+            state={controllable ? 'ok' : 'caution'}
+            headline={
+              controllable
+                ? `In the controllable band — one leg varies by ${sigma}s, ${ratio}% of the headway`
+                : report.controllability.band === 'too_regular'
+                  ? `Barely disturbed — one leg varies by only ${sigma}s, ${ratio}% of the headway`
+                  : `More disturbed than a hold can recover — one leg varies by ${sigma}s, ${ratio}% of the headway`
+            }
+          >
+            {report.controllability.note} Measured by varying headway, stop count and route length
+            independently, the excess-wait improvement peaks around 5&ndash;10% and falls away on
+            both sides — it is neither headway nor fleet size that predicts how much good control
+            can do.
+          </Qualification>
+
+          <ScopeQualification report={report} />
+
+          {/* Always stated, including when it is fine. Silence here used to be
+              ambiguous, and this is the tripwire for a failure mode that is
+              otherwise INVISIBLE: a timetable the corridor cannot keep makes
+              every bus late, `max_lateness_seconds` then refuses every hold,
+              and the controller switches itself off without saying so. That
+              cost 33 points of excess-wait gain when it happened. */}
+          <Qualification
+            state={report.scheduleFit.band === 'achievable' ? 'ok' : 'caution'}
+            headline={
+              report.scheduleFit.band === 'achievable'
+                ? 'The timetable is one this corridor can keep'
+                : report.scheduleFit.band === 'tight'
+                  ? 'This timetable is tighter than the corridor can keep'
+                  : 'This timetable is looser than the corridor needs'
+            }
+          >
+            {report.scheduleFit.note}
+          </Qualification>
+
+          <Qualification
+            state="note"
+            headline="Deployed control laws, invented corridor and traffic"
+          >
+            The CONTROL is the deployed one: the four control laws, their gains, the hard safety
+            filter, the selection rule and both tiers of the bunching detector are the same modules
+            the live decision cycle calls. The CORRIDOR and the TRAFFIC are a model — the geometry,
+            the running times, the demand, the seat count and the disturbances were all invented,
+            because no corridor in this network has ever carried a thousand buses or recorded a
+            single passenger.
+          </Qualification>
+
+          <ProvenanceQualification view={provenance} />
+        </ul>
+      </div>
+
+      <p className="mt-4 max-w-prose text-[11px] leading-relaxed text-subtle">
+        {report.corridorPreset.description}
       </p>
-      {view.stale ? (
-        <p className="mt-1">
-          Old enough that the deployed control laws it measured may not be the deployed laws any
-          more. Run it again before quoting it.
-        </p>
-      ) : null}
-    </OpsAlert>
+    </OpsPanel>
+  );
+}
+
+/**
+ * The two numbers, with what qualifies each one attached to it.
+ *
+ * Passenger time is given the larger type because it is the one that can say
+ * the controller made things worse while every other figure on the page
+ * improved. Excess wait is beside it at equal prominence and is never pooled
+ * across phases — `poolArm` recomputes it from raw headway samples rather than
+ * averaging per-run means, so two phases' published figures cannot honestly be
+ * combined, and the two phases are two configurations worth seeing apart.
+ */
+function VerdictHeadline({ verdict }: { verdict: TrialVerdictView }) {
+  const tone =
+    verdict.verdict === 'helped'
+      ? 'text-success'
+      : verdict.verdict === 'cost_more'
+        ? 'text-destructive'
+        : 'text-warning';
+
+  return (
+    <div>
+      <p className={cn('text-xl font-semibold leading-tight', tone)}>{verdict.statement}</p>
+      <p className="mt-1.5 max-w-prose text-xs leading-relaxed text-muted-foreground">
+        {verdict.because}
+      </p>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="ops-well px-3 py-2.5">
+          <div className="ops-eyebrow">Total passenger time</div>
+          <div className={cn('mt-1 text-2xl tabular-nums', tone)}>
+            {signedPct(verdict.passengerTimePercent)}
+          </div>
+          <div className="mt-0.5 text-[11px] leading-snug text-subtle">
+            the whole journey — kerb wait, dwell, hold and riding, each second counted once.{' '}
+            <span className="text-muted-foreground">This is the verdict.</span>
+          </div>
+        </div>
+
+        <div className="ops-well px-3 py-2.5">
+          <div className="ops-eyebrow">Excess wait</div>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            {verdict.excessWaitByPhase.map((phase) => (
+              <span key={phase.id} className="leading-tight">
+                <span
+                  className={cn(
+                    'text-2xl tabular-nums',
+                    phase.percent === null
+                      ? 'text-subtle'
+                      : phase.percent > 0
+                        ? 'text-success'
+                        : 'text-destructive',
+                  )}
+                >
+                  {signedPct(phase.percent)}
+                </span>
+                <span className="ml-1.5 text-[11px] text-subtle">{phase.title}</span>
+              </span>
+            ))}
+          </div>
+          <div className="mt-0.5 text-[11px] leading-snug text-subtle">
+            per passenger at a stop — the field&rsquo;s headline metric, and the one that improves
+            when a hold is paid for by everyone already aboard. Never pooled across the two phases.
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -941,9 +1326,7 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
   // Seeded from the loaded report, not from a fixed default. The controls
   // describe the next run, and a control saying 1,000 above a 60-bus report is
   // exactly how a 60-bus diagnostic run came to be read as a fleet trial.
-  const initialProvenance = initialReport
-    ? trialProvenance(initialReport, 'stored')
-    : null;
+  const initialProvenance = initialReport ? trialProvenance(initialReport, 'stored') : null;
   const [vehiclesPerPhase, setVehiclesPerPhase] = useState<number>(
     initialProvenance?.vehiclesPerPhase ?? 500,
   );
@@ -972,7 +1355,12 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
         body !== null &&
         (body as { running?: boolean }).running === true
       ) {
-        const p = body as { done: number; total: number | null; stage: TrialStage | null; label: string | null };
+        const p = body as {
+          done: number;
+          total: number | null;
+          stage: TrialStage | null;
+          label: string | null;
+        };
         // A run the service has started but which has not finished its first
         // unit has no total yet. Nothing is rendered from a half-known
         // progress: the elapsed clock already says the run is alive.
@@ -1096,11 +1484,11 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
           actions={controls}
         >
           <p className="max-w-prose text-sm text-muted-foreground">
-            The trial runs the deployed control laws — the same modules the live decision cycle calls —
-            against a thousand buses on a 400 km corridor with ten holding points, across ten ways a
-            corridor comes apart, in two phases that differ only in whether the objective weighs how
-            many passengers are aboard. Every result is shown beside what the same day would have done
-            with nobody intervening.
+            The trial runs the deployed control laws — the same modules the live decision cycle
+            calls — against a thousand buses on a 400 km corridor with ten holding points, across
+            every way a corridor comes apart, in two phases that differ only in whether the
+            objective weighs how many passengers are aboard. Every result is shown beside what the
+            same day would have done with nobody intervening.
           </p>
         </OpsPanel>
       </div>
@@ -1117,52 +1505,7 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
       */}
       <TrialRunStatus run={run} hasReport nowMs={nowMs} />
 
-      <ProvenanceBanner report={report} origin={origin} />
-
-      <OpsPanel
-        title={report.corridor.routeName}
-        headingLevel={2}
-        description={`${Math.round(report.corridor.totalDistanceMeters / 1000)} km · ${report.corridor.stationCount} stations, all of them holding points · target headway ${Math.round(report.corridor.targetHeadwaySeconds / 60)} min · ${num(report.vehiclesSimulated)} buses simulated in ${(report.durationMs / 1000).toFixed(1)}s`}
-        actions={controls}
-      >
-        <p className="mb-4 max-w-prose text-sm text-muted-foreground">
-          {report.corridorPreset.description}
-        </p>
-        <OpsAlert
-          tone={report.controllability.band === 'controllable' ? 'info' : 'warning'}
-          title={
-            report.controllability.band === 'controllable'
-              ? `In the controllable band — one leg varies by ${Math.round(report.controllability.legTimeSigmaSeconds)}s, ${Math.round(report.controllability.disturbanceRatio * 100)}% of the headway`
-              : report.controllability.band === 'too_regular'
-                ? `Barely disturbed — one leg varies by only ${Math.round(report.controllability.legTimeSigmaSeconds)}s, ${Math.round(report.controllability.disturbanceRatio * 100)}% of the headway`
-                : `More disturbed than a hold can recover — one leg varies by ${Math.round(report.controllability.legTimeSigmaSeconds)}s, ${Math.round(report.controllability.disturbanceRatio * 100)}% of the headway`
-          }
-        >
-          {report.controllability.note} Measured by varying headway, stop count and route length
-          independently, the excess-wait improvement peaks around 5&ndash;10% and falls away on both
-          sides — it is neither headway nor fleet size that predicts how much good control can do.
-        </OpsAlert>
-        <OpsAlert tone="info" title="What is real here and what is invented">
-          The CONTROL is the deployed one: the four control laws, their gains, the hard safety filter,
-          the selection rule and both tiers of the bunching detector are the same modules the live
-          decision cycle calls. The CORRIDOR and the TRAFFIC are a model — the geometry, the running
-          times, the demand, the seat count and the disturbances were all invented, because no corridor
-          in this network has ever carried a thousand buses or recorded a single passenger.
-        </OpsAlert>
-        {report.scheduleFit.band === 'achievable' ? null : (
-          <OpsAlert
-            tone="warning"
-            className="mt-3"
-            title={
-              report.scheduleFit.band === 'tight'
-                ? 'This timetable is tighter than the corridor can keep'
-                : 'This timetable is looser than the corridor needs'
-            }
-          >
-            {report.scheduleFit.note}
-          </OpsAlert>
-        )}
-      </OpsPanel>
+      <TrialAnswer report={report} origin={origin} controls={controls} />
 
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Trial phase">
         {report.phases.map((p) => (
@@ -1186,90 +1529,118 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
 
       {phase ? <PhaseBody phase={phase} report={report} /> : null}
 
-      {report.policyStudies.map((study) => (
-        <OpsPanel
-          key={study.knob}
-          title={study.title}
-          description={`${study.description} Each row is the same fleet and the same scenarios, averaged over ${study.seedsPerRow} seeds.`}
-        >
-          <p className="mb-4 max-w-prose text-sm text-muted-foreground">{study.verdict}</p>
-          <OpsTableFrame>
-            <table className={opsTableClass}>
-              <thead>
-                <tr className={opsTheadRowClass}>
-                  <th className={opsThClass}>{study.knob}</th>
-                  <th className={opsThClass}>Excess wait</th>
-                  <th className={opsThClass}>Total passenger time</th>
-                  <th className={opsThClass}>Hold per bus</th>
-                  <th className={opsThClass}>Worst bus</th>
-                  <th className={opsThClass}>Refused a seat</th>
-                  <th className={opsThClass}>Incidents avoided</th>
-                  <th className={opsThClass}>Seeds agreeing</th>
-                </tr>
-              </thead>
-              <tbody>
-                {study.rows.map((row) => {
-                  const net = row.passengerSecondsSavedPercent;
-                  return (
-                    <tr key={row.label} className={opsTrClass}>
-                      <td className={opsTdClass}>
-                        {row.label}
-                        {row.label === study.recommended ? (
-                          <span className="ml-2">
-                            <OpsBadge variant="live">best</OpsBadge>
-                          </span>
-                        ) : null}
-                        {row.isCurrent ? (
-                          <div className="text-[11px] text-subtle">currently configured</div>
-                        ) : null}
-                      </td>
-                      <td className={opsTdNumericClass}>
-                        <span
-                          className={
-                            (row.ewtImprovementPercent ?? 0) > 0 ? 'text-success' : 'text-destructive'
-                          }
-                        >
-                          {pct(row.ewtImprovementPercent, 0)}
-                        </span>
-                      </td>
-                      <td className={opsTdNumericClass}>
-                        <span className={net !== null && net >= 0 ? 'text-success' : 'text-destructive'}>
-                          {net === null ? '—' : `${net > 0 ? '+' : ''}${net.toFixed(1)}%`}
-                        </span>
-                      </td>
-                      <td className={opsTdNumericClass}>{mins(row.meanHoldSecondsPerVehicle)}</td>
-                      <td className={opsTdNumericClass}>{mins(row.worstBusHoldSeconds)}</td>
-                      <td className={opsTdNumericClass}>{num(row.deniedBoardings)}</td>
-                      <td className={opsTdNumericClass}>{num(row.incidentsAvoided)}</td>
-                      <td className={opsTdNumericClass}>
-                        {row.seedsAgreeingWithSign} of {row.seedCount}
-                        {row.seedsAgreeingWithSign <= row.seedCount / 2 ? (
-                          <div className="text-[11px] text-subtle">no effect measured</div>
-                        ) : null}
-                      </td>
+      {/* ─── EVERYTHING BELOW IS ABOUT THE TRIAL, NOT ABOUT THE PHASE ────
+          The policy sweeps are ~87% of the run's wall clock and the single
+          largest block of text on the page, and they answer a question an
+          operator asks second at the earliest: not "did it help" but "what
+          should this knob be set to". They stay closed until somebody asks. */}
+      <OpsDisclosure
+        title="Policy studies"
+        count={`${report.policyStudies.length} knobs swept`}
+        description="What each per-corridor policy knob is worth, swept across its range. These are route_policies columns, and a value fitted on one corridor can be actively harmful on another."
+      >
+        <div className="space-y-3">
+          {report.policyStudies.map((study) => (
+            <OpsDisclosure
+              key={study.knob}
+              title={study.title}
+              count={`${study.rows.length} settings`}
+              description={`${study.description} Each row is the same fleet and the same scenarios, averaged over ${study.seedsPerRow} seeds.`}
+            >
+              <p className="mb-4 max-w-prose text-sm text-muted-foreground">{study.verdict}</p>
+              <OpsTableFrame>
+                <table className={opsTableClass}>
+                  <thead>
+                    <tr className={opsTheadRowClass}>
+                      <th className={opsThClass}>{study.knob}</th>
+                      <th className={opsThClass}>Excess wait</th>
+                      <th className={opsThClass}>Total passenger time</th>
+                      <th className={opsThClass}>Hold per bus</th>
+                      <th className={opsThClass}>Worst bus</th>
+                      <th className={opsThClass}>Refused a seat</th>
+                      <th className={opsThClass}>Incidents avoided</th>
+                      <th className={opsThClass}>Seeds agreeing</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </OpsTableFrame>
-          <p className="mt-3 max-w-prose text-[11px] leading-relaxed text-subtle">
-            Excess wait is sampled at <em>every</em> station, not only the ones designated for holding —
-            otherwise each row would be scored on a different set of stops. One seed is not enough to
-            read: a row whose seeds do not agree on the sign is no measured effect, however large its
-            mean. These are <code>route_policies</code> columns, and a value fitted on one corridor can
-            be actively harmful on another — which is why they are swept here rather than fixed.
-          </p>
-        </OpsPanel>
-      ))}
+                  </thead>
+                  <tbody>
+                    {study.rows.map((row) => {
+                      const net = row.passengerSecondsSavedPercent;
+                      return (
+                        <tr key={row.label} className={opsTrClass}>
+                          <td className={opsTdClass}>
+                            {row.label}
+                            {row.label === study.recommended ? (
+                              <span className="ml-2">
+                                <OpsBadge variant="live">best</OpsBadge>
+                              </span>
+                            ) : null}
+                            {row.isCurrent ? (
+                              <div className="text-[11px] text-subtle">currently configured</div>
+                            ) : null}
+                          </td>
+                          <td className={opsTdNumericClass}>
+                            <span
+                              className={
+                                (row.ewtImprovementPercent ?? 0) > 0
+                                  ? 'text-success'
+                                  : 'text-destructive'
+                              }
+                            >
+                              {pct(row.ewtImprovementPercent, 0)}
+                            </span>
+                          </td>
+                          <td className={opsTdNumericClass}>
+                            <span
+                              className={
+                                net !== null && net >= 0 ? 'text-success' : 'text-destructive'
+                              }
+                            >
+                              {net === null ? '—' : `${net > 0 ? '+' : ''}${net.toFixed(1)}%`}
+                            </span>
+                          </td>
+                          <td className={opsTdNumericClass}>
+                            {mins(row.meanHoldSecondsPerVehicle)}
+                          </td>
+                          <td className={opsTdNumericClass}>{mins(row.worstBusHoldSeconds)}</td>
+                          <td className={opsTdNumericClass}>{num(row.deniedBoardings)}</td>
+                          <td className={opsTdNumericClass}>{num(row.incidentsAvoided)}</td>
+                          <td className={opsTdNumericClass}>
+                            {row.seedsAgreeingWithSign} of {row.seedCount}
+                            {row.seedsAgreeingWithSign <= row.seedCount / 2 ? (
+                              <div className="text-[11px] text-subtle">no effect measured</div>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </OpsTableFrame>
+              <p className="mt-3 max-w-prose text-[11px] leading-relaxed text-subtle">
+                Excess wait is sampled at <em>every</em> station, not only the ones designated for
+                holding — otherwise each row would be scored on a different set of stops. One seed
+                is not enough to read: a row whose seeds do not agree on the sign is no measured
+                effect, however large its mean. These are <code>route_policies</code> columns, and a
+                value fitted on one corridor can be actively harmful on another — which is why they
+                are swept here rather than fixed.
+              </p>
+            </OpsDisclosure>
+          ))}
+        </div>
+      </OpsDisclosure>
 
-      <OpsPanel
+      <OpsDisclosure
         title="What weighing passenger load changed"
         description="Measured by re-running the occupancy-aware phase's own scenarios with the switch off — same corridor, same plan, same seed, one input different."
       >
-        <p className="max-w-prose text-sm text-muted-foreground">{report.occupancyContrast.verdict}</p>
+        <p className="max-w-prose text-sm text-muted-foreground">
+          {report.occupancyContrast.verdict}
+        </p>
         <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <OpsStat label="Decisions compared" value={num(report.occupancyContrast.decisionsCompared)} />
+          <OpsStat
+            label="Decisions compared"
+            value={num(report.occupancyContrast.decisionsCompared)}
+          />
           <OpsStat
             label="Instructions changed"
             value={num(report.occupancyContrast.decisionsChanged)}
@@ -1286,52 +1657,65 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
             unit="pax·s"
           />
         </div>
-      </OpsPanel>
+      </OpsDisclosure>
 
-      <OpsGrid columns={2}>
-        <OpsPanel
-          title="Where every number came from"
-          description="Measured, configured, or invented — field by field."
-        >
-          <ul className="space-y-3">
-            {report.provenance.map((entry) => (
-              <li key={entry.field} className="text-xs">
-                <div className="flex flex-wrap items-baseline gap-2">
-                  {/* The provenance chips map exactly onto the variant
+      <OpsDisclosure
+        title="Where the numbers came from, and what this does not cover"
+        count={`${report.provenance.length} fields · ${report.notExercised.length} limits`}
+        description="Field by field: what is deployed code, what was chosen, and what was invented — beside the list of things a result off this page must not be read as covering."
+      >
+        <OpsGrid columns={2}>
+          <OpsPanel
+            title="Where every number came from"
+            description="Measured, configured, or invented — field by field."
+          >
+            <ul className="space-y-3">
+              {report.provenance.map((entry) => (
+                <li key={entry.field} className="text-xs">
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    {/* The provenance chips map exactly onto the variant
                       vocabulary they were built for: deployed code is the live
                       system, an invented input is simulation. */}
-                  <OpsBadge
-                    variant={
-                      entry.source === 'deployed' ? 'live' : entry.source === 'configured' ? 'neutral' : 'sim'
-                    }
-                  >
-                    {entry.source === 'deployed'
-                      ? 'Deployed code'
-                      : entry.source === 'configured'
-                        ? 'Chosen'
-                        : 'Invented'}
-                  </OpsBadge>
-                  <span className="text-foreground">{entry.field}</span>
-                  <span className="text-subtle">{entry.value}</span>
-                </div>
-                <p className="mt-1 max-w-prose leading-relaxed text-subtle">{entry.note}</p>
-              </li>
-            ))}
-          </ul>
-        </OpsPanel>
-        <OpsPanel
-          title="What this trial does not test"
-          description="Stated so a result is not read as covering more than it does."
-        >
-          <ul className="space-y-3">
-            {report.notExercised.map((item) => (
-              <li key={item} className="max-w-prose text-xs leading-relaxed text-muted-foreground">
-                {item}
-              </li>
-            ))}
-          </ul>
-        </OpsPanel>
-      </OpsGrid>
+                    <OpsBadge
+                      variant={
+                        entry.source === 'deployed'
+                          ? 'live'
+                          : entry.source === 'configured'
+                            ? 'neutral'
+                            : 'sim'
+                      }
+                    >
+                      {entry.source === 'deployed'
+                        ? 'Deployed code'
+                        : entry.source === 'configured'
+                          ? 'Chosen'
+                          : 'Invented'}
+                    </OpsBadge>
+                    <span className="text-foreground">{entry.field}</span>
+                    <span className="text-subtle">{entry.value}</span>
+                  </div>
+                  <p className="mt-1 max-w-prose leading-relaxed text-subtle">{entry.note}</p>
+                </li>
+              ))}
+            </ul>
+          </OpsPanel>
+          <OpsPanel
+            title="What this trial does not test"
+            description="Stated so a result is not read as covering more than it does."
+          >
+            <ul className="space-y-3">
+              {report.notExercised.map((item) => (
+                <li
+                  key={item}
+                  className="max-w-prose text-xs leading-relaxed text-muted-foreground"
+                >
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </OpsPanel>
+        </OpsGrid>
+      </OpsDisclosure>
     </div>
   );
 }
