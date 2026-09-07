@@ -40,15 +40,24 @@ const SPEC = {
  */
 const TRIAL_TIMEOUT_MS = 180_000;
 const cache = new Map<string, ReturnType<typeof runFleetTrial>>();
-function trial(preset: CorridorPresetId, lifecycle?: { deliveryLatencySeconds: number }) {
-  const key = `${preset}:${lifecycle ? lifecycle.deliveryLatencySeconds : 'off'}`;
+function trial(
+  preset: CorridorPresetId,
+  lifecycle?: { deliveryLatencySeconds: number; releaseSlotOnCompletion?: boolean },
+) {
+  const key = `${preset}:${lifecycle ? `${lifecycle.deliveryLatencySeconds}:${lifecycle.releaseSlotOnCompletion ?? false}` : 'off'}`;
   const hit = cache.get(key);
   if (hit) return hit;
   const report = runFleetTrial({
     ...SPEC,
     corridorPreset: preset,
     ...(lifecycle
-      ? { commandLifecycle: { enabled: true, deliveryLatencySeconds: lifecycle.deliveryLatencySeconds } }
+      ? {
+          commandLifecycle: {
+            enabled: true,
+            deliveryLatencySeconds: lifecycle.deliveryLatencySeconds,
+            releaseSlotOnCompletion: lifecycle.releaseSlotOnCompletion ?? false,
+          },
+        }
       : {}),
   });
   cache.set(key, report);

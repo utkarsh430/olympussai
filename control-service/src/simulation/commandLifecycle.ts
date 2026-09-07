@@ -162,6 +162,26 @@ export interface CommandLifecyclePolicy {
    * report it separately, never fold it into a headline.
    */
   deliveryLatencySeconds: number;
+  /**
+   * Whether an ACCEPTED command's slot on `commands_one_active_per_vehicle_idx`
+   * is released when its ACTION finishes, rather than being held for the whole
+   * TTL. Models `COMMAND_COMPLETION_SWEEP_ENABLED` (config/env.ts).
+   *
+   * FALSE is the default and is what the deployed service does today - in fact
+   * today is WORSE than false models: nothing ever writes `completed` and
+   * `control_service_expire_commands()` excludes `executing`, so a real
+   * accepted command's slot is never released at all. Measured on the live
+   * control database 2026-09-06: four `executing` rows, all `accept`, aged
+   * 24-26 days, past their own `expires_at` by the same margin. Modelling that
+   * faithfully would mean an infinite hold, which would say nothing useful
+   * about a 90-minute trial, so `false` keeps the TTL bound this module has
+   * always used and the honest reading of an off-trial is "at least this bad".
+   *
+   * TRUE releases at `min(hold length, TTL)`. The TTL still caps it: expiry
+   * takes the instruction off the driver's screen mid-action, so it can only
+   * ever shorten the occupancy, never extend it.
+   */
+  releaseSlotOnCompletion: boolean;
 }
 
 /** What the command path did with one proposal. */
@@ -256,6 +276,7 @@ export function commandLifecyclePolicyFrom(
     decisionCycleSeconds: DEPLOYED_DECISION_CYCLE_SECONDS,
     effectiveTtlSeconds: CONSOLE_DEFAULT_TTL_SECONDS,
     deliveryLatencySeconds: 0,
+    releaseSlotOnCompletion: false,
     ...overrides,
   };
 }
@@ -269,6 +290,7 @@ export function limitProvenance(): Record<keyof CommandLifecyclePolicy, LimitPro
     decisionCycleSeconds: 'deployed_default',
     effectiveTtlSeconds: 'ui_constant',
     deliveryLatencySeconds: 'assumed',
+    releaseSlotOnCompletion: 'deployed_default',
   };
 }
 
@@ -311,7 +333,19 @@ export function inertLimitsFor(policy: CommandLifecyclePolicy): InertLimit[] {
   // operator would reach for to space instructions out is dominated by an
   // unrelated one. Raising `cooldown_seconds` above the TTL is what would give
   // it effect, and nothing today says so.
-  if (policy.cooldownSeconds <= policy.effectiveTtlSeconds) {
+  //
+  // ONCE THE SLOT IS RELEASED ON COMPLETION, THIS NOTE STOPS BEING TRUE, so
+  // the entry has to go. The note's whole content is "the unique index
+  // dominates the cooldown, raise it above the TTL to give it effect" - and
+  // with the slot released for the length of the action instead of the TTL,
+  // that domination argument no longer holds. Publishing it anyway would tell
+  // an operator to tune a dial on reasoning that had stopped applying.
+  //
+  // Dropping it is NOT a claim that the cooldown now bites. MEASURED, it does
+  // not: zero cooldown refusals on every preset with this flag either way, and
+  // still zero at 1 000 buses/phase on urban where the index itself only
+  // refuses 4 of 9 072 proposals. See docs/COMMAND_COMPLETION.md section 3.
+  if (!policy.releaseSlotOnCompletion && policy.cooldownSeconds <= policy.effectiveTtlSeconds) {
     inert.push({
       column: 'route_policies.cooldown_seconds',
       seededValue: policy.cooldownSeconds,
@@ -467,20 +501,31 @@ export class CommandPath {
 
     this.ledger.issued += 1;
     this.ledger.deliveredHoldSeconds += deliveredHoldSeconds;
-    // ─── THE SLOT IS HELD FOR THE TTL, NOT FOR THE HOLD ────────────────────
+    // ─── HOW LONG THE SLOT IS HELD ─────────────────────────────────────────
     //
-    // `executing` is in `commands_one_active_per_vehicle_idx`, and NOTHING in
-    // control-service/src ever writes `completed` - grep it. A command that a
-    // driver accepted therefore leaves `executing` only by expiring
-    // (`commandTtlSweep`, every 30 s, or `lockAndExpireIfDue` on any touch) or
-    // by being superseded. So a bus that took a twenty-second hold still holds
-    // its slot on that unique index for the full 120 s, and the next
-    // instruction for it cannot be inserted until then.
+    // OFF (default, and what the deployed service does): for the whole TTL.
+    // `executing` is in `commands_one_active_per_vehicle_idx` and nothing in
+    // control-service/src ever writes `completed`, so an accepted command has
+    // no terminal success state to leave `executing` by. A bus that took a
+    // twenty-second hold still holds its slot for the full 120 s.
     //
-    // That is a finding in its own right and not a modelling choice: the
-    // one-active-command constraint costs far more than the length of the
-    // action, because the lifecycle has no terminal success state.
-    this.activeUntil.set(vehicleId, atSeconds + p.effectiveTtlSeconds);
+    // That understates the real defect and does so deliberately. In production
+    // `control_service_expire_commands()` EXCLUDES `executing`, so the TTL
+    // sweep cannot free it either and the slot is held indefinitely - measured
+    // on the live control database 2026-09-06, four `executing` rows aged
+    // 24-26 days, every one `ack_outcome = 'accept'`, all long past their own
+    // `expires_at`. An unbounded hold would make a 90-minute trial say nothing,
+    // so this keeps the TTL bound and an off-trial reads as a LOWER bound on
+    // the harm.
+    //
+    // ON (COMMAND_COMPLETION_SWEEP_ENABLED): for the length of the ACTION,
+    // capped at the TTL, matching control_service_complete_finished_commands().
+    // The cap is not a detail - expiry takes the instruction off the driver's
+    // screen mid-action, so it can only shorten the occupancy.
+    const slotHeldSeconds = p.releaseSlotOnCompletion
+      ? Math.min(deliveredHoldSeconds, p.effectiveTtlSeconds)
+      : p.effectiveTtlSeconds;
+    this.activeUntil.set(vehicleId, atSeconds + slotHeldSeconds);
 
     return { deliveredHoldSeconds, blockedBy: null, truncatedByExpiry };
   }

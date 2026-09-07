@@ -29,6 +29,17 @@ Run the deployed control laws against a thousand buses on a 400 km corridor.
   --seed <n>         base seed (default ${DEFAULT_FLEET_TRIAL_SPEC.seed})
   --speed <source>   link_average | vehicle_state (default ${DEFAULT_FLEET_TRIAL_SPEC.followerSpeedSource})
                      which end of production's speed-reporting range to run against
+  --command-lifecycle
+                     put every hold through the modelled COMMAND PATH (unique
+                     index, cooldown, max_concurrent_actions, driver ack, TTL)
+                     and report delivered beside intended. Off by default: with
+                     it off a trial reports the control law's INTENT
+  --release-on-completion
+                     with --command-lifecycle, release an accepted command's
+                     slot when its ACTION ends instead of at the TTL - what
+                     COMMAND_COMPLETION_SWEEP_ENABLED does in production. This
+                     is what makes cooldown_seconds a live guardrail; run it
+                     against the same seed without this flag to size the change
   --out <dir>        write report.json here
   --quiet            summary only
 `;
@@ -36,6 +47,8 @@ Run the deployed control laws against a thousand buses on a 400 km corridor.
 interface Flags {
   corridor?: string;
   alighting: boolean;
+  commandLifecycle: boolean;
+  releaseOnCompletion: boolean;
   vehicles?: number;
   scenarios?: string;
   seed?: number;
@@ -46,11 +59,19 @@ interface Flags {
 }
 
 function parseFlags(argv: readonly string[]): Flags {
-  const flags: Flags = { quiet: false, help: false, alighting: false };
+  const flags: Flags = {
+    quiet: false,
+    help: false,
+    alighting: false,
+    commandLifecycle: false,
+    releaseOnCompletion: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--quiet') flags.quiet = true;
     else if (arg === '--alighting') flags.alighting = true;
+    else if (arg === '--command-lifecycle') flags.commandLifecycle = true;
+    else if (arg === '--release-on-completion') flags.releaseOnCompletion = true;
     else if (arg === '--corridor') flags.corridor = argv[++i];
     else if (arg === '--help' || arg === '-h') flags.help = true;
     else if (arg === '--vehicles') flags.vehicles = Number(argv[++i]);
@@ -244,6 +265,15 @@ function main(): void {
     );
   }
 
+  // Refuse the combination rather than run it, because it would produce a
+  // perfectly normal-looking report of the OLD behaviour under a flag name
+  // that says otherwise - and someone would quote it as the measured effect of
+  // the completion sweep. There is no slot to release with the command path
+  // out of the loop.
+  if (flags.releaseOnCompletion && !flags.commandLifecycle) {
+    throw new Error('--release-on-completion has no effect without --command-lifecycle');
+  }
+
   const report = runFleetTrial(
     {
       ...DEFAULT_FLEET_TRIAL_SPEC,
@@ -253,6 +283,11 @@ function main(): void {
       scenarios,
       seed: flags.seed ?? DEFAULT_FLEET_TRIAL_SPEC.seed,
       followerSpeedSource,
+      commandLifecycle: {
+        ...DEFAULT_FLEET_TRIAL_SPEC.commandLifecycle,
+        enabled: flags.commandLifecycle,
+        releaseSlotOnCompletion: flags.releaseOnCompletion,
+      },
     },
     flags.quiet
       ? undefined
