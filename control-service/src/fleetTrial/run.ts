@@ -69,6 +69,11 @@ import type {
 } from '../simulation/commandLifecycle.js';
 import type { DeclineReason, RehearsalDecisionRecord } from '../rehearsal/deployedControlLaws.js';
 import type {
+  PlausibilityAudit,
+  PlausibilityConfig,
+  PlausibilityMode,
+} from '../state-estimation/positionPlausibility.js';
+import type {
   ScenarioConfig,
   StopVisitRecord,
   TerminalDispatchPlan,
@@ -303,7 +308,7 @@ const PHASES: { id: PhaseId; title: string; weighOccupancy: boolean }[] = [
  * proportion, and a multiplier that pushed it past 1 would have a bus shed
  * more passengers than it is carrying.
  */
-function scaleInputs(inputs: ModelledInputs, scenario: BunchingScenario): ModelledInputs {
+export function scaleInputs(inputs: ModelledInputs, scenario: BunchingScenario): ModelledInputs {
   const scale = scenario.inputScale;
   return {
     ...inputs,
@@ -1011,7 +1016,7 @@ function unitReporter(total: number, report: FleetTrialProgressReporter | undefi
   };
 }
 
-interface ScenarioRun {
+export interface ScenarioRun {
   report: ScenarioReport;
   controlledVisits: StopVisitRecord[];
   uncontrolledVisits: StopVisitRecord[];
@@ -1019,9 +1024,25 @@ interface ScenarioRun {
   config: ScenarioConfig;
   /** What the command path did with this run's instructions. Absent unless the spec asked for one. */
   commandLifecycle?: CommandLifecycleLedger;
+  /**
+   * What the position-plausibility check did on the CONTROLLED arm, or null
+   * when it was not enabled.
+   *
+   * Carried out of the run rather than summarised into the report because the
+   * question this flag has to answer before it can ship is not "did the
+   * headline move" but "which vehicles did it exclude, and were they
+   * healthy" - and only the caller holds the ground truth about which
+   * vehicles a scenario actually lied about (`config.disturbances`).
+   */
+  plausibilityAudit?: PlausibilityAudit | null;
 }
 
-function runScenario(args: {
+/**
+ * Exported for measurement, not for reuse: it is how a probe reproduces one
+ * scenario of a trial without reimplementing the phase loop around it. The
+ * report the whole trial publishes still comes from `runFleetTrial` below.
+ */
+export function runScenario(args: {
   corridor: CorridorInputs;
   scenario: BunchingScenario;
   inputs: ModelledInputs;
@@ -1035,6 +1056,11 @@ function runScenario(args: {
   commandLifecycle: CommandLifecycleTrialOptions;
   /** See `mpc/actionThreshold.ts#isPairActionable` and the `forecast_gate` study. */
   forecastGateEnabled?: boolean;
+  /** See `state-estimation/positionPlausibility.ts` and `GPS_POSITION_PLAUSIBILITY_ENABLED`. */
+  positionPlausibilityEnabled?: boolean;
+  positionPlausibilityMode?: PlausibilityMode;
+  positionPlausibilityBoundSeconds?: number;
+  positionPlausibilityConfig?: Partial<PlausibilityConfig>;
 }): ScenarioRun {
   const {
     corridor,
@@ -1049,6 +1075,10 @@ function runScenario(args: {
     alightingOnlySelectable,
     commandLifecycle,
     forecastGateEnabled = false,
+    positionPlausibilityEnabled,
+    positionPlausibilityMode,
+    positionPlausibilityBoundSeconds,
+    positionPlausibilityConfig,
   } = args;
   const config = buildTrialScenario({ corridor, scenario, inputs, vehicleIds, seed });
   const finalStopIndex = corridor.stops.length - 1;
@@ -1095,6 +1125,15 @@ function runScenario(args: {
     corridorStops: corridor.stops,
     alightingOnlySelectable,
     forecastGateEnabled,
+    // Undefined leaves the adapter on the deployed switch
+    // (`GPS_POSITION_PLAUSIBILITY_ENABLED`, off), which is what every caller
+    // that has not asked for the correction gets.
+    ...(positionPlausibilityEnabled === undefined ? {} : { positionPlausibilityEnabled }),
+    ...(positionPlausibilityMode === undefined ? {} : { positionPlausibilityMode }),
+    ...(positionPlausibilityBoundSeconds === undefined
+      ? {}
+      : { positionPlausibilityBoundSeconds }),
+    ...(positionPlausibilityConfig === undefined ? {} : { positionPlausibilityConfig }),
     // The forecast's sample history is appended on the SAME cadence the trial
     // replays the detector at, because production fits it from `headway_states`
     // and that table is written by the headway sweep. See
@@ -1192,6 +1231,7 @@ function runScenario(args: {
     decisions,
     config: timetabledConfig,
     ...(controlled.commandLifecycle ? { commandLifecycle: controlled.commandLifecycle } : {}),
+    plausibilityAudit: controller.plausibilityAudit,
   };
 }
 

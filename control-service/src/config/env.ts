@@ -421,6 +421,58 @@ const baseEnvSchema = z.object({
     .transform((v) => v === 'true'),
 
   /**
+   * Whether the state estimator checks a fresh, well-formed fix for being
+   * TRUE, and corrects the corridor's chain and pace when it is not.
+   *
+   * OFF by default, and off is byte-identical in the strong sense: with this
+   * false no tracker is constructed, no vehicle ever carries
+   * `VehicleOrderingInput.isImplausiblePosition`, and every distance handed
+   * to `computeLeaderFollowerOrder` is the reported one. Proven on all three
+   * presets - `lawCoverage` and every per-scenario contrast identical to
+   * base.
+   *
+   * ─── WHY IT IS OFF, AND IT IS NOT THE STRENGTH OF THE FINDING ────────
+   *
+   * The defect is real and priced: on the `blind_slowdown` fleet-trial
+   * scenario a 22.6 km along-route offset on a fifth of the fleet costs 4.1
+   * points of excess-wait gain, and a hold decided on a lied-about pair is
+   * worth 0.57% per 100 hold-seconds against 3.85% for a hold chosen at
+   * random. What ships off is the REMEDY, because its failure mode is
+   * subtler than the defect: a residual bound set too tight excludes healthy
+   * vehicles from the pace median and the chain ranking, and a controller
+   * measuring honest buses against a chain missing some of them is harder to
+   * notice than one measuring them against a phantom.
+   *
+   * `docs/GPS_POSITION_PLAUSIBILITY.md` carries the threshold sweep, the
+   * measured false-exclusion rate beside the measured benefit, and the
+   * cross-corridor and cross-scenario tables. Read it before flipping this.
+   */
+  GPS_POSITION_PLAUSIBILITY_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
+  /**
+   * What the correction does with a rejected fix.
+   *
+   * `correct` substitutes the dead-reckoned belief for the reported position
+   * and leaves the vehicle in the chain, which is the shape the investigation
+   * recommends - it takes the lie out of the pace median and the ranking
+   * while leaving the vehicle eligible for control. `exclude` drops it from
+   * the chain entirely, which necessarily also drops it from control, and is
+   * the more conservative variant the report's own suppression measured.
+   * Inert unless GPS_POSITION_PLAUSIBILITY_ENABLED.
+   */
+  GPS_POSITION_PLAUSIBILITY_MODE: z.enum(['correct', 'exclude']).default('correct'),
+
+  /**
+   * The residual bound, as travel time at the corridor's own pace. See
+   * `state-estimation/positionPlausibility.ts` for why the bound is in
+   * SECONDS and not in metres. Inert unless the check is enabled.
+   */
+  GPS_POSITION_PLAUSIBILITY_BOUND_SECONDS: z.coerce.number().positive().default(120),
+
+  /**
    * Whether terminal dispatch prices an unobserved bus behind against the
    * LEADER'S DEPARTURE rather than against the standing vehicle's own
    * position.

@@ -444,6 +444,53 @@ because that arm never reads the estimator. It is the one exception to "a
 scenario the uncontrolled arm sails through is not hard", and its hardness shows
 as the controlled arm's gain collapsing instead.
 
+### The estimator gap is now guarded, and the guard is a CORRECTION
+
+`GPS_POSITION_PLAUSIBILITY_ENABLED` (off, `state-estimation/positionPlausibility.ts`,
+tables in `docs/GPS_POSITION_PLAUSIBILITY.md`) checks a fix for being TRUE, not
+only for being fresh, and on rejection substitutes a DEAD-RECKONED position for
+the reported one in the chain ranking and withholds the vehicle's speed from
+`corridorPaceKmph` (with one deliberate exception, below) - leaving it in
+control. Off is byte-identical on all three presets (`lawCoverage` and every
+per-scenario `contrast`; only `generatedAt` and `durationMs` move).
+
+Five things a session will otherwise get wrong about it.
+
+**The correction and the refusal differ by fifteen points, in opposite
+directions.** MEASURED on `blind_slowdown`, six paired seeds at 2,000
+buses/phase: correcting the position is +7.26 pts of excess-wait gain on urban
+(6/6 seeds) and +0.85 of guardrail (6/6); EXCLUDING the same vehicles from the
+chain - which also excludes them from control - is -7.62. That reproduces the
+weak-scenarios report's §4d finding by a different mechanism. Anything here that
+turns into "decline to act on a suspect pair" is the version that was measured
+to lose.
+
+**It does NOT generalise to `phantom_position`, and that is the established
+result.** The drift is sized by that scenario's author to sit inside the noise
+any honest bound must tolerate, and at the shipping bound the check catches none
+of it and moves nothing on any corridor. `frozen_feed` is real but small and
+only on inter-city (+1.88, 6/6). The gain is `blind_slowdown` on urban and
+suburban (63% and 78% of the bias-ablation ceiling); inter-city recovers 2%.
+
+**Do NOT also withhold the deciding vehicle's own speed.** It looks like the
+consistent thing to do and it silently converts the correction into a refusal:
+`headway/metrics.ts` divides that pair's gap by the FOLLOWER's speed, so a null
+there is a null h_fwd, no candidate and a declined hold rather than one vehicle
+left out of a median. MEASURED, urban `blind_slowdown`: +7.26 pts becomes -1.33.
+`test/positionPlausibility.test.ts` pins it.
+
+**The bound is in SECONDS of travel at the corridor's pace, never in metres**,
+for the reason this file already gives about values fitted on one corridor. 120 s
+is the measured knee - 60 s excludes 40% of healthy inter-city vehicles, 480 s is
+bit-identical to off.
+
+**The risk is real and was observed, not merely reasoned about.** On bias-free
+corridors the check is bit-identical on 34 of 36 seed-cells and excludes 12
+healthy vehicles in 3,816 vehicle-runs - but on the one day it excluded a single
+urban bus of 106, that cost 3.1 points of excess wait. One healthy vehicle taken
+out of the pace median is not a rounding error on the day it happens, which is
+why this ships off.
+
 ### Conventions learned the hard way
 
 - **One seed is not a measurement.** Net passenger time has a ~10-point
