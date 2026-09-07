@@ -51,7 +51,12 @@ const SOLVE_PATH = '/v1/mpc/solve';
  * Throws rather than degrading, so the caller can tell the operator which of
  * these it is:
  *   ControlServiceConfigError       the engine is not configured at all
- *   ControlServiceUnavailableError  unreachable, timed out, or circuit open
+ *   ControlServiceUnavailableError  the family below; catching it still
+ *                                   catches all three
+ *   ControlServiceTimeoutError      THIS request ran out of its own time;
+ *                                   the service may be healthy and working
+ *   ControlServiceCircuitOpenError  this process has stopped calling, after
+ *                                   a measured streak of real failures
  *   ControlServiceRequestError      the engine answered and refused;
  *                                   `code: 'no_active_policy'` (404) means
  *                                   this route-direction has no active

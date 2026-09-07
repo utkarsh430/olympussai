@@ -32,11 +32,12 @@
  * which is the wrong half: holding is the only in-vehicle term control makes
  * worse. See `fleetTrial/types.ts#PassengerOutcome`.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import {
   OpsAlert,
   OpsBadge,
   OpsButton,
+  OpsCoverage,
   OpsEmptyState,
   OpsGrid,
   OpsPanel,
@@ -59,6 +60,14 @@ import {
   trialProvenance,
   type TrialOrigin,
 } from '@/lib/ops/fleetTrialView';
+import {
+  initialTrialConsoleState,
+  trialConsoleReducer,
+  elapsedLabel,
+  type TrialFailureKind,
+  type TrialRunState,
+  type TrialStage,
+} from '@/lib/ops/fleetTrialRun';
 import {
   CLOSE_REASON_LABEL,
   DECLINE_LABEL,
@@ -719,6 +728,159 @@ function ProvenanceBanner({
   );
 }
 
+/**
+ * The API's error code, as one of the states an operator can act on.
+ *
+ * Anything unrecognised is a plain failure rather than an outage: claiming a
+ * service is unreachable on the strength of a code this console does not know
+ * is exactly the over-claim that sent a supervisor to the wrong machine.
+ */
+function failureKindFor(code: string | undefined): TrialFailureKind {
+  switch (code) {
+    case 'CONTROL_SERVICE_TIMEOUT':
+      return 'timed_out';
+    case 'CONTROL_SERVICE_CIRCUIT_OPEN':
+      return 'circuit_open';
+    case 'TRIAL_ALREADY_RUNNING':
+      return 'already_running';
+    case 'CONTROL_SERVICE_UNAVAILABLE':
+    case 'NOT_CONFIGURED':
+      return 'unreachable';
+    default:
+      return 'failed';
+  }
+}
+
+/**
+ * What the trial is doing, or what became of it.
+ *
+ * ─── ONE PANEL FOR SIX OUTCOMES, BECAUSE THEY ARE ONE QUESTION ───────────
+ *
+ * "Is it still going, and if not, what happened" - asked in the same place
+ * every time, so an operator never has to work out where the answer will
+ * appear. The console had none of this: a 30-second inter-city run changed the
+ * button's label and nothing else, which is long enough that a reasonable
+ * person concludes the page has hung, clicks again, or reloads and loses it.
+ *
+ * ─── THE PROGRESS IS A COUNT, NOT A BAR ──────────────────────────────────
+ *
+ * Rendered through `OpsCoverage`, whose own rule this obeys: a percentage
+ * hides the denominator, and the denominator is the honest part. The trial's
+ * runs are not equal in cost - a phase run carries several times the fleet of
+ * a study run - so a share of runs done is NOT a share of the wait, and a bar
+ * drawn from it would be an estimate wearing a fact's clothes. What is offered
+ * instead is true: the stage, the runs, and the elapsed time.
+ *
+ * The elapsed time is doing real work here and is never dropped, including
+ * before the first run lands. A trial that has reported nothing yet is still
+ * saying something an operator needs - that this page is alive and counting.
+ */
+function TrialRunStatus({
+  run,
+  hasReport,
+  nowMs,
+}: {
+  run: TrialRunState;
+  hasReport: boolean;
+  nowMs: number;
+}) {
+  if (run.status === 'idle' || run.status === 'succeeded') return null;
+
+  if (run.status === 'running') {
+    const elapsed = elapsedLabel(nowMs - run.startedAtMs);
+    return (
+      <OpsAlert tone="info" title={`Running — ${elapsed} so far`}>
+        {run.progress ? (
+          <>
+            <p>{run.progress.label}</p>
+            <OpsCoverage
+              className="mt-2"
+              covered={run.progress.done}
+              total={run.progress.total}
+              noun="simulated runs finished"
+              caveat="The runs are not all the same size, so this counts work done rather than time left — there is no honest estimate of when it will finish."
+            />
+          </>
+        ) : (
+          // Started, nothing finished yet. Saying "0 of 0" here would invent a
+          // denominator; the elapsed clock in the title is the true part.
+          <p>Starting the trial. It has not finished its first run yet.</p>
+        )}
+      </OpsAlert>
+    );
+  }
+
+  if (run.status === 'timed_out') {
+    // WARNING, not error, and the wording is the whole point. The service is
+    // healthy - this console gave up - and the run is very likely still going.
+    return (
+      <OpsAlert tone="warning" title="The console stopped waiting — the trial probably has not">
+        <p>{run.message}</p>
+        <p className="mt-1">
+          Nothing was lost and nothing was changed.{' '}
+          {hasReport
+            ? 'The result below is still the one that was there before.'
+            : 'There is still no result on this page.'}
+        </p>
+      </OpsAlert>
+    );
+  }
+
+  if (run.status === 'already_running') {
+    return (
+      <OpsAlert tone="warning" title="A trial is already running">
+        <p>{run.message}</p>
+        <p className="mt-1">
+          It may have been started in another tab, or by somebody else — this simulator runs one
+          trial at a time. Nothing was started twice, and nothing was lost.
+        </p>
+      </OpsAlert>
+    );
+  }
+
+  if (run.status === 'circuit_open') {
+    // The third of the three, and the only one that says "escalate". The
+    // console is not failing to reach the service on this attempt - it has
+    // stopped attempting, on the evidence of a measured streak.
+    return (
+      <OpsAlert tone="error" title="The console has stopped calling the simulator service">
+        <p>{run.message}</p>
+        <p className="mt-1">
+          This is not one bad request: the service has been failing repeatedly, so this console
+          paused to stop making it worse.{' '}
+          {hasReport
+            ? 'The result below is still the one that was there before.'
+            : 'There is no earlier result to fall back on.'}
+        </p>
+      </OpsAlert>
+    );
+  }
+
+  if (run.status === 'unreachable') {
+    return (
+      <OpsAlert tone="error" title="The simulator service could not be reached">
+        <p>{run.message}</p>
+        <p className="mt-1">
+          {hasReport
+            ? 'No trial was run, so the result below is still the one that was there before.'
+            : 'No trial was run, and there is no earlier result to fall back on.'}
+        </p>
+      </OpsAlert>
+    );
+  }
+
+  return (
+    <OpsAlert tone="error" title="The trial did not finish">
+      <p>{run.message}</p>
+      <p className="mt-1">
+        {hasReport
+          ? 'The result below is still the one that was there before — it was not replaced by a run that failed.'
+          : 'There is still no result on this page.'}
+      </p>
+    </OpsAlert>
+  );
+}
+
 /** The fleet sizes the control offers by default. */
 const FLEET_SIZES = [100, 250, 500, 1000] as const;
 
@@ -737,17 +899,45 @@ function fleetSizeOptions(ran: number | null): number[] {
   return [...sizes].sort((a, b) => a - b);
 }
 
+/**
+ * How often the console asks the trial what it is doing.
+ *
+ * One second. The trial's own runs land faster than that on a small fleet and
+ * slower on a large one, so this is not tuned to them - it is tuned to a
+ * person watching a page, for whom a count that moves about once a second
+ * reads as alive and one that moves every five reads as stuck.
+ */
+const PROGRESS_POLL_MS = 1_000;
+
 export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialReport | null }) {
-  const [report, setReport] = useState(initialReport);
+  // ─── ONE REDUCER, NOT FIVE useStates ─────────────────────────────────
+  //
+  // The report, whose report it is, and what became of the last run move
+  // TOGETHER: a run that fails must leave the first two untouched, and a run
+  // that succeeds must replace both in the same step or there is a render
+  // between them showing neither. Held as separate pieces of state those are
+  // rules nobody can check; held in `fleetTrialRun.ts` they are tested,
+  // including the four failure outcomes that cannot be produced by hand.
+  const [state, dispatch] = useReducer(
+    trialConsoleReducer,
+    initialReport,
+    initialTrialConsoleState,
+  );
+  const { report, origin, run } = state;
   const [phaseId, setPhaseId] = useState(initialReport?.phases[0]?.id ?? 'occupancy_blind');
-  const [running, setRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  /**
-   * Where the report on screen came from. NOT a property of the report - the
-   * control service serves the same bytes to everyone - so it cannot come off
-   * the wire and is tracked here, for this page load only.
-   */
-  const [origin, setOrigin] = useState<TrialOrigin>('stored');
+  const running = run.status === 'running';
+
+  // A clock that ticks only while a run is in flight. Read in the browser
+  // only - it starts at 0 and is never rendered until a run has been started
+  // by a click, so it cannot differ between server and client paint.
+  const [nowMs, setNowMs] = useState(0);
+  useEffect(() => {
+    if (!running) return;
+    setNowMs(Date.now());
+    const timer = setInterval(() => setNowMs(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, [running]);
+
   // Seeded from the loaded report, not from a fixed default. The controls
   // describe the next run, and a control saying 1,000 above a 60-bus report is
   // exactly how a 60-bus diagnostic run came to be read as a fleet trial.
@@ -761,9 +951,67 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
     initialProvenance?.corridorPresetId ?? 'intercity',
   );
 
-  const run = useCallback(async () => {
-    setRunning(true);
-    setError(null);
+  /**
+   * Ask the trial what it is doing, and say nothing if it will not answer.
+   *
+   * A failed poll is NOT a failed trial and must never be reported as one:
+   * the POST is what decides the run's outcome. A dropped poll while the
+   * trial is perfectly healthy would otherwise turn a good run into a
+   * reported failure, which is the same class of wrong message this whole
+   * change exists to remove.
+   */
+  const pollProgress = useCallback(async () => {
+    try {
+      const response = await fetch('/api/ops/control-room/fleet-trial/progress', {
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) return;
+      const body: unknown = await response.json();
+      if (
+        typeof body === 'object' &&
+        body !== null &&
+        (body as { running?: boolean }).running === true
+      ) {
+        const p = body as { done: number; total: number | null; stage: TrialStage | null; label: string | null };
+        // A run the service has started but which has not finished its first
+        // unit has no total yet. Nothing is rendered from a half-known
+        // progress: the elapsed clock already says the run is alive.
+        if (p.total === null || p.stage === null) return;
+        dispatch({
+          type: 'progress',
+          progress: { done: p.done, total: p.total, stage: p.stage, label: p.label ?? '' },
+        });
+      }
+    } catch {
+      // Same rule: silence, not a failure.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!running) return;
+    let live = true;
+    const tick = () => {
+      if (live) void pollProgress();
+    };
+    tick();
+    const timer = setInterval(tick, PROGRESS_POLL_MS);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [running, pollProgress]);
+
+  const startRun = useCallback(async () => {
+    // ─── THE DOUBLE CLICK, GUARDED THREE TIMES ────────────────────────
+    //
+    // Here, in the reducer (which ignores `run_requested` while running), and
+    // at the control service (which refuses a second trial with a 409). The
+    // button is also disabled. Three, because they cover different things:
+    // the button covers a click, the reducer covers this component, and only
+    // the service covers a second TAB - which is exactly what somebody does
+    // when a page looks hung.
+    if (running) return;
+    dispatch({ type: 'run_requested', atMs: Date.now() });
     try {
       const response = await fetch('/api/ops/control-room/fleet-trial', {
         method: 'POST',
@@ -772,22 +1020,30 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
       });
       const body: unknown = await response.json();
       if (!response.ok) {
-        const message =
+        const error =
           typeof body === 'object' && body !== null && 'error' in body
-            ? ((body as { error?: { message?: string } }).error?.message ?? 'The trial could not be run.')
-            : 'The trial could not be run.';
-        setError(message);
+            ? (body as { error?: { code?: string; message?: string } }).error
+            : undefined;
+        dispatch({
+          type: 'failed',
+          kind: failureKindFor(error?.code),
+          message: error?.message ?? 'The trial could not be run.',
+        });
         return;
       }
-      setReport(body as FleetTrialReport);
-      setOrigin('this-session');
-      setPhaseId((body as FleetTrialReport).phases[0]?.id ?? 'occupancy_blind');
+      const fresh = body as FleetTrialReport;
+      dispatch({ type: 'succeeded', report: fresh, atMs: Date.now() });
+      setPhaseId(fresh.phases[0]?.id ?? 'occupancy_blind');
     } catch {
-      setError('The trial could not be reached. Nothing was changed.');
-    } finally {
-      setRunning(false);
+      // fetch itself rejected: the network went, or the page is offline.
+      // Nothing answered, so this is the unreachable case, not a timeout.
+      dispatch({
+        type: 'failed',
+        kind: 'unreachable',
+        message: 'The simulator service could not be reached. Nothing was changed.',
+      });
     }
-  }, [vehiclesPerPhase, corridorPreset]);
+  }, [vehiclesPerPhase, corridorPreset, running]);
 
   const phase = useMemo(
     () => report?.phases.find((p) => p.id === phaseId) ?? report?.phases[0] ?? null,
@@ -824,7 +1080,7 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
           ))}
         </OpsSelect>
       </label>
-      <OpsButton variant="primary" onClick={() => void run()} disabled={running}>
+      <OpsButton variant="primary" onClick={() => void startRun()} disabled={running}>
         {running ? 'Running…' : report ? 'Run again' : 'Run the trial'}
       </OpsButton>
     </div>
@@ -833,10 +1089,10 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
   if (!report) {
     return (
       <div className="space-y-4">
-        {error ? <OpsAlert tone="error" title="The trial did not run">{error}</OpsAlert> : null}
+        <TrialRunStatus run={run} hasReport={false} nowMs={nowMs} />
         <OpsPanel
           title="No trial has been run yet"
-          description="The simulator holds its last result in memory and loses it when the service restarts. Running one takes a couple of seconds and writes nothing anywhere."
+          description="The simulator holds its last result in memory and loses it when the service restarts. Running one takes about half a minute on the largest corridor, and writes nothing anywhere."
           actions={controls}
         >
           <p className="max-w-prose text-sm text-muted-foreground">
@@ -853,7 +1109,13 @@ export function SimulatorConsole({ initialReport }: { initialReport: FleetTrialR
 
   return (
     <div className="space-y-6">
-      {error ? <OpsAlert tone="error" title="The last run failed">{error}</OpsAlert> : null}
+      {/*
+        Above the provenance banner, and above the report. What became of the
+        run the operator just started is the first thing they are looking for,
+        and a failure notice below a full report reads as though the report
+        were the answer to it.
+      */}
+      <TrialRunStatus run={run} hasReport nowMs={nowMs} />
 
       <ProvenanceBanner report={report} origin={origin} />
 

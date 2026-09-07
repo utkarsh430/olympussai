@@ -422,3 +422,38 @@ export const DECLINE_LABEL: Record<string, string> = {
   leader_not_at_stop: 'the bus ahead was not at a stop it could act at',
   no_hold_indicated: 'the pair was not deviant enough to act on',
 };
+
+/**
+ * What the trial running right now is doing.
+ *
+ * A COUNT and a denominator, never a share. The trial's runs are not equal in
+ * cost - a phase run carries several times the fleet of a study run, which is
+ * capped - so a fraction of runs done is not a fraction of the wait, and the
+ * console renders the pair rather than a bar it would have to invent a
+ * meaning for.
+ *
+ * `total` is nullable because a trial that has started but not yet finished
+ * its first run genuinely does not have one to report from the service yet,
+ * and `0 of 0` would be a denominator nobody measured.
+ */
+export const fleetTrialStageSchema = z.enum([
+  'phases',
+  'policy_study',
+  'occupancy_contrast',
+  'self_equalizing',
+]);
+
+export const fleetTrialProgressSchema = z.union([
+  z.object({ running: z.literal(false) }),
+  z.object({
+    running: z.literal(true),
+    runId: z.string(),
+    done: z.number().int().min(0),
+    total: z.number().int().min(1).nullable(),
+    stage: fleetTrialStageSchema.nullable(),
+    label: z.string().nullable(),
+    startedAtMs: z.number(),
+  }),
+]);
+
+export type FleetTrialProgressResponse = z.infer<typeof fleetTrialProgressSchema>;

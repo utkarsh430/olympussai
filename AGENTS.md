@@ -20,6 +20,56 @@ The web app alone is not a working stack. Every ops dashboard reads control-serv
 
 Waiting for the databases is the point of it. control-service rehydrates its in-memory state exactly once at boot and never retries (`control-service/src/index.ts`), so an instance started before its Postgres is reachable — or before `control-service/db/migrations/` is applied (`pnpm --dir control-service migrate` — its own runner, `control-service/src/db/migrate.ts`, with the same per-file-transaction and checksum-drift guarantees the web app's has) — parks at `/readyz` -> `rehydrationStatus: "failed"` permanently: ingestion fails closed, so it takes in nothing, while every read endpoint still answers 200 off the tables. It looks alive while the GPS pipeline is dead. So when a surface looks empty rather than wrong, read `/readyz` before suspecting the data — `/healthz` is liveness only and stays green throughout — and fix it by restarting the process, never by waiting for it to recover.
 
+## A deadline we set is not the service failing
+
+`src/lib/controlService/client.ts` reported every timeout as
+`ControlServiceUnavailableError` - the same class as a refused connection - and
+the ops consoles render that as "the control service is temporarily
+unreachable". On an 8 s poll that is fair. On the fleet trial it was false: the
+console timed out its own 32-second computation, told the operator the service
+could not be reached, and sent a supervisor to look at a machine that was
+healthy, answering, and had finished the run and cached it.
+
+`ControlServiceTimeoutError` is now thrown instead - a SUBCLASS, so every
+existing caller that degrades on `ControlServiceUnavailableError` keeps
+degrading exactly as it did, and only callers with something better to say test
+for the narrower type. The second half matters more and is easy to miss: a
+timeout on a call passing `deadlineIsOurs` does not count toward the circuit
+breaker. That breaker is shared by every control-service consumer in the
+process and trips at three, so three fleet trials in a row - an ordinary thing
+to do - would have taken the alert inbox and the command path dark for thirty
+seconds over a service that never missed a beat. `deadlineIsOurs` excuses our
+own clock and nothing else: a refused connection on the same call still counts.
+
+Set it only on operator-initiated computations, never on a poll, and give any
+such call a budget derived from a MEASUREMENT rather than from a comment.
+
+**Audited, and the answer is that the fleet trial was the only one.** The fleet
+trial is the sole caller that ever raised `timeoutMs` above the shared 8 s
+default. The other two operator-initiated computations - `POST /v1/mpc/solve`
+(`recommendations.ts`) and `POST /v1/rehearsal` (`rehearsalData.ts`) - run on
+that default, and for them an 8 s abort genuinely IS evidence of a sick
+service, so they count and should. That is why the exemption is opt-in per call
+rather than a blanket rule for aborts: a blanket exemption would trade a
+visible wrong message for an invisible loss of breaker protection on every
+poll in the process. Any future call that raises its budget has to make the
+same judgement deliberately.
+
+**And the three are now three, all the way to the operator.** The client's own
+doc comments used to define `ControlServiceUnavailableError` as "unreachable,
+timed out, or circuit open" - three conditions, three different next moves, one
+sentence on the console. `ControlServiceTimeoutError` and
+`ControlServiceCircuitOpenError` are SUBCLASSES of it, so every caller that
+degrades on the base class is untouched, and callers with something better to
+say test for the narrower type FIRST (they collapse back into the base message
+if the checks are ordered the other way). What an operator reads now maps to
+what they should do: *the service could not be reached* -> go and look at it;
+*the console stopped waiting* -> nothing is wrong, the run is probably still
+going; *the console has stopped calling* -> the service has genuinely been
+failing, retrying is pointless until the cooldown elapses, escalate. An open
+circuit is refused even for a call marked `deadlineIsOurs`: exemption from
+counting toward the breaker is not exemption from obeying one already open.
+
 ## Ops RBAC: middleware is a ceiling, route guards are the decision
 
 `src/middleware.ts` and every `/api/ops/*` route handler both check roles, independently — middleware's check (via `rolesForOpsApiPath` / `OPS_API_ROLE_OVERRIDES` in `src/lib/auth/rbac/roles.ts`) is a coarse, edge-safe approximation; `requireOpsRole(...)` inside the route handler (`src/lib/auth/rbac/guard.ts`) is the real, narrow, authoritative allowlist. When a route's `requireOpsRole` allowlist is wider than (or undeterminable from) its URL segment alone, add an entry to `OPS_API_ROLE_OVERRIDES` rather than loosening the segment-derived default — it is matched on exact pathname (never a prefix) and must only ever widen a segment's role, never re-home an endpoint to an unrelated one (enforced by a guard test in `src/tests/unit/rbac.test.ts`). Pages (`/ops/<segment>/*`) stay on strict segment equality; only `/api/ops/*` uses the override map.
@@ -220,6 +270,45 @@ The control laws are IMPORTED from `src/mpc/*` and `src/headway/*` through
 `rehearsal/deployedControlLaws.ts`, never reimplemented. That adapter is where
 fidelity bugs live: it has repeatedly flattered production by giving the laws an
 input production does not have. Check it first when a law's coverage looks wrong.
+
+### Running one from the console: the trial is mostly NOT the phases
+
+Three facts a session reasoning about the trial's cost or its progress will
+otherwise get wrong, all measured.
+
+**The phases are an eighth of the run.** `run.ts` reads as phases x scenarios,
+and its original progress callback fired once per (phase, scenario) - 38
+events. The whole trial is about **1,159 simulated runs**: the five policy
+studies sweep `variants x STUDY_SEEDS x scenarios` at a capped fleet and are
+~87% of the wall clock, with the occupancy contrast and the self-equalizing arm
+beside them. Measured on inter-city at 1,000 buses/phase, the phases take 4.2 s
+of a 32 s run. Anything sized from "phases x scenarios" - a progress bar, a
+timeout, a cost estimate - is wrong by an order of magnitude, and that is
+exactly how the web client came to carry a 30 s budget for a 32 s computation.
+
+**`runFleetTrial` is SYNCHRONOUS, so on the request thread it blocks the whole
+process** - not just the trial's own caller, but `/healthz` and every other
+console's read for the full thirty seconds. `fleetTrial/runner.ts` therefore
+runs it on a worker (`fleetTrial/worker.ts`) and owns the one-at-a-time rule;
+`POST /v1/fleet-trial` still returns the whole report, and `GET
+/v1/fleet-trial/progress` answers *during* a run only because of that move. A
+second POST while one is in flight is refused with 409 rather than queued or
+run: it is nearly always a double click on a console that looked dead, and a
+second run would take over the first's progress. The worker entry is resolved
+by which file exists beside it - `.js` in `dist/`, `.ts` plus a tsx loader from
+source - because `new Worker()` gets a real path and none of TypeScript's `.js`
+specifier resolution.
+
+**Progress is a COUNT, and the total is one expression with the loops.**
+`fleetTrial/progress.ts#plannedUnitCount` computes the denominator before the
+first run from the same variant lists the studies iterate, and
+`test/fleetTrial/progress.test.ts` runs a real trial and fails if the units
+reported are not the number planned. That test is the honesty guarantee: add a
+study to `run.ts` without adding it to the plan and the count would stall short
+of its total forever, which is the stalled-bar lie the reporting exists to
+replace. Nothing anywhere renders a percentage or a time remaining - the runs
+are not equal in cost (a phase run carries several times the fleet of a study
+run), so a share of runs done is not a share of the wait.
 
 ### Invariants the simulator must preserve
 

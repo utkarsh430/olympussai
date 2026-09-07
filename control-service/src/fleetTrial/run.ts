@@ -50,6 +50,8 @@ import { detectIncidents, DEFAULT_SWEEP_INTERVAL_SECONDS } from './detection.js'
 import type { DetectedIncident, SweepSample } from './detection.js';
 import type { BunchingScenario, BunchingScenarioId } from './scenarios.js';
 import type { FleetCorridorSpec } from './corridor.js';
+import { plannedUnitCount, eligibleScenarioCount } from './progress.js';
+import type { FleetTrialProgressReporter, FleetTrialStage } from './progress.js';
 import type { CorridorInputs } from '../rehearsal/corridor.js';
 import type { ModelledInputs } from '../rehearsal/run.js';
 import {
@@ -975,6 +977,24 @@ function coverageOf(decisions: readonly RehearsalDecisionRecord[]): LawCoverage[
 
 // ─── One scenario, both arms ─────────────────────────────────────────────
 
+/**
+ * One tick per simulated run, against a total fixed before the trial started.
+ *
+ * Threaded through every function that calls `runScenario` or `simulate` in a
+ * loop, because those loops ARE the trial's work - see `progress.ts` for why
+ * the phases alone are not. It reports and returns; nothing downstream of a
+ * tick reads it, so a caller that passes no reporter runs the identical code.
+ */
+type UnitTick = (stage: FleetTrialStage, label: string) => void;
+
+function unitReporter(total: number, report: FleetTrialProgressReporter | undefined): UnitTick {
+  let done = 0;
+  return (stage, label) => {
+    done++;
+    report?.({ done, total, stage, label });
+  };
+}
+
 interface ScenarioRun {
   report: ScenarioReport;
   controlledVisits: StopVisitRecord[];
@@ -1482,8 +1502,9 @@ function compareOccupancySettings(args: {
   inputs: ModelledInputs;
   requiredSamples: number;
   followerSpeedSource: 'link_average' | 'vehicle_state';
+  tick?: UnitTick;
 }): OccupancyContrast {
-  const { corridor, runs, inputs, followerSpeedSource } = args;
+  const { corridor, runs, inputs, followerSpeedSource, tick } = args;
 
   interface DecisionShape {
     actionType: string;
@@ -1519,6 +1540,7 @@ function compareOccupancySettings(args: {
       alightingOnlySelectable: true,
     });
     simulate(run.config, blindController);
+    tick?.('occupancy_contrast', `Occupancy switch off - ${run.report.title}`);
 
     const blindByKey = new Map<string, DecisionShape>();
     for (const decision of blindController.decisions) {
@@ -1603,8 +1625,10 @@ function runSelfEqualizingCoverage(args: {
   spec: FleetTrialSpec;
   vehiclesPerPhase: number;
   deployedSelfEqualizing: LawCoverage | undefined;
+  tick?: UnitTick;
 }): SelfEqualizingCoverageReport {
-  const { corridor, scenarios, inputs, spec, vehiclesPerPhase, deployedSelfEqualizing } = args;
+  const { corridor, scenarios, inputs, spec, vehiclesPerPhase, deployedSelfEqualizing, tick } =
+    args;
   const coverageCorridor: CorridorInputs = {
     ...corridor,
     policy: { ...corridor.policy, kb: null },
@@ -1637,6 +1661,7 @@ function runSelfEqualizingCoverage(args: {
         commandLifecycle: spec.commandLifecycle,
       }),
     );
+    tick?.('self_equalizing', `Self-equalizing fallback - ${scenario.title}`);
   }
 
   const controlled = poolArm(runs, coverageCorridor, (r) => r.controlledVisits, (report) => report.controlled);
@@ -1717,8 +1742,10 @@ function runPolicyStudy(args: {
   scenarios: readonly BunchingScenario[];
   inputs: ModelledInputs;
   vehiclesPerPhase: number;
+  tick?: UnitTick;
 }): PolicyStudy {
-  const { spec, knob, title, description, variants, scenarios, inputs, vehiclesPerPhase } = args;
+  const { spec, knob, title, description, variants, scenarios, inputs, vehiclesPerPhase, tick } =
+    args;
 
   const rows: PolicyStudyRow[] = [];
   for (const variant of variants) {
@@ -1767,6 +1794,7 @@ function runPolicyStudy(args: {
             forecastGateEnabled: variant.forecastGate ?? false,
           }),
         );
+        tick?.('policy_study', `${title} - ${variant.label}, seed ${seedIndex + 1}`);
       }
       if (runs.length === 0) continue;
 
@@ -1970,8 +1998,9 @@ function runDispersionSensitivityStudy(args: {
   inputs: ModelledInputs;
   vehiclesPerPhase: number;
   corridorSpec: FleetCorridorSpec;
+  tick?: UnitTick;
 }): PolicyStudy {
-  const { spec, scenarios, inputs, vehiclesPerPhase, corridorSpec } = args;
+  const { spec, scenarios, inputs, vehiclesPerPhase, corridorSpec, tick } = args;
   const variants: PolicyVariant[] = dispersionVariants(inputs.travelTimeVariation).map((v) => ({
     label: v.label,
     corridor: corridorSpec,
@@ -1989,6 +2018,7 @@ function runDispersionSensitivityStudy(args: {
     scenarios,
     inputs,
     vehiclesPerPhase,
+    tick,
   });
 
   const shipped = study.rows.find((row) => row.isCurrent);
@@ -2511,7 +2541,7 @@ export type FleetTrialReportWithLifecycle = FleetTrialReport & {
 
 export function runFleetTrial(
   spec: FleetTrialSpec = DEFAULT_FLEET_TRIAL_SPEC,
-  onProgress?: (done: number, total: number, label: string) => void,
+  onProgress?: FleetTrialProgressReporter,
 ): FleetTrialReportWithLifecycle {
   const startedAt = Date.now();
   const preset = CORRIDOR_PRESETS[spec.corridorPreset];
@@ -2539,8 +2569,33 @@ export function runFleetTrial(
   const takeVehicleIds = (count: number): string[] =>
     Array.from({ length: count }, () => `BUS-${String(++nextBusNumber).padStart(4, '0')}`);
 
-  const totalRuns = PHASES.length * scenarios.length;
-  let done = 0;
+  // ─── WHAT THIS TRIAL IS ABOUT TO DO, COUNTED BEFORE IT DOES ANY OF IT ──
+  //
+  // The variant lists are pure functions of the corridor spec and the inputs,
+  // so every run the studies will do is knowable now. They are built HERE, once,
+  // and handed to the studies below - building them twice would let the plan
+  // and the work disagree, which is the one way the count can lie.
+  const variants = policyVariants(corridorSpec);
+  const studyVehicles = Math.min(spec.vehiclesPerPhase, MAX_STUDY_VEHICLES);
+  const dispersionVariantCount = dispersionVariants(inputs.travelTimeVariation).length;
+  const totalUnits = plannedUnitCount({
+    phaseCount: PHASES.length,
+    scenarioCount: scenarios.length,
+    // In the order the `policyStudies` array below runs them.
+    policyStudyVariantCounts: [
+      variants.holdingPoints.length,
+      variants.lateness.length,
+      variants.actionBar.length,
+      variants.forecastGate.length,
+      dispersionVariantCount,
+    ],
+    studySeeds: STUDY_SEEDS,
+    studyVehiclesPerPhase: studyVehicles,
+    vehiclesPerPhase: spec.vehiclesPerPhase,
+    // The contrast re-simulates each of the occupancy-aware phase's runs once.
+    occupancyContrastRuns: eligibleScenarioCount(spec.vehiclesPerPhase, scenarios.length),
+  });
+  const tick = unitReporter(totalUnits, onProgress);
 
   // Every phase's runs are collected BEFORE any of them is pooled, because
   // which scenarios the headline may average is decided once for the trial
@@ -2593,8 +2648,7 @@ export function runFleetTrial(
         commandLifecycle: spec.commandLifecycle,
       });
       runs.push(run);
-      done++;
-      onProgress?.(done, totalRuns, `${phase.id}/${scenario.id}`);
+      tick('phases', `${phase.title} - ${scenario.title}`);
     }
 
     runsByPhase.push(runs);
@@ -2637,8 +2691,6 @@ export function runFleetTrial(
     };
   });
 
-  const variants = policyVariants(corridorSpec);
-  const studyVehicles = Math.min(spec.vehiclesPerPhase, MAX_STUDY_VEHICLES);
   const policyStudies: PolicyStudy[] = [
     runPolicyStudy({
       spec,
@@ -2650,6 +2702,7 @@ export function runFleetTrial(
       scenarios,
       inputs,
       vehiclesPerPhase: studyVehicles,
+      tick,
     }),
     runPolicyStudy({
       spec,
@@ -2661,6 +2714,7 @@ export function runFleetTrial(
       scenarios,
       inputs,
       vehiclesPerPhase: studyVehicles,
+      tick,
     }),
     runPolicyStudy({
       spec,
@@ -2672,6 +2726,7 @@ export function runFleetTrial(
       scenarios,
       inputs,
       vehiclesPerPhase: studyVehicles,
+      tick,
     }),
     runPolicyStudy({
       spec,
@@ -2683,6 +2738,7 @@ export function runFleetTrial(
       scenarios,
       inputs,
       vehiclesPerPhase: studyVehicles,
+      tick,
     }),
     runDispersionSensitivityStudy({
       spec,
@@ -2690,6 +2746,7 @@ export function runFleetTrial(
       inputs,
       vehiclesPerPhase: studyVehicles,
       corridorSpec,
+      tick,
     }),
   ];
 
@@ -2699,6 +2756,7 @@ export function runFleetTrial(
     inputs,
     requiredSamples: spec.requiredSamples,
     followerSpeedSource: spec.followerSpeedSource,
+    tick,
   });
 
   const occupancyBlindPhase = phaseReports.find((phase) => phase.id === 'occupancy_blind');
@@ -2709,6 +2767,7 @@ export function runFleetTrial(
     spec,
     vehiclesPerPhase: studyVehicles,
     deployedSelfEqualizing: occupancyBlindPhase?.lawCoverage.find((l) => l.law === 'self_equalizing'),
+    tick,
   });
 
   return {
