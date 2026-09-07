@@ -34,7 +34,9 @@ import { fleetTrialReportSchema, type FleetTrialReport } from '@/models/fleetTri
 // same Zod schema the page parses real reports with - so it cannot drift out
 // of the contract without this file failing.
 
-const spacing = (over: Partial<FleetTrialReport['phases'][number]['controlled']['spacing']> = {}) => ({
+const spacing = (
+  over: Partial<FleetTrialReport['phases'][number]['controlled']['spacing']> = {},
+) => ({
   headwaySampleCount: 100,
   meanHeadwaySeconds: 600,
   ewtSeconds: 60,
@@ -160,9 +162,17 @@ function phase(id: 'occupancy_blind' | 'occupancy_aware', title: string) {
       bestScenarioId: 'steady_variability',
     },
     lawCoverage: [
-      { law: 'two_way', decisionsGenerating: 10, decisionsTotal: 40, commonestDecline: null, commonestDeclineShare: null },
+      {
+        law: 'two_way',
+        decisionsGenerating: 10,
+        decisionsTotal: 40,
+        commonestDecline: null,
+        commonestDeclineShare: null,
+      },
     ],
-    holdSecondsByStation: [{ stopId: 'S1', name: 'One', sequence: 0, holdSeconds: 100, holdCount: 5 }],
+    holdSecondsByStation: [
+      { stopId: 'S1', name: 'One', sequence: 0, holdSeconds: 100, holdCount: 5 },
+    ],
     holdCountByActionType: [{ actionType: 'hold', count: 5, holdSeconds: 100 }],
     safetyRejections: [{ reason: 'max_lateness_breach', count: 3 }],
   };
@@ -172,7 +182,11 @@ function buildReport(over: Partial<FleetTrialReport> = {}): FleetTrialReport {
   const raw = {
     generatedAt: '2026-09-06T09:00:00.000Z',
     durationMs: 2000,
-    corridorPreset: { id: 'urban', title: '24 km city trunk', description: 'A city trunk corridor.' },
+    corridorPreset: {
+      id: 'urban',
+      title: '24 km city trunk',
+      description: 'A city trunk corridor.',
+    },
     alightingOnlySelectable: false,
     headlineScope: {
       includedScenarioIds: ['steady_variability'],
@@ -196,7 +210,14 @@ function buildReport(over: Partial<FleetTrialReport> = {}): FleetTrialReport {
       kb: 0.4,
       selfEqualizingK: 0.4,
       stations: [
-        { stopId: 'S1', name: 'One', sequence: 0, cumulativeDistanceMeters: 0, latitude: 1, longitude: 1 },
+        {
+          stopId: 'S1',
+          name: 'One',
+          sequence: 0,
+          cumulativeDistanceMeters: 0,
+          latitude: 1,
+          longitude: 1,
+        },
       ],
     },
     controllability: {
@@ -225,7 +246,9 @@ function buildReport(over: Partial<FleetTrialReport> = {}): FleetTrialReport {
       rankingComparable: false,
       verdict: 'It changed no decision.',
     },
-    provenance: [{ field: 'demand', value: 'invented', source: 'modelled', note: 'No ticketing feed exists.' }],
+    provenance: [
+      { field: 'demand', value: 'invented', source: 'modelled', note: 'No ticketing feed exists.' },
+    ],
     notExercised: ['the command lifecycle'],
     ...over,
   };
@@ -234,13 +257,116 @@ function buildReport(over: Partial<FleetTrialReport> = {}): FleetTrialReport {
   return fleetTrialReportSchema.parse(raw);
 }
 
+// ─── THE PAGE HAS TO ANSWER BEFORE IT EXPLAINS ──────────────────────────
+//
+// The captain's report was that there is too much on this page to read. It
+// rendered 1,055 separate blocks of visible text on a completed 1,000-bus
+// trial, everything expanded at once, with the answer to "did the controller
+// help" nowhere in particular. The fix is ORDER and DISCLOSURE, never deletion:
+// the answer comes first, the reasoning is one click away, and every caveat
+// that was on the page is still on the page.
+describe('the answer, before the detail', () => {
+  /** The same report, with the scenarios agreeing on the sign of the result. */
+  function agreeingReport(over: Partial<FleetTrialReport> = {}) {
+    const base = buildReport(over);
+    return buildReport({
+      ...over,
+      phases: base.phases.map((p) => ({
+        ...p,
+        scenarioAgreement: { ...p.scenarioAgreement, positive: 2, count: 2 },
+      })),
+    });
+  }
+
+  it('leads with one unambiguous sentence about whether the controller helped', () => {
+    render(<SimulatorConsole initialReport={agreeingReport()} />);
+    expect(screen.getByText('The controller helped.')).toBeTruthy();
+  });
+
+  it('refuses to claim a direction the scenarios split evenly on', () => {
+    // The stock fixture is 1 of 2 scenarios positive. A mean with the
+    // scenarios either side of zero is not a small effect, it is no measured
+    // effect - the same rule the policy sweeps are already read by.
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    expect(screen.getByText('This trial did not measure an effect.')).toBeTruthy();
+  });
+
+  it('takes that sentence off passenger time even when excess wait disagrees', () => {
+    // The measured trap this page exists to prevent: excess wait improves
+    // while the whole journey gets worse, because the hold is paid for by
+    // everyone already aboard.
+    const costly = buildReport({
+      phases: buildReport().phases.map((p) => ({
+        ...p,
+        contrast: {
+          ...p.contrast,
+          ewtImprovementPercent: 46,
+          passengerSecondsSaved: -5_000,
+          passengerSecondsSavedPercent: -12,
+        },
+        scenarioAgreement: { ...p.scenarioAgreement, positive: 0, count: 2 },
+      })),
+    });
+    render(<SimulatorConsole initialReport={costly} />);
+    expect(screen.getByText('The controller cost more than it saved.')).toBeTruthy();
+    // And the excess-wait figure is still shown, not suppressed for disagreeing.
+    expect(screen.getAllByText(/\+46\.0%/).length).toBeGreaterThan(0);
+  });
+
+  it('puts the scenario count ON the headline, not in a paragraph elsewhere', () => {
+    render(<SimulatorConsole initialReport={agreeingReport()} />);
+    const answer = screen.getByText('The controller helped.').closest('section')!;
+    // The qualification a reader needs to size the number is inside the same
+    // panel as the number, not a banner they have to correlate by hand.
+    expect(answer.textContent).toMatch(/averaged over\s*1 of 2\s*scenarios/i);
+    expect(answer.textContent).toMatch(/controllable band|disturbed|Barely disturbed/i);
+    expect(answer.textContent).toMatch(/timetable/i);
+    expect(answer.textContent).toMatch(/invented/i);
+  });
+
+  it('opens with the detail collapsed, so the answer is what arrives first', () => {
+    const { container } = render(<SimulatorConsole initialReport={buildReport()} />);
+    const sections = container.querySelectorAll('details');
+    expect(sections.length).toBeGreaterThan(0);
+    // Not one of them is open. A page that ships a disclosure defaulted open
+    // has simply moved the wall of text behind a chevron.
+    expect([...sections].filter((d) => (d as HTMLDetailsElement).open)).toHaveLength(0);
+  });
+
+  it('keeps every caveat reachable — nothing is deleted to make the page calm', () => {
+    const { container } = render(<SimulatorConsole initialReport={buildReport()} />);
+    const everything = container.textContent ?? '';
+    // Each of these was a banner or a paragraph on the old page, and each was
+    // written to stop a specific misreading that has already happened once.
+    expect(everything).toMatch(/the CORRIDOR and the TRAFFIC are a model/i);
+    expect(everything).toMatch(/hard safety filter/i);
+    expect(everything).toMatch(/law coverage/i);
+    expect(everything).toMatch(/A higher detected count under control is not a failure/i);
+    expect(everything).toMatch(/rises if spacing was bought by stranding people/i);
+    expect(everything).toMatch(/What this trial does not test|does not cover/i);
+    expect(everything).toMatch(/the command lifecycle/i);
+  });
+
+  it('still shows the whole scenario library, including any the headline leaves out', () => {
+    const { container } = render(<SimulatorConsole initialReport={buildReport()} />);
+    const text = container.textContent ?? '';
+    expect(text).toMatch(/More passengers than seats/);
+    expect(text).toMatch(/Steady variability/i);
+  });
+});
+
 describe('the headline on the console', () => {
   it('says which scenarios it averaged, and what the full set says instead', () => {
     render(<SimulatorConsole initialReport={buildReport()} />);
 
-    const heading = screen.getByText(/average 1 of 2 scenarios/i);
-    const notice = heading.closest('[role="status"], [role="alert"], div')!;
-    const said = notice.textContent ?? '';
+    // The scope is a qualification ON the headline rather than a banner beside
+    // it, so the count is split across elements — match on the rendered text of
+    // the list item that carries it.
+    const line = screen
+      .getAllByRole('listitem')
+      .find((item) => /averaged over\s*1 of 2\s*scenarios/i.test(item.textContent ?? ''))!;
+    expect(line).toBeDefined();
+    const said = line.textContent ?? '';
     // The excluded scenario is NAMED, with the measured share that excluded
     // it, so a reader can check the call rather than take it.
     expect(said).toMatch(/More passengers than seats/);
@@ -364,6 +490,24 @@ describe('the simulator console while a trial is running', () => {
     await flush();
 
     expect(screen.getByText(/running — \d+s so far/i)).toBeTruthy();
+  });
+
+  it('keeps the progress ABOVE the report, where the operator is already looking', async () => {
+    // The brief that reordered this page moved almost everything down or
+    // behind a disclosure. What became of the run the operator just started is
+    // the one thing that may not move: a progress notice below a full report
+    // reads as though the report were the answer to it.
+    stubFetch({ trial: neverSettles });
+    const { container } = render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    const status = screen.getByText(/running — \d+s so far/i);
+    const answer = screen.getByText(/did not measure an effect|controller helped|cost more/i);
+    expect(status.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // And it is never behind a disclosure.
+    expect(status.closest('details')).toBeNull();
+    expect(container.querySelector('details')).not.toBeNull();
   });
 
   it('reports the stage and the run count the trial actually sent', async () => {
@@ -496,9 +640,7 @@ describe('the four ways a run ends without a report', () => {
     fireEvent.click(screen.getByRole('button', { name: /run again/i }));
     await flush();
 
-    expect(
-      screen.getByText(/the simulator service could not be reached/i),
-    ).toBeTruthy();
+    expect(screen.getByText(/the simulator service could not be reached/i)).toBeTruthy();
   });
 
   it('does NOT say the service was unreachable when the console merely gave up waiting', async () => {
@@ -540,9 +682,7 @@ describe('the four ways a run ends without a report', () => {
     fireEvent.click(screen.getByRole('button', { name: /run again/i }));
     await flush();
 
-    expect(
-      screen.getAllByText(/stopped calling the simulator service/i).length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByText(/stopped calling the simulator service/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/failing repeatedly/i)).toBeTruthy();
     // And it does NOT claim this attempt failed to reach anything.
     expect(screen.queryByText(/the simulator service could not be reached/i)).toBeNull();

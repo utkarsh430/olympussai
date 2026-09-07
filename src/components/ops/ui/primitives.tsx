@@ -183,6 +183,104 @@ export function OpsGrid({
   );
 }
 
+/**
+ * An `OpsPanel` whose body is closed until a reader asks for it.
+ *
+ * ─── WHAT THIS IS FOR, AND WHAT IT IS NOT FOR ────────────────────────────
+ *
+ * Ordering a page is not the same as shortening it. This exists so a surface
+ * can carry detail a reader needs SOMETIMES without spending the first
+ * screen on it — the per-scenario tables, the policy sweeps, the guardrail
+ * counts. It is not a place to put a caveat. A qualification on a number a
+ * reader is acting on has to be visible beside that number; only the
+ * REASONING behind it belongs in here.
+ *
+ * ─── WHY <details> AND NOT A useState TOGGLE ─────────────────────────────
+ *
+ * This module is server-component safe on purpose — no `'use client'`, no
+ * hooks — because most ops dashboards render on the server and
+ * `pnpm check:client-boundary` enforces it. A disclosure built on state
+ * would drag every page that used one into the client bundle to save a
+ * click.
+ *
+ * The native element also arrives with things a hand-rolled toggle has to
+ * remember and usually does not: keyboard operation, the expanded state in
+ * the accessibility tree, and find-in-page opening a closed section to
+ * reveal its match. That last one matters more than it sounds on a console
+ * whose whole point is that nothing was deleted — a reader who searches for
+ * a number still finds it.
+ *
+ * ─── THE SUMMARY SAYS HOW MUCH IS INSIDE ─────────────────────────────────
+ *
+ * `count` is not decoration. A reader deciding whether to open something is
+ * deciding how much of their attention it will cost, and a summary that
+ * hides the size of what it hides just moves the surprise one click later.
+ */
+export function OpsDisclosure({
+  title,
+  description,
+  count,
+  defaultOpen = false,
+  className,
+  bodyClassName,
+  children,
+}: {
+  title: ReactNode;
+  /** What is inside, in a line. Shown whether the section is open or closed. */
+  description?: ReactNode;
+  /** How much is inside — a row count, a scenario count. Shown in the summary. */
+  count?: ReactNode;
+  defaultOpen?: boolean;
+  className?: string;
+  bodyClassName?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <details className={cn('ops-panel group', className)} open={defaultOpen}>
+      <summary
+        className={cn(
+          'flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 px-4 py-3',
+          'hover:bg-accent/40 group-open:border-b group-open:border-border',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+          '[&::-webkit-details-marker]:hidden',
+        )}
+      >
+        <div className="min-w-0">
+          <span className="ops-label">{title}</span>
+          {count === undefined ? null : (
+            <span className="ml-2 text-[11px] tabular-nums text-subtle">{count}</span>
+          )}
+          {description ? (
+            <p className="mt-1 max-w-prose text-xs leading-relaxed text-subtle">{description}</p>
+          ) : null}
+        </div>
+        {/* The word, not only the chevron. "Show"/"Hide" survives a
+            high-contrast mode that drops the glyph, and reads correctly to a
+            screen reader that has already announced the expanded state. */}
+        <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+          <span className="group-open:hidden">Show</span>
+          <span className="hidden group-open:inline">Hide</span>
+          <svg
+            aria-hidden
+            viewBox="0 0 12 12"
+            className="h-3 w-3 transition-transform duration-150 group-open:rotate-180"
+          >
+            <path
+              d="M2.5 4.5 6 8l3.5-3.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      </summary>
+      <div className={cn('p-4', bodyClassName)}>{children}</div>
+    </details>
+  );
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
    THE HONEST-DATA VOCABULARY
 

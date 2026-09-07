@@ -610,6 +610,19 @@ currently fail on, and CI pins 20.x. Do not read a Node 26 pass as evidence
 they are fine, and do not "fix" them by raising the timeout without first
 asking why a unit test needs seven seconds.
 
+A SECOND trio in the same package fails on 20.x for an unrelated reason, and
+the two are easy to confuse because they land in the same `test/fleetTrial/`
+run. `test/fleetTrial/route.test.ts` (both cases) and
+`test/fleetTrial/runner.test.ts` ("the real worker") fail with `TypeError:
+Unknown file extension ".ts" for src/fleetTrial/worker.ts` — the tsx loader is
+not inherited by `new Worker()` on 20.20.2, so `POST /v1/fleet-trial` answers
+500 and the `GET /latest` case then 404s. Nothing about it is wall-clock, and
+raising a timeout will not touch it. Node 24 runs all 107 files green.
+
+So `pnpm --dir control-service test` on 20.x is SIX reds from two unrelated
+causes, and neither is your change. Establish which by re-running the base on
+the same Node before believing either.
+
 Two rules follow. Run on 20.x, because that is what CI runs. And when checking
 whether a failure is YOURS, re-run the base on THE SAME Node: a base checkout
 on a different runtime is not a control, it is the same confound twice. That
@@ -663,6 +676,49 @@ opposite sign from the fleet trial's `passengerSecondsSavedPercent`. And
 was zero, which is right for that field and a silent selection in a roll-up: it
 drops exactly the corridors that had least to fix. Aggregate with a ratio of the
 group means (`report.ts#buildHeadlineScope`), never by averaging it.
+
+## The simulator page answers before it explains
+
+`/ops/control-room/simulator` rendered 1,055 blocks of visible text on a
+completed 1,000-bus trial with everything expanded at once, and the captain
+could not read it. The fix was ORDER and DISCLOSURE, never deletion — the
+default view is now 87 blocks and every one of those 1,055 is still reachable.
+Four rules hold it there, and each is load-bearing:
+
+- **The answer is one sentence, and it comes off net TOTAL PASSENGER TIME**
+  (`lib/ops/fleetTrialView.ts#trialVerdict`), never off excess wait. Excess
+  wait counts only the people at stops, and this trial has already found a
+  configuration that improved it 46% while making the whole journey 12% worse.
+  Both figures are always shown; only the WORD is decided on one of them.
+- **Two tests must pass before the page will claim a direction**, because each
+  catches a different lie. Scenario agreement catches a large mean carried by
+  one scenario. `NET_PASSENGER_TIME_NOISE_PCT` (0.5) catches a figure too small
+  to have been resolved — measured, inter-city at 1,000 buses/phase reads +0.1%
+  with 21 of 38 scenarios agreeing, which passed the agreement test alone and
+  had the page saying "the controller helped" about a corridor this file
+  records as zero to within +/- 0.5. Urban's +3.8% clears both.
+- **A qualification goes ON the number it qualifies, never in a banner beside
+  it.** Controllability, saturation scope, timetable fit, what is invented and
+  whose run this is were five stacked alerts a reader had to correlate with a
+  figure further down by hand; they are now one list under the figure, each
+  opening to the prose it used to carry. Several of those paragraphs exist to
+  stop a specific misreading that has already happened once — move one, shorten
+  one, put one behind a disclosure, but do not delete one to make the page look
+  calmer.
+- **`OpsDisclosure` is for detail, not for caveats**, and it is built on
+  `<details>` so `components/ops/ui/primitives.tsx` stays hook-free and
+  server-component safe (`pnpm check:client-boundary`). Find-in-page opens a
+  closed section, which is what keeps "nothing was deleted" true for a reader
+  who searches rather than clicks. Nothing that reports the state of a RUN goes
+  inside one: `TrialRunStatus` stays above the report and outside every
+  disclosure, and there is a test pinning that.
+
+Read the page the way an operator does with
+`scripts/serve-simulator-preview.mjs` — it mounts the real console over an
+offline `sim:fleet` report on a scratch port, needs no auth and no control
+service, and has a light/dark switch. That matters here: the trial is served
+from ONE module-level variable on the control service, so pointing a review at
+the captain's :8080 would overwrite the report they are looking at.
 
 ## Maintaining this file
 
