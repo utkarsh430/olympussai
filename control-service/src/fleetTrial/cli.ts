@@ -256,7 +256,13 @@ function main(): void {
     },
     flags.quiet
       ? undefined
-      : (done, total, label) => process.stderr.write(`  ${done}/${total}  ${label}\n`),
+      : ({ done, total, label }) =>
+          // Padded so the count stays in one column as it grows - the total is
+          // in the hundreds on a full run, not the dozens the old
+          // phases-only count reported.
+          process.stderr.write(
+            `  ${String(done).padStart(String(total).length)}/${total}  ${label}\n`,
+          ),
   );
 
   process.stdout.write(renderReport(report));

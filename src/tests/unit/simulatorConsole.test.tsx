@@ -15,8 +15,8 @@
 //
 // The charts are mocked: they are SVG geometry with their own concerns, and
 // none of the rules here is about them.
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 
 vi.mock('@/components/ops/control-room/simulator/TrialCharts', () => ({
   MareyComparison: () => <div data-testid="marey" />,
@@ -306,5 +306,292 @@ describe('whose report the console is showing', () => {
   it('offers to run one rather than showing a foreign result, when the service has none', () => {
     render(<SimulatorConsole initialReport={null} />);
     expect(screen.getByText(/no trial has been run yet/i)).toBeTruthy();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// WHAT THE PAGE SAYS WHILE A TRIAL RUNS, AND WHAT IT SAYS WHEN ONE DOES NOT
+// ─────────────────────────────────────────────────────────────────────────
+//
+// A trial on the 400 km inter-city corridor at 1,000 buses takes about 30
+// seconds, MEASURED. For all of that time this console changed the button's
+// label and did nothing else - no stage, no count, no sign of life - which is
+// long enough that a reasonable person concludes the page has hung and either
+// clicks again or reloads and loses the run.
+//
+// The reducer's own tests (`fleetTrialRun.test.ts`) pin the transitions. These
+// pin what an operator actually SEES, and in particular that the four ways a
+// run can end read as four different things.
+
+const flush = async () => {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
+
+/** A fetch stub that answers the trial POST and the progress poll separately. */
+function stubFetch(handlers: {
+  trial?: () => Promise<Partial<Response>> | Partial<Response>;
+  progress?: () => Promise<Partial<Response>> | Partial<Response>;
+}) {
+  const trialCalls: unknown[] = [];
+  const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes('/progress')) {
+      return (await handlers.progress?.()) ?? { ok: true, json: async () => ({ running: false }) };
+    }
+    trialCalls.push(init);
+    if (!handlers.trial) return { ok: true, json: async () => buildReport() };
+    return await handlers.trial();
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return { fetchMock, trialCalls };
+}
+
+/** A POST that never settles, so the console stays in its running state. */
+const neverSettles = () => new Promise<Partial<Response>>(() => {});
+
+describe('the simulator console while a trial is running', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('says it is running, and how long it has been running', async () => {
+    stubFetch({ trial: neverSettles });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    expect(screen.getByText(/running — \d+s so far/i)).toBeTruthy();
+  });
+
+  it('reports the stage and the run count the trial actually sent', async () => {
+    stubFetch({
+      trial: neverSettles,
+      progress: () => ({
+        ok: true,
+        json: async () => ({
+          running: true,
+          runId: 'r1',
+          done: 142,
+          total: 437,
+          stage: 'policy_study',
+          label: 'How late a bus may be pushed - 12 min, seed 2',
+          startedAtMs: Date.now(),
+        }),
+      }),
+    });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    expect(screen.getByText(/How late a bus may be pushed/)).toBeTruthy();
+    // A COUNT and its denominator, never a percentage - see OpsCoverage.
+    expect(screen.getByText(/142 of 437/)).toBeTruthy();
+    expect(screen.queryByText(/32%/)).toBeNull();
+  });
+
+  it('does not claim a run count before the trial has finished a run', async () => {
+    // "0 of 0" would be a denominator nobody measured.
+    stubFetch({ trial: neverSettles });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    expect(screen.getByText(/has not finished its first run yet/i)).toBeTruthy();
+    expect(screen.queryByText(/ of 0/)).toBeNull();
+  });
+
+  it('keeps showing the previous report while the next run is in flight', async () => {
+    // No flash of empty: the reader keeps what they had until there is
+    // something to replace it with.
+    stubFetch({ trial: neverSettles });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    expect(screen.getByText(/24 km city trunk · 60 buses per phase · run/i)).toBeTruthy();
+  });
+
+  it('survives a progress poll that fails, because a failed poll is not a failed trial', async () => {
+    stubFetch({
+      trial: neverSettles,
+      progress: () => Promise.reject(new Error('poll died')),
+    });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    expect(screen.getByText(/running —/i)).toBeTruthy();
+    expect(screen.queryByText(/could not be reached/i)).toBeNull();
+  });
+});
+
+describe('the simulator console and the double click', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('starts exactly one trial however many times Run is pressed', async () => {
+    // The reported behaviour, at the surface it happens on.
+    const { trialCalls } = stubFetch({ trial: neverSettles });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    const button = screen.getByRole('button', { name: /run again/i });
+    fireEvent.click(button);
+    await flush();
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await flush();
+
+    expect(trialCalls).toHaveLength(1);
+  });
+
+  it('disables the button while a run is in flight', async () => {
+    stubFetch({ trial: neverSettles });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    expect(screen.getByRole('button', { name: /running/i })).toBeDisabled();
+  });
+});
+
+describe('the four ways a run ends without a report', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const failWith = (status: number, code: string, message: string) => () => ({
+    ok: false,
+    status,
+    json: async () => ({ error: { code, message } }),
+  });
+
+  it('says the trial failed, and that the previous result is still the previous result', async () => {
+    stubFetch({
+      trial: failWith(500, 'TRIAL_FAILED', 'The trial did not finish: the corridor came apart'),
+    });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    expect(screen.getByText(/the corridor came apart/i)).toBeTruthy();
+    expect(screen.getByText(/still the one that was there before/i)).toBeTruthy();
+    // And the report itself is untouched.
+    expect(screen.getByText(/24 km city trunk · 60 buses per phase · run/i)).toBeTruthy();
+  });
+
+  it('says the service could not be reached when it genuinely could not', async () => {
+    // The captain hit this banner: the control service was restarting mid-run.
+    // It is correctly loud, and it must keep being loud.
+    stubFetch({
+      trial: failWith(
+        503,
+        'CONTROL_SERVICE_UNAVAILABLE',
+        'The simulator service is temporarily unreachable; no trial can be run right now.',
+      ),
+    });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    expect(
+      screen.getByText(/the simulator service could not be reached/i),
+    ).toBeTruthy();
+  });
+
+  it('does NOT say the service was unreachable when the console merely gave up waiting', async () => {
+    // THE regression this pair exists for. A trial that outran its own budget
+    // was reported as an unreachable service - a statement about a service
+    // that was healthy, answering, and had finished the run - and it sent a
+    // supervisor to look at the wrong machine.
+    stubFetch({
+      trial: failWith(
+        504,
+        'CONTROL_SERVICE_TIMEOUT',
+        'The console stopped waiting for this trial.',
+      ),
+    });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    // The title names it as this console's own deadline, not the service's.
+    expect(
+      screen.getByText(/the console stopped waiting — the trial probably has not/i),
+    ).toBeTruthy();
+    expect(screen.queryByText(/could not be reached/i)).toBeNull();
+  });
+
+  it('says the console has STOPPED CALLING when the breaker is open, not that it could not reach', async () => {
+    // The third message. "Unreachable" tells an operator to go and look at the
+    // service; this one tells them the service has genuinely been failing and
+    // that retrying is pointless until the cooldown elapses. They were the
+    // same sentence.
+    stubFetch({
+      trial: failWith(
+        503,
+        'CONTROL_SERVICE_CIRCUIT_OPEN',
+        'The console has stopped calling the simulator service after 3 failures in a row, and will keep refusing for about 24 more seconds.',
+      ),
+    });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    expect(
+      screen.getAllByText(/stopped calling the simulator service/i).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText(/failing repeatedly/i)).toBeTruthy();
+    // And it does NOT claim this attempt failed to reach anything.
+    expect(screen.queryByText(/the simulator service could not be reached/i)).toBeNull();
+  });
+
+  it('says a trial is already running, rather than reporting a failure', async () => {
+    // Two tabs, or a reload mid-run. Nothing is wrong.
+    stubFetch({
+      trial: failWith(409, 'TRIAL_ALREADY_RUNNING', 'A trial is already running.'),
+    });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    expect(screen.getAllByText(/a trial is already running/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/nothing was started twice/i)).toBeTruthy();
+  });
+
+  it('ends a run whose service vanished, rather than spinning forever', async () => {
+    // fetch itself rejects - the service went away mid-request.
+    stubFetch({ trial: () => Promise.reject(new Error('socket hang up')) });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    expect(screen.getAllByText(/could not be reached/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /run again/i })).not.toBeDisabled();
+  });
+});
+
+describe('the simulator console when a run finishes', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('replaces the progress with the result, with no empty state in between', async () => {
+    stubFetch({
+      trial: () => ({
+        ok: true,
+        json: async () => buildReport({ generatedAt: '2026-09-07T09:00:00.000Z' }),
+      }),
+    });
+    render(<SimulatorConsole initialReport={buildReport()} />);
+    fireEvent.click(screen.getByRole('button', { name: /run again/i }));
+    await flush();
+
+    expect(screen.queryByText(/running —/i)).toBeNull();
+    expect(screen.queryByText(/no trial has been run yet/i)).toBeNull();
+    // And it is now the reader's OWN run, not a stored one.
+    expect(screen.getByText(/your run/i)).toBeTruthy();
   });
 });

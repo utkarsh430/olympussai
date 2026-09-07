@@ -9,6 +9,8 @@ import {
   ControlServiceConfigError,
   ControlServiceRequestError,
   ControlServiceUnavailableError,
+  ControlServiceTimeoutError,
+  ControlServiceCircuitOpenError,
   _resetControlServiceCircuitForTests,
 } from '@/lib/controlService/client';
 import { _setRedisClientForTests } from '@/lib/redis/client';
@@ -378,5 +380,190 @@ describe('fetchControlService circuit breaker — redis backend', () => {
     expect(failing).toHaveBeenCalledTimes(3);
 
     vi.restoreAllMocks();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// OUR OWN DEADLINE IS NOT THE SERVICE'S FAILURE
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Every timeout in this client used to be reported as `ControlServiceUnavailableError` -
+// the same class as a refused connection or a DNS failure - and the ops
+// consoles render that as "the control service is temporarily unreachable".
+//
+// For a poll on an 8-second budget that is fair: nothing answered in a time a
+// live read had any business taking. For the fleet trial it was false and
+// expensively so. MEASURED, the inter-city preset at 1,000 buses per phase
+// takes about 32 seconds against what was a 30-second budget, so the console
+// timed out its own deliberate computation, told the operator the simulator
+// service could not be reached, and sent a supervisor to look at a service
+// that was healthy, answering, and had in fact finished the trial and cached
+// the result. Two failures, two different fixes, one message.
+describe('fetchControlService — a deadline this client set is not an outage', () => {
+  beforeEach(async () => {
+    _setRedisClientForTests(null);
+    await resetBreaker();
+    process.env.CONTROL_SERVICE_BASE_URL = 'https://control.example.test';
+    process.env.CONTROL_SERVICE_SERVICE_TOKEN = 'test-token';
+  });
+
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    await resetBreaker();
+    _setRedisClientForTests(undefined);
+    for (const key of ENV_KEYS) delete process.env[key];
+  });
+
+  const abort = () => {
+    const error = new Error('This operation was aborted');
+    error.name = 'AbortError';
+    return vi.fn().mockRejectedValue(error);
+  };
+
+  it('reports a timeout as a timeout, distinctly from an unreachable service', async () => {
+    vi.stubGlobal('fetch', abort());
+    await expect(fetchControlService('/v1/fleet-trial')).rejects.toBeInstanceOf(
+      ControlServiceTimeoutError,
+    );
+  });
+
+  it('still reports a refused connection as unreachable', async () => {
+    // The distinction is only worth having if the other side of it survives.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+    const error = await fetchControlService('/v1/alerts').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ControlServiceUnavailableError);
+    expect(error).not.toBeInstanceOf(ControlServiceTimeoutError);
+  });
+
+  it('counts an ordinary timeout toward the breaker, because a poll that slow IS an outage', async () => {
+    vi.stubGlobal('fetch', abort());
+    for (let i = 0; i < 3; i++) {
+      await fetchControlService('/v1/alerts').catch(() => {});
+    }
+    // Fourth call is refused by the open circuit without reaching fetch.
+    await expect(fetchControlService('/v1/alerts')).rejects.toBeInstanceOf(
+      ControlServiceUnavailableError,
+    );
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(3);
+  });
+
+  it('does NOT let a long computation own deadline trip the breaker for everything else', async () => {
+    // The breaker is SHARED by every control-service consumer in this process
+    // and trips at three. Three fleet trials - a thing an operator does on
+    // purpose, one after another - would otherwise take the alert inbox, the
+    // command path and every ops dashboard dark for thirty seconds, over a
+    // service that never missed a beat. A deadline this client chose for one
+    // deliberately slow call is evidence about the deadline, not the service.
+    vi.stubGlobal('fetch', abort());
+    for (let i = 0; i < 5; i++) {
+      await fetchControlService('/v1/fleet-trial', {
+        timeoutMs: 1,
+        deadlineIsOurs: true,
+      }).catch(() => {});
+    }
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(5);
+
+    // And an unrelated read still goes through, rather than meeting an open circuit.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ alerts: [] }) }),
+    );
+    await expect(fetchControlService('/v1/alerts')).resolves.toEqual({ alerts: [] });
+  });
+
+  it('still counts a REFUSED CONNECTION on that same call, because nothing answered', async () => {
+    // `deadlineIsOurs` excuses our own clock, never the service's silence.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+    for (let i = 0; i < 3; i++) {
+      await fetchControlService('/v1/fleet-trial', { deadlineIsOurs: true }).catch(() => {});
+    }
+    await expect(
+      fetchControlService('/v1/fleet-trial', { deadlineIsOurs: true }),
+    ).rejects.toBeInstanceOf(ControlServiceUnavailableError);
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(3);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// THREE FAILURES, THREE MESSAGES
+// ─────────────────────────────────────────────────────────────────────────
+//
+// This client's own doc comments described `ControlServiceUnavailableError` as
+// meaning "unreachable, timed out, or circuit open" - three conditions with
+// three different fixes, collapsed into one class and therefore into one
+// sentence on every ops console. Somebody reading "the control service is
+// temporarily unreachable" cannot tell whether to go and look at the service
+// (it is down), wait a moment (this request ran out of ITS OWN time, and the
+// service is fine), or stop retrying and escalate (this process has stopped
+// calling because the service has genuinely been failing).
+//
+// They stay one family - every one of these still IS unavailability, and every
+// existing caller catching the base class keeps degrading exactly as it did -
+// but each is now nameable by a caller that has something better to say.
+describe('fetchControlService — the circuit being open is its own answer', () => {
+  beforeEach(async () => {
+    _setRedisClientForTests(null);
+    await resetBreaker();
+    process.env.CONTROL_SERVICE_BASE_URL = 'https://control.example.test';
+    process.env.CONTROL_SERVICE_SERVICE_TOKEN = 'test-token';
+  });
+
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    await resetBreaker();
+    _setRedisClientForTests(undefined);
+    for (const key of ENV_KEYS) delete process.env[key];
+  });
+
+  /** Trip the breaker the honest way: three genuine connection failures. */
+  async function tripBreaker() {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+    for (let i = 0; i < 3; i++) {
+      await fetchControlService('/v1/alerts').catch(() => {});
+    }
+  }
+
+  it('reports an open circuit distinctly from a service that simply did not answer', async () => {
+    await tripBreaker();
+    const refused = await fetchControlService('/v1/alerts').catch((e: unknown) => e);
+    expect(refused).toBeInstanceOf(ControlServiceCircuitOpenError);
+  });
+
+  it('is still an unavailability, so every existing caller keeps degrading', async () => {
+    // The three are a FAMILY. Narrowing them must not turn a failure some
+    // console already handles into one it does not.
+    await tripBreaker();
+    const refused = await fetchControlService('/v1/alerts').catch((e: unknown) => e);
+    expect(refused).toBeInstanceOf(ControlServiceUnavailableError);
+  });
+
+  it('is not confused with a timeout, which is the opposite diagnosis', async () => {
+    await tripBreaker();
+    const refused = await fetchControlService('/v1/alerts').catch((e: unknown) => e);
+    expect(refused).not.toBeInstanceOf(ControlServiceTimeoutError);
+  });
+
+  it('says how long it will keep refusing, and on what evidence', async () => {
+    // What distinguishes this from the other two operationally: it is not
+    // about one request, it is this process having stopped trying, and the
+    // operator needs to know for how long and why.
+    await tripBreaker();
+    const refused = (await fetchControlService('/v1/alerts').catch(
+      (e: unknown) => e,
+    )) as Error;
+    expect(refused.message).toMatch(/circuit open/i);
+    expect(refused.message).toMatch(/consecutive failures/i);
+  });
+
+  it('still refuses a call marked deadlineIsOurs, because the circuit is not about our clock', async () => {
+    // `deadlineIsOurs` exempts a call's own timeout from COUNTING toward the
+    // breaker. It does not exempt it from OBEYING one that is already open:
+    // the service has genuinely been failing, and a thirty-second trial is the
+    // last thing to send at it.
+    await tripBreaker();
+    const refused = await fetchControlService('/v1/fleet-trial', {
+      deadlineIsOurs: true,
+    }).catch((e: unknown) => e);
+    expect(refused).toBeInstanceOf(ControlServiceCircuitOpenError);
   });
 });
