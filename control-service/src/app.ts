@@ -14,7 +14,9 @@ import { settingsRouter } from './routes/settings.js';
 import { positionsRouter } from './routes/positions.js';
 import { rehearsalRouter } from './routes/rehearsal.js';
 import { fleetTrialRouter } from './routes/fleetTrial.js';
+import { recommendationsRouter } from './routes/recommendations.js';
 import { requireServiceToken } from './auth/serviceToken.js';
+import { loadEnv } from './config/env.js';
 import { errorHandler } from './lib/errors.js';
 import { logger } from './lib/logger.js';
 
@@ -64,6 +66,17 @@ export function createApp(): Express {
   // then some: it does not even read the database - the corridor it runs on is
   // built by arithmetic. See routes/fleetTrial.ts.
   app.use(fleetTrialRouter);
+
+  // The standing-proposal feed: the decision cycle's stored recommendations,
+  // read back. Behind RECOMMENDATION_FEED_ENABLED and OFF by default, and off
+  // is a TRUE no-op - the router is not mounted at all, so the path 404s
+  // through the handler below exactly as it did before this existed and no
+  // query is ever issued. Read-only like the rehearsal and trial endpoints
+  // above: it runs no control law and cannot reach a `commands` row. See
+  // routes/recommendations.ts.
+  if (loadEnv().RECOMMENDATION_FEED_ENABLED) {
+    app.use(recommendationsRouter);
+  }
 
   app.use((req, res) => {
     res.status(404).json({ error: { code: 'not_found', message: `No route for ${req.method} ${req.path}` } });

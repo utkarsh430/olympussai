@@ -6,6 +6,17 @@
 // links - so a downstream headway/bunching computation can never
 // mistakenly treat a low-confidence position as a trustworthy anchor for
 // an adjacent vehicle's headway (AC: "flagged, not silently trusted").
+//
+// A vehicle whose POSITION has been rejected by
+// `positionPlausibility.ts` is excluded on the same terms and for the same
+// reason, one step further along: a low-confidence match means "we are not
+// sure this vehicle is on this route-direction", an implausible position
+// means "we are sure this fix is not where the vehicle is". Both are
+// answers nobody should anchor a neighbour's headway on. The exclusion also
+// removes the vehicle from `headway/metrics.ts#corridorPaceKmph`, which
+// skips rank -1 already - and that second effect is the larger one, because
+// the pace median is the quantity every HONEST pair on the corridor is
+// measured against.
 
 import type {
   CorridorOrderedVehicle,
@@ -13,6 +24,16 @@ import type {
   OrderedVehicle,
   VehicleOrderingInput,
 } from "./types.js";
+
+/**
+ * A vehicle whose reported position may not rank the chain: either nobody
+ * vouches for the map match, or the fix itself has been rejected as
+ * implausible. `isImplausiblePosition` is optional and absent means false,
+ * so a caller that has not been given the correction ranks exactly as before.
+ */
+function isExcluded(vehicle: VehicleOrderingInput): boolean {
+  return vehicle.isLowConfidence || vehicle.isImplausiblePosition === true;
+}
 
 export interface RouteDirectionOrderingConfig {
   isLoop: boolean;
@@ -23,8 +44,8 @@ export function computeLeaderFollowerOrder(
   vehicles: readonly VehicleOrderingInput[],
   routeDirection: RouteDirectionOrderingConfig
 ): OrderedVehicle[] {
-  const eligible = vehicles.filter((v) => !v.isLowConfidence);
-  const flagged = vehicles.filter((v) => v.isLowConfidence);
+  const eligible = vehicles.filter((v) => !isExcluded(v));
+  const flagged = vehicles.filter((v) => isExcluded(v));
 
   // Furthest along the route first: rank 0 is the leader-most vehicle.
   const sorted = [...eligible].sort(
@@ -70,8 +91,8 @@ export function computeLeaderFollowerOrder(
 export function computeCorridorOrder(
   vehicles: readonly CorridorVehicleInput[]
 ): CorridorOrderedVehicle[] {
-  const usable = vehicles.filter((v) => !v.isLowConfidence && v.corridorOffsetMeters != null);
-  const excludedInput = vehicles.filter((v) => v.isLowConfidence || v.corridorOffsetMeters == null);
+  const usable = vehicles.filter((v) => !isExcluded(v) && v.corridorOffsetMeters != null);
+  const excludedInput = vehicles.filter((v) => isExcluded(v) || v.corridorOffsetMeters == null);
 
   const positioned = usable
     .map((v) => ({

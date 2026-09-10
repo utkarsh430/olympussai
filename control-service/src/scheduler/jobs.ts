@@ -7,6 +7,7 @@
 //
 //   commandDeliverySweep  COMMAND_DELIVERY_SWEEP_INTERVAL_MS  15 s
 //   commandTtlSweep       COMMAND_TTL_SWEEP_INTERVAL_MS       30 s
+//   commandCompletionSweep COMMAND_TTL_SWEEP_INTERVAL_MS      30 s   (opt-in)
 //   gpsPoll               GPS_POLL_INTERVAL_MS                30 s   (opt-in)
 //   headwayCompute        HEADWAY_COMPUTE_INTERVAL_MS         60 s
 //   decisionCycle         DECISION_CYCLE_INTERVAL_MS          90 s   (opt-out)
@@ -23,7 +24,7 @@
 // first run and its own interval.
 
 import type { Env } from '../config/env.js';
-import { sweepExpiredCommands } from '../db/commands.js';
+import { sweepCompletedCommands, sweepExpiredCommands } from '../db/commands.js';
 import { refreshNetworkCounts } from '../db/rehydrate.js';
 import { logger } from '../lib/logger.js';
 import { getNetworkGeometryCache } from '../state-estimation/singleton.js';
@@ -98,6 +99,40 @@ export function buildJobs(env: Env): ScheduledJob[] {
       },
     },
   ];
+
+  // Opt-in, because it is a behaviour change and not only a repair. The
+  // mirror of commandTtlSweep: that one covers every non-terminal status
+  // EXCEPT `executing`, this covers `executing` and nothing else, so the two
+  // are disjoint by construction and never contend for a row - exactly the
+  // relationship commandDeliverySweep and commandTtlSweep already have.
+  //
+  // Without it, an accepted command never leaves `executing`, which is inside
+  // `commands_one_active_per_vehicle_idx`, so its vehicle can never be given
+  // another instruction. With it, the slot is released when the ACTION
+  // finishes, and instructions the index used to refuse can be issued. That is
+  // a change to which instructions the controller may give, which is what makes
+  // it a flag - see COMMAND_COMPLETION_SWEEP_ENABLED in config/env.ts, and
+  // docs/COMMAND_COMPLETION.md for how small the measured change turned out to
+  // be (nothing at all on any preset at its design density).
+  //
+  // Shares commandTtlSweep's interval deliberately: both are backstops for
+  // rows nobody happens to touch, and a second knob whose right value is
+  // always the first one's would be a knob that only ever goes wrong.
+  if (env.COMMAND_COMPLETION_SWEEP_ENABLED) {
+    jobs.push({
+      name: 'commandCompletionSweep',
+      intervalMs: env.COMMAND_TTL_SWEEP_INTERVAL_MS,
+      run: async () => {
+        const completed = await sweepCompletedCommands();
+        if (completed.length > 0) {
+          logger.info(
+            { count: completed.length, commandIds: completed.map((c) => c.id) },
+            'completion sweep released vehicles whose command action had finished',
+          );
+        }
+      },
+    });
+  }
 
   // Unconditional, unlike retention: this deletes nothing. It ends incidents
   // whose evidence has gone cold, and an instance that skipped it would serve

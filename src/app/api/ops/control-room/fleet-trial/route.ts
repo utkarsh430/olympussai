@@ -3,12 +3,8 @@ import { NextResponse } from 'next/server';
 import { requireOpsRole } from '@/lib/auth/rbac/guard';
 import { isSameOrigin } from '@/lib/auth/origin';
 import { fleetTrialRequestSchema } from '@/models/fleetTrial';
-import { runFleetTrial, ControlServiceResponseShapeError } from '@/lib/controlService/fleetTrial';
-import {
-  ControlServiceConfigError,
-  ControlServiceRequestError,
-  ControlServiceUnavailableError,
-} from '@/lib/controlService/client';
+import { runFleetTrial } from '@/lib/controlService/fleetTrial';
+import { errorResponse, mapControlServiceError } from '@/lib/controlService/fleetTrialErrors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,34 +24,6 @@ export const dynamic = 'force-dynamic';
  * `BUS-` identifier. The role is derived from the URL segment by
  * `rolesForOpsApiPath`, and `requireOpsRole` below is the authoritative check.
  */
-
-function errorResponse(code: string, message: string, status: number) {
-  return NextResponse.json(
-    { error: { code, message } },
-    { status, headers: { 'Cache-Control': 'no-store' } },
-  );
-}
-
-function mapControlServiceError(error: unknown): NextResponse | null {
-  if (error instanceof ControlServiceConfigError) {
-    return errorResponse('NOT_CONFIGURED', 'The simulator service is not configured.', 503);
-  }
-  if (error instanceof ControlServiceUnavailableError) {
-    return errorResponse(
-      'CONTROL_SERVICE_UNAVAILABLE',
-      'The simulator service is temporarily unreachable; no trial can be run right now.',
-      503,
-    );
-  }
-  if (error instanceof ControlServiceResponseShapeError) {
-    return errorResponse('CONTROL_SERVICE_ERROR', error.message, 502);
-  }
-  if (error instanceof ControlServiceRequestError) {
-    if (error.code === 'invalid_request') return errorResponse('INVALID_BODY', error.message, 400);
-    return errorResponse('CONTROL_SERVICE_ERROR', error.message, error.status ?? 502);
-  }
-  return null;
-}
 
 export async function POST(request: NextRequest): Promise<Response> {
   if (!isSameOrigin(request)) {

@@ -779,3 +779,226 @@ describe('total passenger time on the KPI summary', () => {
     expect(held.kpis.totalPassengerSeconds!).toBeGreaterThan(plain.kpis.totalPassengerSeconds!);
   });
 });
+
+// ─── A FEED THAT IS PRESENT AND WRONG ───────────────────────────────────
+//
+// `gps_dropout` models a feed that is ABSENT, and absence is a handled
+// condition: the state goes stale and the deployed safety filter refuses to
+// command an unobserved bus by name. Nothing refuses a feed that is fresh,
+// well-formed, internally consistent and reporting a bus half a kilometre
+// from where it is, so `gps_bias` exists to produce exactly that.
+//
+// The rules pinned here are the two that make it an ESTIMATOR attack rather
+// than another way of making a bus late: it must move what the controller is
+// TOLD and it must not move the bus, and it must move the whole chain
+// coherently rather than one gap inside it.
+describe('a wrong GPS feed (gps_bias)', () => {
+  const GEOMETRIC_ROUTE: RouteDirectionDefinition = {
+    ...SAMPLE_ROUTE_DIRECTION,
+    totalDistanceMeters: 5_000,
+    stops: SAMPLE_ROUTE_DIRECTION.stops.map((stop, index) => ({
+      ...stop,
+      isControlPoint: true,
+      cumulativeDistanceMeters: index * 1_000,
+    })),
+  };
+
+  const DISPATCHES = [
+    { vehicleId: 'veh-1', scheduledDispatchSeconds: 0 },
+    { vehicleId: 'veh-2', scheduledDispatchSeconds: 300 },
+    { vehicleId: 'veh-3', scheduledDispatchSeconds: 600 },
+  ];
+
+  function run(disturbances: ScenarioConfig['disturbances'], controller = noControlController) {
+    const seen: { vehicleId: string; kinematics: ControllerKinematics | null | undefined }[] = [];
+    const spy: Controller = {
+      name: 'spy',
+      decide: (context) => {
+        seen.push({ vehicleId: context.vehicleId, kinematics: context.kinematics });
+        return controller.decide(context);
+      },
+    };
+    const result = simulate(
+      { name: 'gps-bias', routeDirection: GEOMETRIC_ROUTE, dispatches: DISPATCHES, disturbances, seed: 11 },
+      spy,
+    );
+    return { result, seen };
+  }
+
+  it('does not move the bus, only what is reported about it', () => {
+    // The whole claim of the estimator scenarios. If a bias changed a single
+    // arrival, every result they produce would be confounded with the
+    // ordinary "make a bus late" disturbances the library already has.
+    const clean = run([]).result;
+    const biased = run([
+      { type: 'gps_bias', vehicleId: 'veh-2', startSeconds: 0, endSeconds: 1e9, offsetMeters: 1_500 },
+    ]).result;
+    expect(biased.visits).toEqual(clean.visits);
+    expect(biased.kpis).toEqual(clean.kpis);
+  });
+
+  it('reports the follower somewhere it is not, by exactly the offset', () => {
+    const clean = run([]).seen;
+    const biased = run([
+      { type: 'gps_bias', vehicleId: 'veh-2', startSeconds: 0, endSeconds: 1e9, offsetMeters: 600 },
+    ]).seen;
+
+    const ownRows = (rows: typeof clean) =>
+      rows.filter((r) => r.vehicleId === 'veh-2' && r.kinematics !== null);
+    const before = ownRows(clean);
+    const after = ownRows(biased);
+    expect(before.length).toBeGreaterThan(0);
+    expect(after.length).toBe(before.length);
+    for (const [i, row] of after.entries()) {
+      const truth = before[i]!.kinematics!.follower.distanceAlongRouteMeters;
+      // Clamped to the corridor, because a fix off the end of the route is
+      // not a lie a receiver can tell.
+      expect(row.kinematics!.follower.distanceAlongRouteMeters).toBe(
+        Math.min(GEOMETRIC_ROUTE.totalDistanceMeters!, truth + 600),
+      );
+    }
+  });
+
+  it('lies to the neighbours about the biased bus too, and by the same amount', () => {
+    // A bias that moved a bus in its OWN decision but not in the chain handed
+    // to the bus behind would be internally inconsistent - the corridor would
+    // hold two positions for one vehicle, which is the one thing a real feed
+    // cannot do. It also matters for `corridorPaceKmph`, which is a median
+    // over the whole reported chain.
+    const clean = run([]).seen;
+    const biased = run([
+      { type: 'gps_bias', vehicleId: 'veh-1', startSeconds: 0, endSeconds: 1e9, offsetMeters: -900 },
+    ]).seen;
+
+    const neighbourViews = (rows: typeof clean) =>
+      rows.flatMap((r) =>
+        (r.kinematics?.corridor ?? []).filter((s) => s.vehicleId === 'veh-1' && r.vehicleId !== 'veh-1'),
+      );
+    const before = neighbourViews(clean);
+    const after = neighbourViews(biased);
+    expect(before.length).toBeGreaterThan(0);
+    expect(after.length).toBe(before.length);
+    for (const [i, state] of after.entries()) {
+      expect(state.distanceAlongRouteMeters).toBe(
+        Math.max(0, before[i]!.distanceAlongRouteMeters - 900),
+      );
+    }
+  });
+
+  it('freezes position and pace together, and leaves the timestamp fresh', () => {
+    // The attack the age-based staleness guard cannot see. A frozen fix that
+    // still reported a live speed would be self-contradictory and a
+    // plausibility check nobody has written could catch it; the point is that
+    // there is nothing to catch.
+    const { seen } = run([
+      { type: 'gps_bias', vehicleId: 'veh-2', startSeconds: 1, endSeconds: 1e9, freeze: true },
+    ]);
+    const rows = seen.filter((r) => r.vehicleId === 'veh-2' && r.kinematics !== null);
+    expect(rows.length).toBeGreaterThan(1);
+    const reported = rows.map((r) => r.kinematics!.follower);
+    for (const state of reported) {
+      expect(state.distanceAlongRouteMeters).toBe(reported[0]!.distanceAlongRouteMeters);
+      expect(state.speedKmph).toBe(reported[0]!.speedKmph);
+    }
+    // Not stale: a dropout would set this, and a frozen modem does not.
+    for (const visit of run([
+      { type: 'gps_bias', vehicleId: 'veh-2', startSeconds: 1, endSeconds: 1e9, freeze: true },
+    ]).result.visits) {
+      expect(visit.isStateStale).toBe(false);
+    }
+  });
+
+  it('grows the error with time when it drifts', () => {
+    const { seen } = run([
+      { type: 'gps_bias', vehicleId: 'veh-2', startSeconds: 0, endSeconds: 1e9, driftMetersPerSecond: 0.5 },
+    ]);
+    const clean = run([]).seen;
+    const errors: number[] = [];
+    const cleanRows = clean.filter((r) => r.vehicleId === 'veh-2' && r.kinematics !== null);
+    const biasedRows = seen.filter((r) => r.vehicleId === 'veh-2' && r.kinematics !== null);
+    for (const [i, row] of biasedRows.entries()) {
+      errors.push(
+        row.kinematics!.follower.distanceAlongRouteMeters -
+          cleanRows[i]!.kinematics!.follower.distanceAlongRouteMeters,
+      );
+    }
+    expect(errors.length).toBeGreaterThan(1);
+    // Monotonic while there is corridor left to be wrong about; the clamp
+    // flattens it once the reported position reaches the far terminal.
+    for (let i = 1; i < errors.length; i++) expect(errors[i]!).toBeGreaterThanOrEqual(errors[i - 1]!);
+    expect(errors[errors.length - 1]!).toBeGreaterThan(errors[0]!);
+  });
+});
+
+// ─── COMPLIANCE IS NOT A COIN ────────────────────────────────────────────
+describe('partial compliance (compliedHoldFraction)', () => {
+  const holdAlways: Controller = {
+    name: 'hold-always',
+    decide: () => ({ holdSeconds: 60, actionType: 'two_way_hold' }),
+  };
+
+  it('serves a share of the hold and still records the driver as having complied', () => {
+    // The property the scenario exists to expose: a compliance RATE reads
+    // high on a corridor whose holds are mostly not being served, because
+    // taking an instruction and serving it are different acts.
+    const result = simulate(
+      {
+        name: 'partial',
+        routeDirection: SAMPLE_ROUTE_DIRECTION,
+        dispatches: SAMPLE_DISPATCHES,
+        disturbances: SAMPLE_DISPATCHES.map((d) => ({
+          type: 'non_compliance' as const,
+          vehicleId: d.vehicleId,
+          complianceProbability: 1,
+          compliedHoldFraction: 0.25,
+        })),
+        seed: 5,
+      },
+      holdAlways,
+    );
+    const held = result.visits.filter((v) => v.intendedHoldSeconds > 0);
+    expect(held.length).toBeGreaterThan(0);
+    for (const visit of held) {
+      expect(visit.compliant).toBe(true);
+      expect(visit.appliedHoldSeconds).toBeCloseTo(visit.intendedHoldSeconds * 0.25, 6);
+    }
+    expect(result.kpis.complianceRate).toBe(1);
+  });
+
+  it('leaves the binary behaviour exactly as it was when no fraction is given', () => {
+    const withoutField = simulate(
+      {
+        name: 'binary',
+        routeDirection: SAMPLE_ROUTE_DIRECTION,
+        dispatches: SAMPLE_DISPATCHES,
+        disturbances: SAMPLE_DISPATCHES.map((d) => ({
+          type: 'non_compliance' as const,
+          vehicleId: d.vehicleId,
+          complianceProbability: 0.5,
+        })),
+        seed: 5,
+      },
+      holdAlways,
+    );
+    const withFullFraction = simulate(
+      {
+        name: 'binary',
+        routeDirection: SAMPLE_ROUTE_DIRECTION,
+        dispatches: SAMPLE_DISPATCHES,
+        disturbances: SAMPLE_DISPATCHES.map((d) => ({
+          type: 'non_compliance' as const,
+          vehicleId: d.vehicleId,
+          complianceProbability: 0.5,
+          compliedHoldFraction: 1,
+        })),
+        seed: 5,
+      },
+      holdAlways,
+    );
+    expect(withFullFraction.visits).toEqual(withoutField.visits);
+    // And a refusal is still a refusal: nothing served, and it is recorded.
+    const refused = withoutField.visits.filter((v) => !v.compliant);
+    expect(refused.length).toBeGreaterThan(0);
+    for (const visit of refused) expect(visit.appliedHoldSeconds).toBe(0);
+  });
+});

@@ -55,6 +55,62 @@ export class ControlServiceUnavailableError extends Error {
   }
 }
 
+/**
+ * THIS CLIENT gave up waiting - the service was not necessarily unwell.
+ *
+ * A subclass, not a sibling, and deliberately: every existing caller that
+ * catches `ControlServiceUnavailableError` keeps catching this and keeps
+ * degrading exactly as it did, so splitting the case cannot silently turn a
+ * handled failure into an unhandled one. Callers that can say something more
+ * useful - the simulator console, which knows the trial it started may still
+ * be finishing - test for this narrower type first.
+ *
+ * The distinction is not cosmetic. On a poll with an 8-second budget a timeout
+ * IS evidence the service is unwell. On the fleet trial, which takes about 32
+ * seconds by design, it was evidence of nothing but the budget: the console
+ * reported a healthy, answering service as unreachable, and the trial it had
+ * given up on completed and was cached on the other side.
+ */
+export class ControlServiceTimeoutError extends ControlServiceUnavailableError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ControlServiceTimeoutError';
+  }
+}
+
+/**
+ * THIS PROCESS has stopped calling, because the service has genuinely been
+ * failing.
+ *
+ * The third of three, and the one that was hardest to see: this client's own
+ * doc comments described `ControlServiceUnavailableError` as "unreachable,
+ * timed out, or circuit open", which is three diagnoses in one sentence. They
+ * need three, because the operator's next move differs completely:
+ *
+ *   - unreachable      the service is down or restarting. Go and look at it.
+ *   - timed out        THIS request ran out of its own time. The service may
+ *                      be perfectly healthy and still working. Wait.
+ *   - circuit open     we have stopped trying, after a measured streak of real
+ *                      failures. Retrying achieves nothing until the cooldown
+ *                      elapses; this is the one to escalate.
+ *
+ * A subclass for the same reason as the timeout: the family is still
+ * unavailability, so nothing that already degrades on the base class stops
+ * degrading.
+ */
+export class ControlServiceCircuitOpenError extends ControlServiceUnavailableError {
+  constructor(
+    message: string,
+    /** How much longer this process will keep refusing, in milliseconds. */
+    readonly openForMs: number,
+    /** The measured streak that opened it. */
+    readonly failures: number,
+  ) {
+    super(message);
+    this.name = 'ControlServiceCircuitOpenError';
+  }
+}
+
 // Circuit-breaker state. Deliberately simple (a failure streak + cooldown
 // window) per the failure-isolation shape docs/CONTROL_SERVICE_INTEGRATION.md
 // §2 describes, rather than a full library: this client only ever issues
@@ -218,6 +274,22 @@ export interface ControlServiceRequestOptions {
   /** JSON-serialized and sent as the request body. Only meaningful for `method: 'POST'` / `'PUT'`. */
   body?: unknown;
   timeoutMs?: number;
+  /**
+   * Whether the timeout above is a deadline THIS CLIENT chose for a call it
+   * knows to be slow, rather than a budget a healthy service should meet.
+   *
+   * Set it only on operator-initiated computations. Two consequences: the
+   * timeout is reported as `ControlServiceTimeoutError`, and it does NOT count
+   * toward the shared circuit breaker. That second one matters more than it
+   * looks - the breaker is shared by every control-service consumer in this
+   * process and trips at three failures, so three fleet trials in a row would
+   * otherwise take the alert inbox, the command path and every ops dashboard
+   * dark for thirty seconds over a service that never missed a beat.
+   *
+   * It excuses our own clock and nothing else: a refused connection or a DNS
+   * failure on the same call still counts, because there nothing answered.
+   */
+  deadlineIsOurs?: boolean;
 }
 
 /**
@@ -234,8 +306,14 @@ export async function fetchControlService(
   const now = Date.now();
   const breaker = await readBreaker(now);
   if (breaker.openForMs > 0) {
-    throw new ControlServiceUnavailableError(
+    // Ahead of `readConfig()` and ahead of `deadlineIsOurs`, both deliberately.
+    // A call may be exempt from COUNTING toward the breaker without being
+    // exempt from obeying one that is already open: the service has genuinely
+    // been failing, and a thirty-second trial is the last thing to send at it.
+    throw new ControlServiceCircuitOpenError(
       `control service circuit open (${Math.ceil(breaker.openForMs / 1000)}s remaining) after ${breaker.failures} consecutive failures`,
+      breaker.openForMs,
+      breaker.failures,
     );
   }
 
@@ -286,9 +364,14 @@ export async function fetchControlService(
     return payload;
   } catch (error) {
     if (error instanceof ControlServiceRequestError) throw error;
-    await recordFailure(now);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new ControlServiceUnavailableError(`control service request to ${path} timed out`);
+    const timedOut = error instanceof Error && error.name === 'AbortError';
+    // A deadline we chose for a call we know is slow is evidence about the
+    // deadline, not about the service - so it is the one failure that does not
+    // move the shared breaker. Everything else here still does, including a
+    // refused connection on that very same call.
+    if (!(timedOut && options.deadlineIsOurs)) await recordFailure(now);
+    if (timedOut) {
+      throw new ControlServiceTimeoutError(`control service request to ${path} timed out`);
     }
     const message = error instanceof Error ? error.message : 'Unknown control service network error';
     throw new ControlServiceUnavailableError(message);

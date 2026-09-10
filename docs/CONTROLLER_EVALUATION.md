@@ -7,6 +7,13 @@ better gains, in the mesoscopic simulator. Code lives at
 and the adapter that runs the *deployed* laws inside it is
 `control-service/src/rehearsal/deployedControlLaws.ts`.
 
+This harness measures HOW WELL the laws decide. The separate question of WHERE
+they should run at all - which corridors are inside `lib/controllability.ts`'s
+band and which cannot be helped by holding whatever the gains - is
+`pnpm sim:eligibility`, documented in `docs/CORRIDOR_ELIGIBILITY.md`. Read it
+before tuning against a corridor: outside the band the gain is not the thing
+that decided the result.
+
 ```bash
 cd control-service
 

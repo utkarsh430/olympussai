@@ -29,6 +29,17 @@ Run the deployed control laws against a thousand buses on a 400 km corridor.
   --seed <n>         base seed (default ${DEFAULT_FLEET_TRIAL_SPEC.seed})
   --speed <source>   link_average | vehicle_state (default ${DEFAULT_FLEET_TRIAL_SPEC.followerSpeedSource})
                      which end of production's speed-reporting range to run against
+  --command-lifecycle
+                     put every hold through the modelled COMMAND PATH (unique
+                     index, cooldown, max_concurrent_actions, driver ack, TTL)
+                     and report delivered beside intended. Off by default: with
+                     it off a trial reports the control law's INTENT
+  --release-on-completion
+                     with --command-lifecycle, release an accepted command's
+                     slot when its ACTION ends instead of at the TTL - what
+                     COMMAND_COMPLETION_SWEEP_ENABLED does in production. This
+                     is what makes cooldown_seconds a live guardrail; run it
+                     against the same seed without this flag to size the change
   --out <dir>        write report.json here
   --quiet            summary only
 `;
@@ -36,6 +47,8 @@ Run the deployed control laws against a thousand buses on a 400 km corridor.
 interface Flags {
   corridor?: string;
   alighting: boolean;
+  commandLifecycle: boolean;
+  releaseOnCompletion: boolean;
   vehicles?: number;
   scenarios?: string;
   seed?: number;
@@ -46,11 +59,19 @@ interface Flags {
 }
 
 function parseFlags(argv: readonly string[]): Flags {
-  const flags: Flags = { quiet: false, help: false, alighting: false };
+  const flags: Flags = {
+    quiet: false,
+    help: false,
+    alighting: false,
+    commandLifecycle: false,
+    releaseOnCompletion: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--quiet') flags.quiet = true;
     else if (arg === '--alighting') flags.alighting = true;
+    else if (arg === '--command-lifecycle') flags.commandLifecycle = true;
+    else if (arg === '--release-on-completion') flags.releaseOnCompletion = true;
     else if (arg === '--corridor') flags.corridor = argv[++i];
     else if (arg === '--help' || arg === '-h') flags.help = true;
     else if (arg === '--vehicles') flags.vehicles = Number(argv[++i]);
@@ -72,7 +93,12 @@ function renderArm(label: string, arm: ArmReport): string {
     `EWT ${arm.spacing.ewtSeconds?.toFixed(0) ?? '-'}s`.padEnd(12),
     `CV ${arm.spacing.headwayCv?.toFixed(3) ?? '-'}`.padEnd(11),
     `bunched ${(arm.spacing.bunchingRate * 100).toFixed(1)}%`.padEnd(15),
-    `denied ${arm.spacing.deniedBoardings}`.padEnd(14),
+    // The refusal-EVENT count and the HEADCOUNT share the flag is drawn on,
+    // side by side and labelled. Printing the event count alone invited the
+    // reader to divide it by boardings, which reads about four times high.
+    `denied ${arm.spacing.deniedBoardings} (${
+      arm.spacing.deniedShare === null ? '-' : `${(arm.spacing.deniedShare * 100).toFixed(1)}% of people offered`
+    })`.padEnd(38),
     `incidents ${arm.incidents.detected} (${arm.incidents.resolved} resolved)`,
     arm.spacing.saturated ? '  [SATURATED - see report]' : '',
   ].join('');
@@ -92,6 +118,12 @@ function renderContrast(c: ArmContrast): string[] {
     `      per passenger carried  ${pct(c.passengerSecondsPerBoardingSavedPercent)}   (the arms do not serve identical crowds)`,
     `    punctuality      ${c.addedJourneySecondsPerVehicle === null ? '-' : `${(c.addedJourneySecondsPerVehicle / 60).toFixed(1)} min added per bus`}`,
     `    denied boardings ${c.additionalDeniedBoardings > 0 ? '+' : ''}${c.additionalDeniedBoardings}`,
+    // The raw count is severity-blind and can read negative while the
+    // controller is making every corridor measurably safer - see
+    // `deepIncidentsAvoided` and `bunchedSecondsOpenReduced` on `ArmContrast`.
+    // Reported side by side, never one in place of the other.
+    `    incidents avoided ${c.incidentsAvoided} raw   ${c.deepIncidentsAvoided} deep (peak-bunched)   ` +
+      `bunched-open ${hours(c.bunchedSecondsOpenReduced)} ${pct(c.bunchedSecondsOpenReducedPercent)}`,
   ];
 }
 
@@ -110,6 +142,12 @@ function renderPhase(phase: PhaseReport): string[] {
     renderArm('no control', phase.uncontrolled),
     renderArm('controlled', phase.controlled),
     ...renderContrast(phase.contrast),
+    // Never the headline alone. The all-scenarios figure is the same trial
+    // over a population that includes any scenario built to report nothing,
+    // and a reader has to be able to see both to know which they are quoting.
+    `    all ${phase.scenarios.length} scenarios  net passenger time ${pct(
+      phase.allScenarios.contrast.passengerSecondsSavedPercent,
+    )}   excess wait ${pct(phase.allScenarios.contrast.ewtImprovementPercent)} better`,
     renderAgreement(phase),
     `    alighting-only   ${phase.controlled.punctuality.alightingOnlyActions} instructions, ${phase.controlled.punctuality.alightingOnlyPassengersPassed} passengers left for the bus behind`,
     '',
@@ -151,12 +189,16 @@ function renderReport(report: FleetTrialReport): string {
         : `${(report.scheduleFit.shareBeyondLatenessBound * 100).toFixed(0)}% of buses already past the lateness bound with no control [${report.scheduleFit.band}]`
     }`,
     `    ${report.scheduleFit.note}`,
+    `  headline scope: ${report.headlineScope.includedScenarioIds.length} of ${
+      report.headlineScope.includedScenarioIds.length + report.headlineScope.excludedScenarios.length
+    } scenarios`,
+    `    ${report.headlineScope.note}`,
   ];
   for (const phase of report.phases) lines.push(...renderPhase(phase));
   for (const study of report.policyStudies) {
     lines.push('', `  ${study.title}  (${study.knob}, ${study.seedsPerRow} seeds each)`);
     lines.push(
-      '    setting              excess wait   total passenger time   hold/bus   worst bus   denied   seeds',
+      '    setting              excess wait   total passenger time   hold/bus   worst bus   denied   incidents avoided   seeds',
     );
     for (const row of study.rows) {
       const mark = row.label === study.recommended ? ' <-' : row.isCurrent ? '  (configured)' : '';
@@ -167,19 +209,29 @@ function renderReport(report: FleetTrialReport): string {
           `${(row.meanHoldSecondsPerVehicle / 60).toFixed(1).padStart(9)} min` +
           `${(row.worstBusHoldSeconds / 60).toFixed(1).padStart(9)} min` +
           `${String(row.deniedBoardings).padStart(9)}` +
+          `${String(row.incidentsAvoided).padStart(15)}` +
           `   ${row.seedsAgreeingWithSign}/${row.seedCount}${mark}`,
       );
     }
     lines.push(`    ${study.verdict}`);
   }
   lines.push('', '  What weighing passenger load changed:', `    ${report.occupancyContrast.verdict}`);
+  lines.push(
+    '',
+    '  self_equalizing coverage (kb = null, two-way disabled - not the deployed configuration):',
+    `    ${report.selfEqualizingCoverage.verdict}`,
+    `    net passenger time ${pct(report.selfEqualizingCoverage.contrast.passengerSecondsSavedPercent)}   excess wait ${pct(report.selfEqualizingCoverage.contrast.ewtImprovementPercent)} better`,
+  );
   lines.push('', '  Per scenario (excess wait, no control -> controlled):');
   for (const phase of report.phases) {
     lines.push(`    ${phase.id}`);
     for (const scenario of phase.scenarios) {
+      const deepUncontrolled = scenario.uncontrolled.incidents.byPeakSeverity['bunched'] ?? 0;
+      const deepControlled = scenario.controlled.incidents.byPeakSeverity['bunched'] ?? 0;
       lines.push(
         `      ${scenario.id.padEnd(24)} ${scenario.uncontrolled.spacing.ewtSeconds?.toFixed(0).padStart(4) ?? '   -'}s -> ${scenario.controlled.spacing.ewtSeconds?.toFixed(0).padStart(4) ?? '   -'}s` +
           `   incidents ${String(scenario.uncontrolled.incidents.detected).padStart(4)} -> ${String(scenario.controlled.incidents.detected).padStart(4)}` +
+          `  (deep ${String(deepUncontrolled).padStart(4)} -> ${String(deepControlled).padStart(4)})` +
           `   net passenger time ${pct(scenario.contrast.passengerSecondsSavedPercent)}`,
       );
     }
@@ -213,6 +265,15 @@ function main(): void {
     );
   }
 
+  // Refuse the combination rather than run it, because it would produce a
+  // perfectly normal-looking report of the OLD behaviour under a flag name
+  // that says otherwise - and someone would quote it as the measured effect of
+  // the completion sweep. There is no slot to release with the command path
+  // out of the loop.
+  if (flags.releaseOnCompletion && !flags.commandLifecycle) {
+    throw new Error('--release-on-completion has no effect without --command-lifecycle');
+  }
+
   const report = runFleetTrial(
     {
       ...DEFAULT_FLEET_TRIAL_SPEC,
@@ -222,10 +283,21 @@ function main(): void {
       scenarios,
       seed: flags.seed ?? DEFAULT_FLEET_TRIAL_SPEC.seed,
       followerSpeedSource,
+      commandLifecycle: {
+        ...DEFAULT_FLEET_TRIAL_SPEC.commandLifecycle,
+        enabled: flags.commandLifecycle,
+        releaseSlotOnCompletion: flags.releaseOnCompletion,
+      },
     },
     flags.quiet
       ? undefined
-      : (done, total, label) => process.stderr.write(`  ${done}/${total}  ${label}\n`),
+      : ({ done, total, label }) =>
+          // Padded so the count stays in one column as it grows - the total is
+          // in the hundreds on a full run, not the dozens the old
+          // phases-only count reported.
+          process.stderr.write(
+            `  ${String(done).padStart(String(total).length)}/${total}  ${label}\n`,
+          ),
   );
 
   process.stdout.write(renderReport(report));

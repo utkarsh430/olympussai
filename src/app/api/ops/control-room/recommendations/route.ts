@@ -5,7 +5,7 @@ import { requireOpsRole } from '@/lib/auth/rbac/guard';
 import { getOpsRepo } from '@/lib/auth/rbac/repo';
 import { OpsDbConfigError } from '@/lib/db/pool';
 import { isSameOrigin } from '@/lib/auth/origin';
-import { ENGINE_ACTION_TYPES } from '@/models/control';
+import { ENGINE_ACTION_TYPES, ENGINE_ADVISORY_ACTION_TYPES } from '@/models/control';
 import {
   solveRouteDirection,
   selectionBasisFor,
@@ -201,6 +201,23 @@ export async function POST(request: NextRequest): Promise<Response> {
        * which is exactly the drift that design was for.
        */
       engineActionTypes: ENGINE_ACTION_TYPES,
+      /**
+       * What the engine WORKS OUT but never ranks — pace guidance.
+       *
+       * Sent as its own list rather than folded into `engineActionTypes`
+       * because the two carry different promises. An entry in that list is
+       * ranked, approvable and delivered to a driver's screen; an entry here
+       * is computed, shown to a dispatcher, and has no delivery path at all.
+       * Merging them would have the consoles promise an in-cab display this
+       * system does not have.
+       *
+       * A console subtracts BOTH from the nine dispatchable types to decide
+       * what nothing generates. Before this field existed that subtraction
+       * used one list, and both consoles told an operator that nothing in
+       * this system works out speed guidance while the alert panel two
+       * clicks away was rendering exactly that.
+       */
+      engineAdvisoryActionTypes: ENGINE_ADVISORY_ACTION_TYPES,
       selectedAction: result.selectedAction,
       selectionBasis: selectionBasisFor(result),
       objectiveCost: result.objectiveCost,
@@ -216,6 +233,14 @@ export async function POST(request: NextRequest): Promise<Response> {
        * ranking them against the holds would misrepresent both.
        */
       boardingLimitCandidates: result.boardingLimitCandidates,
+      /**
+       * Why that list is the length it is. Forwarded on every solve, including
+       * — especially — when it is empty: alighting-only is switched off on
+       * every corridor, so without this the console cannot tell a corridor
+       * where the engine found nothing from one where it found something and
+       * is not allowed to offer it.
+       */
+      boardingLimitAvailability: result.boardingLimitAvailability,
       paceAdvisories: result.paceAdvisories,
       constraints: result.constraints,
       commandsBlockedBy,

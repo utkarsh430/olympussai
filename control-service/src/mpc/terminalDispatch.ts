@@ -49,6 +49,41 @@
 // in the network where a departure-based headway is a live control input
 // rather than a retrospective KPI.
 //
+// ─── AND ABSENCE BEHIND IS NOT A GAP ON TARGET ───────────────────────────
+//
+// The same "absence is not zero" discipline applies to the bus BEHIND, and
+// getting it wrong here priced this law - the one lever with no cost to
+// anybody aboard - at exactly zero.
+//
+// `computePassengerCost` substitutes a neutral `h_bwd` when nothing is
+// observed behind, which at an origin is the ordinary case. The mid-route
+// neutral is `h_bwd = H*`: the follower sits one target headway back from
+// where this vehicle IS. Apply that to an unclamped terminal hold
+// `d = H* - h_fwd` and the objective's bracket is
+//
+//   d + h_fwd - h_bwd  =  (H* - h_fwd) + h_fwd - H*  =  0,  EXACTLY.
+//
+// The hold swaps the two gaps instead of evening them, so its wait term is
+// exactly 0.0 - MEASURED on 43.1% / 38.9% / 46.1% of every terminal candidate
+// on urban / suburban / inter-city - and `>= 0` is true of zero, so any guard
+// keyed on that comparison rejects the cheapest action in the network. The
+// mistake is the ANCHOR, not the value:
+// mid-route `h_fwd` is measured from this vehicle, but here it is elapsed time
+// from the leader's departure, an instant this hold cannot move, and the bus
+// behind has not departed at all. Anchored there the neutral claim is that the
+// departures either side of this one fall on target - `h_bwd = 2 x H* - h_fwd`
+// - and the wait term becomes `-w_h x lambda x d^2`. Derivation and
+// measurement in `mpc/objective.ts`'s header,
+// docs/MULTI_STOP_WAIT_TERM.md section 5 and docs/ORIGIN_BACKWARD_NEUTRAL.md;
+// switch in `ORIGIN_BACKWARD_NEUTRAL_ENABLED`.
+//
+// Correcting it is necessary and measured NOT sufficient: the share of terminal
+// candidates priced `>= 0` goes 100.0% -> 100.0%, because occupancy-blind the
+// score is `-w_h x lambda x N x d^2 + W_LATENESS x d` and a benefit needs
+// `lambda x N x d > 1` - under the 1/H* proxy at N = 1, a hold longer than H*,
+// which this law can never propose. The zero was what stood between the horizon
+// and something to multiply.
+//
 // ─── ABSENCE IS NOT ZERO ─────────────────────────────────────────────────
 //
 // `departureHeadwaySeconds` is null when nothing has been observed to depart
@@ -59,6 +94,8 @@
 // left the terminal thirty seconds behind another one.
 import { clamp, scheduleCorrectionSeconds } from './math.js';
 import { liveOnboardCount, scoreHold } from './objective.js';
+import { loadEnv } from '../config/env.js';
+import { isScoredSelfHarmful } from './selfHarmCheck.js';
 import type { CandidateAction } from './types.js';
 import type { HeadwayStateRow, RoutePolicyRow, VehicleStateRow } from '../state/store.js';
 
@@ -119,6 +156,43 @@ export function computeTerminalDispatchCandidates(
    */
   weighOccupancy = true,
   elapsedSinceTerminalDepartureSeconds: number | null = null,
+  /**
+   * Whether to decline a candidate this law's own objective scores as net
+   * harmful, the way `mpc/costOptimalHold.ts` always has. Defaults FALSE - the
+   * deployed default and today's behaviour. See mpc/selfHarmCheck.ts, and read
+   * why it is off before turning it on.
+   *
+   * It bites hardest here of the three. Terminal dispatch is the one lever with
+   * no punctuality cost - the bus has not started its trip and nobody is aboard
+   * to be delayed - yet the objective still charges `w_c` for standing still
+   * against a wait term it can barely see, so it prices most terminal holds as
+   * harmful. Declining them removes the highest-return, lowest-cost lever the
+   * literature knows of. That shows up in the measurement as the largest single
+   * loss - see docs/SELF_HARM_CHECK.md.
+   */
+  selfHarmCheckEnabled = false,
+  /**
+   * Stops each vehicle still has to serve, for the objective's waiting
+   * horizon. Empty - the default - leaves every candidate on the one-stop
+   * term, which is the deployed behaviour; `mpc/solver.ts` populates it only
+   * when `MULTI_STOP_WAIT_TERM_ENABLED` is on, so every candidate in one
+   * solve is priced under the same rule. See mpc/objective.ts.
+   */
+  downstreamStopsByVehicleId: ReadonlyMap<string, number | null> = new Map(),
+  /**
+   * Whether an unobserved bus behind is priced against the LEADER'S DEPARTURE
+   * rather than against this standing vehicle's own position - the correction
+   * described in this file's header.
+   *
+   * Read from `ORIGIN_BACKWARD_NEUTRAL_ENABLED` (off) once per call rather
+   * than threaded down from each caller, and deliberately: `loadEnv()` is
+   * cached, this is one lookup per route-direction and not per candidate, and
+   * this law is the ONLY place in the system that wants the other anchor. A
+   * parameter would have had to be added to every call site - the solver, the
+   * decision cycle and the rehearsal adapter - to say the same thing at each
+   * of them. Pass it explicitly to pin either behaviour in a test.
+   */
+  originBackwardNeutralEnabled: boolean = loadEnv().ORIGIN_BACKWARD_NEUTRAL_ENABLED,
 ): CandidateAction[] {
   if (!terminalStopId) return [];
   if (elapsedSinceTerminalDepartureSeconds === null) return [];
@@ -146,28 +220,39 @@ export function computeTerminalDispatchCandidates(
 
     const load = liveOnboardCount(follower, policy, now, weighOccupancy);
 
+    // The objective is scored on the DEPARTURE headway too, not on the
+    // stationary bus's h_fwd. Its wait term prices the gap passengers are
+    // standing through, and at the origin that gap is the elapsed one; a
+    // 27,601s h_fwd fed straight into `computePassengerCost` produced an
+    // objectiveCost as meaningless as the hold it never proposed.
+    //
+    // The backward anchor is the origin one only when the switch is on. It is
+    // consulted at all only when `h.hBwdSeconds` is null - a bus that IS
+    // observed behind on the corridor is priced on its measured gap either
+    // way, because that is not an assumption to correct.
+    const score = scoreHold(
+      {
+        hFwdSeconds: elapsedSinceTerminalDepartureSeconds,
+        hBwdSeconds: h.hBwdSeconds,
+        targetHeadwaySeconds: h.targetHeadwaySeconds,
+      },
+      h.followerVehicleId,
+      holdSeconds,
+      rawHold,
+      load,
+      deviationSeconds,
+      downstreamStopsByVehicleId.get(h.followerVehicleId) ?? null,
+      originBackwardNeutralEnabled ? 'target_departure' : 'vehicle',
+    );
+    // See mpc/selfHarmCheck.ts. Off by default; measured harmful when on.
+    if (selfHarmCheckEnabled && isScoredSelfHarmful(score.objectiveCost)) continue;
+
     candidates.push({
       actionType: 'terminal_dispatch_hold',
       vehicleId: h.followerVehicleId,
       involvedVehicleIds: [h.followerVehicleId, h.leaderVehicleId],
       holdSeconds,
-      // The objective is scored on the DEPARTURE headway too, not on the
-      // stationary bus's h_fwd. Its wait term prices the gap passengers are
-      // standing through, and at the origin that gap is the elapsed one; a
-      // 27,601s h_fwd fed straight into `computePassengerCost` produced an
-      // objectiveCost as meaningless as the hold it never proposed.
-      ...scoreHold(
-        {
-          hFwdSeconds: elapsedSinceTerminalDepartureSeconds,
-          hBwdSeconds: h.hBwdSeconds,
-          targetHeadwaySeconds: h.targetHeadwaySeconds,
-        },
-        h.followerVehicleId,
-        holdSeconds,
-        rawHold,
-        load,
-        deviationSeconds,
-      ),
+      ...score,
       routeDirectionId: h.routeDirectionId,
       stateAsOf: h.computedAt,
       headwayDeviationSeconds: elapsedSinceTerminalDepartureSeconds - h.targetHeadwaySeconds,

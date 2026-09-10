@@ -20,9 +20,11 @@ export interface CompletedStopVisit {
   routeDirectionId: string;
   stopId: string;
   tripId: string | null;
-  /** First fix observed inside the geofence. */
+  /** First fix at which the vehicle was associated with this stop - inside its
+   *  geofence, or closing on it within the approach window. See
+   *  stopStateClassifier.isAtStop; the two windows must stay the same one. */
   arrivedAt: string;
-  /** First fix observed outside it - see the migration's precision note. */
+  /** First fix at which that association had ended - see the migration's precision note. */
   departedAt: string;
 }
 

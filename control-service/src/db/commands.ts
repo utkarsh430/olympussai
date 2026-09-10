@@ -627,6 +627,51 @@ export async function sweepExpiredCommands(pool: Pool = getPool()): Promise<Comm
 }
 
 /**
+ * Sweeps every `executing` command whose ACTION HAS FINISHED to `completed`
+ * (see `control_service_complete_finished_commands()`,
+ * control-service/db/migrations/20260907093000__command_completion.sql).
+ *
+ * The mirror of `sweepExpiredCommands` above, and the two never contend for a
+ * row: `control_service_expire_commands()` covers every non-terminal status
+ * EXCEPT `executing`, this covers `executing` and nothing else.
+ *
+ * WHY IT EXISTS. `executing` is inside `commands_one_active_per_vehicle_idx`,
+ * and nothing in this service ever wrote `completed` - so a command a driver
+ * ACCEPTED had no exit from `executing` at all and held its vehicle's slot on
+ * that unique index permanently. Measured on the live control database
+ * 2026-09-06: four `executing` rows, all `ack_outcome = 'accept'`, aged 24-26
+ * days and past their own `expires_at` by the same margin; the only
+ * non-terminal rows in the database past their TTL, because the TTL sweep
+ * structurally cannot reach them.
+ *
+ * "Finished" is defined in SQL, in the migration, and it is the whole fix:
+ * `acknowledged_at + parameters.holdSeconds` capped at `expires_at` when the
+ * action states a duration, and `expires_at` alone when it does not. Ack is
+ * the START of the action and never frees the slot on its own; `expired` is
+ * not reused for an accepted command, because it means "the driver never did
+ * it" and would record a served hold as unserved.
+ *
+ * Gated in the scheduler by `COMMAND_COMPLETION_SWEEP_ENABLED` (default
+ * false). Nothing else calls it, so with that flag off this function never
+ * runs and no command status changes.
+ */
+export async function sweepCompletedCommands(pool: Pool = getPool()): Promise<CommandRow[]> {
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    await setAuditContext(client, { actorType: 'system', reason: 'action finished' });
+    const { rows } = await client.query<RawCommandRow>('select * from control_service_complete_finished_commands()');
+    await client.query('commit');
+    return rows.map(mapRow);
+  } catch (err) {
+    await client.query('rollback').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Ids of commands sitting in `authorized`, not yet expired, oldest first -
  * the candidate set for `commandDeliverySweep`
  * (control-service/src/scheduler/commandDeliverySweep.ts). A command only
@@ -686,6 +731,51 @@ export async function listRecentlyCommandedVehicleIds(
     [vehicleIds, String(cooldownSeconds)],
   );
   return new Set(rows.map((r) => r.vehicle_id));
+}
+
+/**
+ * How many alighting-only instructions this corridor has ISSUED in a window.
+ *
+ * The meter behind the refusal tripwire in `mpc/boardingLimit.ts`. Three
+ * things about it a reader has to know, because each is a place the number
+ * could be mistaken for something it is not:
+ *
+ *  - It counts INSTRUCTIONS, not people. Nobody counts the people a bus
+ *    refuses: `headway/deniedBoarding.ts` returns "cannot say" on every visit
+ *    on this deployment, for want of an occupancy feed and a fitted dwell
+ *    model. So the unit here is "one bus told to take nobody on at one stop",
+ *    which is the finest grain that is actually measured. A bound expressed in
+ *    passengers would be a bound on a number this system cannot read.
+ *
+ *  - It counts every status, including `expired` and `cancelled`. An expired
+ *    command may never have reached a driver, so this OVER-counts, and that is
+ *    the deliberate direction: a harm bound that errs must err toward tripping
+ *    early. Filtering to delivered commands would make an instruction that
+ *    failed on the way to the driver free, and the tripwire would then be
+ *    loosest exactly when the delivery path was least healthy.
+ *
+ *  - The corridor comes from the APPROVAL, not from the command. `commands`
+ *    has no route_direction_id (it is keyed to a vehicle), and a vehicle can be
+ *    reassigned; `dispatcher_actions.route_direction_id` records the corridor
+ *    the human was actually deciding about. The join is on a primary key and
+ *    `dispatcher_action_id` is `not null unique`, so this cannot double-count.
+ */
+export async function countBoardingLimitCommands(
+  routeDirectionId: string,
+  windowSeconds: number,
+  pool: Pool = getPool(),
+): Promise<number> {
+  if (windowSeconds <= 0) return 0;
+  const { rows } = await pool.query<{ refusals: string }>(
+    `select count(*) as refusals
+       from commands c
+       join dispatcher_actions da on da.id = c.dispatcher_action_id
+      where c.action_type = 'boarding_limit'
+        and da.route_direction_id = $1
+        and c.created_at > now() - ($2 || ' seconds')::interval`,
+    [routeDirectionId, String(windowSeconds)],
+  );
+  return Number(rows[0]?.refusals ?? 0);
 }
 
 export async function listActiveVehicleIds(

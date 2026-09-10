@@ -23,6 +23,19 @@ export const bunchingScenarioIdSchema = z.enum([
   'peak_load',
   'gps_dropout',
   'driver_non_compliance',
+  // The adversarial set. Each attacks a specific assumption in the control
+  // laws rather than describing another way a corridor comes apart - see
+  // `control-service/src/fleetTrial/scenarios.ts`, which this mirrors and
+  // which carries the reason for each one.
+  'phantom_position',
+  'frozen_feed',
+  'blind_slowdown',
+  'hotspot_demand',
+  'partial_compliance',
+  'oversaturated',
+  'shock_and_recovery',
+  'oscillating_shock',
+  'building_peak',
 ]);
 export type BunchingScenarioId = z.infer<typeof bunchingScenarioIdSchema>;
 
@@ -38,6 +51,13 @@ const spacingKpisSchema = z.object({
   deniedBoardings: z.number(),
   firstTimeDeniedBoardings: z.number(),
   totalBoardings: z.number(),
+  /**
+   * The share the `saturated` flag is drawn on, published so a reader never
+   * has to build one from `deniedBoardings / totalBoardings` - refusal EVENTS
+   * over a HEADCOUNT, which reads about four times high and put 52% beside a
+   * flag saying false. See `fleetTrial/types.ts#SpacingKpis`.
+   */
+  deniedShare: z.number().nullable(),
   saturated: z.boolean(),
 });
 
@@ -188,9 +208,19 @@ const phaseReportSchema = z.object({
   weighOccupancy: z.boolean(),
   vehicleCount: z.number(),
   scenarios: z.array(scenarioReportSchema),
+  /**
+   * THE HEADLINE POOL: the scenarios named in `headlineScope`, which excludes
+   * any that ran past the saturation line. See `fleetTrial/types.ts#PhaseReport`.
+   */
   controlled: armReportSchema,
   uncontrolled: armReportSchema,
   contrast: armContrastSchema,
+  /** The same three over EVERY scenario the phase ran, published beside the headline. */
+  allScenarios: z.object({
+    controlled: armReportSchema,
+    uncontrolled: armReportSchema,
+    contrast: armContrastSchema,
+  }),
   scenarioAgreement: z.object({
     positive: z.number(),
     count: z.number(),
@@ -231,6 +261,7 @@ const policyStudySchema = z.object({
       deniedBoardings: z.number(),
       incidentsDetected: z.number(),
       incidentsResolved: z.number(),
+      incidentsAvoided: z.number(),
       seedCount: z.number(),
       seedsAgreeingWithSign: z.number(),
       isCurrent: z.boolean(),
@@ -250,6 +281,22 @@ export const fleetTrialReportSchema = z.object({
   durationMs: z.number(),
   corridorPreset: z.object({ id: z.string(), title: z.string(), description: z.string() }),
   alightingOnlySelectable: z.boolean(),
+  /**
+   * Which scenarios every phase's headline figures are an average of.
+   *
+   * A top-line number that silently changes population as the scenario library
+   * grows is not comparable with last week's, and one of the scenarios exists
+   * to prove the harness reports NOTHING past the denied-boarding line. See
+   * `fleetTrial/types.ts#FleetTrialReport`.
+   */
+  headlineScope: z.object({
+    includedScenarioIds: z.array(z.string()),
+    excludedScenarios: z.array(
+      z.object({ id: z.string(), title: z.string(), deniedShare: z.number() }),
+    ),
+    fellBackToAllScenarios: z.boolean(),
+    note: z.string(),
+  }),
   corridor: z.object({
     routeDirectionId: z.string(),
     routeName: z.string(),
@@ -375,3 +422,38 @@ export const DECLINE_LABEL: Record<string, string> = {
   leader_not_at_stop: 'the bus ahead was not at a stop it could act at',
   no_hold_indicated: 'the pair was not deviant enough to act on',
 };
+
+/**
+ * What the trial running right now is doing.
+ *
+ * A COUNT and a denominator, never a share. The trial's runs are not equal in
+ * cost - a phase run carries several times the fleet of a study run, which is
+ * capped - so a fraction of runs done is not a fraction of the wait, and the
+ * console renders the pair rather than a bar it would have to invent a
+ * meaning for.
+ *
+ * `total` is nullable because a trial that has started but not yet finished
+ * its first run genuinely does not have one to report from the service yet,
+ * and `0 of 0` would be a denominator nobody measured.
+ */
+export const fleetTrialStageSchema = z.enum([
+  'phases',
+  'policy_study',
+  'occupancy_contrast',
+  'self_equalizing',
+]);
+
+export const fleetTrialProgressSchema = z.union([
+  z.object({ running: z.literal(false) }),
+  z.object({
+    running: z.literal(true),
+    runId: z.string(),
+    done: z.number().int().min(0),
+    total: z.number().int().min(1).nullable(),
+    stage: fleetTrialStageSchema.nullable(),
+    label: z.string().nullable(),
+    startedAtMs: z.number(),
+  }),
+]);
+
+export type FleetTrialProgressResponse = z.infer<typeof fleetTrialProgressSchema>;

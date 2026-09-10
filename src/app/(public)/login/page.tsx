@@ -1,11 +1,14 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { getSupabaseUser } from '@/lib/supabase/server';
 import { sanitizeNextOrNull } from '@/lib/auth/redirect';
+import { isAuthDisabled, PREVIEW_DEFAULT_ROLE } from '@/lib/auth/publicPreview';
 import {
   NO_OPS_ACCESS_NOTICE,
   OPS_ACCESS_PENDING_NOTICE,
+  opsHomePath,
   resolveLanding,
 } from '@/lib/auth/landing';
 import { currentOpsAccess } from '@/lib/auth/opsAccess';
@@ -31,6 +34,14 @@ export const metadata: Metadata = {
  * every outcome below is a terminal state with a visible way out. Post-
  * sign-in navigation happens in the form, once, after credentials are
  * accepted.
+ *
+ * THE ONE EXCEPTION IS PUBLIC PREVIEW, and it does not weaken that property.
+ * The loop the rule prevents is built out of things that BOUNCE BACK here —
+ * the edge gate, the page guards, the API guards. With `isAuthDisabled()`
+ * none of them refuses anything (src/lib/auth/publicPreview.ts), so there is
+ * nothing left to chase: the forward below is one hop into a destination that
+ * renders. It is also the only honest answer, since a sign-in form on a
+ * deployment with no sign-in is a control that cannot do anything.
  */
 export default async function LoginPage({
   searchParams,
@@ -38,6 +49,15 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string; notice?: string }>;
 }) {
   const params = await searchParams;
+
+  // PUBLIC PREVIEW: skip the form entirely. Ahead of `getSupabaseUser()` on
+  // purpose — a preview deployment need not have Supabase configured, and
+  // this page is reachable from the landing header, so it must not be the one
+  // surface that 500s.
+  if (isAuthDisabled()) {
+    redirect(sanitizeNextOrNull(params.next) ?? opsHomePath(PREVIEW_DEFAULT_ROLE));
+  }
+
   // `sanitizeNextOrNull`, NOT `sanitizeNext`, and the difference is the whole
   // of role-correct landing.
   //

@@ -31,6 +31,9 @@ import type { ArmSpec, ExperimentSpec } from './spec.js';
 import type { CorridorCalibration } from './calibrate.js';
 import { assessControllability } from '../lib/controllability.js';
 import type { Controllability } from '../lib/controllability.js';
+import { resolveCorridorDemand } from './demand.js';
+import type { CorridorDemand } from './demand.js';
+import type { CorridorProvenance } from './corridors.js';
 import { resolveInputs, seedsFor } from './spec.js';
 
 export interface RunCell {
@@ -47,7 +50,7 @@ export interface RunCell {
 
 export interface ExperimentRun {
   spec: ExperimentSpec;
-  corridorProvenance: 'measured' | 'synthetic';
+  corridorProvenance: CorridorProvenance;
   /** Per corridor, what was fitted from observation and what stayed invented. Empty when the run was not calibrated. */
   calibration: Map<string, CorridorCalibration>;
   cells: RunCell[];
@@ -66,7 +69,50 @@ export interface ExperimentRun {
    * nobody says which regime it came from. See `lib/controllability.ts`.
    */
   controllability: Map<string, Controllability>;
+  /**
+   * What boarding rate each corridor actually ran at, and where it came from.
+   *
+   * Reported for the same reason `controllability` is: the harness applied ONE
+   * invented rate to every corridor, and because a modelled bus's load is
+   * proportional to the corridor's own target headway, that put real
+   * route-directions at two to thirteen times their seat count and produced
+   * 74-96% denied boardings. A reader could not see it, because the number
+   * that caused it was a constant in another file. See `demand.ts`.
+   */
+  demand: Map<string, CorridorDemand>;
   durationMs: number;
+}
+
+/**
+ * The modelled inputs one corridor runs under, demand included.
+ *
+ * The ONE way to build inputs for a cell. Demand is per corridor now
+ * (`demand.ts`), so inputs resolved without the corridor in hand are inputs
+ * for a different simulation - which is exactly the kind of silent divergence
+ * between a run and the sweep that qualifies it that this harness exists to
+ * catch. `test/evaluation/harness.test.ts` re-runs a cell through this and
+ * asserts the baseline comes back identical.
+ */
+export function resolveCorridorInputs(
+  spec: ExperimentSpec,
+  corridor: CorridorInputs,
+  seed: number,
+  disturbance: RehearsalDisturbance,
+  overrides: Partial<ModelledInputs> = {},
+  corridorInputs: Partial<ModelledInputs> = {},
+): { inputs: ModelledInputs; demand: CorridorDemand } {
+  const base = resolveInputs(spec, seed, disturbance, overrides, corridorInputs);
+  const demand = resolveCorridorDemand(corridor, base, spec.demand, corridorInputs);
+  return {
+    inputs: resolveInputs(
+      spec,
+      seed,
+      disturbance,
+      { boardingRatePerMinute: demand.boardingRatePerMinute, ...overrides },
+      corridorInputs,
+    ),
+    demand,
+  };
 }
 
 /** The corridor with one arm's parameter overrides applied. Overrides are on the POLICY, which is what the control laws read. */
@@ -155,9 +201,18 @@ export function runCell(
 export function runExperiment(
   spec: ExperimentSpec,
   corridors: readonly CorridorInputs[],
-  corridorProvenance: 'measured' | 'synthetic',
+  corridorProvenance: CorridorProvenance,
   onProgress?: (done: number, total: number) => void,
   calibration: ReadonlyMap<string, CorridorCalibration> = new Map(),
+  /**
+   * Modelled inputs that belong to a particular corridor rather than to the
+   * run, keyed by route-direction id. Only the presets use it: each of them is
+   * a package of geometry AND demand AND running times chosen together, and
+   * running one under another corridor's cruise speed is not running that
+   * preset. Merged UNDER the spec's own `inputs`, so an explicit override in
+   * the spec still wins - see `spec.ts#resolveInputs`.
+   */
+  perCorridorInputs: ReadonlyMap<string, Partial<ModelledInputs>> = new Map(),
 ): ExperimentRun {
   const startedAt = Date.now();
   const seeds = seedsFor(spec);
@@ -165,16 +220,17 @@ export function runExperiment(
   const cells: RunCell[] = [];
   const emptyCorridors = new Set<string>();
   const controllability = new Map<string, Controllability>();
-  // The corridor's shape does not depend on the seed or the scenario, so one
-  // resolution of the inputs answers for all of them.
-  const baseInputs = resolveInputs(spec, seeds[0] ?? 0, scenarios[0] ?? 'none');
+  const demand = new Map<string, CorridorDemand>();
 
   const total = corridors.length * scenarios.length * seeds.length * spec.arms.length;
   let done = 0;
 
   for (const corridor of corridors) {
-    // The corridor's own shape, not any one run's - it depends on geometry,
-    // cruise speed, variability and headway, all of which are fixed here.
+    // Everything about a corridor's SHAPE - its geometry, its cruise speed,
+    // its variability, its headway and therefore its demand - is fixed across
+    // seeds and scenarios, so one resolution answers for all of them.
+    const corridorInputs = perCorridorInputs.get(corridor.routeDirectionId) ?? {};
+    const baseInputs = resolveInputs(spec, seeds[0] ?? 0, scenarios[0] ?? 'none', {}, corridorInputs);
     controllability.set(
       corridor.routeDirectionId,
       assessControllability({
@@ -184,10 +240,22 @@ export function runExperiment(
         targetHeadwaySeconds: corridor.policy.targetHeadwaySeconds,
       }),
     );
+    demand.set(
+      corridor.routeDirectionId,
+      resolveCorridorDemand(corridor, baseInputs, spec.demand, corridorInputs),
+    );
+
     let sawSample = false;
     for (const scenario of scenarios) {
       for (const seed of seeds) {
-        const inputs = resolveInputs(spec, seed, scenario);
+        const { inputs } = resolveCorridorInputs(
+          spec,
+          corridor,
+          seed,
+          scenario,
+          {},
+          corridorInputs,
+        );
         for (const arm of spec.arms) {
           const result = runCell(
             corridor,
@@ -224,6 +292,7 @@ export function runExperiment(
     cells,
     emptyCorridors: [...emptyCorridors],
     controllability,
+    demand,
     durationMs: Date.now() - startedAt,
   };
 }

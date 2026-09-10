@@ -58,7 +58,12 @@ export async function listRehearsalCorridors(): Promise<RouteDirectionMeta[]> {
  * Throws rather than degrading, so the caller can tell the operator which of
  * these it is:
  *   ControlServiceConfigError       the control service is not configured
- *   ControlServiceUnavailableError  unreachable, timed out, or circuit open
+ *   ControlServiceUnavailableError  the family below; catching it still
+ *                                   catches all three
+ *   ControlServiceTimeoutError      THIS request ran out of its own time;
+ *                                   the service may be healthy and working
+ *   ControlServiceCircuitOpenError  this process has stopped calling, after
+ *                                   a measured streak of real failures
  *   ControlServiceRequestError      it answered and refused;
  *                                   `code: 'no_active_policy'` (404) is the
  *                                   important one - this corridor has no

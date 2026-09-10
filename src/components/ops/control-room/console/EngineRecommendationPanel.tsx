@@ -28,7 +28,7 @@ import {
   type PendingApproval,
   type RecommendationResult,
 } from '@/lib/ops/recommendationView';
-import type { EngineCandidateAction } from '@/models/control';
+import { ENGINE_ADVISORY_ACTION_TYPES, type EngineCandidateAction } from '@/models/control';
 
 /**
  * What the engine suggests, why, and what its safety checks refused.
@@ -470,7 +470,10 @@ export function EngineRecommendationPanel({
         selectedVehicleId={selected?.vehicleId ?? null}
       />
 
-      <EngineScopePanel engineActionTypes={result.engineActionTypes} />
+      <EngineScopePanel
+        engineActionTypes={result.engineActionTypes}
+        engineAdvisoryActionTypes={result.engineAdvisoryActionTypes ?? ENGINE_ADVISORY_ACTION_TYPES}
+      />
 
       <p className="text-[11px] leading-relaxed text-subtle">
         This suggestion is not saved anywhere. The engine was asked, it answered, and nothing was
@@ -560,14 +563,42 @@ function PredictiveAdvisoryPanel({
  * this claim cannot outlive its truth: if the solver ever learns a fourth
  * action, this panel stops calling it human-only on its own, with no edit here.
  */
-function EngineScopePanel({ engineActionTypes }: { engineActionTypes: readonly string[] }) {
-  const human = humanOriginatedActions(engineActionTypes);
+function EngineScopePanel({
+  engineActionTypes,
+  engineAdvisoryActionTypes,
+}: {
+  engineActionTypes: readonly string[];
+  engineAdvisoryActionTypes: readonly string[];
+}) {
+  const human = humanOriginatedActions(engineActionTypes, engineAdvisoryActionTypes);
   return (
     <OpsPanel title="What this engine can and cannot suggest">
       <p className="text-xs leading-relaxed text-muted-foreground">
-        The engine only ever suggests holds:{' '}
+        The engine ranks and puts forward holds:{' '}
         <span className="text-foreground">{engineActionTypes.map(actionLabel).join(', ')}</span>.
+        These are the ones it will pick between, and the ones an approval can send to a driver.
       </p>
+      {engineAdvisoryActionTypes.length > 0 && (
+        /*
+          The third category, and the reason this panel is no longer a
+          two-way split. Pace guidance is worked out on every solve and is
+          the only lever here that improves punctuality and spacing at the
+          same time — but it is not a candidate, carries no hold length, and
+          has no way to reach a driver except an operator's own radio.
+          Listing it with the holds would promise an in-cab display that does
+          not exist; listing it with the human-originated set was the false
+          claim this panel used to make.
+        */
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          It also works out{' '}
+          <span className="text-foreground">
+            {engineAdvisoryActionTypes.map(actionLabel).join(', ')}
+          </span>{' '}
+          and shows it below when it applies, but never ranks it against a hold and never sends it.
+          There is no in-cab display in this system, so acting on it means passing it to the driver
+          yourself.
+        </p>
+      )}
       <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
         The other {human.length} instructions —{' '}
         <span className="text-foreground">{human.map(actionLabel).join(', ')}</span> — can be sent,

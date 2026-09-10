@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { createMiddlewareSupabaseClient, getMiddlewareUser } from '@/lib/supabase/middleware';
 import { resolveOpsEdgeCeiling } from '@/lib/auth/rbac/edgeSession';
 import { roleForSegment, rolesForOpsApiPath, isPublicOpsApiPath } from '@/lib/auth/rbac/roles';
+import { isAuthDisabled } from '@/lib/auth/publicPreview';
 
 /**
  * Edge middleware — the first line of defence for protected surfaces.
@@ -246,6 +247,24 @@ async function handleProjectRequest(request: NextRequest): Promise<NextResponse>
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
+
+  // PUBLIC PREVIEW: no session gate at all, on any matched path.
+  //
+  // Placed ahead of everything, including the Supabase client construction
+  // below, on purpose. A preview deployment need not have Supabase or the
+  // ops database configured at all, and `createMiddlewareSupabaseClient`
+  // throws without its two variables — so a bypass that ran after it would
+  // turn the "no login" deployment into a 500 on every page. Nothing below
+  // this line runs.
+  //
+  // The header is the tell: invisible to an audience, obvious to anyone with
+  // devtools open, and the one signal that says this build is not gated.
+  // See src/lib/auth/publicPreview.ts.
+  if (isAuthDisabled()) {
+    const open = NextResponse.next();
+    open.headers.set('x-olympuss-auth', 'disabled');
+    return open;
+  }
 
   // Checked first, ahead of both auth systems: these paths authenticate
   // themselves per-request and must reach their handler untouched.

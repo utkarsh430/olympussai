@@ -14,6 +14,7 @@
 // for and reports it as the answer.
 import { z } from 'zod';
 import { DEFAULT_MODELLED_INPUTS, REHEARSAL_DISTURBANCES } from '../rehearsal/run.js';
+import { DERIVED_PEAK_LOAD_SHARE } from './demand.js';
 import type { ModelledInputs, RehearsalDisturbance } from '../rehearsal/run.js';
 
 /**
@@ -83,6 +84,43 @@ export const corridorSourceSchema = z.discriminatedUnion('source', [
       sample: z.number().int().min(1).max(200).optional(),
     })
     .strict(),
+  /**
+   * The corridors `sim:eligibility` says the controller can work on, resolved
+   * through that module's own `assessCorridorEligibility` rather than by a
+   * second reading of the band - the same rule `eligibility.ts` states about
+   * `CONTROLLABLE_BAND`.
+   */
+  z
+    .object({
+      source: z.literal('eligible'),
+      /** Cap on how many, sampled across the length range as `db` does. Omitted, every eligible corridor runs. */
+      sample: z.number().int().min(1).max(800).optional(),
+      /**
+       * Whether the live-vehicle half of the eligibility verdict is required.
+       *
+       * It is a SNAPSHOT: `vehicle_states.observed_at` inside a 300 s window,
+       * which moves minute to minute (measured on this network, the eligible
+       * count moved from 103 to 26 between two readings hours apart). The
+       * simulator dispatches its own vehicles, so this decides nothing about
+       * the simulation - it decides whether the corridor is one the decision
+       * cycle could act on TODAY. Default true, matching the verdict; set
+       * false for the corridor-intrinsic question (calibrated and in band),
+       * which is the reproducible one.
+       */
+      requireLivePair: z.boolean().default(true),
+    })
+    .strict(),
+  /**
+   * The three corridor shapes every published conclusion in this project rests
+   * on, run through THIS harness so a real-corridor row and a preset row are
+   * produced by the same code on the same seeds. Imported from
+   * `fleetTrial/presets.ts`, never re-declared.
+   */
+  z
+    .object({
+      source: z.literal('preset'),
+    })
+    .strict(),
   z
     .object({
       source: z.literal('synthetic'),
@@ -93,6 +131,35 @@ export const corridorSourceSchema = z.discriminatedUnion('source', [
 ]);
 
 export type CorridorSource = z.infer<typeof corridorSourceSchema>;
+
+/**
+ * How each corridor's boarding rate is decided.
+ *
+ * `derived` is the default and it CHANGES numbers this harness recorded
+ * before it existed - deliberately, because those numbers were produced on
+ * corridors running at two to thirteen times their seat count. `global`
+ * reproduces the old behaviour exactly, for a reader who wants to see that
+ * for themselves. See `demand.ts`'s header.
+ */
+export const demandSpecSchema = z
+  .object({
+    mode: z.enum(['global', 'derived']).default('derived'),
+    /** Peak load the derived rate aims at, as a share of the seats. */
+    peakLoadShare: z.number().min(0.05).max(1).default(DERIVED_PEAK_LOAD_SHARE),
+    /**
+     * Boarding rates named per route-direction, which beat anything derived.
+     *
+     * This is the seam a demand fitted OUTSIDE this harness arrives through -
+     * `evaluation/calibrate.ts` fits per-stop rates from `stop_visits` and
+     * merges them over whatever flat rate a corridor is running at, and a
+     * corridor-level fit belongs here. Nothing in this module pretends the
+     * numbers it puts here were measured; the report labels them `specified`.
+     */
+    boardingRatePerMinuteByRouteDirectionId: z.record(z.string(), z.number().min(0).max(120)).default({}),
+  })
+  .strict();
+
+export type DemandSpec = z.infer<typeof demandSpecSchema>;
 
 export const experimentSpecSchema = z
   .object({
@@ -109,6 +176,8 @@ export const experimentSpecSchema = z
       })
       .strict(),
     inputs: modelledInputsSchema.default({}),
+    /** Per-corridor demand. See `demand.ts` - one global rate is what saturated every real corridor. */
+    demand: demandSpecSchema.default({}),
     /**
      * The arms compared. The uncontrolled baseline is NOT listed: every arm is
      * compared against a no-control run on the identical seeded scenario, and
@@ -147,33 +216,29 @@ export function parseExperimentSpec(input: unknown): ExperimentSpec {
  * a full bus only strands more people. An evaluation run on it reports "no
  * effect" about a working controller.
  *
- * ─── AN OPEN DEFECT, MEASURED AND LEFT AS IT IS ──────────────────────────
+ * ─── WHAT THESE THREE NUMBERS NOW ARE, AND WHAT THEY ARE NOT ─────────────
  *
- * These read 0.8/min against 25% alighting on the reasoning that a
- * steady-state load "near 48 of 52 seats" left headroom. It does not - 48 of
- * 52 is 92% full before any variance, and the peak load is the seat count on
- * every seed. MEASURED across this harness's own DEFAULT scenario set (all
- * five, `demand_burst` included), 26.9% of offered passengers are denied,
- * over the 20% bar the report itself prints a saturation warning at. On the
- * quiet `none` scenario alone it is 19% - a hair under, so any disturbance at
- * all trips it.
+ * `boardingRatePerMinute` here is no longer the rate a corridor runs at. It is
+ * the FALLBACK for a corridor whose own geometry cannot produce a derived rate
+ * and the value `demand.mode: 'global'` restores for reproducing an older run.
+ * `demand.ts` sizes each corridor's rate from its own headway, stop count,
+ * alighting fraction and seats, because the load a bus carries is proportional
+ * to the corridor's own H* and this network's measured headways span 300 s to
+ * 12,497 s.
  *
- * Lowering the demand does not fix it, and that was measured too. At 0.5/min
- * the denied share falls to 2.6% and the warning goes away, but the corridor
- * then barely comes apart: uncontrolled EWT on a quiet day is 24 s against a
- * 900 s headway, and the controller measures 98% WORSE because holding a
- * well-spaced corridor is harmful. At the shipped 0.8 the same quiet day
- * reads 30 s and 48% worse. **This corridor is below the controllable band at
- * one end and above the saturation line at the other, and demand is not the
- * lever between them** - the fleet trial's `controllability` figure
- * (sigma_leg / H*) is, and this harness does not compute it, so a reader
- * cannot see which regime they are in.
+ * That is what this docblock used to describe as an open defect, and the
+ * reason it stayed open was stated here as "swapping one trap for the other
+ * would change every recorded evaluation number without making the harness
+ * able to answer". A per-corridor derivation is the thing that makes it able
+ * to answer, and it does change those numbers: an evaluation recorded before
+ * this exists was run at whatever load `0.8 x H* / 0.25` happened to imply for
+ * that corridor, which on the median real corridor is 96 passengers in 52
+ * seats. Re-run it with `--demand global` to see the run as it was.
  *
- * Left at 0.8 deliberately rather than half-corrected: swapping one trap for
- * the other would change every recorded evaluation number without making the
- * harness able to answer. What it needs is a corridor that comes apart at a
- * moderate load - more travel-time variability or a shorter headway, checked
- * against `controllability` - and that is a calibration, not a constant.
+ * The alighting fraction and the travel-time variation below are UNCHANGED and
+ * still invented. So is `vehicleCapacity`, which is a property of the fleet.
+ * The derived rate is not a measurement either - it is the same invention
+ * applied per corridor - and every report says so on every row.
  *
  * Still invented - see `rehearsal/run.ts`'s header. A spec that names its own
  * `inputs` overrides these.
@@ -181,19 +246,51 @@ export function parseExperimentSpec(input: unknown): ExperimentSpec {
 export const EVALUATION_DEFAULT_INPUTS: Partial<ModelledInputs> = {
   boardingRatePerMinute: 0.8,
   alightingFraction: 0.25,
-  travelTimeVariation: 0.2,
+  // ─── MEASURED, and the only two here that are ──────────────────────────
+  //
+  // `stop_visits` began filling on 2026-09-06 and `calibration/dispersion.ts`
+  // fitted both from it: dispersion 0.210 [0.176, 0.255] and cruise speed
+  // 37.5 km/h over clean single-leg traversals, on the 158 corridors control
+  // can run on. Full provenance and caveats in `docs/CALIBRATION_MEASURED.md`
+  // - notably that it is ONE DAY, 10.7 hours, which is not a measurement by
+  // this repo's own seed-spread convention.
+  //
+  // They are here rather than left at the modelled 0.2 / 35 because this
+  // harness DECIDES SOMETHING with them: `corridors.ts`'s `eligible` source
+  // selects on `sigma_leg / H*`, which scales linearly with the first and
+  // inversely with the second, so a corridor's presence in a run is a
+  // function of these two numbers. Selecting on an assumption when a
+  // measurement exists is the thing `sim:eligibility` warns about.
+  //
+  // All three corridor presets sit BELOW the measured dispersion (0.18, 0.16,
+  // 0.14), so every preset result is produced on a corridor calmer than this
+  // network's.
+  travelTimeVariation: 0.21,
+  cruiseSpeedKmph: 37.5,
 };
 
-/** Modelled inputs for one run: the spec's overrides on the shared defaults, with the seed and disturbance this cell is for. */
+/**
+ * Modelled inputs for one run, in four layers of increasing authority.
+ *
+ * `corridorInputs` sits BELOW the spec deliberately. It carries inputs that
+ * belong to a particular corridor rather than to the run - a preset's own
+ * cruise speed and dwell, which were chosen together with its geometry - and
+ * a spec that names an input is making a statement about the whole experiment,
+ * which must still win. `overrides` is above everything because that is where
+ * a sweep's swept value and the per-corridor boarding rate `demand.ts`
+ * resolved arrive, both of which ARE the experiment.
+ */
 export function resolveInputs(
   spec: ExperimentSpec,
   seed: number,
   disturbance: RehearsalDisturbance,
   overrides: Partial<ModelledInputs> = {},
+  corridorInputs: Partial<ModelledInputs> = {},
 ): ModelledInputs {
   return {
     ...DEFAULT_MODELLED_INPUTS,
     ...EVALUATION_DEFAULT_INPUTS,
+    ...corridorInputs,
     ...spec.inputs,
     ...overrides,
     seed,

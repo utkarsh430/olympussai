@@ -48,7 +48,7 @@
 import { clamp } from './math.js';
 import { canExecuteHold } from './eligibility.js';
 import { liveOnboardCount, optimalHoldSeconds, scoreHold } from './objective.js';
-import { isWorthActingOn, occupancyAdjustedMaxHoldSeconds } from './actionThreshold.js';
+import { isPairActionable, occupancyAdjustedMaxHoldSeconds } from './actionThreshold.js';
 import type { CandidateAction } from './types.js';
 import type { HeadwayStateRow, RoutePolicyRow, VehicleStateRow } from '../state/store.js';
 
@@ -88,6 +88,22 @@ export function computeCostOptimalCandidates(
    * passes the real setting. See mpc/objective.ts#liveOnboardCount.
    */
   weighOccupancy = true,
+  /**
+   * Stops each vehicle still has to serve, for the objective's waiting
+   * horizon. Empty - the default - leaves every candidate on the one-stop
+   * term, which is the deployed behaviour; `mpc/solver.ts` populates it only
+   * when `MULTI_STOP_WAIT_TERM_ENABLED` is on, so every candidate in one
+   * solve is priced under the same rule. See mpc/objective.ts.
+   */
+  downstreamStopsByVehicleId: ReadonlyMap<string, number | null> = new Map(),
+  /**
+   * Whether the forecast-admission gate may widen this law's action bar for a
+   * pair predicted to deteriorate toward it. Defaults FALSE - today's
+   * behaviour and the deployed default - so a direct caller keeps the
+   * ungated law; `mpc/solver.ts` passes the real setting
+   * (`FORECAST_ACTION_GATE_ENABLED`). See mpc/actionThreshold.ts.
+   */
+  forecastGateEnabled = false,
 ): CandidateAction[] {
   const candidates: CandidateAction[] = [];
 
@@ -98,19 +114,62 @@ export function computeCostOptimalCandidates(
     // know" - it is a different, worse controller wearing the optimum's name.
     // The pair belongs to selfEqualizing.ts in that case.
     if (h.hFwdSeconds === null || h.hBwdSeconds === null) continue;
-    // Not deviant enough to be worth an instruction - see mpc/actionThreshold.ts.
-    if (!isWorthActingOn(h.hFwdSeconds, policy)) continue;
+    // Not deviant enough to be worth an instruction, and not forecast to
+    // become so - see mpc/actionThreshold.ts. With the gate off this is
+    // exactly `isWorthActingOn` and the forecast is not read.
+    if (!isPairActionable(h, policy, forecastGateEnabled)) continue;
     if (!canExecuteHold(vehicleStatesByVehicleId.get(h.followerVehicleId), controlPointStopIds)) continue;
 
     const load = liveOnboardCount(vehicleStatesByVehicleId.get(h.followerVehicleId), policy, now, weighOccupancy);
     const deviationSeconds = scheduleDeviationByVehicleId.get(h.followerVehicleId) ?? null;
 
+    // ─── THE LOAD IS BOUND ON THE ACTION, NOT ON THE CLOSED FORM ─────────
+    //
+    // `loadPassengers: null` here is deliberate and it is the whole fix for
+    // the silence described below. `optimalHoldSeconds` is a faithful argmin
+    // and stays one - it is the right answer the day lambda is measured - but
+    // the penalty it subtracts is
+    //
+    //     (w_v x L + w_c) / (2 x w_h x lambda)
+    //
+    // and `arrivalRatePaxPerSecond` proxies lambda as 1/H*, so that is
+    // L x H*/2 SECONDS PER PASSENGER: 180 s each on the urban corridor's 360 s
+    // headway, ~39,600 s on the inter-city preset. d* is floored at 0, so a
+    // bus carrying two people asked for no hold at all and this law returned
+    // here on every pair - three fleet trials reported `lawCoverage` of
+    // exactly 0 for `cost_optimal` in the occupancy-weighed phase against
+    // 310-578 in the blind phase of the same trial. Feeding an uncalibrated
+    // term into the argmin does not price the load, it deletes the law.
+    //
+    // `actionThreshold.ts#occupancyAdjustedMaxHoldSeconds` is where the load
+    // binds instead, exactly as that module already argues it must ("the load
+    // has to bind on the ACTION, not on the ordering") and exactly as the
+    // other four laws already do it. The taper can shorten a hold and can
+    // never invert one, so it cannot silence the controller the way an
+    // uncalibrated argmin can. It is applied below, on `load`.
+    //
+    // The SCORE still weighs `load` - see `scoreHold` below. That is not an
+    // oversight and must not be "tidied up": every law prices its candidate
+    // through the same `computePassengerCost`, and dropping the term here
+    // alone would hand this law a systematically lower cost than the four it
+    // is sorted against, which is the sort it must not win until lambda is
+    // measured. See COST_OPTIMAL_SELECTION_ENABLED in config/env.ts.
+    // The horizon the objective's waiting term is summed over. It divides the
+    // argmin's load penalty, so it belongs here as much as in the score - but
+    // the penalty is already zero with `loadPassengers: null` and W_OPERATOR
+    // at 0, so today this changes d* by nothing at all. Passed anyway,
+    // because the two must not be able to disagree about which objective this
+    // law is the minimiser of: the day either of those changes, an argmin
+    // computed against a one-stop objective and scored against a multi-stop
+    // one would be minimising a function nothing evaluates.
+    const downstreamStopCount = downstreamStopsByVehicleId.get(h.followerVehicleId) ?? null;
     const rawHold = optimalHoldSeconds({
       hFwdSeconds: h.hFwdSeconds,
       hBwdSeconds: h.hBwdSeconds,
       targetHeadwaySeconds: h.targetHeadwaySeconds,
-      loadPassengers: load,
+      loadPassengers: null,
       scheduleDeviationSeconds: deviationSeconds,
+      downstreamStopCount,
     });
     if (rawHold <= 0) continue;
 
@@ -123,7 +182,15 @@ export function computeCostOptimalCandidates(
     );
     if (holdSeconds < MIN_MEANINGFUL_HOLD_SECONDS) continue;
 
-    const score = scoreHold(h, h.followerVehicleId, holdSeconds, rawHold, load, deviationSeconds);
+    const score = scoreHold(
+      h,
+      h.followerVehicleId,
+      holdSeconds,
+      rawHold,
+      load,
+      deviationSeconds,
+      downstreamStopCount,
+    );
 
     // The optimum of a cost function should not increase that cost. When it
     // does, the reason is always that the hold was clamped away from d* - by

@@ -48,11 +48,16 @@ export interface StateEstimationRepository {
    * be able to write the same departure twice, because a duplicate would
    * halve the departure-to-departure headway computed over it.
    *
-   * OPTIONAL so the in-memory test repository stays a valid implementation
-   * without one; a repository that does not record visits simply produces no
-   * stop history, which is the pre-existing behaviour.
+   * REQUIRED, and deliberately so. It was optional once, to spare the
+   * in-memory test repository - and the cost of that convenience was that
+   * `CachedGeometryRepository`, the decorator the production singleton wraps
+   * every repository in, could omit it and still satisfy
+   * `implements StateEstimationRepository`. The compiler said nothing, and
+   * `stop_visits` stayed empty for the entire life of the service while
+   * every other writer on the same path worked. A decorator that forgets a
+   * method must be a type error, not a silent behaviour change.
    */
-  recordStopVisit?(visit: CompletedStopVisit): Promise<void>;
+  recordStopVisit(visit: CompletedStopVisit): Promise<void>;
   /**
    * Optional spatial prefilter: only the shapes plausibly within
    * `radiusMeters` of `point`. Optional so an implementation without a

@@ -2,8 +2,8 @@
 
 A thousand simulated buses on a 400 km corridor with ten holding points, run
 twice — once through the deployed control laws, once with nobody intervening —
-across ten ways a corridor comes apart, in two phases that differ in exactly one
-input.
+across nineteen ways a corridor comes apart, in two phases that differ in exactly
+one input.
 
     pnpm --dir control-service sim:fleet
     pnpm --dir control-service sim:fleet --vehicles 250 --out experiments/runs/fleet
@@ -75,7 +75,7 @@ below is not.
 
 ## Where it stands, with error bars
 
-Six seeds, 250 buses per phase, all ten scenarios, `pnpm sim:fleet --corridor X
+Six seeds, 250 buses per phase, the original ten scenarios, `pnpm sim:fleet --corridor X
 --vehicles 250 --seed S`. Net is total passenger time saved as a share of what
 passengers actually spend — waiting plus every second aboard.
 
@@ -742,7 +742,7 @@ indistinguishable from one that has been:
 - **`max_lateness_seconds`** — the sweep now *does* find something, but only
   after the timetable was fixed; a tight bound is right on both corridors.
 
-### 17. Alighting-only: the right idea, and it loses anyway
+### 17. Alighting-only: the right idea, retracted twice, and now measured to help
 
 "Let a bus at a stop drop passengers but pick nobody up when the follower is
 close behind" is `mpc/boardingLimit.ts` — the only lever here that improves
@@ -758,28 +758,58 @@ a property of the law:
    safety filter ages every vehicle a candidate *involves* and the **trailer**
    had no observation timestamp.
 
-Fixed, the law fires — and measured, it **loses**. Across eight seeds on the
-urban corridor it made total passenger time worse on seven; in `slow_bus` it
-cost 9% of all passenger time on **every** seed.
+Fixed, the law fires — and this section's verdict has moved twice since, on
+three progressively larger measurements. **Each is reported below with its own
+seed count, because that count is exactly what changed between them.**
 
-The mechanism, measured directly: 415 passengers passed cost **103 extra hours
-of waiting — about 15 minutes each**, against the ~90 seconds the law reports as
-`leftBehindWaitSeconds`. The follower arrives carrying its own load, cannot fit a
-double queue, 150 more people are denied a seat outright, and the overflow rolls
-forward. On a corridor with no overtaking the follower is also stuck behind
-whatever delayed the leader in the first place.
+**First measurement (eight seeds, urban, old headline): it loses.** Total
+passenger time came out worse on seven of eight seeds; in `slow_bus` it cost 9%
+of all passenger time on every seed. This is also the measurement behind the
+mechanism below: 415 passengers passed cost **103 extra hours of waiting — about
+15 minutes each** — against the ~90 seconds the law reports as
+`leftBehindWaitSeconds`. The follower arrives carrying its own load, cannot fit
+a double queue, 150 more people are denied a seat outright, and the overflow
+rolls forward. On a corridor with no overtaking the follower is also stuck
+behind whatever delayed the leader in the first place. So
+`leftBehindWaitSeconds` is a **lower bound and a loose one** — it must never be
+shown as the cost of the action, and this mechanism is real regardless of which
+way the seed-count verdicts below land.
 
-So `leftBehindWaitSeconds` is a **lower bound and a loose one** — it must never
-be shown as the cost of the action. And the deployed decision to propose this
-and never auto-select it is correct: the law needs a fitted dwell model to know
-its benefit and an occupancy feed on the follower to know its cost, and
-`mpc/boardingLimit.ts` says so itself. The trial now puts numbers on both.
+**This first "it loses" verdict survived only because an earlier trial bug was
+caught first.** Before it, the trial had reported alighting-only winning on 7 of
+8 seeds — because the engine swept a stop's waiting queue at *departure*
+regardless, so the passengers left behind vanished and the action measured as
+free. Fixing that queue bug is what turned the 7/8 win into the 7/8 loss above;
+both halves of the action's trade had been invisible until then.
 
-**This finding survived only because a bug in the trial was caught.** The first
-measurement said alighting-only improved things on 7 of 8 seeds — because the
-engine swept the stop's waiting queue at *departure* regardless, so the
-passengers left behind vanished and the action measured as free. Both halves of
-its trade had disappeared.
+**Second measurement (six seeds, 250 buses/phase, urban, occupancy-blind, on
+the metric now used throughout this document): no measured effect.** The first
+loss was itself taken on the *old headline* — waiting plus the hold, over a
+waiting-only denominator, with passengers still boarding at the terminus — and
+does not survive that being fixed. Re-measured on the corrected metric, acting
+on it was better on only 3 of 6 seeds by total passenger time (mean +0.25
+points) and 5 of 6 per passenger carried (mean +0.29); in `slow_bus`
+specifically, better on 4 of 6, mean +1.49. By this trial's own rule — a mean
+whose seeds disagree is not a small effect — that was **no measured effect**,
+not a win. "It loses" stopped being something anyone could say, but nor yet
+could "it wins".
+
+**Third measurement (sixteen paired phase-seeds, same corridor and phase, on
+the same corrected metric): it helps.** Acting on it is better on **14 of 16
+seeds by total passenger time** and **16 of 16 by excess wait**. Both clear the
+trial's own seed-agreement bar (`seedsAgreeingWithSign > seedCount / 2`), so
+unlike the six-seed measurement this one IS a measured effect, and it is
+positive.
+
+**None of this changes the deployed decision, but it changes the reason for
+it.** The law is proposed and never auto-selected, and that stays correct: it
+needs a fitted dwell model to know its benefit and an occupancy feed on the
+follower to know its cost (`mpc/boardingLimit.ts` says so itself), and the
+mechanism above is a real, unpriced cost this trial's positive mean does not
+retire. What changes is that the reason is no longer "it loses" — by the most
+recent and largest measurement, it does not. See `HANDOFF.md` §6 for the same
+history in the dead-ends table and `fleetTrial/run.ts`'s
+`FleetTrialSpec.alightingOnlySelectable` doc comment for the switch itself.
 
 ## What happens to the incidents
 
@@ -835,6 +865,21 @@ advance.
 - **Real demand.** Every passenger was invented.
 - **A real timetable.** The trial books its own (see finding 5), so lateness is
   measured — but against an invented schedule, not a published one.
+- **Corridor dispersion.** `travelTimeVariation` is invented like every other
+  running-time input, and it is the one the headline is most sensitive to.
+  Holding demand fixed and sweeping it alone (urban preset): excess-wait
+  improvement measures **60.7%** at the shipped value (0.18), **43.7%** at
+  roughly double it, and **14.1%** at roughly 3.3x it. Across the same 3.3x
+  swing applied to the invented boarding rate instead, the headline stays
+  within **60.7–64.5%** — roughly an order of magnitude less sensitive. **The
+  bunching result IS robust to demand** — that swing barely moves it, and it is
+  a genuinely reassuring finding — **it is not robust to dispersion.** The real
+  network's measured median headway CV is **1.78** (an upper bound, contaminated
+  by parked buses that map-match onto a route), while this trial reaches only
+  **0.87** at its noisiest tested setting — the direction that costs the
+  headline. This sensitivity is re-runnable, not just stated: see the
+  `travel_time_variation` row in `policyStudies`, printed by `sim:fleet`
+  alongside every other policy sweep.
 
 ## The corridor, and why it is shaped this way
 
@@ -855,7 +900,14 @@ offered passengers are refused a seat, waiting time is bounded by how many seats
 exist rather than by how they are spaced — `SpacingKpis.saturated` flags any arm
 that crossed it anyway.
 
-## The ten scenarios
+## The scenarios
+
+Ten of them describe ways a CORRIDOR comes apart. Nine more, added afterwards,
+describe ways the CONTROLLER comes apart — each attacks a named assumption in
+the control laws rather than adding another kind of bad day. They exist because
+the first ten were being passed: measured, the laws improved net passenger time
+on 9 of 10 urban scenarios, 8 of 10 suburban and 7 of 10 inter-city, and a
+library a controller mostly passes is not measuring its limits.
 
 | id | what goes wrong |
 |---|---|
@@ -870,7 +922,149 @@ that crossed it anyway.
 | `gps_dropout` | buses stop reporting position |
 | `driver_non_compliance` | fleet-wide 45% compliance |
 
-`traffic_shock` and `cascade` are the ones a holding controller handles worst, and
-they are in the library for that reason: every bus inside the window is delayed
-and none outside it is, so there is no single culprit to hold behind and the
-honest answer may be that holding helps little.
+And the adversarial set:
+
+| id | what it attacks |
+|---|---|
+| `phantom_position` | the feed is fresh, consistent and WRONG, drifting a headway's distance per trip |
+| `frozen_feed` | a modem republishing its last fix with a current timestamp — old data that nothing can tell is old |
+| `blind_slowdown` | a congestion window AND a map-match error on the buses inside it |
+| `hotspot_demand` | five stops carry the route, against an objective whose arrival rate is uniform by construction |
+| `partial_compliance` | four tiers of driver, some of whom take an instruction and serve a quarter of it |
+| `oversaturated` | the far side of the denied-boarding line, where a working controller must report no effect |
+| `oscillating_shock` | a stretch alternating slow and fast once a headway, against proportional laws with a transport lag |
+| `building_peak` | a corridor with no steady state, so no booked timetable fits any bus |
+| `shock_and_recovery` | one severe shock, then a long clean stretch: does the corridor come back, and does holding delay that |
+
+`traffic_shock` and `cascade` are the ones a holding controller handles worst
+among the original ten, and they are in the library for that reason: every bus
+inside the window is delayed and none outside it is, so there is no single
+culprit to hold behind and the honest answer may be that holding helps little.
+
+### What the adversarial set found
+
+Six seeds at 2,000 buses per phase, occupancy-blind. Read the excess-wait
+column against `steady_variability`'s own gain on the same corridor (urban 53%,
+suburban 43%, inter-city 22%) — that is the controller working normally.
+
+| scenario | corridor | uncontrolled EWT | net passenger time | excess wait |
+|---|---|---|---|---|
+| `oversaturated` | all three | 41–236 s | **−2.7% / −0.9% / −0.6%, 0/6 seeds positive** | 49–54% |
+| `oscillating_shock` | inter-city | 489 s, 27.6% bunched | +1.1% | **6.4%** on 502 s/bus of holding |
+| `partial_compliance` | inter-city | 247 s | +0.3% | **12.4%** on 180 s/bus |
+| `building_peak` | inter-city | **781 s** | +1.3% | **12.7%** |
+| `blind_slowdown` | inter-city | 371 s | +0.2%, 3/6 | **13.2%** |
+
+`oversaturated` is the only scenario the controller loses outright, and it is
+supposed to: it is the harness's own saturation reporting under test, and the
+flag fires on 6/6 seeds on every preset. The other four are the finding — the
+controller stays positive but its gain collapses by two to three times while it
+issues as many hold seconds as ever, which is a controller working hard and
+buying little rather than one that has stopped.
+
+### The headline may not average a scenario built to lose
+
+`oversaturated` exists to prove the harness reports NO effect past the
+denied-boarding line. Pooled into the single top-line "net passenger time"
+figure with the eighteen readable scenarios it does not report an effect — it
+dilutes one, with a measurement that was never able to carry a signal.
+
+Measured, same code, same run, urban at the default 500 buses/phase:
+
+| scenario set | net passenger time | first-time denied share |
+|---|---|---|
+| all 19 | **+0.95%** | 12.2% |
+| the 18 that are not saturated | **+2.46%** | 3.9% |
+
+Anyone comparing +0.95% with a figure from before `oversaturated` was added
+would read a controller that had got three times worse overnight, when what had
+changed was the test set. So every phase now carries two pools:
+
+* `PhaseReport.controlled` / `.uncontrolled` / `.contrast` — **the headline**,
+  pooled over `FleetTrialReport.headlineScope.includedScenarioIds`;
+* `PhaseReport.allScenarios` — the same three over every scenario the phase ran,
+  published beside the headline and never in place of it. It reproduces the
+  previous figure exactly.
+
+Three properties of the rule are the point of it, and undoing any of them
+re-opens the defect:
+
+1. **The exclusion is MEASURED, never an id list.** A scenario is out when
+   either arm is past `SATURATION_DENIED_SHARE`. A list would go stale the first
+   time a scenario was renamed, and would silently keep including the next one
+   that crossed the line — on inter-city at 500 that is `station_surge` (21%)
+   and `building_peak` (25%) as well as `oversaturated` (57%), and none of the
+   three is named anywhere in the code.
+2. **Either arm, not both.** The contrast is a difference of quantities
+   saturation bounds, so one saturated side is enough to make it unreadable.
+3. **Decided once for the trial, across every phase.** Saturation is measured
+   per arm, so two phases could exclude different scenarios — and a comparison
+   between two figures averaged over two different scenario sets is not a
+   comparison.
+
+`scenarioAgreement` deliberately still counts EVERY scenario, excluded ones
+included: it is the surface on which a scenario designed to lose should be
+visible, and it is where `oversaturated` shows up as the worst row.
+
+When every scenario saturates there is nothing readable to pool, so the headline
+falls back to the full set and `headlineScope.fellBackToAllScenarios` says so.
+Reporting the empty pool instead would render as an em dash, which reads as "the
+trial found nothing" rather than "every scenario was past the line".
+
+### The saturation flag and the denied share are one expression
+
+`SpacingKpis` published `deniedBoardings` (refusal EVENTS — a passenger three
+full buses turn away is three of these) and `totalBoardings` (a HEADCOUNT, each
+person once) and a `saturated` flag, and said nothing about which arithmetic the
+flag was drawn on. A reader building a share from the two numbers in front of
+them got `deniedBoardings / totalBoardings`, which divides a rate by a headcount:
+measured on urban at 500 it read **52%** beside a flag reading **false**. Both
+numbers were honest and they were about different things.
+
+`SpacingKpis.deniedShare` now carries
+`firstTimeDeniedBoardings / (firstTimeDeniedBoardings + totalBoardings)`, and
+`saturated` is `deniedShare > SATURATION_DENIED_SHARE` and nothing else. They
+cannot disagree, because they are the same expression. Null — not zero — when
+nobody was offered a seat at all.
+
+### The console says whose report it is showing
+
+`GET /v1/fleet-trial/latest` serves the last report the control-service PROCESS
+produced, from one module-level variable, to every caller. A trial anyone runs
+through the API becomes what the next person opening the console sees, and a
+restart loses it entirely. The page rendered that on load with no statement of
+when it ran, on what corridor, or at what fleet size — which is how a 60-bus
+diagnostic run reporting −7.9% was read off a page whose own controls said
+1,000 buses.
+
+The fix is provenance, not per-user state in the control service. Deliberately:
+the trial is a pure computation over a spec that travels inside its own result,
+it writes nothing and reads no database, and the report is not private data —
+there is no user at that layer to attach it to. Sessions there would add state
+to a deliberately stateless endpoint and still leave the defect, because a stale
+report of your own misleads exactly as much as a fresh one of somebody else's.
+
+So the console states what the report IS: when it ran, on which corridor, at
+what fleet size, whether it is the reader's own run or whatever ran last, and
+whether it is old enough that the deployed laws it measured may have moved. The
+page's own controls are seeded from the report rather than from a fixed default,
+and offer the size it actually ran even when that is not one of the presets —
+a control reading 1,000 above a 60-bus report is the mismatch itself.
+
+Two cautions a reader needs before acting on any per-scenario row.
+
+**The default trial has no statistical power per scenario.** `vehiclesPerPhase`
+is split ACROSS scenarios, so a nineteen-scenario trial at the default 500 gives
+each scenario 26 buses per arm. Measured, the per-scenario sign flips freely at
+that budget: at 500 buses `phantom_position` read −0.5% on suburban over 6 seeds
+and at 2,000 buses it read +0.7%, and the same reversal happened to `slow_bus`,
+`frozen_feed` and `blind_slowdown`. The phase-level `scenarioAgreement` count is
+a screening number; run `--vehicles 2000` before calling any single scenario a
+failure. Runtime is unaffected by scenario count (the buses are shared out, not
+added), so this costs vehicles rather than scenarios.
+
+**An estimator attack cannot raise the uncontrolled arm's bunching**, because
+the uncontrolled arm does not read the estimator. `phantom_position`,
+`frozen_feed` and the GPS half of `blind_slowdown` are the exceptions to the
+rule that a hard scenario must be a hard corridor: their hardness shows up as
+the controlled arm's gain collapsing, never as a worse baseline.

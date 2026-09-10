@@ -66,6 +66,12 @@
 //     full confidence and that exclusion path never fires.
 import { computePairHeadways } from '../headway/metrics.js';
 import { computeLeaderFollowerOrder } from '../state-estimation/ordering.js';
+import {
+  PositionPlausibilityTracker,
+  type PlausibilityAudit,
+  type PlausibilityConfig,
+  type PlausibilityMode,
+} from '../state-estimation/positionPlausibility.js';
 import { classifyStopState } from '../state-estimation/stopStateClassifier.js';
 import type { NearestStop } from '../state-estimation/stopStateClassifier.js';
 import {
@@ -78,7 +84,12 @@ import { computeSelfEqualizingCandidates } from '../mpc/selfEqualizing.js';
 import { computeCostOptimalCandidates } from '../mpc/costOptimalHold.js';
 import { computeBoardingLimitCandidates, isBoardingLimitCandidate } from '../mpc/boardingLimit.js';
 import { canExecuteHold } from '../mpc/eligibility.js';
-import { isWorthActingOn } from '../mpc/actionThreshold.js';
+import { isPairActionable } from '../mpc/actionThreshold.js';
+import {
+  computeBunchingRisk,
+  forecastHorizonSeconds,
+  type HeadwaySampleObservation,
+} from '../headway/riskForecast.js';
 import { applyHardSafetyFilter, DEFAULT_STATE_STALE_SECONDS } from '../mpc/safety.js';
 import { computePredictiveAdvisory } from '../mpc/occupancyMpc.js';
 import { selectActions, isRankedMidRouteCandidate } from '../mpc/solver.js';
@@ -164,6 +175,19 @@ export type DeclineReason =
    */
   | 'not_deviant_enough'
   | 'not_eligible_to_hold'
+  /**
+   * The law computed a hold and then dropped it, because its own objective
+   * scored the hold at >= 0 passenger-seconds - `mpc/selfHarmCheck.ts`.
+   *
+   * Only ever reported when `SELF_HARM_CHECK_ENABLED` is on, which is never on
+   * a deployment. It exists because without it every one of those declines
+   * lands on `no_hold_indicated`, which is untrue in the way that matters: the
+   * law DID indicate a hold, it was the objective that refused it. A reader
+   * comparing a checked run against an unchecked one could not otherwise tell
+   * the check's declines apart from a corridor that simply went quiet, and
+   * telling those apart is the entire point of running the check.
+   */
+  | 'scored_self_harmful'
   /** Alighting-only acts on the LEADER, and the leader was not at a stop it could act at. */
   | 'leader_not_at_stop'
   /** Alighting-only needs a bus behind to collect the people left standing. There was none. */
@@ -359,6 +383,85 @@ export interface DeployedControlLawsOptions {
    * each way, which is the whole point of having two phases.
    */
   weighOccupancy?: boolean;
+  /**
+   * Whether the four laws that have no self-harm check apply one: declining a
+   * hold their own objective scores as net harmful, exactly as
+   * `mpc/costOptimalHold.ts` always has.
+   *
+   * Defaults to the deployed switch (`SELF_HARM_CHECK_ENABLED`, off) so a
+   * rehearsal reproduces today's behaviour; overridable so the fleet trial can
+   * measure what flipping it would do before anyone flips it. It was measured,
+   * and the answer is don't - see mpc/selfHarmCheck.ts and
+   * docs/SELF_HARM_CHECK.md.
+   */
+  selfHarmCheckEnabled?: boolean;
+  /**
+   * Whether the objective's waiting term is summed over the stops a hold's
+   * correction is experienced at, rather than only the control point it is
+   * issued from.
+   *
+   * Defaults to the deployed switch (`MULTI_STOP_WAIT_TERM_ENABLED`, off) so
+   * a rehearsal reproduces today's behaviour; overridable so an evaluation
+   * can measure what flipping it would do before anyone flips it. Needs
+   * `corridorStops` to have anything to count - without it there is no stop
+   * sequence to read a horizon out of and every candidate stays on the
+   * one-stop term, which is the same "null means one stop" rule production
+   * follows when a corridor's sequence is not loaded.
+   */
+  multiStopWaitTerm?: boolean;
+  /**
+   * Whether the mid-route laws may act on a pair the ordinary action bar
+   * declines, because this pair's FORECAST says it is deteriorating toward
+   * that bar (`mpc/actionThreshold.ts#isPairActionable`).
+   *
+   * Defaults to the deployed switch (`FORECAST_ACTION_GATE_ENABLED`, off) so
+   * a rehearsal reproduces today's behaviour; overridable so the fleet trial
+   * can measure what flipping it would do before anyone flips it.
+   *
+   * Off is byte-identical here in the strong sense: with this false the
+   * forecast is not merely ignored, the sweep below never runs and no risk is
+   * ever fitted.
+   */
+  forecastGateEnabled?: boolean;
+  /**
+   * How often the forecast's sample history is appended to, seconds.
+   *
+   * This is NOT a tuning knob, it is a fidelity one. In production the
+   * forecast a control law reads was computed by the headway SWEEP
+   * (`scheduler/headwayCompute.ts`, 60 s) and stored on the row the law then
+   * reads out of `stateStore`, so it is up to one sweep old and it was fitted
+   * from samples taken on that cadence. A rehearsal that re-fitted the trend
+   * at every decision point would give the laws a forecast production does
+   * not have - fresher, and fitted from a denser series than `headway_states`
+   * ever contains - which is exactly the way this adapter has flattered the
+   * deployed system before.
+   */
+  forecastSweepIntervalSeconds?: number;
+  /** Samples the trend is fitted from, matching `BUNCHING_FORECAST_SAMPLE_WINDOW`. */
+  forecastSampleWindow?: number;
+  /**
+   * Whether the chain and the corridor pace are built from fixes that have
+   * been CHECKED for being true, rather than merely fresh
+   * (`state-estimation/positionPlausibility.ts`).
+   *
+   * Defaults to the deployed switch (`GPS_POSITION_PLAUSIBILITY_ENABLED`,
+   * off) so a rehearsal reproduces today's behaviour; overridable so the
+   * fleet trial can measure what flipping it would do before anyone flips
+   * it. Off is byte-identical in the strong sense - no tracker is
+   * constructed and no distance is substituted.
+   */
+  positionPlausibilityEnabled?: boolean;
+  /** `correct` (substitute the dead-reckoned belief) or `exclude` (drop from the chain). */
+  positionPlausibilityMode?: PlausibilityMode;
+  /** The residual bound, as travel time at the corridor's pace. See that module's header. */
+  positionPlausibilityBoundSeconds?: number;
+  /**
+   * The rest of the tracker's configuration, for a study that sweeps
+   * something other than the bound. Every field defaults to
+   * `DEFAULT_PLAUSIBILITY_CONFIG`; `positionPlausibilityBoundSeconds` wins
+   * over a `residualBoundSeconds` given here.
+   */
+  positionPlausibilityConfig?: Partial<PlausibilityConfig>;
 }
 
 /**
@@ -397,6 +500,15 @@ function isoAt(epochMs: number, seconds: number): string {
 export interface DeployedControlLawsController extends Controller {
   /** Every control-point decision this controller made, in the order it made them. */
   readonly decisions: readonly RehearsalDecisionRecord[];
+  /**
+   * What the position-plausibility check did, or null when it was not
+   * enabled. Published rather than merely counted because the RISK this
+   * correction carries is exclusion of the HEALTHY, and a flag whose benefit
+   * is reported without the population it excluded is a flag nobody can
+   * judge - the same rule `AGENTS.md` states for algorithm coverage beside a
+   * KPI, and for publishing the quantity a flag is drawn on.
+   */
+  readonly plausibilityAudit: PlausibilityAudit | null;
 }
 
 /** An all-laws-zero starting point, so a coverage record always names every law rather than only the ones that happened to run. */
@@ -415,8 +527,82 @@ export function createDeployedControlLawsController(
 ): DeployedControlLawsController {
   const { policy, epochMs, modelledCapacity } = options;
   const weighOccupancy = options.weighOccupancy ?? false;
+  const selfHarmCheckEnabled =
+    options.selfHarmCheckEnabled ?? loadEnv().SELF_HARM_CHECK_ENABLED;
   const followerSpeedSource = options.followerSpeedSource ?? 'link_average';
   const corridorStops = options.corridorStops ?? null;
+  const multiStopWaitTerm =
+    options.multiStopWaitTerm ?? loadEnv().MULTI_STOP_WAIT_TERM_ENABLED;
+  const forecastGateEnabled =
+    options.forecastGateEnabled ?? loadEnv().FORECAST_ACTION_GATE_ENABLED;
+  // Both defaults come from the deployed configuration rather than from a
+  // literal here, so a rehearsal that does not override them is fitting the
+  // trend from the same cadence and the same depth of history production has.
+  const forecastSweepIntervalSeconds =
+    options.forecastSweepIntervalSeconds ?? loadEnv().HEADWAY_COMPUTE_INTERVAL_MS / 1000;
+  const forecastSampleWindow =
+    options.forecastSampleWindow ?? loadEnv().BUNCHING_FORECAST_SAMPLE_WINDOW;
+
+  // ─── THE FIX IS CHECKED FOR BEING TRUE, NOT ONLY FOR BEING FRESH ─────
+  //
+  // Constructed only when the switch is on, so off is byte-identical rather
+  // than merely equivalent: nothing observes, nothing accumulates, and the
+  // ordering below is handed the reported distances unaltered.
+  const plausibilityEnabled =
+    options.positionPlausibilityEnabled ?? loadEnv().GPS_POSITION_PLAUSIBILITY_ENABLED;
+  const plausibilityMode: PlausibilityMode =
+    options.positionPlausibilityMode ?? loadEnv().GPS_POSITION_PLAUSIBILITY_MODE;
+  const plausibilityTracker = plausibilityEnabled
+    ? new PositionPlausibilityTracker({
+        ...options.positionPlausibilityConfig,
+        residualBoundSeconds:
+          options.positionPlausibilityBoundSeconds ??
+          options.positionPlausibilityConfig?.residualBoundSeconds ??
+          loadEnv().GPS_POSITION_PLAUSIBILITY_BOUND_SECONDS,
+      })
+    : null;
+  const forecastHorizon = forecastHorizonSeconds(policy.targetHeadwaySeconds);
+
+  // ─── THE FORECAST THE LAWS READ, ON PRODUCTION'S OWN CADENCE ─────────
+  //
+  // `headway_states` carries one sample per pair per sweep, and
+  // `headway/service.ts` fits the trend from the samples EARLIER sweeps wrote
+  // - never including the row it is about to write - then stores the
+  // projection on that row. A control law reads the stored value, so what it
+  // sees is the forecast as of the last sweep.
+  //
+  // Both halves of that are reproduced here. `samplesByPair` is the sample
+  // history, appended once per sweep interval; `forecastByPair` is the stored
+  // projection, which the decision path reads and never recomputes. Fitting
+  // at decision time instead would hand the laws a fresher and denser series
+  // than production has - see `forecastSweepIntervalSeconds`.
+  //
+  // Keyed by (leader, follower) with a NUL separator for the same reason
+  // `headway/service.ts#pairKey` uses one: both halves are vehicle
+  // registrations, so a plain concatenation makes (AB, CD) and (ABC, D) the
+  // same pair.
+  const samplesByPair = new Map<string, HeadwaySampleObservation[]>();
+  const forecastByPair = new Map<string, number | null>();
+  let lastForecastSweepSeconds: number | null = null;
+
+  /**
+   * stop_id -> stops left to serve from it, counting itself.
+   *
+   * The rehearsal's stand-in for `stateStore.getDownstreamStopCount`, built
+   * from the same thing production builds it from - the route-direction's
+   * stop sequence, in order. `corridorStops` is already in sequence order
+   * (`fleetTrial/corridor.ts` and `rehearsal/corridor.ts` both build it that
+   * way), and `cumulativeDistanceMeters` is carried here anyway, so it is
+   * sorted on that rather than trusted, for the same reason the store sorts
+   * on `sequence` rather than trusting the query.
+   */
+  const downstreamStopsByStopId = ((): ReadonlyMap<string, number> => {
+    if (!multiStopWaitTerm || !corridorStops || corridorStops.length === 0) return new Map();
+    const ordered = [...corridorStops].sort(
+      (a, b) => a.cumulativeDistanceMeters - b.cumulativeDistanceMeters,
+    );
+    return new Map(ordered.map((stop, index) => [stop.stopId, ordered.length - index]));
+  })();
   const alightingOnlySelectable = options.alightingOnlySelectable ?? false;
 
   /**
@@ -585,10 +771,60 @@ export function createDeployedControlLawsController(
     // harness, not to the corridor. `headway/service.ts` ranks every live
     // vehicle on the route-direction, about fifteen of them at any instant on
     // these corridors, and so does `fleetTrial/detection.ts`.
+    // ─── THE FIX IS CHECKED BEFORE THE CHAIN IS BUILT FROM IT ──────────
+    //
+    // `kinematics.corridor` carries what the CONTROLLER IS TOLD, which under
+    // a `gps_bias` disturbance is not where the buses are (the disturbance
+    // moves the reported position only - `simulation/types.ts`). Every
+    // quantity below is built from these positions, so this is the last
+    // point at which a lie can be taken out of all of them at once: the
+    // ranking, the gap, and the pace median the gap is divided by.
+    //
+    // Null verdicts when the switch is off, and then the two maps below are
+    // built exactly as they always were.
+    const plausibility =
+      plausibilityTracker?.observe(
+        context.now,
+        kinematics.corridor.map((vehicle) => ({
+          vehicleId: vehicle.vehicleId,
+          distanceAlongRouteMeters: vehicle.distanceAlongRouteMeters,
+          speedKmph: vehicle.speedKmph,
+        })),
+      ) ?? null;
+    const isImplausible = (vehicleId: string): boolean =>
+      plausibility?.get(vehicleId)?.isImplausible === true;
+    /**
+     * The distance this vehicle is RANKED and MEASURED at.
+     *
+     * In `correct` mode a rejected fix is replaced by the dead-reckoned
+     * belief - the position the vehicle's own reported speed says it reached
+     * since its last plausible fix - which keeps it in the chain and
+     * therefore keeps it eligible for control. That is the whole difference
+     * between this and a refusal, and refusal was measured to recover none
+     * of the loss and cost a further 1.9 points.
+     */
+    const rankedDistance = (vehicle: { vehicleId: string; distanceAlongRouteMeters: number }): number => {
+      if (plausibilityMode !== 'correct') return vehicle.distanceAlongRouteMeters;
+      const verdict = plausibility?.get(vehicle.vehicleId);
+      return verdict?.isImplausible
+        ? verdict.believedDistanceAlongRouteMeters
+        : vehicle.distanceAlongRouteMeters;
+    };
+    /**
+     * A rejected vehicle's SPEED is withheld from the pace median in both
+     * modes, and it has to be withheld explicitly in `correct` mode because
+     * there the vehicle keeps its rank and `corridorPaceKmph` only skips
+     * rank -1. Under a frozen feed the position and the speed are frozen
+     * together by construction, so a fix nobody believes comes with a pace
+     * nobody should believe either.
+     */
+    const reportedSpeedOf = (vehicle: { vehicleId: string; speedKmph: number | null }): number | null =>
+      isImplausible(vehicle.vehicleId) ? null : vehicle.speedKmph;
+
     const orderingInputs: VehicleOrderingInput[] = kinematics.corridor.map((vehicle) => ({
       vehicleId: vehicle.vehicleId,
       routeDirectionId: context.routeDirectionId,
-      distanceAlongRouteMeters: vehicle.distanceAlongRouteMeters,
+      distanceAlongRouteMeters: rankedDistance(vehicle),
       // Full confidence: the simulator knows its own world exactly. See this
       // file's header - the state estimator's low-confidence exclusion is not
       // rehearsed, and pretending to a fractional confidence here would be
@@ -596,11 +832,84 @@ export function createDeployedControlLawsController(
       // feed has dropped is not in `corridor` at all, which is the same
       // exclusion by a different route.
       isLowConfidence: false,
+      // Only `exclude` mode drops the vehicle from the chain. Absent (not
+      // false) when the check is off, so the object is byte-identical to the
+      // one this file has always built.
+      ...(plausibilityMode === 'exclude' && isImplausible(vehicle.vehicleId)
+        ? { isImplausiblePosition: true }
+        : {}),
     }));
     const ordered = computeLeaderFollowerOrder(orderingInputs, {
       isLoop: false,
       totalDistanceMeters: kinematics.totalDistanceMeters,
     });
+
+    // One headway sweep, if one is due. Runs over the WHOLE corridor and with
+    // every vehicle's natural speed - a sweep is not about a deciding bus, and
+    // `followerSpeedSource`'s forced zero below belongs to the decision path
+    // only. Decisions land far more often than every sweep interval on a
+    // corridor of this size, so the cadence is set by the clock rather than by
+    // how often this function happens to be called.
+    if (forecastGateEnabled && (lastForecastSweepSeconds === null || context.now - lastForecastSweepSeconds >= forecastSweepIntervalSeconds)) {
+      lastForecastSweepSeconds = context.now;
+      const sweepPairs = computePairHeadways(
+        ordered,
+        new Map<string, number | null>(
+          kinematics.corridor.map((vehicle) => [vehicle.vehicleId, reportedSpeedOf(vehicle)]),
+        ),
+        new Map<string, number>(kinematics.corridor.map((vehicle) => [vehicle.vehicleId, 1])),
+        { totalDistanceMeters: kinematics.totalDistanceMeters },
+        context.routeDirectionId,
+        policy.targetHeadwaySeconds,
+      );
+      const seen = new Set<string>();
+      for (const sweepPair of sweepPairs) {
+        const key = `${sweepPair.leaderVehicleId}\u0000${sweepPair.followerVehicleId}`;
+        // Marked seen BEFORE the null check, and the distinction matters. A
+        // pair whose forward headway is momentarily unmeasurable is still a
+        // pair - production writes its row, keeps its earlier samples in
+        // `headway_states` and simply has one fewer point to fit - whereas the
+        // pruning below is for a pair that has ceased to exist. Conflating the
+        // two would discard the trend history of any pair that ever reported a
+        // null h_fwd, which on this corridor is 9% of them, and the forecaster
+        // would then refuse far more often here than it does in production.
+        seen.add(key);
+        if (sweepPair.hFwdSeconds === null) continue;
+        const history = samplesByPair.get(key) ?? [];
+        // Fitted from EARLIER samples and projected from this sweep's h_fwd,
+        // then stored - the exact order `headway/service.ts` uses so a
+        // recorded forecast never depends on its own row.
+        const risk = computeBunchingRisk({
+          samples: history,
+          currentHFwdSeconds: sweepPair.hFwdSeconds,
+          targetHeadwaySeconds: policy.targetHeadwaySeconds,
+          bunchedThresholdRatio: policy.bunchedThresholdRatio,
+          horizonSeconds: forecastHorizon,
+          // No dwell model, matching production and `fleetTrial/detection.ts`:
+          // `fitDwellModel` needs a run of stop visits at one stop and no
+          // corridor has ever had one, so the projection stays linear.
+          dwellModel: null,
+        });
+        forecastByPair.set(key, risk?.forecastHFwdSeconds ?? null);
+        history.push({
+          hFwdSeconds: sweepPair.hFwdSeconds,
+          computedAt: isoAt(epochMs, context.now),
+        });
+        if (history.length > forecastSampleWindow) history.shift();
+        samplesByPair.set(key, history);
+      }
+      // A pair that stopped being a pair - a third bus moved between them, one
+      // finished its trip - must not leave a stale forecast behind for the day
+      // those two vehicles are adjacent again. Production gets this for free:
+      // `upsertHeadwayStates` REPLACES a direction's whole slice per cycle, so
+      // a vanished pair's row simply disappears. Keeping it here would be the
+      // rehearsal inventing a forecast production does not have.
+      for (const key of [...samplesByPair.keys()]) {
+        if (seen.has(key)) continue;
+        samplesByPair.delete(key);
+        forecastByPair.delete(key);
+      }
+    }
 
     // The deciding bus is standing at a stop - that is the only state a hold
     // can be executed from (`mpc/eligibility.ts`). Under 'vehicle_state' it
@@ -610,8 +919,28 @@ export function createDeployedControlLawsController(
     const followerSpeedKmph =
       followerSpeedSource === 'vehicle_state' ? 0 : kinematics.follower.speedKmph;
     const speedByVehicleId = new Map<string, number | null>(
-      kinematics.corridor.map((vehicle) => [vehicle.vehicleId, vehicle.speedKmph]),
+      kinematics.corridor.map((vehicle) => [vehicle.vehicleId, reportedSpeedOf(vehicle)]),
     );
+    // ─── AND THE DECIDING BUS KEEPS ITS SPEED EVEN WHEN REJECTED ───────
+    //
+    // This line overrides the map built above, deliberately, and it is the
+    // one place the suppression must NOT reach. `closingSpeedMetersPerSecond`
+    // divides this pair's gap by the FOLLOWER's speed, so a null here is not
+    // a vehicle left out of the pace median - it is a null h_fwd, no
+    // candidate, and a hold declined. That is a refusal wearing a
+    // correction's clothes, and refusal is the thing measured not to work.
+    //
+    // MEASURED, and the size of it is why this comment exists: suppressing
+    // the deciding bus's speed here takes `blind_slowdown` on urban from
+    // +7.26 points of excess-wait gain (6/6 seeds) to -1.33 (3/6), an 8.6
+    // point swing, and turns suburban's +8.75 into +2.35. The correction is
+    // to the POSITION the corridor is ranked and measured on; the vehicle's
+    // own closing speed is what it still needs to be controlled at all.
+    //
+    // Nothing is lost by it. A rejected vehicle is kept out of the pace
+    // median by the map above, and the deciding bus is standing at a stop by
+    // construction - the only state a hold can be executed from - so under
+    // `vehicle_state` this is zero and below `STATIONARY_SPEED_KMPH` anyway.
     speedByVehicleId.set(followerId, followerSpeedKmph);
     const confidenceByVehicleId = new Map<string, number>(
       kinematics.corridor.map((vehicle) => [vehicle.vehicleId, 1]),
@@ -653,6 +982,12 @@ export function createDeployedControlLawsController(
         hBwdSeconds: pair.hBwdSeconds,
         targetHeadwaySeconds: pair.targetHeadwaySeconds,
         deviationSeconds: pair.deviationSeconds,
+        // What the last sweep recorded for this pair, not a fresh fit - see
+        // the sweep above. Null whenever the gate is off, the pair is new, or
+        // the forecaster declined to speak, and `isPairActionable` refuses to
+        // act on any of the three.
+        forecastHFwdSeconds:
+          forecastByPair.get(`${pair.leaderVehicleId}\u0000${pair.followerVehicleId}`) ?? null,
         computedAt: nowIso,
       },
     ];
@@ -721,6 +1056,21 @@ export function createDeployedControlLawsController(
         );
       }
     }
+    // The objective's waiting horizon, per vehicle, built exactly as
+    // `mpc/solver.ts` builds it: off each vehicle's own `currentStopId`,
+    // through the corridor's stop sequence, empty when the switch is off.
+    const downstreamStopsByVehicleId = new Map<string, number | null>();
+    if (downstreamStopsByStopId.size > 0) {
+      for (const [vehicleId, state] of vehicleStates) {
+        downstreamStopsByVehicleId.set(
+          vehicleId,
+          state.currentStopId === null
+            ? null
+            : (downstreamStopsByStopId.get(state.currentStopId) ?? null),
+        );
+      }
+    }
+
     // `route_direction_stops` sequence 0 is the origin terminal, and the
     // engine says when a decision is being made there. Naming it turns on
     // Algorithm A, which was unreachable for as long as this was undefined:
@@ -786,6 +1136,8 @@ export function createDeployedControlLawsController(
       scheduleDeviationByVehicleId,
       weighOccupancy,
       elapsedSinceTerminalDeparture,
+      selfHarmCheckEnabled,
+      downstreamStopsByVehicleId,
     );
     // Exactly `mpc/solver.ts`: a bus dwelling at the terminal is regulated by
     // terminal dispatch WHETHER OR NOT that produced a candidate, so the
@@ -798,6 +1150,29 @@ export function createDeployedControlLawsController(
       terminalVehicleIds.add(followerId);
     }
 
+    // ─── WHAT THE LAWS WOULD HAVE SAID WITHOUT THE CHECK ──────────────
+    //
+    // Attribution only, and computed ONLY while the check is on - which is
+    // never on a deployment, so this costs a production solve nothing. A law
+    // that generated nothing under the check looks identical, from the outside,
+    // to a law whose preconditions were unmet; the coverage table is the half
+    // CLAUDE.md says to read before the KPIs, and it would be reporting the
+    // check's work as `no_hold_indicated` on every one of those decisions.
+    const uncheckedTerminal = selfHarmCheckEnabled
+      ? computeTerminalDispatchCandidates(
+          headwayStates,
+          vehicleStates,
+          terminalStopId,
+          policy,
+          now,
+          scheduleDeviationByVehicleId,
+          weighOccupancy,
+          elapsedSinceTerminalDeparture,
+          false,
+          downstreamStopsByVehicleId,
+        )
+      : terminalCandidates;
+
     const twoWayCandidates = computeTwoWayCandidates(
       headwayStates,
       terminalVehicleIds,
@@ -807,6 +1182,9 @@ export function createDeployedControlLawsController(
       scheduleDeviationByVehicleId,
       controlPointStopIds,
       weighOccupancy,
+      selfHarmCheckEnabled,
+      downstreamStopsByVehicleId,
+      forecastGateEnabled,
     );
     const selfEqualizingCandidates = computeSelfEqualizingCandidates(
       headwayStates,
@@ -817,7 +1195,41 @@ export function createDeployedControlLawsController(
       scheduleDeviationByVehicleId,
       controlPointStopIds,
       weighOccupancy,
+      selfHarmCheckEnabled,
+      downstreamStopsByVehicleId,
+      forecastGateEnabled,
     );
+    const uncheckedTwoWay = selfHarmCheckEnabled
+      ? computeTwoWayCandidates(
+          headwayStates,
+          terminalVehicleIds,
+          policy,
+          vehicleStates,
+          now,
+          scheduleDeviationByVehicleId,
+          controlPointStopIds,
+          weighOccupancy,
+          false,
+          downstreamStopsByVehicleId,
+          forecastGateEnabled,
+        )
+      : twoWayCandidates;
+    const uncheckedSelfEqualizing = selfHarmCheckEnabled
+      ? computeSelfEqualizingCandidates(
+          headwayStates,
+          terminalVehicleIds,
+          policy,
+          vehicleStates,
+          now,
+          scheduleDeviationByVehicleId,
+          controlPointStopIds,
+          weighOccupancy,
+          false,
+          downstreamStopsByVehicleId,
+          forecastGateEnabled,
+        )
+      : selfEqualizingCandidates;
+
     const costOptimalCandidates = computeCostOptimalCandidates(
       headwayStates,
       terminalVehicleIds,
@@ -827,6 +1239,8 @@ export function createDeployedControlLawsController(
       scheduleDeviationByVehicleId,
       controlPointStopIds,
       weighOccupancy,
+      downstreamStopsByVehicleId,
+      forecastGateEnabled,
     );
     // ─── ALIGHTING-ONLY IS ASKED ABOUT THE WHOLE CHAIN ─────────────────
     //
@@ -864,6 +1278,11 @@ export function createDeployedControlLawsController(
       hBwdSeconds: p.hBwdSeconds,
       targetHeadwaySeconds: p.targetHeadwaySeconds,
       deviationSeconds: p.deviationSeconds,
+      // Carried for shape rather than for use: alighting-only does not consult
+      // the mid-route action bar at all (`mpc/boardingLimit.ts` has its own
+      // `bunchedThresholdRatio` guard), so the gate never reaches it.
+      forecastHFwdSeconds:
+        forecastByPair.get(`${p.leaderVehicleId}\u0000${p.followerVehicleId}`) ?? null,
       computedAt: nowIso,
     }));
     const trailingPair = pairs.find((p) => p.leaderVehicleId === followerId);
@@ -912,11 +1331,18 @@ export function createDeployedControlLawsController(
         ? 'not_at_terminal'
         : elapsedSinceTerminalDeparture === null
           ? 'no_measured_terminal_departure'
-          : 'no_hold_indicated';
+          : uncheckedTerminal.length > 0
+            ? 'scored_self_harmful'
+            : 'no_hold_indicated';
     }
     // The mid-route action bar, tested by all three mid-route laws BEFORE
-    // they test eligibility - see each law's own loop.
-    const deviantEnough = isWorthActingOn(pair.hFwdSeconds, policy);
+    // they test eligibility - see each law's own loop. Asked through the same
+    // predicate the laws ask, gate included: with the gate on, a pair the
+    // forecast admitted is one the laws DID consider, and reporting it as
+    // `not_deviant_enough` would attribute the largest decline population in
+    // the trial to a guard that had not fired - the defect that reason code
+    // was added to fix.
+    const deviantEnough = isPairActionable(headwayStates[0]!, policy, forecastGateEnabled);
     if (twoWayCandidates.length === 0) {
       coverageBase.declined.two_way =
         policy.kf === null || policy.kb === null
@@ -931,7 +1357,9 @@ export function createDeployedControlLawsController(
                   ? 'not_deviant_enough'
                   : !eligibleToHold
                     ? 'not_eligible_to_hold'
-                    : 'no_hold_indicated';
+                    : uncheckedTwoWay.length > 0
+                      ? 'scored_self_harmful'
+                      : 'no_hold_indicated';
     }
     if (selfEqualizingCandidates.length === 0) {
       // `two_way_covers_pair` sits AFTER eligibility here, which is where
@@ -951,7 +1379,9 @@ export function createDeployedControlLawsController(
                   ? 'not_eligible_to_hold'
                   : twoWayCovers
                     ? 'two_way_covers_pair'
-                    : 'no_hold_indicated';
+                    : uncheckedSelfEqualizing.length > 0
+                      ? 'scored_self_harmful'
+                      : 'no_hold_indicated';
     }
     if (costOptimalCandidates.length === 0) {
       coverageBase.declined.cost_optimal = terminalVehicleIds.has(followerId)
@@ -1102,5 +1532,12 @@ export function createDeployedControlLawsController(
     return { holdSeconds: selected.holdSeconds, actionType: selected.actionType };
   }
 
-  return { name: REHEARSAL_CONTROLLER_NAME, decide, decisions };
+  return {
+    name: REHEARSAL_CONTROLLER_NAME,
+    decide,
+    decisions,
+    get plausibilityAudit() {
+      return plausibilityTracker?.audit() ?? null;
+    },
+  };
 }

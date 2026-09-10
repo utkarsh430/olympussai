@@ -30,38 +30,66 @@ export interface StopStateResult {
   currentStopId: string | null;
 }
 
+/**
+ * Whether the vehicle counts as OCCUPYING `nearest` - inside its geofence, or
+ * closing on it within the approach window.
+ *
+ * This is the single definition of "which stop is this vehicle at", and every
+ * branch below answers `currentStopId` from it. It is exported because the
+ * estimator has to timestamp the beginning of exactly this association: when
+ * the two disagreed, an approach-window vehicle got a `current_stop_id` with a
+ * null `stop_state_entered_at`, and `detectCompletedStopVisit` needs both, so
+ * 43% of live stop associations (528 with a stop id, 302 with an entry time)
+ * could never yield a visit.
+ */
+export function isAtStop(
+  distanceAlongRouteMeters: number,
+  nearest: NearestStop | null,
+): nearest is NearestStop {
+  if (!nearest) return false;
+  const distanceToStop = Math.abs(distanceAlongRouteMeters - nearest.cumulativeDistanceMeters);
+  if (distanceToStop <= nearest.geofenceRadiusMeters) return true;
+  return (
+    distanceAlongRouteMeters < nearest.cumulativeDistanceMeters &&
+    distanceToStop <= APPROACH_WINDOW_METERS
+  );
+}
+
 export function classifyStopState(input: StopStateInput): StopStateResult {
   if (input.isOffRoute) {
     return { stopState: "off_route", currentStopId: null };
   }
 
-  if (input.isHeldByController) {
-    return { stopState: "held_by_controller", currentStopId: input.nearestStop?.stopId ?? null };
-  }
-
   const speed = input.speedKmph ?? 0;
   const nearest = input.nearestStop;
+  const atStop = isAtStop(input.distanceAlongRouteMeters, nearest);
 
-  if (nearest) {
-    const distanceToStop = Math.abs(input.distanceAlongRouteMeters - nearest.cumulativeDistanceMeters);
-    const withinGeofence = distanceToStop <= nearest.geofenceRadiusMeters;
+  if (input.isHeldByController) {
+    // Bounded by `isAtStop` like every other branch. A hold stays 'active' in
+    // the table after the bus pulls away, so this branch is reached with the
+    // nearest stop kilometres off; naming that stop as the current one made a
+    // held bus look like it was standing at a stop it had long since left -
+    // and, now that every association is timestamped, would have manufactured
+    // a stop visit spanning the whole inter-stop leg.
+    return { stopState: "held_by_controller", currentStopId: atStop ? nearest.stopId : null };
+  }
 
-    if (withinGeofence) {
-      if (speed <= DWELL_SPEED_THRESHOLD_KMPH) {
-        return { stopState: "dwelling_at_stop", currentStopId: nearest.stopId };
-      }
-      if (input.distanceAlongRouteMeters >= nearest.cumulativeDistanceMeters) {
-        return { stopState: "departed_stop", currentStopId: nearest.stopId };
-      }
+  if (atStop) {
+    const withinGeofence =
+      Math.abs(input.distanceAlongRouteMeters - nearest.cumulativeDistanceMeters) <=
+      nearest.geofenceRadiusMeters;
+
+    if (!withinGeofence) {
+      // The other half of `isAtStop`: closing on the stop from behind.
       return { stopState: "approaching_stop", currentStopId: nearest.stopId };
     }
-
-    if (
-      input.distanceAlongRouteMeters < nearest.cumulativeDistanceMeters &&
-      distanceToStop <= APPROACH_WINDOW_METERS
-    ) {
-      return { stopState: "approaching_stop", currentStopId: nearest.stopId };
+    if (speed <= DWELL_SPEED_THRESHOLD_KMPH) {
+      return { stopState: "dwelling_at_stop", currentStopId: nearest.stopId };
     }
+    if (input.distanceAlongRouteMeters >= nearest.cumulativeDistanceMeters) {
+      return { stopState: "departed_stop", currentStopId: nearest.stopId };
+    }
+    return { stopState: "approaching_stop", currentStopId: nearest.stopId };
   }
 
   if (speed <= STOPPED_IN_TRAFFIC_SPEED_THRESHOLD_KMPH) {

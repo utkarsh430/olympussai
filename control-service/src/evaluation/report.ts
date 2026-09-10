@@ -1,6 +1,7 @@
 // What an evaluation run says, and the three forms it says it in.
 //
-//   results.json  every cell, full fidelity, plus the spec that produced it
+//   results.json  every cell and the spec that produced it (the raw per-decision
+//                 log is summarised into coverage, not repeated - `cli.ts#cellForOutput`)
 //   summary.csv   one row per (corridor, scenario, arm), for a spreadsheet
 //   summary.md    the readable verdict, which is also what prints to console
 //
@@ -19,6 +20,9 @@ import { KPI_METRICS, type MetricKey } from './metrics.js';
 import { pairedDifference, isImprovement, type PairedDifference } from './statistics.js';
 import { summarizeCoverage, silentLaws, type CoverageReport } from './coverage.js';
 import { describeCalibration, isCalibrated } from './calibrate.js';
+import { describeDemand } from './demand.js';
+import type { CorridorDemand } from './demand.js';
+import type { CorridorProvenance } from './corridors.js';
 import type { Controllability } from '../lib/controllability.js';
 import type { ExperimentRun, RunCell } from './runner.js';
 
@@ -35,9 +39,75 @@ export interface ArmSummary {
   meanRefusedHoldSeconds: number;
 }
 
+/**
+ * The network-level verdict, pooled ONLY over the groups control could move.
+ *
+ * ─── WHY A SCOPE AND NOT A MEAN ──────────────────────────────────────────
+ *
+ * A corridor above the denied-boarding line has a headline metric that cannot
+ * respond to control at all - waiting time there is bounded by seats, not by
+ * spacing - so pooling it into a top line does not average an effect, it
+ * DILUTES one. `FleetTrialReport.headlineScope` reached the same conclusion
+ * from the other end (`oversaturated` is a scenario built to prove the harness
+ * reports nothing) and it is measured there: on urban at 500 buses all
+ * nineteen scenarios gave +0.95% and the eighteen readable ones +2.46%, so a
+ * reader comparing across weeks would read a controller three times worse when
+ * only the test set had changed.
+ *
+ * Same rule here, decided from the measured `deniedShare` and never from a
+ * list of corridor ids. The excluded groups are NAMED and still carried in
+ * `summaries`, never dropped: a saturated corridor is a finding about the
+ * demand model, and hiding it would be the original defect in a new place.
+ */
+export interface HeadlineScope {
+  /** 'all' only when nothing saturated; otherwise the pool is the readable groups. */
+  scope: 'all' | 'readable_only';
+  pooledGroups: number;
+  excludedGroups: number;
+  /** Corridors with at least one saturated group. Named, because a reader needs to know which. */
+  excludedCorridors: string[];
+  /**
+   * Per metric, over the pooled groups.
+   *
+   * ─── WHY NOT A MEAN OF `meanRelativeDifference` ──────────────────────────
+   *
+   * Relative, never absolute: corridors on this network run from a 300 s
+   * headway to a 12,497 s one, so an absolute second of excess wait means
+   * something different on each and a pooled absolute mean is dominated by the
+   * longest corridor in the set.
+   *
+   * But NOT by averaging `PairedDifference.meanRelativeDifference`, which is
+   * null whenever ANY seed's baseline was exactly zero - correct for that
+   * field, and a silent selection here. A group has a zero-baseline seed
+   * exactly when the uncontrolled arm came out perfectly regular on that day,
+   * which is the case where control has least to gain and most to lose.
+   * MEASURED on the 103 in-band corridors: 146 of 433 readable groups were
+   * dropped by it, unevenly by scenario (45 each of `none`, `gps_dropout` and
+   * `non_compliance`), so the surviving average was taken over the corridors
+   * that had something to fix and flattered the controller.
+   *
+   * `relativeOfMeans` is `(meanControlled - meanBaseline) / meanBaseline` for
+   * each group, which is defined whenever the group's MEAN baseline is
+   * non-zero and therefore keeps those groups. `groupsMissingRelative` says
+   * how many still could not contribute.
+   */
+  metrics: Record<
+    MetricKey,
+    {
+      /** Median across pooled groups of each group's `(controlled - baseline) / baseline` on the means. */
+      medianRelativeOfMeans: number | null;
+      meanRelativeOfMeans: number | null;
+      groupsBetter: number;
+      groupsWorse: number;
+      groupsNoEffect: number;
+      groupsMissingRelative: number;
+    }
+  >;
+}
+
 export interface ExperimentReport {
   name: string;
-  corridorProvenance: 'measured' | 'synthetic';
+  corridorProvenance: CorridorProvenance;
   generatedAt: string;
   durationMs: number;
   summaries: ArmSummary[];
@@ -46,6 +116,16 @@ export interface ExperimentReport {
   saturated: Array<{ routeDirectionId: string; armName: string; deniedShare: number }>;
   /** One line per corridor saying what was fitted from observation and what stayed invented. */
   calibration: Array<{ routeDirectionId: string; calibrated: boolean; description: string }>;
+  /**
+   * What boarding rate each corridor ran at and where it came from.
+   *
+   * Read it beside the saturation table. A corridor whose modelled peak load
+   * is over its seat count is saturated BY CONSTRUCTION, before any scenario
+   * or seed, and this row is where that is visible.
+   */
+  demand: Array<{ routeDirectionId: string; demand: CorridorDemand; description: string }>;
+  /** The pooled verdict, and what it excludes. Read this instead of averaging the table below. */
+  headlineScope: HeadlineScope;
   /**
    * Where each corridor sits on the controllability curve.
    *
@@ -77,6 +157,58 @@ export const SATURATION_WARN_SHARE = 0.2;
  */
 function groupKey(cell: RunCell): string {
   return `${cell.routeDirectionId}\u0000${cell.scenario}\u0000${cell.armName}`;
+}
+
+/** A group is readable when its wait metrics were free to move - which is to say, when it did not saturate. */
+function isReadable(summary: ArmSummary): boolean {
+  return summary.deniedShare === null || summary.deniedShare <= SATURATION_WARN_SHARE;
+}
+
+function buildHeadlineScope(summaries: readonly ArmSummary[]): HeadlineScope {
+  const readable = summaries.filter(isReadable);
+  const excluded = summaries.filter((summary) => !isReadable(summary));
+  const pooled = excluded.length > 0 ? readable : summaries;
+
+  const metrics = {} as HeadlineScope['metrics'];
+  for (const metric of KPI_METRICS) {
+    const relatives: number[] = [];
+    let groupsBetter = 0;
+    let groupsWorse = 0;
+    let groupsNoEffect = 0;
+    let groupsMissingRelative = 0;
+    for (const summary of pooled) {
+      const difference = summary.metrics[metric.key];
+      if (difference.sampleCount === 0) continue;
+      const { meanBaseline, meanControlled } = difference;
+      if (meanBaseline !== null && meanControlled !== null && meanBaseline !== 0) {
+        relatives.push((meanControlled - meanBaseline) / meanBaseline);
+      } else {
+        groupsMissingRelative += 1;
+      }
+      if (isImprovement(difference, metric.lowerIsBetter)) groupsBetter += 1;
+      else if (difference.significant) groupsWorse += 1;
+      else groupsNoEffect += 1;
+    }
+    const sorted = [...relatives].sort((a, b) => a - b);
+    metrics[metric.key] = {
+      medianRelativeOfMeans:
+        sorted.length > 0 ? (sorted[Math.floor((sorted.length - 1) / 2)] ?? null) : null,
+      meanRelativeOfMeans:
+        relatives.length > 0 ? relatives.reduce((a, b) => a + b, 0) / relatives.length : null,
+      groupsBetter,
+      groupsWorse,
+      groupsNoEffect,
+      groupsMissingRelative,
+    };
+  }
+
+  return {
+    scope: excluded.length > 0 ? 'readable_only' : 'all',
+    pooledGroups: pooled.length,
+    excludedGroups: excluded.length,
+    excludedCorridors: [...new Set(excluded.map((summary) => summary.routeDirectionId))].sort(),
+    metrics,
+  };
 }
 
 export function buildReport(run: ExperimentRun): ExperimentReport {
@@ -150,6 +282,12 @@ export function buildReport(run: ExperimentRun): ExperimentReport {
     summaries,
     emptyCorridors: run.emptyCorridors,
     saturated,
+    demand: [...run.demand.values()].map((demand) => ({
+      routeDirectionId: demand.routeDirectionId,
+      demand,
+      description: describeDemand(demand),
+    })),
+    headlineScope: buildHeadlineScope(summaries),
     calibration: [...run.calibration.values()].map((entry) => ({
       routeDirectionId: entry.routeDirectionId,
       calibrated: isCalibrated(entry),
@@ -197,6 +335,10 @@ export function renderCsv(report: ExperimentReport): string {
       `${m.key}_win_rate`,
     ]),
     'denied_share',
+    'boarding_rate_per_minute',
+    'demand_provenance',
+    'modelled_peak_load_share',
+    'target_headway_seconds',
     'mean_applied_hold_seconds',
     'decisions',
     ...['terminal_dispatch', 'two_way', 'self_equalizing', 'cost_optimal', 'boarding_limit'].map(
@@ -204,6 +346,7 @@ export function renderCsv(report: ExperimentReport): string {
     ),
   ];
 
+  const demandByCorridor = new Map(report.demand.map((entry) => [entry.routeDirectionId, entry.demand]));
   const rows = report.summaries.map((summary) => [
     summary.routeDirectionId,
     summary.scenario,
@@ -222,6 +365,10 @@ export function renderCsv(report: ExperimentReport): string {
       ];
     }),
     fmt(summary.deniedShare, 4),
+    fmt(demandByCorridor.get(summary.routeDirectionId)?.boardingRatePerMinute ?? null, 4),
+    demandByCorridor.get(summary.routeDirectionId)?.provenance ?? '-',
+    fmt(demandByCorridor.get(summary.routeDirectionId)?.peakLoadShare ?? null, 4),
+    String(demandByCorridor.get(summary.routeDirectionId)?.targetHeadwaySeconds ?? '-'),
     fmt(summary.meanAppliedHoldSeconds, 1),
     String(summary.coverage.decisions),
     ...summary.coverage.laws.map((law) =>
@@ -246,6 +393,12 @@ export function renderMarkdown(report: ExperimentReport): string {
   if (report.corridorProvenance === 'synthetic') {
     lines.push(
       '> **Synthetic corridors.** These corridors do not exist. Their geometry is arithmetic, not survey. Use this run to check that the harness and the control laws behave, never as evidence about the network.',
+    );
+    lines.push('');
+  }
+  if (report.corridorProvenance === 'preset') {
+    lines.push(
+      '> **The three trial presets, not the network.** These are the urban / suburban / inter-city shapes from `fleetTrial/presets.ts` run through THIS harness, each under its own published modelled inputs. They exist here to be compared against the real corridors, and a preset row is evidence about a preset.',
     );
     lines.push('');
   }
@@ -286,6 +439,37 @@ export function renderMarkdown(report: ExperimentReport): string {
       lines.push('');
     }
   }
+  if (report.demand.length > 0) {
+    const overloaded = report.demand.filter((entry) => entry.demand.peakLoadShare >= 1);
+    lines.push('## Demand');
+    lines.push('');
+    lines.push(
+      'A stop boards `lambda x H` passengers and sheds `alightingFraction` of the load, so the load a modelled bus carries is **proportional to the corridor\'s own target headway**. One global boarding rate therefore runs a 3,600 s corridor at four times the load of a 900 s one, and this network\'s measured headways span 300 s to 12,497 s. Each corridor\'s rate and its modelled peak load against the seats:',
+    );
+    lines.push('');
+    lines.push('| Corridor | H* (s) | Stops | Boardings/min | Provenance | Peak load / seats |');
+    lines.push('|---|---:|---:|---:|---|---:|');
+    for (const entry of report.demand) {
+      lines.push(
+        `| ${entry.routeDirectionId} | ${entry.demand.targetHeadwaySeconds} | ${entry.demand.stopCount} | ${fmt(entry.demand.boardingRatePerMinute, 3)} | \`${entry.demand.provenance}\` | ${entry.demand.peakLoad.toFixed(0)} / ${entry.demand.vehicleCapacity} (${pct(entry.demand.peakLoadShare)}) |`,
+      );
+    }
+    lines.push('');
+    if (overloaded.length > 0) {
+      lines.push(
+        `> **${overloaded.length} of ${report.demand.length} corridor(s) are over their seat count before any scenario runs.** Their wait metrics cannot respond to control whatever the laws do, and the saturation table below is the consequence, not a separate finding.`,
+      );
+      lines.push('');
+    }
+    const derived = report.demand.filter((entry) => entry.demand.provenance === 'derived').length;
+    if (derived > 0) {
+      lines.push(
+        `> ${derived} corridor(s) ran on a DERIVED rate: inverted out of the corridor's own headway, stop count, alighting fraction and seats to hit a stated share of the seats. That is not a measurement - it is the same invention applied per corridor instead of once - and the share it targets is the one free parameter left (\`demand.ts#DERIVED_PEAK_LOAD_SHARE\`). A rate fitted from \`stop_visits\` beats it wherever one exists.`,
+      );
+      lines.push('');
+    }
+  }
+
   lines.push(
     '> **Not modelled: the command lifecycle.** Cooldowns, minimum action time, `max_concurrent_actions`, acknowledgement and TTL live in the command path. These numbers are what the control laws INTEND, not the rate at which instructions would reach a driver.',
   );
@@ -314,6 +498,9 @@ export function renderMarkdown(report: ExperimentReport): string {
     );
     lines.push('');
   }
+
+  lines.push(renderHeadline(report.headlineScope));
+  lines.push('');
 
   lines.push('## Control quality');
   lines.push('');
@@ -348,6 +535,51 @@ export function renderMarkdown(report: ExperimentReport): string {
     lines.push('');
   }
 
+  return lines.join('\n');
+}
+
+/**
+ * The pooled verdict, and the pool it was taken over.
+ *
+ * The scope line comes FIRST because it is the thing that makes the number
+ * below it readable. A top line pooled over saturated corridors is not a
+ * weaker version of the truth; it is a different quantity, and one that moves
+ * when the corridor set changes rather than when the controller does.
+ */
+function renderHeadline(scope: HeadlineScope): string {
+  const lines: string[] = [];
+  lines.push('## Network headline');
+  lines.push('');
+  if (scope.pooledGroups === 0) {
+    lines.push(
+      '**Nothing readable.** Every corridor/scenario group saturated, so there is no group whose wait metrics were free to respond to control. This is a statement about the demand model, not about the controller.',
+    );
+    return lines.join('\n');
+  }
+  lines.push(
+    scope.scope === 'all'
+      ? `Pooled over all ${scope.pooledGroups} corridor/scenario/arm groups; none saturated.`
+      : `Pooled over the **${scope.pooledGroups}** corridor/scenario/arm groups whose wait metrics could respond to control. **${scope.excludedGroups}** group(s) on ${scope.excludedCorridors.length} corridor(s) are excluded because they saturated — they are still in the table below, and they are named in the saturation section above. Excluding them is the same rule the fleet trial's \`headlineScope\` applies, and for the same measured reason: pooling a group that cannot move does not average an effect, it dilutes one.`,
+  );
+  lines.push('');
+  lines.push(
+    '| Metric | Good direction | Median change | Mean change | Groups better | No effect | Groups WORSE |',
+  );
+  lines.push('|---|---|---:|---:|---:|---:|---:|');
+  for (const metric of KPI_METRICS) {
+    const entry = scope.metrics[metric.key];
+    lines.push(
+      `| ${metric.label}${metric.diagnostic ? ' *(diagnostic)*' : ''} | ${metric.lowerIsBetter ? 'lower down' : 'higher up'} | ${pct(entry.medianRelativeOfMeans)} | ${pct(entry.meanRelativeOfMeans)} | ${entry.groupsBetter} | ${entry.groupsNoEffect} | ${entry.groupsWorse} |`,
+    );
+  }
+  lines.push('');
+  lines.push(
+    "Change is each group's `(controlled - baseline) / baseline` taken on the group MEANS, never a mean of absolute seconds: these corridors run from a five-minute headway to a three-hour one, so a second of excess wait does not mean the same thing on each. It is not an average of the per-seed relative difference, which is null whenever any one seed's baseline was zero and would silently drop exactly the corridors with least to fix. The median is quoted first because a few near-zero-baseline corridors give the mean a long tail. A group counts as better only when its interval excludes zero AND it wins on more seeds than it loses (`statistics.ts#isImprovement`); the WORSE column is therefore everything significant that failed that bar, which includes a group moving the right way on its mean while losing on half its seeds.",
+  );
+  lines.push('');
+  lines.push(
+    "**The change is `controlled - no control`, so read it against the direction column** — a *positive* total-passenger-time change means the controller SPENT passenger time, not saved it. The fleet trial publishes the same guardrail with the opposite sign (`passengerSecondsSavedPercent`, where positive means saved), and the two are easy to confuse in a handover.",
+  );
   return lines.join('\n');
 }
 

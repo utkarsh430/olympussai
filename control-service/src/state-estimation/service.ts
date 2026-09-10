@@ -164,7 +164,6 @@ export class StateEstimationService {
     prior: PriorVehicleState | null,
     estimate: VehicleStateEstimate
   ): Promise<void> {
-    if (!this.repository.recordStopVisit) return;
     const visit = detectCompletedStopVisit(prior, estimate);
     if (!visit) return;
 

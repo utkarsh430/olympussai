@@ -79,16 +79,6 @@ export function estimateVehicleState(ctx: EstimationContext): VehicleStateEstima
   const stops = ctx.nearestStopsByRouteDirection.get(shape.routeDirectionId) ?? [];
   const nearestStop = findNearestStop(smoothedS, stops);
 
-  const withinGeofence =
-    !!nearestStop &&
-    Math.abs(smoothedS - nearestStop.cumulativeDistanceMeters) <= nearestStop.geofenceRadiusMeters;
-
-  const stopEnteredAt = computeStopEnteredAt(
-    withinGeofence ? nearestStop.stopId : null,
-    ctx.priorState,
-    ctx.event.observedAt
-  );
-
   const stopClassification = classifyStopState({
     speedKmph: rawSpeedKmph ?? smoothedSpeedKmph,
     distanceAlongRouteMeters: smoothedS,
@@ -96,6 +86,14 @@ export function estimateVehicleState(ctx: EstimationContext): VehicleStateEstima
     isHeldByController: ctx.isHeldByController,
     isOffRoute: false,
   });
+
+  // Timestamped from the classifier's OWN answer, never from a second,
+  // narrower notion of "at a stop" computed here - see computeStopEnteredAt.
+  const stopEnteredAt = computeStopEnteredAt(
+    stopClassification.currentStopId,
+    ctx.priorState,
+    ctx.event.observedAt
+  );
 
   return {
     vehicleId: ctx.vehicleId,
@@ -107,7 +105,7 @@ export function estimateVehicleState(ctx: EstimationContext): VehicleStateEstima
     headingDegrees: rawHeading ?? chosen.segmentHeadingDegrees,
     stopState: stopClassification.stopState,
     currentStopId: stopClassification.currentStopId,
-    stopEnteredAt: stopClassification.currentStopId ? stopEnteredAt : null,
+    stopEnteredAt,
     confidence: confidenceResult.confidence,
     isLowConfidence: confidenceResult.isLowConfidence,
     observedAt: ctx.event.observedAt,
@@ -162,6 +160,46 @@ function findNearestStop(
   };
 }
 
+/**
+ * When this vehicle's association with `currentStopId` began.
+ *
+ * NOT "when it became stationary": the timestamp is deliberately carried
+ * forward across a stop_state change within the same stop, because a bus that
+ * goes approaching -> dwelling -> held has not arrived three times.
+ *
+ * The caller MUST pass the stop id the estimate will actually be stored with.
+ * It used to pass a narrower one - only a stop whose 30 m geofence the vehicle
+ * was inside - while `classifyStopState` also associates inside the 150 m
+ * approach window. The two disagreed on every approaching vehicle, which was
+ * therefore stored with a `currentStopId` and a null `stopEnteredAt`;
+ * `detectCompletedStopVisit` requires both, so those occupancies could never
+ * close. Measured live: 649 rows carried a stop id, 368 an entry time.
+ *
+ * WHY WIDENING WAS THE RIGHT WAY TO RECONCILE THEM, and what it costs.
+ * Narrowing instead - dropping `currentStopId` outside the geofence - would
+ * have switched off holding on `approaching_stop`, which `mpc/eligibility.ts`
+ * documents as arguably the best moment to issue a hold. So the association
+ * won. Replaying one captured window of live fixes through both rules:
+ * widening is strictly additive - 227 -> 457 visits over 22,797 fixes, losing
+ * NONE the geofence rule found - but the visits it adds are weaker evidence
+ * that a stop was served. Only 22% of them ever show the bus reporting
+ * <= 2 km/h, against 38% of geofence visits, and their closest observed
+ * approach is a median 76 m. They are mostly PASSAGES, not arrivals.
+ *
+ * That is the right trade for `headway/stopHeadway.ts#computeStopHeadways`
+ * and `schedule/punctuality.ts`, which difference DEPARTURES and gain a
+ * doubled sample. It is the wrong one for `calibration/dwell.ts`, whose
+ * `dwellSeconds` is `departedAt - arrivedAt` and which reads a passage's two
+ * bracketing fixes as a poll-interval dwell. FOLLOW-UP, before `fitDwellModel`
+ * ever reaches its 12 samples per stop (it has none today, so nothing consumes
+ * the contaminated figure yet): mark approach-only occupancies with a distinct
+ * `stop_visits.source` and filter the dwell fit to geofence visits.
+ *
+ * `arrival-prediction/dwell.ts` charges elapsed dwell from this timestamp and
+ * so also reads slightly long. That conflation predates this change - the
+ * field never marked the moment the vehicle stopped - and is widened here by
+ * at most the approach window's traversal time, in the same direction.
+ */
 function computeStopEnteredAt(
   currentStopId: string | null,
   priorState: PriorVehicleState | null,

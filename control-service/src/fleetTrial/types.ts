@@ -47,7 +47,24 @@ export interface SpacingKpis {
   firstTimeDeniedBoardings: number;
   totalBoardings: number;
   /**
-   * True when more than a fifth of offered passengers were refused a seat.
+   * `firstTimeDeniedBoardings / (firstTimeDeniedBoardings + totalBoardings)`.
+   * Null when nobody was offered a seat at all - an absence, not a zero.
+   *
+   * ─── THE NUMBER THE FLAG BELOW IS DRAWN ON, PUBLISHED ────────────────
+   *
+   * It was absent, and a reader who needed a share had only `deniedBoardings`
+   * (refusal EVENTS) and `totalBoardings` (a HEADCOUNT) to build one from.
+   * That quotient divides a rate by a headcount and reads about four times
+   * high: MEASURED on urban at 500 buses/phase it gave 52% beside a `saturated`
+   * flag reading false, and the only available reading was that the report
+   * contradicted itself. It did not - the two numbers were about different
+   * things and neither said which. This one says.
+   */
+  deniedShare: number | null;
+  /**
+   * True when more than a fifth of offered passengers were refused a seat -
+   * exactly `deniedShare > SATURATION_DENIED_SHARE`, and nothing else, so the
+   * flag and the share above cannot drift apart.
    *
    * A SATURATION WARNING, and the reason it travels with the KPIs rather than
    * being left for a reader to derive: past this line waiting time is bounded
@@ -137,6 +154,22 @@ export interface IncidentSummary {
   /** Incidents where at least one hold was served on the follower while open. */
   withIntervention: number;
   totalHoldSecondsServed: number;
+  /**
+   * Total seconds this arm spent with a PEAK-BUNCHED pair open: for each
+   * incident whose `peakSeverity` reached `'bunched'`, its resolved duration,
+   * or - if it was still open when the window closed - the seconds from
+   * opening to the window's end. Never a naive sum of `durationSeconds`
+   * alone, which is null for exactly the incidents still open, and would
+   * silently count them as zero.
+   *
+   * Exists alongside `incidentsAvoided` because that count is severity-blind:
+   * it weights a shallow `predicted` incident the same as a deep `bunched`
+   * one. MEASURED, 8 of 8 seeds across two corridors: the controller can
+   * raise the raw count while cutting this figure by a third to two thirds,
+   * because its actual effect is converting deep bunches into shallow ones -
+   * see `ArmContrast.deepIncidentsAvoided` and `report.md` section 2.
+   */
+  bunchedSecondsOpen: number;
 }
 
 /**
@@ -215,8 +248,41 @@ export interface ArmContrast {
   ewtImprovementPercent: number | null;
   cvImprovementPercent: number | null;
   bunchingRateImprovementPercent: number | null;
-  /** Incidents that never opened at all because the corridor was controlled. Negative means the controller opened MORE. */
+  /**
+   * Incidents that never opened at all because the corridor was controlled.
+   * Negative means the controller opened MORE.
+   *
+   * ─── THIS IS A HEADCOUNT, AND A HEADCOUNT IS SEVERITY-BLIND ─────────────
+   *
+   * A shallow `predicted` incident and a deep `bunched` one both count as 1.
+   * MEASURED, 8 of 8 seeds across two corridors: this figure can be negative
+   * - reading as "the controller creates more incidents than it prevents" -
+   * on the exact runs where `deepIncidentsAvoided` is strongly positive,
+   * because the controller's actual effect is converting deep bunches into
+   * shallow warning/predicted ones, which this count weights the same as
+   * preventing them outright. Kept, unchanged, because the raw count is not
+   * worthless - it is one number that misleads read alone. See
+   * `deepIncidentsAvoided` and `bunchedSecondsOpenReduced` for the severity
+   * this number cannot see, and `report.md` section 2 for the measurement.
+   */
   incidentsAvoided: number;
+  /**
+   * Peak-`bunched` incidents that never opened at all because the corridor
+   * was controlled - the same subtraction as `incidentsAvoided`, restricted
+   * to the severity tier a human would call a real bunch. Where the blind
+   * count can be negative, this is the number that says whether the
+   * controller is actually making bunches worse or actually removing them.
+   */
+  deepIncidentsAvoided: number;
+  /**
+   * Seconds of PEAK-BUNCHED open time removed by control: the uncontrolled
+   * arm's `bunchedSecondsOpen` minus the controlled arm's. Positive means
+   * control shortened how long deep bunches stayed open, in total, across
+   * every incident that ever reached that tier.
+   */
+  bunchedSecondsOpenReduced: number;
+  /** The same figure as a share of the uncontrolled arm's own bunched-seconds-open total. */
+  bunchedSecondsOpenReducedPercent: number | null;
   /** Seconds of end-to-end journey time added per bus. The price paid, and it should be small. */
   addedJourneySecondsPerVehicle: number | null;
   /** Extra passengers refused a seat under control. Positive is WORSE, and is the number that vetoes a win. */
@@ -330,10 +396,47 @@ export interface PhaseReport {
   weighOccupancy: boolean;
   vehicleCount: number;
   scenarios: ScenarioReport[];
-  /** Pooled across every scenario in the phase: all headway samples reduced once, never a mean of means. */
+  /**
+   * THE HEADLINE POOL: every scenario in `FleetTrialReport.headlineScope
+   * .includedScenarioIds`, all headway samples reduced once, never a mean of
+   * means.
+   *
+   * ─── WHY THIS IS NOT EVERY SCENARIO ──────────────────────────────────
+   *
+   * The library contains scenarios that exist to prove the harness reports
+   * NOTHING - `oversaturated` runs the corridor past the denied-boarding line,
+   * where waiting time is bounded by how many seats exist rather than by how
+   * they are spaced, so spacing control CANNOT move the headline and a working
+   * controller correctly reports no effect. Pooling one of those in with
+   * eighteen readable scenarios does not average an effect; it dilutes one
+   * towards zero with a measurement that was never able to carry a signal.
+   *
+   * MEASURED on urban at 500 buses/phase: pooling all nineteen gave a net
+   * passenger time of +0.8% and a pooled denied share of 50%; the eighteen
+   * readable ones gave +2.5% and 4%. A reader comparing that +0.8% with last
+   * week's number would conclude the controller had got three times worse
+   * overnight, when what had changed was the scenario library.
+   *
+   * So the exclusion is on MEASURED saturation - either arm of a scenario past
+   * `SATURATION_DENIED_SHARE` - never on an id list, which would go stale the
+   * first time a scenario was renamed or a new one saturated. `allScenarios`
+   * below carries the full pool, unrounded and uncensored: this hides nothing,
+   * it only stops one figure from standing for two different populations.
+   */
   controlled: ArmReport;
   uncontrolled: ArmReport;
   contrast: ArmContrast;
+  /**
+   * The same three pooled over EVERY scenario the phase ran, saturated ones
+   * included. Published beside the headline rather than instead of it, because
+   * "what does the whole library say" is a real question with a real answer -
+   * it is just not the question the top line is asking.
+   */
+  allScenarios: {
+    controlled: ArmReport;
+    uncontrolled: ArmReport;
+    contrast: ArmContrast;
+  };
   /**
    * How the phase's own scenarios agreed about the sign of `contrast`.
    *
@@ -346,6 +449,13 @@ export interface PhaseReport {
    * replicates of one, and one trial is one draw of each. It answers a
    * different and equally necessary question: is this result broad, or is it
    * one scenario?
+   *
+   * It counts EVERY scenario the phase ran, including any the headline pool
+   * left out for saturation, and deliberately so: this is the surface on which
+   * a scenario designed to lose should be visible, and restricting it to the
+   * headline set would hide the very thing a reader is here to check. Read it
+   * beside `FleetTrialReport.headlineScope`, which says which of these
+   * scenarios are behind `contrast` above.
    *
    * On a single urban run it reads 8 of 10 positive, worst `slow_bus` -1.1%,
    * best `driver_non_compliance` +14.3% - a spread of fifteen points behind a
@@ -438,6 +548,8 @@ export interface PolicyStudyRow {
   deniedBoardings: number;
   incidentsDetected: number;
   incidentsResolved: number;
+  /** Summed across seeds: how many fewer incidents the deployed detector opened than on the paired uncontrolled arm. */
+  incidentsAvoided: number;
   /** See `seedsAgreeingWithSign` - a mean whose seeds disagree is no measured effect. */
   seedCount: number;
   seedsAgreeingWithSign: number;
@@ -461,6 +573,36 @@ export interface PolicyStudy {
   seedsPerRow: number;
 }
 
+/**
+ * Whether `self_equalizing` actually gets exercised, measured rather than
+ * assumed from its gate.
+ *
+ * On every deployed preset `kf` and `kb` are both set, so `two_way` covers
+ * almost every pair it could - and `self_equalizing`'s only route in
+ * (`selfEqualizing.ts:55-56`) is a null `h_bwd`, 0.4-0.7% of decisions. It
+ * fires on 69-88% of THAT population, so it is not misconfigured or timid -
+ * but by `AGENTS.md`'s own rule ("a law that never fired was not tested"),
+ * a fallback exercised on well under 1% of decisions has not been tested.
+ *
+ * This re-runs the SAME scenarios and seeds as phase 1 with `kb` forced to
+ * null, which disables `two_way` outright (`twoWayHold.ts:37`) and removes
+ * its gate entirely (`selfEqualizing.ts:55`), making self-equalizing the one
+ * law left to cover the corridor. It is trial COVERAGE, not a control
+ * change: this variant is never wired into `phases`, so the deployed
+ * configuration's own `lawCoverage` and `contrast` are unaffected by its
+ * existence - see `report.md` section 3, which measured this arm delivering
+ * 95% of two-way's net passenger-time and excess-wait benefit alone.
+ */
+export interface SelfEqualizingCoverageReport {
+  vehicleCount: number;
+  controlled: ArmReport;
+  uncontrolled: ArmReport;
+  contrast: ArmContrast;
+  lawCoverage: LawCoverage[];
+  /** One sentence stating what was exercised and how that compares with the deployed configuration. */
+  verdict: string;
+}
+
 export interface TrialProvenanceEntry {
   field: string;
   source: 'deployed' | 'configured' | 'modelled';
@@ -475,6 +617,41 @@ export interface FleetTrialReport {
   corridorPreset: { id: string; title: string; description: string };
   /** Whether an alighting-only proposal was allowed to be ACTED on, or only generated. */
   alightingOnlySelectable: boolean;
+  /**
+   * Which scenarios the headline figures are an average of, and which were
+   * left out because their numbers cannot be read.
+   *
+   * ─── A TOP LINE HAS TO MEAN THE SAME THING TWICE ─────────────────────
+   *
+   * Decided ONCE for the whole trial, from every arm of every phase, rather
+   * than per phase: saturation is measured per arm, so two phases could in
+   * principle exclude different scenarios, and a comparison between two
+   * figures averaged over two different scenario sets is not a comparison.
+   *
+   * See `PhaseReport.controlled` for the measurement that motivates the
+   * exclusion, and `PhaseReport.allScenarios` for the figure over the full
+   * library, which is always published beside the headline.
+   */
+  headlineScope: {
+    /** In library order. The population behind every phase's `controlled`/`uncontrolled`/`contrast`. */
+    includedScenarioIds: string[];
+    /** Left out, each with the measured share that decided it. Empty when nothing saturated. */
+    excludedScenarios: { id: string; title: string; deniedShare: number }[];
+    /**
+     * True when EVERY scenario saturated, so there was nothing readable to
+     * pool and the headline is the full set after all.
+     *
+     * Excluding everything would leave the headline averaging nothing: zero
+     * headway samples, a null EWT, a null passenger-time percent - which
+     * renders as an em dash and reads as "the trial found nothing" rather than
+     * "every scenario in this trial was past the saturation line". Falling
+     * back and saying so is the only honest option; silently reporting the
+     * empty pool is the worst.
+     */
+    fellBackToAllScenarios: boolean;
+    /** One line a surface can render verbatim, so the exclusion is never invisible. */
+    note: string;
+  };
   corridor: {
     routeDirectionId: string;
     routeName: string;
@@ -571,6 +748,8 @@ export interface FleetTrialReport {
    */
   policyStudies: PolicyStudy[];
   occupancyContrast: OccupancyContrast;
+  /** Whether `self_equalizing` gets exercised at all under the deployed presets, and what it does when it is. See `SelfEqualizingCoverageReport`. */
+  selfEqualizingCoverage: SelfEqualizingCoverageReport;
   provenance: TrialProvenanceEntry[];
   /** Parts of the live system this trial does NOT exercise, in words, for the surface to print verbatim. */
   notExercised: string[];

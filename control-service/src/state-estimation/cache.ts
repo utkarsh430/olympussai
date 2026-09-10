@@ -37,6 +37,7 @@
 
 import { logger } from '../lib/logger.js';
 import type { StateEstimationRepository } from './repository.js';
+import type { CompletedStopVisit } from './stopVisit.js';
 import type {
   LatLng,
   PriorVehicleState,
@@ -343,5 +344,15 @@ export class CachedGeometryRepository implements StateEstimationRepository {
 
   async rehydrateAll(): Promise<Map<string, PriorVehicleState>> {
     return this.base.rehydrateAll();
+  }
+
+  /**
+   * Pass-through, and NOT cacheable in any form: it is the one write on this
+   * interface that appends history rather than overwriting current state.
+   * Omitting it here is what kept `stop_visits` empty in production - see the
+   * note on StateEstimationRepository.recordStopVisit.
+   */
+  async recordStopVisit(visit: CompletedStopVisit): Promise<void> {
+    return this.base.recordStopVisit(visit);
   }
 }

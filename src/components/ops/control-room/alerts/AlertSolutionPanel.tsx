@@ -11,7 +11,12 @@ import {
   OpsReadout,
   OpsStack,
 } from '@/components/ops/ui';
-import { actionLabel, describeRejection, type RecommendationResult } from '@/lib/ops/recommendationView';
+import {
+  actionLabel,
+  describeBoardingLimitAvailability,
+  describeRejection,
+  type RecommendationResult,
+} from '@/lib/ops/recommendationView';
 import type { BunchingAlert, EngineCandidateAction } from '@/models/control';
 import { memberSummary } from './AlertRow';
 
@@ -268,8 +273,16 @@ function ProposedSolution({
 function AlternativeActions({ result }: { result: RecommendationResult }) {
   const boardingLimits = result.boardingLimitCandidates ?? [];
   const paceAdvisories = result.paceAdvisories ?? [];
+  // Rendered whether or not there are proposals, and that is the point: on
+  // every corridor on this network alighting-only is switched off, so its
+  // candidate list is empty for a REASON, and "the engine found nothing" and
+  // "the engine found something and may not offer it" must not look alike.
+  // Null only when the control service predates the gate and cannot say.
+  const availability = describeBoardingLimitAvailability(result.boardingLimitAvailability);
 
-  if (boardingLimits.length === 0 && paceAdvisories.length === 0) return null;
+  if (boardingLimits.length === 0 && paceAdvisories.length === 0 && availability === null) {
+    return null;
+  }
 
   return (
     <div className="ops-well px-4 py-3">
@@ -277,6 +290,19 @@ function AlternativeActions({ result }: { result: RecommendationResult }) {
         Alternatives that cost no delay
       </p>
       <OpsStack gap="tight">
+        {availability && (
+          <div
+            className={
+              availability.tone === 'warn'
+                ? 'rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2'
+                : 'rounded border border-border px-3 py-2'
+            }
+          >
+            <p className="text-sm font-medium">{availability.headline}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{availability.detail}</p>
+          </div>
+        )}
+
         {boardingLimits.map((candidate) => (
           <div key={`bl-${candidate.vehicleId}`}>
             <p className="text-sm font-medium">

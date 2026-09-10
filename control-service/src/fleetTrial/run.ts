@@ -50,9 +50,29 @@ import { detectIncidents, DEFAULT_SWEEP_INTERVAL_SECONDS } from './detection.js'
 import type { DetectedIncident, SweepSample } from './detection.js';
 import type { BunchingScenario, BunchingScenarioId } from './scenarios.js';
 import type { FleetCorridorSpec } from './corridor.js';
+import { plannedUnitCount, eligibleScenarioCount } from './progress.js';
+import type { FleetTrialProgressReporter, FleetTrialStage } from './progress.js';
 import type { CorridorInputs } from '../rehearsal/corridor.js';
 import type { ModelledInputs } from '../rehearsal/run.js';
+import {
+  COMMAND_BLOCK_REASONS,
+  commandLifecyclePolicyFrom,
+  inertLimitsFor,
+  limitProvenance,
+} from '../simulation/commandLifecycle.js';
+import type {
+  CommandBlockReason,
+  CommandLifecycleLedger,
+  CommandLifecyclePolicy,
+  InertLimit,
+  LimitProvenance,
+} from '../simulation/commandLifecycle.js';
 import type { DeclineReason, RehearsalDecisionRecord } from '../rehearsal/deployedControlLaws.js';
+import type {
+  PlausibilityAudit,
+  PlausibilityConfig,
+  PlausibilityMode,
+} from '../state-estimation/positionPlausibility.js';
 import type {
   ScenarioConfig,
   StopVisitRecord,
@@ -72,6 +92,7 @@ import type {
   PunctualityKpis,
   PassengerOutcome,
   ScenarioReport,
+  SelfEqualizingCoverageReport,
   SpacingKpis,
   TrialProvenanceEntry,
   VehicleTrajectory,
@@ -153,22 +174,93 @@ export interface FleetTrialSpec {
    * passenger time in `slow_bus` on every seed. That was taken on the old
    * headline - waiting plus the hold, over a waiting-only denominator, with
    * passengers still boarding at the terminus - and it does not survive any
-   * of those being fixed. RE-MEASURED, six seeds, 250 buses per phase, urban,
-   * occupancy-blind: acting on it is better on 3 of 6 seeds by total
-   * passenger time (mean +0.25 points) and 5 of 6 per passenger carried (mean
-   * +0.29). In `slow_bus` specifically it is better on 4 of 6, mean +1.49.
+   * of those being fixed. RE-MEASURED at six seeds, 250 buses per phase,
+   * urban, occupancy-blind, it read as better on only 3 of 6 seeds by total
+   * passenger time - NO MEASURED EFFECT by this trial's own rule (a mean
+   * whose seeds disagree is not a small effect), which is where this file's
+   * verdict stood for a while: "it loses" is no longer something anyone can
+   * say, but nor could anyone yet say it wins.
    *
-   * By this trial's own rule that is NO MEASURED EFFECT, not a win - a mean
-   * whose seeds disagree is not a small effect. So it stays off, but for the
-   * honest reason rather than the old one: the action is unpriced (neither
-   * side of its trade can be costed without a fitted lambda), it leaves real
-   * passengers standing, and nothing measures a benefit that would justify
-   * that. "It loses" is no longer something anyone can say.
+   * RE-MEASURED AGAIN at sixteen paired phase-seeds - the same corridor,
+   * phase and selectability, just more of them - it is better on 14 of 16 by
+   * total passenger time and 16 of 16 by excess wait. Both figures clear the
+   * trial's own agreement bar (`seedsAgreeingWithSign > seedCount / 2`), so
+   * this IS a measured effect now, and a positive one. See
+   * `docs/FLEET_TRIAL.md` section 17 for both measurements side by side and
+   * which seed count backs each.
+   *
+   * It stays off regardless, but for a reason that does not depend on which
+   * way the sign points: the action is unpriced (neither side of its trade
+   * can be costed without a fitted lambda), it leaves real passengers
+   * standing, and auto-selecting a lever this trial cannot yet cost is a
+   * production policy decision the trial's own positive mean does not settle
+   * by itself.
    *
    * It is kept as a switch because that conclusion is a measurement, and a
    * measurement has to be re-runnable.
    */
   alightingOnlySelectable: boolean;
+  /**
+   * Put every hold through the COMMAND PATH before the engine applies it, and
+   * report what would actually have been served beside what the laws intended.
+   *
+   * ─── OFF BY DEFAULT, AND OFF MEANS BYTE-IDENTICAL ────────────────────────
+   *
+   * `false` is not merely the old behaviour, it is the same bytes: the engine
+   * takes no different branch, no visit gains a field, and the report gains no
+   * key. `test/fleetTrial/commandLifecycle.test.ts` pins that on all three
+   * presets by comparing serialized reports.
+   *
+   * ─── AND WHY IT IS NOT ON ────────────────────────────────────────────────
+   *
+   * Not because the modelling is doubtful - three of its five limits carry a
+   * value read straight from the seeded `route_policies` - but because turning
+   * it on changes what every existing number MEANS. A trial run with this on
+   * reports a delivered rate; one run with it off reports the control law's
+   * intent. Those are different quantities and a reader comparing across weeks
+   * must be told which they are looking at, which is what
+   * `commandLifecycle.enabled` in the report is for.
+   */
+  commandLifecycle: CommandLifecycleTrialOptions;
+}
+
+/**
+ * How the trial should model the command path.
+ *
+ * The LIMITS are not here on purpose. They come from `route_policies` through
+ * `simulation/commandLifecycle.ts#commandLifecyclePolicyFrom`, so no caller
+ * can hand this trial an invented cooldown or an invented concurrency cap and
+ * have the report present it as measured. The only value a caller may set is
+ * the one nothing in this system measures.
+ */
+export interface CommandLifecycleTrialOptions {
+  enabled: boolean;
+  /**
+   * Seconds between a law deciding and the instruction reaching the driver:
+   * the decision cycle's own lag, a dispatcher's approval, delivery.
+   *
+   * ASSUMED - nothing here measures it - so it defaults to 0, which makes the
+   * headline delivered figure rest only on limits with a real seeded or
+   * shipped value behind them. Sweep it to size the sensitivity and report
+   * that separately; never fold a swept value into the headline.
+   */
+  deliveryLatencySeconds: number;
+  /**
+   * Release an accepted command's slot on
+   * `commands_one_active_per_vehicle_idx` when its ACTION finishes, instead of
+   * holding it for the whole TTL. Models `COMMAND_COMPLETION_SWEEP_ENABLED`
+   * (config/env.ts) so the flag's effect can be measured before it is turned
+   * on anywhere.
+   *
+   * Unlike `deliveryLatencySeconds` this is not an invented limit - it is a
+   * choice between two real behaviours of the deployed service, the one it has
+   * and the one the flag gives it - which is why it is settable here.
+   *
+   * Defaults false, and false is the deployed behaviour. Only meaningful when
+   * `enabled` is true; with the command path out of the loop there is no slot
+   * to release. See `simulation/commandLifecycle.ts#releaseSlotOnCompletion`.
+   */
+  releaseSlotOnCompletion: boolean;
 }
 
 
@@ -191,6 +283,7 @@ export const DEFAULT_FLEET_TRIAL_SPEC: FleetTrialSpec = {
   followerSpeedSource: 'vehicle_state',
   corridorPreset: 'intercity',
   alightingOnlySelectable: false,
+  commandLifecycle: { enabled: false, deliveryLatencySeconds: 0, releaseSlotOnCompletion: false },
 };
 
 const PHASES: { id: PhaseId; title: string; weighOccupancy: boolean }[] = [
@@ -215,7 +308,7 @@ const PHASES: { id: PhaseId; title: string; weighOccupancy: boolean }[] = [
  * proportion, and a multiplier that pushed it past 1 would have a bus shed
  * more passengers than it is carrying.
  */
-function scaleInputs(inputs: ModelledInputs, scenario: BunchingScenario): ModelledInputs {
+export function scaleInputs(inputs: ModelledInputs, scenario: BunchingScenario): ModelledInputs {
   const scale = scenario.inputScale;
   return {
     ...inputs,
@@ -412,6 +505,7 @@ function spacingKpis(
     deniedBoardings,
     firstTimeDeniedBoardings,
     totalBoardings,
+    deniedShare: deniedShare(firstTimeDeniedBoardings, totalBoardings),
     saturated: isSaturated(firstTimeDeniedBoardings, totalBoardings),
   };
 }
@@ -420,19 +514,42 @@ function spacingKpis(
 export const SATURATION_DENIED_SHARE = 0.2;
 
 /**
+ * The share of offered passengers refused a seat, in PEOPLE on both sides.
+ *
+ * ─── WHY THIS IS PUBLISHED AND NOT LEFT TO THE READER ────────────────────
+ *
+ * It was not on the wire at all. `SpacingKpis` carried `deniedBoardings` (a
+ * count of refusal EVENTS - a passenger a full bus turns away is offered to
+ * the next bus and counted again), `totalBoardings` (a HEADCOUNT, each person
+ * once) and a `saturated` flag, and nothing said which arithmetic the flag was
+ * drawn on. A reader who built a share from the two numbers in front of them
+ * got `deniedBoardings / totalBoardings`, which divides a rate by a headcount:
+ * MEASURED on urban at 500 buses/phase it read 52% beside a flag reading
+ * false. Both numbers were honest and they described different things.
+ *
+ * So the flag is now `deniedShare > SATURATION_DENIED_SHARE` and nothing else,
+ * and the share travels beside it. They cannot disagree because they are one
+ * expression.
+ *
+ * Null - not zero - when nobody was offered a seat at all: "no passenger
+ * reached this arm" and "every passenger boarded" are opposite statements.
+ */
+function deniedShare(firstTimeDeniedBoardings: number, totalBoardings: number): number | null {
+  const offered = firstTimeDeniedBoardings + totalBoardings;
+  return offered > 0 ? firstTimeDeniedBoardings / offered : null;
+}
+
+/**
  * Whether waiting time here is bounded by seats rather than by spacing.
  *
- * Counted in PEOPLE on both sides. `deniedBoardings` is a count of refusal
- * EVENTS - a passenger a full bus turns away is offered to the next bus and
- * counted again - while `boardings` counts a person once, so dividing one by
- * the other compared a rate with a headcount and read high. Worked through at
- * an urban stop: three buses that refuse seven distinct people, every one of
- * whom boards in the end, record 14 denials and report 40% saturation on a
- * stop that saturated nobody.
+ * Worked through at an urban stop, for why the numerator is the headcount:
+ * three buses that refuse seven distinct people, every one of whom boards in
+ * the end, record 14 denial EVENTS and would report 40% saturation on a stop
+ * that saturated nobody.
  */
 function isSaturated(firstTimeDeniedBoardings: number, totalBoardings: number): boolean {
-  const offered = firstTimeDeniedBoardings + totalBoardings;
-  return offered > 0 && firstTimeDeniedBoardings / offered > SATURATION_DENIED_SHARE;
+  const share = deniedShare(firstTimeDeniedBoardings, totalBoardings);
+  return share !== null && share > SATURATION_DENIED_SHARE;
 }
 
 /** Headway samples on their own, so a phase can pool every scenario's and reduce them ONCE rather than average means. */
@@ -561,7 +678,11 @@ function journeysOf(
       byVehicle.get(visit.vehicleId) ?? { arrival: null, hold: 0, refused: 0, limited: 0, passed: 0 };
     if (visit.stopIndex === finalStopIndex) entry.arrival = visit.arrivalSeconds;
     entry.hold += visit.appliedHoldSeconds;
-    if (!visit.compliant) entry.refused += visit.intendedHoldSeconds;
+    // The seconds the instruction asked for that the kerb did not get.
+    // A refusal is the whole hold; a driver who took the instruction and
+    // served part of it (`compliedHoldFraction`) leaves the rest here too,
+    // and the difference is exactly zero for a hold that was fully served.
+    entry.refused += visit.intendedHoldSeconds - visit.appliedHoldSeconds;
     if (visit.boardingLimitedPassengers > 0) {
       entry.limited++;
       entry.passed += visit.boardingLimitedPassengers;
@@ -625,7 +746,17 @@ function punctualityKpis(
   };
 }
 
-function summarizeIncidents(incidents: readonly DetectedIncident[]): IncidentSummary {
+/**
+ * `endOfRunSeconds` is the same sweep-window bound `detectIncidents` was
+ * given (`sweepUntilSeconds`) - needed here because an incident still open
+ * when the window closed carries `durationSeconds: null`, and charging it
+ * zero bunched-seconds-open would understate exactly the incidents that were
+ * open the LONGEST.
+ */
+export function summarizeIncidents(
+  incidents: readonly DetectedIncident[],
+  endOfRunSeconds: number,
+): IncidentSummary {
   const byOpeningSeverity: Record<string, number> = {};
   const byPeakSeverity: Record<string, number> = {};
   const resolutionDurations: number[] = [];
@@ -636,6 +767,7 @@ function summarizeIncidents(incidents: readonly DetectedIncident[]): IncidentSum
   let withIntervention = 0;
   let totalHoldSecondsServed = 0;
   let worstRatio: number | null = null;
+  let bunchedSecondsOpen = 0;
 
   for (const incident of incidents) {
     byOpeningSeverity[incident.openedSeverity] = (byOpeningSeverity[incident.openedSeverity] ?? 0) + 1;
@@ -654,6 +786,9 @@ function summarizeIncidents(incidents: readonly DetectedIncident[]): IncidentSum
     if (incident.holdCount > 0) withIntervention++;
     totalHoldSecondsServed += incident.holdSecondsApplied;
     if (worstRatio === null || incident.minRatio < worstRatio) worstRatio = incident.minRatio;
+    if (incident.peakSeverity === 'bunched') {
+      bunchedSecondsOpen += incident.durationSeconds ?? endOfRunSeconds - incident.openedAtSeconds;
+    }
   }
 
   resolutionDurations.sort((a, b) => a - b);
@@ -675,6 +810,7 @@ function summarizeIncidents(incidents: readonly DetectedIncident[]): IncidentSum
     worstRatio,
     withIntervention,
     totalHoldSecondsServed,
+    bunchedSecondsOpen,
   };
 }
 
@@ -727,6 +863,15 @@ function contrast(controlled: ArmReport, uncontrolled: ArmReport): ArmContrast {
       controlled.spacing.bunchingRate,
     ),
     incidentsAvoided: uncontrolled.incidents.detected - controlled.incidents.detected,
+    deepIncidentsAvoided:
+      (uncontrolled.incidents.byPeakSeverity['bunched'] ?? 0) -
+      (controlled.incidents.byPeakSeverity['bunched'] ?? 0),
+    bunchedSecondsOpenReduced:
+      uncontrolled.incidents.bunchedSecondsOpen - controlled.incidents.bunchedSecondsOpen,
+    bunchedSecondsOpenReducedPercent: percent(
+      uncontrolled.incidents.bunchedSecondsOpen,
+      controlled.incidents.bunchedSecondsOpen,
+    ),
     addedJourneySecondsPerVehicle: addedJourney,
     // PEOPLE, not refusal events. A passenger left behind is one person
     // harmed however many buses passed them, and the two arms repeat their
@@ -853,15 +998,51 @@ function coverageOf(decisions: readonly RehearsalDecisionRecord[]): LawCoverage[
 
 // ─── One scenario, both arms ─────────────────────────────────────────────
 
-interface ScenarioRun {
+/**
+ * One tick per simulated run, against a total fixed before the trial started.
+ *
+ * Threaded through every function that calls `runScenario` or `simulate` in a
+ * loop, because those loops ARE the trial's work - see `progress.ts` for why
+ * the phases alone are not. It reports and returns; nothing downstream of a
+ * tick reads it, so a caller that passes no reporter runs the identical code.
+ */
+type UnitTick = (stage: FleetTrialStage, label: string) => void;
+
+function unitReporter(total: number, report: FleetTrialProgressReporter | undefined): UnitTick {
+  let done = 0;
+  return (stage, label) => {
+    done++;
+    report?.({ done, total, stage, label });
+  };
+}
+
+export interface ScenarioRun {
   report: ScenarioReport;
   controlledVisits: StopVisitRecord[];
   uncontrolledVisits: StopVisitRecord[];
   decisions: readonly RehearsalDecisionRecord[];
   config: ScenarioConfig;
+  /** What the command path did with this run's instructions. Absent unless the spec asked for one. */
+  commandLifecycle?: CommandLifecycleLedger;
+  /**
+   * What the position-plausibility check did on the CONTROLLED arm, or null
+   * when it was not enabled.
+   *
+   * Carried out of the run rather than summarised into the report because the
+   * question this flag has to answer before it can ship is not "did the
+   * headline move" but "which vehicles did it exclude, and were they
+   * healthy" - and only the caller holds the ground truth about which
+   * vehicles a scenario actually lied about (`config.disturbances`).
+   */
+  plausibilityAudit?: PlausibilityAudit | null;
 }
 
-function runScenario(args: {
+/**
+ * Exported for measurement, not for reuse: it is how a probe reproduces one
+ * scenario of a trial without reimplementing the phase loop around it. The
+ * report the whole trial publishes still comes from `runFleetTrial` below.
+ */
+export function runScenario(args: {
   corridor: CorridorInputs;
   scenario: BunchingScenario;
   inputs: ModelledInputs;
@@ -872,6 +1053,14 @@ function runScenario(args: {
   sweepIntervalSeconds: number;
   followerSpeedSource: 'link_average' | 'vehicle_state';
   alightingOnlySelectable: boolean;
+  commandLifecycle: CommandLifecycleTrialOptions;
+  /** See `mpc/actionThreshold.ts#isPairActionable` and the `forecast_gate` study. */
+  forecastGateEnabled?: boolean;
+  /** See `state-estimation/positionPlausibility.ts` and `GPS_POSITION_PLAUSIBILITY_ENABLED`. */
+  positionPlausibilityEnabled?: boolean;
+  positionPlausibilityMode?: PlausibilityMode;
+  positionPlausibilityBoundSeconds?: number;
+  positionPlausibilityConfig?: Partial<PlausibilityConfig>;
 }): ScenarioRun {
   const {
     corridor,
@@ -884,6 +1073,12 @@ function runScenario(args: {
     sweepIntervalSeconds,
     followerSpeedSource,
     alightingOnlySelectable,
+    commandLifecycle,
+    forecastGateEnabled = false,
+    positionPlausibilityEnabled,
+    positionPlausibilityMode,
+    positionPlausibilityBoundSeconds,
+    positionPlausibilityConfig,
   } = args;
   const config = buildTrialScenario({ corridor, scenario, inputs, vehicleIds, seed });
   const finalStopIndex = corridor.stops.length - 1;
@@ -898,7 +1093,26 @@ function runScenario(args: {
     config.dispatches,
     corridor.stops.length,
   );
-  const timetabledConfig: ScenarioConfig = { ...config, scheduledArrivalSeconds: timetable };
+  // ─── THE COMMAND PATH GOES ON THE CONTROLLED ARM ONLY ──────────────────
+  //
+  // The uncontrolled arm proposes nothing, so a gate there would refuse
+  // nothing and report an empty ledger - but it must not SHARE one with the
+  // controlled arm either, or the controlled arm's cooldowns and per-cycle
+  // budget would be charged against a run that issued no instructions. The
+  // limits come from the corridor's own policy, never from the caller: see
+  // `commandLifecyclePolicyFrom`.
+  const timetabledConfig: ScenarioConfig = {
+    ...config,
+    scheduledArrivalSeconds: timetable,
+    ...(commandLifecycle.enabled
+      ? {
+          commandLifecycle: commandLifecyclePolicyFrom(corridor.policy, {
+            deliveryLatencySeconds: commandLifecycle.deliveryLatencySeconds,
+            releaseSlotOnCompletion: commandLifecycle.releaseSlotOnCompletion,
+          }),
+        }
+      : {}),
+  };
   const controller = createDeployedControlLawsController({
     policy: corridor.policy,
     epochMs: REHEARSAL_EPOCH_MS,
@@ -910,6 +1124,21 @@ function runScenario(args: {
     // coverage for a reason that belonged to the harness.
     corridorStops: corridor.stops,
     alightingOnlySelectable,
+    forecastGateEnabled,
+    // Undefined leaves the adapter on the deployed switch
+    // (`GPS_POSITION_PLAUSIBILITY_ENABLED`, off), which is what every caller
+    // that has not asked for the correction gets.
+    ...(positionPlausibilityEnabled === undefined ? {} : { positionPlausibilityEnabled }),
+    ...(positionPlausibilityMode === undefined ? {} : { positionPlausibilityMode }),
+    ...(positionPlausibilityBoundSeconds === undefined
+      ? {}
+      : { positionPlausibilityBoundSeconds }),
+    ...(positionPlausibilityConfig === undefined ? {} : { positionPlausibilityConfig }),
+    // The forecast's sample history is appended on the SAME cadence the trial
+    // replays the detector at, because production fits it from `headway_states`
+    // and that table is written by the headway sweep. See
+    // `rehearsal/deployedControlLaws.ts#forecastSweepIntervalSeconds`.
+    forecastSweepIntervalSeconds: sweepIntervalSeconds,
     // Left at the deployed switch. The closed-form optimum is the argmin of
     // the very quantity candidates are ranked by, so letting it compete would
     // REPLACE the tuned controller rather than add to it - and a trial that
@@ -957,7 +1186,7 @@ function runScenario(args: {
       corridor.policy.maxLatenessSeconds,
     ),
     passengers: passengerOutcome(controlled.visits),
-    incidents: summarizeIncidents(detectedControlled.incidents),
+    incidents: summarizeIncidents(detectedControlled.incidents, detectionHorizonSeconds),
   };
   const uncontrolledArm: ArmReport = {
     spacing: spacingKpis(uncontrolled.visits, corridor),
@@ -966,7 +1195,7 @@ function runScenario(args: {
       corridor.policy.maxLatenessSeconds,
     ),
     passengers: passengerOutcome(uncontrolled.visits),
-    incidents: summarizeIncidents(detectedUncontrolled.incidents),
+    incidents: summarizeIncidents(detectedUncontrolled.incidents, detectionHorizonSeconds),
   };
 
   const trajectoryVehicleIds = pickTrajectoryVehicles(config.dispatches);
@@ -1001,6 +1230,8 @@ function runScenario(args: {
     uncontrolledVisits: uncontrolled.visits,
     decisions,
     config: timetabledConfig,
+    ...(controlled.commandLifecycle ? { commandLifecycle: controlled.commandLifecycle } : {}),
+    plausibilityAudit: controller.plausibilityAudit,
   };
 }
 
@@ -1080,6 +1311,7 @@ function poolArm(
       deniedBoardings,
       firstTimeDeniedBoardings,
       totalBoardings,
+      deniedShare: deniedShare(firstTimeDeniedBoardings, totalBoardings),
       saturated: isSaturated(firstTimeDeniedBoardings, totalBoardings),
     },
     punctuality: punctualityKpis(journeys, corridor.policy.maxLatenessSeconds),
@@ -1101,6 +1333,7 @@ function mergeIncidentSummaries(summaries: readonly IncidentSummary[]): Incident
   let worstRatio: number | null = null;
   let resolutionSecondsWeighted = 0;
   let resolutionCount = 0;
+  let bunchedSecondsOpen = 0;
   const medians: number[] = [];
 
   for (const summary of summaries) {
@@ -1111,6 +1344,7 @@ function mergeIncidentSummaries(summaries: readonly IncidentSummary[]): Incident
     escalatedFromPrediction += summary.escalatedFromPrediction;
     withIntervention += summary.withIntervention;
     totalHoldSecondsServed += summary.totalHoldSecondsServed;
+    bunchedSecondsOpen += summary.bunchedSecondsOpen;
     for (const [key, count] of Object.entries(summary.byOpeningSeverity)) {
       byOpeningSeverity[key] = (byOpeningSeverity[key] ?? 0) + count;
     }
@@ -1145,6 +1379,71 @@ function mergeIncidentSummaries(summaries: readonly IncidentSummary[]): Incident
     worstRatio,
     withIntervention,
     totalHoldSecondsServed,
+    bunchedSecondsOpen,
+  };
+}
+
+// ─── What the headline is allowed to be an average of ────────────────────
+
+/**
+ * The scenarios whose numbers can be READ, decided by measurement.
+ *
+ * A scenario is excluded when EITHER arm is past the saturation line. Either,
+ * not both: the contrast between the two arms is a difference of quantities
+ * that saturation bounds, so one saturated side is enough to make the
+ * difference uninterpretable. It is decided on the measured `saturated` flag
+ * rather than on an id list - `oversaturated` is the scenario this was built
+ * for, but naming it would go stale the first time it was renamed, and would
+ * silently keep including the next scenario that crossed the line.
+ *
+ * Computed across EVERY phase, so all phases pool an identical scenario set
+ * and remain comparable with each other.
+ */
+function headlineScopeOf(
+  runsByPhase: readonly (readonly ScenarioRun[])[],
+): FleetTrialReport['headlineScope'] {
+  const excluded = new Map<string, { id: string; title: string; deniedShare: number }>();
+  const order: string[] = [];
+
+  for (const runs of runsByPhase) {
+    for (const run of runs) {
+      const report = run.report;
+      if (!order.includes(report.id)) order.push(report.id);
+      for (const arm of [report.controlled, report.uncontrolled]) {
+        if (!arm.spacing.saturated) continue;
+        const share = arm.spacing.deniedShare ?? 0;
+        const seen = excluded.get(report.id);
+        // The worst share across the arms and phases that flagged it: the
+        // number shown should be the one that most clearly justifies the call.
+        if (!seen || share > seen.deniedShare) {
+          excluded.set(report.id, { id: report.id, title: report.title, deniedShare: share });
+        }
+      }
+    }
+  }
+
+  const included = order.filter((id) => !excluded.has(id));
+  if (included.length === 0) {
+    return {
+      includedScenarioIds: order,
+      excludedScenarios: [],
+      fellBackToAllScenarios: true,
+      note:
+        'Every scenario in this trial ran past the saturation line, so there was no readable subset to average. The headline is the whole set, and past that line spacing control cannot move it.',
+    };
+  }
+
+  const excludedList = order.filter((id) => excluded.has(id)).map((id) => excluded.get(id)!);
+  return {
+    includedScenarioIds: included,
+    excludedScenarios: excludedList,
+    fellBackToAllScenarios: false,
+    note:
+      excludedList.length === 0
+        ? `Averaged over all ${included.length} scenarios. None ran past the saturation line.`
+        : `Averaged over ${included.length} of ${order.length} scenarios. ${excludedList
+            .map((s) => `${s.title} (${(s.deniedShare * 100).toFixed(0)}% refused a seat)`)
+            .join(', ')} ${excludedList.length === 1 ? 'was' : 'were'} left out: past the saturation line waiting time is bounded by how many seats exist rather than by how they are spaced, so spacing control cannot move the figure there and averaging it in only pulls the headline towards zero.`,
   };
 }
 
@@ -1260,8 +1559,9 @@ function compareOccupancySettings(args: {
   inputs: ModelledInputs;
   requiredSamples: number;
   followerSpeedSource: 'link_average' | 'vehicle_state';
+  tick?: UnitTick;
 }): OccupancyContrast {
-  const { corridor, runs, inputs, followerSpeedSource } = args;
+  const { corridor, runs, inputs, followerSpeedSource, tick } = args;
 
   interface DecisionShape {
     actionType: string;
@@ -1297,6 +1597,7 @@ function compareOccupancySettings(args: {
       alightingOnlySelectable: true,
     });
     simulate(run.config, blindController);
+    tick?.('occupancy_contrast', `Occupancy switch off - ${run.report.title}`);
 
     const blindByKey = new Map<string, DecisionShape>();
     for (const decision of blindController.decisions) {
@@ -1360,12 +1661,120 @@ function compareOccupancySettings(args: {
   };
 }
 
+// ─── Is self_equalizing actually exercised? A coverage re-run, not a study ─
+
+/**
+ * Re-runs phase 1's scenarios and seeds with `kb` forced to null, which
+ * disables `two_way` outright (`twoWayHold.ts:37`) and removes
+ * `self_equalizing`'s only gate (`selfEqualizing.ts:55-56`), making it the
+ * one law left to cover the corridor.
+ *
+ * NEVER wired into `phases` or any other field `runFleetTrial` uses to build
+ * the deployed configuration's own numbers - this corridor and its decisions
+ * exist only for this function's return value, so the deployed `lawCoverage`
+ * and `contrast` cannot be affected by its existence. See
+ * `SelfEqualizingCoverageReport`.
+ */
+function runSelfEqualizingCoverage(args: {
+  corridor: CorridorInputs;
+  scenarios: readonly BunchingScenario[];
+  inputs: ModelledInputs;
+  spec: FleetTrialSpec;
+  vehiclesPerPhase: number;
+  deployedSelfEqualizing: LawCoverage | undefined;
+  tick?: UnitTick;
+}): SelfEqualizingCoverageReport {
+  const { corridor, scenarios, inputs, spec, vehiclesPerPhase, deployedSelfEqualizing, tick } =
+    args;
+  const coverageCorridor: CorridorInputs = {
+    ...corridor,
+    policy: { ...corridor.policy, kb: null },
+  };
+
+  const base = Math.floor(vehiclesPerPhase / scenarios.length);
+  const remainder = vehiclesPerPhase - base * scenarios.length;
+  let busNumber = 0;
+  const runs: ScenarioRun[] = [];
+  for (const [index, scenario] of scenarios.entries()) {
+    const vehicleCount = base + (index < remainder ? 1 : 0);
+    if (vehicleCount < 2) continue;
+    runs.push(
+      runScenario({
+        corridor: coverageCorridor,
+        scenario,
+        inputs: scaleInputs(inputs, scenario),
+        vehicleIds: Array.from(
+          { length: vehicleCount },
+          () => `COVERAGE-${String(++busNumber).padStart(4, '0')}`,
+        ),
+        // Same seeds as phase 1 (occupancy-blind, no phase offset), so this
+        // arm is paired against the same days the deployed configuration ran.
+        seed: (spec.seed + index * 7919) >>> 0,
+        weighOccupancy: false,
+        requiredSamples: spec.requiredSamples,
+        sweepIntervalSeconds: spec.sweepIntervalSeconds,
+        followerSpeedSource: spec.followerSpeedSource,
+        alightingOnlySelectable: spec.alightingOnlySelectable,
+        commandLifecycle: spec.commandLifecycle,
+      }),
+    );
+    tick?.('self_equalizing', `Self-equalizing fallback - ${scenario.title}`);
+  }
+
+  const controlled = poolArm(runs, coverageCorridor, (r) => r.controlledVisits, (report) => report.controlled);
+  const uncontrolled = poolArm(
+    runs,
+    coverageCorridor,
+    (r) => r.uncontrolledVisits,
+    (report) => report.uncontrolled,
+  );
+  const lawCoverage = coverageOf(runs.flatMap((r) => [...r.decisions]));
+  const selfEqualizing = lawCoverage.find((l) => l.law === 'self_equalizing');
+
+  const coverageShare =
+    selfEqualizing && selfEqualizing.decisionsTotal > 0
+      ? (selfEqualizing.decisionsGenerating / selfEqualizing.decisionsTotal) * 100
+      : 0;
+  const deployedShare =
+    deployedSelfEqualizing && deployedSelfEqualizing.decisionsTotal > 0
+      ? (deployedSelfEqualizing.decisionsGenerating / deployedSelfEqualizing.decisionsTotal) * 100
+      : 0;
+  const verdict =
+    `With two-way holding disabled (kb = null), self-equalizing generated on ` +
+    `${selfEqualizing?.decisionsGenerating ?? 0} of ${selfEqualizing?.decisionsTotal ?? 0} decisions ` +
+    `(${coverageShare.toFixed(2)}%) - against ${deployedShare.toFixed(2)}% on the deployed configuration, ` +
+    'which this variant never changes.';
+
+  return {
+    vehicleCount: runs.reduce((acc, r) => acc + r.report.vehicleCount, 0),
+    controlled,
+    uncontrolled,
+    contrast: contrast(controlled, uncontrolled),
+    lawCoverage,
+    verdict,
+  };
+}
+
 // ─── What each policy knob is worth, on THIS corridor ────────────────────
 
 /** One variant of the corridor, and the label it is reported under. */
 interface PolicyVariant {
   label: string;
   corridor: FleetCorridorSpec;
+  /**
+   * Overrides on the shared modelled inputs, for a study that sweeps an INPUT
+   * rather than a `route_policies` column - see `runDispersionSensitivityStudy`.
+   * Empty for every corridor-knob study, which is the common case.
+   */
+  inputs?: Partial<ModelledInputs>;
+  /**
+   * Whether this variant runs with the forecast-admission gate on. A CONTROL
+   * LAW switch rather than a corridor column or a modelled input, which is why
+   * it is a third override kind here: the gate is not something a corridor
+   * has, it is something the controller does. Absent means the deployed state,
+   * off.
+   */
+  forecastGate?: boolean;
   isCurrent: boolean;
 }
 
@@ -1390,12 +1799,18 @@ function runPolicyStudy(args: {
   scenarios: readonly BunchingScenario[];
   inputs: ModelledInputs;
   vehiclesPerPhase: number;
+  tick?: UnitTick;
 }): PolicyStudy {
-  const { spec, knob, title, description, variants, scenarios, inputs, vehiclesPerPhase } = args;
+  const { spec, knob, title, description, variants, scenarios, inputs, vehiclesPerPhase, tick } =
+    args;
 
   const rows: PolicyStudyRow[] = [];
   for (const variant of variants) {
     const corridor = buildFleetCorridor(variant.corridor);
+    // A variant that overrides an INPUT (dispersion) rather than a corridor
+    // column merges over the study's shared inputs; every other study leaves
+    // this untouched and gets `inputs` back unchanged.
+    const variantInputs: ModelledInputs = variant.inputs ? { ...inputs, ...variant.inputs } : inputs;
     const perSeed: {
       net: number | null;
       ewt: number | null;
@@ -1405,6 +1820,7 @@ function runPolicyStudy(args: {
       denied: number;
       detected: number;
       resolved: number;
+      incidentsAvoided: number;
     }[] = [];
 
     for (let seedIndex = 0; seedIndex < STUDY_SEEDS; seedIndex++) {
@@ -1420,7 +1836,7 @@ function runPolicyStudy(args: {
           runScenario({
             corridor,
             scenario,
-            inputs: scaleInputs(inputs, scenario),
+            inputs: scaleInputs(variantInputs, scenario),
             vehicleIds: Array.from(
               { length: vehicleCount },
               () => `STUDY-${String(++busNumber).padStart(4, '0')}`,
@@ -1431,8 +1847,11 @@ function runPolicyStudy(args: {
             sweepIntervalSeconds: spec.sweepIntervalSeconds,
             followerSpeedSource: spec.followerSpeedSource,
             alightingOnlySelectable: spec.alightingOnlySelectable,
+            commandLifecycle: spec.commandLifecycle,
+            forecastGateEnabled: variant.forecastGate ?? false,
           }),
         );
+        tick?.('policy_study', `${title} - ${variant.label}, seed ${seedIndex + 1}`);
       }
       if (runs.length === 0) continue;
 
@@ -1451,6 +1870,7 @@ function runPolicyStudy(args: {
         denied: controlled.spacing.firstTimeDeniedBoardings,
         detected: controlled.incidents.detected,
         resolved: controlled.incidents.resolved,
+        incidentsAvoided: armContrast.incidentsAvoided,
       });
     }
     if (perSeed.length === 0) continue;
@@ -1475,6 +1895,7 @@ function runPolicyStudy(args: {
       deniedBoardings: perSeed.reduce((acc, row) => acc + row.denied, 0),
       incidentsDetected: perSeed.reduce((acc, row) => acc + row.detected, 0),
       incidentsResolved: perSeed.reduce((acc, row) => acc + row.resolved, 0),
+      incidentsAvoided: perSeed.reduce((acc, row) => acc + row.incidentsAvoided, 0),
       seedCount: perSeed.length,
       seedsAgreeingWithSign: agreeing,
       isCurrent: variant.isCurrent,
@@ -1501,23 +1922,63 @@ function runPolicyStudy(args: {
   // collectively worse off. It also produced arbitrary answers - two holding
   // placements tied at 46.1% wait improvement, and the tie-break handed the
   // recommendation to the one with the WORSE net effect.
-  const recommended = [...affordable].sort(
+  const ranked = [...affordable].sort(
     (a, b) =>
       (b.passengerSecondsSavedPercent ?? 0) - (a.passengerSecondsSavedPercent ?? 0) ||
       (b.ewtImprovementPercent ?? 0) - (a.ewtImprovementPercent ?? 0),
-  )[0];
+  );
+
+  // ─── DRIVER TIME BREAKS A TIE, AND ONLY A TIE ──────────────────────────
+  //
+  // A hold is executed by a driver keeping a bus standing at a stop
+  // (`mpc/eligibility.ts` - it can be executed nowhere else), and driver time
+  // is a real cost the passenger-second metric does not price at all. Two
+  // settings whose passenger-time AND excess-wait figures are indistinguishable
+  // are not "one better than the other", and recommending the one that asks
+  // more of drivers spends goodwill on a difference nobody measured.
+  //
+  // It is the LAST key, not the first, and that was measured the wrong way
+  // round first: ranking on holding as soon as passenger time tied recommended
+  // 4 of 15 stations over 15 of 15 on the suburban corridor - saving 2.6
+  // min/bus of holding and throwing away 29 points of excess-wait improvement
+  // for it. Excess wait is the service quality passengers actually experience;
+  // driver time decides only between settings that deliver the same of it,
+  // which is the exact-tie case this file already recorded (two placements
+  // tied at 46.1% and the recommendation went to the worse net effect).
+  const TIE_POINTS = 0.3;
+  const best = ranked[0];
+  const recommended =
+    best === undefined
+      ? undefined
+      : [...ranked]
+          .filter(
+            (row) =>
+              (best.passengerSecondsSavedPercent ?? 0) - (row.passengerSecondsSavedPercent ?? 0) <=
+              TIE_POINTS,
+          )
+          .sort(
+            (a, b) =>
+              (b.ewtImprovementPercent ?? 0) - (a.ewtImprovementPercent ?? 0) ||
+              a.meanHoldSecondsPerVehicle - b.meanHoldSecondsPerVehicle,
+          )[0];
   const current = rows.find((row) => row.isCurrent);
 
   let verdict: string;
   if (rows.length < 2) {
     verdict = 'Only one setting was tried, so there is nothing to compare.';
   } else if (recommended && current && recommended.label !== current.label) {
+    const holdSaved = current.meanHoldSecondsPerVehicle - recommended.meanHoldSecondsPerVehicle;
     verdict =
       `${recommended.label} beats the configured ${current.label}: ` +
       `${(recommended.ewtImprovementPercent ?? 0).toFixed(0)}% excess-wait improvement against ` +
       `${(current.ewtImprovementPercent ?? 0).toFixed(0)}%, and ` +
       `${(recommended.passengerSecondsSavedPercent ?? 0).toFixed(1)}% of total passenger time saved against ` +
-      `${(current.passengerSecondsSavedPercent ?? 0).toFixed(1)}%.`;
+      `${(current.passengerSecondsSavedPercent ?? 0).toFixed(1)}%.` +
+      // Driver time is a real cost the passenger-second metric does not price,
+      // so when the recommendation also asks less of drivers, say so.
+      (holdSaved > 1
+        ? ` It also asks ${(holdSaved / 60).toFixed(1)} fewer minutes of holding per bus.`
+        : '');
   } else if (recommended) {
     verdict =
       `The configured ${recommended.label} is the best of those tried: ` +
@@ -1539,11 +2000,112 @@ function runPolicyStudy(args: {
   return { knob, title, description, rows, recommended: recommended?.label ?? null, verdict, seedsPerRow: STUDY_SEEDS };
 }
 
+/**
+ * Dispersion levels worth trying on this corridor, as MULTIPLES of the
+ * preset's own configured value.
+ *
+ * Multiplicative for the same reason `BunchingScenario.inputScale` is: what
+ * counts as noisy on a calm corridor is not what counts on a disturbed one,
+ * and an absolute value tuned to read sensibly on one preset reads as either
+ * "barely perturbed" or "impossible" on another (urban ships at 0.18,
+ * inter-city at 0.14). The top multiple, 3.3x, is wider than any single
+ * scenario's own `travelTimeVariation` scaling (`cascade`'s 1.6x is the
+ * largest in `scenarios.ts`) - chosen to reproduce the range this trial's own
+ * investigation measured on the urban preset (`docs/FLEET_TRIAL.md`), not to
+ * match an existing scenario.
+ */
+function dispersionVariants(
+  current: number,
+): { label: string; travelTimeVariation: number; isCurrent: boolean }[] {
+  const multiples = [0.5, 1, 2, 10 / 3];
+  const values = [...new Set(multiples.map((m) => Number((current * m).toFixed(4))))]
+    .filter((v) => v > 0)
+    .sort((a, b) => a - b);
+  return values.map((v) => ({
+    label: `${(v * 100).toFixed(0)}% travel-time variation`,
+    travelTimeVariation: v,
+    isCurrent: Math.abs(v - current) < 1e-9,
+  }));
+}
+
+/**
+ * How sensitive the headline is to corridor dispersion, holding demand fixed.
+ *
+ * ─── WHY THIS EXISTS ──────────────────────────────────────────────────────
+ *
+ * `NOT_EXERCISED` names the invented demand, the untouched command lifecycle,
+ * the absent state estimator and the booked timetable - and used to leave out
+ * the one input the headline is most sensitive to. Measured by sweeping
+ * `travelTimeVariation` alone with demand held at the preset's own value: the
+ * excess-wait improvement moves an order of magnitude more than it does
+ * across an equivalent swing in the INVENTED boarding rate. So the headline
+ * is never quoted again without this sweep sitting beside it - see
+ * `docs/FLEET_TRIAL.md` for the specific figures this measured on the urban
+ * preset.
+ *
+ * Built ON `runPolicyStudy` - identical rows, seeds and pairing to every
+ * other study - because dispersion is swept exactly like a policy knob would
+ * be. What differs is what the result MEANS: nobody configures corridor
+ * dispersion, so there is no "best" setting, and the verdict says so instead
+ * of picking one.
+ */
+function runDispersionSensitivityStudy(args: {
+  spec: FleetTrialSpec;
+  scenarios: readonly BunchingScenario[];
+  inputs: ModelledInputs;
+  vehiclesPerPhase: number;
+  corridorSpec: FleetCorridorSpec;
+  tick?: UnitTick;
+}): PolicyStudy {
+  const { spec, scenarios, inputs, vehiclesPerPhase, corridorSpec, tick } = args;
+  const variants: PolicyVariant[] = dispersionVariants(inputs.travelTimeVariation).map((v) => ({
+    label: v.label,
+    corridor: corridorSpec,
+    inputs: { travelTimeVariation: v.travelTimeVariation },
+    isCurrent: v.isCurrent,
+  }));
+
+  const study = runPolicyStudy({
+    spec,
+    knob: 'travel_time_variation',
+    title: 'How sensitive the headline is to corridor dispersion',
+    description:
+      'NOT a policy knob - nobody configures how noisy a corridor is. The shipped preset states one INVENTED dispersion value among many; this sweeps it, as a multiple of that value, with demand held fixed, because it is the input the headline moves most against.',
+    variants,
+    scenarios,
+    inputs,
+    vehiclesPerPhase,
+    tick,
+  });
+
+  const shipped = study.rows.find((row) => row.isCurrent);
+  const ranked = [...study.rows].sort(
+    (a, b) => (b.ewtImprovementPercent ?? -Infinity) - (a.ewtImprovementPercent ?? -Infinity),
+  );
+  const best = ranked[0];
+  const worst = ranked[ranked.length - 1];
+
+  const verdict =
+    study.rows.length < 2 || !best || !worst
+      ? 'Only one dispersion level was tried, so there is nothing to compare.'
+      : `From ${best.label} to ${worst.label}, excess-wait improvement runs ` +
+        `${(best.ewtImprovementPercent ?? 0).toFixed(1)}% down to ${(worst.ewtImprovementPercent ?? 0).toFixed(1)}%, ` +
+        `and incidents avoided ${best.incidentsAvoided} down to ${worst.incidentsAvoided}` +
+        (shipped
+          ? ` - the shipped preset (${shipped.label}) is measured at ${(shipped.ewtImprovementPercent ?? 0).toFixed(1)}% ` +
+            `and ${shipped.incidentsAvoided} incidents avoided.`
+          : '.') +
+        ' This is not a setting to tune; it is the range the headline is exposed to before any control law runs, and it is far wider than the range demand alone produces.';
+
+  return { ...study, recommended: null, verdict };
+}
+
 /** The placements and lateness bounds worth trying on this corridor. */
 function policyVariants(corridorSpec: FleetCorridorSpec): {
   holdingPoints: PolicyVariant[];
   lateness: PolicyVariant[];
   actionBar: PolicyVariant[];
+  forecastGate: PolicyVariant[];
 } {
   const stationCount = corridorSpec.stationCount;
   const configuredHolding = corridorSpec.holdingPointCount ?? stationCount;
@@ -1595,7 +2157,28 @@ function policyVariants(corridorSpec: FleetCorridorSpec): {
   const configuredBar = corridorSpec.warningThresholdRatio;
   const actionBars = [...new Set([0.3, 0.5, 0.75, 1.0, configuredBar])].sort((a, b) => a - b);
 
+  // ─── ACTING EARLY ON THE PAIRS PREDICTED TO COME APART ──────────────
+  //
+  // Two rows, and the pairing is the whole point. The corridor is IDENTICAL
+  // in both - same `warningThresholdRatio`, so the same 0.6 effective action
+  // bar the `actionBar` study above sweeps and the bar this repo currently
+  // ships. The only thing that differs is whether the mid-route laws may also
+  // act on a pair that bar declines when the pair's own forecast says it is
+  // heading through it.
+  //
+  // Read against the raised bar, not the old one. `MID_ROUTE_ACTION_RATIO`
+  // already moved the effective bar 0.5 -> 0.6 and took the timing win that
+  // did not spend the guardrail; the question this study asks is what the
+  // forecast buys ON TOP of that, which is the only question left worth
+  // asking. Comparing the gate against the old bar would credit it with a
+  // win that is already shipped.
+  const forecastGateVariants: PolicyVariant[] = [
+    { label: 'off (deployed)', corridor: corridorSpec, forecastGate: false, isCurrent: true },
+    { label: 'on', corridor: corridorSpec, forecastGate: true, isCurrent: false },
+  ];
+
   return {
+    forecastGate: forecastGateVariants,
     actionBar: actionBars.map((ratio) => ({
       label: `h_fwd under ${(ratio * 100).toFixed(0)}% of H*`,
       corridor: { ...corridorSpec, warningThresholdRatio: ratio },
@@ -1825,14 +2408,198 @@ const NOT_EXERCISED = [
   'The state estimator. Production derives distance along the route by map-matching a GPS fix and filtering it, and excludes low-confidence vehicles before any headway is computed. The simulator knows its own world exactly, so that exclusion path only ever fires for the vehicles a scenario deliberately darkens.',
   'Real demand. Every passenger in this trial was invented. The boarding rate, the alighting fraction and the seat count are chosen numbers, and every figure derived from them inherits that.',
   'A REAL timetable. The trial books its own - free-flow running plus a nominal dwell - so lateness is measured and the deployed punctuality guardrail is exercised. It is measured against an invented schedule, not a published one: `trips` and `trip_stop_times` are empty everywhere in this system.',
+  'Corridor dispersion. `travelTimeVariation` is invented like every other running-time input, and it is the one this headline is most sensitive to: holding demand fixed, excess-wait improvement measured 60.7% at the shipped preset\'s own value, 43.7% at roughly double it, and 14.1% at roughly 3.3x it - against 60.7-64.5% across a 3.3x swing in the invented boarding rate over the same range. The bunching result IS robust to demand; it is not robust to dispersion, and that is roughly an order of magnitude difference in sensitivity. See the `travel_time_variation` row in `policyStudies` for the re-runnable sweep behind this and `docs/FLEET_TRIAL.md` for how it was measured.',
 ];
+
+/**
+ * `NOT_EXERCISED` with its command-lifecycle entry REPLACED rather than
+ * deleted, for a trial that modelled the command path.
+ *
+ * Modelling it does not make the entry go away, it changes what the entry
+ * says: five limits are now in the loop, three configured columns are dead and
+ * still are, and the delivery latency is still assumed. A reader who knows the
+ * old sentence needs to be told which parts of it stopped being true, not to
+ * find it silently missing.
+ *
+ * Derived from `NOT_EXERCISED` by replacing element 0, so the four entries
+ * this task did not touch cannot drift between the two lists.
+ */
+const NOT_EXERCISED_WITH_COMMAND_PATH = [
+  'The command lifecycle, PARTLY. This trial put every proposed hold through a modelled command path: the one-active-command-per-vehicle unique index, `cooldown_seconds`, the decision cycle\u2019s `max_concurrent_actions` budget, driver acknowledgement, and TTL expiry. So these numbers are what would have been DELIVERED, not only what the laws intended - read `commandLifecycle` for both side by side, `commandLifecycle.inertLimits` for the three `route_policies` columns no code in control-service/src reads, and `commandLifecycle.notModelled` for what is still outside the loop: dispatcher approval, delivery failure and redelivery, alighting-only instructions, and supersede.',
+  ...NOT_EXERCISED.slice(1),
+];
+
+// ─── The command lifecycle's own report ──────────────────────────────────
+
+/**
+ * What the command path would have delivered, beside what the laws intended.
+ *
+ * ─── TWO NUMBERS, NEVER ONE ──────────────────────────────────────────────
+ *
+ * The whole point of this block is the GAP. `intendedHoldSeconds` is what the
+ * control laws asked for and is the quantity every trial before this one
+ * reported; `deliveredHoldSeconds` is what would have reached a driver;
+ * `servedHoldSeconds` is what a driver would actually have stood for. Collapse
+ * them into a single "compliance" figure and the comparison this exists to
+ * expose is destroyed - which is exactly what `KpiSummary.complianceRate` did
+ * on its own, reporting a corridor that serves 42% of its hold seconds as 65%
+ * obedient.
+ *
+ * ─── AND IT IS ABSENT UNLESS ASKED FOR ───────────────────────────────────
+ *
+ * `FleetTrialSpec.commandLifecycle.enabled` is false by default, and then this
+ * key is not on the report at all. An absent block means the command path was
+ * not in the loop and every number in the report is the control law's INTENT -
+ * an upper bound - which is what `notExercised` has always said in prose.
+ */
+export interface CommandLifecycleTrialReport {
+  enabled: true;
+  /** The limits the run applied, and where each value came from. Nothing here is invented. */
+  policy: CommandLifecyclePolicy;
+  limitProvenance: Record<keyof CommandLifecyclePolicy, LimitProvenance>;
+  /** Configured limits that do nothing, and which kind of nothing. THE OPERATOR-FACING FINDING. */
+  inertLimits: InertLimit[];
+  /** Hold instructions the control laws proposed, over the whole trial. */
+  proposals: number;
+  /** Of those, how many reached a driver's screen. */
+  issued: number;
+  /** Instructions a driver accepted. */
+  acknowledged: number;
+  /** Instructions the TTL cut short of what was delivered. */
+  truncatedByExpiry: number;
+  intendedHoldSeconds: number;
+  deliveredHoldSeconds: number;
+  servedHoldSeconds: number;
+  /** `deliveredHoldSeconds / intendedHoldSeconds`. What the COMMAND PATH costs. Null when nothing was proposed. */
+  deliveredShareOfIntent: number | null;
+  /** `servedHoldSeconds / intendedHoldSeconds`. What the path AND the drivers cost together. Null when nothing was proposed. */
+  servedShareOfIntent: number | null;
+  /** Instructions each limit refused. */
+  blockedBy: Record<CommandBlockReason, number>;
+  /** Intended hold seconds each limit refused - the same losses, priced, which is the ordering an operator should act on. */
+  holdSecondsLostTo: Record<CommandBlockReason, number>;
+  /** Stated rather than left to be discovered. */
+  notModelled: string[];
+}
+
+function emptyBlockCounts(): Record<CommandBlockReason, number> {
+  const out = {} as Record<CommandBlockReason, number>;
+  for (const reason of COMMAND_BLOCK_REASONS) out[reason] = 0;
+  return out;
+}
+
+/**
+ * Sums the ledgers of the runs it is given into one trial-level answer.
+ *
+ * Sums rather than averages: an instruction is an instruction whichever
+ * scenario produced it, and `vehiclesPerPhase` is split across scenarios, so a
+ * mean of per-scenario rates would weight a scenario with four instructions
+ * the same as one with four hundred. The same reason `poolArm` pools samples.
+ *
+ * ─── SCOPE: THE TWO PHASES, NOT THE STUDIES ──────────────────────────────
+ *
+ * Called on the two headline phases only. The policy studies and the
+ * self-equalizing coverage arm run with the same command path applied - so
+ * their KPIs are delivered figures too, and stay comparable with the headline
+ * - but their instructions are not pooled in here, because those arms exist to
+ * compare CONFIGURATIONS against each other and folding their volume into one
+ * corridor-level delivered rate would describe a fleet nobody ran.
+ *
+ * ─── AND ONE THING THE PER-SCENARIO SPLIT UNDERSTATES ────────────────────
+ *
+ * `max_concurrent_actions` is a budget per CORRIDOR per cycle, and each
+ * scenario runs as its own corridor with `vehiclesPerPhase / scenarios.length`
+ * buses on it - six to thirteen at the sizes this trial is run at. A real
+ * corridor carries its whole fleet, so the concurrency cap would bind harder
+ * there than it does here. Read `blockedBy.max_concurrent_actions` as a LOWER
+ * bound on that limit specifically; every other limit here is per vehicle and
+ * is unaffected by the split.
+ */
+function commandLifecycleReport(
+  runs: readonly ScenarioRun[],
+  policy: CommandLifecyclePolicy,
+): CommandLifecycleTrialReport {
+  const blockedBy = emptyBlockCounts();
+  const holdSecondsLostTo = emptyBlockCounts();
+  let proposals = 0;
+  let issued = 0;
+  let acknowledged = 0;
+  let truncatedByExpiry = 0;
+  let intendedHoldSeconds = 0;
+  let deliveredHoldSeconds = 0;
+  let servedHoldSeconds = 0;
+
+  for (const run of runs) {
+    const ledger = run.commandLifecycle;
+    if (!ledger) continue;
+    proposals += ledger.proposals;
+    issued += ledger.issued;
+    acknowledged += ledger.acknowledged;
+    truncatedByExpiry += ledger.truncatedByExpiry;
+    intendedHoldSeconds += ledger.intendedHoldSeconds;
+    deliveredHoldSeconds += ledger.deliveredHoldSeconds;
+    servedHoldSeconds += ledger.servedHoldSeconds;
+    for (const reason of COMMAND_BLOCK_REASONS) {
+      blockedBy[reason] += ledger.blockedBy[reason];
+      holdSecondsLostTo[reason] += ledger.holdSecondsLostTo[reason];
+    }
+  }
+
+  return {
+    enabled: true,
+    policy,
+    limitProvenance: limitProvenance(),
+    inertLimits: inertLimitsFor(policy),
+    proposals,
+    issued,
+    acknowledged,
+    truncatedByExpiry,
+    intendedHoldSeconds: Math.round(intendedHoldSeconds),
+    deliveredHoldSeconds: Math.round(deliveredHoldSeconds),
+    servedHoldSeconds: Math.round(servedHoldSeconds),
+    deliveredShareOfIntent:
+      intendedHoldSeconds > 0 ? deliveredHoldSeconds / intendedHoldSeconds : null,
+    servedShareOfIntent: intendedHoldSeconds > 0 ? servedHoldSeconds / intendedHoldSeconds : null,
+    blockedBy,
+    holdSecondsLostTo,
+    notModelled: COMMAND_LIFECYCLE_NOT_MODELLED,
+  };
+}
+
+/**
+ * What this model still does NOT do, said here rather than left for a reader
+ * to find out by being wrong about it.
+ */
+const COMMAND_LIFECYCLE_NOT_MODELLED = [
+  'Dispatcher approval. Every authorized_actions entry the trial runs on is automatic, and no human sits between the solver and the command. A real corridor whose action needs approval adds a person\u2019s reaction time to the delivery latency below, and this models that only through `deliveryLatencySeconds`, which defaults to 0.',
+  'The delivery latency itself. Nothing in this system measures how long an instruction takes to reach a driver, so it is declared (`limitProvenance.deliveryLatencySeconds` = "assumed"), defaulted to 0, and swept separately rather than folded into any headline. At 0 the only limits that bite are ones with a real seeded or shipped value behind them.',
+  'Webhook delivery failure and the redelivery sweep. `commandDeliverySweep` re-attempts commands resting in `authorized`; a command that never leaves that state is not modelled here, and `route_policies.retry_count` would not govern it if it were.',
+  'Alighting-only instructions. `boarding_limit` is a real command and would take a slot in the same budget, but it is off on every corridor and off by default in this trial (`alightingOnlySelectable`), so gating it here would change a lever nobody has switched on. Holds only.',
+  'Supersede. A newer command replacing a live one (`POST /v1/commands/:id/supersede`) is a path out of the one-active-command constraint that this models as a plain refusal, so the `conflicting_active_command` count is an upper bound on that limit specifically.',
+];
+
 
 // ─── Entry point ─────────────────────────────────────────────────────────
 
+/**
+ * A trial report, plus the command-lifecycle block when one was asked for.
+ *
+ * The extra key is declared HERE rather than on `FleetTrialReport` in
+ * `types.ts` deliberately: it is optional, so an absent key leaves the wire
+ * shape and every existing reader exactly as they were, and the default-off
+ * report is byte-identical to one produced before this file knew about the
+ * command path. Promoting it into the wire type (and its Zod mirror in the web
+ * app, `src/models/fleetTrial.ts`) is what a console would need to RENDER it;
+ * until then it reaches a reader through `sim:fleet --out`'s `report.json`.
+ */
+export type FleetTrialReportWithLifecycle = FleetTrialReport & {
+  commandLifecycle?: CommandLifecycleTrialReport;
+};
+
 export function runFleetTrial(
   spec: FleetTrialSpec = DEFAULT_FLEET_TRIAL_SPEC,
-  onProgress?: (done: number, total: number, label: string) => void,
-): FleetTrialReport {
+  onProgress?: FleetTrialProgressReporter,
+): FleetTrialReportWithLifecycle {
   const startedAt = Date.now();
   const preset = CORRIDOR_PRESETS[spec.corridorPreset];
   // The spec's own corridor wins over the preset's, so a caller can vary one
@@ -1859,10 +2626,38 @@ export function runFleetTrial(
   const takeVehicleIds = (count: number): string[] =>
     Array.from({ length: count }, () => `BUS-${String(++nextBusNumber).padStart(4, '0')}`);
 
-  const totalRuns = PHASES.length * scenarios.length;
-  let done = 0;
+  // ─── WHAT THIS TRIAL IS ABOUT TO DO, COUNTED BEFORE IT DOES ANY OF IT ──
+  //
+  // The variant lists are pure functions of the corridor spec and the inputs,
+  // so every run the studies will do is knowable now. They are built HERE, once,
+  // and handed to the studies below - building them twice would let the plan
+  // and the work disagree, which is the one way the count can lie.
+  const variants = policyVariants(corridorSpec);
+  const studyVehicles = Math.min(spec.vehiclesPerPhase, MAX_STUDY_VEHICLES);
+  const dispersionVariantCount = dispersionVariants(inputs.travelTimeVariation).length;
+  const totalUnits = plannedUnitCount({
+    phaseCount: PHASES.length,
+    scenarioCount: scenarios.length,
+    // In the order the `policyStudies` array below runs them.
+    policyStudyVariantCounts: [
+      variants.holdingPoints.length,
+      variants.lateness.length,
+      variants.actionBar.length,
+      variants.forecastGate.length,
+      dispersionVariantCount,
+    ],
+    studySeeds: STUDY_SEEDS,
+    studyVehiclesPerPhase: studyVehicles,
+    vehiclesPerPhase: spec.vehiclesPerPhase,
+    // The contrast re-simulates each of the occupancy-aware phase's runs once.
+    occupancyContrastRuns: eligibleScenarioCount(spec.vehiclesPerPhase, scenarios.length),
+  });
+  const tick = unitReporter(totalUnits, onProgress);
 
-  const phaseReports: PhaseReport[] = [];
+  // Every phase's runs are collected BEFORE any of them is pooled, because
+  // which scenarios the headline may average is decided once for the trial
+  // from every arm of every phase - see `headlineScopeOf`.
+  const runsByPhase: ScenarioRun[][] = [];
   let awarePhaseRuns: ScenarioRun[] = [];
 
   for (const phase of PHASES) {
@@ -1907,47 +2702,64 @@ export function runFleetTrial(
         sweepIntervalSeconds: spec.sweepIntervalSeconds,
         followerSpeedSource: spec.followerSpeedSource,
         alightingOnlySelectable: spec.alightingOnlySelectable,
+        commandLifecycle: spec.commandLifecycle,
       });
       runs.push(run);
-      done++;
-      onProgress?.(done, totalRuns, `${phase.id}/${scenario.id}`);
+      tick('phases', `${phase.title} - ${scenario.title}`);
     }
 
-    const controlledArm = poolArm(runs, corridor, (r) => r.controlledVisits, (report) => report.controlled);
-    const uncontrolledArm = poolArm(runs, corridor, (r) => r.uncontrolledVisits, (report) => report.uncontrolled);
-    const holds = holdBreakdown(runs, corridor);
+    runsByPhase.push(runs);
+    if (phase.weighOccupancy) awarePhaseRuns = runs;
+  }
 
-    phaseReports.push({
+  const headlineScope = headlineScopeOf(runsByPhase);
+  const inHeadline = new Set(headlineScope.includedScenarioIds);
+
+  const phaseReports: PhaseReport[] = PHASES.map((phase, phaseIndex) => {
+    const runs = runsByPhase[phaseIndex] ?? [];
+    const headlineRuns = runs.filter((run) => inHeadline.has(run.report.id));
+    const pool = (subset: readonly ScenarioRun[]) => {
+      const controlledArm = poolArm(subset, corridor, (r) => r.controlledVisits, (report) => report.controlled);
+      const uncontrolledArm = poolArm(subset, corridor, (r) => r.uncontrolledVisits, (report) => report.uncontrolled);
+      return {
+        controlled: controlledArm,
+        uncontrolled: uncontrolledArm,
+        contrast: contrast(controlledArm, uncontrolledArm),
+      };
+    };
+
+    // The law coverage, the safety rejections and the hold breakdown stay over
+    // EVERY scenario. They are counts of what the controller did and what
+    // stopped it, and a saturated corridor is still a corridor the laws ran
+    // on - dropping it would understate the work rather than sharpen a
+    // headline. Only the pooled KPI comparison is scoped.
+    return {
       id: phase.id,
       title: phase.title,
       weighOccupancy: phase.weighOccupancy,
       vehicleCount: runs.reduce((acc, r) => acc + r.report.vehicleCount, 0),
       scenarios: runs.map((r) => r.report),
-      controlled: controlledArm,
-      uncontrolled: uncontrolledArm,
-      contrast: contrast(controlledArm, uncontrolledArm),
+      ...pool(headlineRuns),
+      allScenarios: pool(runs),
       scenarioAgreement: scenarioAgreement(runs.map((r) => r.report)),
       lawCoverage: coverageOf(runs.flatMap((r) => [...r.decisions])),
       safetyRejections: safetyRejections(runs),
-      ...holds,
-    });
+      ...holdBreakdown(runs, corridor),
+    };
+  });
 
-    if (phase.weighOccupancy) awarePhaseRuns = runs;
-  }
-
-  const variants = policyVariants(corridorSpec);
-  const studyVehicles = Math.min(spec.vehiclesPerPhase, MAX_STUDY_VEHICLES);
   const policyStudies: PolicyStudy[] = [
     runPolicyStudy({
       spec,
       knob: 'is_control_point',
       title: 'Where the holding points should be',
       description:
-        'Every station can hold a bus; which of them SHOULD is an operational choice, counted from the origin so a correction has the rest of the route to propagate through.',
+        'Every station can hold a bus; which of them SHOULD is an operational choice. Spread evenly along the route, because deviation accumulates between corrections - measured, clustering the same number at the origin is about half as effective wherever holding points are scarce, which is the density the network is configured at.',
       variants: variants.holdingPoints,
       scenarios,
       inputs,
       vehiclesPerPhase: studyVehicles,
+      tick,
     }),
     runPolicyStudy({
       spec,
@@ -1959,6 +2771,7 @@ export function runFleetTrial(
       scenarios,
       inputs,
       vehiclesPerPhase: studyVehicles,
+      tick,
     }),
     runPolicyStudy({
       spec,
@@ -1970,6 +2783,27 @@ export function runFleetTrial(
       scenarios,
       inputs,
       vehiclesPerPhase: studyVehicles,
+      tick,
+    }),
+    runPolicyStudy({
+      spec,
+      knob: 'forecast_action_gate',
+      title: 'Acting early on the pairs predicted to come apart',
+      description:
+        'Whether a mid-route law may act on a pair the action bar declines, when that pair\'s own forecast says it is closing through the bar inside the horizon. Both rows run the SAME corridor and the SAME 0.6 action bar, so this measures what the forecast buys on top of the raised bar rather than re-measuring the bar. A pair with no forecast - which is most of them, the forecaster refuses on fit, sample count and window - is left exactly where the bar left it.',
+      variants: variants.forecastGate,
+      scenarios,
+      inputs,
+      vehiclesPerPhase: studyVehicles,
+      tick,
+    }),
+    runDispersionSensitivityStudy({
+      spec,
+      scenarios,
+      inputs,
+      vehiclesPerPhase: studyVehicles,
+      corridorSpec,
+      tick,
     }),
   ];
 
@@ -1979,6 +2813,18 @@ export function runFleetTrial(
     inputs,
     requiredSamples: spec.requiredSamples,
     followerSpeedSource: spec.followerSpeedSource,
+    tick,
+  });
+
+  const occupancyBlindPhase = phaseReports.find((phase) => phase.id === 'occupancy_blind');
+  const selfEqualizingCoverage = runSelfEqualizingCoverage({
+    corridor,
+    scenarios,
+    inputs,
+    spec,
+    vehiclesPerPhase: studyVehicles,
+    deployedSelfEqualizing: occupancyBlindPhase?.lawCoverage.find((l) => l.law === 'self_equalizing'),
+    tick,
   });
 
   return {
@@ -1986,6 +2832,7 @@ export function runFleetTrial(
     durationMs: Date.now() - startedAt,
     corridorPreset: { id: preset.id, title: preset.title, description: preset.description },
     alightingOnlySelectable: spec.alightingOnlySelectable,
+    headlineScope,
     corridor: {
       routeDirectionId: corridor.routeDirectionId,
       routeName: corridor.routeName ?? corridor.routeDirectionId,
@@ -2016,7 +2863,20 @@ export function runFleetTrial(
     phases: phaseReports,
     policyStudies,
     occupancyContrast,
+    selfEqualizingCoverage,
     provenance: buildProvenance(corridor, inputs, spec),
-    notExercised: NOT_EXERCISED,
+    notExercised: spec.commandLifecycle.enabled ? NOT_EXERCISED_WITH_COMMAND_PATH : NOT_EXERCISED,
+    // Absent when the command path was not modelled. An absent key IS the
+    // statement that every number above is the control law's intent.
+    ...(spec.commandLifecycle.enabled
+      ? {
+          commandLifecycle: commandLifecycleReport(
+            runsByPhase.flat(),
+            commandLifecyclePolicyFrom(corridor.policy, {
+              deliveryLatencySeconds: spec.commandLifecycle.deliveryLatencySeconds,
+            }),
+          ),
+        }
+      : {}),
   };
 }

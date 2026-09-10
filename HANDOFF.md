@@ -371,6 +371,47 @@ reason, and `two_way_covers_pair` moved after eligibility where
   **3.6% of urban holds, 0% of inter-city ones**, and the cooldown 0% of both —
   real, small, and inside the seed noise. Not worth a command ledger; worth not
   claiming the per-vehicle projection is exact.
+- **Holding points must be SPREAD along the route, not clustered at the origin
+  — and the trial had it the wrong way round.** Its placement study designated
+  the first n stations, on the CTA-pilot reasoning that an early correction has
+  the rest of the route to propagate through. Measured at the same count, four
+  seeds x ten scenarios:
+
+  | | clustered at origin | spread along the route |
+  |---|---|---|
+  | urban, 6 of 25 | +1.14% | **+2.33%** |
+  | suburban, 4 of 15 | +0.30% | **+0.65%** |
+  | inter-city, 3 of 10 | +0.11% | +0.16% |
+
+  Spreading is about **twice as good wherever holding points are scarce**, and
+  the two converge once most stations are designated (19 of 25: +4.35% against
+  +4.26%). Scarce is the regime that matters — `seed/harvest.ts` configures the
+  real network at **one station in five** — so the study was recommending from
+  a pattern the network does not use and that is half as effective at the
+  density it runs at. Fixed in `fleetTrial/corridor.ts`. Physically it is the
+  same story `controllability` tells: deviation accumulates between
+  corrections, so corrections have to be distributed along the route it
+  accumulates over.
+- **Designating every station a holding point has not been optimal on any
+  corridor tried.** A hold can only be executed where a bus is standing at a
+  DESIGNATED stop (`mpc/eligibility.ts#holdExecutionStopId`), so the efficiency
+  lever is `route_direction_stops.is_control_point` — not a new switch. Swept
+  paired, four seeds x ten scenarios at 120 buses:
+
+  | designated | urban | suburban | inter-city |
+  |---|---|---|---|
+  | ~a quarter | +0.53% @ 0.53 min/bus | +0.30% @ 0.79 | +0.12% @ 2.34 |
+  | ~half | +3.27% @ 1.62 | +0.85% @ 1.73 | +0.39% @ 4.10 |
+  | ~three quarters | +4.35% @ 2.37 | **+1.04% @ 2.43** | **+0.42% @ 5.74** |
+  | every station | **+4.51% @ 2.92** | +0.96% @ 3.07 | +0.34% @ 6.56 |
+
+  Suburban and inter-city both peak BELOW every station, taking 21% and 13%
+  less driver holding with them; urban peaks at every station but 19 of 25
+  returns 96% of the benefit for 81% of the holding. **On inter-city the whole
+  column is inside the noise, and the driver cost varies eightfold across it —
+  0.82 min/bus at two stations against 6.56 at ten.** That is the efficiency
+  finding: on a corridor where holding does nothing, designate few stops rather
+  than switching anything off.
 - **`slow_bus` loses on every corridor, and it is not a bug.** Net −0.2% urban,
   −0.2% suburban, −1.8% inter-city, against 16–32% excess-wait gains. Checked:
   the controller holds the FOLLOWERS, not the culprit - 0 of 32 urban holds on
@@ -500,12 +541,32 @@ Each was implemented, measured paired-by-seed, and rejected.
 |---|---|---|
 | `Kb` 0.2 → 0.4 | Was "coin flip, 4/10 seeds". **RE-RUN paired on common random numbers: 0.4 is worse on 6/6 urban seeds by 0.36 points, 0.3 worse on 6/6, 0.1 worse on 5/6.** Not a coin flip — 0.2 is a resolved optimum | Confirmed |
 | `ks` (schedule-correction gain) | Was "4/8 seeds, means identical". **RE-RUN: every value tested is worse than `null` — 0.15 on 6/6 urban seeds, 0.35 on 5/6, 0.6 on 5/6**, each by about 0.2 points | Stays `null`, now measured |
+| **Joint `kf` × `kb` grid** (12 combinations, paired, timetable booked so the punctuality guardrail binds) | Urban spans **+4.26% to +4.63%** — 0.37 points across a 2× range of `kf` and a 3× range of `kb` — and the best combination beats the shipped one by **0.12 points**, inside the ±0.3 seed noise. Inter-city spans 0.12 points, headroom **0.03**. Decisively: **hold per bus is 2.7–3.0 min across the whole urban grid**, so the GUARDRAILS set how much holding happens, not the gains | Confirmed flat. Do not re-tune |
 | `kf` ≠ 0.4 (never previously swept) | 0.2 worse on **6/6** urban seeds (−0.47 pts); 0.6 indistinguishable (3/6, −0.05); 0.8 worse on 4/6. On **inter-city, holding harder is monotonically worse** — 0.6 and 0.8 lose on 5/6 seeds and even 0.2 is still net-negative | 0.4 confirmed; a local optimum |
 | Measure mid-route headway at the **release** instant | Urban EWT 52.4% → **43.6%**, won 1/6 seeds. Holds less, loses more than it saves | Reverted; code carries no switch |
-| `MID_ROUTE_ACTION_RATIO` = 0.8 | Scored marginally better on one trial (+0.2% vs −3.1%) but inside seed noise and has **no principle** behind it | Kept at 1.0 = the corridor's own warning ratio |
+| `MID_ROUTE_ACTION_RATIO` = 0.8 | Scored marginally better on one trial (+0.2% vs −3.1%) but inside seed noise and has **no principle** behind it | Rejected, and that rejection still stands |
+| `MID_ROUTE_ACTION_RATIO` = 1.2 (effective bar 0.5 → **0.6** of H\*) | Swept `{0.3,0.4,0.5,0.6,0.75,1.0}` at 10 paired seeds — an inverted U peaking at 0.6 on all three corridors — then validated 0.5 vs 0.6 on a **disjoint** 12 seeds: excess wait **+8.9 / +7.3 / +3.9 pp**, 12/12 seeds each, guardrail improved on urban and not worsened elsewhere. Unlike 0.8 it also has a rule: at 1.0 the controller may not act until the pair has already reached the alarm bar, so a proportional controller is structurally always behind the disturbance | **Shipped.** Implement via the constant, never via `warning_threshold_ratio` — that column also drives the detector |
 | `warning_threshold_ratio` ≠ 0.50 | Swept 0.30–1.00 by hand on the old headline, then **re-swept in the trial itself** (`policyStudies`, 3 seeds, paired): 0.50 best on BOTH corridors, 3/3 seeds. 0.75 and 1.00 keep improving excess wait (to 54.6% urban, 27.3% inter-city) while total passenger time falls — the EWT/total divergence, visible in a table | Confirmed. Re-runnable now |
 | `COST_OPTIMAL_SELECTION_ENABLED` | Occupancy off: 29.8% → 30.0% EWT, no real change. Occupancy **on**: issues **nothing at all** (λ proxy makes the load penalty H\*/2 per passenger) | Stays off |
 | Auto-selecting alighting-only | **This entry no longer reproduces — see below.** Was: worse on 7/8 seeds; −9% of all passenger time in `slow_bus` on every seed | Stays proposal-only, for a different reason |
+
+**The gain surface is flat because the guardrails clip it, and that is measured.**
+`isWorthActingOn` gates 65% of decisions before a hold length is ever computed,
+`max_lateness_seconds` refuses roughly three quarters as many holds as are
+issued, and `maxHoldSeconds` caps what survives. A gain only sets the length of
+the holds that get through all three. The proof is that **hold per bus barely
+moves across the whole grid** (2.7–3.0 min on urban over a 2× `kf` range) while
+the POLICY thresholds move the result an order of magnitude more: the mid-route
+action bar swings net passenger time from **+0.6% to +4.1%** across its sweep,
+against 0.37 points for every gain combination put together. **Tune thresholds
+and enablement, not gains.**
+
+**And beware sweeping gains without a timetable.** Run with
+`scheduledArrivalSeconds` unset, `scheduleDeviationSeconds` is null everywhere,
+`max_lateness_seconds` never binds, and the punctuality guardrail is simply off
+— holding doubles to 6.2 min/bus and the apparent optimum moves to a completely
+different corner of the grid (`kf` 0.3 / `kb` 0.3, "0.65 points of headroom").
+That is a different controller, and its answer does not transfer.
 
 **Why these now resolve when they did not before.** Both fixes matter. The
 headline used to be waiting plus the hold over a waiting-only denominator (§3
@@ -515,16 +576,25 @@ effects of a few tenths. Paired properly, differences of 0.2 points separate
 cleanly on 6 seeds. **Anything in this table measured before those two fixes
 should be re-run before it is quoted.**
 
-**Alighting-only was re-measured after the metric fixes and the verdict changed.**
+**Alighting-only was re-measured after the metric fixes, and the verdict changed twice.**
 The old numbers were taken on the old headline — waiting plus the hold, over a
 waiting-only denominator, with passengers still boarding at the terminus — and
-none of them survives. Re-measured, six seeds, 250 buses/phase, urban,
-occupancy-blind: acting on it is better on **3/6 seeds by total passenger time**
-(mean +0.25 points) and **5/6 per passenger** (mean +0.29); in `slow_bus`
-specifically, better on **4/6**, mean +1.49. By this file's own rule that is **no
-measured effect**, not a win. It stays off — but because it is unpriced and
-leaves real passengers standing with no measured benefit to justify it, NOT
-because it loses. Nobody can say it loses any more.
+none of them survives. First re-measurement: six seeds, 250 buses/phase, urban,
+occupancy-blind — better on **3/6 seeds by total passenger time** (mean +0.25
+points) and **5/6 per passenger** (mean +0.29); in `slow_bus` specifically,
+better on **4/6**, mean +1.49. By this file's own rule that was **no measured
+effect**, not a win, because a mean whose seeds disagree is not a small effect.
+
+**That verdict was itself provisional, and it has since flipped positive.**
+Re-measured again at **sixteen** paired phase-seeds — same corridor, phase and
+selectability, just more of them — acting on it is better on **14/16 by total
+passenger time** and **16/16 by excess wait**. Both clear this file's own
+agreement bar. This IS a measured effect now, and it is a positive one; see
+`docs/FLEET_TRIAL.md` §17 for the two measurements side by side. It still stays
+proposal-only, but that no longer rests on "no measured benefit" — it rests on
+the action being unpriced (neither side of its trade can be costed without a
+fitted lambda) and on auto-selection being a production policy decision this
+trial's mean does not settle by itself.
 
 **Every other row in the table above was also measured on the old headline.** Any
 of them could move the same way. Before quoting one, re-run it.
@@ -684,6 +754,46 @@ console.log(`ACTUAL   ${h(actual)}`);
 console.log(`proxy λ  ${h(predProxy)}  = ${(predProxy / actual).toFixed(1)}x overstated`);
 console.log(`true λ   ${h(predTrue)}  = ${(predTrue / actual).toFixed(1)}x overstated`);
 ```
+
+### Outcome: the horizon was built, and here is what it did
+
+`MULTI_STOP_WAIT_TERM_ENABLED` (off by default) now sums the wait term over the
+stops a hold's correction is experienced at. Full evidence in
+`docs/MULTI_STOP_WAIT_TERM.md`; the short version, because it changes what the
+rest of this section says to expect:
+
+(All re-measured at base `4ec2ef8`, i.e. WITH the nine adversarial scenarios -
+19 scenarios × 3 seeds × 120 buses/phase - so these are not comparable
+digit-for-digit with the ten-scenario table above.)
+
+* **No decay constant was shipped.** The `ρ ≈ 0.94 / 0.88 / 0.65` above does not
+  survive a second measurement. Re-measured as a per-hold marginal (suppress one
+  hold under common random numbers, diff the engine's own waiting figure) the
+  residual `ratio ÷ N` comes out 0.58 / 0.51 / 0.88 on the ten-scenario set and
+  1.71 / 0.52 / 2.14 on the nineteen-scenario one, against 0.80 / 0.72 / 0.50 in
+  the table above. Three measurements, three orderings, all O(1) - which
+  justifies `× N` and refutes a per-corridor ρ. The mechanism a decay would need
+  is absent too: perturbation survival per stop is ~1.0 at +1 everywhere, falls
+  to 0.29 by +4 on urban, and on inter-city RISES to 1.78 by +8. Inter-city
+  persists most and benefits least.
+* **Magnitude:** the wait term goes from 1.3-3.0% of the waiting a hold removes
+  to 14-16%. The missing factor of 7.2-11.4 is λ - exactly `λ_true × H*` - and
+  with λ fitted as well the same term lands at 117% / 126% / 177%.
+* **Sign: unchanged, and it cannot change.** A positive multiplier widens a
+  benefit and a cost alike; occupancy-blind, the share of selected candidates
+  priced ≥ 0 is identical to the digit either way (35.6 / 36.7 / 37.6%).
+  Occupancy weighted, urban's selected mean `objectiveCost` goes +1,297.5 →
+  +1,135.5; with λ as well it goes to +42.4.
+* **Terminal dispatch: unchanged at 97% ≥ 0, and it is a different defect.** An
+  unclamped origin hold sets `d = H* − h_fwd`, the neutral substitution sets
+  `h_bwd = H*`, and the bracket is then EXACTLY zero - the hold swaps the two
+  gaps rather than evening them. 47-49% of terminal candidates score exactly 0.0.
+* **`cost_optimal` coverage under occupancy weighting:** urban 1 → 582,
+  suburban 0 → 54, inter-city 3 → 68, against 46,750 / 16,268 / 14,113
+  occupancy-blind (with λ as well: 15,806 / 4,238 / 6,389).
+* **Self-harm check on, occupancy weighted:** urban 246 holds / +0.17% total
+  passenger time → 3,309 / +1.62%, against +0.68% unchecked. That is the
+  GUARDRAIL, not excess wait; the check's cost in the headline is not re-tested.
 
 **Expected (the defect):** `proxy λ ≈ 3.4x`, `true λ ≈ 1.8x`.
 **Wanted after the fix:** proxy row gone (λ read from the fitted model);

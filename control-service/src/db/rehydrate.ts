@@ -77,12 +77,13 @@ async function loadHeadwayStates(pool: Pool): Promise<HeadwayStateRow[]> {
     h_bwd_seconds: string | null;
     target_headway_seconds: string;
     deviation_seconds: string | null;
+    forecast_h_fwd_seconds: string | null;
     computed_at: string;
   }>(
     `select distinct on (leader_vehicle_id, follower_vehicle_id)
             id, route_direction_id, leader_vehicle_id, follower_vehicle_id,
             h_fwd_seconds, h_bwd_seconds, target_headway_seconds,
-            deviation_seconds, computed_at
+            deviation_seconds, forecast_h_fwd_seconds, computed_at
        from headway_states
       order by leader_vehicle_id, follower_vehicle_id, computed_at desc`,
   );
@@ -95,6 +96,12 @@ async function loadHeadwayStates(pool: Pool): Promise<HeadwayStateRow[]> {
     hBwdSeconds: r.h_bwd_seconds === null ? null : Number(r.h_bwd_seconds),
     targetHeadwaySeconds: Number(r.target_headway_seconds),
     deviationSeconds: r.deviation_seconds === null ? null : Number(r.deviation_seconds),
+    // The forecast the last sweep recorded for this pair. NULL on every row
+    // written before the predictive tier shipped, and NULL whenever the
+    // forecaster declined to speak - `mpc/actionThreshold.ts` refuses to act
+    // on either, which is what makes rehydrating an absent forecast safe.
+    forecastHFwdSeconds:
+      r.forecast_h_fwd_seconds === null ? null : Number(r.forecast_h_fwd_seconds),
     computedAt: r.computed_at,
   }));
 }
@@ -131,13 +138,18 @@ async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
     speed_band_min_kmph: string | null;
     speed_band_max_kmph: string | null;
     max_concurrent_actions: number | null;
+    alighting_only_enabled: boolean | null;
+    alighting_only_max_refusals: number | null;
+    alighting_only_refusal_window_seconds: number | null;
   }>(
     `select id, route_direction_id, operating_period, day_type,
             target_headway_seconds, bunched_threshold_ratio, warning_threshold_ratio,
             kf, kb, self_equalizing_k, max_hold_seconds, cooldown_seconds, minimum_action_seconds,
             prediction_horizon_control_points, occupancy_stale_seconds, occupancy_capacity,
             ks, max_lateness_seconds, speed_band_min_kmph, speed_band_max_kmph,
-            max_concurrent_actions
+            max_concurrent_actions,
+            alighting_only_enabled, alighting_only_max_refusals,
+            alighting_only_refusal_window_seconds
        from route_policies
       where effective_to is null
         and ${MEASURED_POLICY_PREDICATE}`,
@@ -164,6 +176,11 @@ async function loadActivePolicies(pool: Pool): Promise<RoutePolicyRow[]> {
     speedBandMinKmph: r.speed_band_min_kmph === null ? null : Number(r.speed_band_min_kmph),
     speedBandMaxKmph: r.speed_band_max_kmph === null ? null : Number(r.speed_band_max_kmph),
     maxConcurrentActions: r.max_concurrent_actions,
+    // Absent (a row predating the column) is read as OFF, not as a default to
+    // be filled in - see RoutePolicyRow.alightingOnlyEnabled.
+    alightingOnlyEnabled: r.alighting_only_enabled ?? false,
+    alightingOnlyMaxRefusals: r.alighting_only_max_refusals,
+    alightingOnlyRefusalWindowSeconds: r.alighting_only_refusal_window_seconds,
   }));
 }
 
@@ -182,6 +199,36 @@ async function loadControlPointStops(pool: Pool): Promise<{ routeDirectionId: st
       where is_control_point`,
   );
   return rows.map((r) => ({ routeDirectionId: r.route_direction_id, stopId: r.stop_id }));
+}
+
+/**
+ * Every route-direction's stop sequence, for the horizon the objective's
+ * waiting term is summed over (`mpc/objective.ts`, `MULTI_STOP_WAIT_TERM_ENABLED`).
+ *
+ * A third pass over the same table rather than a widening of
+ * `loadControlPointStops`: that one is filtered to `is_control_point` and
+ * this one must not be. Holds are executed at control points, but a hold's
+ * benefit is experienced at EVERY station the vehicle has left - and
+ * `route_direction_stops` is static config read once at boot, so the extra
+ * pass costs one query per process.
+ */
+async function loadStopSequences(
+  pool: Pool,
+): Promise<{ routeDirectionId: string; stopId: string; sequence: number }[]> {
+  const { rows } = await pool.query<{
+    route_direction_id: string;
+    stop_id: string;
+    sequence: number;
+  }>(
+    `select route_direction_id, stop_id, sequence
+       from route_direction_stops
+      order by route_direction_id, sequence asc`,
+  );
+  return rows.map((r) => ({
+    routeDirectionId: r.route_direction_id,
+    stopId: r.stop_id,
+    sequence: Number(r.sequence),
+  }));
 }
 
 async function loadTerminalStops(pool: Pool): Promise<{ routeDirectionId: string; stopId: string }[]> {
@@ -285,19 +332,27 @@ export async function refreshNetworkCounts(pool: Pool = getPool()): Promise<Netw
 export async function rehydrateState(pool: Pool = getPool()): Promise<void> {
   stateStore.setStatus('in_progress');
   try {
-    const [vehicleStates, headwayStates, activePolicies, terminalStops, controlPointStops] =
-      await Promise.all([
-        loadVehicleStates(pool),
-        loadHeadwayStates(pool),
-        loadActivePolicies(pool),
-        loadTerminalStops(pool),
-        loadControlPointStops(pool),
-        refreshNetworkCounts(pool),
-      ]);
+    const [
+      vehicleStates,
+      headwayStates,
+      activePolicies,
+      terminalStops,
+      controlPointStops,
+      stopSequences,
+    ] = await Promise.all([
+      loadVehicleStates(pool),
+      loadHeadwayStates(pool),
+      loadActivePolicies(pool),
+      loadTerminalStops(pool),
+      loadControlPointStops(pool),
+      loadStopSequences(pool),
+      refreshNetworkCounts(pool),
+    ]);
     stateStore.loadVehicleStates(vehicleStates);
     stateStore.loadHeadwayStates(headwayStates);
     stateStore.loadActivePolicies(activePolicies);
     stateStore.loadTerminalStops(terminalStops);
+    stateStore.loadStopSequences(stopSequences);
     stateStore.loadControlPointStops(controlPointStops);
     stateStore.setStatus('complete');
     logger.info(

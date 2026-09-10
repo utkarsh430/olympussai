@@ -17,7 +17,11 @@ import { withSpan } from '../telemetry/sentry.js';
 import { stateStore, type VehicleStateRow } from '../state/store.js';
 import { AppError } from '../lib/errors.js';
 import { logger } from '../lib/logger.js';
-import { listActiveVehicleIds, listRecentlyCommandedVehicleIds } from '../db/commands.js';
+import {
+  countBoardingLimitCommands,
+  listActiveVehicleIds,
+  listRecentlyCommandedVehicleIds,
+} from '../db/commands.js';
 import {
   computeTerminalDispatchCandidates,
   departureHeadwaySeconds,
@@ -26,8 +30,11 @@ import {
 import { computeTwoWayCandidates } from './twoWayHold.js';
 import { computeCostOptimalCandidates } from './costOptimalHold.js';
 import {
+  boardingLimitAvailability,
+  boardingLimitPolicy,
   computeBoardingLimitCandidates,
   isBoardingLimitCandidate,
+  type BoardingLimitAvailability,
   type BoardingLimitCandidate,
 } from './boardingLimit.js';
 import { readControlSettings } from '../db/settings.js';
@@ -111,6 +118,22 @@ export interface MpcSolveResult {
    * this field is where a UI finds it. See mpc/boardingLimit.ts.
    */
   boardingLimitCandidates: BoardingLimitCandidate[];
+  /**
+   * Whether this corridor may be offered alighting-only at all, and its
+   * remaining refusal budget.
+   *
+   * Always present, including - especially - when
+   * `boardingLimitCandidates` is empty. An empty list on its own collapses two
+   * states an operator must be able to tell apart: the law looked and found
+   * nothing, and the law found something and is not allowed to say so. The
+   * second is the shipped state of every corridor, and a console that rendered
+   * it as the first would be describing a suppressed lever as a quiet one.
+   *
+   * It also carries the refusal count, which is the number an operator
+   * approving one of these needs beside its benefit - see
+   * mpc/boardingLimit.ts.
+   */
+  boardingLimitAvailability: BoardingLimitAvailability;
   selectedActionType: CandidateAction['actionType'] | null;
   objectiveCost: number | null;
   expectedRecoverySeconds: number | null;
@@ -199,6 +222,26 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
   // about what the controller is optimising.
   const settings = await readControlSettings();
 
+  // Read once per solve for the same reason the settings are: every law in one
+  // solve must be generated under the same rule. OFF on every deployment - see
+  // mpc/selfHarmCheck.ts and SELF_HARM_CHECK_ENABLED in config/env.ts, where
+  // the measurement that says it must stay off is recorded.
+  const selfHarmCheckEnabled = loadEnv().SELF_HARM_CHECK_ENABLED;
+
+  // The objective's waiting horizon, read once per solve for the same reason
+  // the two above are: a switch flipped mid-solve must not leave two laws
+  // pricing the same corridor against different objectives. OFF on every
+  // deployment - see MULTI_STOP_WAIT_TERM_ENABLED in config/env.ts, which
+  // carries the derivation and the measurement, and mpc/objective.ts.
+  const multiStopWaitTerm = loadEnv().MULTI_STOP_WAIT_TERM_ENABLED;
+
+  // Whether the mid-route laws may act on a pair the ordinary bar declines
+  // because its forecast says it is deteriorating toward that bar. Read here,
+  // once, so every law in one solve is gated under the same rule - the same
+  // reason `multiStopWaitTerm` is read here. See
+  // FORECAST_ACTION_GATE_ENABLED in config/env.ts and mpc/actionThreshold.ts.
+  const forecastGateEnabled = loadEnv().FORECAST_ACTION_GATE_ENABLED;
+
   const headwayStates = stateStore.getHeadwayStates(routeDirectionId);
   const vehicleStates = stateStore.listVehicleStates(routeDirectionId);
   const vehicleStatesByVehicleId = new Map(vehicleStates.map((v) => [v.vehicleId, v]));
@@ -211,6 +254,28 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
   // nothing. Wiring it now rather than later is what makes loading a
   // timetable a data change instead of a code change.
   const scheduleDeviationByVehicleId = await loadScheduleDeviations(vehicleStates, now);
+
+  // How many stops each vehicle still has to serve, counting the one it is
+  // standing at - N in the objective's waiting term. Built only when the
+  // switch is on, so with it off nothing supplies a horizon and every
+  // candidate is priced on exactly the one-stop term it is priced on today.
+  //
+  // Read from the vehicle's OWN stop association (`current_stop_id`, the one
+  // definition of "which stop is this vehicle at" - see
+  // state-estimation/stopStateClassifier.ts), never from its distance along
+  // the route: a hold is only executable while a bus is at a stop
+  // (mpc/eligibility.ts), so any vehicle that can take one has an
+  // association, and a vehicle that does not gets a null horizon rather than
+  // a horizon interpolated from a position.
+  const downstreamStopsByVehicleId = new Map<string, number | null>();
+  if (multiStopWaitTerm) {
+    for (const vehicle of vehicleStates) {
+      downstreamStopsByVehicleId.set(
+        vehicle.vehicleId,
+        stateStore.getDownstreamStopCount(routeDirectionId, vehicle.currentStopId),
+      );
+    }
+  }
 
   // How long since the previous bus left the origin. The quantity Algorithm A
   // regulates on, and MEASURED rather than derived from a stationary bus's
@@ -237,6 +302,8 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     scheduleDeviationByVehicleId,
     settings.weighOccupancy,
     departureHeadwaySeconds(lastTerminalDepartureAt, now),
+    selfHarmCheckEnabled,
+    downstreamStopsByVehicleId,
   );
 
   // Vehicles dwelling at the terminal are always regulated by terminal
@@ -260,6 +327,9 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     scheduleDeviationByVehicleId,
     controlPointStopIds,
     settings.weighOccupancy,
+    selfHarmCheckEnabled,
+    downstreamStopsByVehicleId,
+    forecastGateEnabled,
   );
   const selfEqualizingCandidates = computeSelfEqualizingCandidates(
     headwayStates,
@@ -270,6 +340,9 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     scheduleDeviationByVehicleId,
     controlPointStopIds,
     settings.weighOccupancy,
+    selfHarmCheckEnabled,
+    downstreamStopsByVehicleId,
+    forecastGateEnabled,
   );
   // The closed-form minimiser of the passenger-cost objective, competing on
   // the same ranking as the tuned-gain laws rather than replacing them - see
@@ -283,6 +356,8 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     scheduleDeviationByVehicleId,
     controlPointStopIds,
     settings.weighOccupancy,
+    downstreamStopsByVehicleId,
+    forecastGateEnabled,
   );
 
   // Alighting-only. Generated alongside the holds and returned for the
@@ -290,7 +365,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
   // - its benefit (the dwell the leader sheds) needs a fitted dwell model
   // that no corridor has yet, so ranking it against the holds would compare a
   // priced cost against an unpriced benefit. See mpc/boardingLimit.ts.
-  const boardingLimitCandidates = computeBoardingLimitCandidates(
+  const generatedBoardingLimits = computeBoardingLimitCandidates(
     headwayStates,
     policy,
     vehicleStatesByVehicleId,
@@ -298,6 +373,71 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     controlPointStopIds,
     terminalStopId,
   );
+
+  // ─── THE PER-CORRIDOR GATE AND THE REFUSAL TRIPWIRE ──────────────────
+  //
+  // Applied HERE, before the candidates reach `candidateActions`, and not
+  // further down where the ranked pool is assembled. `safeCandidates` is not
+  // an audit list: the control-room console renders everything in it that is
+  // not the selected action as an approvable alternative
+  // (EngineRecommendationPanel), so a candidate left in it is a candidate an
+  // operator can stage and dispatch. Gating any later would leave the corridor
+  // half-disabled - withheld from one surface and issuable from another.
+  //
+  // Excluding them from `candidateActions` outright is also what keeps the
+  // documented invariant `candidateActions === safeCandidates +
+  // rejectedCandidates` true. A withheld proposal is not a rejected one - the
+  // safety filter had no opinion about it - so it must not appear in either
+  // list; on a corridor where this law is switched off it is simply not a
+  // candidate.
+  //
+  // The meter is read ONLY for a corridor that is enabled. Every corridor
+  // ships disabled, so this costs no database work on any deployment today;
+  // the query arrives with the first corridor somebody switches on, which is
+  // exactly the corridor worth paying for it.
+  const { enabled: alightingOnlyEnabled, windowSeconds: refusalWindowSeconds } =
+    boardingLimitPolicy(policy);
+  //
+  // A meter that does not answer yields null, and `boardingLimitAvailability`
+  // reads null as "cannot check the bound" and withholds. The catch is what
+  // makes that a FAIL-CLOSED rather than an OUTAGE: this one law's meter must
+  // never take the other four offline, because losing a corridor's control
+  // entirely is a far larger harm than the one this tripwire bounds. The
+  // withholding itself is logged below, with every other way the wire fires.
+  const refusalsInWindow = alightingOnlyEnabled
+    ? await countBoardingLimitCommands(routeDirectionId, refusalWindowSeconds).catch(
+        (error: unknown) => {
+          logger.warn({ err: error, routeDirectionId }, 'alighting-only refusal count read failed');
+          return null;
+        },
+      )
+    : null;
+  const availability = boardingLimitAvailability(
+    policy,
+    refusalsInWindow,
+    generatedBoardingLimits.length,
+  );
+  const boardingLimitCandidates = availability.offered ? generatedBoardingLimits : [];
+
+  // A tripwire nobody can see is not a safety control. Logged when it FIRES
+  // and not when the corridor is merely switched off - the second is the
+  // shipped state of every corridor, so logging it would write a line per
+  // corridor per decision cycle forever and bury the one that matters.
+  if (availability.withheldReason === 'refusal_tripwire') {
+    logger.warn(
+      {
+        routeDirectionId,
+        refusalsInWindow: availability.refusalsInWindow,
+        maxRefusals: availability.maxRefusals,
+        windowSeconds: availability.windowSeconds,
+        withheldCandidateCount: availability.withheldCandidateCount,
+      },
+      availability.refusalsInWindow === null
+        ? 'alighting-only withheld: the refusal count could not be read, so the bound could not be checked'
+        : 'alighting-only refusal tripwire reached; no further proposals on this corridor until they age out of the window',
+    );
+  }
+
   const candidateActions = [
     ...terminalCandidates,
     ...twoWayCandidates,
@@ -426,6 +566,7 @@ async function solveInner(routeDirectionId: string): Promise<MpcSolveResult> {
     selectedAction: selected,
     selectedActions,
     boardingLimitCandidates: safeBoardingLimits,
+    boardingLimitAvailability: availability,
     selectedActionType: selected?.actionType ?? null,
     objectiveCost: selected?.objectiveCost ?? null,
     expectedRecoverySeconds: selected?.holdSeconds ?? null,

@@ -6,7 +6,7 @@ name: CI - web app
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, simulator-preview]
     # `control-service/**` used to be ignored here, back when nothing in this
     # workflow touched it. The e2e job below builds, migrates and RUNS the
     # control service, so a control-service change can now break this
@@ -15,7 +15,7 @@ on:
       - "docs/**"
       - "**/*.md"
   push:
-    branches: [main, dev]
+    branches: [main, dev, simulator-preview]
 
 concurrency:
   group: ci-web-${{ github.workflow }}-${{ github.ref }}
@@ -189,6 +189,15 @@ jobs:
   # local-only, which is why they are literals rather than secrets.
   # ---------------------------------------------------------------------------
   e2e-pilot-driver:
+    # Live run against the project's REAL Supabase directory (see the env
+    # block below) plus two throwaway Postgres containers - correctness-gate
+    # cost, not free. Deliberately NOT widened with the trigger above:
+    # simulator-preview PRs get lint/typecheck/test/build from the job above,
+    # but this job stays main/dev-only so every simulator-preview PR doesn't
+    # also provision Supabase QA identities and stand up both services.
+    if: >-
+      (github.event_name == 'pull_request' && github.base_ref != 'simulator-preview') ||
+      (github.event_name == 'push' && github.ref_name != 'simulator-preview')
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -489,10 +498,19 @@ jobs:
         run: pnpm build
         env:
           NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+          # This branch ships with authentication OFF by default
+          # (src/lib/auth/publicPreview.ts). Every spec below signs in as a
+          # specific role and asserts what a WRONG role is refused, so a
+          # loginless build would make all three pass without testing
+          # anything. Set at BUILD time as well as run time: middleware
+          # resolves its process.env reads when `next build` runs, so a
+          # start-time-only value would leave the edge gate switched off.
+          DISABLE_AUTH: "false"
 
       - name: Start web app
         env:
           PORT: "3000"
+          DISABLE_AUTH: "false"
           CONTROL_SERVICE_BASE_URL: http://127.0.0.1:8081
           CONTROL_SERVICE_SERVICE_TOKEN: ${{ env.SERVICE_TOKEN }}
           CONTROL_SERVICE_WEBHOOK_SECRET: ${{ env.WEBHOOK_SECRET }}

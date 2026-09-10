@@ -27,6 +27,7 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { resolveOpsSession, type OpsSessionDenial } from './server';
+import { isAuthDisabled } from '@/lib/auth/publicPreview';
 import type { OpsRole } from './roles';
 import type { OpsSessionClaims } from './session';
 
@@ -97,6 +98,16 @@ export async function requireOpsSession(): Promise<OpsGuardResult> {
 export async function requireOpsRole(allowed: readonly OpsRole[]): Promise<OpsGuardResult> {
   const base = await requireOpsSession();
   if (!base.ok) return base;
+
+  // PUBLIC PREVIEW: the page-guard substitution (pageGuard.ts), applied to
+  // endpoints. A console whose screens all render but whose fetches all 403
+  // is a broken demo rather than an ungated one, so the preview visitor is
+  // given the first role this endpoint accepts. `allowed` is never empty at
+  // any call site, but the `?? role` keeps that from being load-bearing.
+  if (isAuthDisabled() && !allowed.includes(base.claims.role)) {
+    return { ok: true, claims: { ...base.claims, role: allowed[0] ?? base.claims.role } };
+  }
+
   if (!allowed.includes(base.claims.role)) {
     return {
       ok: false,

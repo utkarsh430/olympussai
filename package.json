@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "packageManager": "pnpm@10.29.3",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "bash scripts/dev.sh",
     "dev:web": "next dev",
@@ -13,6 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "check:client-boundary": "tsx scripts/check-client-boundary.ts",
     "bench:fleet-map": "tsx scripts/bench-fleet-canvas.ts",
@@ -63,6 +67,7 @@
     "@types/react-dom": "^19",
     "@types/three": "0.185.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "3.2.7",
     "eslint": "^9",
     "eslint-config-next": "15.1.6",
     "jsdom": "^25.0.1",

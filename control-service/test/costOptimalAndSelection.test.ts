@@ -14,6 +14,7 @@
 // is measured, and that no bus can ever be named twice in one cycle.
 import { describe, it, expect } from 'vitest';
 import { computeCostOptimalCandidates, MIN_MEANINGFUL_HOLD_SECONDS } from '../src/mpc/costOptimalHold.js';
+import { optimalHoldSeconds } from '../src/mpc/objective.js';
 import { selectActions, DEFAULT_MAX_CONCURRENT_ACTIONS } from '../src/mpc/solver.js';
 import type { CandidateAction } from '../src/mpc/types.js';
 import type { HeadwayStateRow, RoutePolicyRow, VehicleStateRow } from '../src/state/store.js';
@@ -57,6 +58,8 @@ function headway(overrides: Partial<HeadwayStateRow> = {}): HeadwayStateRow {
     hBwdSeconds: 900,
     targetHeadwaySeconds: 600,
     deviationSeconds: -300,
+    /** Nothing here exercises the forecast gate; a pair with no forecast is the deployed state on every corridor. */
+    forecastHFwdSeconds: null,
     computedAt: NOW.toISOString(),
     ...overrides,
   };
@@ -97,40 +100,84 @@ describe('computeCostOptimalCandidates', () => {
     expect(candidates[0]!.objectiveCost).toBeLessThan(0);
   });
 
-  // ─── THE CALIBRATION LANDMINE, PINNED ──────────────────────────────────
+  // ─── THE CALIBRATION LANDMINE, DEFUSED ─────────────────────────────────
   //
-  // The closed form prices the passengers already aboard, which is the whole
-  // reason it exists. The price it uses is
+  // This assertion used to run the other way, and the reversal is deliberate.
   //
-  //     penalty = (w_v x L + w_c) / (2 x w_h x lambda)
+  // It previously pinned that a SINGLE onboard passenger silenced this law,
+  // and that pin was correct for as long as it stood: the closed form was fed
+  // the live load, the penalty it subtracts is
   //
-  // and with lambda PROXIED as 1/H* (see `arrivalRatePaxPerSecond`) that is
-  // H*/2 seconds of hold cancelled PER PASSENGER: 300 s on a 600 s corridor,
-  // 900 s on this network's 1800 s median. So a single person aboard wipes
-  // out any hold the even-headway split would have asked for, and the law
-  // falls silent on every bus carrying anybody.
+  //     (w_v x L + w_c) / (2 x w_h x lambda)
   //
-  // That is inert today only because `occupancy_count` is NULL everywhere. It
-  // stops being inert on the day occupancy is connected, and the failure is
-  // silent - a controller that has quietly stopped proposing anything looks
-  // exactly like a network with no problems.
+  // and with lambda PROXIED as 1/H* that is H*/2 seconds cancelled PER
+  // PASSENGER - 300 s on this 600 s corridor. One person aboard wiped out the
+  // even-headway split. Recording that as the expected behaviour was the right
+  // call while `occupancy_count` was NULL on every seeded corridor, because the
+  // hazard was inert and the test was documenting it rather than endorsing it.
   //
-  // This test is the tripwire. If it ever starts failing because loads no
-  // longer zero the hold, lambda has been calibrated and
-  // COST_OPTIMAL_SELECTION_ENABLED can be reconsidered. Until then it is
-  // documenting a hazard, not endorsing a behaviour.
-  it('is silenced by a single onboard passenger while lambda is a 1/H* proxy', () => {
-    const empty = computeCostOptimalCandidates(
-      [headway()], new Set(), policy(), new Map([['follow', atStop('follow')]]), NOW,
-    );
-    expect(empty[0]!.holdSeconds).toBe(300);
-
+  // The test's own comment named the day it would come due: "It stops being
+  // inert on the day occupancy is connected, and the failure is silent." That
+  // day arrived. Three fleet trials on the urban, suburban and intercity
+  // presets each reported `lawCoverage` of exactly 0 for `cost_optimal` in the
+  // occupancy-weighed phase, against 310-578 generating decisions in the blind
+  // phase of the same trial - a controller that had quietly stopped proposing
+  // anything, looking exactly like a network with no problems.
+  //
+  // What changed is NOT that lambda was calibrated. It has not been, and the
+  // restraint this file exists to enforce is untouched: `cost_optimal` still
+  // prices its candidate through the same `computePassengerCost` as the other
+  // four laws, still carries the load in that score, and still cannot win a
+  // sort it is not entitled to win. What changed is that the uncalibrated term
+  // is no longer fed to the ARGMIN, where it could only ever delete the law.
+  // The load now binds on the action through
+  // `actionThreshold.ts#occupancyAdjustedMaxHoldSeconds`, which can shorten a
+  // hold and can never invert one. See costOptimalOccupancy.test.ts for the
+  // reproduction, the mechanism, and what the fix deliberately leaves alone.
+  it('is no longer silenced by a single onboard passenger', () => {
+    // The urban fleet-trial corridor, which is where the zero was measured:
+    // 360 s headway, 120 s cap, 60 seats (fleetTrial/presets.ts#URBAN_CORRIDOR).
+    const urban = policy({ targetHeadwaySeconds: 360, maxHoldSeconds: 120, occupancyCapacity: 60 });
+    const bunched = headway({ hFwdSeconds: 90, hBwdSeconds: 630, targetHeadwaySeconds: 360 });
     const onePassenger = { ...atStop('follow'), occupancyCount: 1 } as VehicleStateRow;
+
     const loaded = computeCostOptimalCandidates(
-      [headway()], new Set(), policy({ occupancyCapacity: 60 }),
-      new Map([['follow', onePassenger]]), NOW,
+      [bunched], new Set(), urban, new Map([['follow', onePassenger]]), NOW,
     );
-    expect(loaded).toHaveLength(0);
+    // Was zero before the fix. The argmin is no longer handed the uncalibrated
+    // load, so d* = (630 - 90)/2 = 270 s survives; the taper - not the argmin -
+    // is what the passenger costs the hold, scaling the 120 s cap to 118 s.
+    expect(loaded).toHaveLength(1);
+    expect(loaded[0]!.holdSeconds).toBe(118);
+    expect(loaded[0]!.objectiveCost).toBeLessThan(0);
+  });
+
+  // ─── AND THE RESTRAINT THAT DID NOT MOVE ───────────────────────────────
+  //
+  // The fix is to the ARGMIN only. The SCORE still carries the load, through
+  // the same `computePassengerCost` the other four laws price with, so this
+  // law still declines whenever that score says the hold is harmful - which,
+  // with lambda proxied as 1/H*, it still often does. What has changed is the
+  // reason: a healthy d* now reaching a check that judges it, rather than an
+  // argmin flattened to zero before anything was judged at all.
+  //
+  // This is the assertion that stops the fix being "tidied" into removing the
+  // load from the score as well. That would restore every load and hand this
+  // law a systematically lower cost than the candidates it is sorted against
+  // - the sort it must not win until lambda is measured.
+  it('still declines when its own score says the hold is harmful, with d* healthy', () => {
+    const busy = { ...atStop('follow'), occupancyCount: 30 } as VehicleStateRow;
+    expect(
+      computeCostOptimalCandidates(
+        [headway()], new Set(), policy({ occupancyCapacity: 60 }),
+        new Map([['follow', busy]]), NOW,
+      ),
+    ).toHaveLength(0);
+
+    // Not because the closed form collapsed: the even-headway split is intact.
+    expect(
+      optimalHoldSeconds({ hFwdSeconds: 300, hBwdSeconds: 900, targetHeadwaySeconds: 600, loadPassengers: null }),
+    ).toBe(300);
   });
 
   // ─── THE REFUSALS ──────────────────────────────────────────────────────

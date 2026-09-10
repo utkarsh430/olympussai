@@ -12,7 +12,8 @@
 import { clamp, scheduleCorrectionSeconds } from './math.js';
 import { canExecuteHold } from './eligibility.js';
 import { liveOnboardCount, scoreHold } from './objective.js';
-import { isWorthActingOn, occupancyAdjustedMaxHoldSeconds } from './actionThreshold.js';
+import { isScoredSelfHarmful } from './selfHarmCheck.js';
+import { isPairActionable, occupancyAdjustedMaxHoldSeconds } from './actionThreshold.js';
 import type { CandidateAction } from './types.js';
 import type { HeadwayStateRow, RoutePolicyRow, VehicleStateRow } from '../state/store.js';
 
@@ -33,6 +34,30 @@ export function computeTwoWayCandidates(
    * passes the real setting. See mpc/objective.ts#liveOnboardCount.
    */
   weighOccupancy = true,
+  /**
+   * Whether to decline a candidate this law's own objective scores as net
+   * harmful, the way `mpc/costOptimalHold.ts` always has. Defaults FALSE - the
+   * deployed default and today's behaviour - so a direct caller keeps the
+   * unchecked law. See mpc/selfHarmCheck.ts, and read why it is off before
+   * turning it on.
+   */
+  selfHarmCheckEnabled = false,
+  /**
+   * Stops each vehicle still has to serve, for the objective's waiting
+   * horizon. Empty - the default - leaves every candidate on the one-stop
+   * term, which is the deployed behaviour; `mpc/solver.ts` populates it only
+   * when `MULTI_STOP_WAIT_TERM_ENABLED` is on, so every candidate in one
+   * solve is priced under the same rule. See mpc/objective.ts.
+   */
+  downstreamStopsByVehicleId: ReadonlyMap<string, number | null> = new Map(),
+  /**
+   * Whether the forecast-admission gate may widen this law's action bar for a
+   * pair predicted to deteriorate toward it. Defaults FALSE - today's
+   * behaviour and the deployed default - so a direct caller keeps the
+   * ungated law; `mpc/solver.ts` passes the real setting
+   * (`FORECAST_ACTION_GATE_ENABLED`). See mpc/actionThreshold.ts.
+   */
+  forecastGateEnabled = false,
 ): CandidateAction[] {
   if (policy.kf === null || policy.kb === null) return [];
 
@@ -40,8 +65,10 @@ export function computeTwoWayCandidates(
   for (const h of headwayStates) {
     if (terminalVehicleIds.has(h.followerVehicleId)) continue; // terminal dispatch regulation applies instead
     if (h.hFwdSeconds === null || h.hBwdSeconds === null) continue;
-    // Not deviant enough to be worth an instruction - see mpc/actionThreshold.ts.
-    if (!isWorthActingOn(h.hFwdSeconds, policy)) continue;
+    // Not deviant enough to be worth an instruction, and not forecast to
+    // become so - see mpc/actionThreshold.ts. With the gate off this is
+    // exactly `isWorthActingOn` and the forecast is not read.
+    if (!isPairActionable(h, policy, forecastGateEnabled)) continue;
     // A hold is executed by standing still at a stop. Proposing one to a bus
     // mid-link names an action its driver cannot take - see mpc/eligibility.ts.
     if (!canExecuteHold(vehicleStatesByVehicleId.get(h.followerVehicleId), controlPointStopIds)) continue;
@@ -64,12 +91,27 @@ export function computeTwoWayCandidates(
     const holdSeconds = Math.round(clamp(rawHold, 0, holdCapSeconds));
     if (holdSeconds <= 0) continue;
 
+    const score = scoreHold(
+      h,
+      h.followerVehicleId,
+      holdSeconds,
+      rawHold,
+      load,
+      deviationSeconds,
+      downstreamStopsByVehicleId.get(h.followerVehicleId) ?? null,
+    );
+    // The law declining an action its own objective prices as doing no good -
+    // see mpc/selfHarmCheck.ts. Off by default and measured to be harmful when
+    // on, because the objective's benefit term is a one-stop estimate of a
+    // multi-stop benefit; the switch exists so that stays measurable.
+    if (selfHarmCheckEnabled && isScoredSelfHarmful(score.objectiveCost)) continue;
+
     candidates.push({
       actionType: 'two_way_hold',
       vehicleId: h.followerVehicleId,
       involvedVehicleIds: [h.followerVehicleId, h.leaderVehicleId],
       holdSeconds,
-      ...scoreHold(h, h.followerVehicleId, holdSeconds, rawHold, load, deviationSeconds),
+      ...score,
       routeDirectionId: h.routeDirectionId,
       stateAsOf: h.computedAt,
       headwayDeviationSeconds: h.hFwdSeconds - h.targetHeadwaySeconds,

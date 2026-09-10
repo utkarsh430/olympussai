@@ -280,6 +280,43 @@ export type AlertFeed = z.infer<typeof alertFeedSchema>;
 // engine proposes without choosing.
 // ---------------------------------------------------------------------------
 
+/**
+ * Whether a corridor may be offered alighting-only at all, and the refusal
+ * budget behind that answer.
+ *
+ * Mirrors control-service's `BoardingLimitAvailability`
+ * (src/mpc/boardingLimit.ts). Carried alongside `boardingLimitCandidates`
+ * because an empty candidate list collapses two states an operator must be
+ * able to tell apart: the law looked and found nothing, and the law found
+ * something and is not allowed to offer it. The second is the shipped state of
+ * every corridor — alighting-only is switched OFF everywhere — so a console
+ * that could not tell them apart would describe a suppressed lever as a quiet
+ * one on every corridor on the network.
+ *
+ * No sentence crosses the wire, only `withheldReason`. What the console SAYS
+ * about a solve is decided in src/lib/ops/recommendationView.ts, where those
+ * claims are tested.
+ */
+export const boardingLimitAvailabilitySchema = z.object({
+  /** True only when the corridor has enabled the law AND is under its refusal bound. */
+  offered: z.boolean(),
+  withheldReason: z.enum(['disabled_for_corridor', 'refusal_tripwire']).nullable(),
+  /**
+   * Alighting-only instructions ISSUED on this corridor inside `windowSeconds`.
+   *
+   * Null means the meter was not read — the case on every corridor that has
+   * the law switched off. Null is "not read", never "zero", and a surface must
+   * not render it as a clean record.
+   */
+  refusalsInWindow: z.number().nullable(),
+  maxRefusals: z.number(),
+  windowSeconds: z.number(),
+  remainingRefusals: z.number().nullable(),
+  /** Proposals this solve withheld — what the operator is NOT being shown. */
+  withheldCandidateCount: z.number(),
+});
+export type BoardingLimitAvailability = z.infer<typeof boardingLimitAvailabilitySchema>;
+
 export const boardingLimitEstimateSchema = z.object({
   /**
    * Passengers estimated to be left standing, or NULL while the arrival rate
@@ -508,6 +545,42 @@ export type EngineActionType = z.infer<typeof engineActionTypeSchema>;
 /** Every action type the engine can propose, as a value — for a UI that wants to state the boundary rather than hardcode it. */
 export const ENGINE_ACTION_TYPES = engineActionTypeSchema.options;
 
+/**
+ * INSTRUCTIONS THE ENGINE WORKS OUT BUT CANNOT PUT FORWARD AS A CANDIDATE.
+ *
+ * A third category, and it exists because two was not enough to describe the
+ * truth. `engineActionTypeSchema` is "what the selection rule may rank and a
+ * dispatcher may issue from a proposal"; the human-originated set is
+ * everything left over, which the consoles describe as "nothing in this
+ * system works these out". `speed_guidance` was in that leftover set and the
+ * claim was FALSE: `control-service/src/mpc/paceGuidance.ts` computes a pace
+ * advisory on every solve, and the control room has been rendering it under
+ * "Alternatives that cost no delay" since it shipped.
+ *
+ * ─── WHY NOT SIMPLY ADD IT TO ENGINE_ACTION_TYPES ────────────────────────
+ *
+ * Because that swaps one false claim for a worse one. Both consoles describe
+ * an engine action as something that is ranked, approved, sent, and
+ * "delivered to the driver's screen". Pace guidance is none of those. It is
+ * deliberately NOT a `CandidateAction` in control-service — keeping it off
+ * the candidate list is what makes dispatching one impossible rather than
+ * merely discouraged, because the selection rule ranks in passenger-seconds
+ * and would happily pick a speed instruction no delivery path can carry.
+ * Adding it to the candidate enum would widen exactly the type that guarantee
+ * rests on, and would have the depot console promise a driver-facing display
+ * this system does not have.
+ *
+ * So it is named here instead: worked out by the engine, offered to a
+ * dispatcher to act on by whatever channel they have, and never ranked
+ * against a hold. See `humanOriginatedActions` in
+ * src/lib/ops/recommendationView.ts, which subtracts BOTH sets.
+ */
+export const engineAdvisoryActionTypeSchema = z.enum(['speed_guidance']);
+export type EngineAdvisoryActionType = z.infer<typeof engineAdvisoryActionTypeSchema>;
+
+/** Every action type the engine works out but never ranks, as a value. */
+export const ENGINE_ADVISORY_ACTION_TYPES = engineAdvisoryActionTypeSchema.options;
+
 /** One committable candidate hold, mirroring control-service/src/mpc/types.ts#CandidateAction. */
 export const engineCandidateActionSchema = z.object({
   actionType: engineActionTypeSchema,
@@ -695,6 +768,16 @@ export const mpcSolveResultSchema = z.object({
   boardingLimitCandidates: z
     .array(engineCandidateActionSchema.extend({ estimate: boardingLimitEstimateSchema }))
     .default([]),
+  /**
+   * Why the list above is the length it is — see `boardingLimitAvailability`.
+   *
+   * `.nullable().default(null)` so a response from a control service that
+   * predates the per-corridor gate parses rather than 502-ing the console
+   * during a rolling deploy. Null means "this service cannot say", and the
+   * console renders nothing rather than inventing a state; it is never read as
+   * "available" or as "zero refusals".
+   */
+  boardingLimitAvailability: boardingLimitAvailabilitySchema.nullable().default(null),
   /**
    * Buses that should ease off rather than be held.
    *

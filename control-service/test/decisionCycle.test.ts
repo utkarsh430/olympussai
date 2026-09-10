@@ -17,12 +17,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
   isMateriallyNewRecommendation,
+  paceSignature,
   RECOMMENDATION_HOLD_EPSILON_SECONDS,
   type RecommendationFingerprint,
 } from '../src/db/recommendations.js';
 import { runDecisionCycle, _resetDecisionCursorForTests } from '../src/scheduler/decisionCycle.js';
 import type { Env } from '../src/config/env.js';
 import type { MpcSolveResult } from '../src/mpc/solver.js';
+import {
+  DEFAULT_MAX_REFUSALS_PER_WINDOW,
+  DEFAULT_REFUSAL_WINDOW_SECONDS,
+} from '../src/mpc/boardingLimit.js';
 import type { CandidateAction } from '../src/mpc/types.js';
 
 const NOW = new Date('2026-08-19T10:00:00.000Z');
@@ -33,6 +38,7 @@ function env(overrides: Partial<Env> = {}): Env {
     DECISION_CYCLE_BATCH_SIZE: 60,
     DECISION_CYCLE_CONCURRENCY: 3,
     DECISION_CYCLE_REPEAT_AFTER_SECONDS: 900,
+    PACE_GUIDANCE_ON_DECISION_CYCLE_ENABLED: false,
     ...overrides,
   } as Env;
 }
@@ -74,6 +80,17 @@ function solveResult(overrides: Partial<MpcSolveResult> = {}): MpcSolveResult {
     selectedAction: selected,
     selectedActions: [selected],
     boardingLimitCandidates: [],
+    // The shipped state of every corridor: alighting-only is switched off, so
+    // nothing is offered and the refusal meter is never read.
+    boardingLimitAvailability: {
+      offered: false,
+      withheldReason: 'disabled_for_corridor',
+      refusalsInWindow: null,
+      maxRefusals: DEFAULT_MAX_REFUSALS_PER_WINDOW,
+      windowSeconds: DEFAULT_REFUSAL_WINDOW_SECONDS,
+      remainingRefusals: null,
+      withheldCandidateCount: 0,
+    },
     selectedActionType: 'two_way_hold',
     objectiveCost: -140,
     expectedRecoverySeconds: 120,
@@ -154,6 +171,7 @@ describe('runDecisionCycle', () => {
           selectedActionType: 'two_way_hold',
           vehicleId: 'UP25FT4823',
           holdSeconds: 120,
+          paceSignature: '',
           createdAt: new Date(NOW.getTime() - 60_000).toISOString(),
         }),
       ),
@@ -232,6 +250,7 @@ describe('isMateriallyNewRecommendation', () => {
     selectedActionType: 'two_way_hold',
     vehicleId: 'veh-1',
     holdSeconds: 120,
+    paceSignature: '',
     createdAt: new Date(NOW.getTime() - 60_000).toISOString(),
   };
   const same = { selectedActionType: 'two_way_hold', vehicleId: 'veh-1', holdSeconds: 120 };
@@ -271,5 +290,219 @@ describe('isMateriallyNewRecommendation', () => {
   it('re-states unchanged advice once the standing proposal is old enough', () => {
     const old = { ...standing, createdAt: new Date(NOW.getTime() - 1_000_000).toISOString() };
     expect(isMateriallyNewRecommendation(old, same, NOW, 900)).toBe(true);
+  });
+});
+
+// ─── PACE GUIDANCE ON THE AUTOMATIC PATH ────────────────────────────────
+//
+// Pace guidance is the only lever here that improves spacing at negative
+// time cost: it asks a bus already running EARLY to ease off, spending slack
+// it holds rather than adding delay. Every hold does the opposite.
+//
+// It reached an operator only when one opened the control room and asked
+// about a specific corridor. This sweep is the automatic half, and it was
+// blind to pace advice in the worst possible way - it returned before
+// looking whenever no hold had been selected, which is precisely the state a
+// bus running early and closing on its leader produces.
+//
+// Two properties are load-bearing and are asserted separately below:
+// default-off writes exactly what it wrote before, and an advisory NEVER
+// becomes a candidate or a selected action however it is carried.
+describe('pace guidance on the decision cycle', () => {
+  const advisory = {
+    vehicleId: 'UP25FT1001',
+    routeDirectionId: 'rd-1',
+    action: 'reduce_pace' as const,
+    currentSpeedKmph: 42,
+    targetSpeedKmph: 33,
+    scheduleSlackSeconds: -240,
+    rationale: 'Running ahead and closing on the bus in front.',
+  };
+
+  /** A corridor whose only useful answer is "ease off": no hold was selected. */
+  function paceOnlySolve() {
+    return solveResult({
+      candidateActions: [],
+      safeCandidates: [],
+      selectedAction: null,
+      selectedActions: [],
+      selectedActionType: null,
+      objectiveCost: null,
+      expectedRecoverySeconds: null,
+      paceAdvisories: [advisory],
+    });
+  }
+
+  describe('with the flag off, which is the default', () => {
+    it('writes nothing at all for a corridor whose only answer is pace advice', async () => {
+      const d = deps({ solveRouteDirection: vi.fn(() => Promise.resolve(paceOnlySolve())) });
+      const result = await runDecisionCycle(env(), d);
+
+      expect(d.insert).not.toHaveBeenCalled();
+      expect(result.proposed).toBe(0);
+      expect(result.withAction).toBe(0);
+      expect(result.withPaceAdvisory).toBe(0);
+    });
+
+    it('leaves the pace advice off a row it was going to write anyway', async () => {
+      const d = deps({
+        solveRouteDirection: vi.fn(() =>
+          Promise.resolve(solveResult({ paceAdvisories: [advisory] })),
+        ),
+      });
+      const result = await runDecisionCycle(env(), d);
+
+      expect(d.insert).toHaveBeenCalledTimes(1);
+      // Empty, not absent-and-defaulted: the caller decides, and with the
+      // flag off it decided nothing is carried.
+      expect(vi.mocked(d.insert).mock.calls[0]![0].paceAdvisories).toEqual([]);
+      expect(result.withPaceAdvisory).toBe(0);
+    });
+  });
+
+  describe('with the flag on', () => {
+    const on = () => env({ PACE_GUIDANCE_ON_DECISION_CYCLE_ENABLED: true });
+
+    it('proposes for a corridor that has no hold worth making but a bus worth easing', async () => {
+      const d = deps({ solveRouteDirection: vi.fn(() => Promise.resolve(paceOnlySolve())) });
+      const result = await runDecisionCycle(on(), d);
+
+      expect(d.insert).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(d.insert).mock.calls[0]![0].paceAdvisories).toEqual([advisory]);
+      expect(result.proposed).toBe(1);
+      expect(result.withPaceAdvisory).toBe(1);
+      // Not a selectable action, so it must not be counted as one.
+      expect(result.withAction).toBe(0);
+    });
+
+    it('never disguises the advisory as a hold', async () => {
+      const d = deps({ solveRouteDirection: vi.fn(() => Promise.resolve(paceOnlySolve())) });
+      await runDecisionCycle(on(), d);
+
+      const written = vi.mocked(d.insert).mock.calls[0]![0];
+      // The two ways an advisory could contaminate the ranking, both shut.
+      // candidate_actions -> 0 is read back as THE SELECTED ACTION by
+      // findLatestRecommendation, so an advisory landing there would be
+      // reported as the hold the controller chose.
+      expect(written.candidateActions).toEqual([]);
+      expect(written.selectedActionType).toBeNull();
+      expect(JSON.stringify(written.candidateActions)).not.toContain('reduce_pace');
+    });
+
+    it('carries pace advice alongside a hold without either displacing the other', async () => {
+      const d = deps({
+        solveRouteDirection: vi.fn(() =>
+          Promise.resolve(solveResult({ paceAdvisories: [advisory] })),
+        ),
+      });
+      const result = await runDecisionCycle(on(), d);
+
+      const written = vi.mocked(d.insert).mock.calls[0]![0];
+      expect(written.selectedActionType).toBe('two_way_hold');
+      expect(written.paceAdvisories).toEqual([advisory]);
+      expect(result.withAction).toBe(1);
+      expect(result.withPaceAdvisory).toBe(1);
+    });
+
+    it('attaches a pace-only proposal to the incident about that same bus', async () => {
+      const d = deps({
+        solveRouteDirection: vi.fn(() => Promise.resolve(paceOnlySolve())),
+        listOpenIncidentPairs: vi.fn(() =>
+          Promise.resolve([
+            { id: 'inc-other', followerVehicleId: 'UP25FT9999' },
+            { id: 'inc-right', followerVehicleId: 'UP25FT1001' },
+          ] as never),
+        ),
+      });
+      await runDecisionCycle(on(), d);
+
+      expect(vi.mocked(d.insert).mock.calls[0]![0].incidentId).toBe('inc-right');
+    });
+
+    // Silence has to stay meaningful for pace advice too, or a corridor
+    // drifting slowly buries the moment the advice changed under a row every
+    // 90 seconds.
+    it('does not repeat identical pace advice', async () => {
+      const d = deps({
+        solveRouteDirection: vi.fn(() => Promise.resolve(paceOnlySolve())),
+        findLatest: vi.fn(() =>
+          Promise.resolve({
+            selectedActionType: null,
+            vehicleId: null,
+            holdSeconds: null,
+            paceSignature: 'UP25FT1001@33',
+            createdAt: new Date(NOW.getTime() - 60_000).toISOString(),
+          }),
+        ),
+      });
+      await runDecisionCycle(on(), d);
+
+      expect(d.insert).not.toHaveBeenCalled();
+    });
+
+    // The bug this pins: without a pace term in the fingerprint, advice about
+    // a DIFFERENT bus fingerprints identically to the standing advice - every
+    // field the old fingerprint looked at is null on a pace-only row - and
+    // the new advice is silently discarded.
+    it('does write when the advice moves to a different bus', async () => {
+      const d = deps({
+        solveRouteDirection: vi.fn(() => Promise.resolve(paceOnlySolve())),
+        findLatest: vi.fn(() =>
+          Promise.resolve({
+            selectedActionType: null,
+            vehicleId: null,
+            holdSeconds: null,
+            paceSignature: 'UP25FT4823@28',
+            createdAt: new Date(NOW.getTime() - 60_000).toISOString(),
+          }),
+        ),
+      });
+      await runDecisionCycle(on(), d);
+
+      expect(d.insert).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // Structural, like the no-issuing guard above it: whatever else changes,
+  // this sweep must not become a way to send a speed instruction to a bus.
+  // There is no in-cab display in this system, and inventing a delivery path
+  // is not this module's decision to make.
+  it('still reaches no command or webhook path', () => {
+    const source = readFileSync(
+      new URL('../src/scheduler/decisionCycle.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toMatch(/createCommand|deliverCommand|dispatchWebhook/);
+  });
+});
+
+describe('paceSignature', () => {
+  const a = {
+    vehicleId: 'veh-1',
+    routeDirectionId: 'rd-1',
+    action: 'reduce_pace' as const,
+    currentSpeedKmph: 40,
+    targetSpeedKmph: 30,
+    scheduleSlackSeconds: -200,
+    rationale: 'one',
+  };
+
+  it('is empty for no advice, so absent and empty read the same', () => {
+    expect(paceSignature([])).toBe('');
+    expect(paceSignature(null)).toBe('');
+    expect(paceSignature(undefined)).toBe('');
+  });
+
+  it('changes when the bus changes and when the target changes', () => {
+    expect(paceSignature([a])).not.toBe(paceSignature([{ ...a, vehicleId: 'veh-2' }]));
+    expect(paceSignature([a])).not.toBe(paceSignature([{ ...a, targetSpeedKmph: 25 }]));
+  });
+
+  // The rationale restates the same facts in prose. Including it would make
+  // every row look new the moment a rounded number inside it moved.
+  it('ignores the prose and the order the solver happened to emit in', () => {
+    expect(paceSignature([a])).toBe(paceSignature([{ ...a, rationale: 'different words' }]));
+    const b = { ...a, vehicleId: 'veh-2', targetSpeedKmph: 25 };
+    expect(paceSignature([a, b])).toBe(paceSignature([b, a]));
   });
 });

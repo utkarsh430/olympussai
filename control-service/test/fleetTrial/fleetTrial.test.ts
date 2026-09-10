@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { buildFleetCorridor, DEFAULT_FLEET_CORRIDOR } from '../../src/fleetTrial/corridor.js';
 import { BUNCHING_SCENARIOS, scenarioById } from '../../src/fleetTrial/scenarios.js';
 import { detectIncidents } from '../../src/fleetTrial/detection.js';
-import { runFleetTrial, DEFAULT_FLEET_TRIAL_SPEC } from '../../src/fleetTrial/run.js';
+import { runFleetTrial, DEFAULT_FLEET_TRIAL_SPEC, summarizeIncidents } from '../../src/fleetTrial/run.js';
 import { FLEET_TRIAL_INPUTS } from '../../src/fleetTrial/presets.js';
 import { scenarioRng } from '../../src/fleetTrial/scenarios.js';
 import { CORRIDOR_PRESETS } from '../../src/fleetTrial/presets.js';
@@ -17,11 +17,24 @@ import { createDeployedControlLawsController } from '../../src/rehearsal/deploye
 import { buildRehearsalScenario, DEFAULT_MODELLED_INPUTS, REHEARSAL_EPOCH_MS, isReported } from '../../src/rehearsal/run.js';
 import type { ModelledInputs } from '../../src/rehearsal/run.js';
 import type { StopVisitRecord, TerminalDispatchPlan } from '../../src/simulation/types.js';
+import type { BunchingScenarioId } from '../../src/fleetTrial/scenarios.js';
 
 const CORRIDOR = buildFleetCorridor(DEFAULT_FLEET_CORRIDOR);
 
-/** A small but real trial: every scenario, few enough buses to run in a test. */
-const SMALL = { ...DEFAULT_FLEET_TRIAL_SPEC, vehiclesPerPhase: 40 };
+/**
+ * A small but real trial: every scenario, few enough buses to run in a test.
+ *
+ * Sized PER SCENARIO rather than as a total. It was a flat 40, which was four
+ * buses each across a ten-scenario library and two each once the library grew
+ * to nineteen - and two buses on a corridor is a fixture with no trailer to
+ * measure h_bwd against, so several assertions here would have gone on passing
+ * while measuring almost nothing. Four is the density every rule below was
+ * written against; the arithmetic keeps it there as scenarios are added.
+ */
+const SMALL = {
+  ...DEFAULT_FLEET_TRIAL_SPEC,
+  vehiclesPerPhase: BUNCHING_SCENARIOS.length * 4,
+};
 
 describe('the trial corridor', () => {
   it('makes every station a holding point, including the origin', () => {
@@ -108,6 +121,119 @@ describe('the scenario library', () => {
     });
     const times = plan.dispatches.map((d) => d.scheduledDispatchSeconds);
     for (let i = 1; i < times.length; i++) expect(times[i]!).toBeGreaterThanOrEqual(times[i - 1]!);
+  });
+
+  /** The context every scenario is built against here: the trial corridor, its own inputs, twenty buses. */
+  function buildContext(seed: number) {
+    const dispatches: TerminalDispatchPlan[] = [
+      { vehicleId: 'WARMUP', scheduledDispatchSeconds: 0 },
+      ...Array.from({ length: 20 }, (_, i) => ({
+        vehicleId: `BUS-${i}`,
+        scheduledDispatchSeconds: (i + 1) * 1800,
+      })),
+    ];
+    return (id: BunchingScenarioId) => ({
+      corridor: CORRIDOR,
+      inputs: { ...DEFAULT_MODELLED_INPUTS, ...FLEET_TRIAL_INPUTS },
+      dispatches,
+      targetHeadwaySeconds: 1800,
+      freeFlowSecondsTo: (i: number) => (CORRIDOR.stops[i]?.cumulativeDistanceMeters ?? 0) / 16.67,
+      rng: scenarioRng(seed, id),
+    });
+  }
+
+  it('builds the same plan twice from the same seed, for every scenario', () => {
+    // The hard requirement on this library: a scenario nobody can reproduce
+    // cannot be a finding about the controller, because the next run may not
+    // be the same experiment. `terminal_jitter` is the only one that draws at
+    // all today, and it is the one this would catch - but the assertion is
+    // over the whole library so the next scenario to take a draw inherits it.
+    for (const scenario of BUNCHING_SCENARIOS) {
+      const context = buildContext(20260822);
+      const first = scenario.build(context(scenario.id));
+      const second = scenario.build(context(scenario.id));
+      expect(second, `${scenario.id} is not reproducible from its seed`).toEqual(first);
+    }
+  });
+
+  it('gives each scenario its own draw sequence, so one seed is not one experiment', () => {
+    // `scenarioRng` mixes the id into the seed. Without that, two scenarios in
+    // one trial would draw the identical numbers and their disturbances would
+    // be correlated in a way nothing downstream could see.
+    const drawing = BUNCHING_SCENARIOS.filter(
+      (s) => JSON.stringify(s.build(buildContext(1)(s.id))) !== JSON.stringify(s.build(buildContext(2)(s.id))),
+    );
+    expect(drawing.length, 'no scenario draws at all, so this rule is unenforced').toBeGreaterThan(0);
+    for (const scenario of drawing) {
+      const a = scenarioRng(7, scenario.id).next();
+      const b = scenarioRng(7, BUNCHING_SCENARIOS.find((s) => s.id !== scenario.id)!.id).next();
+      expect(a).not.toBe(b);
+    }
+  });
+
+  it('puts every disturbance window where the buses actually are', () => {
+    // The trap this library's own header records, and the one every new
+    // scenario is most likely to fall into: a window placed against the wrong
+    // clock closes before the first bus reaches the stop it names, and the
+    // "disturbed" run comes back identical to the undisturbed one under a
+    // disturbed name. Nothing downstream can tell.
+    const context = buildContext(20260822);
+    const lastDispatch = 20 * 1800;
+    const tripSeconds = CORRIDOR.totalDistanceMeters / 16.67;
+    const horizon = lastDispatch + tripSeconds * 3;
+    for (const scenario of BUNCHING_SCENARIOS) {
+      const plan = scenario.build(context(scenario.id));
+      const windows = plan.disturbances.filter(
+        (d): d is Extract<typeof d, { startSeconds: number; endSeconds: number }> =>
+          'startSeconds' in d,
+      );
+      for (const window of windows) {
+        expect(window.endSeconds).toBeGreaterThan(window.startSeconds);
+        expect(
+          window.startSeconds,
+          `${scenario.id} opens a window after the last bus has finished`,
+        ).toBeLessThan(horizon);
+      }
+      // Some scenarios legitimately place a window over the warm-up run alone
+      // (`oscillating_shock` alternates from second zero), so the rule is on
+      // the SET: at least one window has to reach the buses this trial
+      // actually reports on, or the scenario disturbs nothing that is
+      // measured and says so nowhere.
+      if (windows.length > 0) {
+        expect(
+          windows.some((w) => w.endSeconds > 1800 && w.startSeconds < horizon),
+          `${scenario.id} places no window over any reported bus`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('says what it is trying to break, in words an operator can read', () => {
+    // These two strings are the whole interface between this library and the
+    // person reading a report. A scenario whose `whatItTests` is a restatement
+    // of its own id tells that reader nothing, and the failure is silent.
+    const seen = new Set<string>();
+    for (const scenario of BUNCHING_SCENARIOS) {
+      expect(scenario.mechanism.length, `${scenario.id} has no mechanism`).toBeGreaterThan(80);
+      expect(scenario.whatItTests.length, `${scenario.id} does not say what it tests`).toBeGreaterThan(120);
+      expect(scenario.title.length).toBeGreaterThan(4);
+      for (const text of [scenario.mechanism, scenario.whatItTests, scenario.title]) {
+        expect(seen.has(text), `${scenario.id} repeats another scenario's prose`).toBe(false);
+        seen.add(text);
+      }
+    }
+  });
+
+  it('perturbs the corridor as multipliers, never as absolute values', () => {
+    // A scenario means the same thing on every corridor or it means nothing.
+    // 1 leaves a field alone; 0 would silence it entirely, which no
+    // perturbation of a real corridor does.
+    for (const scenario of BUNCHING_SCENARIOS) {
+      for (const [field, value] of Object.entries(scenario.inputScale)) {
+        expect(value, `${scenario.id}.${field}`).toBeGreaterThan(0);
+        expect(value, `${scenario.id}.${field} is not a plausible multiplier`).toBeLessThan(10);
+      }
+    }
   });
 });
 
@@ -248,6 +374,109 @@ describe('incident detection', () => {
       expect(incident.followerVehicleId).not.toBe('WARMUP');
     }
   });
+
+  // ─── SEVERITY-WEIGHTED INCIDENT MEASURE ────────────────────────────────
+  //
+  // `incidentsAvoided` is a plain headcount: a shallow `predicted` incident
+  // and a deep `bunched` one both count as 1. That is exactly backwards for a
+  // controller whose main effect is converting deep bunches into shallow ones
+  // - the count can go UP while every corridor gets measurably safer. See
+  // `report.md` section 2. These pin `bunchedSecondsOpen`, the seconds a
+  // PEAK-BUNCHED incident spent open, so the report can show depth alongside
+  // the raw count rather than in place of it.
+  describe('bunched-seconds open', () => {
+  it('is zero when nothing ever reached bunched severity', () => {
+    // 700s apart: under the 900s warning bar but over the 450s bunched one,
+    // so the peak severity never exceeds 'warning'.
+    const { visits, dispatches } = twoBuses(700);
+    const endOfRun = Math.max(...visits.map((v) => v.departureSeconds));
+    const result = detectIncidents({
+      corridor: CORRIDOR,
+      visits,
+      dispatches,
+      disturbances: [],
+      requiredSamples: 3,
+      sweepUntilSeconds: endOfRun,
+    });
+    expect(result.incidents.some((i) => i.peakSeverity === 'bunched')).toBe(false);
+    expect(summarizeIncidents(result.incidents, endOfRun).bunchedSecondsOpen).toBe(0);
+  });
+
+  it('charges a still-open bunched incident through the end of the run, not zero', () => {
+    // 200s apart, sustained for the whole run - but the sweep window is cut
+    // off mid-route, well before either bus reaches the final stop, so the
+    // pair is still adjacent and still bunched when the window closes
+    // (`closeReason: 'run_ended'`, `durationSeconds: null`). That is the
+    // exact case a naive sum over `incident.durationSeconds` would silently
+    // drop to zero.
+    const { visits, dispatches } = twoBuses(200);
+    const cutoffSeconds = 5 * 2600;
+    const result = detectIncidents({
+      corridor: CORRIDOR,
+      visits,
+      dispatches,
+      disturbances: [],
+      requiredSamples: 3,
+      sweepUntilSeconds: cutoffSeconds,
+    });
+    const bunched = result.incidents.filter((i) => i.peakSeverity === 'bunched');
+    expect(bunched.length).toBeGreaterThan(0);
+    for (const incident of bunched) {
+      expect(incident.closeReason).toBe('run_ended');
+      expect(incident.durationSeconds).toBeNull();
+    }
+    const expected = bunched.reduce((acc, i) => acc + (cutoffSeconds - i.openedAtSeconds), 0);
+    expect(expected).toBeGreaterThan(0);
+    expect(summarizeIncidents(result.incidents, cutoffSeconds).bunchedSecondsOpen).toBe(expected);
+  });
+
+  it('sums across every bunched incident and ignores shallower ones sharing the run', () => {
+    // Four buses: LEAD1/FOLLOW1 run bunched throughout; LEAD2/FOLLOW2 run
+    // exactly one target headway apart and never bunch at all. The total must
+    // count only the first pair.
+    const paceSecondsPerStop = 2600;
+    const visits: StopVisitRecord[] = [];
+    const dispatches: TerminalDispatchPlan[] = [
+      { vehicleId: 'LEAD1', scheduledDispatchSeconds: 0 },
+      { vehicleId: 'FOLLOW1', scheduledDispatchSeconds: 200 },
+      { vehicleId: 'LEAD2', scheduledDispatchSeconds: 10_000 },
+      { vehicleId: 'FOLLOW2', scheduledDispatchSeconds: 10_000 + CORRIDOR.policy.targetHeadwaySeconds },
+    ];
+    for (let i = 0; i < CORRIDOR.stops.length; i++) {
+      visits.push(visit('LEAD1', i, i * paceSecondsPerStop));
+      visits.push(visit('FOLLOW1', i, i * paceSecondsPerStop + 200));
+      visits.push(visit('LEAD2', i, 10_000 + i * paceSecondsPerStop));
+      visits.push(
+        visit('FOLLOW2', i, 10_000 + i * paceSecondsPerStop + CORRIDOR.policy.targetHeadwaySeconds),
+      );
+    }
+    const endOfRun = Math.max(...visits.map((v) => v.departureSeconds));
+    const result = detectIncidents({
+      corridor: CORRIDOR,
+      visits,
+      dispatches,
+      disturbances: [],
+      requiredSamples: 3,
+      sweepUntilSeconds: endOfRun,
+    });
+    const bunched = result.incidents.filter((i) => i.peakSeverity === 'bunched');
+    const notBunched = result.incidents.filter((i) => i.peakSeverity !== 'bunched');
+    expect(bunched.length).toBeGreaterThan(0);
+    const expected = bunched.reduce(
+      (acc, i) => acc + (i.durationSeconds ?? endOfRun - i.openedAtSeconds),
+      0,
+    );
+    const summary = summarizeIncidents(result.incidents, endOfRun);
+    expect(summary.bunchedSecondsOpen).toBe(expected);
+    // A pin on the filter itself: including the non-bunched incidents' time
+    // would only inflate the total if there were any open time to add, and
+    // there had better be none counted from them.
+    for (const incident of notBunched) {
+      const soloSummary = summarizeIncidents([incident], endOfRun);
+      expect(soloSummary.bunchedSecondsOpen).toBe(0);
+    }
+  });
+  });
 });
 
 describe('a whole trial', () => {
@@ -260,11 +489,42 @@ describe('a whole trial', () => {
     for (const phase of report.phases) expect(phase.vehicleCount).toBe(SMALL.vehiclesPerPhase);
   });
 
-  it('is deterministic: the same spec produces the same numbers', () => {
+  it('is deterministic: the same spec produces the same numbers, scenario by scenario', () => {
+    // Per SCENARIO, not only per phase. A phase aggregate can be stable while
+    // an individual scenario is not, and it is the scenario rows a reader acts
+    // on - "the controller failed on X by Y%" is a finding about the
+    // controller only if the next run says the same thing.
     const again = runFleetTrial(SMALL);
     expect(again.phases[0]?.controlled.spacing).toEqual(report.phases[0]?.controlled.spacing);
     expect(again.phases[0]?.uncontrolled.spacing).toEqual(report.phases[0]?.uncontrolled.spacing);
     expect(again.occupancyContrast.decisionsChanged).toBe(report.occupancyContrast.decisionsChanged);
+
+    for (const [i, phase] of report.phases.entries()) {
+      const rerun = again.phases[i];
+      expect(rerun?.scenarios.map((s) => s.id)).toEqual(phase.scenarios.map((s) => s.id));
+      for (const [j, scenario] of phase.scenarios.entries()) {
+        const repeat = rerun?.scenarios[j];
+        expect(repeat?.uncontrolled.spacing, `${scenario.id} uncontrolled`).toEqual(
+          scenario.uncontrolled.spacing,
+        );
+        expect(repeat?.controlled.spacing, `${scenario.id} controlled`).toEqual(
+          scenario.controlled.spacing,
+        );
+        expect(repeat?.contrast, `${scenario.id} contrast`).toEqual(scenario.contrast);
+      }
+    }
+  });
+
+  it('is not deterministic because the seed is ignored', () => {
+    // The other half of the reproducibility requirement, and the one a
+    // constant would pass. If a different seed produced the identical report,
+    // every "same seed, same result" assertion above would be vacuous.
+    const other = runFleetTrial({ ...SMALL, seed: SMALL.seed + 1 });
+    const changed = report.phases[0]!.scenarios.filter((scenario, j) => {
+      const otherScenario = other.phases[0]?.scenarios[j];
+      return otherScenario?.uncontrolled.spacing.ewtSeconds !== scenario.uncontrolled.spacing.ewtSeconds;
+    });
+    expect(changed.length).toBe(report.phases[0]!.scenarios.length);
   });
 
   it('never reports a controlled arm without the arm it is compared against', () => {
@@ -343,6 +603,34 @@ describe('a whole trial', () => {
     expect(share!).toBeLessThan(1);
     for (const phase of report.phases) {
       expect(phase.uncontrolled.punctuality.shareBeyondLatenessBound).not.toBeNull();
+    }
+  });
+
+  // ─── HOLDING POINTS ARE SPREAD, NOT CLUSTERED AT THE ORIGIN ────────────
+  //
+  // A hold can only be executed where a bus is standing at a DESIGNATED stop,
+  // so where those stops are is the operational lever. The study used to
+  // designate the FIRST n stations; measured at the same count, spreading them
+  // along the route is about twice as good wherever they are scarce - and
+  // scarce is the density `seed/harvest.ts` configures the real network at
+  // (one station in five). Deviation accumulates BETWEEN corrections, so the
+  // corrections have to be distributed along the route it accumulates over.
+  it('spreads a corridor\'s holding points along the route rather than bunching them at the origin', () => {
+    const stations = 20;
+    const spread = buildFleetCorridor({ ...DEFAULT_FLEET_CORRIDOR, stationCount: stations, holdingPointCount: 5 });
+    const designated = spread.stops
+      .map((stop, index) => (stop.isControlPoint ? index : -1))
+      .filter((index) => index >= 0);
+
+    expect(designated).toHaveLength(5);
+    // The origin always holds - it is where terminal dispatch acts.
+    expect(designated[0]).toBe(0);
+    // ...and the last one is at or near the far end, which clustering at the
+    // origin could never produce.
+    expect(designated[designated.length - 1]).toBeGreaterThan(stations * 0.75);
+    // No two adjacent, which is what `index < holdingPointCount` gave.
+    for (let i = 1; i < designated.length; i++) {
+      expect(designated[i]! - designated[i - 1]!).toBeGreaterThan(1);
     }
   });
 
@@ -448,6 +736,108 @@ describe('a whole trial', () => {
       }
     }
   });
+
+  // ─── incidentsAvoided IS SEVERITY-BLIND, AND SAYS SO BESIDE THE FIX ────
+  //
+  // Section 2 of report.md: the raw headcount weights a shallow `predicted`
+  // incident the same as a deep `bunched` one, and on 8 of 8 measured seeds
+  // across two corridors that inverted the sign of what the controller
+  // actually did. The fix supplements the count rather than replacing it -
+  // `incidentsAvoided` must keep meaning exactly what it always has.
+  it('keeps the raw incident headcount exactly as it was', () => {
+    for (const phase of report.phases) {
+      expect(phase.contrast.incidentsAvoided).toBe(
+        phase.uncontrolled.incidents.detected - phase.controlled.incidents.detected,
+      );
+    }
+  });
+
+  it('reports deep-incident avoidance as the peak-bunched headcount difference, not the blind total', () => {
+    for (const phase of report.phases) {
+      const deepUncontrolled = phase.uncontrolled.incidents.byPeakSeverity['bunched'] ?? 0;
+      const deepControlled = phase.controlled.incidents.byPeakSeverity['bunched'] ?? 0;
+      expect(phase.contrast.deepIncidentsAvoided).toBe(deepUncontrolled - deepControlled);
+      for (const scenario of phase.scenarios) {
+        const su = scenario.uncontrolled.incidents.byPeakSeverity['bunched'] ?? 0;
+        const sc = scenario.controlled.incidents.byPeakSeverity['bunched'] ?? 0;
+        expect(scenario.contrast.deepIncidentsAvoided).toBe(su - sc);
+      }
+    }
+  });
+
+  it('reports bunched-seconds-open reduced, matching the sum of its own arms', () => {
+    for (const phase of report.phases) {
+      const expected =
+        phase.uncontrolled.incidents.bunchedSecondsOpen - phase.controlled.incidents.bunchedSecondsOpen;
+      expect(phase.contrast.bunchedSecondsOpenReduced).toBe(expected);
+      if (phase.uncontrolled.incidents.bunchedSecondsOpen > 0) {
+        expect(phase.contrast.bunchedSecondsOpenReducedPercent).toBeCloseTo(
+          (expected / phase.uncontrolled.incidents.bunchedSecondsOpen) * 100,
+          6,
+        );
+      }
+    }
+  });
+
+  // Additive across scenarios, and additive across the RIGHT scenarios. An
+  // `ArmReport` describes one population: the headline pool covers the
+  // scenarios in `headlineScope`, `allScenarios` covers every one the phase
+  // ran, and an incident total that summed a different set from the spacing
+  // and passenger figures beside it would be the same class of quiet
+  // incoherence the headline scope exists to remove.
+  it('pools bunched-seconds-open across scenarios additively, over the population each pool claims', () => {
+    const inHeadline = new Set(report.headlineScope.includedScenarioIds);
+    for (const phase of report.phases) {
+      for (const arm of ['controlled', 'uncontrolled'] as const) {
+        const sumOver = (scenarios: typeof phase.scenarios) =>
+          scenarios.reduce((acc, s) => acc + s[arm].incidents.bunchedSecondsOpen, 0);
+        expect(phase[arm].incidents.bunchedSecondsOpen).toBe(
+          sumOver(phase.scenarios.filter((s) => inHeadline.has(s.id))),
+        );
+        expect(phase.allScenarios[arm].incidents.bunchedSecondsOpen).toBe(sumOver(phase.scenarios));
+      }
+    }
+  });
+
+  // `NOT_EXERCISED` used to name the invented demand, the untouched command
+  // lifecycle, the absent state estimator and the booked timetable, but not
+  // corridor dispersion - the input the headline is most sensitive to. A
+  // trial that stopped naming it would be silently un-fixing this.
+  it('admits to inventing corridor dispersion, not just demand and the timetable', () => {
+    expect(report.notExercised.some((entry) => /dispersion/i.test(entry))).toBe(true);
+  });
+
+  // The sensitivity has to be RE-RUNNABLE, not just asserted in prose - see
+  // `runDispersionSensitivityStudy`. It is built on `runPolicyStudy`, so it
+  // must report the same shape as every other row in `policyStudies`.
+  describe('the corridor-dispersion sensitivity sweep', () => {
+    const study = report.policyStudies.find((s) => s.knob === 'travel_time_variation');
+
+    it('is present alongside the other policy studies', () => {
+      expect(study).toBeDefined();
+    });
+
+    it('sweeps more than one dispersion level, with exactly one matching the shipped preset', () => {
+      expect(study!.rows.length).toBeGreaterThan(1);
+      expect(study!.rows.filter((row) => row.isCurrent).length).toBe(1);
+    });
+
+    // Nobody configures how noisy a corridor is, so unlike every other study
+    // here there is no "best" setting to recommend - the verdict says so
+    // instead of picking one.
+    it('never recommends a dispersion level as if it were a policy choice', () => {
+      expect(study!.recommended).toBeNull();
+    });
+
+    it('reports incidents avoided, like every other policy study now does', () => {
+      for (const s of report.policyStudies) {
+        for (const row of s.rows) {
+          expect(typeof row.incidentsAvoided).toBe('number');
+          expect(Number.isFinite(row.incidentsAvoided)).toBe(true);
+        }
+      }
+    });
+  });
 });
 
 // ─── THE GUARANTEE THAT MATTERS MOST ─────────────────────────────────────
@@ -456,6 +846,60 @@ describe('a whole trial', () => {
 // AGE the reason not to act. Everything else in this system degrades; this one
 // must not. The gps_dropout scenario exists to prove the rejection fires end to
 // end rather than being a branch nobody reaches.
+// ─── self_equalizing IS UNTESTED ON THE DEPLOYED PRESETS ─────────────────
+//
+// report.md section 3: `self_equalizing` only ever competes for a pair
+// `two_way` cannot cover, and on every deployed preset `kf`/`kb` are both
+// set, so its only route in is a null `h_bwd` - 0.4-0.7% of decisions. By
+// AGENTS.md's own rule ("a law that never fired was not tested"), 20-60
+// firings on that population is not a test, even though the law is correctly
+// conservative rather than broken. This is trial COVERAGE, not a control
+// change: `kb = null` disables two-way holding for one extra re-run of the
+// same scenarios, so self-equalizing is actually exercised - the deployed
+// configuration (`report.phases`) must come out of this identical.
+describe('self-equalizing coverage', () => {
+  const report = runFleetTrial(SMALL);
+  const coverage = report.selfEqualizingCoverage;
+
+  it('disables two-way holding entirely in the coverage arm', () => {
+    const twoWay = coverage.lawCoverage.find((l) => l.law === 'two_way');
+    expect(twoWay).toBeDefined();
+    expect(twoWay?.decisionsGenerating).toBe(0);
+  });
+
+  it('exercises self-equalizing on more of its eligible pool than the deployed configuration', () => {
+    const deployedSelfEq = report.phases[0]?.lawCoverage.find((l) => l.law === 'self_equalizing');
+    const coverageSelfEq = coverage.lawCoverage.find((l) => l.law === 'self_equalizing');
+    expect(deployedSelfEq).toBeDefined();
+    expect(coverageSelfEq).toBeDefined();
+    expect(coverageSelfEq!.decisionsTotal).toBe(deployedSelfEq!.decisionsTotal);
+    const deployedShare = deployedSelfEq!.decisionsGenerating / deployedSelfEq!.decisionsTotal;
+    const coverageShare = coverageSelfEq!.decisionsGenerating / coverageSelfEq!.decisionsTotal;
+    // Removing two_way's gate can only widen self-equalizing's eligible
+    // pool, never shrink it - so more than double the deployed generation
+    // count is a floor the mechanism guarantees, not a number tuned to this
+    // fixture. (At production scale, report.md section 3 measured the
+    // deployed share at 0.45-0.56% and the kb=null share at double digits.)
+    expect(coverageSelfEq!.decisionsGenerating).toBeGreaterThan(deployedSelfEq!.decisionsGenerating * 2);
+    expect(coverageShare).toBeGreaterThan(deployedShare * 2);
+  });
+
+  it('leaves the deployed configuration\'s own coverage untouched', () => {
+    expect(report.corridor.kb).not.toBeNull();
+    for (const phase of report.phases) {
+      const deployedTwoWay = phase.lawCoverage.find((l) => l.law === 'two_way');
+      expect(deployedTwoWay?.decisionsGenerating).toBeGreaterThan(0);
+    }
+  });
+
+  it('runs real, comparable arms rather than a stub', () => {
+    expect(coverage.vehicleCount).toBeGreaterThan(0);
+    expect(coverage.controlled.spacing.headwaySampleCount).toBeGreaterThan(0);
+    expect(coverage.uncontrolled.spacing.headwaySampleCount).toBeGreaterThan(0);
+    expect(coverage.contrast.passengerSecondsSavedPercent).not.toBeNull();
+  });
+});
+
 describe('a bus nobody can see', () => {
   const scenario = scenarioById('gps_dropout');
 

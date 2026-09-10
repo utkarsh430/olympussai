@@ -1,5 +1,5 @@
 import { OpsAlert, OpsPanel, OpsSection, OpsStack } from '@/components/ops/ui';
-import { ENGINE_ACTION_TYPES } from '@/models/control';
+import { ENGINE_ACTION_TYPES, ENGINE_ADVISORY_ACTION_TYPES } from '@/models/control';
 import { actionLabel, humanOriginatedActions } from '@/lib/ops/recommendationView';
 
 /**
@@ -28,7 +28,8 @@ import { actionLabel, humanOriginatedActions } from '@/lib/ops/recommendationVie
  */
 export function DepotActionsPanel() {
   const engineActions = [...ENGINE_ACTION_TYPES];
-  const humanActions = humanOriginatedActions(engineActions);
+  const advisoryActions = [...ENGINE_ADVISORY_ACTION_TYPES];
+  const humanActions = humanOriginatedActions(engineActions, advisoryActions);
 
   return (
     <OpsStack gap="tight">
@@ -56,6 +57,37 @@ export function DepotActionsPanel() {
           ))}
         </ul>
       </OpsSection>
+
+      {/*
+        Worked out, but with nowhere to go. This section exists because the
+        two-way split above it was a lie by omission: the engine has computed
+        pace guidance on every solve since it shipped, so listing it under
+        "nothing suggests" was false — but listing it with the engine actions
+        above would have inherited their promise that an instruction is
+        approved, sent, and delivered to the driver's screen. Pace guidance
+        has no delivery path in this system at all.
+      */}
+      {advisoryActions.length > 0 && (
+        <OpsSection
+          title="Worked out, but with no way to reach a driver"
+          description="The engine does the arithmetic for these and shows the answer in the control room. It never ranks them against a hold and never sends one, because this system has no in-cab display to send them to."
+        >
+          <ul className="space-y-2">
+            {advisoryActions.map((action) => (
+              <li key={action} className="ops-well px-4 py-3 text-sm">
+                <span className="font-medium text-foreground">{actionLabel(action)}</span>
+                <p className="mt-1 text-xs leading-relaxed text-subtle">
+                  Worked out when a bus is running ahead of its timetable and closing on the bus in
+                  front: easing off spends slack it already holds, so the gap reopens and the bus
+                  gets closer to its scheduled time instead of later. It is the one lever here that
+                  costs no delay to anybody. It reaches a driver only if a control-room operator
+                  passes it on themselves, and nothing records whether that happened.
+                </p>
+              </li>
+            ))}
+          </ul>
+        </OpsSection>
+      )}
 
       <OpsSection
         title="Instructions that exist, but that nothing suggests"

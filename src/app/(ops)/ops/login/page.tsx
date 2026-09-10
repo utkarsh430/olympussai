@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getOpsSession } from '@/lib/auth/rbac/server';
 import { sanitizeOpsNext } from '@/lib/auth/rbac/redirect';
 import { OPS_LEGACY_LOGIN_PARAM, opsHomePath } from '@/lib/auth/landing';
+import { isAuthDisabled, PREVIEW_DEFAULT_ROLE } from '@/lib/auth/publicPreview';
 import { OpsLoginForm } from '@/components/auth/OpsLoginForm';
 
 export const metadata: Metadata = {
@@ -38,6 +39,15 @@ export default async function OpsLoginPage({
   // `sanitizeOpsNext` returns null for /ops/login itself, so a self-referential
   // ?next cannot be forwarded into a cycle.
   const next = sanitizeOpsNext(params.next);
+
+  // PUBLIC PREVIEW: straight into the console, and NOT to `/login` the way the
+  // ordinary forward below does — that page would only forward a second time.
+  // The `?legacy=1` escape hatch is skipped too: the legacy form's whole
+  // purpose is a password door, and there is no password to type on a
+  // deployment with authentication switched off. See publicPreview.ts.
+  if (isAuthDisabled()) {
+    redirect(next ?? opsHomePath(PREVIEW_DEFAULT_ROLE));
+  }
 
   if (params[OPS_LEGACY_LOGIN_PARAM] !== '1') {
     redirect(next ? `/login?next=${encodeURIComponent(next)}` : '/login');

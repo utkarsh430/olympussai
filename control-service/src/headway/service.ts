@@ -10,6 +10,10 @@
 // this ticket is detection and display only (no operational actions sent
 // from here).
 import { computeLeaderFollowerOrder } from "../state-estimation/ordering.js";
+import {
+  PositionPlausibilityTracker,
+  type PlausibilityVerdict,
+} from "../state-estimation/positionPlausibility.js";
 import type { VehicleOrderingInput } from "../state-estimation/types.js";
 import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
@@ -24,6 +28,7 @@ import {
   type HeadwayAggregate,
   type HeadwayPairMetric,
   type RouteDirectionListing,
+  type VehicleForHeadway,
 } from "./types.js";
 
 export interface IncidentChange {
@@ -366,6 +371,45 @@ async function closeSupersededIncidents(
   return changes;
 }
 
+/**
+ * One position-plausibility tracker per route-direction, held for the life of
+ * the process.
+ *
+ * Held rather than rebuilt because every quantity the check computes is a
+ * comparison against the vehicle's OWN recent history - a tracker rebuilt per
+ * sweep has no history and can therefore never have an opinion, which is the
+ * quiet way to ship this flag as a no-op. In-memory and unshared, exactly like
+ * the rest of this service's live state (`db/rehydrate.ts` reloads it at boot
+ * and nothing else does); a restart costs one sweep of re-anchoring per
+ * vehicle, and re-anchoring is the tracker's safe direction.
+ *
+ * Populated only while the switch is on, so off allocates nothing.
+ */
+const plausibilityTrackers = new Map<string, PositionPlausibilityTracker>();
+
+function judgePositions(
+  routeDirectionId: string,
+  vehicles: readonly VehicleForHeadway[],
+): ReadonlyMap<string, PlausibilityVerdict> | null {
+  const env = loadEnv();
+  if (!env.GPS_POSITION_PLAUSIBILITY_ENABLED) return null;
+  let tracker = plausibilityTrackers.get(routeDirectionId);
+  if (!tracker) {
+    tracker = new PositionPlausibilityTracker({
+      residualBoundSeconds: env.GPS_POSITION_PLAUSIBILITY_BOUND_SECONDS,
+    });
+    plausibilityTrackers.set(routeDirectionId, tracker);
+  }
+  // The sweep's own clock, not each row's `observedAt`: the tracker judges one
+  // SNAPSHOT of the corridor at a time, and a snapshot assembled from rows of
+  // different ages is what `mpc/safety.ts`'s staleness bound is for.
+  return tracker.observe(Date.now() / 1000, vehicles.map((v) => ({
+    vehicleId: v.vehicleId,
+    distanceAlongRouteMeters: v.distanceAlongRouteMeters,
+    speedKmph: v.speedKmph,
+  })));
+}
+
 async function computeRouteDirectionHeadwayInner(routeDirectionId: string): Promise<HeadwayComputeResult> {
   const [meta, policy, vehicles] = await Promise.all([
     repo.loadRouteDirectionMeta(routeDirectionId),
@@ -380,10 +424,29 @@ async function computeRouteDirectionHeadwayInner(routeDirectionId: string): Prom
     throw new AppError("no_active_policy", `No active route policy for route-direction ${routeDirectionId}`, 404);
   }
 
+  // ─── A FRESH FIX IS NOT THE SAME THING AS A TRUE ONE ─────────────────
+  //
+  // Null unless GPS_POSITION_PLAUSIBILITY_ENABLED, and then everything below
+  // is built from the reported positions exactly as it always has been. With
+  // it on, a fix the check rejects is replaced by the dead-reckoned belief
+  // for the purpose of RANKING and MEASURING - so the vehicle stays in the
+  // chain and stays controllable - and its speed is withheld from
+  // `corridorPaceKmph`, because a position nobody believes arrives with a
+  // pace nobody should believe either.
+  const plausibility = judgePositions(routeDirectionId, vehicles);
+  const rejected = (vehicleId: string): boolean =>
+    plausibility?.get(vehicleId)?.isImplausible === true;
+  const rankedDistanceOf = (v: VehicleForHeadway): number => {
+    const verdict = plausibility?.get(v.vehicleId);
+    return verdict?.isImplausible
+      ? verdict.believedDistanceAlongRouteMeters
+      : v.distanceAlongRouteMeters;
+  };
+
   const orderingInputs: VehicleOrderingInput[] = vehicles.map((v) => ({
     vehicleId: v.vehicleId,
     routeDirectionId,
-    distanceAlongRouteMeters: v.distanceAlongRouteMeters,
+    distanceAlongRouteMeters: rankedDistanceOf(v),
     isLowConfidence: v.isLowConfidence,
   }));
 
@@ -392,7 +455,9 @@ async function computeRouteDirectionHeadwayInner(routeDirectionId: string): Prom
     totalDistanceMeters: meta.totalDistanceMeters,
   });
 
-  const speedByVehicleId = new Map(vehicles.map((v) => [v.vehicleId, v.speedKmph]));
+  const speedByVehicleId = new Map(
+    vehicles.map((v) => [v.vehicleId, rejected(v.vehicleId) ? null : v.speedKmph]),
+  );
   const confidenceByVehicleId = new Map(vehicles.map((v) => [v.vehicleId, v.confidence]));
 
   const pairs = computePairHeadways(

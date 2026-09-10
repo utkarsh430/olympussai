@@ -239,6 +239,37 @@ export function buildFleetCorridor(
     Math.min(spec.stationCount, spec.holdingPointCount ?? spec.stationCount),
   );
 
+  // ─── SPREAD ALONG THE ROUTE, NOT CLUSTERED AT THE ORIGIN ───────────────
+  //
+  // This used to designate the FIRST n stations, on the reasoning that a
+  // correction made early has the rest of the route to propagate through -
+  // which is the shape of the CTA pilot result `mpc/eligibility.ts` cites.
+  //
+  // MEASURED on this trial's own corridors, four seeds x ten scenarios, at the
+  // same count either way:
+  //
+  //                       clustered at origin      spread along the route
+  //   urban, 6 of 25            +1.14%                   +2.33%
+  //   suburban, 4 of 15         +0.30%                   +0.65%
+  //   inter-city, 3 of 10       +0.11%                   +0.16%
+  //
+  // Spreading is about twice as good wherever holding points are SCARCE, and
+  // the two converge once most stations are designated (19 of 25: +4.35% vs
+  // +4.26%). Scarce is the regime that matters: `seed/harvest.ts` configures
+  // the real network at one station in five, so the placement study was
+  // reporting "where the holding points should be" from a pattern the network
+  // does not use and that is half as effective at the density it runs at.
+  //
+  // Physically it is the same story `controllability` tells - deviation
+  // accumulates between corrections, so corrections have to be distributed
+  // along the route the deviation accumulates over.
+  const holdingPointIndices = new Set<number>([0]);
+  if (holdingPointCount > 1) {
+    for (let k = 0; k < holdingPointCount; k++) {
+      holdingPointIndices.add(Math.round((k * (spec.stationCount - 1)) / (holdingPointCount - 1)));
+    }
+  }
+
   const stops: CorridorStop[] = Array.from({ length: spec.stationCount }, (_, index) => {
     const fraction = index / (spec.stationCount - 1);
     const cumulativeDistanceMeters = Math.round(spec.totalDistanceMeters * fraction);
@@ -248,7 +279,7 @@ export function buildFleetCorridor(
       name: stationName(index, spec.stationCount),
       sequence: index,
       cumulativeDistanceMeters,
-      isControlPoint: index < holdingPointCount,
+      isControlPoint: holdingPointIndices.has(index),
       // No per-stop override: the policy's cap is the cap everywhere, so a
       // reader comparing two stations is not also comparing two limits.
       maxHoldSeconds: null,
