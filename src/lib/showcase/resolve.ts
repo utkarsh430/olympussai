@@ -175,3 +175,53 @@ export interface StationHoldModel {
   /** 0..1 of the busiest station. */
   share: number;
 }
+
+export interface PipelineModel {
+  stages: readonly PipelineStageFigure[];
+  laws: readonly LawBarModel[];
+  stationHolds: readonly StationHoldModel[];
+  detector: ShowcaseFigures['detector'];
+}
+
+export interface BalanceModel {
+  waitingRemovedHours: number;
+  timeAboardAddedHours: number;
+  netHoursSaved: number;
+  netPercent: number;
+  excessWaitPercent: number;
+  incidents: {
+    before: { detected: number; resolvedPercent: number };
+    after: { detected: number; resolvedPercent: number };
+    cutPercent: number;
+  };
+  onTime: { beforePercent: number; afterPercent: number };
+  holdMinutesPerBus: number;
+}
+
+export interface ScaleModel {
+  fromBuses: number;
+  toBuses: number;
+  stats: readonly StatFigure[];
+}
+
+// ─── The report ───────────────────────────────────────────────────────────
+
+/** The change cell of a comparison row: an improvement with a direction, a cost stated in words, or nothing measurable. */
+export type ReportChange =
+  { kind: 'improvement'; percent: number; good: boolean } | { kind: 'cost'; label: string } | null;
+
+/**
+ * One measurement, both arms, the change: the ops console's own comparison
+ * table (`SimulatorConsole.tsx#ArmContrastTable`), carried into the report
+ * with the same rows, hints and arrow rule.
+ */
+export interface ReportComparisonRow {
+  id: string;
+  label: string;
+  hint: string | null;
+  leftAlone: string;
+  leftAloneNote: string | null;
+  underControl: string;
+  underControlNote: string | null;
+  change: ReportChange;
+}
