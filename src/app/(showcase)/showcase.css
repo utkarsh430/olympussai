@@ -343,3 +343,40 @@
   border-collapse: collapse;
   font-size: 0.8125rem;
 }
+
+.sc-table th {
+  text-align: left;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--muted-foreground));
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid hsl(var(--primary) / 0.3);
+  white-space: nowrap;
+}
+
+.sc-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid hsl(var(--border));
+  vertical-align: top;
+}
+
+.sc-table td.num,
+.sc-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sc-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* The wide results table: tighter cells so twelve columns fit the sheet. */
+.sc-table-dense th,
+.sc-table-dense td {
+  padding: 0.5rem 0.45rem;
+  font-size: 0.75rem;
+}
