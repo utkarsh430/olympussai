@@ -151,3 +151,83 @@ export function replayMarks(frame: ReplayFrame): ReplayMark[] {
     dataQuality: vehicle.holding ? 'degraded' : 'good',
   }));
 }
+
+/**
+ * The frame's annotations: a dashed link over every pair that is not fine,
+ * a ring and a HOLD label at every hold, and a ring with its id around the
+ * followed bus. Groups that would be empty are left out, so a quiet frame
+ * hands the layer nothing to draw.
+ */
+export function replayOverlays(
+  frame: ReplayFrame,
+  followedId: string | null,
+  ink: Ink,
+): FleetMapOverlay[] {
+  const overlays: FleetMapOverlay[] = [];
+
+  const pairs: FleetMapOverlayMark[] = [];
+  for (const pair of frame.pairs) {
+    if (pair.state === 'ok') continue;
+    pairs.push({
+      id: `pair:${pair.leaderId}:${pair.followerId}`,
+      points: [pair.leader, pair.follower],
+      colour: pair.state === 'bunched' ? ink.danger : ink.warning,
+      radiusPx: PAIR_RING_PX,
+      dashed: true,
+    });
+  }
+  if (pairs.length > 0) overlays.push({ id: 'pairs', marks: pairs });
+
+  const holds: FleetMapOverlayMark[] = frame.holds.map((hold) => ({
+    id: `hold:${hold.vehicleId}`,
+    points: [hold.position],
+    colour: ink.warning,
+    radiusPx: HOLD_RING_PX,
+    label: 'HOLD',
+  }));
+  if (holds.length > 0) overlays.push({ id: 'holds', marks: holds });
+
+  const followed = followedId
+    ? frame.vehicles.find((vehicle) => vehicle.id === followedId)
+    : undefined;
+  if (followed) {
+    overlays.push({
+      id: 'followed',
+      marks: [
+        {
+          id: `follow:${followed.id}`,
+          points: [followed.position],
+          colour: ink.foreground,
+          radiusPx: FOLLOW_RING_PX,
+          label: followed.id,
+        },
+      ],
+    });
+  }
+
+  return overlays;
+}
+
+/**
+ * Which stations get a name: every one on a short route, every second on a
+ * medium one, every fourth on a long one. The first and last are always
+ * named. Unlike the tactical plot's rule this does not read the width: the
+ * map zooms, the plot does not.
+ */
+export function labelEveryStop(stopCount: number): number {
+  if (stopCount <= 12) return 1;
+  if (stopCount <= 16) return 2;
+  return 4;
+}
+
+function stationIcon(ground: string, ink: string, labelAbove: boolean): google.maps.Symbol {
+  return {
+    path: google.maps.SymbolPath.CIRCLE,
+    scale: STATION_SCALE,
+    fillColor: ground,
+    fillOpacity: 1,
+    strokeColor: ink,
+    strokeWeight: 1.2,
+    labelOrigin: new google.maps.Point(0, labelAbove ? -LABEL_OFFSET_UNITS : LABEL_OFFSET_UNITS),
+  };
+}
