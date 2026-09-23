@@ -32,3 +32,23 @@ const RING_RADII: readonly number[] = [0.2, 0.36, 0.52];
 const BRIGHT_SHARE = 1 / 40;
 const DIM_ALPHA = 0.17;
 const BRIGHT_ALPHA = 0.45;
+const FALLBACK_INK: readonly [number, number, number] = [58, 179, 201];
+const RGB_PATTERN = /rgba?\(\s*(\d+(?:\.\d+)?)[\s,]+(\d+(?:\.\d+)?)[\s,]+(\d+(?:\.\d+)?)/;
+
+interface FieldLayout {
+  mode: FleetFieldMode;
+  count: number;
+  /** Which line the point sits on and where along it, 0..1. */
+  lineOf: Uint8Array;
+  along: Float32Array;
+  /** A residual off the line in -1..1, so order reads as even without being mechanical. */
+  offset: Float32Array;
+  /** 1 for the few points drawn larger and darker. */
+  bright: Uint8Array;
+  /** Scratch: this frame's positions in CSS pixels. */
+  px: Float32Array;
+  py: Float32Array;
+  /** The last computed `color` string read, and what it parsed to. */
+  inkRaw: string;
+  ink: readonly [number, number, number];
+}
