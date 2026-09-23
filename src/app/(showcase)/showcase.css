@@ -265,3 +265,24 @@
   color: hsl(var(--muted-foreground));
   white-space: nowrap;
 }
+
+.sc-chip-accent {
+  border-color: hsl(var(--primary) / 0.45);
+  color: hsl(var(--primary));
+}
+
+.sc-chip-good {
+  border-color: hsl(var(--instrument-success) / 0.45);
+  color: hsl(var(--success));
+}
+
+.sc-chip-warn {
+  border-color: hsl(var(--instrument-warning) / 0.45);
+  color: hsl(var(--warning));
+}
+
+/* ─── Collapsible report sections ──────────────────────────────────────── */
+
+.sc-details {
+  border-top: 1px solid hsl(var(--border));
+}
