@@ -381,3 +381,171 @@ function ComparisonTable({ row }: { row: ReportCorridorRow }) {
     </div>
   );
 }
+
+function ResultsByCorridor({ corridors }: { corridors: readonly ReportCorridorRow[] }) {
+  return (
+    <Section
+      index={3}
+      title="Results by corridor"
+      teaser="Eight measurements, both arms, per corridor"
+    >
+      <div className="flex flex-col">
+        {corridors.map((row, position) => (
+          <CorridorDetails
+            key={row.presetId}
+            name={row.name}
+            shape={row.shape}
+            open={position === 0}
+          >
+            <ComparisonTable row={row} />
+          </CorridorDetails>
+        ))}
+      </div>
+      <ul className="flex flex-col gap-1">
+        {corridors.map((row) => (
+          <li key={row.presetId} className="text-sm text-muted-foreground">
+            {row.conclusion}
+          </li>
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
+function ScenarioTable({ rows }: { rows: readonly ReportScenarioRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="sc-table">
+        <thead>
+          <tr>
+            <th scope="col">Scenario</th>
+            <th scope="col">Family</th>
+            <th scope="col" className="num">
+              Net
+            </th>
+            <th scope="col" className="num">
+              Excess wait cut
+            </th>
+            <th scope="col" className="num">
+              Incidents
+            </th>
+            <th scope="col">Outcome</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td className="font-medium text-foreground">{row.title}</td>
+              <td className="text-muted-foreground">{row.familyLabel}</td>
+              <NumCell>{signedPercent(row.netPercent)}</NumCell>
+              <NumCell>{cutPercent(row.excessWaitPercent)}</NumCell>
+              <NumCell>
+                {beforeAfter(count(row.incidentsBefore), count(row.incidentsAfter))}
+              </NumCell>
+              <td>
+                <span className={OUTCOME_CHIP[row.outcome]}>{row.outcomeLabel}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ResultsByScenario({
+  scenarios,
+  corridors,
+}: {
+  scenarios: ReportModel['scenarios'];
+  corridors: readonly ReportCorridorRow[];
+}) {
+  return (
+    <Section index={4} title="Results by scenario" teaser={scenarioTeaser(scenarios)}>
+      <div className="flex flex-col">
+        {scenarios.map((corridor, position) => (
+          <CorridorDetails
+            key={corridor.presetId}
+            name={corridor.name}
+            shape={shapeOf(corridors, corridor.presetId)}
+            open={position === 0}
+          >
+            <ScenarioTable rows={corridor.rows} />
+          </CorridorDetails>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function ActivityBlock({ activity }: { activity: ReportActivityModel }) {
+  return (
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="overflow-x-auto">
+        <table className="sc-table">
+          <thead>
+            <tr>
+              <th scope="col">Law</th>
+              <th scope="col" className="num">
+                Decisions
+              </th>
+              <th scope="col" className="num">
+                Share
+              </th>
+              <th scope="col" className="num">
+                Holds
+              </th>
+              <th scope="col" className="num">
+                Hold time
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {activity.laws.map((law) => (
+              <tr key={law.id}>
+                <td className="font-medium text-foreground">{law.name}</td>
+                <NumCell>{`${count(law.decisionsGenerating)} of ${count(law.decisionsTotal)}`}</NumCell>
+                <NumCell>{sharePercent(law.sharePercent)}</NumCell>
+                <NumCell>{count(law.holdCount)}</NumCell>
+                <NumCell>{minutesOf(law.holdSeconds)}</NumCell>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-col gap-3">
+        <p className="sc-label">Busiest stations</p>
+        {activity.stationHolds.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No holds were issued.</p>
+        ) : (
+          <ol className="flex flex-col gap-3">
+            {activity.stationHolds.map((station) => (
+              <li
+                key={station.sequence}
+                className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-4 gap-y-1"
+              >
+                <span className="truncate text-sm text-foreground">{station.name}</span>
+                <span className="font-mono text-xs tabular-nums text-foreground">
+                  {minutesOf(station.holdSeconds)}
+                </span>
+                <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                  {`${count(station.holdCount)} holds`}
+                </span>
+                <div className="col-span-3 h-1.5 overflow-hidden rounded-full bg-primary/10">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      background: 'var(--sim-hold)',
+                      opacity: 0.8,
+                      width: `${Math.max(0, Math.min(100, station.share * 100))}%`,
+                    }}
+                  />
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </div>
+  );
+}
