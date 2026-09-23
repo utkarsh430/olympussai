@@ -65,3 +65,27 @@ function cutPercent(value: number | null): string {
 function beforeAfter(before: string, after: string): string {
   return `${before} ${ARROW} ${after}`;
 }
+
+function minutesOf(seconds: number): string {
+  return `${(seconds / 60).toFixed(1)} min`;
+}
+
+function sharePercent(value: number): string {
+  return `${Math.round(value)}%`;
+}
+
+/** The scenario section's teaser counts what the model holds rather than quoting a library size. */
+function scenarioTeaser(scenarios: ReportModel['scenarios']): string {
+  const counts = scenarios.map((corridor) => corridor.rows.length);
+  const first = counts[0];
+  if (first !== undefined && counts.every((n) => n === first)) {
+    return `${count(first)} scenarios per corridor`;
+  }
+  const total = counts.reduce((sum, n) => sum + n, 0);
+  return `${count(total)} scenarios across ${count(counts.length)} corridors`;
+}
+
+/** The shape a corridor was described with in the setup table, for the sections that only carry its name. */
+function shapeOf(corridors: readonly ReportCorridorRow[], presetId: string): string | null {
+  return corridors.find((row) => row.presetId === presetId)?.shape ?? null;
+}
