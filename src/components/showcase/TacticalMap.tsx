@@ -67,3 +67,30 @@ const HIT_RADIUS = 18;
 const NOSE_Y = -7;
 const WING_X = 4.4;
 const WING_Y = 5.6;
+const TAIL_Y = 2.8;
+const CHEVRON_SCALE = 1.7;
+
+/**
+ * Which stations get a name. A short route names every one; a medium one
+ * every second; a long one falls back to the width rule, since twenty-five
+ * names on a narrow plot overlap each other.
+ */
+export function labelEvery(stopCount: number, width: number): number {
+  if (stopCount <= 12) return 1;
+  if (stopCount <= 16) return 2;
+  return width > 900 ? 2 : 4;
+}
+
+interface Ink {
+  grid: string;
+  axis: string;
+  corridor: string;
+  hold: string;
+  danger: string;
+  warning: string;
+  info: string;
+  muted: string;
+  ground: string;
+  font: string;
+  captionFont: string;
+}
