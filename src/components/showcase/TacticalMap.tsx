@@ -57,3 +57,13 @@ const CAPTION_BOTTOM = 16;
 const GRID_PX = 44;
 /** Seconds one hold pulse takes to expand and fade before the next begins. */
 const PULSE_PERIOD = 1.6;
+/** How close, in CSS pixels, a click has to land to a bus to select it. */
+const HIT_RADIUS = 18;
+
+/* The fleet layer's chevron geometry at scale 1, nose up (fleetCanvasLayer.ts).
+   Mirrored rather than imported because that file builds SVG path strings
+   for Path2D, which this plot does not need: ten buses are drawn with four
+   lineTo calls each. */
+const NOSE_Y = -7;
+const WING_X = 4.4;
+const WING_Y = 5.6;
