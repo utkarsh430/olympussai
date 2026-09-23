@@ -425,3 +425,261 @@ describe('ControllerPipelineScene', () => {
     expect(screen.getByText('15 min')).toBeInTheDocument();
   });
 });
+
+describe('PassengerBalanceScene', () => {
+  it('renders both sides of the balance and the net, and no before/after row', () => {
+    render(<PassengerBalanceScene model={model.balance} />);
+    expect(screen.getByText('Waiting removed')).toBeInTheDocument();
+    expect(screen.getByText('Time aboard added')).toBeInTheDocument();
+    expect(screen.getByText('Net passenger-hours saved')).toBeInTheDocument();
+    expect(screen.queryByText('Incidents resolved')).toBeNull();
+    expect(screen.queryByText('On-time arrivals')).toBeNull();
+    expect(screen.queryByText('Bunching incidents')).toBeNull();
+  });
+});
+
+describe('ScaleProjectionScene', () => {
+  it('renders the six stat labels', () => {
+    render(<ScaleProjectionScene model={model.scale} />);
+    expect(model.scale.stats).toHaveLength(6);
+    for (const stat of model.scale.stats) {
+      expect(screen.getByText(stat.label)).toBeInTheDocument();
+    }
+  });
+});
+
+describe('ReportScene', () => {
+  it('carries the reference and prints on request', () => {
+    const print = vi.fn();
+    vi.stubGlobal('print', print);
+    render(<ReportScene model={model.report} />);
+
+    expect(screen.getByText('FT-20260923-02')).toBeInTheDocument();
+    expect(screen.getByText('Fleet trial report')).toBeInTheDocument();
+
+    const button = screen.getByRole('button', { name: 'Export as PDF' });
+    expect(button).toHaveClass('sc-print-hide');
+    fireEvent.click(button);
+    expect(print).toHaveBeenCalledTimes(1);
+  });
+
+  it('folds the six numbered sections as headings, with only the summary open', () => {
+    const { container } = render(<ReportScene model={model.report} />);
+
+    const sections = topLevelSections(container);
+    expect(sections).toHaveLength(6);
+    expect(sections.map((section) => section.hasAttribute('open'))).toEqual([
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+
+    const headings = sections.map((section) => {
+      const summary = section.querySelector(':scope > summary');
+      if (!summary) throw new Error('a section has no summary');
+      return within(summary as HTMLElement);
+    });
+    const expected = [
+      ['01', 'Summary', 'Verdict, headline figures, one line per corridor'],
+      ['02', 'Trial setup', 'Fleet, scenarios, corridors, detector'],
+      ['03', 'Results by corridor', 'Eight measurements, both arms, per corridor'],
+      // The fixture's two corridors carry three and one scenarios, so the
+      // teaser counts rather than quoting a library size.
+      ['04', 'Results by scenario', '4 scenarios across 2 corridors'],
+      ['05', 'Controller activity', 'Laws and busiest stations per corridor'],
+      ['06', 'Method', 'How the trial was run'],
+    ] as const;
+    expected.forEach(([index, title, teaser], position) => {
+      const heading = headings[position];
+      if (!heading) throw new Error(`no heading at ${position}`);
+      expect(heading.getByText(index)).toHaveClass('sc-label');
+      expect(heading.getByText(title)).toHaveClass('sc-display', 'text-2xl');
+      expect(heading.getByText(teaser)).toHaveClass('text-sm', 'text-muted-foreground');
+      expect(heading.getByRole('heading', { level: 3 })).toBeInTheDocument();
+    });
+
+    // The summary's body is visible; a folded section's is not until opened.
+    expect(screen.getByText('Total passenger time saved')).toBeVisible();
+    expect(screen.getByText('Length (km)')).not.toBeVisible();
+  });
+
+  it('opens a section on its heading, with the lead corridor open inside it and the others folded', () => {
+    const { container } = render(<ReportScene model={model.report} />);
+    const [, , byCorridor, byScenario, activity] = topLevelSections(container);
+    if (!byCorridor || !byScenario || !activity) throw new Error('missing sections');
+
+    expect(byCorridor).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByRole('heading', { name: /Results by corridor/ }));
+    expect(byCorridor).toHaveAttribute('open');
+    const [lead] = corridorSections(byCorridor);
+    if (!lead) throw new Error('no lead corridor');
+    expect(within(lead).getByText('Left alone')).toBeVisible();
+
+    for (const section of [byCorridor, byScenario, activity]) {
+      const corridors = corridorSections(section);
+      expect(corridors).toHaveLength(2);
+      expect(corridors.map((corridor) => corridor.hasAttribute('open'))).toEqual([true, false]);
+      // Each corridor block is headed by its name and its shape.
+      for (const [corridor, name] of [
+        [corridors[0], 'City trunk'],
+        [corridors[1], 'Inter-city trunk'],
+      ] as const) {
+        const summary = corridor?.querySelector(':scope > summary');
+        if (!summary) throw new Error(`no summary for ${name}`);
+        expect(within(summary as HTMLElement).getByText(name)).toHaveClass('sc-label');
+        expect(summary.querySelector('.text-xs.text-muted-foreground')).not.toBeNull();
+      }
+    }
+
+    // Opening a folded corridor block reveals its own table.
+    const [, intercity] = corridorSections(byCorridor);
+    if (!intercity) throw new Error('no second corridor');
+    expect(within(intercity).getByText('Left alone')).not.toBeVisible();
+    fireEvent.click(within(intercity).getByText('Inter-city trunk'));
+    expect(intercity).toHaveAttribute('open');
+    expect(within(intercity).getByText('Left alone')).toBeVisible();
+  });
+
+  it('opens every section for the export and closes only the ones it opened once the print is over', () => {
+    const print = vi.fn();
+    vi.stubGlobal('print', print);
+    const { container } = render(<ReportScene model={model.report} />);
+
+    const all = Array.from(container.querySelectorAll('details'));
+    const closedBefore = all.filter((section) => !section.open);
+    // Both kinds exist, so the restore is asserted on each.
+    expect(closedBefore.length).toBeGreaterThan(0);
+    expect(closedBefore.length).toBeLessThan(all.length);
+
+    let openWhenPrinting: boolean[] = [];
+    print.mockImplementation(() => {
+      openWhenPrinting = all.map((section) => section.open);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Export as PDF' }));
+    expect(print).toHaveBeenCalledTimes(1);
+    expect(openWhenPrinting).toEqual(all.map(() => true));
+    expect(all.every((section) => section.hasAttribute('open'))).toBe(true);
+
+    fireEvent(window, new Event('afterprint'));
+    for (const section of all) {
+      expect(section.hasAttribute('open')).toBe(!closedBefore.includes(section));
+    }
+  });
+
+  it("opens every section for the browser's own print and restores afterwards", () => {
+    const { container } = render(<ReportScene model={model.report} />);
+    const all = Array.from(container.querySelectorAll('details'));
+    const closedBefore = all.filter((section) => !section.open);
+    expect(closedBefore.length).toBeGreaterThan(0);
+
+    fireEvent(window, new Event('beforeprint'));
+    expect(all.every((section) => section.hasAttribute('open'))).toBe(true);
+
+    fireEvent(window, new Event('afterprint'));
+    for (const section of all) {
+      expect(section.hasAttribute('open')).toBe(!closedBefore.includes(section));
+    }
+  });
+
+  it('keeps the header and the footer outside every section', () => {
+    render(<ReportScene model={model.report} />);
+    expect(screen.getByText('FT-20260923-02').closest('details')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Export as PDF' }).closest('details')).toBeNull();
+    expect(
+      screen.getByRole('link', { name: 'Open the operations console' }).closest('details'),
+    ).toBeNull();
+  });
+
+  it('tabulates one comparison table per corridor, one table per corridor of scenarios, and the method', () => {
+    render(<ReportScene model={model.report} />);
+
+    // Section 03: the ops console's comparison table, once per corridor,
+    // each introduced by the corridor's name.
+    const results = reportSection(/Results by corridor/);
+    const tables = within(results).getAllByRole('table');
+    expect(model.report.corridors).toHaveLength(2);
+    expect(tables).toHaveLength(model.report.corridors.length);
+    expect(within(results).getByText('City trunk')).toHaveClass('sc-label');
+    expect(within(results).getByText('Inter-city trunk')).toHaveClass('sc-label');
+
+    const body = (tables[0] as HTMLElement).querySelector('tbody');
+    expect(body).not.toBeNull();
+    const rows = within(body as HTMLElement).getAllByRole('row');
+    expect(rows).toHaveLength(8);
+    for (const label of [
+      'Total passenger time',
+      'Excess wait time',
+      'Headway variability (CV)',
+      'Arrivals that were bunched',
+      'Passengers refused a seat',
+      'Journey time per bus',
+      'Arriving on time',
+      'Lateness at the terminus',
+    ]) {
+      expect(within(body as HTMLElement).getByText(label)).toBeInTheDocument();
+    }
+    expect(within(body as HTMLElement).getByText(/the whole journey/)).toBeInTheDocument();
+
+    // The fixture's 100,000 passenger-seconds left alone is 28 h; the change
+    // is the authored +3.8%, read as an improvement and coloured as one.
+    const passengerTime = rows[0] as HTMLElement;
+    expect(within(passengerTime).getByText('28 h')).toBeVisible();
+    const arrow = within(passengerTime).getByText('▲');
+    expect(arrow).toHaveAttribute('aria-label', 'better');
+    expect(arrow.parentElement).toHaveClass('text-success');
+    expect(arrow.parentElement).toHaveTextContent('▲ 3.8%');
+
+    // Journey time is a cost, stated in words: 474 added seconds is +7.9 min.
+    const journey = rows[5] as HTMLElement;
+    expect(within(journey).getByText('Journey time per bus')).toBeInTheDocument();
+    expect(within(journey).getByText('+7.9 min')).toHaveClass('text-muted-foreground');
+    expect(within(journey).queryByText(/[▲▼]/)).not.toBeInTheDocument();
+
+    const scenarios = reportSection(/Results by scenario/);
+    expect(within(scenarios).getAllByRole('table')).toHaveLength(2);
+    expect(within(scenarios).getByText('Long-haul steady variability')).toBeInTheDocument();
+    expect(within(scenarios).getByText('Stress test')).toBeVisible();
+
+    const method = reportSection(/Method/);
+    expect(model.report.method.length).toBeGreaterThan(0);
+    for (const paragraph of model.report.method) {
+      expect(within(method).getByText(paragraph)).toBeVisible();
+    }
+    for (const law of model.report.laws) {
+      expect(within(method).getByText(law.name)).toBeInTheDocument();
+    }
+
+    expect(screen.getByRole('link', { name: 'Open the operations console' })).toHaveAttribute(
+      'href',
+      '/ops/control-room/simulator',
+    );
+  });
+});
+
+describe('the scenes together', () => {
+  it('carry no provenance labelling and none of the cockpit classes', () => {
+    const { container } = render(
+      <>
+        <HeroScene model={model.hero} />
+        <VerdictScene model={model.verdict} />
+        <ScenarioGalleryScene model={model.gallery} />
+        <ControllerPipelineScene model={model.pipeline} />
+        <PassengerBalanceScene model={model.balance} />
+        <ScaleProjectionScene model={model.scale} />
+        <ReportScene model={model.report} />
+      </>,
+    );
+    expect(container.textContent).not.toMatch(/projected|prototype|illustrative/i);
+
+    const offending: string[] = [];
+    for (const element of Array.from(container.querySelectorAll('*'))) {
+      for (const name of Array.from(element.classList)) {
+        if (name.startsWith('hud-') || name.includes('text-glow')) offending.push(name);
+      }
+    }
+    expect(offending).toEqual([]);
+  });
+});
