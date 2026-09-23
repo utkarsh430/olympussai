@@ -160,3 +160,150 @@ function SetupRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+// ─── Sections ────────────────────────────────────────────────────────────
+
+function ReportHeader({ model, onExport }: { model: ReportModel; onExport: () => void }) {
+  const headerSetup = HEADER_SETUP_LABELS.flatMap((label) => {
+    const row = model.setup.find((entry) => entry.label === label);
+    return row ? [row] : [];
+  });
+
+  return (
+    <header className="flex flex-col gap-6 pb-10 md:flex-row md:items-start md:justify-between">
+      <div className="flex flex-col gap-4">
+        <p className="sc-eyebrow">{model.title}</p>
+        <h2 className="sc-display sc-h2 text-foreground">
+          {'Reference '}
+          <span className="tabular-nums">{model.reference}</span>
+        </h2>
+        <dl className="flex flex-wrap gap-x-6 gap-y-2">
+          <div className="flex items-baseline gap-2">
+            <dt className="sc-label">Generated</dt>
+            <dd className="text-sm text-foreground">{model.generatedLabel}</dd>
+          </div>
+          {headerSetup.map((row) => (
+            <div key={row.label} className="flex items-baseline gap-2">
+              <dt className="sc-label">{row.label}</dt>
+              <dd className="text-sm text-foreground">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      <button type="button" className="sc-button-primary sc-print-hide shrink-0" onClick={onExport}>
+        <Printer className="h-4 w-4" aria-hidden />
+        Export as PDF
+      </button>
+    </header>
+  );
+}
+
+function Summary({ model }: { model: ReportModel['summary'] }) {
+  return (
+    <Section
+      index={1}
+      title="Summary"
+      teaser="Verdict, headline figures, one line per corridor"
+      open
+    >
+      <p className="sc-display text-3xl text-foreground">{model.sentence}</p>
+      <p className="ol-body">{model.because}</p>
+      <div className="grid gap-8 sm:grid-cols-2">
+        <StatTile
+          size="lg"
+          tone="glow"
+          stat={{
+            id: 'report-net',
+            label: 'Total passenger time saved',
+            value: Math.abs(model.netPercent),
+            decimals: 1,
+            prefix: model.netPercent < 0 ? MINUS : '+',
+            suffix: '%',
+          }}
+        />
+        <StatTile
+          size="lg"
+          tone="foreground"
+          stat={{
+            id: 'report-ewt',
+            label: 'Excess waiting removed',
+            value: model.excessWaitPercent,
+            prefix: MINUS,
+            suffix: '%',
+          }}
+        />
+      </div>
+      <ul className="flex flex-col gap-2">
+        {model.corridorLines.map((line) => (
+          <li key={line} className="text-sm text-foreground">
+            {line}
+          </li>
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
+function TrialSetup({
+  setup,
+  corridors,
+}: {
+  setup: ReportModel['setup'];
+  corridors: readonly ReportCorridorRow[];
+}) {
+  return (
+    <Section index={2} title="Trial setup" teaser="Fleet, scenarios, corridors, detector">
+      <dl className="grid gap-x-10 sm:grid-cols-2">
+        {setup.map((row) => (
+          <SetupRow key={row.label} label={row.label} value={row.value} />
+        ))}
+      </dl>
+      <div className="overflow-x-auto">
+        <table className="sc-table">
+          <thead>
+            <tr>
+              <th scope="col">Corridor</th>
+              <th scope="col">Shape</th>
+              <th scope="col" className="num">
+                Length (km)
+              </th>
+              <th scope="col" className="num">
+                Stops
+              </th>
+              <th scope="col" className="num">
+                Headway (min)
+              </th>
+              <th scope="col">Band</th>
+              <th scope="col" className="num">
+                Hold cap (s)
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {corridors.map((row) => (
+              <tr key={row.presetId}>
+                <td className="font-medium text-foreground">{row.name}</td>
+                <td className="text-muted-foreground">{row.shape}</td>
+                <NumCell>{count(row.lengthKm)}</NumCell>
+                <NumCell>{count(row.stops)}</NumCell>
+                <NumCell>{count(row.headwayMinutes)}</NumCell>
+                <td>{row.bandLabel}</td>
+                <NumCell>{count(row.maxHoldSeconds)}</NumCell>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Section>
+  );
+}
+
+/** A figure with its optional note beneath: the mean with its p95, say. */
+function ValueCell({ value, note }: { value: string; note: string | null }) {
+  return (
+    <NumCell>
+      {value}
+      {note ? <div className="text-xs text-muted-foreground">{note}</div> : null}
+    </NumCell>
+  );
+}
