@@ -46,3 +46,19 @@ export interface ReplayLanesProps {
 
 const PAD_X = 12;
 const PAD_TOP = 22;
+const PAD_BOTTOM = 18;
+const LANE_GAP = 26;
+/** The least room two hour labels may have between them. */
+const MIN_TICK_PX = 44;
+
+/**
+ * Hours between labelled ticks so that labels stay at least `MIN_TICK_PX`
+ * apart: 1 for a short window, 2 or more once the window runs long enough
+ * or the panel narrow enough that every hour would collide.
+ */
+export function hourTickStep(spanSeconds: number, innerWidthPx: number): number {
+  const hoursSpan = spanSeconds / 3600;
+  if (!(hoursSpan > 0) || !(innerWidthPx > 0)) return 1;
+  const pxPerHour = innerWidthPx / hoursSpan;
+  return Math.max(1, Math.ceil(MIN_TICK_PX / pxPerHour));
+}
