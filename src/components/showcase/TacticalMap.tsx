@@ -94,3 +94,55 @@ interface Ink {
   font: string;
   captionFont: string;
 }
+
+/**
+ * Resolve every colour the frame needs from the canvas's computed style.
+ * A token that does not resolve (no themed ancestor) draws transparent
+ * rather than inventing a hex; that is a theming failure to fix upstream,
+ * not one to paper over here.
+ */
+function resolveInk(host: HTMLCanvasElement | null, arm: ReplayArm): Ink {
+  const style = host ? getComputedStyle(host) : null;
+  const read = (name: string): string => style?.getPropertyValue(name).trim() ?? '';
+  const colour = (name: string): string => {
+    const value = read(name);
+    if (!value) return 'transparent';
+    return /^\d/.test(value) ? `hsl(${value})` : value;
+  };
+  const mono = read('--font-mono') || 'ui-monospace, SFMono-Regular, monospace';
+  return {
+    grid: colour('--sim-grid'),
+    axis: colour('--sim-axis'),
+    corridor: colour(arm === 'controlled' ? '--sim-controlled' : '--sim-baseline'),
+    hold: colour('--sim-hold'),
+    danger: colour('--instrument-danger'),
+    warning: colour('--instrument-warning'),
+    info: colour('--instrument-info'),
+    muted: colour('--muted-foreground'),
+    ground: colour('--background'),
+    font: `10px ${mono}`,
+    captionFont: `11px ${mono}`,
+  };
+}
+
+interface Hit {
+  x: number;
+  y: number;
+  id: string;
+}
+
+function chevron(ctx: CanvasRenderingContext2D, cx: number, cy: number, heading: number): void {
+  const radians = (heading * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const nose = NOSE_Y * CHEVRON_SCALE;
+  const wingX = WING_X * CHEVRON_SCALE;
+  const wingY = WING_Y * CHEVRON_SCALE;
+  const tail = TAIL_Y * CHEVRON_SCALE;
+  ctx.beginPath();
+  ctx.moveTo(cx - nose * sin, cy + nose * cos);
+  ctx.lineTo(cx + wingX * cos - wingY * sin, cy + wingX * sin + wingY * cos);
+  ctx.lineTo(cx - tail * sin, cy + tail * cos);
+  ctx.lineTo(cx - wingX * cos - wingY * sin, cy - wingX * sin + wingY * cos);
+  ctx.closePath();
+}
