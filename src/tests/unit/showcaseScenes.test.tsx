@@ -244,3 +244,46 @@ afterEach(() => {
   vi.unstubAllGlobals();
   HTMLCanvasElement.prototype.getContext = originalGetContext;
 });
+
+/**
+ * The `<details>` a numbered report heading opens, clicked open if it is
+ * closed so the body a test reads is the one a reader would see.
+ */
+function reportSection(title: RegExp): HTMLDetailsElement {
+  const details = screen.getByRole('heading', { name: title }).closest('details');
+  if (!details) throw new Error(`no section for ${title}`);
+  if (!details.open) {
+    const summary = details.querySelector(':scope > summary');
+    if (!summary) throw new Error(`no summary for ${title}`);
+    fireEvent.click(summary);
+  }
+  return details;
+}
+
+/** The numbered sections at the top level of the sheet, in order. */
+function topLevelSections(container: HTMLElement): HTMLDetailsElement[] {
+  const sheet = container.querySelector('article');
+  if (!sheet) throw new Error('no sheet');
+  return Array.from(sheet.children).filter((child): child is HTMLDetailsElement =>
+    child.matches('details.sc-details'),
+  );
+}
+
+/** The corridor blocks folded inside one section, in order. */
+function corridorSections(section: HTMLElement): HTMLDetailsElement[] {
+  return Array.from(section.querySelectorAll<HTMLDetailsElement>('details.sc-details-nested'));
+}
+
+// ─── The scenes ──────────────────────────────────────────────────────────
+
+describe('HeroScene', () => {
+  it('renders the eyebrow, the split title and the four stat labels', () => {
+    render(<HeroScene model={model.hero} />);
+    expect(screen.getByText(model.hero.eyebrow)).toBeInTheDocument();
+    expect(screen.getByText('One controller.')).toBeInTheDocument();
+    expect(model.hero.stats).toHaveLength(4);
+    for (const stat of model.hero.stats) {
+      expect(screen.getByText(stat.label)).toBeInTheDocument();
+    }
+  });
+});
