@@ -69,3 +69,30 @@
 .sc-numeral-hero {
   font-size: clamp(2.8rem, 7vw, 6.5rem);
 }
+
+.sc-numeral-lg {
+  font-size: clamp(2rem, 3.8vw, 3.6rem);
+}
+
+.sc-numeral-md {
+  font-size: clamp(1.4rem, 2.2vw, 2.2rem);
+}
+
+.sc-label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--muted-foreground));
+}
+
+.sc-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: hsl(var(--primary));
+}
