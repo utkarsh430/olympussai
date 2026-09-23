@@ -321,3 +321,25 @@
 .sc-details > summary:hover {
   color: hsl(var(--primary));
 }
+
+.sc-details > summary:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 4px;
+  border-radius: 0.25rem;
+}
+
+.sc-details-nested {
+  border-top: 1px dashed hsl(var(--border));
+}
+
+.sc-details-nested > summary {
+  padding: 0.875rem 0;
+}
+
+/* ─── Report tables ────────────────────────────────────────────────────── */
+
+.sc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
