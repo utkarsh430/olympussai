@@ -80,3 +80,40 @@ function sweep(peak: number) {
     liveVehicles: 20,
   }));
 }
+
+function trajectory(vehicleId: string) {
+  return {
+    vehicleId,
+    points: [
+      { t: 0, d: 0, hold: 0 },
+      { t: 60, d: 500, hold: 0 },
+      { t: 120, d: 1_000, hold: 20 },
+    ],
+  };
+}
+
+function scenario(id: string, title: string, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    title,
+    mechanism: `${title} mechanism`,
+    whatItTests: `${title} test`,
+    vehicleCount: 20,
+    horizonSeconds: 1_800,
+    saturated: false,
+    contrast: contrast(),
+    controlled: arm({ incidentsDetected: 3 }),
+    uncontrolled: arm(),
+    sweeps: { controlled: sweep(2), uncontrolled: sweep(5) },
+    trajectories: null,
+    ...overrides,
+  };
+}
+
+const replayScenario = (title: string) =>
+  scenario('steady_variability', title, {
+    trajectories: {
+      controlled: [trajectory('c-1'), trajectory('c-2')],
+      uncontrolled: [trajectory('u-1'), trajectory('u-2')],
+    },
+  });
