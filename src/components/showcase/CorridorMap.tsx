@@ -91,3 +91,25 @@ const FOLLOW_RING_PX = 18;
 
 /** Station labels sit this far above or below the dot, in the symbol's own units (scaled by `scale`). */
 const LABEL_OFFSET_UNITS = 4;
+const STATION_SCALE = 3.5;
+
+const NO_OVERLAYS: readonly FleetMapOverlay[] = [];
+
+const noop = () => undefined;
+
+/**
+ * One design token as a colour string.
+ *
+ * This is the one place resolved colour strings are unavoidable: the Maps
+ * API takes hex for a polyline and a symbol, and the canvas layer takes a
+ * colour string for a fill, and neither can read a CSS custom property. So
+ * the tokens are read off the container's computed style ONCE, when the
+ * map is built. `--instrument-*` and the page tokens are HSL triplets
+ * (`39 100% 56%`) and are wrapped; `--sim-*` are literal colours and pass
+ * through; a token that resolves to nothing takes the documented value.
+ */
+export function tokenColour(el: Element, name: string, fallback: string): string {
+  const value = getComputedStyle(el).getPropertyValue(name).trim();
+  if (!value) return fallback;
+  return /^\d/.test(value) ? `hsl(${value})` : value;
+}
