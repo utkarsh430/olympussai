@@ -549,3 +549,156 @@ function ActivityBlock({ activity }: { activity: ReportActivityModel }) {
     </div>
   );
 }
+
+function ControllerActivity({
+  activity,
+  corridors,
+}: {
+  activity: readonly ReportActivityModel[];
+  corridors: readonly ReportCorridorRow[];
+}) {
+  return (
+    <Section index={5} title="Controller activity" teaser="Laws and busiest stations per corridor">
+      <div className="flex flex-col">
+        {activity.map((entry, position) => (
+          <CorridorDetails
+            key={entry.presetId}
+            name={entry.name}
+            shape={shapeOf(corridors, entry.presetId)}
+            open={position === 0}
+          >
+            <ActivityBlock activity={entry} />
+          </CorridorDetails>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function Method({
+  method,
+  laws,
+  detector,
+}: {
+  method: ReportModel['method'];
+  laws: ReportModel['laws'];
+  detector: ReportModel['detector'];
+}) {
+  return (
+    <Section index={6} title="Method" teaser="How the trial was run">
+      <div className="flex flex-col gap-4">
+        {method.map((paragraph) => (
+          <p key={paragraph} className="text-sm leading-relaxed text-muted-foreground">
+            {paragraph}
+          </p>
+        ))}
+      </div>
+      <dl className="grid gap-x-10 gap-y-4 sm:grid-cols-2">
+        {laws.map((law) => (
+          <div key={law.id}>
+            <dt className="font-medium text-foreground">{law.name}</dt>
+            <dd className="text-sm text-muted-foreground">{law.oneLiner}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="text-sm leading-relaxed text-muted-foreground">{detector.description}</p>
+    </Section>
+  );
+}
+
+function ReportFooter({
+  routeNames,
+  consoleHref,
+}: {
+  routeNames: readonly string[];
+  consoleHref: string;
+}) {
+  return (
+    <footer className="flex flex-col gap-6 pt-6">
+      <div className="sc-rule" aria-hidden />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <span className="sc-label">{routeNames.join(' · ')}</span>
+        <div className="sc-print-hide">
+          <Button variant="brandOutline" size="xl" asChild>
+            <Link href={consoleHref}>Open the operations console</Link>
+          </Button>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/**
+ * A document inside the instrument: the whole trial on one sheet, in the
+ * order a reader wants it - the answer, how it was set up, the results by
+ * corridor and by scenario, what the controller did, and how it was measured.
+ * Every figure comes from the model; the sheet is the only thing that prints.
+ *
+ * Each numbered section is a native `<details>` with its heading as the
+ * disclosure, the summary open and the rest folded, and the corridor blocks
+ * inside the three per-corridor sections fold the same way with the lead
+ * corridor open. Paper gets all of it: a print, whether from the Export
+ * button or the browser's own shortcut, opens every section first and closes
+ * again exactly the ones that were closed once the print is over.
+ */
+export function ReportScene({ model }: { model: ReportModel }) {
+  const sheetRef = useRef<HTMLElement>(null);
+  /** The sections a print opened, so only those are closed again afterwards. */
+  const openedForPrint = useRef<HTMLDetailsElement[]>([]);
+  const restoreTimer = useRef<number | null>(null);
+
+  const openAllSections = useCallback(() => {
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+    const closed = Array.from(sheet.querySelectorAll('details')).filter((section) => !section.open);
+    for (const section of closed) section.open = true;
+    openedForPrint.current = [...openedForPrint.current, ...closed];
+  }, []);
+
+  const restoreSections = useCallback(() => {
+    if (restoreTimer.current !== null) {
+      window.clearTimeout(restoreTimer.current);
+      restoreTimer.current = null;
+    }
+    for (const section of openedForPrint.current) section.open = false;
+    openedForPrint.current = [];
+  }, []);
+
+  const exportAsPdf = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    openAllSections();
+    window.print();
+    // In most browsers `afterprint` has already fired by the time print()
+    // returns and there is nothing left to restore; the timer covers one
+    // that never fires it.
+    if (openedForPrint.current.length > 0 && restoreTimer.current === null) {
+      restoreTimer.current = window.setTimeout(restoreSections, RESTORE_FALLBACK_MS);
+    }
+  }, [openAllSections, restoreSections]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    window.addEventListener('beforeprint', openAllSections);
+    window.addEventListener('afterprint', restoreSections);
+    return () => {
+      window.removeEventListener('beforeprint', openAllSections);
+      window.removeEventListener('afterprint', restoreSections);
+      if (restoreTimer.current !== null) window.clearTimeout(restoreTimer.current);
+    };
+  }, [openAllSections, restoreSections]);
+
+  return (
+    <div className="mx-auto w-full max-w-6xl px-6 py-24">
+      <article ref={sheetRef} className="sc-panel-strong flex flex-col p-8 md:p-12">
+        <ReportHeader model={model} onExport={exportAsPdf} />
+        <Summary model={model.summary} />
+        <TrialSetup setup={model.setup} corridors={model.corridors} />
+        <ResultsByCorridor corridors={model.corridors} />
+        <ResultsByScenario scenarios={model.scenarios} corridors={model.corridors} />
+        <ControllerActivity activity={model.activity} corridors={model.corridors} />
+        <Method method={model.method} laws={model.laws} detector={model.detector} />
+        <ReportFooter routeNames={model.routeNames} consoleHref={model.consoleHref} />
+      </article>
+    </div>
+  );
+}
