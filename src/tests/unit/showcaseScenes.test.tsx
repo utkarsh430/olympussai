@@ -287,3 +287,141 @@ describe('HeroScene', () => {
     }
   });
 });
+
+describe('VerdictScene', () => {
+  it('renders the sentence, both numerals and the three corridors with their seed agreement', () => {
+    render(<VerdictScene model={model.verdict} />);
+    expect(screen.getByText(model.verdict.sentence)).toBeInTheDocument();
+    expect(screen.getByText('Total passenger time saved')).toBeInTheDocument();
+    expect(screen.getByText('Excess waiting removed')).toBeInTheDocument();
+
+    const tiles = screen.getAllByRole('listitem');
+    expect(tiles).toHaveLength(3);
+    expect(screen.getByText('City trunk')).toBeInTheDocument();
+    expect(screen.getByText('Suburban radial')).toBeInTheDocument();
+    expect(screen.getByText('Inter-city trunk')).toBeInTheDocument();
+    expect(within(tiles[0] as HTMLElement).getByText('6 of 6 seeds agree')).toBeInTheDocument();
+    expect(screen.getByText('5 of 6 seeds agree')).toBeInTheDocument();
+    expect(screen.getByText('High dispersion')).toBeInTheDocument();
+  });
+});
+
+describe('ScenarioGalleryScene', () => {
+  it('opens on the urban corridor with one card per scenario, the family chips and the outcome chips', () => {
+    render(<ScenarioGalleryScene model={model.gallery} />);
+
+    const corridors = screen.getByRole('group', { name: 'Choose a corridor' });
+    expect(within(corridors).getAllByRole('button')).toHaveLength(2);
+    expect(within(corridors).getByRole('button', { name: 'City trunk' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(within(corridors).getByRole('button', { name: 'Inter-city trunk' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    expect(screen.getByText('24 km · 25 stops · 6-minute headway')).toBeInTheDocument();
+
+    expect(screen.getAllByRole('article')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: 'All (3)' })).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      screen.getByRole('button', { name: 'Ways a corridor comes apart (2)' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Attacks on the controller (1)' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Attacks on the estimator (0)' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Stress test')).toBeInTheDocument();
+    expect(screen.getAllByText('Helped')).toHaveLength(2);
+    expect(screen.getAllByTestId('sparkline')).toHaveLength(3);
+    // Every fixture scenario detects 6 incidents left alone and 3 under control.
+    expect(screen.getAllByText('incidents 6 → 3')).toHaveLength(3);
+  });
+
+  it('switches corridor, rendering the cards of that corridor and resetting the family filter', () => {
+    render(<ScenarioGalleryScene model={model.gallery} />);
+    const corridors = screen.getByRole('group', { name: 'Choose a corridor' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Attacks on the controller (1)' }));
+    expect(screen.getAllByRole('article')).toHaveLength(1);
+    expect(screen.getByText('Oversaturated')).toBeInTheDocument();
+
+    fireEvent.click(within(corridors).getByRole('button', { name: 'Inter-city trunk' }));
+    expect(within(corridors).getByRole('button', { name: 'Inter-city trunk' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByText('300 km · 10 stations · 30-minute headway')).toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(1);
+    expect(screen.getByText('Long-haul steady variability')).toBeInTheDocument();
+    expect(screen.queryByText('Slow bus')).not.toBeInTheDocument();
+    expect(screen.queryByText('Oversaturated')).not.toBeInTheDocument();
+    // The filter came back to "All", and the counts are this corridor's own.
+    expect(screen.getByRole('button', { name: 'All (1)' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Ways a corridor comes apart (1)' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Attacks on the controller (0)' }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(corridors).getByRole('button', { name: 'City trunk' }));
+    expect(screen.getAllByRole('article')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: 'All (3)' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('filters the grid by family', () => {
+    render(<ScenarioGalleryScene model={model.gallery} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Attacks on the controller (1)' }));
+
+    expect(screen.getAllByRole('article')).toHaveLength(1);
+    expect(screen.getByText('Oversaturated')).toBeInTheDocument();
+    expect(screen.queryByText('Slow bus')).not.toBeInTheDocument();
+    expect(screen.queryByText('Steady variability')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Attacks on the controller (1)' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'All (3)' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'All (3)' }));
+    expect(screen.getAllByRole('article')).toHaveLength(3);
+  });
+
+  it('falls back to the lead cards when the model carries no corridors', () => {
+    render(
+      <ScenarioGalleryScene
+        model={{ cards: model.gallery.cards, families: model.gallery.families, corridors: [] }}
+      />,
+    );
+    expect(screen.queryByRole('group', { name: 'Choose a corridor' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(3);
+  });
+});
+
+describe('ControllerPipelineScene', () => {
+  it('renders the four stages, the four laws and the stations', () => {
+    render(<ControllerPipelineScene model={model.pipeline} />);
+    for (const stage of ['Detect', 'Decide', 'Deliver', 'Measure']) {
+      expect(screen.getByText(stage)).toBeInTheDocument();
+    }
+    for (const law of [
+      'Terminal dispatch',
+      'Two-way holding',
+      'Self-equalising',
+      'Alighting-only',
+    ]) {
+      expect(screen.getByText(law)).toBeInTheDocument();
+    }
+    expect(screen.getByText('300 of 600 decisions · 14 holds')).toBeInTheDocument();
+    // Station names come from the map corridor, keyed on the trial's sequence.
+    expect(screen.getByText('Alambagh Bus Station')).toBeInTheDocument();
+    expect(screen.getByText('15 min')).toBeInTheDocument();
+  });
+});
