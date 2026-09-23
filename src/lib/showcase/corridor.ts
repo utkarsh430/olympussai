@@ -274,3 +274,62 @@ export function positionAlongRoute(
     trialCorridorLengthMeters > 0 ? trialDistanceMeters / trialCorridorLengthMeters : 0;
   return positionAtFraction(route, fraction);
 }
+
+/** The named stop for a trial station sequence (1-based), or null past the end. */
+export function stopForSequence(route: CorridorRoute, sequence: number): CorridorStop | null {
+  return route.stops.find((stop) => stop.sequence === sequence) ?? null;
+}
+
+/** The nearest stop to a fraction of the route, for labelling a hold. */
+export function nearestStop(route: CorridorRoute, fraction: number): CorridorStop | null {
+  const target = Math.max(0, Math.min(1, fraction)) * route.lengthMeters;
+  let best: CorridorStop | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const stop of route.stops) {
+    const distance = Math.abs(stop.cumulativeMeters - target);
+    if (distance < bestDistance) {
+      best = stop;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+/**
+ * Web-Mercator projection of a point into a box, for the tactical map.
+ *
+ * Returns pixel coordinates inside `width x height` with `padding` on every
+ * side, preserving aspect so the corridor is never stretched.
+ */
+export function projectToBox(
+  point: GeoPoint,
+  bounds: CorridorRoute['bounds'],
+  width: number,
+  height: number,
+  padding: number,
+): { x: number; y: number } {
+  // In DEGREES, like longitude, so one scale serves both axes: the raw
+  // Mercator ordinate is in radians and mixing the two squashed the vertical
+  // axis by ~57x (measured: a 14 km by 9 km corridor drew 1000 px by 11 px).
+  const mercator = (latitude: number) =>
+    (Math.log(Math.tan(Math.PI / 4 + (latitude * Math.PI) / 360)) * 180) / Math.PI;
+  const west = bounds.west;
+  const east = bounds.east;
+  const top = mercator(bounds.north);
+  const bottom = mercator(bounds.south);
+  const spanX = Math.max(east - west, 1e-9);
+  const spanY = Math.max(top - bottom, 1e-9);
+  const innerWidth = Math.max(1, width - padding * 2);
+  const innerHeight = Math.max(1, height - padding * 2);
+  // One scale for both axes, so a degree of longitude and a Mercator unit of
+  // latitude keep their ratio; the shorter axis is centred in its slack.
+  const scale = Math.min(innerWidth / spanX, innerHeight / spanY);
+  const drawnWidth = spanX * scale;
+  const drawnHeight = spanY * scale;
+  const offsetX = padding + (innerWidth - drawnWidth) / 2;
+  const offsetY = padding + (innerHeight - drawnHeight) / 2;
+  return {
+    x: offsetX + (point.longitude - west) * scale,
+    y: offsetY + (top - mercator(point.latitude)) * scale,
+  };
+}
