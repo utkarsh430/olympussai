@@ -231,3 +231,231 @@ function stationIcon(ground: string, ink: string, labelAbove: boolean): google.m
     labelOrigin: new google.maps.Point(0, labelAbove ? -LABEL_OFFSET_UNITS : LABEL_OFFSET_UNITS),
   };
 }
+
+interface CorridorDrawing {
+  dispose(): void;
+}
+
+/**
+ * The corridor on the basemap: a wide faint underlay and a thin line through
+ * every stop, then a station dot at each with a name on some of them. Names
+ * alternate above and below the line, as they do on the plot, so two
+ * neighbouring names do not print over each other.
+ */
+function drawCorridor(
+  map: google.maps.Map,
+  route: CorridorRoute,
+  line: string,
+  ink: Ink,
+): CorridorDrawing {
+  const path = route.stops.map((stop) => ({ lat: stop.latitude, lng: stop.longitude }));
+  const underlay = new google.maps.Polyline({
+    map,
+    path,
+    strokeColor: line,
+    strokeOpacity: 0.18,
+    strokeWeight: 9,
+    clickable: false,
+    zIndex: 1,
+  });
+  const trace = new google.maps.Polyline({
+    map,
+    path,
+    strokeColor: line,
+    strokeOpacity: 0.9,
+    strokeWeight: 2,
+    clickable: false,
+    zIndex: 2,
+  });
+
+  const every = labelEveryStop(route.stops.length);
+  const last = route.stops.length - 1;
+  let named = 0;
+  const markers = route.stops.map((stop, index) => {
+    const labelled = index === 0 || index === last || index % every === 0;
+    const above = named % 2 === 0;
+    if (labelled) named += 1;
+    return new google.maps.Marker({
+      map,
+      position: { lat: stop.latitude, lng: stop.longitude },
+      clickable: false,
+      zIndex: 3,
+      icon: stationIcon(ink.ground, line, above),
+      label: labelled
+        ? {
+            text: stop.name,
+            color: ink.muted,
+            fontSize: '11px',
+            fontFamily: 'var(--font-mono), monospace',
+          }
+        : undefined,
+    });
+  });
+
+  return {
+    dispose() {
+      underlay.setMap(null);
+      trace.setMap(null);
+      for (const marker of markers) marker.setMap(null);
+    },
+  };
+}
+
+function fitRoute(map: google.maps.Map, route: CorridorRoute): void {
+  const bounds = new google.maps.LatLngBounds(
+    { lat: route.bounds.south, lng: route.bounds.west },
+    { lat: route.bounds.north, lng: route.bounds.east },
+  );
+  map.fitBounds(bounds, {
+    top: FIT_PADDING_PX,
+    right: FIT_PADDING_PX,
+    bottom: FIT_PADDING_PX,
+    left: FIT_PADDING_PX,
+  });
+}
+
+export function CorridorMap(props: CorridorMapProps) {
+  const { route, frame, arm, followedId, onSelect, className } = props;
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const layerRef = useRef<FleetLayerHandle<ReplayMark> | null>(null);
+  /** The route the camera was last fitted to, so an arm change redraws the corridor without moving it. */
+  const fittedRef = useRef<CorridorRoute | null>(null);
+  /** Set once the basemap is given up on, so a late `importLibrary` cannot build over the fallback. */
+  const failedRef = useRef(false);
+  /** What the build reads at the moment it happens; the effects below keep the layer current afterwards. */
+  const latest = useRef({ route, arm, onSelect });
+  latest.current = { route, arm, onSelect };
+
+  const [status, setStatus] = useState<MapStatus>(() =>
+    isMapsConfigured() ? 'loading' : 'fallback',
+  );
+  const [ink, setInk] = useState<Ink | null>(null);
+
+  const fail = useCallback(() => {
+    failedRef.current = true;
+    layerRef.current?.destroy();
+    layerRef.current = null;
+    mapRef.current = null;
+    setStatus('fallback');
+  }, []);
+
+  // Google reports a refused key AFTER the map is built, by painting its own
+  // white panel into the container. That is a fallback, not a ready map.
+  useEffect(() => onMapsAuthFailure(fail), [fail]);
+
+  useEffect(() => {
+    if (!isMapsConfigured()) return;
+    let cancelled = false;
+
+    getMapsLoader()
+      .importLibrary('maps')
+      .then(({ Map }) => {
+        const container = containerRef.current;
+        if (cancelled || failedRef.current || !container) return;
+        try {
+          const resolved = resolveInk(container);
+          const { route: initialRoute, arm: initialArm } = latest.current;
+          const map = new Map(container, {
+            center: { lat: initialRoute.centre.latitude, lng: initialRoute.centre.longitude },
+            zoom: initialRoute.zoom,
+            ...MAP_THEME.dark,
+            disableDefaultUI: true,
+            gestureHandling: 'greedy',
+            clickableIcons: false,
+            keyboardShortcuts: false,
+          });
+          mapRef.current = map;
+          layerRef.current = createFleetLayer<ReplayMark>(
+            map,
+            (mark) => latest.current.onSelect(mark.id),
+            paletteFor(initialArm, resolved),
+          );
+          setInk(resolved);
+          setStatus('ready');
+        } catch {
+          fail();
+        }
+      })
+      .catch(() => {
+        if (!cancelled) fail();
+      });
+
+    return () => {
+      cancelled = true;
+      layerRef.current?.destroy();
+      layerRef.current = null;
+      mapRef.current = null;
+    };
+  }, [fail]);
+
+  // The corridor itself. Redrawn when the route or the arm changes; the
+  // camera follows only the route. The cleanup is what disposes the previous
+  // drawing, whether the cause is a new route, the fallback, or unmount.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (status !== 'ready' || !ink || !map) return;
+    const drawing = drawCorridor(map, route, armInk(arm, ink), ink);
+    if (fittedRef.current !== route) {
+      fitRoute(map, route);
+      fittedRef.current = route;
+    }
+    return () => drawing.dispose();
+  }, [route, arm, ink, status]);
+
+  // Memoised by the frame, so a re-render that changes nothing on the road
+  // hands the layer the same arrays and no redraw is scheduled for it.
+  const marks = useMemo(() => replayMarks(frame), [frame]);
+  const overlays = useMemo(
+    () => (ink ? replayOverlays(frame, followedId, ink) : NO_OVERLAYS),
+    [frame, followedId, ink],
+  );
+  const palette = useMemo(() => (ink ? paletteFor(arm, ink) : null), [arm, ink]);
+
+  useEffect(() => {
+    if (status === 'ready') layerRef.current?.setVehicles(marks);
+  }, [marks, status]);
+  useEffect(() => {
+    if (status === 'ready') layerRef.current?.setSelected(followedId);
+  }, [followedId, status]);
+  useEffect(() => {
+    if (status === 'ready') layerRef.current?.setOverlays(overlays);
+  }, [overlays, status]);
+  useEffect(() => {
+    if (status === 'ready' && palette) layerRef.current?.setPalette(palette);
+  }, [palette, status]);
+
+  if (status === 'fallback') {
+    return (
+      <TacticalMap
+        route={route}
+        frame={frame}
+        arm={arm}
+        followedId={followedId}
+        onSelect={onSelect}
+        className={className}
+      />
+    );
+  }
+
+  const label = `${ARM_LABEL[arm]}: ${frame.busesLive} buses on ${route.name}, ${frame.bunchedPairs} bunched pairs, ${frame.holds.length} holds in progress`;
+
+  return (
+    <div className={cn('absolute inset-0 bg-background', className)}>
+      <div ref={containerRef} role="application" aria-label={label} className="absolute inset-0" />
+      {status === 'ready' ? (
+        // The arm, named in text, with the route's ends beneath it - the
+        // same corner the plot uses, so colour is never the only encoding
+        // on this renderer either.
+        <div className="pointer-events-none absolute bottom-3 left-3 rounded-md border border-border/60 bg-background/75 px-2.5 py-1.5">
+          <div className="sc-label">{ARM_LABEL[arm]}</div>
+          <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+            {route.origin} → {route.destination}
+          </div>
+        </div>
+      ) : (
+        <MapFallback status="loading" onRetry={noop} />
+      )}
+    </div>
+  );
+}
