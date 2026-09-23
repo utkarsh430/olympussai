@@ -116,3 +116,105 @@ function parseArgs(argv: readonly string[]): CliArgs {
   if (paths.length === 0) throw new Error(`No report given.\n${USAGE}`);
   return { paths, sweepPoints, builtAt, replayPresetIds, sweepsForNonHeadlinePhase };
 }
+
+function describeZodError(error: ZodError): string {
+  return error.issues
+    .slice(0, 8)
+    .map((issue) => `  at ${issue.path.join('.') || '<root>'}: ${issue.message}`)
+    .join('\n');
+}
+
+async function loadReport(path: string): Promise<FleetTrialReport> {
+  const absolute = resolve(path);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(absolute, 'utf8'));
+  } catch (error) {
+    throw new Error(
+      `Could not read ${absolute}: ${error instanceof Error ? error.message : error}`,
+    );
+  }
+  try {
+    return fleetTrialReportSchema.parse(raw);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      throw new Error(`${absolute} is not a fleet-trial report:\n${describeZodError(error)}`);
+    }
+    throw error;
+  }
+}
+
+/** The newest `generatedAt` among the reports, so the output dates from the data. */
+function newestGeneratedAt(reports: readonly FleetTrialReport[]): string {
+  let newest: FleetTrialReport | null = null;
+  let newestMs = Number.NEGATIVE_INFINITY;
+  for (const report of reports) {
+    const ms = Date.parse(report.generatedAt);
+    if (Number.isNaN(ms)) continue;
+    if (ms > newestMs) {
+      newestMs = ms;
+      newest = report;
+    }
+  }
+  const fallback = reports[0];
+  if (!fallback) throw new Error('No reports to date the output from.');
+  return (newest ?? fallback).generatedAt;
+}
+
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
+  const reports: FleetTrialReport[] = [];
+  for (const path of args.paths) reports.push(await loadReport(path));
+
+  const options: ExtractOptions = {
+    ...DEFAULT_EXTRACT_OPTIONS,
+    sweepPoints: args.sweepPoints,
+    replayPresetIds: args.replayPresetIds,
+    sweepsForNonHeadlinePhase: args.sweepsForNonHeadlinePhase,
+    builtAt: args.builtAt ?? newestGeneratedAt(reports),
+  };
+
+  const extracted = extractTrialData(reports, options);
+  let data;
+  try {
+    data = trialDataSchema.parse(extracted);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      throw new Error(
+        `The extracted data does not match trialDataSchema:\n${describeZodError(error)}`,
+      );
+    }
+    throw error;
+  }
+
+  const json = JSON.stringify(data);
+  await mkdir(dirname(OUTPUT), { recursive: true });
+  await writeFile(OUTPUT, json, 'utf8');
+
+  const kb = Buffer.byteLength(json, 'utf8') / 1024;
+  console.log(`Wrote ${OUTPUT}`);
+  console.log(
+    `  builtAt ${data.builtAt} · headline phase ${data.headlinePhaseId} · replay ${data.replayScenarioIds.join(', ')} on ${options.replayPresetIds.join(', ')} · sweep points ≤ ${options.sweepPoints}` +
+      (options.sweepsForNonHeadlinePhase ? ' in every phase' : ' in the headline phase'),
+  );
+  for (const corridor of data.corridors) {
+    const scenarioCount = corridor.phases.reduce((sum, phase) => sum + phase.scenarios.length, 0);
+    const withTrajectories = corridor.phases.flatMap((phase) =>
+      phase.scenarios.filter((scenario) => scenario.trajectories !== null).map((s) => s.id),
+    );
+    const net =
+      corridor.headlineNetPercent === null
+        ? 'n/a'
+        : `${corridor.headlineNetPercent >= 0 ? '+' : ''}${corridor.headlineNetPercent.toFixed(2)}%`;
+    console.log(
+      `  ${corridor.presetId.padEnd(9)} ${corridor.title} · ${corridor.vehiclesSimulated} vehicles · ${corridor.phases.length} phases · ${scenarioCount} scenarios · headline net ${net}` +
+        (withTrajectories.length > 0 ? ` · trajectories: ${withTrajectories.join(', ')}` : ''),
+    );
+  }
+  console.log(`  ${kb.toFixed(1)} KB`);
+}
+
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+});
