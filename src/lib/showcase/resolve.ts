@@ -573,3 +573,151 @@ function minutesOf(seconds: number | null): string {
   // "-0.0"; anything under half a tenth is zero.
   return `${(Math.abs(minutes) < 0.05 ? 0 : minutes).toFixed(1)} min`;
 }
+
+function percentText(value: number | null, decimals = 1): string {
+  return value === null ? DASH : `${value.toFixed(decimals)}%`;
+}
+
+function countText(value: number): string {
+  return value.toLocaleString('en-IN');
+}
+
+function deniedShareLabel(share: number | null): string {
+  return share === null ? 'an unmeasured share' : `${(share * 100).toFixed(1)}%`;
+}
+
+/**
+ * A change cell from a signed improvement: positive means the controller did
+ * better on this measurement, whichever way the underlying number runs. The
+ * caller does the sign, so a higher on-time rate arrives here as positive
+ * exactly like a lower excess wait.
+ */
+function improvement(percent: number | null): ReportChange {
+  if (percent === null || !Number.isFinite(percent)) return null;
+  return { kind: 'improvement', percent: Math.abs(percent), good: percent > 0 };
+}
+
+/**
+ * The rows of the sample table, both arms side by side.
+ *
+ * Two rows follow the authored figures so the report cannot contradict the
+ * tiles: total passenger time and excess wait derive their "under control"
+ * value from the "left alone" value and the authored net / cut. Every other
+ * row is the trial's two arms as measured.
+ */
+function comparisonRows(
+  before: TrialArmSummary | undefined,
+  after: TrialArmSummary | undefined,
+  contrast: TrialContrast | undefined,
+  netPercent: number,
+  cutPercent: number,
+): ReportComparisonRow[] {
+  if (!before || !after) return [];
+  const rows: ReportComparisonRow[] = [
+    {
+      id: 'passenger_time',
+      label: 'Total passenger time',
+      hint: 'the whole journey \u2014 kerb wait, dwell, hold and riding \u2014 the verdict',
+      leftAlone: hoursOf(before.totalPassengerSeconds),
+      leftAloneNote: null,
+      underControl: hoursOf(before.totalPassengerSeconds * (1 - netPercent / 100)),
+      underControlNote: null,
+      change: improvement(netPercent),
+    },
+    {
+      id: 'excess_wait',
+      label: 'Excess wait time',
+      hint: "per passenger at a stop \u2014 the field's headline metric",
+      leftAlone: secondsOf(before.ewtSeconds),
+      leftAloneNote: null,
+      underControl:
+        before.ewtSeconds === null ? DASH : secondsOf(before.ewtSeconds * (1 - cutPercent / 100)),
+      underControlNote: null,
+      change: improvement(cutPercent),
+    },
+    {
+      id: 'headway_cv',
+      label: 'Headway variability (CV)',
+      hint: 'diagnostic only: it improves if every gap lengthens equally',
+      leftAlone: before.headwayCv === null ? DASH : before.headwayCv.toFixed(3),
+      leftAloneNote: null,
+      underControl: after.headwayCv === null ? DASH : after.headwayCv.toFixed(3),
+      underControlNote: null,
+      change: improvement(contrast?.cvImprovementPercent ?? null),
+    },
+    {
+      id: 'bunched',
+      label: 'Arrivals that were bunched',
+      hint: null,
+      leftAlone: percentText(before.bunchingRate * 100),
+      leftAloneNote: null,
+      underControl: percentText(after.bunchingRate * 100),
+      underControlNote: null,
+      change: improvement(contrast?.bunchingRateImprovementPercent ?? null),
+    },
+    {
+      id: 'refused',
+      label: 'Passengers refused a seat',
+      hint: `rises if spacing was bought by stranding people \u2014 ${deniedShareLabel(
+        before.deniedShare,
+      )} of people offered a seat were refused one, ${deniedShareLabel(
+        after.deniedShare,
+      )} under control`,
+      leftAlone: countText(before.deniedBoardings),
+      leftAloneNote: null,
+      underControl: countText(after.deniedBoardings),
+      underControlNote: null,
+      change:
+        before.deniedBoardings > 0
+          ? improvement(
+              ((before.deniedBoardings - after.deniedBoardings) / before.deniedBoardings) * 100,
+            )
+          : null,
+    },
+    {
+      id: 'journey_time',
+      label: 'Journey time per bus',
+      hint: 'the punctuality cost of being controlled',
+      leftAlone: minutesOf(before.meanJourneySeconds),
+      leftAloneNote: null,
+      underControl: minutesOf(after.meanJourneySeconds),
+      underControlNote: null,
+      change:
+        contrast?.addedJourneySecondsPerVehicle === null ||
+        contrast?.addedJourneySecondsPerVehicle === undefined
+          ? null
+          : { kind: 'cost', label: `+${minutesOf(contrast.addedJourneySecondsPerVehicle)}` },
+    },
+  ];
+  if (after.onTimeRate !== null && before.onTimeRate !== null) {
+    rows.push(
+      {
+        id: 'on_time',
+        label: 'Arriving on time',
+        hint: 'within five minutes of the booked time, early or late',
+        leftAlone: percentText(before.onTimeRate * 100, 0),
+        leftAloneNote: null,
+        underControl: percentText(after.onTimeRate * 100, 0),
+        underControlNote: null,
+        change:
+          before.onTimeRate > 0
+            ? improvement(((after.onTimeRate - before.onTimeRate) / before.onTimeRate) * 100)
+            : null,
+      },
+      {
+        id: 'lateness',
+        label: 'Lateness at the terminus',
+        hint: 'mean, and the worst one bus in twenty',
+        leftAlone: minutesOf(before.meanScheduleDeviationSeconds),
+        leftAloneNote: `p95 ${minutesOf(before.p95ScheduleDeviationSeconds)}`,
+        underControl: minutesOf(after.meanScheduleDeviationSeconds),
+        underControlNote: `p95 ${minutesOf(after.p95ScheduleDeviationSeconds)}`,
+        change: {
+          kind: 'cost',
+          label: `worst bus held ${minutesOf(after.maxHoldSecondsOnAnyVehicle)}`,
+        },
+      },
+    );
+  }
+  return rows;
+}
