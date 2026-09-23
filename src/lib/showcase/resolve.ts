@@ -415,3 +415,97 @@ function signed(value: number, decimals = 1): string {
   const rounded = value.toFixed(decimals);
   return value >= 0 ? `+${rounded}` : rounded;
 }
+
+function isoDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  // UTC on purpose, like the reference number: a report generated at
+  // midnight must not carry two dates depending on where it is rendered.
+  return date.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function compactDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '00000000';
+  return date.toISOString().slice(0, 10).replace(/-/g, '');
+}
+
+// ─── Per-corridor builders ────────────────────────────────────────────────
+
+function buildCards(
+  figures: ShowcaseFigures,
+  phase: TrialPhase | null,
+): { cards: ScenarioCardModel[]; families: GalleryCorridorModel['families'] } {
+  const cards: ScenarioCardModel[] = (phase?.scenarios ?? []).map((scenario) => {
+    const override = figures.scenarioOverrides[scenario.id];
+    const netPercent =
+      override?.netPassengerTimeSavedPercent ?? scenario.contrast.passengerSecondsSavedPercent;
+    return {
+      id: scenario.id,
+      title: scenario.title,
+      whatGoesWrong: figures.scenarioNotes[scenario.id] ?? scenario.mechanism,
+      family: scenarioFamily(scenario.id),
+      outcome: scenarioOutcome(netPercent, scenario.saturated),
+      netPercent,
+      excessWaitPercent: override?.excessWaitCutPercent ?? scenario.contrast.ewtImprovementPercent,
+      incidentsBefore: scenario.uncontrolled.incidentsDetected,
+      incidentsAfter: scenario.controlled.incidentsDetected,
+      horizonSeconds: scenario.horizonSeconds,
+      sweeps: scenario.sweeps,
+    };
+  });
+  const families = (['corridor', 'adversarial', 'estimator'] as const).map((id) => ({
+    id,
+    label: FAMILY_LABEL[id],
+    count: cards.filter((card) => card.family === id).length,
+  }));
+  return { cards, families };
+}
+
+function buildLaws(figures: ShowcaseFigures, phase: TrialPhase | null): LawBarModel[] {
+  const holdsByType = new Map<string, { count: number; holdSeconds: number }>();
+  for (const entry of phase?.holdCountByActionType ?? []) {
+    holdsByType.set(entry.actionType.replace(/_hold$/, ''), {
+      count: entry.count,
+      holdSeconds: entry.holdSeconds,
+    });
+  }
+  return figures.laws.map((law) => {
+    const coverage = phase?.lawCoverage.find((entry) => entry.law === law.id);
+    const generating = coverage?.decisionsGenerating ?? 0;
+    const total = coverage?.decisionsTotal ?? 0;
+    const holds = holdsByType.get(law.id);
+    return {
+      id: law.id,
+      name: LAW_LABEL[law.id] ?? law.name,
+      oneLiner: law.oneLiner,
+      decisionsGenerating: generating,
+      decisionsTotal: total,
+      sharePercent: total > 0 ? (generating / total) * 100 : 0,
+      holdCount: holds?.count ?? 0,
+      holdSeconds: holds?.holdSeconds ?? 0,
+    };
+  });
+}
+
+function buildStationHolds(
+  corridor: TrialCorridorData | null,
+  phase: TrialPhase | null,
+  route: CorridorRoute,
+): StationHoldModel[] {
+  const rawStations = phase?.holdSecondsByStation ?? [];
+  const busiest = Math.max(1, ...rawStations.map((station) => station.holdSeconds));
+  const firstSequence = firstStationSequence(corridor);
+  return rawStations.map((station) => ({
+    sequence: station.sequence,
+    name: stationName(route, station.sequence, firstSequence, station.name),
+    holdSeconds: station.holdSeconds,
+    holdCount: station.holdCount,
+    share: station.holdSeconds / busiest,
+  }));
+}
