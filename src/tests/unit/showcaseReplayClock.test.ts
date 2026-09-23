@@ -192,3 +192,88 @@ describe('the pure layout rules', () => {
     expect(hourTickStep(3600, 0)).toBe(1);
   });
 });
+
+// ─── Smoke renders ────────────────────────────────────────────────────────
+
+const SCENARIO: ReplayScenarioModel = {
+  id: 'steady_variability',
+  title: 'Steady variability',
+  note: 'Ordinary running-time noise.',
+  horizonSeconds: 4000,
+  vehicleCount: 2,
+  trajectories: {
+    controlled: [
+      {
+        vehicleId: 'bus-1',
+        points: [
+          { t: 0, d: 0, hold: 0 },
+          { t: 1000, d: 1000, hold: 0 },
+          { t: 2000, d: 2000, hold: 0 },
+        ],
+      },
+      {
+        vehicleId: 'bus-2',
+        points: [
+          { t: 300, d: 0, hold: 0 },
+          { t: 1100, d: 1000, hold: 60 },
+          { t: 2000, d: 2000, hold: 0 },
+        ],
+      },
+    ],
+    uncontrolled: [
+      {
+        vehicleId: 'bus-1',
+        points: [
+          { t: 0, d: 0, hold: 0 },
+          { t: 1000, d: 1000, hold: 0 },
+        ],
+      },
+    ],
+  },
+  sweeps: {
+    controlled: [{ atSeconds: 0, openIncidents: 1, bunchedPairs: 1, liveVehicles: 2 }],
+    uncontrolled: [],
+  },
+  netPercent: 3.1,
+  excessWaitPercent: 40,
+  incidentsAvoided: 2,
+};
+
+const SECOND: ReplayScenarioModel = { ...SCENARIO, id: 'slow_bus', title: 'Slow bus' };
+
+/** The same shape stretched over a much longer window, as a longer corridor's is. */
+const LONG: ReplayScenarioModel = {
+  ...SCENARIO,
+  id: 'traffic_shock',
+  title: 'Traffic shock',
+  horizonSeconds: 40_000,
+  trajectories: {
+    controlled: [
+      {
+        vehicleId: 'bus-1',
+        points: [
+          { t: 0, d: 0, hold: 0 },
+          { t: 4500, d: 30_000, hold: 0 },
+          { t: 9000, d: 60_000, hold: 0 },
+        ],
+      },
+    ],
+    uncontrolled: [
+      {
+        vehicleId: 'bus-1',
+        points: [
+          { t: 0, d: 0, hold: 0 },
+          { t: 9000, d: 60_000, hold: 0 },
+        ],
+      },
+    ],
+  },
+};
+
+const CTX: ReplayContext = {
+  route: LUCKNOW_CORRIDOR,
+  trialCorridorLengthMeters: 24_000,
+  targetHeadwaySeconds: 360,
+  bunchedThresholdRatio: 0.25,
+  warningThresholdRatio: 0.5,
+};
