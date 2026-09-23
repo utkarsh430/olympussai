@@ -170,3 +170,32 @@ const CTX: ReplayContext = {
   bunchedThresholdRatio: 0.25,
   warningThresholdRatio: 0.5,
 };
+
+/** At 1,150 s bus-2 is being held at station 2 and bus-1 is 130 m ahead: one hold, one warning pair. */
+const FRAME = frameAt(SCENARIO, 'controlled', 1150, CTX);
+
+const INK: Ink = {
+  controlled: '#3ab3c9',
+  baseline: '#7e93a6',
+  warning: '#ffb020',
+  danger: '#ff4d5e',
+  foreground: '#dbeefb',
+  ground: '#02040a',
+  muted: '#9fb6c9',
+};
+
+function mount(overrides: Partial<Parameters<typeof CorridorMap>[0]> = {}) {
+  const onSelect = vi.fn();
+  const props = {
+    route: LUCKNOW_CORRIDOR,
+    frame: FRAME,
+    arm: 'controlled' as const,
+    followedId: null,
+    onSelect,
+    ...overrides,
+  };
+  const view = render(createElement(CorridorMap, props));
+  return { ...view, onSelect, props };
+}
+
+const tacticalCanvas = () => screen.queryByRole('img', { name: /buses on Route 41/ });
