@@ -92,3 +92,48 @@ const arm = (totalPassengerSeconds: number, spacingOver: Partial<Spacing> = {}) 
   passengers: passengers(totalPassengerSeconds),
   incidents: incidents(),
 });
+
+const contrast = (saved: number, total: number) => ({
+  ewtImprovementSeconds: 20,
+  ewtImprovementPercent: 25,
+  cvImprovementPercent: 20,
+  bunchingRateImprovementPercent: 30,
+  incidentsAvoided: 5,
+  addedJourneySecondsPerVehicle: 30,
+  additionalDeniedBoardings: 0,
+  passengerSecondsSaved: saved,
+  passengerSecondsSavedPercent: (saved / total) * 100,
+  passengerSecondsPerBoardingSavedPercent: (saved / total) * 100,
+  waitSecondsSaved: saved,
+  onboardDelayImposed: 500,
+  inVehicleSecondsSaved: 0,
+});
+
+const sweepSamples = (count: number) =>
+  Array.from({ length: count }, (_, i) => ({
+    atSeconds: i * 60,
+    liveVehicles: 10 + (i % 5),
+    pairCount: 9,
+    minRatio: 0.3,
+    meanRatio: 0.8,
+    bunchedPairs: i % 3,
+    warningPairs: 1,
+    openIncidents: i % 2,
+  }));
+
+const trajectory = (vehicleId: string) => ({
+  vehicleId,
+  points: [
+    { t: 0, d: 0, hold: 0 },
+    { t: 600, d: 2000, hold: 30 },
+    { t: 1200, d: 4000, hold: 0 },
+  ],
+});
+
+interface ScenarioShape {
+  id: BunchingScenarioId;
+  title: string;
+  saturated: 'none' | 'controlled' | 'uncontrolled';
+  sweepCount: number;
+  trajectoryCount: number;
+}
