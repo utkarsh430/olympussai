@@ -47,3 +47,21 @@ const OUTCOME_CHIP: Record<ScenarioOutcome, string> = {
 function count(value: number): string {
   return Math.round(value).toLocaleString('en-IN');
 }
+
+/** Net passenger time: a gain reads "+3.8%", a loss "−1.2%". */
+function signedPercent(value: number | null, decimals = 1): string {
+  if (value === null) return DASH;
+  const magnitude = Math.abs(value).toFixed(decimals);
+  return value < 0 ? `${MINUS}${magnitude}%` : `+${magnitude}%`;
+}
+
+/** Excess wait is a cut, so an improvement reads "−54%" and a worsening "+12%". */
+function cutPercent(value: number | null): string {
+  if (value === null) return DASH;
+  const magnitude = Math.abs(Math.round(value));
+  return value < 0 ? `+${magnitude}%` : `${MINUS}${magnitude}%`;
+}
+
+function beforeAfter(before: string, after: string): string {
+  return `${before} ${ARROW} ${after}`;
+}
