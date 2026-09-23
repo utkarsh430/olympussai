@@ -175,3 +175,17 @@ export const trialDataSchema = z.object({
   replayScenarioIds: z.array(bunchingScenarioIdSchema),
   corridors: z.array(trialCorridorDataSchema),
 });
+export type TrialData = z.infer<typeof trialDataSchema>;
+
+/** Parse a generated file, throwing a readable error when it does not match. */
+export function parseTrialData(raw: unknown): TrialData {
+  return trialDataSchema.parse(raw);
+}
+
+export function corridorData(data: TrialData, presetId: string): TrialCorridorData | null {
+  return data.corridors.find((corridor) => corridor.presetId === presetId) ?? null;
+}
+
+export function headlinePhase(corridor: TrialCorridorData, phaseId: string): TrialPhase | null {
+  return corridor.phases.find((phase) => phase.id === phaseId) ?? corridor.phases[0] ?? null;
+}
