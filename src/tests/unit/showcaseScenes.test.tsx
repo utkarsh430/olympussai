@@ -201,3 +201,46 @@ const minimalTrialData = trialDataSchema.parse({
   replayScenarioIds: ['steady_variability'],
   corridors: [urbanCorridor, intercityCorridor],
 });
+
+const model = resolveShowcase(showcaseFigures, minimalTrialData);
+
+// ─── jsdom has no motion, no canvas, no layout ───────────────────────────
+
+const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
+class NoopObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+}
+
+beforeEach(() => {
+  // framer-motion reads `addListener` off this, not only `addEventListener`.
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({
+      matches: false,
+      media: '',
+      onchange: null,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent: () => false,
+    })),
+  );
+  vi.stubGlobal('IntersectionObserver', NoopObserver);
+  vi.stubGlobal('ResizeObserver', NoopObserver);
+  vi.stubGlobal('requestAnimationFrame', () => 0);
+  vi.stubGlobal('cancelAnimationFrame', () => {});
+  HTMLCanvasElement.prototype.getContext = (() =>
+    new Proxy({}, { get: () => () => undefined })) as unknown as typeof originalGetContext;
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  HTMLCanvasElement.prototype.getContext = originalGetContext;
+});
