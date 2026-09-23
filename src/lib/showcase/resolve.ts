@@ -122,3 +122,56 @@ export interface LiveCorridorModel {
 export interface LiveTrialModel {
   corridors: readonly LiveCorridorModel[];
 }
+
+export interface ScenarioCardModel {
+  id: BunchingScenarioId;
+  title: string;
+  whatGoesWrong: string;
+  family: ScenarioFamily;
+  outcome: ScenarioOutcome;
+  netPercent: number | null;
+  excessWaitPercent: number | null;
+  incidentsBefore: number;
+  incidentsAfter: number;
+  horizonSeconds: number;
+  sweeps: {
+    controlled: readonly TrialSweepPoint[];
+    uncontrolled: readonly TrialSweepPoint[];
+  };
+}
+
+export interface GalleryCorridorModel {
+  presetId: string;
+  name: string;
+  shape: string;
+  cards: readonly ScenarioCardModel[];
+  families: readonly { id: ScenarioFamily; label: string; count: number }[];
+}
+
+export interface GalleryModel {
+  /** The lead corridor's cards, for a scene that does not switch. */
+  cards: readonly ScenarioCardModel[];
+  families: readonly { id: ScenarioFamily; label: string; count: number }[];
+  /** Every corridor's cards, in preset order, for the corridor toggle. */
+  corridors: readonly GalleryCorridorModel[];
+}
+
+export interface LawBarModel {
+  id: string;
+  name: string;
+  oneLiner: string;
+  decisionsGenerating: number;
+  decisionsTotal: number;
+  sharePercent: number;
+  holdCount: number;
+  holdSeconds: number;
+}
+
+export interface StationHoldModel {
+  sequence: number;
+  name: string;
+  holdSeconds: number;
+  holdCount: number;
+  /** 0..1 of the busiest station. */
+  share: number;
+}
