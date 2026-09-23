@@ -52,3 +52,81 @@ interface FieldLayout {
   inkRaw: string;
   ink: readonly [number, number, number];
 }
+
+function lineWeights(mode: FleetFieldMode): number[] {
+  if (mode === 'converge') return Array.from({ length: CORRIDORS }, () => 1);
+  // A spoke runs ~0.96 of the half-diagonal; a ring runs its circumference.
+  // Weighting by length keeps the bead spacing similar on both.
+  const spokes = Array.from({ length: SPOKES }, () => 1);
+  const rings = RING_RADII.map((radius) => (2 * Math.PI * radius) / 0.96);
+  return [...spokes, ...rings];
+}
+
+function buildLayout(points: number, mode: FleetFieldMode): FieldLayout {
+  const count = Math.max(0, Math.floor(points));
+  const random = createRandom(`fleet-field:${mode}`);
+  const weights = lineWeights(mode);
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  const cumulative: number[] = [];
+  let running = 0;
+  for (const weight of weights) {
+    running += weight / total;
+    cumulative.push(running);
+  }
+
+  const layout: FieldLayout = {
+    mode,
+    count,
+    lineOf: new Uint8Array(count),
+    along: new Float32Array(count),
+    offset: new Float32Array(count),
+    bright: new Uint8Array(count),
+    px: new Float32Array(count),
+    py: new Float32Array(count),
+    inkRaw: '',
+    ink: FALLBACK_INK,
+  };
+
+  const perLine = new Uint32Array(weights.length);
+  for (let i = 0; i < count; i += 1) {
+    layout.offset[i] = random() * 2 - 1;
+    layout.bright[i] = random() < BRIGHT_SHARE ? 1 : 0;
+
+    // Stratified assignment: each line takes its weighted share of the
+    // points, and a point's bead index on its line is its arrival order.
+    const share = (i + 0.5) / count;
+    let line = 0;
+    while (line < cumulative.length - 1 && share > (cumulative[line] ?? 1)) line += 1;
+    layout.lineOf[i] = line;
+    layout.along[i] = perLine[line] ?? 0;
+    perLine[line] = (perLine[line] ?? 0) + 1;
+  }
+  for (let i = 0; i < count; i += 1) {
+    const beads = perLine[layout.lineOf[i] ?? 0] ?? 1;
+    layout.along[i] = ((layout.along[i] ?? 0) + 0.5) / beads;
+  }
+  return layout;
+}
+
+function wrap01(value: number): number {
+  const wrapped = value % 1;
+  return wrapped < 0 ? wrapped + 1 : wrapped;
+}
+
+function placeCorridors(layout: FieldLayout, width: number, height: number, elapsed: number): void {
+  const amplitude = height * 0.026;
+  for (let i = 0; i < layout.count; i += 1) {
+    const corridor = layout.lineOf[i] ?? 0;
+
+    // A slow drift along the line, alternating direction per corridor, so
+    // the field never reads as a still image.
+    const direction = corridor % 2 === 0 ? 1 : -1;
+    const speed = 0.006 + 0.002 * ((corridor * 5) % 3);
+    const u = wrap01((layout.along[i] ?? 0) + direction * elapsed * speed);
+
+    const baseY = height * (0.08 + 0.84 * ((corridor + 0.5) / CORRIDORS));
+    const bend = amplitude * Math.sin((u * 1.3 + corridor * 0.37) * Math.PI * 2);
+    layout.px[i] = u * width;
+    layout.py[i] = baseY + bend + (layout.offset[i] ?? 0) * 1.4;
+  }
+}
