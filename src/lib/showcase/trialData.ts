@@ -108,3 +108,28 @@ export const trialLawCoverageSchema = z.object({
   decisionsGenerating: z.number(),
   decisionsTotal: z.number(),
 });
+export type TrialLawCoverage = z.infer<typeof trialLawCoverageSchema>;
+
+export const trialStationHoldSchema = z.object({
+  sequence: z.number(),
+  name: z.string(),
+  holdSeconds: z.number(),
+  holdCount: z.number(),
+});
+export type TrialStationHold = z.infer<typeof trialStationHoldSchema>;
+
+export const trialPhaseSchema = z.object({
+  id: phaseIdSchema,
+  title: z.string(),
+  vehicleCount: z.number(),
+  contrast: trialContrastSchema,
+  allScenariosContrast: trialContrastSchema,
+  controlled: trialArmSummarySchema,
+  uncontrolled: trialArmSummarySchema,
+  lawCoverage: z.array(trialLawCoverageSchema),
+  holdSecondsByStation: z.array(trialStationHoldSchema),
+  holdCountByActionType: z.array(
+    z.object({ actionType: z.string(), count: z.number(), holdSeconds: z.number() }),
+  ),
+  scenarios: z.array(trialScenarioSchema),
+});
