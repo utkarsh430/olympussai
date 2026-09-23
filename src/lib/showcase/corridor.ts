@@ -90,3 +90,70 @@ const LUCKNOW_STOPS: readonly AuthoredStop[] = [
   { name: 'Chinhat Bazar', latitude: 26.8888, longitude: 81.047 },
   { name: 'Chinhat Terminal', latitude: 26.8895, longitude: 81.05 },
 ];
+
+function buildRoute(id: string, name: string, authored: readonly AuthoredStop[]): CorridorRoute {
+  const stops: CorridorStop[] = [];
+  let cumulative = 0;
+  for (let index = 0; index < authored.length; index += 1) {
+    const stop = authored[index];
+    if (!stop) continue;
+    const previous = index > 0 ? authored[index - 1] : undefined;
+    if (previous) {
+      cumulative +=
+        haversineKm(previous.latitude, previous.longitude, stop.latitude, stop.longitude) * 1000;
+    }
+    stops.push({
+      sequence: index + 1,
+      name: stop.name,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+      cumulativeMeters: cumulative,
+    });
+  }
+  const latitudes = stops.map((stop) => stop.latitude);
+  const longitudes = stops.map((stop) => stop.longitude);
+  const north = Math.max(...latitudes);
+  const south = Math.min(...latitudes);
+  const east = Math.max(...longitudes);
+  const west = Math.min(...longitudes);
+  const first = stops[0];
+  const last = stops[stops.length - 1];
+  return {
+    id,
+    name,
+    city: 'Lucknow',
+    origin: first?.name ?? '',
+    destination: last?.name ?? '',
+    stops,
+    lengthMeters: cumulative,
+    centre: { latitude: (north + south) / 2, longitude: (east + west) / 2 },
+    zoom: 12,
+    bounds: { north, south, east, west },
+  };
+}
+
+/** The city trunk: Alambagh to Chinhat, across Lucknow. */
+export const LUCKNOW_CORRIDOR: CorridorRoute = buildRoute(
+  'lko-41',
+  'Route 41 · Alambagh – Hazratganj – Chinhat',
+  LUCKNOW_STOPS,
+);
+
+/** The suburban radial: Alambagh down the Kanpur road to Unnao, about 60 km. */
+const SUBURBAN_STOPS: readonly AuthoredStop[] = [
+  { name: 'Alambagh Bus Station', latitude: 26.81, longitude: 80.906 },
+  { name: 'Krishna Nagar', latitude: 26.795, longitude: 80.895 },
+  { name: 'Amausi', latitude: 26.775, longitude: 80.88 },
+  { name: 'Transport Nagar', latitude: 26.762, longitude: 80.87 },
+  { name: 'Sarojini Nagar', latitude: 26.745, longitude: 80.855 },
+  { name: 'Scooter India', latitude: 26.728, longitude: 80.84 },
+  { name: 'Banthra', latitude: 26.705, longitude: 80.82 },
+  { name: 'Harauni', latitude: 26.68, longitude: 80.795 },
+  { name: 'Ajgain', latitude: 26.655, longitude: 80.77 },
+  { name: 'Nawabganj', latitude: 26.635, longitude: 80.745 },
+  { name: 'Sohramau', latitude: 26.6, longitude: 80.705 },
+  { name: 'Kanpur Road Toll', latitude: 26.575, longitude: 80.67 },
+  { name: 'Dahi Chowki', latitude: 26.555, longitude: 80.635 },
+  { name: 'Unnao Bypass', latitude: 26.54, longitude: 80.6 },
+  { name: 'Unnao Bus Station', latitude: 26.53, longitude: 80.58 },
+];
