@@ -195,3 +195,82 @@ export const CORRIDOR_ROUTES: Record<'urban' | 'suburban' | 'intercity', Corrido
   suburban: SUBURBAN_CORRIDOR,
   intercity: INTERCITY_CORRIDOR,
 };
+
+export function routeForPreset(presetId: string): CorridorRoute {
+  return (CORRIDOR_ROUTES as Record<string, CorridorRoute>)[presetId] ?? LUCKNOW_CORRIDOR;
+}
+
+/** Initial compass bearing from one point to another, degrees clockwise from north. */
+export function bearingDegrees(from: GeoPoint, to: GeoPoint): number {
+  const lat1 = (from.latitude * Math.PI) / 180;
+  const lat2 = (to.latitude * Math.PI) / 180;
+  const dLng = ((to.longitude - from.longitude) * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  const degrees = (Math.atan2(y, x) * 180) / Math.PI;
+  return (degrees + 360) % 360;
+}
+
+/**
+ * Where a bus is on the corridor, given a fraction 0..1 of its length.
+ *
+ * Linear along each leg between consecutive stops. Heading is the leg's
+ * bearing, which is what a chevron should point along.
+ */
+export function positionAtFraction(route: CorridorRoute, fraction: number): RoutePosition {
+  const clamped = Math.max(0, Math.min(1, fraction));
+  const target = clamped * route.lengthMeters;
+  const stops = route.stops;
+  const first = stops[0];
+  const last = stops[stops.length - 1];
+  if (!first || !last) {
+    return { latitude: 0, longitude: 0, headingDegrees: 0, fraction: clamped };
+  }
+  if (stops.length === 1 || target <= 0) {
+    const next = stops[1] ?? first;
+    return {
+      latitude: first.latitude,
+      longitude: first.longitude,
+      headingDegrees: bearingDegrees(first, next),
+      fraction: clamped,
+    };
+  }
+  for (let index = 1; index < stops.length; index += 1) {
+    const from = stops[index - 1];
+    const to = stops[index];
+    if (!from || !to) continue;
+    if (target <= to.cumulativeMeters) {
+      const legLength = to.cumulativeMeters - from.cumulativeMeters;
+      const within = legLength > 0 ? (target - from.cumulativeMeters) / legLength : 0;
+      return {
+        latitude: from.latitude + (to.latitude - from.latitude) * within,
+        longitude: from.longitude + (to.longitude - from.longitude) * within,
+        headingDegrees: bearingDegrees(from, to),
+        fraction: clamped,
+      };
+    }
+  }
+  const beforeLast = stops[stops.length - 2] ?? first;
+  return {
+    latitude: last.latitude,
+    longitude: last.longitude,
+    headingDegrees: bearingDegrees(beforeLast, last),
+    fraction: clamped,
+  };
+}
+
+/**
+ * Where a bus is, given the SIMULATOR's distance along ITS corridor.
+ *
+ * The trial corridor and the map corridor differ in length, so the mapping is
+ * by fraction, never by metres.
+ */
+export function positionAlongRoute(
+  route: CorridorRoute,
+  trialDistanceMeters: number,
+  trialCorridorLengthMeters: number,
+): RoutePosition {
+  const fraction =
+    trialCorridorLengthMeters > 0 ? trialDistanceMeters / trialCorridorLengthMeters : 0;
+  return positionAtFraction(route, fraction);
+}
