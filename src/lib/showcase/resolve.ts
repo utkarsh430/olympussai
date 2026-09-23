@@ -61,3 +61,64 @@ export interface HeroModel {
   stats: readonly StatFigure[];
   networkBuses: number;
 }
+
+export interface CorridorTile {
+  presetId: string;
+  name: string;
+  shape: string;
+  netPercent: number;
+  excessWaitPercent: number;
+  seedsAgreeing: number;
+  seedsTotal: number;
+  band: ControllabilityBand;
+  bandLabel: string;
+}
+
+export interface VerdictModel {
+  sentence: string;
+  because: string;
+  netPercent: number;
+  excessWaitPercent: number;
+  corridors: readonly CorridorTile[];
+}
+
+export interface ReplayScenarioModel {
+  id: BunchingScenarioId;
+  title: string;
+  note: string;
+  horizonSeconds: number;
+  vehicleCount: number;
+  trajectories: {
+    controlled: readonly TrialTrajectory[];
+    uncontrolled: readonly TrialTrajectory[];
+  };
+  sweeps: {
+    controlled: readonly TrialSweepPoint[];
+    uncontrolled: readonly TrialSweepPoint[];
+  };
+  netPercent: number | null;
+  excessWaitPercent: number | null;
+  incidentsAvoided: number;
+}
+
+/** One route in the live trial: its geometry, its thresholds and its replayable scenarios. */
+export interface LiveCorridorModel {
+  presetId: string;
+  name: string;
+  shape: string;
+  netPercent: number;
+  excessWaitPercent: number;
+  route: CorridorRoute;
+  /** The simulator's own corridor length; trajectories' `d` is in these metres. */
+  trialCorridorLengthMeters: number;
+  targetHeadwaySeconds: number;
+  bunchedThresholdRatio: number;
+  warningThresholdRatio: number;
+  /** Station names in sequence order, from the map corridor. */
+  stationNames: readonly string[];
+  scenarios: readonly ReplayScenarioModel[];
+}
+
+export interface LiveTrialModel {
+  corridors: readonly LiveCorridorModel[];
+}
