@@ -57,3 +57,21 @@ function failAuth(): void {
     for (const listener of loader.authListeners) listener();
   });
 }
+
+/* ── the Maps surface the component touches that the shared fake lacks ───── */
+
+let harness: FakeMapHarness | null = null;
+
+interface Constructed {
+  container: HTMLElement;
+  options: google.maps.MapOptions;
+}
+
+class FakeMap {
+  static constructed: Constructed[] = [];
+  constructor(container: HTMLElement, options: google.maps.MapOptions) {
+    FakeMap.constructed.push({ container, options });
+    // The harness's map is what the fleet layer knows how to talk to.
+    return (harness as FakeMapHarness).map as unknown as FakeMap;
+  }
+}
