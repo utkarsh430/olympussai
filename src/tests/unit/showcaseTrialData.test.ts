@@ -59,3 +59,36 @@ const punctuality = () => ({
   alightingOnlyActions: 0,
   alightingOnlyPassengersPassed: 0,
 });
+
+const passengers = (totalPassengerSeconds: number) => ({
+  boardings: 1000,
+  deniedBoardings: 40,
+  waitPassengerSeconds: totalPassengerSeconds * 0.3,
+  onboardDelayPassengerSeconds: 500,
+  dwellPassengerSeconds: totalPassengerSeconds * 0.2,
+  ridePassengerSeconds: totalPassengerSeconds * 0.5,
+  inVehiclePassengerSeconds: totalPassengerSeconds * 0.7,
+  totalPassengerSeconds,
+});
+
+const incidents = () => ({
+  detected: 20,
+  byOpeningSeverity: { bunched: 10 },
+  byPeakSeverity: { bunched: 10 },
+  escalatedFromPrediction: 2,
+  resolved: 15,
+  closedPairGone: 3,
+  unresolvedAtEnd: 2,
+  medianResolutionSeconds: 300,
+  meanResolutionSeconds: 320,
+  worstRatio: 0.2,
+  withIntervention: 8,
+  totalHoldSecondsServed: 600,
+});
+
+const arm = (totalPassengerSeconds: number, spacingOver: Partial<Spacing> = {}) => ({
+  spacing: spacing(spacingOver),
+  punctuality: punctuality(),
+  passengers: passengers(totalPassengerSeconds),
+  incidents: incidents(),
+});
