@@ -324,3 +324,50 @@ export interface ReplayWindow {
   start: number;
   end: number;
 }
+
+/** Seconds of empty corridor shown before the first sampled dispatch. */
+export const REPLAY_WINDOW_LEAD_SECONDS = 300;
+/** Seconds kept after the last sampled bus finishes. */
+export const REPLAY_WINDOW_TAIL_SECONDS = 120;
+
+/**
+ * The window of trial time worth replaying: from shortly before the first
+ * sampled bus is dispatched in either arm to shortly after the last one
+ * finishes. A scenario's horizon is ~25,000 s but its ten sampled buses
+ * occupy a few hours of it, so a replay that runs from zero shows an empty
+ * corridor for the first two hours. `frameAt` still takes absolute trial
+ * time; the scene adds `start` to its clock. Falls back to the scenario's
+ * horizon when no trajectory has a point.
+ */
+export function replayWindow(scenario: ReplayScenarioModel): ReplayWindow {
+  let first = Number.POSITIVE_INFINITY;
+  let last = Number.NEGATIVE_INFINITY;
+  for (const arm of [scenario.trajectories.uncontrolled, scenario.trajectories.controlled]) {
+    for (const trajectory of arm) {
+      const head = trajectory.points[0];
+      const tail = trajectory.points[trajectory.points.length - 1];
+      if (head && head.t < first) first = head.t;
+      if (tail && tail.t > last) last = tail.t;
+    }
+  }
+  if (!Number.isFinite(first) || !Number.isFinite(last)) {
+    return { start: 0, end: Math.max(0, scenario.horizonSeconds) };
+  }
+  const start = Math.max(0, first - REPLAY_WINDOW_LEAD_SECONDS);
+  const end = Math.max(start, last + REPLAY_WINDOW_TAIL_SECONDS);
+  return { start, end };
+}
+
+/** A frame with nothing on the road, for a scene with no scenario to draw. */
+export function emptyFrame(t: number): ReplayFrame {
+  return {
+    t,
+    vehicles: [],
+    pairs: [],
+    holds: [],
+    openIncidents: 0,
+    bunchedPairs: 0,
+    holdsServed: 0,
+    busesLive: 0,
+  };
+}
