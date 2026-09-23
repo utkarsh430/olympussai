@@ -106,3 +106,67 @@ class FakeLatLngBounds {
     readonly northEast: google.maps.LatLngLiteral,
   ) {}
 }
+
+class FakePoint {
+  constructor(
+    readonly x: number,
+    readonly y: number,
+  ) {}
+}
+
+function installMaps(): FakeMapHarness {
+  const installed = installFakeGoogleMaps();
+  harness = installed;
+  Object.assign((globalThis as { google: { maps: object } }).google.maps, {
+    Map: FakeMap,
+    Polyline: FakePolyline,
+    Marker: FakeMarker,
+    LatLngBounds: FakeLatLngBounds,
+    Point: FakePoint,
+    SymbolPath: { CIRCLE: 0 },
+  });
+  return installed;
+}
+
+/* ── fixtures ─────────────────────────────────────────────────────────────── */
+
+const SCENARIO: ReplayScenarioModel = {
+  id: 'steady_variability',
+  title: 'Steady variability',
+  note: 'Ordinary running-time noise.',
+  horizonSeconds: 4000,
+  vehicleCount: 2,
+  trajectories: {
+    controlled: [
+      {
+        vehicleId: 'bus-1',
+        points: [
+          { t: 0, d: 0, hold: 0 },
+          { t: 1000, d: 1000, hold: 0 },
+          { t: 2000, d: 2000, hold: 0 },
+        ],
+      },
+      {
+        vehicleId: 'bus-2',
+        points: [
+          { t: 300, d: 0, hold: 0 },
+          { t: 1100, d: 1000, hold: 60 },
+          { t: 2000, d: 2000, hold: 0 },
+        ],
+      },
+    ],
+    uncontrolled: [],
+  },
+  sweeps: { controlled: [], uncontrolled: [] },
+  netPercent: 3.1,
+  excessWaitPercent: 40,
+  incidentsAvoided: 2,
+};
+
+const CTX: ReplayContext = {
+  route: LUCKNOW_CORRIDOR,
+  trialCorridorLengthMeters: 24_000,
+  targetHeadwaySeconds: 360,
+  bunchedThresholdRatio: 0.25,
+  warningThresholdRatio: 0.5,
+};
