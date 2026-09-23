@@ -62,3 +62,17 @@ export const trialArmSummarySchema = z.object({
   alightingOnlyActions: z.number(),
   alightingOnlyPassengersPassed: z.number(),
 });
+export type TrialArmSummary = z.infer<typeof trialArmSummarySchema>;
+
+export const trialSweepPointSchema = z.object({
+  atSeconds: z.number(),
+  openIncidents: z.number(),
+  bunchedPairs: z.number(),
+  liveVehicles: z.number(),
+});
+export type TrialSweepPoint = z.infer<typeof trialSweepPointSchema>;
+
+export const trialTrajectorySchema = z.object({
+  vehicleId: z.string(),
+  points: z.array(z.object({ t: z.number(), d: z.number(), hold: z.number() })),
+});
