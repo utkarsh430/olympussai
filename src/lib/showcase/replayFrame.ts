@@ -119,3 +119,121 @@ export function holdsServedUpTo(trajectories: readonly TrialTrajectory[], t: num
   }
   return count;
 }
+
+/** The segment index `i` with `points[i].t <= t < points[i+1].t`, or the last index at the final point. */
+function segmentIndex(points: TrialTrajectory['points'], t: number): number {
+  let low = 0;
+  let high = points.length - 1;
+  let found = 0;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    const point = points[mid];
+    if (!point) break;
+    if (point.t <= t) {
+      found = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return found;
+}
+
+/**
+ * Where one bus is at `t`, or null when it is not on the road: not yet
+ * dispatched (`t` before its first visit) or finished (`t` after its last).
+ */
+function locateVehicle(
+  trajectory: TrialTrajectory,
+  t: number,
+  ctx: ReplayContext,
+): ReplayVehicle | null {
+  const points = trajectory.points;
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last) return null;
+  if (t < first.t || t > last.t) return null;
+
+  const index = segmentIndex(points, t);
+  const here = points[index];
+  if (!here) return null;
+  const next = points[index + 1];
+
+  const holdBegins = here.t + DWELL_SECONDS;
+  const windowEnd = holdBegins + here.hold;
+  // A dwell longer than the gap to the next visit is data noise; the bus
+  // simply stays until the next arrival rather than teleporting backwards.
+  const departsAt = next ? Math.min(windowEnd, next.t) : windowEnd;
+
+  if (!next || t <= departsAt) {
+    const holding = here.hold > 0 && t >= holdBegins && t < departsAt;
+    const position = positionAlongRoute(ctx.route, here.d, ctx.trialCorridorLengthMeters);
+    return {
+      id: trajectory.vehicleId,
+      fraction: position.fraction,
+      distanceMeters: here.d,
+      position,
+      moving: false,
+      holding,
+      holdRemainingSeconds: holding ? departsAt - t : 0,
+      stopSequence: index + 1,
+      speedMetersPerSecond: 0,
+    };
+  }
+
+  const travel = next.t - departsAt;
+  const progress = travel > 0 ? (t - departsAt) / travel : 1;
+  const d = here.d + (next.d - here.d) * progress;
+  const position = positionAlongRoute(ctx.route, d, ctx.trialCorridorLengthMeters);
+  return {
+    id: trajectory.vehicleId,
+    fraction: position.fraction,
+    distanceMeters: d,
+    position,
+    moving: true,
+    holding: false,
+    holdRemainingSeconds: 0,
+    stopSequence: null,
+    speedMetersPerSecond: travel > 0 ? Math.abs(next.d - here.d) / travel : 0,
+  };
+}
+
+/** Median of a small array, sorting a copy. Zero when empty. */
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = values.slice().sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  if (sorted.length % 2 === 1) return sorted[mid] ?? 0;
+  return ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
+}
+
+/**
+ * The corridor's pace in metres per second: the median speed of the buses
+ * that are moving. When none is moving - the first seconds of a scenario,
+ * or a frame where every sampled bus is dwelling - fall back to the pace the
+ * arm's whole trips imply, so a standing pair still gets a headway rather
+ * than a fabricated one.
+ */
+function corridorPace(
+  vehicles: readonly ReplayVehicle[],
+  trajectories: readonly TrialTrajectory[],
+  corridorLength: number,
+): number {
+  const speeds: number[] = [];
+  for (const vehicle of vehicles) {
+    if (vehicle.moving && vehicle.speedMetersPerSecond > 0) {
+      speeds.push(vehicle.speedMetersPerSecond);
+    }
+  }
+  const live = median(speeds);
+  if (live > 0) return live;
+
+  const durations: number[] = [];
+  for (const trajectory of trajectories) {
+    const first = trajectory.points[0];
+    const last = trajectory.points[trajectory.points.length - 1];
+    if (first && last && last.t > first.t) durations.push(last.t - first.t);
+  }
+  const trip = median(durations);
+  return trip > 0 && corridorLength > 0 ? corridorLength / trip : 0;
+}
