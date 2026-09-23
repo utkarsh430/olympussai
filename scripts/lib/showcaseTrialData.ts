@@ -108,3 +108,80 @@ function contrast(source: ArmContrast): TrialContrast {
     additionalDeniedBoardings: source.additionalDeniedBoardings,
   };
 }
+
+function armSummary(arm: ArmReport): TrialArmSummary {
+  return {
+    ewtSeconds: arm.spacing.ewtSeconds,
+    meanHeadwaySeconds: arm.spacing.meanHeadwaySeconds,
+    headwayCv: arm.spacing.headwayCv,
+    bunchingRate: arm.spacing.bunchingRate,
+    incidentsDetected: arm.incidents.detected,
+    incidentsResolved: arm.incidents.resolved,
+    onTimeRate: arm.punctuality.onTimeRate,
+    meanHoldSecondsPerVehicle: arm.punctuality.meanHoldSecondsPerVehicle,
+    totalHoldSeconds: arm.punctuality.totalHoldSeconds,
+    totalPassengerSeconds: arm.passengers.totalPassengerSeconds,
+    waitPassengerSeconds: arm.passengers.waitPassengerSeconds,
+    boardings: arm.passengers.boardings,
+    deniedBoardings: arm.passengers.deniedBoardings,
+    deniedShare: arm.spacing.deniedShare,
+    firstTimeDeniedBoardings: arm.spacing.firstTimeDeniedBoardings,
+    meanJourneySeconds: arm.punctuality.meanJourneySeconds,
+    p95JourneySeconds: arm.punctuality.p95JourneySeconds,
+    meanScheduleDeviationSeconds: arm.punctuality.meanScheduleDeviationSeconds,
+    p95ScheduleDeviationSeconds: arm.punctuality.p95ScheduleDeviationSeconds,
+    maxHoldSecondsOnAnyVehicle: arm.punctuality.maxHoldSecondsOnAnyVehicle,
+    alightingOnlyActions: arm.punctuality.alightingOnlyActions,
+    alightingOnlyPassengersPassed: arm.punctuality.alightingOnlyPassengersPassed,
+  };
+}
+
+interface ScenarioKeep {
+  trajectories: boolean;
+  sweeps: boolean;
+}
+
+function scenarioData(
+  scenario: ScenarioReport,
+  keep: ScenarioKeep,
+  sweepPoints: number,
+): TrialScenario {
+  return {
+    id: scenario.id,
+    title: scenario.title,
+    mechanism: scenario.mechanism,
+    whatItTests: scenario.whatItTests,
+    vehicleCount: scenario.vehicleCount,
+    horizonSeconds: scenario.horizonSeconds,
+    saturated: scenario.controlled.spacing.saturated || scenario.uncontrolled.spacing.saturated,
+    contrast: contrast(scenario.contrast),
+    controlled: armSummary(scenario.controlled),
+    uncontrolled: armSummary(scenario.uncontrolled),
+    sweeps: keep.sweeps
+      ? {
+          controlled: decimate(scenario.sweeps.controlled, sweepPoints).map(sweepPoint),
+          uncontrolled: decimate(scenario.sweeps.uncontrolled, sweepPoints).map(sweepPoint),
+        }
+      : { controlled: [], uncontrolled: [] },
+    trajectories: keep.trajectories
+      ? {
+          controlled: scenario.trajectories.controlled.map((trajectory) => ({
+            vehicleId: trajectory.vehicleId,
+            points: trajectory.points.map((point) => ({
+              t: point.t,
+              d: point.d,
+              hold: point.hold,
+            })),
+          })),
+          uncontrolled: scenario.trajectories.uncontrolled.map((trajectory) => ({
+            vehicleId: trajectory.vehicleId,
+            points: trajectory.points.map((point) => ({
+              t: point.t,
+              d: point.d,
+              hold: point.hold,
+            })),
+          })),
+        }
+      : null,
+  };
+}
