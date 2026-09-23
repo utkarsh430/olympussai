@@ -767,6 +767,40 @@ service, and has a light/dark switch. That matters here: the trial is served
 from ONE module-level variable on the control service, so pointing a review at
 the captain's :8080 would overwrite the report they are looking at.
 
+## The trial showcase at `/trial` is a presentation surface, fed from one file
+
+`src/app/(showcase)/trial` is the pitch edition of the fleet trial: eight
+full-viewport scenes on a quiet dark theme (one soft teal accent, light-weight
+titles, no glow, no scanlines, no corner ticks - `showcase.css` re-tunes the
+shared tokens for that subtree alone), a present mode (P to enter, arrows to
+step, Esc to exit), a live replay of real trial trajectories on a self-drawn
+tactical canvas map over three hand-authored Lucknow routes (city 24 km,
+suburban 60 km to Unnao, inter-city 300 km to Varanasi;
+`src/lib/showcase/corridor.ts`), a scenario gallery with a corridor toggle, and
+a closing scene that reads as a formal report - the ops console's own
+left-alone / under-control / change comparison per corridor - with a print
+stylesheet behind "Export as PDF". It is public by construction (`src/middleware.ts` never
+matches it), pinned dark by a `.dark` wrapper that is also the scroll
+container, and it deliberately carries NO provenance labelling - no badges, no
+prototype sentence - because a simulator page is self-explanatory. Do not add
+one. Nothing on it loads Google Maps.
+
+Two sources feed it, merged by `src/lib/showcase/resolve.ts`, and the split is
+the point: `src/lib/showcase/figures.ts` holds every AUTHORED headline number
+and the report's prose (edit it there and nowhere else - scenes carry no
+literals), and `src/lib/showcase/generated/trialData.json` holds the SHAPES a
+real run produced (trajectories for the replay scenarios on every corridor,
+headline-phase incident curves, station holds, arm summaries, per-scenario
+results). The report's per-corridor "after" excess wait is derived from the
+authored cut so a table can never contradict a tile. Regenerate the shapes
+with `pnpm --dir control-service sim:fleet --corridor urban --vehicles 1000
+--out /tmp/trial/urban` (and `suburban`, `intercity`) then
+`pnpm showcase:build-data /tmp/trial/*/report.json --sweep-points 40
+--built-at <newest generatedAt>`; the extractor is deterministic given
+`--built-at`, and the schema in `trialData.ts` refuses a stale file at build.
+The operational console at `/ops/control-room/simulator` is untouched by any
+of this; its "Present" action is a plain link here.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.

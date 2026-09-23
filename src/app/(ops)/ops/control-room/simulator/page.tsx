@@ -1,6 +1,7 @@
+import Link from 'next/link';
 import { requireOpsRolePage } from '@/lib/auth/rbac/pageGuard';
 import { OpsShell } from '@/components/ops/OpsShell';
-import { OpsAlert, OpsStat, OpsStatGroup, OpsStatStrip } from '@/components/ops/ui';
+import { OpsAlert, OpsStat, OpsStatGroup, OpsStatStrip, opsButtonClass } from '@/components/ops/ui';
 import { SimulatorConsole } from '@/components/ops/control-room/simulator/SimulatorConsole';
 import { readLatestFleetTrial } from '@/lib/controlService/fleetTrial';
 import { headlineNetPassengerTime } from '@/lib/ops/fleetTrialView';
@@ -56,6 +57,13 @@ export default async function SimulatorPage() {
       variant="wide"
       subtitle="A thousand buses, every way a corridor comes apart, and what would have happened without us"
       statusStrip={report ? <TrialStrip report={report} /> : undefined}
+      actions={
+        // The presentation edition of the same trial, for a room rather than
+        // a desk. A link, not a button: it opens a different surface.
+        <Link href="/trial" className={opsButtonClass('quiet')}>
+          Present
+        </Link>
+      }
     >
       {readError ? (
         <OpsAlert tone="warning" title="The last trial could not be read">
