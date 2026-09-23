@@ -117,3 +117,87 @@ const replayScenario = (title: string) =>
       uncontrolled: [trajectory('u-1'), trajectory('u-2')],
     },
   });
+
+function phase(scenarios: ReturnType<typeof scenario>[]) {
+  return {
+    id: 'occupancy_blind',
+    title: 'Occupancy-blind',
+    vehicleCount: 60,
+    contrast: contrast(),
+    allScenariosContrast: contrast(),
+    controlled: arm({ incidentsDetected: 9 }),
+    uncontrolled: arm({ incidentsDetected: 18 }),
+    lawCoverage: [
+      { law: 'terminal_dispatch', decisionsGenerating: 120, decisionsTotal: 600 },
+      { law: 'two_way', decisionsGenerating: 300, decisionsTotal: 600 },
+      { law: 'self_equalizing', decisionsGenerating: 90, decisionsTotal: 600 },
+      { law: 'boarding_limit', decisionsGenerating: 10, decisionsTotal: 600 },
+    ],
+    holdSecondsByStation: [
+      { sequence: 1, name: 'Origin', holdSeconds: 900, holdCount: 12 },
+      { sequence: 5, name: 'Fifth', holdSeconds: 300, holdCount: 4 },
+    ],
+    holdCountByActionType: [
+      { actionType: 'two_way_hold', count: 14, holdSeconds: 900 },
+      { actionType: 'terminal_dispatch_hold', count: 2, holdSeconds: 300 },
+    ],
+    scenarios,
+  };
+}
+
+const urbanCorridor = {
+  presetId: 'urban',
+  title: 'City trunk',
+  routeName: 'Urban corridor',
+  totalDistanceMeters: 24_000,
+  stationCount: 25,
+  targetHeadwaySeconds: 360,
+  bunchedThresholdRatio: 0.25,
+  warningThresholdRatio: 0.5,
+  maxHoldSeconds: 120,
+  generatedAt: '2026-09-01T00:00:00.000Z',
+  durationMs: 1_000,
+  vehiclesSimulated: 60,
+  headlineScope: {
+    includedScenarioIds: ['steady_variability', 'slow_bus'],
+    excludedScenarioIds: ['oversaturated'],
+  },
+  controllability: { disturbanceRatio: 0.1, legTimeSigmaSeconds: 30, band: 'controllable' },
+  headlineNetPercent: 3.8,
+  allScenariosNetPercent: 2,
+  stations: [{ sequence: 1, name: 'Origin', cumulativeDistanceMeters: 0 }],
+  phases: [
+    phase([
+      replayScenario('Steady variability'),
+      scenario('slow_bus', 'Slow bus'),
+      scenario('oversaturated', 'Oversaturated', {
+        saturated: true,
+        contrast: contrast({ passengerSecondsSavedPercent: -1.5, ewtImprovementPercent: 4 }),
+      }),
+    ]),
+  ],
+};
+
+// A second corridor, so the gallery toggle has something to switch to and
+// the report has two rows. Its one scenario carries a title of its own so a
+// test can tell which corridor's cards are on screen.
+const intercityCorridor = {
+  ...urbanCorridor,
+  presetId: 'intercity',
+  title: 'Inter-city trunk',
+  routeName: 'Inter-city corridor',
+  totalDistanceMeters: 400_000,
+  stationCount: 10,
+  targetHeadwaySeconds: 1_800,
+  maxHoldSeconds: 600,
+  generatedAt: '2026-09-23T00:00:00.000Z',
+  headlineScope: { includedScenarioIds: ['steady_variability'], excludedScenarioIds: [] },
+  phases: [phase([replayScenario('Long-haul steady variability')])],
+};
+
+const minimalTrialData = trialDataSchema.parse({
+  builtAt: '2026-09-01T00:00:00.000Z',
+  headlinePhaseId: 'occupancy_blind',
+  replayScenarioIds: ['steady_variability'],
+  corridors: [urbanCorridor, intercityCorridor],
+});
