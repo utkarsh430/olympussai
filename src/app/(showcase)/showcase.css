@@ -1,0 +1,482 @@
+/**
+ * The trial showcase's own rules: a night presentation surface built on the
+ * shared tokens, kept deliberately quiet. One accent, no glow on numbers, no
+ * scanlines or corner ticks, light-weight titles - an instrument read in a
+ * boardroom rather than a cockpit.
+ *
+ * Everything colour-related still resolves through `.dark` on the route's
+ * wrapper; the block below only re-tunes the accent and the bloom for this
+ * subtree, so nothing outside `/trial` moves.
+ */
+
+.sc-root {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+
+  /* A softer teal than the console's cyan, and a quarter of its bloom. Every
+     shadow, chart ink and focus ring underneath reads these. */
+  --primary: 190 58% 50%;
+  --ring: 190 58% 50%;
+  --instrument-info: 190 62% 56%;
+  --sim-controlled: #3ab3c9;
+  --sim-controlled-fill: rgba(58, 179, 201, 0.14);
+  --hud-glow-rgb: 58 179 201;
+  --hud-bloom: 0.25;
+}
+
+.sc-root[data-present='true'] {
+  scroll-snap-type: y mandatory;
+}
+
+/* The shared ambient overlays are not part of this surface's vocabulary. */
+.sc-root .scanline-overlay,
+.sc-root .noise-overlay {
+  display: none;
+}
+
+.sc-scene {
+  position: relative;
+  min-height: 100svh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+/* ─── Type ─────────────────────────────────────────────────────────────── */
+
+.sc-display {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  line-height: 1.04;
+}
+
+.sc-title {
+  font-size: clamp(2.2rem, 5.6vw, 4.6rem);
+}
+
+.sc-h2 {
+  font-size: clamp(1.7rem, 3.4vw, 2.8rem);
+}
+
+.sc-numeral {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.sc-numeral-hero {
+  font-size: clamp(2.8rem, 7vw, 6.5rem);
+}
+
+.sc-numeral-lg {
+  font-size: clamp(2rem, 3.8vw, 3.6rem);
+}
+
+.sc-numeral-md {
+  font-size: clamp(1.4rem, 2.2vw, 2.2rem);
+}
+
+.sc-label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--muted-foreground));
+}
+
+.sc-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: hsl(var(--primary));
+}
+
+.sc-eyebrow::before {
+  content: '';
+  width: 1.5rem;
+  height: 1px;
+  background: linear-gradient(90deg, hsl(var(--primary) / 0.9), hsl(var(--primary) / 0.2));
+}
+
+/* Large figures carry a faint vertical shade: the top of each digit a touch
+   brighter than the foot, which reads as weight rather than as light. It
+   follows `currentColor`, so a toned numeral keeps its tone. */
+.sc-numeral-hero,
+.sc-numeral-lg {
+  background-image: linear-gradient(
+    180deg,
+    currentColor 0%,
+    color-mix(in srgb, currentColor 72%, transparent) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ─── Surfaces ─────────────────────────────────────────────────────────── */
+
+/* No `position` here on purpose: this sheet is not inside Tailwind's layers,
+   so a `position` set on the class would beat the `absolute` / `relative`
+   utilities a caller adds beside it. A panel that needs a positioning
+   context says `relative` itself.
+
+   Depth comes from three things and no glow: a fill that is a shade lighter
+   at the top than at the bottom, a one-pixel highlight along the top edge,
+   and a shadow that sits under the panel rather than around it. */
+.sc-panel {
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--primary) / 0.16);
+  background: linear-gradient(180deg, hsl(var(--popover) / 0.92) 0%, hsl(var(--card) / 0.88) 100%);
+  box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.05),
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 24px 48px -28px rgb(0 0 0 / 0.85);
+}
+
+.sc-panel-strong {
+  position: relative;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, hsl(var(--popover) / 0.96) 0%, hsl(var(--card) / 0.94) 100%) padding-box,
+    linear-gradient(
+        160deg,
+        hsl(var(--primary) / 0.55) 0%,
+        hsl(var(--primary) / 0.12) 40%,
+        hsl(var(--primary) / 0.05) 70%,
+        hsl(var(--primary) / 0.3) 100%
+      )
+      border-box;
+  box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.06),
+    0 1px 2px rgb(0 0 0 / 0.4),
+    0 40px 80px -40px rgb(0 0 0 / 0.9);
+}
+
+/* A card that answers the pointer: a small lift and a brighter edge. */
+.sc-lift {
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.sc-lift:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--primary) / 0.4);
+  box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.07),
+    0 2px 4px rgb(0 0 0 / 0.35),
+    0 32px 56px -28px rgb(0 0 0 / 0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-lift,
+  .sc-lift:hover {
+    transform: none;
+  }
+}
+
+/* A nested well inside a panel: one step darker, no shadow. */
+.sc-well {
+  border-radius: 0.5rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background) / 0.55);
+}
+
+.sc-rule {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.4), transparent);
+}
+
+/* ─── Controls ─────────────────────────────────────────────────────────── */
+
+.sc-button,
+.sc-button-primary,
+.sc-button-danger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid hsl(var(--border));
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: hsl(var(--foreground));
+  background: transparent;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.sc-button:hover {
+  border-color: hsl(var(--primary) / 0.6);
+  background: hsl(var(--primary) / 0.08);
+}
+
+.sc-button[aria-pressed='true'],
+.sc-button-primary {
+  border-color: hsl(var(--primary) / 0.7);
+  background: hsl(var(--primary) / 0.14);
+  color: hsl(var(--foreground));
+}
+
+.sc-button-primary:hover {
+  background: hsl(var(--primary) / 0.22);
+}
+
+.sc-button-danger {
+  border-color: hsl(var(--instrument-danger) / 0.45);
+  color: hsl(var(--destructive));
+}
+
+.sc-button-danger:hover {
+  background: hsl(var(--instrument-danger) / 0.12);
+}
+
+.sc-button:disabled,
+.sc-button-primary:disabled,
+.sc-button-danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.sc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 9999px;
+  border: 1px solid hsl(var(--border));
+  padding: 0.125rem 0.625rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+.sc-chip-accent {
+  border-color: hsl(var(--primary) / 0.45);
+  color: hsl(var(--primary));
+}
+
+.sc-chip-good {
+  border-color: hsl(var(--instrument-success) / 0.45);
+  color: hsl(var(--success));
+}
+
+.sc-chip-warn {
+  border-color: hsl(var(--instrument-warning) / 0.45);
+  color: hsl(var(--warning));
+}
+
+/* ─── Collapsible report sections ──────────────────────────────────────── */
+
+.sc-details {
+  border-top: 1px solid hsl(var(--border));
+}
+
+.sc-details > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 1.25rem 0;
+  cursor: pointer;
+  list-style: none;
+  color: hsl(var(--foreground));
+}
+
+.sc-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.sc-details > summary::after {
+  content: '';
+  margin-left: auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  align-self: center;
+  border-right: 1px solid hsl(var(--primary) / 0.8);
+  border-bottom: 1px solid hsl(var(--primary) / 0.8);
+  transform: rotate(-45deg);
+  transition: transform 180ms ease;
+}
+
+.sc-details[open] > summary::after {
+  transform: rotate(45deg);
+}
+
+.sc-details > summary:hover {
+  color: hsl(var(--primary));
+}
+
+.sc-details > summary:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 4px;
+  border-radius: 0.25rem;
+}
+
+.sc-details-nested {
+  border-top: 1px dashed hsl(var(--border));
+}
+
+.sc-details-nested > summary {
+  padding: 0.875rem 0;
+}
+
+/* ─── Report tables ────────────────────────────────────────────────────── */
+
+.sc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.sc-table th {
+  text-align: left;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--muted-foreground));
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid hsl(var(--primary) / 0.3);
+  white-space: nowrap;
+}
+
+.sc-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid hsl(var(--border));
+  vertical-align: top;
+}
+
+.sc-table td.num,
+.sc-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sc-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* The wide results table: tighter cells so twelve columns fit the sheet. */
+.sc-table-dense th,
+.sc-table-dense td {
+  padding: 0.5rem 0.45rem;
+  font-size: 0.75rem;
+}
+
+/* Present-mode letterbox bands. */
+.sc-letterbox-top {
+  background: linear-gradient(
+    to bottom,
+    hsl(var(--background)),
+    hsl(var(--background) / 0.85),
+    transparent
+  );
+}
+.sc-letterbox-bottom {
+  background: linear-gradient(
+    to top,
+    hsl(var(--background)) 0%,
+    hsl(var(--background) / 0.96) 55%,
+    hsl(var(--background) / 0.6) 80%,
+    transparent 100%
+  );
+}
+
+/* Fullscreen is requested on the document element, which sits outside the
+   dark subtree; paint its backdrop the void so the edges never flash light. */
+:fullscreen,
+::backdrop {
+  background-color: #02040a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-root {
+    scroll-behavior: auto;
+  }
+}
+
+/* ─── Print: the report alone, on paper ────────────────────────────────── */
+
+@media print {
+  .sc-root {
+    --background: 0 0% 100%;
+    --foreground: 210 57% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 57% 11%;
+    --muted-foreground: 207 18% 35%;
+    --border: 211 31% 80%;
+    --primary: 192 85% 29%;
+    --success: 153 83% 23%;
+    --warning: 36 100% 24%;
+    --instrument-success: 153 83% 23%;
+    --instrument-warning: 36 100% 24%;
+    --sim-saved: #1a5fb4;
+    --sim-added: #a34a00;
+    --sim-hold: #995100;
+    --hud-bloom: 0;
+    color-scheme: light;
+    height: auto;
+    overflow: visible;
+    background: #ffffff;
+    scroll-snap-type: none;
+  }
+
+  .sc-root [data-scene]:not(#report),
+  .sc-root [data-showcase-chrome],
+  .sc-root [data-showcase-backdrop],
+  .sc-root canvas,
+  .sc-root .sc-print-hide {
+    display: none !important;
+  }
+
+  .sc-scene {
+    min-height: 0;
+  }
+
+  .sc-panel,
+  .sc-panel-strong {
+    background: #ffffff;
+    box-shadow: none;
+    border-color: #c3d0de;
+  }
+
+  .sc-table,
+  .sc-panel {
+    page-break-inside: avoid;
+  }
+
+  .sc-table th,
+  .sc-table td {
+    color: #0c1c2c;
+  }
+
+  .sc-details > summary::after {
+    display: none;
+  }
+
+  .sc-details > summary {
+    cursor: default;
+  }
+
+  a[href]::after {
+    content: '';
+  }
+}
