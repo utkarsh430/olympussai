@@ -381,3 +381,37 @@ function resolvedPercent(arm: TrialArmSummary | undefined): number | null {
   if (!arm || arm.incidentsDetected <= 0) return null;
   return (arm.incidentsResolved / arm.incidentsDetected) * 100;
 }
+
+/**
+ * The trial numbers its stations from 0 and the map corridor numbers its
+ * stops from 1, so a station is matched by ORDER, not by its raw sequence:
+ * the corridor's first station is the route's first stop whatever either
+ * side calls it.
+ */
+function stationName(
+  route: CorridorRoute,
+  sequence: number,
+  firstSequence: number,
+  fallback: string,
+): string {
+  const stop: CorridorStop | null = stopForSequence(route, sequence - firstSequence + 1);
+  return stop ? stop.name : fallback;
+}
+
+function firstStationSequence(corridor: TrialCorridorData | null): number {
+  const sequences = corridor?.stations.map((station) => station.sequence) ?? [];
+  return sequences.length > 0 ? Math.min(...sequences) : 0;
+}
+
+function scenarioById(phase: TrialPhase | null, id: BunchingScenarioId): TrialScenario | null {
+  return phase?.scenarios.find((scenario) => scenario.id === id) ?? null;
+}
+
+function corridorFigure(figures: ShowcaseFigures, presetId: string): CorridorFigure | null {
+  return figures.corridors.find((corridor) => corridor.presetId === presetId) ?? null;
+}
+
+function signed(value: number, decimals = 1): string {
+  const rounded = value.toFixed(decimals);
+  return value >= 0 ? `+${rounded}` : rounded;
+}
