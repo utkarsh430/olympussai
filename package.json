@@ -28,7 +28,8 @@
     "seed-ops-depots": "tsx scripts/seed-ops-depots.ts",
     "backfill-ops-links": "node scripts/backfill-ops-supabase-links.mjs",
     "process-logo": "node scripts/process-logo.mjs",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"docs/**/*.md\""
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"docs/**/*.md\"",
+    "showcase:build-data": "tsx scripts/showcase/build-trial-data.ts"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^1.16.8",
