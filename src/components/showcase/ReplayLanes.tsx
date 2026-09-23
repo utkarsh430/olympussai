@@ -106,3 +106,29 @@ function stationDistances(scenario: ReplayScenarioModel): number[] {
   }
   return longest ? longest.points.map((point) => point.d) : [];
 }
+
+interface Lane {
+  top: number;
+  bottom: number;
+  colour: string;
+  trajectories: readonly TrialTrajectory[];
+}
+
+interface Plot {
+  width: number;
+  start: number;
+  end: number;
+  corridor: number;
+}
+
+function xAt(plot: Plot, t: number): number {
+  const inner = Math.max(1, plot.width - PAD_X * 2);
+  const span = plot.end - plot.start;
+  const fraction = span > 0 ? Math.max(0, Math.min(1, (t - plot.start) / span)) : 0;
+  return PAD_X + fraction * inner;
+}
+
+function yAt(lane: Lane, plot: Plot, d: number): number {
+  const fraction = plot.corridor > 0 ? Math.max(0, Math.min(1, d / plot.corridor)) : 0;
+  return lane.bottom - fraction * (lane.bottom - lane.top);
+}
