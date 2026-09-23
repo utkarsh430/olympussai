@@ -101,3 +101,93 @@ describe('positionAlongRoute', () => {
     expect(positionAlongRoute(LUCKNOW_CORRIDOR, 500, 0).fraction).toBe(0);
   });
 });
+
+describe('nearestStop', () => {
+  it('returns the stop whose distance is closest to the fraction', () => {
+    for (const stop of LUCKNOW_CORRIDOR.stops) {
+      const fraction = stop.cumulativeMeters / LUCKNOW_CORRIDOR.lengthMeters;
+      expect(nearestStop(LUCKNOW_CORRIDOR, fraction)?.sequence).toBe(stop.sequence);
+    }
+  });
+
+  it('snaps a point just short of a stop to that stop', () => {
+    const target = LUCKNOW_CORRIDOR.stops[9];
+    const fraction = ((target?.cumulativeMeters ?? 0) - 30) / LUCKNOW_CORRIDOR.lengthMeters;
+    expect(nearestStop(LUCKNOW_CORRIDOR, fraction)?.sequence).toBe(target?.sequence);
+  });
+});
+
+describe('projectToBox', () => {
+  it('keeps every stop inside the padded box', () => {
+    const width = 1200;
+    const height = 640;
+    const padding = 40;
+    for (const stop of LUCKNOW_CORRIDOR.stops) {
+      const { x, y } = projectToBox(stop, LUCKNOW_CORRIDOR.bounds, width, height, padding);
+      expect(x).toBeGreaterThanOrEqual(padding - 1e-6);
+      expect(x).toBeLessThanOrEqual(width - padding + 1e-6);
+      expect(y).toBeGreaterThanOrEqual(padding - 1e-6);
+      expect(y).toBeLessThanOrEqual(height - padding + 1e-6);
+    }
+  });
+
+  it('puts north at the top and east on the right', () => {
+    const first = LUCKNOW_CORRIDOR.stops[0];
+    const last = LUCKNOW_CORRIDOR.stops[LUCKNOW_CORRIDOR.stops.length - 1];
+    if (!first || !last) throw new Error('fixture has no stops');
+    const a = projectToBox(first, LUCKNOW_CORRIDOR.bounds, 800, 600, 20);
+    const b = projectToBox(last, LUCKNOW_CORRIDOR.bounds, 800, 600, 20);
+    // Alambagh is south-west of Chinhat.
+    expect(b.x).toBeGreaterThan(a.x);
+    expect(b.y).toBeLessThan(a.y);
+  });
+
+  it('preserves aspect: the corridor fills the limiting axis exactly', () => {
+    const width = 1000;
+    const height = 300;
+    const padding = 10;
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (const stop of LUCKNOW_CORRIDOR.stops) {
+      const { x, y } = projectToBox(stop, LUCKNOW_CORRIDOR.bounds, width, height, padding);
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+    const drawnWidth = maxX - minX;
+    const drawnHeight = maxY - minY;
+    const fillsWidth = Math.abs(drawnWidth - (width - padding * 2)) < 1e-6;
+    const fillsHeight = Math.abs(drawnHeight - (height - padding * 2)) < 1e-6;
+    expect(fillsWidth || fillsHeight).toBe(true);
+  });
+});
+
+describe('the three routes', () => {
+  it('maps every trial preset to a route anchored on Lucknow', () => {
+    expect(Object.keys(CORRIDOR_ROUTES).sort()).toEqual(['intercity', 'suburban', 'urban']);
+    for (const route of Object.values(CORRIDOR_ROUTES)) {
+      const first = route.stops[0];
+      expect(first?.latitude).toBeCloseTo(26.81, 1);
+      expect(first?.longitude).toBeCloseTo(80.906, 2);
+    }
+  });
+
+  it('gives the suburban radial about sixty kilometres over fifteen stops', () => {
+    expect(SUBURBAN_CORRIDOR.stops).toHaveLength(15);
+    expect(SUBURBAN_CORRIDOR.lengthMeters).toBeGreaterThan(40_000);
+    expect(SUBURBAN_CORRIDOR.lengthMeters).toBeLessThan(75_000);
+  });
+
+  it('gives the inter-city trunk about three hundred kilometres over ten stations, Lucknow to Varanasi', () => {
+    expect(INTERCITY_CORRIDOR.stops).toHaveLength(10);
+    expect(INTERCITY_CORRIDOR.stops[0]?.name).toMatch(/Lucknow/);
+    expect(INTERCITY_CORRIDOR.stops[9]?.name).toMatch(/Varanasi/);
+    expect(INTERCITY_CORRIDOR.lengthMeters).toBeGreaterThan(250_000);
+    expect(INTERCITY_CORRIDOR.lengthMeters).toBeLessThan(350_000);
+    const sequences = INTERCITY_CORRIDOR.stops.map((stop) => stop.cumulativeMeters);
+    expect([...sequences].sort((a, b) => a - b)).toEqual(sequences);
+  });
+});
