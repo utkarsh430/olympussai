@@ -40,3 +40,32 @@
   scroll-snap-align: start;
   scroll-snap-stop: always;
 }
+
+/* ─── Type ─────────────────────────────────────────────────────────────── */
+
+.sc-display {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  line-height: 1.04;
+}
+
+.sc-title {
+  font-size: clamp(2.2rem, 5.6vw, 4.6rem);
+}
+
+.sc-h2 {
+  font-size: clamp(1.7rem, 3.4vw, 2.8rem);
+}
+
+.sc-numeral {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.sc-numeral-hero {
+  font-size: clamp(2.8rem, 7vw, 6.5rem);
+}
