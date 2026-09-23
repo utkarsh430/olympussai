@@ -286,3 +286,38 @@
 .sc-details {
   border-top: 1px solid hsl(var(--border));
 }
+
+.sc-details > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 1.25rem 0;
+  cursor: pointer;
+  list-style: none;
+  color: hsl(var(--foreground));
+}
+
+.sc-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.sc-details > summary::after {
+  content: '';
+  margin-left: auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  align-self: center;
+  border-right: 1px solid hsl(var(--primary) / 0.8);
+  border-bottom: 1px solid hsl(var(--primary) / 0.8);
+  transform: rotate(-45deg);
+  transition: transform 180ms ease;
+}
+
+.sc-details[open] > summary::after {
+  transform: rotate(45deg);
+}
+
+.sc-details > summary:hover {
+  color: hsl(var(--primary));
+}
