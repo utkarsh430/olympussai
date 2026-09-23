@@ -113,3 +113,41 @@ export function tokenColour(el: Element, name: string, fallback: string): string
   if (!value) return fallback;
   return /^\d/.test(value) ? `hsl(${value})` : value;
 }
+
+function resolveInk(el: Element): Ink {
+  const read = (name: keyof typeof TOKEN_FALLBACK) => tokenColour(el, name, TOKEN_FALLBACK[name]);
+  return {
+    controlled: read('--sim-controlled'),
+    baseline: read('--sim-baseline'),
+    warning: read('--instrument-warning'),
+    danger: read('--instrument-danger'),
+    foreground: read('--foreground'),
+    ground: read('--background'),
+    muted: read('--muted-foreground'),
+  };
+}
+
+/** The ink the arm draws in: the corridor line, the station rings and every bus that is not holding. */
+export function armInk(arm: ReplayArm, ink: Ink): string {
+  return arm === 'controlled' ? ink.controlled : ink.baseline;
+}
+
+/** The fleet layer's palette for one arm. Casing in the ground colour, so a chevron survives over the corridor line. */
+export function paletteFor(arm: ReplayArm, ink: Ink): FleetLayerPalette {
+  return {
+    quality: { good: armInk(arm, ink), degraded: ink.warning, stale: ink.danger },
+    selected: ink.foreground,
+    casing: ink.ground,
+  };
+}
+
+/** Every bus on the road as a mark. A holding bus is `degraded`, which the layer draws ringed. */
+export function replayMarks(frame: ReplayFrame): ReplayMark[] {
+  return frame.vehicles.map((vehicle) => ({
+    id: vehicle.id,
+    latitude: vehicle.position.latitude,
+    longitude: vehicle.position.longitude,
+    headingDegrees: vehicle.position.headingDegrees,
+    dataQuality: vehicle.holding ? 'degraded' : 'good',
+  }));
+}
