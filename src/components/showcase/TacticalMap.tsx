@@ -146,3 +146,261 @@ function chevron(ctx: CanvasRenderingContext2D, cx: number, cy: number, heading:
   ctx.lineTo(cx - wingX * cos - wingY * sin, cy - wingX * sin + wingY * cos);
   ctx.closePath();
 }
+
+function ring(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number): void {
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+}
+
+interface Scene {
+  route: CorridorRoute;
+  frame: ReplayFrame;
+  arm: ReplayArm;
+  followedId: string | null;
+}
+
+function paint({ ctx, width, height, elapsed }: CanvasFrame, scene: Scene, hits: Hit[]): void {
+  const host = ctx.canvas instanceof HTMLCanvasElement ? ctx.canvas : null;
+  const ink = resolveInk(host, scene.arm);
+  const { route, frame } = scene;
+  const padding = Math.max(PADDING_MIN, PADDING_SHARE * Math.min(width, height));
+  const project = (point: GeoPoint) => projectToBox(point, route.bounds, width, height, padding);
+
+  ctx.clearRect(0, 0, width, height);
+  hits.length = 0;
+
+  // Grid.
+  ctx.save();
+  ctx.strokeStyle = ink.grid;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 0.5; x < width; x += GRID_PX) {
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+  }
+  for (let y = 0.5; y < height; y += GRID_PX) {
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // Corridor: a faint wide underlay, then the thin line. No shadow - the
+  // underlay is the whole of the softening.
+  const stops = route.stops.map((stop) => ({ stop, at: project(stop) }));
+  const tracePath = () => {
+    ctx.beginPath();
+    for (let index = 0; index < stops.length; index += 1) {
+      const entry = stops[index];
+      if (!entry) continue;
+      if (index === 0) ctx.moveTo(entry.at.x, entry.at.y);
+      else ctx.lineTo(entry.at.x, entry.at.y);
+    }
+  };
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = ink.corridor;
+  ctx.globalAlpha = 0.05;
+  ctx.lineWidth = 7;
+  tracePath();
+  ctx.stroke();
+  ctx.globalAlpha = 0.9;
+  ctx.lineWidth = 1.5;
+  tracePath();
+  ctx.stroke();
+  ctx.restore();
+
+  // Stations: a small tick at every stop, a name on some of them.
+  const every = labelEvery(stops.length, width);
+  ctx.save();
+  ctx.font = ink.font;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // Names already on the canvas, so two stations a few pixels apart (the
+  // Lucknow end of the inter-city route) do not print over each other: a
+  // name that would overlap tries the other side of its tick, then yields.
+  const drawnLabels: { x1: number; x2: number; y1: number; y2: number }[] = [];
+  const overlapsDrawn = (x1: number, x2: number, y1: number, y2: number) =>
+    drawnLabels.some((box) => x1 < box.x2 && x2 > box.x1 && y1 < box.y2 && y2 > box.y1);
+  for (let index = 0; index < stops.length; index += 1) {
+    const entry = stops[index];
+    if (!entry) continue;
+    ring(ctx, entry.at.x, entry.at.y, 2.5);
+    ctx.fillStyle = ink.ground;
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = ink.corridor;
+    ctx.stroke();
+    if (index % every === 0 || index === stops.length - 1) {
+      const above = Math.floor(index / every) % 2 === 0;
+      // A name centred on an end station would run off the canvas; slide it
+      // inward rather than clip it.
+      const half = (entry.stop.name.length * LABEL_CHAR_PX) / 2;
+      const x = Math.min(Math.max(entry.at.x, half + LABEL_EDGE_PX), width - half - LABEL_EDGE_PX);
+      const candidates = above ? [-11, 13] : [13, -11];
+      for (const offset of candidates) {
+        const y = entry.at.y + offset;
+        const box = { x1: x - half, x2: x + half, y1: y - 6, y2: y + 6 };
+        if (overlapsDrawn(box.x1, box.x2, box.y1, box.y2)) continue;
+        ctx.fillStyle = ink.muted;
+        ctx.fillText(entry.stop.name, x, y);
+        drawnLabels.push(box);
+        break;
+      }
+    }
+  }
+  ctx.restore();
+
+  // Pairs that are not fine: a dashed link with a ring at each bus.
+  ctx.save();
+  ctx.lineWidth = 1;
+  for (const pair of frame.pairs) {
+    if (pair.state === 'ok') continue;
+    const colour = pair.state === 'bunched' ? ink.danger : ink.warning;
+    const a = project(pair.leader);
+    const b = project(pair.follower);
+    ctx.strokeStyle = colour;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ring(ctx, a.x, a.y, 6);
+    ctx.stroke();
+    ring(ctx, b.x, b.y, 6);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Holds: one ring expanding and fading at the station, one still ring
+  // inside it, and the seconds remaining in text.
+  ctx.save();
+  ctx.font = ink.font;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  const phase = (elapsed % PULSE_PERIOD) / PULSE_PERIOD;
+  for (const hold of frame.holds) {
+    const at = project(hold.position);
+    ctx.strokeStyle = ink.hold;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.45 * (1 - phase);
+    ring(ctx, at.x, at.y, 8 + phase * 14);
+    ctx.stroke();
+    ctx.globalAlpha = 0.7;
+    ring(ctx, at.x, at.y, 6);
+    ctx.stroke();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = ink.hold;
+    ctx.fillText(`HOLD ${Math.ceil(hold.remainingSeconds)}s`, at.x, at.y - 18);
+  }
+  ctx.restore();
+
+  // Buses: a chevron pointing along the heading, filled with the arm's ink
+  // and cased thinly in the ground colour so it survives over the corridor
+  // line. A holding bus takes the hold ink; its pulse and label say so too.
+  ctx.save();
+  ctx.lineJoin = 'round';
+  for (const vehicle of frame.vehicles) {
+    const at = project(vehicle.position);
+    hits.push({ x: at.x, y: at.y, id: vehicle.id });
+    chevron(ctx, at.x, at.y, vehicle.position.headingDegrees);
+    ctx.fillStyle = vehicle.holding ? ink.hold : ink.corridor;
+    ctx.fill();
+    ctx.strokeStyle = ink.ground;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // The followed bus: a one-pixel crosshair and its id.
+  const followed = scene.followedId
+    ? frame.vehicles.find((vehicle) => vehicle.id === scene.followedId)
+    : undefined;
+  if (followed) {
+    const at = project(followed.position);
+    ctx.save();
+    ctx.strokeStyle = ink.info;
+    ctx.lineWidth = 1;
+    ring(ctx, at.x, at.y, 14);
+    ctx.stroke();
+    ctx.beginPath();
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      ctx.moveTo(at.x + dx * 17, at.y + dy * 17);
+      ctx.lineTo(at.x + dx * 26, at.y + dy * 26);
+    }
+    ctx.stroke();
+    ctx.font = ink.font;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = ink.info;
+    ctx.fillText(followed.id, at.x + 20, at.y - 18);
+    ctx.restore();
+  }
+
+  // The arm, named in text, with the route's ends beneath it: bottom-left,
+  // where the corridor's own geometry never reaches.
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'bottom';
+  ctx.font = ink.captionFont;
+  ctx.fillStyle = ink.muted;
+  ctx.fillText(ARM_LABEL[scene.arm].toUpperCase(), CAPTION_X, height - CAPTION_BOTTOM - 16);
+  ctx.font = ink.font;
+  ctx.fillStyle = ink.axis;
+  ctx.fillText(`${route.origin} → ${route.destination}`, CAPTION_X, height - CAPTION_BOTTOM);
+  ctx.restore();
+}
+
+export function TacticalMap({
+  route,
+  frame,
+  arm,
+  followedId,
+  onSelect,
+  className,
+}: TacticalMapProps) {
+  const hitsRef = useRef<Hit[]>([]);
+  const draw = (canvasFrame: CanvasFrame) =>
+    paint(canvasFrame, { route, frame, arm, followedId }, hitsRef.current);
+  const canvasRef = useCanvasLoop(draw);
+  useStillRepaint(canvasRef, draw, frame);
+
+  const onClick = (event: MouseEvent<HTMLCanvasElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    let best: string | null = null;
+    let bestDistance = HIT_RADIUS * HIT_RADIUS;
+    for (const hit of hitsRef.current) {
+      const dx = hit.x - x;
+      const dy = hit.y - y;
+      const distance = dx * dx + dy * dy;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = hit.id;
+      }
+    }
+    if (best) onSelect(best);
+  };
+
+  const label = `${ARM_LABEL[arm]}: ${frame.busesLive} buses on ${route.name}, ${frame.bunchedPairs} bunched pairs, ${frame.holds.length} holds in progress`;
+
+  return (
+    <div className={cn('absolute inset-0 bg-background', className)}>
+      <canvas
+        ref={canvasRef}
+        role="img"
+        aria-label={label}
+        className="absolute inset-0 h-full w-full cursor-crosshair"
+        onClick={onClick}
+      />
+    </div>
+  );
+}
