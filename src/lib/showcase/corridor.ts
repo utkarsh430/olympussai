@@ -157,3 +157,41 @@ const SUBURBAN_STOPS: readonly AuthoredStop[] = [
   { name: 'Unnao Bypass', latitude: 26.54, longitude: 80.6 },
   { name: 'Unnao Bus Station', latitude: 26.53, longitude: 80.58 },
 ];
+
+export const SUBURBAN_CORRIDOR: CorridorRoute = buildRoute(
+  'lko-22',
+  'Route 22 · Alambagh – Kanpur Road – Unnao',
+  SUBURBAN_STOPS,
+);
+
+/**
+ * The inter-city trunk: Lucknow to Varanasi along the Sultanpur road,
+ * NH 56 to Jaunpur and on to the Cantt. Ten stations, about 300 km, at
+ * town-centre coordinates; the simulator's 400 km corridor maps onto it
+ * proportionally, as every route here does.
+ */
+const INTERCITY_STOPS: readonly AuthoredStop[] = [
+  { name: 'Lucknow Alambagh ISBT', latitude: 26.81, longitude: 80.906 },
+  { name: 'Chinhat', latitude: 26.889, longitude: 81.05 },
+  { name: 'Haidergarh', latitude: 26.598, longitude: 81.354 },
+  { name: 'Musafirkhana', latitude: 26.372, longitude: 81.798 },
+  { name: 'Sultanpur', latitude: 26.262, longitude: 82.073 },
+  { name: 'Kadipur', latitude: 26.17, longitude: 82.365 },
+  { name: 'Shahganj', latitude: 26.049, longitude: 82.685 },
+  { name: 'Jaunpur', latitude: 25.747, longitude: 82.686 },
+  { name: 'Babatpur Airport', latitude: 25.452, longitude: 82.859 },
+  { name: 'Varanasi Cantt', latitude: 25.325, longitude: 82.985 },
+];
+
+export const INTERCITY_CORRIDOR: CorridorRoute = buildRoute(
+  'lko-11',
+  'Route 11 · Lucknow – Sultanpur – Jaunpur – Varanasi',
+  INTERCITY_STOPS,
+);
+
+/** The route each trial corridor preset is drawn on. */
+export const CORRIDOR_ROUTES: Record<'urban' | 'suburban' | 'intercity', CorridorRoute> = {
+  urban: LUCKNOW_CORRIDOR,
+  suburban: SUBURBAN_CORRIDOR,
+  intercity: INTERCITY_CORRIDOR,
+};
