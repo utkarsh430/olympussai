@@ -61,3 +61,50 @@ export const DEFAULT_EXTRACT_OPTIONS: Omit<ExtractOptions, 'builtAt'> = {
   sweepsForNonHeadlinePhase: false,
   sweepPoints: 60,
 };
+
+/**
+ * Keep at most `maxPoints` samples by even index sampling.
+ *
+ * The first and last samples are always kept: the curves these feed are drawn
+ * against the scenario's horizon, and a decimation that dropped the endpoint
+ * would draw a run that ended early.
+ */
+export function decimate<T>(samples: readonly T[], maxPoints: number): T[] {
+  if (!Number.isInteger(maxPoints) || maxPoints < 2) {
+    throw new Error(`sweepPoints must be an integer of at least 2, got ${maxPoints}`);
+  }
+  if (samples.length <= maxPoints) return [...samples];
+  const last = samples.length - 1;
+  const kept: T[] = [];
+  for (let i = 0; i < maxPoints; i += 1) {
+    const index = Math.round((i * last) / (maxPoints - 1));
+    const sample = samples[index];
+    if (sample !== undefined) kept.push(sample);
+  }
+  return kept;
+}
+
+function sweepPoint(sample: SweepSample): TrialSweepPoint {
+  return {
+    atSeconds: sample.atSeconds,
+    openIncidents: sample.openIncidents,
+    bunchedPairs: sample.bunchedPairs,
+    liveVehicles: sample.liveVehicles,
+  };
+}
+
+function contrast(source: ArmContrast): TrialContrast {
+  return {
+    ewtImprovementPercent: source.ewtImprovementPercent,
+    passengerSecondsSavedPercent: source.passengerSecondsSavedPercent,
+    passengerSecondsSaved: source.passengerSecondsSaved,
+    incidentsAvoided: source.incidentsAvoided,
+    waitSecondsSaved: source.waitSecondsSaved,
+    onboardDelayImposed: source.onboardDelayImposed,
+    inVehicleSecondsSaved: source.inVehicleSecondsSaved,
+    bunchingRateImprovementPercent: source.bunchingRateImprovementPercent,
+    cvImprovementPercent: source.cvImprovementPercent,
+    addedJourneySecondsPerVehicle: source.addedJourneySecondsPerVehicle,
+    additionalDeniedBoardings: source.additionalDeniedBoardings,
+  };
+}
