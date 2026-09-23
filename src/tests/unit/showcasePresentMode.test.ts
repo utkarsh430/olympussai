@@ -143,3 +143,213 @@ function chromeProps(over: Partial<Parameters<typeof PresentChrome>[0]> = {}) {
     ...over,
   };
 }
+
+describe('PresentChrome', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({
+        matches: false,
+        media: '',
+        addEventListener() {},
+        removeEventListener() {},
+        // framer-motion's reduced-motion probe still uses the legacy pair.
+        addListener() {},
+        removeListener() {},
+      })),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('offers a Present button and no pips while inactive', () => {
+    const props = chromeProps();
+    render(createElement(PresentChrome, props));
+    const present = screen.getByRole('button', { name: /present/i });
+    expect(present).toBeInTheDocument();
+    expect(pips()).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /exit/i })).not.toBeInTheDocument();
+    fireEvent.click(present);
+    expect(props.onEnter).toHaveBeenCalledTimes(1);
+
+    // The idle bar is chrome: the print stylesheet hides it by this attribute.
+    const bar = screen.getByTestId('present-idle-bar');
+    expect(bar).toHaveAttribute('data-showcase-chrome');
+    expect(bar).toContainElement(present);
+    expect(screen.getByLabelText('Press P to present')).toHaveTextContent('P');
+    expectQuiet(bar);
+  });
+
+  it('shows one pip per scene, the current one marked, and the transport while active', () => {
+    const props = chromeProps({ active: true, index: 2 });
+    render(createElement(PresentChrome, props));
+
+    const overlay = screen.getByTestId('present-overlay');
+    expect(overlay).toHaveAttribute('data-showcase-chrome');
+    expect(screen.queryByTestId('present-idle-bar')).not.toBeInTheDocument();
+    expectQuiet(overlay);
+
+    const dots = pips();
+    expect(dots).toHaveLength(8);
+    expect(screen.getByRole('button', { name: 'Scene 3' })).toHaveAttribute('aria-current', 'step');
+    expect(dots.filter((dot) => dot.getAttribute('aria-current') === 'step')).toHaveLength(1);
+    expect(screen.getByTestId('present-scene-label')).toHaveTextContent('Scene 3');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Scene 6' }));
+    expect(props.onGoTo).toHaveBeenCalledWith(5);
+
+    fireEvent.click(screen.getByRole('button', { name: /exit/i }));
+    expect(props.onExit).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    expect(props.onNext).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: /previous/i }));
+    expect(props.onPrev).toHaveBeenCalledTimes(1);
+
+    expect(screen.queryByRole('button', { name: /^present$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '3');
+  });
+});
+
+// ─── The stage, end to end in jsdom ───────────────────────────────────────
+
+// jsdom has no canvas, no layout and no frame clock. The backdrop's field
+// mounts a canvas loop, so the context is a no-op proxy, the observer never
+// fires and the frame request never lands - the same stubs the scene tests
+// use. Nothing here draws; what is asserted is the structure.
+const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
+class NoopObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+}
+
+describe('ShowcaseStage', () => {
+  const scrollIntoView = vi.fn();
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({
+        matches: false,
+        media: '',
+        addEventListener() {},
+        removeEventListener() {},
+        // framer-motion's reduced-motion probe still uses the legacy pair.
+        addListener() {},
+        removeListener() {},
+      })),
+    );
+    vi.stubGlobal('ResizeObserver', NoopObserver);
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    HTMLCanvasElement.prototype.getContext = (() =>
+      new Proxy({}, { get: () => () => undefined })) as unknown as typeof originalGetContext;
+    scrollIntoView.mockReset();
+    Element.prototype.scrollIntoView = scrollIntoView;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+  });
+
+  function renderStage() {
+    const root = document.createElement('div');
+    root.className = 'sc-root';
+    document.body.appendChild(root);
+    const scenes = SCENES.slice(0, 3);
+    // Typed as the stage's own props: `children` is required there, which is
+    // why it travels in the props object rather than as extra arguments.
+    const props: Parameters<typeof ShowcaseStage>[0] = {
+      scenes,
+      children: scenes.map((scene) =>
+        createElement(
+          'section',
+          { key: scene.id, id: scene.id, 'data-scene': scene.id },
+          scene.label,
+        ),
+      ),
+    };
+    const view = render(createElement(ShowcaseStage, props), { container: root });
+    return { view, root };
+  }
+
+  it('lays a layered, quiet, hidden-from-print backdrop under the scenes', () => {
+    const { root } = renderStage();
+    const backdrop = root.querySelector<HTMLElement>('[data-showcase-backdrop]');
+    expect(backdrop).not.toBeNull();
+    if (!backdrop) return;
+    expect(backdrop).toHaveAttribute('aria-hidden');
+
+    // The one thing that moves: a single page-wide field. Its ink follows
+    // the accent, and it is the only canvas on the whole stage - the hero
+    // no longer carries one of its own.
+    const canvases = root.querySelectorAll('canvas');
+    expect(canvases).toHaveLength(1);
+    const canvas = canvases[0];
+    expect(backdrop.contains(canvas ?? null)).toBe(true);
+    expect(canvas?.parentElement?.classList.contains('text-primary')).toBe(true);
+
+    // Everything else is still: no scanline, no noise, nothing animated,
+    // nothing glowing, and no transform anywhere in the ground.
+    expect(backdrop.querySelector('[class*="scanline"], [class*="noise"]')).toBeNull();
+    expectQuiet(backdrop);
+    for (const element of Array.from(backdrop.querySelectorAll<HTMLElement>('*'))) {
+      expect(element.style.animation).toBe('');
+      expect(element.style.transform).toBe('');
+      for (const name of Array.from(element.classList)) {
+        expect(name, name).not.toMatch(/^(hud-|animate-)|text-glow/);
+      }
+    }
+
+    // The scenes sit above it, not inside it, and nothing between a scene
+    // and the root carries a transform that would re-root `fixed` children.
+    const scene = document.getElementById('scene-1');
+    expect(backdrop.contains(scene)).toBe(false);
+    for (let node = scene?.parentElement; node && node !== root; node = node.parentElement) {
+      expect(node.style.transform).toBe('');
+    }
+  });
+
+  it('enters on P, steps with the arrows, and leaves on Escape', () => {
+    const { root } = renderStage();
+    expect(screen.getByText('Scene 1')).toBeInTheDocument();
+    expect(root.getAttribute('data-present')).toBeNull();
+
+    act(() => {
+      fireEvent.keyDown(window, { key: 'p' });
+    });
+    expect(root.getAttribute('data-present')).toBe('true');
+    expect(screen.getByTestId('present-overlay')).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+    });
+    expect(screen.getByRole('button', { name: 'Scene 2' })).toHaveAttribute('aria-current', 'step');
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+    expect(scrollIntoView.mock.contexts[1]).toBe(document.getElementById('scene-2'));
+
+    act(() => {
+      fireEvent.keyDown(window, { key: 'Escape' });
+    });
+    expect(root.getAttribute('data-present')).toBeNull();
+    expect(screen.getByRole('button', { name: /present/i })).toBeInTheDocument();
+  });
+
+  it('ignores P typed into a field', () => {
+    const { root } = renderStage();
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    act(() => {
+      fireEvent.keyDown(input, { key: 'p' });
+    });
+    expect(root.getAttribute('data-present')).toBeNull();
+  });
+});
