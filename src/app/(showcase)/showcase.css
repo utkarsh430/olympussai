@@ -1,0 +1,42 @@
+/**
+ * The trial showcase's own rules: a night presentation surface built on the
+ * shared tokens, kept deliberately quiet. One accent, no glow on numbers, no
+ * scanlines or corner ticks, light-weight titles - an instrument read in a
+ * boardroom rather than a cockpit.
+ *
+ * Everything colour-related still resolves through `.dark` on the route's
+ * wrapper; the block below only re-tunes the accent and the bloom for this
+ * subtree, so nothing outside `/trial` moves.
+ */
+
+.sc-root {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+
+  /* A softer teal than the console's cyan, and a quarter of its bloom. Every
+     shadow, chart ink and focus ring underneath reads these. */
+  --primary: 190 58% 50%;
+  --ring: 190 58% 50%;
+  --instrument-info: 190 62% 56%;
+  --sim-controlled: #3ab3c9;
+  --sim-controlled-fill: rgba(58, 179, 201, 0.14);
+  --hud-glow-rgb: 58 179 201;
+  --hud-bloom: 0.25;
+}
+
+.sc-root[data-present='true'] {
+  scroll-snap-type: y mandatory;
+}
+
+/* The shared ambient overlays are not part of this surface's vocabulary. */
+.sc-root .scanline-overlay,
+.sc-root .noise-overlay {
+  display: none;
+}
+
+.sc-scene {
+  position: relative;
+  min-height: 100svh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
