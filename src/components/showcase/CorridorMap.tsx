@@ -53,3 +53,33 @@ export interface ReplayMark {
   /** `degraded` (ringed, amber) while holding; `good` (filled, the arm ink) otherwise. */
   dataQuality: DataQuality;
 }
+
+/** The colours this renderer needs, resolved once at build time. */
+export interface Ink {
+  controlled: string;
+  baseline: string;
+  warning: string;
+  danger: string;
+  foreground: string;
+  ground: string;
+  muted: string;
+}
+
+/**
+ * The documented value of every token read here, in the dark theme this
+ * surface always runs in (`showcase.css` for `--sim-controlled`,
+ * `globals.css` `.dark` for the rest). Used only when a token resolves to
+ * nothing - a container with no themed ancestor, or a test DOM.
+ */
+const TOKEN_FALLBACK = {
+  '--sim-controlled': '#3ab3c9',
+  '--sim-baseline': '#7e93a6',
+  '--instrument-warning': '#ffb020',
+  '--instrument-danger': '#ff4d5e',
+  '--foreground': '#dbeefb',
+  '--background': '#02040a',
+  '--muted-foreground': '#9fb6c9',
+} as const;
+
+/** Room the camera fit keeps around the corridor, in CSS pixels, on every side. */
+const FIT_PADDING_PX = 48;
