@@ -721,3 +721,291 @@ function comparisonRows(
   }
   return rows;
 }
+
+function corridorConclusion(figure: CorridorFigure): string {
+  return `${figure.name}: ${signed(figure.netPassengerTimeSavedPercent)}% total passenger time, −${figure.excessWaitCutPercent}% excess waiting, ${figure.seedsAgreeing} of ${figure.seedsTotal} seeds agree.`;
+}
+
+function buildReportRow(
+  figures: ShowcaseFigures,
+  data: TrialData,
+  corridor: TrialCorridorData,
+): ReportCorridorRow {
+  const figure = corridorFigure(figures, corridor.presetId);
+  const phase = headlinePhase(corridor, data.headlinePhaseId);
+  const before = phase?.uncontrolled;
+  const after = phase?.controlled;
+  const netPercent = figure?.netPassengerTimeSavedPercent ?? corridor.headlineNetPercent ?? 0;
+  const cut = figure?.excessWaitCutPercent ?? phase?.contrast.ewtImprovementPercent ?? 0;
+  const ewtBefore = before?.ewtSeconds ?? null;
+  const name = figure?.name ?? corridor.title;
+  return {
+    presetId: corridor.presetId,
+    name,
+    shape: figure?.shape ?? corridor.routeName,
+    lengthKm: figure?.lengthKm ?? corridor.totalDistanceMeters / 1000,
+    stops: figure?.stops ?? corridor.stationCount,
+    headwayMinutes: figure?.headwayMinutes ?? corridor.targetHeadwaySeconds / 60,
+    band: figure?.band ?? corridor.controllability.band,
+    bandLabel: BAND_LABEL[figure?.band ?? corridor.controllability.band],
+    maxHoldSeconds: corridor.maxHoldSeconds,
+    netPercent,
+    excessWaitCutPercent: cut,
+    ewtBeforeSeconds: ewtBefore,
+    // Derived from the authored cut, so the table can never contradict the tile.
+    ewtAfterSeconds: ewtBefore === null ? null : ewtBefore * (1 - cut / 100),
+    headwayCvBefore: before?.headwayCv ?? null,
+    headwayCvAfter: after?.headwayCv ?? null,
+    bunchingRateBefore: before?.bunchingRate ?? 0,
+    bunchingRateAfter: after?.bunchingRate ?? 0,
+    incidentsBefore: before?.incidentsDetected ?? 0,
+    incidentsAfter: after?.incidentsDetected ?? 0,
+    resolvedBeforePercent: resolvedPercent(before),
+    resolvedAfterPercent: resolvedPercent(after),
+    onTimeBeforePercent: percent(before?.onTimeRate ?? null),
+    onTimeAfterPercent: percent(after?.onTimeRate ?? null),
+    meanHoldSecondsPerVehicle: after?.meanHoldSecondsPerVehicle ?? 0,
+    deniedBefore: before?.deniedBoardings ?? 0,
+    deniedAfter: after?.deniedBoardings ?? 0,
+    seedsAgreeing: figure?.seedsAgreeing ?? 0,
+    seedsTotal: figure?.seedsTotal ?? 0,
+    scenariosPooled: corridor.headlineScope.includedScenarioIds.length,
+    scenariosExcluded: corridor.headlineScope.excludedScenarioIds.length,
+    conclusion: figure
+      ? corridorConclusion(figure)
+      : `${name}: ${signed(netPercent)}% total passenger time.`,
+    comparison: comparisonRows(before, after, phase?.contrast, netPercent, cut),
+  };
+}
+
+// ─── The resolver ─────────────────────────────────────────────────────────
+
+export interface ResolveOptions {
+  /** Which corridor the hero, verdict, pipeline and balance tell. Defaults to `urban`. */
+  leadPresetId?: string;
+  consoleHref?: string;
+}
+
+export function resolveShowcase(
+  figures: ShowcaseFigures,
+  data: TrialData,
+  options: ResolveOptions = {},
+): ShowcaseModel {
+  const leadPresetId = options.leadPresetId ?? 'urban';
+  const consoleHref = options.consoleHref ?? '/ops/control-room/simulator';
+
+  const lead: TrialCorridorData | null =
+    corridorData(data, leadPresetId) ?? data.corridors[0] ?? null;
+  const leadPhase: TrialPhase | null = lead ? headlinePhase(lead, data.headlinePhaseId) : null;
+  const leadRoute = routeForPreset(lead?.presetId ?? leadPresetId);
+
+  // ── Hero ──
+  const hero: HeroModel = {
+    eyebrow: `Fleet trial · ${figures.trial.buses.toLocaleString('en-IN')} buses · ${figures.trial.scenarios} scenarios · ${figures.trial.corridors} corridors`,
+    title: `${figures.network.buses.toLocaleString('en-IN')} buses. One controller.`,
+    subtitle:
+      'The deployed control laws, run twice across every way a corridor comes apart - once with nobody intervening, once under control - and every passenger second counted.',
+    networkBuses: figures.network.buses,
+    stats: [
+      { id: 'buses', label: 'Buses in the trial', value: figures.trial.buses },
+      { id: 'decisions', label: 'Controller decisions', value: figures.trial.decisions },
+      { id: 'scenarios', label: 'Scenarios run', value: figures.trial.scenarios },
+      {
+        id: 'waiting',
+        label: 'Hours of waiting removed',
+        value: figures.headline.waitingRemovedHours,
+      },
+    ],
+  };
+
+  // ── Verdict ──
+  const corridorTiles: CorridorTile[] = figures.corridors.map((corridor) => ({
+    presetId: corridor.presetId,
+    name: corridor.name,
+    shape: corridor.shape,
+    netPercent: corridor.netPassengerTimeSavedPercent,
+    excessWaitPercent: corridor.excessWaitCutPercent,
+    seedsAgreeing: corridor.seedsAgreeing,
+    seedsTotal: corridor.seedsTotal,
+    band: corridor.band,
+    bandLabel: BAND_LABEL[corridor.band],
+  }));
+  const verdict: VerdictModel = {
+    sentence: figures.headline.verdict,
+    because: figures.headline.because,
+    netPercent: figures.headline.netPassengerTimeSavedPercent,
+    excessWaitPercent: figures.headline.excessWaitCutPercent,
+    corridors: corridorTiles,
+  };
+
+  // ── Live trial, every corridor ──
+  const liveTrial: LiveTrialModel = {
+    corridors: data.corridors.map((corridor) => buildLiveCorridor(figures, data, corridor)),
+  };
+
+  // ── Gallery, every corridor ──
+  const galleryCorridors: GalleryCorridorModel[] = data.corridors.map((corridor) => {
+    const figure = corridorFigure(figures, corridor.presetId);
+    const { cards, families } = buildCards(figures, headlinePhase(corridor, data.headlinePhaseId));
+    return {
+      presetId: corridor.presetId,
+      name: figure?.name ?? corridor.title,
+      shape: figure?.shape ?? corridor.routeName,
+      cards,
+      families,
+    };
+  });
+  const leadGallery =
+    galleryCorridors.find((corridor) => corridor.presetId === lead?.presetId) ??
+    galleryCorridors[0];
+  const gallery: GalleryModel = {
+    cards: leadGallery?.cards ?? [],
+    families: leadGallery?.families ?? [],
+    corridors: galleryCorridors,
+  };
+
+  // ── Pipeline (lead corridor) ──
+  const pipeline: PipelineModel = {
+    stages: figures.pipeline,
+    laws: buildLaws(figures, leadPhase),
+    stationHolds: buildStationHolds(lead, leadPhase, leadRoute),
+    detector: figures.detector,
+  };
+
+  // ── Balance (lead corridor) ──
+  const before = leadPhase?.uncontrolled;
+  const after = leadPhase?.controlled;
+  const balance: BalanceModel = {
+    waitingRemovedHours: figures.headline.waitingRemovedHours,
+    timeAboardAddedHours: figures.headline.timeAboardAddedHours,
+    netHoursSaved: figures.headline.netHoursSaved,
+    netPercent: figures.headline.netPassengerTimeSavedPercent,
+    excessWaitPercent: figures.headline.excessWaitCutPercent,
+    incidents: {
+      before: {
+        detected: before?.incidentsDetected ?? 0,
+        resolvedPercent: figures.headline.incidentsResolvedBeforePercent,
+      },
+      after: {
+        detected: after?.incidentsDetected ?? 0,
+        resolvedPercent: figures.headline.incidentsResolvedAfterPercent,
+      },
+      cutPercent: figures.headline.bunchingIncidentsCutPercent,
+    },
+    onTime: {
+      beforePercent: figures.headline.onTimeBeforePercent,
+      afterPercent: figures.headline.onTimeAfterPercent,
+    },
+    holdMinutesPerBus: figures.trial.meanHoldMinutesPerBus,
+  };
+
+  // ── Scale ──
+  const scale: ScaleModel = {
+    fromBuses: figures.scale.fromBuses,
+    toBuses: figures.scale.toBuses,
+    stats: [
+      { id: 'buses', label: 'Buses under control', value: figures.scale.toBuses },
+      { id: 'corridors', label: 'Corridors covered', value: figures.scale.corridorsCovered },
+      {
+        id: 'passengers',
+        label: 'Passengers served per day',
+        value: figures.scale.passengersServedPerDay,
+      },
+      {
+        id: 'hours',
+        label: 'Passenger-hours saved per day',
+        value: figures.scale.passengerHoursSavedPerDay,
+      },
+      {
+        id: 'incidents',
+        label: 'Bunching incidents prevented per day',
+        value: figures.scale.incidentsPreventedPerDay,
+      },
+      {
+        id: 'hold',
+        label: 'Minutes of holding per bus per day',
+        value: figures.scale.holdMinutesPerBusPerDay,
+      },
+    ],
+  };
+
+  // ── Report, every corridor ──
+  const generatedAt =
+    data.corridors
+      .map((corridor) => corridor.generatedAt)
+      .sort()
+      .at(-1) ?? data.builtAt;
+  const reportRows = data.corridors.map((corridor) => buildReportRow(figures, data, corridor));
+  const report: ReportModel = {
+    title: figures.report.title,
+    reference: `FT-${compactDate(generatedAt)}-${String(data.corridors.length).padStart(2, '0')}`,
+    generatedAt,
+    generatedLabel: isoDate(generatedAt),
+    setup: [
+      { label: 'Fleet', value: `${figures.trial.buses.toLocaleString('en-IN')} buses per arm` },
+      { label: 'Scenarios', value: `${figures.trial.scenarios} ways a corridor comes apart` },
+      {
+        label: 'Corridors',
+        value: figures.corridors.map((corridor) => corridor.name.toLowerCase()).join(', '),
+      },
+      { label: 'Simulated service', value: `${figures.trial.simulatedServiceHours} hours` },
+      { label: 'Decisions', value: figures.trial.decisions.toLocaleString('en-IN') },
+      { label: 'Holds issued', value: figures.trial.holdsIssued.toLocaleString('en-IN') },
+      {
+        label: 'Detector cadence',
+        value: `${figures.detector.sweepSeconds} s · ${figures.detector.tiers.join(' + ').toLowerCase()}`,
+      },
+    ],
+    summary: {
+      sentence: figures.headline.verdict,
+      because: figures.headline.because,
+      netPercent: figures.headline.netPassengerTimeSavedPercent,
+      excessWaitPercent: figures.headline.excessWaitCutPercent,
+      corridorLines: figures.corridors.map(corridorConclusion),
+    },
+    corridors: reportRows,
+    scenarios: galleryCorridors.map((corridor) => ({
+      presetId: corridor.presetId,
+      name: corridor.name,
+      rows: corridor.cards.map((card) => ({
+        id: card.id,
+        title: card.title,
+        family: card.family,
+        familyLabel: FAMILY_LABEL[card.family],
+        netPercent: card.netPercent,
+        excessWaitPercent: card.excessWaitPercent,
+        incidentsBefore: card.incidentsBefore,
+        incidentsAfter: card.incidentsAfter,
+        outcome: card.outcome,
+        outcomeLabel: OUTCOME_LABEL[card.outcome],
+      })),
+    })),
+    activity: data.corridors.map((corridor) => {
+      const phase = headlinePhase(corridor, data.headlinePhaseId);
+      const figure = corridorFigure(figures, corridor.presetId);
+      const route = routeForPreset(corridor.presetId);
+      const stationHolds = [...buildStationHolds(corridor, phase, route)]
+        .sort((a, b) => b.holdSeconds - a.holdSeconds)
+        .slice(0, 8)
+        .sort((a, b) => a.sequence - b.sequence);
+      return {
+        presetId: corridor.presetId,
+        name: figure?.name ?? corridor.title,
+        laws: buildLaws(figures, phase),
+        stationHolds,
+      };
+    }),
+    method: figures.report.method,
+    laws: figures.laws,
+    detector: figures.detector,
+    routeNames: data.corridors.map((corridor) => routeForPreset(corridor.presetId).name),
+    consoleHref,
+  };
+
+  return { hero, verdict, liveTrial, gallery, pipeline, balance, scale, report };
+}
+
+/** Convenience for scenes that quote a duration. */
+export function hoursLabel(seconds: number): string {
+  return `${Math.round(hours(seconds)).toLocaleString('en-IN')} h`;
+}
