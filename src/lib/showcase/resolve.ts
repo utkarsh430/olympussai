@@ -225,3 +225,94 @@ export interface ReportComparisonRow {
   underControlNote: string | null;
   change: ReportChange;
 }
+
+export interface ReportCorridorRow {
+  presetId: string;
+  name: string;
+  shape: string;
+  lengthKm: number;
+  stops: number;
+  headwayMinutes: number;
+  band: ControllabilityBand;
+  bandLabel: string;
+  maxHoldSeconds: number;
+  netPercent: number;
+  excessWaitCutPercent: number;
+  /** The trial's own uncontrolled excess wait; the "after" is derived from the authored cut. */
+  ewtBeforeSeconds: number | null;
+  ewtAfterSeconds: number | null;
+  headwayCvBefore: number | null;
+  headwayCvAfter: number | null;
+  bunchingRateBefore: number;
+  bunchingRateAfter: number;
+  incidentsBefore: number;
+  incidentsAfter: number;
+  resolvedBeforePercent: number | null;
+  resolvedAfterPercent: number | null;
+  onTimeBeforePercent: number | null;
+  onTimeAfterPercent: number | null;
+  meanHoldSecondsPerVehicle: number;
+  deniedBefore: number;
+  deniedAfter: number;
+  seedsAgreeing: number;
+  seedsTotal: number;
+  scenariosPooled: number;
+  scenariosExcluded: number;
+  conclusion: string;
+  comparison: readonly ReportComparisonRow[];
+}
+
+export interface ReportScenarioRow {
+  id: BunchingScenarioId;
+  title: string;
+  family: ScenarioFamily;
+  familyLabel: string;
+  netPercent: number | null;
+  excessWaitPercent: number | null;
+  incidentsBefore: number;
+  incidentsAfter: number;
+  outcome: ScenarioOutcome;
+  outcomeLabel: string;
+}
+
+export interface ReportActivityModel {
+  presetId: string;
+  name: string;
+  laws: readonly LawBarModel[];
+  /** The busiest eight stations by hold time, in route order. */
+  stationHolds: readonly StationHoldModel[];
+}
+
+export interface ReportModel {
+  title: string;
+  reference: string;
+  generatedAt: string;
+  generatedLabel: string;
+  setup: readonly { label: string; value: string }[];
+  summary: {
+    sentence: string;
+    because: string;
+    netPercent: number;
+    excessWaitPercent: number;
+    corridorLines: readonly string[];
+  };
+  corridors: readonly ReportCorridorRow[];
+  scenarios: readonly { presetId: string; name: string; rows: readonly ReportScenarioRow[] }[];
+  activity: readonly ReportActivityModel[];
+  method: readonly string[];
+  laws: readonly LawFigure[];
+  detector: ShowcaseFigures['detector'];
+  routeNames: readonly string[];
+  consoleHref: string;
+}
+
+export interface ShowcaseModel {
+  hero: HeroModel;
+  verdict: VerdictModel;
+  liveTrial: LiveTrialModel;
+  gallery: GalleryModel;
+  pipeline: PipelineModel;
+  balance: BalanceModel;
+  scale: ScaleModel;
+  report: ReportModel;
+}
