@@ -307,3 +307,77 @@ function ValueCell({ value, note }: { value: string; note: string | null }) {
     </NumCell>
   );
 }
+
+/**
+ * The change cell's three shapes: an improvement with its direction, a cost
+ * stated in words, or nothing measurable. The arrow carries a label so the
+ * direction does not rest on the colour alone.
+ */
+function ChangeCell({ change }: { change: ReportChange }) {
+  if (change === null) {
+    return (
+      <NumCell>
+        <span className="text-muted-foreground">{DASH}</span>
+      </NumCell>
+    );
+  }
+  if (change.kind === 'cost') {
+    return (
+      <NumCell>
+        <span className="text-muted-foreground">{change.label}</span>
+      </NumCell>
+    );
+  }
+  return (
+    <NumCell>
+      <span className={change.good ? 'text-success' : 'text-destructive'}>
+        <span aria-label={change.good ? 'better' : 'worse'}>{change.good ? '▲' : '▼'}</span>
+        {` ${change.percent.toFixed(1)}%`}
+      </span>
+    </NumCell>
+  );
+}
+
+/** One measurement, both arms, the change. The strings arrive formatted; nothing is recomputed here. */
+function ComparisonRow({ entry }: { entry: ReportComparisonRow }) {
+  return (
+    <tr>
+      <td>
+        <div className="font-medium text-foreground">{entry.label}</div>
+        {entry.hint ? <div className="text-xs text-muted-foreground">{entry.hint}</div> : null}
+      </td>
+      <ValueCell value={entry.leftAlone} note={entry.leftAloneNote} />
+      <ValueCell value={entry.underControl} note={entry.underControlNote} />
+      <ChangeCell change={entry.change} />
+    </tr>
+  );
+}
+
+/** One corridor, left alone against under control: the ops console's own comparison table, on the sheet. */
+function ComparisonTable({ row }: { row: ReportCorridorRow }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="sc-table">
+        <thead>
+          <tr>
+            <th scope="col">Measurement</th>
+            <th scope="col" className="num">
+              Left alone
+            </th>
+            <th scope="col" className="num">
+              Under control
+            </th>
+            <th scope="col" className="num">
+              Change
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {row.comparison.map((entry) => (
+            <ComparisonRow key={entry.id} entry={entry} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
