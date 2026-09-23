@@ -130,3 +130,104 @@ function placeCorridors(layout: FieldLayout, width: number, height: number, elap
     layout.py[i] = baseY + bend + (layout.offset[i] ?? 0) * 1.4;
   }
 }
+
+function placeNetwork(layout: FieldLayout, width: number, height: number, elapsed: number): void {
+  const centreX = width / 2;
+  const centreY = height / 2;
+  const base = 0.5 * Math.hypot(width, height);
+  for (let i = 0; i < layout.count; i += 1) {
+    const line = layout.lineOf[i] ?? 0;
+    const along = layout.along[i] ?? 0;
+    const off = (layout.offset[i] ?? 0) * 1.4;
+    if (line < SPOKES) {
+      const angle = (line / SPOKES) * Math.PI * 2 + Math.PI / SPOKES;
+      const direction = line % 2 === 0 ? 1 : -1;
+      const u = wrap01(along + direction * elapsed * 0.012);
+      const radius = base * (0.04 + 0.96 * u);
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      layout.px[i] = centreX + cos * radius - sin * off;
+      layout.py[i] = centreY + sin * radius + cos * off;
+    } else {
+      const ring = line - SPOKES;
+      const direction = ring % 2 === 0 ? 1 : -1;
+      const u = wrap01(along + (direction * elapsed * 0.006) / (ring + 1));
+      const angle = u * Math.PI * 2;
+      const radius = (RING_RADII[ring] ?? 0.3) * base + off;
+      layout.px[i] = centreX + Math.cos(angle) * radius;
+      layout.py[i] = centreY + Math.sin(angle) * radius;
+    }
+  }
+}
+
+/**
+ * The canvas's computed `color`, which the browser has already resolved from
+ * the theme's HSL token to `rgb(r, g, b)`. Parsed only when the string changes.
+ */
+function readInk(
+  canvas: HTMLCanvasElement,
+  layout: FieldLayout,
+): readonly [number, number, number] {
+  const raw = getComputedStyle(canvas).color.trim();
+  if (raw !== layout.inkRaw) {
+    const match = RGB_PATTERN.exec(raw);
+    layout.inkRaw = raw;
+    layout.ink = match ? [Number(match[1]), Number(match[2]), Number(match[3])] : FALLBACK_INK;
+  }
+  return layout.ink;
+}
+
+function drawField(frame: CanvasFrame, layout: FieldLayout, speed: number): void {
+  const { ctx, width, height } = frame;
+  const elapsed = frame.elapsed * speed;
+  if (layout.mode === 'converge') placeCorridors(layout, width, height, elapsed);
+  else placeNetwork(layout, width, height, elapsed);
+
+  ctx.clearRect(0, 0, width, height);
+  const [r, g, b] = readInk(ctx.canvas, layout);
+
+  ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${DIM_ALPHA})`;
+  ctx.beginPath();
+  for (let i = 0; i < layout.count; i += 1) {
+    if (layout.bright[i]) continue;
+    ctx.rect((layout.px[i] ?? 0) - 0.7, (layout.py[i] ?? 0) - 0.7, 1.4, 1.4);
+  }
+  ctx.fill();
+
+  ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${BRIGHT_ALPHA})`;
+  ctx.beginPath();
+  for (let i = 0; i < layout.count; i += 1) {
+    if (!layout.bright[i]) continue;
+    ctx.rect((layout.px[i] ?? 0) - 1.3, (layout.py[i] ?? 0) - 1.3, 2.6, 2.6);
+  }
+  ctx.fill();
+}
+
+export function FleetField({
+  points = 5_000,
+  mode,
+  className,
+  opacity = 1,
+  speed = 1,
+}: {
+  points?: number;
+  mode: FleetFieldMode;
+  className?: string;
+  opacity?: number;
+  /** A multiplier on the drift rate: 1 is each mode's own pace, 0 is a still field. */
+  speed?: number;
+}) {
+  const layout = useMemo(() => buildLayout(points, mode), [points, mode]);
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
+  const canvasRef = useCanvasLoop((frame) => drawField(frame, layoutRef.current, speed));
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden
+      className={cn('block h-full w-full text-primary', className)}
+      style={{ opacity }}
+    />
+  );
+}
