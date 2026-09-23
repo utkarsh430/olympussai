@@ -380,3 +380,103 @@
   padding: 0.5rem 0.45rem;
   font-size: 0.75rem;
 }
+
+/* Present-mode letterbox bands. */
+.sc-letterbox-top {
+  background: linear-gradient(
+    to bottom,
+    hsl(var(--background)),
+    hsl(var(--background) / 0.85),
+    transparent
+  );
+}
+.sc-letterbox-bottom {
+  background: linear-gradient(
+    to top,
+    hsl(var(--background)) 0%,
+    hsl(var(--background) / 0.96) 55%,
+    hsl(var(--background) / 0.6) 80%,
+    transparent 100%
+  );
+}
+
+/* Fullscreen is requested on the document element, which sits outside the
+   dark subtree; paint its backdrop the void so the edges never flash light. */
+:fullscreen,
+::backdrop {
+  background-color: #02040a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-root {
+    scroll-behavior: auto;
+  }
+}
+
+/* ─── Print: the report alone, on paper ────────────────────────────────── */
+
+@media print {
+  .sc-root {
+    --background: 0 0% 100%;
+    --foreground: 210 57% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 57% 11%;
+    --muted-foreground: 207 18% 35%;
+    --border: 211 31% 80%;
+    --primary: 192 85% 29%;
+    --success: 153 83% 23%;
+    --warning: 36 100% 24%;
+    --instrument-success: 153 83% 23%;
+    --instrument-warning: 36 100% 24%;
+    --sim-saved: #1a5fb4;
+    --sim-added: #a34a00;
+    --sim-hold: #995100;
+    --hud-bloom: 0;
+    color-scheme: light;
+    height: auto;
+    overflow: visible;
+    background: #ffffff;
+    scroll-snap-type: none;
+  }
+
+  .sc-root [data-scene]:not(#report),
+  .sc-root [data-showcase-chrome],
+  .sc-root [data-showcase-backdrop],
+  .sc-root canvas,
+  .sc-root .sc-print-hide {
+    display: none !important;
+  }
+
+  .sc-scene {
+    min-height: 0;
+  }
+
+  .sc-panel,
+  .sc-panel-strong {
+    background: #ffffff;
+    box-shadow: none;
+    border-color: #c3d0de;
+  }
+
+  .sc-table,
+  .sc-panel {
+    page-break-inside: avoid;
+  }
+
+  .sc-table th,
+  .sc-table td {
+    color: #0c1c2c;
+  }
+
+  .sc-details > summary::after {
+    display: none;
+  }
+
+  .sc-details > summary {
+    cursor: default;
+  }
+
+  a[href]::after {
+    content: '';
+  }
+}
