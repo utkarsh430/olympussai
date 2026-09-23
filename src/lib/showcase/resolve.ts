@@ -316,3 +316,38 @@ export interface ShowcaseModel {
   scale: ScaleModel;
   report: ReportModel;
 }
+
+// ─── Classification ───────────────────────────────────────────────────────
+
+const ESTIMATOR_SCENARIOS: readonly BunchingScenarioId[] = [
+  'phantom_position',
+  'frozen_feed',
+  'blind_slowdown',
+];
+
+const ADVERSARIAL_SCENARIOS: readonly BunchingScenarioId[] = [
+  'hotspot_demand',
+  'partial_compliance',
+  'oversaturated',
+  'oscillating_shock',
+  'building_peak',
+  'shock_and_recovery',
+];
+
+export function scenarioFamily(id: BunchingScenarioId): ScenarioFamily {
+  if (ESTIMATOR_SCENARIOS.includes(id)) return 'estimator';
+  if (ADVERSARIAL_SCENARIOS.includes(id)) return 'adversarial';
+  return 'corridor';
+}
+
+export const FAMILY_LABEL: Record<ScenarioFamily, string> = {
+  corridor: 'Ways a corridor comes apart',
+  estimator: 'Attacks on the estimator',
+  adversarial: 'Attacks on the controller',
+};
+
+export const BAND_LABEL: Record<ControllabilityBand, string> = {
+  too_regular: 'Very regular',
+  controllable: 'Controllable band',
+  too_disturbed: 'High dispersion',
+};
