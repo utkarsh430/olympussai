@@ -509,3 +509,67 @@ function buildStationHolds(
     share: station.holdSeconds / busiest,
   }));
 }
+
+function buildLiveCorridor(
+  figures: ShowcaseFigures,
+  data: TrialData,
+  corridor: TrialCorridorData,
+): LiveCorridorModel {
+  const figure = corridorFigure(figures, corridor.presetId);
+  const route = routeForPreset(corridor.presetId);
+  const phase = headlinePhase(corridor, data.headlinePhaseId);
+  const scenarios: ReplayScenarioModel[] = [];
+  for (const id of data.replayScenarioIds) {
+    const scenario = scenarioById(phase, id);
+    if (!scenario || !scenario.trajectories) continue;
+    const override = figures.scenarioOverrides[id];
+    scenarios.push({
+      id,
+      title: scenario.title,
+      note: figures.scenarioNotes[id] ?? scenario.mechanism,
+      horizonSeconds: scenario.horizonSeconds,
+      vehicleCount: scenario.vehicleCount,
+      trajectories: scenario.trajectories,
+      sweeps: scenario.sweeps,
+      netPercent:
+        override?.netPassengerTimeSavedPercent ?? scenario.contrast.passengerSecondsSavedPercent,
+      excessWaitPercent: override?.excessWaitCutPercent ?? scenario.contrast.ewtImprovementPercent,
+      incidentsAvoided: scenario.contrast.incidentsAvoided,
+    });
+  }
+  return {
+    presetId: corridor.presetId,
+    name: figure?.name ?? corridor.title,
+    shape: figure?.shape ?? corridor.routeName,
+    netPercent: figure?.netPassengerTimeSavedPercent ?? corridor.headlineNetPercent ?? 0,
+    excessWaitPercent: figure?.excessWaitCutPercent ?? phase?.contrast.ewtImprovementPercent ?? 0,
+    route,
+    trialCorridorLengthMeters: corridor.totalDistanceMeters,
+    targetHeadwaySeconds: corridor.targetHeadwaySeconds,
+    bunchedThresholdRatio: corridor.bunchedThresholdRatio,
+    warningThresholdRatio: corridor.warningThresholdRatio,
+    stationNames: route.stops.map((stop) => stop.name),
+    scenarios,
+  };
+}
+
+// ─── The comparison rows ──────────────────────────────────────────────────
+
+const DASH = '\u2014';
+
+function hoursOf(seconds: number | null): string {
+  if (seconds === null) return DASH;
+  return `${Math.round(seconds / 3600).toLocaleString('en-IN')} h`;
+}
+
+function secondsOf(seconds: number | null): string {
+  return seconds === null ? DASH : `${Math.round(seconds)}s`;
+}
+
+function minutesOf(seconds: number | null): string {
+  if (seconds === null) return DASH;
+  const minutes = seconds / 60;
+  // A mean that is zero by construction lands at -1e-12 and would print as
+  // "-0.0"; anything under half a tenth is zero.
+  return `${(Math.abs(minutes) < 0.05 ? 0 : minutes).toFixed(1)} min`;
+}
