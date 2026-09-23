@@ -67,6 +67,28 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
+  /**
+   * The trial showcase on its own host.
+   *
+   * A request whose host is `trial.<anything>` gets the showcase at the root,
+   * so trial.olympuss.us opens on the presentation rather than the landing
+   * page. Host-conditioned, so the same build serves olympuss.us unchanged;
+   * a pattern rather than the literal domain, so a preview deployment of the
+   * form trial.<something> behaves the same. Every other path on that host
+   * (/trial itself, /ops, /_next) is untouched, and the auth middleware never
+   * matched `/` in the first place.
+   */
+  async rewrites() {
+    return {
+      beforeFiles: [
+        {
+          source: '/',
+          has: [{ type: 'host', value: 'trial\\.(?<domain>.*)' }],
+          destination: '/trial',
+        },
+      ],
+    };
+  },
 };
 
 export default nextConfig;
