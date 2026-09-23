@@ -48,3 +48,25 @@ export interface ReplayVehicle {
   stopSequence: number | null;
   speedMetersPerSecond: number;
 }
+
+export type PairState = 'ok' | 'warning' | 'bunched';
+
+export interface ReplayPair {
+  leaderId: string;
+  followerId: string;
+  gapMeters: number;
+  /** Null when the corridor has no pace to measure against. */
+  headwaySeconds: number | null;
+  ratio: number | null;
+  state: PairState;
+  leader: RoutePosition;
+  follower: RoutePosition;
+}
+
+export interface ReplayHoldPulse {
+  vehicleId: string;
+  stopSequence: number;
+  position: RoutePosition;
+  remainingSeconds: number;
+  totalSeconds: number;
+}
