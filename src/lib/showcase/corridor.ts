@@ -48,3 +48,45 @@ export interface CorridorRoute {
   /** The corner the polyline fits inside, for the tactical projection. */
   bounds: { north: number; south: number; east: number; west: number };
 }
+
+export interface RoutePosition extends GeoPoint {
+  /** Compass heading in degrees, 0 = north, clockwise. */
+  headingDegrees: number;
+  /** 0..1 along the corridor. */
+  fraction: number;
+}
+
+interface AuthoredStop {
+  name: string;
+  latitude: number;
+  longitude: number;
+}
+
+/** Alambagh to Chinhat, south-west to north-east across the city. */
+const LUCKNOW_STOPS: readonly AuthoredStop[] = [
+  { name: 'Alambagh Bus Station', latitude: 26.81, longitude: 80.906 },
+  { name: 'Singar Nagar', latitude: 26.8145, longitude: 80.91 },
+  { name: 'Mawaiya', latitude: 26.819, longitude: 80.9135 },
+  { name: 'Kanpur Road Crossing', latitude: 26.825, longitude: 80.917 },
+  { name: 'Charbagh Railway Station', latitude: 26.8318, longitude: 80.9215 },
+  { name: 'Burlington Crossing', latitude: 26.8395, longitude: 80.929 },
+  { name: 'Hussainganj', latitude: 26.844, longitude: 80.935 },
+  { name: 'Vidhan Sabha Marg', latitude: 26.847, longitude: 80.94 },
+  { name: 'Hazratganj', latitude: 26.8503, longitude: 80.9452 },
+  { name: 'Parivartan Chowk', latitude: 26.8555, longitude: 80.9445 },
+  { name: 'Sikandar Bagh', latitude: 26.86, longitude: 80.9475 },
+  { name: 'Nishatganj', latitude: 26.866, longitude: 80.9565 },
+  { name: 'Mahanagar', latitude: 26.871, longitude: 80.96 },
+  { name: 'Badshah Nagar', latitude: 26.876, longitude: 80.968 },
+  { name: 'Lekhraj Market', latitude: 26.879, longitude: 80.976 },
+  { name: 'HAL Gate', latitude: 26.88, longitude: 80.987 },
+  { name: 'Polytechnic Crossing', latitude: 26.8792, longitude: 80.9992 },
+  { name: 'Gomti Nagar Extension', latitude: 26.88, longitude: 81.008 },
+  { name: 'Husaria Crossing', latitude: 26.881, longitude: 81.017 },
+  { name: 'Kamta', latitude: 26.884, longitude: 81.026 },
+  { name: 'Deva Road Crossing', latitude: 26.886, longitude: 81.034 },
+  { name: 'Matiyari', latitude: 26.887, longitude: 81.04 },
+  { name: 'Chinhat Tiraha', latitude: 26.888, longitude: 81.044 },
+  { name: 'Chinhat Bazar', latitude: 26.8888, longitude: 81.047 },
+  { name: 'Chinhat Terminal', latitude: 26.8895, longitude: 81.05 },
+];
