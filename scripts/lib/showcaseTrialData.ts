@@ -185,3 +185,132 @@ function scenarioData(
       : null,
   };
 }
+
+function phaseData(
+  phase: PhaseReport,
+  presetId: CorridorPresetId,
+  options: ExtractOptions,
+): TrialPhase {
+  const headline = phase.id === options.headlinePhaseId;
+  const replayPhase = headline && options.replayPresetIds.includes(presetId);
+  const keepSweeps = headline || options.sweepsForNonHeadlinePhase;
+  return {
+    id: phase.id,
+    title: phase.title,
+    vehicleCount: phase.vehicleCount,
+    contrast: contrast(phase.contrast),
+    allScenariosContrast: contrast(phase.allScenarios.contrast),
+    controlled: armSummary(phase.controlled),
+    uncontrolled: armSummary(phase.uncontrolled),
+    lawCoverage: phase.lawCoverage.map((entry) => ({
+      law: entry.law,
+      decisionsGenerating: entry.decisionsGenerating,
+      decisionsTotal: entry.decisionsTotal,
+    })),
+    holdSecondsByStation: phase.holdSecondsByStation.map((station) => ({
+      sequence: station.sequence,
+      name: station.name,
+      holdSeconds: station.holdSeconds,
+      holdCount: station.holdCount,
+    })),
+    holdCountByActionType: phase.holdCountByActionType.map((entry) => ({
+      actionType: entry.actionType,
+      count: entry.count,
+      holdSeconds: entry.holdSeconds,
+    })),
+    scenarios: phase.scenarios.map((scenario) =>
+      scenarioData(
+        scenario,
+        {
+          trajectories: replayPhase && options.replayScenarioIds.includes(scenario.id),
+          sweeps: keepSweeps,
+        },
+        options.sweepPoints,
+      ),
+    ),
+  };
+}
+
+function presetIdOf(report: FleetTrialReport): CorridorPresetId {
+  const parsed = corridorPresetIdSchema.safeParse(report.corridorPreset.id);
+  if (!parsed.success) {
+    throw new Error(
+      `Report generated at ${report.generatedAt} names corridor preset "${report.corridorPreset.id}", which is not one of ${corridorPresetIdSchema.options.join(', ')}.`,
+    );
+  }
+  return parsed.data;
+}
+
+function corridorDataOf(report: FleetTrialReport, options: ExtractOptions): TrialCorridorData {
+  const presetId = presetIdOf(report);
+  const net = headlineNetPassengerTime(report);
+  return {
+    presetId,
+    title: report.corridorPreset.title,
+    routeName: report.corridor.routeName,
+    totalDistanceMeters: report.corridor.totalDistanceMeters,
+    stationCount: report.corridor.stationCount,
+    targetHeadwaySeconds: report.corridor.targetHeadwaySeconds,
+    bunchedThresholdRatio: report.corridor.bunchedThresholdRatio,
+    warningThresholdRatio: report.corridor.warningThresholdRatio,
+    maxHoldSeconds: report.corridor.maxHoldSeconds,
+    generatedAt: report.generatedAt,
+    durationMs: report.durationMs,
+    vehiclesSimulated: report.vehiclesSimulated,
+    headlineScope: {
+      includedScenarioIds: [...report.headlineScope.includedScenarioIds],
+      excludedScenarioIds: report.headlineScope.excludedScenarios.map((entry) => entry.id),
+    },
+    controllability: {
+      disturbanceRatio: report.controllability.disturbanceRatio,
+      legTimeSigmaSeconds: report.controllability.legTimeSigmaSeconds,
+      band: report.controllability.band,
+    },
+    headlineNetPercent: net.headlinePercent,
+    allScenariosNetPercent: net.allScenariosPercent,
+    stations: [...report.corridor.stations]
+      .sort((a, b) => a.sequence - b.sequence)
+      .map((station) => ({
+        sequence: station.sequence,
+        name: station.name,
+        cumulativeDistanceMeters: station.cumulativeDistanceMeters,
+      })),
+    phases: report.phases.map((phase) => phaseData(phase, presetId, options)),
+  };
+}
+
+/**
+ * Reduce one or more trial reports to what the showcase renders.
+ *
+ * Corridors come out in `PRESET_ORDER` whatever order the reports were given
+ * in, and two reports for one preset are refused rather than silently letting
+ * the later one win.
+ */
+export function extractTrialData(
+  reports: readonly FleetTrialReport[],
+  options: ExtractOptions,
+): TrialData {
+  if (reports.length === 0) throw new Error('At least one fleet-trial report is required.');
+  if (!Number.isInteger(options.sweepPoints) || options.sweepPoints < 2) {
+    throw new Error(`sweepPoints must be an integer of at least 2, got ${options.sweepPoints}`);
+  }
+
+  const corridors = reports.map((report) => corridorDataOf(report, options));
+  const seen = new Set<CorridorPresetId>();
+  for (const corridor of corridors) {
+    if (seen.has(corridor.presetId)) {
+      throw new Error(
+        `Two reports describe the "${corridor.presetId}" preset; pass one per corridor.`,
+      );
+    }
+    seen.add(corridor.presetId);
+  }
+  corridors.sort((a, b) => PRESET_ORDER.indexOf(a.presetId) - PRESET_ORDER.indexOf(b.presetId));
+
+  return {
+    builtAt: options.builtAt,
+    headlinePhaseId: options.headlinePhaseId,
+    replayScenarioIds: [...options.replayScenarioIds],
+    corridors,
+  };
+}
