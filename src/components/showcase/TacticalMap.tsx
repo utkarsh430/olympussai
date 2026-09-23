@@ -46,3 +46,8 @@ export const ARM_LABEL: Record<ReplayArm, string> = {
  * the scene's controls live in their own column.
  */
 const PADDING_SHARE = 0.08;
+const PADDING_MIN = 48;
+/** Room a station label keeps from the canvas edge; a name at an end station is pushed inward to keep it. */
+const LABEL_EDGE_PX = 4;
+/** Approximate advance of one character at the 10 px mono label size, for the edge clamp. */
+const LABEL_CHAR_PX = 6;
