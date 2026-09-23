@@ -1,0 +1,335 @@
+/**
+ * The corridor the live trial is drawn on: a real Lucknow route.
+ *
+ * The simulator's own corridor is a straight line drawn outward from Lucknow
+ * (`control-service/src/fleetTrial/corridor.ts`), which is right for a
+ * physics rig and wrong for a map. What the page needs is the trial's
+ * kinematics on real streets, so this module hand-authors a polyline through
+ * real Lucknow localities - Alambagh, Charbagh, Hazratganj, Nishatganj,
+ * Polytechnic, Chinhat - with twenty-five named stops along it, and maps the
+ * trial's distance-along-route onto it PROPORTIONALLY. A bus that the
+ * simulator puts 40% of the way down its 24 km corridor is drawn 40% of the
+ * way along this one.
+ *
+ * Coordinates are approximate and lie on the major roads the route follows.
+ * They are a presentation geometry, not a survey.
+ *
+ * Pure: no I/O, no browser API, so the map, the tactical fallback and the
+ * tests all share one projection.
+ */
+import { haversineKm } from '@/lib/simulation/seededRandom';
+
+export interface GeoPoint {
+  latitude: number;
+  longitude: number;
+}
+
+export interface CorridorStop extends GeoPoint {
+  /** 1-based, in route order. Matches the trial's station `sequence`. */
+  sequence: number;
+  name: string;
+  /** Metres from the origin along the polyline, computed from the geometry. */
+  cumulativeMeters: number;
+}
+
+export interface CorridorRoute {
+  id: string;
+  name: string;
+  city: string;
+  origin: string;
+  destination: string;
+  /** The stops in order; the polyline runs through every one of them. */
+  stops: readonly CorridorStop[];
+  /** Total polyline length in metres, computed from the geometry. */
+  lengthMeters: number;
+  /** Where a map should centre and how far in it should be. */
+  centre: GeoPoint;
+  zoom: number;
+  /** The corner the polyline fits inside, for the tactical projection. */
+  bounds: { north: number; south: number; east: number; west: number };
+}
+
+export interface RoutePosition extends GeoPoint {
+  /** Compass heading in degrees, 0 = north, clockwise. */
+  headingDegrees: number;
+  /** 0..1 along the corridor. */
+  fraction: number;
+}
+
+interface AuthoredStop {
+  name: string;
+  latitude: number;
+  longitude: number;
+}
+
+/** Alambagh to Chinhat, south-west to north-east across the city. */
+const LUCKNOW_STOPS: readonly AuthoredStop[] = [
+  { name: 'Alambagh Bus Station', latitude: 26.81, longitude: 80.906 },
+  { name: 'Singar Nagar', latitude: 26.8145, longitude: 80.91 },
+  { name: 'Mawaiya', latitude: 26.819, longitude: 80.9135 },
+  { name: 'Kanpur Road Crossing', latitude: 26.825, longitude: 80.917 },
+  { name: 'Charbagh Railway Station', latitude: 26.8318, longitude: 80.9215 },
+  { name: 'Burlington Crossing', latitude: 26.8395, longitude: 80.929 },
+  { name: 'Hussainganj', latitude: 26.844, longitude: 80.935 },
+  { name: 'Vidhan Sabha Marg', latitude: 26.847, longitude: 80.94 },
+  { name: 'Hazratganj', latitude: 26.8503, longitude: 80.9452 },
+  { name: 'Parivartan Chowk', latitude: 26.8555, longitude: 80.9445 },
+  { name: 'Sikandar Bagh', latitude: 26.86, longitude: 80.9475 },
+  { name: 'Nishatganj', latitude: 26.866, longitude: 80.9565 },
+  { name: 'Mahanagar', latitude: 26.871, longitude: 80.96 },
+  { name: 'Badshah Nagar', latitude: 26.876, longitude: 80.968 },
+  { name: 'Lekhraj Market', latitude: 26.879, longitude: 80.976 },
+  { name: 'HAL Gate', latitude: 26.88, longitude: 80.987 },
+  { name: 'Polytechnic Crossing', latitude: 26.8792, longitude: 80.9992 },
+  { name: 'Gomti Nagar Extension', latitude: 26.88, longitude: 81.008 },
+  { name: 'Husaria Crossing', latitude: 26.881, longitude: 81.017 },
+  { name: 'Kamta', latitude: 26.884, longitude: 81.026 },
+  { name: 'Deva Road Crossing', latitude: 26.886, longitude: 81.034 },
+  { name: 'Matiyari', latitude: 26.887, longitude: 81.04 },
+  { name: 'Chinhat Tiraha', latitude: 26.888, longitude: 81.044 },
+  { name: 'Chinhat Bazar', latitude: 26.8888, longitude: 81.047 },
+  { name: 'Chinhat Terminal', latitude: 26.8895, longitude: 81.05 },
+];
+
+function buildRoute(id: string, name: string, authored: readonly AuthoredStop[]): CorridorRoute {
+  const stops: CorridorStop[] = [];
+  let cumulative = 0;
+  for (let index = 0; index < authored.length; index += 1) {
+    const stop = authored[index];
+    if (!stop) continue;
+    const previous = index > 0 ? authored[index - 1] : undefined;
+    if (previous) {
+      cumulative +=
+        haversineKm(previous.latitude, previous.longitude, stop.latitude, stop.longitude) * 1000;
+    }
+    stops.push({
+      sequence: index + 1,
+      name: stop.name,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+      cumulativeMeters: cumulative,
+    });
+  }
+  const latitudes = stops.map((stop) => stop.latitude);
+  const longitudes = stops.map((stop) => stop.longitude);
+  const north = Math.max(...latitudes);
+  const south = Math.min(...latitudes);
+  const east = Math.max(...longitudes);
+  const west = Math.min(...longitudes);
+  const first = stops[0];
+  const last = stops[stops.length - 1];
+  return {
+    id,
+    name,
+    city: 'Lucknow',
+    origin: first?.name ?? '',
+    destination: last?.name ?? '',
+    stops,
+    lengthMeters: cumulative,
+    centre: { latitude: (north + south) / 2, longitude: (east + west) / 2 },
+    zoom: 12,
+    bounds: { north, south, east, west },
+  };
+}
+
+/** The city trunk: Alambagh to Chinhat, across Lucknow. */
+export const LUCKNOW_CORRIDOR: CorridorRoute = buildRoute(
+  'lko-41',
+  'Route 41 · Alambagh – Hazratganj – Chinhat',
+  LUCKNOW_STOPS,
+);
+
+/** The suburban radial: Alambagh down the Kanpur road to Unnao, about 60 km. */
+const SUBURBAN_STOPS: readonly AuthoredStop[] = [
+  { name: 'Alambagh Bus Station', latitude: 26.81, longitude: 80.906 },
+  { name: 'Krishna Nagar', latitude: 26.795, longitude: 80.895 },
+  { name: 'Amausi', latitude: 26.775, longitude: 80.88 },
+  { name: 'Transport Nagar', latitude: 26.762, longitude: 80.87 },
+  { name: 'Sarojini Nagar', latitude: 26.745, longitude: 80.855 },
+  { name: 'Scooter India', latitude: 26.728, longitude: 80.84 },
+  { name: 'Banthra', latitude: 26.705, longitude: 80.82 },
+  { name: 'Harauni', latitude: 26.68, longitude: 80.795 },
+  { name: 'Ajgain', latitude: 26.655, longitude: 80.77 },
+  { name: 'Nawabganj', latitude: 26.635, longitude: 80.745 },
+  { name: 'Sohramau', latitude: 26.6, longitude: 80.705 },
+  { name: 'Kanpur Road Toll', latitude: 26.575, longitude: 80.67 },
+  { name: 'Dahi Chowki', latitude: 26.555, longitude: 80.635 },
+  { name: 'Unnao Bypass', latitude: 26.54, longitude: 80.6 },
+  { name: 'Unnao Bus Station', latitude: 26.53, longitude: 80.58 },
+];
+
+export const SUBURBAN_CORRIDOR: CorridorRoute = buildRoute(
+  'lko-22',
+  'Route 22 · Alambagh – Kanpur Road – Unnao',
+  SUBURBAN_STOPS,
+);
+
+/**
+ * The inter-city trunk: Lucknow to Varanasi along the Sultanpur road,
+ * NH 56 to Jaunpur and on to the Cantt. Ten stations, about 300 km, at
+ * town-centre coordinates; the simulator's 400 km corridor maps onto it
+ * proportionally, as every route here does.
+ */
+const INTERCITY_STOPS: readonly AuthoredStop[] = [
+  { name: 'Lucknow Alambagh ISBT', latitude: 26.81, longitude: 80.906 },
+  { name: 'Chinhat', latitude: 26.889, longitude: 81.05 },
+  { name: 'Haidergarh', latitude: 26.598, longitude: 81.354 },
+  { name: 'Musafirkhana', latitude: 26.372, longitude: 81.798 },
+  { name: 'Sultanpur', latitude: 26.262, longitude: 82.073 },
+  { name: 'Kadipur', latitude: 26.17, longitude: 82.365 },
+  { name: 'Shahganj', latitude: 26.049, longitude: 82.685 },
+  { name: 'Jaunpur', latitude: 25.747, longitude: 82.686 },
+  { name: 'Babatpur Airport', latitude: 25.452, longitude: 82.859 },
+  { name: 'Varanasi Cantt', latitude: 25.325, longitude: 82.985 },
+];
+
+export const INTERCITY_CORRIDOR: CorridorRoute = buildRoute(
+  'lko-11',
+  'Route 11 · Lucknow – Sultanpur – Jaunpur – Varanasi',
+  INTERCITY_STOPS,
+);
+
+/** The route each trial corridor preset is drawn on. */
+export const CORRIDOR_ROUTES: Record<'urban' | 'suburban' | 'intercity', CorridorRoute> = {
+  urban: LUCKNOW_CORRIDOR,
+  suburban: SUBURBAN_CORRIDOR,
+  intercity: INTERCITY_CORRIDOR,
+};
+
+export function routeForPreset(presetId: string): CorridorRoute {
+  return (CORRIDOR_ROUTES as Record<string, CorridorRoute>)[presetId] ?? LUCKNOW_CORRIDOR;
+}
+
+/** Initial compass bearing from one point to another, degrees clockwise from north. */
+export function bearingDegrees(from: GeoPoint, to: GeoPoint): number {
+  const lat1 = (from.latitude * Math.PI) / 180;
+  const lat2 = (to.latitude * Math.PI) / 180;
+  const dLng = ((to.longitude - from.longitude) * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  const degrees = (Math.atan2(y, x) * 180) / Math.PI;
+  return (degrees + 360) % 360;
+}
+
+/**
+ * Where a bus is on the corridor, given a fraction 0..1 of its length.
+ *
+ * Linear along each leg between consecutive stops. Heading is the leg's
+ * bearing, which is what a chevron should point along.
+ */
+export function positionAtFraction(route: CorridorRoute, fraction: number): RoutePosition {
+  const clamped = Math.max(0, Math.min(1, fraction));
+  const target = clamped * route.lengthMeters;
+  const stops = route.stops;
+  const first = stops[0];
+  const last = stops[stops.length - 1];
+  if (!first || !last) {
+    return { latitude: 0, longitude: 0, headingDegrees: 0, fraction: clamped };
+  }
+  if (stops.length === 1 || target <= 0) {
+    const next = stops[1] ?? first;
+    return {
+      latitude: first.latitude,
+      longitude: first.longitude,
+      headingDegrees: bearingDegrees(first, next),
+      fraction: clamped,
+    };
+  }
+  for (let index = 1; index < stops.length; index += 1) {
+    const from = stops[index - 1];
+    const to = stops[index];
+    if (!from || !to) continue;
+    if (target <= to.cumulativeMeters) {
+      const legLength = to.cumulativeMeters - from.cumulativeMeters;
+      const within = legLength > 0 ? (target - from.cumulativeMeters) / legLength : 0;
+      return {
+        latitude: from.latitude + (to.latitude - from.latitude) * within,
+        longitude: from.longitude + (to.longitude - from.longitude) * within,
+        headingDegrees: bearingDegrees(from, to),
+        fraction: clamped,
+      };
+    }
+  }
+  const beforeLast = stops[stops.length - 2] ?? first;
+  return {
+    latitude: last.latitude,
+    longitude: last.longitude,
+    headingDegrees: bearingDegrees(beforeLast, last),
+    fraction: clamped,
+  };
+}
+
+/**
+ * Where a bus is, given the SIMULATOR's distance along ITS corridor.
+ *
+ * The trial corridor and the map corridor differ in length, so the mapping is
+ * by fraction, never by metres.
+ */
+export function positionAlongRoute(
+  route: CorridorRoute,
+  trialDistanceMeters: number,
+  trialCorridorLengthMeters: number,
+): RoutePosition {
+  const fraction =
+    trialCorridorLengthMeters > 0 ? trialDistanceMeters / trialCorridorLengthMeters : 0;
+  return positionAtFraction(route, fraction);
+}
+
+/** The named stop for a trial station sequence (1-based), or null past the end. */
+export function stopForSequence(route: CorridorRoute, sequence: number): CorridorStop | null {
+  return route.stops.find((stop) => stop.sequence === sequence) ?? null;
+}
+
+/** The nearest stop to a fraction of the route, for labelling a hold. */
+export function nearestStop(route: CorridorRoute, fraction: number): CorridorStop | null {
+  const target = Math.max(0, Math.min(1, fraction)) * route.lengthMeters;
+  let best: CorridorStop | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const stop of route.stops) {
+    const distance = Math.abs(stop.cumulativeMeters - target);
+    if (distance < bestDistance) {
+      best = stop;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+/**
+ * Web-Mercator projection of a point into a box, for the tactical map.
+ *
+ * Returns pixel coordinates inside `width x height` with `padding` on every
+ * side, preserving aspect so the corridor is never stretched.
+ */
+export function projectToBox(
+  point: GeoPoint,
+  bounds: CorridorRoute['bounds'],
+  width: number,
+  height: number,
+  padding: number,
+): { x: number; y: number } {
+  // In DEGREES, like longitude, so one scale serves both axes: the raw
+  // Mercator ordinate is in radians and mixing the two squashed the vertical
+  // axis by ~57x (measured: a 14 km by 9 km corridor drew 1000 px by 11 px).
+  const mercator = (latitude: number) =>
+    (Math.log(Math.tan(Math.PI / 4 + (latitude * Math.PI) / 360)) * 180) / Math.PI;
+  const west = bounds.west;
+  const east = bounds.east;
+  const top = mercator(bounds.north);
+  const bottom = mercator(bounds.south);
+  const spanX = Math.max(east - west, 1e-9);
+  const spanY = Math.max(top - bottom, 1e-9);
+  const innerWidth = Math.max(1, width - padding * 2);
+  const innerHeight = Math.max(1, height - padding * 2);
+  // One scale for both axes, so a degree of longitude and a Mercator unit of
+  // latitude keep their ratio; the shorter axis is centred in its slack.
+  const scale = Math.min(innerWidth / spanX, innerHeight / spanY);
+  const drawnWidth = spanX * scale;
+  const drawnHeight = spanY * scale;
+  const offsetX = padding + (innerWidth - drawnWidth) / 2;
+  const offsetY = padding + (innerHeight - drawnHeight) / 2;
+  return {
+    x: offsetX + (point.longitude - west) * scale,
+    y: offsetY + (top - mercator(point.latitude)) * scale,
+  };
+}
