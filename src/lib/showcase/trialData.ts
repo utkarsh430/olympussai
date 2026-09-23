@@ -133,3 +133,45 @@ export const trialPhaseSchema = z.object({
   ),
   scenarios: z.array(trialScenarioSchema),
 });
+export type TrialPhase = z.infer<typeof trialPhaseSchema>;
+
+export const trialCorridorDataSchema = z.object({
+  presetId: corridorPresetIdSchema,
+  title: z.string(),
+  routeName: z.string(),
+  totalDistanceMeters: z.number(),
+  stationCount: z.number(),
+  targetHeadwaySeconds: z.number(),
+  bunchedThresholdRatio: z.number(),
+  warningThresholdRatio: z.number(),
+  maxHoldSeconds: z.number(),
+  generatedAt: z.string(),
+  durationMs: z.number(),
+  vehiclesSimulated: z.number(),
+  headlineScope: z.object({
+    includedScenarioIds: z.array(z.string()),
+    excludedScenarioIds: z.array(z.string()),
+  }),
+  controllability: z.object({
+    disturbanceRatio: z.number(),
+    legTimeSigmaSeconds: z.number(),
+    band: z.enum(['too_regular', 'controllable', 'too_disturbed']),
+  }),
+  /** Passenger-seconds pooled across phases and divided once (`headlineNetPassengerTime`). */
+  headlineNetPercent: z.number().nullable(),
+  allScenariosNetPercent: z.number().nullable(),
+  stations: z.array(
+    z.object({ sequence: z.number(), name: z.string(), cumulativeDistanceMeters: z.number() }),
+  ),
+  phases: z.array(trialPhaseSchema),
+});
+export type TrialCorridorData = z.infer<typeof trialCorridorDataSchema>;
+
+export const trialDataSchema = z.object({
+  builtAt: z.string(),
+  /** The phase whose per-scenario figures and replay the page leads with. */
+  headlinePhaseId: phaseIdSchema,
+  /** Scenario ids whose trajectories were kept, in the order the picker offers them. */
+  replayScenarioIds: z.array(bunchingScenarioIdSchema),
+  corridors: z.array(trialCorridorDataSchema),
+});
