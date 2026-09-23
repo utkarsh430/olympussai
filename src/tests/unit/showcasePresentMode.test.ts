@@ -106,3 +106,40 @@ const SCENES = Array.from({ length: 8 }, (_, i) => ({
   label: `Scene ${i + 1}`,
 }));
 const LABELS = new Set(SCENES.map((scene) => scene.label));
+
+function pips(): HTMLElement[] {
+  return screen
+    .queryAllByRole('button')
+    .filter((button) => LABELS.has(button.getAttribute('aria-label') ?? ''));
+}
+
+/**
+ * The quiet theme's one negative rule, checked on a rendered subtree: none of
+ * the HUD controls or labels, no glow on type, and no inline shadow. The grid
+ * texture (`bg-hud-grid`) is part of the ground and is deliberately not on
+ * this list.
+ */
+const LOUD_CLASSES = ['hud-button', 'hud-label', 'text-glow', 'holo-glow'];
+
+function expectQuiet(root: HTMLElement) {
+  for (const loud of LOUD_CLASSES) {
+    expect(root.querySelector(`[class*="${loud}"]`), loud).toBeNull();
+  }
+  for (const element of Array.from(root.querySelectorAll<HTMLElement>('*'))) {
+    expect(element.style.boxShadow).toBe('');
+  }
+}
+
+function chromeProps(over: Partial<Parameters<typeof PresentChrome>[0]> = {}) {
+  return {
+    active: false,
+    index: 0,
+    scenes: SCENES,
+    onEnter: vi.fn(),
+    onExit: vi.fn(),
+    onNext: vi.fn(),
+    onPrev: vi.fn(),
+    onGoTo: vi.fn(),
+    ...over,
+  };
+}
