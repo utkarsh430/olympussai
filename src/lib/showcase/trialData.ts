@@ -76,3 +76,35 @@ export const trialTrajectorySchema = z.object({
   vehicleId: z.string(),
   points: z.array(z.object({ t: z.number(), d: z.number(), hold: z.number() })),
 });
+export type TrialTrajectory = z.infer<typeof trialTrajectorySchema>;
+
+export const trialScenarioSchema = z.object({
+  id: bunchingScenarioIdSchema,
+  title: z.string(),
+  mechanism: z.string(),
+  whatItTests: z.string(),
+  vehicleCount: z.number(),
+  horizonSeconds: z.number(),
+  saturated: z.boolean(),
+  contrast: trialContrastSchema,
+  controlled: trialArmSummarySchema,
+  uncontrolled: trialArmSummarySchema,
+  sweeps: z.object({
+    controlled: z.array(trialSweepPointSchema),
+    uncontrolled: z.array(trialSweepPointSchema),
+  }),
+  /** Present only for the replay scenarios; null keeps the file small. */
+  trajectories: z
+    .object({
+      controlled: z.array(trialTrajectorySchema),
+      uncontrolled: z.array(trialTrajectorySchema),
+    })
+    .nullable(),
+});
+export type TrialScenario = z.infer<typeof trialScenarioSchema>;
+
+export const trialLawCoverageSchema = z.object({
+  law: z.string(),
+  decisionsGenerating: z.number(),
+  decisionsTotal: z.number(),
+});
