@@ -237,3 +237,90 @@ function corridorPace(
   const trip = median(durations);
   return trip > 0 && corridorLength > 0 ? corridorLength / trip : 0;
 }
+
+function pairState(ratio: number | null, ctx: ReplayContext): PairState {
+  if (ratio === null) return 'ok';
+  if (ratio < ctx.bunchedThresholdRatio) return 'bunched';
+  if (ratio < ctx.warningThresholdRatio) return 'warning';
+  return 'ok';
+}
+
+/**
+ * Every sampled bus, every adjacent pair and every hold in progress at `t`,
+ * for one arm of a scenario.
+ *
+ * Vehicles are returned leader-first (descending distance), which is the
+ * order the pairs are formed in. Ties are broken by id so two buses at one
+ * station pair the same way on every frame.
+ */
+export function frameAt(
+  scenario: ReplayScenarioModel,
+  arm: ReplayArm,
+  t: number,
+  ctx: ReplayContext,
+): ReplayFrame {
+  const trajectories = scenario.trajectories[arm];
+  const vehicles: ReplayVehicle[] = [];
+  for (const trajectory of trajectories) {
+    const vehicle = locateVehicle(trajectory, t, ctx);
+    if (vehicle) vehicles.push(vehicle);
+  }
+  vehicles.sort((a, b) => b.distanceMeters - a.distanceMeters || (a.id < b.id ? -1 : 1));
+
+  const pace = corridorPace(vehicles, trajectories, ctx.trialCorridorLengthMeters);
+  const pairs: ReplayPair[] = [];
+  for (let index = 1; index < vehicles.length; index += 1) {
+    const leader = vehicles[index - 1];
+    const follower = vehicles[index];
+    if (!leader || !follower) continue;
+    const gapMeters = leader.distanceMeters - follower.distanceMeters;
+    const headwaySeconds = pace > 0 ? gapMeters / pace : null;
+    const ratio =
+      headwaySeconds !== null && ctx.targetHeadwaySeconds > 0
+        ? headwaySeconds / ctx.targetHeadwaySeconds
+        : null;
+    pairs.push({
+      leaderId: leader.id,
+      followerId: follower.id,
+      gapMeters,
+      headwaySeconds,
+      ratio,
+      state: pairState(ratio, ctx),
+      leader: leader.position,
+      follower: follower.position,
+    });
+  }
+
+  const holds: ReplayHoldPulse[] = [];
+  for (const vehicle of vehicles) {
+    if (!vehicle.holding || vehicle.stopSequence === null) continue;
+    const trajectory = trajectories.find((entry) => entry.vehicleId === vehicle.id);
+    const point = trajectory?.points[vehicle.stopSequence - 1];
+    holds.push({
+      vehicleId: vehicle.id,
+      stopSequence: vehicle.stopSequence,
+      position: vehicle.position,
+      remainingSeconds: vehicle.holdRemainingSeconds,
+      totalSeconds: point?.hold ?? vehicle.holdRemainingSeconds,
+    });
+  }
+
+  const sweep = sweepAt(scenario.sweeps[arm], t);
+
+  return {
+    t,
+    vehicles,
+    pairs,
+    holds,
+    openIncidents: sweep?.openIncidents ?? 0,
+    bunchedPairs: sweep?.bunchedPairs ?? 0,
+    holdsServed: holdsServedUpTo(trajectories, t),
+    busesLive: vehicles.length,
+  };
+}
+
+/** The span of trial time the sampled buses occupy, with a lead-in and a tail. */
+export interface ReplayWindow {
+  start: number;
+  end: number;
+}
