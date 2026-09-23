@@ -75,3 +75,34 @@ class FakeMap {
     return (harness as FakeMapHarness).map as unknown as FakeMap;
   }
 }
+
+class FakePolyline {
+  static constructed: FakePolyline[] = [];
+  map: unknown;
+  constructor(readonly options: google.maps.PolylineOptions) {
+    this.map = options.map ?? null;
+    FakePolyline.constructed.push(this);
+  }
+  setMap(map: unknown) {
+    this.map = map;
+  }
+}
+
+class FakeMarker {
+  static constructed: FakeMarker[] = [];
+  map: unknown;
+  constructor(readonly options: google.maps.MarkerOptions) {
+    this.map = options.map ?? null;
+    FakeMarker.constructed.push(this);
+  }
+  setMap(map: unknown) {
+    this.map = map;
+  }
+}
+
+class FakeLatLngBounds {
+  constructor(
+    readonly southWest: google.maps.LatLngLiteral,
+    readonly northEast: google.maps.LatLngLiteral,
+  ) {}
+}
