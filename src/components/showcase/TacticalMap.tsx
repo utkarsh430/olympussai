@@ -51,3 +51,9 @@ const PADDING_MIN = 48;
 const LABEL_EDGE_PX = 4;
 /** Approximate advance of one character at the 10 px mono label size, for the edge clamp. */
 const LABEL_CHAR_PX = 6;
+/** Where the arm is named: bottom-left, with the route's ends beneath it. */
+const CAPTION_X = 16;
+const CAPTION_BOTTOM = 16;
+const GRID_PX = 44;
+/** Seconds one hold pulse takes to expand and fade before the next begins. */
+const PULSE_PERIOD = 1.6;
