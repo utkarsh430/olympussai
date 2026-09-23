@@ -277,3 +277,325 @@ const CTX: ReplayContext = {
   bunchedThresholdRatio: 0.25,
   warningThresholdRatio: 0.5,
 };
+
+const URBAN: LiveCorridorModel = {
+  presetId: 'urban',
+  name: 'City trunk',
+  shape: '24 km · 25 stops · 6-minute headway',
+  netPercent: 2.9,
+  excessWaitPercent: 46,
+  route: LUCKNOW_CORRIDOR,
+  trialCorridorLengthMeters: 24_000,
+  targetHeadwaySeconds: 360,
+  bunchedThresholdRatio: 0.25,
+  warningThresholdRatio: 0.5,
+  stationNames: LUCKNOW_CORRIDOR.stops.map((stop) => stop.name),
+  scenarios: [SCENARIO, SECOND],
+};
+
+const SUBURBAN: LiveCorridorModel = {
+  presetId: 'suburban',
+  name: 'Suburban radial',
+  shape: '60 km · 15 stops · 12-minute headway',
+  netPercent: 0.5,
+  excessWaitPercent: 38,
+  route: SUBURBAN_CORRIDOR,
+  trialCorridorLengthMeters: 60_000,
+  targetHeadwaySeconds: 720,
+  bunchedThresholdRatio: 0.25,
+  warningThresholdRatio: 0.5,
+  stationNames: SUBURBAN_CORRIDOR.stops.map((stop) => stop.name),
+  scenarios: [LONG, SECOND],
+};
+
+// The suburban corridor is listed FIRST so that opening on the city trunk
+// proves the preset rule rather than "index zero".
+const MODEL: LiveTrialModel = { corridors: [SUBURBAN, URBAN] };
+
+describe('the canvases mount without a real 2D context', () => {
+  const previousGetContext = HTMLCanvasElement.prototype.getContext;
+  const previousMatchMedia = window.matchMedia;
+  let contextCalls = 0;
+
+  beforeAll(() => {
+    // Every context method is a no-op and every property is assignable, so a
+    // draw routine runs end to end and we only learn whether it THROWS.
+    const noop = () => undefined;
+    const state: Record<string | symbol, unknown> = {};
+    const proxy = new Proxy(state, {
+      get(target, prop) {
+        if (prop in target) return target[prop];
+        return noop;
+      },
+    });
+    HTMLCanvasElement.prototype.getContext = function getContext() {
+      contextCalls += 1;
+      return proxy as unknown as CanvasRenderingContext2D;
+    } as unknown as typeof HTMLCanvasElement.prototype.getContext;
+
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+
+    class NoopResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', NoopResizeObserver);
+    // The loops must not run between tests; a frame is never delivered.
+    vi.stubGlobal('requestAnimationFrame', () => 1);
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+  });
+
+  afterEach(() => {
+    contextCalls = 0;
+  });
+
+  afterAll(() => {
+    HTMLCanvasElement.prototype.getContext = previousGetContext;
+    window.matchMedia = previousMatchMedia;
+    vi.unstubAllGlobals();
+  });
+
+  it('renders the tactical map for a frame with a hold and a bunched pair', () => {
+    const frame = frameAt(SCENARIO, 'controlled', 1150, CTX);
+    expect(frame.holds).toHaveLength(1);
+    const onSelect = vi.fn();
+    const { container } = render(
+      createElement(TacticalMap, {
+        route: LUCKNOW_CORRIDOR,
+        frame,
+        arm: 'controlled',
+        followedId: 'bus-2',
+        onSelect,
+      }),
+    );
+    const canvas = container.querySelector('canvas');
+    expect(canvas).not.toBeNull();
+    expect(canvas?.getAttribute('aria-label')).toContain('Under control');
+    expect(contextCalls).toBeGreaterThan(0);
+    // A click with no bus near it selects nothing.
+    fireEvent.click(canvas as HTMLCanvasElement, { clientX: -500, clientY: -500 });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('renders the lanes with both arms named and a scrub that seeks', () => {
+    const onSeek = vi.fn();
+    const { container } = render(
+      createElement(ReplayLanes, {
+        scenario: SCENARIO,
+        t: 1500,
+        windowStart: 600,
+        windowEnd: 4000,
+        trialCorridorLengthMeters: 24_000,
+        stationNames: URBAN.stationNames,
+        onSeek,
+      }),
+    );
+    expect(screen.getByText('Left alone')).toBeInTheDocument();
+    expect(screen.getByText('Under control')).toBeInTheDocument();
+    expect(container.querySelector('.sc-panel')).not.toBeNull();
+    const scrub = screen.getByLabelText('Scrub the replay') as HTMLInputElement;
+    // The scrub spans the window, in absolute trial seconds.
+    expect(scrub.min).toBe('600');
+    expect(scrub.max).toBe('4000');
+    expect(scrub.style.accentColor).toBe('hsl(var(--primary))');
+    fireEvent.change(scrub, { target: { value: '2400' } });
+    expect(onSeek).toHaveBeenCalledWith(2400);
+  });
+
+  it('draws a long window without throwing, ticks thinned', () => {
+    render(
+      createElement(ReplayLanes, {
+        scenario: LONG,
+        t: 20_000,
+        windowStart: 0,
+        windowEnd: 10 * 3600,
+        trialCorridorLengthMeters: 60_000,
+        stationNames: SUBURBAN.stationNames,
+        onSeek: vi.fn(),
+      }),
+    );
+    expect(contextCalls).toBeGreaterThan(0);
+    expect((screen.getByLabelText('Scrub the replay') as HTMLInputElement).max).toBe('36000');
+  });
+
+  it('windows the replay to the sampled buses and shows the absolute trial time', () => {
+    // Every point 7,920 s later, as the generated data has it: the window
+    // opens 300 s before the first dispatch, at 08:07 on the sim clock.
+    const shift = (scenario: ReplayScenarioModel): ReplayScenarioModel => ({
+      ...scenario,
+      trajectories: {
+        controlled: scenario.trajectories.controlled.map((trajectory) => ({
+          ...trajectory,
+          points: trajectory.points.map((point) => ({ ...point, t: point.t + 7920 })),
+        })),
+        uncontrolled: scenario.trajectories.uncontrolled.map((trajectory) => ({
+          ...trajectory,
+          points: trajectory.points.map((point) => ({ ...point, t: point.t + 7920 })),
+        })),
+      },
+    });
+    render(
+      createElement(LiveTrialScene, {
+        model: { corridors: [{ ...URBAN, scenarios: [shift(SCENARIO)] }] },
+      }),
+    );
+    expect(screen.getByText('08:07')).toBeInTheDocument();
+    const scrub = screen.getByLabelText('Scrub the replay') as HTMLInputElement;
+    expect(scrub.min).toBe(String(7920 - 300));
+    expect(scrub.max).toBe(String(7920 + 2000 + 120));
+    // Seeking to an absolute time is what the readout then shows.
+    fireEvent.change(scrub, { target: { value: String(7920 + 1800) } });
+    expect(screen.getByText('08:42')).toBeInTheDocument();
+  });
+
+  it('renders the whole scene on the tactical plot', () => {
+    const { container } = render(createElement(LiveTrialScene, { model: MODEL }));
+    expect(screen.getByText('Route 41 · Alambagh – Hazratganj – Chinhat')).toBeInTheDocument();
+    expect(screen.getByText(/Live trial · Lucknow/)).toBeInTheDocument();
+
+    const controlled = screen.getByRole('button', { name: 'Under control' });
+    const alone = screen.getByRole('button', { name: 'Left alone' });
+    expect(controlled).toHaveAttribute('aria-pressed', 'true');
+    expect(alone).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(alone);
+    expect(alone).toHaveAttribute('aria-pressed', 'true');
+
+    const slow = screen.getByRole('button', { name: 'Slow bus' });
+    expect(slow).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(slow);
+    expect(slow).toHaveAttribute('aria-pressed', 'true');
+
+    const pause = screen.getByRole('button', { name: 'Pause the replay' });
+    expect(pause.className).toContain('sc-button-primary');
+    fireEvent.click(pause);
+    expect(screen.getByRole('button', { name: 'Play the replay' })).toBeInTheDocument();
+
+    const fast = screen.getByRole('button', { name: '240×' });
+    expect(fast).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(fast);
+    expect(fast).toHaveAttribute('aria-pressed', 'true');
+
+    expect(screen.getByText('Sim clock')).toBeInTheDocument();
+    // The first dispatch is at 0, so the window is floored at 06:00 and runs
+    // to 120 s after the last bus finishes.
+    expect(screen.getByText('06:00')).toBeInTheDocument();
+    expect((screen.getByLabelText('Scrub the replay') as HTMLInputElement).max).toBe('2120');
+    // The scenario's own figures, on the transport bar...
+    expect(screen.getByText('+3.1%')).toBeInTheDocument();
+    expect(screen.getByText('−40%')).toBeInTheDocument();
+    // ...and the corridor's, in the route panel.
+    expect(screen.getByText('+2.9%')).toBeInTheDocument();
+    expect(screen.getByText('−46%')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /buses on Route 41/ })).toBeInTheDocument();
+    // The quiet theme's surfaces, and nothing of the console's.
+    expect(container.querySelectorAll('.sc-panel').length).toBeGreaterThanOrEqual(3);
+    expect(container.querySelector('canvas')).not.toBeNull();
+  });
+
+  it('lays the controls beside the plot, never over it', () => {
+    render(createElement(LiveTrialScene, { model: MODEL }));
+    const left = screen.getByRole('region', { name: 'Live trial' });
+    const canvas = screen.getByRole('img', { name: /buses on Route 41/ });
+    const mapPanel = canvas.closest('.sc-panel');
+    expect(mapPanel).not.toBeNull();
+    // Siblings in the layout: neither contains the other, and the map sits
+    // in the column next to the panel rather than inside it.
+    expect(left.contains(mapPanel as Element)).toBe(false);
+    expect((mapPanel as Element).contains(left)).toBe(false);
+    expect(left.nextElementSibling?.contains(mapPanel as Element)).toBe(true);
+    // The lanes share the map's column, beneath it.
+    const lanes = screen.getByLabelText('Scrub the replay').closest('.sc-panel');
+    expect(left.nextElementSibling?.contains(lanes as Element)).toBe(true);
+    expect((mapPanel as Element).contains(lanes as Element)).toBe(false);
+  });
+
+  it('offers one button per corridor and opens on the city trunk', () => {
+    render(createElement(LiveTrialScene, { model: MODEL }));
+    const picker = screen.getByRole('group', { name: 'Corridor' });
+    const buttons = Array.from(picker.querySelectorAll('button'));
+    expect(buttons).toHaveLength(2);
+    const suburban = screen.getByRole('button', { name: /^Suburban radial/ });
+    const urban = screen.getByRole('button', { name: /^City trunk/ });
+    expect(urban).toHaveAttribute('aria-pressed', 'true');
+    expect(suburban).toHaveAttribute('aria-pressed', 'false');
+    // The shape rides along as the button's small label.
+    expect(suburban).toHaveTextContent('60 km · 15 stops · 12-minute headway');
+  });
+
+  it('switching corridor changes the route, resets the scenario and the followed bus', () => {
+    render(createElement(LiveTrialScene, { model: MODEL }));
+    // Move off the first scenario on the city trunk first.
+    fireEvent.click(screen.getByRole('button', { name: 'Slow bus' }));
+    expect(screen.getByRole('button', { name: 'Slow bus' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /^Suburban radial/ }));
+    expect(screen.getByRole('button', { name: /^Suburban radial/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: /^City trunk/ })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    expect(screen.getByText('Route 22 · Alambagh – Kanpur Road – Unnao')).toBeInTheDocument();
+    expect(screen.queryByText('Route 41 · Alambagh – Hazratganj – Chinhat')).toBeNull();
+    // The suburban corridor's first scenario is selected, not the second.
+    expect(screen.getByRole('button', { name: 'Traffic shock' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Slow bus' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    // And the corridor's own readings follow it.
+    expect(screen.getByText('+0.5%')).toBeInTheDocument();
+    expect(screen.getByText('−38%')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /buses on Route 22/ })).toBeInTheDocument();
+  });
+
+  it('re-spans the scrub to the selected corridor', () => {
+    render(createElement(LiveTrialScene, { model: MODEL }));
+    const scrub = () => screen.getByLabelText('Scrub the replay') as HTMLInputElement;
+    expect(scrub().max).toBe('2120');
+    fireEvent.click(screen.getByRole('button', { name: /^Suburban radial/ }));
+    expect(scrub().max).toBe(String(9000 + 120));
+    expect(scrub().value).toBe('0');
+    fireEvent.click(screen.getByRole('button', { name: /^City trunk/ }));
+    expect(scrub().max).toBe('2120');
+  });
+
+  it('keeps the picker when a route has nothing to replay yet', () => {
+    render(
+      createElement(LiveTrialScene, {
+        model: { corridors: [URBAN, { ...SUBURBAN, scenarios: [] }] },
+      }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /^Suburban radial/ }));
+    expect(screen.getByText('No replay data for this route')).toBeInTheDocument();
+    expect(screen.getByText('Route 22 · Alambagh – Kanpur Road – Unnao')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Scrub the replay')).toBeNull();
+    // The way back is still on screen.
+    fireEvent.click(screen.getByRole('button', { name: /^City trunk/ }));
+    expect(screen.getByLabelText('Scrub the replay')).toBeInTheDocument();
+  });
+
+  it('says so quietly when there is nothing to replay', () => {
+    const { container } = render(createElement(LiveTrialScene, { model: { corridors: [] } }));
+    expect(screen.getByText('No replay data')).toBeInTheDocument();
+    expect(container.querySelector('.sc-panel')).not.toBeNull();
+  });
+});
