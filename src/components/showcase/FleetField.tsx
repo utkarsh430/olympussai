@@ -28,3 +28,7 @@ type FleetFieldMode = 'converge' | 'network';
 
 const CORRIDORS = 12;
 const SPOKES = 8;
+const RING_RADII: readonly number[] = [0.2, 0.36, 0.52];
+const BRIGHT_SHARE = 1 / 40;
+const DIM_ALPHA = 0.17;
+const BRIGHT_ALPHA = 0.45;
