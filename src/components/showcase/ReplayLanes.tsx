@@ -62,3 +62,47 @@ export function hourTickStep(spanSeconds: number, innerWidthPx: number): number 
   const pxPerHour = innerWidthPx / hoursSpan;
   return Math.max(1, Math.ceil(MIN_TICK_PX / pxPerHour));
 }
+
+interface LaneInk {
+  grid: string;
+  axis: string;
+  baseline: string;
+  controlled: string;
+  hold: string;
+  info: string;
+  font: string;
+}
+
+function resolveInk(host: HTMLCanvasElement | null): LaneInk {
+  const style = host ? getComputedStyle(host) : null;
+  const read = (name: string): string => style?.getPropertyValue(name).trim() ?? '';
+  const colour = (name: string): string => {
+    const value = read(name);
+    if (!value) return 'transparent';
+    return /^\d/.test(value) ? `hsl(${value})` : value;
+  };
+  const mono = read('--font-mono') || 'ui-monospace, SFMono-Regular, monospace';
+  return {
+    grid: colour('--sim-grid'),
+    axis: colour('--sim-axis'),
+    baseline: colour('--sim-baseline'),
+    controlled: colour('--sim-controlled'),
+    hold: colour('--sim-hold'),
+    info: colour('--instrument-info'),
+    font: `10px ${mono}`,
+  };
+}
+
+/**
+ * The stations' distances along the simulator's corridor, read off the
+ * longest trajectory in either arm: every visit is one station, in order.
+ */
+function stationDistances(scenario: ReplayScenarioModel): number[] {
+  let longest: TrialTrajectory | null = null;
+  for (const arm of [scenario.trajectories.uncontrolled, scenario.trajectories.controlled]) {
+    for (const trajectory of arm) {
+      if (!longest || trajectory.points.length > longest.points.length) longest = trajectory;
+    }
+  }
+  return longest ? longest.points.map((point) => point.d) : [];
+}
