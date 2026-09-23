@@ -83,3 +83,11 @@ const TOKEN_FALLBACK = {
 
 /** Room the camera fit keeps around the corridor, in CSS pixels, on every side. */
 const FIT_PADDING_PX = 48;
+
+/** Ring radii for the annotations, in CSS pixels: a pair's ends, a hold, the followed bus. */
+const PAIR_RING_PX = 7;
+const HOLD_RING_PX = 14;
+const FOLLOW_RING_PX = 18;
+
+/** Station labels sit this far above or below the dot, in the symbol's own units (scaled by `scale`). */
+const LABEL_OFFSET_UNITS = 4;
