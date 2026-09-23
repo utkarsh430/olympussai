@@ -351,3 +351,33 @@ export const BAND_LABEL: Record<ControllabilityBand, string> = {
   controllable: 'Controllable band',
   too_disturbed: 'High dispersion',
 };
+
+/** How a scenario reads on its card. A saturated or negative scenario is a stress test, never a failure. */
+export function scenarioOutcome(netPercent: number | null, saturated: boolean): ScenarioOutcome {
+  if (saturated) return 'stress_test';
+  if (netPercent === null) return 'no_effect';
+  if (netPercent < 0) return 'stress_test';
+  if (netPercent < 0.5) return 'no_effect';
+  return 'helped';
+}
+
+export const OUTCOME_LABEL: Record<ScenarioOutcome, string> = {
+  helped: 'Helped',
+  no_effect: 'No effect',
+  stress_test: 'Stress test',
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
+
+function hours(seconds: number): number {
+  return seconds / 3600;
+}
+
+function percent(value: number | null): number | null {
+  return value === null ? null : value * 100;
+}
+
+function resolvedPercent(arm: TrialArmSummary | undefined): number | null {
+  if (!arm || arm.incidentsDetected <= 0) return null;
+  return (arm.incidentsResolved / arm.incidentsDetected) * 100;
+}
