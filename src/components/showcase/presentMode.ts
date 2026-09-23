@@ -31,3 +31,44 @@ export type PresentAction =
   | { type: 'sync'; index: number };
 
 export const initialPresentState: PresentState = { active: false, index: 0, paused: false };
+
+function clampIndex(index: number, sceneCount: number): number {
+  const last = Math.max(0, sceneCount - 1);
+  if (!Number.isFinite(index)) return 0;
+  return Math.min(last, Math.max(0, Math.trunc(index)));
+}
+
+function settle(state: PresentState, next: PresentState): PresentState {
+  return next.active === state.active && next.index === state.index && next.paused === state.paused
+    ? state
+    : next;
+}
+
+export function presentReducer(
+  state: PresentState,
+  action: PresentAction,
+  sceneCount: number,
+): PresentState {
+  switch (action.type) {
+    case 'enter':
+      return settle(state, {
+        active: true,
+        index: clampIndex(action.index ?? state.index, sceneCount),
+        paused: false,
+      });
+    case 'exit':
+      return settle(state, { active: false, index: state.index, paused: false });
+    case 'next':
+      return settle(state, { ...state, index: clampIndex(state.index + 1, sceneCount) });
+    case 'prev':
+      return settle(state, { ...state, index: clampIndex(state.index - 1, sceneCount) });
+    case 'goto':
+      return settle(state, { ...state, index: clampIndex(action.index, sceneCount) });
+    case 'togglePause':
+      return settle(state, { ...state, paused: !state.paused });
+    case 'sync':
+      return settle(state, { ...state, index: clampIndex(action.index, sceneCount) });
+    default:
+      return state;
+  }
+}
