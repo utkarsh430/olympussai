@@ -89,3 +89,74 @@ function scenarioTeaser(scenarios: ReportModel['scenarios']): string {
 function shapeOf(corridors: readonly ReportCorridorRow[], presetId: string): string | null {
   return corridors.find((row) => row.presetId === presetId)?.shape ?? null;
 }
+
+// ─── Building blocks ─────────────────────────────────────────────────────
+
+/**
+ * A numbered section whose heading is the disclosure: a native `<details>`,
+ * so the sheet needs no state to fold and find-in-page opens a closed one.
+ * Only the first section opens by default.
+ */
+function Section({
+  index,
+  title,
+  teaser,
+  open = false,
+  children,
+}: {
+  index: number;
+  title: string;
+  teaser: string;
+  open?: boolean;
+  children: ReactNode;
+}) {
+  const id = `report-section-${index}`;
+  return (
+    <details className="sc-details" open={open} aria-labelledby={id}>
+      <summary>
+        <h3 id={id} className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
+          <span className="sc-label">{String(index).padStart(2, '0')}</span>
+          <span className="sc-display text-2xl">{title}</span>
+          <span className="text-sm text-muted-foreground">{teaser}</span>
+        </h3>
+      </summary>
+      <div className="flex flex-col gap-6 pb-8">{children}</div>
+    </details>
+  );
+}
+
+/** One corridor's block inside a section: its name and shape on the disclosure, the lead corridor open. */
+function CorridorDetails({
+  name,
+  shape,
+  open,
+  children,
+}: {
+  name: string;
+  shape: string | null;
+  open: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details className="sc-details sc-details-nested" open={open}>
+      <summary>
+        <span className="sc-label">{name}</span>
+        {shape ? <span className="text-xs text-muted-foreground">{shape}</span> : null}
+      </summary>
+      <div className="flex flex-col gap-4 pb-6">{children}</div>
+    </details>
+  );
+}
+
+function NumCell({ children, className }: { children: ReactNode; className?: string }) {
+  return <td className={cn('num', className)}>{children}</td>;
+}
+
+function SetupRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 border-b border-border py-2">
+      <dt className="sc-label pt-0.5">{label}</dt>
+      <dd className="text-sm text-foreground">{value}</dd>
+    </div>
+  );
+}
