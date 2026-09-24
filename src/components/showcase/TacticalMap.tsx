@@ -2,7 +2,7 @@
 
 import { useRef, type MouseEvent } from 'react';
 import { projectToBox, type CorridorRoute, type GeoPoint } from '@/lib/showcase/corridor';
-import type { ReplayArm, ReplayFrame } from '@/lib/showcase/replayFrame';
+import { raisedVehicleIds, type ReplayArm, type ReplayFrame } from '@/lib/showcase/replayFrame';
 import { cn } from '@/lib/utils';
 import { useCanvasLoop, type CanvasFrame } from './useCanvasLoop';
 import { useStillRepaint } from './useReplayClock';
@@ -16,7 +16,10 @@ import { useStillRepaint } from './useReplayClock';
  * the whole box. It is drawn quietly: thin lines, small ticks, no halo on anything, and every
  * state carried twice - a bunched pair is a dashed link AND a ring at each
  * bus, a hold is a pulse AND a label, the arm is the line's ink AND its name
- * in the corner - so colour is never the only encoding.
+ * in the corner - so colour is never the only encoding. The buses are the
+ * one place colour is a verdict: a chevron is green while the detector has
+ * nothing to say about it and red while it is in a pair the detector has
+ * raised, on either arm - the link and its rings say which tier.
  *
  * Every colour is a design token, resolved from the canvas's computed style
  * once per frame. `--sim-*` are literal colours and pass straight through;
@@ -86,6 +89,7 @@ interface Ink {
   axis: string;
   corridor: string;
   hold: string;
+  success: string;
   danger: string;
   warning: string;
   info: string;
@@ -115,6 +119,7 @@ function resolveInk(host: HTMLCanvasElement | null, arm: ReplayArm): Ink {
     axis: colour('--sim-axis'),
     corridor: colour(arm === 'controlled' ? '--sim-controlled' : '--sim-baseline'),
     hold: colour('--sim-hold'),
+    success: colour('--instrument-success'),
     danger: colour('--instrument-danger'),
     warning: colour('--instrument-warning'),
     info: colour('--instrument-info'),
@@ -297,16 +302,19 @@ function paint({ ctx, width, height, elapsed }: CanvasFrame, scene: Scene, hits:
   }
   ctx.restore();
 
-  // Buses: a chevron pointing along the heading, filled with the arm's ink
-  // and cased thinly in the ground colour so it survives over the corridor
-  // line. A holding bus takes the hold ink; its pulse and label say so too.
+  // Buses: a chevron pointing along the heading, cased thinly in the ground
+  // colour so it survives over the corridor line. Green while the detector
+  // has nothing to say about the bus, red while it is in a pair the detector
+  // has raised; the dashed link and its rings above carry which tier. A hold
+  // is carried by its pulse and label, never by the chevron.
+  const raised = raisedVehicleIds(frame);
   ctx.save();
   ctx.lineJoin = 'round';
   for (const vehicle of frame.vehicles) {
     const at = project(vehicle.position);
     hits.push({ x: at.x, y: at.y, id: vehicle.id });
     chevron(ctx, at.x, at.y, vehicle.position.headingDegrees);
-    ctx.fillStyle = vehicle.holding ? ink.hold : ink.corridor;
+    ctx.fillStyle = raised.has(vehicle.id) ? ink.danger : ink.success;
     ctx.fill();
     ctx.strokeStyle = ink.ground;
     ctx.lineWidth = 1.5;

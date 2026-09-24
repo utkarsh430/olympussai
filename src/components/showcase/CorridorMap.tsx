@@ -11,7 +11,7 @@ import { MAP_THEME } from '@/lib/constants';
 import type { FleetMapOverlay, FleetMapOverlayMark } from '@/lib/maps/contract';
 import { getMapsLoader, isMapsConfigured, onMapsAuthFailure } from '@/lib/maps/loader';
 import type { CorridorRoute } from '@/lib/showcase/corridor';
-import type { ReplayArm, ReplayFrame } from '@/lib/showcase/replayFrame';
+import { raisedVehicleIds, type ReplayArm, type ReplayFrame } from '@/lib/showcase/replayFrame';
 import { cn } from '@/lib/utils';
 import type { DataQuality } from '@/models/canonical';
 import { ARM_LABEL, TacticalMap, type TacticalMapProps } from './TacticalMap';
@@ -20,7 +20,8 @@ import { ARM_LABEL, TacticalMap, type TacticalMapProps } from './TacticalMap';
  * The live trial on a real basemap, with the tactical plot as its fallback.
  *
  * Same props as `TacticalMap`, and the same picture: the corridor as one
- * ink, a station at every stop, a chevron per bus, a dashed link over a
+ * ink, a station at every stop, a chevron per bus - green, or red while it
+ * is in a pair the detector has raised - a dashed link over a
  * pair that is not fine, a ring and a HOLD label where a bus is being held,
  * and the arm named in text in the corner. The difference is what it sits
  * on. Here the corridor is drawn on Google's dark basemap so a viewer can
@@ -50,7 +51,7 @@ export interface ReplayMark {
   latitude: number;
   longitude: number;
   headingDegrees: number;
-  /** `degraded` (ringed, amber) while holding; `good` (filled, the arm ink) otherwise. */
+  /** `degraded` (filled and ringed, red) while in a pair the detector has raised; `good` (filled, green) otherwise. */
   dataQuality: DataQuality;
 }
 
@@ -58,6 +59,7 @@ export interface ReplayMark {
 export interface Ink {
   controlled: string;
   baseline: string;
+  success: string;
   warning: string;
   danger: string;
   foreground: string;
@@ -74,6 +76,7 @@ export interface Ink {
 const TOKEN_FALLBACK = {
   '--sim-controlled': '#3ab3c9',
   '--sim-baseline': '#7e93a6',
+  '--instrument-success': '#2bff88',
   '--instrument-warning': '#ffb020',
   '--instrument-danger': '#ff4d5e',
   '--foreground': '#dbeefb',
@@ -119,6 +122,7 @@ function resolveInk(el: Element): Ink {
   return {
     controlled: read('--sim-controlled'),
     baseline: read('--sim-baseline'),
+    success: read('--instrument-success'),
     warning: read('--instrument-warning'),
     danger: read('--instrument-danger'),
     foreground: read('--foreground'),
@@ -127,28 +131,40 @@ function resolveInk(el: Element): Ink {
   };
 }
 
-/** The ink the arm draws in: the corridor line, the station rings and every bus that is not holding. */
+/** The ink the arm draws in: the corridor line and the station rings. The buses are not the arm's colour; they carry the detector's verdict. */
 export function armInk(arm: ReplayArm, ink: Ink): string {
   return arm === 'controlled' ? ink.controlled : ink.baseline;
 }
 
-/** The fleet layer's palette for one arm. Casing in the ground colour, so a chevron survives over the corridor line. */
-export function paletteFor(arm: ReplayArm, ink: Ink): FleetLayerPalette {
+/**
+ * The fleet layer's palette: green for a bus the detector has nothing to say
+ * about, red for one in a pair it has raised, the same on either arm. Casing
+ * in the ground colour, so a chevron survives over the corridor line.
+ * `replayMarks` never emits `stale`; it takes the danger ink so a stray one
+ * could not read as fine.
+ */
+export function paletteFor(ink: Ink): FleetLayerPalette {
   return {
-    quality: { good: armInk(arm, ink), degraded: ink.warning, stale: ink.danger },
+    quality: { good: ink.success, degraded: ink.danger, stale: ink.danger },
     selected: ink.foreground,
     casing: ink.ground,
   };
 }
 
-/** Every bus on the road as a mark. A holding bus is `degraded`, which the layer draws ringed. */
+/**
+ * Every bus on the road as a mark. A bus in a pair the detector has raised
+ * is `degraded`, which the layer draws filled and ringed in the red the
+ * palette gives that quality; every other bus is `good`, filled green. A
+ * hold does not move the mark: its ring and HOLD label are overlays.
+ */
 export function replayMarks(frame: ReplayFrame): ReplayMark[] {
+  const raised = raisedVehicleIds(frame);
   return frame.vehicles.map((vehicle) => ({
     id: vehicle.id,
     latitude: vehicle.position.latitude,
     longitude: vehicle.position.longitude,
     headingDegrees: vehicle.position.headingDegrees,
-    dataQuality: vehicle.holding ? 'degraded' : 'good',
+    dataQuality: raised.has(vehicle.id) ? 'degraded' : 'good',
   }));
 }
 
@@ -355,7 +371,7 @@ export function CorridorMap(props: CorridorMapProps) {
         if (cancelled || failedRef.current || !container) return;
         try {
           const resolved = resolveInk(container);
-          const { route: initialRoute, arm: initialArm } = latest.current;
+          const { route: initialRoute } = latest.current;
           const map = new Map(container, {
             center: { lat: initialRoute.centre.latitude, lng: initialRoute.centre.longitude },
             zoom: initialRoute.zoom,
@@ -369,7 +385,7 @@ export function CorridorMap(props: CorridorMapProps) {
           layerRef.current = createFleetLayer<ReplayMark>(
             map,
             (mark) => latest.current.onSelect(mark.id),
-            paletteFor(initialArm, resolved),
+            paletteFor(resolved),
           );
           setInk(resolved);
           setStatus('ready');
@@ -410,7 +426,7 @@ export function CorridorMap(props: CorridorMapProps) {
     () => (ink ? replayOverlays(frame, followedId, ink) : NO_OVERLAYS),
     [frame, followedId, ink],
   );
-  const palette = useMemo(() => (ink ? paletteFor(arm, ink) : null), [arm, ink]);
+  const palette = useMemo(() => (ink ? paletteFor(ink) : null), [ink]);
 
   useEffect(() => {
     if (status === 'ready') layerRef.current?.setVehicles(marks);

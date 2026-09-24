@@ -319,6 +319,22 @@ export function frameAt(
   };
 }
 
+/**
+ * The buses the detector has raised at this instant: both ends of every
+ * pair whose state is not `ok`. Both renderers colour a chevron by
+ * membership here - red in, green out - so the verdict a bus is painted
+ * with is the same on the tactical plot and on the basemap.
+ */
+export function raisedVehicleIds(frame: ReplayFrame): Set<string> {
+  const ids = new Set<string>();
+  for (const pair of frame.pairs) {
+    if (pair.state === 'ok') continue;
+    ids.add(pair.leaderId);
+    ids.add(pair.followerId);
+  }
+  return ids;
+}
+
 /** The span of trial time the sampled buses occupy, with a lead-in and a tail. */
 export interface ReplayWindow {
   start: number;

@@ -177,6 +177,7 @@ const FRAME = frameAt(SCENARIO, 'controlled', 1150, CTX);
 const INK: Ink = {
   controlled: '#3ab3c9',
   baseline: '#7e93a6',
+  success: '#2bff88',
   warning: '#ffb020',
   danger: '#ff4d5e',
   foreground: '#dbeefb',
@@ -222,15 +223,25 @@ describe('tokenColour', () => {
 });
 
 describe('the frame as marks and overlays', () => {
-  it('encodes a hold in the quality, so the shape carries it as well as the colour', () => {
+  it('encodes the detector verdict in the quality: red and ringed in a raised pair, green otherwise', () => {
+    // Both buses are the ends of the one warning pair, so both are raised.
     const marks = replayMarks(FRAME);
     expect(marks.map((mark) => [mark.id, mark.dataQuality])).toEqual([
-      ['bus-1', 'good'],
+      ['bus-1', 'degraded'],
       ['bus-2', 'degraded'],
     ]);
-    const holding = marks.find((mark) => mark.id === 'bus-2');
-    expect(holding?.latitude).toBeCloseTo(FRAME.vehicles[1]?.position.latitude ?? Number.NaN);
-    expect(holding?.headingDegrees).toBe(FRAME.vehicles[1]?.position.headingDegrees);
+    const held = marks.find((mark) => mark.id === 'bus-2');
+    expect(held?.latitude).toBeCloseTo(FRAME.vehicles[1]?.position.latitude ?? Number.NaN);
+    expect(held?.headingDegrees).toBe(FRAME.vehicles[1]?.position.headingDegrees);
+
+    // With the pair fine both are green: the hold on bus-2 does not move its
+    // mark, because the hold is carried by its overlay ring and label.
+    expect(FRAME.vehicles[1]?.holding).toBe(true);
+    const quiet = {
+      ...FRAME,
+      pairs: FRAME.pairs.map((pair) => ({ ...pair, state: 'ok' as const })),
+    };
+    expect(replayMarks(quiet).map((mark) => mark.dataQuality)).toEqual(['good', 'good']);
   });
 
   it('draws only the pairs that are not fine, every hold, and the followed bus', () => {
@@ -271,13 +282,12 @@ describe('the frame as marks and overlays', () => {
     expect(replayOverlays({ ...FRAME, pairs: [], holds: [] }, 'bus-9', INK)).toEqual([]);
   });
 
-  it('builds the palette from the arm ink with the ground as casing', () => {
-    expect(paletteFor('controlled', INK)).toEqual({
-      quality: { good: INK.controlled, degraded: INK.warning, stale: INK.danger },
+  it('builds the palette as the detector verdict, green and red, with the ground as casing', () => {
+    expect(paletteFor(INK)).toEqual({
+      quality: { good: INK.success, degraded: INK.danger, stale: INK.danger },
       selected: INK.foreground,
       casing: INK.ground,
     });
-    expect(paletteFor('uncontrolled', INK).quality.good).toBe(INK.baseline);
   });
 
   it('names every station on a short route, every second on a medium one, every fourth on a long one', () => {
@@ -433,14 +443,16 @@ describe('CorridorMap', () => {
     });
     expect(padding).toEqual({ top: 48, right: 48, bottom: 48, left: 48 });
 
-    // What the layer painted: a filled chevron in the arm ink for the moving
-    // bus, a ringed amber one for the held bus, a dashed warning link over the
-    // pair and a HOLD label at the station.
+    // What the layer painted: both buses are the ends of the one warning
+    // pair, so both chevrons are filled red - never the arm ink, which is the
+    // corridor's - with a dashed warning link over the pair and a HOLD label
+    // at the station.
     expect(installed.flushFrames()).toBeGreaterThan(0);
     const painted = installed.context();
     const fillColours = painted.fills.map((fill) => fill.colour);
-    expect(fillColours).toContain('#3ab3c9');
-    expect(fillColours).toContain('#ffb020');
+    expect(fillColours).toContain('#ff4d5e');
+    expect(fillColours).not.toContain('#2bff88');
+    expect(fillColours).not.toContain('#3ab3c9');
     expect(
       painted.strokes.some((stroke) => stroke.colour === '#ffb020' && stroke.dash.length > 0),
     ).toBe(true);
