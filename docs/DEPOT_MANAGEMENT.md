@@ -793,8 +793,8 @@ sparkline) and `data`.
 ## 10. Testing
 
 - **Unit:** Vitest under `src/tests/unit/`, module tests named `depot-<subject>.test.ts(x)`
-  (plus the `fleet-fixture-*` tests). On 6 Oct 2026, listing that folder gave 419 test files,
-  396 of them named `depot-*` (file counts, not test counts).
+  (plus the `fleet-fixture-*` tests). On 6 Oct 2026, listing that folder gave 421 test files,
+  398 of them named `depot-*` (file counts, not test counts).
 - **Guards** (unit tests that scan the module, under `src/tests/unit/depot-guard-*.test.ts`):
   no wall-clock or random read in `src/lib/depot` outside three named files that inject a
   clock (engine purity); every depot API route answers 401 without a session, `no-store`

@@ -1424,7 +1424,7 @@ Each of these was made against a measured problem, not on principle:
 ```bash
 npm run lint         # ESLint (next lint)
 npm run typecheck    # tsc --noEmit, strict
-npm run test         # Vitest — 419 unit test files, no network required
+npm run test         # Vitest — 421 unit test files, no network required
 npm run test:watch   # Vitest in watch mode
 npm run test:e2e     # Playwright — command centre and depot live specs, 35 tests (starts the app via npm run start; E2E_HOST / E2E_PORT override localhost:3000)
 npm run test:e2e:sample  # Playwright — the depot sample suite (E2E_SUITE=sample; the server runs on the saved sample)
