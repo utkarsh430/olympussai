@@ -1,5 +1,6 @@
 import { formatCount } from '../format';
 import type { RouteMove, UnchangedReason } from '../optimise/allocateTypes';
+import { MAX_BUSES_PER_ROUTE } from '../sim/tripFrequencyConfig';
 import type { AllocationExclusion, AllocationParams, DepotAllocationResponse } from './api';
 
 /**
@@ -40,7 +41,9 @@ export const UNCHANGED_ORDER: readonly UnchangedReason[] = [
 
 export const EXCLUSION_ORDER: readonly AllocationExclusion[] = [
   'no_primary_depot',
+  'unassigned_bucket',
   'operator_not_depot',
+  'bus_count_over_cap',
   'not_profiled',
   'too_few_located_stops',
   'no_depot_position',
@@ -86,7 +89,9 @@ export function unchangedReasonText(reason: UnchangedReason, params: Params): st
 
 const EXCLUSION_SHORT: Readonly<Record<AllocationExclusion, string>> = {
   no_primary_depot: 'run equally by two depots',
+  unassigned_bucket: 'buses with no home depot in the feed',
   operator_not_depot: 'run by a hired, electric or enforcement unit',
+  bus_count_over_cap: 'more buses than the trip model accepts',
   not_profiled: 'no known profile',
   too_few_located_stops: 'no terminals to measure from',
   no_depot_position: 'depot location unknown',
@@ -94,7 +99,9 @@ const EXCLUSION_SHORT: Readonly<Record<AllocationExclusion, string>> = {
 
 const EXCLUSION_TEXT: Readonly<Record<AllocationExclusion, string>> = {
   no_primary_depot: 'Run equally by two or more depots, so there is no single depot to move it from.',
+  unassigned_bucket: 'Most of its buses carry no home depot in the feed, so there is no depot to move it from.',
   operator_not_depot: 'Run by a hired, electric or enforcement unit, not by a depot.',
+  bus_count_over_cap: `More than ${formatCount(MAX_BUSES_PER_ROUTE)} buses carry this route name, which reads as a feed error, so it is not modelled or planned.`,
   not_profiled: 'No known profile: its stops have not been fetched yet.',
   too_few_located_stops: 'Fewer than two of its stops are located, so there are no terminals to measure from.',
   no_depot_position: 'Its depot has neither an inferred yard nor a median bus position, so its location is unknown.',

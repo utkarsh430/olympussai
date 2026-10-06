@@ -12,8 +12,12 @@ import {
   UNKNOWN_DURATION_FACTOR,
 } from './tripFrequencyConfig';
 
-/** Which live figures a modelled trip count rests on. */
-export type TripBasis = 'buses_and_duration' | 'buses_only';
+/**
+ * Which live figures a modelled trip count rests on. `bus_count_over_cap`
+ * refuses a route with more buses than the model accepts: it is not modelled
+ * (zero trips), and the allocator excludes it for the same reason.
+ */
+export type TripBasis = 'buses_and_duration' | 'buses_only' | 'bus_count_over_cap';
 
 export interface TripFrequencyInput {
   readonly routeName: string;
@@ -33,10 +37,15 @@ export interface ModelledTrips {
 
 const FACTOR_DECIMALS = 100;
 
-/** A whole, bounded bus count; anything not a finite positive number is no bus. */
+/** A whole bus count; anything not a finite positive number is no bus. */
 function busCount(buses: number): number {
   if (!Number.isFinite(buses) || buses < 1) return 0;
-  return Math.min(Math.floor(buses), MAX_BUSES_PER_ROUTE);
+  return Math.floor(buses);
+}
+
+/** True when the route has more buses than the trip model (and so the allocator) accepts. */
+export function overBusCap(buses: number): boolean {
+  return busCount(buses) > MAX_BUSES_PER_ROUTE;
 }
 
 function usableDuration(minutes: number | null): number | null {
@@ -62,6 +71,7 @@ export function modelTripsPerDay(
   input: Readonly<TripFrequencyInput>,
   operatingDate: string,
 ): ModelledTrips {
+  if (overBusCap(input.buses)) return { tripsPerDay: 0, perBus: 0, basis: 'bus_count_over_cap' };
   const buses = busCount(input.buses);
   const duration = usableDuration(input.scheduledDurationMin);
   const basis: TripBasis = duration === null ? 'buses_only' : 'buses_and_duration';

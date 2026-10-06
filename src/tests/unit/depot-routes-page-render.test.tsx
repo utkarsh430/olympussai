@@ -57,7 +57,7 @@ const PLAN: DepotAllocationResponse = {
     fromDepotName: 'AGRA', toDepotName: 'MATHURA', tripsPerDay: 7, fromDeadKmPerTrip: 10, toDeadKmPerTrip: 10,
   }],
   unchanged: [{ routeName: 'X', depotId: '1', depotName: 'AGRA', reason: 'already_best', tripsPerDay: 2, deadKmPerTrip: 3 }],
-  excluded: [{ routeName: 'Y', primaryDepotId: '2', buses: 1, reason: 'not_profiled' }],
+  excluded: [{ routeName: 'Y', primaryDepotId: '2', depotName: 'KANPUR', buses: 1, reason: 'not_profiled' }],
   provenance: { deadKmPerTrip: 'derived', tripsPerDay: 'modelled', kmPerDay: 'modelled', capacity: 'modelled' },
   params: { minSavingKmPerDay: 5, maxMoves: 200, detourFactor: 1.3, tripModel: TRIP_MODEL },
 };

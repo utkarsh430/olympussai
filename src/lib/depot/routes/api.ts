@@ -65,8 +65,12 @@ export interface DepotRoutesResponse extends DepotFeedEnvelope {
 export type AllocationExclusion =
   /** Two depots field the same number of buses, or none has a home depot. */
   | 'no_primary_depot'
+  /** Most of its buses carry no home depot in the feed (the unassigned bucket). */
+  | 'unassigned_bucket'
   /** Its majority operator is a hired, electric or enforcement unit, not a depot. */
   | 'operator_not_depot'
+  /** More buses than the trip model accepts on one route name: a feed error, not planned. */
+  | 'bus_count_over_cap'
   /** No profile cached today; opening the route loads one. */
   | 'not_profiled'
   /** Fewer than two located stops: no terminals to measure from. */
@@ -78,6 +82,8 @@ export interface AllocationExcludedRoute {
   readonly routeName: string;
   readonly primaryDepotId: string | null;
   readonly buses: number;
+  /** The primary depot's name, from the feed; null without a primary depot. */
+  readonly depotName: string | null;
   readonly reason: AllocationExclusion;
 }
 

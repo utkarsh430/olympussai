@@ -56,7 +56,7 @@ function unchanged(routeName: string, reason: DepotAllocationResponse['unchanged
 }
 
 function excluded(routeName: string, reason: DepotAllocationResponse['excluded'][number]['reason']) {
-  return { routeName, primaryDepotId: '1', buses: 2, reason };
+  return { routeName, primaryDepotId: '1', depotName: 'AGRA', buses: 2, reason };
 }
 
 describe('kilometre figures', () => {
@@ -79,8 +79,15 @@ describe('reasons in words', () => {
       'no_candidate', 'already_best', 'below_threshold', 'over_capacity', 'move_limit', 'no_capacity',
     ]);
     expect(EXCLUSION_ORDER).toEqual([
-      'no_primary_depot', 'operator_not_depot', 'not_profiled', 'too_few_located_stops', 'no_depot_position',
+      'no_primary_depot', 'unassigned_bucket', 'operator_not_depot', 'bus_count_over_cap',
+      'not_profiled', 'too_few_located_stops', 'no_depot_position',
     ]);
+  });
+
+  it('words the unassigned bucket apart from hired units, and the bus cap with its figure', () => {
+    expect(exclusionText('unassigned_bucket')).toContain('no home depot');
+    expect(exclusionText('unassigned_bucket')).not.toContain('hired');
+    expect(exclusionText('bus_count_over_cap')).toContain('More than 500 buses');
   });
 
   it('states the threshold and the move cap from the server parameters', () => {

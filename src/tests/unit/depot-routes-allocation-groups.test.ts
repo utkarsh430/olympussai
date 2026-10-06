@@ -34,7 +34,7 @@ function out(
   reason: AllocationExcludedRoute['reason'],
   primaryDepotId: string | null = '2',
 ): AllocationExcludedRoute {
-  return { routeName, primaryDepotId, buses: 1, reason };
+  return { routeName, primaryDepotId, depotName: null, buses: 1, reason };
 }
 
 describe('moveRows', () => {
