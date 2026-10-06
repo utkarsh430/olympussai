@@ -1,6 +1,6 @@
 import { formatCount } from '../format';
 import { MIN_FLEET_FOR_RANK } from '../score/config';
-import type { ECONOMICS_WEIGHTS } from '../sim/revenueConfig';
+import { ECONOMICS_Z_CLAMP, type ECONOMICS_WEIGHTS } from '../sim/revenueConfig';
 import type { EconomicsDepotRow } from './api';
 import { DASH, HUNDREDTH, MINUS, PERCENT, formatComponentValue, roundTo } from './economicsFormat';
 import type { EconomicsRow, EconomicsCell } from './economicsRows';
@@ -63,7 +63,8 @@ export function explainEconomics(row: EconomicsRow): string {
   if (rounded(strongest) === rounded(weakest)) {
     return 'No single measure stands out; every component contributes equally.';
   }
-  return `Helped most by ${strongest.label}; held back most by ${weakest.label}.`;
+  const lead = rounded(strongest) > 0 ? 'Helped most by' : 'Least held back by';
+  return `${lead} ${strongest.label}; held back most by ${weakest.label}.`;
 }
 
 export interface BreakdownRow {
@@ -92,7 +93,7 @@ export function breakdownRows(
     key: cell.key,
     label: cell.label,
     valueText: cell.valueText,
-    peerMedianText: formatComponentValue(cell.key, cell.peerMedian),
+    peerMedianText: cell.peerMedian === null ? 'no peer median' : formatComponentValue(cell.key, cell.peerMedian),
     coverageText:
       cell.coverage === null
         ? null
@@ -111,5 +112,4 @@ export const INDEX_SEPARATION = {
 } as const;
 
 /** The footnote under a breakdown: how contributions become the index. */
-export const BREAKDOWN_NOTE =
-  'Each component is compared with the peer median, signed so higher is better (lower cost counts as better). The weighted contributions are summed and scaled so a typical peer sits at 50: a total of +3 reaches 100 and −3 reaches 0.';
+export const BREAKDOWN_NOTE = `Each component is compared with the peer median, signed so higher is better (lower fuel cost counts as better). The weighted contributions are summed and scaled so a typical peer sits at 50: a total of +${ECONOMICS_Z_CLAMP} reaches 100 and ${MINUS}${ECONOMICS_Z_CLAMP} reaches 0.`;

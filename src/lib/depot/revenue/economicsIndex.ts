@@ -109,7 +109,8 @@ export function scoreEconomics(inputs: readonly EconomicsInput[]): DepotEconomic
         components: COMPONENTS.map((c) => ({
           key: c.key,
           value: own[c.key],
-          peerMedian: medianOf(c.key, sample),
+          // A sample under the minimum is no peer group: no median is offered.
+          peerMedian: sample.length < MIN_PEER_GROUP ? null : medianOf(c.key, sample),
           coverage: c.key === 'earningsPerKm' ? safeCoverage(input.earningsCoverage) : null,
           z: null,
           contribution: 0,

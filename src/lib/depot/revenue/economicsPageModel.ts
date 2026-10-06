@@ -7,3 +7,4 @@
 export * from './economicsFormat';
 export * from './economicsRows';
 export * from './economicsExplain';
+export * from './economicsStatement';

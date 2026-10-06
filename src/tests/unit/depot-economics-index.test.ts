@@ -75,6 +75,13 @@ describe('scoreEconomics, worked figures', () => {
     expect(scoreEconomics(five).find((s) => s.depotId === 'd0')?.economicsIndex).toBe(27.5);
   });
 
+  it('offers no peer median when too few depots remain to be peers', () => {
+    const four = Array.from({ length: 4 }, (_, i) => fleetInput(`d${i}`, 50));
+    const [first] = scoreEconomics(four);
+    expect(first?.reason).toBe('peer_group_too_small');
+    expect(first?.components.map((c) => c.peerMedian)).toEqual([null, null, null]);
+  });
+
   it('judges each peer group on its own: one falls below the minimum, the others do not', () => {
     const small = Array.from({ length: 5 }, (_, i) => fleetInput(`d${i}`, 20));
     const medium = Array.from({ length: 5 }, (_, i) =>

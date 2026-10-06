@@ -10,6 +10,7 @@ import {
   specOf,
   type DifferenceDirection,
 } from './economicsFormat';
+import { LENGTH_NOT_KNOWN } from './revenuePageModel';
 import type { DepotEconomicsScore, EconomicsComponentKey } from './types';
 
 /* The economics page's rows: one per unit, with its cells, rank and reason. */
@@ -28,6 +29,8 @@ export interface EconomicsCell {
   readonly direction: DifferenceDirection;
   /** Value, difference and the word, for a title and screen-reader text. */
   readonly description: string;
+  /** The coverage or the reason beside a figure that is missing or thin; null otherwise. */
+  readonly noteText: string | null;
   readonly coverage: Coverage | null;
   readonly z: number | null;
   readonly contribution: number;
@@ -73,25 +76,50 @@ function unrankedText(entry: EconomicsDepotRow): string | null {
   return 'No seats are offered in the model, so its load factor cannot be worked out.';
 }
 
-function toCells(score: DepotEconomicsScore): EconomicsCell[] {
+const NOT_WORKED_OUT = 'not worked out';
+const NO_PEER_MEDIAN_REASON: DepotEconomicsScore['reason'] = 'peer_group_too_small';
+
+function routesText(coverage: Coverage): string {
+  return coverage.of === 0 ? 'no routes run' : `${formatCount(coverage.n)} of ${formatCount(coverage.of)} routes`;
+}
+
+/** The earnings cell says why it has no figure, or why a figure is not used; never a dash alone. */
+function earningsNote(entry: EconomicsDepotRow, value: number | null): string | null {
+  if (value === null) return routesText(entry.earningsCoverage);
+  if (entry.score.reason === 'thin_route_coverage') {
+    return `too few routes with a known length (${routesText(entry.earningsCoverage)})`;
+  }
+  return null;
+}
+
+function missingText(key: EconomicsComponentKey): string {
+  return key === 'earningsPerKm' ? LENGTH_NOT_KNOWN : NOT_WORKED_OUT;
+}
+
+function toCells(entry: EconomicsDepotRow): EconomicsCell[] {
+  const { score } = entry;
   return score.components.map((component) => {
     const spec = specOf(component.key);
+    // A peer group too small to compare has no median worth showing or comparing to.
+    const peerMedian = score.reason === NO_PEER_MEDIAN_REASON ? null : component.peerMedian;
     const delta =
-      component.value === null || component.peerMedian === null
-        ? null
-        : component.value - component.peerMedian;
+      component.value === null || peerMedian === null ? null : component.value - peerMedian;
     const wording = describeDifference(component.key, delta, spec.higherIsBetter);
-    const valueText = formatComponentValue(component.key, component.value);
+    const valueText =
+      component.value === null ? missingText(component.key) : formatComponentValue(component.key, component.value);
+    const noteText = component.key === 'earningsPerKm' ? earningsNote(entry, component.value) : null;
+    const compared = wording.direction === 'unknown' ? '' : `, ${wording.text}`;
     return {
       key: component.key,
       label: spec.label,
       higherIsBetter: spec.higherIsBetter,
       value: component.value,
-      peerMedian: component.peerMedian,
+      peerMedian,
       valueText,
-      differenceText: formatComponentDifference(component.key, delta),
+      differenceText: delta === null ? '' : formatComponentDifference(component.key, delta),
       direction: wording.direction,
-      description: `${spec.label} ${valueText}, ${wording.text}`,
+      description: `${spec.label} ${valueText}${noteText === null ? '' : ` (${noteText})`}${compared}`,
+      noteText,
       coverage: component.coverage,
       z: component.z,
       contribution: component.contribution,
@@ -127,7 +155,7 @@ export function buildEconomicsRows(depots: readonly EconomicsDepotRow[]): Econom
       economicsIndex: entry.score.economicsIndex,
       peerCount: entry.score.peerCount,
       reasonText: unrankedText(entry),
-      cells: toCells(entry.score),
+      cells: toCells(entry),
       earningsCoverage: entry.earningsCoverage,
     }))
     .sort(compareDefault);
@@ -136,6 +164,19 @@ export function buildEconomicsRows(depots: readonly EconomicsDepotRow[]): Econom
 export interface EconomicsFilters {
   readonly showUnranked: boolean;
   readonly search: string;
+}
+
+/** Show every depot from the start when nothing is ranked, so the page is never an empty table. */
+export function defaultShowUnranked(rows: readonly EconomicsRow[]): boolean {
+  return rows.length > 0 && rows.every((row) => !row.ranked);
+}
+
+/** What the empty table row says: nothing is ranked yet, or the filters hide every row. */
+export function emptyRowText(rows: readonly EconomicsRow[], filters: EconomicsFilters): string {
+  if (!filters.showUnranked && rows.every((row) => !row.ranked)) {
+    return 'Nothing is ranked yet. Turn on Show unranked to see every depot and why it is not ranked.';
+  }
+  return 'The filters hide every row. Clear the search or turn on Show unranked.';
 }
 
 export const DEFAULT_ECONOMICS_FILTERS: EconomicsFilters = { showUnranked: false, search: '' };

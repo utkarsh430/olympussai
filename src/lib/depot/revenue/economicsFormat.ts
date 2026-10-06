@@ -1,3 +1,4 @@
+import { formatRupeesPerKm } from './revenuePageModel';
 import type { EconomicsComponentKey } from './types';
 
 /*
@@ -20,7 +21,7 @@ export interface ComponentSpec {
 
 export const ECONOMICS_COMPONENT_SPECS: readonly ComponentSpec[] = [
   { key: 'earningsPerKm', label: 'Earnings per km', higherIsBetter: true, unit: 'rupees' },
-  { key: 'costPerKm', label: 'Cost per km', higherIsBetter: false, unit: 'rupees' },
+  { key: 'costPerKm', label: 'Fuel cost per km', higherIsBetter: false, unit: 'rupees' },
   { key: 'loadFactor', label: 'Load factor', higherIsBetter: true, unit: 'share' },
 ];
 
@@ -29,9 +30,8 @@ export const specOf = (key: EconomicsComponentKey): ComponentSpec =>
 
 export const roundTo = (n: number, scale: number): number => Math.round(n * scale) / scale;
 
-function rupees(value: number): string {
-  return `₹${value.toFixed(2)} per km`;
-}
+/** One formatter for rupees per kilometre, shared with the revenue page. */
+const rupees = formatRupeesPerKm;
 
 function pointsText(ratio: number): string {
   return roundTo(ratio * PERCENT, TENTH).toFixed(1);
