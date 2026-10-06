@@ -7,7 +7,9 @@ import type { DeiComponentKey } from '@/lib/depot/score/types';
  * and Rank's right-aligned digits slid under Depot. So every frozen cell gets the same
  * width, min and max, its content is boxed to the inner width below (padding and
  * borders taken off), and each `left` is the sum of the widths before it. Two sizes:
- * compact under 640px, so the block fits a phone's frame, and wide from 640px.
+ * compact under 640px, so the block fits a phone's frame, and wide from 640px. Depot is
+ * wide enough for a 16-character name and the quiet "new" mark; Index for the numeral,
+ * its bar and the one-line sorted header "INDEX ↑".
  */
 
 export type FrozenKey = 'rank' | 'depot' | 'index';
@@ -17,8 +19,8 @@ export const FROZEN_KEYS: readonly FrozenKey[] = ['rank', 'depot', 'index'];
 
 const WIDTH_REM: Readonly<Record<FrozenKey, Readonly<Record<FrozenSize, number>>>> = {
   rank: { compact: 4.75, wide: 4.75 },
-  depot: { compact: 8, wide: 13 },
-  index: { compact: 7.5, wide: 9.5 },
+  depot: { compact: 10, wide: 11 },
+  index: { compact: 5.25, wide: 8.75 },
 };
 
 /** `px-3` on every table cell. */
@@ -95,5 +97,84 @@ export const LEAGUE_COMPONENT_ORDER: readonly DeiComponentKey[] = [
   'offRoad',
 ];
 
-/** Under 1024px only these metrics stay beside the frozen block; the breakdown has the rest. */
+/*
+ * Every column after the frozen block, with the width it needs, so no column is cut and
+ * the table never scrolls sideways: each width is the larger of its header (11px mono
+ * uppercase at 0.12em tracking, about 7.92px a character, plus the 16px sort-arrow slot)
+ * and its widest cell, plus the 24px side padding. Cells carry the value only: the
+ * difference from the peer median is in the breakdown. A column shows from its tier up:
+ * `sm` from 640px (the 800 and 1024 frames, 750 and 774px), `xl` from 1280px (998px), `full`
+ * from 1424px (the 1440 frame is 1,158px). Below 640px only the frozen block shows.
+ */
+
+export type ColumnTier = 'sm' | 'xl' | 'full';
+export type ScrollingKey = DeiComponentKey | 'trend' | 'fleet' | 'open';
+
+export interface ScrollingColumn {
+  readonly key: ScrollingKey;
+  /** The visible header, short so it fits; the full name is in screen-reader text. */
+  readonly header: string;
+  readonly tier: ColumnTier;
+  readonly widthPx: number;
+}
+
+const HEADER_CHAR_PX = 7.92;
+const SORT_SLOT_PX = 16;
+const PADDING_PX = 2 * CELL_PADDING_X_REM * PX_PER_REM;
+/** "100.0%" in 13px mono. */
+const RATE_CELL_PX = 6 * 7.8 + PADDING_PX;
+/** The MODELLED pill in a header cell, with its 6px gap. */
+const TAG_PILL_PX = 8 * HEADER_CHAR_PX + 16 + 2 + 6;
+/** A 64px sparkline, an 8px gap and its four-weeks words capped at 80px. */
+export const TREND_SPARK_PX = 64;
+export const TREND_TEXT_MAX_PX = 80;
+const TREND_CELL_PX = TREND_SPARK_PX + 8 + TREND_TEXT_MAX_PX + PADDING_PX;
+/** The chevron column: a 12px chevron and 6px either side. */
+export const OPEN_COLUMN_PX = 24;
+
+const headerPx = (header: string, extra = 0): number =>
+  header.length * HEADER_CHAR_PX + SORT_SLOT_PX + PADDING_PX + extra;
+
+const metric = (key: DeiComponentKey, header: string, tier: ColumnTier): ScrollingColumn => ({
+  key,
+  header,
+  tier,
+  widthPx: Math.max(headerPx(header), RATE_CELL_PX),
+});
+
+export const LEAGUE_SCROLLING_COLUMNS: readonly ScrollingColumn[] = [
+  metric('scheduled', 'Schedule', 'sm'),
+  metric('deviceHealth', 'Devices', 'sm'),
+  metric('onRoad', 'On road', 'sm'),
+  metric('dark', 'Dark', 'xl'),
+  metric('offRoad', 'Off road', 'xl'),
+  { key: 'trend', header: 'Trend', tier: 'full', widthPx: Math.max(headerPx('Trend', TAG_PILL_PX), TREND_CELL_PX) },
+  { key: 'fleet', header: 'Fleet', tier: 'full', widthPx: headerPx('Fleet') },
+  { key: 'open', header: 'Breakdown', tier: 'sm', widthPx: OPEN_COLUMN_PX },
+];
+
+/** The display class that shows a column from its tier up (never the `hidden` attribute). */
+export const TIER_CLASS: Readonly<Record<ColumnTier, string>> = {
+  sm: 'hidden sm:table-cell',
+  xl: 'hidden xl:table-cell',
+  full: 'hidden min-[1424px]:table-cell',
+};
+
+const TIERS_SHOWN: Readonly<Record<ColumnTier | 'phone', readonly ColumnTier[]>> = {
+  phone: [],
+  sm: ['sm'],
+  xl: ['sm', 'xl'],
+  full: ['sm', 'xl', 'full'],
+};
+
+/** The table's whole width at a breakpoint, in px: the frozen block plus the columns shown. */
+export function tableWidthPx(at: ColumnTier | 'phone'): number {
+  const block = frozenBlockRem(at === 'phone' ? 'compact' : 'wide') * PX_PER_REM;
+  return LEAGUE_SCROLLING_COLUMNS.filter((c) => TIERS_SHOWN[at].includes(c.tier)).reduce(
+    (sum, c) => sum + c.widthPx,
+    block,
+  );
+}
+
+/** The old narrow set; the grid moves to `LEAGUE_SCROLLING_COLUMNS` tiers. */
 export const NARROW_COMPONENTS: ReadonlySet<DeiComponentKey> = new Set(['scheduled', 'deviceHealth']);

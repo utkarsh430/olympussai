@@ -3,11 +3,13 @@ import {
   CELL_PADDING_X_REM,
   FROZEN_KEYS,
   LEAGUE_COMPONENT_ORDER,
-  NARROW_COMPONENTS,
+  LEAGUE_SCROLLING_COLUMNS,
+  TIER_CLASS,
   frozenBlockRem,
   frozenColumn,
   frozenLayout,
   frozenStyle,
+  tableWidthPx,
 } from '@/lib/depot/league/leagueColumns';
 import { DEI_COMPONENTS } from '@/lib/depot/score/config';
 
@@ -41,8 +43,12 @@ describe('league frozen block', () => {
   });
 
   it('leaves room inside Index for the numeral and bar, and for the window line under its header', () => {
+    // numeral (2.5rem), gap (0.5rem) and bar (4rem) on one line
     expect(frozenColumn('wide', 'index').innerRem).toBeGreaterThanOrEqual(7);
-    expect(frozenColumn('compact', 'index').innerRem).toBeGreaterThanOrEqual(11 * HEADER_CHAR_REM);
+    // "INDEX" and its sort arrow on ONE line, the window words being in the provenance line
+    for (const size of ['compact', 'wide'] as const) {
+      expect(frozenColumn(size, 'index').innerRem).toBeGreaterThanOrEqual(5 * HEADER_CHAR_REM + SORT_ARROW_REM);
+    }
   });
 
   it('inner widths are the column width less the side padding and the borders', () => {
@@ -61,10 +67,10 @@ describe('league frozen block', () => {
     expect(style).toEqual({
       '--frozen-left': '4.75rem',
       '--frozen-left-wide': '4.75rem',
-      '--frozen-w': '8rem',
-      '--frozen-w-wide': '13rem',
-      '--frozen-inner': '6.5rem',
-      '--frozen-inner-wide': '11.5rem',
+      '--frozen-w': '10rem',
+      '--frozen-w-wide': '11rem',
+      '--frozen-inner': '8.5rem',
+      '--frozen-inner-wide': '9.5rem',
     });
   });
 });
@@ -75,7 +81,26 @@ describe('league column order', () => {
     expect([...LEAGUE_COMPONENT_ORDER].sort()).toEqual(DEI_COMPONENTS.map((c) => c.key).sort());
   });
 
-  it('keeps the two diagnostic columns in the narrow set', () => {
-    expect([...NARROW_COMPONENTS]).toEqual(['scheduled', 'deviceHealth']);
+  it('shows schedule coverage, device integrity and on-road share from 640px, the rest wider', () => {
+    const tierOf = (key: string) => LEAGUE_SCROLLING_COLUMNS.find((c) => c.key === key)?.tier;
+    expect(['scheduled', 'deviceHealth', 'onRoad'].map(tierOf)).toEqual(['sm', 'sm', 'sm']);
+    expect(['dark', 'offRoad', 'trend', 'fleet'].map(tierOf)).toEqual(['xl', 'xl', 'full', 'full']);
+    expect(TIER_CLASS.full).toBe('hidden min-[1424px]:table-cell');
+  });
+});
+
+/** Table frames measured in the capture (round 4): 1440 → 1,158px, 1024 → 774px, 800 → 750px. */
+describe('league table width against its frame, so no column is cut and nothing scrolls sideways', () => {
+  it.each([
+    ['phone', 360 - 32 - 2],
+    ['sm', 750],
+    ['xl', 1280 - 282],
+    ['full', 1424 - 282],
+  ] as const)('fits the %s set inside a %ipx frame', (tier, frame) => {
+    expect(tableWidthPx(tier)).toBeLessThanOrEqual(frame);
+  });
+
+  it('sums to about 1,141px at 1440, in the 1,158px frame', () => {
+    expect(Math.round(tableWidthPx('full'))).toBe(1141);
   });
 });
