@@ -166,7 +166,10 @@ disclosure uses it too (`groupOpen` inside a `<details className="group">`).
 ## SectionLabel
 
 `label`, `count?`, `note?` (one line, right, `depot-note`), `tag?: Provenance` (a pill after the
-label, only when the section differs from the page default), `level?: 2 | 3 | 4`, `id?`.
+label, only when the section differs from the page default), `level?: 2 | 3 | 4`, `id?`,
+`controls?` (the section's own controls, such as a view toggle or a filter, held at the right
+end of the label row after the note; they wrap under the label on a narrow row. Never lay a
+control over the label row with absolute positioning).
 16px from the hairline to the label, 12px to the content.
 
 ```tsx
@@ -184,7 +187,15 @@ from 1024px (wrapping when the column is narrower), two equal columns below 1024
 figure is mono 24px (`hero`: display 32px, one per page). Label and caption truncate with the
 full text in `title`. 88px tall. `tag` only for a generated figure on a MIXED or DERIVED page.
 No `compact` (16px) form: no page needs one; the two hand-rolled 16px bands (exceptions,
-economics) become ordinary bands.
+economics) become ordinary bands. From 640px to 1023px the band is three columns, so five
+figures read 3 + 2.
+
+`FigureBand { tag }` puts ONE tag on the whole band (the band's name and a pill on a line
+above the figures): use it when every figure in the band is generated and the page default is
+not, instead of a pill on each figure. `Figure { href }` makes the whole figure a link (a
+count that leads to its list); `Figure { onPress, pressed }` makes it a toggle button (a
+count that filters the page), with `aria-pressed`. Do not copy the figure's styling onto a
+hand-made link or button.
 
 ```tsx
 <FigureBand label="Ranking">
@@ -197,7 +208,8 @@ economics) become ordinary bands.
 
 Header 32px, rows 36px (every table). Opt-ins: `fixedRows` (no wrapping, truncated with the
 full text in `title`), `freezeFirstColumn`, `overflowCue`, `renderExpanded` / `expandLabel` /
-`multipleExpanded` (row expander with the muted chevron), `maxRows`, `onRowSelect`.
+`multipleExpanded` (row expander with the muted chevron), `initialExpandedKey` (one row open
+on first render, for a link that lands on a row's detail), `maxRows`, `onRowSelect`.
 Column extras: `unit` (shown after the header, "EARNINGS ₹/KM", so cells carry bare numbers);
 `tag` (a pill in the header cell, only when the column differs from the page default).
 `group: { key: (row) => string, label?: (key, count) => string }` prints a repeated column once
@@ -294,7 +306,9 @@ In `src/lib/depot/format.ts`, all reading the feed's timestamps as Indian wall-c
 (the trailing `Z` upstream is ignored), all giving a dash for input that does not parse:
 `formatFeedTime` ("08:51"), `formatFeedDateTime` ("Mon 05 Oct, 08:51"),
 `formatRelative(iso, feedNow)` ("12 min ago", "3 h ago", "2 days ago", "in 25 min",
-"just now"), `isLaterFeedTime(a, b)`.
+"just now"), `isLaterFeedTime(a, b)`, `formatPlainDate("2026-10-06")` ("6 Oct 2026": the
+only way a date is shown; a raw `YYYY-MM-DD` never reaches the screen), and
+`formatDurationMinutes(192)` ("3 h 12 min", "13 d 21 h": never raw minutes above an hour).
 
 ```tsx
 <td title={formatFeedDateTime(bus.lastSeen)}>{formatRelative(bus.lastSeen, feed.feedNow)}</td>
