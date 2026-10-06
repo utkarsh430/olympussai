@@ -104,7 +104,8 @@ describe('cockpit availability bar', () => {
     // Round 2 (critique, cockpit Must 3): the week line is the section label's note, its
     // tag in words once, and no longer inside the legend.
     const label = markup.slice(0, markup.indexOf('depot-availability-bar'));
-    expect(text(label)).toMatch(/On-road share, MODELLED: .* over 7 days/);
+    expect(text(label)).toMatch(/Modelled week trend: on-road share .* over 7 days/);
+    expect(text(label)).not.toMatch(/MODELLED/);
     expect(text(markup).match(/MODELLED/g)).toHaveLength(1);
     const legend = markup.slice(markup.indexOf('Availability legend'));
     expect(legend).not.toMatch(/MODELLED/);
