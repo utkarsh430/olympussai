@@ -5,30 +5,11 @@ import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { DEPOT_GROUP_CAP, capGroups } from '@/lib/depot/exceptions/pageModel';
 import { formatCount } from '@/lib/depot/format';
 import type { MoveRow } from '@/lib/depot/routes/allocationGroups';
-import type { Provenance } from '@/lib/depot/types';
+import { MOVES_COLUMNS, MOVES_TABLE_PX } from '@/lib/depot/routes/movesColumns';
 import { DepotLink } from './RouteCells';
 
 /** Route stays put while the figures scroll sideways inside the frame. */
-const FROZEN = 'sticky left-0 z-[5] w-48 min-w-48 max-w-48 border-r border-r-depot-line bg-depot-page';
-
-interface Header {
-  readonly key: string;
-  readonly label: string;
-  readonly provenance?: Provenance;
-  readonly right?: boolean;
-  readonly className?: string;
-}
-
-const HEADERS: readonly Header[] = [
-  { key: 'route', label: 'Route', className: `${FROZEN} !z-20 !bg-depot-surface` },
-  { key: 'from', label: 'From depot' },
-  { key: 'to', label: 'To depot' },
-  { key: 'trips', label: 'Trips a day', provenance: 'modelled', right: true },
-  { key: 'now', label: 'Dead km a trip now', provenance: 'derived', right: true },
-  { key: 'after', label: 'Dead km a trip after', provenance: 'derived', right: true },
-  { key: 'saving', label: 'Saving, km a day', provenance: 'modelled', right: true },
-  { key: 'note', label: 'Note' },
-];
+const FROZEN = 'sticky left-0 z-[5] border-r border-r-depot-line bg-depot-page';
 
 export interface MovesTableProps {
   /** Already ordered, largest saving first. */
@@ -42,22 +23,23 @@ export function MovesTable({ rows }: MovesTableProps) {
   return (
     <div>
       <div role="region" aria-label="Recommended moves" tabIndex={0} className="depot-table-frame">
-        <table className="depot-table">
+        <table className="depot-table depot-table-fixed" style={{ minWidth: MOVES_TABLE_PX }}>
           <caption className="sr-only">
             Recommended moves, largest saving first. Trips and savings are modelled; dead kilometres
             are derived.
           </caption>
           <thead>
             <tr>
-              {HEADERS.map((h) => (
+              {MOVES_COLUMNS.map((h) => (
                 <th
                   key={h.key}
                   scope="col"
-                  className={`${h.className ?? ''} ${h.right ? 'depot-align-right' : ''}`}
+                  style={{ width: h.widthPx }}
+                  className={`${h.key === 'route' ? `${FROZEN} !z-20 !bg-depot-surface` : ''} ${h.right ? 'depot-align-right' : ''}`}
                 >
-                  <span className="inline-flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5">
                     {h.label}
-                    {h.provenance ? <ProvenanceBadge provenance={h.provenance} /> : null}
+                    {h.tag ? <ProvenanceBadge provenance={h.tag} pill /> : null}
                   </span>
                 </th>
               ))}
@@ -67,19 +49,21 @@ export function MovesTable({ rows }: MovesTableProps) {
             {shown.map((row) => (
               <tr key={row.routeName}>
                 <td className={FROZEN} title={row.routeName}>
-                  <span className="block max-w-[10.5rem] truncate">{row.routeName}</span>
+                  <span className="block truncate">{row.routeName}</span>
                 </td>
-                <td className="whitespace-nowrap">
+                <td title={row.fromDepotName}>
                   <DepotLink depotId={row.fromDepotId} name={row.fromDepotName} linked={row.fromLinked} />
                 </td>
-                <td className="whitespace-nowrap">
+                <td title={row.toDepotName}>
                   <DepotLink depotId={row.toDepotId} name={row.toDepotName} linked={row.toLinked} />
                 </td>
                 <td className="depot-align-right">{row.trips}</td>
                 <td className="depot-align-right">{row.deadNow}</td>
                 <td className="depot-align-right">{row.deadAfter}</td>
                 <td className="depot-align-right">{row.saving}</td>
-                <td className="min-w-[12rem] text-[11px] text-depot-muted">{row.note ?? ''}</td>
+                <td className="text-[11px] text-depot-muted" title={row.note ?? undefined}>
+                  {row.note ?? ''}
+                </td>
               </tr>
             ))}
           </tbody>

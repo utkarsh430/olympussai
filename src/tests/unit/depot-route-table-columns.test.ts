@@ -3,6 +3,8 @@ import {
   ROUTE_COLUMNS,
   ROUTE_TABLE_FRAME_1440_PX,
   frozenLeft,
+  ROUTE_TABLE_FRAME_PX,
+  columnsAtWidth,
   routeTableWidth,
   visibleRouteColumns,
 } from '@/lib/depot/routes/routeTableColumns';
@@ -36,10 +38,35 @@ describe('the route table columns', () => {
     expect(visibleRouteColumns([ROUTE_FIXTURE, WITH_DEAD_KM]).map((c) => c.key)).toContain('deadKm');
   });
 
-  it('fits every column in the 1440 frame, with and without dead km', () => {
-    expect(routeTableWidth(visibleRouteColumns([ROUTE_FIXTURE]))).toBe(944);
-    expect(routeTableWidth(ROUTE_COLUMNS)).toBe(1156);
-    expect(routeTableWidth(ROUTE_COLUMNS)).toBeLessThanOrEqual(ROUTE_TABLE_FRAME_1440_PX);
+  it('hides PROFILE while every row has the same profile state (a constant column)', () => {
+    const known = { ...ROUTE_FIXTURE, profiled: true };
+    const unknown = { ...ROUTE_FIXTURE, profiled: false };
+    expect(visibleRouteColumns([unknown, unknown]).map((c) => c.key)).not.toContain('profile');
+    expect(visibleRouteColumns([known, known]).map((c) => c.key)).not.toContain('profile');
+    expect(visibleRouteColumns([unknown, known]).map((c) => c.key)).toContain('profile');
+  });
+
+  it('draws the reduced sets of critique §7 at 1024 and 800', () => {
+    const keys = (rows: readonly (typeof ROUTE_FIXTURE)[], width: 'wide' | 'lg' | 'base') =>
+      columnsAtWidth(visibleRouteColumns(rows), width).map((c) => c.key);
+    expect(keys([ROUTE_FIXTURE], 'base')).toEqual(['route', 'depot', 'buses', 'trips', 'median']);
+    expect(keys([ROUTE_FIXTURE], 'lg')).toEqual(['route', 'depot', 'buses', 'class', 'trips', 'median', 'late']);
+    // With dead km at 1024, CLASS steps aside (it is in the drawer's header).
+    expect(keys([WITH_DEAD_KM], 'lg')).toEqual(['route', 'depot', 'buses', 'trips', 'deadKm', 'median', 'late']);
+  });
+
+  it('fits every column set in its frame at 1440, 1024 and 800, with and without dead km', () => {
+    const mixed = [{ ...ROUTE_FIXTURE, profiled: false }, { ...WITH_DEAD_KM, profiled: true }];
+    for (const rows of [[ROUTE_FIXTURE], [WITH_DEAD_KM], mixed]) {
+      const cols = visibleRouteColumns(rows);
+      expect(routeTableWidth(columnsAtWidth(cols, 'wide'))).toBeLessThanOrEqual(ROUTE_TABLE_FRAME_PX.wide);
+      expect(routeTableWidth(columnsAtWidth(cols, 'lg'))).toBeLessThanOrEqual(ROUTE_TABLE_FRAME_PX.lg);
+      expect(routeTableWidth(columnsAtWidth(cols, 'base'))).toBeLessThanOrEqual(ROUTE_TABLE_FRAME_PX.base);
+    }
+    expect(routeTableWidth(columnsAtWidth(visibleRouteColumns(mixed), 'wide'))).toBe(1133);
+    expect(routeTableWidth(columnsAtWidth(visibleRouteColumns([WITH_DEAD_KM]), 'lg'))).toBe(961);
+    expect(routeTableWidth(columnsAtWidth(visibleRouteColumns([ROUTE_FIXTURE]), 'base'))).toBe(676);
+    expect(ROUTE_TABLE_FRAME_PX.wide).toBe(ROUTE_TABLE_FRAME_1440_PX);
   });
 
   it('places the frozen Depots column after the frozen Route column', () => {

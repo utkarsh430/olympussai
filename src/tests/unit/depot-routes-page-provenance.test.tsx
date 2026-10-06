@@ -25,9 +25,8 @@ vi.mock('@/hooks/useDepotRoutes', async (original) => ({
 vi.mock('@/hooks/useDepotAllocation', () => ({ useDepotAllocation: (): unknown => state.allocation }));
 
 const LINE =
-  'Routes and the buses on them are LIVE; stops, terminals and dead kilometres a trip, from ' +
-  'the route-details feed and inferred depot positions, are DERIVED';
-const MODELLED_PART = 'trips a day and the daily dead kilometres built on them are MODELLED.';
+  'Buses on routes are LIVE; stops, terminals and dead km a trip are DERIVED';
+const MODELLED_PART = 'trips a day and daily dead km are MODELLED.';
 
 const text = (markup: string): string =>
   markup.replace(/<[^>]*>/g, '').replace(/&#x27;/g, "'").replace(/\s+/g, ' ');
@@ -81,7 +80,9 @@ describe('the routes page provenance line in every state', () => {
     const plan = markup.slice(markup.indexOf('id="allocation-title"'));
     // The label row: the heading, then its tag, before the row's closing tag.
     expect(plan.slice(0, plan.indexOf('</div>'))).toMatch(/data-provenance="modelled"/);
-    const tripsHeader = markup.slice(markup.indexOf('Trips/day'), markup.indexOf('</th>', markup.indexOf('Trips/day')));
+    // The route table's header (the moves table above it carries its tag on its label).
+    const table = markup.slice(markup.indexOf('route-table-title'));
+    const tripsHeader = table.slice(table.indexOf('Trips/day'), table.indexOf('</th>', table.indexOf('Trips/day')));
     expect(tripsHeader).toContain('data-provenance="modelled"');
   });
 

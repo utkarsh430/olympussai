@@ -7,7 +7,7 @@ import { LOADER_COST_LINE } from '@/lib/depot/routes/loaderRow';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const DEPOTS = [{ value: '49', label: 'Bhaisali', busesOnRoutes: 12 }];
+const DEPOTS = [{ value: '49', label: 'Bhaisali', routes: null, busesOnRoutes: 12 }];
 const LIST = {
   routes: [
     { routeName: 'R1', profiled: false },
@@ -91,7 +91,7 @@ describe('route profile loader', () => {
     expect(calls).toEqual([]);
     expect(status()).toBe(lead);
     expect((container.querySelector('select') as HTMLSelectElement).value).toBe('49');
-    expect(button('Load route details')?.textContent).toBe('Load route details (3 routes)');
+    expect(button('Load route details')?.textContent).toBe('Load route details: 3 lookups');
   });
 
   it('does nothing until pressed, then loads one at a time and finishes', async () => {
@@ -99,11 +99,12 @@ describe('route profile loader', () => {
     const onFinished = vi.fn();
     await render(async () => {}, onFinished);
     expect(calls).toEqual([]);
-    expect(button('Load route details')?.textContent).toBe('Load route details (3 routes)');
+    expect(button('Load route details')?.textContent).toBe('Load route details: 3 lookups');
     expect(button('Load route details')?.title).toBe(
       'Looks up 3 routes of Bhaisali on the route-details service: one lookup per route, one at a time, at most 40 a press.',
     );
-    expect(container.textContent).toContain(LOADER_COST_LINE);
+    // The cost line is said once, in the closing disclosure; the button counts the lookups.
+    expect(container.textContent).not.toContain(LOADER_COST_LINE);
     await act(async () => button('Load route details')?.click());
     await flush();
     expect(calls).toEqual(['R1', 'R2', 'R3']);

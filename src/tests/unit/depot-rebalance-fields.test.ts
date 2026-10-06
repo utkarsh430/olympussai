@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { TRAIL_NOTE, trailHeading } from '@/lib/depot/rebalance/decisionWording';
+import {
+  TRAIL_NOTE,
+  decisionRowWord,
+  trailHeading,
+} from '@/lib/depot/rebalance/decisionWording';
 import { changeFrom, inForceText, serverInForce } from '@/lib/depot/rebalance/fieldsInForce';
 
 describe('what-if fields in force', () => {
@@ -28,10 +32,18 @@ describe('what-if fields in force', () => {
 describe('decision trail heading', () => {
   it('says in one line that nothing is recorded, and only the date once there are entries', () => {
     expect(trailHeading('2026-10-06', 0)).toBe(
-      'Decision trail · 2026-10-06: none recorded in this browser',
+      'Decision trail · 6 Oct 2026: none recorded in this browser',
     );
-    expect(trailHeading('2026-10-06', 3)).toBe('Decision trail · 2026-10-06');
+    expect(trailHeading('2026-10-06', 3)).toBe('Decision trail · 6 Oct 2026');
     expect(TRAIL_NOTE).toMatch(/append-only/);
     expect(TRAIL_NOTE).toMatch(/no transfer order is issued/);
+  });
+});
+
+describe('the decision word in the transfer row', () => {
+  it('is one word for the recorded decision, with the count when the plan has moved', () => {
+    expect(decisionRowWord(null, 7)).toBe('None yet');
+    expect(decisionRowWord({ kind: 'approved', buses: 7 }, 7)).toBe('Approved');
+    expect(decisionRowWord({ kind: 'deferred', buses: 7 }, 9)).toBe('Deferred for 7');
   });
 });

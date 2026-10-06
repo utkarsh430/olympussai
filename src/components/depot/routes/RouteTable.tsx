@@ -9,10 +9,12 @@ import { LATE_AFTER_MIN } from '@/lib/depot/routes/delayConfig';
 import { deadKmWords, delayWords, medianCell, operatorsView } from '@/lib/depot/routes/routeRowWording';
 import type { RouteSort, RouteSortKey, RoutesQuery } from '@/lib/depot/routes/routeQuery';
 import {
+  columnsAtWidth,
   frozenLeft,
   routeTableWidth,
   visibleRouteColumns,
   type RouteColumnSpec,
+  type RouteWidthTier,
 } from '@/lib/depot/routes/routeTableColumns';
 import { offsetOf, serverPage } from '@/lib/depot/routes/routesPageModel';
 import { formatCount } from '@/lib/depot/format';
@@ -50,6 +52,28 @@ function cell(key: RouteSortKey, r: RouteListItem): React.ReactNode {
   }
 }
 
+/** A column drawn only from its tier up (literal classes, so Tailwind sees them). */
+const TIER_CELL: Readonly<Record<RouteWidthTier, string>> = {
+  base: '',
+  lg: 'hidden lg:table-cell',
+  wide: 'hidden min-[1440px]:table-cell',
+};
+/** The table's minimum width per tier: the sum of the columns that tier draws. */
+const TIER_MIN_WIDTH =
+  'min-w-[var(--route-w-base)] lg:min-w-[var(--route-w-lg)] min-[1440px]:min-w-[var(--route-w-wide)]';
+/** Table links: cyan, underlined on hover and focus only (critique round 5, §5). */
+export const TABLE_LINK =
+  'depot-table-link text-holo-glow decoration-holo-glow/40 underline-offset-2 hover:underline focus-visible:underline';
+
+function tierWidths(columns: readonly RouteColumnSpec[]): React.CSSProperties {
+  const px = (tier: RouteWidthTier): string => `${routeTableWidth(columnsAtWidth(columns, tier))}px`;
+  return {
+    '--route-w-base': px('base'),
+    '--route-w-lg': px('lg'),
+    '--route-w-wide': px('wide'),
+  } as React.CSSProperties;
+}
+
 function ariaSort(sort: RouteSort | null, key: string): 'ascending' | 'descending' | 'none' {
   if (sort?.key !== key) return 'none';
   return sort.direction === 'asc' ? 'ascending' : 'descending';
@@ -74,6 +98,7 @@ export interface RouteTableProps {
  * reorders only the visible page. Widths and tags come from `routeTableColumns`.
  */
 export function RouteTable({ data, query, onQueryChange, onOpenRoute }: RouteTableProps) {
+  const filtered = Boolean(query.depotId || query.serviceClass || query.q);
   const sort = query.sort;
   const frame = useRef<HTMLDivElement>(null);
   const moreColumns = useColumnsToTheRight(frame, true);
@@ -96,10 +121,7 @@ export function RouteTable({ data, query, onQueryChange, onOpenRoute }: RouteTab
       />
       <div className="relative min-w-0">
         <div ref={frame} role="region" aria-label="Route table" tabIndex={0} className="depot-table-frame">
-          <table
-            className="depot-table depot-table-fixed"
-            style={{ minWidth: routeTableWidth(columns) }}
-          >
+          <table className={`depot-table depot-table-fixed ${TIER_MIN_WIDTH}`} style={tierWidths(columns)}>
             <caption className="sr-only">Every route in the live feed</caption>
             <thead>
               <tr>
@@ -110,20 +132,19 @@ export function RouteTable({ data, query, onQueryChange, onOpenRoute }: RouteTab
                     title={HEADER_TITLE[c.key]}
                     aria-sort={ariaSort(sort, c.key)}
                     style={{ width: c.widthPx, ...frozenStyle(columns, c) }}
-                    className={`${c.frozen ? '!z-20' : ''} ${c.key === 'depot' ? 'border-r border-r-depot-line' : ''} ${c.align === 'right' ? 'depot-align-right' : ''}`}
+                    className={`${TIER_CELL[c.from]} ${c.frozen ? '!z-20' : ''} ${c.key === 'depot' ? 'border-r border-r-depot-line' : ''} ${c.align === 'right' ? 'depot-align-right' : ''}`}
                   >
-                    <button type="button" className="depot-sort-button" onClick={() => toggleSort(c.key)}>
-                      {c.header}
-                      {c.unit ? <span className="text-depot-faint"> {c.unit}</span> : null}
-                      <span aria-hidden className="inline-block w-3 text-holo-glow">
-                        {sort?.key === c.key ? (sort.direction === 'asc' ? '↑' : '↓') : ''}
-                      </span>
-                    </button>
-                    {c.tag ? (
-                      <span className="ml-1.5 inline-block align-middle">
-                        <ProvenanceBadge provenance={c.tag} pill />
-                      </span>
-                    ) : null}
+                    {/* The tag sits right after its label, in the same right-aligned cell. */}
+                    <span className="inline-flex items-center gap-1.5">
+                      <button type="button" className="depot-sort-button" onClick={() => toggleSort(c.key)}>
+                        {c.header}
+                        {c.unit ? <span className="text-depot-faint"> {c.unit}</span> : null}
+                        <span aria-hidden className="inline-block w-3 text-holo-glow">
+                          {sort?.key === c.key ? (sort.direction === 'asc' ? '↑' : '↓') : ''}
+                        </span>
+                      </button>
+                      {c.tag ? <ProvenanceBadge provenance={c.tag} pill /> : null}
+                    </span>
                     {HEADER_TITLE[c.key] ? <span className="sr-only">{HEADER_TITLE[c.key]}</span> : null}
                   </th>
                 ))}
@@ -144,14 +165,14 @@ export function RouteTable({ data, query, onQueryChange, onOpenRoute }: RouteTab
                     <td
                       key={c.key}
                       style={frozenStyle(columns, c)}
-                      className={`${c.frozen ? 'z-[5] bg-depot-page group-hover:bg-depot-raised' : ''} ${
+                      className={`${TIER_CELL[c.from]} ${c.frozen ? 'z-[5] bg-depot-page group-hover:bg-depot-raised' : ''} ${
                         c.key === 'depot' ? 'border-r border-r-depot-line' : ''
                       } ${c.align === 'right' ? 'depot-align-right' : ''}`}
                     >
                       {c.key === 'route' ? (
                         <button
                           type="button"
-                          className="depot-link block max-w-full truncate text-left"
+                          className={`${TABLE_LINK} block max-w-full truncate text-left`}
                           title={row.description ?? row.routeName}
                           onClick={(event) => onOpenRoute(row, event.currentTarget)}
                         >
@@ -169,7 +190,8 @@ export function RouteTable({ data, query, onQueryChange, onOpenRoute }: RouteTab
         </div>
         {moreColumns ? <TableOverflowCue /> : null}
       </div>
-      {data.total > data.limit ? (
+      {/* The pager is the list's only count, so a filtered list always shows it (R2-m20). */}
+      {data.total > data.limit || (filtered && data.total > 0) ? (
         <Pager page={current.page} total={data.total} pageSize={data.limit} onPage={setPage} />
       ) : null}
     </>

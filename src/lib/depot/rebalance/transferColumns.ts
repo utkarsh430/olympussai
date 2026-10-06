@@ -3,26 +3,27 @@ import { formatCount } from '@/lib/depot/format';
 /*
  * The transfer table's columns and widths. At `xl` the transfer plan is split 55% table
  * and 45% map, so at 1440 the table frame is about 624px wide: every column below must fit
- * in it, uncut (design critique round 4, fleet distribution Must 1). The giver's and the
- * receiver's spare before and after are not columns: they are said in the "Why?" row,
- * which already explains the transfer, and the decision controls live there too.
+ * in it, uncut (design critique round 4, fleet distribution Must 1). There is no "Why?"
+ * column: the row opens its expanded row, which holds the rationale, the giver's surplus and
+ * the receiver's shortfall before and after, and the decision controls (round 5, Must 2).
  */
 
 export interface TransferColumn {
-  readonly key: 'transfer' | 'buses' | 'roadKm' | 'busKm' | 'decision' | 'why';
+  readonly key: 'transfer' | 'buses' | 'roadKm' | 'busKm' | 'decision' | 'open';
   readonly label: string;
   readonly right: boolean;
-  /** Fixed width; the transfer names truncate with their full text in `title`. */
+  /** Fixed width; a long transfer name wraps to a second line, never cut mid-word. */
   readonly widthPx: number;
 }
 
 export const TRANSFER_COLUMNS: readonly TransferColumn[] = [
-  { key: 'transfer', label: 'Transfer', right: false, widthPx: 200 },
-  { key: 'buses', label: 'Buses', right: true, widthPx: 72 },
+  { key: 'transfer', label: 'Transfer', right: false, widthPx: 224 },
+  { key: 'buses', label: 'Buses', right: true, widthPx: 64 },
   { key: 'roadKm', label: 'Road km', right: true, widthPx: 88 },
   { key: 'busKm', label: 'Bus-km', right: true, widthPx: 80 },
-  { key: 'decision', label: 'Decision', right: false, widthPx: 112 },
-  { key: 'why', label: 'Why?', right: false, widthPx: 64 },
+  { key: 'decision', label: 'Decision', right: false, widthPx: 136 },
+  /** The row is the control: the muted chevron on hover and focus, no header text. */
+  { key: 'open', label: '', right: false, widthPx: 24 },
 ];
 
 /** The sum of the column widths: the table's minimum width; narrower frames scroll. */
@@ -53,15 +54,17 @@ export interface SpareFigures {
 }
 
 /**
- * The giver's spare buses and the receiver's shortfall before and after this one transfer,
- * as one sentence for the "Why?" row. Never below zero after.
+ * The giver's surplus and the receiver's shortfall immediately before and after this one
+ * transfer (`transferRows` carries the running balances), as one sentence for the expanded
+ * row. "Surplus", not "spare": the spare target is a different count (review R2-m15).
+ * Never below zero after.
  */
 export function spareBeforeAfter(row: SpareFigures): string {
   const giverAfter = Math.max(0, row.giverSurplusBefore - row.buses);
   const receiverAfter = Math.max(0, row.receiverDeficitBefore - row.buses);
   return (
-    `${row.fromName} has ${formatCount(row.giverSurplusBefore)} spare before this transfer ` +
-    `and ${formatCount(giverAfter)} after; ${row.toName} is ${formatCount(row.receiverDeficitBefore)} ` +
-    `short before and ${formatCount(receiverAfter)} after.`
+    `${row.fromName} has ${formatCount(row.giverSurplusBefore)} surplus buses before this ` +
+    `transfer and ${formatCount(giverAfter)} after; ${row.toName} is ` +
+    `${formatCount(row.receiverDeficitBefore)} buses short before and ${formatCount(receiverAfter)} after.`
   );
 }

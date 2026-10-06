@@ -1,6 +1,27 @@
 import { formatCount, formatDurationMinutes } from '../format';
 import { formatKm } from './allocationWording';
 import type { AllocationMoveItem, RouteListItem } from './api';
+import { LATE_AFTER_MIN } from './delayConfig';
+import { delayWords } from './routeRowWording';
+
+/**
+ * The drawer's first line, from the route's row: its class, then its delay and late share
+ * with the buses they rest on. Said in every state, so the delay basis is visible (review
+ * R2-m19) and CLASS and LATE %, which the table drops below 1024 px, are never lost.
+ */
+export function drawerRowFacts(
+  route: Partial<Pick<RouteListItem, 'serviceToken' | 'delay'>>,
+): string | null {
+  // A drawer opened from the plan's moves has no table row to read from.
+  if (route.delay === undefined) return null;
+  const words = delayWords(route.delay);
+  const service = route.serviceToken ? `Class ${route.serviceToken}` : 'Class not given';
+  if (route.delay.medianMin === null) return `${service}. No usable delay from its buses.`;
+  return (
+    `${service}. Median delay ${words.median}; ${words.late} more than ${LATE_AFTER_MIN} ` +
+    `minutes late, ${words.basis}.`
+  );
+}
 import type { RouteProfileResponse, RouteProfileResult } from './types';
 
 /**

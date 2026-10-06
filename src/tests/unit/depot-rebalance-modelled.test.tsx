@@ -132,7 +132,7 @@ describe('MODELLED wording', () => {
   it('is on no legend entry and no legend label: the transfers section carries the tag', async () => {
     await render(<TransferMapLegend maxBuses={10} />);
     const entries = texts('[data-testid="rebalance-map-legend"] > div:first-child li');
-    expect(entries).toEqual(['Spare buses', 'Short of buses', 'Balanced']);
+    expect(entries).toEqual(['Surplus buses', 'Short of buses', 'Balanced']);
     const legend = container.querySelector('[data-testid="rebalance-map-legend"]');
     expect(legend?.textContent).not.toMatch(/modelled/i);
     expect(legend?.querySelector('p')).toBeNull();

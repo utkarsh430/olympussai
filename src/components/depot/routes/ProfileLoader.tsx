@@ -7,7 +7,6 @@ import { useFetchedJson } from '@/hooks/useFetchedJson';
 import { useRouteProfileLoader, waitFor } from '@/hooks/useRouteProfileLoader';
 import type { DepotRoutesResponse } from '@/lib/depot/routes/api';
 import {
-  LOADER_COST_LINE,
   loadButtonTitle,
   loaderDepotLabel,
   type LoaderDepot,
@@ -105,7 +104,6 @@ export function ProfileLoader({ depots, defaultDepotId, lead, onFinished, wait =
         </button>
       ) : null}
       {listLine !== null ? <p className="depot-note min-w-0">{listLine}</p> : null}
-      <p className="depot-note min-w-0">{LOADER_COST_LINE}</p>
     </div>
   );
 }

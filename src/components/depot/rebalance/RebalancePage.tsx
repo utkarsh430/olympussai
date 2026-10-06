@@ -7,7 +7,7 @@ import { useDepotDistribution, type DepotDistributionState } from '@/hooks/useDe
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import type { DepotDistributionResponse } from '@/lib/depot/api';
 import { decisionEvent, undoEvent, type TrailItem } from '@/lib/depot/rebalance/decisionEvents';
-import { isRepeatDecision } from '@/lib/depot/rebalance/decisionReducers';
+import { isRepeatDecision, undoableFor } from '@/lib/depot/rebalance/decisionReducers';
 import { trailCapacityNote } from '@/lib/depot/rebalance/decisionStore';
 import { decisionAnnouncement, undoAnnouncement } from '@/lib/depot/rebalance/decisionWording';
 import { busesWord, type TransferDecisionKind } from '@/lib/depot/rebalance/rebalanceModel';
@@ -107,6 +107,11 @@ export function Distribution({
     setAnnouncement(recorded ? said : UNDO_REFUSED);
   }
 
+  function undoFor(row: TransferRow): (() => void) | null {
+    const item = undoableFor(view.trail, row.id, view.key);
+    return item ? () => undo(item) : null;
+  }
+
   const maxBuses = view.rows.reduce((m, r) => Math.max(m, r.buses), 0);
   return (
     <div className="flex min-w-0 flex-col">
@@ -123,7 +128,7 @@ export function Distribution({
           label="Recommended transfers"
           count={view.rows.length}
           tag="modelled"
-          note="Largest first; select one to highlight it on the map"
+          note="Largest first; select one to see why and to decide"
         />
         <div className="flex min-w-0 flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,45fr)_minmax(0,55fr)] xl:items-start">
           <div className="order-1 min-w-0 xl:order-2">
@@ -132,6 +137,7 @@ export function Distribution({
               selectedId={selected?.id ?? null}
               onSelect={setSelectedId}
               onDecide={decide}
+              undoFor={undoFor}
             />
             <p
               role="status"
@@ -147,10 +153,10 @@ export function Distribution({
               selectedId={selected?.id ?? null}
               onSelect={setSelectedId}
             />
-            <p role="status" className="depot-prose mt-2 text-xs">
+            <p role="status" className="depot-prose mt-2 min-h-4 text-xs">
               {selected
                 ? `Selected: ${busesWord(selected.buses)} from ${selected.fromName} to ${selected.toName}. Its line and both depots are highlighted on the map.`
-                : 'Select a transfer to highlight it on the map.'}
+                : ''}
             </p>
             <div className="mt-3">
               <TransferMapLegend maxBuses={maxBuses} />
