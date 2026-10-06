@@ -28,9 +28,10 @@ export interface FigureBandProps {
  * (`figureBandLayout`). 88px tall: label 11/16, 6px, figure 24/28, 6px, caption 12/16,
  * with 8px above and below; a caption that does not fit wraps to a second line. Figures in
  * a row stretch to the row's height with their content at the top, so a two-line caption
- * moves no neighbour's figure and every hairline runs the row's full height. The label row is a 16px line box (`depot-tag-row`), so a tag
- * beside a label that fits never lowers that figure; a label that does not fit wraps,
- * with its tag, onto a second line rather than being cut. A value is never cut either.
+ * moves no neighbour's figure and every hairline runs the row's full height. The label row
+ * is a 16px line box (`depot-tag-row`), so a tag beside a label that fits never lowers
+ * that figure; a label that does not fit wraps, with its tag, onto a second line rather
+ * than being cut. A value is never cut either.
  *
  * Every figure carries a hairline on its left; the list is pulled 17px left (its 16px
  * padding plus the 1px hairline) inside a clipping wrapper, so the first figure of every
