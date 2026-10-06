@@ -15,7 +15,7 @@ import type { FuelResponse } from '@/lib/depot/fuel/api';
 import { fuelHeader } from '@/lib/depot/fuel/fuelHeader';
 import { emptyText } from '@/lib/depot/fuel/fuelPageModel';
 import { emptyRemedy, fuelBand, fuelDisclosure } from '@/lib/depot/fuel/fuelPageTables';
-import { modelledDayLine } from '@/lib/depot/revenue/modelledDayLine';
+import { modelledDayLine } from '@/lib/depot/modelledDayLine';
 import { ClassTable } from './ClassTable';
 import { FlaggedList } from './FlaggedList';
 import { RouteTable } from './RouteTable';

@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DepotFuelPage from '@/app/(protected)/project/depots/d/[depotId]/fuel/page';
 import DepotRevenuePage from '@/app/(protected)/project/depots/d/[depotId]/revenue/page';
-import { modelledDayLine } from '@/lib/depot/revenue/modelledDayLine';
+import { modelledDayLine } from '@/lib/depot/modelledDayLine';
 import { REVENUE_MODEL_PARAMS } from '@/lib/depot/sim/revenueConfig';
 
 /*

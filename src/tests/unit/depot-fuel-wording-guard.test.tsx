@@ -9,7 +9,7 @@ import * as fuelHeader from '@/lib/depot/fuel/fuelHeader';
 import * as fuelPageModel from '@/lib/depot/fuel/fuelPageModel';
 import * as fuelPageTables from '@/lib/depot/fuel/fuelPageTables';
 import * as fuelStandOut from '@/lib/depot/fuel/fuelStandOut';
-import * as modelledDayLine from '@/lib/depot/revenue/modelledDayLine';
+import * as modelledDayLine from '@/lib/depot/modelledDayLine';
 
 /*
  * Guard review X9: the fuel page states a variance, never a cause and never a person.

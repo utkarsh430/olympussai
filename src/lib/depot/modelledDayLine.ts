@@ -1,10 +1,11 @@
-import { formatPlainDate } from '../format';
-import { modelledDaySentence } from '../provenanceLine';
-import type { Coverage } from '../types';
+import { formatPlainDate } from './format';
+import { modelledDaySentence } from './provenanceLine';
+import type { Coverage } from './types';
 
 /*
- * The provenance line's extension on the two pages built on the modelled operating day
- * (fuel and cost, revenue and ridership), worded once so the two say it word for word.
+ * The provenance line's extension on EVERY page built on the modelled operating day (duty
+ * board, crew, fuel and cost, revenue and ridership), worded once so they say it word for
+ * word. No page builds this sentence itself.
  * Dated from the response's `operatingDate` (ruling: a page on the modelled day prints
  * the date it is for), with the feed's schedule coverage from the depot detail.
  */

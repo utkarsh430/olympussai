@@ -11,7 +11,7 @@ import { useDepotRevenue } from '@/hooks/useDepotRevenue';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { formatPlainDate } from '@/lib/depot/format';
 import type { RevenueResponse } from '@/lib/depot/revenue/api';
-import { modelledDayLine } from '@/lib/depot/revenue/modelledDayLine';
+import { modelledDayLine } from '@/lib/depot/modelledDayLine';
 import { revenueHeader } from '@/lib/depot/revenue/revenueHeader';
 import {
   NO_TRIPS_REMEDY,
