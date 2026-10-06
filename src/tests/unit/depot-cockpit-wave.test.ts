@@ -4,6 +4,8 @@ import { buildAttention } from '@/lib/depot/cockpit/attention';
 import {
   availabilitySegments,
   availabilityText,
+  legendWord,
+  weekTrendNote,
   yardLine,
 } from '@/lib/depot/cockpit/availability';
 import { depotExceptionLines, groupBusExceptions } from '@/lib/depot/cockpit/exceptionGroups';
@@ -142,20 +144,32 @@ describe('availability bar', () => {
 
   const SEEN = { inYard: 77, visitors: 68, heldSince: null, snapshotsSeen: 40 };
 
-  it('puts every bus in the yard, the visitors and the standing split on one line', () => {
+  it('says the yard and the standing split as two sentences', () => {
     expect(yardLine(BOARD, SEEN)).toEqual({
       kind: 'split',
-      text: "77 of this depot's buses in the yard, with 68 visiting · 86 standing: 59 standing in the yard, 2 at another yard, 25 away",
+      text: 'In the yard: 77 of ours, 68 visiting. Standing 86: 59 in the yard, 2 at another yard, 25 away.',
       held: null,
     });
     const line = yardLine(BOARD, { ...SEEN, visitors: 0 });
-    expect(line.kind === 'split' && line.text).toMatch(/^77 of this depot's buses in the yard, no visiting bus · /);
+    expect(line.kind === 'split' && line.text).toMatch(/^In the yard: 77 of ours, none visiting\. /);
   });
 
-  it('never says "in the yard" for the standing subset without "standing"', () => {
+  it('names the standing subset before its "in the yard", so the two figures cannot be confused', () => {
     const line = yardLine(BOARD, SEEN);
     const text = line.kind === 'split' ? line.text : '';
-    expect(text.match(/(\S+) in the yard/g)).toEqual(["buses in the yard", 'standing in the yard']);
+    expect(text).toMatch(/Standing 86: 59 in the yard/);
+    expect(text.split('. ')).toHaveLength(2);
+  });
+
+  it('gives the legend a word that is never cut at 1440, with the full label kept', () => {
+    expect(legendWord('on_road', 'On road, no schedule in feed')).toBe('On road');
+    expect(legendWord('standing', 'Standing')).toBe('Standing');
+  });
+
+  it('writes the modelled week trend as an ordinary sentence, the word in lower case', () => {
+    const note = weekTrendNote('On-road share', 'steady over 7 days');
+    expect(note).toBe('Modelled week trend: on-road share steady over 7 days');
+    expect(note).not.toMatch(/MODELLED/);
   });
 
   it('says when the yard is held', () => {

@@ -188,7 +188,7 @@ describe('cockpit page with data', () => {
     const markup = renderToStaticMarkup(<DepotCockpit />);
     const split = markup.slice(markup.indexOf('depot-standing-split'));
     expect(textOf(split).replace(/&#x27;/g, "'")).toContain(
-      "7 of this depot's buses in the yard, with 2 visiting · 5 standing: 5 standing in the yard · Open yard ›",
+      "In the yard: 7 of ours, 2 visiting. Standing 5: 5 in the yard. Open yard ›",
     );
     expect(markup).toContain('href="/project/depots/d/20/yard"');
   });

@@ -45,9 +45,12 @@ export function availabilityText(board: StatusBoard): string {
   return `Of ${formatCount(board.fleet)} buses: ${parts.join(', ')}.`;
 }
 
-/** Where a standing bus is: "standing in the yard" is never shortened to "in the yard". */
+/**
+ * Where a standing bus is, after "Standing 84:" has named the subset, so "52 in the yard"
+ * can only be read as standing buses.
+ */
 const PLACE_WORDS: Readonly<Record<BusLocation, string>> = {
-  in_yard: 'standing in the yard',
+  in_yard: 'in the yard',
   at_other_yard: 'at another yard',
   away: 'away',
   unknown: 'location unknown',
@@ -81,9 +84,9 @@ export interface YardFacts {
 }
 
 /**
- * One line for the yard: every bus in it, the visitors, and where the standing buses
- * are ("77 of this depot's buses in the yard, with 68 visiting · 86 standing: 59 standing
- * in the yard, 2 at another yard, 25 away"). With no yard, one sentence; the rule itself
+ * Two sentences for the yard: every bus of ours in it with the visitors, then where the
+ * standing buses are ("In the yard: 77 of ours, 68 visiting. Standing 86: 59 in the yard,
+ * 2 at another yard, 25 away."). With no yard, one sentence; the rule itself
  * is in the closing disclosure.
  */
 export function yardLine(board: StatusBoard, facts: YardFacts): YardLine {
@@ -94,7 +97,7 @@ export function yardLine(board: StatusBoard, facts: YardFacts): YardLine {
       : { kind: 'no-yard', sentence: NO_YARD_LINE };
   }
   const visiting =
-    facts.visitors === 0 ? 'no visiting bus' : `with ${formatCount(facts.visitors)} visiting`;
+    facts.visitors === 0 ? 'none visiting' : `${formatCount(facts.visitors)} visiting`;
   const places = board.locations
     .filter((cell) => cell.count > 0 || cell.location === 'in_yard')
     .map((cell) => `${formatCount(cell.count)} ${PLACE_WORDS[cell.location]}`);
@@ -102,10 +105,26 @@ export function yardLine(board: StatusBoard, facts: YardFacts): YardLine {
     facts.heldSince === null
       ? null
       : `Yard held since ${formatFeedTime(facts.heldSince)}: this snapshot alone would not place it.`;
-  const inYard = `${formatCount(facts.inYard)} of this depot's buses in the yard, ${visiting}`;
   return {
     kind: 'split',
-    text: `${inYard} · ${formatCount(board.standing)} standing: ${places.join(', ')}`,
+    text: `In the yard: ${formatCount(facts.inYard)} of ours, ${visiting}. Standing ${formatCount(board.standing)}: ${places.join(', ')}.`,
     held,
   };
+}
+
+/** The legend's word for a state: short enough never to be cut at 1440 (the full label is its title). */
+const LEGEND_WORD: Readonly<Partial<Record<BusOpState, string>>> = {
+  on_road: 'On road',
+};
+
+export function legendWord(state: BusOpState, label: string): string {
+  return LEGEND_WORD[state] ?? label;
+}
+
+/**
+ * The Availability label's note when the modelled week trend exists: an ordinary sentence,
+ * the word in lower case ("Modelled week trend: on-road share steady over 7 days").
+ */
+export function weekTrendNote(metricLabel: string, weekSentence: string): string {
+  return `Modelled week trend: ${metricLabel.toLowerCase()} ${weekSentence}`;
 }
