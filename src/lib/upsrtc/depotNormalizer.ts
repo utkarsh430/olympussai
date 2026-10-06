@@ -121,46 +121,50 @@ export function normalizeDepotRows(payload: unknown): NormalizeDepotResult {
 }
 
 /**
- * How far the feed clock may run ahead of the snapshot's 99th-percentile
- * receive time. Upstream already sends IST values stamped Z (+5:30) and the
- * odd garbage year; one such row must not move the whole module's clock.
+ * How far a receive time may lie past the fetch time (read in Indian time)
+ * and still set the feed clock: the server's own clock may be a little slow.
  */
-export const FEED_CLOCK_MAX_LEAD_MIN = 10;
-const FEED_CLOCK_PERCENTILE = 0.99;
+export const FEED_CLOCK_MAX_LEAD_MIN = 5;
+/** Upstream writes Indian-time digits and stamps them `Z`. */
+const FEED_IST_OFFSET_MIN = 330;
 const MS_PER_MINUTE = 60_000;
-
-/**
- * The feed's own clock (ruling S50a): the newest `receivedAt` that is no more
- * than FEED_CLOCK_MAX_LEAD_MIN ahead of the 99th-percentile receive time
- * (nearest rank, so with fewer than 100 rows that is the newest row and the
- * clock is simply the newest time). Rows beyond the lead are ignored for the
- * clock only; their own age is still measured against it. Null when no row
- * carries a usable receive time. No wall clock is read.
- */
-export function deriveFeedNow(rows: readonly DepotBusRow[], fetchedAtMs?: number): string | null {
-  return deriveFeedClock(rows, fetchedAtMs ?? Number.POSITIVE_INFINITY).feedNow;
-}
 
 /** The feed clock, and how many rows were stamped too far ahead of the fetch to set it. */
 export interface FeedClock {
   readonly feedNow: string | null;
+  /** Rows whose receive time is later than the fetch allows: ignored for the clock. */
   readonly aheadRows: number;
 }
 
-/** Stub: the S50a rule until S56a lands. */
+/**
+ * The feed's own clock (ruling S56a): the newest `receivedAt` not later than
+ * the fetch time read in Indian time plus FEED_CLOCK_MAX_LEAD_MIN. A future
+ * stamp (an Indian time converted twice, a garbage year) is the only way one
+ * row can move the clock, and the fetch bounds the future without looking at
+ * how many buses report, so a night feed with a few buses still advances.
+ * Later rows are ignored for the clock only (their own age is measured against
+ * it as before) and counted in `aheadRows`. Rows older than the fetch are never
+ * rejected, so a recorded fixture keeps its own clock. Unparseable times are
+ * skipped; null when no row carries one. Pure: the fetch time is passed in.
+ */
 export function deriveFeedClock(rows: readonly DepotBusRow[], fetchedAtMs: number): FeedClock {
-  return { feedNow: Number.isNaN(fetchedAtMs) ? null : percentileClock(rows), aheadRows: 0 };
+  const ceilingMs = fetchedAtMs + (FEED_IST_OFFSET_MIN + FEED_CLOCK_MAX_LEAD_MIN) * MS_PER_MINUTE;
+  let newest: { readonly iso: string; readonly ms: number } | null = null;
+  let aheadRows = 0;
+  for (const { receivedAt } of rows) {
+    const ms = receivedAt === null ? Number.NaN : Date.parse(receivedAt);
+    if (receivedAt === null || Number.isNaN(ms)) continue;
+    if (ms > ceilingMs) aheadRows += 1;
+    else if (newest === null || ms > newest.ms) newest = { iso: receivedAt, ms };
+  }
+  return { feedNow: newest?.iso ?? null, aheadRows };
 }
 
-function percentileClock(rows: readonly DepotBusRow[]): string | null {
-  const timed = rows
-    .filter((row): row is DepotBusRow & { receivedAt: string } => Boolean(row.receivedAt))
-    .map((row) => ({ iso: row.receivedAt, ms: Date.parse(row.receivedAt) }))
-    .filter(({ ms }) => !Number.isNaN(ms))
-    .sort((a, b) => a.ms - b.ms);
-  const percentile = timed[Math.ceil(FEED_CLOCK_PERCENTILE * timed.length) - 1];
-  if (percentile === undefined) return null;
-  const ceilingMs = percentile.ms + FEED_CLOCK_MAX_LEAD_MIN * MS_PER_MINUTE;
-  const accepted = timed.filter(({ ms }) => ms <= ceilingMs);
-  return accepted[accepted.length - 1]?.iso ?? null;
+/**
+ * `deriveFeedClock(...).feedNow`. Every server caller passes its fetch time;
+ * only recorded rows with no fetch (tests) omit it, and then nothing can be
+ * later than the fetch, so the newest receive time is the clock.
+ */
+export function deriveFeedNow(rows: readonly DepotBusRow[], fetchedAtMs?: number): string | null {
+  return deriveFeedClock(rows, fetchedAtMs ?? Number.POSITIVE_INFINITY).feedNow;
 }
