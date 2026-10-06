@@ -111,9 +111,10 @@ describe('yard continuity', () => {
     const held = step(store, stands(12, 12), at(2)).get('1');
     expect(held?.heldSince).toBe(at(2));
     const before = JSON.stringify([store.lastFeedMs, [...store.byDepot]]);
-    // A re-fetch with new rows at the same feed time: the yard returned is the one remembered (I4).
-    expect(step(store, stands(14, 12), at(2)).get('1')).toEqual(held);
-    expect(step(store, stands(12, 13), at(2)).get('1')).toEqual(held);
+    // A re-fetch with new rows at the same feed time keeps the remembered circle (I4), counted
+    // on these rows so it agrees with the bus locations on the same response (N5).
+    expect(step(store, stands(14, 12), at(2)).get('1')).toEqual({ ...held, parked: 26, inCluster: 14 });
+    expect(step(store, stands(12, 13), at(2)).get('1')).toEqual({ ...held, parked: 25, inCluster: 12 });
     // An older snapshot is decided against the memory, which it does not write (I1).
     expect(isAt(step(store, stands(12, 12), at(1.5)).get('1'), yardA)).toBe(true);
     expect(isAt(step(store, stands(0, 12), at(0)).get('1'), yardB)).toBe(true);
