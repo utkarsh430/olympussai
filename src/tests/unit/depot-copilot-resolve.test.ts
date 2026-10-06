@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CLI_CONCURRENCY,
   CLI_COOLDOWN_MS,
+  CLI_MAX_BUDGET_USD,
   CLI_WINDOW_FAILURES as CLI_FAILURE_THRESHOLD,
   CLI_MAX_CALLS_PER_HOUR,
   CLI_WINDOW,
