@@ -16,11 +16,11 @@ import {
  * plan shrink through the evening with no bus taken off the road. So the
  * requirement reads, per depot, the HIGHEST windowed share seen so far in the
  * operating date, and the peer median of those: "peak requirement" is
- * the depot's busiest window so far today. The day can still change until the
- * morning peak has passed (a depot rises with its own busiest window and can
- * dip a little when its peers' median rises) and then holds. `available` (fleet
- * less off-road) is not held here, so the day still follows a bus that really
- * goes off the road.
+ * the depot's busiest window so far today. The computed peak can still dip a
+ * little when its peers' median rises or the feed drops one of its rows, so
+ * `peakRequirementHold.ts` floors the peak itself by its highest so far in the
+ * date. `available` (fleet less off-road) is held by neither, so the day still
+ * follows a bus that really goes off the road.
  *
  * What each snapshot does (`holdPeakShares`, once per snapshot analysis) is the
  * daily-maximum rule in `dailyMaxima.ts`. A depot with no finite windowed share
