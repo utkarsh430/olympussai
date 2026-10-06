@@ -252,6 +252,28 @@
     }
   }
 
+  /* The navigation strip's fade (ScrollStrip `data-fade`): at an end with more links, the
+     links fade out over 24px just inside that end's 28px cap; no fade while they fit. */
+  .depot-strip-scroller {
+    --depot-strip-cap: 1.75rem;
+    --depot-strip-fade: calc(var(--depot-strip-cap) + 24px);
+  }
+
+  .depot-strip-scroller[data-fade='before'] {
+    -webkit-mask-image: linear-gradient(to right, transparent var(--depot-strip-cap), #000 var(--depot-strip-fade));
+    mask-image: linear-gradient(to right, transparent var(--depot-strip-cap), #000 var(--depot-strip-fade));
+  }
+
+  .depot-strip-scroller[data-fade='after'] {
+    -webkit-mask-image: linear-gradient(to left, transparent var(--depot-strip-cap), #000 var(--depot-strip-fade));
+    mask-image: linear-gradient(to left, transparent var(--depot-strip-cap), #000 var(--depot-strip-fade));
+  }
+
+  .depot-strip-scroller[data-fade='both'] {
+    -webkit-mask-image: linear-gradient(to right, transparent var(--depot-strip-cap), #000 var(--depot-strip-fade), #000 calc(100% - var(--depot-strip-fade)), transparent calc(100% - var(--depot-strip-cap)));
+    mask-image: linear-gradient(to right, transparent var(--depot-strip-cap), #000 var(--depot-strip-fade), #000 calc(100% - var(--depot-strip-fade)), transparent calc(100% - var(--depot-strip-cap)));
+  }
+
   /* Repaint the body so overscroll and short pages never show the neutral
      base colour (same reason as `body:has(.sim-light)` above). */
   body:has(.depot-shell) {

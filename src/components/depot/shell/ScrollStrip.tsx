@@ -5,6 +5,13 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { centredScrollLeft, pageScrollDelta, stripCue, type StripCue } from '@/lib/depot/scrollStrip';
 
 const NO_CUE: StripCue = { before: false, after: false };
+
+/** Which ends fade (the `data-fade` the stylesheet masks by), or none while the links fit. */
+function fadeOf(cue: StripCue): 'before' | 'after' | 'both' | undefined {
+  if (cue.before && cue.after) return 'both';
+  if (cue.before) return 'before';
+  return cue.after ? 'after' : undefined;
+}
 const CUE_BUTTON =
   'absolute inset-y-0 z-10 flex w-7 items-center justify-center bg-depot-page text-depot-ink ' +
   'hover:bg-depot-raised';
@@ -24,7 +31,9 @@ export interface ScrollStripProps {
 /**
  * A row of links that scrolls sideways inside itself. When more links lie beyond
  * an edge a flat end cap with an arrow shows there (a hairline and a glyph, not a
- * colour), and clicking it scrolls one screenful. The cap is a mouse convenience
+ * colour), the links fade out over 24px just inside the cap (`data-fade`, a mask in
+ * globals.css), and clicking the cap scrolls one screenful. Neither shows while the
+ * links fit. The cap is a mouse convenience
  * only: the links themselves are all reachable by keyboard, and focus scrolls them
  * into view. The active link is centred on load and on every route change. The
  * cues sit beside the scroller, not inside it, so they do not scroll away.
@@ -85,8 +94,9 @@ export function ScrollStrip({
           instead of widening the page. */}
       <div
         ref={scroller}
-        className={`relative ${scrollClassName}`}
+        className={`depot-strip-scroller relative ${scrollClassName}`}
         data-testid="depot-scroll-strip"
+        data-fade={fadeOf(cue)}
       >
         {children}
       </div>
