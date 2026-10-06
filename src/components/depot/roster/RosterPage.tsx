@@ -16,6 +16,7 @@ import {
   DEFAULT_ROSTER_FILTERS as DEFAULT_FILTERS,
   buildRosterRows,
   countByState,
+  emptyRosterSentence,
   filterRosterRows,
   type RosterFilters as Filters,
 } from '@/lib/depot/roster/rosterModel';
@@ -105,18 +106,22 @@ export function RosterPage() {
         onRetry={refresh}
       />
     );
+  const staleStrip = data.stale || error ? <StaleStrip since={data.feedNow} /> : null;
   if (allRows.length === 0 && openBus === null) {
     return (
-      <StatePanel
-        kind="empty"
-        sentence="The live feed lists no buses homed at this depot."
-        remedy="Buses appear here as soon as the feed homes one at this depot."
-        action={
-          <Link className="depot-link" href={`${DEPOTS_ROOT}/sources`}>
-            Data sources
-          </Link>
-        }
-      />
+      <>
+        {staleStrip}
+        <StatePanel
+          kind="empty"
+          sentence={emptyRosterSentence(data, error !== null)}
+          remedy="Buses appear here as soon as the feed homes one at this depot."
+          action={
+            <Link className="depot-link" href={`${DEPOTS_ROOT}/sources`}>
+              Data sources
+            </Link>
+          }
+        />
+      </>
     );
   }
 
@@ -124,7 +129,7 @@ export function RosterPage() {
   const openRow = allRows.find((row) => row.bus.registrationNumber === openBus) ?? null;
   return (
     <>
-      {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
+      {staleStrip}
       <RosterFilters filters={filters} counts={counts} onChange={setFilters} />
       <p className="sr-only" role="status">
         {`${formatCount(rows.length)} of ${formatCount(allRows.length)} buses match the filters`}

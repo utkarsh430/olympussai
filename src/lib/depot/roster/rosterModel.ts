@@ -1,4 +1,4 @@
-import type { DepotBusView } from '@/lib/depot/api';
+import type { DepotBusView, DepotFeedEnvelope } from '@/lib/depot/api';
 import { NORMAL_TAMPER_CODE } from '@/lib/depot/exceptions/config';
 import type { BusLocation } from '@/lib/depot/infer/types';
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
@@ -169,4 +169,21 @@ export function filterRosterRows(
       (bus.routeName ?? '').toLowerCase().includes(needle)
     );
   });
+}
+
+/**
+ * The empty roster's sentence, naming the copy of the feed it read: "live" only when the
+ * answer is a fresh live read, so a sample or old data is never called the live feed.
+ */
+export function emptyRosterSentence(
+  envelope: Pick<DepotFeedEnvelope, 'source' | 'stale'>,
+  requestFailed: boolean,
+): string {
+  if (envelope.source === 'fixture') {
+    return 'The saved sample of the feed lists no buses homed at this depot.';
+  }
+  if (envelope.source === 'cache' || envelope.stale || requestFailed) {
+    return 'The last good copy of the feed lists no buses homed at this depot.';
+  }
+  return 'The live feed lists no buses homed at this depot.';
 }
