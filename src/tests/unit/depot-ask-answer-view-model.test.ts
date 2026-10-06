@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerScopeLabel, answerTableView } from '@/lib/depot/copilot/ui/answerLayout';
-import type { CopilotFactView } from '@/lib/depot/copilot/wire';
+import { answerScopeLabel, answerTableView, scopeMismatchLine } from '@/lib/depot/copilot/ui/answerLayout';
 
 /*
  * Round 2 (ask, rulings 7 to 9): the scope chip shows the scope the answer used; the
@@ -31,9 +30,6 @@ describe('answerScopeLabel', () => {
   });
 });
 
-function fact(id: string, text: string, provenance: CopilotFactView['provenance']): CopilotFactView {
-  return { id, label: id, text, provenance };
-}
 
 describe('answerTableView', () => {
   const shortBy = {
@@ -45,7 +41,7 @@ describe('answerTableView', () => {
   };
 
   it('puts the unit in the header and bare numbers right-aligned in the cells', () => {
-    const view = answerTableView(shortBy, []);
+    const view = answerTableView(shortBy);
     expect(view.columns[1]).toMatchObject({ header: 'Short by', unit: 'buses', align: 'right' });
     expect(view.columns[0]).toMatchObject({ header: 'Depot', unit: null, align: 'left' });
     expect(view.rows).toEqual([
@@ -54,22 +50,51 @@ describe('answerTableView', () => {
     ]);
   });
 
-  it('tags a column MODELLED when its figures rest on generated facts', () => {
-    const facts = [
-      fact('list.1.name', 'GARH', 'live'),
-      fact('list.1.size', '9 buses', 'modelled'),
-      fact('list.2.name', 'KHURJA', 'live'),
-      fact('list.2.size', '1 bus', 'modelled'),
-    ];
-    const view = answerTableView(shortBy, facts);
+  it('tags a column from the response provenance, whatever the answer text cites', () => {
+    // The text cited only the count and the total: no row fact was sent, yet the column
+    // the server marks modelled still carries the tag (guard R2-I2).
+    const view = answerTableView({ ...shortBy, provenance: [null, 'modelled'] });
     expect(view.columns[1]?.tag).toBe('modelled');
     expect(view.columns[0]?.tag).toBeNull();
   });
 
+  it('never tags a column by matching its cells to the facts the text used', () => {
+    const view = answerTableView({ ...shortBy, provenance: [null, 'derived'] });
+    expect(view.columns.map((c) => c.tag)).toEqual([null, null]);
+  });
+
   it('leaves a computed column untagged and keeps a unitless figure as it is', () => {
-    const table = { columns: ['Depot', 'Efficiency index'], rows: [['GARH', '37.2']] };
-    const view = answerTableView(table, [fact('rank.1.value', '37.2', 'derived')]);
+    const table = {
+      columns: ['Depot', 'Efficiency index'],
+      rows: [['GARH', '37.2']],
+      provenance: [null, 'derived'] as const,
+    };
+    const view = answerTableView(table);
     expect(view.columns[1]).toMatchObject({ unit: null, align: 'right', tag: null });
     expect(view.rows).toEqual([['GARH', '37.2']]);
+  });
+});
+
+describe('scopeMismatchLine', () => {
+  const network = { depotId: null, label: 'Whole network' };
+  it('says so when the answer was about a depot while the form is on the whole network', () => {
+    expect(
+      scopeMismatchLine({ kind: 'depot', depotId: '49', depotName: 'KAUSHAMBI' }, network),
+    ).toBe('The last answer was about KAUSHAMBI; the form is set to the whole network.');
+  });
+  it('is silent when the answer and the form agree', () => {
+    expect(scopeMismatchLine({ kind: 'network' }, network)).toBeNull();
+    expect(
+      scopeMismatchLine(
+        { kind: 'depot', depotId: '49', depotName: 'KAUSHAMBI' },
+        { depotId: '49', label: 'KAUSHAMBI' },
+      ),
+    ).toBeNull();
+    expect(scopeMismatchLine(undefined, network)).toBeNull();
+  });
+  it('names the network when the form is on a depot', () => {
+    expect(scopeMismatchLine({ kind: 'network' }, { depotId: '8', label: 'GARH' })).toBe(
+      'The last answer was about the whole network; the form is set to GARH.',
+    );
   });
 });

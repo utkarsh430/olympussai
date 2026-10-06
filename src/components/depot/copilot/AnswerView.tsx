@@ -48,7 +48,7 @@ export function AnswerView({ entry }: { readonly entry: AnswerEntry }) {
         <CopilotText headline={response.headline} paragraphs={response.paragraphs} headingLevel={3} />
       </div>
       {response.table ? (
-        <AnswerTable table={response.table} facts={response.facts} caption={response.headline} />
+        <AnswerTable table={response.table} caption={response.headline} />
       ) : null}
       <CopilotFooter
         provider={response.provider}
