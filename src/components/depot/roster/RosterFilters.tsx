@@ -89,9 +89,11 @@ export function RosterFilters({ filters, counts, onChange }: RosterFiltersProps)
       </Select>
       <label className="min-w-0">
         <span className="sr-only">Search registration or route</span>
+        {/* 224px holds the whole placeholder (21 glyphs of 13px mono) and the clear button a
+            browser draws in a search field; it never grows past a phone's column. */}
         <input
           type="search"
-          className="depot-field w-48 max-w-full"
+          className="depot-field w-[224px] max-w-full"
           placeholder="Registration or route"
           maxLength={MAX_SEARCH_LENGTH}
           value={filters.search}
