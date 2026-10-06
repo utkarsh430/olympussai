@@ -1,7 +1,7 @@
 import type { DepotBusView } from '../api';
 import type { ServiceClass } from '../sim/types';
 
-/** A bus is flagged when it uses more than this share more fuel per km than its group median. */
+/** Flagged when a bus uses more than this share more fuel per km than the median of its peers. */
 export const FUEL_VARIANCE_FLAG_PCT = 15;
 
 /** A bus is compared only when at least this many other buses (peers) have distance. */
@@ -27,16 +27,12 @@ export interface FuelFigure {
   readonly kmPerLitre: number | null;
   /** Rupees per kilometre. */
   readonly costPerKm: number | null;
-  /** Percent more fuel per km than the comparison median; negative is better. */
+  /** Percent more fuel per km than the median of its peers; negative is better. */
   readonly variancePct: number | null;
 }
 
 /** Why a figure is withheld. */
-export type FuelWithheldReason =
-  | 'no_distance'
-  | 'no_fuel'
-  | 'no_comparison_group'
-  | 'peers_differ';
+export type FuelWithheldReason = 'no_distance' | 'no_fuel' | 'no_comparison_group' | 'peers_differ';
 
 export const FUEL_REASON_LABELS: Readonly<Record<FuelWithheldReason, string>> = {
   no_distance: 'No distance recorded',
@@ -56,6 +52,11 @@ export interface BusFuelFigure extends FuelFigure {
   /** Whole rupees. */
   readonly cost: number;
   readonly comparison: FuelComparisonScope | null;
+  /**
+   * Set for no_distance and no_fuel (no figure) and for no_comparison_group and
+   * peers_differ. For the last two `kmPerLitre` is still a figure, so a page
+   * shows the figure with the reason, not a dash.
+   */
   readonly withheldReason: FuelWithheldReason | null;
 }
 

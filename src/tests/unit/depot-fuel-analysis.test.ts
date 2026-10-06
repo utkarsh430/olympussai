@@ -320,7 +320,9 @@ describe('analyseFuel: totals', () => {
       state: i % 9 === 0 ? 'off_road' : 'on_road',
       routeName: ['PUNE_EXP_X', 'AKOLA_ORD_Y', 'MUM_VOLVO_AC', null][i % 4] ?? null,
     })) as unknown as DepotBusView[];
-    const fleet = new Map(buses.map((b) => [b.registrationNumber, modelBus(b.registrationNumber, b.routeName)]));
+    const fleet = new Map(
+      buses.map((b) => [b.registrationNumber, modelBus(b.registrationNumber, b.routeName)]),
+    );
     const result = analyseFuel(modelFuelDay(buses, fleet, '2026-10-06'), 91.37);
     const tenths = (n: number): number => Math.round(n * 10);
     const litres = result.perBus.reduce((s, b) => s + tenths(b.fuelLitres), 0);
@@ -372,7 +374,8 @@ describe('analyseFuel: purity and wording', () => {
   });
 
   it('names no cause or person in output or in the fuel source comments', () => {
-    const cause = /engine|tyre|tire|\bload|traffic|driving|crew|operator|\bfault|leak|tamper/i;
+    const cause =
+      /engine|tyre|tire|weight|equipment|\bload|traffic|driving|crew|operator|\bfault|leak|tamper/i;
     expect(everyString()).not.toMatch(cause);
     for (const file of ['sim/fuelConfig.ts', 'sim/fuel.ts', 'fuel/types.ts', 'fuel/analysis.ts']) {
       const source = readFileSync(join(process.cwd(), 'src/lib/depot', file), 'utf8');
