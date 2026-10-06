@@ -56,6 +56,27 @@ function trendPiece(change: TrendChange, span: string, unit: TrendUnit): string 
   return `${change.direction} ${Math.abs(change.change).toFixed(decimals)} ${many} over ${span}`;
 }
 
+/** The table's Kind cell: plain words, never the tag word (R2-m16); the live point says so. */
+export const TRENDS_KIND_WORDS: Readonly<Record<'history' | 'live' | 'forecast', string>> = {
+  history: 'History',
+  live: 'Now (live)',
+  forecast: 'Forecast',
+};
+
+const METHOD_WORDS: Readonly<Record<Forecast['method'], string>> = {
+  seasonal_naive: 'seasonal method',
+  holt_winters: 'Holt-Winters method',
+};
+
+/**
+ * The forecast's piece of the visible caption, led by its horizon and method so neither
+ * lives only in the closed disclosure (R2-I5): "14-day forecast, seasonal method, within …".
+ */
+export function forecastPiece(forecast: Forecast): string {
+  const lead = `${forecast.horizonDays}-day forecast, ${METHOD_WORDS[forecast.method]}`;
+  return `${lead}, ${errorPiece(forecast).replace(/^forecast /, '')}`;
+}
+
 function errorPiece(forecast: Forecast): string {
   const { error } = forecast;
   const { decimals, one, many } = UNIT_SHORT[error.unit];
@@ -94,8 +115,10 @@ export function chartCaption(input: TrendChartInput): string | null {
     pieces.push(trendPiece(week, '7 days', unit));
   }
   const forecast = input.forecast.result;
-  if (forecast.status === 'ok') pieces.push(errorPiece(forecast.forecast));
-  return pieces.length === 0 ? null : pieces.map((p, i) => (i === 0 ? capitalise(p) : p)).join(' · ');
+  if (forecast.status === 'ok') pieces.push(forecastPiece(forecast.forecast));
+  return pieces.length === 0
+    ? null
+    : pieces.map((p, i) => (i === 0 ? capitalise(p) : p)).join(' · ');
 }
 
 export interface TrendsTableRow {
@@ -148,7 +171,7 @@ export function buildTrendsChartView(input: TrendChartInput): TrendsChartView {
       value: row?.value ?? formatValue(point.value, unit),
       low: row?.low ?? '',
       high: row?.high ?? '',
-      kind: row?.kind ?? point.description,
+      kind: TRENDS_KIND_WORDS[point.kind],
       sortValue: point.value,
       sortLow: point.low,
       sortHigh: point.high,

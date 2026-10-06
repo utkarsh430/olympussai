@@ -23,6 +23,8 @@ export interface TrendPlotProps {
   readonly unit: MetricUnit;
   /** Plot height in pixels, including the x-axis band. */
   readonly height: number;
+  /** The duty chart's amber "Now" flag on the axis in place of the grey "Now" and the LIVE label (trends pages). */
+  readonly nowFlag?: boolean;
 }
 
 const TICK = { fill: TREND_COLOUR.axisText, fontSize: AXIS_FONT_SIZE, fontFamily: 'inherit' };
@@ -55,7 +57,40 @@ function TooltipBody({ point, unit }: TooltipBodyProps) {
  * band. No animation, so nothing draws in under reduced motion either.
  * Recharts measures its container, so this part is only seen in a browser.
  */
-export function TrendPlot({ model, unit, height }: TrendPlotProps) {
+/** alert-amber, the duty chart's "Now" colour. */
+const NOW_FLAG_AMBER = '#ffb020';
+const FLAG_WIDTH = 30;
+const FLAG_HEIGHT = 16;
+
+/** The duty chart's flag: "Now" in page-coloured mono on an amber tab at the axis. */
+function NowFlag({ viewBox }: { readonly viewBox?: { x?: number; y?: number; height?: number } }) {
+  const x = viewBox?.x ?? 0;
+  const bottom = (viewBox?.y ?? 0) + (viewBox?.height ?? 0);
+  return (
+    <g data-testid="trend-now-flag">
+      <rect
+        x={x - FLAG_WIDTH / 2}
+        y={bottom - FLAG_HEIGHT}
+        width={FLAG_WIDTH}
+        height={FLAG_HEIGHT}
+        rx={2}
+        fill={NOW_FLAG_AMBER}
+      />
+      <text
+        x={x}
+        y={bottom - 4}
+        textAnchor="middle"
+        fontSize={AXIS_FONT_SIZE}
+        fontFamily="var(--font-mono, monospace)"
+        fill="#06101c"
+      >
+        Now
+      </text>
+    </g>
+  );
+}
+
+export function TrendPlot({ model, unit, height, nowFlag = false }: TrendPlotProps) {
   const byDate = useMemo(
     () => new Map(model.points.map((p) => [p.date, p] as const)),
     [model.points],
@@ -114,13 +149,20 @@ export function TrendPlot({ model, unit, height }: TrendPlotProps) {
         {now ? (
           <ReferenceLine
             x={now.date}
-            stroke={TREND_COLOUR.now}
-            label={{
-              value: 'Now',
-              position: 'insideTopLeft',
-              fill: TREND_COLOUR.axisText,
-              fontSize: AXIS_FONT_SIZE,
-            }}
+            stroke={nowFlag ? NOW_FLAG_AMBER : TREND_COLOUR.now}
+            strokeWidth={nowFlag ? 2 : 1}
+            label={
+              nowFlag
+                ? (props: { viewBox?: { x?: number; y?: number; height?: number } }) => (
+                    <NowFlag viewBox={props.viewBox} />
+                  )
+                : {
+                    value: 'Now',
+                    position: 'insideTopLeft',
+                    fill: TREND_COLOUR.axisText,
+                    fontSize: AXIS_FONT_SIZE,
+                  }
+            }
           />
         ) : null}
         {now ? (
@@ -131,12 +173,16 @@ export function TrendPlot({ model, unit, height }: TrendPlotProps) {
             fill={TREND_COLOUR.accent}
             stroke={TREND_COLOUR.surface}
             strokeWidth={2}
-            label={{
-              value: 'LIVE',
-              position: 'top',
-              fill: TREND_COLOUR.accent,
-              fontSize: AXIS_FONT_SIZE,
-            }}
+            label={
+              nowFlag
+                ? undefined
+                : {
+                    value: 'LIVE',
+                    position: 'top',
+                    fill: TREND_COLOUR.accent,
+                    fontSize: AXIS_FONT_SIZE,
+                  }
+            }
           />
         ) : null}
         <Tooltip

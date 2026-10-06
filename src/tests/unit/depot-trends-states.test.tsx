@@ -132,7 +132,7 @@ describe('the depot chart table', () => {
   it('sorts by a header like the network table, and the page keeps one MODELLED tag on the chart', () => {
     act(() => root.render(<DepotTrends metric="onRoadShare" />));
     const toggle = Array.from(container.querySelectorAll('button')).find(
-      (b) => b.textContent === 'Show as table',
+      (b) => b.textContent === 'table',
     ) as HTMLButtonElement;
     act(() => toggle.click());
     const header = Array.from(container.querySelectorAll('thead button')).find((b) =>
