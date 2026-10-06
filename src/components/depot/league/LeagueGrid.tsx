@@ -13,7 +13,10 @@ import { DepotCell, IndexCell, MetricCell } from './LeagueCells';
  * shared DataTable cannot freeze columns or drop them by width. Rank, Depot
  * and Index stay put while the rest scrolls sideways inside the frame. Below
  * `lg` the set is deliberately reduced to Rank, Depot, Index and On-road
- * share; the breakdown of a selected depot carries the other measures.
+ * share; the breakdown of a selected depot carries the other measures, fleet
+ * included. A column's explanation is the visually hidden copy only, so a
+ * screen reader reads it once; the Score button's `aria-pressed` carries the
+ * selection.
  */
 
 const PEER_GROUP_SORT: Readonly<Record<PeerGroupId, number>> = { small: 0, medium: 1, large: 2, all: 3 };
@@ -124,7 +127,6 @@ export function LeagueGrid({ rows, showPeerGroup, selectedId, onSelect }: League
                 <th
                   key={c.key}
                   scope="col"
-                  title={c.title}
                   aria-sort={active === null ? 'none' : active === 'asc' ? 'ascending' : 'descending'}
                   className={`${c.className} ${c.className.includes('sticky') ? '!z-20' : ''} ${c.right ? 'depot-align-right' : ''}`}
                 >
@@ -153,7 +155,6 @@ export function LeagueGrid({ rows, showPeerGroup, selectedId, onSelect }: League
             return (
               <tr
                 key={row.depotId}
-                aria-selected={selected}
                 onClick={() => onSelect(row)}
                 className={`group depot-row-selectable ${selected ? 'depot-row-selected' : ''}`}
               >
