@@ -9,7 +9,6 @@ import {
   overflowReasonText,
   overflowSentence,
   PLAN_NOTICE,
-  slotText,
   visitingSentence,
 } from '@/lib/depot/yard/parkingModel';
 import type { ParkingLane } from '@/lib/depot/yard/parkingApi';
@@ -93,15 +92,6 @@ describe('lane text', () => {
   it('headings give the lane and its fill', () => {
     expect(laneHeading(lane(6, 8))).toBe('Lane L02: 6 of 8 places used');
     expect(laneHeading(lane(1, 1))).toBe('Lane L02: 1 of 1 place used');
-  });
-
-  it('a slot reads position, registration and first duty, exit first', () => {
-    expect(slotText({ position: 1, registrationNumber: 'UP32A0', firstDutyStartMin: 330 })).toBe(
-      '1. UP32A0, first duty 05:30',
-    );
-    expect(slotText({ position: 4, registrationNumber: 'UP32A9', firstDutyStartMin: null })).toBe(
-      '4. UP32A9, no duty',
-    );
   });
 
   it('writes a duty time past midnight on the next day', () => {

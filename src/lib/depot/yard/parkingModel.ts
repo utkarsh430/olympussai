@@ -1,6 +1,6 @@
 import { formatMinute } from '../duties/dutyBoardModel';
 import { formatCount } from '../format';
-import type { ParkingLane, ParkingLaneSlot, ParkingState } from './parkingApi';
+import type { ParkingLane, ParkingState } from './parkingApi';
 
 /** Shown with the order wherever it appears; the order is a proposal and nothing is dispatched. */
 export const PLAN_NOTICE =
@@ -49,11 +49,6 @@ export function dutyText(firstDutyStartMin: number | null): string {
   return firstDutyStartMin === null
     ? 'no duty'
     : `first duty ${formatMinute(firstDutyStartMin)}`;
-}
-
-/** Position 1 is nearest the exit; the list reads from the exit inwards. */
-export function slotText(slot: ParkingLaneSlot): string {
-  return `${slot.position}. ${slot.registrationNumber}, ${dutyText(slot.firstDutyStartMin)}`;
 }
 
 export function overflowSentence(count: number): string {
