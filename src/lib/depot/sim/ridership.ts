@@ -18,10 +18,19 @@ import { seedFor } from './seed';
 
 const THOUSAND = 1000;
 
-/** Average seats of the buses that ran the route, whole; the class figure when none ran. */
-function seatsPerTripOf(route: DayRoute): number {
-  if (route.trips === 0) return SEATS_BY_CLASS[route.serviceClass];
-  return Math.min(Math.round(route.seatsOffered / route.trips), MAX_SEATS_PER_BUS);
+/**
+ * The seats the buses that ran actually offered, with a corrupt count capped at
+ * MAX_SEATS_PER_BUS a trip. Revenue, boardings and capacity all rest on this one
+ * figure, so revenue per occupied seat is the same whatever the trip count.
+ */
+function seatsOfferedOf(route: DayRoute): number {
+  if (route.trips === 0) return 0;
+  return Math.min(route.seatsOffered, route.trips * MAX_SEATS_PER_BUS);
+}
+
+/** Average seats a trip, unrounded; the class figure when none ran. */
+function averageSeatsOf(route: DayRoute): number {
+  return route.trips === 0 ? SEATS_BY_CLASS[route.serviceClass] : seatsOfferedOf(route) / route.trips;
 }
 
 /**
@@ -39,12 +48,12 @@ function modelLoadFactor(route: DayRoute, operatingDate: string): number {
 }
 
 function dayFor(route: DayRoute, operatingDate: string): RouteRidershipDay {
-  const seatsPerTrip = seatsPerTripOf(route);
+  const averageSeats = averageSeatsOf(route);
   const loadFactor = modelLoadFactor(route, operatingDate);
   const priced = priceRoute({
     serviceClass: route.serviceClass,
     trips: route.trips,
-    seats: seatsPerTrip,
+    seats: averageSeats,
     loadFactor,
     lengthKm: route.lengthKm,
   });
@@ -52,9 +61,9 @@ function dayFor(route: DayRoute, operatingDate: string): RouteRidershipDay {
     routeName: route.routeName,
     serviceClass: route.serviceClass,
     trips: route.trips,
-    seatsPerTrip,
-    // The seats actually offered, not trips x a rounded average (review M5).
-    seatCapacity: route.trips === 0 ? 0 : route.seatsOffered,
+    // Shown whole; the figures above and below use the seats offered unrounded.
+    seatsPerTrip: Math.round(averageSeats),
+    seatCapacity: seatsOfferedOf(route),
     loadFactor,
     ...priced,
     lengthKm: route.lengthKm,
