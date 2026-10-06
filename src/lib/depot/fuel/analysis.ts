@@ -1,8 +1,9 @@
-import { DEFAULT_PRICE_PER_LITRE } from '../sim/fuelConfig';
+import { compareText } from './compare';
 import { median } from '../stats/robust';
 import {
+  DEFAULT_PRICE_PER_LITRE,
   FUEL_VARIANCE_FLAG_PCT,
-  MIN_COMPARISON_GROUP,
+  MIN_PEERS,
   type BusFuelDay,
   type BusFuelFigure,
   type FlaggedBus,
@@ -74,21 +75,27 @@ function groupRows(
   return [...groups]
     .map(([key, members]) => ({ key, ...totalsOf(members) }))
     .sort((a, b) =>
-      a.key === b.key ? 0 : a.key === null ? 1 : b.key === null ? -1 : a.key.localeCompare(b.key),
+      a.key === b.key ? 0 : a.key === null ? 1 : b.key === null ? -1 : compareText(a.key, b.key),
     );
 }
 
-/** Kilometres per litre of every comparable bus, indexed by the group a bus is compared in. */
-function indexGroups(rows: readonly BusFuelFigure[]): ReadonlyMap<string, readonly number[]> {
-  const index = new Map<string, number[]>();
-  const add = (key: string, value: number): void => {
-    index.set(key, [...(index.get(key) ?? []), value]);
+interface Peer {
+  readonly position: number;
+  readonly kmPerLitre: number;
+}
+
+/** Comparable buses indexed by the group they belong to; a bus's peers are the others in it. */
+function indexGroups(rows: readonly BusFuelFigure[]): ReadonlyMap<string, readonly Peer[]> {
+  const index = new Map<string, Peer[]>();
+  const add = (key: string, peer: Peer): void => {
+    index.set(key, [...(index.get(key) ?? []), peer]);
   };
-  for (const row of rows) {
-    if (row.kmPerLitre === null) continue;
-    add(depotKey(row), row.kmPerLitre);
-    if (row.routeName !== null) add(routeKey(row), row.kmPerLitre);
-  }
+  rows.forEach((row, position) => {
+    if (row.kmPerLitre === null) return;
+    const peer = { position, kmPerLitre: row.kmPerLitre };
+    add(depotKey(row), peer);
+    if (row.routeName !== null) add(routeKey(row), peer);
+  });
   return index;
 }
 
@@ -96,9 +103,16 @@ const depotKey = (row: BusFuelFigure): string => `depot${KEY_SEPARATOR}${row.ser
 const routeKey = (row: BusFuelFigure): string =>
   `route${KEY_SEPARATOR}${row.serviceClass}${KEY_SEPARATOR}${row.routeName ?? ''}`;
 
+/** Median kilometres per litre of the other buses in the group; null with too few peers. */
+function peerMedian(group: readonly Peer[], position: number): number | null {
+  const peers = group.filter((p) => p.position !== position).map((p) => p.kmPerLitre);
+  return peers.length >= MIN_PEERS ? median(peers) : null;
+}
+
 function compared(
   row: BusFuelFigure,
-  index: ReadonlyMap<string, readonly number[]>,
+  position: number,
+  index: ReadonlyMap<string, readonly Peer[]>,
 ): BusFuelFigure {
   if (row.kmPerLitre === null) return row;
   const candidates: readonly (readonly [FuelComparisonScope, string])[] =
@@ -109,10 +123,9 @@ function compared(
           ['depot', depotKey(row)],
         ];
   for (const [comparison, key] of candidates) {
-    const group = index.get(key) ?? [];
-    const centre = group.length >= MIN_COMPARISON_GROUP ? median(group) : null;
+    const centre = peerMedian(index.get(key) ?? [], position);
     if (centre === null) continue;
-    // More fuel per km than the median is the same as fewer km per litre.
+    // More fuel per km than the peers' median is the same as fewer km per litre.
     return { ...row, comparison, variancePct: round1((centre / row.kmPerLitre - 1) * PERCENT) };
   }
   return { ...row, withheldReason: 'no_comparison_group' };
@@ -120,7 +133,7 @@ function compared(
 
 function statementFor(variancePct: number, comparison: FuelComparisonScope): string {
   const shown = Number.isInteger(variancePct) ? `${variancePct}` : variancePct.toFixed(1);
-  const where = comparison === 'route' ? 'on this route' : 'in this depot';
+  const where = comparison === 'route' ? 'on this route' : 'of its class in this depot';
   return `uses ${shown}% more fuel per kilometre than similar buses ${where}`;
 }
 
@@ -139,30 +152,34 @@ function flagFor(row: BusFuelFigure): FlaggedBus | null {
 
 /**
  * Consumption and cost per bus, route and class, with variance against the
- * median of similar buses. Variance is a figure about a vehicle, stated
- * without a cause. Output order never depends on input order.
+ * median of its peers (the other buses of its class on its route, else in the
+ * depot). Variance is a figure about a vehicle, stated without a cause. Output
+ * order never depends on input order.
+ *
+ * A price that is not finite and positive is replaced by DEFAULT_PRICE_PER_LITRE
+ * and `priceDefaulted` is true, so a page can say so.
  */
 export function analyseFuel(
   days: readonly BusFuelDay[],
   pricePerLitre: number = DEFAULT_PRICE_PER_LITRE,
 ): FuelAnalysis {
-  const price = Number.isFinite(pricePerLitre) && pricePerLitre >= 0
-    ? pricePerLitre
-    : DEFAULT_PRICE_PER_LITRE;
+  const priceDefaulted = !(Number.isFinite(pricePerLitre) && pricePerLitre > 0);
+  const price = priceDefaulted ? DEFAULT_PRICE_PER_LITRE : pricePerLitre;
   const base = days
     .map((day) => figureFor(day, price))
-    .sort((a, b) => a.registrationNumber.localeCompare(b.registrationNumber));
+    .sort((a, b) => compareText(a.registrationNumber, b.registrationNumber));
   const index = indexGroups(base);
-  const perBus = base.map((row) => compared(row, index));
+  const perBus = base.map((row, position) => compared(row, position, index));
   const flagged = perBus
     .map(flagFor)
     .filter((f): f is FlaggedBus => f !== null)
     .sort(
       (a, b) =>
-        b.variancePct - a.variancePct || a.registrationNumber.localeCompare(b.registrationNumber),
+        b.variancePct - a.variancePct || compareText(a.registrationNumber, b.registrationNumber),
     );
   return {
     pricePerLitre: price,
+    priceDefaulted,
     perBus,
     perRoute: groupRows(perBus, (r) => r.routeName),
     perClass: groupRows(perBus, (r) => r.serviceClass),
