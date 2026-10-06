@@ -80,7 +80,9 @@ describe('the routes page provenance line in every state', () => {
     const plan = markup.slice(markup.indexOf('id="allocation-title"'));
     // The label row: the heading, then its tag, before the row's closing tag.
     expect(plan.slice(0, plan.indexOf('</div>'))).toMatch(/data-provenance="modelled"/);
-    const tripsHeader = markup.slice(markup.indexOf('Trips/day'), markup.indexOf('</th>', markup.indexOf('Trips/day')));
+    // The route table's header (the moves table above it carries its tag on its label).
+    const table = markup.slice(markup.indexOf('route-table-title'));
+    const tripsHeader = table.slice(table.indexOf('Trips/day'), table.indexOf('</th>', table.indexOf('Trips/day')));
     expect(tripsHeader).toContain('data-provenance="modelled"');
   });
 

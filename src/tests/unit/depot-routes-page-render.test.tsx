@@ -145,6 +145,34 @@ describe('RoutesPage content', () => {
   });
 });
 
+describe('RoutesPage recommended moves', () => {
+  beforeEach(() => {
+    state.routes = slot({ data: ROUTES });
+    state.allocation = slot({ data: PLAN });
+  });
+
+  it('carries one MODELLED tag on the moves label, none in its headers, SAVING KM/DAY in full', () => {
+    const markup = renderToStaticMarkup(<RoutesPage />);
+    const label = markup.slice(
+      markup.indexOf('data-testid="moves-label"'),
+      markup.indexOf('aria-label="Recommended moves"'),
+    );
+    expect(label).toContain('data-provenance="modelled"');
+    const table = markup.slice(markup.indexOf('aria-label="Recommended moves"'));
+    const head = table.slice(0, table.indexOf('</thead>'));
+    expect(head).not.toContain('data-provenance="modelled"');
+    expect(textOf(head)).toContain('Saving km/day');
+  });
+
+  it('says the trip definition only in the closing disclosure, not between band and moves', () => {
+    const markup = renderToStaticMarkup(<RoutesPage />);
+    const section = markup.slice(markup.indexOf('id="allocation-title"'), markup.indexOf('route-table-title'));
+    expect(textOf(section)).not.toContain(TRIP_DEFINITION);
+    const method = markup.slice(markup.indexOf('data-testid="routes-method"'));
+    expect(textOf(method)).toContain(TRIP_DEFINITION);
+  });
+});
+
 describe('RoutesPage plan panel', () => {
   beforeEach(() => {
     state.routes = slot({ data: ROUTES });
