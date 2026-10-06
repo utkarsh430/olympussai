@@ -25,7 +25,6 @@ const ALLOWED = ['depot-prose', 'depot-note', 'depot-caption', 'sr-only', 'font-
  * chrome's owner, not by a page.
  */
 const EXEMPT: readonly string[] = [
-  'src/components/depot/cockpit/DepotExceptions.tsx',
   'src/components/depot/copilot/AnswerView.tsx',
   'src/components/depot/copilot/AskPanel.tsx',
   'src/components/depot/copilot/BriefingCard.tsx',

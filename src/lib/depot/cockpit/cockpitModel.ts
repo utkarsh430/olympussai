@@ -122,7 +122,7 @@ export function buildCockpit(detail: DepotDetailResponse): CockpitModel {
       heldSince: detail.yard.value?.heldSince ?? null,
       snapshotsSeen: detail.yardSnapshotsSeen,
     }),
-    exceptionGroups: groupBusExceptions(detail.exceptions.bus, detail.depot.id),
+    exceptionGroups: groupBusExceptions(detail.exceptions.bus),
     depotExceptions: depotExceptionLines(detail.exceptions.depot, detail.scoreWindow, detail.feedNow),
     visitorCount: detail.visitors.length,
     board,

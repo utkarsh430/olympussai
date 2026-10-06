@@ -224,12 +224,34 @@ describe('exception groups', () => {
         busException('UP1', 'long_dark', 'warning'),
         busException('UP2', 'power_cut', 'info'),
       ],
-      '49',
     );
     expect(groups.map((g) => [g.kind, g.rows.length])).toEqual([['long_dark', 1], ['power_cut', 1]]);
-    expect(groups[0]?.rows[0]).toMatchObject({ registrationNumber: 'UP1', kinds: 'Long dark · Power off' });
-    expect(groups[0]?.href).toBe('/project/depots/d/49/roster?state=dark');
-    expect(groups[1]?.href).toBe('/project/depots/d/49/roster?flag=power_off');
+    // Round 2 (critique, cockpit Must 5): the group names its kind and severity once; a row
+    // shows only the kinds beyond the group's own.
+    expect(groups[0]?.rows[0]).toMatchObject({ registrationNumber: 'UP1', extra: '+ Power off' });
+    expect(groups[1]?.rows[0]).toMatchObject({ registrationNumber: 'UP2', extra: null });
+    expect(groups.map((g) => g.severityLabel)).toEqual(['Warning', 'Info']);
+  });
+
+  it('names each group for what it lists: a bus sits under its most severe kind only', () => {
+    const kinds = ['emergency', 'long_dark', 'power_cut', 'tamper_code'] as const;
+    const severities = { emergency: 'critical', long_dark: 'warning', power_cut: 'info', tamper_code: 'info' } as const;
+    const groups = groupBusExceptions(kinds.map((k, i) => busException(`UP${i}`, k, severities[k])));
+    expect(groups.map((g) => g.heading)).toEqual([
+      'Emergency flag',
+      'Long dark, no emergency flag',
+      'Power off, not long dark, no emergency flag',
+      'Tamper code only',
+    ]);
+  });
+
+  it('names the power-off cluster for what it counts: buses not off the road', () => {
+    const e: DepotException = {
+      id: 'power_cut_cluster:49', depotId: '49', depotName: 'K', kind: 'power_cut_cluster', severity: 'warning',
+      value: 25, peerMedian: null, z: null, affected: 25, fleet: 200,
+    };
+    const [line] = depotExceptionLines([e], undefined, FEED_NOW);
+    expect(line?.sentence).toBe('25 of 200 buses that are not off the road report main power off.');
   });
 
   it('says a windowed depot exception is over the window while its count is now', () => {
