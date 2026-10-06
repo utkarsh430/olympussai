@@ -135,3 +135,8 @@ export function applyYardContinuity(
   }
   return yards;
 }
+
+/** Stub until N10 lands. */
+export function yardSnapshotsSeen(store: YardMemoryStore, depotId: string): number {
+  return store.byDepot.has(depotId) ? 0 : 0;
+}
