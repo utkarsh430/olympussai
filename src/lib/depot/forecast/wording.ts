@@ -138,7 +138,7 @@ export function forecastSentences(
     title: `${METRIC_LABEL[metric]}: trend and forecast, MODELLED`,
     trend: trendSentence(trend),
     method: forecast && methodSentence(forecast),
-    error: forecast && errorSentence(metric, forecast.backtestMae, forecast.backtestDays),
+    error: forecast && errorSentence(metric, forecast.error.overHorizon, forecast.backtestDays),
     horizon: forecast && horizonSentence(horizonDays),
     unavailable: unavailableSentence(result),
   };

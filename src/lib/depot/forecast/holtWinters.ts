@@ -36,6 +36,18 @@ export interface HoltWintersFit {
   readonly state: HoltWintersState;
   /** For each day, the forecast made from the days before it alone. */
   readonly oneStep: readonly number[];
+  /**
+   * When asked for: for each origin day o from `PathRequest.from` on, the
+   * forecasts of days o, o+1, ... made from the days before o alone (entry
+   * o - from). Empty otherwise.
+   */
+  readonly paths: readonly (readonly number[])[];
+}
+
+/** Rolling-origin paths to record while fitting. */
+export interface PathRequest {
+  readonly from: number;
+  readonly horizon: number;
 }
 
 function mean(values: readonly number[]): number {
@@ -73,6 +85,7 @@ export function fitHoltWinters(
   values: readonly number[],
   params: HoltWintersParams,
   season: number = SEASON_DAYS,
+  pathRequest: PathRequest | null = null,
 ): HoltWintersFit | null {
   const initial = initialHoltWinters(values, season);
   if (initial === null) return null;
@@ -80,7 +93,19 @@ export function fitHoltWinters(
   const seasonals = [...initial.seasonals];
   let level = initial.level;
   let trend = initial.trend;
+  const paths: number[][] = [];
   const oneStep = values.map((y, t) => {
+    if (pathRequest !== null && t >= pathRequest.from) {
+      // h days ahead of origin t lands on day t + h - 1, whose weekday term
+      // is the latest one already updated for that slot.
+      const { horizon } = pathRequest;
+      paths.push(
+        Array.from(
+          { length: horizon },
+          (_, i) => level + (i + 1) * trend + (seasonals[(t + i) % season] as number),
+        ),
+      );
+    }
     const slot = t % season;
     const seasonal = seasonals[slot] as number;
     const predicted = level + trend + seasonal;
@@ -92,7 +117,7 @@ export function fitHoltWinters(
   });
   const next = values.length % season;
   const rotated = [...seasonals.slice(next), ...seasonals.slice(0, next)];
-  return { state: { level, trend, seasonals: rotated }, oneStep };
+  return { state: { level, trend, seasonals: rotated }, oneStep, paths };
 }
 
 /** The next `horizon` days from a fitted state. */

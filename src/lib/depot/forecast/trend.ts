@@ -7,10 +7,10 @@
 import type { MetricKey, SeriesPoint } from '../sim/types';
 import { higherIsBetter, metricKindOf, seriesRulesOf, STEADY_BAND, type MetricKind } from './config';
 import { insufficientHistory, prepareSeries } from './series';
-import type { InsufficientHistory, SeriesInputReason } from './types';
+import type { InsufficientHistory, SeriesInputReason, TrendUnit } from './types';
 
 export type TrendDirection = 'up' | 'down' | 'steady';
-export type TrendUnit = 'percentage_points' | 'points' | 'buses';
+export type { TrendUnit } from './types';
 
 export const WEEK_DAYS = 7;
 export const MONTH_DAYS = 30;

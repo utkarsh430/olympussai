@@ -137,10 +137,10 @@ describe('buildTrendChartModel', () => {
         reason: 'short_history',
         horizonDays: 1,
         points: [{ date: '2026-10-07', value: 0.99, low: 0.9, high: 1.08 }],
-        backtestMae: 0.01,
+        error: { overHorizon: 0.01, byDaysAhead: [0.01], unit: 'percentage_points', statedAsFraction: true },
         backtestDays: 2,
-        seasonalNaiveMae: 0.01,
-        holtWintersMae: null,
+        seasonalNaiveError: 0.01,
+        holtWintersError: null,
         historyDays: 30,
       },
     };

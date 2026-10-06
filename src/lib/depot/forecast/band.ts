@@ -1,8 +1,8 @@
 /**
- * The uncertainty band. Its width is read from how wrong the chosen method
- * actually was in the backtest, not from a distributional assumption, and it
- * grows with the square root of the days ahead, as errors that accumulate
- * day by day do.
+ * The uncertainty band. Its half-width h days ahead is read from how wrong
+ * the chosen method actually was h days ahead in the backtest (the quantile
+ * of its absolute h-step errors), not from a distributional assumption or a
+ * square-root rule, so an "80%" band covers about 80% of outcomes.
  */
 import type { ValidRange } from './config';
 import type { ForecastPoint } from './types';
@@ -18,9 +18,16 @@ export function nearestRankQuantile(values: readonly number[], q: number): numbe
   return sorted[rank - 1] as number;
 }
 
-/** Half-width of the band `daysAhead` days out, from the one-day residual quantile. */
-export function bandHalfWidth(residualQuantile: number, daysAhead: number): number {
-  return residualQuantile * Math.sqrt(daysAhead);
+/**
+ * Half-width from one horizon's absolute errors: their `q` quantile, or, when
+ * that is zero but some error is not, the smallest non-zero error, so a
+ * method that was ever wrong never draws a band of certainty.
+ */
+export function bandHalfWidth(absErrors: readonly number[], q: number): number {
+  const quantile = nearestRankQuantile(absErrors, q);
+  if (quantile > 0) return quantile;
+  const nonZero = absErrors.filter((e) => e > 0);
+  return nonZero.length === 0 ? 0 : Math.min(...nonZero);
 }
 
 function clip(value: number, range: ValidRange): number {
@@ -28,22 +35,26 @@ function clip(value: number, range: ValidRange): number {
 }
 
 /**
- * One forecast point: the band around `value`, then the value and both edges
- * clipped to the valid range, then whole numbers for counts. Rounding after
- * clipping keeps low <= value <= high, since rounding never reorders.
+ * One forecast point. The value is clipped to the valid range first and the
+ * band is built around the clipped value, then clipped itself, so a value at
+ * the edge keeps its band on the inner side. Counts round all three to the
+ * nearest bus; a non-zero band that rounding would close keeps one bus.
  */
 export function bandPoint(
   date: string,
-  value: number,
+  rawValue: number,
   halfWidth: number,
   range: ValidRange,
   wholeNumbers: boolean,
 ): ForecastPoint {
-  const finish = (v: number): number => (wholeNumbers ? Math.round(clip(v, range)) : clip(v, range));
-  return {
-    date,
-    value: finish(value),
-    low: finish(value - halfWidth),
-    high: finish(value + halfWidth),
-  };
+  const value = clip(rawValue, range);
+  const low = clip(value - halfWidth, range);
+  const high = clip(value + halfWidth, range);
+  if (!wholeNumbers) return { date, value, low, high };
+  const whole = { date, value: Math.round(value), low: Math.round(low), high: Math.round(high) };
+  if (halfWidth === 0 || whole.low < whole.high) return whole;
+  // Rounding swallowed a band under half a bus: keep one bus on the inner side.
+  return whole.value > range.min
+    ? { ...whole, low: whole.value - 1 }
+    : { ...whole, high: whole.value + 1 };
 }

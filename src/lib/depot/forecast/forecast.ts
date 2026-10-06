@@ -2,9 +2,11 @@
  * Daily forecasts for one metric, with an honest band.
  *
  * Seasonal-naive is the baseline; Holt-Winters replaces it only when the
- * history is long enough to judge it and its backtest error clears the margin.
- * Pure: no clock, no randomness, and the input is never touched. The same
- * series (in any order) always gives the same forecast.
+ * history is long enough to judge it and its error over the drawn horizon
+ * clears the margin. The band h days ahead is the 80th percentile of the
+ * chosen method's h-step backtest errors. Pure: no clock, no randomness, and
+ * the input is never touched. The same series (in any order) always gives
+ * the same forecast.
  */
 import type { MetricKey, SeriesPoint } from '../sim/types';
 import {
@@ -14,20 +16,22 @@ import {
   MIN_HISTORY_DAYS,
   metricKindOf,
   seriesRulesOf,
+  UNIT_OF_KIND,
   validRangeOf,
 } from './config';
-import { bandHalfWidth, bandPoint, nearestRankQuantile } from './band';
+import { bandHalfWidth, bandPoint } from './band';
 import {
   backtestSeasonalNaive,
+  backtestWindow,
   bestHoltWinters,
   chooseMethod,
-  type BacktestScore,
+  type HorizonScore,
   type HoltWintersChoice,
 } from './backtest';
 import { fitHoltWinters, holtWintersForecast } from './holtWinters';
 import { seasonalNaiveForecast } from './seasonalNaive';
 import { addDays, insufficientHistory, prepareSeries } from './series';
-import type { ForecastResult } from './types';
+import type { ForecastError, ForecastResult } from './types';
 
 function validHorizon(horizonDays: number): boolean {
   return Number.isInteger(horizonDays) && horizonDays >= 1 && horizonDays <= MAX_HORIZON_DAYS;
@@ -35,7 +39,7 @@ function validHorizon(horizonDays: number): boolean {
 
 interface MethodRun {
   readonly values: readonly number[];
-  readonly score: BacktestScore;
+  readonly score: HorizonScore;
 }
 
 /** The fitted Holt-Winters forecast, carrying the backtest score that chose it. */
@@ -49,6 +53,16 @@ function holtWintersRun(
   return { values: holtWintersForecast(fit.state, horizonDays), score: choice.score };
 }
 
+function errorOf(metric: MetricKey, score: HorizonScore): ForecastError {
+  const kind = metricKindOf(metric);
+  return {
+    overHorizon: score.mae,
+    byDaysAhead: score.maeByDay,
+    unit: UNIT_OF_KIND[kind],
+    statedAsFraction: kind === 'rate',
+  };
+}
+
 /**
  * Forecasts `horizonDays` days after the series' latest date. Refuses (with
  * a typed result, never a throw) bad input, and any run of contiguous days
@@ -60,7 +74,6 @@ export function forecastSeries(
   horizonDays: number = DEFAULT_HORIZON_DAYS,
 ): ForecastResult {
   if (!validHorizon(horizonDays)) return { status: 'invalid_input', reason: 'invalid_horizon' };
-  const range = validRangeOf(metric);
   const prepared = prepareSeries(series, seriesRulesOf(metric));
   if (!prepared.ok) return { status: 'invalid_input', reason: prepared.reason };
   const { run } = prepared;
@@ -70,19 +83,20 @@ export function forecastSeries(
   }
 
   const values = run.map((p) => p.value);
-  const naive = backtestSeasonalNaive(values);
-  const holtWinters = bestHoltWinters(values);
+  const naive = backtestSeasonalNaive(values, horizonDays);
+  const holtWinters = bestHoltWinters(values, horizonDays);
   const { method, reason } = chooseMethod(naive.mae, holtWinters?.score.mae ?? null);
   const chosen: MethodRun =
     method === 'holt_winters' && holtWinters !== null
       ? holtWintersRun(values, horizonDays, holtWinters)
       : { values: seasonalNaiveForecast(values, horizonDays), score: naive };
 
-  const quantile = nearestRankQuantile(chosen.score.residuals.map(Math.abs), BAND_QUANTILE);
+  const range = validRangeOf(metric);
   const wholeNumbers = metricKindOf(metric) === 'count';
-  const points = chosen.values.map((value, i) =>
-    bandPoint(addDays(last.date, i + 1), value, bandHalfWidth(quantile, i + 1), range, wholeNumbers),
-  );
+  const points = chosen.values.map((value, i) => {
+    const half = bandHalfWidth(chosen.score.errorsByDay[i] as readonly number[], BAND_QUANTILE);
+    return bandPoint(addDays(last.date, i + 1), value, half, range, wholeNumbers);
+  });
 
   return {
     status: 'ok',
@@ -91,10 +105,10 @@ export function forecastSeries(
       reason,
       horizonDays,
       points,
-      backtestMae: chosen.score.mae,
-      backtestDays: naive.residuals.length,
-      seasonalNaiveMae: naive.mae,
-      holtWintersMae: holtWinters?.score.mae ?? null,
+      error: errorOf(metric, chosen.score),
+      backtestDays: backtestWindow(values.length),
+      seasonalNaiveError: naive.mae,
+      holtWintersError: holtWinters?.score.mae ?? null,
       historyDays: run.length,
     },
   };

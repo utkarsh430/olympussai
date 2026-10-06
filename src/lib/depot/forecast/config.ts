@@ -6,6 +6,7 @@ import { METRIC_RANGES, RATE_METRICS } from '../sim/history';
 import type { MetricKey } from '../sim/types';
 import { DEI_COMPONENTS } from '../score/config';
 import type { DeiComponentKey } from '../score/types';
+import type { TrendUnit } from './types';
 
 /** The weekly rhythm: depot operations repeat on a seven-day cycle. */
 export const SEASON_DAYS = 7;
@@ -14,11 +15,16 @@ export const MIN_HISTORY_DAYS = 28;
 export const DEFAULT_HORIZON_DAYS = 14;
 /** Beyond four weeks the band is too wide to say anything useful. */
 export const MAX_HORIZON_DAYS = 28;
-/** Rolling-origin backtest: one-step-ahead forecasts over the last four weeks. */
+/** Rolling-origin backtest: the last four weeks are forecast 1 to H days ahead. */
 export const BACKTEST_DAYS = 28;
+/**
+ * Fewest errors one days-ahead figure (its error and its band) is read from.
+ * A thinner horizon borrows its neighbours' errors; see `pooledErrors`.
+ */
+export const MIN_BAND_SAMPLES = 10;
 /** Holt-Winters must beat seasonal-naive by more than this share of its error. */
 export const METHOD_MARGIN = 0.05;
-/** The band is this quantile of the chosen method's absolute backtest residuals. */
+/** The band h days ahead is this quantile of the chosen method's absolute h-step errors. */
 export const BAND_QUANTILE = 0.8;
 
 /**
@@ -41,6 +47,13 @@ export function metricKindOf(metric: MetricKey): MetricKind {
   if (RATE_METRICS.has(metric)) return 'rate';
   return METRIC_RANGES[metric].decimals === 0 ? 'count' : 'index';
 }
+
+/** The unit each kind is stated in; a rate is stored as a fraction but stated in points. */
+export const UNIT_OF_KIND: Readonly<Record<MetricKind, TrendUnit>> = {
+  rate: 'percentage_points',
+  index: 'points',
+  count: 'buses',
+};
 
 export interface ValidRange {
   readonly min: number;

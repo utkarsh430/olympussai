@@ -119,7 +119,7 @@ describe('seasonal-naive baseline', () => {
   it.each([35, 56])('forecasts a pure weekly pattern exactly (%s days)', (n) => {
     const forecast = okOf(forecastSeries(seriesOf(weekly(n)), 'index', 21));
     expect(forecast.method).toBe('seasonal_naive');
-    expect(forecast.backtestMae).toBe(0);
+    expect(forecast.error.overHorizon).toBe(0);
     forecast.points.forEach((p, h) => {
       expect(p.date).toBe(dateAt(n + h));
       expect(p.value).toBe(WEEK[(n + h) % 7]);
@@ -139,19 +139,24 @@ describe('seasonal-naive baseline', () => {
     ['available', 120],
   ] as const)('forecasts a constant %s of %s with a zero-width band', (metric, level) => {
     const forecast = okOf(forecastSeries(seriesOf(Array(56).fill(level)), metric));
-    expect(forecast.backtestMae).toBe(0);
+    expect(forecast.error.overHorizon).toBe(0);
     forecast.points.forEach((p) => {
       expect([p.value, p.low, p.high]).toEqual([level, level, level]);
     });
   });
 
-  it('bands by the 80th-percentile absolute residual, widened by the square root of the horizon', () => {
+  it('bands each day ahead by the 80th percentile of its own h-step errors, no square root', () => {
     const n = 35;
     const values = weekly(n).map((v, i) => v + ((i * 37) % 11) - 5);
-    const residuals = values.slice(7).map((v, i) => Math.abs(v - (values[i] as number)));
-    const sorted = [...residuals].sort((a, b) => a - b);
-    const q80 = sorted[Math.ceil(0.8 * sorted.length) - 1] as number;
-    expect(q80).toBeGreaterThan(0);
+    // h days ahead, seasonal-naive repeats the day 7 * ceil(h / 7) earlier; every
+    // scored origin needs one season before it, so the target is at least h + 6.
+    const q80At = (h: number): number => {
+      const back = 7 * Math.ceil(h / 7);
+      const errors: number[] = [];
+      for (let t = h + 6; t < n; t += 1) errors.push(Math.abs((values[t] as number) - (values[t - back] as number)));
+      const sorted = [...errors].sort((a, b) => a - b);
+      return sorted[Math.ceil(0.8 * sorted.length) - 1] as number;
+    };
 
     const forecast = okOf(forecastSeries(seriesOf(values), 'index', 14));
     expect(forecast.method).toBe('seasonal_naive');
@@ -159,8 +164,9 @@ describe('seasonal-naive baseline', () => {
     forecast.points.forEach((p, i) => {
       const h = i + 1;
       expect(p.value).toBe(values[n - 7 + (i % 7)]);
-      expect(p.high - p.value).toBeCloseTo(q80 * Math.sqrt(h), 9);
-      expect(p.value - p.low).toBeCloseTo(q80 * Math.sqrt(h), 9);
+      expect(q80At(h)).toBeGreaterThan(0);
+      expect(p.high - p.value).toBeCloseTo(q80At(h), 9);
+      expect(p.value - p.low).toBeCloseTo(q80At(h), 9);
     });
   });
 
@@ -253,7 +259,12 @@ describe('forecast properties over seeded series', () => {
       expect(p.low).toBeLessThanOrEqual(p.value);
       expect(p.value).toBeLessThanOrEqual(p.high);
     });
-    expect(Number.isFinite(forecast.backtestMae)).toBe(true);
+    expect(Number.isFinite(forecast.error.overHorizon)).toBe(true);
+    expect(forecast.error.byDaysAhead).toHaveLength(horizon);
+    forecast.points.forEach((p, h) => {
+      // A method that was ever wrong h days ahead never draws certainty there.
+      if ((forecast.error.byDaysAhead[h] as number) > 0) expect(p.high).toBeGreaterThan(p.low);
+    });
     expect(series).toEqual(before);
     expect(forecastSeries(series, metric, horizon)).toEqual({ status: 'ok', forecast });
     const mixed = shuffled(series, `shuffle:${i}`);

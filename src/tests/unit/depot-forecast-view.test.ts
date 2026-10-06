@@ -98,7 +98,7 @@ describe('forecastSections', () => {
     expect(sections.sentences.unavailable).toBeNull();
     expect(sections.sentences.method).toMatch(/\.$/);
     expect(sections.sentences.error).toBe(
-      errorSentence('onRoadShare', result.forecast.backtestMae, result.forecast.backtestDays),
+      errorSentence('onRoadShare', result.forecast.error.overHorizon, result.forecast.backtestDays),
     );
     expect(sections.sentences.horizon).toContain('next 14 days');
     expect(sections.sentences.trend).toMatch(/^MODELLED trend: (up|down|steady)/);
