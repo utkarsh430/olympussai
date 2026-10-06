@@ -30,11 +30,11 @@ const counts = (assigned: number, excluded: DutyBoardCounts['excluded']): DutyBo
 const YARD_FEED =
   'A bus not heard in the last 30 minutes is held out of the matching, moving or standing; a standing bus must also be in the yard.';
 const NO_YARD_FEED =
-  'No yard is established for this depot, so location is not used: every standing bus heard in the last 30 minutes is eligible.';
+  'No yard is established for this depot, so location is not used: every bus heard in the last 30 minutes that is not off the road or dark is eligible, standing or out on the road.';
 const NO_CLOCK = 'The feed has no clock, so no bus could be judged by how recently it was heard.';
 const YARD_NO_CLOCK = 'A standing bus must be in the yard to be eligible.';
 const NO_YARD_NO_CLOCK =
-  'No yard is established for this depot, so location is not used: every standing bus is eligible.';
+  'No yard is established for this depot, so location is not used: every bus that is not off the road or dark is eligible, standing or out on the road.';
 const BEFORE_YARD =
   'Before the first departure: buses are matched as they stand in the yard. No duty has started, so only a bus standing in the yard is eligible, and being out on the road or the feed time does not count.';
 const BEFORE_NO_YARD =

@@ -78,11 +78,12 @@ describe('unmatchedLine', () => {
 
 describe('server context sentences', () => {
   it('says location is not used only when it is not, and drops recency without a clock', () => {
+    // Rewritten for m2: a bus out on the road is eligible too, so it is named.
     expect(locationIgnoredSentence(true, false)).toBe(
-      'No yard is established for this depot, so location is not used: every standing bus heard in the last 30 minutes is eligible.',
+      'No yard is established for this depot, so location is not used: every bus heard in the last 30 minutes that is not off the road or dark is eligible, standing or out on the road.',
     );
     expect(locationIgnoredSentence(true, true)).toBe(
-      'No yard is established for this depot, so location is not used: every standing bus is eligible.',
+      'No yard is established for this depot, so location is not used: every bus that is not off the road or dark is eligible, standing or out on the road.',
     );
     expect(locationIgnoredSentence(false, false)).toBeNull();
     expect(locationIgnoredSentence(undefined, undefined)).toBeNull();
