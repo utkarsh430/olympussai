@@ -214,8 +214,11 @@
     @apply rounded-md border border-depot-line bg-depot-surface;
   }
 
+  /* Sub-labels: 11px text that must be read, so depot-muted (#9bb0c7, about 9:1)
+     rather than depot-faint (#6b84a0: 5.3:1 on the page, 5.0:1 on a panel; AA,
+     but too dim for labels people read). Tighter tracking than section labels. */
   .depot-label {
-    @apply font-mono text-[11px] uppercase tracking-[0.16em] text-depot-faint;
+    @apply font-mono text-[11px] uppercase tracking-[0.12em] text-depot-muted;
   }
 
   .depot-title {
