@@ -4,6 +4,7 @@ import type { FleetSnapshotView } from '../repositories/types';
 import type { BusOpState, Figure } from '../types';
 import type { BusLocation, LocatedBus, Yard } from '../infer/types';
 import { gpsAgeMinutes } from '../infer/busState';
+import { hasUsablePosition } from '../infer/geo';
 import { locateBus } from '../infer/location';
 import {
   MAX_PLAUSIBLE_DELAY_MIN,
@@ -96,6 +97,7 @@ function visitorsOf(analysis: SnapshotAnalysis, depotId: string): VisitorBus[] {
     homeDepotName:
       row.depotId === null ? null : (analysis.depotsById.get(row.depotId)?.name ?? null),
     state: analysis.stateOf(row),
+    position: hasUsablePosition(row) ? { lat: row.latitude, lng: row.longitude } : null,
   }));
 }
 

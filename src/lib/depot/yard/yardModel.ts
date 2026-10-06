@@ -1,5 +1,6 @@
 import type { DepotBusView, DepotDetailResponse, VisitorBus } from '@/lib/depot/api';
-import { distanceM } from '@/lib/depot/infer/geo';
+import { distanceM, isUsablePosition } from '@/lib/depot/infer/geo';
+import { lastHeardText } from '@/lib/depot/roster/rosterModel';
 import { MOVING_SPEED_KMPH } from '@/lib/depot/infer/thresholds';
 import type { Yard } from '@/lib/depot/infer/types';
 import type { BusOpState } from '@/lib/depot/types';
@@ -86,6 +87,9 @@ export interface YardModel {
   readonly points: readonly YardMapPoint[];
   /** Positioned buses further than the display distance, not drawn. */
   readonly beyondCount: number;
+  /** Visitors drawn as hollow markers, and visitors the feed gave no position for. */
+  readonly visitorsDrawn: number;
+  readonly visitorsWithoutPosition: number;
 }
 
 function compareText(a: string, b: string): number {
@@ -130,40 +134,57 @@ function awayOrder(a: DepotBusView, b: DepotBusView): number {
   return compareText(a.registrationNumber, b.registrationNumber);
 }
 
-function hasPosition(bus: DepotBusView): bus is DepotBusView & {
-  readonly latitude: number;
-  readonly longitude: number;
-} {
-  return Number.isFinite(bus.latitude) && Number.isFinite(bus.longitude);
-}
-
 function basisSentence(yard: Yard | null, coverage: { n: number; of: number } | undefined): string {
   if (!yard) return 'A yard could not be established for this depot.';
   const sample = coverage ?? { n: yard.inCluster, of: yard.parked };
   return `Learned from where this depot's buses park: ${sample.n} of ${sample.of} parked buses stand together.`;
 }
 
-const MIN_PER_HOUR = 60;
-
-/** "heard 4 min ago"; says so plainly when the bus has no usable GPS age. */
+/** "heard 4 min ago", worded like the roster; plain when there is no usable GPS age. */
 export function formatHeardAgo(ageMin: number | null): string {
   if (ageMin === null || !Number.isFinite(ageMin) || ageMin < 0) return 'no GPS time';
-  if (ageMin < 1) return 'heard just now';
-  if (ageMin < MIN_PER_HOUR) return `heard ${Math.round(ageMin)} min ago`;
-  const hours = Math.floor(ageMin / MIN_PER_HOUR);
-  const rest = Math.round(ageMin - hours * MIN_PER_HOUR);
-  return `heard ${hours} h ${rest} min ago`;
+  return `heard ${lastHeardText(ageMin)}`;
+}
+
+interface Candidate {
+  readonly registration: string;
+  readonly lat: number;
+  readonly lng: number;
+  readonly state: BusOpState;
+  readonly relation: YardMapPoint['relation'];
+}
+
+function candidatesOf(data: DepotDetailResponse): Candidate[] {
+  const own: Candidate[] = data.buses.filter(isUsablePosition).map((bus) => ({
+    registration: bus.registrationNumber,
+    lat: bus.latitude,
+    lng: bus.longitude,
+    state: bus.state,
+    relation: 'home',
+  }));
+  const visiting: Candidate[] = data.visitors.flatMap((visitor) => {
+    const at = visitor.position;
+    if (!at || !isUsablePosition({ latitude: at.lat, longitude: at.lng })) return [];
+    const candidate: Candidate = {
+      registration: visitor.registrationNumber,
+      lat: at.lat,
+      lng: at.lng,
+      state: visitor.state,
+      relation: 'visiting',
+    };
+    return [candidate];
+  });
+  return [...own, ...visiting];
 }
 
 /**
- * Everything the yard page shows, derived from one depot response. Pure. Visitors carry
- * no position in the response, so only the depot's own buses can be map points.
+ * Everything the yard page shows, derived from one depot response. Pure. "Has a position"
+ * is the server's rule (`isUsablePosition`), so (0, 0) fixes are never drawn or counted.
  */
 export function buildYardModel(data: DepotDetailResponse): YardModel {
   const yard = data.yard.value;
-  const positioned = data.buses.filter(hasPosition);
-  const parkedWithPosition = positioned.filter(
-    (bus) => bus.speedKmph !== null && bus.speedKmph <= MOVING_SPEED_KMPH,
+  const parkedWithPosition = data.buses.filter(
+    (bus) => isUsablePosition(bus) && bus.speedKmph !== null && bus.speedKmph <= MOVING_SPEED_KMPH,
   ).length;
 
   const inYard = data.buses.filter((bus) => bus.location === 'in_yard');
@@ -174,21 +195,14 @@ export function buildYardModel(data: DepotDetailResponse): YardModel {
 
   const limitM = yard ? yard.radiusM * DISPLAY_RADIUS_FACTOR : 0;
   const measured = yard
-    ? positioned.map((bus) => ({
-        bus,
-        metres: distanceM(yard.lat, yard.lng, bus.latitude, bus.longitude),
+    ? candidatesOf(data).map((candidate) => ({
+        candidate,
+        metres: distanceM(yard.lat, yard.lng, candidate.lat, candidate.lng),
       }))
     : [];
   const points: YardMapPoint[] = measured
     .filter(({ metres }) => Number.isFinite(metres) && metres <= limitM)
-    .map(({ bus, metres }) => ({
-      registration: bus.registrationNumber,
-      lat: bus.latitude,
-      lng: bus.longitude,
-      state: bus.state,
-      relation: 'home' as const,
-      distanceM: metres,
-    }))
+    .map(({ candidate, metres }) => ({ ...candidate, distanceM: metres }))
     .sort((a, b) => compareText(a.registration, b.registration));
 
   return {
@@ -209,6 +223,8 @@ export function buildYardModel(data: DepotDetailResponse): YardModel {
     away: { buses: away.slice(0, AWAY_LIST_CAP), total: away.length },
     unknown,
     points,
-    beyondCount: yard ? measured.length - points.length : 0,
+    beyondCount: measured.length - points.length,
+    visitorsDrawn: points.filter((point) => point.relation === 'visiting').length,
+    visitorsWithoutPosition: data.visitors.filter((visitor) => visitor.position === null).length,
   };
 }

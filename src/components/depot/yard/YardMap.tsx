@@ -65,7 +65,9 @@ export function YardMap({ model }: YardMapProps) {
   const fittedRef = useRef(false);
   const [status, setStatus] = useState<Status>('loading');
   const [errorMessage, setErrorMessage] = useState('');
-  const [hovered, setHovered] = useState<YardMapPoint | null>(null);
+  // Only the registration is held; the card reads the current point, so a poll that
+  // changes a bus's state is reflected in a card that is already open.
+  const [hoveredRegistration, setHovered] = useState<string | null>(null);
 
   // ---- One-time bootstrap ---------------------------------------------------
   useEffect(() => {
@@ -173,7 +175,7 @@ export function YardMap({ model }: YardMapProps) {
       removeMapListeners(entry.handles);
       entry.marker.setMap(null);
       entries.delete(registration);
-      setHovered((current) => (current?.registration === registration ? null : current));
+      setHovered((current) => (current === registration ? null : current));
     });
 
     points.forEach((point) => {
@@ -200,7 +202,7 @@ export function YardMap({ model }: YardMapProps) {
         optimized: true,
       });
       const handles: Handle[] = [
-        marker.addListener('mouseover', () => setHovered(point)) as Handle,
+        marker.addListener('mouseover', () => setHovered(point.registration)) as Handle,
         marker.addListener('mouseout', () => setHovered(null)) as Handle,
       ];
       entries.set(point.registration, {
@@ -211,6 +213,8 @@ export function YardMap({ model }: YardMapProps) {
       });
     });
   }, [points, status]);
+
+  const hovered = points.find((point) => point.registration === hoveredRegistration) ?? null;
 
   return (
     <div className="depot-map-frame" data-testid="yard-map">

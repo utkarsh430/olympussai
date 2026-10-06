@@ -25,7 +25,14 @@ export type PositionedRow = DepotBusRow & {
  * km "away" and fabricate a departure.
  */
 export function hasUsablePosition(row: DepotBusRow): row is PositionedRow {
-  const { latitude, longitude } = row;
+  return isUsablePosition(row);
+}
+
+/** The same rule for anything carrying coordinates, narrowing both to numbers. */
+export function isUsablePosition<
+  T extends { readonly latitude: number | null; readonly longitude: number | null },
+>(point: T): point is T & { readonly latitude: number; readonly longitude: number } {
+  const { latitude, longitude } = point;
   if (latitude === null || longitude === null) return false;
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false;
   return !(latitude === 0 && longitude === 0);

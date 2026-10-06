@@ -1,3 +1,4 @@
+import { formatCount } from '@/lib/depot/format';
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
 import {
   BUS_STATE_COLOUR,
@@ -27,7 +28,13 @@ function Dot({ colour, hollow }: { readonly colour: string; readonly hollow: boo
  * Says in words what every mark on the yard map means, with the mark beside the
  * words. States are listed by name, so colour is never the only carrier.
  */
-export function YardMapLegend({ showVisitors }: { readonly showVisitors: boolean }) {
+export function YardMapLegend({
+  visitorsDrawn,
+  visitorsWithoutPosition,
+}: {
+  readonly visitorsDrawn: number;
+  readonly visitorsWithoutPosition: number;
+}) {
   return (
     <div
       data-testid="yard-map-legend"
@@ -44,10 +51,12 @@ export function YardMapLegend({ showVisitors }: { readonly showVisitors: boolean
           ))}
         </ul>
         <p className="mt-2 font-sans text-xs leading-snug">
-          A filled dot is one of this depot&apos;s own buses.
-          {showVisitors
-            ? ' A ring with no fill is a bus from another depot standing here.'
-            : ' Visiting buses carry no position in the feed, so they are listed below, not drawn.'}
+          A filled dot is one of this depot&apos;s own buses. A ring with no fill is a bus from
+          another depot standing here: {formatCount(visitorsDrawn)} drawn
+          {visitorsWithoutPosition > 0
+            ? `, ${formatCount(visitorsWithoutPosition)} with no position in the feed, listed below only`
+            : ''}
+          .
         </p>
       </div>
       <div>

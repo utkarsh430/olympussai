@@ -232,7 +232,13 @@ function makeDetail(
         : [],
     },
     visitors: [
-      { registrationNumber: 'UP2', homeDepotId: '102', homeDepotName: 'ETAWAH', state: 'standing' },
+      {
+        registrationNumber: 'UP2',
+        homeDepotId: '102',
+        homeDepotName: 'ETAWAH',
+        state: 'standing',
+        position: null,
+      },
     ],
   };
 }

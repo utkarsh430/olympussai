@@ -5,6 +5,7 @@ import type {
   DepotSummary,
   FieldCoverage,
   Figure,
+  LatLng,
   NetworkKpis,
   Provenance,
 } from './types';
@@ -84,6 +85,8 @@ export interface VisitorBus {
   readonly homeDepotId: string | null;
   readonly homeDepotName: string | null;
   readonly state: BusOpState;
+  /** Where the bus stands; null when its position is missing or unusable. */
+  readonly position: LatLng | null;
 }
 
 /** GET /api/upsrtc/depot/[depotId] */

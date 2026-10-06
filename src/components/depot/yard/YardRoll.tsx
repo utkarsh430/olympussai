@@ -12,6 +12,8 @@ import {
 
 export interface YardRollProps {
   readonly model: YardModel;
+  /** Depot names by id, to say which yard an at-another-depot bus stands in. */
+  readonly depotNames: ReadonlyMap<string, string>;
   readonly depotId: string;
 }
 
@@ -35,9 +37,9 @@ function BusLink({
 
 function Heading({ title, count, id }: { title: string; count: number; id: string }) {
   return (
-    <h3 id={id} className="depot-section-label">
+    <h2 id={id} className="depot-section-label">
       {title} <span className="tabular-nums">({formatCount(count)})</span>
-    </h3>
+    </h2>
   );
 }
 
@@ -65,9 +67,12 @@ function StateRows({
           </p>
           <ul className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2 2xl:grid-cols-3">
             {group.buses.map((bus) => (
-              <li key={bus.registrationNumber} className="flex min-w-0 items-baseline gap-2">
+              <li
+                key={bus.registrationNumber}
+                className="flex min-w-0 flex-wrap items-baseline gap-x-2"
+              >
                 <BusLink depotId={depotId} registration={bus.registrationNumber} />
-                <span className="truncate text-[11px] text-depot-faint">{trailing(bus)}</span>
+                <span className="min-w-0 text-[11px] text-depot-faint">{trailing(bus)}</span>
               </li>
             ))}
           </ul>
@@ -77,10 +82,18 @@ function StateRows({
   );
 }
 
-function awayDetail(bus: DepotBusView): string {
+/** Where an away bus is: a distance, or the other depot's yard it stands in. */
+function awayDetail(bus: DepotBusView, depotNames: ReadonlyMap<string, string>): string {
   const km = bus.distanceFromYardKm;
+  const otherName = bus.otherDepotId === null ? undefined : depotNames.get(bus.otherDepotId);
   const where =
-    km === null || !Number.isFinite(km) ? 'distance unknown' : `${km.toFixed(1)} km away`;
+    bus.location === 'at_other_yard'
+      ? otherName
+        ? `at ${otherName}'s yard`
+        : "at another depot's yard"
+      : km === null || !Number.isFinite(km)
+        ? 'distance unknown'
+        : `${km.toFixed(1)} km away`;
   return `${BUS_STATE_LABEL[bus.state]} · ${where} · ${formatHeardAgo(bus.gpsAgeMin)}`;
 }
 
@@ -92,7 +105,7 @@ function heardOnly(bus: DepotBusView): string {
  * Text twin of the map: every bus the map shows, and the ones it cannot, as links to the
  * roster. With no yard, buses are grouped by state alone.
  */
-export function YardRoll({ model, depotId }: YardRollProps) {
+export function YardRoll({ model, depotId, depotNames }: YardRollProps) {
   if (!model.established) {
     return (
       <section aria-labelledby="yard-roll-all" className="flex flex-col gap-3">
@@ -139,11 +152,14 @@ export function YardRoll({ model, depotId }: YardRollProps) {
                 </p>
                 <ul className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2 2xl:grid-cols-3">
                   {group.buses.map((bus) => (
-                    <li key={bus.registrationNumber} className="flex min-w-0 items-baseline gap-2">
+                    <li
+                      key={bus.registrationNumber}
+                      className="flex min-w-0 flex-wrap items-baseline gap-x-2"
+                    >
                       <span className="font-mono text-[13px] text-depot-ink">
                         {bus.registrationNumber}
                       </span>
-                      <span className="truncate text-[11px] text-depot-faint">
+                      <span className="min-w-0 text-[11px] text-depot-faint">
                         {BUS_STATE_LABEL[bus.state]}
                       </span>
                     </li>
@@ -163,9 +179,14 @@ export function YardRoll({ model, depotId }: YardRollProps) {
           <div className="depot-panel p-4">
             <ul className="grid grid-cols-1 gap-x-6 gap-y-1 xl:grid-cols-2">
               {model.away.buses.map((bus) => (
-                <li key={bus.registrationNumber} className="flex min-w-0 items-baseline gap-2">
+                <li
+                  key={bus.registrationNumber}
+                  className="flex min-w-0 flex-wrap items-baseline gap-x-2"
+                >
                   <BusLink depotId={depotId} registration={bus.registrationNumber} />
-                  <span className="truncate text-[11px] text-depot-faint">{awayDetail(bus)}</span>
+                  <span className="min-w-0 text-[11px] text-depot-faint">
+                    {awayDetail(bus, depotNames)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -183,9 +204,12 @@ export function YardRoll({ model, depotId }: YardRollProps) {
           <div className="depot-panel p-4">
             <ul className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2 2xl:grid-cols-3">
               {model.unknown.map((bus) => (
-                <li key={bus.registrationNumber} className="flex min-w-0 items-baseline gap-2">
+                <li
+                  key={bus.registrationNumber}
+                  className="flex min-w-0 flex-wrap items-baseline gap-x-2"
+                >
                   <BusLink depotId={depotId} registration={bus.registrationNumber} />
-                  <span className="truncate text-[11px] text-depot-faint">
+                  <span className="min-w-0 text-[11px] text-depot-faint">
                     {BUS_STATE_LABEL[bus.state]} · {formatHeardAgo(bus.gpsAgeMin)}
                   </span>
                 </li>
@@ -193,12 +217,7 @@ export function YardRoll({ model, depotId }: YardRollProps) {
             </ul>
           </div>
         </section>
-      ) : (
-        <section aria-labelledby="yard-roll-unknown">
-          <Heading id="yard-roll-unknown" title="Location unknown" count={0} />
-          <EmptyState>Every bus of this depot has a usable position.</EmptyState>
-        </section>
-      )}
+      ) : null}
     </div>
   );
 }
