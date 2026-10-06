@@ -43,20 +43,20 @@ const rejected = (d: CopilotDraft): string => {
 describe('renderDraft', () => {
   it('renders a valid draft and lists used ids in first-use order', () => {
     const result = renderDraft(
-      draft('{{fact:depot}} at present', 'Fleet is {{fact:buses}}, share {{fact:share}}.'),
+      draft('{{fact:depot}} at present', 'Fleet is {{fact:buses}}; share {{fact:share}}.'),
       FACTS,
     );
     expect(result).toEqual({
       ok: true,
       headline: 'BAREILLY(R) at present',
-      paragraphs: ['Fleet is 1,204, share 31%.'],
+      paragraphs: ['Fleet is 1,204; share 31%.'],
       usedFactIds: ['depot', 'buses', 'share'],
     });
   });
 
   it('substitutes a repeated placeholder everywhere but lists the id once', () => {
-    const result = renderDraft(draft('Fleet', '{{fact:buses}} then {{fact:buses}}.'), FACTS);
-    expect(result).toMatchObject({ ok: true, paragraphs: ['1,204 then 1,204.'] });
+    const result = renderDraft(draft('Fleet', '{{fact:buses}} and {{fact:buses}}.'), FACTS);
+    expect(result).toMatchObject({ ok: true, paragraphs: ['1,204 and 1,204.'] });
     expect(result.ok && result.usedFactIds).toEqual(['buses']);
   });
 
@@ -289,7 +289,7 @@ describe('renderDraft', () => {
     ])('rejects fused placeholders in %s', (t) => expect(bad(`Value ${t} here.`)).toBe(true));
 
     it('accepts placeholders separated by a word, not by a space or bracket alone', () => {
-      expect(bad('Between {{fact:a}} and {{fact:b}}.')).toBe(false);
+      expect(bad('At {{fact:a}} and {{fact:b}}.')).toBe(false);
       expect(bad('Values {{fact:a}} ({{fact:b}}) here.')).toBe(true);
     });
 

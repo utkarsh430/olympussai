@@ -23,8 +23,8 @@ again further furthermore moreover however therefore thus hence meanwhile otherw
 indeed overall elsewhere here there where when whenever wherever why how afterwards
 all any each every some several many much more most few fewer less least enough plenty
 another other others either such same own lot lots rest majority minority bulk
-now today tonight yesterday tomorrow currently recently lately presently soon later earlier
-early late latest daily weekly monthly overnight daytime morning afternoon evening night
+now today currently recently lately presently soon later earlier
+early late latest daily weekly monthly night
 day week month year date time season period moment present past future
 yes perhaps maybe likely unlikely possibly probably certainly simply merely
 well better best worse worst far farther nearer closer close nearby

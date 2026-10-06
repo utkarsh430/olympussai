@@ -114,7 +114,51 @@ function trustedAddress(
   const name = env.DEPOT_TRUSTED_IP_HEADER?.trim() ?? '';
   if (!HEADER_NAME.test(name)) return '';
   const last = (headers.get(name) ?? '').split(',').pop()?.trim() ?? '';
-  return ADDRESS.test(last) ? last.toLowerCase() : '';
+  return ADDRESS.test(last) ? addressKey(last.toLowerCase()) : '';
+}
+
+const IPV4 = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
+const HEX_GROUP = /^[0-9a-f]{1,4}$/;
+const IPV6_GROUPS = 8;
+/** Groups a holder of one IPv6 /64 controls are dropped: the key is the first four. */
+const IPV6_PREFIX_GROUPS = 4;
+
+/** The eight 16-bit groups of an IPv6 address (an IPv4 tail allowed), or null. */
+function ipv6Groups(text: string): readonly number[] | null {
+  const halves = text.split('::');
+  if (halves.length > 2) return null;
+  const parts = (half: string | undefined): string[] => (half ? half.split(':') : []);
+  const tail = parts(halves[halves.length - 1]);
+  const last = tail[tail.length - 1] ?? '';
+  const v4 = IPV4.test(last) ? last.split('.').map(Number) : null;
+  const toHex = (p: string): number | null => (HEX_GROUP.test(p) ? parseInt(p, 16) : null);
+  const head = (halves.length === 2 ? parts(halves[0]) : []).map(toHex);
+  const rest = (v4 ? tail.slice(0, -1) : tail).map(toHex);
+  const v4Groups = v4 ? [(v4[0] ?? 0) * 256 + (v4[1] ?? 0), (v4[2] ?? 0) * 256 + (v4[3] ?? 0)] : [];
+  const known = [...head, ...rest, ...v4Groups];
+  if (known.some((g) => g === null)) return null;
+  const missing = IPV6_GROUPS - known.length;
+  if (halves.length === 2 ? missing < 1 : missing !== 0) return null;
+  const zeros: number[] = Array.from({ length: halves.length === 2 ? missing : 0 }, () => 0);
+  return [...head, ...zeros, ...rest, ...v4Groups] as number[];
+}
+
+/**
+ * Ruling S49 M2a. An IPv6 client is keyed on its /64, which one holder
+ * controls whole; an IPv4-mapped address on its IPv4 form; IPv4 as it is. A
+ * value that passes the character check but does not parse is kept as written,
+ * exactly as before.
+ */
+function addressKey(address: string): string {
+  if (!address.includes(':')) return address;
+  const groups = ipv6Groups(address);
+  if (groups === null) return address;
+  const mapped = groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff;
+  if (mapped) {
+    const [high = 0, low = 0] = groups.slice(6);
+    return [high >> 8, high & 0xff, low >> 8, low & 0xff].join('.');
+  }
+  return `${groups.slice(0, IPV6_PREFIX_GROUPS).map((g) => g.toString(16)).join(':')}::/64`;
 }
 
 /**

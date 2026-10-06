@@ -28,6 +28,7 @@ percent percentage percentages percentile pct pc bps pp cent cents decile quarti
 km kms kilometre kilometres kilometer kilometers mile miles mileage metre metres meter meters
 hour hours hourly hr hrs minute minutes min mins sec secs days weeks months years
 fortnight fortnights fortnightly decade decades century centuries
+yesterday tomorrow tonight morning mornings evening evenings afternoon afternoons overnight
 kg kph mph kmph litre litres liter liters tonne tonnes ton tons degree degrees
 rupee rupees rs inr paise paisa dollar dollars usd pound pounds euro euros
 times plus minus negative point points dot decimal decimals nought naught aught

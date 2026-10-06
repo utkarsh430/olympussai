@@ -24,6 +24,6 @@ sound spare specific stable stale standard steady stretched strict strong strong
 substantial sudden sufficient suitable sure tight tighter thin thorough top total typical
 unable unavailable uncertain unchanged unclear uncovered uneven unexpected unknown
 unplanned unranked unscheduled unusual upper urgent useful usual valid various visible vital
-weak weaker weakest whole wide wider widespread worthwhile wrong young
+weak weaker weakest whole wide wider widespread worthwhile young
 easily heavily readily happily necessarily ordinarily
 `);

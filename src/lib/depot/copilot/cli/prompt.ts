@@ -27,6 +27,15 @@ import {
 import { sanitizeFactText } from '@/lib/depot/copilot/render';
 import type { CopilotRequest, CopilotTask } from '@/lib/depot/copilot/types';
 import {
+  AFTER_FIGURE_WORDS,
+  BEFORE_FIGURE_WORDS,
+  CLAUSE_OPENERS,
+  CLAUSE_SCOPE_WORDS,
+  FIGURE_WINDOW_WORDS,
+  STATE_NOUNS,
+  STATE_PREPOSITION,
+} from '@/lib/depot/copilot/vocabulary/nearFigure';
+import {
   MIN_STEM_LETTERS,
   REGULAR_ENDINGS,
   VOCABULARY_WORDS,
@@ -94,6 +103,13 @@ const RULES = [
   `Never put one of these, or a word ending in ${NEGATIVE_CONTRACTION}, directly before a figure:`,
   `${spaced(FIGURE_QUALIFIER_WORDS)}.`,
   `A mark after such a word lifts the rule; after a figure only ${spaced(CLAUSE_BREAK_MARKS)} does.`,
+  `Within ${FIGURE_WINDOW_WORDS} words before a figure, in its clause, use only:`,
+  `${spaced(BEFORE_FIGURE_WORDS)}. Within ${FIGURE_WINDOW_WORDS} words after it, use only:`,
+  `${spaced(AFTER_FIGURE_WORDS)}; the second may also be one of ${spaced(STATE_NOUNS)} after`,
+  `${STATE_PREPOSITION}. Never write a noun right after a figure: the figure carries its own.`,
+  'A clause ends at . ; or : or at a comma followed by one of',
+  `${spaced(CLAUSE_OPENERS)}. Never put one of these words, in any form, in a figure's clause:`,
+  `${spaced(CLAUSE_SCOPE_WORDS)}. Every figure is as of the feed time.`,
   `Accepted examples: ${PROMPT_EXAMPLES.join(' | ')}`,
   `Rejected examples: ${PROMPT_REJECTED_EXAMPLES.join(' | ')}`,
   'Use only the allowed words listed at the end, in any letter case; any other word, however',

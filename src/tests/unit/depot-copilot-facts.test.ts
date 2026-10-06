@@ -793,7 +793,7 @@ describe('pinned scripted phrasing', () => {
 
   it('writes list leads, the uncovered deficit and the outshed counts', () => {
     expect(paragraphsOf(buildAnswer({ kind: 'depotsInSurplus' }, data))[0]).toBe(
-      'The modelled requirement shows spare buses at 1 depot, 9 buses in all.',
+      'The modelled requirement shows spare buses at 1 depot, 9 buses between them.',
     );
     expect(paragraphsOf(buildAnswer({ kind: 'transfersFor', depotId: '103' }, data))).toContain(
       'Left uncovered in the current plan: 3 buses, because no surplus lies within range.',
@@ -952,12 +952,12 @@ describe('singular and plural counts agree with their verb', () => {
   it('agrees in the network opening', () => {
     const one = withKpis({ reporting: 1, onRoad: 1, noSignal: 1, maint: 1 });
     expect(one[0]).toContain('1 bus is reporting a position and 1 bus is running');
-    expect(one[1]).toContain('1 bus is showing no signal');
-    expect(one[1]).toContain('1 bus is under maintenance');
+    expect(one[1]).toContain('1 bus has lost signal');
+    expect(one[1]).toContain('1 bus is in maintenance');
     const many = withKpis({ reporting: 5, onRoad: 4, noSignal: 3, maint: 2 });
     expect(many[0]).toContain('5 buses are reporting a position and 4 buses are running');
-    expect(many[1]).toContain('3 buses are showing no signal');
-    expect(many[1]).toContain('2 buses are under maintenance');
+    expect(many[1]).toContain('3 buses have lost signal');
+    expect(many[1]).toContain('2 buses are in maintenance');
   });
 
   it('agrees in the vehicle-only exception sentence', () => {

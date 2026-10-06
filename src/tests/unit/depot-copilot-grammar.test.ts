@@ -115,8 +115,8 @@ describe('token grammar boundaries', () => {
     'The fleet (and the yard) is steady.',
     'The depot is "stretched".',
     'The fleet is at {{fact:a}}.',
-    'The fleet ({{fact:a}}) is steady.',
-    'The fleet stands at {{fact:a}}, and {{fact:b}}; then {{fact:rev}}: steady.',
+    'The fleet ({{fact:a}}) is here.',
+    'The fleet stands at {{fact:a}}, and {{fact:b}}; it has {{fact:rev}}: steady.',
     "The depot's fleet is steady.",
     "It isn't steady.",
     'The depot-level picture is steady.',
@@ -124,8 +124,8 @@ describe('token grammar boundaries', () => {
     '{{fact:a}} and {{fact:b}} are dark.',
     '{{fact:name}} has {{fact:a}}.',
     '{{fact:name}} at {{fact:a}}; {{fact:n2}} at {{fact:b}}.',
-    'The fleet is {{fact:depots}}, {{fact:buses}} in all.',
-    'As of {{fact:clock}}, {{fact:buses}} are reporting ({{fact:pct}}), {{fact:a}} are dark.',
+    'The fleet is {{fact:depots}}, {{fact:buses}} between them.',
+    'As of {{fact:clock}}, {{fact:buses}} are reporting ({{fact:pct}}); {{fact:a}} are dark.',
   ];
   it.each(accepted)('accepts %j', (text) => expect(render(text)).toBe(true));
 

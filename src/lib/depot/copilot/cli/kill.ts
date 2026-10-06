@@ -8,8 +8,14 @@ export interface KillableChild {
 
 export type KillGroup = (pid: number) => void;
 
-/** SIGKILL to the child's whole process group (the child is spawned detached). */
+/**
+ * SIGKILL to the child's whole process group (the child is spawned detached).
+ * Node never gives a child pid 0 or 1, but `-0` would be the server's own group
+ * and `-1` every process the user owns, so anything but a pid above 1 sends
+ * nothing (review L1).
+ */
 export const killProcessGroup: KillGroup = (pid) => {
+  if (!Number.isSafeInteger(pid) || pid <= 1) return;
   process.kill(-pid, 'SIGKILL');
 };
 

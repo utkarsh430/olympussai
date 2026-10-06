@@ -162,9 +162,8 @@ describe('what the model may write around a figure (S38)', () => {
     '{{fact:time}}, {{fact:buses}} are dark.',
     'The yard is full.',
     'The fleet is {{fact:buses}}. Each depot reports daily.',
-    'Sending {{fact:buses}} to {{fact:name}} helps.',
+    'Sending {{fact:buses}} to {{fact:name}} is planned.',
     'From {{fact:name}} to {{fact:name}} is a short run.',
-    'Only {{fact:buses}} are dark.',
     'The dark share is not high: {{fact:pct}} of the fleet.',
   ];
 

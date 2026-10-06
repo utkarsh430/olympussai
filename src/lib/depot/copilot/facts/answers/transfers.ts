@@ -77,7 +77,7 @@ export function transfersAnswer(data: AnswerData, depotId: string): CopilotReque
         : `The modelled requirement puts ${ph('depot.name')} in balance.`;
   const lines = shown.map((t, i) => {
     const give = t.fromDepotId === depotId;
-    return `${give ? 'Sending' : 'Receiving'} ${ph(`t.${i + 1}.buses`)} ${give ? 'to' : 'from'} ${ph(`t.${i + 1}.other`)}, an estimated road distance of ${ph(`t.${i + 1}.distance`)}.`;
+    return `${give ? 'Sending' : 'Receiving'} ${ph(`t.${i + 1}.buses`)} ${give ? 'to' : 'from'} ${ph(`t.${i + 1}.other`)}; the estimated road distance is ${ph(`t.${i + 1}.distance`)}.`;
   });
   const paragraphs = [
     standing,

@@ -58,6 +58,9 @@ const GRAMMAR_REASONS: Readonly<Record<GrammarProblem, string>> = {
   figure_link: 'Draft joins two figures with linking words only',
   figure_unit: 'Draft puts a unit, period or rate word beside a figure',
   figure_qualifier: 'Draft puts a negation or comparison before a figure',
+  figure_window: 'Draft puts a word near a figure that is not allowed there',
+  figure_clause:
+    'Draft puts a negation, rate, total, limiter or other-day word in the clause of a figure',
 };
 
 const fail = (reason: string): RenderResult => ({ ok: false, reason });

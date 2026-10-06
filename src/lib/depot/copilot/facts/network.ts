@@ -135,9 +135,11 @@ function exceptionParagraph(depotCountN: number, busCountN: number): string {
     return `No depot-level exceptions are flagged, though ${ph('network.bus_exceptions')} ${countPhrase(busCountN, 'is', 'are')} flagged on vehicles.`;
   }
   const vehicles =
-    busCountN === 0 ? 'and nothing on vehicles' : `and ${ph('network.bus_exceptions')} on vehicles`;
+    busCountN === 0
+      ? 'nothing is flagged on vehicles'
+      : `${ph('network.bus_exceptions')} ${countPhrase(busCountN, 'is', 'are')} flagged on vehicles`;
   return (
-    `The snapshot flags ${ph('network.depot_exceptions')} at depot level ${vehicles}. ` +
+    `At depot level the snapshot flags ${ph('network.depot_exceptions')}; ${vehicles}. ` +
     'Starting with the depot-level exceptions would be a sensible order.'
   );
 }
@@ -168,7 +170,7 @@ function networkDraft(network: DepotNetworkResponse): CopilotDraft {
   const ranked = rankedDepots(network);
   const paragraphs = [
     `${lead}${ph('network.reporting')} ${countPhrase(kpis.reporting.value, 'is', 'are')} reporting a position and ${ph('network.on_road')} ${countPhrase(kpis.onRoad.value, 'is', 'are')} running, ${ph('network.on_road_share')} of the fleet.`,
-    `${ph('network.no_signal')} ${countPhrase(kpis.noSignal.value, 'is', 'are')} showing no signal (${ph('network.no_signal_share')}) and ${ph('network.under_maintenance')} ${countPhrase(kpis.underMaintenance.value, 'is', 'are')} under maintenance (${ph('network.maintenance_share')}).`,
+    `${ph('network.no_signal')} ${countPhrase(kpis.noSignal.value, 'has', 'have')} lost signal (${ph('network.no_signal_share')}) and ${ph('network.under_maintenance')} ${countPhrase(kpis.underMaintenance.value, 'is', 'are')} in maintenance (${ph('network.maintenance_share')}).`,
     ranked.length >= 2
       ? `Among ranked depots, ${ph('network.best_depot')} leads at efficiency ${ph('network.best_index')}, while ${ph('network.weakest_depot')} sits lowest at efficiency ${ph('network.weakest_index')}.${rankSentence(ranked)}`
       : 'Too few depots have enough buses to be ranked against each other on this snapshot.',
