@@ -1,7 +1,7 @@
 import { LATE_AFTER_MIN } from '../routes/delayConfig';
-import { MINUTES_PER_HOUR } from '../units';
+import { MINUTES_PER_DAY, MINUTES_PER_HOUR } from '../units';
 import { bandFigures, bandsOf, inBand, proposalId } from './bands';
-import { clockOf as clock, hourOf, minuteOfDay } from './feedMinutes';
+import { clockOf as clock, hourOf, minuteOfDay, spanMinutes } from './feedMinutes';
 import {
   HEADWAY_DAYTIME,
   HEADWAY_GAP_MIN,
@@ -88,41 +88,27 @@ function serviceSpanGap(ctx: ProposalContext): Proposal[] {
     .filter((h) => total > 0 && h.demand >= total * SPAN_DEMAND_SHARE)
     .map((h) => h.hour);
   if (busy.length === 0) return [];
-  const ends = ofRoute(ctx)
-    .map((j) => minuteOfDay(j.scheduledEnd) ?? minuteOfDay(j.scheduledStart))
-    .filter((m): m is number => m !== null);
+  // An end is the start plus the scheduled span, so a journey past midnight ends after 24:00.
+  const ends = ofRoute(ctx).map((j) => {
+    const start = minuteOfDay(j.scheduledStart);
+    return start === null ? null : start + (spanMinutes(j.scheduledStart, j.scheduledEnd) ?? 0);
+  });
   const first = starts[0] as number;
-  const last = Math.max(...ends);
-  const firstHour = Math.floor(first / MINUTES_PER_HOUR);
-  const lastHour = Math.floor(last / MINUTES_PER_HOUR);
-  const out: Proposal[] = [];
-  const early = { fromHour: Math.min(...busy), toHour: firstHour - 1 };
-  if (early.toHour >= early.fromHour) {
-    const demand = demandIn(early, ctx.hours);
-    out.push(
-      finding(ctx, {
-        kind: 'service_span_gap',
-        band: early,
-        demand,
-        edge: 'before_first',
-        at: clock(first),
-      }),
-    );
-  }
-  const late = { fromHour: lastHour + 1, toHour: Math.max(...busy) };
-  if (late.toHour >= late.fromHour) {
-    const demand = demandIn(late, ctx.hours);
-    out.push(
-      finding(ctx, {
-        kind: 'service_span_gap',
-        band: late,
-        demand,
-        edge: 'after_last',
-        at: clock(last),
-      }),
-    );
-  }
-  return out;
+  const last = Math.max(...ends.filter((m): m is number => m !== null));
+  const early = { fromHour: Math.min(...busy), toHour: Math.floor(first / MINUTES_PER_HOUR) - 1 };
+  const late = { fromHour: Math.floor(last / MINUTES_PER_HOUR) + 1, toHour: Math.max(...busy) };
+  const spanFinding = (band: HourBand, edge: 'before_first' | 'after_last', at: number): Proposal =>
+    finding(ctx, {
+      kind: 'service_span_gap',
+      band,
+      demand: demandIn(band, ctx.hours),
+      edge,
+      at: clock(at % MINUTES_PER_DAY),
+    });
+  return [
+    ...(early.toHour >= early.fromHour ? [spanFinding(early, 'before_first', first)] : []),
+    ...(late.toHour >= late.fromHour ? [spanFinding(late, 'after_last', last)] : []),
+  ];
 }
 
 /** Daytime hours with demand and no start, inside a gap of HEADWAY_GAP_MIN or more between starts. */

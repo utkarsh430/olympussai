@@ -59,6 +59,12 @@ describe('service_span_gap', () => {
     expect(found.every((p) => p.tier === 'A')).toBe(true);
   });
 
+  it('reads a journey ending past midnight as ending after the last demand hour', () => {
+    const night = [...ledger, journey('n', { scheduledStart: '21:30', scheduledEnd: '00:45' })];
+    const found = kinds(timetableFindings(context({ hours, ledger: night })), 'service_span_gap');
+    expect(found.map((p) => p.band)).toEqual([{ fromHour: 6, toHour: 7 }]);
+  });
+
   it('needs a few journeys before judging the span', () => {
     expect(
       kinds(timetableFindings(context({ hours, ledger: ledger.slice(0, 2) })), 'service_span_gap'),
