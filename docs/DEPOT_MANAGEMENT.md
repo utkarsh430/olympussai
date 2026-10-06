@@ -315,27 +315,30 @@ first.
 
 | State | Where | Bound |
 | --- | --- | --- |
-| Live snapshot cache and last-known-good | `src/lib/upsrtc/liveSnapshot.ts` | 15 s TTL |
+| Live snapshot cache, last-known-good, the back-off, the short-reply count and which source is served | `src/lib/upsrtc/liveSnapshot.ts` | 15 s TTL; one key; 20 s back-off |
 | Rolling score window | `score/windowStore.ts` | 20 min of feed time, ≤ 120 samples per depot, ≤ 1,000 depots |
 | Yard memory | `infer/yardMemory.ts` | 12 h hold, ≤ 1,000 depots |
 | Held peak on-road shares (the requirement's basis) | `live/peakShareHold.ts` | one number per depot for one operating date, ≤ 1,000 depots |
 | The modelled day and duty plan | `live/operatingDayView.ts` | one slot per analysis, held per snapshot |
-| Memoised analyses and view bodies | `live/analysis.ts` | held weakly per snapshot |
-| Route-profile cache | `routes/routeCatalogue.ts` | ≤ 2,000 routes; negative answers 10 min |
-| Allocation plan | `live/allocationView.ts` | re-planned at most every 30 s per rows |
-| Route-profile fetch limiters | `route/[routeName]/route.ts`, `rateLimit.ts` | per minute |
+| Memoised analyses and view bodies | `live/analysis.ts`, `live/queryMemo.ts` | held weakly per snapshot; ≤ 64 query bodies per snapshot |
+| Route-profile cache | `routes/routeCatalogue.ts` | ≤ 2,000 routes, keyed on route and the feed's operating date; negative answers 10 min; failures not cached |
+| Schedule cache behind the lookups | `src/lib/upsrtc/scheduleService.ts` | 2 min TTL, ≤ 500 lookups |
+| Allocation plan | `live/allocationView.ts` | held for 5 minutes of feed time |
+| Route-lookup limiters | `route/[routeName]/route.ts`, `rateLimit.ts` | calls per minute |
 | Copilot runtime: response cache, in-flight sharing, allowances, limiters, CLI semaphore and breaker | `copilot/service/` | see the copilot document |
 
 Consequences: a restart or cold start empties all of it. The score window then starts
 with one sample and screens say "from one snapshot at HH:MM", then "over the last N
 minutes" with N the minutes the samples actually span, until the window is full; yards are decided again from single snapshots, and the
 cockpit says "This server has decided this depot's yard on N snapshots so far"; the held
-peak shares start again from the next snapshot, so a server restarted in the evening models
-a smaller day than one that saw the morning peak; the route
+peak shares start again from the next snapshot, so the first snapshots after a restart can
+set them and a server restarted in the evening models a smaller day than one that saw the
+morning peak; the allocation plan is made afresh; the route
 catalogue is empty until users load details again; the copilot's limits and budget reset.
 With several instances, each holds its own copy: two requests can be scored over different
 windows, see different held yards, different held peak shares (so a different modelled day
-and transfer plan until each instance has seen the peak) and different cached routes, and every limit and the
+and transfer plan until each instance has seen the peak), allocation plans made at
+different feed times, and different cached routes, and every limit and the
 copilot's Claude budget multiply by the number of instances. A shared store (for example
 Redis) is the fix and is not built.
 
@@ -354,13 +357,15 @@ and heard within `REPORTING_WINDOW_MIN = 30` → `in_service`; any other moving 
 span the feed time (an overnight trip). A bus quiet for more than the reporting window but
 not yet dark gets
 "Not heard for N min" (`notHeardMinutes`) rather than a new state. `LONG_DARK_AFTER_MIN =
-4320` marks the long-dark exception.
+4320` marks the long-dark exception. A fix stamped more than `REPORTING_WINDOW_MIN` ahead of
+the feed clock has an unknown age, so it never makes a bus recently heard or in service; up
+to that lead it counts as age 0.
 
 Location (`infer/location.ts`): `in_yard`, `at_other_yard`, `away` or `unknown`, testing the
 bus's own yard first. "In the yard" means every bus of the depot inside the yard circle,
-whatever its state; a figure of the standing subset says "standing in the yard" (S53).
+whatever its state; a figure of the standing subset says "standing in the yard".
 
-**One state vocabulary (ruling S60).** Every page and the network figures use these
+**One state vocabulary.** Every page and the network figures use these
 classified states, worded On road, Standing, Dark and Off road, never the feed's own status
 field: the network KPIs (`onRoad`, `stationary`, `noSignal`, `underMaintenance`) are sums of
 the classified states, so they partition the fleet and a network total is the sum of what
@@ -372,17 +377,21 @@ Kind is read from the name: empty → `unassigned`; starting `ENFORCEMENT` → `
 whole word `HIRED` → `hired`; whole word `ELECTRIC` → `electric`; otherwise `depot`. Only
 `depot` units with at least `MIN_FLEET_FOR_RANK = 10` buses are rankable. Rankable depots
 are split into fleet-size terciles; if any tercile would hold fewer than
-`MIN_PEER_GROUP = 5`, everyone goes into one group.
+`MIN_PEER_GROUP = 5`, everyone goes into one group. The economics index draws its groups the
+same way over the depots it can score (section 7.13).
 
 ### 7.3 Depot Efficiency Index and its rolling window — `score/`
 
 Five components (`score/config.ts`): on-road share 0.35, off-road rate 0.20, dark rate 0.20,
 schedule coverage 0.15, device integrity 0.10. Each is a robust z against the peer group
 (`stats/robust.ts`: (value − median) / (1.4826 × MAD); when the MAD is 0, the mean absolute
-deviation around the median × 1.2533 is used, ruling S9), clamped to `Z_CLAMP = 3`, signed so
-higher is better, weighted, and scaled to 0–100 as `50 + (weighted / 3) × 50` (`score/dei.ts`).
+deviation around the median × 1.2533 is used), clamped to `Z_CLAMP = 3`, signed so
+higher is better, weighted, and scaled to 0–100 as `50 + (weighted / 3) × 50` (`score/dei.ts`),
+held at the one decimal it is shown at. Depots with equal indexes share a rank: the rank is 1
+plus the number of depots in the group with a higher index (1, 2, 2, 4;
+`score/competitionRanks.ts`, used by the economics index too).
 
-**Rolling window (rulings S42, S50b, S56b, S56c).** Components are ratios of each depot's
+**Rolling window.** Components are ratios of each depot's
 counts summed over the snapshots of the last `SCORE_WINDOW_MIN = 20` minutes of feed time,
 at most `SCORE_WINDOW_MAX_SAMPLES = 120` per depot (`score/window.ts`) and at most
 `SCORE_WINDOW_MAX_DEPOTS = 1000` depots (`score/windowStore.ts`), one sample per distinct
@@ -432,12 +441,12 @@ the API can be scoped to one depot (`?depot=<id>` on the page; the response then
 ### 7.5 Yard inference — `infer/yard.ts`, `infer/yardClusters.ts`
 
 There is no depot master, so a yard is learned from where a depot's standing buses park.
-Parked buses are linked by distance (density clustering, ruling S25): a bus is a core point
+Parked buses are linked by distance (density clustering): a bus is a core point
 when at least `YARD_CORE_MIN_NEIGHBOURS = 4` parked buses, itself included, stand within
 `YARD_LINK_M = 150` m; core points within the link distance form one group, and any other
 bus within reach of a core point joins that group as a border member without extending it.
 
-**Adjacent groups are one place (ruling S46, `infer/yardPlace.ts`).** Starting from the
+**Adjacent groups are one place (`infer/yardPlace.ts`).** Starting from the
 largest group, any group whose nearest bus stands within `YARD_ADJACENT_M` (twice the link
 distance, 300 m) of a bus already in the place is taken in, unless that would make the place
 wider than the maximum span, and the search repeats after each one taken. This happens
@@ -461,7 +470,7 @@ buses park; not a surveyed location" (`live/depotView.ts`).
 
 ### 7.6 Yard continuity — `infer/yardContinuity.ts`, `infer/yardMemory.ts`
 
-Rulings S43 and S50c. Once a yard is established in this process, a later snapshot that
+Once a yard is established in this process, a later snapshot that
 would not place it (no yard, or one elsewhere) keeps it while at least `YARD_MIN_CLUSTER`
 (6) of the depot's standing buses with a usable position, heard within the reporting
 window, are inside its circle; dead devices left in the yard do not keep it. The held
@@ -483,7 +492,7 @@ missing for a while after a restart; and each instance keeps its own memory.
 
 ### 7.7 Outshedding — `infer/outshed.ts`
 
-Per scheduled trip, ordered (ruling S6): ended; departed on actual time; upcoming (start
+Per scheduled trip, ordered: ended; departed on actual time; upcoming (start
 still ahead of `feedNow`, even if the bus is dark); unknown (dark or unlocated); departed by
 location; due; overdue after `OUTSHED_GRACE_MIN = 10`. An actual start counts only within
 `ACTUAL_START_WINDOW_MIN` (120 before, 360 after the schedule); delays above
@@ -512,14 +521,14 @@ as buses come home. A later operating date (the feed's, `operatingDateOf`) start
 snapshot of an earlier date, one with no date and the saved sample read their own windowed
 shares and leave the maxima as they were. A depot
 with no held value reads its single-snapshot share, then the peer median. On a cold server
-with one sample it equals the single-snapshot requirement, and the maxima are per instance
-(section 6). Fleet and off-road counts are still read from each snapshot, so available
+with one sample it equals the single-snapshot requirement, so the first snapshots after a
+restart can set the day's maxima; the maxima are per server (section 6). Fleet and off-road counts are still read from each snapshot, so available
 buses, and the day with them, still follow a bus that really goes off the road.
 
 Transfers (`optimise/rebalance.ts`, `optimise/minCostFlow.ts`): min-cost max-flow by
 successive shortest paths from surplus to deficit depots, distance = straight line × detour
-factor 1.3, up to a maximum transfer distance (default 250 km, bounded 25–600). Only
-`kind === 'depot'` units give or receive (ruling S7); excluded depots stay in the totals and
+factor 1.3, held to 100 m (`COST_GRID_M`) so the plan's bus-km add up, up to a maximum transfer distance (default 250 km, bounded 25–600). Only
+`kind === 'depot'` units give or receive; excluded depots stay in the totals and
 their deficit is reported as uncovered with reason `excluded`; locked depots may receive but
 not give. Uncovered reasons in order: `excluded`, `no_position`, `no_surplus_in_range`,
 `insufficient_surplus`. The what-if sandbox (`optimise/scenario.ts`) re-runs the plan with a
@@ -529,10 +538,12 @@ Depot positions are the inferred yards.
 ### 7.9 Route profiles and route-to-depot allocation — `routes/`, `optimise/allocate*.ts`
 
 A route profile (ordered stops, terminals, one-way length) is read through one bus running
-that route, from the schedule API, once per route per operating day, and cached
-(`routes/routeCatalogue.ts`: `ROUTE_CACHE_MAX = 2000`, negative answers for
-`ROUTE_NEGATIVE_TTL_MS = 600_000`). Stops at 0,0 stay in the list but do not count toward
-length. There is **no background crawl** (ruling S40). A profile is fetched one route at a
+that route, from the schedule API, once per route per operating day, and cached keyed on the
+route and the feed's operating date (`routes/routeCatalogue.ts`: `ROUTE_CACHE_MAX = 2000`,
+negative answers such as "no schedule" for `ROUTE_NEGATIVE_TTL_MS = 600_000`). A schedule with
+no stops is a "no schedule" answer. A failed lookup is never cached, so Retry asks the server
+again. Stops at 0,0 stay in the list but do not count toward
+length. There is **no background crawl**. A profile is fetched one route at a
 time, only on a person's action: when that route is opened on the Routes page, when a
 depot's roster or a bus on the route is opened, or when a person presses "Load route
 details" for one depot on the Routes page's plan panel (`PROFILES_GROW_WITH_USE` in
@@ -545,27 +556,39 @@ same route (at most `MAX_PAUSES_PER_ROUTE = 3` pauses), and loads at most
 routes in the feed (the `routes` count on each depot option of the routes response) and
 preselects the depot most worth a press (`routes/loaderRow.ts`). Until details are loaded the
 plan is empty and says so ("No route can be planned yet: no route's details have been
-loaded."). Cache misses are limited (`ROUTE_PROFILE_FETCH_LIMITS` in `rateLimit.ts`): 20 per
-identity, 40 per trusted address, 120 per process, per minute.
+loaded."). Cache misses are limited (`ROUTE_PROFILE_FETCH_LIMITS` in `rateLimit.ts`) in calls to
+the schedule server: 20 per identity, 40 per trusted address and 120 per process, per minute.
+One lookup can make up to `SCHEDULE_MAX_UPSTREAM_CALLS = 4` calls (the bus's date, then three
+fallback dates counted back from the feed's operating date), and each call takes one slot
+from every limit immediately before it is made, as the condition of making it: a lookup
+whose first date answers costs one slot, and a cache hit costs nothing. If no slot is free
+before a call, the lookup stops there and the route answers its fixed 429 with
+`Retry-After`; nothing is cached. The route waits at most `ROUTE_LOOKUP_DEADLINE_MS =
+25_000` for the snapshot and the lookup, then answers its fixed 503; a lookup still running
+then is cached only if it ends in an answer. Every limit is per instance.
 
 The allocation (`optimise/allocate.ts`) recommends which depot should run each route to cut
 dead kilometres (inferred yard to the route's real first and last stop) within capacity. It
 starts from the current allocation; in a first phase routes, taken in regret order, move to
 their best depot that still has room, and a local search then tries swaps. A shift or swap is
-applied only when it saves at least `MIN_SAVING_KM_PER_DAY = 5` in total (a swap as a whole, ruling S20), up to
+applied only when it saves at least `MIN_SAVING_KM_PER_DAY = 5` in total (a swap as a whole), up to
 `MAX_MOVES = 200` (`optimise/allocateConfig.ts`). Trips per day are modelled
 (`sim/tripFrequency.ts`). Only routes whose profiles are already cached are planned; the
-plan is re-made at most every `REPLAN_MIN_INTERVAL_MS = 30_000` (`live/allocationView.ts`),
-so newly loaded profiles appear in it within half a minute. Unchanged routes carry one
-reason (ruling S21).
+plan is held for `PLAN_HOLD_FEED_MS` (5 minutes) of feed time across snapshots
+(`live/allocationView.ts`), and the response's `plannedAt` gives the feed time it was made
+at. It is made again after that span, when the feed clock steps back, on a new operating
+date, or when the route catalogue changes; a catalogue change still waits for
+`REPLAN_MIN_INTERVAL_MS = 30_000` since the last plan, so newly loaded profiles appear in it
+within half a minute. The depot filter, list filters, paging and counts are applied per
+request on the current snapshot. Unchanged routes carry one reason.
 
 ### 7.10 Duties and the one bus-to-duty matcher — `sim/duties.ts`, `sim/dayPlan.ts`, `optimise/assignDuties.ts`
 
-**One plan (ruling S47).** `planDay` (`sim/dayPlan.ts`) is the one place a depot's modelled
+**One plan.** `planDay` (`sim/dayPlan.ts`) is the one place a depot's modelled
 duties are generated and its buses matched to them, held once per snapshot, depot and
 operating date (`live/operatingDayView.ts`). The duty board, the crew roster, the night
 parking order and the modelled day (fuel, revenue, economics) all read this plan, so they
-cannot disagree. A repeated registration keeps the most recently heard row (S62).
+cannot disagree. A repeated registration is one bus (section 4).
 
 The modelled duty plan has exactly one duty per bus the depot needs at peak (section 7.8),
 dealt round-robin over the depot's routes in name order, so when the requirement is smaller
@@ -576,7 +599,7 @@ durations, so every duty length is a seeded 4–10 h; starts cluster on a mornin
 **The matcher** (`assignDuties`, an exact minimum-cost matching by the Hungarian algorithm in
 `optimise/hungarian.ts`). Eligibility, each exclusion with one reason: off the road and dark
 never; when the feed has a clock, a bus not heard within the reporting window, moving or
-standing (S55); a standing bus away from an established yard. A bus in service or on the
+standing; a standing bus away from an established yard. A bus in service or on the
 road is eligible: it is out working. Every other pairing is allowed and costed in tiers, in
 this order (each tier outweighs everything below it):
 
@@ -592,7 +615,7 @@ this order (each tier outweighs everything below it):
 Duties without a bus are `no_eligible_bus`; eligible buses without a duty are spare, and the
 board says where the spare buses stand. Each assignment records how its bus stands now.
 
-**Three plan modes** (`PlanMode`, sent as `planMode`; rulings S55, S62, S62b):
+**Three plan modes** (`PlanMode`, sent as `planMode`):
 
 - `as_of_feed_time`: the feed's own date once its first duty has started, with every tier.
 - `before_first_duty`: the feed's own date before its first duty starts. The day has not
@@ -611,7 +634,7 @@ supplied.
 
 The lane layout is modelled: lanes of 6–10 buses summing to the modelled parking capacity,
 seeded by depot id. The buses to park are exactly the depot's own buses the feed places in
-its yard. The date it plans (rulings S55, S62): before the first duty of the feed's date it
+its yard. The date it plans: before the first duty of the feed's date it
 plans that date, from the same shared plan as the duty board; from the first duty on, it
 plans the next date with the `later_day` plan, which covers the yard buses only, so it says
 which yard bus leaves first, never how many duties the depot can cover that day; the
@@ -636,7 +659,7 @@ itself.
 
 ### 7.13 One modelled operating day — `sim/operatingDay.ts`
 
-Rulings S41 and S47. Crew, fuel, revenue, economics and the duty count all derive from one
+Crew, fuel, revenue, economics and the duty count all derive from one
 modelled day per depot and date, read off the one duty plan (section 7.10): its duties and
 the bus the matcher put on each. A bus with a duty ran its route out and back; every other
 bus did not run. A route's length is the real one when its profile is cached and the length
@@ -647,36 +670,41 @@ it once in their provenance line through `modelledDaySentence` (`src/lib/depot/m
 It reads:
 
 - **Crew** (`sim/crew.ts`, `crew/roster.ts`): shifts derived from duties (a duty longer than
-  `MAX_DUTY_HOURS_PER_DAY = 10` is split, ruling S27); slots per shift 1.45 drivers and 1.4
+  `MAX_DUTY_HOURS_PER_DAY = 10` is split); slots per shift 1.45 drivers and 1.4
   conductors plus `CREW_RESERVE_SLOTS = 2`; seeded leave 6%, training 3%, absent 4%; weekly
-  limit `MAX_HOURS_PER_WEEK = 48`. Uncovered shifts carry a reason per role (ruling S36).
+  limit `MAX_HOURS_PER_WEEK = 48`. Uncovered shifts carry a reason per role.
   Slots are anonymous.
 - **Fuel** (`sim/fuelConfig.ts`, `fuel/`): km per litre 4.8 / 4.6 / 4.0 / 3.6 by class with a
   per-bus spread and daily noise; price `DEFAULT_PRICE_PER_LITRE = 92`. A bus is compared
   with its peers (other buses of its class on the route, `MIN_PEERS = 2`) and flagged at
-  `FUEL_VARIANCE_FLAG_PCT = 15` only when the peer median is supported (rulings S28, S31).
+  `FUEL_VARIANCE_FLAG_PCT = 15` only when the peer median is supported.
 - **Revenue** (`sim/revenueConfig.ts`): load factor 0.62 / 0.55 / 0.45 / 0.40; fare per
   occupied seat-km ₹1.1 / 1.5 / 2.2 / 2.8; revenue per leg = seats × load factor × length ×
-  fare per km, two legs per trip (ruling S32).
+  fare per km, two legs per trip, priced on the seats offered per trip unrounded (the shown
+  seats per trip is rounded).
 - **Economics** (`revenue/economicsIndex.ts`): earnings per km 0.40, cost per km 0.35, load
-  factor 0.25, robust z clamped at 3, within the efficiency index's peer groups; every
-  operating depot is ranked when its group keeps at least `MIN_PEER_GROUP` members, else
-  `peer_group_too_small` (ruling S39).
+  factor 0.25, robust z clamped at 3. Its peer groups are drawn over the depots with every
+  component, by the efficiency index's rule (terciles, merged into one group when a tercile
+  would hold fewer than `MIN_PEER_GROUP`); a depot missing a component is shown the group its
+  fleet falls in. A depot below `MIN_FLEET_FOR_RANK` is `fleet_too_small`; a depot in a group
+  still too small to rank is `peer_group_too_small`. Equal indexes share a rank.
 
 ### 7.14 History, trends and forecasting — `sim/history.ts`, `forecast/`
 
 History is a **modelled** daily series: a mean-reverting walk with a weekly rhythm, built
 backwards from today's live value so it cannot contradict the figure beside it, seeded per
-date. Network rates are computed from summed counts, never a mean of depot rates.
+date. Network rates are computed from summed counts, never a mean of depot rates. Available
+buses never exceed the fleet: the history view passes the fleet as a ceiling, every point of
+the series (and the forecast with both band edges) is clipped to it, and each point carries
+it as `ceiling`.
 
-Trend words compare a week and four weeks (`FOUR_WEEK_DAYS = 28`, ruling S35), and "steady"
+Trend words compare a week and four weeks (`FOUR_WEEK_DAYS = 28`), and "steady"
 is judged against the series' own variation (`STEADY_QUANTILE = 0.8`).
 
 Forecasts (`forecast/config.ts`): seasonal-naive is the baseline; Holt-Winters replaces it
 only when its backtest error over the displayed horizon beats it by `METHOD_MARGIN = 0.05`.
 Backtest over `BACKTEST_DAYS = 28`; the band h days ahead is the `BAND_QUANTILE = 0.8`
-quantile of that method's h-step errors, pooled when fewer than `MIN_BAND_SAMPLES = 10`
-(ruling S34). No forecast from fewer than `MIN_HISTORY_DAYS = 28` days; horizon default
+quantile of that method's h-step errors, pooled when fewer than `MIN_BAND_SAMPLES = 10`. No forecast from fewer than `MIN_HISTORY_DAYS = 28` days; horizon default
 `DEFAULT_HORIZON_DAYS = 14`, max 28. Because the history is modelled, so is every forecast.
 
 ## 8. The copilot
