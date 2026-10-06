@@ -29,7 +29,7 @@ import type {
 
 type Standing = 'eligible' | 'missing_component';
 
-/** Ruling S39: route coverage is no gate; only a missing component sets a depot aside. */
+/** Route coverage is no gate; only a missing component sets a depot aside. */
 function standingOf(values: Values): Standing {
   return missingOf(values).length > 0 ? 'missing_component' : 'eligible';
 }

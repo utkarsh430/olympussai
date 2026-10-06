@@ -34,17 +34,17 @@ export function rankingShortfallNotice(
   return {
     lead: `Only ${formatCount(ranked)} of ${formatCount(operating.length)} ${noun} are ranked. A depot is ranked when a duty is run in its modelled day and its peer group has at least ${formatCount(MIN_PEER_GROUP)} depots with complete figures. Earnings per kilometre on a route do not depend on its length, but a depot's figures weight its routes by the distance they run, so no depot waits for route profiles to be ranked; a real length, once a route is opened on the `,
     linkText: 'Routes page',
-    // The same claim as `lengthCoverageLine` below (review I3-rest): a length can move the rank.
+    // The same claim as `lengthCoverageLine` below: a length can move the rank.
     tail: ", replaces the modelled one, and can move the depot's figures and its rank.",
   };
 }
 
 /**
  * How many of the routes run across the operating depots rest on a real length
- * (ruling S39: a coverage figure, never a reason to hide a number); null when
+ * (a coverage figure, never a reason to hide a number); null when
  * no route ran. A route's own earnings per kilometre do not depend on its
  * length, but a depot's figures are means weighted by the distance each route
- * runs, so a real length can move them and the depot's rank (review I3).
+ * runs, so a real length can move them and the depot's rank.
  */
 export function lengthCoverageLine(depots: readonly EconomicsDepotRow[]): string | null {
   const operating = depots.filter((d) => d.kind === 'depot');

@@ -4,7 +4,7 @@ import { groupLabel } from './fuelPageModel';
 import { BASIS_LABEL, routeDash } from './fuelStandOut';
 
 /*
- * Column sets per width for the fuel page's tables (critique round 5, section 7). No
+ * Column sets per width for the fuel page's tables. No
  * column is cut at 1440, 1280 or 1024; below 1024 a deliberate smaller set, the rest in
  * the row's `title`. Widths in px; their sums are pinned against each tier's frame.
  */

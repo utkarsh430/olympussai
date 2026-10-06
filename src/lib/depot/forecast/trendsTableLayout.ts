@@ -2,7 +2,7 @@ import type { TableTier } from '../shell/tableTier';
 import type { TrendSortKey, TrendTableRow } from './trendsTableModel';
 
 /*
- * The network trends unit table per width (critique round 5, section 7). Every column
+ * The network trends unit table per width. Every column
  * from 1280; at 1024 the sparkline narrows to 80 px and "Trend, 7 days" goes to the
  * unit cell's title; at 800 the table keeps UNIT · 30 DAYS · 4 WEEKS PP · TREND. The
  * column the table is sorted by is never dropped: sorted by the 7 days' change at 800,

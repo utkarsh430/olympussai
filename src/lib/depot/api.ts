@@ -65,7 +65,7 @@ export interface DepotNetworkResponse extends DepotFeedEnvelope {
    * yard on, since it started (or its yard memory last restarted). A yard is
    * held only from the second; at 0 or 1 a missing yard may be a fresh start
    * rather than evidence. Not sent for the recorded fixture, and never keyed by
-   * the unassigned group: the memory decides neither (P2).
+   * the unassigned group: the memory decides neither.
    */
   readonly yardSnapshotsSeen?: Readonly<Record<string, number>>;
 }
@@ -154,7 +154,7 @@ export interface DepotDetailResponse extends DepotFeedEnvelope {
   readonly yard: Figure<Yard | null>;
   /**
    * How many snapshots this server process has decided this depot's yard on. Not sent for
-   * the recorded fixture or the unassigned group, which the yard memory never decides (P2).
+   * the recorded fixture or the unassigned group, which the yard memory never decides.
    */
   readonly yardSnapshotsSeen?: number;
   readonly buses: readonly DepotBusView[];

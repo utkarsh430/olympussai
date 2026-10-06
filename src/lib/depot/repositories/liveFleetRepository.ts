@@ -16,7 +16,7 @@ function staleForDepots(result: LiveSnapshotResult, nowMs: number): boolean {
   if (!result.stale) return false;
   const fetchedMs = Date.parse(result.snapshot.fetchedAt);
   if (!Number.isFinite(fetchedMs)) return true;
-  // A negative age means this machine's clock stepped back below the fetch (P7): the age is
+  // A negative age means this machine's clock stepped back below the fetch: the age is
   // unknown, so the data is not called fresh rather than fresh until the clock catches up.
   const ageMs = nowMs - fetchedMs;
   return ageMs < 0 || ageMs > LAST_GOOD_FRESH_MS;

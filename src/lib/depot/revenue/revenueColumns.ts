@@ -3,8 +3,8 @@ import type { RevenueTableRow } from './revenueTablePageModel';
 import type { TableTier } from '../shell/tableTier';
 
 /*
- * The revenue page's BY ROUTE columns per width (critique round 5, section 7) and the
- * plain-word length basis (earlier Minor M14: no tag inside a cell). Widths in px; the
+ * The revenue page's BY ROUTE columns per width and the
+ * plain-word length basis (no tag inside a cell). Widths in px; the
  * sums are pinned against each tier's frame.
  */
 

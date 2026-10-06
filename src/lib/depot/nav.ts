@@ -2,8 +2,8 @@
  * Navigation model for the Depot Management shell.
  *
  * An entry is added here only when its page exists: a link to a page that is
- * not built yet is a dead end. Depot-scope pages (cockpit, roster, yard) have
- * their own sub-navigation, since they belong to one depot.
+ * not built yet is a dead end. A depot's own pages are listed by `depotNav`
+ * (`depotNav.ts`), since they belong to one depot.
  */
 export const DEPOTS_ROOT = '/project/depots';
 

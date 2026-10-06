@@ -1,5 +1,5 @@
 /*
- * The yard lists per width (critique round 5, section 7 and section 8). On a phone the
+ * The yard lists per width. On a phone the
  * standing and off-road groups drop REASON (when every listed row gives the same reason it
  * becomes the group's note), and the away list keeps REGISTRATION · STATE · FROM YARD. The
  * away list's "In the yard of" column shows only when a row actually shown has a value.

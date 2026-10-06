@@ -7,7 +7,7 @@ import { scoreWindowSentence, type WindowWordsInput } from './score/windowWords'
 
 /**
  * The page's provenance line: one tag and one fixed-formula sentence, declared once
- * under the page header (design-wave rulings, section 2). Only what differs from this
+ * under the page header. Only what differs from this
  * default carries its own tag elsewhere on the page. Pure, so every sentence is tested.
  */
 

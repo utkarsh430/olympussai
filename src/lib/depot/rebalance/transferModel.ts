@@ -36,8 +36,7 @@ function indexById(balances: readonly DepotBalance[]): ReadonlyMap<string, Depot
  * One row per transfer, in the plan's order (the order the table lists them), with the
  * context a planner decides on. A depot can give or receive in more than one transfer, so
  * each row's "before" is the depot's balance immediately before THAT transfer: the balance
- * before the plan, less what the rows above it already moved from or to that depot
- * (review R2-I1).
+ * before the plan, less what the rows above it already moved from or to that depot.
  */
 export function transferRows(
   plan: TransferPlan,

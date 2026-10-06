@@ -113,7 +113,7 @@ export function availabilityText(role: CrewRole, counts: AvailabilityCounts): st
 /**
  * The modelled day, in words, for a sentence that stands on the page: dated when the
  * response gave its operating date. The day is a model rebuilt from the live fleet, so
- * no sentence on this page says "today" (review M2).
+ * no sentence on this page says "today".
  */
 export function modelledDayPhrase(operatingDate?: string): string {
   return operatingDate === undefined

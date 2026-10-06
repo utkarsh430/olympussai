@@ -6,7 +6,7 @@ import type { EconomicsRow } from './economicsRows';
 import type { TableTier } from '../shell/tableTier';
 
 /*
- * The economics page's layout words and geometry (design wave, round 2): the
+ * The economics page's layout words and geometry: the
  * figure band, the one visible sentence that keeps the index's limits on screen,
  * the sign note, the modelled-day extension of the provenance line, the peer-group
  * grouping and the table's column widths at 1440.
@@ -103,14 +103,14 @@ export type EconomicsColumnKey = keyof typeof ECONOMICS_COLUMN_WIDTHS;
 /** Every column set leaves at least this much of its frame unused. */
 export const MIN_SPARE_PX = 8;
 
-/** Every column from 1024; at 800 LOAD % and FLEET go to the breakdown (critique §7). */
+/** Every column from 1024; at 800 LOAD % and FLEET go to the breakdown. */
 export function economicsColumnKeys(tier: TableTier): readonly EconomicsColumnKey[] {
   return tier === 'narrow'
     ? ['rank', 'depot', 'index', 'earningsPerKm', 'costPerKm']
     : ['rank', 'depot', 'index', 'earningsPerKm', 'costPerKm', 'loadFactor', 'fleet'];
 }
 
-/** The breakdown's name: never the league's "Score breakdown" (R2-m3). */
+/** The breakdown's name: never the league's "Score breakdown". */
 export function breakdownButtonName(name: string): string {
   return `Economics breakdown for ${name}`;
 }

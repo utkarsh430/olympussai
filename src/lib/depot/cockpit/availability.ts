@@ -63,7 +63,7 @@ export const NO_YARD_LINE =
   'No yard is established yet: no place where these buses park meets the yard rule.';
 /**
  * The count restarts with the yard memory (a new epoch, a long absence), so the line
- * states the count and claims nothing about why it is low (P2).
+ * states the count and claims nothing about why it is low.
  */
 export function yardStartingLine(snapshotsSeen: number): string {
   const counted = `${formatCount(snapshotsSeen)} ${snapshotsSeen === 1 ? 'snapshot' : 'snapshots'}`;

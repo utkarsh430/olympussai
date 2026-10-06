@@ -14,7 +14,7 @@ import type {
  * What the exceptions page is about. With `?depot=` the WHOLE page is that depot's: the
  * bands count it (the response's `depotScope`), the depot list is its own, and the totals
  * line names its bus total. With `?kind=` as well, the depot section's count is the
- * filtered list's (R2-m22, R2-m23). Pure; the page renders what this returns.
+ * filtered list's. Pure; the page renders what this returns.
  */
 export interface ExceptionPageScope {
   /** The depot the page is about ("KAUSHAMBI", or "Depot 77" for an id the snapshot lacks); null for the network. */

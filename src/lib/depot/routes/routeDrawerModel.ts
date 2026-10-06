@@ -6,8 +6,8 @@ import { delayWords } from './routeRowWording';
 
 /**
  * The drawer's first line, from the route's row: its class, then its delay and late share
- * with the buses they rest on. Said in every state, so the delay basis is visible (review
- * R2-m19) and CLASS and LATE %, which the table drops below 1024 px, are never lost.
+ * with the buses they rest on. Said in every state, so the delay basis is visible
+ * and CLASS and LATE %, which the table drops below 1024 px, are never lost.
  */
 export function drawerRowFacts(
   route: Partial<Pick<RouteListItem, 'serviceToken' | 'delay'>>,

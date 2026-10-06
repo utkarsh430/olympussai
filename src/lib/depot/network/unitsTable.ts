@@ -72,7 +72,7 @@ export const TABLE_FRAME_PX_390 = contentWidthAt(390);
 export type UnitsTier = 'full' | 'mid' | 'narrow' | 'phone';
 
 /**
- * Critique section 7. KIND is never a column: it is a muted suffix on a non-depot unit's
+ * KIND is never a column: it is a muted suffix on a non-depot unit's
  * name. From 1024 to 1439: UNIT · FLEET · ON ROAD · STANDING · DARK · OFF ROAD · MIX ·
  * INDEX (REPORT %, ASSIGN % and PEER GROUP are in the selected-unit panel). From 640 to
  * 1023: UNIT · FLEET · ON ROAD · DARK · INDEX. On a phone: UNIT · FLEET · INDEX. INDEX is

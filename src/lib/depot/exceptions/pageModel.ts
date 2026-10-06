@@ -173,7 +173,7 @@ export function failedQuerySentence(reason: string): string {
   return `Could not load that page: ${reason}. Showing the last answer that loaded.`;
 }
 
-// ---- Page wording added by the design wave -------------------------------
+// ---- Page wording: sections, notes and the closing disclosure -------------
 
 /**
  * Why the group counts and the total differ: a depot can hold more than one exception.
