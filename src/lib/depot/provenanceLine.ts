@@ -1,5 +1,5 @@
 import type { UpstreamSource } from '@/models/canonical';
-import { formatFeedTime } from './format';
+import { formatCount, formatFeedTime } from './format';
 import { PROVENANCE_LABEL } from './labels';
 import { DEPOTS_ROOT } from './nav';
 import { scoreWindowSentence, type WindowWordsInput } from './score/windowWords';
@@ -15,6 +15,11 @@ interface SecondSentence {
   readonly second?: string;
   /** Says the efficiency index's window, worded from the response, as the second sentence. */
   readonly indexWindow?: boolean;
+  /**
+   * A page that rests on the modelled operating day passes its sentence here (worded by
+   * `modelledDaySentence`), so the line places it and nothing else sits above the hero.
+   */
+  readonly modelledDay?: string;
 }
 
 /**
@@ -61,6 +66,61 @@ export interface ProvenanceLine {
   readonly tone: ProvenanceTone;
   readonly sentence: string;
   readonly link: ProvenanceLink | null;
+  /** The modelled-day sentence, after the formula; absent when the page passes none. */
+  readonly context?: string;
+  /** The words inside `sentence` that say the data is stale; present only when it is. */
+  readonly staleWords?: string;
+}
+
+/** The words every stale sentence carries; drawn in the stale tone, so never colour alone. */
+export const STALE_WORDS = 'last good data';
+
+export interface ModelledDayInput {
+  /** Already formatted ("Mon 05 Oct"). */
+  readonly date: string;
+  readonly duties: number;
+  readonly routes: number;
+  /** Buses the feed carries a schedule for, of `fleet`. */
+  readonly scheduled: number;
+  readonly fleet: number;
+}
+
+const plural = (n: number, one: string, many: string): string =>
+  `${formatCount(n)} ${n === 1 ? one : many}`;
+
+/** The fixed formula for a page built on the modelled operating day. */
+export function modelledDaySentence(input: ModelledDayInput): string {
+  const { date, duties, routes, scheduled, fleet } = input;
+  return (
+    `Built on the modelled day for ${date}: ${plural(duties, 'duty', 'duties')} on ` +
+    `${plural(routes, 'route', 'routes')}; the feed schedules ${formatCount(scheduled)} of ` +
+    `${plural(fleet, 'bus', 'buses')}.`
+  );
+}
+
+export interface SentenceSegment {
+  readonly text: string;
+  readonly stale: boolean;
+}
+
+/** Splits a sentence around its stale words, so they can be drawn in the stale tone. */
+export function sentenceSegments(
+  sentence: string,
+  staleWords: string | undefined,
+): readonly SentenceSegment[] {
+  if (!staleWords || !sentence.includes(staleWords)) return [{ text: sentence, stale: false }];
+  // A mixed page can say it twice (its live and its derived part): mark every occurrence.
+  return sentence
+    .split(staleWords)
+    .flatMap((text, index) =>
+      index === 0
+        ? [{ text, stale: false }]
+        : [
+            { text: staleWords, stale: true },
+            { text, stale: false },
+          ],
+    )
+    .filter((part) => part.text.length > 0);
 }
 
 type FeedState =
@@ -151,9 +211,17 @@ function modelledSentence(replacedBy: string | undefined, state: FeedState): str
 }
 
 export function provenanceLine(desc: ProvenanceDescription, feed: ProvenanceFeed): ProvenanceLine {
-  const line = formulaLine(desc, feedState(feed));
+  const state = feedState(feed);
+  const line = formulaLine(desc, state);
   const second = desc.second ?? windowSecond(desc, feed);
-  return second ? { ...line, sentence: `${line.sentence} ${second}` } : line;
+  const sentence = second ? `${line.sentence} ${second}` : line.sentence;
+  const stale = state.kind === 'stale' && sentence.includes(STALE_WORDS);
+  return {
+    ...line,
+    sentence,
+    ...(desc.modelledDay ? { context: desc.modelledDay } : {}),
+    ...(stale ? { staleWords: STALE_WORDS } : {}),
+  };
 }
 
 /** The index window, once the feed has answered: never a window the reader cannot see. */

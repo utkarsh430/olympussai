@@ -2,6 +2,7 @@
 
 import { useId, useState, type ReactNode, type Ref } from 'react';
 import { formatCount } from '@/lib/depot/format';
+import { DisclosureChevron } from './DisclosureChevron';
 
 export interface CollapsedSectionProps {
   readonly label: string;
@@ -50,9 +51,7 @@ function Toggle(props: {
       onClick={onClick}
       className={`inline-flex min-w-0 items-baseline gap-2 text-left hover:text-depot-ink ${look}`}
     >
-      <span aria-hidden className={`inline-block w-3 text-depot-faint ${open ? 'rotate-90' : ''}`}>
-        ›
-      </span>
+      <DisclosureChevron open={open} />
       <span className="min-w-0">
         {label}
         {count !== undefined ? <span className="tabular-nums"> · {formatCount(count)}</span> : null}
@@ -100,7 +99,7 @@ export function CollapsedSection(props: CollapsedSectionProps) {
   }
   return (
     <section aria-labelledby={headingId} data-testid={testId} className="min-w-0">
-      <div className="mb-3 flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-depot-line pt-3">
+      <div className="mb-3 flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-depot-line pt-4">
         <h2
           id={headingId}
           ref={headingRef}
@@ -109,7 +108,7 @@ export function CollapsedSection(props: CollapsedSectionProps) {
         >
           {button}
         </h2>
-        {note ? <p className="min-w-0 font-sans text-[13px] text-depot-muted">{note}</p> : null}
+        {note ? <p className="depot-note min-w-0">{note}</p> : null}
       </div>
       {content}
     </section>

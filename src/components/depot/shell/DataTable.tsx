@@ -4,6 +4,9 @@ import { Fragment, useId, useMemo, useRef, useState } from 'react';
 import { sortRows, type SortDirection, type SortValue } from '@/lib/depot/tableSort';
 import { ExpandToggle, expandedRowId, useExpandedRows } from './RowExpander';
 import { TableOverflowCue, useColumnsToTheRight } from './TableOverflowCue';
+import type { Provenance } from '@/lib/depot/types';
+import { ProvenanceBadge } from './ProvenanceBadge';
+import { groupCounts, groupLabel, groupRows, type TableGrouping } from './tableGroups';
 
 const EXPAND_KEY = '__expand';
 
@@ -17,6 +20,13 @@ export interface Column<T> {
   readonly width?: number | string;
   /** Full text for a cell that may truncate (`fixedRows`); a string `render` result is used when absent. */
   readonly title?: (row: T) => string | undefined;
+  /** Shown after the header ("EARNINGS ₹/KM"), so cells carry bare numbers. */
+  readonly unit?: string;
+  /**
+   * Only when this column's provenance differs from the page's provenance line: a pill in
+   * the header cell, after the label. Never a tag in a cell.
+   */
+  readonly tag?: Provenance;
 }
 
 export interface TableSort {
@@ -62,6 +72,12 @@ export interface DataTableProps<T> {
   /** The expander button's accessible name for a row; "Show details" by default. */
   readonly expandLabel?: (row: T) => string;
   readonly multipleExpanded?: boolean;
+  /**
+   * Print a repeated column (peer group, status, severity) once, as a group row with its
+   * count, instead of on every row; drop that column from `columns`. Groups follow the
+   * sorted order (the group of the first row comes first).
+   */
+  readonly group?: TableGrouping<T>;
 }
 
 export interface TableSortState {
@@ -73,6 +89,16 @@ export interface TableSortState {
 }
 
 const ARIA_SORT = { asc: 'ascending', desc: 'descending' } as const;
+
+/** A header's label, then its unit ("EARNINGS ₹/KM") in the faint tone. */
+function HeaderText<T>({ column }: { readonly column: Column<T> }) {
+  if (!column.unit) return <>{column.header}</>;
+  return (
+    <>
+      {column.header} <span className="text-depot-faint">{column.unit}</span>
+    </>
+  );
+}
 const SELECT_KEYS: ReadonlySet<string> = new Set(['Enter', ' ']);
 
 function nextSort(current: TableSort | null, key: string): TableSort {
@@ -128,6 +154,7 @@ export function DataTable<T>({
   renderExpanded,
   expandLabel,
   multipleExpanded = false,
+  group,
 }: DataTableProps<T>) {
   const autoId = useId();
   const expanded = useExpandedRows(multipleExpanded);
@@ -170,6 +197,10 @@ export function DataTable<T>({
     : undefined;
 
   const selectable = onRowSelect !== undefined;
+  const counts = useMemo(
+    () => (group ? groupCounts(sortedRows, group.key) : null),
+    [group, sortedRows],
+  );
 
   const renderRow = (row: T) => {
     const key = rowKey(row);
@@ -264,7 +295,7 @@ export function DataTable<T>({
                       className="depot-sort-button"
                       onClick={() => setSort(nextSort(sort, column.key))}
                     >
-                      {column.header}
+                      <HeaderText column={column} />
                       <span aria-hidden className="inline-block w-3 text-holo-glow">
                         {active ? (active.direction === 'asc' ? '↑' : '↓') : ''}
                       </span>
@@ -272,8 +303,13 @@ export function DataTable<T>({
                   ) : column.key === EXPAND_KEY ? (
                     <span className="sr-only">{column.header}</span>
                   ) : (
-                    column.header
+                    <HeaderText column={column} />
                   )}
+                  {column.tag ? (
+                    <span className="ml-1.5 inline-block align-middle">
+                      <ProvenanceBadge provenance={column.tag} pill />
+                    </span>
+                  ) : null}
                 </th>
               );
             })}
@@ -287,7 +323,18 @@ export function DataTable<T>({
               </td>
             </tr>
           ) : null}
-          {visibleRows.map(renderRow)}
+          {group && counts
+            ? groupRows(visibleRows, group.key).map((g) => (
+                <Fragment key={`group-${g.key}`}>
+                  <tr data-testid="depot-table-group">
+                    <th scope="colgroup" colSpan={shownColumns.length} className="depot-table-group">
+                      {(group.label ?? groupLabel)(g.key, counts.get(g.key) ?? g.rows.length)}
+                    </th>
+                  </tr>
+                  {g.rows.map(renderRow)}
+                </Fragment>
+              ))
+            : visibleRows.map(renderRow)}
           {outsideRow !== undefined ? (
             <>
               <tr>

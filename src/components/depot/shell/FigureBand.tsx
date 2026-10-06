@@ -10,19 +10,27 @@ export interface FigureBandProps {
 
 /**
  * A row of up to five figures separated by 1px vertical hairlines, with no box per
- * figure (rulings, section 3; Fuel's band is the model). Two columns under 640px,
- * the full row from 640px. The hairlines are each figure's own left border, so an odd
- * count never leaves an empty tinted cell.
+ * figure (rulings, section 3). Figures are a fixed width and LEFT-PACKED: 232px from
+ * 1280px (five fill a 1440 column exactly), 200px from 1024px, so a band of two to four
+ * never stretches to leave wide gaps; it wraps when the column is narrower. Below 1024px
+ * the band is two equal columns. 88px tall: label 11/16, 6px, figure 24/28, 6px,
+ * caption 12/16, with 8px above and below.
+ *
+ * Every figure carries a hairline on its left; the list is pulled 17px left (its 16px
+ * padding plus the 1px hairline) inside a clipping wrapper, so the first figure of every
+ * row, wrapped rows included, starts flush with the column and shows no hairline.
  */
 export function FigureBand({ label, children }: FigureBandProps) {
   return (
-    <ul
-      aria-label={label}
-      data-testid="depot-figure-band"
-      className="mb-6 grid min-w-0 grid-cols-2 gap-y-4 border-y border-depot-line py-3 sm:flex sm:flex-wrap sm:gap-y-3"
-    >
-      {children}
-    </ul>
+    <div className="mb-6 min-w-0 overflow-hidden border-y border-depot-line">
+      <ul
+        aria-label={label}
+        data-testid="depot-figure-band"
+        className="-ml-[17px] grid w-[calc(100%+17px)] grid-cols-2 gap-y-3 py-2 lg:flex lg:flex-wrap"
+      >
+        {children}
+      </ul>
+    </div>
   );
 }
 
@@ -58,19 +66,21 @@ export function Figure(props: FigureProps) {
   return (
     <li
       title={title}
-      className="min-w-0 list-none px-4 max-sm:odd:pl-0 max-sm:even:border-l max-sm:even:border-depot-line sm:flex-1 sm:basis-28 sm:border-l sm:border-depot-line sm:first:border-l-0 sm:first:pl-0"
+      className="min-w-0 list-none border-l border-depot-line px-4 lg:w-[200px] lg:flex-none xl:w-[232px]"
     >
       <div className="flex min-w-0 items-center gap-2">
-        <p className="depot-label truncate">{label}</p>
+        <div className="depot-label truncate leading-4" title={label}>
+          {label}
+        </div>
         {tag ? <ProvenanceBadge provenance={tag} /> : null}
       </div>
-      <p
-        className={`mt-1 truncate ${
-          hero ? 'depot-hero-numeral' : 'font-mono text-2xl leading-tight tabular-nums text-depot-ink'
+      <div
+        className={`mt-1.5 truncate ${
+          hero ? 'depot-hero-numeral' : 'font-mono text-2xl tabular-nums leading-7 text-depot-ink'
         }`}
       >
         {value}
-      </p>
+      </div>
       {share !== undefined ? (
         <div className="depot-bar-track mt-2 min-w-0" aria-hidden>
           <div
@@ -80,7 +90,11 @@ export function Figure(props: FigureProps) {
           />
         </div>
       ) : null}
-      {caption ? <p className="mt-1 truncate font-sans text-[13px] text-depot-muted">{caption}</p> : null}
+      {caption ? (
+        <p className="depot-caption mt-1.5 truncate" title={caption}>
+          {caption}
+        </p>
+      ) : null}
       {title ? <p className="sr-only">{title}</p> : null}
     </li>
   );

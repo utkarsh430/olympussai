@@ -38,11 +38,11 @@ export function PageHeader({
   const right = controls ?? children;
   return (
     <header className="mb-6" data-testid="depot-page-header">
-      {eyebrow ? <p className="depot-eyebrow">{eyebrow}</p> : <DepotEyebrow />}
+      {eyebrow ? <div className="depot-eyebrow">{eyebrow}</div> : <DepotEyebrow />}
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0 max-w-2xl">
           <h1 className="depot-title">{title}</h1>
-          <p className="depot-prose mt-1.5">{description}</p>
+          <p className="depot-prose mt-2">{description}</p>
         </div>
         {right ? <div className="flex min-w-0 flex-wrap items-center gap-2">{right}</div> : null}
       </div>

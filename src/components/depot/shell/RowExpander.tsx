@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { DisclosureChevron } from './DisclosureChevron';
 
 export interface ExpandedRows {
   readonly isOpen: (key: string) => boolean;
@@ -50,9 +51,7 @@ export function ExpandToggle(props: {
       }}
       className="inline-flex h-6 w-6 items-center justify-center text-depot-muted hover:text-depot-ink"
     >
-      <span aria-hidden className={`inline-block ${open ? 'rotate-90' : ''}`}>
-        ›
-      </span>
+      <DisclosureChevron open={open} />
     </button>
   );
 }

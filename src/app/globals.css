@@ -274,11 +274,36 @@
 
   /* The mono label above a page title (the depot's name on a depot page). */
   .depot-eyebrow {
-    @apply mb-1 truncate font-mono text-[11px] uppercase tracking-[0.16em] text-depot-muted;
+    @apply mb-1 truncate font-mono text-[11px] uppercase leading-4 tracking-[0.16em] text-depot-muted;
   }
 
+  /* Prose is never in the mono face (the shell inherits mono, right for data). Every
+     sentence carries one of these three; a source-scan test holds every <p> to it. */
   .depot-prose {
-    @apply font-sans text-sm leading-[1.55] text-depot-muted;
+    @apply font-sans text-sm leading-5 text-depot-muted;
+  }
+
+  /* Between a page's sections: 40px above each section's hairline, 28px under 640px.
+     A page puts its hero and sections in one depot-stack instead of picking margins. */
+  .depot-stack {
+    @apply flex min-w-0 flex-col;
+  }
+
+  .depot-stack > * + * {
+    @apply mt-7 sm:mt-10;
+  }
+
+  /* A child's own bottom margin (a band's mb-6) is dropped: the stack spaces it. */
+  .depot-stack > * {
+    @apply !mb-0;
+  }
+
+  .depot-note {
+    @apply font-sans text-[13px] leading-[18px] text-depot-muted;
+  }
+
+  .depot-caption {
+    @apply font-sans text-xs leading-4 text-depot-muted;
   }
 
   .depot-nav-link {
@@ -312,6 +337,12 @@
       font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.12em];
   }
 
+  /* The tag's two ruled places (the provenance line, a section label or a column header)
+     draw it as a pill, so it reads as a tag and never as a column or a button. */
+  .depot-tag-pill {
+    @apply rounded-full px-2;
+  }
+
   /* Data states. The placeholder is static: no shimmer, no pulse. */
   .depot-skeleton {
     @apply rounded-[3px] bg-depot-surface;
@@ -340,12 +371,14 @@
   }
 
   .depot-table th {
-    @apply sticky top-0 z-10 whitespace-nowrap border-b border-depot-line bg-depot-surface px-3
-      py-2 font-mono text-[11px] font-normal uppercase tracking-[0.12em] text-depot-muted;
+    @apply sticky top-0 z-10 h-8 whitespace-nowrap border-b border-depot-line bg-depot-surface px-3
+      py-1.5 font-mono text-[11px] font-normal uppercase leading-4 tracking-[0.12em]
+      text-depot-muted;
   }
 
+  /* Rows a constant 36px at the least (a cell's height is its row's minimum). */
   .depot-table td {
-    @apply border-b border-depot-line px-3 py-2 align-middle;
+    @apply h-9 border-b border-depot-line px-3 py-1.5 align-middle leading-5;
   }
 
   .depot-table tbody tr:last-child td {
@@ -354,6 +387,12 @@
 
   .depot-table .depot-align-right {
     @apply text-right;
+  }
+
+  /* A group row (DataTable `group`): the repeated value printed once. Not sticky, unlike
+     the column header it shares the th styling with. */
+  .depot-table .depot-table-group {
+    @apply static h-8 bg-depot-page pt-3 text-left tracking-[0.16em];
   }
 
   .depot-sort-button {
@@ -413,6 +452,12 @@
       text-depot-ink;
   }
 
+  /* A filter-row control (Controls.tsx): 32px high, mono 12px, the field's surface. */
+  .depot-control {
+    @apply h-8 rounded-[3px] border border-depot-line bg-depot-surface px-2 font-mono text-xs
+      text-depot-ink;
+  }
+
   /* Themed native controls (Controls.tsx): the dark colour scheme and the cyan accent,
      so neither the box nor an open option list is browser-default white. */
   .depot-checkbox {
@@ -454,7 +499,8 @@
 
   /* Details disclosure: summary reads as a control, content stays in the page flow. */
   .depot-details > summary {
-    @apply cursor-pointer list-none font-mono text-xs uppercase tracking-[0.1em] text-holo-glow;
+    @apply cursor-pointer list-none font-mono text-xs uppercase tracking-[0.1em] text-depot-muted
+      hover:text-depot-ink;
   }
 
   .depot-details > summary::-webkit-details-marker {
@@ -494,6 +540,12 @@
 
   .depot-filter-button[aria-pressed='true'] {
     @apply border-holo-glow/60 bg-depot-raised text-holo-glow;
+  }
+
+  /* The one "Show all N": a quiet text button with the disclosure chevron. */
+  .depot-show-all {
+    @apply mt-2 inline-flex items-baseline gap-1.5 py-1 font-mono text-[11px] uppercase
+      tracking-[0.12em] text-depot-muted hover:text-depot-ink;
   }
 
   .depot-link {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, type ReactNode } from 'react';
+import { DisclosureChevron } from './DisclosureChevron';
 
 /** The summary every page's closing disclosure carries, word for word. */
 export const HOW_PRODUCED_SUMMARY = 'How these figures are produced';
@@ -43,18 +44,18 @@ export function HowProduced(props: HowProducedProps) {
     <details
       ref={ref}
       id={id}
-      className={`group min-w-0 scroll-mt-[var(--depot-anchor-mt)] border-t border-depot-line pt-3 ${className}`}
+      className={`group min-w-0 scroll-mt-[var(--depot-anchor-mt)] border-t border-depot-line pt-4 ${className}`}
       data-testid={testId ?? 'depot-how-produced'}
     >
       <summary className="flex cursor-pointer list-none items-baseline gap-2 py-1 font-mono text-[11px] uppercase tracking-[0.16em] text-depot-muted hover:text-depot-ink [&::-webkit-details-marker]:hidden">
-        <span aria-hidden className="inline-block w-3 text-depot-faint group-open:rotate-90">
-          ›
-        </span>
+        <DisclosureChevron groupOpen />
         {HOW_PRODUCED_SUMMARY}
       </summary>
       <div className="depot-prose mt-2 flex min-w-0 max-w-[62ch] flex-col gap-2">
         {paragraphs.map((text) => (
-          <p key={text}>{text}</p>
+          <p key={text} className="depot-prose">
+            {text}
+          </p>
         ))}
         {children}
       </div>
