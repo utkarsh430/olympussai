@@ -97,8 +97,9 @@ export interface DutyBoardResponse extends DepotFeedEnvelope {
   readonly recencyNotJudged?: boolean;
   /**
    * How the plan was made (`PlanMode`). `before_first_duty`: the day's first duty
-   * has not started, so buses are matched as they stand in the yard and the
-   * night parking order plans this same date. Always sent.
+   * has not started, so the buses standing in the yard take the earliest duties
+   * and the buses still out take the ones after; the night parking order plans
+   * this same date. Always sent.
    */
   readonly planMode?: PlanMode;
   /** Feed rows left out because their registration repeated an earlier row's. Always sent. */

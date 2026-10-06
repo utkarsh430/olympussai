@@ -7,8 +7,8 @@ import type { RequirementParams, ServiceClass } from './types';
  * The live feed says how many buses a depot has and what they are doing, but
  * not how many it needs. Until a network timetable is supplied, the need is
  * modelled from the live figures so a modelled number can never contradict a
- * live one: a depot whose buses are more on the road than its peers' right now
- * is assumed stretched (it needs a larger share of its available fleet), and
+ * live one: a depot whose buses are more on the road than its peers' over the
+ * rolling score window is assumed stretched (it needs a larger share of its available fleet), and
  * one with many standing buses is assumed to have slack. A seeded per-depot
  * variation stands in for everything else. This is a model, labelled MODELLED
  * on screen, and it is replaced when a network timetable is supplied.

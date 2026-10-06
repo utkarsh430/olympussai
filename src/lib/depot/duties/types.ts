@@ -68,8 +68,9 @@ export type PlanNow =
  *    (or a feed with no clock, which cannot be placed before a duty): buses are
  *    ranked by how they stand now, out working first, and fitted to the feed time;
  *  - `before_first_duty`: the feed's own date before its first duty starts. The
- *    day has not begun, so buses are matched as they stand in the yard, exactly
- *    as for a later day; the night parking order reads this same plan;
+ *    day has not begun: every eligible bus can take a duty, the buses standing
+ *    in the yard first (they leave first) and the buses still out after them,
+ *    with no time fit; the night parking order reads this same plan;
  *  - `later_day`: a date after the feed's (the night parking order's, once the
  *    feed's day has begun). It covers only the buses in the yard.
  */
