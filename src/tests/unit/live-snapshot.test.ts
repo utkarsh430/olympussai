@@ -278,4 +278,22 @@ describe('getLiveSnapshot', () => {
     const { snapshot } = await getLiveSnapshot(T0);
     expect(snapshot.recordCount).toBe((liveFixture as unknown[]).length);
   });
+
+  it('reuses the fixture depot rows across requests and re-stamps only the time', async () => {
+    process.env.NEXT_PUBLIC_DEMO_MODE = '1';
+    const first = await getLiveSnapshot(T0);
+    const later = await getLiveSnapshot(T0 + 60_000);
+    // Same array, so the depot analysis memoised on it runs once in demo mode.
+    expect(later.snapshot.depotRows).toBe(first.snapshot.depotRows);
+    expect(later.snapshot.feedNow).toBe(first.snapshot.feedNow);
+    expect(first.snapshot.fetchedAt).toBe(new Date(T0).toISOString());
+    expect(later.snapshot.fetchedAt).toBe(new Date(T0 + 60_000).toISOString());
+    // The map projection is still built per call: its freshness depends on now.
+    expect(later.snapshot.buses[0]?.lastUpdatedAt).toBe(new Date(T0 + 60_000).toISOString());
+
+    resetLiveSnapshotForTests();
+    const afterReset = await getLiveSnapshot(T0);
+    expect(afterReset.snapshot.depotRows).not.toBe(first.snapshot.depotRows);
+    expect(afterReset.snapshot.depotRows).toEqual(first.snapshot.depotRows);
+  });
 });

@@ -66,22 +66,50 @@ let inFlight: Promise<LiveSnapshotResult> | null = null;
 // Bumped by the test reset so a refresh started before it cannot write afterwards.
 let generation = 0;
 
+interface DepotProjection {
+  readonly rows: readonly DepotBusRow[];
+  readonly feedNow: string | null;
+}
+
+/** The depot projection depends on the payload alone, never on the clock. */
+function projectDepot(payload: unknown): DepotProjection {
+  const rows = normalizeDepotRows(payload).rows;
+  return { rows, feedNow: deriveFeedNow(rows) };
+}
+
 /** Both projections from one payload, so they can never describe different fetches. */
-function buildSnapshot(payload: unknown, now: number): LiveSnapshot {
+function buildSnapshot(
+  payload: unknown,
+  now: number,
+  depot: DepotProjection = projectDepot(payload),
+): LiveSnapshot {
   const live = normalizeLivePayload(payload, now);
-  const depot = normalizeDepotRows(payload);
   return {
     buses: live.buses,
     depotRows: depot.rows,
     recordCount: live.recordCount,
     rejectedRecordCount: live.rejectedRecordCount,
     fetchedAt: new Date(now).toISOString(),
-    feedNow: deriveFeedNow(depot.rows),
+    feedNow: depot.feedNow,
   };
 }
 
+/*
+ * The fixture never changes, so its depot projection is built once per process
+ * and the same rows array is reused: depot views memoise on that identity, so
+ * demo mode and an outage with no history no longer re-run the analysis per
+ * request. The map projection is still built per call, because its
+ * `lastUpdatedAt` and `dataQuality` depend on `now`.
+ */
+let fixtureDepot: DepotProjection | null = null;
+
 function fixtureResult(now: number): LiveSnapshotResult {
-  return { snapshot: buildSnapshot(liveFixture, now), source: 'fixture', stale: true };
+  fixtureDepot ??= projectDepot(liveFixture);
+  return {
+    snapshot: buildSnapshot(liveFixture, now, fixtureDepot),
+    source: 'fixture',
+    stale: true,
+  };
 }
 
 async function safeFetch(): Promise<UpstreamFetchResult> {
@@ -154,10 +182,11 @@ export function getLiveSnapshot(now: number = Date.now()): Promise<LiveSnapshotR
   return pending;
 }
 
-/** Test seam: drop the cache, any in-flight fetch and the diagnostics. */
+/** Test seam: drop the cache, any in-flight fetch, the fixture projection and the diagnostics. */
 export function resetLiveSnapshotForTests(): void {
   cache.clear();
   inFlight = null;
   generation += 1;
+  fixtureDepot = null;
   Object.assign(liveDiagnostics, INITIAL_DIAGNOSTICS);
 }
