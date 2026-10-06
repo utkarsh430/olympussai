@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { KpiWeekTrend } from '@/components/depot/trends/WeekTrend';
 import { formatCount } from '@/lib/depot/format';
 import { kpiLayout, type KpiFigure } from '@/lib/depot/network/overviewWords';
 import type { DepotSummary, NetworkKpis } from '@/lib/depot/types';
@@ -79,6 +80,7 @@ export function KpiBand({ kpis, depots }: KpiBandProps) {
               <dd className="mt-1.5">
                 <Provenance figure={figure} />
               </dd>
+              <KpiWeekTrend figure={figure.key} />
             </div>
           );
         })}
