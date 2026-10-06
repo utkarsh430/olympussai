@@ -82,6 +82,12 @@ describe('same place note', () => {
   it('says nothing for depots a real distance apart', () => {
     expect(samePlaceNote({ fromName: 'A', toName: 'B', distanceKm: 12 })).toBeNull();
   });
+
+  it('says nothing for a distance that is not a finite, non-negative number', () => {
+    for (const distanceKm of [Number.NaN, -1, Number.NEGATIVE_INFINITY]) {
+      expect(samePlaceNote({ fromName: 'A', toName: 'B', distanceKm })).toBeNull();
+    }
+  });
 });
 
 describe('every-depot table', () => {

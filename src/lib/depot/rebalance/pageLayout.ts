@@ -79,7 +79,9 @@ export function samePlaceNote(row: {
   readonly toName: string;
   readonly distanceKm: number;
 }): string | null {
-  if (row.distanceKm >= SAME_PLACE_KM) return null;
+  const km = row.distanceKm;
+  // A missing or broken distance is not "the same place": say nothing rather than "NaN km".
+  if (!Number.isFinite(km) || km < 0 || km >= SAME_PLACE_KM) return null;
   return `${row.fromName} and ${row.toName} stand at the same place by their inferred positions (${row.distanceKm.toFixed(1)} km apart).`;
 }
 
