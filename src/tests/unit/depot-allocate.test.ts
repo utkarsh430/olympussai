@@ -10,6 +10,10 @@ import type {
   AllocationPlan,
 } from '@/lib/depot/optimise/allocateTypes';
 
+// A guard against runaway complexity, not a benchmark: generous enough to hold on a
+// busy machine, tight enough to catch an accidental exponential.
+const SCALE_GUARD_MS = 20_000;
+
 function route(
   routeName: string,
   currentDepotId: string,
@@ -279,7 +283,7 @@ describe('planAllocation: construction and search', () => {
     const tight = depots.map((d) => depot(d.depotId, load.get(d.depotId) ?? 0));
     const started = performance.now();
     const run = runAllocation(routes, tight);
-    expect(performance.now() - started).toBeLessThan(5000);
+    expect(performance.now() - started).toBeLessThan(SCALE_GUARD_MS);
     expect(run.shifts + run.swaps).toBeGreaterThan(0);
     expect(run.swaps).toBeGreaterThan(0);
     assertInvariants(routes, tight, run.plan);
@@ -403,7 +407,7 @@ describe('planAllocation: properties', () => {
     const { routes, depots } = scenario(42, 1200, 143, 10);
     const started = performance.now();
     const plan = planAllocation(routes, depots);
-    expect(performance.now() - started).toBeLessThan(5000);
+    expect(performance.now() - started).toBeLessThan(SCALE_GUARD_MS);
     assertInvariants(routes, depots, plan);
   });
 

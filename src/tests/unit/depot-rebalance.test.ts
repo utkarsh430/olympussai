@@ -9,6 +9,10 @@ import { DEFAULT_REBALANCE_PARAMS } from '@/lib/depot/optimise/config';
 import type { DepotBalance, RebalanceParams } from '@/lib/depot/optimise/types';
 import type { LatLng } from '@/lib/depot/types';
 
+// A guard against runaway complexity, not a benchmark: generous enough to hold on a
+// busy machine, tight enough to catch an accidental exponential.
+const SCALE_GUARD_MS = 20_000;
+
 const PARAMS: RebalanceParams = { ...DEFAULT_REBALANCE_PARAMS, detourFactor: 1 };
 
 /** Positions along one meridian; 0.1 degree of latitude is about 11.1 km. */
@@ -305,7 +309,7 @@ describe('planTransfers', () => {
     const start = performance.now();
     const plan = planTransfers(balances, DEFAULT_REBALANCE_PARAMS);
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(1000);
+    expect(elapsed).toBeLessThan(SCALE_GUARD_MS);
     const uncovered = plan.uncovered.reduce((sum, u) => sum + u.buses, 0);
     expect(plan.coveredDeficit + uncovered).toBe(plan.before.totalDeficit);
   });

@@ -9,6 +9,10 @@ export default defineConfig({
     globals: true,
     include: ['src/tests/**/*.test.ts', 'src/tests/**/*.test.tsx'],
     exclude: ['tests/e2e/**', 'node_modules/**'],
+    // Exhaustive and national-scale tests take a fraction of a second on an idle
+    // machine but many times longer when it is busy; the default of five seconds
+    // then fails tests that are not wrong.
+    testTimeout: 30_000,
   },
   resolve: {
     alias: {

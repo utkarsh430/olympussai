@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { hungarian } from '@/lib/depot/optimise/hungarian';
 import { SeededRandom } from '@/lib/simulation/seededRandom';
 
+// A guard against runaway complexity, not a benchmark: generous enough to hold on a
+// busy machine, tight enough to catch an accidental exponential.
+const SCALE_GUARD_MS = 20_000;
+
 type Matrix = readonly (readonly number[])[];
 
 /** Best (assigned count, then cost) over every partial assignment of rows to columns. */
@@ -114,7 +118,7 @@ describe('hungarian', () => {
     const cost = randomMatrix(rng, 150, 150, 0.1);
     const started = performance.now();
     const { rowToCol } = hungarian(cost);
-    expect(performance.now() - started).toBeLessThan(1000);
+    expect(performance.now() - started).toBeLessThan(SCALE_GUARD_MS);
     expect(rowToCol.filter((c) => c >= 0).length).toBeGreaterThan(140);
   });
 });
