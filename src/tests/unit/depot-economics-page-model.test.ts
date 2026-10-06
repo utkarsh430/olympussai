@@ -79,13 +79,8 @@ const UNRANKED_SMALL = entry('8', {
   rank: null,
   peerGroup: null,
 }, { fleet: 4 });
-const UNRANKED_THIN = entry('6', {
-  ranked: false,
-  reason: 'thin_route_coverage',
-  economicsIndex: null,
-  rank: null,
-  peerCount: null,
-}, { lengthCoverage: { n: 1, of: 9 } });
+/** Ruling S39: one real length in nine routes is a coverage figure; the depot is still ranked. */
+const RANKED_THIN = entry('6', { rank: 2 }, { lengthCoverage: { n: 1, of: 9 } });
 const UNRANKED_GROUP = entry('5', {
   ranked: false,
   reason: 'peer_group_too_small',
@@ -140,7 +135,7 @@ describe('buildEconomicsRows', () => {
   });
   it('says why a depot is not ranked', () => {
     expect(rows.find((r) => r.depotId === '9')?.reasonText).toBe(
-      'No route has a known length, so earnings per kilometre cannot be modelled for this depot.',
+      'No duty ran in its modelled day (none of its buses reports a route, or none was available), so it has no earnings per kilometre.',
     );
     expect(rows.find((r) => r.depotId === '8')?.reasonText).toMatch(/at least 10 buses/);
     expect(rows.find((r) => r.depotId === '7')?.reasonText).toMatch(/not an operating depot/i);
@@ -178,12 +173,13 @@ describe('economicsStatusLine', () => {
       OTHER_UNIT,
     ]);
     expect(line).toBe(
-      '2 ranked of 4 operating depots (MODELLED) · 1 not ranked: no route with a known length · 1 not ranked: fewer than 10 buses · 1 other unit is not an operating depot',
+      '2 ranked of 4 operating depots (MODELLED) · 1 not ranked: no duty ran in the modelled day · 1 not ranked: fewer than 10 buses · 1 other unit is not an operating depot',
     );
   });
-  it('counts the two coverage and group reasons on their own', () => {
-    expect(economicsStatusLine([UNRANKED_THIN, UNRANKED_GROUP, UNRANKED_GROUP])).toBe(
-      '0 ranked of 3 operating depots (MODELLED) · 1 not ranked: too few routes with a known length · 2 not ranked: its peer group has too few depots with complete figures',
+  it('counts a thin real-length coverage as ranked and the group reason on its own', () => {
+    // The coverage gate is gone (S39): only the peer-group size guard is left to count here.
+    expect(economicsStatusLine([RANKED_THIN, UNRANKED_GROUP, UNRANKED_GROUP])).toBe(
+      '1 ranked of 3 operating depots (MODELLED) · 2 not ranked: its peer group has too few depots with complete figures',
     );
   });
   it('uses the singular for one operating depot and omits empty reasons', () => {
@@ -204,16 +200,18 @@ describe('explainEconomics', () => {
     const [row] = buildEconomicsRows([UNRANKED_SMALL]);
     expect(row && explainEconomics(row)).toMatch(/at least 10 buses/);
   });
-  it('words the two new reasons in plain terms', () => {
-    const [thin] = buildEconomicsRows([UNRANKED_THIN]);
+  it('words the peer-group reason plainly and gives a thin-coverage depot no reason at all', () => {
+    const [thin] = buildEconomicsRows([RANKED_THIN]);
     const [group] = buildEconomicsRows([UNRANKED_GROUP]);
-    expect(thin?.reasonText).toBe(
-      'Not ranked: too few of its routes have a known length (1 of 9), so its earnings per kilometre are not used.',
+    expect(thin?.ranked).toBe(true);
+    expect(thin?.reasonText).toBeNull();
+    expect(thin && explainEconomics(thin)).toBe(
+      'Helped most by Earnings per km; held back most by Load factor.',
     );
     expect(group?.reasonText).toBe(
       'Not ranked: its peer group has too few depots with complete figures to compare.',
     );
-    expect(thin && explainEconomics(thin)).toBe(thin?.reasonText);
+    expect(group && explainEconomics(group)).toBe(group?.reasonText);
   });
   it('says nothing stands out when every contribution is level', () => {
     const level = entry('1', {
