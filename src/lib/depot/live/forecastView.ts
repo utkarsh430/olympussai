@@ -6,8 +6,14 @@ import { summariseTrend } from '../forecast/trend';
 import { forecastSentences, metricInfo } from '../forecast/wording';
 import type { FleetSnapshotView } from '../repositories/types';
 import type { MetricKey, SeriesPoint } from '../sim/types';
-import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
-import { buildHistoryResponse, parseHistoryQuery, type HistoryQuery } from './historyView';
+import { analyseSnapshot, feedEnvelope } from './analysis';
+import {
+  buildHistoryResponse,
+  parseHistoryQuery,
+  type HistoryQuery,
+  type HistoryResult,
+} from './historyView';
+import { queryMemo } from './queryMemo';
 
 /**
  * Default history window when the query names none. Longer than the history
@@ -72,19 +78,41 @@ export function forecastSections(
 }
 
 type ForecastBody = Omit<DepotForecastResponse, keyof DepotFeedEnvelope>;
+type HeldForecast = ForecastBody | Extract<HistoryResult, { readonly status: 404 }>;
 
 /*
  * The body depends on the rows (through the analysis, which also fixes the
  * live anchor and operating date), the scope, the metric, the window and the
  * horizon, so it is held per analysis under that key and goes with the
- * snapshot. A poll on the same rows therefore never refits. The envelope is
- * never part of it.
+ * snapshot. A poll on the same rows therefore never refits. The window and the
+ * horizon are the caller's to choose, so the memo is bounded; a 404 is not
+ * held, so unknown depots cannot push real bodies out. The envelope is never
+ * part of it.
  */
-const bodies = new WeakMap<SnapshotAnalysis, Map<string, ForecastBody>>();
+const bodies = queryMemo<HeldForecast>({ keep: (held) => !('status' in held) });
 
 function bodyKey({ metric, scope, days, horizon }: ForecastQuery): string {
   const where = scope.kind === 'depot' ? `depot:${scope.depotId}` : 'network';
   return `${where}|${metric}|${days}|${horizon}`;
+}
+
+async function buildBody(view: FleetSnapshotView, query: ForecastQuery): Promise<HeldForecast> {
+  const { metric, scope, days, horizon } = query;
+  const history = await buildHistoryResponse(view, { metric, scope, days });
+  if (history.status !== 200) return history;
+  const { series, anchor } = history.body;
+  return {
+    metric: metricInfo(metric),
+    scope,
+    horizonDays: horizon,
+    history: { provenance: 'modelled', series, anchor },
+    ...forecastSections(series, metric, horizon),
+  };
+}
+
+/** How many forecast bodies are held for this snapshot; read by the tests of the bound. */
+export function heldForecastBodies(view: FleetSnapshotView): number {
+  return bodies.size(analyseSnapshot(view));
 }
 
 /**
@@ -96,22 +124,9 @@ export async function buildForecastResponse(
   view: FleetSnapshotView,
   query: ForecastQuery,
 ): Promise<ForecastViewResult> {
-  const analysis = analyseSnapshot(view);
-  const key = bodyKey(query);
-  const held = bodies.get(analysis)?.get(key);
-  if (held !== undefined) return { status: 200, body: { ...feedEnvelope(view), ...held } };
-  const { metric, scope, days, horizon } = query;
-  const history = await buildHistoryResponse(view, { metric, scope, days });
-  if (history.status !== 200) return history;
-  const { series, anchor } = history.body;
-  const body: ForecastBody = {
-    metric: metricInfo(metric),
-    scope,
-    horizonDays: horizon,
-    history: { provenance: 'modelled', series, anchor },
-    ...forecastSections(series, metric, horizon),
-  };
-  const byKey = bodies.get(analysis) ?? new Map<string, ForecastBody>();
-  bodies.set(analysis, new Map([...byKey, [key, body]]));
-  return { status: 200, body: { ...feedEnvelope(view), ...body } };
+  const held = await bodies.hold(analyseSnapshot(view), bodyKey(query), () =>
+    buildBody(view, query),
+  );
+  if ('status' in held) return held;
+  return { status: 200, body: { ...feedEnvelope(view), ...held } };
 }
