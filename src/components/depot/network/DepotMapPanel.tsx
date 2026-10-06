@@ -1,7 +1,15 @@
+import Link from 'next/link';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { formatCount, formatShare } from '@/lib/depot/format';
-import { DEPOT_KIND_LABEL, PEER_GROUP_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
+import { DEPOT_KIND_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
 import { indexBand } from '@/lib/depot/map/nodeStyle';
+import {
+  LOWEST_OPERATING_LABEL,
+  depotLink,
+  lowestOperatingDepot,
+  peerRankLine,
+  positionNote,
+} from '@/lib/depot/network/mapWords';
 import {
   formatIndex,
   rankedIndex,
@@ -13,6 +21,9 @@ import { StatusMixBar, stateSegments } from './StatusMixBar';
 export interface DepotMapPanelProps {
   /** The selected depot, or null when nothing is selected. */
   readonly row: DepotRow | null;
+  /** Every row, so the empty panel can offer the lowest-index operating depot. */
+  readonly rows: readonly DepotRow[];
+  readonly onSelect: (depotId: string) => void;
   readonly onClear: () => void;
   /** True when the depot selected earlier has dropped out of the feed. */
   readonly vanished?: boolean;
@@ -25,7 +36,7 @@ function Ranking({ row }: { readonly row: DepotRow }) {
     const reason = score ? RANK_REASON_LABEL[score.reason] : 'No score for this depot';
     return (
       <p className="text-[13px] text-depot-muted">
-        Not ranked <span className="text-depot-faint">· {reason}</span>
+        Not ranked <span className="text-depot-muted">· {reason}</span>
       </p>
     );
   }
@@ -39,7 +50,7 @@ function Ranking({ row }: { readonly row: DepotRow }) {
       </p>
       {score.rank !== null && score.peerCount !== null && score.peerGroup ? (
         <p className="mt-1 text-[13px] text-depot-muted">
-          Rank {score.rank} of {score.peerCount} · {PEER_GROUP_LABEL[score.peerGroup]}
+          {peerRankLine(score.rank, score.peerCount, score.peerGroup)}
         </p>
       ) : null}
     </>
@@ -50,7 +61,55 @@ function Ranking({ row }: { readonly row: DepotRow }) {
  * Summary of the selected depot beside the map. It is fed by the shared
  * selection, so the ranked lists and the table fill it as well as the map.
  */
-export function DepotMapPanel({ row, onClear, vanished = false }: DepotMapPanelProps) {
+function OpenDepot({ row }: { readonly row: DepotRow }) {
+  const href = depotLink(row.depot);
+  if (!href) return null;
+  return (
+    <Link href={href} className="depot-link text-[13px]">
+      Open depot<span className="sr-only">{` ${row.depot.name}`}</span>
+    </Link>
+  );
+}
+
+/** Content-sized empty state: something to act on instead of a tall blank box. */
+function Suggestion({
+  rows,
+  onSelect,
+}: {
+  readonly rows: readonly DepotRow[];
+  readonly onSelect: (depotId: string) => void;
+}) {
+  const lowest = lowestOperatingDepot(rows);
+  if (!lowest) return null;
+  return (
+    <div className="mt-3 border-t border-depot-line pt-3">
+      <p className="depot-label">{LOWEST_OPERATING_LABEL}</p>
+      <p className="mt-1 flex min-w-0 items-baseline justify-between gap-3">
+        <span className="min-w-0 break-words text-[13px] text-depot-ink">{lowest.depot.name}</span>
+        <span className="shrink-0 text-[13px] tabular-nums text-depot-ink">
+          {formatIndex(rankedIndex(lowest))}
+        </span>
+      </p>
+      <p className="mt-2 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => onSelect(lowest.depot.id)}
+          className="depot-filter-button"
+        >
+          Select it
+        </button>
+        <OpenDepot row={lowest} />
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Summary of the selected depot beside the map. It is fed by the shared
+ * selection, so the ranked lists and the table fill it as well as the map.
+ * It is as tall as its content, never stretched to the map's height.
+ */
+export function DepotMapPanel({ row, rows, onSelect, onClear, vanished = false }: DepotMapPanelProps) {
   const status = (
     <p role="status" className="sr-only">
       {selectionStatus(row)}
@@ -63,11 +122,11 @@ export function DepotMapPanel({ row, onClear, vanished = false }: DepotMapPanelP
         <h3 id="depot-panel-heading" tabIndex={-1} className="depot-label">
           Selected depot
         </h3>
-        <p className="depot-prose mt-2">
+        <p className="depot-prose mt-1">
           {vanished ? 'The selected depot is no longer in the feed. ' : null}
-          Select a depot on the map, in the ranked lists or in the table to see its fleet, state and
-          index here.
+          Nothing selected. Pick a depot on the map, in the lists or in the table.
         </p>
+        <Suggestion rows={rows} onSelect={onSelect} />
       </aside>
     );
   }
@@ -90,19 +149,22 @@ export function DepotMapPanel({ row, onClear, vanished = false }: DepotMapPanelP
           </h3>
           <p className="text-[11px] text-depot-muted">{DEPOT_KIND_LABEL[depot.kind]}</p>
         </div>
-        <button type="button" onClick={onClear} className="depot-filter-button shrink-0">
-          Clear
-        </button>
+        <span className="flex shrink-0 items-center gap-3">
+          <OpenDepot row={row} />
+          <button type="button" onClick={onClear} className="depot-filter-button">
+            Clear
+          </button>
+        </span>
       </div>
 
-      <dl className="mt-4 space-y-4">
+      <dl className="mt-3 space-y-3">
         <div>
           <dt className="depot-label">Fleet</dt>
           <dd className="mt-1 text-[13px] tabular-nums text-depot-ink">
             {formatCount(depot.fleet)} buses
           </dd>
           <dd className="mt-1 text-[11px] text-depot-muted">
-            Position: median of {formatCount(depot.positioned)} positioned buses (derived)
+            {positionNote(depot)}
           </dd>
         </div>
         <div>
@@ -117,7 +179,7 @@ export function DepotMapPanel({ row, onClear, vanished = false }: DepotMapPanelP
                   <span className="text-depot-muted">{segment.label}</span>
                   <span className="text-depot-ink">
                     {formatCount(segment.count)}{' '}
-                    <span className="text-depot-faint">
+                    <span className="text-depot-muted">
                       {formatShare(segment.count, depot.fleet)}
                     </span>
                   </span>

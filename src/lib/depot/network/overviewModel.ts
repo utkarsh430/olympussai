@@ -1,6 +1,5 @@
-import { formatShare } from '@/lib/depot/format';
 import { EXCEPTION_KIND_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
-import type { DepotSummary, Figure, NetworkKpis } from '@/lib/depot/types';
+import type { DepotSummary } from '@/lib/depot/types';
 import type { DepotScore } from '@/lib/depot/score/types';
 import type { ExceptionKind, ExceptionSeverity } from '@/lib/depot/exceptions/types';
 
@@ -105,37 +104,6 @@ export function unpositionedCount(depots: readonly DepotSummary[]): number {
   return depots.filter((depot) => depot.centroid === null).length;
 }
 
-export interface KpiRow {
-  readonly key: keyof NetworkKpis;
-  readonly label: string;
-  readonly figure: Figure;
-  /** Share of the fleet for a bus count; null for fleet itself and for depots. */
-  readonly share: string | null;
-}
-
-const KPI_ORDER: ReadonlyArray<{ readonly key: keyof NetworkKpis; readonly label: string }> = [
-  { key: 'fleet', label: 'Fleet' },
-  { key: 'depots', label: 'Depots' },
-  { key: 'reporting', label: 'Reporting' },
-  { key: 'onRoad', label: 'On road' },
-  { key: 'stationary', label: 'Stationary' },
-  { key: 'noSignal', label: 'No signal' },
-  { key: 'underMaintenance', label: 'Under maintenance' },
-  { key: 'assigned', label: 'Route assigned' },
-];
-
-const NOT_BUS_COUNTS: ReadonlySet<keyof NetworkKpis> = new Set(['fleet', 'depots']);
-
-export function kpiRows(kpis: NetworkKpis): KpiRow[] {
-  const fleet = kpis.fleet.value;
-  return KPI_ORDER.map(({ key, label }) => ({
-    key,
-    label,
-    figure: kpis[key],
-    share: NOT_BUS_COUNTS.has(key) ? null : formatShare(kpis[key].value, fleet),
-  }));
-}
-
 /**
  * Severity per exception kind, as the exception rules assign it. The three
  * depot-rate kinds are `critical` or `warning` depending on how far the depot
@@ -174,16 +142,4 @@ export function exceptionRows(counts: Readonly<Record<ExceptionKind, number>>): 
     label: EXCEPTION_KIND_LABEL[entry.kind],
     count: safeCount(counts[entry.kind]),
   }));
-}
-
-export type SeverityTotals = Readonly<Record<ExceptionSeverity | 'total', number>>;
-
-/** Totals by severity, from the server's own severity counts (exact, unlike counts by kind). */
-export function severityTotals(
-  severities: Readonly<Record<ExceptionSeverity, number>>,
-): SeverityTotals {
-  const critical = safeCount(severities.critical);
-  const warning = safeCount(severities.warning);
-  const info = safeCount(severities.info);
-  return { critical, warning, info, total: critical + warning + info };
 }

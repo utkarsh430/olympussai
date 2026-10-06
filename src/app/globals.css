@@ -214,8 +214,11 @@
     @apply rounded-md border border-depot-line bg-depot-surface;
   }
 
+  /* Sub-labels: 11px text that must be read, so depot-muted (#9bb0c7, about 9:1)
+     rather than depot-faint (#6b84a0: 5.3:1 on the page, 5.0:1 on a panel; AA,
+     but too dim for labels people read). Tighter tracking than section labels. */
   .depot-label {
-    @apply font-mono text-[11px] uppercase tracking-[0.16em] text-depot-faint;
+    @apply font-mono text-[11px] uppercase tracking-[0.12em] text-depot-muted;
   }
 
   .depot-title {
@@ -363,6 +366,12 @@
     @apply min-w-0 bg-depot-page px-4 py-3;
   }
 
+  /* Secondary figures sit beneath the band as small inline readings on one
+     rule, not as a second row of hero cells. */
+  .depot-kpi-secondary {
+    @apply grid grid-cols-2 gap-x-6 gap-y-3 border-b border-depot-line px-4 py-3 md:grid-cols-4;
+  }
+
   .depot-hero-numeral {
     @apply font-display text-[32px] font-semibold leading-none tabular-nums text-depot-ink;
   }
@@ -395,6 +404,18 @@
 
   .depot-map-frame {
     @apply relative h-[460px] overflow-hidden rounded-md border border-depot-line bg-depot-page;
+  }
+
+  /* Overview table in the page flow: the frame still scrolls sideways, but it
+     grows to its rows instead of opening a second vertical scroll. */
+  .depot-table-flow .depot-table-frame {
+    max-height: none;
+  }
+
+  /* Row cap after the table has sorted: rows past the 25th (TABLE_ROW_CAP in
+     overviewWords.ts; keep the two in step) are hidden until "Show all". */
+  .depot-table-capped .depot-table tbody tr:nth-child(n + 26) {
+    display: none;
   }
 
   .depot-pick-button {

@@ -30,3 +30,9 @@ export function formatFeedTime(iso: string | null): string {
   if (Number(hour) > MAX_HOUR || Number(minute) > MAX_MINUTE) return DASH;
   return `${hour}:${minute}`;
 }
+
+/** A local clock time as HH:MM on a 24-hour clock, for "when did this happen". */
+export function formatClockTime(date: Date): string {
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MapFallback } from '@/components/map/MapFallback';
+import { MapUnavailable } from '@/components/depot/shell/MapUnavailable';
 import { formatCount } from '@/lib/depot/format';
 import { diffMarkers } from '@/lib/depot/map/diffMarkers';
 import { nodeStyle, type NodeStyle } from '@/lib/depot/map/nodeStyle';
@@ -11,6 +11,7 @@ import {
   unrankedReason,
   type DepotRow,
 } from '@/lib/depot/network/overviewModel';
+import { markerLabel } from '@/lib/depot/network/mapWords';
 import { removeMapListeners } from '@/lib/maps/listeners';
 import { useDepotMap } from './useDepotMap';
 
@@ -51,6 +52,8 @@ function styleFor(row: DepotRow, maxFleet: number): NodeStyle {
 
 function paint(entry: DepotMarker, selectedId: string | null): void {
   const selected = entry.row.depot.id === selectedId;
+  // The title is the marker's accessible name when it takes keyboard focus.
+  entry.marker.setTitle(selected ? `${markerLabel(entry.row)}, selected` : markerLabel(entry.row));
   entry.marker.setIcon(iconFor(entry.style, selected));
   entry.marker.setZIndex(zIndexFor(entry.style, selected));
 }
@@ -71,7 +74,7 @@ export interface DepotMapProps {
  */
 export function DepotMap({ rows, maxFleet, selectedId, onSelect }: DepotMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { mapRef, status, errorMessage } = useDepotMap(containerRef);
+  const { mapRef, status } = useDepotMap(containerRef);
   const markersRef = useRef<Map<string, DepotMarker>>(new Map());
   const fittedRef = useRef(false);
   const selectedRef = useRef(selectedId);
@@ -90,6 +93,11 @@ export function DepotMap({ rows, maxFleet, selectedId, onSelect }: DepotMapProps
     if (status !== 'ready' || !map) return;
     const markers = markersRef.current;
     const { add, update, remove } = diffMarkers([...markers.keys()], rows);
+    // A poll that removes the hovered marker never fires its mouseout.
+    if (remove.length > 0) {
+      const gone = new Set(remove);
+      setHoveredId((current) => (current !== null && gone.has(current) ? null : current));
+    }
 
     remove.forEach((id) => {
       const entry = markers.get(id);
@@ -180,11 +188,8 @@ export function DepotMap({ rows, maxFleet, selectedId, onSelect }: DepotMapProps
         </div>
       ) : null}
       {status === 'error' ? (
-        <MapFallback
-          status="error"
-          message={errorMessage}
-          onRetry={() => window.location.reload()}
-        />
+        // The shared loader cannot be retried in place, so Retry reloads the page.
+        <MapUnavailable onRetry={() => window.location.reload()} />
       ) : null}
       {status === 'ready' && hovered ? (
         <div

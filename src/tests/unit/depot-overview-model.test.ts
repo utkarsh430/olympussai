@@ -2,16 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   exceptionRows,
   selectionStatus,
-  severityTotals,
   formatIndex,
   joinScores,
-  kpiRows,
   rankedExtremes,
   unpositionedCount,
   unrankedSummary,
   type DepotRow,
 } from '@/lib/depot/network/overviewModel';
-import type { DepotSummary, NetworkKpis } from '@/lib/depot/types';
+import type { DepotSummary } from '@/lib/depot/types';
 import type { DepotScore, RankReason } from '@/lib/depot/score/types';
 import type { ExceptionKind } from '@/lib/depot/exceptions/types';
 
@@ -160,49 +158,6 @@ describe('unpositionedCount', () => {
   });
 });
 
-describe('kpiRows', () => {
-  const kpis: NetworkKpis = {
-    fleet: { value: 200, provenance: 'live' },
-    depots: { value: 12, provenance: 'live' },
-    reporting: { value: 150, provenance: 'derived' },
-    onRoad: { value: 100, provenance: 'derived' },
-    stationary: { value: 50, provenance: 'live' },
-    noSignal: { value: 25, provenance: 'live' },
-    underMaintenance: { value: 10, provenance: 'live' },
-    assigned: { value: 120, provenance: 'live' },
-  };
-
-  it('returns the eight figures in a fixed order with labels', () => {
-    const rows = kpiRows(kpis);
-    expect(rows.map((row) => row.key)).toEqual([
-      'fleet',
-      'depots',
-      'reporting',
-      'onRoad',
-      'stationary',
-      'noSignal',
-      'underMaintenance',
-      'assigned',
-    ]);
-    rows.forEach((row) => expect(row.label.length).toBeGreaterThan(0));
-  });
-
-  it('gives a share of fleet for bus counts only', () => {
-    const rows = kpiRows(kpis);
-    const byKey = new Map(rows.map((row) => [row.key, row.share]));
-    expect(byKey.get('fleet')).toBeNull();
-    expect(byKey.get('depots')).toBeNull();
-    expect(byKey.get('reporting')).toBe('75%');
-    expect(byKey.get('noSignal')).toBe('13%');
-  });
-
-  it('shows a dash, not NaN, when the fleet is zero', () => {
-    const rows = kpiRows({ ...kpis, fleet: { value: 0, provenance: 'live' } });
-    rows.forEach((row) => expect(row.share ?? '').not.toContain('NaN'));
-    expect(rows.find((row) => row.key === 'onRoad')?.share).toBe('—');
-  });
-});
-
 describe('exception summaries', () => {
   const counts: Record<ExceptionKind, number> = {
     dark_share_high: 2,
@@ -222,44 +177,6 @@ describe('exception summaries', () => {
     expect(emergency).toMatchObject({ count: 1, severity: 'critical' });
     const dark = rows.find((row) => row.kind === 'dark_share_high');
     expect(dark?.severity).toBe('variable');
-  });
-});
-
-describe('severityTotals', () => {
-  it('totals the severity counts the server sends', () => {
-    expect(severityTotals({ critical: 2, warning: 41, info: 12 })).toEqual({
-      critical: 2,
-      warning: 41,
-      info: 12,
-      total: 55,
-    });
-  });
-
-  it('can differ from the sum of the kind counts, because depot-rate kinds split by z', () => {
-    const counts: Record<ExceptionKind, number> = {
-      dark_share_high: 2,
-      off_road_high: 1,
-      on_road_low: 0,
-      power_cut_cluster: 3,
-      long_dark: 40,
-      power_cut: 7,
-      tamper_code: 5,
-      emergency: 1,
-    };
-    const kindSum = exceptionRows(counts).reduce((sum, row) => sum + row.count, 0);
-    const totals = severityTotals({ critical: 3, warning: 44, info: 12 });
-    expect(kindSum).toBe(59);
-    expect(totals.total).toBe(59);
-    expect(totals.critical).not.toBe(1);
-  });
-
-  it('treats an invalid count as zero', () => {
-    expect(severityTotals({ critical: Number.NaN, warning: -2, info: 4.4 })).toEqual({
-      critical: 0,
-      warning: 0,
-      info: 4,
-      total: 4,
-    });
   });
 });
 

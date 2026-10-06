@@ -1,4 +1,7 @@
+import Link from 'next/link';
 import { PEER_GROUP_LABEL } from '@/lib/depot/labels';
+import { depotLink } from '@/lib/depot/network/mapWords';
+import { unrankedSentence } from '@/lib/depot/network/overviewWords';
 import { indexBand } from '@/lib/depot/map/nodeStyle';
 import { MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
 import {
@@ -7,32 +10,12 @@ import {
   rankedIndex,
   unrankedSummary,
   type DepotRow,
-  type UnrankedSummary,
 } from '@/lib/depot/network/overviewModel';
 
 export interface RankedStripProps {
   readonly rows: readonly DepotRow[];
   readonly selectedId: string | null;
   readonly onSelect: (depotId: string) => void;
-}
-
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
-/** "12 depots are not ranked: 9 with fewer than 10 buses, 3 not operating depots." */
-function unrankedSentence(summary: UnrankedSummary): string {
-  const parts = [
-    summary.fleetTooSmall > 0
-      ? `${summary.fleetTooSmall} with fewer than ${MIN_FLEET_FOR_RANK} buses`
-      : null,
-    summary.notADepot > 0
-      ? `${summary.notADepot} not ${summary.notADepot === 1 ? 'an operating depot' : 'operating depots'}`
-      : null,
-    summary.unscored > 0 ? `${summary.unscored} without a score` : null,
-  ].filter((part): part is string => part !== null);
-  const verb = summary.total === 1 ? 'is' : 'are';
-  return `${plural(summary.total, 'unit', 'units')} ${verb} not ranked: ${parts.join(', ')}.`;
 }
 
 function RankList({
@@ -52,28 +35,43 @@ function RankList({
           {rows.map((row) => {
             const index = rankedIndex(row);
             const group = row.score?.peerGroup;
+            const selected = row.depot.id === selectedId;
+            const href = depotLink(row.depot);
             return (
-              <li key={row.depot.id} className="border-b border-depot-line">
+              <li
+                key={row.depot.id}
+                className={`flex min-w-0 items-baseline gap-3 border-b border-l-2 border-b-depot-line px-2 py-1.5 ${
+                  selected ? 'border-l-holo-glow bg-depot-raised' : 'border-l-transparent'
+                }`}
+              >
+                <span className="min-w-0 flex-1 truncate text-[13px] text-depot-ink">
+                  {href ? (
+                    <Link href={href} className="depot-link">
+                      {row.depot.name}
+                    </Link>
+                  ) : (
+                    row.depot.name
+                  )}
+                  <span className="ml-2 text-[11px] text-depot-muted">
+                    {group ? PEER_GROUP_LABEL[group] : ''}
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2 tabular-nums">
+                  <span
+                    aria-hidden
+                    className="inline-block h-2 w-2 rounded-full"
+                    style={{ backgroundColor: indexBand(index)?.fill }}
+                  />
+                  <span className="text-[13px] text-depot-ink">{formatIndex(index)}</span>
+                </span>
                 <button
                   type="button"
-                  aria-pressed={row.depot.id === selectedId}
+                  aria-pressed={selected}
+                  aria-label={`Select ${row.depot.name}`}
                   onClick={() => onSelect(row.depot.id)}
-                  className="depot-pick-button"
+                  className="depot-filter-button shrink-0"
                 >
-                  <span className="min-w-0 truncate text-[13px] text-depot-ink">
-                    {row.depot.name}
-                    <span className="ml-2 text-[11px] text-depot-faint">
-                      {group ? PEER_GROUP_LABEL[group] : ''}
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2 tabular-nums">
-                    <span
-                      aria-hidden
-                      className="inline-block h-2 w-2 rounded-full"
-                      style={{ backgroundColor: indexBand(index)?.fill }}
-                    />
-                    <span className="text-[13px] text-depot-ink">{formatIndex(index)}</span>
-                  </span>
+                  Select
                 </button>
               </li>
             );
@@ -95,7 +93,7 @@ export function RankedStrip({ rows, selectedId, onSelect }: RankedStripProps) {
   return (
     <section aria-labelledby="depot-ranked-heading" data-testid="depot-ranked-strip">
       <h2 id="depot-ranked-heading" className="depot-section-label">
-        Efficiency index · highest and lowest
+        Efficiency index · highest and lowest operating depots
       </h2>
       {top.length === 0 ? (
         <p className="depot-prose" data-testid="depot-ranked-empty">
@@ -121,7 +119,7 @@ export function RankedStrip({ rows, selectedId, onSelect }: RankedStripProps) {
             />
           </div>
           {unranked.total > 0 ? (
-            <p className="mt-2 text-[11px] text-depot-faint">{unrankedSentence(unranked)}</p>
+            <p className="mt-2 font-sans text-[13px] text-depot-muted">{unrankedSentence(unranked)}</p>
           ) : null}
         </>
       )}

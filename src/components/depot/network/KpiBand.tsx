@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { formatCount } from '@/lib/depot/format';
-import { kpiRows } from '@/lib/depot/network/overviewModel';
-import type { NetworkKpis } from '@/lib/depot/types';
+import { kpiLayout, type KpiFigure } from '@/lib/depot/network/overviewWords';
+import type { DepotSummary, NetworkKpis } from '@/lib/depot/types';
 
 const COUNT_UP_MS = 700;
 const DONE = 1;
@@ -40,18 +40,29 @@ function useFirstMountProgress(): number {
   return progress;
 }
 
+/** The provenance word, then the quiet coverage note in prose-sized mono. */
+function Provenance({ figure }: { readonly figure: KpiFigure }) {
+  return (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <ProvenanceBadge provenance={figure.provenance} />
+      {figure.note ? <span className="text-[11px] text-depot-muted">{figure.note}</span> : null}
+    </span>
+  );
+}
+
 export interface KpiBandProps {
   readonly kpis: NetworkKpis;
+  readonly depots: readonly Pick<DepotSummary, 'kind'>[];
 }
 
 /**
- * The eight network figures. Each carries its label, where it comes from and,
- * for a bus count, its share of the fleet. Hairlines separate the cells; there
- * is no card per figure.
+ * Four primary bus figures in one row at hero size, then the secondary figures
+ * as small inline readings beneath, so the map (the page's hero) rises into
+ * the first screen. Hairlines separate the cells; there is no card per figure.
  */
-export function KpiBand({ kpis }: KpiBandProps) {
+export function KpiBand({ kpis, depots }: KpiBandProps) {
   const progress = useFirstMountProgress();
-  const rows = kpiRows(kpis);
+  const { primary, secondary } = kpiLayout(kpis, depots);
 
   return (
     <section aria-labelledby="depot-kpi-heading" data-testid="depot-kpi-band">
@@ -59,30 +70,36 @@ export function KpiBand({ kpis }: KpiBandProps) {
         Network figures
       </h2>
       <dl className="depot-kpi-grid">
-        {rows.map((row) => {
-          const shown =
-            progress === DONE ? row.figure.value : Math.round(row.figure.value * progress);
+        {primary.map((figure) => {
+          const shown = progress === DONE ? figure.value : Math.round(figure.value * progress);
           return (
-            <div key={row.key} className="depot-kpi-cell" data-testid={`depot-kpi-${row.key}`}>
-              <dt className="depot-label">{row.label}</dt>
-              <dd className="depot-hero-numeral mt-2">{formatCount(shown)}</dd>
-              <dd className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-                <ProvenanceBadge
-                  provenance={row.figure.provenance}
-                  coverage={row.figure.coverage}
-                />
-                {row.share !== null ? (
-                  <span className="text-[11px] text-depot-muted">{row.share} of fleet</span>
-                ) : null}
+            <div key={figure.key} className="depot-kpi-cell" data-testid={`depot-kpi-${figure.key}`}>
+              <dt className="depot-label">{figure.label}</dt>
+              <dd className="depot-hero-numeral mt-1.5">{formatCount(shown)}</dd>
+              <dd className="mt-1.5">
+                <Provenance figure={figure} />
               </dd>
-              {row.figure.note ? (
-                <dd className="mt-1 font-sans text-xs leading-snug text-depot-faint">
-                  {row.figure.note}
-                </dd>
-              ) : null}
             </div>
           );
         })}
+      </dl>
+      <dl className="depot-kpi-secondary">
+        {secondary.map((figure) => (
+          <div key={figure.key} className="min-w-0" data-testid={`depot-kpi-${figure.key}`}>
+            <dt className="depot-label">{figure.label}</dt>
+            <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className="text-[15px] tabular-nums text-depot-ink">
+                {formatCount(figure.value)}
+              </span>
+              <Provenance figure={figure} />
+            </dd>
+            {figure.detail ? (
+              <dd className="mt-0.5 font-sans text-xs leading-snug text-depot-muted">
+                {figure.detail}
+              </dd>
+            ) : null}
+          </div>
+        ))}
       </dl>
     </section>
   );

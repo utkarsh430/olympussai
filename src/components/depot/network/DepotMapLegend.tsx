@@ -40,7 +40,7 @@ export function DepotMapLegend({ maxFleet }: DepotMapLegendProps) {
   return (
     <div
       data-testid="depot-map-legend"
-      className="grid grid-cols-1 gap-x-8 gap-y-3 text-[11px] text-depot-muted md:grid-cols-2"
+      className="grid grid-cols-1 gap-x-8 gap-y-3 text-[11px] text-depot-muted md:grid-cols-2 xl:grid-cols-1"
     >
       <div>
         <p className="depot-label mb-1.5">Size</p>

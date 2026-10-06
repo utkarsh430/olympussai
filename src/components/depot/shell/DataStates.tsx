@@ -1,4 +1,5 @@
 import { formatFeedTime } from '@/lib/depot/format';
+import { LOAD_ERROR_TITLE } from '@/lib/depot/loadError';
 
 export interface LoadingBlockProps {
   /** Number of placeholder rows. Match the rows the data will occupy. */
@@ -38,21 +39,31 @@ export function LoadingBlock({
 }
 
 export interface ErrorPanelProps {
+  /** What happened and when, in plain words; must not repeat the title. */
   readonly message: string;
   readonly onRetry: () => void;
   readonly title?: string;
+  /** Further ways out beside Retry, for example a link back to Operations. */
+  readonly children?: React.ReactNode;
 }
 
 /** What failed, and a way to try again; never a blank page. */
-export function ErrorPanel({ message, onRetry, title = 'Depot data unavailable' }: ErrorPanelProps) {
+export function ErrorPanel({
+  message,
+  onRetry,
+  title = LOAD_ERROR_TITLE,
+  children,
+}: ErrorPanelProps) {
   return (
     <div role="alert" data-testid="depot-error" className="depot-error-panel">
-      <p className="depot-label text-alert-crimson">Error</p>
-      <h2 className="mt-1 font-mono text-[13px] text-depot-ink">{title}</h2>
+      <h2 className="text-[13px] text-alert-crimson">{title}</h2>
       <p className="depot-prose mt-1">{message}</p>
-      <button type="button" onClick={onRetry} className="hud-button mt-3">
-        Retry
-      </button>
+      <div className="mt-3 flex flex-wrap items-center gap-4">
+        <button type="button" onClick={onRetry} className="depot-filter-button">
+          Retry
+        </button>
+        {children}
+      </div>
     </div>
   );
 }
