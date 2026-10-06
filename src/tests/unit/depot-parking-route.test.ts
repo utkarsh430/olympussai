@@ -4,6 +4,8 @@ import { NextRequest } from 'next/server';
 import type { DepotBusRow } from '@/models/depotLive';
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
+import { modelledCrewRepository } from '@/lib/depot/repositories/modelledCrewRepository';
+import { modelledFuelRepository } from '@/lib/depot/repositories/modelledFuelRepository';
 import { modelledHistoryRepository } from '@/lib/depot/repositories/modelledHistoryRepository';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
@@ -68,6 +70,8 @@ function view(): FleetSnapshotView {
 const reposWith = (snapshot: () => Promise<FleetSnapshotView>): DepotRepositories => ({
   history: modelledHistoryRepository,
   fleet: { snapshot },
+  crew: modelledCrewRepository,
+  fuel: modelledFuelRepository,
 });
 
 const call = (depotId: string) =>
