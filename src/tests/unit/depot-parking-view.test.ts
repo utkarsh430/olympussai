@@ -183,6 +183,50 @@ describe('buildParkingResponse', () => {
     expect(p.order!.overflow.map((o) => o.registrationNumber)).not.toContain('V1');
   });
 
+  describe('visiting buses take places', () => {
+    const OWN = 12;
+    /** One bus per home depot, so no visiting depot has enough buses to form a yard of its own. */
+    const visitors = (count: number): DepotBusRow[] =>
+      Array.from({ length: count }, (_, i) =>
+        row({ registrationNumber: `V${i}`, depotId: String(100 + i), depotName: `Other ${i}` }),
+      );
+    const baysFor = (): number => parking(parked(OWN)).capacity.bays.value;
+    const laneCount = (p: ReturnType<typeof parking>): number =>
+      p.order!.lanes.reduce((n, l) => n + l.depth, 0);
+
+    it('with no visitors, builds lanes for every modelled bay and no overflow beyond the bays', () => {
+      const p = parking(parked(OWN));
+      expect(laneCount(p)).toBe(p.capacity.bays.value);
+      expect(p.order!.overflow).toEqual([]);
+      expect(p.order!.parkedCount).toBe(OWN);
+    });
+
+    it('cuts the lanes by the visitors so the order matches the capacity sentence', () => {
+      const bays = baysFor();
+      const over = 3;
+      const visiting = bays - OWN + over;
+      const p = parking([...parked(OWN), ...visitors(visiting)]);
+      expect(p.capacity.visiting.value).toBe(visiting);
+      expect(laneCount(p)).toBe(bays - visiting);
+      expect(p.order!.parkedCount).toBe(OWN - over);
+      expect(p.order!.overflow).toHaveLength(over);
+      expect(p.order!.overflow.every((o) => o.reason === 'places_taken_by_visitors')).toBe(true);
+      expect(p.order!.parkedCount + p.order!.overflow.length).toBe(OWN);
+      // Used = own + visitors; over = used - bays = the overflow.
+      expect(p.capacity.inYard.value! + visiting - bays).toBe(over);
+    });
+
+    it('seats nobody and overflows every own bus when visitors alone exceed the bays', () => {
+      const bays = baysFor();
+      const p = parking([...parked(OWN), ...visitors(bays + 2)]);
+      expect(p.state).toBe('planned');
+      expect(p.order!.lanes).toEqual([]);
+      expect(p.order!.parkedCount).toBe(0);
+      expect(p.order!.overflow).toHaveLength(OWN);
+      expect(p.order!.overflow.every((o) => o.reason === 'places_taken_by_visitors')).toBe(true);
+    });
+  });
+
   it('tags the provenance of each field', () => {
     const p = parking(parked());
     expect(p.capacity.bays.provenance).toBe('modelled');

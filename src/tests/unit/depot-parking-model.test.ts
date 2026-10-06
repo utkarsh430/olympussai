@@ -42,6 +42,12 @@ describe('capacitySentence', () => {
     );
   });
 
+  it('agrees with a plan that seats 50 of 55 own buses when 10 visitors stand in 60 bays', () => {
+    expect(capacitySentence({ bays: 60, inYard: 55, visiting: 10 })).toBe(
+      '65 of 60 modelled bays in use; 5 over.',
+    );
+  });
+
   it('counts visiting buses against the bays', () => {
     expect(capacitySentence({ bays: 10, inYard: 4, visiting: 3 })).toBe(
       '7 of 10 modelled bays in use; 3 free.',
@@ -110,6 +116,9 @@ describe('overflow wording', () => {
 
   it('gives the reason in words', () => {
     expect(overflowReasonText('no_lane_space')).toBe('No free place in any modelled lane');
+    expect(overflowReasonText('places_taken_by_visitors')).toBe(
+      'Places taken by visiting buses',
+    );
   });
 });
 

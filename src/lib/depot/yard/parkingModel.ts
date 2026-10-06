@@ -1,6 +1,6 @@
 import { formatMinute } from '../duties/dutyBoardModel';
 import { formatCount } from '../format';
-import type { ParkingLane, ParkingState } from './parkingApi';
+import type { ParkingLane, ParkingOverflowReason, ParkingState } from './parkingApi';
 
 /** Shown with the order wherever it appears; the order is a proposal and nothing is dispatched. */
 export const PLAN_NOTICE =
@@ -57,8 +57,10 @@ export function overflowSentence(count: number): string {
     : `${formatCount(count)} buses do not fit in the modelled lanes and are not ordered.`;
 }
 
-export function overflowReasonText(reason: 'no_lane_space'): string {
-  return reason === 'no_lane_space' ? 'No free place in any modelled lane' : '';
+export function overflowReasonText(reason: ParkingOverflowReason): string {
+  return reason === 'places_taken_by_visitors'
+    ? 'Places taken by visiting buses'
+    : 'No free place in any modelled lane';
 }
 
 export interface BlockedLine {

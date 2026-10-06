@@ -9,6 +9,7 @@ import type {
   ParkingCapacity,
   ParkingLane,
   ParkingOrder,
+  ParkingOverflowReason,
   ParkingResponse,
   ParkingState,
 } from '../yard/parkingApi';
@@ -109,16 +110,34 @@ function toLanes(
   });
 }
 
-function orderFor(lanes: readonly Lane[], parked: readonly ParkedBus[]): ParkingOrder {
+/**
+ * Overflow reasons. Buses beyond what the bays could hold even with no visitors
+ * did not fit by their own number; the rest are shut out by visiting buses.
+ */
+function overflowReasons(
+  overflow: readonly string[],
+  parkedCount: number,
+  bays: number,
+): readonly ParkingOverflowReason[] {
+  const ownShortfall = Math.max(0, parkedCount - bays);
+  return overflow.map((_, i) => (i < ownShortfall ? 'no_lane_space' : 'places_taken_by_visitors'));
+}
+
+function orderFor(
+  lanes: readonly Lane[],
+  parked: readonly ParkedBus[],
+  bays: number,
+): ParkingOrder {
   const plan = planParking(lanes, parked);
   const startOf = new Map(parked.map((b) => [b.registrationNumber, b.firstDutyStartMin]));
+  const reasons = overflowReasons(plan.overflow, parked.length, bays);
   return {
     provenance: 'modelled',
     lanes: toLanes(lanes, plan.slots),
-    overflow: plan.overflow.map((registrationNumber) => ({
+    overflow: plan.overflow.map((registrationNumber, i) => ({
       registrationNumber,
       firstDutyStartMin: startOf.get(registrationNumber) ?? null,
-      reason: 'no_lane_space',
+      reason: reasons[i] ?? 'no_lane_space',
     })),
     blocked: plan.blocked,
     parkedCount: plan.slots.length,
@@ -162,7 +181,9 @@ function buildBody(
   });
   if (parked.length === 0) return withDropped('no_buses', null);
   try {
-    const order = orderFor(modelYardLayout(detail.depot, bays), parked);
+    // Visiting buses stand in places too: shorten the lanes from the back by that many.
+    const places = Math.max(0, bays - detail.visitors.length);
+    const order = orderFor(modelYardLayout(detail.depot, places), parked, bays);
     return withDropped('planned', order);
   } catch (error) {
     // The planner and the layout reject only malformed input; that is an empty state, not a 500.

@@ -33,10 +33,13 @@ export interface ParkingLane {
   readonly slots: readonly ParkingLaneSlot[];
 }
 
+/** Why a bus is not in a lane: the lanes are full, or visiting buses stand in the places. */
+export type ParkingOverflowReason = 'no_lane_space' | 'places_taken_by_visitors';
+
 export interface ParkingOverflowBus {
   readonly registrationNumber: string;
   readonly firstDutyStartMin: number | null;
-  readonly reason: 'no_lane_space';
+  readonly reason: ParkingOverflowReason;
 }
 
 export interface ParkingOrder {
