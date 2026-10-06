@@ -62,7 +62,7 @@ function sum(values: readonly number[]): number {
 function onlyDepot(rows: readonly DepotBusRow[], feedNow: string | null = FEED_NOW): DepotSummary {
   const summaries = summariseDepots(rows, feedNow);
   expect(summaries).toHaveLength(1);
-  return summaries[0];
+  return summaries[0] as DepotSummary;
 }
 
 describe('classifyDepotKind', () => {

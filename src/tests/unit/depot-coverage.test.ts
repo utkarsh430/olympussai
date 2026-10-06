@@ -102,7 +102,7 @@ describe('fieldCoverage', () => {
 
   it('does not mutate deep-frozen input', () => {
     const rows = Object.freeze([Object.freeze(makeRow({ depotId: '1' }))]);
-    expect(fieldCoverage(rows)[0].populated).toBe(1);
+    expect(fieldCoverage(rows)[0]?.populated).toBe(1);
   });
 
   it('never exceeds of and never yields NaN', () => {
