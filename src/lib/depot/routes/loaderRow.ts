@@ -9,29 +9,42 @@ import { PROFILE_LOAD_CAP } from './profileLoader';
  * makes the next step obvious: the depot most worth a press is chosen already.
  */
 
-/** A depot in the loader's select, with the buses that report a route there now. */
+/** A depot option as the routes response sends it: its number of routes when it says. */
+export type DepotOption = FilterOption & { readonly routes?: number };
+
+/** A depot in the loader's select, with its routes, or the buses that report a route there. */
 export interface LoaderDepot extends FilterOption {
+  /** The depot's number of routes in the feed, when the response carries it. */
+  readonly routes: number | null;
   /** Buses of this depot carrying a route name; null when the network feed has not said. */
   readonly busesOnRoutes: number | null;
 }
 
 export const LOADER_COST_LINE = 'One lookup on the route-details service per route, one at a time';
 
+/** What a depot is ordered by: its routes when known, else its buses on routes. */
+function weight(d: LoaderDepot): number {
+  return d.routes ?? d.busesOnRoutes ?? -1;
+}
+
 /**
- * The depots that run a route, most buses on a route first (the server sends no per-depot
- * route count, so buses on routes stand in for it), then by name.
+ * The depots that run a route, most routes first (a press looks up one depot's routes, so
+ * the count of routes is what a reader weighs; where the response does not carry it, buses
+ * on routes stand in, labelled as such), then by name.
  */
 export function loaderDepots(
-  options: readonly FilterOption[],
+  options: readonly DepotOption[],
   summaries: readonly { readonly id: string; readonly assigned: number }[],
 ): readonly LoaderDepot[] {
   const buses = new Map(summaries.map((s) => [s.id, s.assigned]));
   return options
-    .map((o) => ({ ...o, busesOnRoutes: buses.get(o.value) ?? null }))
-    .sort(
-      (a, b) =>
-        (b.busesOnRoutes ?? -1) - (a.busesOnRoutes ?? -1) || a.label.localeCompare(b.label, 'en'),
-    );
+    .map((o) => ({
+      value: o.value,
+      label: o.label,
+      routes: typeof o.routes === 'number' && Number.isFinite(o.routes) ? o.routes : null,
+      busesOnRoutes: buses.get(o.value) ?? null,
+    }))
+    .sort((a, b) => weight(b) - weight(a) || a.label.localeCompare(b.label, 'en'));
 }
 
 /** The depot scope from the URL when it runs a route, else the depot with the most buses on routes. */
@@ -43,10 +56,13 @@ export function defaultLoaderDepot(
   return depots[0]?.value ?? '';
 }
 
-/** An option's words: the name, then its buses on routes when known. */
+/** An option's words: the name, then its routes, or else its buses on routes, when known. */
 export function loaderDepotLabel(depot: LoaderDepot): string {
+  if (depot.routes !== null) {
+    return `${depot.label} · ${formatCount(depot.routes)} ${depot.routes === 1 ? 'route' : 'routes'}`;
+  }
   if (depot.busesOnRoutes === null) return depot.label;
-  return `${depot.label} · ${formatCount(depot.busesOnRoutes)} on routes`;
+  return `${depot.label} · ${formatCount(depot.busesOnRoutes)} buses on routes`;
 }
 
 /** The row's sentence when no route can be planned: why, in one sentence. */

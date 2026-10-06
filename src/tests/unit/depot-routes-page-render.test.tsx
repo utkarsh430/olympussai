@@ -198,10 +198,11 @@ describe('RoutesPage plan panel', () => {
     // the explanations live in the closing disclosure, not in the row
     expect(textOf(section)).not.toContain(TRIP_DEFINITION);
     expect(textOf(section)).not.toContain('Each route is one lookup');
-    expect(textOf(section)).toContain('One lookup on the route-details service per route, one at a time');
-    expect(section).toMatch(/<option value="1" selected="">AGRA · 3 on routes<\/option>/);
+    expect(textOf(section)).not.toContain('One lookup on the route-details service');
+    expect(section).toMatch(/<option value="1" selected="">AGRA · 3 buses on routes<\/option>/);
     const method = markup.slice(markup.indexOf('data-testid="routes-method"'));
     expect(textOf(method)).toContain(TRIP_DEFINITION);
+    expect(textOf(method)).toContain('Lookups run one at a time, at most 40 a press.');
     expect(textOf(method)).toContain('Each route is one lookup on the route-details service.');
     expect(textOf(method)).toContain('at most 40 a press and never by itself');
   });
