@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
 import { ErrorPanel, StaleNotice } from '@/components/depot/shell/DataStates';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { buildCockpit } from '@/lib/depot/cockpit/cockpitModel';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import { depotHref } from '@/lib/depot/depotNav';

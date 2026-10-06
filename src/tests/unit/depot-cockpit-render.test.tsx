@@ -7,7 +7,7 @@ import { AvailabilityBar } from '@/components/depot/cockpit/AvailabilityBar';
 import { DepotExceptions } from '@/components/depot/cockpit/DepotExceptions';
 import type { ExceptionGroup } from '@/lib/depot/cockpit/exceptionGroups';
 import type { TrackerRow } from '@/lib/depot/cockpit/cockpitTypes';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 
 const context = vi.hoisted(() => ({ value: null as unknown }));
 

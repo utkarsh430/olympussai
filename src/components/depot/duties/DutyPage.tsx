@@ -6,7 +6,7 @@ import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvid
 import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { HowProduced as ClosingDisclosure } from '@/components/depot/shell/HowProduced';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { useDepotDuties } from '@/hooks/useDepotDuties';
 import type { DutyBoardResponse } from '@/lib/depot/duties/api';

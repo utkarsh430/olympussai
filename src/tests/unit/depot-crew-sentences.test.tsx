@@ -24,7 +24,7 @@ import {
   uncoveredCountSentence,
 } from '@/lib/depot/crew/crewPageModel';
 import type { CrewRole, ShortfallCause } from '@/lib/depot/crew/types';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 
 const hooks = vi.hoisted(() => ({ crew: null as unknown }));
 

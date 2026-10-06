@@ -3,7 +3,8 @@
 import type { CrewResponse } from '@/lib/depot/crew/api';
 import { isValidDepotId } from '@/lib/depot/ids';
 import { usePolledJson, type PolledState } from '@/hooks/usePolledJson';
-import { DEPOT_NOT_FOUND_MESSAGE, INVALID_DEPOT_ID_MESSAGE } from '@/hooks/useDepotDetail';
+import { INVALID_DEPOT_ID_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 
 const NOT_FOUND = 404;
 const BAD_REQUEST = 400;

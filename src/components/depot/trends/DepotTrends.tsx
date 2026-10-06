@@ -6,7 +6,7 @@ import { EmptyState, StaleNotice } from '@/components/depot/shell/DataStates';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { chartDisclosureParagraphs, depotTrendsPath } from '@/lib/depot/forecast/trendsPageModel';
 import type { MetricKey } from '@/lib/depot/sim/types';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { useDepotDistribution } from '@/hooks/useDepotDistribution';
 import { useDepotForecast } from '@/hooks/useDepotForecast';
 import { AvailabilityPanel } from './AvailabilityPanel';

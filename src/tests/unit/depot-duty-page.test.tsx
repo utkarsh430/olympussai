@@ -4,7 +4,7 @@ import DepotDutiesPage from '@/app/(protected)/project/depots/d/[depotId]/duties
 import { DutyPage } from '@/components/depot/duties/DutyPage';
 import type { DutyBoardResponse } from '@/lib/depot/duties/api';
 import { COST_SENTENCE, MODEL_NOTICE } from '@/lib/depot/duties/dutyBoardModel';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 
 const hook = vi.hoisted(() => ({ value: null as unknown }));
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { depotScopeState } from '@/lib/depot/scopeState';
 
 const DEPOTS = [{ id: '49', name: 'KAUSHAMBI', kind: 'depot', fleet: 200 }] as const;

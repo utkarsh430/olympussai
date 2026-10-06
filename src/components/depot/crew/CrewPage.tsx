@@ -13,7 +13,7 @@ import {
   SOURCES_HREF,
 } from '@/lib/depot/crew/crewPageModel';
 import { modelledDayLine } from '@/lib/depot/modelledDayLine';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { useDepotCrew } from '@/hooks/useDepotCrew';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { AvailabilityHero } from './AvailabilityHero';

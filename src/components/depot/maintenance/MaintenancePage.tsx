@@ -5,7 +5,7 @@ import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvid
 import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { useDepotMaintenance } from '@/hooks/useDepotMaintenance';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { FigureBand, Figure } from '@/components/depot/shell/FigureBand';
 import { SERVICE_INTERVAL_KM } from '@/lib/depot/maintenance/config';
 import {

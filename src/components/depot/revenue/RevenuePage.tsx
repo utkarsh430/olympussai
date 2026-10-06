@@ -5,7 +5,7 @@ import { ErrorPanel, StaleNotice } from '@/components/depot/shell/DataStates';
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import type { ProvenanceDescription } from '@/lib/depot/provenanceLine';
 import { useDepotRevenue } from '@/hooks/useDepotRevenue';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
