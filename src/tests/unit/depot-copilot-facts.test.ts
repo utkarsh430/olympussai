@@ -432,6 +432,15 @@ function allRequests(data: AnswerData = makeData()): [string, CopilotRequest][] 
       ),
     ],
     ['no score', buildDepotBriefing(makeDetail({ score: null }))],
+    ['departures, some ended', buildDepotBriefing(makeDetail({ outshed: SCHEDULED_OUTSHED }))],
+    [
+      'departures ended, none overdue',
+      buildDepotBriefing(
+        makeDetail({
+          outshed: { ...SCHEDULED_OUTSHED, counts: { ...SCHEDULED_OUTSHED.counts, overdue: 0 } },
+        }),
+      ),
+    ],
     ['no yard', buildDepotBriefing(makeDetail({ yard: false }))],
     [
       'empty depot',
@@ -731,6 +740,26 @@ describe('depot briefing', () => {
     const some = buildDepotBriefing(makeDetail({ outshed: SCHEDULED_OUTSHED }));
     expect(proseOf(some)).toContain('{{fact:depot.outshed_coverage}}');
     expect(some.facts.find((f) => f.id === 'depot.outshed_coverage')?.text).toBe('55 of 100 buses');
+  });
+
+  it('names the departures whose scheduled window ended before the feed time, only when any did', () => {
+    const ended = buildDepotBriefing(makeDetail({ outshed: SCHEDULED_OUTSHED }));
+    expect(ended.facts.find((f) => f.id === 'depot.outshed_ended')).toMatchObject({
+      text: '5 buses',
+      provenance: 'derived',
+    });
+    const rendered = renderDraft(ended.scriptedDraft, ended.facts);
+    expect(rendered).toMatchObject({ ok: true });
+    expect(rendered.ok && rendered.paragraphs.join(' ')).toContain(
+      'Of those, 40 buses already away; 5 buses whose scheduled window is already over and 2 buses overdue to leave the yard.',
+    );
+    const none = buildDepotBriefing(
+      makeDetail({
+        outshed: { ...SCHEDULED_OUTSHED, counts: { ...SCHEDULED_OUTSHED.counts, ended: 0 } },
+      }),
+    );
+    expect(none.facts.some((f) => f.id === 'depot.outshed_ended')).toBe(false);
+    expect(proseOf(none)).not.toContain('window');
   });
 
   it('reports exceptions when present and says none when absent', () => {
