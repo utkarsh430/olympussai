@@ -19,7 +19,12 @@ export default async function DepotMaintenancePage({
     <>
       <PageHeader
         title="Maintenance"
-        description="Buses the feed reports under maintenance, preventive services coming due on a modelled history, and the workshop's load. Nothing here is written back to any system."
+        description="What is off the road now, and what a model says is coming due for service."
+        provenanceLine={{
+          default: 'mixed',
+          live: 'Off-road buses',
+          modelled: 'service status and workshop bays',
+        }}
       />
       <Suspense fallback={<LoadingBlock rows={12} label="Loading the maintenance view" />}>
         <MaintenancePage />

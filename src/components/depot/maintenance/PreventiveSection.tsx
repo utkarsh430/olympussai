@@ -3,29 +3,25 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
-import { EmptyState } from '@/components/depot/shell/DataStates';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { rosterBusHref } from '@/lib/depot/depotNav';
 import { formatCount } from '@/lib/depot/format';
 import type { MaintenanceResponse } from '@/lib/depot/maintenance/api';
-import { SERVICE_INTERVAL_KM } from '@/lib/depot/maintenance/config';
 import type { ModelledService, ServiceGroup } from '@/lib/depot/maintenance/serviceModel';
 import {
-  distanceNotice,
-  groupSummary,
-  intervalText,
-  NEXT_SERVICE_HEADER,
-  SERVICE_HEADER,
+  kmToNextCell,
   kmToNextText,
+  NEXT_SERVICE_HEADER,
   noAttentionText,
-  preventiveNote,
+  preventiveGuard,
+  SERVICE_HEADER,
   serviceClassLabel,
   serviceGroupLabel,
 } from '@/lib/depot/maintenance/text';
-import type { ServiceClass } from '@/lib/depot/sim/types';
 
 const GROUP_ORDER: Readonly<Record<ServiceGroup, number>> = { overdue: 0, due_soon: 1, not_due: 2 };
-const CLASSES = Object.keys(SERVICE_INTERVAL_KM) as readonly ServiceClass[];
+const TABLE_CAP = 25;
 
 function buildColumns(
   depotId: string,
@@ -56,7 +52,7 @@ function buildColumns(
       header: NEXT_SERVICE_HEADER,
       align: 'right',
       sortValue: (bus) => bus.kmToNextService,
-      render: (bus) => kmToNextText(bus.kmToNextService, dueSoonWithinKm),
+      render: (bus) => <span title={kmToNextText(bus.kmToNextService, dueSoonWithinKm)}>{kmToNextCell(bus.kmToNextService)}</span>,
     },
     {
       key: 'class',
@@ -65,18 +61,18 @@ function buildColumns(
       render: (bus) => serviceClassLabel(bus.serviceClass),
     },
     {
-      key: 'age',
-      header: 'Modelled age',
-      align: 'right',
-      sortValue: (bus) => bus.ageYears,
-      render: (bus) => `${bus.ageYears} y`,
-    },
-    {
       key: 'odometer',
-      header: 'Modelled odometer',
+      header: 'Odometer, km (MODELLED)',
       align: 'right',
       sortValue: (bus) => bus.odometerKm,
-      render: (bus) => `${formatCount(bus.odometerKm)} km`,
+      render: (bus) => formatCount(bus.odometerKm),
+    },
+    {
+      key: 'age',
+      header: 'Age, years (MODELLED)',
+      align: 'right',
+      sortValue: (bus) => bus.ageYears,
+      render: (bus) => String(bus.ageYears),
     },
   ];
 }
@@ -84,53 +80,40 @@ function buildColumns(
 export interface PreventiveSectionProps {
   readonly depotId: string;
   readonly preventive: MaintenanceResponse['preventive'];
-  readonly distanceCoverage: MaintenanceResponse['distanceCoverage'];
 }
 
 /**
- * Buses grouped by words (overdue, due soon, not due) on a modelled odometer.
- * The response carries only the buses that need attention; the rest are counted.
+ * Buses a model says are overdue or due soon, beside their real registrations. The
+ * section label and the modelled columns carry the MODELLED tag, and one sentence
+ * above the table says these are not workshop records (rulings, section 2).
  */
-export function PreventiveSection({
-  depotId,
-  preventive,
-  distanceCoverage,
-}: PreventiveSectionProps) {
+export function PreventiveSection({ depotId, preventive }: PreventiveSectionProps) {
   const columns = useMemo(
     () => buildColumns(depotId, preventive.dueSoonWithinKm),
     [depotId, preventive.dueSoonWithinKm],
   );
   return (
     <section aria-labelledby="depot-preventive-heading" className="min-w-0 animate-rise">
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 id="depot-preventive-heading" className="depot-section-label !mb-0">
-          Preventive maintenance
-        </h2>
-        <ProvenanceBadge provenance="modelled" />
-      </div>
-      <p className="depot-prose mb-2 flex flex-wrap items-center gap-x-2">
-        <ProvenanceBadge provenance="live" coverage={distanceCoverage.coverage} />
-        <span>{distanceNotice(distanceCoverage.coverage)}</span>
-      </p>
-      <p className="depot-prose mb-2">{preventiveNote(preventive.dueSoonWithinKm)}</p>
-      <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-depot-muted">
-        {CLASSES.map((serviceClass) => (
-          <li key={serviceClass}>
-            {intervalText(serviceClass, SERVICE_INTERVAL_KM[serviceClass])}
-          </li>
-        ))}
-      </ul>
-      <p className="depot-prose mb-3" role="status">
-        {groupSummary(preventive.counts)}
-      </p>
+      <SectionLabel
+        id="depot-preventive-heading"
+        label="Preventive maintenance"
+        count={preventive.buses.length}
+        tag="modelled"
+        note="Most urgent first"
+      />
+      <p className="depot-prose mb-2">{preventiveGuard()}</p>
       {preventive.buses.length === 0 ? (
-        <EmptyState>{noAttentionText()}</EmptyState>
+        <StatePanel kind="empty" sentence={noAttentionText()} />
       ) : (
         <DataTable
           columns={columns}
           rows={preventive.buses}
           rowKey={(bus) => bus.registrationNumber}
-          caption="Buses overdue or due soon for a preventive service, modelled"
+          caption="Buses a model puts as overdue or due soon for a preventive service"
+          fixedRows
+          freezeFirstColumn
+          overflowCue
+          maxRows={TABLE_CAP}
         />
       )}
     </section>

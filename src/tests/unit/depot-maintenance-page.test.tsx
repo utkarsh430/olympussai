@@ -84,9 +84,57 @@ describe('MaintenancePage', () => {
     expect(body).toContain('2 buses off the road fit in 4 modelled bays');
   });
 
-  it('says the modelled row is modelled in every cell', () => {
+  it('shows the three-figure band: live off-road count, then overdue and due soon tagged MODELLED', () => {
+    const markup = renderToStaticMarkup(<MaintenancePage />);
+    const band = markup.slice(markup.indexOf('data-testid="depot-figure-band"'));
+    const live = band.indexOf('Off the road now');
+    const overdue = band.indexOf('Overdue');
+    const dueSoon = band.indexOf('Due soon');
+    expect(live).toBeGreaterThan(-1);
+    expect(overdue).toBeGreaterThan(live);
+    expect(dueSoon).toBeGreaterThan(overdue);
+    // the live figure carries no tag; each modelled figure carries one
+    expect(band.slice(live, overdue)).not.toMatch(/Modelled|MODELLED/i);
+    expect(band.slice(overdue, dueSoon)).toMatch(/modelled/i);
+    expect(band.slice(dueSoon, dueSoon + 400)).toMatch(/modelled/i);
+  });
+
+  it('guards the generated status beside a real registration on every surface that shows it', () => {
+    const markup = renderToStaticMarkup(<MaintenancePage />);
+    const body = text(markup);
+    // the section label carries the tag, the one sentence says not workshop records
+    const section = markup.slice(markup.indexOf('depot-preventive-heading'));
+    expect(section.slice(0, 600)).toMatch(/modelled/i);
+    expect(body).toContain('they are not workshop records');
+    // both column headers carry the tag; the cells hold the word and the number only
+    expect(body).toContain('Status (MODELLED)');
+    expect(body).toContain('To next service, km (MODELLED)');
+    expect(body).toContain('UP32A0009');
+    expect(body).not.toContain('Modelled: overdue');
+    expect(markup).toMatch(/<td[^>]*>Overdue<\/td>/);
+    expect(markup).toContain('\u22123,400');
+  });
+
+  it('says once, above the off-road table, what every row shares, with no constant columns', () => {
     const body = text(renderToStaticMarkup(<MaintenancePage />));
-    expect(body).toContain('Modelled: overdue by 3,400 km');
+    expect(body).toContain('Every bus here has feed status Under maintenance');
+    expect(body).not.toContain('Feed status');
+    expect(body.match(/Under maintenance/g)).toHaveLength(1);
+  });
+
+  it('puts the actionable workshop line beside the live list, with the same count as the band', () => {
+    const body = text(renderToStaticMarkup(<MaintenancePage />));
+    expect(body).toContain('2 buses off the road fit in 4 modelled bays');
+    expect(body).toContain('Would wait for a bay');
+  });
+
+  it('ends with a closed disclosure holding the model statements', () => {
+    const markup = renderToStaticMarkup(<MaintenancePage />);
+    expect(markup).toContain('<details');
+    expect(markup).not.toContain('<details open');
+    expect(text(markup)).toContain('How these figures are produced');
+    expect(text(markup)).toContain('not derived from any record');
+    expect(text(markup)).toContain('distance field is not used on this page');
   });
 
   it('keeps the live list when only the modelled parts failed, and says so', () => {
@@ -107,6 +155,6 @@ describe('MaintenancePage', () => {
     set({ error: 'Depot data unavailable' }, { data: MODELLED });
     const markup = renderToStaticMarkup(<MaintenancePage />);
     expect(markup).toContain('role="alert"');
-    expect(markup).not.toContain('Modelled: overdue');
+    expect(markup).not.toContain('UP32A0009');
   });
 });
