@@ -69,6 +69,8 @@ describe('the time floor re-checked before the slot', () => {
     const children: ReturnType<typeof fakeChild>[] = [];
     const spawn = vi.fn(() => {
       const child = fakeChild();
+      // Only the first call holds its slot; any later one (which must not happen) ends at once.
+      if (children.length > 0) queueMicrotask(() => child.emit('close', 1));
       children.push(child);
       return child;
     });
