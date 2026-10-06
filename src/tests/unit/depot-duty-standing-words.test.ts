@@ -30,7 +30,7 @@ describe('how a matched bus stands, in words', () => {
     expect(STANDING_WORD).toEqual({
       on_road: 'On the road',
       in_yard: 'Standing in the yard',
-      standing: 'Standing, no yard established',
+      standing: 'Standing, no yard',
     });
   });
 

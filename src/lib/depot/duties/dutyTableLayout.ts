@@ -31,15 +31,15 @@ export const DUTY_LONGEST_TEXT: Readonly<Partial<Record<DutyColumnKey, string>>>
   end: '05:40 next day',
   state: 'Unmatched',
   bus: 'UP78FN5435',
-  now: 'Standing, no yard established',
+  now: 'Standing in the yard',
 };
 
 const COLUMNS_BY_TIER: Readonly<Record<DutyTableTier, readonly DutyColumnKey[]>> = {
   // 1024 and up: every column.
   wide: ['route', 'class', 'start', 'end', 'state', 'bus', 'now'],
   // 640 to 1023: class, end and how the bus stands go to the expander (its TIME line gives
-  // both ends). How the bus stands runs to 29 characters ("Standing, no yard established",
-  // 250 px), which with the other four cannot fit the 590 px frame at 640.
+  // both ends). How the bus stands runs to 20 characters ("Standing in the yard", about
+  // 180 px), which with the other four cannot fit the 590 px frame at 640.
   medium: ['route', 'start', 'state', 'bus'],
   // Under 640: the route, when it starts and its bus ("—" when unmatched; the state, the
   // end and how the bus stands are in the expander).

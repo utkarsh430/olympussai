@@ -16,12 +16,13 @@ export const DUTIES_DESCRIPTION =
 /**
  * How a matched bus stands now. "Standing in the yard", never "in the yard" alone:
  * only standing buses are meant. `standing` is a bus standing where the depot has
- * no yard established, so where it stands is not judged.
+ * no yard established, so where it stands is not judged; its words are no longer than
+ * the others', because a table cell never wraps and the column must hold them at 1024 px.
  */
 export const STANDING_WORD: Readonly<Record<BusStandingNow, string>> = {
   on_road: 'On the road',
   in_yard: 'Standing in the yard',
-  standing: 'Standing, no yard established',
+  standing: 'Standing, no yard',
 };
 
 export const CLASS_WORD: Readonly<Record<ServiceClass, string>> = {
