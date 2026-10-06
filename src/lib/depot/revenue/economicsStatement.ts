@@ -38,6 +38,21 @@ export function rankingShortfallNotice(
   };
 }
 
+/**
+ * How many of the routes run across the operating depots rest on a real length
+ * (ruling S39: a coverage figure, never a reason to hide a number); null when
+ * no route ran. Neither earnings nor fuel cost per kilometre depends on the
+ * length in this model, so the ranking does not wait for route profiles.
+ */
+export function lengthCoverageLine(depots: readonly EconomicsDepotRow[]): string | null {
+  const operating = depots.filter((d) => d.kind === 'depot');
+  const real = operating.reduce((total, d) => total + d.lengthCoverage.n, 0);
+  const run = operating.reduce((total, d) => total + d.lengthCoverage.of, 0);
+  if (run <= 0) return null;
+  const noun = run === 1 ? 'route' : 'routes';
+  return `Route lengths: ${formatCount(real)} of ${formatCount(run)} ${noun} run in the modelled day rest on a real route profile; the rest use a MODELLED typical length for their class. Earnings and fuel cost per kilometre do not depend on the length, so it moves the revenue totals, not the ranking.`;
+}
+
 export interface EconomicsStatement {
   /** Before the revenue statement: what this page adds. */
   readonly preface: readonly string[];

@@ -14,7 +14,7 @@ function count(depots: readonly EconomicsDepotRow[], reason: EconomicsRankReason
   return depots.filter((d) => d.score.reason === reason).length;
 }
 
-/** "4 ranked of 6 operating depots (MODELLED) · 1 not ranked: no route with a known length". */
+/** "4 ranked of 6 operating depots (MODELLED) · 1 not ranked: no duty ran in the modelled day". */
 export function economicsStatusLine(depots: readonly EconomicsDepotRow[]): string {
   const operating = depots.filter((d) => d.kind === 'depot');
   const ranked = operating.filter((d) => d.score.ranked).length;
