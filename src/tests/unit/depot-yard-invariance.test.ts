@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { DepotBusRow } from '@/models/depotLive';
-import { distanceM, median } from '@/lib/depot/infer/geo';
-import {
-  inferYardGroup,
-  inferYards,
-  YARD_MIN_RADIUS_M,
-  YARD_RADIUS_PAD_M,
-} from '@/lib/depot/infer/yard';
+import { distanceM, fromMetres, median } from '@/lib/depot/infer/geo';
+import { locateBus } from '@/lib/depot/infer/location';
+import type { Yard } from '@/lib/depot/infer/types';
+import { inferYardGroup, inferYards } from '@/lib/depot/infer/yard';
 import {
   blob,
   busAt,
@@ -14,6 +11,7 @@ import {
   far,
   file,
   readingInYard,
+  row,
   scattered,
   seededRandom,
   seededShuffle,
@@ -89,8 +87,15 @@ describe('the centre', () => {
   });
 });
 
+/** How a passing bus `metres` north of the yard's centre reads against the yard. */
+function readingAt(yard: Yard, metres: number): string {
+  const { lat, lng } = fromMetres({ x: 0, y: metres }, yard.lat, yard.lng);
+  const passing = row({ registrationNumber: 'PASSING', latitude: lat, longitude: lng });
+  return locateBus(passing, new Map([['1', yard]])).location;
+}
+
 describe('the radius', () => {
-  it('holds every member, reaching the farthest one plus the padding and no further', () => {
+  it('holds every member, and reaches 40 m beyond the farthest one and no further', () => {
     for (let seed = 1; seed <= 25; seed += 1) {
       const rows = strewn(seed, 30 + (seed % 4) * 10, 260 + seed * 12, 120 + seed * 6);
       const { yard, members } = inferYardGroup(rows)!;
@@ -101,17 +106,20 @@ describe('the radius', () => {
       const farthest = Math.max(
         ...memberRows.map((r) => distanceM(r.latitude!, r.longitude!, yard.lat, yard.lng)),
       );
-      expect(yard.radiusM).toBeGreaterThan(YARD_MIN_RADIUS_M);
-      expect(yard.radiusM - farthest).toBeGreaterThanOrEqual(YARD_RADIUS_PAD_M);
-      expect(yard.radiusM - farthest).toBeLessThan(YARD_RADIUS_PAD_M + 1);
-      expect(Number.isInteger(yard.radiusM)).toBe(true);
+      // Above the 120 m minimum, so the farthest bus sets the radius, not the floor.
+      expect(farthest).toBeGreaterThan(120);
+      expect(yard.radiusM - farthest).toBeGreaterThanOrEqual(40);
+      expect(yard.radiusM - farthest).toBeLessThan(41);
+      expect(readingAt(yard, farthest + 35)).toBe('in_yard');
+      expect(readingAt(yard, farthest + 45)).toBe('away');
     }
   });
 
-  it('is never below the minimum, however tightly the buses stand', () => {
+  it('is 120 m at the least, however tightly the buses stand', () => {
     const { yard } = inferYardGroup(blob('A', 10, HERE, 12))!;
-    expect(yard.radiusM).toBe(YARD_MIN_RADIUS_M);
-    expect(YARD_RADIUS_PAD_M).toBeGreaterThan(0);
+    expect(yard.radiusM).toBe(120);
+    expect(readingAt(yard, 115)).toBe('in_yard');
+    expect(readingAt(yard, 125)).toBe('away');
   });
 });
 

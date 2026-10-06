@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { DepotBusRow } from '@/models/depotLive';
-import { inferYard, inferYardGroup, YARD_LINK_M } from '@/lib/depot/infer/yard';
+import { inferYard, inferYardGroup } from '@/lib/depot/infer/yard';
 import {
   blob,
   busAt,
@@ -37,7 +37,8 @@ function joined(towards: XY, between: number, spacing: number) {
 }
 
 describe('single buses never join two places', () => {
-  const justUnderLink = YARD_LINK_M - 10;
+  /** Metres between the buses of a chain: just under the 150 m link distance. */
+  const justUnderLink = 140;
 
   it.each(COMPASS)('keeps yard and stand apart along a chain running %s', (_, towards) => {
     for (const between of [3, 4, 5, 8]) {
@@ -60,7 +61,8 @@ describe('single buses never join two places', () => {
 });
 
 describe('a dense queue is one place, and the span rule then decides', () => {
-  const underHalfLink = YARD_LINK_M / 2 - 5;
+  /** Metres between the buses of a queue: under half the 150 m link distance. */
+  const underHalfLink = 70;
 
   it('holds yard, queue and stand as one yard when they fit inside the span limit', () => {
     const { all } = joined({ x: 1, y: 0 }, 12, underHalfLink);

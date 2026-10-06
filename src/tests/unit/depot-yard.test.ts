@@ -5,12 +5,16 @@ import {
   inferYard,
   inferYardGroup,
   inferYards,
+  YARD_CELL_M,
   YARD_CORE_MIN_NEIGHBOURS,
   YARD_DOMINANCE_RATIO,
   YARD_LINK_M,
+  YARD_MAX_SPAN_CELLS,
   YARD_MAX_SPAN_M,
   YARD_MIN_CLUSTER,
+  YARD_MIN_RADIUS_M,
   YARD_MIN_SHARE,
+  YARD_RADIUS_PAD_M,
 } from '@/lib/depot/infer/yard';
 import {
   blob,
@@ -27,9 +31,12 @@ import {
 const HERE = { x: 0, y: 0 };
 
 describe('the yard rule (Ruling S25)', () => {
-  it('uses the measured values', () => {
+  // Screens build their sentences from these, so the ruled values are pinned by name.
+  it('exports the ruled values, and the span limit still reads as cells times cell width', () => {
     expect([YARD_LINK_M, YARD_CORE_MIN_NEIGHBOURS, YARD_MIN_CLUSTER]).toEqual([150, 4, 6]);
     expect([YARD_MIN_SHARE, YARD_DOMINANCE_RATIO, YARD_MAX_SPAN_M]).toEqual([0.25, 1.5, 1500]);
+    expect([YARD_MIN_RADIUS_M, YARD_RADIUS_PAD_M]).toEqual([120, 40]);
+    expect(YARD_MAX_SPAN_CELLS * YARD_CELL_M).toBe(1500);
   });
 
   it('learns a compact yard where the buses stand, and names every bus in it', () => {
@@ -43,8 +50,18 @@ describe('the yard rule (Ruling S25)', () => {
   });
 
   it('claims no yard from five buses standing together, and one from six', () => {
-    expect(inferYard(blob('A', YARD_MIN_CLUSTER - 1, HERE))).toBeNull();
-    expect(inferYard(blob('A', YARD_MIN_CLUSTER, HERE))).toMatchObject({ inCluster: 6 });
+    expect(inferYard(blob('A', 5, HERE))).toBeNull();
+    expect(inferYard(blob('A', 6, HERE))).toMatchObject({ inCluster: 6 });
+  });
+
+  it('links buses standing within 150 m of each other and no further', () => {
+    // Two threes: together six buses each with six in reach, apart nobody has four.
+    const threes = (gap: number) => [
+      ...file('A', 3, HERE, { x: 1, y: 0 }),
+      ...file('B', 3, { x: gap + 2, y: 0 }, { x: 1, y: 0 }),
+    ];
+    expect(inferYard(threes(146))).toMatchObject({ inCluster: 6 });
+    expect(inferYard(threes(151))).toBeNull();
   });
 
   it('needs a quarter of the parked buses in the yard: 6 of 24 is enough, 6 of 25 is not', () => {
@@ -87,10 +104,10 @@ describe('the yard rule (Ruling S25)', () => {
     expect(inferYard(rows)).toMatchObject({ parked: 16, inCluster: 8 });
   });
 
-  it('accepts a yard just under the span limit and refuses one just over', () => {
+  it('accepts a yard 1485 m long and refuses one 1515 m long', () => {
     const intervals = 30;
-    const under = file('A', intervals + 1, HERE, { x: (YARD_MAX_SPAN_M - 15) / intervals, y: 0 });
-    const over = file('A', intervals + 1, HERE, { x: (YARD_MAX_SPAN_M + 15) / intervals, y: 0 });
+    const under = file('A', intervals + 1, HERE, { x: 1485 / intervals, y: 0 });
+    const over = file('A', intervals + 1, HERE, { x: 1515 / intervals, y: 0 });
     expect(inferYard(under)).toMatchObject({ inCluster: 31 });
     expect(inferYard(over)).toBeNull();
   });
