@@ -70,6 +70,31 @@ export function fromMetres(
   };
 }
 
+/** A position prepared for many short-range distance checks. */
+export interface NearPoint {
+  readonly lat: number;
+  readonly lng: number;
+  /** Cosine of the latitude: how far a degree of longitude shrinks there. */
+  readonly cosLat: number;
+}
+
+export function nearPoint(lat: number, lng: number): NearPoint {
+  return { lat, lng, cosLat: Math.cos((lat * Math.PI) / 180) };
+}
+
+/**
+ * Metres between two points on the flat plane through them. Within 0.1% of the
+ * great-circle distance up to a few kilometres, which is all yard clustering
+ * asks of it (longer distances only need to read as long), and cheap enough to
+ * compare every pair of a depot's buses. It uses no shared origin or grid, so
+ * moving every point by the same offset leaves every distance as it was.
+ */
+export function nearDistanceM(a: NearPoint, b: NearPoint): number {
+  const north = (a.lat - b.lat) * METRES_PER_DEGREE;
+  const east = (a.lng - b.lng) * METRES_PER_DEGREE * (a.cosLat + b.cosLat) * 0.5;
+  return Math.sqrt(north * north + east * east);
+}
+
 export function median(values: readonly number[]): number {
   if (values.length === 0) return NaN;
   const sorted = [...values].sort((a, b) => a - b);
