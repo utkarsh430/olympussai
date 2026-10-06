@@ -279,7 +279,7 @@ not in the feed answers the fixed `404 {"error":"Depot not found"}`. Payload typ
 | `distribution` | Supply and modelled requirement per depot, the transfer plan | none |
 | `routes` | One page of routes in the feed with derived columns | paging, sort `dir`, filters; `limit` default 25, max 100 (`src/lib/depot/routes/routeQuery.ts`); strict |
 | `allocation` | The route-to-depot plan over cached profiles, filtered and paged per request; `plannedAt` is the feed time of the snapshot the held plan was made on (null when that snapshot had no feed clock) | parsed by `parseAllocationQuery` (routeQuery.ts); strict |
-| `route/[routeName]` | One route profile (stops, terminals, length) with the feed envelope of the snapshot it read; `fetchedAt` is that snapshot's fetch time | `isValidRouteName` → `400 {"error":"Invalid route name"}`; calls to the schedule server rate-limited, one slot per call → `429 {"error":"Too many requests","retryAfterSeconds":n}` with `Retry-After`; `503 {"error":"Route data unavailable"}`, also after `ROUTE_LOOKUP_DEADLINE_MS = 25_000` |
+| `route/[routeName]` | One route profile (stops, terminals, length; `unlocatedStops` counts stops with no usable position and `mislocatedStops` those whose position does not fit the timetable, both with `lat`/`lng` null, section 7.9) with the feed envelope of the snapshot it read; `fetchedAt` is that snapshot's fetch time | `isValidRouteName` → `400 {"error":"Invalid route name"}`; calls to the schedule server rate-limited, one slot per call → `429 {"error":"Too many requests","retryAfterSeconds":n}` with `Retry-After`; `503 {"error":"Route data unavailable"}`, also after `ROUTE_LOOKUP_DEADLINE_MS = 25_000` |
 | `economics` | The modelled economics index, network and per depot | none |
 | `history` | A daily series for one metric, with the feed envelope; `available` points carry `ceiling` (the fleet) | `metric` (onRoadShare, offRoadRate, darkRate, index, available), `scope` network or depot, `depotId` when scope is depot, `days` 7–180 default 30 (`live/historyView.ts`); `404` "No value for this metric" / "No index for this depot" |
 | `trends` | History with trend words for many units | strict parser in `live/trendsView.ts`, `days` 7–90 default 30 |
@@ -551,7 +551,34 @@ route and the feed's operating date (`routes/routeCatalogue.ts`: `ROUTE_CACHE_MA
 negative answers such as "no schedule" for `ROUTE_NEGATIVE_TTL_MS = 600_000`). A schedule with
 no stops is a "no schedule" answer. A failed lookup is never cached, so Retry asks the server
 again. Stops at 0,0 stay in the list but do not count toward
-length. There is **no background crawl**. A profile is fetched one route at a
+length. There is **no background crawl**.
+
+**Positions that do not fit the timetable** (`routes/timetableFit.ts`). The corporation's
+stop list places some stops at a same-named place elsewhere in the state: route
+VND_1613_ORD_OUT (Vindhyanagar to Varanasi Cantt, 37 stops) has four 130 to 270 km off its
+line, each reached and left within minutes, and its straight-line sum through them was
+1,697.5 km for a route of about 200. Among the located stops, in sequence order, the
+profile keeps the largest chain in which every consecutive pair is reachable at
+`MAX_PLAUSIBLE_SPEED_KMH = 110` straight-line over their scheduled minutes (the top legal
+speed for a bus, 100 km/h on an expressway, plus a tenth for minute rounding and a stop
+placed at its town's centre), never less than `UNTIMED_LEG_ALLOWANCE_KM = 40`. A pair in
+the same scheduled minute, or with a missing or unreadable time, is judged by that
+allowance alone; a leg whose time runs backwards is taken past midnight. Each stop is
+judged on its departure time, else its arrival. Ties between chains of the same size go
+to the shorter straight-line length, then to the earliest stops. With fewer than two
+usable times the timetable judges nothing and every located stop is kept; with no
+fitting pair among two or more located stops, none is kept. A stop outside the chain is
+**mislocated**: it stays in the list with its name and time, but its position is
+dropped (`lat`, `lng` null), so it is never in the length, never a terminal and never
+the nearest stop, and the profile counts it in `mislocatedStops` (apart from
+`unlocatedStops`). The length is the straight-line sum along the chain, and dead
+kilometres are measured from the chain's first and last stops; with fewer than two kept
+stops the route has no length and is excluded from the plan as `too_few_located_stops`.
+VND_1613_ORD_OUT now measures 195.6 km between VINDHYANAGAR and VARANASI CANT, with
+NIGAHEE, TENDUPUl, LOHRA and RAMNAGAR VARANASI left out. The next stop by position on a
+bus's timetable (`routes/nextStop.ts`) reads the same kept stops. The route drawer says
+both counts ("4 stops have a position that does not fit the timetable and are left out
+of distances."). A profile is fetched one route at a
 time, only on a person's action: when that route is opened on the Routes page, when a
 depot's roster or a bus on the route is opened, or when a person presses "Load route
 details" for one depot on the Routes page's plan panel (`PROFILES_GROW_WITH_USE` in
@@ -762,7 +789,7 @@ answers. In summary (detail, settings and limits in
 | `exceptions/` | Depot and bus exceptions, paging |
 | `optimise/` | Transfers (min-cost flow), what-if, allocation, Hungarian matching, parking |
 | `sim/` | Every model: requirement, depot and fleet master, duties, operating day, crew, fuel, ridership, history, yard layout |
-| `routes/` | Route catalogue and profiles, the browser's one client for the route-details endpoint (`routeProfileClient.ts`), route table, allocation inputs, dead kilometres |
+| `routes/` | Route catalogue and profiles, the browser's one client for the route-details endpoint (`routeProfileClient.ts`), which stop positions fit the timetable (`timetableFit.ts`), route table, allocation inputs, dead kilometres |
 | `crew/`, `fuel/`, `revenue/`, `maintenance/`, `duties/`, `yard/`, `cockpit/`, `roster/`, `league/`, `network/`, `rebalance/` | Per-domain page models and payload types |
 | `score/epoch.ts` | The straggler and epoch rule shared by the score window and the yard memory |
 | `forecast/` | Trend, seasonal-naive, Holt-Winters, backtest, band, chart models |
