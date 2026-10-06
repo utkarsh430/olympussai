@@ -1,4 +1,4 @@
-import { formatCount } from '../format';
+import { formatCount, formatFeedTimeOn } from '../format';
 import { PROFILE_LOAD_CAP } from './profileLoader';
 import type { RouteMove, UnchangedReason } from '../optimise/allocateTypes';
 import { MAX_BUSES_PER_ROUTE } from '../sim/tripFrequencyConfig';
@@ -217,4 +217,16 @@ export const RECOMMENDATION_ONLY =
 export function planHeadline(a: DepotAllocationResponse): string {
   const { planned } = a.coverage;
   return `${allocationHeadline(a).movesLine} Based on ${formatCount(planned.n)} of ${routes(planned.of)} with a known profile.`;
+}
+
+/**
+ * The feed time the plan was built at, closing the headline. The plan is held across
+ * snapshots, so it can be older than the page's feed time; the day is added when it falls
+ * on an earlier feed day. Null when the plan's snapshot had no feed clock.
+ */
+export function plannedAtLine(
+  a: Pick<DepotAllocationResponse, 'plannedAt' | 'feedNow'>,
+): string | null {
+  if (a.plannedAt === null) return null;
+  return `Planned at ${formatFeedTimeOn(a.plannedAt, a.feedNow)}.`;
 }

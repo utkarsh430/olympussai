@@ -76,6 +76,15 @@ describe('buildLeagueRows', () => {
     expect(rows.map((r) => r.name)).toEqual(['Charlie', 'Bravo', 'Alpha', 'Squad', 'Tiny']);
   });
 
+  it('orders depots that share a rank by name, then id, whatever the input order', () => {
+    const depots = [depot('20', 'Zeta', 50), depot('11', 'Eta', 50), depot('10', 'Eta', 50)];
+    const scores = [score('20', 'medium', 3), score('11', 'medium', 3), score('10', 'medium', 3)];
+    const ids = (input: readonly DepotSummary[], given: readonly DepotScore[]): string[] =>
+      buildLeagueRows(input, given).map((row) => row.depotId);
+    expect(ids(depots, scores)).toEqual(['10', '11', '20']);
+    expect(ids([...depots].reverse(), [...scores].reverse())).toEqual(['10', '11', '20']);
+  });
+
   it('computes the difference from the peer median in percentage points', () => {
     const cell = rows[0]?.components[0];
     expect(cell?.deltaPoints).toBeCloseTo(10);

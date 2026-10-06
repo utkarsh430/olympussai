@@ -1,5 +1,5 @@
 import type { VisitorBus } from '../api';
-import { formatCount, formatFeedTime } from '../format';
+import { formatCount, formatFeedTimeOn } from '../format';
 import type { Yard } from '../infer/types';
 import type { BusOpState } from '../types';
 import {
@@ -60,10 +60,15 @@ export function capacityFigure(view: CapacityView, pending: boolean): CapacityFi
   };
 }
 
-/** "Yard held since 14:02: …" when the yard is carried over from earlier snapshots. */
-export function heldSinceLine(yard: Yard | null): string | null {
+/**
+ * "Yard held since 14:02: …" when the yard is carried over from earlier snapshots. A yard
+ * held since an earlier day than the feed's says that day ("5 Oct, 19:45"), so it never
+ * reads as a time later than now.
+ */
+export function heldSinceLine(yard: Yard | null, feedNow: string | null): string | null {
   if (!yard?.heldSince) return null;
-  return `Yard held since ${formatFeedTime(yard.heldSince)}: this snapshot alone would not place it.`;
+  const since = formatFeedTimeOn(yard.heldSince, feedNow);
+  return `Yard held since ${since}: this snapshot alone would not place it.`;
 }
 
 /**

@@ -3,6 +3,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCopilot, type CopilotHook } from '@/hooks/useCopilot';
 import type { CopilotApiRequest } from '@/lib/depot/copilot/wire';
+import { redirectToSignIn } from '@/lib/depot/signInRedirect';
+
+vi.mock('@/lib/depot/signInRedirect', () => ({ redirectToSignIn: vi.fn() }));
 
 interface PendingCall {
   readonly signal: AbortSignal;
@@ -94,6 +97,7 @@ async function tick(ms: number): Promise<void> {
 beforeEach(() => {
   actGlobal.IS_REACT_ACT_ENVIRONMENT = true;
   vi.useFakeTimers();
+  vi.mocked(redirectToSignIn).mockClear();
   latest = null;
   stubFetch(true);
 });
@@ -126,6 +130,15 @@ describe('useCopilot', () => {
     await ask();
     await settle(calls[0], 503, { error: 'x' });
     expect(hook().state).toEqual({ status: 'failed', kind: 'unavailable' });
+    expect(redirectToSignIn).not.toHaveBeenCalled();
+  });
+
+  it('sends the user to sign in when the session has expired', async () => {
+    await mount();
+    await ask();
+    await settle(calls[0], 401, { error: 'x' });
+    expect(hook().state).toEqual({ status: 'failed', kind: 'session_expired' });
+    expect(redirectToSignIn).toHaveBeenCalledTimes(1);
   });
 
   it('aborts the in-flight request when a new one starts', async () => {

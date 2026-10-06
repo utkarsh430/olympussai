@@ -253,3 +253,17 @@ describe('breakdownRows', () => {
     expect(rows[1]?.coverageText).toBeNull();
   });
 });
+
+describe('buildEconomicsRows on equal ranks', () => {
+  it('orders depots that share a rank by name, then id, whatever the input order', () => {
+    const entries = [
+      entry('20', { rank: 3 }, { name: 'Zeta' }),
+      entry('11', { rank: 3 }, { name: 'Eta' }),
+      entry('10', { rank: 3 }, { name: 'Eta' }),
+    ];
+    const forward = buildEconomicsRows(entries).map((row) => row.depotId);
+    const backward = buildEconomicsRows([...entries].reverse()).map((row) => row.depotId);
+    expect(forward).toEqual(['10', '11', '20']);
+    expect(backward).toEqual(['10', '11', '20']);
+  });
+});

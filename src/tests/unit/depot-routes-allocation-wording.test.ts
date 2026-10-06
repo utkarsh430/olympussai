@@ -10,6 +10,7 @@ import {
   notProfiledSentence,
   paramsSentence,
   planHeadline,
+  plannedAtLine,
   toTenths,
   unchangedReasonText,
   DEAD_KM_MEANING,
@@ -145,6 +146,22 @@ describe('planHeadline', () => {
     expect(planHeadline(response())).toBe(
       'No route would move. Based on 412 of 1,204 routes with a known profile.',
     );
+  });
+});
+
+describe('plannedAtLine', () => {
+  it("gives the feed time the plan was built at, in the feed's own digits", () => {
+    expect(plannedAtLine(response({ plannedAt: '2026-10-06T07:45:00Z' }))).toBe('Planned at 07:45.');
+  });
+
+  it('gives the day too when the plan was built on an earlier feed day', () => {
+    expect(plannedAtLine(response({ plannedAt: '2026-10-05T23:50:00Z' }))).toBe(
+      'Planned at 5 Oct, 23:50.',
+    );
+  });
+
+  it('says nothing when the plan has no feed time', () => {
+    expect(plannedAtLine(response({ plannedAt: null }))).toBeNull();
   });
 });
 

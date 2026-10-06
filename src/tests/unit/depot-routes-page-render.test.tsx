@@ -123,6 +123,19 @@ describe('RoutesPage content', () => {
     state.allocation = slot({ data: PLAN });
   });
 
+  it('says once, in the plan headline, the feed time the plan was built at', () => {
+    state.allocation = slot({ data: { ...PLAN, plannedAt: '2026-10-06T13:55:00Z' } });
+    const markup = renderToStaticMarkup(<RoutesPage />);
+    const headline = /data-testid="allocation-headline"[^>]*>([^]*?)<\/p>/.exec(markup)?.[1] ?? '';
+    expect(textOf(headline)).toContain('Planned at 13:55.');
+    expect(textOf(markup).split('Planned at')).toHaveLength(2);
+  });
+
+  it('says no planning time when the plan has none', () => {
+    state.allocation = slot({ data: { ...PLAN, plannedAt: null } });
+    expect(textOf(renderToStaticMarkup(<RoutesPage />))).not.toContain('Planned at');
+  });
+
   it('says recommendation only exactly once, and never "simulated"', () => {
     const text = textOf(renderToStaticMarkup(<RoutesPage />));
     expect(text.split(RECOMMENDATION_ONLY)).toHaveLength(2);

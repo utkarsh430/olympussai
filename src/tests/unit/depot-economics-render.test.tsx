@@ -591,3 +591,14 @@ describe('EconomicsPage, round 3', () => {
       expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 });
+
+describe('EconomicsPage filters', () => {
+  it('labels the search box like every other filter label, in the shared filter row', async () => {
+    await render(<EconomicsPage />);
+    const input = host.querySelector<HTMLInputElement>('input[type="search"]');
+    const label = input?.id ? host.querySelector(`label[for="${input.id}"]`) : null;
+    expect(label?.textContent).toBe('Search depots');
+    expect(label?.classList.contains('depot-label')).toBe(true);
+    expect(input?.closest('[data-testid="depot-filter-row"]')).not.toBeNull();
+  });
+});

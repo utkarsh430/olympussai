@@ -12,6 +12,7 @@ import {
   allocationHeadline,
   paramsSentence,
   planHeadline,
+  plannedAtLine,
 } from '@/lib/depot/routes/allocationWording';
 import type { DepotAllocationResponse } from '@/lib/depot/routes/api';
 import { ROUTES_TEXT } from '@/lib/depot/routes/routesPageText';
@@ -48,6 +49,7 @@ function PlanBasis({ allocation }: { readonly allocation: DepotAllocationRespons
 export function AllocationPanel({ allocation, groups }: AllocationPanelProps) {
   const h = useMemo(() => allocationHeadline(allocation), [allocation]);
   const rows = useMemo(() => moveRows(allocation.moves), [allocation.moves]);
+  const plannedAt = plannedAtLine(allocation);
   // Nothing planned: the section is the loader's one row (its sentence says why).
   if (!h.planned) return null;
   return (
@@ -58,6 +60,7 @@ export function AllocationPanel({ allocation, groups }: AllocationPanelProps) {
         data-testid="allocation-headline"
       >
         {planHeadline(allocation)}
+        {plannedAt === null ? null : ` ${plannedAt}`}
       </p>
       <FigureBand label="Dead kilometres a day, modelled">
         <Figure label={ROUTES_TEXT.savedLabel} value={h.saving} caption={ROUTES_TEXT.kmADay} />
