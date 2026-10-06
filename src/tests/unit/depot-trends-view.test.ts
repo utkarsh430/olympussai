@@ -7,7 +7,8 @@ import { getRepositories } from '@/lib/depot/repositories';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { modelSeries } from '@/lib/depot/sim/history';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
-import { buildTrendsResponse, parseTrendsQuery } from '@/lib/depot/live/trendsView';
+import { buildTrendsResponse, heldTrendsBodies, parseTrendsQuery } from '@/lib/depot/live/trendsView';
+import { MAX_QUERY_BODIES_PER_SNAPSHOT } from '@/lib/depot/live/queryMemo';
 import { depotTrendsUrl } from '@/hooks/useDepotTrends';
 import { GET } from '@/app/api/upsrtc/depot/trends/route';
 
@@ -86,6 +87,20 @@ describe('buildTrendsResponse', () => {
     expect(history.series.mock.calls.length).toBe(calls);
     expect(again.units).toBe(first.units);
     expect(again.stale).toBe(true);
+  });
+
+  it('holds a bounded number of bodies on one snapshot however many windows are asked for', async () => {
+    const depotIds = new Set(rows.map((r) => r.depotId).slice(0, 1));
+    const few = rows.filter((r) => depotIds.has(r.depotId));
+    const small = (): FleetSnapshotView => view({ rows: few, recordCount: few.length });
+    const windows = Array.from({ length: MAX_QUERY_BODIES_PER_SNAPSHOT + 6 }, (_, i) => 7 + i);
+    const first = await buildTrendsResponse(small(), { metric: 'index', days: windows[0] ?? 7 });
+    for (const days of windows.slice(1)) await buildTrendsResponse(small(), { metric: 'index', days });
+    expect(heldTrendsBodies(small())).toBe(MAX_QUERY_BODIES_PER_SNAPSHOT);
+    const oldest = await buildTrendsResponse(small(), { metric: 'index', days: windows[0] ?? 7 });
+    // The oldest was let go, so asking again builds it afresh.
+    expect(oldest.units).not.toBe(first.units);
+    expect(oldest.units).toEqual(first.units);
   });
 
   it('stays small: one metric for every unit over 30 days', async () => {
