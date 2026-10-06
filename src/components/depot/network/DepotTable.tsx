@@ -23,7 +23,7 @@ import {
   type TableColumnKey,
 } from '@/lib/depot/network/unitsTable';
 import { StatusMixBar, stateSegments } from './StatusMixBar';
-import { useNarrow } from './useNarrow';
+import { useUnitsTier } from './useNarrow';
 
 function ratio(n: number, of: number): number | null {
   return of > 0 ? n / of : null;
@@ -61,7 +61,22 @@ function IndexCell({ row }: { readonly row: DepotRow }) {
  * `unitsTable.ts`, where their sum is held against the frame.
  */
 const COLUMNS: readonly (Column<DepotRow> & { readonly key: TableColumnKey })[] = [
-  { ...spec('name'), sortValue: (row) => row.depot.name, render: (row) => row.depot.name },
+  {
+    ...spec('name'),
+    sortValue: (row) => row.depot.name,
+    // KIND is a muted suffix on a non-depot unit only (critique section 7), never a column.
+    render: (row) =>
+      row.depot.kind === 'depot' ? (
+        row.depot.name
+      ) : (
+        <>
+          {row.depot.name}
+          <span className="ml-1.5 text-[11px] text-depot-muted">{DEPOT_KIND_LABEL[row.depot.kind]}</span>
+        </>
+      ),
+    title: (row) =>
+      row.depot.kind === 'depot' ? row.depot.name : `${row.depot.name} · ${DEPOT_KIND_LABEL[row.depot.kind]}`,
+  },
   {
     ...spec('kind'),
     sortValue: (row) => DEPOT_KIND_LABEL[row.depot.kind],
@@ -129,21 +144,22 @@ export interface DepotTableProps {
 /**
  * Every unit in the feed, largest fleet first, in the page flow: no second scroll axis.
  * The first 25 rows show until "Show all N"; the table applies the cap after its own
- * sort, so sorting ranks every row, and a selected row beyond the cap is kept. Below
- * 900px a reduced set of columns shows and the rest are in the selected-unit panel.
+ * sort, so sorting ranks every row, and a selected row beyond the cap is kept. The columns
+ * follow the content width (`useUnitsTier`); what a tier drops is in the selected-unit panel.
  */
 export function DepotTable({ rows, selectedId, onSelect, selection }: DepotTableProps) {
   const [filter, setFilter] = useState<KindFilter>('all');
   const [expanded, setExpanded] = useState(false);
-  const narrow = useNarrow();
+  const tier = useUnitsTier();
+  const narrow = tier === 'narrow' || tier === 'phone';
   const visible = useMemo(() => rows.filter((row) => matchesKind(row, filter)), [rows, filter]);
   // Memoised on the inputs, so the table only re-sorts when the column set changes.
   const columns = useMemo(
     () =>
-      tableColumnKeys(filter, narrow)
+      tableColumnKeys(tier)
         .map((key) => COLUMN_BY_KEY.get(key))
         .filter((column): column is Column<DepotRow> => column !== undefined),
-    [filter, narrow],
+    [tier],
   );
   const cap = tableCap(visible.length, expanded);
   const tableSort = useTableSort(columns, DEFAULT_SORT);

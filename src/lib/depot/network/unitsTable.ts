@@ -61,40 +61,30 @@ export const TABLE_FRAME_PX_1440 = 1160;
 /** The content column at 800, where the rail has collapsed into the strip. */
 export const TABLE_FRAME_PX_800 = 752;
 
-const WIDE: readonly TableColumnKey[] = [
-  'name',
-  'kind',
-  'fleet',
-  'reporting',
-  'assigned',
-  'onRoad',
-  'standing',
-  'dark',
-  'offRoad',
-  'mix',
-  'index',
-  'peerGroup',
-];
+/** The content column at 1024 (no rail below 1280). */
+export const TABLE_FRAME_PX_1024 = 976;
+/** The content column at 390. */
+export const TABLE_FRAME_PX_390 = 358;
+
+/** The column tier by content width: 1440 and up, 1024 to 1439, 640 to 1023, a phone. */
+export type UnitsTier = 'full' | 'mid' | 'narrow' | 'phone';
 
 /**
- * Below 900px: the unit, its size, where its buses are and its index. Kind, reporting,
- * assignment, off road, the mix and the peer group are in the selected-unit panel.
+ * Critique section 7. KIND is never a column: it is a muted suffix on a non-depot unit's
+ * name. From 1024 to 1439: UNIT · FLEET · ON ROAD · STANDING · DARK · OFF ROAD · MIX ·
+ * INDEX (REPORT %, ASSIGN % and PEER GROUP are in the selected-unit panel). From 640 to
+ * 1023: UNIT · FLEET · ON ROAD · DARK · INDEX. On a phone: UNIT · FLEET · INDEX. INDEX is
+ * in every tier.
  */
-const NARROW: ReadonlySet<TableColumnKey> = new Set([
-  'name',
-  'fleet',
-  'onRoad',
-  'standing',
-  'dark',
-  'index',
-]);
+const TIER_COLUMNS: Readonly<Record<UnitsTier, readonly TableColumnKey[]>> = {
+  full: ['name', 'fleet', 'reporting', 'assigned', 'onRoad', 'standing', 'dark', 'offRoad', 'mix', 'index', 'peerGroup'],
+  mid: ['name', 'fleet', 'onRoad', 'standing', 'dark', 'offRoad', 'mix', 'index'],
+  narrow: ['name', 'fleet', 'onRoad', 'dark', 'index'],
+  phone: ['name', 'fleet', 'index'],
+};
 
-/** Kind is dropped when the filter already says every row is an operating depot. */
-export function tableColumnKeys(filter: KindFilter, narrow: boolean): TableColumnKey[] {
-  return WIDE.filter((key) => {
-    if (narrow && !NARROW.has(key)) return false;
-    return !(key === 'kind' && filter === 'depot');
-  });
+export function tableColumnKeys(tier: UnitsTier): TableColumnKey[] {
+  return [...TIER_COLUMNS[tier]];
 }
 
 /** The table's width in pixels for a column set, to hold against the frame. */

@@ -1,21 +1,30 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { UnitsTier } from '@/lib/depot/network/unitsTable';
 
-/** Below this width the rail becomes a strip and the depot table keeps its core columns. */
-const NARROW_QUERY = '(max-width: 899px)';
+/** The rail shows only from 1280 now: the tiers follow the content width, not the rail. */
+const QUERIES: readonly (readonly [UnitsTier, string])[] = [
+  ['full', '(min-width: 1440px)'],
+  ['mid', '(min-width: 1024px)'],
+  ['narrow', '(min-width: 640px)'],
+];
 
-/** True below 900px. Starts false so the server render and the first paint agree. */
-export function useNarrow(): boolean {
-  const [narrow, setNarrow] = useState(false);
+function currentTier(): UnitsTier {
+  return QUERIES.find(([, query]) => window.matchMedia(query).matches)?.[0] ?? 'phone';
+}
+
+/** The units table's column tier. Starts 'full' so the server render and the first paint agree. */
+export function useUnitsTier(): UnitsTier {
+  const [tier, setTier] = useState<UnitsTier>('full');
 
   useEffect(() => {
-    const query = window.matchMedia(NARROW_QUERY);
-    setNarrow(query.matches);
-    const handler = (event: MediaQueryListEvent): void => setNarrow(event.matches);
-    query.addEventListener('change', handler);
-    return () => query.removeEventListener('change', handler);
+    const update = (): void => setTier(currentTier());
+    update();
+    const lists = QUERIES.map(([, query]) => window.matchMedia(query));
+    lists.forEach((list) => list.addEventListener('change', update));
+    return () => lists.forEach((list) => list.removeEventListener('change', update));
   }, []);
 
-  return narrow;
+  return tier;
 }

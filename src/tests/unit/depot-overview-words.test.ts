@@ -113,27 +113,14 @@ describe('table wording', () => {
   });
 
   it('puts Reporting and Assigned ahead of the status mix', () => {
-    const keys = tableColumnKeys('all', false);
+    const keys = tableColumnKeys('full');
     expect(keys.indexOf('reporting')).toBeLessThan(keys.indexOf('mix'));
     expect(keys.indexOf('assigned')).toBeLessThan(keys.indexOf('mix'));
     expect(keys[0]).toBe('name');
   });
 
-  it('drops Kind when only operating depots are shown', () => {
-    expect(tableColumnKeys('depot', false)).not.toContain('kind');
-    expect(tableColumnKeys('other', false)).toContain('kind');
-  });
-
-  it('keeps unit, fleet, the classified states and index when narrow', () => {
-    expect(tableColumnKeys('all', true)).toEqual([
-      'name',
-      'fleet',
-      'onRoad',
-      'standing',
-      'dark',
-      'index',
-    ]);
-  });
+  // KIND is never a column now (a muted suffix on a non-depot name); the tier sets are pinned
+  // in depot-overview-round2-words.test.ts.
 
   it('caps the table once it has more rows than the cap, and offers a toggle', () => {
     expect(TABLE_ROW_CAP).toBe(25);
