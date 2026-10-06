@@ -60,7 +60,8 @@ export function KpiBand({ kpis }: KpiBandProps) {
       </h2>
       <dl className="depot-kpi-grid">
         {rows.map((row) => {
-          const shown = progress === DONE ? row.figure.value : Math.round(row.figure.value * progress);
+          const shown =
+            progress === DONE ? row.figure.value : Math.round(row.figure.value * progress);
           return (
             <div key={row.key} className="depot-kpi-cell" data-testid={`depot-kpi-${row.key}`}>
               <dt className="depot-label">{row.label}</dt>
