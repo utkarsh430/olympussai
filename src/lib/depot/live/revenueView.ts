@@ -6,7 +6,7 @@ import { analyseRevenue } from '../revenue/analysis';
 import type { RevenueAnalysis, RouteFacts } from '../revenue/types';
 import { cachedRouteProfiles, routeCatalogueRevision } from '../routes/routeCatalogue';
 import type { RouteProfile } from '../routes/types';
-import { REVENUE_MODEL_PARAMS } from '../sim/revenueConfig';
+import { MIXED_CLASS_NOTE, REVENUE_MODEL_PARAMS } from '../sim/revenueConfig';
 import { operatingDateOf } from '../sim/seed';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
 import { buildDepotDetail } from './depotView';
@@ -111,6 +111,7 @@ const heldBody = holdPerSnapshot<RevenueBody, RevenueSource>(
       operatingDate,
       summary: analysis.depot,
       routes: [...analysis.perRoute].sort(byRevenueThenName),
+      notes: [MIXED_CLASS_NOTE],
       model: { provenance: 'modelled', params: REVENUE_MODEL_PARAMS },
     };
   },
