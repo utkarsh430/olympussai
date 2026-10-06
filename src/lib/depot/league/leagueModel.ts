@@ -1,6 +1,7 @@
 import { DEI_COMPONENTS, MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
 import { strongestAndWeakest } from '@/lib/depot/score/explain';
 import type { DeiComponentKey, DepotScore, PeerGroupId } from '@/lib/depot/score/types';
+import { RANK_REASON_LABEL } from '@/lib/depot/labels';
 import type { DepotKind, DepotSummary } from '@/lib/depot/types';
 
 /** One component of one depot's index, ready to display. */
@@ -120,6 +121,21 @@ export function filterLeagueRows(rows: readonly LeagueRow[], filters: LeagueFilt
   });
 }
 
+/**
+ * The selected depot among the rows the filters show, or null. The selection
+ * itself is kept while a filter hides the row, so relaxing the filter reopens
+ * its breakdown.
+ */
+export function selectedRowIn(rows: readonly LeagueRow[], selectedId: string | null): LeagueRow | null {
+  if (selectedId === null) return null;
+  return rows.find((row) => row.depotId === selectedId) ?? null;
+}
+
+/** Peer group is a filter; it earns a column only when every group is listed together. */
+export function showsPeerGroupColumn(filters: LeagueFilters): boolean {
+  return filters.peerGroup === 'any';
+}
+
 const DASH = '—';
 
 /** A 0-to-1 rate as a percentage with one decimal; a dash when unknown. */
@@ -164,7 +180,7 @@ export function describeDifference(
 /** Why a depot has no rank; null for a ranked depot. */
 export function unrankedSentence(row: LeagueRow): string | null {
   if (row.ranked) return null;
-  if (row.kind !== 'depot') return 'Not an operating depot';
+  if (row.kind !== 'depot') return RANK_REASON_LABEL.not_a_depot;
   return `Needs at least ${MIN_FLEET_FOR_RANK} buses to be ranked; this depot has ${row.fleet}.`;
 }
 

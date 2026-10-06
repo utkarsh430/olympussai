@@ -9,6 +9,7 @@ import {
   useDepotExceptions,
   type DepotExceptionsState,
 } from '@/hooks/useDepotExceptions';
+import type { BusPageQuery } from '@/lib/depot/exceptions/busPage';
 import type { DepotExceptionsResponse } from '@/lib/depot/api';
 
 interface PendingCall {
@@ -59,16 +60,16 @@ function payload(marker: string): DepotExceptionsResponse {
   return { fetchedAt: marker } as unknown as DepotExceptionsResponse;
 }
 
-function Probe() {
-  latest = useDepotExceptions();
+function Probe({ query }: { readonly query?: BusPageQuery }) {
+  latest = useDepotExceptions(query);
   return null;
 }
 
-async function mount(): Promise<void> {
+async function mount(query?: BusPageQuery): Promise<void> {
   container = document.createElement('div');
   root = createRoot(container);
   await act(async () => {
-    root?.render(<Probe />);
+    root?.render(<Probe query={query} />);
   });
 }
 
@@ -111,6 +112,11 @@ describe('useDepotExceptions', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.url).toBe('/api/upsrtc/depot/exceptions');
     expect(calls[0]?.init.cache).toBe('no-store');
+  });
+
+  it('asks the server for the page, kind and depot the page shows', async () => {
+    await mount({ kind: 'long_dark', depotId: '12', offset: 25, limit: 25 });
+    expect(calls[0]?.url).toBe('/api/upsrtc/depot/exceptions?kind=long_dark&depotId=12&offset=25');
   });
 
   it('is loading until the first response, then never loading again', async () => {

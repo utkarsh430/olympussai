@@ -1,16 +1,24 @@
-import { formatCount } from '@/lib/depot/format';
+import { coverageRows, type CoverageWord } from '@/lib/depot/sources/sourcesModel';
 import type { FieldCoverage } from '@/lib/depot/types';
 
-const PERCENT = 100;
+/** The word carries the meaning; only Sparse takes the warning tone beside it. */
+const WORD_TONE: Readonly<Record<CoverageWord, string>> = {
+  Complete: 'text-depot-faint',
+  Partial: 'text-depot-muted',
+  Sparse: 'text-alert-amber',
+};
 
-function share(populated: number, of: number): number {
-  return of === 0 ? 0 : (populated / of) * PERCENT;
-}
+/*
+ * Every row sits on one fixed grid (label, track, count, word), so the tracks
+ * start and end at the same x and the counts line up. The fill is drawn inside
+ * a clipped track with no margin, so 100% ends exactly where the track does.
+ */
+const ROW_GRID =
+  'grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 sm:grid-cols-[9rem_minmax(0,1fr)_14rem_4.5rem] sm:items-center';
 
 /**
- * How many records populate each field, one labelled bar per field on a 0 to
- * 100% track. The exact count is always written beside the bar, so the bar is
- * only a visual aid.
+ * How many buses populate each field, most complete first. The exact count is
+ * always written beside the bar, so the bar is only a visual aid.
  */
 export function CoverageBars({ coverage }: { readonly coverage: readonly FieldCoverage[] }) {
   if (coverage.length === 0) {
@@ -22,20 +30,20 @@ export function CoverageBars({ coverage }: { readonly coverage: readonly FieldCo
   }
   return (
     <ul className="flex flex-col gap-3" data-testid="depot-coverage-bars">
-      {coverage.map((item) => {
-        const percent = share(item.populated, item.of);
-        return (
-          <li key={item.field} className="grid grid-cols-1 gap-1 sm:grid-cols-[10rem_1fr_auto] sm:items-center sm:gap-4">
-            <span className="font-mono text-[13px] text-depot-ink">{item.label}</span>
-            <span aria-hidden className="depot-bar-track">
-              <span className="depot-bar-fill" style={{ width: `${percent}%` }} />
-            </span>
-            <span className="font-mono text-[13px] tabular-nums text-depot-muted">
-              {`${formatCount(item.populated)} of ${formatCount(item.of)} buses (${Math.round(percent)}%)`}
-            </span>
-          </li>
-        );
-      })}
+      {coverageRows(coverage).map((row) => (
+        <li key={row.field} className={ROW_GRID}>
+          <span className="min-w-0 truncate font-mono text-[13px] text-depot-ink">{row.label}</span>
+          <span className={`text-right font-mono text-[11px] uppercase tracking-[0.08em] sm:order-last sm:text-left ${WORD_TONE[row.word]}`}>
+            {row.word}
+          </span>
+          <span aria-hidden className="depot-bar-track col-span-2 overflow-hidden sm:col-span-1">
+            <span className="depot-bar-fill" style={{ width: `${row.share * 100}%` }} />
+          </span>
+          <span className="col-span-2 font-mono text-[13px] tabular-nums text-depot-muted sm:col-span-1 sm:text-right">
+            {row.text}
+          </span>
+        </li>
+      ))}
     </ul>
   );
 }

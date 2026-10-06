@@ -3,7 +3,8 @@ import { jsonResponse } from '@/lib/upsrtc/respond';
 import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
 import { logDepotError } from '@/lib/depot/log';
-import { buildExceptionsResponse } from '@/lib/depot/live/exceptionView';
+import { parseBusPageQuery } from '@/lib/depot/exceptions/busPage';
+import { buildPagedExceptionsResponse } from '@/lib/depot/live/exceptionView';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,10 +15,14 @@ export async function GET(request: NextRequest): Promise<Response> {
   const session = await requireUpsrtcAccess();
   if (!session) return unauthorizedResponse();
 
+  // A malformed query is refused before any snapshot is read.
+  const parsed = parseBusPageQuery(request.nextUrl.searchParams);
+  if (!parsed.ok) return jsonResponse({ error: 'Invalid query' }, { status: 400 });
+
   const acceptEncoding = request.headers.get('accept-encoding');
   try {
     const view = await getRepositories().fleet.snapshot();
-    return jsonResponse(buildExceptionsResponse(view), { acceptEncoding });
+    return jsonResponse(buildPagedExceptionsResponse(view, parsed.query), { acceptEncoding });
   } catch (error) {
     // Logged so a bug here is visible; the message can name hosts or carry
     // tokens, so it never leaves the server.

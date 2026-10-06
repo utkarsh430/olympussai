@@ -4,6 +4,7 @@ import {
   formatRate,
   type LeagueRow,
 } from '@/lib/depot/league/leagueModel';
+import { computedStamp, peerRankPhrase } from '@/lib/depot/league/leagueWording';
 
 const WEIGHT_PERCENT = 100;
 
@@ -19,9 +20,12 @@ function signed(n: number): string {
  */
 export function ScoreBreakdown({
   row,
+  feedNow,
   headingRef,
 }: {
   readonly row: LeagueRow;
+  /** The feed clock the scores were computed at. */
+  readonly feedNow: string | null;
   /** Lets the page move focus here after a selection. */
   readonly headingRef?: React.Ref<HTMLHeadingElement>;
 }) {
@@ -30,18 +34,23 @@ export function ScoreBreakdown({
     <section
       aria-labelledby="score-breakdown-title"
       data-testid="depot-score-breakdown"
-      className="depot-panel mt-4 p-4"
+      className="depot-panel min-w-0 p-4 xl:sticky xl:top-20 xl:self-start"
     >
-      <p className="depot-label">Score breakdown</p>
+      <p className="flex flex-wrap justify-between gap-x-3">
+        <span className="depot-label">Score breakdown</span>
+        <span className="font-mono text-[11px] tabular-nums text-depot-faint">
+          {computedStamp(feedNow)}
+        </span>
+      </p>
       <h2
         id="score-breakdown-title"
         ref={headingRef}
         tabIndex={-1}
-        className="mt-1 rounded-[3px] font-mono text-sm text-depot-ink focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-holo-glow"
+        className="mt-1 font-mono text-sm text-depot-ink focus:outline-none"
       >
         {row.name}
         {row.ranked && row.rank !== null && row.peerCount !== null && group !== null
-          ? ` · rank ${row.rank} of ${row.peerCount} in ${group}`
+          ? ` · ${peerRankPhrase(row.rank, row.peerCount, group)}`
           : ' · not ranked'}
       </h2>
       <p className="depot-prose mt-1">{explainRow(row)}</p>

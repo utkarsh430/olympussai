@@ -38,20 +38,6 @@ export function describeDepotException(e: DepotException): string {
   }
 }
 
-/**
- * What to say when the bus table has no rows. A capped list is only part of
- * the story, so an empty filter result must not read as "none exist".
- */
-export function describeEmptyBusList(listed: number, total: number): string {
-  if (total === 0) {
-    return 'No bus is flagged on this snapshot: none is dark for long, has main power off, reports a tamper code or has the emergency flag set.';
-  }
-  if (listed < total) {
-    return `None of the ${formatCount(listed)} listed buses match. The other ${formatCount(total - listed)} are not in this list; open a depot to see all of its exceptions.`;
-  }
-  return 'No buses match these filters.';
-}
-
 function bodyFor(e: BusException): string {
   switch (e.kind) {
     case 'long_dark':
