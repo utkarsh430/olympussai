@@ -3,31 +3,27 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
-import {
-  EmptyState,
-  ErrorPanel,
-  LoadingBlock,
-  StaleStrip,
-} from '@/components/depot/shell/DataStates';
-import { BriefingCard } from '@/components/depot/copilot/BriefingCard';
+import { ErrorPanel, StaleStrip } from '@/components/depot/shell/DataStates';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
 import { buildCockpit } from '@/lib/depot/cockpit/cockpitModel';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
+import { depotHref } from '@/lib/depot/depotNav';
+import { formatCount } from '@/lib/depot/format';
 import { DEPOTS_ROOT } from '@/lib/depot/nav';
+import { AttentionStrip } from './AttentionStrip';
+import { AvailabilityBar } from './AvailabilityBar';
+import { BriefingRow } from './BriefingRow';
+import { CockpitMethod } from './CockpitMethod';
 import { DepotExceptions } from './DepotExceptions';
-import { DepotHeader } from './DepotHeader';
 import { OutshedTracker } from './OutshedTracker';
-import { StatusBoard } from './StatusBoard';
-import { VisitorList } from './VisitorList';
 
 function CockpitLoading() {
   return (
     <div className="space-y-8" data-testid="depot-cockpit-loading">
-      <LoadingBlock rows={2} rowHeight={28} label="Loading the depot" />
-      <LoadingBlock rows={1} rowHeight={220} label="Loading the status board" />
-      <LoadingBlock rows={6} label="Loading the outshedding tracker" />
-      <LoadingBlock rows={3} label="Loading exceptions" />
-      <LoadingBlock rows={3} label="Loading visitors" />
+      <StatePanel kind="loading" rows={5} sentence="Loading what needs attention" />
+      <StatePanel kind="loading" rows={2} sentence="Loading availability" />
+      <StatePanel kind="loading" rows={6} sentence="Loading the outshedding tracker" />
     </div>
   );
 }
@@ -35,23 +31,36 @@ function CockpitLoading() {
 /** The id is well formed (the layout checked) but the current feed has no such depot. */
 function UnknownDepot({ depotId }: { readonly depotId: string }) {
   return (
-    <div data-testid="depot-cockpit-unknown">
-      <EmptyState>
-        No depot has the id {depotId} in the current feed.{' '}
+    <StatePanel
+      kind="empty"
+      testId="depot-cockpit-unknown"
+      sentence={`No depot has the id ${depotId} in the current feed.`}
+      action={
         <Link href={DEPOTS_ROOT} className="depot-link">
           Back to the network overview
         </Link>
-      </EmptyState>
-    </div>
+      }
+    />
+  );
+}
+
+function VisitorLine({ depotId, count }: { readonly depotId: string; readonly count: number }) {
+  return (
+    <p className="min-w-0 font-mono text-[13px] text-depot-muted" data-testid="depot-visitor-line">
+      {count === 0 ? 'No visiting bus stands in this yard.' : `${formatCount(count)} visiting ${count === 1 ? 'bus' : 'buses'} in the yard`}
+      {' · '}
+      <Link href={`${depotHref(depotId)}/yard`} className="depot-link">
+        Open Yard
+      </Link>
+    </p>
   );
 }
 
 /**
- * The depot manager's first screen of a shift: the depot, its status board (the
- * page's one hero), today's departures, what needs attention, and the visitors in
- * its yard, all from the scope's single detail poll. There is always something on
- * screen: placeholders, an error with Retry, or the last good data under a stale
- * strip.
+ * The depot manager's first screen of a shift, from the scope's single detail poll:
+ * what needs attention (the hero), availability, the next departures, exceptions,
+ * the briefing, and how the figures are produced. There is always something on
+ * screen: placeholders, an error with Retry, or the last good data under a stale strip.
  */
 export function DepotCockpit() {
   const { data, error, loading, refresh, depotId } = useDepotDetailContext();
@@ -70,22 +79,36 @@ export function DepotCockpit() {
     );
   }
 
+  const { header } = model;
   return (
-    <div data-testid="depot-cockpit" className="space-y-8">
+    <div data-testid="depot-cockpit" className="min-w-0 space-y-8">
       {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
-      <DepotHeader header={model.header} />
-      <BriefingCard scope={scope} title="Depot briefing" />
-      <StatusBoard board={model.board} status={data.depot.status} />
+      <AttentionStrip attention={model.attention} />
+      <p className="min-w-0 font-mono text-[13px] tabular-nums text-depot-muted" data-testid="depot-cockpit-index">
+        {`${header.kindLabel} · ${formatCount(header.fleet)} buses · ${model.indexLine}`}
+      </p>
+      <AvailabilityBar
+        fleet={model.board.fleet}
+        segments={model.availability}
+        text={model.availabilityText}
+        standing={model.standing}
+      />
+      <VisitorLine depotId={depotId} count={model.visitorCount} />
       <OutshedTracker
         depotId={depotId}
         rows={model.tracker}
-        coverage={data.outshed.coverage}
         coverageSentence={model.coverageSentence}
         hasSchedules={model.hasSchedules}
         noSchedulesSentence={model.noSchedulesSentence}
       />
-      <DepotExceptions depotId={depotId} lines={model.exceptions} />
-      <VisitorList visitors={model.visitors} yardEstablished={model.board.yard.established} />
+      <DepotExceptions depotId={depotId} groups={model.exceptionGroups} depotLines={model.depotExceptions} />
+      <BriefingRow scope={scope} />
+      <CockpitMethod
+        fleet={model.board.fleet}
+        yardSentence={model.board.yard.sentence}
+        yardEstablished={model.board.yard.established}
+        status={data.depot.status}
+      />
     </div>
   );
 }

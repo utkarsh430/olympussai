@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { RosterPage } from '@/components/depot/roster/RosterPage';
-import { LoadingBlock } from '@/components/depot/shell/DataStates';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { requireDepotPage } from '@/lib/depot/depotGate';
 
@@ -19,10 +19,10 @@ export default async function DepotRosterPage({
     <>
       <PageHeader
         title="Roster"
-        description="Every bus homed at this depot: what it is doing, where it is, and when it was last heard from. Open a bus to see its timetable."
-        provenance="derived"
+        description="Every bus homed here: its state, place and last report. Open one for its timetable."
+        provenanceLine={{ default: 'derived' }}
       />
-      <Suspense fallback={<LoadingBlock rows={10} label="Loading the roster" />}>
+      <Suspense fallback={<StatePanel kind="loading" rows={10} sentence="Loading the roster" />}>
         <RosterPage />
       </Suspense>
     </>

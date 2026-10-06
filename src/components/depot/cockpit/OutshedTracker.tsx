@@ -1,21 +1,20 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useId, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { EmptyState } from '@/components/depot/shell/DataStates';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import type { TrackerRow } from '@/lib/depot/cockpit/cockpitModel';
 import { rosterBusHref } from '@/lib/depot/depotNav';
-import { formatFeedTime } from '@/lib/depot/format';
+import { formatCount, formatFeedTime } from '@/lib/depot/format';
+import { GROUP_PREVIEW_ROWS, visibleRows } from '@/lib/depot/listPaging';
 import type { OutshedState } from '@/lib/depot/infer/types';
-import type { Coverage } from '@/lib/depot/types';
 
 export interface OutshedTrackerProps {
   readonly depotId: string;
   /** Already in display order: overdue, due, upcoming, unknown, departed, ended. */
   readonly rows: readonly TrackerRow[];
-  readonly coverage: Coverage;
   readonly coverageSentence: string;
   /** False when no bus carries a schedule for the feed date. */
   readonly hasSchedules: boolean;
@@ -90,37 +89,44 @@ function trackerColumns(depotId: string): readonly Column<TrackerRow>[] {
 export function OutshedTracker({
   depotId,
   rows,
-  coverage,
   coverageSentence,
   hasSchedules,
   noSchedulesSentence,
 }: OutshedTrackerProps) {
   const columns = useMemo(() => trackerColumns(depotId), [depotId]);
+  const [expanded, setExpanded] = useState(false);
+  const tableId = useId();
+  const shown = visibleRows(rows, expanded, GROUP_PREVIEW_ROWS);
 
   return (
-    <section
-      aria-labelledby="depot-outshed-heading"
-      data-testid="depot-outshed-tracker"
-      className="animate-rise"
-    >
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 id="depot-outshed-heading" className="depot-section-label !mb-0">
-          Outshedding
-        </h2>
-        <ProvenanceBadge provenance="derived" coverage={coverage} />
-        <p className="font-sans text-xs text-depot-muted" data-testid="depot-outshed-coverage">
-          {coverageSentence}
-        </p>
-      </div>
+    <section aria-labelledby="depot-outshed" data-testid="depot-outshed-tracker" className="min-w-0">
+      <SectionLabel id="depot-outshed" label="Outshedding" count={rows.length} note="Most urgent first" />
+      <p className="mb-2 font-sans text-xs text-depot-muted" data-testid="depot-outshed-coverage">
+        {coverageSentence}
+      </p>
       {!hasSchedules ? (
-        <EmptyState>{noSchedulesSentence}</EmptyState>
+        <StatePanel kind="no-data" sentence={noSchedulesSentence} />
       ) : (
-        <DataTable
-          columns={columns}
-          rows={rows}
-          rowKey={(row) => row.key}
-          caption="Scheduled departures for the feed date, most urgent first"
-        />
+        <div id={tableId} className="min-w-0">
+          <DataTable
+            columns={columns}
+            rows={shown}
+            rowKey={(row) => row.key}
+            caption="Scheduled departures for the feed date, most urgent first"
+            fixedRows
+          />
+          {rows.length > GROUP_PREVIEW_ROWS ? (
+            <button
+              type="button"
+              aria-expanded={expanded}
+              aria-controls={tableId}
+              onClick={() => setExpanded((open) => !open)}
+              className="depot-filter-button mt-2"
+            >
+              {expanded ? 'Show fewer' : `Show all ${formatCount(rows.length)} departures`}
+            </button>
+          ) : null}
+        </div>
       )}
     </section>
   );

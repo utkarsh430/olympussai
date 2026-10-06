@@ -16,18 +16,18 @@ vi.mock('@/components/depot/data/DepotDetailProvider', () => ({
 }));
 // The mounts are under test, not the sections around them.
 vi.mock('@/components/depot/network/KpiBand', () => ({ KpiBand: () => null }));
-vi.mock('@/components/depot/cockpit/DepotHeader', () => ({ DepotHeader: () => null }));
-vi.mock('@/components/depot/cockpit/StatusBoard', () => ({ StatusBoard: () => null }));
+vi.mock('@/components/depot/cockpit/AttentionStrip', () => ({ AttentionStrip: () => null }));
+vi.mock('@/components/depot/cockpit/AvailabilityBar', () => ({ AvailabilityBar: () => null }));
 vi.mock('@/components/depot/cockpit/OutshedTracker', () => ({ OutshedTracker: () => null }));
 vi.mock('@/components/depot/cockpit/DepotExceptions', () => ({ DepotExceptions: () => null }));
-vi.mock('@/components/depot/cockpit/VisitorList', () => ({ VisitorList: () => null }));
+vi.mock('@/components/depot/cockpit/CockpitMethod', () => ({ CockpitMethod: () => null }));
 vi.mock('@/lib/depot/cockpit/cockpitModel', () => ({
   buildCockpit: (): unknown => ({
-    header: {},
-    board: { yard: { established: false } },
+    header: { kindLabel: 'Depot', fleet: 0 },
+    indexLine: '',
+    board: { fleet: 0, yard: { established: false, sentence: '' } },
     tracker: [],
-    exceptions: [],
-    visitors: [],
+    visitorCount: 0,
   }),
 }));
 

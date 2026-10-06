@@ -1,6 +1,7 @@
 import type { DepotBusView } from '@/lib/depot/api';
 import { NORMAL_TAMPER_CODE } from '@/lib/depot/exceptions/config';
 import type { BusLocation } from '@/lib/depot/infer/types';
+import { formatFeedDateTime, formatFeedTime } from '@/lib/depot/format';
 import type { BusOpState } from '@/lib/depot/types';
 
 /** Display order: most useful to least. */
@@ -19,13 +20,28 @@ export interface RosterFilters {
   readonly hasRouteOnly: boolean;
   /** Matches registration or route name, case-insensitively. */
   readonly search: string;
+  /** A device or reporting flag the bus must carry; 'any' means no flag filter. */
+  readonly flag: RosterFlag;
 }
+
+/** Flags the cockpit's attention lines can target. */
+export type RosterFlag = 'any' | 'power_off' | 'not_heard' | 'tamper';
+
+export const ROSTER_FLAGS: readonly Exclude<RosterFlag, 'any'>[] = ['power_off', 'not_heard', 'tamper'];
+
+/** The words of an active flag filter. */
+export const ROSTER_FLAG_LABEL: Readonly<Record<Exclude<RosterFlag, 'any'>, string>> = {
+  power_off: 'Main power off',
+  not_heard: 'Not heard for a while',
+  tamper: 'Tamper code',
+};
 
 export const DEFAULT_ROSTER_FILTERS: RosterFilters = {
   states: [],
   location: 'any',
   hasRouteOnly: false,
   search: '',
+  flag: 'any',
 };
 
 export interface RosterRow {
@@ -73,6 +89,43 @@ export function delayText(delayMinutes: number | null): string | null {
   return minutes > 0 ? `${minutes} min late` : `${-minutes} min early`;
 }
 
+const DASH = '—';
+
+/**
+ * A scheduled time: the time alone on the feed date, the day and time otherwise
+ * (a schedule from yesterday must not read as today's). Never an ISO string.
+ */
+export function scheduleText(iso: string | null, feedNow: string | null): string {
+  if (iso === null) return DASH;
+  const sameDay = feedNow !== null && iso.slice(0, 10) === feedNow.slice(0, 10);
+  return sameDay ? formatFeedTime(iso) : formatFeedDateTime(iso);
+}
+
+/** The quiet word beside a state whose report is too old to describe the present. */
+export function notHeardText(bus: Pick<DepotBusView, 'notHeardMin'>): string | null {
+  const minutes = bus.notHeardMin;
+  if (minutes === null || minutes === undefined || !Number.isFinite(minutes)) return null;
+  return `not heard ${lastHeardText(minutes).replace(' ago', '')}`;
+}
+
+/** A tamper code other than the feed's normal one. */
+export function hasTamperCode(bus: Pick<DepotBusView, 'tamperCode'>): boolean {
+  return bus.tamperCode !== null && bus.tamperCode !== '' && bus.tamperCode !== NORMAL_TAMPER_CODE;
+}
+
+function carriesFlag(bus: DepotBusView, flag: RosterFlag): boolean {
+  switch (flag) {
+    case 'any':
+      return true;
+    case 'power_off':
+      return bus.mainPowerOn === false;
+    case 'not_heard':
+      return notHeardText(bus) !== null;
+    case 'tamper':
+      return hasTamperCode(bus);
+  }
+}
+
 export function hasRoute(bus: DepotBusView): boolean {
   return bus.routeName !== null && bus.routeName !== '';
 }
@@ -115,6 +168,7 @@ export function filterRosterRows(
     if (filters.states.length > 0 && !filters.states.includes(bus.state)) return false;
     if (filters.location !== 'any' && bus.location !== filters.location) return false;
     if (filters.hasRouteOnly && !hasRoute(bus)) return false;
+    if (!carriesFlag(bus, filters.flag)) return false;
     if (needle === '') return true;
     return (
       bus.registrationNumber.toLowerCase().includes(needle) ||
