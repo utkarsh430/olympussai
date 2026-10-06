@@ -84,12 +84,12 @@ describe('renderDraft', () => {
     expect(rejected(draft('Head', `THERE ARE ${word.toUpperCase()}.`))).toMatch(/quantity|vocabulary/i);
   });
 
-  it('refuses the word one except inside a server-authored phrase', () => {
+  it('refuses the word one, with no server-authored phrase excepted', () => {
     expect(renderDraft(draft('Head', 'One depot stands out.'), FACTS).ok).toBe(false);
     expect(renderDraft(draft('Head', 'At least one depot stands out.'), FACTS).ok).toBe(false);
     expect(
       renderDraft(draft('Head', 'At least one of these units is not ranked.'), FACTS).ok,
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it.each(['a <b> tag', 'use `code`', 'see http://x.example', 'HTTPS://x', 'a > b'])(
@@ -116,7 +116,7 @@ describe('renderDraft', () => {
   });
 
   it('accepts drafts exactly at the limits', () => {
-    const full = Array.from({ length: MAX_PARAGRAPHS }, () =>
+    const full = Array.from({ length: MAX_PARAGRAPHS - 1 }, () =>
       `${'the '.repeat(MAX_PARAGRAPH_CHARS / 4 - 1)}yard`,
     );
     expect(renderDraft(draft(`${'the '.repeat(MAX_HEADLINE_CHARS / 4 - 1)}yard`, ...full), FACTS).ok).toBe(true);

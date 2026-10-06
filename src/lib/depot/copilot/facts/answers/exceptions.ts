@@ -1,4 +1,4 @@
-import { DEPOT_EXCEPTION_PHRASE, cleanName, makeFact, ph } from '@/lib/depot/copilot/facts/format';
+import { DEPOT_EXCEPTION_PHRASE, cleanName, makeFact, nameFact, ph } from '@/lib/depot/copilot/facts/format';
 import type { CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
 import { answer, plural, unavailable } from '@/lib/depot/copilot/facts/answers/shared';
 import type { AnswerData } from '@/lib/depot/copilot/facts/answers';
@@ -9,7 +9,7 @@ export function exceptionsAnswer(data: AnswerData, depotId: string): CopilotRequ
   const { depot, bus } = detail.exceptions;
   const critical = depot.filter((e) => e.severity === 'critical').length;
   const facts: CopilotFact[] = [
-    makeFact('depot.name', 'Depot', cleanName(detail.depot.name), 'live'),
+    nameFact('depot.name', 'Depot', cleanName(detail.depot.name), 'live'),
     makeFact(
       'ex.depot',
       'Depot-level exceptions',

@@ -3,11 +3,13 @@ import {
   DEPOT_EXCEPTION_PHRASE,
   buildRequest,
   busCount,
+  depotCount,
   cleanName,
   count,
   countPhrase,
   index1,
   makeFact,
+  nameFact,
   onRoadCount,
   ph,
   share,
@@ -45,19 +47,19 @@ export function depotFacts(detail: DepotDetailResponse): CopilotFact[] {
   const { depot, score, yard, locationMix, outshed, exceptions } = detail;
   const fleet = depot.fleet;
   const facts: CopilotFact[] = [
-    makeFact('depot.name', 'Depot', cleanName(depot.name), 'live'),
+    nameFact('depot.name', 'Depot', cleanName(depot.name), 'live'),
     makeFact('depot.kind', 'Kind', DEPOT_KIND_LABEL[depot.kind], 'reference'),
     makeFact('depot.fleet', 'Fleet', busCount(fleet), 'live'),
-    makeFact('depot.on_road', 'On the road', count(onRoadCount(depot.states)), 'derived'),
+    makeFact('depot.on_road', 'On the road', busCount(onRoadCount(depot.states)), 'derived'),
     makeFact(
       'depot.on_road_share',
       'On-road share',
       share(onRoadCount(depot.states), fleet),
       'derived',
     ),
-    makeFact('depot.dark', 'Dark', count(depot.states.dark), 'derived'),
+    makeFact('depot.dark', 'Dark', busCount(depot.states.dark), 'derived'),
     makeFact('depot.dark_share', 'Dark share', share(depot.states.dark, fleet), 'derived'),
-    makeFact('depot.off_road', 'Off the road', count(depot.states.offRoad), 'derived'),
+    makeFact('depot.off_road', 'Off the road', busCount(depot.states.offRoad), 'derived'),
     makeFact(
       'depot.off_road_share',
       'Off-road share',
@@ -69,7 +71,7 @@ export function depotFacts(detail: DepotDetailResponse): CopilotFact[] {
   if (score?.ranked && score.index !== null && score.rank !== null && score.peerCount !== null) {
     facts.push(
       makeFact('depot.index', 'Efficiency index', index1(score.index), 'derived'),
-      makeFact('depot.rank', 'Rank', `${score.rank} of ${score.peerCount}`, 'derived'),
+      makeFact('depot.rank', 'Rank', `rank ${count(score.rank)} of ${depotCount(score.peerCount)}`, 'derived'),
       makeFact('depot.peer_group', 'Peer group', PEER_LABEL[score.peerGroup ?? 'all'], 'derived'),
     );
     const { strongest, weakest } = strongestAndWeakest(score);
@@ -152,7 +154,7 @@ function standingParagraph(detail: DepotDetailResponse): string {
         : position > LOWER_SHARE
           ? 'in the lower part of its peer group'
           : 'in the middle of its peer group';
-    const base = `${name} sits ${where}, with an efficiency index of ${ph('depot.index')} and a rank of ${ph('depot.rank')} within ${ph('depot.peer_group')}.`;
+    const base = `${name} sits ${where}, at efficiency ${ph('depot.index')} and ${ph('depot.rank')} among ${ph('depot.peer_group')}.`;
     const { strongest, weakest } = strongestAndWeakest(score);
     if (!strongest || !weakest) return base;
     const s = ph('depot.strongest_component');
@@ -196,7 +198,7 @@ function yardParagraph(detail: DepotDetailResponse): string {
       : '';
   return (
     `The yard is inferred from where buses park; ${ph('depot.yard_support')} ${countPhrase(detail.yard.value.inCluster, 'falls', 'fall')} inside it. ` +
-    `It currently holds ${ph('depot.in_yard')}, with ${ph('depot.away')} away from it.${visitors}`
+    `It currently holds ${ph('depot.in_yard')}; ${ph('depot.away')} ${countPhrase(detail.locationMix.away, 'is', 'are')} away from it.${visitors}`
   );
 }
 
@@ -205,7 +207,7 @@ function outshedParagraph(detail: DepotDetailResponse): string | null {
   const overdue =
     detail.outshed.counts.overdue > 0
       ? `${ph('depot.outshed_overdue')} overdue to leave the yard`
-      : 'none overdue to leave the yard';
+      : 'no bus is overdue to leave the yard';
   return `Departure schedules are known for ${ph('depot.outshed_coverage')}. Of those, ${ph('depot.outshed_departed')} already away and ${overdue}.`;
 }
 

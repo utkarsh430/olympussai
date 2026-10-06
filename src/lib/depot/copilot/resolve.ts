@@ -12,7 +12,11 @@ import {
 } from '@/lib/depot/copilot/types';
 
 export interface CopilotEngine {
-  generate(request: CopilotRequest, signal?: AbortSignal): Promise<CopilotText>;
+  generate(
+    request: CopilotRequest,
+    signal?: AbortSignal,
+    canStart?: () => boolean,
+  ): Promise<CopilotText>;
 }
 
 export interface CopilotEngineDeps {
@@ -116,7 +120,11 @@ export function createCopilotEngine(deps: CopilotEngineDeps): CopilotEngine {
   }
 
   return {
-    async generate(request: CopilotRequest, signal?: AbortSignal): Promise<CopilotText> {
+    async generate(
+    request: CopilotRequest,
+    signal?: AbortSignal,
+    canStart?: () => boolean,
+  ): Promise<CopilotText> {
       const cli = deps.cli;
       if (deps.setting === 'scripted' || cli === null) {
         return scripted(request, 'not_selected', false);
@@ -125,7 +133,7 @@ export function createCopilotEngine(deps: CopilotEngineDeps): CopilotEngine {
 
       let draft: CopilotDraft;
       try {
-        draft = await cli.draft(request, signal);
+        draft = await cli.draft(request, signal, canStart);
       } catch (error: unknown) {
         const reason: FallbackReason = error instanceof CopilotFailure ? error.reason : 'error';
         // An abort is logged by whoever aborted, once; logging it here would double it.

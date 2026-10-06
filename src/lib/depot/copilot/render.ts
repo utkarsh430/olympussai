@@ -7,7 +7,7 @@ import {
   FACT_ID_SOURCE,
   MAX_HEADLINE_CHARS,
   MAX_PARAGRAPH_CHARS,
-  MAX_PARAGRAPHS,
+  MAX_PROVIDER_PARAGRAPHS,
   MAX_RENDERED_HEADLINE_CHARS,
   MAX_RENDERED_PARAGRAPH_CHARS,
   PROSE_PUNCTUATION,
@@ -30,7 +30,8 @@ export type RenderResult =
 export const draftSchema: z.ZodType<CopilotDraft> = z
   .object({
     headline: z.string().min(1).max(MAX_HEADLINE_CHARS),
-    paragraphs: z.array(z.string().min(1).max(MAX_PARAGRAPH_CHARS)).min(1).max(MAX_PARAGRAPHS),
+    paragraphs: z.array(z.string().min(1).max(MAX_PARAGRAPH_CHARS)).min(1)
+      .max(MAX_PROVIDER_PARAGRAPHS),
   })
   .strict();
 
@@ -54,6 +55,9 @@ const GRAMMAR_REASONS: Readonly<Record<GrammarProblem, string>> = {
     'Draft has a token outside the grammar (misplaced punctuation or a placeholder adjacent to something)',
   vocabulary: 'Draft uses a word outside the vocabulary',
   joined_placeholders: 'Draft has placeholders joined without a word between',
+  figure_link: 'Draft joins two figures with linking words only',
+  figure_unit: 'Draft puts a unit, period or rate word beside a figure',
+  figure_qualifier: 'Draft puts a negation or comparison before a figure',
 };
 
 const fail = (reason: string): RenderResult => ({ ok: false, reason });
@@ -94,8 +98,8 @@ export function renderDraft(draft: CopilotDraft, facts: readonly CopilotFact[]):
   ];
   if (!used.every((id) => clean.has(id))) return fail('Draft names an unknown fact');
 
-  const edges = new Map(facts.map((f) => [f.id, factEdges(f.text)] as const));
-  const UNKNOWN = { endsBare: true, startsWithLetter: false };
+  const edges = new Map(facts.map((f) => [f.id, factEdges(f.text, f.kind)] as const));
+  const UNKNOWN = { endsBare: true, startsWithLetter: false, figure: true };
   for (const text of texts) {
     const problem = checkGrammar(text, (id) => edges.get(id) ?? UNKNOWN);
     if (problem !== null) return fail(GRAMMAR_REASONS[problem]);

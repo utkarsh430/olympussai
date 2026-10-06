@@ -8,7 +8,7 @@ import { words } from '@/lib/depot/copilot/vocabulary/function';
  * magnitudes, units and currency, arithmetic words that would join or scale
  * two figures, zero words, and link words.
  */
-export const EXCLUDED_WORDS: readonly string[] = words(`
+export const EXCLUDED_QUANTITY_WORDS: readonly string[] = words(`
 zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen
 sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety
 ones twos tens teens umpteen umpteenth nth
@@ -32,8 +32,18 @@ kg kph mph kmph litre litres liter liters tonne tonnes ton tons degree degrees
 rupee rupees rs inr paise paisa dollar dollars usd pound pounds euro euros
 times plus minus negative point points dot decimal decimals nought naught aught
 nil none null
-www http https mailto javascript com org net
+triply trebly dayly
 `);
+
+/** Link words: excluded as they stand, but an ending may still build "comes" or "coming". */
+const EXCLUDED_LINK_WORDS: readonly string[] = words(
+  'www http https mailto javascript com org net',
+);
+
+export const EXCLUDED_WORDS: readonly string[] = [
+  ...EXCLUDED_QUANTITY_WORDS,
+  ...EXCLUDED_LINK_WORDS,
+];
 
 /** A strict Roman numeral in lowercase: what "mix", "vi" or "xl" would read as in capitals. */
 const ROMAN = /^m{0,3}(?:cm|cd|d?c{0,3})(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})$/;

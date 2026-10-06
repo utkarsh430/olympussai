@@ -11,6 +11,11 @@ export interface CopilotFact {
   /** Pre-formatted by the server, for example "1,204", "31%" or "BAREILLY(R)". */
   readonly text: string;
   readonly provenance: Provenance;
+  /**
+   * Set by the server for a depot or place name. A name may hold digits from the feed and is
+   * still not a figure, so the renderer's figure rules do not apply to it.
+   */
+  readonly kind?: 'name';
 }
 
 /** Prose with `{{fact:id}}` placeholders; it never carries a figure itself. */
@@ -59,7 +64,12 @@ export interface CopilotText {
 export interface CopilotProvider {
   readonly id: CopilotProviderId;
   /** `signal` ends the work early: a caller's deadline or a client disconnect. */
-  draft(request: CopilotRequest, signal?: AbortSignal): Promise<CopilotDraft>;
+  /** `canStart` is asked just before a call slot is taken; false means too little time is left. */
+  draft(
+    request: CopilotRequest,
+    signal?: AbortSignal,
+    canStart?: () => boolean,
+  ): Promise<CopilotDraft>;
 }
 
 /** A provider could not produce a draft; `reason` says why, for the fallback. */

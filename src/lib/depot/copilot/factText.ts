@@ -46,7 +46,12 @@ const BARE_END = /(?:^|\s)[\p{N}.,\u2014-]*$/u;
  * followed by a comma and another figure, while one that ends in its own unit
  * or mark ("31 buses", "71%", "14:05") or is a name may.
  */
-export function factEdges(text: string): FactEdges {
+export function factEdges(text: string, kind?: 'name'): FactEdges {
   const clean = sanitizeFactText(text);
-  return { endsBare: BARE_END.test(clean), startsWithLetter: /^\p{L}/u.test(clean) };
+  return {
+    endsBare: BARE_END.test(clean),
+    startsWithLetter: /^\p{L}/u.test(clean),
+    // A name the server marked stays a name even when the feed put digits in it.
+    figure: kind !== 'name' && (/\p{N}/u.test(clean) || !/\p{L}/u.test(clean)),
+  };
 }

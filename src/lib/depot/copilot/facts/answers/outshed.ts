@@ -1,4 +1,4 @@
-import { busCount, cleanName, makeFact, ph } from '@/lib/depot/copilot/facts/format';
+import { busCount, cleanName, makeFact, nameFact, ph } from '@/lib/depot/copilot/facts/format';
 import type { CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
 import { answer, unavailable } from '@/lib/depot/copilot/facts/answers/shared';
 import type { AnswerData } from '@/lib/depot/copilot/facts/answers';
@@ -9,7 +9,7 @@ export function outshedAnswer(data: AnswerData, depotId: string): CopilotRequest
   const { coverage, counts, rows } = detail.outshed;
   const late = rows.filter((r) => r.minutesLate !== null && r.minutesLate > 0).length;
   const facts: CopilotFact[] = [
-    makeFact('depot.name', 'Depot', cleanName(detail.depot.name), 'live'),
+    nameFact('depot.name', 'Depot', cleanName(detail.depot.name), 'live'),
     makeFact(
       'outshed.coverage',
       'Schedule coverage',
@@ -40,7 +40,7 @@ export function outshedAnswer(data: AnswerData, depotId: string): CopilotRequest
     counts.ended > 0 ? `${ph('outshed.ended')} whose scheduled window is already over` : null,
     counts.overdue > 0
       ? `${ph('outshed.overdue')} overdue to leave the yard`
-      : 'none overdue to leave the yard',
+      : 'no bus is overdue to leave the yard',
     counts.unknown > 0
       ? `${ph('outshed.unknown')} that cannot be located well enough to say`
       : null,

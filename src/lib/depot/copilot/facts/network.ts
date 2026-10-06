@@ -7,6 +7,7 @@ import {
   depotCount,
   index1,
   makeFact,
+  nameFact,
   ph,
   share,
 } from '@/lib/depot/copilot/facts/format';
@@ -117,9 +118,9 @@ function networkFacts(network: DepotNetworkResponse): CopilotFact[] {
   const weakest = ranked[ranked.length - 1];
   if (best && weakest && ranked.length >= 2) {
     facts.push(
-      makeFact('network.best_depot', 'Highest-ranked depot', cleanName(best.name), 'derived'),
+      nameFact('network.best_depot', 'Highest-ranked depot', cleanName(best.name), 'derived'),
       makeFact('network.best_index', 'Highest index', index1(best.index), 'derived'),
-      makeFact('network.weakest_depot', 'Lowest-ranked depot', cleanName(weakest.name), 'derived'),
+      nameFact('network.weakest_depot', 'Lowest-ranked depot', cleanName(weakest.name), 'derived'),
       makeFact('network.weakest_index', 'Lowest index', index1(weakest.index), 'derived'),
     );
   }
@@ -134,10 +135,10 @@ function exceptionParagraph(depotCountN: number, busCountN: number): string {
     return `No depot-level exceptions are flagged, though ${ph('network.bus_exceptions')} ${countPhrase(busCountN, 'is', 'are')} flagged on vehicles.`;
   }
   const vehicles =
-    busCountN === 0 ? 'and none on vehicles' : `and ${ph('network.bus_exceptions')} on vehicles`;
+    busCountN === 0 ? 'and nothing on vehicles' : `and ${ph('network.bus_exceptions')} on vehicles`;
   return (
     `The snapshot flags ${ph('network.depot_exceptions')} at depot level ${vehicles}. ` +
-    'Starting with the depot-level ones would be a sensible order.'
+    'Starting with the depot-level exceptions would be a sensible order.'
   );
 }
 
@@ -163,16 +164,13 @@ function networkDraft(network: DepotNetworkResponse): CopilotDraft {
   }
   const hasTime = network.feedNow !== null && formatFeedTime(network.feedNow) !== '—';
   const lead = hasTime ? `As of ${ph('network.feed_time')}, ` : 'On the latest feed, ';
-  const stale = network.stale
-    ? ' The data is marked stale, so the picture may lag what is happening on the road.'
-    : '';
   const { kpis } = network;
   const ranked = rankedDepots(network);
   const paragraphs = [
-    `${lead}${ph('network.reporting')} ${countPhrase(kpis.reporting.value, 'is', 'are')} reporting a position and ${ph('network.on_road')} ${countPhrase(kpis.onRoad.value, 'is', 'are')} running, ${ph('network.on_road_share')} of the fleet.${stale}`,
+    `${lead}${ph('network.reporting')} ${countPhrase(kpis.reporting.value, 'is', 'are')} reporting a position and ${ph('network.on_road')} ${countPhrase(kpis.onRoad.value, 'is', 'are')} running, ${ph('network.on_road_share')} of the fleet.`,
     `${ph('network.no_signal')} ${countPhrase(kpis.noSignal.value, 'is', 'are')} showing no signal (${ph('network.no_signal_share')}) and ${ph('network.under_maintenance')} ${countPhrase(kpis.underMaintenance.value, 'is', 'are')} under maintenance (${ph('network.maintenance_share')}).`,
     ranked.length >= 2
-      ? `Among ranked depots, ${ph('network.best_depot')} leads with an efficiency index of ${ph('network.best_index')}, while ${ph('network.weakest_depot')} sits lowest at ${ph('network.weakest_index')}.${rankSentence(ranked)}`
+      ? `Among ranked depots, ${ph('network.best_depot')} leads at efficiency ${ph('network.best_index')}, while ${ph('network.weakest_depot')} sits lowest at efficiency ${ph('network.weakest_index')}.${rankSentence(ranked)}`
       : 'Too few depots have enough buses to be ranked against each other on this snapshot.',
     exceptionParagraph(
       DEPOT_KINDS.reduce((n, k) => n + (network.exceptionCounts[k] ?? 0), 0),
@@ -180,7 +178,7 @@ function networkDraft(network: DepotNetworkResponse): CopilotDraft {
     ),
   ];
   return {
-    headline: `Network briefing: ${ph('network.fleet')} across ${ph('network.depots')}`,
+    headline: `Network briefing: ${ph('network.fleet')} and ${ph('network.depots')}`,
     paragraphs,
   };
 }

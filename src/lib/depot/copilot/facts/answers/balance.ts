@@ -1,4 +1,4 @@
-import { busCount, cleanName, depotCount, makeFact, ph } from '@/lib/depot/copilot/facts/format';
+import { busCount, cleanName, depotCount, makeFact, nameFact, ph } from '@/lib/depot/copilot/facts/format';
 import type { CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
 import type { DepotBalance } from '@/lib/depot/optimise/types';
 import {
@@ -36,7 +36,7 @@ export function balanceList(data: AnswerData, kind: 'deficit' | 'surplus'): Copi
     makeFact('list.count', 'Depots', depotCount(rows.length), 'modelled'),
     makeFact('list.total', 'Buses in total', busCount(total), 'modelled'),
     ...shown.flatMap((b, i) => [
-      makeFact(`list.${i + 1}.name`, `Depot ${i + 1}`, cleanName(b.depotName), 'live'),
+      nameFact(`list.${i + 1}.name`, `Depot ${i + 1}`, cleanName(b.depotName), 'live'),
       makeFact(`list.${i + 1}.size`, `Size ${i + 1}`, busCount(Math.abs(b.balance)), 'modelled'),
     ]),
   ];

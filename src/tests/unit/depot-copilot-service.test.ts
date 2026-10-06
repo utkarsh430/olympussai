@@ -13,6 +13,21 @@ import { answerCopilot, type AnswerCall } from '@/lib/depot/copilot/service/gene
 import { prepareCopilotRequest, type Prepared } from '@/lib/depot/copilot/service/prepare';
 import { parseCopilotBody, type ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
 import type { CopilotApiRequest } from '@/lib/depot/copilot/wire';
+import { MAX_PARAGRAPHS, MAX_PROVIDER_PARAGRAPHS } from '@/lib/depot/copilot/limits';
+import {
+  refundClaudeAllowance,
+  requestLimitChecks,
+  takeClaudeAllowance,
+} from '@/lib/depot/copilot/service/allowance';
+import {
+  ADDRESS_CLAUDE_CALLS_PER_HOUR,
+  ADDRESS_REQUESTS_PER_MINUTE,
+  IDENTITY_CLAUDE_CALLS_PER_HOUR,
+  IDENTITY_REQUESTS_PER_MINUTE,
+  PROCESS_REQUESTS_PER_MINUTE,
+} from '@/lib/depot/copilot/service/constants';
+import { requestCopilot } from '@/lib/depot/copilot/ui/copilotClient';
+import { createWindowLimiter, requestAddress, takeAll } from '@/lib/depot/rateLimit';
 
 const rows = normalizeDepotRows(liveFixture).rows;
 const view = (over: Partial<FleetSnapshotView> = {}): FleetSnapshotView => ({
@@ -236,10 +251,10 @@ describe('prepareCopilotRequest on the sample fixture', () => {
     expect(JSON.stringify(result)).not.toContain('zqxmarker');
   });
 
-  it("keeps the builders' provenance and says when the snapshot is stale", async () => {
+  it("keeps the builders' provenance and leaves the stale notice to the response step", async () => {
     const runtime = buildCopilotRuntime({ setting: 'scripted', cli: null });
     const response = await answerCopilot(runtime, prepared(NETWORK, view({ stale: true })), soon());
-    expect(response.paragraphs.join(' ')).toContain('marked stale');
+    expect(response.paragraphs.join(' ')).not.toContain('stale');
     expect(
       response.facts.every((f) =>
         ['live', 'derived', 'modelled', 'reference'].includes(f.provenance),
@@ -257,5 +272,101 @@ describe('getCopilotRuntime', () => {
     const reloaded = await import('@/lib/depot/copilot/service/runtime');
     expect(reloaded.getCopilotRuntime()).toBe(first);
     vi.unstubAllEnvs();
+  });
+});
+
+describe('round 4: stale notice and limits (S37, S38 item 13)', () => {
+  const STALE = 'These figures are from the last good data; its feed time is not known.';
+  const paragraphs = (n: number): string[] =>
+    Array.from({ length: n }, () => 'The fleet is steady.');
+  const scripted = (): ReturnType<typeof buildCopilotRuntime> =>
+    buildCopilotRuntime({ setting: 'scripted', cli: null });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('a maximum-length draft on stale data still passes the browser validator', async () => {
+    const { runtime } = fakeCli(async () => ({
+      headline: 'Network briefing',
+      paragraphs: paragraphs(MAX_PROVIDER_PARAGRAPHS),
+    }));
+    const call = { ...soon(), staleSentence: STALE };
+    const response = await answerCopilot(runtime, prepared(NETWORK, view({ stale: true })), call);
+    expect(response.provider).toBe('claude');
+    expect(response.paragraphs).toHaveLength(MAX_PARAGRAPHS);
+    expect(response.paragraphs.filter((p) => p === STALE)).toHaveLength(1);
+    vi.stubGlobal('fetch', async () => Response.json(response));
+    expect(await requestCopilot(NETWORK)).toMatchObject({ ok: true });
+  });
+
+  it('refuses a provider draft that would leave no room for the stale notice', async () => {
+    const { runtime } = fakeCli(async () => ({
+      headline: 'Network briefing',
+      paragraphs: paragraphs(MAX_PARAGRAPHS),
+    }));
+    const response = await answerCopilot(runtime, prepared(), { ...soon(), staleSentence: STALE });
+    expect(response.provider).toBe('scripted');
+    expect(response.paragraphs.length).toBeLessThanOrEqual(MAX_PARAGRAPHS);
+  });
+
+  it('refunds the Claude allowance when no call was made, and hands the provider a start gate', async () => {
+    const { provider, runtime } = fakeCli(async () => {
+      throw new CopilotFailure('budget_exhausted', 'used');
+    });
+    for (let i = 0; i < IDENTITY_CLAUDE_CALLS_PER_HOUR + 2; i += 1) {
+      const response = await answerCopilot(runtime, prepared(), soon());
+      expect([response.provider, response.notice !== undefined]).toEqual(['scripted', true]);
+    }
+    expect(provider.draft).toHaveBeenCalledTimes(IDENTITY_CLAUDE_CALLS_PER_HOUR + 2);
+    const gate: unknown = provider.draft.mock.calls[0]?.[2];
+    expect(typeof gate === 'function' && gate()).toBe(true);
+  });
+
+  it('gives back exactly one hit on refund', () => {
+    const limiter = createWindowLimiter({ now: () => 0, limit: 1, windowMs: 1000, maxKeys: 4 });
+    expect(limiter.take('k').limited).toBe(false);
+    expect(limiter.take('k').limited).toBe(true);
+    limiter.refund('k');
+    expect(limiter.take('k').limited).toBe(false);
+  });
+
+  it('reads the address only from the configured header', () => {
+    const headers = new Headers({ 'x-real-ip': '10.0.0.7' });
+    expect(requestAddress(headers, {})).toBeNull();
+    expect(requestAddress(headers, { DEPOT_TRUSTED_IP_HEADER: 'x-real-ip' })).toBe('10.0.0.7');
+    expect(requestAddress(new Headers(), { DEPOT_TRUSTED_IP_HEADER: 'x-real-ip' })).toBeNull();
+  });
+
+  it('limits one address across fresh identities, and nobody when no address is known', () => {
+    const runtime = scripted();
+    const send = (identity: string, address: string | null): boolean =>
+      takeAll(requestLimitChecks(runtime, identity, address)).limited;
+    for (let i = 0; i < ADDRESS_REQUESTS_PER_MINUTE; i += 1) {
+      expect(send(`relogin-${i}`, '10.0.0.7')).toBe(false);
+    }
+    expect(send('relogin-fresh', '10.0.0.7')).toBe(true);
+    expect(send('someone-else', '10.0.0.8')).toBe(false);
+    for (let i = 0; i < ADDRESS_REQUESTS_PER_MINUTE * 2; i += 1) {
+      expect(send(`no-header-${i}`, null)).toBe(false);
+    }
+  });
+
+  it('keeps the process ceiling out of reach of scripted traffic from many identities', () => {
+    expect(PROCESS_REQUESTS_PER_MINUTE).toBeGreaterThanOrEqual(IDENTITY_REQUESTS_PER_MINUTE * 500);
+    expect(ADDRESS_REQUESTS_PER_MINUTE * 50).toBeLessThanOrEqual(PROCESS_REQUESTS_PER_MINUTE);
+  });
+
+  it('caps Claude calls per address across fresh identities and refunds both allowances', () => {
+    const runtime = scripted();
+    const who = (i: number, address: string | null = '10.0.0.7') => ({
+      identity: `relogin-${i}`,
+      address,
+    });
+    for (let i = 0; i < ADDRESS_CLAUDE_CALLS_PER_HOUR; i += 1) {
+      expect(takeClaudeAllowance(runtime, who(i))).toBe(true);
+    }
+    expect(takeClaudeAllowance(runtime, who(999))).toBe(false);
+    expect(takeClaudeAllowance(runtime, who(999, null))).toBe(true);
+    refundClaudeAllowance(runtime, who(0));
+    expect(takeClaudeAllowance(runtime, who(998))).toBe(true);
   });
 });

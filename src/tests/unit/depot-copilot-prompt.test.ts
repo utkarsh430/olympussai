@@ -5,7 +5,6 @@ import {
   PROMPT_EXAMPLES,
   PROMPT_REJECTED_EXAMPLES,
 } from '@/lib/depot/copilot/cli/prompt';
-import { AUTHORED_PHRASES } from '@/lib/depot/copilot/grammar';
 import {
   MAX_HEADLINE_CHARS,
   MAX_PARAGRAPH_CHARS,
@@ -70,12 +69,12 @@ describe('system prompt and validator agreement', () => {
       /Every figure, with its unit, and every name is a \{\{fact:id\}\} placeholder/,
     );
     expect(prompt).toMatch(/any other word, however ordinary, rejects the whole draft/);
-    for (const phrase of AUTHORED_PHRASES) expect(prompt).toContain(phrase.join(' '));
+    expect(prompt).not.toContain('fixed phrases');
   });
 
   it('no longer says a full stop must be followed by a space', () => {
     expect(prompt).not.toMatch(/full stop must be followed by a space/i);
-    expect(prompt).toMatch(/may end with a full stop/);
+    expect(prompt).not.toMatch(/may end with a full stop/);
   });
 
   it('refuses a fact id outside the documented pattern before it reaches a prompt', () => {

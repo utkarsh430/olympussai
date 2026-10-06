@@ -223,7 +223,7 @@ describe('engine', () => {
     const { engine } = build({ id: 'claude-cli', draft });
     const { signal } = new AbortController();
     await engine.generate(REQUEST, signal);
-    expect(draft).toHaveBeenCalledWith(REQUEST, signal);
+    expect(draft).toHaveBeenCalledWith(REQUEST, signal, undefined);
   });
 
   it('returns the fixed unavailable draft when the scripted path throws', async () => {

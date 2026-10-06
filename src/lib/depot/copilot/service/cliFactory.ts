@@ -78,7 +78,11 @@ export function createCliProvider(deps: CliFactoryDeps): CopilotProvider | null 
   }
   return {
     id: 'claude-cli',
-    async draft(request: CopilotRequest, signal?: AbortSignal): Promise<CopilotDraft> {
+    async draft(
+    request: CopilotRequest,
+    signal?: AbortSignal,
+    canStart?: () => boolean,
+  ): Promise<CopilotDraft> {
       let dirs: readonly string[] = [];
       try {
         // Settled one by one, so a directory made before the other failed is still removed.
@@ -97,7 +101,7 @@ export function createCliProvider(deps: CliFactoryDeps): CopilotProvider | null 
         } catch {
           throw new CopilotFailure('not_installed', 'provider check failed');
         }
-        return await provider.draft(request, signal);
+        return await provider.draft(request, signal, canStart);
       } finally {
         await removeAll(deps, dirs);
       }

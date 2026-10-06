@@ -5,6 +5,7 @@ import {
   cleanName,
   km1,
   makeFact,
+  nameFact,
   ph,
 } from '@/lib/depot/copilot/facts/format';
 import type { CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
@@ -123,13 +124,13 @@ export function buildTransferRationale(
   const receiving = distribution.balances.find((b) => b.depotId === transfer.toDepotId);
   const withinMaximum = transfer.distanceKm <= distribution.rebalanceParams.maxTransferKm;
   const facts: CopilotFact[] = [
-    makeFact(
+    nameFact(
       'transfer.from_name',
       'Giving depot',
       cleanName(giving?.depotName ?? transfer.fromDepotId),
       'live',
     ),
-    makeFact(
+    nameFact(
       'transfer.to_name',
       'Receiving depot',
       cleanName(receiving?.depotName ?? transfer.toDepotId),
@@ -153,7 +154,7 @@ export function buildTransferRationale(
   ];
   const paragraphs = [
     `${givingSentence(giving)}, and ${receivingSentence(receiving)}`,
-    `Moving ${ph('transfer.buses')} would run over about ${ph('transfer.distance_km')} of estimated road distance, ${
+    `Moving ${ph('transfer.buses')} would cover an estimated road distance of ${ph('transfer.distance_km')}, ${
       withinMaximum
         ? "within the planner's configured maximum of"
         : "beyond the planner's configured maximum of"
