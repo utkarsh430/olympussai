@@ -39,7 +39,8 @@ export function useColumnsToTheRight(
 /**
  * The right-edge cue of a wide table: a fade (the one gradient the rules permit) and the
  * visible words "more columns". It sits on the non-scrolling wrapper, not inside the
- * frame, so it does not scroll away; it lets clicks through. Rendered only while the
+ * frame, so it does not scroll away; it lets clicks through. The words sit at the top,
+ * over the header row's cut-off end, never over a body row's values. Rendered only while the
  * frame can scroll right, so there is nothing to animate and reduced motion is honoured.
  */
 export function TableOverflowCue() {
@@ -47,7 +48,7 @@ export function TableOverflowCue() {
     <div
       aria-hidden
       data-testid="depot-table-more-columns"
-      className="pointer-events-none absolute inset-y-px right-px flex w-24 items-end justify-end rounded-r-md bg-gradient-to-l from-depot-page via-depot-page/80 to-transparent px-2 pb-1"
+      className="pointer-events-none absolute inset-y-px right-px flex w-24 items-start justify-end rounded-r-md bg-gradient-to-l from-depot-page via-depot-page/80 to-transparent px-2 pt-1.5"
     >
       <span className="whitespace-nowrap bg-depot-page px-1 font-mono text-[11px] uppercase tracking-[0.12em] text-depot-muted">
         more columns
