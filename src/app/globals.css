@@ -382,6 +382,12 @@
     @apply text-right;
   }
 
+  /* A group row (DataTable `group`): the repeated value printed once. Not sticky, unlike
+     the column header it shares the th styling with. */
+  .depot-table .depot-table-group {
+    @apply static h-8 bg-depot-page pt-3 text-left tracking-[0.16em];
+  }
+
   .depot-sort-button {
     @apply inline-flex items-center gap-1 uppercase tracking-[0.12em] text-inherit
       hover:text-depot-ink;
