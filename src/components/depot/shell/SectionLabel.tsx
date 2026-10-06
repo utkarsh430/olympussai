@@ -36,7 +36,7 @@ export function SectionLabel({ label, count, note, tag, level = 2, id }: Section
           {label}
           {count !== undefined ? <span className="tabular-nums"> · {formatCount(count)}</span> : null}
         </Heading>
-        {tag ? <ProvenanceBadge provenance={tag} /> : null}
+        {tag ? <ProvenanceBadge provenance={tag} pill /> : null}
       </div>
       {note ? <p className="depot-note min-w-0">{note}</p> : null}
     </div>

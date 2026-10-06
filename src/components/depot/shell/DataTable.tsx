@@ -4,6 +4,8 @@ import { Fragment, useId, useMemo, useRef, useState } from 'react';
 import { sortRows, type SortDirection, type SortValue } from '@/lib/depot/tableSort';
 import { ExpandToggle, expandedRowId, useExpandedRows } from './RowExpander';
 import { TableOverflowCue, useColumnsToTheRight } from './TableOverflowCue';
+import type { Provenance } from '@/lib/depot/types';
+import { ProvenanceBadge } from './ProvenanceBadge';
 
 const EXPAND_KEY = '__expand';
 
@@ -17,6 +19,13 @@ export interface Column<T> {
   readonly width?: number | string;
   /** Full text for a cell that may truncate (`fixedRows`); a string `render` result is used when absent. */
   readonly title?: (row: T) => string | undefined;
+  /** Shown after the header ("EARNINGS ₹/KM"), so cells carry bare numbers. */
+  readonly unit?: string;
+  /**
+   * Only when this column's provenance differs from the page's provenance line: a pill in
+   * the header cell, after the label. Never a tag in a cell.
+   */
+  readonly tag?: Provenance;
 }
 
 export interface TableSort {
@@ -73,6 +82,16 @@ export interface TableSortState {
 }
 
 const ARIA_SORT = { asc: 'ascending', desc: 'descending' } as const;
+
+/** A header's label, then its unit ("EARNINGS ₹/KM") in the faint tone. */
+function HeaderText<T>({ column }: { readonly column: Column<T> }) {
+  if (!column.unit) return <>{column.header}</>;
+  return (
+    <>
+      {column.header} <span className="text-depot-faint">{column.unit}</span>
+    </>
+  );
+}
 const SELECT_KEYS: ReadonlySet<string> = new Set(['Enter', ' ']);
 
 function nextSort(current: TableSort | null, key: string): TableSort {
@@ -264,7 +283,7 @@ export function DataTable<T>({
                       className="depot-sort-button"
                       onClick={() => setSort(nextSort(sort, column.key))}
                     >
-                      {column.header}
+                      <HeaderText column={column} />
                       <span aria-hidden className="inline-block w-3 text-holo-glow">
                         {active ? (active.direction === 'asc' ? '↑' : '↓') : ''}
                       </span>
@@ -272,8 +291,13 @@ export function DataTable<T>({
                   ) : column.key === EXPAND_KEY ? (
                     <span className="sr-only">{column.header}</span>
                   ) : (
-                    column.header
+                    <HeaderText column={column} />
                   )}
+                  {column.tag ? (
+                    <span className="ml-1.5 inline-block align-middle">
+                      <ProvenanceBadge provenance={column.tag} pill />
+                    </span>
+                  ) : null}
                 </th>
               );
             })}
