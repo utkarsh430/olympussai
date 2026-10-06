@@ -60,6 +60,10 @@ describe('plan figures', () => {
     expect(figures[4]?.caption).toBe('2 buses left uncovered');
   });
 
+  it('groups the empty running bus-km as every other figure is grouped', () => {
+    expect(planFigures({ ...SUMMARY, busKm: 5503.5 } as PlanSummary)[3]?.value).toBe('5,503.5');
+  });
+
   it('says every bus is covered when nothing is left', () => {
     const covered = { ...SUMMARY, uncoveredDeficit: 0 } as PlanSummary;
     expect(planFigures(covered)[4]?.caption).toBe('every short bus covered');

@@ -1,4 +1,4 @@
-import { formatCount } from '@/lib/depot/format';
+import { formatCount, formatOneDecimal } from '@/lib/depot/format';
 import { busesWord, type BalanceRow, type PlanSummary } from './rebalanceModel';
 
 /**
@@ -60,7 +60,7 @@ export function planFigures(s: PlanSummary): readonly PlanFigure[] {
     {
       key: 'empty',
       label: 'Empty running',
-      value: s.busKm.toFixed(1),
+      value: formatOneDecimal(s.busKm),
       caption: 'bus-km, road estimate',
     },
     {
@@ -105,7 +105,7 @@ export function samePlaceNote(row: {
   const km = row.distanceKm;
   // A missing or broken distance is not "the same place": say nothing rather than "NaN km".
   if (!Number.isFinite(km) || km < 0 || km >= SAME_PLACE_KM) return null;
-  return `${row.fromName} and ${row.toName} stand at the same place by their inferred positions (${row.distanceKm.toFixed(1)} km apart).`;
+  return `${row.fromName} and ${row.toName} stand at the same place by their inferred positions (${formatOneDecimal(row.distanceKm)} km apart).`;
 }
 
 /** The deepest shortfalls (rows arrive deepest first), or every row when `showAll`. */

@@ -1,10 +1,11 @@
+import { MINUS } from '@/lib/depot/format';
+
 /** Diverging pair, validated for colour-vision deficiency on the dark surface (dataviz skill). */
 export const SURPLUS_COLOUR = '#3987e5';
 export const DEFICIT_COLOUR = '#e66767';
 /** Neutral midpoint: a balanced depot is grey, never a hue. */
 export const BALANCED_COLOUR = '#6b84a0';
 
-const MINUS = '−';
 const HALF = 50;
 
 export interface BalanceBarProps {

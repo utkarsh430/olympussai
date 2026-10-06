@@ -203,7 +203,9 @@ last figure spans the row; from 640px three sit 3 across and five 3 + 2; four si
 767px and 4 across from 768px (`BAND_FOUR_ACROSS_FROM_PX`). Every
 figure is mono 24px, 20px under 640px (`hero`: display 32px, one per page). Nothing in a
 band is cut: a value, a label (with its tag) and a caption wrap, a caption to at most two
-lines (`CAPTION_MAX_LINES`), and the cells of a row align to the top. At least 88px tall. A figure's label row is a fixed 16px line box
+lines (`CAPTION_MAX_LINES`), and the cells of a row align to the top. Below 1024px each figure
+takes three rows of the band's grid (label, value, caption) through a subgrid
+(`FIGURE_ROWS_CLASSES`), so when one label in a row wraps, the values in that row stay level. At least 88px tall. A figure's label row is a fixed 16px line box
 (`depot-tag-row`): a tag beside the label is drawn 16px tall and never lowers the figure. `tag` only for a generated figure on a MIXED or DERIVED page.
 No `compact` (16px) form: no page needs one; the two hand-rolled 16px bands (exceptions,
 economics) become ordinary bands.

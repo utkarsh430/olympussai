@@ -157,3 +157,51 @@ describe('Figure: a figure that leads somewhere', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 });
+
+/** The classes that make an element take the band's label, value and caption rows as its own. */
+const SUBGRID = ['max-lg:row-span-3', 'max-lg:grid', 'max-lg:grid-rows-subgrid'];
+
+/** The grid items inside a figure (screen-reader text is positioned out of the grid). */
+const tracksOf = (element: Element): readonly Element[] =>
+  Array.from(element.children).filter((child) => !child.classList.contains('sr-only'));
+
+describe('FigureBand: values in a row sit level', () => {
+  it('gives every figure the band rows for its label, value and caption below 1024px', () => {
+    render(
+      <FigureBand label="Exception figures">
+        <Figure label="High dark rate" value="7" caption="depots" title="Why" />
+        <Figure label="High off-road rate" value="4" tag="modelled" share={0.4} caption="depots" />
+        <Figure label="Low on-road share" value="1" />
+      </FigureBand>,
+    );
+    for (const item of screen.getAllByRole('listitem')) {
+      expect(item.className.split(/\s+/)).toEqual(expect.arrayContaining(SUBGRID));
+      // Label, value, then the caption (with its share bar) in one track: never a fourth.
+      expect(tracksOf(item).length).toBeLessThanOrEqual(3);
+      expect(tracksOf(item)[0]?.classList.contains('depot-tag-row')).toBe(true);
+    }
+  });
+
+  it('keeps the one-row desktop band as it was: the figures are blocks from 1024px', () => {
+    band();
+    for (const item of screen.getAllByRole('listitem')) {
+      expect(item.className.split(/\s+/).filter((name) => name.startsWith('lg:'))).toEqual([
+        'lg:w-[192px]',
+        'lg:flex-none',
+      ]);
+    }
+  });
+
+  it('passes the rows through a figure that is a link or a toggle', () => {
+    render(
+      <FigureBand label="Bus exceptions">
+        <Figure label="Power off" value="37" caption="buses" href="/project/depots/exceptions" />
+        <Figure label="Long dark" value="12" caption="buses" onPress={() => undefined} />
+      </FigureBand>,
+    );
+    for (const control of [screen.getByRole('link'), screen.getByRole('button')]) {
+      expect(control.className.split(/\s+/)).toEqual(expect.arrayContaining(SUBGRID));
+      expect(tracksOf(control)).toHaveLength(3);
+    }
+  });
+});

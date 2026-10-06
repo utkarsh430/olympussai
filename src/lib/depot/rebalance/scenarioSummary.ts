@@ -1,7 +1,7 @@
 import { MAX_TRANSFER_KM, MIN_TRANSFER_KM } from '../optimise/config';
 import type { Scenario } from '../optimise/types';
 import { activeSpare, toScenario, type ScenarioFormState } from './scenarioForm';
-import { capitalise, signedWhole } from '@/lib/depot/format';
+import { capitalise, formatCount, formatOneDecimal, signedWhole } from '@/lib/depot/format';
 
 /*
  * Sentences describing a scenario and its effect. For display only: the
@@ -19,18 +19,27 @@ export function effectiveMaxTransferKm(scenario: Scenario, baselineKm: number): 
   return Math.min(MAX_TRANSFER_KM, Math.max(MIN_TRANSFER_KM, typed));
 }
 
-/** A signed difference in words: "12 fewer buses moved", "No change in buses moved". */
+/** The size of a difference as the page prints its figures: grouped, to a tenth where it has one. */
+const groupedSize = (size: number): string =>
+  Number.isInteger(size) ? formatCount(size) : formatOneDecimal(size);
+
+/**
+ * A signed difference in words: "12 fewer buses moved", "No change in buses moved",
+ * "4,674.3 more bus-km". `format` prints the size; a bus-km difference passes
+ * `formatOneDecimal`, so it reads with one decimal as the figures beside it do.
+ */
 export function describeDelta(
   delta: number,
   singular: string,
   plural: string,
   suffix: string,
+  format: (size: number) => string = groupedSize,
 ): string {
   const tail = suffix ? ` ${suffix}` : '';
   const size = Math.round(Math.abs(delta) * 10) / 10;
   if (size === 0) return `No change in ${plural}${tail}`;
   const unit = size === 1 ? singular : plural;
-  return `${size} ${delta > 0 ? 'more' : 'fewer'} ${unit}${tail}`;
+  return `${format(size)} ${delta > 0 ? 'more' : 'fewer'} ${unit}${tail}`;
 }
 
 /** "Agra", "Agra and Kanpur", "Agra, Kanpur and Banda" followed by what happens to them. */

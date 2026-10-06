@@ -167,7 +167,7 @@ describe('fuel page models', () => {
 
   it('writes a signed numeric variance, a short basis and the peers median', () => {
     expect(formatVariance(18.84, 15)).toBe('+18.8%');
-    expect(formatVariance(-3, 15)).toBe('-3.0%');
+    expect(formatVariance(-3, 15)).toBe('−3.0%');
     expect(BASIS_LABEL).toEqual({ route: 'route peers', depot: 'class in depot' });
   });
 

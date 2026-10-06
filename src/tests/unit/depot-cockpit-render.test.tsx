@@ -64,6 +64,31 @@ describe('cockpit empty states', () => {
     );
   });
 
+  it('wraps a legend word onto a further line on a phone instead of cutting it', () => {
+    setContext({});
+    const markup = renderToStaticMarkup(
+      <AvailabilityBar
+        fleet={199}
+        segments={[
+          { state: 'in_service', label: 'In service', count: 1, share: 0.005, shareText: '<1%' },
+          { state: 'standing', label: 'Standing', count: 198, share: 0.995, shareText: '99%' },
+        ]}
+        text="1 in service, 198 standing"
+        yard={{ kind: 'no-yard', sentence: 'No yard.' }}
+        yardHref="/y"
+        howId="how"
+      />,
+    );
+    const doc = new DOMParser().parseFromString(markup, 'text/html');
+    const words = Array.from(doc.querySelectorAll('[data-testid^="depot-state-"] > span:nth-child(2)'));
+    expect(words.map((word) => word.textContent)).toEqual(['In service', 'Standing']);
+    for (const word of words) {
+      const classes = word.className.split(/\s+/);
+      expect(classes).not.toContain('truncate');
+      expect(classes).toContain('break-words');
+    }
+  });
+
   it('uses the feed-date sentence when no bus carries a schedule', () => {
     const markup = renderToStaticMarkup(
       <OutshedTracker

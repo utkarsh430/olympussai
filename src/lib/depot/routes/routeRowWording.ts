@@ -1,3 +1,4 @@
+import { MINUS } from '@/lib/depot/format';
 import { UNASSIGNED_DEPOT_ID } from '../types';
 import { formatKm, toTenths } from './allocationWording';
 import type { RouteListItem } from './api';
@@ -6,7 +7,6 @@ import type { RouteDelay } from './routeTableTypes';
 /** The words in each route-table cell; the component only lays them out. */
 
 const DASH = '—';
-const MINUS = '−';
 
 export interface OperatorView {
   readonly depotId: string;

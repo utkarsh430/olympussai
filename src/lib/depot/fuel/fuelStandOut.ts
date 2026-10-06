@@ -1,4 +1,4 @@
-import { formatCount } from '../format';
+import { formatCount, signFor } from '../format';
 import type { FuelFlaggedBus, FuelResponse } from './api';
 import { noComparisonNote, noDistanceNote, peersDifferNote } from './fuelPageModel';
 import { TENTH } from '@/lib/depot/units';
@@ -37,12 +37,13 @@ export function formatLitresPer100Km(kmPerLitre: number): string {
  * round to or under it is shown to the hundredth, rounded up ("+15.04%").
  */
 export function formatVariance(pct: number, thresholdPct: number): string {
-  const sign = pct > 0 ? '+' : '';
   const tenth = Math.round(pct * TENTH) / TENTH;
+  // A negative variance (never listed today) would take the module's minus, not a hyphen.
+  const sign = pct > 0 ? '+' : signFor(tenth);
   if (pct > thresholdPct && tenth <= thresholdPct) {
     return `${sign}${(Math.ceil(pct * HUNDREDTH) / HUNDREDTH).toFixed(2)}%`;
   }
-  return `${sign}${tenth.toFixed(1)}%`;
+  return `${sign}${Math.abs(tenth).toFixed(1)}%`;
 }
 
 /** The rule, once, as the section's one-line note. */

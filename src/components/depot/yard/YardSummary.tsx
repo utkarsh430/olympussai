@@ -3,6 +3,7 @@ import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { formatCount } from '@/lib/depot/format';
+import { FIGURE_ROWS_CLASSES } from '@/lib/depot/shell/figureBandLayout';
 import type { CapacityView } from '@/lib/depot/yard/parkingModel';
 import { capacityFigure } from '@/lib/depot/yard/yardPageModel';
 import { noYardPanel } from '@/lib/depot/yard/yardRollModel';
@@ -23,9 +24,12 @@ const PERCENT = 100;
 
 /**
  * The band's figure, laid out for this band: a tag sits inside the 16px label line (so a
- * tagged figure's value stays level with its siblings'), a share bar leads the caption
- * line instead of adding a row (narrower at 1024, where a figure is 200px, so "79 free" is
- * never cut), and on a phone the caption wraps instead of cutting.
+ * tagged figure's value stays level with its siblings'); where the label and tag do not fit
+ * one line (CAPACITY and its pill in half of a 360px column) the tag wraps under the label,
+ * and the band's shared rows keep the values of that row level. A share bar leads the
+ * caption line instead of adding a row: 64px on a phone, so the bar and "52 free" fit half
+ * of a 360px column, 120px from 640 and 80px at 1024, where a figure is 200px, so "79 free"
+ * is never cut. On a phone the caption wraps instead of cutting.
  */
 function YardFigure({ label, value, caption, tag, share, title }: YardFigureProps) {
   const width = share === undefined ? 0 : Math.round(Math.min(1, Math.max(0, share)) * PERCENT);
@@ -33,12 +37,10 @@ function YardFigure({ label, value, caption, tag, share, title }: YardFigureProp
     <li
       title={title}
       data-testid="yard-figure"
-      className="min-w-0 list-none border-l border-depot-line px-4 lg:w-[200px] lg:flex-none xl:w-[232px]"
+      className={`min-w-0 list-none border-l border-depot-line px-4 lg:w-[200px] lg:flex-none xl:w-[232px] ${FIGURE_ROWS_CLASSES}`}
     >
-      <div className="flex h-4 min-w-0 items-center gap-2 [&_.depot-tag]:!py-0 [&_.depot-tag]:!leading-[14px]">
-        <div className="depot-label truncate leading-4" title={label}>
-          {label}
-        </div>
+      <div className="flex min-h-4 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 [&_.depot-tag]:!py-0 [&_.depot-tag]:!leading-[14px]">
+        <div className="depot-label min-w-0 break-words leading-4">{label}</div>
         {tag ? <ProvenanceBadge provenance={tag} /> : null}
       </div>
       <div className="mt-1.5 break-words font-mono text-xl leading-7 tabular-nums text-depot-ink sm:text-2xl">
@@ -46,11 +48,11 @@ function YardFigure({ label, value, caption, tag, share, title }: YardFigureProp
       </div>
       <p className="depot-caption mt-1.5 flex min-w-0 items-center gap-2">
         {share !== undefined ? (
-          <span aria-hidden className="depot-bar-track block w-[120px] shrink-0 lg:w-[80px] xl:w-[120px]">
+          <span aria-hidden className="depot-bar-track block w-16 shrink-0 sm:w-[120px] lg:w-[80px] xl:w-[120px]">
             <span className="depot-bar-fill block" data-testid="depot-figure-share" style={{ width: `${width}%` }} />
           </span>
         ) : null}
-        <span className="min-w-0 sm:truncate" title={caption}>
+        <span className="min-w-0 break-words sm:truncate" title={caption}>
           {caption}
         </span>
       </p>

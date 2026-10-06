@@ -10,6 +10,7 @@
  * (`summariseTrend`); it is printed only when that recomputation agrees with the
  * batch's own week change, so a word never contradicts the figure beside it.
  */
+import { MINUS } from '@/lib/depot/format';
 import type { SortDirection } from '../tableSort';
 import type { DepotTrendsResponse, TrendRow } from './api';
 import type { MetricKey, SeriesPoint } from '../sim/types';
@@ -44,7 +45,6 @@ export interface TrendTableRow {
 
 export const TREND_ROW_CAP = 25;
 const NO_VALUE = '—';
-const MINUS = '−';
 
 const DECIMALS: Readonly<Record<TrendUnit, number>> = {
   percentage_points: 1,

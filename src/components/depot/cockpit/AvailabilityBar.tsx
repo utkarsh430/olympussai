@@ -91,11 +91,13 @@ export function AvailabilityBar({ fleet, segments, text, yard, yardHref, howId }
             <span key={s.state} className={`h-full ${BUS_STATE_SQUARE[s.state]}`} style={{ flexGrow: s.count, flexBasis: 0 }} />
           ))}
       </div>
-      <ul className="mt-3 grid min-w-0 grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-5" aria-label="Availability legend">
+      {/* A legend word never ends in an ellipsis: where it does not fit beside its count
+          (half of a 360px column), it wraps onto a further line. */}
+      <ul className="mt-3 grid min-w-0 grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-5" aria-label="Availability legend">
         {segments.map((s) => (
           <li key={s.state} data-testid={`depot-state-${s.state}`} className="flex min-w-0 items-baseline gap-2">
             <span aria-hidden className={`inline-block h-1.5 w-1.5 shrink-0 self-center ${BUS_STATE_SQUARE[s.state]}`} />
-            <span className="min-w-0 truncate text-[13px] text-depot-muted" title={s.label}>{legendWord(s.state, s.label)}</span>
+            <span className="min-w-0 break-words text-[13px] text-depot-muted" title={s.label}>{legendWord(s.state, s.label)}</span>
             <span className="ml-auto shrink-0 font-mono text-[15px] tabular-nums text-depot-ink">{formatCount(s.count)}</span>
             <span className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums text-depot-faint">{s.shareText}</span>
           </li>
