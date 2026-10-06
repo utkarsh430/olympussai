@@ -143,7 +143,7 @@ exposed to the browser and no key is ever printed.
 | `SITE_URL` | no | server | Canonical origin for metadata, canonical URL, sitemap. Defaults to `https://olympuss.us`. |
 | `UPSRTC_LIVE_URL` | no | server | Overrides the live GPS endpoint. |
 | `UPSRTC_SCHEDULE_URL` | no | server | Overrides the schedule endpoint. |
-| `NEXT_PUBLIC_DEMO_MODE` | no | browser/server | Set to `1` to force offline fixture mode for presentations without connectivity. Depot pages then run on the saved full-fleet sample and say "sample data" in each page's provenance line. |
+| `NEXT_PUBLIC_DEMO_MODE` | no | browser/server | Set to `1` to force offline fixture mode for presentations without connectivity. The command centre's map and the depot pages then both run on the saved full-fleet (national) sample, `src/fixtures/upsrtc-fleet-sample.json.gz`; the command centre's offline fallback serves that same sample too, with the small `upsrtc-live-sample.json` only if it cannot be read. Depot pages say "sample data" in each page's provenance line. |
 | `DEPOT_COPILOT_PROVIDER` | no | server | Depot copilot writer: `auto` (default), `claude-cli` or `scripted`. Anything else means `auto`. |
 | `CLAUDE_BIN` | no | server | Absolute path to the `claude` binary for the depot copilot; ownership and permission checks apply. Unset, the copilot uses its scripted writer only. For the owner's own machine: a staff-facing deployment needs an API-key provider, which does not exist. |
 | `CLAUDE_CODE_OAUTH_TOKEN` | no | server | Claude Code sign-in token; the only secret passed to the `claude` process. |
@@ -152,10 +152,13 @@ exposed to the browser and no key is ever printed.
 
 The depot copilot settings are described in
 [`docs/DEPOT_COPILOT_OPERATIONS.md`](docs/DEPOT_COPILOT_OPERATIONS.md). The depot
-end-to-end suite reads `E2E_PROJECT_PIN` (required, else skipped),
-`E2E_PROJECT_NAME`, `E2E_HOST`, `E2E_PORT` and `E2E_ORIGIN`. These are every
+end-to-end suites read `E2E_PROJECT_PIN` (required, else skipped),
+`E2E_PROJECT_NAME`, `E2E_HOST`, `E2E_PORT` and `E2E_ORIGIN`, and the Playwright
+config reads `E2E_SUITE` (`sample` runs the sample suite) and `E2E_REUSE_SERVER`
+(`1` reuses a server already on the port); the suites read `CI` to fail, rather than
+skip, when the PIN is missing. These are every
 `process.env` name read under the depot code (`src/lib/depot`, the depot API
-routes and pages, `src/lib/upsrtc`), the e2e spec and `playwright.config.ts`,
+routes and pages, `src/lib/upsrtc`), the e2e specs and `playwright.config.ts`,
 plus `CLAUDE_CODE_OAUTH_TOKEN`, which the copilot reads from the environment it
 is given.
 
@@ -459,7 +462,7 @@ Observed (full report in [`docs/API_DISCOVERY.md`](docs/API_DISCOVERY.md)):
 Node runtime, `force-dynamic`.
 
 1. `requireUpsrtcAccess()` — independent authorization check.
-2. If `NEXT_PUBLIC_DEMO_MODE=1`, serve the normalized fixture immediately.
+2. If `NEXT_PUBLIC_DEMO_MODE=1`, serve the saved full-fleet sample immediately.
 3. Module-scoped `TtlCache` with a **15-second TTL** — a warm server process
    serves many clients from one upstream fetch.
 4. On miss: `fetchUpstream()` with a **10-second timeout** (`AbortController`),
@@ -467,7 +470,8 @@ Node runtime, `force-dynamic`.
 5. `normalizeLivePayload()` (below).
 6. Cache and return `{ buses, fetchedAt, source, stale, recordCount, rejectedRecordCount }`.
 7. **Degrade gracefully, never blank:** last-known-good (flagged `stale`) →
-   sanitized fixture. A `liveDiagnostics` object tracks last attempt, last
+   the saved full-fleet sample (the small sanitized fixture only if that cannot be read).
+   After a failed refresh no upstream call is made for 20 s. A `liveDiagnostics` object tracks last attempt, last
    success, last error, last status and consecutive failures for the
    Diagnostics drawer.
 
@@ -1420,9 +1424,10 @@ Each of these was made against a measured problem, not on principle:
 ```bash
 npm run lint         # ESLint (next lint)
 npm run typecheck    # tsc --noEmit, strict
-npm run test         # Vitest — 371 unit test files, no network required
+npm run test         # Vitest — 419 unit test files, no network required
 npm run test:watch   # Vitest in watch mode
-npm run test:e2e     # Playwright — 32 specs (starts the app via npm run start; E2E_HOST / E2E_PORT override localhost:3000)
+npm run test:e2e     # Playwright — command centre and depot live specs, 35 tests (starts the app via npm run start; E2E_HOST / E2E_PORT override localhost:3000)
+npm run test:e2e:sample  # Playwright — the depot sample suite (E2E_SUITE=sample; the server runs on the saved sample)
 npm run format       # Prettier over src/**/*.{ts,tsx,css} and docs/**/*.md
 ```
 
@@ -1485,13 +1490,13 @@ Escape closing the detail drawer · and an assertion that the words
 Diagnostics and Audit drawer steps are omitted because nothing opens those
 drawers; see the known gap under the top command bar).
 
-The Depot Management spec (`tests/e2e/depot-management.spec.ts`, 7 specs;
+The Depot Management spec (`tests/e2e/depot-management.spec.ts`, 8 specs, one of them the PIN guard;
 skipped unless `E2E_PROJECT_PIN` is set, and `E2E_PROJECT_NAME` /
 `E2E_ORIGIN` override the defaults) covers the login deep link surviving sign-in, the shell's top bar, navigation
 and footer, the Back to Operations link, the banned-wording check, no sideways
 scroll (one spec run at three widths: 1440, 1024 and 800 px), the skip link and a
-console-error-free load, all on the network overview. A full run reports 34
-results (25 `test(` calls in `command-centre.spec.ts` and 7 in
+console-error-free load, all on the network overview. A full run reports 35
+results (25 `test(` calls in `command-centre.spec.ts` and 8 in
 `depot-management.spec.ts`, counted on 6 Oct 2026), because the width spec runs
 three times.
 
@@ -1549,6 +1554,7 @@ affect the build toolchain only, and do not reach runtime.
 | `npm run typecheck` | `tsc --noEmit`, strict |
 | `npm run test` / `test:watch` | Vitest |
 | `npm run test:e2e` | Playwright (`E2E_HOST` / `E2E_PORT` override the default `localhost:3000`) |
+| `npm run test:e2e:sample` | Playwright, the depot sample suite on the saved sample (see `docs/DEPOT_MANAGEMENT.md` section 10) |
 | `npm run format` | Prettier over source and docs |
 | `npm run inspect:api` | Probe both UPSRTC endpoints and print an empirical report |
 | `npm run generate-pin-hash -- <pin>` | bcrypt hash (cost 12) for `PROJECT_PIN_HASH`; hash to stdout, guidance to stderr |
@@ -1606,15 +1612,15 @@ These are enforced in code, not left to discipline:
    depot data; the depot e2e suite checks for banned wording.
 9. A depot page declares its default provenance **once**, in one line under its
    header (`provenanceLine` on `PageHeader`, worded by
-   `src/lib/depot/provenanceLine.ts`; rulings S44 and S51), pinned for every
+   `src/lib/depot/provenanceLine.ts`), pinned for every
    page by a test. Only a figure, column or section whose provenance differs
    from that default carries its own tag; no tag sits in a table cell. A
    section or column where a generated figure sits beside a real bus, depot or
    route carries one tag on every page. See
    [`docs/DEPOT_UI_PATTERNS.md`](docs/DEPOT_UI_PATTERNS.md).
 10. Depot pages use one state vocabulary, the module's classified states (On
-    road, Standing, Dark, Off road), never the feed's own status field
-    (ruling S60). The efficiency index and depot exceptions state the rolling
+    road, Standing, Dark, Off road), never the feed's own status field.
+    The efficiency index and depot exceptions state the rolling
     window they were computed over; bus exceptions are as of the feed time.
 
 ---
