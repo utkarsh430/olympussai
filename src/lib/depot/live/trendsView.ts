@@ -7,7 +7,8 @@ import { metricInfo, trendSentence } from '../forecast/wording';
 import type { FleetSnapshotView } from '../repositories/types';
 import type { HistoryScope, MetricKey } from '../sim/types';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
-import { buildHistoryResponse } from './historyView';
+import { modelHistory } from './historyView';
+import { queryMemo } from './queryMemo';
 
 const METRICS = ['onRoadShare', 'offRoadRate', 'darkRate', 'index', 'available'] as const;
 const DEFAULT_DAYS = 30;
@@ -57,7 +58,7 @@ async function trendRow(
 ): Promise<TrendRow> {
   const id = scope.kind === 'network' ? 'network' : scope.depotId;
   const days = Math.max(query.days, TREND_HISTORY_DAYS);
-  const history = await buildHistoryResponse(view, { metric: query.metric, scope, days });
+  const history = await modelHistory(view, { metric: query.metric, scope, days });
   if (history.status !== 200) return { id, name, endDate: '', values: [], trend: null };
   const { series } = history.body;
   const result = summariseTrend(series, query.metric);
@@ -80,9 +81,34 @@ type TrendsBody = Omit<DepotTrendsResponse, keyof DepotFeedEnvelope>;
 /*
  * The body depends on the rows (through the analysis), the metric and the
  * window, so it is held per analysis under that key and goes with the
- * snapshot. The envelope is never part of it.
+ * snapshot. The window is the caller's to choose, so the memo is bounded. The
+ * envelope is never part of it.
  */
-const bodies = new WeakMap<SnapshotAnalysis, Map<string, TrendsBody>>();
+const bodies = queryMemo<TrendsBody>();
+
+async function buildBody(
+  view: FleetSnapshotView,
+  analysis: SnapshotAnalysis,
+  query: TrendsQuery,
+): Promise<TrendsBody> {
+  const [network, ...units] = await Promise.all([
+    trendRow(view, query, { kind: 'network' }, 'Network'),
+    ...analysis.depots.map((d) => trendRow(view, query, { kind: 'depot', depotId: d.id }, d.name)),
+  ]);
+  return {
+    provenance: 'modelled',
+    metric: metricInfo(query.metric),
+    trendUnit: UNIT_OF_KIND[metricKindOf(query.metric)],
+    days: query.days,
+    network: network as TrendRow,
+    units,
+  };
+}
+
+/** How many trends bodies are held for this snapshot; read by the tests of the bound. */
+export function heldTrendsBodies(view: FleetSnapshotView): number {
+  return bodies.size(analyseSnapshot(view));
+}
 
 /**
  * Every sparkline for one metric in one response: the network and each unit,
@@ -95,21 +121,6 @@ export async function buildTrendsResponse(
 ): Promise<DepotTrendsResponse> {
   const analysis = analyseSnapshot(view);
   const key = `${query.metric}|${query.days}`;
-  const held = bodies.get(analysis)?.get(key);
-  if (held !== undefined) return { ...feedEnvelope(view), ...held };
-  const [network, ...units] = await Promise.all([
-    trendRow(view, query, { kind: 'network' }, 'Network'),
-    ...analysis.depots.map((d) => trendRow(view, query, { kind: 'depot', depotId: d.id }, d.name)),
-  ]);
-  const body: TrendsBody = {
-    provenance: 'modelled',
-    metric: metricInfo(query.metric),
-    trendUnit: UNIT_OF_KIND[metricKindOf(query.metric)],
-    days: query.days,
-    network: network as TrendRow,
-    units,
-  };
-  const byKey = bodies.get(analysis) ?? new Map<string, TrendsBody>();
-  bodies.set(analysis, new Map([...byKey, [key, body]]));
+  const body = await bodies.hold(analysis, key, () => buildBody(view, analysis, query));
   return { ...feedEnvelope(view), ...body };
 }

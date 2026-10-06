@@ -1,5 +1,5 @@
 import type { DepotBusRow } from '@/models/depotLive';
-import type { DepotBusView, DepotDetailResponse, VisitorBus } from '../api';
+import type { DepotBusView, DepotDetailResponse, DepotFeedEnvelope, VisitorBus } from '../api';
 import type { FleetSnapshotView } from '../repositories/types';
 import type { BusOpState, Figure } from '../types';
 import type { BusLocation, LocatedBus, Yard } from '../infer/types';
@@ -126,6 +126,27 @@ export function buildDepotDetail(
   depotId: string,
 ): DepotDetailResponse | null {
   const analysis = analyseSnapshot(view);
+  const byDepot = details.get(analysis) ?? new Map<string, DepotDetailBody>();
+  details.set(analysis, byDepot);
+  const held = byDepot.get(depotId);
+  if (held !== undefined) return { ...feedEnvelope(view), ...held };
+  const body = detailBody(analysis, depotId);
+  if (body === null) return null;
+  byDepot.set(depotId, body);
+  return { ...feedEnvelope(view), ...body };
+}
+
+type DepotDetailBody = Omit<DepotDetailResponse, keyof DepotFeedEnvelope>;
+
+/*
+ * The body depends only on the analysis and the depot, so it is held per
+ * analysis (it goes with its snapshot) and per depot; only depots in the
+ * snapshot are held, so the map is never larger than the depot list. The
+ * envelope is never part of it.
+ */
+const details = new WeakMap<SnapshotAnalysis, Map<string, DepotDetailBody>>();
+
+function detailBody(analysis: SnapshotAnalysis, depotId: string): DepotDetailBody | null {
   const depot = analysis.depotsById.get(depotId);
   if (!depot) return null;
   const { feedNow, yards, stateOf } = analysis;
@@ -134,7 +155,6 @@ export function buildDepotDetail(
   const exceptions = analysis.exceptionsByDepot.get(depotId);
   const seen = analysis.yardSnapshotsSeen?.[depotId];
   return {
-    ...feedEnvelope(view),
     depot,
     score: analysis.scoresById.get(depotId) ?? null,
     yard: yardFigure(yards.get(depotId) ?? null),

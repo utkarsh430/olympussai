@@ -212,15 +212,41 @@ export function analyseSnapshot(view: FleetSnapshotView): SnapshotAnalysis {
   return analysis;
 }
 
+const resetHooks = new Set<() => void>();
+
+/**
+ * Registers how a memo that outlives one snapshot (so is not held by an
+ * analysis) forgets itself when the process is reset for a test.
+ */
+export function forgetWithAnalyses(forget: () => void): void {
+  resetHooks.add(forget);
+}
+
 /**
  * Test seam: a process that has just started. Forgets every memoised analysis
- * (and with them every memoised view body), the score window and the yards.
+ * (and with them every memoised view body), every memo registered through
+ * `forgetWithAnalyses`, the score window and the yards.
  */
 export function resetAnalysisForTests(): void {
   analyses = new WeakMap();
+  resetHooks.forEach((forget) => forget());
   resetScoreWindowStore();
   resetYardMemoryStore();
 }
+
+/**
+ * Whether a list's depot filter names a unit of this snapshot; no filter
+ * always does. A well-formed id the feed does not have gets the same fixed 404
+ * as the depot routes, rather than a 200 with an empty list.
+ */
+export function depotFilterKnown(view: FleetSnapshotView, depotId: string | null): boolean {
+  if (depotId === null) return true;
+  const analysis = analyseSnapshot(view);
+  return analysis.depotsById.has(depotId) || analysis.exceptionsByDepot.has(depotId);
+}
+
+/** The fixed body for a depot the snapshot does not have. */
+export const DEPOT_NOT_FOUND = { error: 'Depot not found' } as const;
 
 /**
  * The envelope every depot response carries. Built from the request's own

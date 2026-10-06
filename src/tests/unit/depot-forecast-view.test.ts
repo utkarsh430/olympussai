@@ -10,12 +10,14 @@ import { DEFAULT_HORIZON_DAYS, MIN_HISTORY_DAYS } from '@/lib/depot/forecast/con
 import {
   buildForecastResponse,
   forecastSections,
+  heldForecastBodies,
   parseForecastQuery,
   FORECAST_DEFAULT_DAYS,
   type ForecastQuery,
 } from '@/lib/depot/live/forecastView';
 import { errorSentence, metricInfo } from '@/lib/depot/forecast/wording';
 import type { ForecastError } from '@/lib/depot/forecast/types';
+import { MAX_QUERY_BODIES_PER_SNAPSHOT } from '@/lib/depot/live/queryMemo';
 
 const fixtureRows = normalizeDepotRows(liveFixture).rows;
 const fixtureView = (over: Partial<FleetSnapshotView> = {}): FleetSnapshotView => ({
@@ -271,6 +273,31 @@ describe('buildForecastResponse', () => {
     );
     if (newRows.status !== 200) throw new Error('expected 200');
     expect(newRows.body.forecast).not.toBe(first.body.forecast);
+  });
+
+  it('holds a bounded number of bodies on one snapshot however many queries arrive', async () => {
+    const queries = Array.from({ length: MAX_QUERY_BODIES_PER_SNAPSHOT + 6 }, (_, i) =>
+      network('available', 60 + i, 7 + (i % 22)),
+    );
+    const first = await buildForecastResponse(fixtureView(), queries[0] as ForecastQuery);
+    for (const query of queries.slice(1)) await buildForecastResponse(fixtureView(), query);
+    expect(heldForecastBodies(fixtureView())).toBe(MAX_QUERY_BODIES_PER_SNAPSHOT);
+    const last = queries.at(-1) as ForecastQuery;
+    const heldLast = await buildForecastResponse(fixtureView(), last);
+    const again = await buildForecastResponse(fixtureView(), last);
+    const oldest = await buildForecastResponse(fixtureView(), queries[0] as ForecastQuery);
+    if (first.status !== 200 || oldest.status !== 200) throw new Error('expected 200');
+    if (heldLast.status !== 200 || again.status !== 200) throw new Error('expected 200');
+    expect(again.body.forecast).toBe(heldLast.body.forecast);
+    // The oldest was let go, so asking again builds it afresh.
+    expect(oldest.body.forecast).not.toBe(first.body.forecast);
+    expect(oldest.body.forecast).toEqual(first.body.forecast);
+  });
+
+  it('does not hold an answer for a depot that is not in the feed', async () => {
+    const missing: ForecastQuery = { ...network('index'), scope: { kind: 'depot', depotId: '99999' } };
+    await buildForecastResponse(fixtureView(), missing);
+    expect(heldForecastBodies(fixtureView())).toBe(0);
   });
 
   it('builds a fresh envelope on every call', async () => {

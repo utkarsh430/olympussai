@@ -9,7 +9,7 @@ import { modelledRevenueRepository } from '@/lib/depot/repositories/modelledReve
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
 import { buildFuelResponse } from '@/lib/depot/live/fuelView';
-import { buildEconomicsResponse } from '@/lib/depot/live/economicsView';
+import { buildEconomicsResponse, ECONOMICS_DEPOTS_PER_BATCH } from '@/lib/depot/live/economicsView';
 import { buildRevenueResponse } from '@/lib/depot/live/revenueView';
 import { cachedRouteProfiles, routeCatalogueRevision } from '@/lib/depot/routes/routeCatalogue';
 import type { RouteProfile } from '@/lib/depot/routes/types';
@@ -210,6 +210,20 @@ describe('the held economics body', () => {
     const fuelDay = vi.fn(modelledFuelRepository.fuelDay);
     return { sources: { revenue: { ridershipDay }, fuel: { fuelDay } }, ridershipDay, fuelDay };
   }
+
+  it('lets other work run between batches of depots instead of holding the event loop', async () => {
+    expect(ECONOMICS_DEPOTS_PER_BATCH).toBe(10);
+    const ids = Array.from({ length: ECONOMICS_DEPOTS_PER_BATCH + 2 }, (_, i) => String(i + 1));
+    const rows = ids.flatMap((id) => depotRows(id, BUSES_PER_DEPOT));
+    vi.mocked(cachedRouteProfiles).mockReturnValue(profiles(rows));
+    const order: string[] = [];
+    setImmediate(() => order.push('other work'));
+    const response = await buildEconomicsResponse(view(rows), repositories);
+    order.push('economics');
+    expect(order).toEqual(['other work', 'economics']);
+    expect(response.depots.map((d) => d.depotId)).toEqual(analyseSnapshot(view(rows)).depots.map((d) => d.id));
+    expect(response.depots).toHaveLength(ids.length);
+  });
 
   it('does no rebuild for a second request on the same rows', async () => {
     const rows = world();

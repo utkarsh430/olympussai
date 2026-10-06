@@ -60,6 +60,7 @@ const FIG = (value: number) => ({ value, provenance: 'modelled' as const, covera
 
 const PLAN: DepotAllocationResponse = {
   ...ENVELOPE, recommendationOnly: true,
+  plannedAt: ENVELOPE.feedNow,
   coverage: { profiled: { n: 1, of: 2 }, planned: { n: 1, of: 2 } },
   depotPositions: { yard: 1, median: 1, none: 0, provenance: 'derived' },
   beforeKmPerDay: FIG(140), afterKmPerDay: FIG(70), savedKmPerDay: FIG(70),

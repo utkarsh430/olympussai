@@ -23,16 +23,26 @@ import type { AllocationQuery } from '../routes/routeQuery';
 import type { Coverage, Figure } from '../types';
 import { feedEnvelope, type SnapshotAnalysis } from './analysis';
 import { planItems, positionCounts } from './allocationItems';
-import { coverageOf, memoiseOnCatalogue, operatedBy, routeTableOf, type RouteContext } from './routeInputs';
+import { holdOverFeedTime } from './feedTimeHold';
+import { coverageOf, operatedBy, routeTableOf, type RouteContext } from './routeInputs';
 
 export { parseAllocationQuery } from '../routes/routeQuery';
 
 /**
- * The least time between two full re-plans on the same rows. A full re-plan
- * (inputs plus `planAllocation`) at 2,000 profiled routes and 143 depots
- * measured about 0.33 s, and it runs on the event loop.
+ * The least monotonic time between a plan and the re-plan a newly cached route
+ * profile asks for. A full re-plan (inputs plus `planAllocation`) at 2,000
+ * profiled routes and 143 depots measured about 0.33 s, and it runs on the
+ * event loop.
  */
 export const REPLAN_MIN_INTERVAL_MS = 30_000;
+/**
+ * How long, in feed time, one allocation plan stands for later snapshots. The
+ * plan reads which depot runs each route and where the depots are, which move
+ * slowly, and it is a plan for the whole operating day; rebuilding it on every
+ * snapshot (every 15 s live) blocked the event loop for up to a third of a
+ * second each time. Measured on the feed clock, never the wall clock.
+ */
+export const PLAN_HOLD_FEED_MS = 5 * 60_000;
 export const PROFILES_PENDING_NOTE =
   'New route profiles will be included in the next plan, within half a minute.';
 
@@ -58,6 +68,7 @@ type AllocationBody = Omit<
     | 'excludedByReason'
     | 'profilesPending'
     | 'profilesPendingNote'
+    | 'plannedAt'
   >;
 
 function inputOf(
@@ -101,10 +112,12 @@ const modelled = (value: number, coverage: Coverage): Figure => ({
 
 /*
  * Plans only the routes whose profiles are already cached, so a request never
- * fetches from the upstream. Held per snapshot rows, operating date and
- * catalogue revision; the envelope and the depot filter are per request.
+ * fetches from the upstream. Held across snapshots for `PLAN_HOLD_FEED_MS` of
+ * feed time, and per operating date and catalogue revision; the envelope, the
+ * depot filter (read against this snapshot's route table), the list filters
+ * and paging are per request.
  */
-const allocationBody = memoiseOnCatalogue<AllocationBody>((context) => {
+const allocationBody = holdOverFeedTime<AllocationBody>((context) => {
   const { analysis, table, profiles, operatingDate } = context;
   const positions = positionsOf(analysis);
   const input = inputOf(context, positions);
@@ -131,7 +144,7 @@ const allocationBody = memoiseOnCatalogue<AllocationBody>((context) => {
     tripDefinition: TRIP_DEFINITION,
     profileEndpoint: ROUTE_PROFILE_ENDPOINT,
   };
-}, REPLAN_MIN_INTERVAL_MS);
+}, PLAN_HOLD_FEED_MS, REPLAN_MIN_INTERVAL_MS);
 
 function forDepot(
   body: AllocationBody,
@@ -160,8 +173,10 @@ const listed = <T extends { readonly routeName: string; readonly reason: string 
 
 /**
  * The allocation panel's payload. A recommendation only: nothing is reassigned.
- * The plan is network-wide and held per rows (see `REPLAN_MIN_INTERVAL_MS`);
- * the depot filter, the list filters and paging are this request's own, and
+ * The plan is network-wide and held for a span of feed time (see
+ * `PLAN_HOLD_FEED_MS` and `REPLAN_MIN_INTERVAL_MS`); `plannedAt` says which
+ * feed time it was built at. The depot filter, the list filters and paging are
+ * this request's own, and
  * the counts by reason ignore the list filters so the summary never moves.
  * `clock` is monotonic and injected so the interval is testable.
  */
@@ -170,7 +185,7 @@ export function buildAllocationResponse(
   query: AllocationQuery,
   clock: () => number = monotonicNow,
 ): DepotAllocationResponse {
-  const { body, pending } = allocationBody(view, clock());
+  const { body, pending, plannedAt } = allocationBody(view, clock());
   const scoped = forDepot(body, routeTableOf(view), query.depotId);
   const unchanged = listed<AllocationUnchangedItem>(scoped.unchanged, query);
   const excluded = listed<AllocationExcludedRoute>(scoped.excluded, query);
@@ -190,5 +205,6 @@ export function buildAllocationResponse(
     excludedByReason: countByReason(scoped.excluded, ALLOCATION_EXCLUSIONS),
     profilesPending: pending,
     profilesPendingNote: pending ? PROFILES_PENDING_NOTE : null,
+    plannedAt,
   };
 }

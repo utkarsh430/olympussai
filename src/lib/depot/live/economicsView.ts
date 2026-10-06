@@ -57,11 +57,38 @@ async function figuresFor(
   };
 }
 
+/**
+ * How many depots' days are worked out between two turns of the event loop.
+ * The modelled sources resolve without I/O, so the whole network's days (about
+ * a quarter of a second at 143 depots) would otherwise run as one block and
+ * hold up every other request on the process.
+ */
+export const ECONOMICS_DEPOTS_PER_BATCH = 10;
+
+const nextTurn = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
+/** Every depot's figures, in depot order, yielding to the event loop between batches. */
+async function figuresInBatches(
+  view: FleetSnapshotView,
+  depots: readonly DepotSummary[],
+  sources: EconomicsSources,
+): Promise<readonly DepotFigures[]> {
+  const batchCount = Math.ceil(depots.length / ECONOMICS_DEPOTS_PER_BATCH);
+  const batches = Array.from({ length: batchCount }, (_, i) =>
+    depots.slice(i * ECONOMICS_DEPOTS_PER_BATCH, (i + 1) * ECONOMICS_DEPOTS_PER_BATCH),
+  );
+  let figures: readonly DepotFigures[] = [];
+  for (const batch of batches) {
+    if (figures.length > 0) await nextTurn();
+    const done = await Promise.all(batch.map((depot) => figuresFor(view, depot, sources)));
+    figures = [...figures, ...done];
+  }
+  return figures;
+}
+
 const heldBody = holdPerSnapshot<EconomicsBody, EconomicsSources>(
   async (view, analysis, operatingDate, _key, sources): Promise<EconomicsBody> => {
-    const figures = await Promise.all(
-      analysis.depots.map((depot) => figuresFor(view, depot, sources)),
-    );
+    const figures = await figuresInBatches(view, analysis.depots, sources);
     const scores = scoreEconomics(figures.map((f) => f.input));
     const depots = analysis.depots.map(
       (depot, i): EconomicsDepotRow => ({

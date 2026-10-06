@@ -135,9 +135,20 @@ async function buildBody(
 /*
  * The body depends on the rows (through the analysis), the depot, the operating
  * date and the crew source, so it is held under those and goes with the
- * snapshot. The envelope is never part of it. A null body is not held.
+ * snapshot. The envelope is never part of it. The build's promise is held from
+ * the start, so concurrent first requests share one build; one that fails or
+ * finds no depot is dropped, so only depots in the snapshot stay held.
  */
-const bodies = new WeakMap<SnapshotAnalysis, WeakMap<CrewRepository, Map<string, CrewBody>>>();
+type HeldCrew = Promise<CrewBody | null>;
+const bodies = new WeakMap<SnapshotAnalysis, WeakMap<CrewRepository, Map<string, HeldCrew>>>();
+
+function heldFor(analysis: SnapshotAnalysis, crewRepository: CrewRepository): Map<string, HeldCrew> {
+  const byRepository = bodies.get(analysis) ?? new WeakMap<CrewRepository, Map<string, HeldCrew>>();
+  bodies.set(analysis, byRepository);
+  const held = byRepository.get(crewRepository) ?? new Map<string, HeldCrew>();
+  byRepository.set(crewRepository, held);
+  return held;
+}
 
 /**
  * One depot's crew page payload, or null when the feed has no such depot. The
@@ -151,16 +162,17 @@ export async function buildCrewResponse(
 ): Promise<CrewResponse | null> {
   const analysis = analyseSnapshot(view);
   const key = `${depotId}|${operatingDateOf(view.feedNow, view.fetchedAt)}`;
-  const byRepository = bodies.get(analysis) ?? new WeakMap<CrewRepository, Map<string, CrewBody>>();
-  bodies.set(analysis, byRepository);
-  const held = byRepository.get(crewRepository) ?? new Map<string, CrewBody>();
-  byRepository.set(crewRepository, held);
-  let body = held.get(key);
-  if (!body) {
-    const built = await buildBody(view, analysis, depotId, crewRepository);
-    if (!built) return null;
-    body = built;
-    held.set(key, body);
+  const held = heldFor(analysis, crewRepository);
+  let pending = held.get(key);
+  if (pending === undefined) {
+    const started = buildBody(view, analysis, depotId, crewRepository);
+    pending = started;
+    held.set(key, started);
+    const drop = (): void => {
+      if (held.get(key) === started) held.delete(key);
+    };
+    started.then((built) => (built === null ? drop() : undefined), drop);
   }
-  return { ...feedEnvelope(view), ...body };
+  const body = await pending;
+  return body === null ? null : { ...feedEnvelope(view), ...body };
 }

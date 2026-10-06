@@ -14,6 +14,7 @@ import { DEFAULT_ALLOCATION_QUERY, DEFAULT_ROUTES_QUERY } from '@/lib/depot/rout
 import { TRIP_DEFINITION } from '@/lib/depot/sim/tripFrequencyConfig';
 import { buildRoutesResponse, parseRoutesQuery } from '@/lib/depot/live/routesView';
 import {
+  PLAN_HOLD_FEED_MS,
   PROFILES_PENDING_NOTE,
   REPLAN_MIN_INTERVAL_MS,
   allocationInputFor,
@@ -288,6 +289,80 @@ describe('allocation re-planning', () => {
     const rebuilt = buildAllocationResponse(view(), AQ(), clock);
     expect(rebuilt.profilesPending).toBe(false);
     expect(rebuilt.coverage.profiled).toEqual({ n: 2, of: 3 });
+  });
+});
+
+describe('allocation plan held across snapshots', () => {
+  const at = (feedNow: string): FleetSnapshotView =>
+    view({ rows: [...ROWS], feedNow, fetchedAt: feedNow });
+  const later = (minutes: number): string =>
+    new Date(Date.parse(FEED_NOW) + minutes * 60_000).toISOString();
+
+  it('holds for five minutes of feed time', () => {
+    expect(PLAN_HOLD_FEED_MS).toBe(300_000);
+  });
+
+  it('shares one plan between two snapshots inside the span and says when it was planned', () => {
+    let now = 1_000;
+    const clock = (): number => now;
+    const first = buildAllocationResponse(at(FEED_NOW), AQ(), clock);
+    now += 60 * 60_000;
+    const second = buildAllocationResponse(at(later(4)), AQ(), clock);
+    expect(first.plannedAt).toBe(FEED_NOW);
+    expect(second.plannedAt).toBe(FEED_NOW);
+    expect(second.feedNow).toBe(later(4));
+    expect(second.moves).toBe(first.moves);
+    expect(second.unchanged[0]).toBe(first.unchanged[0]);
+  });
+
+  it('re-plans once the span of feed time has passed, whatever the wall clock', () => {
+    const first = buildAllocationResponse(at(FEED_NOW), AQ(), () => 1_000);
+    const next = buildAllocationResponse(at(later(5)), AQ(), () => 1_001);
+    expect(next.plannedAt).toBe(later(5));
+    expect(next.moves).not.toBe(first.moves);
+    expect(next.savedKmPerDay).toEqual(first.savedKmPerDay);
+  });
+
+  it('re-plans on a feed clock that steps back', () => {
+    buildAllocationResponse(at(later(2)), AQ(), () => 1_000);
+    expect(buildAllocationResponse(at(FEED_NOW), AQ(), () => 1_001).plannedAt).toBe(FEED_NOW);
+  });
+
+  it('re-plans on a new operating date inside the span', () => {
+    const lateEvening = '2026-10-06T23:58:00.000Z';
+    const pastMidnight = '2026-10-07T00:01:00.000Z';
+    const first = buildAllocationResponse(at(lateEvening), AQ(), () => 1_000);
+    const next = buildAllocationResponse(at(pastMidnight), AQ(), () => 1_001);
+    expect([first.operatingDate, next.operatingDate]).toEqual(['2026-10-06', '2026-10-07']);
+    expect(next.plannedAt).toBe(pastMidnight);
+  });
+
+  it('re-plans on a new catalogue revision inside the span', async () => {
+    let now = 1_000;
+    const clock = (): number => now;
+    const first = buildAllocationResponse(at(FEED_NOW), AQ(), clock);
+    mockService.mockResolvedValue(live(schedule(UNPROFILED)));
+    await getRouteProfile(UNPROFILED, view());
+    now += REPLAN_MIN_INTERVAL_MS;
+    const next = buildAllocationResponse(at(later(1)), AQ(), clock);
+    expect(next.plannedAt).toBe(later(1));
+    expect(next.profilesPending).toBe(false);
+    expect(next.coverage.profiled).toEqual({ n: 2, of: 3 });
+    expect(first.coverage.profiled).toEqual({ n: 1, of: 3 });
+  });
+
+  it('keeps the depot filter on the snapshot of the request', () => {
+    buildAllocationResponse(at(FEED_NOW), AQ(), () => 1_000);
+    const alphaOnly = ROWS.filter((r) => r.depotId === ALPHA.id);
+    const filtered = buildAllocationResponse(
+      view({ rows: alphaOnly, feedNow: later(1), fetchedAt: later(1) }),
+      AQ({ depotId: BETA.id }),
+      () => 1_001,
+    );
+    expect(filtered.plannedAt).toBe(FEED_NOW);
+    // Beta runs nothing in this snapshot, so none of the held plan's lists are its.
+    expect(filtered.excluded).toEqual([]);
+    expect(filtered.unchanged).toEqual([]);
   });
 });
 

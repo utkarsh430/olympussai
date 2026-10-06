@@ -5,6 +5,7 @@ import { requireUpsrtcAccess } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
 import type { DepotRepositories } from '@/lib/depot/repositories/types';
 import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
+import { row } from './depot-yard.fixtures';
 import { GET as getRoutes } from '@/app/api/upsrtc/depot/routes/route';
 import { GET as getAllocation } from '@/app/api/upsrtc/depot/allocation/route';
 
@@ -24,6 +25,12 @@ const EMPTY_VIEW = {
   source: 'live',
   stale: false,
   recordCount: 0,
+};
+/** One bus of depot 101, so a filter on that depot names a unit of the feed. */
+const ONE_DEPOT_VIEW = {
+  ...EMPTY_VIEW,
+  rows: [row({ registrationNumber: 'UP32A0001', depotId: '101', depotName: 'Alpha' })],
+  recordCount: 1,
 };
 
 const request = (path: string): NextRequest =>
@@ -98,7 +105,7 @@ describe.each([
   });
 
   it('answers 200 with the envelope, no-store, and a depot filter accepted', async () => {
-    snapshot.mockResolvedValue(EMPTY_VIEW);
+    snapshot.mockResolvedValue(ONE_DEPOT_VIEW);
     const response = await GET(request(`${path}?depotId=101`));
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
@@ -112,6 +119,14 @@ describe.each([
       depotId: '101',
       profileEndpoint: '/api/upsrtc/depot/route/{routeName}',
     });
+  });
+
+  it('answers the fixed 404 for a well-formed depot id the feed does not have', async () => {
+    snapshot.mockResolvedValue(ONE_DEPOT_VIEW);
+    const response = await GET(request(`${path}?depotId=999`));
+    expect(response.status).toBe(404);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ error: 'Depot not found' });
   });
 });
 
@@ -135,7 +150,7 @@ describe('filters that only one endpoint takes', () => {
   );
 
   it('accepts every filter it documents', async () => {
-    snapshot.mockResolvedValue(EMPTY_VIEW);
+    snapshot.mockResolvedValue(ONE_DEPOT_VIEW);
     const routes = await getRoutes(
       request('routes?depotId=101&serviceClass=none&q=4560&sort=deadKm&dir=desc&offset=25&limit=100'),
     );

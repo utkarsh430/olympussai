@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { DepotApiError, DepotHistoryResponse } from '../api';
+import type { DepotApiError, DepotFeedEnvelope, DepotHistoryResponse } from '../api';
 import { isValidDepotId } from '../ids';
 import { getRepositories } from '../repositories';
 import type { FleetSnapshotView } from '../repositories/types';
@@ -10,7 +10,8 @@ import { operatingDateOf } from '../sim/seed';
 import type { HistoryScope, MetricKey } from '../sim/types';
 import { median, ratio } from '../stats/robust';
 import type { DepotSummary } from '../types';
-import { analyseSnapshot, type SnapshotAnalysis } from './analysis';
+import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
+import { queryMemo } from './queryMemo';
 
 const METRICS = ['onRoadShare', 'offRoadRate', 'darkRate', 'index', 'available'] as const;
 const DEFAULT_DAYS = 30;
@@ -30,6 +31,13 @@ export type ParsedHistoryQuery =
 
 export type HistoryResult =
   | { readonly status: 200; readonly body: DepotHistoryResponse }
+  | { readonly status: 404; readonly body: DepotApiError };
+
+type HistoryBody = Omit<DepotHistoryResponse, keyof DepotFeedEnvelope>;
+
+/** A history without its envelope, or the 404 explaining why there is none. */
+export type HistoryBodyResult =
+  | { readonly status: 200; readonly body: HistoryBody }
   | { readonly status: 404; readonly body: DepotApiError };
 
 const querySchema = z
@@ -130,14 +138,15 @@ function liveValue(
 }
 
 /**
- * The modelled trend for one metric, ending on today's live value. The anchor
- * is read from the live analysis on every call (nothing is cached across
+ * The modelled trend for one metric, ending on today's live value, without an
+ * envelope and without a memo: for views that hold their own bodies. The
+ * anchor is read from the live analysis (nothing is carried across
  * snapshots), so the series can never contradict a figure shown beside it.
  */
-export async function buildHistoryResponse(
+export async function modelHistory(
   view: FleetSnapshotView,
   query: HistoryQuery,
-): Promise<HistoryResult> {
+): Promise<HistoryBodyResult> {
   const analysis = analyseSnapshot(view);
   const live = liveValue(query.metric, query.scope, analysis);
   if (typeof live !== 'number') return live;
@@ -152,4 +161,30 @@ export async function buildHistoryResponse(
   const last = series.at(-1);
   if (last === undefined) throw new RangeError('History series is empty');
   return { status: 200, body: { series, provenance: 'modelled', anchor: { date: last.date, value: last.value } } };
+}
+
+/*
+ * The history route's bodies, held per snapshot analysis and query. The
+ * metric, scope and window are the caller's to choose, so the memo is bounded;
+ * a 404 is not held. The envelope is never part of a held body.
+ */
+const bodies = queryMemo<HistoryBodyResult>({ keep: (held) => held.status === 200 });
+
+/**
+ * The history route's payload: the modelled series ending on this snapshot's
+ * live value, shared by every request on the same rows, with this request's
+ * own feed envelope, so the page can say when the live end is stale or the
+ * saved sample.
+ */
+export async function buildHistoryResponse(
+  view: FleetSnapshotView,
+  query: HistoryQuery,
+): Promise<HistoryResult> {
+  const { metric, scope, days } = query;
+  const where = scope.kind === 'depot' ? `depot:${scope.depotId}` : 'network';
+  const held = await bodies.hold(analyseSnapshot(view), `${where}|${metric}|${days}`, () =>
+    modelHistory(view, query),
+  );
+  if (held.status !== 200) return held;
+  return { status: 200, body: { ...feedEnvelope(view), ...held.body } };
 }

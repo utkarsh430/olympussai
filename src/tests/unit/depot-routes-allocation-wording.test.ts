@@ -41,6 +41,7 @@ function response(partial: Partial<DepotAllocationResponse> = {}): DepotAllocati
     source: 'live',
     stale: false,
     operatingDate: '2026-10-06',
+    plannedAt: '2026-10-06T08:00:00Z',
     depotId: null,
     recommendationOnly: true,
     coverage: { profiled: { n: 530, of: 1204 }, planned: { n: 412, of: 1204 } },

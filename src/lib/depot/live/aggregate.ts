@@ -1,5 +1,6 @@
 import type { DepotBusRow } from '@/models/depotLive';
 import { classifyBusState } from '../infer/busState';
+import { isUsablePosition } from '../infer/geo';
 import { REPORTING_WINDOW_MIN } from '../infer/thresholds';
 import {
   UNASSIGNED_DEPOT_ID,
@@ -43,15 +44,14 @@ function median(values: readonly number[]): number {
   return sorted.length % 2 === 1 ? upper : ((sorted[mid - 1] ?? upper) + upper) / 2;
 }
 
+/** Per-axis median of the usable positions; a (0, 0) fix is no place, so it never pulls the median. */
 function centroidOf(rows: readonly DepotBusRow[]): LatLng | null {
-  const lats: number[] = [];
-  const lngs: number[] = [];
-  for (const { latitude, longitude } of rows) {
-    if (latitude === null || longitude === null) continue;
-    lats.push(latitude);
-    lngs.push(longitude);
-  }
-  return lats.length === 0 ? null : { lat: median(lats), lng: median(lngs) };
+  const placed = rows.filter(isUsablePosition);
+  if (placed.length === 0) return null;
+  return {
+    lat: median(placed.map((r) => r.latitude)),
+    lng: median(placed.map((r) => r.longitude)),
+  };
 }
 
 /** Most frequent name; ties go to the alphabetically first so output is stable. */
