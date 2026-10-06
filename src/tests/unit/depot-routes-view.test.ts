@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AllocationQuery, RoutesQuery } from '@/lib/depot/routes/routeQuery';
 import type { CanonicalSchedule, ScheduleResponse } from '@/models/canonical';
 import type { DepotBusRow } from '@/models/depotLive';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
@@ -9,8 +10,15 @@ vi.mock('@/lib/upsrtc/scheduleService', () => ({ fetchBusSchedule: vi.fn() }));
 import { fetchBusSchedule } from '@/lib/upsrtc/scheduleService';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
 import { getRouteProfile, resetRouteCatalogueForTests } from '@/lib/depot/routes/routeCatalogue';
+import { DEFAULT_ALLOCATION_QUERY, DEFAULT_ROUTES_QUERY } from '@/lib/depot/routes/routeQuery';
+import { TRIP_DEFINITION } from '@/lib/depot/sim/tripFrequencyConfig';
 import { buildRoutesResponse, parseRoutesQuery } from '@/lib/depot/live/routesView';
-import { allocationInputFor, buildAllocationResponse } from '@/lib/depot/live/allocationView';
+import {
+  PROFILES_PENDING_NOTE,
+  REPLAN_MIN_INTERVAL_MS,
+  allocationInputFor,
+  buildAllocationResponse,
+} from '@/lib/depot/live/allocationView';
 import { planAllocation } from '@/lib/depot/optimise/allocate';
 
 const FEED_NOW = '2026-10-06T10:00:00.000Z';
@@ -133,12 +141,16 @@ beforeEach(async () => {
 
 afterEach(() => errorSpy.mockRestore());
 
-const ALL = { depotId: null } as const;
+const RQ = (over: Partial<RoutesQuery> = {}): RoutesQuery => ({ ...DEFAULT_ROUTES_QUERY, ...over });
+const AQ = (over: Partial<AllocationQuery> = {}): AllocationQuery => ({
+  ...DEFAULT_ALLOCATION_QUERY,
+  ...over,
+});
 
 describe('routes view', () => {
   it("memoises the body on the rows while the envelope is this request's own", () => {
-    const stale = buildRoutesResponse(view({ stale: true, source: 'cache' }), ALL);
-    const fresh = buildRoutesResponse(view(), ALL);
+    const stale = buildRoutesResponse(view({ stale: true, source: 'cache' }), RQ());
+    const fresh = buildRoutesResponse(view(), RQ());
     expect(stale.stale).toBe(true);
     expect(stale.source).toBe('cache');
     expect(fresh.stale).toBe(false);
@@ -147,16 +159,16 @@ describe('routes view', () => {
   });
 
   it('rebuilds the body once another profile is cached', async () => {
-    const before = buildRoutesResponse(view(), ALL);
+    const before = buildRoutesResponse(view(), RQ());
     mockService.mockResolvedValue(live(schedule(UNPROFILED)));
     await getRouteProfile(UNPROFILED, view());
-    const after = buildRoutesResponse(view(), ALL);
+    const after = buildRoutesResponse(view(), RQ());
     expect(after.routes).not.toBe(before.routes);
     expect(after.coverage.profiled).toEqual({ n: 2, of: 3 });
   });
 
   it('never fetches a profile and reports profiled coverage', () => {
-    const response = buildRoutesResponse(view(), ALL);
+    const response = buildRoutesResponse(view(), RQ());
     expect(mockService).not.toHaveBeenCalled();
     expect(response.routes.map((r) => r.routeName).sort()).toEqual(
       [NEAR_B, TIED, UNPROFILED].sort(),
@@ -179,7 +191,7 @@ describe('routes view', () => {
   });
 
   it('filters to the routes a depot operates and recounts coverage for them', () => {
-    const beta = buildRoutesResponse(view(), { depotId: BETA.id });
+    const beta = buildRoutesResponse(view(), RQ({ depotId: BETA.id }));
     expect(beta.depotId).toBe(BETA.id);
     expect(beta.routes.map((r) => r.routeName)).toEqual([TIED]);
     expect(beta.coverage.profiled).toEqual({ n: 0, of: 1 });
@@ -193,12 +205,105 @@ describe('routes view', () => {
     expect(parse('depotId=101&depotId=102')).toBe(false);
     expect(parse('other=1')).toBe(false);
   });
+
+  it('carries the trip definition', () => {
+    expect(buildRoutesResponse(view(), RQ()).tripDefinition).toBe(TRIP_DEFINITION);
+  });
+
+  it('filters, sorts and pages on the server with true totals', () => {
+    const first = buildRoutesResponse(view(), RQ({ limit: 2 }));
+    const rest = buildRoutesResponse(view(), RQ({ offset: 2, limit: 2 }));
+    expect([first.total, first.inFeed, first.routes.length, rest.routes.length]).toEqual([3, 3, 2, 1]);
+    expect(new Set([...first.routes, ...rest.routes].map((r) => r.routeName)).size).toBe(3);
+    const matched = buildRoutesResponse(view(), RQ({ q: 'rkd_7777' }));
+    expect(matched.routes.map((r) => r.routeName)).toEqual([UNPROFILED]);
+    expect([matched.total, matched.inFeed]).toEqual([1, 3]);
+    const sorted = buildRoutesResponse(view(), RQ({ sort: { key: 'route', direction: 'desc' } }));
+    expect(sorted.routes.map((r) => r.routeName)).toEqual([TIED, UNPROFILED, NEAR_B]);
+    const classes = buildRoutesResponse(view(), RQ({ serviceClass: 'EXP' }));
+    expect(classes.routes.map((r) => r.routeName)).toEqual([TIED]);
+    expect(classes.classOptions.map((o) => o.value)).toEqual(['EXP', 'ORD']);
+    expect(classes.depotOptions.map((o) => o.label)).toEqual(['Alpha', 'Beta']);
+  });
+});
+
+describe('the catalogue without a clock in the rows', () => {
+  const clockless = (): FleetSnapshotView =>
+    view({ feedNow: null, rows: ROWS.map((r) => ({ ...r, scheduledStart: null })) });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('gives the same body and lookup date on the same rows whatever the wall clock says', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-06T20:00:00.000Z'));
+    resetRouteCatalogueForTests();
+    const result = await getRouteProfile(NEAR_B, clockless());
+    expect(result.status === 'ok' && result.profile.operatingDate).toBe('2026-10-06');
+    vi.setSystemTime(new Date('2026-10-07T20:00:00.000Z'));
+    const first = buildRoutesResponse(clockless(), RQ());
+    resetAnalysisForTests();
+    vi.setSystemTime(new Date('2026-10-08T20:00:00.000Z'));
+    const second = buildRoutesResponse(clockless(), RQ());
+    expect(second.routes).toEqual(first.routes);
+    expect(second.operatingDate).toBe('2026-10-06');
+    expect(first.routes.find((r) => r.routeName === NEAR_B)?.profiled).toBe(true);
+  });
+
+  it('freezes a profile when it is cached', async () => {
+    const result = await getRouteProfile(NEAR_B, view());
+    if (result.status !== 'ok') throw new Error('expected a cached profile');
+    expect(Object.isFrozen(result.profile)).toBe(true);
+    expect(Object.isFrozen(result.profile.stops)).toBe(true);
+    expect(Object.isFrozen(result.profile.stops[0])).toBe(true);
+  });
+});
+
+describe('allocation re-planning', () => {
+  it('holds the plan for the same rows until the interval has passed, saying profiles are pending', async () => {
+    let now = 1_000;
+    const clock = (): number => now;
+    const first = buildAllocationResponse(view(), AQ(), clock);
+    expect([first.profilesPending, first.profilesPendingNote]).toEqual([false, null]);
+    mockService.mockResolvedValue(live(schedule(UNPROFILED)));
+    await getRouteProfile(UNPROFILED, view());
+    now += REPLAN_MIN_INTERVAL_MS - 1;
+    const held = buildAllocationResponse(view(), AQ(), clock);
+    expect(held.coverage).toEqual(first.coverage);
+    expect([held.profilesPending, held.profilesPendingNote]).toEqual([true, PROFILES_PENDING_NOTE]);
+    expect(PROFILES_PENDING_NOTE).toBe(
+      'New route profiles will be included in the next plan, within half a minute.',
+    );
+    now += 1;
+    const rebuilt = buildAllocationResponse(view(), AQ(), clock);
+    expect(rebuilt.profilesPending).toBe(false);
+    expect(rebuilt.coverage.profiled).toEqual({ n: 2, of: 3 });
+  });
+});
+
+describe('allocation paging', () => {
+  it('pages the unmoved and excluded lists with totals and counts by reason; moves in full', () => {
+    const one = buildAllocationResponse(view(), AQ({ limit: 1 }));
+    expect([one.excluded.length, one.excludedTotal]).toEqual([1, 2]);
+    expect(one.excludedByReason).toMatchObject({ not_profiled: 1, no_primary_depot: 1 });
+    const none = buildAllocationResponse(view(), AQ({ limit: 0 }));
+    expect([none.moves.length, none.excluded.length, none.excludedTotal]).toEqual([1, 0, 2]);
+    const tied = buildAllocationResponse(view(), AQ({ reason: 'no_primary_depot' }));
+    expect(tied.excluded.map((e) => e.routeName)).toEqual([TIED]);
+    expect([tied.excludedTotal, tied.unchangedTotal]).toEqual([1, 0]);
+    expect(tied.excludedByReason.not_profiled).toBe(1);
+    const named = buildAllocationResponse(view(), AQ({ q: '7777' }));
+    expect(named.excluded.map((e) => [e.routeName, e.depotName])).toEqual([[UNPROFILED, 'Alpha']]);
+  });
+
+  it('carries the trip definition', () => {
+    expect(buildAllocationResponse(view(), AQ()).tripDefinition).toBe(TRIP_DEFINITION);
+  });
 });
 
 describe('allocation view', () => {
   it("memoises the body on the rows while the envelope is this request's own", () => {
-    const stale = buildAllocationResponse(view({ stale: true, source: 'cache' }), ALL);
-    const fresh = buildAllocationResponse(view(), ALL);
+    const stale = buildAllocationResponse(view({ stale: true, source: 'cache' }), AQ());
+    const fresh = buildAllocationResponse(view(), AQ());
     expect([stale.stale, fresh.stale]).toEqual([true, false]);
     expect(fresh.moves).toBe(stale.moves);
     expect(fresh.excluded).toBe(stale.excluded);
@@ -206,7 +311,7 @@ describe('allocation view', () => {
   });
 
   it('plans only profiled routes and lists every other route with its reason', () => {
-    const response = buildAllocationResponse(view(), ALL);
+    const response = buildAllocationResponse(view(), AQ());
     expect(response.recommendationOnly).toBe(true);
     expect(response.coverage.profiled).toEqual({ n: 1, of: 3 });
     expect(response.coverage.planned).toEqual({ n: 1, of: 3 });
@@ -230,7 +335,7 @@ describe('allocation view', () => {
     const analysis = analyseSnapshot(view());
     const input = allocationInputFor(view(), analysis);
     const plan = planAllocation(input.routes, input.depots);
-    const response = buildAllocationResponse(view(), ALL);
+    const response = buildAllocationResponse(view(), AQ());
     expect(response.beforeKmPerDay.value).toBe(plan.beforeKmPerDay);
     expect(response.afterKmPerDay.value).toBe(plan.afterKmPerDay);
     expect(response.savedKmPerDay.value).toBe(plan.savedKmPerDay);
@@ -242,7 +347,7 @@ describe('allocation view', () => {
   });
 
   it('counts how each depot position was found', () => {
-    const response = buildAllocationResponse(view(), ALL);
+    const response = buildAllocationResponse(view(), AQ());
     const { yard, median, none } = response.depotPositions;
     expect(yard + median + none).toBe(2);
     expect(none).toBe(0);
@@ -250,8 +355,8 @@ describe('allocation view', () => {
   });
 
   it("keeps network totals under a depot filter and lists only that depot's routes", () => {
-    const all = buildAllocationResponse(view(), ALL);
-    const beta = buildAllocationResponse(view(), { depotId: BETA.id });
+    const all = buildAllocationResponse(view(), AQ());
+    const beta = buildAllocationResponse(view(), AQ({ depotId: BETA.id }));
     expect(beta.savedKmPerDay).toEqual(all.savedKmPerDay);
     expect(beta.depotId).toBe(BETA.id);
     // The tied route is run partly by Beta; the profiled route is Alpha's alone.

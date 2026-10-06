@@ -57,7 +57,24 @@ describe.each([
     expect(snapshot).not.toHaveBeenCalled();
   });
 
-  it.each(['depotId=abc', 'depotId=', 'depotId=1234567', 'depotId=101&depotId=102', 'x=1'])(
+  it.each([
+    'depotId=abc',
+    'depotId=',
+    'depotId=1234567',
+    'depotId=101&depotId=102',
+    'x=1',
+    'offset=-1',
+    'offset=1.5',
+    'offset=abc',
+    'offset=1&offset=2',
+    'limit=101',
+    'limit=-1',
+    'limit=ten',
+    'q=a%20b',
+    'q=a%25',
+    'q=',
+    `q=${'A'.repeat(65)}`,
+  ])(
     'answers 400 with the fixed body for %s',
     async (query) => {
       const response = await GET(request(`${path}?${query}`));
@@ -98,6 +115,38 @@ describe.each([
   });
 });
 
+describe('filters that only one endpoint takes', () => {
+  it.each(['serviceClass=ord', 'serviceClass=A%2BB', 'sort=colour', 'sort=route&dir=up', 'reason=x'])(
+    'routes answers 400 for %s',
+    async (query) => {
+      const response = await getRoutes(request(`routes?${query}`));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: 'Invalid query' });
+    },
+  );
+
+  it.each(['reason=hired', 'reason=', 'serviceClass=ORD', 'sort=route'])(
+    'allocation answers 400 for %s',
+    async (query) => {
+      const response = await getAllocation(request(`allocation?${query}`));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: 'Invalid query' });
+    },
+  );
+
+  it('accepts every filter it documents', async () => {
+    snapshot.mockResolvedValue(EMPTY_VIEW);
+    const routes = await getRoutes(
+      request('routes?depotId=101&serviceClass=none&q=4560&sort=deadKm&dir=desc&offset=25&limit=100'),
+    );
+    expect(routes.status).toBe(200);
+    const allocation = await getAllocation(
+      request('allocation?depotId=101&reason=not_profiled&q=RKD_&offset=0&limit=0'),
+    );
+    expect(allocation.status).toBe(200);
+  });
+});
+
 describe('happy path shapes', () => {
   it('routes: an empty network has no routes and zero coverage', async () => {
     snapshot.mockResolvedValue(EMPTY_VIEW);
@@ -105,6 +154,10 @@ describe('happy path shapes', () => {
     expect(body.routes).toEqual([]);
     expect(body.coverage).toEqual({ profiled: { n: 0, of: 0 }, tripsOnDuration: { n: 0, of: 0 } });
     expect(body.depotId).toBeNull();
+    expect(body).toMatchObject({ total: 0, inFeed: 0, offset: 0, limit: 25 });
+    expect(body.tripDefinition).toBe(
+      'A trip is a run that starts at the depot and returns to it; dead kilometres are charged once per trip.',
+    );
   });
 
   it('allocation: an empty network has an empty, recommendation-only plan', async () => {
@@ -120,6 +173,15 @@ describe('happy path shapes', () => {
       excluded: [],
       savedKmPerDay: { value: 0, provenance: 'modelled', coverage: { n: 0, of: 0 } },
       depotPositions: { yard: 0, median: 0, none: 0, provenance: 'derived' },
+      unchangedTotal: 0,
+      excludedTotal: 0,
+      profilesPending: false,
+      profilesPendingNote: null,
+      offset: 0,
+      limit: 25,
     });
+    expect(body.excludedByReason).toMatchObject({ not_profiled: 0, unassigned_bucket: 0 });
+    expect(body.unchangedByReason).toMatchObject({ already_best: 0, move_limit: 0 });
+    expect(body.tripDefinition).toContain('dead kilometres are charged once per trip');
   });
 });
