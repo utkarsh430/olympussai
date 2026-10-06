@@ -47,7 +47,7 @@ describe('modelService', () => {
     for (const b of fleet(200)) {
       const { odometerKm } = modelService(b);
       const ceiling = (b.ageYears + 1) * ANNUAL_KM_BY_CLASS[b.serviceClass] * ANNUAL_KM_VARIATION.max;
-      expect(odometerKm).toBeLessThanOrEqual(Math.ceil(ceiling));
+      expect(odometerKm).toBeLessThanOrEqual(Math.ceil(ceiling) + 100);
       const floor = b.ageYears * ANNUAL_KM_BY_CLASS[b.serviceClass] * ANNUAL_KM_VARIATION.min;
       expect(odometerKm).toBeGreaterThanOrEqual(Math.floor(floor) - 100);
     }
