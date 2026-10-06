@@ -21,12 +21,7 @@
  * optimal assignments.
  */
 
-export interface HungarianResult {
-  /** Column chosen for each row, or -1 when the row is unassigned. */
-  readonly rowToCol: readonly number[];
-  /** Sum of the chosen finite costs. */
-  readonly total: number;
-}
+import type { HungarianResult } from '../duties/types';
 
 /** Indexed read that is known to be in range (the matrix is validated and rectangular). */
 function at(values: readonly number[], index: number): number {
@@ -40,7 +35,7 @@ function validate(cost: readonly (readonly number[])[]): void {
       throw new RangeError(`Cost matrix is ragged: row ${r} has ${row.length}, expected ${width}`);
     }
     row.forEach((value, c) => {
-      if (Number.isNaN(value) || value < 0 || value === -Infinity) {
+      if (Number.isNaN(value) || value < 0) {
         throw new RangeError(`Cost at [${r}][${c}] must be non-negative or Infinity, got ${value}`);
       }
     });

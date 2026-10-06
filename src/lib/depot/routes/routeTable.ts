@@ -2,6 +2,7 @@ import type { DepotBusRow } from '@/models/depotLive';
 import type { BusOpState, StateMix } from '@/lib/depot/types';
 import { median } from '@/lib/depot/infer/geo';
 import { isScheduledForFeedDate, MAX_PLAUSIBLE_DELAY_MIN } from '@/lib/depot/infer/outshed';
+import { ROUTE_TOKEN_CLASS, SERVICE_CLASS_PRIORITY } from '@/lib/depot/sim/config';
 import type { RouteDelay, RouteOperator, RouteRow } from './routeTableTypes';
 
 export type { RouteDelay, RouteOperator, RouteRow } from './routeTableTypes';
@@ -9,18 +10,26 @@ export type { RouteDelay, RouteOperator, RouteRow } from './routeTableTypes';
 /** A bus running more than this many minutes behind schedule counts as late. */
 export const LATE_AFTER_MIN = 10;
 
-const SERVICE_TOKENS: ReadonlySet<string> = new Set(['ORD', 'EXP', 'AC', 'VOLVO', 'JAN', 'SCANIA']);
 const MEDIAN_DECIMALS = 10;
 const SHARE_DECIMALS = 10_000;
 
 const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
+/**
+ * The class token that decides the route's class: of several, the most specific
+ * by SERVICE_CLASS_PRIORITY (the rule duties and buses use), the earliest in the
+ * name when two tokens share a class.
+ */
 function serviceTokenOf(routeName: string): string | null {
+  let best: { token: string; rank: number } | null = null;
   for (const token of routeName.split('_')) {
     const upper = token.toUpperCase();
-    if (SERVICE_TOKENS.has(upper)) return upper;
+    const serviceClass = ROUTE_TOKEN_CLASS[upper];
+    if (serviceClass === undefined) continue;
+    const rank = SERVICE_CLASS_PRIORITY.indexOf(serviceClass);
+    if (best === null || rank < best.rank) best = { token: upper, rank };
   }
-  return null;
+  return best === null ? null : best.token;
 }
 
 function directionOf(routeName: string): 'IN' | 'OUT' | null {

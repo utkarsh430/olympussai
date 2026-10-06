@@ -71,6 +71,18 @@ describe('buildRouteTable', () => {
     expect(byName.get('AC_X_Y_IN')).toMatchObject({ serviceToken: 'AC', direction: 'IN' });
   });
 
+  it('reads the most specific class token, as duties and buses do', () => {
+    const rows = [
+      bus({ registrationNumber: 'A', routeName: 'X_ORD_AC_out' }),
+      bus({ registrationNumber: 'B', routeName: 'X_EXP_ORD_out' }),
+      bus({ registrationNumber: 'C', routeName: 'ORD_VOLVO_AC_IN' }),
+    ];
+    const byName = new Map(buildRouteTable(rows, stateOf, FEED_NOW).map((r) => [r.routeName, r]));
+    expect(byName.get('X_ORD_AC_out')?.serviceToken).toBe('AC');
+    expect(byName.get('X_EXP_ORD_out')?.serviceToken).toBe('EXP');
+    expect(byName.get('ORD_VOLVO_AC_IN')?.serviceToken).toBe('VOLVO');
+  });
+
   it('lists operators by buses then depot id and names the strict majority', () => {
     const rows = [
       bus({ registrationNumber: 'A', depotId: '7', depotName: 'Seven' }),

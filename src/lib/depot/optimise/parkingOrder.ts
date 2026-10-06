@@ -1,16 +1,8 @@
-import type { Lane, ParkingSlot } from '../duties/types';
+import type { Lane, ParkingPlan, ParkingSlot } from '../duties/types';
 
 interface ParkingBus {
   readonly registrationNumber: string;
   readonly firstDutyStartMin: number | null;
-}
-
-export interface ParkingPlan {
-  readonly slots: readonly ParkingSlot[];
-  /** Buses that a bus nearer the lane mouth would trap. Zero for any input that fits. */
-  readonly blocked: number;
-  /** Registrations that do not fit, sorted. */
-  readonly overflow: readonly string[];
 }
 
 /** A bus with no duty tomorrow leaves last, so it sorts as infinitely late. */
@@ -43,6 +35,11 @@ function validate(lanes: readonly Lane[], buses: readonly ParkingBus[]): void {
       throw new RangeError(`Duplicate registration ${bus.registrationNumber}`);
     }
     regs.add(bus.registrationNumber);
+    if (bus.firstDutyStartMin !== null && !Number.isFinite(bus.firstDutyStartMin)) {
+      throw new RangeError(
+        `Bus ${bus.registrationNumber} first duty start must be finite or null, got ${bus.firstDutyStartMin}`,
+      );
+    }
   }
 }
 

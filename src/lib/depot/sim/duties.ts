@@ -1,9 +1,8 @@
 import { SeededRandom } from '../../simulation/seededRandom';
-import type { Duty } from '../duties/types';
+import type { Duty, ModelledDuties } from '../duties/types';
 import type { DepotSummary } from '../types';
-import { ROUTE_TOKEN_CLASS, SERVICE_CLASS_PRIORITY } from './config';
 import { seedFor } from './seed';
-import type { ServiceClass } from './types';
+import { classFromRoute } from './fleetMaster';
 
 const EARLIEST_START_MIN = 240; // 04:00
 const LATEST_START_MIN = 1320; // 22:00
@@ -18,20 +17,6 @@ const MAX_DURATION_MIN = 960; // 16 hours
 
 function roundToFive(minutes: number): number {
   return Math.round(minutes / ROUND_TO_MIN) * ROUND_TO_MIN;
-}
-
-/**
- * The most specific class named by a whole underscore-separated token of the
- * route name. Mirrors fleetMaster's rule (its helper is not exported) using the
- * shared token table and priority, so a route and its buses agree.
- */
-function classOfRoute(routeName: string): ServiceClass {
-  const named = new Set<ServiceClass>();
-  for (const token of routeName.toUpperCase().split('_')) {
-    const found = ROUTE_TOKEN_CLASS[token];
-    if (found !== undefined) named.add(found);
-  }
-  return SERVICE_CLASS_PRIORITY.find((c) => named.has(c)) ?? 'ordinary';
 }
 
 /**
@@ -62,13 +47,17 @@ function isKnown(minutes: number | null): minutes is number {
  * A route with a known scheduled duration runs out and back plus a layover,
  * otherwise the duration is a seeded 4-10 hours. Start times depend on the
  * date; the count and route spread do not.
+ *
+ * When the requirement is smaller than the number of routes, duties go to routes in
+ * alphabetical order, so the last routes get none; `routesWithoutDuty` lists them
+ * (alphabetical) so a screen can say so.
  */
 export function modelDuties(
   depot: DepotSummary,
-  routes: readonly { routeName: string; scheduledDurationMin: number | null }[],
+  routes: readonly { readonly routeName: string; readonly scheduledDurationMin: number | null }[],
   peakRequirement: number,
   operatingDate: string,
-): Duty[] {
+): ModelledDuties {
   if (!Number.isInteger(peakRequirement) || peakRequirement < 0) {
     throw new RangeError(`peakRequirement must be a non-negative integer, got ${peakRequirement}`);
   }
@@ -77,7 +66,9 @@ export function modelDuties(
     if (!byName.has(route.routeName)) byName.set(route.routeName, route.scheduledDurationMin);
   }
   const names = [...byName.keys()].sort();
-  if (peakRequirement === 0 || names.length === 0) return [];
+  if (peakRequirement === 0 || names.length === 0) {
+    return { duties: [], routesWithoutDuty: names };
+  }
 
   const rng = new SeededRandom(seedFor(depot.id, operatingDate, 'duties'));
   const duties: Duty[] = [];
@@ -96,9 +87,10 @@ export function modelDuties(
       routeName,
       startMin,
       endMin: startMin + duration,
-      serviceClass: classOfRoute(routeName),
+      serviceClass: classFromRoute(routeName) ?? 'ordinary',
       provenance: 'modelled',
     });
   }
-  return duties.sort((x, y) => x.startMin - y.startMin || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
+  duties.sort((x, y) => x.startMin - y.startMin || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
+  return { duties, routesWithoutDuty: names.slice(peakRequirement) };
 }
