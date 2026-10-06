@@ -5,8 +5,7 @@ import { DARK_HEADER_TITLE } from './unitsTable';
 
 /*
  * The text of each network page's closing disclosure, "How these figures are produced".
- * Everything here was said above the figures before the design wave; it moved, it was
- * not dropped. Numbers come from the configuration, never retyped.
+ * Numbers come from the configuration, never retyped.
  */
 
 const WEIGHT_PERCENT = 100;

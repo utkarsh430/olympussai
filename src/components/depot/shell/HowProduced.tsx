@@ -20,7 +20,7 @@ export interface HowProducedProps {
 }
 
 /**
- * The one closing disclosure at the end of a depot page (rulings, section 1): the
+ * The one closing disclosure at the end of a depot page: the
  * definitions, assumptions and limits that used to sit as paragraphs above the figures.
  * A native `<details>`: closed by default, opened by keyboard without script, and its
  * summary has a real expanded state for assistive technology. The only script is the

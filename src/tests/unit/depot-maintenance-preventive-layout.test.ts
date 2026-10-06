@@ -16,7 +16,7 @@ const preventiveTableWidth = (tier: PreventiveTier): number =>
   });
 
 /* Each tier fits the content column the shell leaves at the narrowest width it is checked at. */
-describe('the preventive table column sets (round 3)', () => {
+describe('the preventive table column sets', () => {
   it('picks the tier from the width', () => {
     expect(preventiveTier(false, false)).toBe('wide');
     expect(preventiveTier(true, false)).toBe('medium');

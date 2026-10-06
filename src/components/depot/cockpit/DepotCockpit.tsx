@@ -3,9 +3,9 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
-import { ErrorPanel, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, StaleNotice } from '@/components/depot/shell/DataStates';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { buildCockpit } from '@/lib/depot/cockpit/cockpitModel';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import { depotHref } from '@/lib/depot/depotNav';
@@ -68,7 +68,7 @@ export function DepotCockpit() {
 
   return (
     <div data-testid="depot-cockpit" className="depot-stack min-w-0">
-      {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
+      {data.stale || error ? <StaleNotice since={data.feedNow} /> : null}
       <AttentionStrip attention={model.attention} />
       <AvailabilityBar
         fleet={model.board.fleet}

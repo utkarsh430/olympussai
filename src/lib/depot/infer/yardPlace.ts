@@ -1,7 +1,7 @@
 import { nearDistanceM, type NearPoint } from './geo';
 
 /*
- * Groups standing next to each other are one place (Ruling S46). Clustering
+ * Groups standing next to each other are one place. Clustering
  * links buses within the link distance; a compound with two parking areas whose
  * nearest buses stand a little further apart than that comes out as two groups
  * or one depending on which buses happen to stand at the edges. This step looks

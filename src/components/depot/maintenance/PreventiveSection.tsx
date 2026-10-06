@@ -120,7 +120,7 @@ export interface PreventiveSectionProps {
 
 /**
  * Buses a model says are overdue or due soon, beside their real registrations. The
- * section label carries the one MODELLED tag (ruling S51), the group rows say
+ * section label carries the one MODELLED tag, the group rows say
  * "Modelled overdue" in their own words, and one sentence above the table says these
  * are not workshop records. Below 1024px the odometer moves into the row expander.
  */
@@ -157,8 +157,7 @@ export function PreventiveSection({ depotId, preventive }: PreventiveSectionProp
       {preventive.buses.length === 0 ? (
         <StatePanel kind="empty" sentence={noAttentionText()} />
       ) : (
-        // One table per group, so each group's "SHOW ALL N ›" is its own last row (critique
-        // round 5, maintenance Must 2); the shared widths keep the groups' columns aligned.
+        // One table per group, so each group's "SHOW ALL N ›" is its own last row; the shared widths keep the groups' columns aligned.
         <div className="flex flex-col gap-4">
           {groupsShown(view.rows).map((group) => (
             <div key={group} data-testid="depot-preventive-group" className="min-w-0">

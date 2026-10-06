@@ -125,7 +125,7 @@ function liveValue(
     if (!depot) return NO_DEPOT;
     if (metric === 'index') return analysis.scoresById.get(depot.id)?.index ?? NO_INDEX;
     if (metric === 'available') return depot.fleet - depot.states.offRoad;
-    // The windowed values the league breakdown shows (M6), not this snapshot's alone.
+    // The windowed values the league breakdown shows, not this snapshot's alone.
     const values = windowedComponentValues(analysis, depot);
     const value = { onRoadShare: values.onRoad, offRoadRate: values.offRoad, darkRate: values.dark };
     return value[metric] ?? NO_VALUE;

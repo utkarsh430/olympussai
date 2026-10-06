@@ -20,7 +20,7 @@ function yardTableWidth(tier: YardTier, keys: readonly YardColumnKey[]): number 
   return tableWidth(YARD_COLUMN_PX[tier], keys) + TABLE_FRAME_BORDER_PX;
 }
 
-describe('yard lists per width (critique §7, §8)', () => {
+describe('yard lists per width', () => {
   it('drops REASON on a phone and keeps REGISTRATION · STATE · FROM YARD for away', () => {
     expect(rollColumnKeys('phone', true)).toEqual(['registration', 'notHeard']);
     expect(rollColumnKeys('wide', true)).toEqual(['registration', 'notHeard', 'reason']);

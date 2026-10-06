@@ -150,7 +150,7 @@ export type ModelledWordPlacement = 'every-part' | 'once';
 
 /**
  * The chart's text equivalent, built once with the word where it belongs: the shared chart
- * says MODELLED on the history and on the forecast; the Trends pages say it once (R2-m18).
+ * says MODELLED on the history and on the forecast; the Trends pages say it once.
  */
 export function trendSummary(
   input: TrendChartInput,

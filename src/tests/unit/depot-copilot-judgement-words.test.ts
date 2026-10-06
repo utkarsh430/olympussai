@@ -4,7 +4,7 @@ import { VOCABULARY_WORDS, isVocabularyWord } from '@/lib/depot/copilot/vocabula
 import type { CopilotFact } from '@/lib/depot/copilot/types';
 
 /*
- * Round 9, item 1 (closing review M-B): no cause is ever stated for a fuel
+ * No cause is ever stated for a fuel
  * variance, and no person is ever blamed or characterised. The words that exist
  * only to do that, or to raise a safety or urgency alarm, are not in the closed
  * vocabulary; the three the scripted writer needs stand only inside their phrase.
@@ -21,7 +21,7 @@ const VOCABULARY_REASON = 'Draft uses a word outside the vocabulary';
 const render = (headline: string, paragraph: string): ReturnType<typeof renderDraft> =>
   renderDraft({ headline, paragraphs: [paragraph] }, FACTS);
 
-/** The review's M-B drafts (section 4), then more of the same kind. */
+/** Drafts that state a cause, blame or alarm, then more of the same kind. */
 const CAUSE_BLAME_ALARM_DRAFTS: readonly string[] = [
   'The driver at {{fact:name}} is the cause of the diesel loss.',
   'The fuel variance at {{fact:name}} is because of the staff.',
@@ -65,8 +65,8 @@ const CAUSE_BLAME_ALARM_DRAFTS: readonly string[] = [
   'The loss is due to {{fact:other}}.',
 ];
 
-describe('M-B: cause, blame and alarm drafts are refused', () => {
-  it('holds the review drafts and at least twenty more', () => {
+describe('cause, blame and alarm drafts are refused', () => {
+  it('holds the listed drafts and at least twenty more', () => {
     expect(CAUSE_BLAME_ALARM_DRAFTS.length).toBeGreaterThanOrEqual(25);
   });
 
@@ -102,7 +102,7 @@ failing failure failures
 /** Allowed only inside the fixed phrase the scripted writer needs (vocabulary/judgement.ts). */
 const BOUND_WORDS: readonly string[] = ['due', 'critical', 'people'];
 
-describe('M-B: the vocabulary holds no cause, blame, person or alarm word', () => {
+describe('the vocabulary holds no cause, blame, person or alarm word', () => {
   it.each(FORBIDDEN_FORMS)('%s is neither listed nor buildable', (word) => {
     expect(VOCABULARY_WORDS).not.toContain(word);
     expect(isVocabularyWord(word)).toBe(false);
@@ -113,7 +113,7 @@ describe('M-B: the vocabulary holds no cause, blame, person or alarm word', () =
   });
 });
 
-describe('M-B: a bound word renders only inside its phrase', () => {
+describe('a bound word renders only inside its phrase', () => {
   it.each([
     'Flagged at depot level: {{fact:dark}}. Rated critical: {{fact:crit}}.',
     'Of the buses with a known schedule, {{fact:dark}} are due to leave now.',

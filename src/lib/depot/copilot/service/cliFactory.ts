@@ -31,7 +31,7 @@ export interface CliFactoryDeps {
   readonly limiter: CallLimiter;
   /** Kills the child's process group; defaults to the real signal. */
   readonly killGroup?: KillGroup;
-  /** The calls a shutdown must end (review L4); defaults to the process's registry. */
+  /** The calls a shutdown must end; defaults to the process's registry. */
   readonly liveCalls?: LiveCalls;
 }
 

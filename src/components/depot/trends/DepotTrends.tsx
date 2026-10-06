@@ -2,22 +2,22 @@
 
 import Link from 'next/link';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
-import { EmptyState, StaleStrip } from '@/components/depot/shell/DataStates';
+import { EmptyState, StaleNotice } from '@/components/depot/shell/DataStates';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { chartDisclosureParagraphs, depotTrendsPath } from '@/lib/depot/forecast/trendsPageModel';
 import type { MetricKey } from '@/lib/depot/sim/types';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { useDepotDistribution } from '@/hooks/useDepotDistribution';
 import { useDepotForecast } from '@/hooks/useDepotForecast';
 import { AvailabilityPanel } from './AvailabilityPanel';
 import { ForecastBlock } from './ForecastBlock';
 import { MetricChooser } from './MetricChooser';
+import { DEPOTS_ROOT } from '@/lib/depot/nav';
 
 const AVAILABLE: MetricKey = 'available';
 const REQUIREMENT_NOTE =
   "The requirement is the fleet distribution's modelled number of buses the depot needs; the " +
   'forecast is of buses available. Neither side is measured today.';
-const NETWORK_ROOT = '/project/depots';
 
 export interface DepotTrendsProps {
   readonly metric: MetricKey;
@@ -41,7 +41,7 @@ export function DepotTrends({ metric }: DepotTrendsProps) {
       <div data-testid="trends-unknown-depot">
         <EmptyState>
           No depot has the id {depotId} in the current feed.{' '}
-          <Link href={NETWORK_ROOT} className="depot-link">
+          <Link href={DEPOTS_ROOT} className="depot-link">
             Back to the network overview
           </Link>
         </EmptyState>
@@ -53,7 +53,7 @@ export function DepotTrends({ metric }: DepotTrendsProps) {
     <div className="depot-stack">
       <div className="flex min-w-0 flex-col gap-3">
         <MetricChooser path={depotTrendsPath(depotId)} metric={metric} />
-        {stale ? <StaleStrip since={chosen.data?.feedNow ?? null} /> : null}
+        {stale ? <StaleNotice since={chosen.data?.feedNow ?? null} /> : null}
         <ForecastBlock state={chosen} errorTitle="Could not load this depot's trend" />
       </div>
       <AvailabilityPanel depotId={depotId} available={available} distribution={distribution} />

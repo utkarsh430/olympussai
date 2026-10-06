@@ -5,12 +5,12 @@ import {
   depotTrendsPath,
   metricOptions,
   MODELLED_HISTORY_NOTE,
-  NETWORK_TRENDS_PATH,
   parseTrendMetric,
   trendLines,
   trendsHref,
 } from '@/lib/depot/forecast/trendsPageModel';
 import { COCKPIT_TREND_METRIC } from '@/lib/depot/forecast/trendMounts';
+import { NETWORK_TRENDS_PATH } from '@/lib/depot/nav';
 
 function change(days: number, value: number, sentence: string): TrendChange {
   return {

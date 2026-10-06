@@ -25,7 +25,7 @@ const CELL_PADDING_PX = 12;
 const dutyTableWidth = (tier: DutyTableTier): number =>
   tableWidth(dutyColumnWidths(tier), dutyColumnKeys(tier), { expander: true });
 
-describe('the duty table column sets (round 3)', () => {
+describe('the duty table column sets', () => {
   it('picks the tier from the width', () => {
     expect(dutyTableTier(false, false)).toBe('wide');
     expect(dutyTableTier(true, false)).toBe('medium');

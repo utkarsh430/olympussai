@@ -12,7 +12,7 @@ import { feedTime, network, seeded, snapshotOf } from './depot-score-window.fixt
 import { blob } from './depot-yard.fixtures';
 
 /*
- * P1, the epoch run (S56b as amended): a straggler counts toward a new epoch
+ * The epoch run: a straggler counts toward a new epoch
  * only when it is later in feed time than the previous straggler of the run
  * and within one window of it, and an epoch starts only once the run holds at
  * least three stragglers spanning EPOCH_RUN_MIN_SPAN_MS of feed time. A stuck
@@ -74,7 +74,7 @@ function interleave(count: number, seed: number, stuck: boolean, liveShare = 0.5
   return { times, live };
 }
 
-describe('the epoch run (P1)', () => {
+describe('the epoch run', () => {
   it('names the run: three stragglers spanning three minutes of feed time', () => {
     expect(NEW_EPOCH_AFTER_BEHIND).toBe(3);
     expect(EPOCH_RUN_MIN_SPAN_MS).toBe(3 * 60_000);
@@ -109,7 +109,7 @@ describe('the epoch run (P1)', () => {
   });
 
   it('starts no epoch on three stragglers from unrelated old times', () => {
-    // The review's sequence: -3600 precedes -1500, so the run restarts there and holds two.
+    // The sequence: -3600 precedes -1500, so the run restarts there and holds two.
     const r = replay([BASE, BASE - 1500, BASE - 3600, BASE - 2400]);
     expect(r.windowEpochs).toEqual([]);
   });
@@ -126,7 +126,7 @@ describe('the epoch run (P1)', () => {
     expect(replay([BASE, ...run]).windowEpochs).toEqual([7]);
   });
 
-  // P6: the stored samples are order-free within an epoch; the straggler run is not.
+  // The stored samples are order-free within an epoch; the straggler run is not.
   it('stores the same samples whatever the order, while the straggler run depends on it', () => {
     const [a, b, c] = [BASE, BASE + 15 * 60, BASE - 6 * 60];
     const abc = createScoreWindowStore();

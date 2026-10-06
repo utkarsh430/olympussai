@@ -112,7 +112,7 @@ describe('the network panel wording', () => {
 });
 
 describe('clearing the selection keeps keyboard focus on the page', () => {
-  // Round 2: the line above the map ("No unit selected." / "Clear selection") is gone;
+  // The line above the map ("No unit selected." / "Clear selection") is gone;
   // the panel says the selection once and its Clear keeps focus.
   it('moves focus to the selected-unit heading after the panel\'s "Clear"', () => {
     act(() => root.render(<Host initial={A} />));
@@ -167,7 +167,7 @@ describe('unit terminology and the empty panel', () => {
   });
 });
 
-describe('ExceptionSummary bands (critique MUST 2)', () => {
+describe('ExceptionSummary bands', () => {
   it('draws two bands of linked figures with one caption, no severity words and no extra link line', () => {
     const counts = {
       emergency: 2, dark_share_high: 3, off_road_high: 0, on_road_low: 1,
@@ -203,7 +203,7 @@ describe('ExceptionSummary bands (critique MUST 2)', () => {
   });
 });
 
-describe('RankedStrip (critique MUST 1, R2-m24)', () => {
+describe('RankedStrip', () => {
   it('selects by row click or Enter, with no boxed Select, and marks the selected row in words', () => {
     const picked: string[] = [];
     act(() =>

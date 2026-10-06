@@ -31,7 +31,7 @@ export interface TransferRowViewProps {
 
 /** A full-width row under a transfer: it may wrap, unlike the data rows. */
 const DETAIL_CELL = '!h-auto !max-w-none !whitespace-normal !py-3';
-/** Table links: cyan, underlined on hover and focus only (critique round 5, §5). */
+/** Table links: cyan, underlined on hover and focus only. */
 const TABLE_LINK =
   'depot-table-link text-left text-holo-glow decoration-holo-glow/40 underline-offset-2 hover:underline focus-visible:underline';
 /** A long transfer name wraps at a space to a second line inside its cell, never cut. */

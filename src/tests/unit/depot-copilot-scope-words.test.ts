@@ -3,7 +3,7 @@ import { renderDraft } from '@/lib/depot/copilot/render';
 import type { CopilotFact } from '@/lib/depot/copilot/types';
 
 /*
- * Round 9, item 3 (closing review M-A): a figure is as of the feed time, for
+ * A figure is as of the feed time, for
  * the scope its fact names, so no quantifier or period word may stand anywhere
  * in its clause, not only within two words of it.
  */
@@ -16,7 +16,7 @@ const FACTS: readonly CopilotFact[] = [
 const ok = (paragraph: string): boolean =>
   renderDraft({ headline: 'Depot briefing', paragraphs: [paragraph] }, FACTS).ok;
 
-/** The review's scope and period drafts (section 4), then more of the same kind. */
+/** Drafts that misstate scope or period, then more of the same kind. */
 const SCOPE_AND_PERIOD_DRAFTS: readonly string[] = [
   'All depots in the network have {{fact:dark}} dark.',
   'Several depots have {{fact:dark}} dark.',
@@ -36,7 +36,7 @@ const SCOPE_AND_PERIOD_DRAFTS: readonly string[] = [
   'On the day shift at {{fact:name}} the depot had {{fact:dark}} dark.',
 ];
 
-describe('M-A: quantifier and period words in a figure clause', () => {
+describe('quantifier and period words in a figure clause', () => {
   it.each(SCOPE_AND_PERIOD_DRAFTS)('refuses: %s', (draft) => {
     expect(ok(draft)).toBe(false);
   });

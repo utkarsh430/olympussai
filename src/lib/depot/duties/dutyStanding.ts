@@ -5,7 +5,7 @@ import type { BoardDuty, DutyBoardCounts } from './api';
 import type { BusStandingNow } from './types';
 
 /*
- * The duty page's words for how a matched bus stands now (rulings S47, S55), its
+ * The duty page's words for how a matched bus stands now, its
  * service classes, its band captions and its header. Each value is worded once here.
  */
 
@@ -33,7 +33,7 @@ export const CLASS_WORD: Readonly<Record<ServiceClass, string>> = {
 
 /**
  * The bus's class, only where it differs from the duty's: class is a preference in
- * the matching, not a bar (ruling S47), so a bus of another class may take a duty.
+ * the matching, not a bar, so a bus of another class may take a duty.
  */
 export function busClassWord(duty: Pick<BoardDuty, 'serviceClass' | 'busClass'>): string | null {
   const busClass = duty.busClass ?? null;

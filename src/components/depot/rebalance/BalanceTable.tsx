@@ -90,7 +90,7 @@ function columnsFor(maxMagnitude: number, withPart: boolean): readonly Column<Ba
 
 /**
  * Generated columns (peak need, spare target, required, balance) carry the MODELLED tag in
- * their header cells, because each sits beside a real depot (ruling S51); the fleet, off
+ * their header cells, because each sits beside a real depot; the fleet, off
  * road and available columns match the page's line and carry nothing.
  *
  * Every depot's live availability against its modelled requirement, collapsed under its

@@ -99,7 +99,7 @@ const CORPUS: readonly string[] = [
   'In short: the fleet is largely on the road, and the exceptions are few.',
   'This depot is described as "stretched": its deficit is large relative to its fleet.',
   'The comparison covers {{fact:name}} and {{fact:other}} only.',
-  // Round 4: the words now refused beside a figure, used honestly away from one.
+  // The words now refused beside a figure, used honestly away from one.
   'The yard is full, and the depot reports {{fact:dark}} dark.',
   'Each depot reports its own figures; {{fact:name}} leads.',
   'Over time the dark share has been the main concern.',

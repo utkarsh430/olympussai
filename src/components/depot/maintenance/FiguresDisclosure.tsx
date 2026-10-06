@@ -10,7 +10,7 @@ export interface FiguresDisclosureProps {
 }
 
 /**
- * The page's one closing disclosure, closed by default (rulings, section 1): the
+ * The page's one closing disclosure, closed by default: the
  * definitions, assumptions and limits a page used to put before its content.
  * The disclosure is the shared one; this adds the headed sections.
  */

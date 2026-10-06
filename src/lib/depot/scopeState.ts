@@ -21,10 +21,10 @@ export interface DepotScopeState {
 const UNKNOWN_LABEL = 'UPSRTC / Unknown depot';
 
 /**
- * One decision for the top bar's crumb and the depot tabs. A depot is unknown only
+ * One decision for the top bar's scope label. A depot is unknown only
  * on positive evidence: the detail answered 404, or the network list loaded and
  * lacks the id. A depot whose data is merely loading or failed (a 503) is still
- * that depot: it keeps its tabs and shows its name if the network has it, else
+ * that depot: it shows its name if the network has it, else
  * "Depot <id>". The top bar sits above the detail provider, so it passes no
  * `detailError` and decides on the network list alone.
  */

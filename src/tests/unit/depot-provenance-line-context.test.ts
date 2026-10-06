@@ -11,7 +11,7 @@ const feed = (stale: boolean): ProvenanceFeed => ({
   error: null,
 });
 
-/** The provenance line's modelled-day extension and stale wording (critique round 4, B). */
+/** The provenance line's modelled-day extension and stale wording. */
 describe('provenance line: modelled day', () => {
   it('words the modelled day with one fixed formula', () => {
     expect(

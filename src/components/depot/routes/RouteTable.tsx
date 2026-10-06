@@ -61,7 +61,7 @@ const TIER_CELL: Readonly<Record<RouteWidthTier, string>> = {
 /** The table's minimum width per tier: the sum of the columns that tier draws. */
 const TIER_MIN_WIDTH =
   'min-w-[var(--route-w-base)] lg:min-w-[var(--route-w-lg)] min-[1440px]:min-w-[var(--route-w-wide)]';
-/** Table links: cyan, underlined on hover and focus only (critique round 5, §5). */
+/** Table links: cyan, underlined on hover and focus only. */
 export const TABLE_LINK =
   'depot-table-link text-holo-glow decoration-holo-glow/40 underline-offset-2 hover:underline focus-visible:underline';
 
@@ -200,7 +200,7 @@ export function RouteTable({ data, busy = false, query, onQueryChange, onOpenRou
         </div>
         {moreColumns ? <TableOverflowCue /> : null}
       </div>
-      {/* The pager is the list's only count, so a filtered list always shows it (R2-m20). */}
+      {/* The pager is the list's only count, so a filtered list always shows it. */}
       {data.total > data.limit || (filtered && data.total > 0) ? (
         <Pager page={current.page} total={data.total} pageSize={data.limit} onPage={setPage} />
       ) : null}

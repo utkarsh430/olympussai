@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
-import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { HowProduced as ClosingDisclosure } from '@/components/depot/shell/HowProduced';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { useDepotDuties } from '@/hooks/useDepotDuties';
 import type { DutyBoardResponse } from '@/lib/depot/duties/api';
@@ -26,7 +26,7 @@ import {
   emptyBoardSentence,
   matchingNotes,
 } from '@/lib/depot/duties/dutyPageModel';
-import { DEPOTS_ROOT } from '@/lib/depot/nav';
+import { DEPOTS_ROOT, SOURCES_PATH } from '@/lib/depot/nav';
 import { DutiesHeader } from './DutiesHeader';
 import { DutyBoard } from './DutyBoard';
 
@@ -102,7 +102,7 @@ function useDutyBody(depotId: string): {
       ),
     };
   }
-  const stale = data.stale || error ? <StaleStrip since={data.feedNow} /> : null;
+  const stale = data.stale || error ? <StaleNotice since={data.feedNow} /> : null;
   if (rows.length === 0) {
     // One "no duties" sentence: the shared one, in the panel, not also in the line.
     const empty = (
@@ -111,7 +111,7 @@ function useDutyBody(depotId: string): {
         testId="depot-empty"
         sentence={emptyBoardSentence(data.operatingDate)}
         remedy={emptyDutiesSentence(data)}
-        action={<Link href={`${DEPOTS_ROOT}/sources`} className="depot-link">Data sources</Link>}
+        action={<Link href={SOURCES_PATH} className="depot-link">Data sources</Link>}
       />
     );
     return { body: <>{stale}<div className="depot-stack">{empty}<HowProduced data={data} /></div></> };

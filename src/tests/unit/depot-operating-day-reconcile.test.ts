@@ -12,7 +12,7 @@ import { modelRidershipDay } from '@/lib/depot/sim/ridership';
 import type { BusOpState, DepotSummary } from '@/lib/depot/types';
 
 /*
- * The reconciliations of ruling S41: for one depot and operating date every
+ * The reconciliations of the one modelled day: for one depot and operating date every
  * modelled domain reads the same day, so the pages agree with each other.
  */
 
@@ -21,7 +21,7 @@ const STATES: readonly BusOpState[] = ['in_service', 'on_road', 'standing', 'dar
 const ROUTES: readonly (string | null)[] = ['A_EXP_1', 'B_ORD_2', 'C_AC_3', 'D_VOLVO_4', 'E_5', null];
 
 function bus(registrationNumber: string, state: BusOpState, routeName: string | null): DepotBusView {
-  // Heard a minute ago, in the yard: a standing bus is then eligible for a duty (ruling S47).
+  // Heard a minute ago, in the yard: a standing bus is then eligible for a duty.
   return {
     registrationNumber, state, routeName, location: 'in_yard', gpsAgeMin: 1, notHeardMin: null,
   } as unknown as DepotBusView;
@@ -151,7 +151,7 @@ describe('the worked depot, every model figure side by side', () => {
 
   it('pins every page’s figures for the worked depot as literals', () => {
     // WHO RUNS. Duties 000 and 002 on AGRA_EXP_1, 001 on DELHI_EXP_2. Each bus takes a duty
-    // of the route it reports live (ruling S47): K2 DELHI, K1 and K3 AGRA; K4 (DELHI) has none.
+    // of the route it reports live: K2 DELHI, K1 and K3 AGRA; K4 (DELHI) has none.
     expect(worked.runs.map((r) => [r.registrationNumber, r.routeName, r.distanceKm])).toEqual([
       ['K2', 'DELHI_EXP_2', 191],
       ['K1', 'AGRA_EXP_1', 240],

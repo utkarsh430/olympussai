@@ -4,19 +4,19 @@ import { arrivalOf, type BehindRun } from '../score/epoch';
 import { YARD_HOLD_MAX_MS, continueYard, type RememberedYard } from './yardContinuity';
 
 /*
- * The holder of yard continuity (ruling S43): per depot, the last yard the
+ * The holder of yard continuity: per depot, the last yard the
  * process established or held. The rule itself is in yardContinuity.ts.
  *
  *  - Newer feed time than the last one seen: entries too old to hold are
  *    pruned FIRST, then every depot in the snapshot is decided against its
  *    remembered yard and the memory is updated.
  *  - The same feed time again (a re-fetch with new rows): a depot whose yard
- *    was decided at that feed time keeps that circle (ruling S50c); one with
- *    no entry is left to the rule on these rows (N2), so fuller rows can place
+ *    was decided at that feed time keeps that circle; one with
+ *    no entry is left to the rule on these rows, so fuller rows can place
  *    a yard the first fetch could not. The memory is not written.
  *  - An older feed time: decided against the memory, which is not written,
  *    so it is never fed out of order and a late response still sees the yard.
- *  - More than one score window behind the newest (a straggler, ruling S56b,
+ *  - More than one score window behind the newest (a straggler,
  *    see score/epoch.ts): the same, and offered to the straggler run; the
  *    snapshot that completes a coherent, lasting run (the same rule and
  *    counter as the score window) starts a new epoch: the memory is emptied,
@@ -34,10 +34,10 @@ export const YARD_MEMORY_MAX_DEPOTS = 1000;
 
 export interface YardMemoryStore {
   lastFeedMs: number | null;
-  /** The current run of stragglers (ruling S56b, P1); null when there is none. */
+  /** The current run of stragglers; null when there is none. */
   behindRun: BehindRun | null;
   readonly byDepot: Map<string, RememberedYard>;
-  /** Per depot: the feed times its yard was decided on and written (N10). */
+  /** Per depot: the feed times its yard was decided on and written. */
   readonly seenByDepot: Map<string, DepotSeen>;
 }
 
@@ -155,7 +155,7 @@ export function applyYardContinuity(
 }
 
 /**
- * The feed times this store has decided `depotId`'s yard on (N10): since the
+ * The feed times this store has decided `depotId`'s yard on: since the
  * process started, the memory's last epoch, or the depot's last absence longer
  * than the hold cap. A yard can be held only from the second, so at 0 or 1 a
  * missing yard may mean a fresh start rather than refusing evidence.

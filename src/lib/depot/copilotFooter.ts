@@ -1,7 +1,7 @@
 import { isLaterFeedTime } from './format';
 
 /**
- * Wording of the copilot output footer (rulings, section 3): one mono line under the
+ * Wording of the copilot output footer: one mono line under the
  * prose, `SCRIPTED · written 14:00 · 18 figures`. The writer is always a word.
  */
 

@@ -2,7 +2,7 @@ import type { ModelledService, ServiceGroup } from './serviceModel';
 
 /*
  * How the preventive table is grouped and capped, decided here so it is tested: the
- * table prints each status once as a group row (ruling S51: the group row says
+ * table prints each status once as a group row (the group row says
  * "modelled"), five rows a group and "Show all N".
  */
 

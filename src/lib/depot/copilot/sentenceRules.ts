@@ -60,7 +60,7 @@ export const sentenceOpensBare = (sentence: readonly Token[]): boolean =>
   sentence[0]?.kind === 'word' && BARE_VERBS.has(sentence[0].core) && !nounUse(sentence);
 
 /**
- * Round 7, ruling E3: a draft never addresses its reader and never instructs.
+ * A draft never addresses its reader and never instructs.
  *  - No second-person word (SECOND_PERSON_WORDS) anywhere in a draft.
  *  - No sentence (headline included) opening with a bare verb: a base form in
  *    BASE_VERBS, or one of IMPERATIVE_OPENERS ("please", "do", "let"). Inflected

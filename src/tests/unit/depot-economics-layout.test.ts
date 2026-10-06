@@ -48,7 +48,7 @@ describe('economics layout', () => {
 
   it('dates the modelled day without the past tense or "today"', () => {
     const words = [economicsDaySentence('2026-10-06'), noDutyPhrase('2026-10-06'), noDutyPhrase()];
-    // The shared formula (critique round 5 §5), the date through formatPlainDate (item 8).
+    // The shared formula, the date through formatPlainDate.
     expect(words[0]).toBe('Built on the modelled day for 6 Oct 2026 of every operating depot.');
     expect(words[0]).toBe(networkModelledDayLine('2026-10-06'));
     expect(words[1]).toBe('no duty in the modelled day for 6 Oct 2026');
@@ -67,7 +67,7 @@ describe('economics layout', () => {
       depot('5', 'peer_group_too_small'),
       depot('6', 'not_a_depot', [], 'unassigned'),
     ]);
-    // Short enough that no label is ellipsised at 1440 (capture item 9).
+    // Short enough that no label is ellipsised at 1440.
     expect(band.map((f) => [f.label, f.value])).toEqual([
       ['Ranked', '2'],
       ['No duty in the day', '1'],
@@ -84,7 +84,7 @@ describe('economics layout', () => {
   });
 
   /*
-   * Round 5 reported 1,002 px against 1,000 at 1280. The old test added a hand-set 64 px of
+   * A browser once measured 1,002 px against 1,000 at 1280. The old test added a hand-set 64 px of
    * "controls" that the shell no longer draws (the expander is 24 px, the row-end chevron
    * sits in a cell's padding), ignored the frame's 2 px border, and summed with a helper that
    * counts a column without a width as 0, so a lost width could never fail it. The sum is
@@ -113,7 +113,7 @@ describe('economics layout', () => {
     expect(ECONOMICS_COLUMN_WIDTHS.index).toBe(150);
   });
 
-  it('names the breakdown apart from the league\'s "Score breakdown" (R2-m3)', () => {
+  it('names the breakdown apart from the league\'s "Score breakdown"', () => {
     expect(breakdownButtonName('Alambagh')).toBe('Economics breakdown for Alambagh');
   });
 });

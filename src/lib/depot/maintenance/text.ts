@@ -56,7 +56,7 @@ export function distanceNotice(coverage: Coverage): string {
 
 /*
  * "Overdue" and "due soon" are modelled statements about a named bus, so no string
- * this module produces says them without the word "modelled" (ruling S51). The
+ * this module produces says them without the word "modelled". The
  * preventive table has no status column: its group rows carry the status, in these
  * words, and the section label carries the one MODELLED tag.
  */
@@ -101,7 +101,7 @@ const NOT_A_RECORD = '; not a workshop record';
 /**
  * The cell's full wording, for its `title`: the cell itself holds only the number. A
  * title read on its own (a hover, a copied cell) still says it is modelled and not a
- * workshop record (guard M16).
+ * workshop record.
  */
 export function kmToNextText(
   kmToNextService: number,

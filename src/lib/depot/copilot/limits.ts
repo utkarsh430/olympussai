@@ -44,7 +44,7 @@ export const VALUE_LIST_MARK = ';';
 export const MIN_JOINING_WORD_LETTERS = 2;
 
 /**
- * Ruling S38. Words that can act as a unit, a period or a rate: refused, in any
+ * Words that can act as a unit, a period or a rate: refused, in any
  * form the endings build, directly before or after a figure placeholder.
  */
 export const FIGURE_UNIT_WORDS: readonly string[] =

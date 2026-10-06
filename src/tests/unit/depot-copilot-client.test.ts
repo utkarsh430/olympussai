@@ -94,7 +94,7 @@ describe('requestCopilot', () => {
         { depotId: '101', depotName: 'KANPUR' },
       ],
     },
-  ])('accepts the scope the answer used (round 8 A): %j', async (answerScope) => {
+  ])('accepts the scope the answer used: %j', async (answerScope) => {
     stub(200, { ...GOOD, answerScope });
     expect(await requestCopilot(BODY)).toEqual({ ok: true, response: { ...GOOD, answerScope } });
   });

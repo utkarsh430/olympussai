@@ -12,7 +12,7 @@ export type KillGroup = (pid: number) => void;
  * SIGKILL to the child's whole process group (the child is spawned detached).
  * Node never gives a child pid 0 or 1, but `-0` would be the server's own group
  * and `-1` every process the user owns, so anything but a pid above 1 sends
- * nothing (review L1).
+ * nothing.
  */
 export const killProcessGroup: KillGroup = (pid) => {
   if (!Number.isSafeInteger(pid) || pid <= 1) return;
@@ -42,7 +42,7 @@ const killQuietly = (child: KillableChild): void => {
  * normal case after a clean exit and is ignored; any other failure falls back to
  * the child itself. A child with no pid never started, so it has no group.
  *
- * Accepted residual (review L2): on a clean exit this runs after `close`, so
+ * Accepted residual: on a clean exit this runs after `close`, so
  * after Node reaped the leader. If no group member survives, the pgid is free,
  * and in theory a new process could take that pid and lead a group of its own
  * in the few event-loop turns before this kill. While any grandchild survives,

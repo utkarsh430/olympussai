@@ -47,7 +47,7 @@ describe('depotScopeLine', () => {
   it('is empty when each depot has one', () => {
     expect(lineFor([e('a', 'off_road_high'), e('b', 'off_road_high')])).toBe('');
   });
-  // Capture item 8: "65 exceptions in 61 depots" beside groups totalling 63. The line is
+  // It once read "65 exceptions in 61 depots" beside groups totalling 63. The line is
   // counted from the groups the page draws, so it adds up with them at every moment.
   it('adds up with the severity groups when a depot holds both levels', () => {
     const list = [

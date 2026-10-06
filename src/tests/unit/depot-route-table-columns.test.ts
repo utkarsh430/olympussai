@@ -46,7 +46,7 @@ describe('the route table columns', () => {
     expect(visibleRouteColumns([unknown, known]).map((c) => c.key)).toContain('profile');
   });
 
-  it('draws the reduced sets of critique §7 at 1024 and 800', () => {
+  it('draws the reduced sets at 1024 and 800', () => {
     const keys = (rows: readonly (typeof ROUTE_FIXTURE)[], width: 'wide' | 'lg' | 'base') =>
       columnsAtWidth(visibleRouteColumns(rows), width).map((c) => c.key);
     expect(keys([ROUTE_FIXTURE], 'base')).toEqual(['route', 'depot', 'buses', 'trips', 'median']);

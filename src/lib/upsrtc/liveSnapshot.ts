@@ -25,7 +25,7 @@ export interface LiveSnapshot {
   /** Server ISO time the snapshot was built. */
   readonly fetchedAt: string;
   /**
-   * The feed clock (ruling S56a): the newest upstream `receivedAt` not later
+   * The feed clock: the newest upstream `receivedAt` not later
    * than the fetch time read in Indian time plus FEED_CLOCK_MAX_LEAD_MIN.
    */
   readonly feedNow: string | null;
@@ -157,7 +157,7 @@ interface DepotProjection {
 
 /**
  * The depot projection depends on the payload and the fetch time only: the
- * fetch bounds how far ahead a receive time may set the feed clock (S56a).
+ * fetch bounds how far ahead a receive time may set the feed clock.
  */
 function projectDepot(payload: unknown, fetchedAtMs: number): DepotProjection {
   const rows = normalizeDepotRows(payload).rows;
@@ -209,7 +209,7 @@ function loadFixture(): FixtureProjection {
   const counts = normalizeLivePayload(payload, 0);
   return {
     payload,
-    // No upper limit (P3): the sample's clock is its own newest receive time, never "ahead"
+    // No upper limit: the sample's clock is its own newest receive time, never "ahead"
     // of this machine's clock, which may even be set before the sample was captured.
     depot: projectDepot(payload, Number.POSITIVE_INFINITY),
     recordCount: counts.recordCount,

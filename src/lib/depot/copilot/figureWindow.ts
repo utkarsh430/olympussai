@@ -72,7 +72,7 @@ function afterAllowed(after: readonly string[]): boolean {
 }
 
 /**
- * Ruling S49 M1. Within FIGURE_WINDOW_WORDS words of a figure (inside its
+ * Within FIGURE_WINDOW_WORDS words of a figure (inside its
  * clause, commas crossed) only the reviewed BEFORE and AFTER words may stand;
  * anywhere in the clause, no negation, rate maker, aggregate, limiter or day
  * shift may. Names and other figures are skipped: the between-figure rules

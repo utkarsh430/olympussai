@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { answerScopeLabel, answerTableView, scopeMismatchLine } from '@/lib/depot/copilot/ui/answerLayout';
 
 /*
- * Round 2 (ask, rulings 7 to 9): the scope chip shows the scope the answer used; the
+ * The scope chip shows the scope the answer used; the
  * evidence table puts units in headers with bare right-aligned numbers, and a column whose
- * figures are generated carries MODELLED (guard X8).
+ * figures are generated carries MODELLED.
  */
 describe('answerScopeLabel', () => {
   it('shows the scope the answer used, not the form', () => {
@@ -52,7 +52,7 @@ describe('answerTableView', () => {
 
   it('tags a column from the response provenance, whatever the answer text cites', () => {
     // The text cited only the count and the total: no row fact was sent, yet the column
-    // the server marks modelled still carries the tag (guard R2-I2).
+    // the server marks modelled still carries the tag.
     const view = answerTableView({ ...shortBy, provenance: [null, 'modelled'] });
     expect(view.columns[1]?.tag).toBe('modelled');
     expect(view.columns[0]?.tag).toBeNull();

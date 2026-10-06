@@ -3,23 +3,23 @@
 import Link from 'next/link';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
 import { FiguresDisclosure } from '@/components/depot/maintenance/FiguresDisclosure';
-import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import {
   crewDisclosure,
   EMPTY_CREW_REMEDY,
   emptyCrewSentence,
   modelledStatement,
-  SOURCES_HREF,
 } from '@/lib/depot/crew/crewPageModel';
 import { modelledDayLine } from '@/lib/depot/modelledDayLine';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { useDepotCrew } from '@/hooks/useDepotCrew';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { AvailabilityHero } from './AvailabilityHero';
 import { CrewHeader, type CrewProvenance } from './CrewHeader';
 import { RosterSection } from './RosterSection';
 import { UncoveredShifts } from './UncoveredShifts';
+import { SOURCES_PATH } from '@/lib/depot/nav';
 
 /** Placeholder footprint: coverage line, bars, then the two sections. */
 const LOADING_ROWS = 10;
@@ -61,7 +61,7 @@ export function CrewPage({ provenance }: CrewPageProps) {
       </>
     );
   }
-  const stale = data.stale || error ? <StaleStrip since={data.feedNow} /> : null;
+  const stale = data.stale || error ? <StaleNotice since={data.feedNow} /> : null;
   if (data.summary.shiftsRequired === 0) {
     // Crew C: the panel's own sentence names the date, so the header adds no second one.
     return (
@@ -74,7 +74,7 @@ export function CrewPage({ provenance }: CrewPageProps) {
             sentence={emptyCrewSentence(data.operatingDate)}
             remedy={EMPTY_CREW_REMEDY}
             action={
-              <Link href={SOURCES_HREF} className="depot-link">
+              <Link href={SOURCES_PATH} className="depot-link">
                 Data sources
               </Link>
             }

@@ -14,7 +14,7 @@ import {
 } from './window';
 
 /*
- * The holder of the rolling score window (ruling S42): the only state the
+ * The holder of the rolling score window: the only state the
  * Depot Efficiency Index keeps between snapshots.
  *
  * DEPENDS ON HISTORY (summed over the samples of the last SCORE_WINDOW_MIN
@@ -26,14 +26,14 @@ import {
  * KPIs, bus exceptions, `power_cut_cluster`, the `affected` and `fleet` counts
  * of a depot exception, and peer-group membership (present fleet size).
  *
- * What each kind of snapshot does (`observeDepots`, rulings S50b and S56b):
+ * What each kind of snapshot does (`observeDepots`):
  *  - Newer feed time than any seen: one sample per depot is added, every
  *    depot's list is pruned at that feed time, and scores use the window.
  *  - A feed time already held (a re-fetch with new rows): that sample is
  *    replaced by the new counts, and scores use the window.
  *  - An older feed time still inside the window (upstream answered from an
  *    older cache, as seen live): inserted in feed-time order and scored on the
- *    window as it then stands, up to its own feed time (N7).
+ *    window as it then stands, up to its own feed time.
  *  - A feed time more than one window behind the newest (a straggler, see
  *    epoch.ts): scored on its own counts; the store is not touched. A run of
  *    stragglers that is coherent and lasting (epoch.ts: at least three, each
@@ -67,7 +67,7 @@ import {
 
 export interface ScoreWindowStore {
   lastFeedMs: number | null;
-  /** The current run of stragglers (ruling S56b, P1); null when there is none. */
+  /** The current run of stragglers; null when there is none. */
   behindRun: BehindRun | null;
   readonly byDepot: Map<string, readonly DepotSample[]>;
 }
@@ -152,7 +152,7 @@ function addSamples(
   capDepots(store);
 }
 
-/** Offers a snapshot to the store (ruling S56b); true when it is now part of the window. */
+/** Offers a snapshot to the store; true when it is now part of the window. */
 function offerSamples(
   store: ScoreWindowStore,
   depots: readonly DepotSummary[],
@@ -197,7 +197,7 @@ export function observeDepots(
   const values = new Map<string, ComponentValues>();
   const windows = new Map<string, ScoreWindow>();
   for (const depot of depots) {
-    // Only samples in [feedMs - window, feedMs] (N7): a late snapshot is never scored on, or
+    // Only samples in [feedMs - window, feedMs]: a late snapshot is never scored on, or
     // states a span reaching, samples newer than itself; the newest is unaffected.
     const held = useStore ? pruneSamples(store.byDepot.get(depot.id) ?? [], feedMs) : [];
     if (held.length === 0) {

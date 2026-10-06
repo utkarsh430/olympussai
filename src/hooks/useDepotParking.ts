@@ -3,7 +3,8 @@
 import type { ParkingResponse } from '@/lib/depot/yard/parkingApi';
 import { isValidDepotId } from '@/lib/depot/ids';
 import { usePolledJson, type PolledState } from '@/hooks/usePolledJson';
-import { DEPOT_NOT_FOUND_MESSAGE, INVALID_DEPOT_ID_MESSAGE } from '@/hooks/useDepotDetail';
+import { INVALID_DEPOT_ID_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 
 const NOT_FOUND = 404;
 const BAD_REQUEST = 400;

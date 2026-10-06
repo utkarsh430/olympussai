@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
-import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { useDepotDistribution, type DepotDistributionState } from '@/hooks/useDepotDistribution';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import type { DepotDistributionResponse } from '@/lib/depot/api';
@@ -25,7 +25,7 @@ import { BalanceSummary } from './BalanceSummary';
 import { BalanceTable } from './BalanceTable';
 import { DecisionTrail } from './DecisionTrail';
 import { CollapsedSection } from '@/components/depot/shell/CollapsedSection';
-import { RecommendationNotice, WhatIfStrip } from './PageIntro';
+import { RecommendationNotice, WhatIfNotice } from './RebalanceNotices';
 import { RebalanceMethod } from './RebalanceMethod';
 import { ScenarioCompare } from './ScenarioCompare';
 import { ScenarioPanel } from './ScenarioPanel';
@@ -126,9 +126,9 @@ export function Distribution({
   const maxBuses = view.rows.reduce((m, r) => Math.max(m, r.buses), 0);
   return (
     <div className="flex min-w-0 flex-col">
-      {data.stale || state.error ? <StaleStrip since={data.feedNow} /> : null}
+      {data.stale || state.error ? <StaleNotice since={data.feedNow} /> : null}
       <RecommendationNotice fixture={data.source === 'fixture'} />
-      <WhatIfStrip sentence={view.sentence} onReset={reset} />
+      <WhatIfNotice sentence={view.sentence} onReset={reset} />
       <BalanceSummary summary={view.summary} scenarioActive={view.key !== null} />
       {view.delta ? (
         <ScenarioCompare delta={view.delta} baseline={view.baselineSummary} scenario={view.summary} />

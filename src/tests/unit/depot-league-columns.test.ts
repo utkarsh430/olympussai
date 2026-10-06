@@ -83,7 +83,7 @@ describe('league column order', () => {
   });
 });
 
-/** Table frames measured in the capture (round 4): 1440 → 1,158px, 1024 → 774px, 800 → 750px. */
+/** Table frames measured in a browser: 1440 → 1,158px, 1024 → 774px, 800 → 750px. */
 describe('league table width against its frame, so no column is cut and nothing scrolls sideways', () => {
   it.each([
     ['phone', 360 - 32 - 2],

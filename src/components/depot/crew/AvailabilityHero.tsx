@@ -66,7 +66,7 @@ function RoleBar({
   const segments = availabilitySegments(counts);
   return (
     <div className="min-w-0">
-      {/* One mono label, as a group row reads (critique round 5, section 6). */}
+      {/* One mono label, as a group row reads. */}
       <h3 className="depot-label mb-2 tabular-nums" data-testid="crew-role-label">
         {roleBarLabel(title, totalSlots(counts))}
       </h3>

@@ -4,7 +4,7 @@ import { Pager, ShowAllButton, ShowMore } from '@/components/depot/shell/LongLis
 
 afterEach(cleanup);
 
-/** One pager and one "Show all" (design critique round 4, F). */
+/** One pager and one "Show all". */
 describe('Pager', () => {
   it('prints the only count on the page, with thousands separators, in mono', () => {
     render(<Pager page={0} total={1936} onPage={() => {}} />);

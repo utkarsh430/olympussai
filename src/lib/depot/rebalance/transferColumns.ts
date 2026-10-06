@@ -8,9 +8,9 @@ import {
 /*
  * The transfer table's columns and widths. At `xl` the transfer plan is split 55% table
  * and 45% map, so at 1440 the table frame is about 624px wide: every column below must fit
- * in it, uncut (design critique round 4, fleet distribution Must 1). There is no "Why?"
+ * in it, uncut. There is no "Why?"
  * column: the row opens its expanded row, which holds the rationale, the giver's surplus and
- * the receiver's shortfall before and after, and the decision controls (round 5, Must 2).
+ * the receiver's shortfall before and after, and the decision controls.
  */
 
 export interface TransferColumn {
@@ -63,7 +63,7 @@ export interface SpareFigures {
 /**
  * The giver's surplus and the receiver's shortfall immediately before and after this one
  * transfer (`transferRows` carries the running balances), as one sentence for the expanded
- * row. "Surplus", not "spare": the spare target is a different count (review R2-m15).
+ * row. "Surplus", not "spare": the spare target is a different count.
  * Never below zero after.
  */
 export function spareBeforeAfter(row: SpareFigures): string {

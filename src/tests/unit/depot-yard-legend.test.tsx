@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { YardMapKey, YardMapNote } from '@/components/depot/yard/YardMapLegend';
 
-// Rewritten for round 2 of the design wave: the key (state swatches, marker shapes, what
+// The key (state swatches, marker shapes, what
 // the circle is) moved inside the map's bottom-left on a 90% surface chip; the drawn-count
 // caption is the one sans line under the map. Every assertion of the old caption row is
 // kept, split across the two pieces.

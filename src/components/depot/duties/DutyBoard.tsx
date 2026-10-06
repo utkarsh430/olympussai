@@ -61,7 +61,7 @@ function ViewToggle({ view, onView }: {
  * The page's one hero: the day's duties on a timeline in a fixed-height pane, with a
  * toggle to the same rows as a table; below 640 px the table is the default view. The whole section is the modelled
  * matching beside real registrations on a MIXED page, so its label carries the MODELLED
- * tag (ruling S51); the band and the notes are its caption. Each switch is announced.
+ * tag; the band and the notes are its caption. Each switch is announced.
  */
 export function DutyBoard({ depotId, rows, feedNow, figures, notes }: DutyBoardProps) {
   const narrow = useTableFirst();

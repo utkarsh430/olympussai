@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
-import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { HowProduced as ClosingDisclosure } from '@/components/depot/shell/HowProduced';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotNetwork';
@@ -89,7 +89,7 @@ export function YardPage() {
   const baysPending = !parking.data && parking.loading && !parking.error;
   return (
     <div className="depot-stack min-w-0">
-      {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
+      {data.stale || error ? <StaleNotice since={data.feedNow} /> : null}
       <YardFigures model={model} capacity={capacity} baysPending={baysPending} />
       {model.established ? (
         <MapSection model={model} feedNow={data.feedNow} />

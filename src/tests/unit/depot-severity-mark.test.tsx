@@ -4,7 +4,7 @@ import { SeverityMark } from '@/components/depot/shell/SeverityMark';
 
 afterEach(cleanup);
 
-/** One severity treatment (design critique round 4, H). */
+/** One severity treatment. */
 describe('SeverityMark', () => {
   it.each([
     ['critical', 'Critical', 'bg-alert-crimson'],

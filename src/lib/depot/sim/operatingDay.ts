@@ -53,7 +53,7 @@ function isAvailable(view: DepotBusView): boolean {
   return view.state !== 'off_road' && view.state !== 'dark';
 }
 
-/** Off the road or dark first; then held out of the matching (review m-g); else no duty left. */
+/** Off the road or dark first; then held out of the matching; else no duty left. */
 function idleReason(view: DepotBusView, heldOut: ReadonlySet<string>): DayIdleBus['reason'] {
   if (!isAvailable(view)) return 'unavailable';
   return heldOut.has(view.registrationNumber) ? 'held_out' : 'no_duty';
@@ -94,8 +94,8 @@ function toMatch(duty: Duty, bus: ModelledBus): Match {
 }
 
 /**
- * The depot's one MODELLED day for an operating date (ruling S41), read off
- * the depot's one duty plan (ruling S47): its duties, and for each duty the
+ * The depot's one MODELLED day for an operating date, read off
+ * the depot's one duty plan: its duties, and for each duty the
  * bus the plan matched to it. A bus with a duty runs its route out and back;
  * every other bus of the plan's fleet does not run (`DayIdleBus` says why) and
  * has no distance, so

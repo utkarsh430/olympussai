@@ -96,7 +96,7 @@ describe('getLiveSnapshot', () => {
     expect(snapshot.fetchedAt).toBe(new Date(T0).toISOString());
   });
 
-  it('sets the feed clock from the fetch time read in Indian time and counts later rows (S56a)', async () => {
+  it('sets the feed clock from the fetch time read in Indian time and counts later rows', async () => {
     const ist = (offsetMin: number): string =>
       new Date(T0 + (330 + offsetMin) * 60_000).toISOString().replace('.000Z', 'Z');
     const base = LIVE_PAYLOAD[0]!;

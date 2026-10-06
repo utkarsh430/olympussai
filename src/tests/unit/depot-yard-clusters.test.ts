@@ -16,9 +16,9 @@ import {
 
 const HERE = { x: 0, y: 0 };
 /**
- * Most layouts here put a stand within 300 m of the yard's group, so Ruling S46 now makes
+ * Most layouts here put a stand within 300 m of the yard's group, so the merging of near groups now makes
  * them one place. What they pin is the clustering beneath that merge, so they apply the
- * rule with an adjacency of 0, as it stood before; what S46 decides is stated beside them.
+ * rule with an adjacency of 0, as it stood before; what the merge decides is stated beside them.
  */
 const BEFORE_MERGE = 0;
 const DIAGONAL = Math.SQRT1_2;
@@ -65,7 +65,7 @@ describe('single buses never join two places', () => {
     [5, true],
     [6, false],
     [8, false],
-  ])('under Ruling S46, with %i buses between, takes the stand in: %s', (between, joins) => {
+  ])('with near groups merged, with %i buses between, takes the stand in: %s', (between, joins) => {
     // Each group takes the two chain buses next to it. With five between, the yard's group
     // ends 280 m short of the stand's; with six, 420 m short, and they stay two places.
     const { standRows, all } = joined({ x: 1, y: 0 }, between, justUnderLink);
@@ -181,7 +181,7 @@ describe('a bus bordering two places', () => {
     expect(members.filter((reg) => reg.startsWith('S') || reg === 'Z-Q')).toEqual([]);
   });
 
-  it('is moot under Ruling S46: the stand stands within 300 m, so both are one place', () => {
+  it('is moot with near groups merged: the stand stands within 300 m, so both are one place', () => {
     for (const xEast of [195, 205]) {
       const rows = contested(xEast);
       expect(membersOf(rows)).toEqual(regs(rows));

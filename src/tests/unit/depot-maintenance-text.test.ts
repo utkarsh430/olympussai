@@ -81,7 +81,7 @@ describe('preventive sentences', () => {
   });
 
   it('words the distance to the next service for the cell title, overdue or not', () => {
-    // Round 3 (M16): every title also says it is not a workshop record.
+    // Every title also says it is not a workshop record.
     expect(kmToNextText(-3400)).toBe('Modelled: overdue by 3,400 km; not a workshop record');
     expect(kmToNextText(0)).toBe('Modelled: due now; not a workshop record');
     expect(kmToNextText(800, 1500)).toBe(
@@ -125,7 +125,7 @@ describe('preventive sentences', () => {
 });
 
 describe('column headers', () => {
-  it('carry the unit and no tag (the section label carries the one MODELLED tag, S51)', () => {
+  it('carry the unit and no tag (the section label carries the one MODELLED tag)', () => {
     expect(NEXT_SERVICE_HEADER).toBe('To next service, km');
     expect(NEXT_SERVICE_HEADER).not.toMatch(/modelled/i);
   });

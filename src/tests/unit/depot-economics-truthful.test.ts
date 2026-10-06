@@ -106,7 +106,7 @@ const NO_LENGTH = entry(
   },
   { lengthCoverage: { n: 0, of: 9 } },
 );
-/** Ruling S39: 2 real lengths of 9 routes is a coverage figure; the depot is ranked. */
+/** 2 real lengths of 9 routes is a coverage figure; the depot is ranked. */
 const THIN = entry('6', { rank: 2 }, { lengthCoverage: { n: 2, of: 9 } });
 const SMALL_GROUP = entry('5', { ...UNRANKED, reason: 'peer_group_too_small' });
 const TINY_FLEET = entry('8', { ...UNRANKED, reason: 'fleet_too_small', peerGroup: null }, { fleet: 4 });
@@ -157,13 +157,13 @@ describe('the fuel-only cost column', () => {
 
 describe('an almost empty ranking', () => {
   it('explains itself with counts when fewer than half the operating depots are ranked', () => {
-    // S39: no depot waits for route lengths; the rule left is a duty that ran and the
+    // No depot waits for route lengths; the rule left is a duty that ran and the
     // peer-group size guard (MIN_PEER_GROUP, 5).
     const text = joined(rankingShortfallNotice(operating(1, 6)));
     expect(text).toBe(
       "Only 1 of 6 operating depots are ranked. A depot is ranked when a duty is run in its modelled day and its peer group has at least 5 depots with complete figures. Earnings per kilometre on a route do not depend on its length, but a depot's figures weight its routes by the distance they run, so no depot waits for route profiles to be ranked; a real length, once a route is opened on the Routes page, replaces the modelled one, and can move the depot's figures and its rank.",
     );
-    // The same claim as the length-coverage line on the same page (review I3-rest).
+    // The same claim as the length-coverage line on the same page.
     expect(text).toContain("a depot's figures weight its routes by the distance they run");
     expect(text).not.toMatch(/revenue totals|in this model/);
     expect(text).not.toMatch(/can be ranked|have a known length|a quarter of them/);
@@ -191,7 +191,7 @@ describe('an almost empty ranking', () => {
 describe('a depot without a usable earnings figure', () => {
   const cellOf = (e: EconomicsDepotRow) =>
     buildEconomicsRows([e])[0]?.cells.find((c) => c.key === 'earningsPerKm');
-  // S39: the only missing earnings left is a depot where nothing ran; the cell says so in
+  // The only missing earnings left is a depot where nothing ran; the cell says so in
   // words and every earnings cell carries its real-length coverage, never a dash alone.
   it('writes no kilometres run with its coverage, never a dash alone', () => {
     expect(cellOf(NO_LENGTH)?.valueText).toBe('no kilometres run');

@@ -122,7 +122,7 @@ describe('classifyBusState', () => {
   });
 });
 
-describe('classifyBusState, overnight trips (M2)', () => {
+describe('classifyBusState, overnight trips', () => {
   const AFTER_MIDNIGHT = '2026-10-06T00:30:00.000Z';
   const heard = { gpsTimestamp: '2026-10-06T00:29:00.000Z', speedKmph: 40, routeName: 'R1' };
   const overnight = {
@@ -144,7 +144,7 @@ describe('classifyBusState, overnight trips (M2)', () => {
     expect(classifyBusState(makeRow({ ...quiet, ...overnight }), AFTER_MIDNIGHT)).toBe('on_road');
   });
 
-  it('ignores a trip whose scheduled span exceeds a day, such as a mistyped end date (N8)', () => {
+  it('ignores a trip whose scheduled span exceeds a day, such as a mistyped end date', () => {
     const days = { ...overnight, scheduledEnd: '2026-10-09T03:01:00.000Z' };
     expect(classifyBusState(makeRow({ ...heard, ...days }), AFTER_MIDNIGHT)).toBe('on_road');
     const day = { ...overnight, scheduledEnd: '2026-10-06T16:01:00.000Z' };

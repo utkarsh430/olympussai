@@ -60,8 +60,8 @@ function footprint(
 }
 
 /**
- * One component for every state a block can be in besides "here is the data" (rulings,
- * section 3): empty, loading, error, not ranked, not established and no data. A
+ * One component for every state a block can be in besides "here is the data":
+ * empty, loading, error, not ranked, not established and no data. A
  * surface block with the sentence of what is absent and why, one muted line of what
  * would change it and an action when there is one; it holds the footprint of what it
  * replaces (`rows` or `minHeight`), so the page does not jump, with the text centred in

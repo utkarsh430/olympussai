@@ -10,7 +10,7 @@ import { JUDGEMENT_WORDS } from '@/lib/depot/copilot/vocabulary/judgement';
 import { VERBS } from '@/lib/depot/copilot/vocabulary/verbs';
 
 /**
- * Ruling S26: a list of forbidden words can never be complete, but a list of
+ * A list of forbidden words can never be complete, but a list of
  * allowed words cannot contain a quantity by construction. This is the closed
  * list of words model-written prose may use.
  */

@@ -131,14 +131,14 @@ describe('buildRevenueResponse', () => {
   it('carries the mixed-class pricing rule as a note a page can print', async () => {
     const { notes } = await build(world());
     expect(notes).toContain(MIXED_CLASS_NOTE);
-    // Ruling S41: a route's class is the one its duties carry, taken from the route's name,
+    // A route's class is the one its duties carry, taken from the route's name,
     // and its seats are those of the buses that ran it on the modelled day.
     expect(MIXED_CLASS_NOTE).toMatch(/the class its name states \(ordinary when it states none\)/);
     expect(MIXED_CLASS_NOTE).toMatch(/average across the buses that ran it/);
   });
 
   it('gives earnings per kilometre on every route that ran, on a modelled length when none is known', async () => {
-    // Ruling S39: no withholding for an unknown length. Each route runs on a MODELLED typical
+    // No withholding for an unknown length. Each route runs on a MODELLED typical
     // length, earnings are revenue over the day's service km, and the coverage says 0 of 2 real.
     const { summary, routes } = await build(world());
     expect(summary.lengthCoverage).toEqual({ n: 0, of: 2 });

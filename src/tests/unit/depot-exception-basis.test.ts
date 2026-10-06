@@ -11,7 +11,7 @@ import { buildHistoryResponse } from '@/lib/depot/live/historyView';
 import { buildNetworkResponse } from '@/lib/depot/live/networkView';
 
 /*
- * M6: windowed and as-of-feed-time figures are told apart. Every exception
+ * Windowed and as-of-feed-time figures are told apart. Every exception
  * says which it is, the responses that count them say which kinds are which,
  * and a depot's trend is anchored on the same windowed values the league shows.
  */
@@ -31,7 +31,7 @@ function viewOf(r: readonly DepotBusRow[], feedNow: string): FleetSnapshotView {
   };
 }
 
-describe('exception basis (M6)', () => {
+describe('exception basis', () => {
   beforeEach(() => resetAnalysisForTests());
 
   it('marks peer comparisons as windowed and everything else as of the feed time', () => {

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { PreventiveSection } from '@/components/depot/maintenance/PreventiveSection';
 import type { MaintenanceResponse } from '@/lib/depot/maintenance/api';
 
-/* Round 3, maintenance Must 2: each capped group ends in its own "Show all N ›", never two
+/* Each capped group ends in its own "Show all N ›", never two
  * in one footer line; the group rows keep "Modelled overdue · N" (the status's own word). */
 
 const bus = (i: number, group: 'overdue' | 'due_soon', km: number) => ({
@@ -43,7 +43,7 @@ describe('the preventive groups', () => {
     expect(shown[1]?.label).toMatch(/^Modelled due soon · 6$/i);
     expect(shown.map((s) => s.showAll)).toEqual([['Show all 7›'], ['Show all 6›']]);
     expect(shown.map((s) => s.last)).toEqual(['Show all 7›', 'Show all 6›']);
-    // the per-figure km title says it is modelled and not a workshop record (M16)
+    // the per-figure km title says it is modelled and not a workshop record
     const titles = [...page.querySelectorAll('td span[title]')].map((s) => s.getAttribute('title'));
     expect(titles.length).toBeGreaterThan(0);
     expect(titles.every((t) => t?.endsWith('not a workshop record'))).toBe(true);

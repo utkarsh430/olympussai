@@ -11,7 +11,7 @@ import type { OperatingDay } from '@/lib/depot/sim/operatingDayTypes';
 import type { BusOpState, DepotSummary } from '@/lib/depot/types';
 
 /*
- * Rewritten for ruling S41: the fuel model no longer draws a distance per bus
+ * The fuel model no longer draws a distance per bus
  * (a class figure times a state share); it reads each bus's duty from the
  * modelled operating day. The economy model (class figure, lasting per-vehicle
  * factor, daily noise) is unchanged and is still pinned here.
@@ -22,7 +22,7 @@ const DAY_TWO = '2026-10-07';
 const DEPOT = { id: '7', name: 'Kaushambi', kind: 'depot', fleet: 40 } as unknown as DepotSummary;
 
 function bus(registrationNumber: string, state: BusOpState, routeName: string | null): DepotBusView {
-  // Heard a minute ago, in the yard: a standing bus is then eligible for a duty (ruling S47).
+  // Heard a minute ago, in the yard: a standing bus is then eligible for a duty.
   return {
     registrationNumber, state, routeName, location: 'in_yard', gpsAgeMin: 1, notHeardMin: null,
   } as unknown as DepotBusView;

@@ -19,7 +19,7 @@ afterEach(() => {
   feed.stale = false;
 });
 
-/** The provenance line as drawn (critique round 4, B). */
+/** The provenance line as drawn. */
 describe('ProvenanceLine view', () => {
   it('is 12/20 in the sans face with the tag as a pill', () => {
     render(<ProvenanceLine description={{ default: 'derived' }} />);

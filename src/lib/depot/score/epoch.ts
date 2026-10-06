@@ -1,7 +1,7 @@
 import { SCORE_WINDOW_MIN } from './window';
 
 /*
- * Stragglers and epochs (ruling S56b, amended for P1), one rule for both
+ * Stragglers and epochs, one rule for both
  * holders that outlive a snapshot: the score window and the yard memory.
  *
  * A sample more than one window behind the newest feed time a holder has seen
@@ -29,7 +29,7 @@ import { SCORE_WINDOW_MIN } from './window';
 
 /** The least number of stragglers in a run that starts a new epoch. */
 export const NEW_EPOCH_AFTER_BEHIND = 3;
-/** Feed time a run of stragglers must span before it starts a new epoch (P1). */
+/** Feed time a run of stragglers must span before it starts a new epoch. */
 export const EPOCH_RUN_MIN_SPAN_MS = 3 * 60_000;
 /** Further behind the newest than this, a sample is a straggler. */
 export const BEHIND_AFTER_MS = SCORE_WINDOW_MIN * 60_000;

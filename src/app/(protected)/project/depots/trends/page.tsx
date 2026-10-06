@@ -2,10 +2,10 @@ import { requireProjectSession } from '@/lib/auth/server';
 import { NetworkTrends } from '@/components/depot/trends/NetworkTrends';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import {
-  NETWORK_TRENDS_PATH,
   parseTrendMetric,
   TREND_METRIC_PARAM,
 } from '@/lib/depot/forecast/trendsPageModel';
+import { NETWORK_TRENDS_PATH } from '@/lib/depot/nav';
 
 type SearchParams = Promise<Readonly<Record<string, string | string[] | undefined>>>;
 

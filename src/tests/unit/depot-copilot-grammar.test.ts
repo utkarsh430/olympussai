@@ -31,7 +31,7 @@ const FACTS: readonly CopilotFact[] = [
 const render = (text: string, headline = 'Network briefing'): boolean =>
   renderDraft({ headline, paragraphs: [text] }, FACTS).ok;
 
-/** Every input the round-two security review showed passing; each must be rejected. */
+/** Hostile inputs that once passed; each must be rejected. */
 const HOSTILE: readonly string[] = [
   // Finding 1: placeholders joined by spaces, marks or single letters
   '{{fact:a}} {{fact:b}}',
@@ -79,7 +79,7 @@ const HOSTILE: readonly string[] = [
   'Over a decade.',
   'Within a fortnight.',
   'Umpteen buses.',
-  // Words the review noted and the ruling keeps out
+  // Words the grammar keeps out
   'The punctuality score is high.',
   'Both depots are steady.',
   'The second depot is weak.',
@@ -90,7 +90,7 @@ const HOSTILE: readonly string[] = [
   'DC',
 ];
 
-describe('hostile inputs from the security review', () => {
+describe('hostile inputs', () => {
   it.each(HOSTILE)('rejects %j', (text) => {
     expect(render(text)).toBe(false);
     expect(render('The fleet is steady.', text)).toBe(false); // as a headline too

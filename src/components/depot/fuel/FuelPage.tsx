@@ -3,11 +3,11 @@
 import Link from 'next/link';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
 import { HowProduced } from '@/components/depot/revenue/HowProduced';
-import { ErrorPanel, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, StaleNotice } from '@/components/depot/shell/DataStates';
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import type { ProvenanceDescription } from '@/lib/depot/provenanceLine';
 import { useDepotFuel } from '@/hooks/useDepotFuel';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
@@ -20,10 +20,12 @@ import { modelledDayLine } from '@/lib/depot/modelledDayLine';
 import { ClassTable } from './ClassTable';
 import { FlaggedList } from './FlaggedList';
 import { RouteTable } from './RouteTable';
+import { SOURCES_PATH } from '@/lib/depot/nav';
+import { feedAnchor } from '@/lib/depot/sources/sourcesModel';
 
 /** Placeholder footprint: the band, then the stand-out table, the class table and the routes. */
 const LOADING_ROWS = 14;
-const FUEL_SOURCES_HREF = '/project/depots/sources#feed-fuel';
+const FUEL_SOURCES_HREF = `${SOURCES_PATH}#${feedAnchor('fuel')}`;
 
 /** A modelled day with no distance run: no band and no modelled-day line, one panel. */
 function isEmptyDay(data: FuelResponse): boolean {
@@ -72,7 +74,7 @@ export function FuelPage({ provenance }: { readonly provenance: ProvenanceDescri
 function FuelBody({ data, stale }: { readonly data: FuelResponse; readonly stale: boolean }) {
   return (
     <div className="depot-stack">
-      {stale ? <StaleStrip since={data.feedNow} /> : null}
+      {stale ? <StaleNotice since={data.feedNow} /> : null}
       {isEmptyDay(data) ? (
         <StatePanel
           kind="empty"

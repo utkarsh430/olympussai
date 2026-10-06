@@ -1,6 +1,5 @@
 /**
- * What the two Trends pages print around the shared chart model (rulings S51 and the
- * round-2 decisions for these pages): the section label without a tag in its text, the
+ * What the two Trends pages print around the shared chart model: the section label without a tag in its text, the
  * legend in four plain words, ONE text equivalent that says MODELLED once, the single
  * caption line under the chart, and the table rows with the values to sort by. The
  * shared chart model is read, never changed. Pure.
@@ -56,7 +55,7 @@ function trendPiece(change: TrendChange, span: string, unit: TrendUnit): string 
   return `${change.direction} ${Math.abs(change.change).toFixed(decimals)} ${many} over ${span}`;
 }
 
-/** The table's Kind cell: plain words, never the tag word (R2-m16); the live point says so. */
+/** The table's Kind cell: plain words, never the tag word; the live point says so. */
 export const TRENDS_KIND_WORDS: Readonly<Record<'history' | 'live' | 'forecast', string>> = {
   history: 'History',
   live: 'Now (live)',
@@ -70,7 +69,7 @@ const METHOD_WORDS: Readonly<Record<Forecast['method'], string>> = {
 
 /**
  * The forecast's piece of the visible caption, led by its horizon and method so neither
- * lives only in the closed disclosure (R2-I5): "14-day forecast, seasonal method, within …".
+ * lives only in the closed disclosure: "14-day forecast, seasonal method, within …".
  */
 export function forecastPiece(forecast: Forecast): string {
   const lead = `${forecast.horizonDays}-day forecast, ${METHOD_WORDS[forecast.method]}`;

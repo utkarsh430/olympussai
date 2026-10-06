@@ -61,7 +61,7 @@ function fromInnerControl(event: React.SyntheticEvent): boolean {
 }
 
 /**
- * One body row (design critique round 5): a row that opens something is itself the
+ * One body row: a row that opens something is itself the
  * control. With `onRowSelect` it opens on click, Enter or Space and ends in one muted
  * chevron shown on hover and focus; with an expander (and no `onRowSelect`) the same
  * click and keys open its detail beneath, and the chevron in the first column shows the

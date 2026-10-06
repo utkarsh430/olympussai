@@ -1,8 +1,7 @@
 import { requireProjectSession } from '@/lib/auth/server';
 import { LeagueTable } from '@/components/depot/league/LeagueTable';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
-
-const LEAGUE_PATH = '/project/depots/league';
+import { LEAGUE_PATH } from '@/lib/depot/nav';
 
 /** Depots ranked by the efficiency index within peer groups of similar fleet size. */
 export default async function DepotLeaguePage() {

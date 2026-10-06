@@ -93,7 +93,7 @@ describe('Depot cockpit briefing', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  // Guard review M5: this test rendered the network overview; it now renders the cockpit.
+  // This test rendered the network overview; it now renders the cockpit.
   it('folds the card into one closed row and ends the page with the closed disclosure', () => {
     contexts.detail = {
       ...base,

@@ -15,11 +15,10 @@ import type { DepotSummary } from '@/lib/depot/types';
 import { T0, feedTime, network, seeded, snapshotOf } from './depot-score-window.fixtures';
 
 /*
- * Ruling S50b: the window's content depends only on WHICH snapshots arrived,
+ * The window's content depends only on WHICH snapshots arrived,
  * never on the order they arrived in; a fixture never touches it; a repeated
  * feed time with new rows replaces the stored sample. Stragglers and epochs
- * (ruling S56b, which replaced S50b's one-sample epoch) are pinned in
- * depot-score-window-epoch.test.ts.
+ * are pinned in depot-score-window-epoch.test.ts.
  */
 
 const WINDOW_S = SCORE_WINDOW_MIN * 60;
@@ -41,8 +40,8 @@ function feed(
 const contentOf = (store: ScoreWindowStore): string =>
   JSON.stringify([...store.byDepot].sort(([a], [b]) => (a < b ? -1 : 1)));
 
-describe('score window holder: arrival order (I1)', () => {
-  it('inserts a late sample inside the window and scores it only on samples up to its own time (N7)', () => {
+describe('score window holder: arrival order', () => {
+  it('inserts a late sample inside the window and scores it only on samples up to its own time', () => {
     const snaps = snapshotsAt([0, 40, 100, 60]);
     const store = createScoreWindowStore();
     feed(store, snaps, [0, 40, 100]);
@@ -77,7 +76,7 @@ describe('score window holder: arrival order (I1)', () => {
     expect([...(b?.windows ?? [])]).toEqual([...(a?.windows ?? [])]);
   });
 
-  it('a fresh store equals one that also saw samples since aged out (M10)', () => {
+  it('a fresh store equals one that also saw samples since aged out', () => {
     const times = Array.from({ length: 120 }, (_, i) => i * 15);
     const snaps = snapshotsAt(times);
     const last = times[times.length - 1] ?? 0;
@@ -94,7 +93,7 @@ describe('score window holder: arrival order (I1)', () => {
   });
 });
 
-describe('score window holder: epochs, fixtures and repeats (I2)', () => {
+describe('score window holder: epochs, fixtures and repeats', () => {
   it('never lets a fixture snapshot touch the store, first or later', () => {
     const snaps = snapshotsAt([0, 40]);
     const empty = createScoreWindowStore();
@@ -135,7 +134,7 @@ describe('score window holder: epochs, fixtures and repeats (I2)', () => {
   });
 });
 
-describe('score window holder: what it states and its bounds (I6, M8)', () => {
+describe('score window holder: what it states and its bounds', () => {
   it('states the minutes actually covered beside the configured length', () => {
     const snaps = snapshotsAt([0, 300, 630]);
     const store = createScoreWindowStore();

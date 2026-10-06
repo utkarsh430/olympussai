@@ -12,9 +12,9 @@ import { modelledRevenueRepository } from '@/lib/depot/repositories/modelledReve
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
 
 /*
- * Review C1: a registration the feed repeats (the same text twice, or once
+ * A registration the feed repeats (the same text twice, or once
  * with a trailing space) must not give the duty board and crew one day and
- * fuel and revenue another. Both scenarios of the review, through the real
+ * fuel and revenue another. Both scenarios, through the real
  * response builders.
  */
 
@@ -77,7 +77,7 @@ async function pages(depotId: string) {
   return { board, crew, fuel, revenue };
 }
 
-describe('a repeated registration gives every page the same day (review C1)', () => {
+describe('a repeated registration gives every page the same day', () => {
   it('(a) a repeat that first appears without a route: every page shows the same duties', async () => {
     const { board, crew, fuel, revenue } = await pages('7');
     expect(fuel.day).toEqual(revenue.day);

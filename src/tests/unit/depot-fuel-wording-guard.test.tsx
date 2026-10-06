@@ -13,7 +13,7 @@ import * as fuelStandOut from '@/lib/depot/fuel/fuelStandOut';
 import * as modelledDayLine from '@/lib/depot/modelledDayLine';
 
 /*
- * Guard review X9: the fuel page states a variance, never a cause and never a person.
+ * The fuel page states a variance, never a cause and never a person.
  * (1) Every export of every fuel module that builds text is called with every probe, so a
  * new export is covered without being listed (and fails if no probe reaches it). (2) The
  * source of every fuel module, component and the page file is scanned. (3) The rendered
@@ -24,7 +24,7 @@ const PEOPLE_AND_BLAME =
   /theft|thieve|pilfer|misuse|\bsteal|\bstole|siphon|\bleak|tamper|driver|driving|conductor|\bcrew|\boperators?\b|\bfault|\bblam|negligen|\babus|fraud|simulated/i;
 
 /*
- * Guard review R2-I4: a stated mechanical or operating cause is as forbidden as a person.
+ * A stated mechanical or operating cause is as forbidden as a person.
  * "Load factor" is the revenue page's measure and lives outside these modules; on the fuel
  * page "load" can only be a cause.
  */
@@ -33,7 +33,7 @@ const MECHANICAL_AND_OPERATING_CAUSES =
 
 const BANNED = new RegExp(`${PEOPLE_AND_BLAME.source}|${MECHANICAL_AND_OPERATING_CAUSES.source}`, 'i');
 
-/** Every word R2-I4 names, in a form the guard must catch. */
+/** Every cause word, in a form the guard must catch. */
 const PLANTED_CAUSES = [
   'engine',
   'tyre',
@@ -239,7 +239,7 @@ describe('the rendered fuel page, with its titles and labels', () => {
 });
 
 describe('the rendered fuel page states the shortfall and prints no raw date', () => {
-  it('in the band caption (R2-m8), and with no YYYY-MM-DD in text, titles or labels', async () => {
+  it('in the band caption, and with no YYYY-MM-DD in text, titles or labels', async () => {
     hooks.fuel = { data: response(true, true), error: null, loading: false, refresh: vi.fn() };
     const host = document.createElement('div');
     const root = createRoot(host);

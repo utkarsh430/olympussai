@@ -1,7 +1,7 @@
 import { words } from '@/lib/depot/copilot/vocabulary/function';
 
 /*
- * Ruling S49 M1. A true figure must not be placed in a false sentence by the
+ * A true figure must not be placed in a false sentence by the
  * words around it. Two closed lists say which words may stand within
  * FIGURE_WINDOW_WORDS words of a figure; anything else there is refused, so a
  * word added to the vocabulary later cannot open a hole near a figure. Neither
@@ -36,7 +36,7 @@ export const STATE_PREPOSITION = 'in';
 
 /**
  * Refused anywhere in a figure's clause: negation, rate makers, aggregates,
- * limiters, day shifts, and (closing review M-A) the quantifiers and period
+ * limiters, day shifts, and the quantifiers and period
  * words that would stretch one depot's figure to many depots or to a period.
  * Every figure is as of the feed time, for the scope its fact names, so none
  * of these can be true of one.

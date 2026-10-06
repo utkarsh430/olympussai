@@ -123,7 +123,7 @@ export const centreOf = (yard: Yard): XY => toMetres(yard.lat, yard.lng, ORIGIN.
 
 /**
  * Registration numbers forming the yard, or null when none is claimed. Pass an
- * `adjacentM` of 0 for the rule before Ruling S46 merged near groups.
+ * `adjacentM` of 0 for the rule without the merging of near groups.
  */
 export function membersOf(
   rows: readonly DepotBusRow[],

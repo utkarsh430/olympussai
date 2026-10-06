@@ -158,7 +158,7 @@ function detailBody(analysis: SnapshotAnalysis, depotId: string): DepotDetailBod
     depot,
     score: analysis.scoresById.get(depotId) ?? null,
     yard: yardFigure(yards.get(depotId) ?? null),
-    // Absent for the fixture and the unassigned group (P2): 0 there would not mean "just started".
+    // Absent for the fixture and the unassigned group: 0 there would not mean "just started".
     ...(seen === undefined ? {} : { yardSnapshotsSeen: seen }),
     buses,
     locationMix: locationMixOf(buses),

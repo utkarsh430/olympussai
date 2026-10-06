@@ -3,7 +3,7 @@ import type { DepotSummary } from '../types';
 import type { DeiComponentKey, ScoreWindow } from './types';
 
 /*
- * The pure half of the rolling score window (ruling S42). One snapshot of a
+ * The pure half of the rolling score window. One snapshot of a
  * live feed is a noisy sample of a depot's rates: over seven snapshots 40 s
  * apart the index moved by a median of 2.8 points and ranks by 3 places. The
  * index is therefore scored on each depot's counts SUMMED over the snapshots
@@ -101,7 +101,7 @@ export function pruneSamples(
 }
 
 /**
- * The list after seeing `sample` (ruling S50b): inserted in feed-time order,
+ * The list after seeing `sample`: inserted in feed-time order,
  * replacing a sample with the same feed time (a re-fetch with new rows), then
  * pruned at the newest feed time held. For samples within one window of one
  * another the result depends only on which were seen, not on their order;

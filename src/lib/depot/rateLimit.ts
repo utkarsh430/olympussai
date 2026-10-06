@@ -156,7 +156,7 @@ function ipv6Groups(text: string): readonly number[] | null {
 }
 
 /**
- * Ruling S49 M2a. An IPv6 client is keyed on its /64, which one holder
+ * An IPv6 client is keyed on its /64, which one holder
  * controls whole; an IPv4-mapped address on its IPv4 form; IPv4 as it is. A
  * value that passes the character check but does not parse is kept as written,
  * exactly as before.
@@ -184,7 +184,7 @@ function addressKey(address: string): string {
  * `DEPOT_TRUSTED_IP_HEADER`, which must be set only behind a proxy that
  * overwrites that header on every request: a directly reachable app would let
  * the client write its own address. Limiters key on this value alone, so a new
- * login from the same address gains nothing (ruling S37).
+ * login from the same address gains nothing.
  */
 export function requestAddress(
   headers: Headers,

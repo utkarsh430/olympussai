@@ -1,5 +1,5 @@
 /*
- * The preventive table's columns per width and their widths (round 3), so no column is
+ * The preventive table's columns per width and their widths, so no column is
  * cut at 1440, 1280 or 1024, and each narrower width shows a deliberate set; what a set
  * drops is in the row expander. Every group's table uses the same widths, so the groups
  * line up. Widths in px; the shared table's expander is its FIRST column, 24 px (the

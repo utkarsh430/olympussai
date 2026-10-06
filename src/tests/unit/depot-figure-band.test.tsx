@@ -14,7 +14,7 @@ function band(): void {
   );
 }
 
-/** FigureBand (design critique round 4, D): fixed-width, left-packed, 24px figures. */
+/** FigureBand: fixed-width, left-packed, 24px figures. */
 describe('FigureBand', () => {
   it('gives every figure a fixed width from 1024px and never stretches it to fill the row', () => {
     band();

@@ -1,11 +1,11 @@
 'use client';
 
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
-import { ErrorPanel, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, StaleNotice } from '@/components/depot/shell/DataStates';
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import type { ProvenanceDescription } from '@/lib/depot/provenanceLine';
 import { useDepotRevenue } from '@/hooks/useDepotRevenue';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
@@ -67,7 +67,7 @@ function RevenueBody({ data, stale }: { readonly data: RevenueResponse; readonly
   const empty = data.summary.trips <= 0;
   return (
     <div className="depot-stack">
-      {stale ? <StaleStrip since={data.feedNow} /> : null}
+      {stale ? <StaleNotice since={data.feedNow} /> : null}
       {empty ? (
         <StatePanel kind="empty" sentence={noTripsSentence(data.day)} remedy={NO_TRIPS_REMEDY} />
       ) : (

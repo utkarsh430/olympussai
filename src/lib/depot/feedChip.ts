@@ -9,8 +9,8 @@ import type { Provenance } from './types';
  * as fresh as the feed, so it reads LIVE. STALE means the last good data is
  * being shown during an outage. FEED QUIET means the upstream answers but its newest
  * report trails the fetch by more than `FEED_QUIET_AFTER_MIN`. CHECK CLOCK means the feed is live but enough
- * reports are stamped ahead of the server's clock that the feed clock may lag
- * (P4). The age goes in `title` and screen-reader text.
+ * reports are stamped ahead of the server's clock that the feed clock may lag.
+ * The age goes in `title` and screen-reader text.
  */
 
 export type FeedChipTone = 'live' | 'stale' | 'fixture' | 'neutral';
@@ -27,7 +27,7 @@ export interface FeedChipData {
   readonly recordCount?: number;
 }
 
-/** From this share of a response's rows stamped ahead, the feed clock may lag (P4). */
+/** From this share of a response's rows stamped ahead, the feed clock may lag. */
 export const FEED_CLOCK_AHEAD_WARN_SHARE = 0.01;
 /** Never fewer ahead rows than this before the chip warns, however small the response. */
 export const FEED_CLOCK_AHEAD_WARN_MIN_ROWS = 20;
@@ -102,7 +102,7 @@ function received(data: FeedChipData, nowMs: number): string {
 
 /**
  * When enough rows are stamped later than the server's clock allows, the feed clock was
- * read from the newest row that is not, so it may lag a slow server clock (P4). The
+ * read from the newest row that is not, so it may lag a slow server clock. The
  * sentence that says so, or null below the share. Never for the saved sample.
  */
 function clockWarning(data: FeedChipData): string | null {

@@ -30,10 +30,10 @@ function randomDepot(seed: number, areasApartM = 0): DepotBusRow[] {
 }
 
 const SEEDS = Array.from({ length: 400 }, (_, i) => i + 1);
-/** The rule without the S46 merge: no group is close enough to join another. */
+/** The rule without the merging of near groups: no group is close enough to join another. */
 const withoutMerge = (rows: readonly DepotBusRow[]): YardGroup | null => inferYardGroup(rows, 0);
 
-describe('merging adjacent groups never takes a yard away (Ruling S46)', () => {
+describe('merging adjacent groups never takes a yard away', () => {
   it('keeps every yard the old rule found, with every bus it held', () => {
     let kept = 0;
     let grown = 0;
@@ -81,7 +81,7 @@ describe('the merged yard does not depend on how the feed lists its buses', () =
 
   /*
    * Not asserted: that a repeated row changes nothing. The rule counts rows, so a row
-   * listed twice is two buses at one spot, before Ruling S46 and after it. The feed's
+   * listed twice is two buses at one spot, with near groups merged or not. The feed's
    * registrations are unique once normalised (see live/analysis.ts), and a test elsewhere
    * (depot-parking-view) builds its yard from twelve rows that share one registration and
    * one position, so dropping exact repeats here would need that fixture changed first.

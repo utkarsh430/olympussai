@@ -4,7 +4,7 @@ import type { CopilotFact } from '@/lib/depot/copilot/types';
 import type { ScoreWindow } from '@/lib/depot/score/types';
 
 /**
- * Review I7. An efficiency index (and the rank built on it) is summed over a
+ * An efficiency index (and the rank built on it) is summed over a
  * rolling window, not read off one snapshot, so the copilot states the window
  * wherever it states an index or rank. `coveredMin`, the minutes the samples
  * really span, is being added to the response by another unit: optional here,

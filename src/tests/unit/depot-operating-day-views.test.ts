@@ -70,7 +70,7 @@ describe('one modelled day behind every page', () => {
       expect(entry?.score.missing).toEqual([]);
       expect(entry?.lengthCoverage.n).toBe(0);
     }
-    // No route has a profile here, and the depots are still ranked (ruling S39).
+    // No route has a profile here, and the depots are still ranked.
     expect(economics.depots.filter((d) => d.score.ranked).length).toBeGreaterThanOrEqual(5);
   });
 
@@ -87,7 +87,7 @@ describe('one modelled day behind every page', () => {
     }
   });
 
-  it('names the date, says how the day is rebuilt, and never says today or ran (review M2, M6)', () => {
+  it('names the date, says how the day is rebuilt, and never says today or ran', () => {
     expect(
       modelledDaySentence({ scheduled: { n: 5, of: 200 }, duties: 158, routes: 14, operatingDate: '2026-10-06' }),
     ).toBe(

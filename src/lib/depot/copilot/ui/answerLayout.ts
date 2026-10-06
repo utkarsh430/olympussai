@@ -71,7 +71,7 @@ function splitCell(cell: string): { readonly figure: string; readonly unit: stri
  * A column's tag comes from the provenance the server computed for it from every fact that
  * fills the table (`table.provenance`), never from matching cells against the facts the
  * answer's text happened to cite: an answer that cites only a total still tags its
- * generated column (guard R2-I2).
+ * generated column.
  */
 function columnTag(table: CopilotAnswerTable, column: number): Provenance | null {
   return table.provenance?.[column] === 'modelled' ? 'modelled' : null;

@@ -156,7 +156,7 @@ export interface NoYardPanel {
 /**
  * The panel that takes the map's place. At 0 or 1 snapshots a missing yard is not yet
  * evidence of anything. The count restarts with the yard memory (a new epoch, a long
- * absence), so the sentence states the count and claims nothing about why it is low (P2).
+ * absence), so the sentence states the count and claims nothing about why it is low.
  */
 export function noYardPanel(model: YardModel, snapshotsSeen: number | undefined): NoYardPanel {
   const n = model.parkedWithPosition;

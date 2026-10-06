@@ -1,5 +1,5 @@
 import { ErrorPanel, LoadingBlock } from '@/components/depot/shell/DataStates';
-import { TREND_CHART_MIN_HEIGHT, TrendChart } from '@/components/depot/shared/TrendChart';
+import { TREND_CHART_MIN_HEIGHT, TrendChart } from '@/components/depot/trendChart/TrendChart';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { NO_FORECAST_REMEDY, noTrendSentence } from '@/lib/depot/forecast/trendsPageModel';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
@@ -24,7 +24,7 @@ function stateSentence(data: NonNullable<DepotForecastState['data']>): string | 
  * The page's hero: one metric's MODELLED history ending on the live value, its forecast
  * with the band, and the one caption line (the shared chart, worded by `buildTrendsChartView`:
  * the history is generated beside a real unit, so the section label carries the one
- * MODELLED tag, ruling S51, and nothing under it repeats the word). When no forecast is
+ * MODELLED tag, and nothing under it repeats the word). When no forecast is
  * possible the chart still draws the history and one state panel says why, with the date
  * of a gap when a gap is the reason; a forecast is never drawn from too little history.
  */

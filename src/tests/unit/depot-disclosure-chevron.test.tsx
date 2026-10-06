@@ -15,7 +15,7 @@ function expectMutedChevron(): void {
   expect(chevron.className).not.toContain('holo');
 }
 
-/** One disclosure glyph and one colour (critique round 4, G): the chevron, muted. */
+/** One disclosure glyph and one colour: the chevron, muted. */
 describe('disclosure glyph', () => {
   it('HowProduced uses the shared chevron', () => {
     render(<HowProduced paragraphs={['A sentence.']} />);

@@ -3,7 +3,7 @@ import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { formatCount } from '@/lib/depot/format';
-import { DEPOTS_ROOT } from '@/lib/depot/nav';
+import { EXCEPTIONS_PATH } from '@/lib/depot/nav';
 import {
   busScopeLine,
   depotScopeLine,
@@ -13,8 +13,6 @@ import {
 } from '@/lib/depot/network/exceptionScope';
 import type { ExceptionKindRow } from '@/lib/depot/network/overviewModel';
 import type { ExceptionKind, ExceptionSeverity } from '@/lib/depot/exceptions/types';
-
-export const EXCEPTIONS_HREF = `${DEPOTS_ROOT}/exceptions`;
 
 /** The band's own top rule is dropped: the rule sits above the label, as on /exceptions. */
 const BAND = 'border-t border-depot-line pt-2 [&>div]:border-t-0';
@@ -29,7 +27,7 @@ function KindBand({ label, rows }: { readonly label: string; readonly rows: read
     <div className={BAND} data-testid="depot-exception-band">
       <h3 className="depot-label">
         {/* A plain mono label that leads to the page: underlined on hover and focus only. */}
-        <Link href={EXCEPTIONS_HREF} className="hover:underline focus-visible:underline">
+        <Link href={EXCEPTIONS_PATH} className="hover:underline focus-visible:underline">
           {label}
         </Link>
       </h3>

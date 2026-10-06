@@ -31,7 +31,7 @@ function lengthColumn(allDerived: boolean): Column<RevenueTableRow> {
     header: 'Route length',
     unit: 'km',
     align: 'right',
-    // Every length from a real profile: the column carries DERIVED once (ruling S51).
+    // Every length from a real profile: the column carries DERIVED once.
     ...(allDerived ? { tag: 'derived' as const } : {}),
     sortValue: (r) => r.lengthKm,
     title: (r) => `${r.lengthRounded} km${r.lengthDerived ? ', from a real route profile' : ''}`,
@@ -39,7 +39,7 @@ function lengthColumn(allDerived: boolean): Column<RevenueTableRow> {
   };
 }
 
-/** Mixed lengths: where each came from, in plain muted words (M14: no tag in a cell). */
+/** Mixed lengths: where each came from, in plain muted words (no tag in a cell). */
 const BASIS_COLUMN: Column<RevenueTableRow> = {
   key: 'basis',
   header: 'Basis',

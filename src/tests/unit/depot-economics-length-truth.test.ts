@@ -8,7 +8,7 @@ import { modelRidershipDay } from '@/lib/depot/sim/ridership';
 import type { DepotSummary } from '@/lib/depot/types';
 
 /*
- * Review I3: the sentence about route lengths must say what the model does.
+ * The sentence about route lengths must say what the model does.
  * Change one route's length and watch: the route's own earnings per km stay,
  * the depot's (a distance-weighted mean over its routes) moves.
  */
@@ -35,7 +35,7 @@ function revenueWith(agraKm: number) {
 
 const ROW = { kind: 'depot', lengthCoverage: { n: 1, of: 2 } } as unknown as EconomicsDepotRow;
 
-describe('the route-length sentence matches the model (review I3)', () => {
+describe('the route-length sentence matches the model', () => {
   it('a length leaves a route’s earnings per km alone and moves the depot’s', () => {
     const short = revenueWith(120);
     const long = revenueWith(400);

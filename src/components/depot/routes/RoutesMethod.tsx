@@ -15,7 +15,7 @@ import { PROFILE_LOAD_CAP, UPSTREAM_COST } from '@/lib/depot/routes/profileLoade
  * The page's closing disclosure: everything the plan panel used to say, said once (depot
  * positions, dead kilometres, trips, the thresholds, how route details are fetched and
  * what each costs, the coverage and the counts of routes that stay or fall outside the
- * plan). Rendered in every state, so how details are fetched is never lost (M8).
+ * plan). Rendered in every state, so how details are fetched is never lost.
  */
 export function RoutesMethod({ allocation }: { readonly allocation: DepotAllocationResponse | null }) {
   const h = allocation === null ? null : allocationHeadline(allocation);

@@ -1,8 +1,7 @@
 import { requireProjectSession } from '@/lib/auth/server';
 import { RebalancePage } from '@/components/depot/rebalance/RebalancePage';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
-
-const REBALANCE_PATH = '/project/depots/rebalance';
+import { REBALANCE_PATH } from '@/lib/depot/nav';
 
 /** Buses each depot has against the buses it needs, and the transfers recommended between them. */
 export default async function FleetDistributionPage() {

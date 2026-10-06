@@ -128,7 +128,7 @@ describe('fleet distribution page', () => {
       'Approved 5 buses Agra to Kanpur. Recorded only; nothing dispatched.',
     );
     expect(container.textContent).toContain('Approved for 5 buses');
-    // Approve is a toggle: pressed for the recorded decision (capture round 5, item 12).
+    // Approve is a toggle: pressed for the recorded decision.
     expect(button('Approve').getAttribute('aria-pressed')).toBe('true');
     expect(button('Reject').getAttribute('aria-pressed')).toBe('false');
     expect(container.querySelector('[data-testid="transfer-decision-word"]')?.textContent).toBe(
@@ -396,8 +396,8 @@ describe('page layout', () => {
   });
 });
 
-describe('provenance tags on the visible page (ruling S51)', () => {
-  it('tags the generated before-and-after band once, on its label line, and no figure (R2-m17)', async () => {
+describe('provenance tags on the visible page', () => {
+  it('tags the generated before-and-after band once, on its label line, and no figure', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     const band = container.querySelector('[data-testid="rebalance-summary"]');
     const figures = band?.querySelectorAll('li') ?? [];

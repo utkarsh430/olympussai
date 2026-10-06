@@ -86,7 +86,7 @@ export const BUS_KIND_SEVERITY: Readonly<Record<BusExceptionKind, ExceptionSever
 
 /**
  * Which kinds are compared over the rolling score window and which are as of
- * the feed time (M6). Severity counts add both; a screen states which is which.
+ * the feed time. Severity counts add both; a screen states which is which.
  * Frozen: the one table is placed in every memoised response body.
  */
 export const EXCEPTION_BASIS: Readonly<Record<ExceptionKind, ExceptionBasis>> = Object.freeze({

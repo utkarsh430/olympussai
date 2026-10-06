@@ -24,8 +24,8 @@ import { adjacentPlace } from './yardPlace';
  * one group; any other bus within that distance of a core bus borders that
  * group and belongs to it, but links nothing further.
  *
- * Groups whose nearest buses stand within YARD_ADJACENT_M are one place (Ruling
- * S46, see yardPlace.ts): the place starts as the largest group and takes in
+ * Groups whose nearest buses stand within YARD_ADJACENT_M are one place
+ * (see yardPlace.ts): the place starts as the largest group and takes in
  * every group within that distance of it, then of what it has taken in, unless
  * that would make it more than YARD_MAX_SPAN_M across. Real yards are compact:
  * the largest group spans 150 m at the median and 376 m at most, and the
@@ -68,7 +68,7 @@ import { adjacentPlace } from './yardPlace';
 /** Two parked buses this close stand in the same group. */
 export const YARD_LINK_M = 150;
 /**
- * Two groups whose nearest buses stand this close are one place (Ruling S46).
+ * Two groups whose nearest buses stand this close are one place.
  * Twice the link distance: a compound's two parking areas were measured 126 m
  * apart, so the link joins them only as the buses at the edges come and go,
  * while every pair of groups seen without a yard stood 0.8 km or more apart.

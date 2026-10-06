@@ -18,7 +18,7 @@ const METRIC_LABEL: Readonly<Record<RankMetric, string>> = {
   scheduled: 'Schedule coverage',
 };
 
-/** Round 8: what a one-measure question was understood to ask, before the depot's name. */
+/** What a one-measure question was understood to ask, before the depot's name. */
 const MEASURE_LABEL: Readonly<Record<DepotMeasure, (name: string) => string>> = {
   dark: (name) => `Buses that are dark at ${name}`,
   offRoad: (name) => `Buses that are off the road at ${name}`,

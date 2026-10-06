@@ -3,7 +3,7 @@ import { NETWORK_NAV, type DepotNavGroup } from './nav';
 import { depotScopeState } from './scopeState';
 
 /**
- * Navigation model for the shell (rulings, section 4): which groups the left rail shows
+ * Navigation model for the shell: which groups the left rail shows
  * from 1280px, and what the single strip shows below 1280px. One decision for both, so
  * the rail and the strip never disagree about the scope. Pure, so it is tested.
  */

@@ -72,7 +72,7 @@ describe('overview KPI band', () => {
       /On-road share (steady|up|down)[^]*over 7 days; dark rate (steady|up|down)[^]*over 7 days\./,
     );
     expect(markup).toMatch(/<p class="depot-caption[^"]*" data-testid="depot-kpi-trends"/);
-    // Round 2: the tag is drawn once, never repeated in the words.
+    // The tag is drawn once, never repeated in the words.
     expect(markup.match(/data-provenance="modelled"/g)).toHaveLength(1);
     expect(text(note).match(/MODELLED/g)).toHaveLength(1);
     expect(markup).not.toContain('data-provenance="live"');
@@ -101,8 +101,8 @@ describe('cockpit availability bar', () => {
       metric: 'onRoadShare',
       scope: { kind: 'depot', depotId: '20' },
     });
-    // Round 2 (critique, cockpit Must 3): the week line is the section label's note, the word
-    // in lower case inside an ordinary sentence (round 3), once, and not inside the legend.
+    // The week line is the section label's note, the word
+    // in lower case inside an ordinary sentence, once, and not inside the legend.
     const label = markup.slice(0, markup.indexOf('depot-availability-bar'));
     expect(text(label)).toMatch(/Modelled week trend: on-road share .* over 7 days/);
     expect(text(label)).not.toMatch(/MODELLED/);

@@ -77,8 +77,8 @@ describe('analysis across snapshots', () => {
     // New rows with a feed time already seen (a re-fetch): that sample is replaced, not added.
     buildNetworkResponse(viewOf(rowsAt(at(1), 12, 6), at(1)));
     expect(samplesHeld()).toBe(2);
-    // An older snapshot inside the window is inserted in feed-time order (S50b) and
-    // scored on the samples up to its own feed time (N7).
+    // An older snapshot inside the window is inserted in feed-time order and
+    // scored on the samples up to its own feed time.
     const older = buildNetworkResponse(viewOf(rowsAt(at(0.5), 12, 6), at(0.5)));
     expect(older.scoreWindow).toMatchObject({ since: at(0), samples: 2, coveredMin: 0 });
     expect(samplesHeld()).toBe(3);

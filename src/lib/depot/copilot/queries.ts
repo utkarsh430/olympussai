@@ -12,7 +12,7 @@ const depotId = z.string().refine(isValidDepotId, 'Not a valid depot id');
 
 export const UNSUPPORTED_REASONS = ['out_of_scope', 'people', 'ambiguous_depot'] as const;
 const RANK_METRICS = ['index', 'onRoad', 'offRoad', 'dark', 'scheduled'] as const;
-/** Round 8: the single figures a question may ask for at one depot. */
+/** The single figures a question may ask for at one depot. */
 export const DEPOT_MEASURES = [
   'dark',
   'offRoad',

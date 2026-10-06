@@ -105,7 +105,7 @@ describe('buildFuelResponse', () => {
   it('asks the repository for this depot buses on the feed operating date', async () => {
     const { repo, fuelDay } = stub(baseDays);
     await buildFuelResponse(view(world()), '1', repo);
-    // S41: the repository is asked with the depot's modelled operating day, not a bus list.
+    // The repository is asked with the depot's modelled operating day, not a bus list.
     const [asked] = fuelDay.mock.calls[0] as unknown as [
       { operatingDate: string; depotId: string; fleet: number },
     ];

@@ -1,9 +1,9 @@
 'use client';
 
-import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
-import { chartDisclosureParagraphs, NETWORK_TRENDS_PATH } from '@/lib/depot/forecast/trendsPageModel';
+import { chartDisclosureParagraphs } from '@/lib/depot/forecast/trendsPageModel';
 import type { MetricKey } from '@/lib/depot/sim/types';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { useDepotForecast } from '@/hooks/useDepotForecast';
@@ -11,6 +11,7 @@ import { useDepotTrends } from '@/hooks/useDepotTrends';
 import { ForecastBlock } from './ForecastBlock';
 import { MetricChooser } from './MetricChooser';
 import { UnitTrendTable } from './UnitTrendTable';
+import { NETWORK_TRENDS_PATH } from '@/lib/depot/nav';
 
 /** Placeholder rows for the unit table: a first page of rows. */
 const TABLE_LOADING_ROWS = 10;
@@ -41,7 +42,7 @@ export function NetworkTrends({ metric }: NetworkTrendsProps) {
     <div className="flex flex-col gap-8">
       <div className="flex min-w-0 flex-col gap-3">
         <MetricChooser path={NETWORK_TRENDS_PATH} metric={metric} />
-        {stale ? <StaleStrip since={forecast.data?.feedNow ?? trends.data?.feedNow ?? null} /> : null}
+        {stale ? <StaleNotice since={forecast.data?.feedNow ?? trends.data?.feedNow ?? null} /> : null}
         <ForecastBlock state={forecast} errorTitle="Could not load the network trend" />
       </div>
       <section aria-labelledby="trends-units-heading" className="min-w-0">

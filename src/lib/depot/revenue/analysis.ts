@@ -50,7 +50,7 @@ function totalsOf(rows: readonly RouteRevenueFigure[]): DepotRevenueTotals {
 }
 
 /**
- * Earnings per kilometre for every route that ran (ruling S39: under this model
+ * Earnings per kilometre for every route that ran (under this model
  * they are seats x load factor x fare per km and do not depend on the length),
  * and depot totals. All figures MODELLED; a real length is DERIVED, a modelled
  * one says so, and `lengthCoverage` counts the real ones. Output order never

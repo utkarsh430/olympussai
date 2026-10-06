@@ -41,7 +41,7 @@ describe('AnswerView layout', () => {
         </ol>,
       ),
     );
-    // Round 2: the question line, then "Understood as" directly under it as its own muted
+    // The question line, then "Understood as" directly under it as its own muted
     // line, both in the first block; the headline starts a separate block.
     const parts = Array.from(container.querySelectorAll('li > *')).map((el) => el.textContent ?? '');
     expect(parts[0]).toContain('Which depots are dark?');

@@ -56,7 +56,7 @@ describe('formatting', () => {
     expect(formatLoadFactor(null)).toBe('—');
   });
   it('words the earnings coverage in singular and plural', () => {
-    // Ruling S39: a coverage figure of real lengths, never a reason to hide a number.
+    // A coverage figure of real lengths, never a reason to hide a number.
     expect(coverageSentence({ n: 1, of: 2 })).toBe(
       'Lengths: 1 of 2 routes from real route profiles, the rest modelled',
     );
@@ -66,7 +66,7 @@ describe('formatting', () => {
     expect(coverageSentence({ n: 0, of: 0 })).toBe('No route runs in the modelled day');
   });
   it('withholds earnings only when nothing ran, and says so', () => {
-    // The unknown-length reason is gone (S39); the one left is a route with no kilometres.
+    // The unknown-length reason is gone; the one left is a route with no kilometres.
     expect(withheldSentence('no_service_km')).toBe(
       'No duty on this route had a bus in the modelled day, so it runs no kilometres and has no earnings per kilometre.',
     );
@@ -161,7 +161,7 @@ describe('modelledStatement', () => {
     expect(text).toContain('₹1.10');
     expect(text).toContain('premium ₹2.80');
     expect(text).toContain('25%');
-    // The flat fare is gone (S39): a route without a profile runs on a typical class length.
+    // The flat fare is gone: a route without a profile runs on a typical class length.
     expect(text).not.toMatch(/flat fare/i);
     expect(text).toMatch(/typical length for its class \(MODELLED\)/);
   });

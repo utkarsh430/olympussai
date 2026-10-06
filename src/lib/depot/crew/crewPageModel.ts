@@ -20,8 +20,6 @@ export const ROSTER_NOTE =
 export const SLOT_NOTE =
   'Slot numbers only reflect the order in which the roster picked them and say nothing about a person.';
 
-export const SOURCES_HREF = '/project/depots/sources';
-
 export const AVAILABILITY_ORDER: readonly CrewAvailability[] = [
   'available',
   'weekly_off',
@@ -113,7 +111,7 @@ export function availabilityText(role: CrewRole, counts: AvailabilityCounts): st
 /**
  * The modelled day, in words, for a sentence that stands on the page: dated when the
  * response gave its operating date. The day is a model rebuilt from the live fleet, so
- * no sentence on this page says "today" (review M2).
+ * no sentence on this page says "today".
  */
 export function modelledDayPhrase(operatingDate?: string): string {
   return operatingDate === undefined

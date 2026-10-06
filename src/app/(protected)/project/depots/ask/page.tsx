@@ -2,11 +2,10 @@ import { requireProjectSession } from '@/lib/auth/server';
 import { AskPanel } from '@/components/depot/copilot/AskPanel';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
-
-const ASK_PATH = '/project/depots/ask';
+import { ASK_PATH } from '@/lib/depot/nav';
 
 /**
- * Guard X8: rankings, depot summaries and exceptions are computed from the live feed;
+ * Rankings, depot summaries and exceptions are computed from the live feed;
  * shortfalls, spare buses and transfers rest on modelled requirement figures, so the page
  * declares MIXED and a generated evidence column carries its own MODELLED tag.
  */

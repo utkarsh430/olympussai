@@ -18,7 +18,7 @@ export interface ModelledDayReference {
 }
 
 /*
- * Tense-neutral and dated (review M2, M6): the day is a model for an operating
+ * Tense-neutral and dated: the day is a model for an operating
  * date, rebuilt from the live fleet as of the feed time, so no sentence says
  * "today" or that a bus "ran". Every sentence keeps the word "modelled".
  */

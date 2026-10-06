@@ -19,7 +19,7 @@ export function RecommendationNotice({ fixture }: { readonly fixture: boolean })
   );
 }
 
-export interface WhatIfStripProps {
+export interface WhatIfNoticeProps {
   /** The what-if sentence, or null while the server plan shows (then nothing renders). */
   readonly sentence: string | null;
   readonly onReset: () => void;
@@ -32,11 +32,11 @@ export const RESET_LABEL = 'Reset to the server plan';
 /**
  * While a what-if shows: the page says so in this ONE compact line, with the page's one
  * reset. It sticks directly below the shell's sticky layers (`--depot-sticky-top`: below
- * the top bar and, under 900px, the navigation strip, whose z-index is higher), so it never
+ * the top bar and, below 1280px, the navigation strip, whose z-index is higher), so it never
  * covers the navigation; its height is the shell's intro height, one line. A long what-if
  * truncates, its full text in `title`.
  */
-export function WhatIfStrip({ sentence, onReset }: WhatIfStripProps) {
+export function WhatIfNotice({ sentence, onReset }: WhatIfNoticeProps) {
   if (!sentence) return null;
   const full = `${WHAT_IF_LEAD} ${sentence}`;
   return (

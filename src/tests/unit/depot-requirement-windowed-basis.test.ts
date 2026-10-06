@@ -6,7 +6,7 @@ import { modelBalances, windowedOnRoadShares } from '@/lib/depot/sim/requirement
 import type { DepotSummary } from '@/lib/depot/types';
 
 /*
- * Ruling S63, the pure model: which on-road share each depot's requirement reads.
+ * The pure model: which on-road share each depot's requirement reads.
  * The windowed share where there is one, else the depot's single-snapshot share,
  * else the peer median; and the peer median is of those same shares.
  */
@@ -36,7 +36,7 @@ const DEPOTS = [depot('1', 72, 60), depot('2', 40, 30), depot('3', 40, 25), depo
 const peakOf = (balances: ReturnType<typeof modelBalances>, id: string): number =>
   balances.find((b) => b.depotId === id)?.peakRequirement ?? NaN;
 
-describe('the shares the requirement reads (S63)', () => {
+describe('the shares the requirement reads', () => {
   it('with the scores of one snapshot equals the single-snapshot rule exactly', () => {
     const windowed = windowedOnRoadShares(scoreDepots(DEPOTS));
     expect(modelBalances(DEPOTS, NO_YARDS, DATE, P, windowed)).toEqual(

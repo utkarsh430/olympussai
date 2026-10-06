@@ -11,7 +11,7 @@ export interface AnswerTableProps {
 /**
  * The rows behind an answer: a real table, every cell display text. Units sit in the
  * header ("SHORT BY BUSES"), numbers are bare and right-aligned, and a column whose
- * figures the server marks generated (`table.provenance`) carries the MODELLED pill in its header cell (S51, guard X8).
+ * figures the server marks generated (`table.provenance`) carries the MODELLED pill in its header cell.
  */
 export function AnswerTable({ table, caption }: AnswerTableProps) {
   if (table.columns.length === 0 || table.rows.length === 0) {

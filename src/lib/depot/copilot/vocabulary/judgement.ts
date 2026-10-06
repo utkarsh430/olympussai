@@ -1,7 +1,7 @@
 import { words } from '@/lib/depot/copilot/vocabulary/function';
 
 /*
- * Closing review M-B (round 9). The copilot never states a cause for a fuel
+ * The copilot never states a cause for a fuel
  * variance, never blames or characterises a person, and never raises a safety
  * or urgency alarm. A sentence without a figure meets no figure rule, so these
  * words are kept out of the closed vocabulary altogether: none is listed, and

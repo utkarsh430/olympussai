@@ -4,7 +4,7 @@ import type { DepotSummary } from '../types';
 import type { ServiceClass } from './types';
 
 /*
- * The one modelled operating day of a depot (ruling S41). Crew, fuel and
+ * The one modelled operating day of a depot. Crew, fuel and
  * revenue all read this record, so their counts reconcile: duties = trips =
  * buses that ran (less any duties without a bus), and the distance the buses
  * covered is the service distance of the routes.
@@ -91,7 +91,7 @@ export interface OperatingDayInput {
   readonly yardEstablished?: boolean;
   /** Minutes past midnight on the feed clock, for the matcher's time-fit tier; none by default. */
   readonly feedMinute?: number | null;
-  /** As of when the plan is made; overrides `feedMinute` (ruling S55). */
+  /** As of when the plan is made; overrides `feedMinute`. */
   readonly now?: PlanNow;
 }
 

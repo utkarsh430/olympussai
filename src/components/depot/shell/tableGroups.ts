@@ -2,7 +2,7 @@ import { formatCount } from '@/lib/depot/format';
 
 /**
  * A repeated column (peer group, status, severity) printed once as a group row instead
- * of on every row (design critique round 4, K). The page drops that column and passes
+ * of on every row. The page drops that column and passes
  * this to `DataTable`'s `group`.
  */
 export interface TableGrouping<T> {

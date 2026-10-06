@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import Link from 'next/link';
-import { Sparkline } from '@/components/depot/shared/Sparkline';
+import { Sparkline } from '@/components/depot/trendChart/Sparkline';
 import { DisclosureChevron } from '@/components/depot/shell/DisclosureChevron';
 import { depotHref } from '@/lib/depot/depotNav';
 import { unitSparkLabel, type TrendTableRow } from '@/lib/depot/forecast/trendsTableModel';

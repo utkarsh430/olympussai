@@ -9,7 +9,7 @@ import {
 import { FUEL_VARIANCE_FLAG_PCT } from '@/lib/depot/fuel/types';
 
 /*
- * X3: the variance is FUEL USED PER KILOMETRE against the peers' median. A bus that
+ * The variance is FUEL USED PER KILOMETRE against the peers' median. A bus that
  * stands out uses MORE fuel per kilometre. The note, the headers and every cell say it
  * in that one direction: the consumption columns rise with the variance.
  */

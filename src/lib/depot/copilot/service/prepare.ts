@@ -79,7 +79,7 @@ function prepareAsk(question: string, scope: CopilotScope, view: FleetSnapshotVi
   };
 }
 
-/** Round 8 A: the scope the answer is about, from the typed query; none for a refusal. */
+/** The scope the answer is about, from the typed query; none for a refusal. */
 function answerScopeOf(
   query: CopilotQuery,
   nameOf: (id: string) => string,

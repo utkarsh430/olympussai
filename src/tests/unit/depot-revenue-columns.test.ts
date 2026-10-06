@@ -50,7 +50,7 @@ describe('revenue BY ROUTE column sets', () => {
   });
 });
 
-describe('the length basis in plain words (M14)', () => {
+describe('the length basis in plain words', () => {
   it('shows a BASIS column only when lengths are mixed, with "Profile" or "Model"', () => {
     expect(revenueTableShape(MIXED).lengthsMixed).toBe(true);
     expect(revenueColumnKeys('wide', revenueTableShape(MIXED))).toContain('basis');

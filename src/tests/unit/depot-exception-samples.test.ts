@@ -9,7 +9,7 @@ import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysi
 import { buildExceptionsResponse } from '@/lib/depot/live/exceptionView';
 
 /*
- * N9: a windowed depot exception carries the number of snapshots its depot was
+ * A windowed depot exception carries the number of snapshots its depot was
  * scored on, so a page words one on a depot new to the window by its own
  * samples, not by the network's widest window. Nit: the shared basis table
  * placed in every memoised body is frozen.
@@ -24,7 +24,7 @@ function viewOf(r: readonly DepotBusRow[], feedNow: string): FleetSnapshotView {
   return { rows: r, feedNow, fetchedAt: feedNow, source: 'live', stale: false, recordCount: r.length };
 }
 
-describe('per-depot samples on depot exceptions (N9)', () => {
+describe('per-depot samples on depot exceptions', () => {
   beforeEach(() => resetAnalysisForTests());
 
   it("states each windowed exception's own depot samples on the exceptions response", () => {

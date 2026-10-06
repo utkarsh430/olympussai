@@ -42,7 +42,7 @@ export function UncoveredShifts({ shifts, total }: UncoveredShiftsProps) {
   return (
     <section aria-labelledby="depot-crew-uncovered-heading" className="min-w-0 animate-rise">
       {/* Generated shifts and a model's reasons beside real routes: the label carries the
-          MODELLED tag (ruling S51, review R2-I3), never a cell or a header. */}
+          MODELLED tag, never a cell or a header. */}
       <SectionLabel
         id="depot-crew-uncovered-heading"
         label="Uncovered shifts"

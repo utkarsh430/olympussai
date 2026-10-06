@@ -5,9 +5,9 @@ import { applyYardContinuity, createYardMemoryStore } from '@/lib/depot/infer/ya
 import { blob, type XY } from './depot-yard.fixtures';
 
 /*
- * Ruling S56b for the yard memory (N4): a snapshot more than one window behind
+ * Stragglers in the yard memory: a snapshot more than one window behind
  * the newest is decided against the memory and never writes it; a run of such
- * snapshots that spans three minutes (P1) starts a new epoch (the memory is
+ * snapshots that spans three minutes starts a new epoch (the memory is
  * emptied, then written),
  * so a clock that really went back does not leave the memory read-only, with
  * entries from the future deciding every depot, for hours. The fixture never
@@ -31,7 +31,7 @@ function step(store: Store, rows: DepotBusRow[], feedNow: string, fixture = fals
 
 const yardLng = (store: Store): number | undefined => store.byDepot.get('1')?.yard.lng;
 
-describe('yard memory epochs (S56b, N4)', () => {
+describe('yard memory epochs', () => {
   it('starts a new epoch once a run of snapshots a window behind spans three minutes', () => {
     const store = createYardMemoryStore();
     // The clock ran 5 h 30 ahead, and the memory learned yard A there.

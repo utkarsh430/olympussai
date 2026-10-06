@@ -4,7 +4,7 @@ import DepotDutiesPage from '@/app/(protected)/project/depots/d/[depotId]/duties
 import { DutyPage } from '@/components/depot/duties/DutyPage';
 import type { DutyBoardResponse } from '@/lib/depot/duties/api';
 import { COST_SENTENCE, MODEL_NOTICE } from '@/lib/depot/duties/dutyBoardModel';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 
 const hook = vi.hoisted(() => ({ value: null as unknown }));
 
@@ -94,7 +94,7 @@ const STATES: readonly (readonly [string, Record<string, unknown>])[] = [
   ['data', { data: BASE }],
 ];
 
-describe('the duty page in every state (guard X1)', () => {
+describe('the duty page in every state', () => {
   beforeEach(() => setHook({}));
 
   it.each(STATES)('declares MIXED with its clauses and says nothing is assigned (%s)', async (_n, p) => {
@@ -109,7 +109,7 @@ describe('the duty page in every state (guard X1)', () => {
     expect(text(markup)).not.toContain('Assigned');
   });
 
-  // Rewritten for round 3: the ONE modelled-day formula (modelledDayLine) with the plain
+  // The ONE modelled-day formula (modelledDayLine) with the plain
   // date and the feed's schedule coverage; the raw ISO date never reaches the screen.
   it('puts the dated modelled-day sentence in the provenance line, and nowhere else', async () => {
     setHook({ data: BASE });
@@ -129,7 +129,7 @@ describe('the duty page in every state (guard X1)', () => {
     expect(attributes.join(' ')).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 
-  // R2-m4: each state's body is pinned, not only the header.
+  // Each state's body is pinned, not only the header.
   it('loading: the board footprint with its words', async () => {
     setHook({ loading: true });
     const markup = await renderPage();

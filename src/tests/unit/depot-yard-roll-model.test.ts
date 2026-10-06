@@ -135,7 +135,7 @@ describe('awayRows and unknownRows', () => {
 });
 
 describe('noYardPanel', () => {
-  // P2: the count restarts after an epoch, so the sentence claims only what it knows.
+  // The count restarts after an epoch, so the sentence claims only what it knows.
   it('says how many snapshots it has decided the yard on when it has seen at most one', () => {
     const at = (seen: number): string =>
       noYardPanel(model({ established: false, parkedWithPosition: 4 }), seen).sentence;

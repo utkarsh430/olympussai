@@ -2,7 +2,7 @@ import type { Provenance } from '../types';
 import { ROUTE_TABLE_FRAME_1440_PX } from './routeTableColumns';
 
 /**
- * The recommended-moves table's columns (critique round 5, routes Must 1): short headers,
+ * The recommended-moves table's columns: short headers,
  * one MODELLED tag on the section label instead of a pill per header, and a DERIVED tag
  * only on the two dead-km columns, which differ from it. Widths include the cell padding
  * and sum within the 1440 frame, so SAVING KM/DAY is named in full and never cut.

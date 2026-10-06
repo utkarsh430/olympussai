@@ -251,7 +251,7 @@ describe('buildCockpit outshedding tracker', () => {
     expect(by.get('UP-ENDED')).toMatchObject({ label: 'Window ended', minutes: null });
   });
 
-  it('never prints raw minutes above an hour (R2-m5)', () => {
+  it('never prints raw minutes above an hour', () => {
     const long = buildTracker(
       [
         row('UP-O', 'overdue', '2026-10-06T01:00:00Z', { minutesOverdue: 135 }),

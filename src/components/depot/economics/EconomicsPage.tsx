@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ErrorPanel, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, StaleNotice } from '@/components/depot/shell/DataStates';
 import { Checkbox, FilterRow, SearchField } from '@/components/depot/shell/Controls';
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
@@ -36,10 +36,8 @@ import { REVENUE_MODEL_PARAMS } from '@/lib/depot/sim/revenueConfig';
 import { EconomicsBreakdown } from './EconomicsBreakdown';
 import { EconomicsGrid } from './EconomicsGrid';
 import { breakdownButtonName } from '@/lib/depot/revenue/economicsLayout';
+import { LEAGUE_PATH, ROUTES_PATH, SOURCES_PATH } from '@/lib/depot/nav';
 
-const LEAGUE_PATH = '/project/depots/league';
-const ROUTES_PATH = '/project/depots/routes';
-const SOURCES_PATH = '/project/depots/sources';
 const HOW_ID = 'economics-how';
 const REPLACED_BY = 'each of the fuel issue, odometer, ticketing and route master feeds';
 
@@ -166,7 +164,7 @@ function EconomicsBody({
 
   return (
     <div className="depot-stack min-w-0">
-      {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
+      {data.stale || error ? <StaleNotice since={data.feedNow} /> : null}
       {panel ? (
         <StatePanel
           kind="not-ranked"

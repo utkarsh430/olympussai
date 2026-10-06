@@ -136,7 +136,7 @@ describe('transferRows', () => {
   });
 
   it('gives each transfer the balance immediately before it, in the order the table lists them', () => {
-    // Meerut gives in two transfers; Bhaisali receives in two (review R2-I1).
+    // Meerut gives in two transfers; Bhaisali receives in two.
     const twice: TransferPlan = {
       ...PLAN,
       transfers: [

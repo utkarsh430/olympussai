@@ -10,7 +10,7 @@ import { DEFAULT_REQUIREMENT_PARAMS } from '@/lib/depot/sim/config';
 import { modelBalances } from '@/lib/depot/sim/requirement';
 
 /*
- * Ruling S63: the requirement reads each depot's on-road share over the rolling
+ * The requirement reads each depot's on-road share over the rolling
  * score window, and the peer median of those, not the single snapshot's. Pages
  * loaded a minute apart then rest on (nearly) the same modelled day.
  */
@@ -67,7 +67,7 @@ function snapshot(k: number): FleetSnapshotView {
   return { rows, feedNow, fetchedAt: feedNow, source: 'live', stale: false, recordCount: rows.length };
 }
 
-/** The single-snapshot rule, as it stood before S63. */
+/** The single-snapshot rule, as it stood before the requirement read the score window. */
 function snapshotPeak(view: FleetSnapshotView): number {
   const analysis = analyseSnapshot(view);
   const balances = modelBalances(analysis.depots, analysis.yards, DATE, DEFAULT_REQUIREMENT_PARAMS);
@@ -89,7 +89,7 @@ const spread = (values: readonly number[]): number => Math.max(...values) - Math
 
 beforeEach(() => resetAnalysisForTests());
 
-describe('the requirement over the rolling score window (S63)', () => {
+describe('the requirement over the rolling score window', () => {
   it('moves far less over consecutive snapshots than the single-snapshot rule', () => {
     const { windowed, instant } = series();
     const settled = (values: readonly number[]): readonly number[] => values.slice(SETTLED_FROM);

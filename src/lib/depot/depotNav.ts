@@ -5,8 +5,8 @@ import { DEPOTS_ROOT, isNavItemActive, type DepotNavItem } from './nav';
 import type { DepotSummary } from './types';
 
 /**
- * Navigation model for one depot's scope: its URL, its sub-navigation (cockpit,
- * roster, yard) and the scope switcher's options. Kept pure so the switcher's
+ * Navigation model for one depot's scope: its URL, the links to its
+ * pages (the shell's navigation shows them in depot scope) and the scope switcher's options. Kept pure so the switcher's
  * keyboard arithmetic and filtering are tested without a browser.
  */
 

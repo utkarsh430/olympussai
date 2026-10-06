@@ -284,7 +284,7 @@ describe('buildParkingResponse', () => {
     return [...parked(12), ...out];
   };
 
-  it('gives every parked bus a first duty tomorrow even when more buses are out now (S55, N1)', () => {
+  it('gives every parked bus a first duty tomorrow even when more buses are out now', () => {
     const rows = yardAndOut();
     const next = nextOperatingDate('2026-10-06');
     const tomorrow = laterDayPlanFor(analyseSnapshot(view(rows)), '1', next);
@@ -294,7 +294,7 @@ describe('buildParkingResponse', () => {
     for (const s of slots) expect(s.firstDutyStartMin).not.toBeNull();
   });
 
-  it('leaves today\'s board as it is without a parking request (m-c)', () => {
+  it('leaves today\'s board as it is without a parking request', () => {
     // Each board on its own fresh rows and a process just started, so no memo is shared.
     for (const feedNow of ['2026-10-06T08:00:00Z', '2026-10-07T00:05:00Z']) {
       resetAnalysisForTests();
@@ -342,7 +342,7 @@ describe('buildParkingResponse', () => {
     expect(noBuses.order).toBeNull();
     expect(noBuses.droppedRows).toBeGreaterThan(0);
     // No yard can be learned from buses 15 km apart. A fresh process: at one feed time
-    // a re-fetch returns the yard already decided (S50c), so it would keep the one above.
+    // a re-fetch returns the yard already decided, so it would keep the one above.
     resetAnalysisForTests();
     const noYard = parking(scattered());
     expect(noYard.state).toBe('no_yard');

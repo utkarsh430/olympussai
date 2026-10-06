@@ -29,7 +29,7 @@ export interface AllocationPanelProps {
 
 /**
  * The pending-profiles sentence, when there is one. The trip definition is said once, in
- * the closing disclosure (critique round 5, routes Must 3), not between the band and moves.
+ * the closing disclosure, not between the band and moves.
  */
 function PlanBasis({ allocation }: { readonly allocation: DepotAllocationResponse }) {
   if (allocation.profilesPendingNote === null) return null;

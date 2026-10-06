@@ -20,7 +20,7 @@ export interface RouteColumnSpec {
   readonly frozen: boolean;
   /**
    * The narrowest width tier that draws the column: 'base' everywhere, 'lg' from 1024 px,
-   * 'wide' from 1440 px. A column left out is said in the route's drawer (critique §7).
+   * 'wide' from 1440 px. A column left out is said in the route's drawer.
    */
   readonly from: RouteWidthTier;
 }

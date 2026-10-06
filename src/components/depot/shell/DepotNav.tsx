@@ -7,7 +7,7 @@ import { DepotNavStrip } from './DepotNavStrip';
 import { NavLinks } from './NavLinks';
 
 /**
- * The shell's navigation (rulings, section 4), one model (`shellNav`) in two forms:
+ * The shell's navigation, one model (`shellNav`) in two forms:
  *
  * - From 1280px (Tailwind `xl`), the left rail, 232px wide. The `<nav>` is stretched by the flex row to the full
  *   height of the page, so its surface and right hairline run from under the bar to the

@@ -76,7 +76,7 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
   const isPrivateDir = (path: string): boolean => {
     if (!isAbsolute(path) || path.includes('\0')) return false;
     const fromRepo = relative(repoRoot, resolve(path));
-    // Not a bare startsWith('..'): `<repo>/..name` is inside (review L6).
+    // Not a bare startsWith('..'): `<repo>/..name` is inside.
     return fromRepo === '..' || fromRepo.startsWith(`..${sep}`) || isAbsolute(fromRepo);
   };
   if (!isPrivateDir(deps.home)) {

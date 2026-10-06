@@ -79,7 +79,7 @@ describe('MaintenancePage', () => {
     expect(text(markup)).toContain('2 buses are off the road now.');
   });
 
-  // Round 3: no raw ISO date in any text, title or aria-label, in any state of the page.
+  // No raw ISO date in any text, title or aria-label, in any state of the page.
   it.each([
     ['data', { data: DETAIL }, { data: MODELLED }],
     ['modelled loading', { data: DETAIL }, { loading: true }],
@@ -94,7 +94,7 @@ describe('MaintenancePage', () => {
     expect(attributes.join(' ')).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 
-  // Round 3, maintenance Must 4: 40 px from the band to the off-road section (the band's
+  // 40 px from the band to the off-road section (the band's
   // own 24 px margin plus 16 px on the lists).
   it('leaves 40 px between the band and the off-road section: the shared stack, no page spacing', () => {
     const markup = renderToStaticMarkup(<MaintenancePage />);
@@ -122,7 +122,7 @@ describe('MaintenancePage', () => {
     expect(overdue).toBeGreaterThan(live);
     expect(dueSoon).toBeGreaterThan(overdue);
     // the live figure carries no tag; each modelled figure carries one
-    // queried per figure on the visible band, not by character offsets (guard M19)
+    // queried per figure on the visible band, not by character offsets
     const page = document.createElement('div');
     page.innerHTML = markup;
     const tagsOf = [...page.querySelectorAll('[data-testid="depot-figure-band"] li')].map(

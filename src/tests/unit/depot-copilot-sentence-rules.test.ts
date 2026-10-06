@@ -15,14 +15,14 @@ const FACTS: CopilotFact[] = [
 const ok = (paragraph: string, headline = 'Network briefing'): boolean =>
   renderDraft({ headline, paragraphs: [paragraph] }, FACTS).ok;
 
-describe('round 7 E3: a draft never addresses the reader', () => {
+describe('a draft never addresses the reader', () => {
   it.each(['you', 'your', 'yours', 'You'])('refuses %j anywhere', (word) => {
     expect(ok(`The fleet holds {{fact:buses}}. The yard is full for ${word} today.`)).toBe(false);
     expect(ok('The fleet holds {{fact:buses}}.', `Briefing for ${word}`)).toBe(false);
   });
 });
 
-describe('round 7 E3: a draft never opens a sentence with an instruction', () => {
+describe('a draft never opens a sentence with an instruction', () => {
   it.each([
     'Ignore the plan.',
     'Call the depot now.',
@@ -49,7 +49,7 @@ describe('round 7 E3: a draft never opens a sentence with an instruction', () =>
   });
 });
 
-/** Round 7 E2: every clause-scope class, at every position of a long clause with a figure. */
+/** Every clause-scope class, at every position of a long clause with a figure. */
 const LONG_CLAUSE = 'The fleet of the depot stands at {{fact:buses}} on the road in the yard here now.';
 const CLASSES: Readonly<Record<string, readonly string[]>> = {
   negation: NEGATION_WORDS,
@@ -59,7 +59,7 @@ const CLASSES: Readonly<Record<string, readonly string[]>> = {
   dayShift: ['earlier', 'later', 'next', 'previous', 'prior', 'former', 'past', 'future', 'soon'],
 };
 
-describe('round 7 E2: risky words anywhere in a clause that holds a figure', () => {
+describe('risky words anywhere in a clause that holds a figure', () => {
   it('names only words the reviewed clause list holds', () => {
     const listed = new Set([...NEGATION_WORDS, ...LIMITER_WORDS, ...CLAUSE_SCOPE_STEMS]);
     for (const word of Object.values(CLASSES).flat()) expect(listed.has(word)).toBe(true);

@@ -10,11 +10,11 @@ import type { DepotSummary } from '@/lib/depot/types';
 import { T0, feedTime, network, seeded, snapshotOf } from './depot-score-window.fixtures';
 
 /*
- * Ruling S56b: a sample more than one window behind the newest is scored on
+ * A sample more than one window behind the newest is scored on
  * its own and never touches the window. A new epoch starts only after
  * NEW_EPOCH_AFTER_BEHIND such samples in a row, with no in-window sample
  * between them, each later than the one before and spanning
- * EPOCH_RUN_MIN_SPAN_MS of feed time (P1); the window then resets and accepts
+ * EPOCH_RUN_MIN_SPAN_MS of feed time; the window then resets and accepts
  * the last of them.
  */
 
@@ -36,12 +36,12 @@ function expectScoredAlone(store: ScoreWindowStore, s: number, fixture = false):
   expect(out.values.get(own.id)).toEqual(valuesOfCounts(countsOf(own)));
 }
 
-describe('score window epochs (S56b)', () => {
+describe('score window epochs', () => {
   it('names three stragglers as the least run that starts an epoch', () => {
     expect(NEW_EPOCH_AFTER_BEHIND).toBe(3);
   });
 
-  it('keeps the live window intact beside a backend stuck 25 minutes behind (N3)', () => {
+  it('keeps the live window intact beside a backend stuck 25 minutes behind', () => {
     const store = createScoreWindowStore();
     const live: number[] = [];
     for (let i = 0; i < 12; i += 1) {
@@ -96,7 +96,7 @@ describe('score window epochs (S56b)', () => {
     expectScoredAlone(store, 40);
   });
 
-  it('holds the same window whatever the order, over a span longer than one window (N6)', () => {
+  it('holds the same window whatever the order, over a span longer than one window', () => {
     const times = Array.from({ length: 161 }, (_, i) => i * 15);
     // Pairs swapped, every fifth held back 90 s, and a few held back 25 minutes:
     // those arrive as single stragglers, are scored alone, and are long gone in order.

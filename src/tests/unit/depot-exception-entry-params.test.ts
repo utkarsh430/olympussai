@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { entryParams, exceptionSearch } from '@/lib/depot/exceptions/pageParams';
 
 /*
- * Round 2, ruling 1: the cockpit links here with `?kind=` and `?depot=`. Both are read on
+ * The cockpit links here with `?kind=` and `?depot=`. Both are read on
  * entry and validated: an unknown kind or a malformed id is ignored, never an error.
  */
 describe('exceptions page entry parameters', () => {

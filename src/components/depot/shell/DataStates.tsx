@@ -66,7 +66,7 @@ export function ErrorPanel({ message, onRetry, title, children }: ErrorPanelProp
 }
 
 // The stale notice reads the shell feed's clock, so it lives in a client module.
-export { StaleStrip, type StaleStripProps } from './StaleNotice';
+export { StaleNotice, type StaleNoticeProps } from './StaleNotice';
 
 /** One sentence in prose saying what is absent and why. A `StatePanel` of kind empty. */
 export function EmptyState({ children }: { readonly children: React.ReactNode }) {

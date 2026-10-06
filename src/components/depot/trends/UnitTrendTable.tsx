@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { Sparkline } from '@/components/depot/shared/Sparkline';
+import { Sparkline } from '@/components/depot/trendChart/Sparkline';
 import { DataTable, useTableSort, type Column } from '@/components/depot/shell/DataTable';
 import { Pager } from '@/components/depot/shell/LongLists';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
@@ -52,7 +52,7 @@ function columnsFor(
           {row.name}
         </Link>
       ),
-      // What this width drops goes to the unit cell's title (critique §7).
+      // What this width drops goes to the unit cell's title.
       title: (row) => trendUnitTitle(row, shown, headers),
     },
     {

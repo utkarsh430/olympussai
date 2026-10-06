@@ -3,8 +3,7 @@ import type { WindowWordsInput } from '../score/windowWords';
 import type { DepotException } from './types';
 
 /**
- * Which moment each exception's figure describes, for the exceptions page (round 2,
- * ruling 4): a peer comparison is over the rolling window, a count is as of the feed time.
+ * Which moment each exception's figure describes, for the exceptions page: a peer comparison is over the rolling window, a count is as of the feed time.
  * The window itself is worded by the shared window words only, never here.
  */
 
@@ -13,7 +12,7 @@ function asOf(feedNow: string | null): string {
 }
 
 /**
- * The one per-line basis mark left (round 3): the section note already says the window and
+ * The one per-line basis mark left: the section note already says the window and
  * the feed time, so a line says only what differs, a depot scored on fewer snapshots than
  * the network window ("2 snapshots"). Null otherwise.
  */

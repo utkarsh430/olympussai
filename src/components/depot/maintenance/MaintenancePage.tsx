@@ -2,10 +2,10 @@
 
 import { useMemo } from 'react';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
-import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { useDepotMaintenance } from '@/hooks/useDepotMaintenance';
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { FigureBand, Figure } from '@/components/depot/shell/FigureBand';
 import { SERVICE_INTERVAL_KM } from '@/lib/depot/maintenance/config';
 import {
@@ -78,7 +78,7 @@ export function MaintenancePage() {
   const figures = bandFigures(offRoad.length, preventive);
   return (
     <div className="depot-stack">
-      {stale || detail.error ? <StaleStrip since={detail.data.feedNow} /> : null}
+      {stale || detail.error ? <StaleNotice since={detail.data.feedNow} /> : null}
       {/* The shared stack: 40px from the band's rule to each section's rule. */}
       <FigureBand label="Maintenance figures">
         {figures.map((figure) => (

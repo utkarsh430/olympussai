@@ -243,7 +243,7 @@ describe('prepareCopilotRequest on the sample fixture', () => {
     expect(result.interpretedAs).toContain(name.slice(0, 20));
   });
 
-  it('says which scope the answer used, whatever the form selected (round 8 A)', () => {
+  it('says which scope the answer used, whatever the form selected', () => {
     const unique = network.depots.find(
       (d) =>
         d.name.length > 3 &&
@@ -331,7 +331,7 @@ describe('getCopilotRuntime', () => {
   });
 });
 
-describe('round 4: stale notice and limits (S37, S38 item 13)', () => {
+describe('stale notice and limits', () => {
   const STALE = 'These figures are from the last good data; its feed time is not known.';
   const paragraphs = (n: number): string[] =>
     Array.from({ length: n }, () => 'The fleet is steady.');

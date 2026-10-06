@@ -78,7 +78,7 @@ const UNRANKED_SMALL = entry('8', {
   rank: null,
   peerGroup: null,
 }, { fleet: 4 });
-/** Ruling S39: one real length in nine routes is a coverage figure; the depot is still ranked. */
+/** One real length in nine routes is a coverage figure; the depot is still ranked. */
 const RANKED_THIN = entry('6', { rank: 2 }, { lengthCoverage: { n: 1, of: 9 } });
 const UNRANKED_GROUP = entry('5', {
   ranked: false,
@@ -136,7 +136,7 @@ describe('buildEconomicsRows', () => {
     expect(rows.find((r) => r.depotId === '9')?.reasonText).toBe(
       'No duty in the modelled day (none of its buses reports a route, or none is available), so it has no earnings per kilometre.',
     );
-    // Dated once the response names the operating day; never "ran" or "today" (review m1).
+    // Dated once the response names the operating day; never "ran" or "today".
     const dated = buildEconomicsRows([UNRANKED_NO_LENGTH], '2026-10-06').find((r) => r.depotId === '9');
     expect(dated?.reasonText).toContain('No duty in the modelled day for 6 Oct 2026');
     expect(dated?.reasonText).not.toMatch(/\bran\b|today/);
