@@ -1,7 +1,13 @@
 import { formatCount } from '../format';
 import type { RouteMove, UnchangedReason } from '../optimise/allocateTypes';
 import { MAX_BUSES_PER_ROUTE } from '../sim/tripFrequencyConfig';
-import type { AllocationExclusion, AllocationParams, DepotAllocationResponse } from './api';
+import {
+  ALLOCATION_EXCLUSIONS,
+  UNCHANGED_REASONS,
+  type AllocationExclusion,
+  type AllocationParams,
+  type DepotAllocationResponse,
+} from './api';
 
 /**
  * Every sentence and label the routes page says about the allocation plan.
@@ -30,24 +36,9 @@ function routes(n: number): string {
 }
 
 /** The allocator's precedence: a route that meets several reasons carries the first. */
-export const UNCHANGED_ORDER: readonly UnchangedReason[] = [
-  'no_candidate',
-  'already_best',
-  'below_threshold',
-  'over_capacity',
-  'move_limit',
-  'no_capacity',
-];
+export const UNCHANGED_ORDER: readonly UnchangedReason[] = UNCHANGED_REASONS;
 
-export const EXCLUSION_ORDER: readonly AllocationExclusion[] = [
-  'no_primary_depot',
-  'unassigned_bucket',
-  'operator_not_depot',
-  'bus_count_over_cap',
-  'not_profiled',
-  'too_few_located_stops',
-  'no_depot_position',
-];
+export const EXCLUSION_ORDER: readonly AllocationExclusion[] = ALLOCATION_EXCLUSIONS;
 
 type Params = Pick<AllocationParams, 'minSavingKmPerDay' | 'maxMoves'>;
 

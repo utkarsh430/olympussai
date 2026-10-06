@@ -1,42 +1,40 @@
 import { planAllocation } from '../optimise/allocate';
 import { MAX_MOVES, MIN_SAVING_KM_PER_DAY } from '../optimise/allocateConfig';
-import type { AllocRoute, AllocationPlan } from '../optimise/allocateTypes';
 import { DEFAULT_REBALANCE_PARAMS } from '../optimise/config';
 import type { FleetSnapshotView } from '../repositories/types';
 import { buildAllocationInput, type AllocationInput } from '../routes/allocationInput';
+import { monotonicNow } from '../copilot/limiter';
 import {
+  ALLOCATION_EXCLUSIONS,
   ROUTE_PROFILE_ENDPOINT,
-  type AllocationMoveItem,
+  UNCHANGED_REASONS,
+  type AllocationExcludedRoute,
   type AllocationParams,
   type AllocationUnchangedItem,
   type DepotAllocationResponse,
-  type DepotPositionCounts,
-  type DepotPositionKind,
 } from '../routes/api';
 import { depotPositions, type DepotPosition } from '../routes/depotPositions';
 import { cachedRouteProfiles } from '../routes/routeCatalogue';
 import type { RouteRow } from '../routes/routeTableTypes';
 import { operatingDateOf } from '../sim/seed';
-import { TRIP_MODEL_PARAMS } from '../sim/tripFrequencyConfig';
+import { TRIP_DEFINITION, TRIP_MODEL_PARAMS } from '../sim/tripFrequencyConfig';
+import { countByReason, nameMatches, pageItems } from '../routes/routeListing';
+import type { AllocationQuery } from '../routes/routeQuery';
 import type { Coverage, Figure } from '../types';
 import { feedEnvelope, type SnapshotAnalysis } from './analysis';
-import {
-  coverageOf,
-  memoiseOnCatalogue,
-  operatedBy,
-  parseRouteFilter,
-  routeTableOf,
-  type ParsedRouteFilter,
-  type RouteContext,
-  type RouteFilterQuery,
-} from './routeInputs';
+import { planItems, positionCounts } from './allocationItems';
+import { coverageOf, memoiseOnCatalogue, operatedBy, routeTableOf, type RouteContext } from './routeInputs';
 
-export type AllocationQuery = RouteFilterQuery;
+export { parseAllocationQuery } from '../routes/routeQuery';
 
-/** Validates `?depotId=`; see `parseRouteFilter`. */
-export function parseAllocationQuery(searchParams: URLSearchParams): ParsedRouteFilter {
-  return parseRouteFilter(searchParams);
-}
+/**
+ * The least time between two full re-plans on the same rows. A full re-plan
+ * (inputs plus `planAllocation`) at 2,000 profiled routes and 143 depots
+ * measured about 0.33 s, and it runs on the event loop.
+ */
+export const REPLAN_MIN_INTERVAL_MS = 30_000;
+export const PROFILES_PENDING_NOTE =
+  'New route profiles will be included in the next plan, within half a minute.';
 
 const PARAMS: AllocationParams = {
   minSavingKmPerDay: MIN_SAVING_KM_PER_DAY,
@@ -45,10 +43,22 @@ const PARAMS: AllocationParams = {
   tripModel: TRIP_MODEL_PARAMS,
 };
 
+/** The plan as built once per rows; the lists are whole and the per-request fields absent. */
 type AllocationBody = Omit<
-  DepotAllocationResponse,
-  keyof ReturnType<typeof feedEnvelope> | 'depotId'
->;
+    DepotAllocationResponse,
+    | keyof ReturnType<typeof feedEnvelope>
+    | 'depotId'
+    | 'reason'
+    | 'q'
+    | 'offset'
+    | 'limit'
+    | 'unchangedTotal'
+    | 'unchangedByReason'
+    | 'excludedTotal'
+    | 'excludedByReason'
+    | 'profilesPending'
+    | 'profilesPendingNote'
+  >;
 
 function inputOf(
   context: RouteContext,
@@ -73,25 +83,14 @@ export function allocationInputFor(
   view: FleetSnapshotView,
   analysis: SnapshotAnalysis,
 ): AllocationInput {
+  const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
   const context: RouteContext = {
     analysis,
     table: routeTableOf(view),
-    profiles: cachedRouteProfiles(view),
-    operatingDate: operatingDateOf(view.feedNow, view.fetchedAt),
+    profiles: cachedRouteProfiles(view, operatingDate),
+    operatingDate,
   };
   return inputOf(context, positionsOf(analysis));
-}
-
-function positionCounts(
-  analysis: SnapshotAnalysis,
-  positions: ReadonlyMap<string, DepotPosition>,
-): DepotPositionCounts {
-  const operating = analysis.depots.filter((d) => d.kind === 'depot');
-  const count = (kind: DepotPositionKind): number =>
-    operating.filter((d) => positions.get(d.id)?.kind === kind).length;
-  const yard = count('yard');
-  const median = count('median');
-  return { yard, median, none: operating.length - yard - median, provenance: 'derived' };
 }
 
 const modelled = (value: number, coverage: Coverage): Figure => ({
@@ -99,44 +98,6 @@ const modelled = (value: number, coverage: Coverage): Figure => ({
   provenance: 'modelled',
   coverage,
 });
-
-interface PlanItems {
-  readonly moves: readonly AllocationMoveItem[];
-  readonly unchanged: readonly AllocationUnchangedItem[];
-}
-
-/** Every planned route is in the input and moves only between costed depots. */
-function planItems(
-  plan: AllocationPlan,
-  input: AllocationInput,
-  analysis: SnapshotAnalysis,
-): PlanItems {
-  const routes = new Map<string, AllocRoute>(input.routes.map((r) => [r.routeName, r]));
-  const nameOf = (id: string): string => analysis.depotsById.get(id)?.name ?? id;
-  const moves = plan.moves.map((m): AllocationMoveItem => {
-    const route = routes.get(m.routeName)!;
-    return {
-      ...m,
-      fromDepotName: nameOf(m.fromDepotId),
-      toDepotName: nameOf(m.toDepotId),
-      tripsPerDay: route.tripsPerDay,
-      fromDeadKmPerTrip: route.deadKmByDepot[m.fromDepotId] ?? 0,
-      toDeadKmPerTrip: route.deadKmByDepot[m.toDepotId] ?? 0,
-    };
-  });
-  const unchanged = plan.unchanged.map((u): AllocationUnchangedItem => {
-    const route = routes.get(u.routeName)!;
-    return {
-      routeName: u.routeName,
-      depotId: route.currentDepotId,
-      depotName: nameOf(route.currentDepotId),
-      reason: u.reason,
-      tripsPerDay: route.tripsPerDay,
-      deadKmPerTrip: route.deadKmByDepot[route.currentDepotId] ?? 0,
-    };
-  });
-  return { moves, unchanged };
-}
 
 /*
  * Plans only the routes whose profiles are already cached, so a request never
@@ -167,15 +128,17 @@ const allocationBody = memoiseOnCatalogue<AllocationBody>((context) => {
       capacity: 'modelled',
     },
     params: PARAMS,
+    tripDefinition: TRIP_DEFINITION,
     profileEndpoint: ROUTE_PROFILE_ENDPOINT,
   };
-});
+}, REPLAN_MIN_INTERVAL_MS);
 
 function forDepot(
   body: AllocationBody,
   table: readonly RouteRow[],
-  depotId: string,
+  depotId: string | null,
 ): AllocationBody {
+  if (depotId === null) return body;
   const ours = new Set(table.filter((r) => operatedBy(r, depotId)).map((r) => r.routeName));
   return {
     ...body,
@@ -187,13 +150,45 @@ function forDepot(
   };
 }
 
-/** The allocation panel's payload. A recommendation only: nothing is reassigned. */
+const listed = <T extends { readonly routeName: string; readonly reason: string }>(
+  items: readonly T[],
+  query: AllocationQuery,
+): readonly T[] =>
+  items.filter(
+    (i) => (query.reason === null || i.reason === query.reason) && nameMatches(i.routeName, query.q),
+  );
+
+/**
+ * The allocation panel's payload. A recommendation only: nothing is reassigned.
+ * The plan is network-wide and held per rows (see `REPLAN_MIN_INTERVAL_MS`);
+ * the depot filter, the list filters and paging are this request's own, and
+ * the counts by reason ignore the list filters so the summary never moves.
+ * `clock` is monotonic and injected so the interval is testable.
+ */
 export function buildAllocationResponse(
   view: FleetSnapshotView,
   query: AllocationQuery,
+  clock: () => number = monotonicNow,
 ): DepotAllocationResponse {
-  const body = allocationBody(view);
-  const { depotId } = query;
-  const scoped = depotId === null ? body : forDepot(body, routeTableOf(view), depotId);
-  return { ...feedEnvelope(view), ...scoped, depotId };
+  const { body, pending } = allocationBody(view, clock());
+  const scoped = forDepot(body, routeTableOf(view), query.depotId);
+  const unchanged = listed<AllocationUnchangedItem>(scoped.unchanged, query);
+  const excluded = listed<AllocationExcludedRoute>(scoped.excluded, query);
+  return {
+    ...feedEnvelope(view),
+    ...scoped,
+    depotId: query.depotId,
+    reason: query.reason,
+    q: query.q,
+    offset: query.offset,
+    limit: query.limit,
+    unchanged: pageItems(unchanged, query),
+    unchangedTotal: unchanged.length,
+    unchangedByReason: countByReason(scoped.unchanged, UNCHANGED_REASONS),
+    excluded: pageItems(excluded, query),
+    excludedTotal: excluded.length,
+    excludedByReason: countByReason(scoped.excluded, ALLOCATION_EXCLUSIONS),
+    profilesPending: pending,
+    profilesPendingNote: pending ? PROFILES_PENDING_NOTE : null,
+  };
 }

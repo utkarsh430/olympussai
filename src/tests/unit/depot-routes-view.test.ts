@@ -155,7 +155,8 @@ describe('routes view', () => {
     expect(stale.source).toBe('cache');
     expect(fresh.stale).toBe(false);
     expect(fresh.source).toBe('live');
-    expect(fresh.routes).toBe(stale.routes);
+    // Each response is its own page of the one held body.
+    expect(fresh.routes[0]).toBe(stale.routes[0]);
   });
 
   it('rebuilds the body once another profile is cached', async () => {
@@ -306,7 +307,7 @@ describe('allocation view', () => {
     const fresh = buildAllocationResponse(view(), AQ());
     expect([stale.stale, fresh.stale]).toEqual([true, false]);
     expect(fresh.moves).toBe(stale.moves);
-    expect(fresh.excluded).toBe(stale.excluded);
+    expect(fresh.excluded[0]).toBe(stale.excluded[0]);
     expect(mockService).not.toHaveBeenCalled();
   });
 

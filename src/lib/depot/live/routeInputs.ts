@@ -1,5 +1,3 @@
-import { z } from 'zod';
-import { isValidDepotId } from '../ids';
 import type { FleetSnapshotView } from '../repositories/types';
 import { buildRouteTable } from '../routes/routeTable';
 import type { RouteRow } from '../routes/routeTableTypes';
@@ -24,58 +22,49 @@ export interface RouteContext {
 interface Held<T> {
   readonly operatingDate: string;
   readonly revision: number;
+  /** Monotonic milliseconds when the body was built. */
+  readonly builtAt: number;
   readonly body: T;
+}
+
+export interface CatalogueBody<T> {
+  readonly body: T;
+  /** True when profiles cached since `body` was built wait for the next rebuild. */
+  readonly pending: boolean;
 }
 
 /**
  * Like `memoiseBody`, for bodies that also read the route catalogue: held per
  * analysis (so per rows array) with the operating date and the catalogue
- * revision they were built for. A newly cached profile, or a new day, rebuilds
- * the body; a stale-then-fresh pair of requests on the same rows shares it.
- * The envelope is never part of the body.
+ * revision they were built for. A new day rebuilds at once; a newly cached
+ * profile rebuilds only once `minRebuildMs` have passed since the held body
+ * was built, so a burst of profile lookups cannot make every poll rebuild.
+ * `now` is a monotonic reading, never the wall clock. The envelope is never
+ * part of the body.
  */
 export function memoiseOnCatalogue<T>(
   build: (context: RouteContext) => T,
-): (view: FleetSnapshotView) => T {
+  minRebuildMs: number,
+): (view: FleetSnapshotView, now: number) => CatalogueBody<T> {
   const bodies = new WeakMap<SnapshotAnalysis, Held<T>>();
-  return (view: FleetSnapshotView): T => {
+  return (view: FleetSnapshotView, now: number): CatalogueBody<T> => {
     const analysis = analyseSnapshot(view);
     const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
     const revision = routeCatalogueRevision();
     const held = bodies.get(analysis);
-    if (held?.operatingDate === operatingDate && held.revision === revision) return held.body;
-    const profiles = cachedRouteProfiles(view);
+    if (held?.operatingDate === operatingDate) {
+      if (held.revision === revision) return { body: held.body, pending: false };
+      if (now - held.builtAt < minRebuildMs) return { body: held.body, pending: true };
+    }
+    const profiles = cachedRouteProfiles(view, operatingDate);
     const body = build({ analysis, table: routeTableOf(view), profiles, operatingDate });
-    bodies.set(analysis, { operatingDate, revision, body });
-    return body;
+    bodies.set(analysis, { operatingDate, revision, builtAt: now, body });
+    return { body, pending: false };
   };
 }
 
 export function coverageOf<T>(items: readonly T[], counts: (item: T) => boolean): Coverage {
   return { n: items.filter(counts).length, of: items.length };
-}
-
-/** The one query both route endpoints take: an optional depot filter. */
-export interface RouteFilterQuery {
-  readonly depotId: string | null;
-}
-
-export type ParsedRouteFilter =
-  { readonly ok: true; readonly query: RouteFilterQuery } | { readonly ok: false };
-
-const filterSchema = z.object({ depotId: z.string().refine(isValidDepotId).optional() }).strict();
-
-/**
- * Validates the query before any snapshot is read. Strict: an unknown or
- * repeated parameter, or a depot id that is not a feed id, fails, and the
- * caller answers 400 without saying which.
- */
-export function parseRouteFilter(searchParams: URLSearchParams): ParsedRouteFilter {
-  const keys = [...searchParams.keys()];
-  if (new Set(keys).size !== keys.length) return { ok: false };
-  const parsed = filterSchema.safeParse(Object.fromEntries(searchParams));
-  if (!parsed.success) return { ok: false };
-  return { ok: true, query: { depotId: parsed.data.depotId ?? null } };
 }
 
 /** Whether a depot runs any of a route's buses. */
