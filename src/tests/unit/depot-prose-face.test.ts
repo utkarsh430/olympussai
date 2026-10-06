@@ -60,8 +60,6 @@ const EXEMPT: readonly string[] = [
   'src/components/depot/rebalance/TransferMapLegend.tsx',
   'src/components/depot/rebalance/TransferRowView.tsx',
   'src/components/depot/revenue/HowProduced.tsx',
-  'src/components/depot/roster/BusTimetable.tsx',
-  'src/components/depot/roster/RosterFilters.tsx',
   'src/components/depot/routes/ProfileLoader.tsx',
   'src/components/depot/routes/RoutesMethod.tsx',
   'src/components/depot/sources/SourcesRegistry.tsx',

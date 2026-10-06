@@ -143,3 +143,13 @@ describe('BusTimetable next-stop notes', () => {
     expect(text()).toContain('worked out by position');
   });
 });
+
+describe('BusTimetable provenance tags', () => {
+  it('tags only what differs from the DERIVED page default: the live timetable, never the derived next stop', async () => {
+    await show(BASE);
+    await answerLast(scheduleFor(['Pune', 'Wai', 'Satara']));
+    expect(text()).toContain('worked out by position');
+    expect(text()).toContain('LIVE');
+    expect(text()).not.toContain('DERIVED');
+  });
+});
