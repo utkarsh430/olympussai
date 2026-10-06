@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CanonicalSchedule, ScheduleResponse } from '@/models/canonical';
 import type { DepotBusRow } from '@/models/depotLive';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
@@ -10,6 +10,7 @@ import {
   ROUTE_CACHE_MAX,
   ROUTE_NEGATIVE_TTL_MS,
   getRouteProfile,
+  inFlightSizeForTests,
   resetRouteCatalogueForTests,
   routeCacheSizeForTests,
 } from '@/lib/depot/routes/routeCatalogue';
@@ -222,5 +223,107 @@ describe('getRouteProfile', () => {
     ];
     await getRouteProfile(ROUTE, view(rows), T0);
     expect(mockService.mock.calls[0]?.[0].regNum).toBe('UP2');
+  });
+});
+
+describe('route name verification', () => {
+  beforeEach(() => {
+    resetRouteCatalogueForTests();
+    mockService.mockReset();
+  });
+
+  it('refuses a schedule for another route, caches that negatively, never stores it as ok', async () => {
+    mockService.mockResolvedValue(live(schedule('OTHER_ROUTE')));
+    const first = await getRouteProfile(ROUTE, view([row('UP1')]), T0);
+    expect(first).toEqual({ status: 'unavailable', reason: 'no_schedule' });
+    expect(routeCacheSizeForTests()).toBe(0);
+    await getRouteProfile(ROUTE, view([row('UP1')]), T0 + 1_000);
+    expect(mockService).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts a null route name but records that it is unconfirmed', async () => {
+    mockService.mockResolvedValue(live({ ...schedule(), routeName: null }));
+    const result = await getRouteProfile(ROUTE, view([row('UP1')]), T0);
+    if (result.status !== 'ok') throw new Error('expected ok');
+    expect(result.profile.routeNameConfirmed).toBe(false);
+    expect(result.profile.routeName).not.toBe(ROUTE);
+  });
+
+  it('confirms a schedule whose own route name matches', async () => {
+    mockService.mockResolvedValue(live(schedule()));
+    const result = await getRouteProfile(ROUTE, view([row('UP1')]), T0);
+    if (result.status !== 'ok') throw new Error('expected ok');
+    expect(result.profile.routeNameConfirmed).toBe(true);
+    expect(result.profile.routeName).toBe(ROUTE);
+  });
+
+  it('accepts a different trip id when the route name is confirmed', async () => {
+    mockService.mockResolvedValue(live({ ...schedule(), tripId: '99999' }));
+    const result = await getRouteProfile(ROUTE, view([row('UP1')]), T0);
+    expect(result.status).toBe('ok');
+  });
+
+  it('refuses a different trip id with a different route name', async () => {
+    mockService.mockResolvedValue(live({ ...schedule('OTHER_ROUTE'), tripId: '99999' }));
+    expect(await getRouteProfile(ROUTE, view([row('UP1')]), T0)).toEqual({
+      status: 'unavailable',
+      reason: 'no_schedule',
+    });
+  });
+
+  it('refuses a different trip id when the route name is unconfirmed', async () => {
+    mockService.mockResolvedValue(live({ ...schedule(), routeName: null, tripId: '99999' }));
+    expect(await getRouteProfile(ROUTE, view([row('UP1')]), T0)).toEqual({
+      status: 'unavailable',
+      reason: 'no_schedule',
+    });
+  });
+});
+
+describe('error logging and cache hygiene', () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    resetRouteCatalogueForTests();
+    mockService.mockReset();
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+  afterEach(() => errorSpy.mockRestore());
+
+  it('logs a bug inside the profile builder instead of swallowing it', async () => {
+    mockService.mockResolvedValue(live({ ...schedule(), stops: null as never }));
+    const result = await getRouteProfile(ROUTE, view([row('UP1')]), T0);
+    expect(result).toEqual({ status: 'unavailable', reason: 'upstream_error' });
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(/^\[depot:route-catalogue\] /);
+  });
+
+  it('clears the in-flight entry after a failed fetch and retries after the TTL', async () => {
+    mockService.mockRejectedValue(new Error('boom'));
+    await getRouteProfile(ROUTE, view([row('UP1')]), T0);
+    expect(inFlightSizeForTests()).toBe(0);
+    await getRouteProfile(ROUTE, view([row('UP1')]), T0 + ROUTE_NEGATIVE_TTL_MS - 1);
+    expect(mockService).toHaveBeenCalledTimes(1);
+    mockService.mockResolvedValue(live(schedule()));
+    const retried = await getRouteProfile(ROUTE, view([row('UP1')]), T0 + ROUTE_NEGATIVE_TTL_MS);
+    expect(mockService).toHaveBeenCalledTimes(2);
+    expect(retried.status).toBe('ok');
+    expect(inFlightSizeForTests()).toBe(0);
+  });
+
+  it('does not let another letter case bypass or reuse a negative entry', async () => {
+    mockService.mockResolvedValue(live(null));
+    await getRouteProfile(ROUTE, view([row('UP1')]), T0);
+    const variant = await getRouteProfile(ROUTE.toLowerCase(), view([row('UP1')]), T0);
+    expect(variant).toEqual({ status: 'unavailable', reason: 'no_bus_on_route' });
+    expect(mockService).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not serve yesterday's ok entry for today's operating date", async () => {
+    mockService.mockResolvedValue(live(schedule()));
+    await getRouteProfile(ROUTE, view([row('UP1')]), T0);
+    const nextDay = row('UP1', { scheduledStart: '2026-10-07T08:00:00.000Z' });
+    await getRouteProfile(ROUTE, view([nextDay]), T0 + 86_400_000);
+    expect(mockService).toHaveBeenCalledTimes(2);
+    expect(mockService.mock.calls[1]?.[0].date).toBe('2026-10-07');
   });
 });

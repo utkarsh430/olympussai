@@ -67,9 +67,12 @@ describe('GET /api/upsrtc/depot/route/[routeName]', () => {
     expect(mockProfile.mock.calls[0]?.[0]).toBe('RKD_4560_ORD_OUT');
   });
 
-  it('answers any thrown error as a 503 that leaks nothing', async () => {
+  it('answers any thrown error as a 503 that leaks nothing, and logs it', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mockSnapshot.mockRejectedValue(new Error('secret upstream detail'));
     const response = await call('R_1');
+    expect(errorSpy).toHaveBeenCalledWith('[depot:route-api] secret upstream detail');
+    errorSpy.mockRestore();
     expect(response.status).toBe(503);
     const text = await response.text();
     expect(JSON.parse(text)).toEqual({ error: 'Route data unavailable' });

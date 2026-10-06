@@ -220,7 +220,7 @@ describe('fetchBusSchedule (direct)', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('shares one cache with the endpoint and takes the clock as a parameter', async () => {
+  it('serves a repeat call from cache, stamped with the clock passed in', async () => {
     const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
     mockFetch.mockResolvedValue(ok(scheduleFixture));
     const input = { regNum: REG, date: TODAY, tripId: null };
