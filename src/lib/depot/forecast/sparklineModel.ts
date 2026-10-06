@@ -54,7 +54,7 @@ export function sparklineGeometry(
   return { kind: 'line', path, live, flat, inset: SPARK_INSET };
 }
 
-/** "On-road share, MODELLED trend: up 2.1 percentage points over 30 days, ending on the live value". */
+/** "On-road share, MODELLED trend: up 2.1 percentage points over 4 weeks, ending on the live value". */
 export function sparklineLabel(metricLabel: string, trend: TrendResult): string {
   if (trend.status !== 'ok') return `${metricLabel}: no trend yet`;
   return `${metricLabel}, MODELLED trend: ${trend.summary.sentence}, ending on the live value`;

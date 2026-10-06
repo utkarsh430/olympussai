@@ -190,7 +190,7 @@ describe('sparkline', () => {
   it('labels itself from the trend summary sentence', () => {
     const { trend } = forecastSections(dailySeries(40, (i) => 50 + i * 0.2), 'index', 14);
     expect(sparklineLabel('Efficiency index', trend.result)).toBe(
-      'Efficiency index, MODELLED trend: up 6.0 points over 30 days, ending on the live value',
+      'Efficiency index, MODELLED trend: up 5.6 points over 4 weeks, ending on the live value',
     );
     const short = forecastSections(dailySeries(5, () => 50), 'index', 14).trend.result;
     expect(sparklineLabel('Efficiency index', short)).toBe('Efficiency index: no trend yet');

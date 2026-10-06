@@ -37,7 +37,7 @@ export interface ForecastMetricInfo {
 export interface ForecastSentences {
   /** Chart title; always carries MODELLED. */
   readonly title: string;
-  /** "MODELLED trend: up 2.1 percentage points over 30 days". */
+  /** "MODELLED trend: up 2.1 percentage points over 4 weeks". */
   readonly trend: string | null;
   /** The method in plain words, and why it was chosen. */
   readonly method: string | null;

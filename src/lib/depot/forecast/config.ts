@@ -87,7 +87,16 @@ export function seriesRulesOf(metric: MetricKey): SeriesRules {
   return { min, max: Number.isFinite(max) ? max : COUNT_SANE_MAX, wholeNumbers };
 }
 
-/** Changes smaller than this, in the metric's own unit, read as steady. */
+/**
+ * A change reads as steady while it is smaller than this quantile of the
+ * series' own absolute changes at the same lag (in the display unit), so a
+ * noisy series needs a bigger move before it is called up or down.
+ */
+export const STEADY_QUANTILE = 0.8;
+/** Fewer changes than this at a lag (two weeks' worth) say too little: the floor alone applies. */
+export const MIN_STEADY_CHANGES = 14;
+
+/** The least change that can read as a direction, in the display unit, whatever the noise. */
 export const STEADY_BAND: Readonly<Record<MetricKind, number>> = {
   rate: 0.5, // percentage points
   index: 1, // points
