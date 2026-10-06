@@ -61,6 +61,9 @@ function StateGroupBlock({
           caption={`${group.label}: buses needing action`}
           cap={ROLL_PREVIEW_ROWS}
         />
+      ) : note === null ? (
+        // A state whose buses all stand without a reason says so, not an empty block.
+        <p className="depot-note">None listed.</p>
       ) : null}
     </div>
   );
@@ -72,7 +75,6 @@ function Roll({ model, depotId }: Omit<YardRollProps, 'depotNames'>) {
   const empty = model.established
     ? "None of this depot's buses is inside the yard"
     : 'This depot has no buses in the latest feed';
-  const nothingListed = roll.groups.every((g) => g.rows.length === 0);
   return (
     <section aria-labelledby={ROLL_SECTION_ID} data-testid="yard-roll">
       <SectionLabel id={ROLL_SECTION_ID} label={roll.title} count={roll.total} note={ROLL_NOTE} />
@@ -88,9 +90,6 @@ function Roll({ model, depotId }: Omit<YardRollProps, 'depotNames'>) {
           {roll.groups.map((group) => (
             <StateGroupBlock key={group.state} group={group} depotId={depotId} />
           ))}
-          {nothingListed ? (
-            <StatePanel kind="empty" compact tone="ok" sentence="No bus here needs action" />
-          ) : null}
         </div>
       )}
     </section>
