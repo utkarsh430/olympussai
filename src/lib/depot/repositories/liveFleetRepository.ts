@@ -31,7 +31,10 @@ function staleForDepots(result: LiveSnapshotResult, nowMs: number): boolean {
  * rows array, so copying here would re-run the analysis on every request.
  */
 export function createLiveFleetRepository(
-  load: () => Promise<LiveSnapshotResult> = () => getLiveSnapshot(),
+  // Data younger than the fresh limit is answered at once and refreshed in the background:
+  // a depot poll never waits on the upstream while what it would show is still fresh.
+  load: () => Promise<LiveSnapshotResult> = () =>
+    getLiveSnapshot(Date.now(), { serveLastGoodWithinMs: LAST_GOOD_FRESH_MS }),
   now: () => number = () => Date.now(),
 ): FleetRepository {
   return {

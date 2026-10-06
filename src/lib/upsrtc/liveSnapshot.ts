@@ -3,6 +3,7 @@ import type { UpstreamFetchResult } from '@/lib/upsrtc/client';
 import { normalizeLivePayload } from '@/lib/upsrtc/normalizer';
 import { deriveFeedClock, normalizeDepotRows } from '@/lib/upsrtc/depotNormalizer';
 import { TtlCache } from '@/lib/upsrtc/cache';
+import { logDepotError } from '@/lib/depot/log';
 import { loadFleetFixture, resetFleetFixtureForTests } from '@/lib/upsrtc/fleetFixture';
 import liveFixture from '@/fixtures/upsrtc-live-sample.json';
 import type { CanonicalLiveBus, UpstreamSource } from '@/models/canonical';
@@ -43,7 +44,24 @@ export interface LiveSnapshotResult {
 }
 
 export const LIVE_CACHE_TTL_MS = 15_000;
+/**
+ * After a failed refresh, how long the upstream is left alone: inside this interval every
+ * request is answered at once with what the failed refresh answered (last-good data, or
+ * the saved sample when there is none) instead of waiting up to REQUEST_TIMEOUT_MS on an
+ * upstream that has just failed. The first request after it tries the upstream again.
+ */
+export const LIVE_RETRY_BACKOFF_MS = 20_000;
 const CACHE_KEY = 'live';
+
+/** How a caller may be answered while the cached snapshot is older than its TTL. */
+export interface LiveSnapshotOptions {
+  /**
+   * Answer at once with last-good data up to this age, and refresh in the background
+   * (one refresh shared by every caller). Without it the caller waits for the refresh,
+   * as the command centre's route does.
+   */
+  readonly serveLastGoodWithinMs?: number;
+}
 
 interface LiveDiagnostics {
   lastAttemptAt: string | null;
@@ -73,6 +91,8 @@ export const liveDiagnostics: LiveDiagnostics = { ...INITIAL_DIAGNOSTICS };
 // Module-scoped: survives across requests in a warm server process.
 const cache = new TtlCache<LiveSnapshot>(LIVE_CACHE_TTL_MS);
 let inFlight: Promise<LiveSnapshotResult> | null = null;
+// Until this wall time, a failed refresh is not retried; null while the upstream answers.
+let retryAfterMs: number | null = null;
 // Bumped by the test reset so a refresh started before it cannot write afterwards.
 let generation = 0;
 
@@ -171,6 +191,7 @@ async function refresh(now: number): Promise<LiveSnapshotResult> {
         liveDiagnostics.lastSuccessAt = snapshot.fetchedAt;
         liveDiagnostics.lastError = null;
         liveDiagnostics.consecutiveFailures = 0;
+        retryAfterMs = null;
       }
       return { snapshot, source: 'live', stale: false };
     }
@@ -182,15 +203,45 @@ async function refresh(now: number): Promise<LiveSnapshotResult> {
   if (isCurrent()) {
     liveDiagnostics.lastError = failure;
     liveDiagnostics.consecutiveFailures += 1;
+    retryAfterMs = now + LIVE_RETRY_BACKOFF_MS;
   }
+  return fallbackResult(now);
+}
 
-  // Degrade gracefully: last-known-good, then fixture. Never a blank screen.
+/** Degrade gracefully: last-known-good, then the saved sample. Never a blank screen. */
+function fallbackResult(now: number): LiveSnapshotResult {
   const lastGood = cache.getLastGood(CACHE_KEY);
   if (lastGood) return { snapshot: lastGood.value, source: 'cache', stale: true };
   return fixtureResult(now);
 }
 
-export function getLiveSnapshot(now: number = Date.now()): Promise<LiveSnapshotResult> {
+/** Single-flight: concurrent callers share one upstream request and one result. */
+function sharedRefresh(now: number): Promise<LiveSnapshotResult> {
+  if (inFlight) return inFlight;
+  const pending: Promise<LiveSnapshotResult> = refresh(now).finally(() => {
+    // Only release our own slot; a test reset may already have replaced it.
+    if (inFlight === pending) inFlight = null;
+  });
+  // A refresh nobody waits on (a background one) must not end as an unhandled rejection;
+  // callers that do wait still receive the rejection from `pending` itself.
+  pending.catch((error: unknown) => logDepotError('live-snapshot', error));
+  inFlight = pending;
+  return pending;
+}
+
+/** Last-good data no older than `maxAgeMs`, or null. A negative age is not young. */
+function youngLastGood(now: number, maxAgeMs: number | undefined): LiveSnapshot | null {
+  if (maxAgeMs === undefined) return null;
+  const lastGood = cache.getLastGood(CACHE_KEY);
+  if (!lastGood) return null;
+  const ageMs = now - lastGood.storedAt;
+  return ageMs >= 0 && ageMs <= maxAgeMs ? lastGood.value : null;
+}
+
+export function getLiveSnapshot(
+  now: number = Date.now(),
+  options: LiveSnapshotOptions = {},
+): Promise<LiveSnapshotResult> {
   // Explicit offline demo mode for presentations without connectivity.
   if (process.env.NEXT_PUBLIC_DEMO_MODE === '1') {
     liveDiagnostics.lastError = 'Fixture mode forced via NEXT_PUBLIC_DEMO_MODE';
@@ -200,21 +251,22 @@ export function getLiveSnapshot(now: number = Date.now()): Promise<LiveSnapshotR
   const cached = cache.get(CACHE_KEY, now);
   if (cached) return Promise.resolve({ snapshot: cached, source: 'cache', stale: false });
 
-  // Single-flight: concurrent callers share one upstream request and one result.
-  if (inFlight) return inFlight;
+  // Backing off after a failure: answer as the failed refresh did, without the upstream.
+  if (retryAfterMs !== null && now < retryAfterMs) return Promise.resolve(fallbackResult(now));
 
-  const pending: Promise<LiveSnapshotResult> = refresh(now).finally(() => {
-    // Only release our own slot; a test reset may already have replaced it.
-    if (inFlight === pending) inFlight = null;
-  });
-  inFlight = pending;
-  return pending;
+  const refreshing = sharedRefresh(now);
+  // Stale-while-revalidate for callers that accept it: the refresh above runs on regardless.
+  // Flagged stale like any last-good answer; the caller judges freshness by the data's age.
+  const young = youngLastGood(now, options.serveLastGoodWithinMs);
+  if (young) return Promise.resolve({ snapshot: young, source: 'cache', stale: true });
+  return refreshing;
 }
 
 /** Test seam: drop the cache, any in-flight fetch, the fixture projection and the diagnostics. */
 export function resetLiveSnapshotForTests(): void {
   cache.clear();
   inFlight = null;
+  retryAfterMs = null;
   generation += 1;
   fixture = null;
   resetFleetFixtureForTests();
