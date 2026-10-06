@@ -12,11 +12,11 @@ import {
 } from '@/lib/depot/network/overviewModel';
 
 /**
- * The line renders at a fixed minimum height, selected or not, so the
- * table never jumps when the first selection arrives.
+ * The line renders at a fixed minimum height, selected or not, so the table never jumps
+ * when the first selection arrives. No rules of its own: the section's one rule is above
+ * its label, and the table's header draws the line under this one.
  */
-const LINE =
-  'flex min-h-[34px] min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-y border-depot-line py-1';
+const LINE = 'flex min-h-[34px] min-w-0 flex-wrap items-center gap-x-3 gap-y-1 py-1';
 
 function detail(row: DepotRow): string {
   const index = rankedIndex(row);

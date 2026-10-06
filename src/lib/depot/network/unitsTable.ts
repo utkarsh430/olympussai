@@ -1,4 +1,5 @@
 import { DARK_AFTER_MIN } from '@/lib/depot/infer/thresholds';
+import { PAGE_ROWS } from '@/lib/depot/listPaging';
 import type { DepotSummary } from '@/lib/depot/types';
 
 /**
@@ -111,3 +112,21 @@ export const NARROW_TABLE_NOTE =
 
 /** The table label's right-hand note. */
 export const TABLE_SELECT_NOTE = 'Select a row to see the unit on the map and in the panel.';
+
+/** The table pages at the shared 25 rows; the pager under it is its only count. */
+export const UNITS_PAGE_ROWS = PAGE_ROWS;
+
+/**
+ * The zero-based page that holds `key` in the table's sorted order, or null when the key is
+ * not in it (nothing selected, or the kind filter hides the unit). A unit selected on the
+ * map or in a ranked list brings this page into view.
+ */
+export function pageOfKey(
+  sortedKeys: readonly string[],
+  key: string | null,
+  size: number = UNITS_PAGE_ROWS,
+): number | null {
+  if (key === null) return null;
+  const index = sortedKeys.indexOf(key);
+  return index < 0 ? null : Math.floor(index / Math.max(1, Math.floor(size)));
+}

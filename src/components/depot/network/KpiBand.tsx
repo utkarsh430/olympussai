@@ -60,19 +60,20 @@ function BandFigure({ figure, progress }: { readonly figure: KpiFigure; readonly
 }
 
 /**
- * One FigureBand: five figures in the first row (four classified bus states and the
- * operating depots), the three secondary figures in a second row with their shares as
- * captions, then the week's MODELLED trends as the band's right-hand note. No LIVE tag
- * on a figure: the page's provenance line and the feed chip say it.
+ * One FigureBand of five: the fleet and the four classified states that add up to it, so
+ * the row is full at 1440, 1280 and 1024 with no empty cell. Reporting and route assigned
+ * are shares of the fleet and ride as its caption; the units count is on the map's label.
+ * Then the week's MODELLED trends as the band's note. No LIVE tag on a figure: the page's
+ * provenance line and the feed chip say it.
  */
 export function KpiBand({ kpis, depots }: KpiBandProps) {
   const progress = useFirstMountProgress();
-  const { primary, secondary } = kpiLayout(kpis, depots);
+  const { figures } = kpiLayout(kpis, depots);
 
   return (
     <section aria-label="Network figures" data-testid="depot-kpi-band">
       <FigureBand label="Network figures">
-        {[...primary, ...secondary].map((figure) => (
+        {figures.map((figure) => (
           <BandFigure key={figure.key} figure={figure} progress={progress} />
         ))}
       </FigureBand>

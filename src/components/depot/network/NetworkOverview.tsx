@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import {
@@ -13,24 +13,20 @@ import { formatClockTime } from '@/lib/depot/format';
 import { LOAD_ERROR_TITLE, loadErrorBody } from '@/lib/depot/loadError';
 import { OVERVIEW_HOW_PRODUCED } from '@/lib/depot/network/howProduced';
 import { joinScores } from '@/lib/depot/network/overviewModel';
+import { kpiLayout } from '@/lib/depot/network/overviewWords';
 import { exceptionWindowNote } from '@/lib/depot/score/windowWords';
 import type { DepotNetworkResponse } from '@/lib/depot/api';
-import { BriefingCard } from '@/components/depot/copilot/BriefingCard';
-import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import { DepotTable } from './DepotTable';
 import { MapSection } from './MapSection';
 import { ExceptionSummary } from './ExceptionSummary';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { KpiBand } from './KpiBand';
+import { NetworkBriefingRow } from './NetworkBriefingRow';
 import { RankedStrip } from './RankedStrip';
 import { SelectionBar } from './SelectionBar';
 
 const SECTION = 'animate-rise';
 const OPERATIONS_HREF = '/project/upsrtc';
-/** Module-level so the card's request body keeps one identity across polls. */
-const NETWORK_SCOPE: CopilotScope = { kind: 'network' };
-const BRIEFING_ROW_SENTENCE =
-  'A short written summary of these figures. Advisory: it describes, it does not instruct.';
 
 function OverviewLoading() {
   return (
@@ -82,6 +78,7 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
           selected={selected}
           onSelect={select}
           vanished={vanished}
+          unitsNote={kpiLayout(data.kpis, data.depots).unitsLine}
         />
       )}
       <div className={SECTION}>
@@ -116,41 +113,6 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
       )}
       <HowProduced paragraphs={OVERVIEW_HOW_PRODUCED} className="mt-10" />
     </div>
-  );
-}
-
-/**
- * The briefing as the cockpit's row: label, one sentence, "Open briefing" on the right.
- * Opening mounts the card in place; closing hides it without unmounting, so a written
- * text is kept. The card is given the page's feed time, so its footer says when the
- * page has moved on since the text was written.
- */
-function NetworkBriefingRow({ feedNow }: { readonly feedNow: string | null }) {
-  const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const bodyId = useId();
-  const toggle = (): void => {
-    setMounted(true);
-    setOpen((value) => !value);
-  };
-  return (
-    <section aria-labelledby="network-briefing-row" data-testid="depot-briefing-row" className="min-w-0 border-y border-depot-line">
-      <div className="flex min-h-9 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 py-1">
-        <h2 id="network-briefing-row" className="depot-label">
-          Network briefing
-        </h2>
-        <p className="depot-note min-w-0 flex-1 truncate">{BRIEFING_ROW_SENTENCE}</p>
-        <button type="button" className="hud-button shrink-0" aria-expanded={open} aria-controls={bodyId} onClick={toggle}>
-          {open ? 'Close briefing' : 'Open briefing'}
-        </button>
-      </div>
-      {/* Hidden by class, not the attribute: a closed card keeps its written text. */}
-      <div id={bodyId} className={open ? 'pb-3' : 'hidden'}>
-        {mounted ? (
-          <BriefingCard scope={NETWORK_SCOPE} title="Network briefing" currentFeedTime={feedNow} />
-        ) : null}
-      </div>
-    </section>
   );
 }
 

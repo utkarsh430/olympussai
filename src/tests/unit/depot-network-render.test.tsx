@@ -157,6 +157,24 @@ describe('ExceptionSummary bands (critique MUST 2)', () => {
     expect(container.textContent).not.toContain('Open the exceptions page');
     expect(container.querySelectorAll('[data-testid="depot-exception-caption"]')).toHaveLength(1);
   });
+
+  it('keeps every label a plain mono label: the figure is the link, nothing is table-link styled', () => {
+    const counts = {
+      emergency: 2, dark_share_high: 3, off_road_high: 0, on_road_low: 1,
+      power_cut_cluster: 4, long_dark: 698, power_cut: 10, tamper_code: 5,
+    };
+    act(() =>
+      root.render(<ExceptionSummary counts={counts} severities={{ critical: 5, warning: 20, info: 15 }} />),
+    );
+    expect(container.querySelectorAll('.depot-table-link')).toHaveLength(0);
+    const kindLabels = Array.from(
+      container.querySelectorAll('[data-testid="depot-figure-band"] a .depot-label'),
+    );
+    expect(kindLabels).toHaveLength(8);
+    const bandLabels = Array.from(container.querySelectorAll('h3'));
+    expect(bandLabels.map((h) => h.textContent)).toEqual(['Depots', 'Buses']);
+    bandLabels.forEach((h) => expect(h.className).toContain('depot-label'));
+  });
 });
 
 describe('RankedStrip (critique MUST 1, R2-m24)', () => {
