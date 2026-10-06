@@ -161,7 +161,7 @@ export function disclosureItems(
     {
       heading: 'Off the road now',
       lines: [
-        'The list is live: buses the feed reports under maintenance. Nothing here is written back to any system.',
+        'The list comes from the feed: buses it reports under maintenance. Nothing here is written back to any system.',
       ],
     },
     {

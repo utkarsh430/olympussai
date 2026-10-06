@@ -203,7 +203,7 @@ export function emptyCrewSentence(operatingDate?: string): string {
 
 /** What would change the empty state, as the panel's one muted line. */
 export const EMPTY_CREW_REMEDY =
-  'Crew shifts appear once the live feed shows a route running from this depot; the data sources page says which feeds the day is built from.';
+  'Crew shifts appear once the feed shows a route running from this depot; the data sources page says which feeds the day is built from.';
 
 export function rosterCountSentence(shown: number, total: number): string {
   if (shown >= total) return `${countOf(total, 'covered shift', 'covered shifts')}.`;

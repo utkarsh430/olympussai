@@ -204,7 +204,7 @@ describe('the two indices', () => {
   it('keeps them apart in one sentence that names each and the data behind it', () => {
     const sentence = `${INDEX_SEPARATION.lead}${INDEX_SEPARATION.linkText}${INDEX_SEPARATION.tail}`;
     expect(sentence).toContain('Depot Economics Index is modelled');
-    expect(sentence).toContain('separate from the Depot Efficiency Index, which is built from live data');
+    expect(sentence).toContain('separate from the Depot Efficiency Index, which is built from the feed');
     expect(sentence).not.toMatch(/\d/);
     expect(BREAKDOWN_NOTE.toLowerCase()).not.toContain('efficiency');
   });

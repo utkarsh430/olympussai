@@ -47,10 +47,10 @@ export function modelledDaySentence(reference: ModelledDayReference): string {
   const live =
     scheduled === null
       ? ''
-      : `The live feed carries a schedule for ${formatCount(scheduled.n)} of ${formatCount(scheduled.of)} of this depot's buses at the feed time. `;
+      : `The feed carries a schedule for ${formatCount(scheduled.n)} of ${formatCount(scheduled.of)} of this depot's buses at the feed time. `;
   if (duties === 0) {
     return `${live}${noDutiesReason(operatingDate)}, so this page has no modelled day to show.`;
   }
   const day = operatingDate === undefined ? 'the modelled day' : `the modelled day for ${operatingDate}`;
-  return `${live}This page is built on ${day}, rebuilt from the live fleet as of the feed time: ${count(duties, 'duty', 'duties')} on ${count(routes, 'route', 'routes')}.`;
+  return `${live}This page is built on ${day}, rebuilt from the feed's fleet as of the feed time: ${count(duties, 'duty', 'duties')} on ${count(routes, 'route', 'routes')}.`;
 }

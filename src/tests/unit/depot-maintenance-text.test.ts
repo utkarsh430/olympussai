@@ -27,7 +27,7 @@ describe('off-road sentences', () => {
 
   it('says in one sentence why the list is empty', () => {
     expect(offRoadEmptyText()).toBe(
-      'The live feed reports no bus under maintenance at this depot.',
+      'The feed reports no bus under maintenance at this depot.',
     );
   });
 
