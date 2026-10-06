@@ -124,16 +124,25 @@ describe('lastHeardText', () => {
     [0, 'just now'],
     [0.9, 'just now'],
     [1, '1 min ago'],
-    [119, '119 min ago'],
-    [120, '2 h ago'],
-    [2879, '47 h ago'],
-    [2880, '2 days ago'],
-    [14400, '10 days ago'],
+    [59, '59 min ago'],
+    [60, '1 h ago'],
+    [87, '1 h 27 min ago'],
+    [119, '1 h 59 min ago'],
+    [1439, '23 h 59 min ago'],
+    [1440, '1 d ago'],
+    [2879, '1 d 23 h ago'],
+    [14400, '10 d ago'],
+    [19920, '13 d 20 h ago'],
   ])('%s -> %s', (age, text) => {
     expect(lastHeardText(age)).toBe(text);
   });
   it('treats a non-finite age as unknown', () => {
     expect(lastHeardText(Number.NaN)).toBe('unknown');
+  });
+  it('never prints raw minutes above an hour, for any age up to three weeks', () => {
+    for (let age = 0; age <= 30_240; age += 7) {
+      expect(lastHeardText(age)).not.toMatch(/\b(?:6[1-9]|[7-9]\d|\d{3,}) min\b/);
+    }
   });
 });
 
