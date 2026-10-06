@@ -8,10 +8,9 @@ import { modelledFuelRepository } from '@/lib/depot/repositories/modelledFuelRep
 import { modelledRevenueRepository } from '@/lib/depot/repositories/modelledRevenueRepository';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
-import { buildDepotDetail } from '@/lib/depot/live/depotView';
+import { buildFuelResponse } from '@/lib/depot/live/fuelView';
 import { buildEconomicsResponse } from '@/lib/depot/live/economicsView';
 import { buildRevenueResponse } from '@/lib/depot/live/revenueView';
-import { analyseFuel } from '@/lib/depot/fuel/analysis';
 import { cachedRouteProfiles, routeCatalogueRevision } from '@/lib/depot/routes/routeCatalogue';
 import type { RouteProfile } from '@/lib/depot/routes/types';
 import { GET } from '@/app/api/upsrtc/depot/economics/route';
@@ -83,7 +82,7 @@ function world(): DepotBusRow[] {
   );
 }
 
-/** Every route has a length except depot 7's, so depot 7 cannot be ranked. */
+/** Every route has a real length except depot 7's, which run on MODELLED lengths. */
 function profiles(rows: readonly DepotBusRow[]): Map<string, RouteProfile> {
   const names = [...new Set(rows.flatMap((r) => (r.routeName === null ? [] : [r.routeName])))];
   return new Map(
@@ -133,13 +132,14 @@ describe('buildEconomicsResponse', () => {
     expect(byId(response, '1')).toMatchObject({ name: 'Depot 1', kind: 'depot', fleet: 12 });
   });
 
-  it('ranks depots with all three components and says why the others are not ranked', async () => {
+  it('ranks every operating depot, real lengths or not, and says why the small one is not', async () => {
+    // Ruling S39: depot 7 has no real route length (coverage 0 of 2) and is ranked all the same.
     const response = await build();
     for (const id of RANKED_DEPOTS) expect(byId(response, id).score.ranked).toBe(true);
-    const noLength = byId(response, NO_LENGTH_DEPOT).score;
-    expect(noLength).toMatchObject({ ranked: false, reason: 'missing_component' });
-    expect(noLength.missing).toContain('earningsPerKm');
-    expect(byId(response, NO_LENGTH_DEPOT).lengthCoverage).toEqual({ n: 0, of: 2 });
+    const noLength = byId(response, NO_LENGTH_DEPOT);
+    expect(noLength.score).toMatchObject({ ranked: true, reason: 'ok', missing: [] });
+    expect(noLength.lengthCoverage).toEqual({ n: 0, of: 2 });
+    expect(byId(response, '1').lengthCoverage).toEqual({ n: 2, of: 2 });
     expect(byId(response, SMALL_DEPOT).score).toMatchObject({
       ranked: false,
       reason: 'fleet_too_small',
@@ -148,9 +148,11 @@ describe('buildEconomicsResponse', () => {
 
   it('gives ranked depots distinct ranks within their peer group', async () => {
     const response = await build();
-    const ranks = RANKED_DEPOTS.map((id) => byId(response, id).score.rank).sort();
-    expect(ranks).toEqual([1, 2, 3, 4, 5, 6]);
-    expect(byId(response, '1').score.peerCount).toBe(RANKED_DEPOTS.length);
+    // Six depots with real lengths plus depot 7 on modelled ones: seven peers, ranks 1 to 7.
+    const ids = [...RANKED_DEPOTS, NO_LENGTH_DEPOT];
+    const ranks = ids.map((id) => byId(response, id).score.rank ?? 0).sort((a, b) => a - b);
+    expect(ranks).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(byId(response, '1').score.peerCount).toBe(ids.length);
   });
 
   it('reconciles each depot component with the revenue page and the fuel analysis', async () => {
@@ -159,7 +161,7 @@ describe('buildEconomicsResponse', () => {
     const live = view(rows);
     const component = (id: string, key: string) =>
       byId(response, id).score.components.find((c) => c.key === key)?.value ?? null;
-    for (const id of RANKED_DEPOTS) {
+    for (const id of [...RANKED_DEPOTS, NO_LENGTH_DEPOT]) {
       const revenue = await buildRevenueResponse(live, id, repositories);
       expect(round(component(id, 'earningsPerKm') ?? -1, 2)).toBe(
         round(revenue?.summary.earningsPerKm ?? -2, 2),
@@ -167,9 +169,9 @@ describe('buildEconomicsResponse', () => {
       expect(round(component(id, 'loadFactor') ?? -1, 3)).toBe(
         round(revenue?.summary.loadFactor ?? -2, 3),
       );
-      const buses = buildDepotDetail(live, id)?.buses ?? [];
-      const fuel = analyseFuel(await modelledFuelRepository.fuelDay(buses, response.operatingDate));
-      expect(round(component(id, 'costPerKm') ?? -1, 2)).toBe(round(fuel.depot.costPerKm ?? -2, 2));
+      // The fuel page's own response, built on the same modelled day.
+      const fuel = await buildFuelResponse(live, id, modelledFuelRepository);
+      expect(round(component(id, 'costPerKm') ?? -1, 2)).toBe(round(fuel?.totals.costPerKm ?? -2, 2));
     }
     expect(analyseSnapshot(live).depotsById.size).toBe(response.depots.length);
   });
