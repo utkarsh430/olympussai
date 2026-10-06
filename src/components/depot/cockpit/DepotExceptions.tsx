@@ -60,7 +60,7 @@ export function DepotExceptions({ depotId, groups, depotLines }: DepotExceptions
                     {row.registrationNumber}
                   </Link>
                   <span className="min-w-0 flex-1 truncate text-depot-muted" title={row.kinds}>{row.kinds}</span>
-                  <span className="shrink-0 tabular-nums text-depot-faint" title={formatFeedDateTime(row.lastSeen)}>
+                  <span className="shrink-0 tabular-nums text-depot-faint" title={row.lastSeen === null ? 'No last-seen time in the feed' : formatFeedDateTime(row.lastSeen)}>
                     {row.lastSeen === null ? '—' : formatFeedTime(row.lastSeen)}
                   </span>
                 </li>
