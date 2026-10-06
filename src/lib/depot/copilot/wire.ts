@@ -41,6 +41,12 @@ export interface CopilotFactView {
 export interface CopilotAnswerTable {
   readonly columns: readonly string[];
   readonly rows: readonly (readonly string[])[];
+  /**
+   * One entry per column, in column order: the provenance of the figures that fill it, taken
+   * from the facts the column was built from. `null` for a column that holds no figure (a
+   * depot's name). Set by the server on every table it builds; optional on the wire.
+   */
+  readonly provenance?: readonly (Provenance | null)[];
 }
 
 /** A depot an answer was about, by id and its display name. */

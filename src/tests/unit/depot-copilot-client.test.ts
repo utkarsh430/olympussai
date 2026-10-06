@@ -220,10 +220,7 @@ describe('requestCopilot bounds', () => {
       'too many rows',
       { ...GOOD, table: { columns: ['a'], rows: Array(MAX_TABLE_ROWS + 1).fill(['x']) } },
     ],
-    [
-      'over-long fact id',
-      { ...GOOD, facts: [{ ...fact, id: 'i'.repeat(MAX_FACT_ID_CHARS + 1) }] },
-    ],
+    ['over-long fact id', { ...GOOD, facts: [{ ...fact, id: 'i'.repeat(MAX_FACT_ID_CHARS + 1) }] }],
     ['over-long generatedAt', { ...GOOD, generatedAt: 'g'.repeat(MAX_GENERATED_AT_CHARS + 1) }],
     [
       'over-long column heading',
@@ -238,6 +235,18 @@ describe('requestCopilot bounds', () => {
     ],
     ['ragged row (short)', { ...GOOD, table: { columns: ['a', 'b'], rows: [['x']] } }],
     ['ragged row (long)', { ...GOOD, table: { columns: ['a'], rows: [['x', 'y']] } }],
+    [
+      'column provenance of the wrong length',
+      { ...GOOD, table: { columns: ['a', 'b'], rows: [], provenance: [null] } },
+    ],
+    [
+      'an unknown column provenance',
+      { ...GOOD, table: { columns: ['a'], rows: [], provenance: ['measured'] } },
+    ],
+    [
+      'column provenance that is not a list',
+      { ...GOOD, table: { columns: ['a'], rows: [], provenance: 'live' } },
+    ],
   ];
 
   it.each(bad)('rejects %s as unavailable', async (_name, body) => {
@@ -265,6 +274,17 @@ describe('requestCopilot bounds', () => {
       },
     });
     expect((await requestCopilot(BODY)).ok).toBe(true);
+  });
+
+  it('accepts a table with a provenance per column, a name column unset', async () => {
+    const table = {
+      columns: ['Depot', 'Short by'],
+      rows: [['A', '3']],
+      provenance: [null, 'modelled'],
+    };
+    stub(200, { ...GOOD, table });
+    const result = await requestCopilot(BODY);
+    expect(result.ok && result.response.table).toEqual(table);
   });
 
   it('accepts a table with no rows', async () => {
