@@ -4,7 +4,7 @@ import { planDay } from '@/lib/depot/sim/dayPlan';
 import type { BusOpState, DepotSummary } from '@/lib/depot/types';
 
 /*
- * Ruling S55, review N1: the night parking order plans TOMORROW's first
+ * The night parking order plans TOMORROW's first
  * departures for the buses standing in the yard tonight. A plan for a later
  * date must not rank buses by how they stand now (no on-the-road tier, no
  * time fit): the buses in the yard are the ones that will leave it. The plan
@@ -42,7 +42,7 @@ const base = {
 const withDuty = (plan: ReturnType<typeof planDay>): Set<string | null> =>
   new Set(plan.plan.assignments.map((a) => a.registrationNumber));
 
-describe('a plan for a later date (ruling S55, N1)', () => {
+describe('a plan for a later date', () => {
   it('gives every yard bus a first duty when the duties allow, however many buses are out now', () => {
     const tomorrow = planDay({ ...base, operatingDate: '2026-10-07', now: { kind: 'later_day' } });
     expect(tomorrow.duties.length).toBe(81);

@@ -8,7 +8,7 @@ import type { BusOpState } from '@/lib/depot/types';
 import { SeededRandom } from '@/lib/simulation/seededRandom';
 
 /*
- * Ruling S62b: before the first duty of the feed's date every eligible bus can
+ * Before the first duty of the feed's date every eligible bus can
  * take a duty (eligible as on the feed clock). The buses standing in the yard
  * leave first, so they hold the earliest duties; the buses still out take the
  * ones after. Route and class rank below that, then wear; there is no time fit.
@@ -38,7 +38,7 @@ const NO_FLEET = new Map<string, ModelledBus>();
 const busOf = (plan: ReturnType<typeof assignDuties>): Record<string, string | null> =>
   Object.fromEntries(plan.assignments.map((a) => [a.dutyId, a.registrationNumber]));
 
-describe('before the first duty (S62b)', () => {
+describe('before the first duty', () => {
   it('gives the yard buses the earliest duties even against the live route', () => {
     const duties = [duty('1', 'A', 300), duty('2', 'A', 310), duty('3', 'B', 320), duty('4', 'B', 330)];
     const buses = [

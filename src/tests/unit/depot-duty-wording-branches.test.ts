@@ -6,7 +6,7 @@ import type { PlanMode } from '@/lib/depot/duties/types';
 import type { ServiceClass } from '@/lib/depot/sim/types';
 
 /*
- * Review m-d, m-e, m-f and ruling S62: every sentence the duty page states about
+ * Every sentence the duty page states about
  * how buses were matched, reached through each combination of the response's
  * mode, clock, yard and counts. Each is true for the response it is printed for.
  */
@@ -35,14 +35,14 @@ const NO_CLOCK = 'The feed has no clock, so no bus could be judged by how recent
 const YARD_NO_CLOCK = 'A standing bus must be in the yard to be eligible.';
 const NO_YARD_NO_CLOCK =
   'No yard is established for this depot, so location is not used: every bus that is not off the road or dark is eligible, standing or out on the road.';
-// Ruling S62b: before the first duty the yard buses take the earliest duties, and
+// Before the first duty the yard buses take the earliest duties, and
 // eligibility is judged as on the feed clock, so its sentence follows.
 const BEFORE_YARD =
   'Before the first departure: buses in the yard are matched to the earliest duties; buses still out take the ones after.';
 const BEFORE_NO_YARD =
   'Before the first departure: standing buses are matched to the earliest duties; buses still out take the ones after.';
 
-describe('how eligibility was judged, for each mode, clock and yard (S62b, m-d)', () => {
+describe('how eligibility was judged, for each mode, clock and yard', () => {
   const cases: readonly (readonly [PlanMode | undefined, boolean, boolean, readonly string[]])[] = [
     ['as_of_feed_time', false, false, [YARD_FEED]],
     [undefined, false, false, [YARD_FEED]],

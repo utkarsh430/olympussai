@@ -7,7 +7,7 @@ import type { BusOpState } from '@/lib/depot/types';
 import { SeededRandom } from '@/lib/simulation/seededRandom';
 
 /*
- * Ruling S55, review N5 (I2-rest): a bus in service ranks above a bus that is
+ * A bus in service ranks above a bus that is
  * only moving, directly below "keep on-the-road buses in the day". The tiers
  * stay exactly lexicographic: checked here by exhaustive search on small
  * depots; the bound at 400 x 400 is in `depot-tier-weights-exact.test.ts`.
@@ -30,7 +30,7 @@ function duty(id: string, routeName: string, startMin: number, endMin: number, c
 const modelled = (reg: string, serviceClass: ServiceClass, ageYears: number): ModelledBus =>
   ({ registrationNumber: reg, serviceClass, ageYears, seats: 40 }) as ModelledBus;
 
-describe('in service ranks above merely moving (S55, N5)', () => {
+describe('in service ranks above merely moving', () => {
   it('runs both buses in service on the duty’s route and leaves the merely moving bus spare', () => {
     const fleet = new Map([
       ['A', modelled('A', 'ordinary', 12)],
@@ -45,7 +45,7 @@ describe('in service ranks above merely moving (S55, N5)', () => {
   });
 });
 
-/** The pair's tiers as the ruling states them, highest first, read off the inputs only. */
+/** The pair's tiers as the matcher orders them, highest first, read off the inputs only. */
 function tiersOf(d: Duty, b: DepotBusView, fleet: Map<string, ModelledBus>, now: PlanNow): number[] {
   const onRoad = b.state !== 'standing';
   const feedMinute = now.kind === 'feed_time' ? now.feedMinute : null;

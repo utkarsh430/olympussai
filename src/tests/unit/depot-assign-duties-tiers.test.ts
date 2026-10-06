@@ -7,7 +7,7 @@ import type { ModelledBus, ServiceClass } from '@/lib/depot/sim/types';
 import type { BusOpState } from '@/lib/depot/types';
 
 /*
- * Ruling S47 b and c: one matcher, its eligibility and its cost tiers, and the
+ * One matcher, its eligibility and its cost tiers, and the
  * way each assigned bus stands now.
  */
 
@@ -38,7 +38,7 @@ function fleetOf(entries: readonly [string, ServiceClass][]): Map<string, Modell
 const busOf = (plan: ReturnType<typeof assignDuties>): Record<string, string | null> =>
   Object.fromEntries(plan.assignments.map((a) => [a.dutyId, a.registrationNumber]));
 
-describe('assignDuties eligibility (ruling S47 b)', () => {
+describe('assignDuties eligibility', () => {
   it('takes buses in service or on the road wherever they are; never off the road or dark', () => {
     const buses = [
       bus('A', 'in_service', 'R', 'away'),
@@ -73,7 +73,7 @@ describe('assignDuties eligibility (ruling S47 b)', () => {
   });
 });
 
-describe('assignDuties cost tiers (ruling S47 b)', () => {
+describe('assignDuties cost tiers', () => {
   it('1: keeps buses on the road in the day, even off their route and class', () => {
     const buses = [
       bus('A', 'standing', 'R'),
@@ -127,7 +127,7 @@ describe('assignDuties tier weights hold at a large depot', () => {
   });
 });
 
-describe('assignDuties records how each bus stands now (ruling S47 c)', () => {
+describe('assignDuties records how each bus stands now', () => {
   it('on the road, in the yard, or standing where no yard is established; null without a bus', () => {
     const plan = assignDuties(
       [duty('1', 'R'), duty('2', 'R'), duty('3', 'R')],

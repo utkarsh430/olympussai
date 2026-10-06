@@ -121,7 +121,7 @@ describe('buildDutyBoard', () => {
     expect(b.duties.map((d) => d.id)).toEqual(sorted.map((d) => d.id));
   });
 
-  it('counts the held-out buses of every class on each unassigned duty (S55, N6)', () => {
+  it('counts the held-out buses of every class on each unassigned duty', () => {
     const quietSince = new Date(Date.parse(FEED_NOW) - 90 * 60_000).toISOString();
     const rows = [
       ...scattered(),
@@ -159,7 +159,7 @@ describe('buildDutyBoard', () => {
 
   it('carries the reason through: a depot with no usable bus leaves every duty without one', () => {
     // No yard, and none of the buses was heard inside the reporting window: every bus is
-    // held out as not heard recently (S55), and no duty blames the yard.
+    // held out as not heard recently, and no duty blames the yard.
     const quietSince = new Date(Date.parse(FEED_NOW) - 90 * 60_000).toISOString();
     const b = board(scattered().map((r) => ({ ...r, gpsTimestamp: quietSince })));
     expect(b.eligibilityIgnoredLocation).toBe(true);
@@ -213,7 +213,7 @@ describe('buildDutyBoard', () => {
   });
 
   it('builds the depot bus list only on a memo miss, never for a repeat or unknown depot', () => {
-    // No full depot detail is built for the board: only the bus list, once (review M4).
+    // No full depot detail is built for the board: only the bus list, once.
     const detail = vi.spyOn(depotView, 'buildDepotDetail');
     const spy = vi.spyOn(depotView, 'depotBusViews');
     const rows = parked();

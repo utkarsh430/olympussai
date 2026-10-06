@@ -5,7 +5,7 @@ import { planDay } from '@/lib/depot/sim/dayPlan';
 import type { BusOpState, DepotSummary } from '@/lib/depot/types';
 
 /*
- * Review m-g: a bus held out of the matching (not heard recently, or standing
+ * A bus held out of the matching (not heard recently, or standing
  * away from the yard) did not run because it was held out, not for want of a
  * duty, so the day gives it its own reason. Off the road and dark stay
  * `unavailable`; an eligible bus left over is `no_duty`.

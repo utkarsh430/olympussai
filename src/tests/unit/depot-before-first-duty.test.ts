@@ -14,7 +14,7 @@ import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { planDay } from '@/lib/depot/sim/dayPlan';
 
 /*
- * Rulings S62 and S62b: until the first duty of the feed's own date has started,
+ * Until the first duty of the feed's own date has started,
  * the day has not begun. Every eligible bus can take a duty: the buses standing
  * in the yard leave first, so they hold the earliest duties, and the buses still
  * out take the ones after; nothing else about how buses stand now, and no time
@@ -109,7 +109,7 @@ function boardAndParking(feedNow: string | null, rows: readonly DepotBusRow[]) {
 
 beforeEach(() => resetAnalysisForTests());
 
-describe('before the first duty of the feed date (S62)', () => {
+describe('before the first duty of the feed date', () => {
   it('at 00:05 gives every duty a bus, the yard buses the earliest, and parks those for the same date', async () => {
     const v = view(depotRows(at('00:05:00')), at('00:05:00'));
     const board = buildDutyBoard(v, '1');

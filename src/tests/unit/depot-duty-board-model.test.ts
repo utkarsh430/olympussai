@@ -161,9 +161,9 @@ describe('buildBoardRows', () => {
     expect(rows.map((r) => r.id)).toEqual(['C', 'A', 'B']);
   });
 
-  // Rewritten for round 2: "Matched", never "Assigned" (the page says nothing is
+  // "Matched", never "Assigned" (the page says nothing is
   // assigned); the class in title case; how the bus stands now on a matched row; and
-  // no reason on any row (the reason is stated once above the chart, dispatch item 4).
+  // no reason on any row (the reason is stated once above the chart).
   it('gives every row a state word, a time span, how its bus stands, and a text equivalent', () => {
     const [matched, nobus, away] = buildBoardRows([
       duty({ id: 'A', startMin: 400, busStanding: 'on_road', busClass: 'express' }),
@@ -217,9 +217,9 @@ describe('sentences', () => {
     );
   });
 
-  // Rewritten for S62 / m-d: the exact sentences are pinned in
+  // The exact sentences are pinned in
   // depot-duty-wording-branches.test.ts with the notes they sit beside.
-  it("states the cost in the assignment module's own terms, in its tier order (S47, S55)", () => {
+  it("states the cost in the assignment module's own terms, in its tier order", () => {
     const order = ['out on the road', 'in service before', 'route’s duties', 'service class', 'feed time', 'wear'];
     const at = order.map((phrase) => COST_SENTENCE.indexOf(phrase));
     expect(at.every((i) => i >= 0)).toBe(true);
@@ -258,7 +258,7 @@ describe('sentences', () => {
     expect(nowSentence('2026-10-06T23:59:00Z')).toBe('Now 23:59, the feed clock in Indian time.');
   });
 
-  // Rewritten for round 2: the per-row reason is gone (stated once above the chart; its
+  // The per-row reason is gone (stated once above the chart; its
   // "whatever the class" pin moved to unmatchedLine in depot-duty-page-model), and the
   // summary sentence became the band, whose spare caption is checked here instead.
   it('never says every eligible bus has a duty beside a matching that proposed none', () => {
@@ -278,7 +278,7 @@ describe('sentences', () => {
     expect(spareSentence(['A'])).toBe('1 bus has no duty.');
   });
 
-  it('says where the spare buses stand, never calling them all in the yard (S55, N2)', () => {
+  it('says where the spare buses stand, never calling them all in the yard', () => {
     const fifteen = Array.from({ length: 15 }, (_, i) => `B${i}`);
     const ctx = { assigned: 40, locationIgnored: false };
     expect(
@@ -296,7 +296,7 @@ describe('sentences', () => {
   });
 });
 
-describe('the board view and the timeline width (round 3, Duties Must 1)', () => {
+describe('the board view and the timeline width', () => {
   it('opens as a table below 640 px and as the chart from 640 px', () => {
     expect(defaultBoardView(true)).toBe('table');
     expect(defaultBoardView(false)).toBe('chart');
@@ -342,10 +342,10 @@ describe('bar text placement', () => {
   });
 });
 
-// Rewritten for the design wave: the automatic fallback to the table above 60 duties is
+// The automatic fallback to the table above 60 duties is
 // removed (the chart scrolls in a fixed pane), so the board always opens on the chart.
 describe('bar labels and the now label', () => {
-  // Rewritten for round 2: an unmatched bar carries no word (critique Must 3).
+  // An unmatched bar carries no word.
   it('labels a matched bar with its registration and an unmatched one with nothing', () => {
     expect(barLabel({ registrationNumber: 'UP78JN1770' })).toBe('UP78JN1770');
     expect(barLabel({ registrationNumber: null })).toBeNull();

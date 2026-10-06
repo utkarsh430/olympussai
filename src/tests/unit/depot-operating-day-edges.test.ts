@@ -4,9 +4,9 @@ import { MIN_REAL_LENGTH_KM } from '@/lib/depot/sim/operatingDayConfig';
 import type { DayRoute, OperatingDay } from '@/lib/depot/sim/operatingDayTypes';
 import { modelRidershipDay } from '@/lib/depot/sim/ridership';
 
-/* Review M5: arithmetic edges of the modelled day. */
+/* Arithmetic edges of the modelled day. */
 
-describe('route lengths and seat capacity at the edges (review M5)', () => {
+describe('route lengths and seat capacity at the edges', () => {
   it('treats a real length under the floor as not known: the modelled length applies', () => {
     expect(MIN_REAL_LENGTH_KM).toBe(2);
     expect(modelRouteLength('LKO_ORD_1', 'ordinary', 0.1).lengthProvenance).toBe('modelled');

@@ -7,7 +7,7 @@ import type { BusOpState, DepotSummary } from '@/lib/depot/types';
 import { SeededRandom } from '@/lib/simulation/seededRandom';
 
 /*
- * Ruling S47 as properties over seeded random depots: the day keeps the live
+ * Properties over seeded random depots: the day keeps the live
  * fleet's working buses running, on their own routes where it can, never runs
  * a bus off the road or dark, and does not depend on the order or repetition
  * of the feed's rows. Every expectation is read off the inputs, never off the
@@ -43,12 +43,12 @@ function depotCase(n: number): OperatingDayInput {
 }
 
 const CASES = Array.from({ length: 150 }, (_, n) => depotCase(n));
-/** Out working AND heard within the reporting window: a bus last heard long ago is not (S55). */
+/** Out working AND heard within the reporting window: a bus last heard long ago is not. */
 const onTheRoad = (b: DepotBusView): boolean =>
   (b.state === 'in_service' || b.state === 'on_road') && (b.gpsAgeMin ?? Infinity) <= 30;
 
 /**
- * The feed's day has begun once its first duty has started (ruling S62); before
+ * The feed's day has begun once its first duty has started; before
  * that buses are matched as they stand in the yard. The duties do not depend on
  * the matching, so reading the first start off the day is reading an input.
  */
@@ -60,7 +60,7 @@ function liveRouteOf(input: OperatingDayInput): Map<string, string | null> {
   return new Map(input.buses.map((b) => [b.registrationNumber, b.routeName]));
 }
 
-describe('the modelled day keeps to the live fleet (ruling S47)', () => {
+describe('the modelled day keeps to the live fleet', () => {
   it('runs every bus in service or on the road, heard recently, whenever the duties are at least those', () => {
     let checked = 0;
     for (const input of CASES) {
@@ -74,7 +74,7 @@ describe('the modelled day keeps to the live fleet (ruling S47)', () => {
     expect(checked).toBeGreaterThan(30);
   });
 
-  it('before the first duty runs the yard buses on the earliest duties, then buses still out (S62b)', () => {
+  it('before the first duty runs the yard buses on the earliest duties, then buses still out', () => {
     let checked = 0;
     let withBusesOut = 0;
     for (const input of CASES) {
@@ -103,7 +103,7 @@ describe('the modelled day keeps to the live fleet (ruling S47)', () => {
     expect(withBusesOut).toBeGreaterThan(0);
   });
 
-  it('runs every bus in service, heard recently, whenever the duties are at least those (S55, N5)', () => {
+  it('runs every bus in service, heard recently, whenever the duties are at least those', () => {
     let checked = 0;
     for (const input of CASES) {
       const day = modelOperatingDay(input);
@@ -122,7 +122,7 @@ describe('the modelled day keeps to the live fleet (ruling S47)', () => {
       const live = liveRouteOf(input);
       const held = new Map(day.runs.map((r) => [r.dutyId, r.registrationNumber]));
       // Before the first duty the yard buses hold the earliest duties and the buses
-      // still out the rest (S62b); the live route ranks below that, within each group.
+      // still out the rest; the live route ranks below that, within each group.
       const begun = dayHasBegun(input, day);
       const standing = new Set(
         input.buses.filter((b) => b.state === 'standing').map((b) => b.registrationNumber),

@@ -4,7 +4,7 @@ import { firstPerRegistration, planDay } from '@/lib/depot/sim/dayPlan';
 import type { BusOpState, DepotSummary } from '@/lib/depot/types';
 
 /*
- * Ruling S62, review m-a: a repeated registration keeps the row heard most
+ * A repeated registration keeps the row heard most
  * recently, so a stale repeat cannot make a bus heard a minute ago read "not
  * heard recently". Rows heard equally recently keep the existing rule.
  */
@@ -34,7 +34,7 @@ const STALE = bus('UP1', 'on_road', 300);
 const FRESH = bus('UP1 ', 'standing', 1);
 const OTHER = bus('UP2', 'standing', 1);
 
-describe('a repeated registration keeps the row heard most recently (S62, m-a)', () => {
+describe('a repeated registration keeps the row heard most recently', () => {
   it('keeps the fresh row whichever comes first', () => {
     for (const rows of [[STALE, FRESH], [FRESH, STALE]]) {
       const { buses, dropped } = firstPerRegistration(rows);

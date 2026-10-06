@@ -33,8 +33,8 @@ const matched = (busStanding: BoardDuty['busStanding']): BoardDuty => ({
 });
 
 describe('dutyFigures', () => {
-  // Rewritten for round 2: the Matched caption splits by how the bus stands now and the
-  // Spare caption comes from counts.spareByStanding (dispatch item 3).
+  // The Matched caption splits by how the bus stands now and the
+  // Spare caption comes from counts.spareByStanding.
   it('gives the four figures in order, with captions from how the buses stand', () => {
     const figures = dutyFigures({
       counts: counts({ spareByStanding: { inYard: 5, standing: 0, onRoad: 11 } }),
@@ -55,7 +55,7 @@ describe('dutyFigures', () => {
 });
 
 describe('unmatchedLine', () => {
-  // Rewritten for round 2: "not heard recently" counted first; no class named (S55, N6).
+  // "Not heard recently" counted first; no class named.
   it('states the reason once, as counts of every class', () => {
     expect(unmatchedLine({ counts: counts() })).toBe(
       'No bus for 116 duties: every eligible bus has another duty. Held out of the matching: 12 not heard recently · 66 not in the yard · 8 off the road · 34 dark.',
@@ -91,7 +91,7 @@ describe('server context sentences', () => {
     expect(locationIgnoredSentence(undefined, undefined)).toBeNull();
   });
 
-  // Rewritten for S62 / m-d: every eligibility note is reached in
+  // Every eligibility note is reached in
   // depot-duty-wording-branches.test.ts; here only the order of the notes.
   it('says why duties have no bus first, then how eligibility was judged', () => {
     const notes = matchingNotes({
@@ -112,7 +112,7 @@ describe('server context sentences', () => {
   });
 });
 
-describe('the modelled day on the duty page (round 3: one formula, plain dates)', () => {
+describe('the modelled day on the duty page: one formula, plain dates', () => {
   it('prints the shared modelledDayLine formula with the feed schedule coverage', () => {
     expect(
       dutiesModelledDay({

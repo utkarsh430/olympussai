@@ -11,7 +11,7 @@ function bus(
   state: BusOpState = 'standing',
   location: BusLocation = 'in_yard',
 ): DepotBusView {
-  // Heard a minute ago: a standing bus is eligible only on a recent report (ruling S47).
+  // Heard a minute ago: a standing bus is eligible only on a recent report.
   return { registrationNumber: reg, state, location, gpsAgeMin: 1, notHeardMin: null } as unknown as DepotBusView;
 }
 
@@ -54,7 +54,7 @@ describe('assignDuties', () => {
       { registrationNumber: 'C', reason: 'not_in_yard' },
       { registrationNumber: 'D', reason: 'not_in_yard' },
     ]);
-    // A bus in service is out working, so it is eligible wherever it is (ruling S47).
+    // A bus in service is out working, so it is eligible wherever it is.
     expect(new Set(plan.assignments.map((a) => a.registrationNumber))).toEqual(new Set(['E', 'F']));
     expect(new Set(plan.assignments.map((a) => a.busStanding))).toEqual(
       new Set(['on_road', 'in_yard']),
@@ -71,7 +71,7 @@ describe('assignDuties', () => {
       fleet,
     );
     expect(plan.assignments.map((a) => a.registrationNumber)).toEqual(['Y', 'X1']);
-    // Class is a cost tier, not a bar (ruling S47): a duty is never left idle for it.
+    // Class is a cost tier, not a bar: a duty is never left idle for it.
     const lone = assignDuties([duty(0, 'premium')], [bus('Y'), bus('X1')], fleet);
     expect(lone.assignments[0]?.reason).toBe('assigned');
     expect(lone.spareBuses).toHaveLength(1);
@@ -238,7 +238,7 @@ describe('assignDuties with no yard established', () => {
       heard('Q', 'standing', 45),
       heard('N', 'standing', null),
     ];
-    // On the feed clock, a bus whose report is old or cannot be aged is not heard recently (S55).
+    // On the feed clock, a bus whose report is old or cannot be aged is not heard recently.
     const plan = assignDuties([duty(0)], buses, fleetOf([]), {
       ...NO_YARD,
       now: { kind: 'feed_time', feedMinute: 600 },

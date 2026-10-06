@@ -85,7 +85,7 @@ describe('DutyBoard', () => {
     expect(container.querySelector('table')).toBeNull();
     const rows = [...container.querySelectorAll('[data-testid="duty-row"]')];
     expect(rows).toHaveLength(3);
-    // Rewritten for round 2: "Matched", never "Assigned" (critique Must 2, guard X4).
+    // "Matched", never "Assigned".
     expect(rows[0]?.textContent).toContain('Matched');
     expect(container.textContent).not.toContain('Assigned');
     expect(rows[1]?.textContent).toContain('Unmatched');
@@ -96,7 +96,7 @@ describe('DutyBoard', () => {
     expect(button('Table').getAttribute('aria-pressed')).toBe('false');
   });
 
-  // Rewritten for round 2 (ruling S51, guard X4): the timeline places the modelled
+  // The timeline places the modelled
   // matching beside real registrations on a MIXED page, so its visible section label
   // carries the MODELLED tag, once; no "(MODELLED)" in header text.
   it('tags the visible timeline section label MODELLED, once', () => {
@@ -169,7 +169,7 @@ describe('DutyBoard', () => {
     );
   });
 
-  // Rewritten for round 2: the State and Bus headers carry the MODELLED tag (S51, X4);
+  // The State and Bus headers carry the MODELLED tag;
   // the expander shows the duty in full and no reason (said once above the chart).
   it('switches to a table with the same rows and state words, and back', () => {
     render();
@@ -188,7 +188,7 @@ describe('DutyBoard', () => {
     expect(body[0]).toContain('UP32A0001');
     expect(body[0]).toContain('Ordinary · Express bus');
     expect(body[0]).toContain('On the road');
-    // Round 3 (R2-m2, S51): the section label's MODELLED covers the board, so no header
+    // The section label's MODELLED covers the board, so no header
     // repeats it; the one column that is not modelled, how the bus stands now, says so
     // in its own header (DERIVED from the live feed). One MODELLED in the whole section.
     const ths = [...(table?.querySelectorAll('th') ?? [])];
@@ -225,7 +225,7 @@ describe('DutyBoard', () => {
     expect(frame?.querySelector('.sticky.top-0')).not.toBeNull();
   });
 
-  // Rewritten for round 2: no reason per row (said once above the chart) and no
+  // No reason per row (said once above the chart) and no
   // "(modelled)" per row (the section label carries the tag); how the bus stands is said.
   it('gives every chart row its full text equivalent, the reason only once above the chart', () => {
     render();
@@ -272,7 +272,7 @@ describe('DutyBoard', () => {
     expect(container.textContent?.split('No bus for 2 duties.')).toHaveLength(2);
   });
 
-  // Rewritten for round 2: unmatched bars carry no text, so the short bar is a matched one.
+  // Unmatched bars carry no text, so the short bar is a matched one.
   it('places text that does not fit inside a short bar beside it', () => {
     const short: BoardDuty = { ...DUTIES[0]!, id: 'S', startMin: 1380, endMin: 1440 };
     act(() =>
@@ -292,7 +292,7 @@ describe('DutyBoard', () => {
   });
 });
 
-describe('DutyBoard by width (round 3, Duties Must 1)', () => {
+describe('DutyBoard by width', () => {
   const realMatchMedia = window.matchMedia;
   const phone = (matches: boolean): void => {
     window.matchMedia = ((query: string) => ({
@@ -329,7 +329,7 @@ describe('DutyBoard by width (round 3, Duties Must 1)', () => {
     expect(canvas?.className).toContain('sm:min-w-0');
   });
 
-  // R2-m6: the matched bar's visible word is its registration; every bar keeps its state
+  // The matched bar's visible word is its registration; every bar keeps its state
   // word for a screen reader, and the legend names each style in words.
   it('keeps a state word per bar and a legend word per style', () => {
     phone(false);

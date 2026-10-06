@@ -12,7 +12,7 @@ import type { BusOpState } from '@/lib/depot/types';
 import type { DepotBusRow } from '@/models/depotLive';
 
 /*
- * Ruling S55, review N3 and N4: every bus, moving or standing, must have been
+ * Every bus, moving or standing, must have been
  * heard recently (the module's reporting window) to be eligible, and a bus
  * held out for that has its own reason, "not heard recently". With no feed
  * clock recency cannot be judged: the check is skipped and the board says so.
@@ -36,7 +36,7 @@ const duty: Duty = {
   provenance: 'modelled',
 };
 
-describe('recency decides eligibility for every bus (S55, N3, N4)', () => {
+describe('recency decides eligibility for every bus', () => {
   it('holds out a bus last seen moving hours ago, and runs the yard bus heard a minute ago', () => {
     const buses = [bus('A', 'on_road', 'away', 300), bus('B', 'standing', 'in_yard', 1)];
     const plan = assignDuties([duty], buses, new Map(), { now: AT_TEN });
@@ -90,7 +90,7 @@ function view(feedNow: string | null, rows: readonly DepotBusRow[]): FleetSnapsh
 
 beforeEach(() => resetAnalysisForTests());
 
-describe('the duty board and recency (S55, N3)', () => {
+describe('the duty board and recency', () => {
   it('with no feed clock, gives duties to standing buses and says recency was not judged', () => {
     const rows = Array.from({ length: 8 }, (_, i) => row(i));
     const b = buildDutyBoard(view(null, rows), '1');
@@ -111,7 +111,7 @@ describe('the duty board and recency (S55, N3)', () => {
   });
 });
 
-describe('the spare buses are counted by where they stand (S55, N2)', () => {
+describe('the spare buses are counted by where they stand', () => {
   it('splits 50 in service and 5 in the yard over 40 duties into 10 on the road and 5 in the yard', () => {
     const buses = [
       ...Array.from({ length: 50 }, (_, i) => bus(`S${String(i).padStart(2, '0')}`, 'in_service', 'away', 1)),
