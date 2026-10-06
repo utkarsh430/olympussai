@@ -719,7 +719,10 @@ test.describe('10. the sample is never presented as live', () => {
       await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
 
       const chip = page.getByTestId('depot-feed-status');
-      await expect(chip).toHaveAttribute('data-tone', 'fixture');
+      // The chip names its source; its tone is the sample's own, or the stale tone when the
+      // sample's feed time is old, never the live one.
+      await expect(chip).toHaveAttribute('data-source', 'fixture');
+      await expect(chip).toHaveAttribute('data-tone', /^(fixture|stale)$/);
       await expect(chip).toHaveAttribute('title', 'Sample data, not the live feed');
       await expect(chip).toContainText(/fixture/i);
       await expect(page.getByTestId('depot-provenance-line')).toContainText(
