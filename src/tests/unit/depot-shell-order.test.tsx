@@ -95,7 +95,7 @@ describe('DepotShell structure', () => {
     const main = container.querySelector('#depot-main') as HTMLElement;
     const footer = screen.getByTestId('footer-disclaimer');
     expect(main.className).not.toContain('--depot-footer-h');
-    expect(main.className).toContain('px-4 pb-10');
+    expect(main.className).toContain('px-4 pb-8');
     expect(main.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(footer.className).not.toMatch(/\b(fixed|sticky)\b/);
   });
