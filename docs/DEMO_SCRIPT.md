@@ -309,7 +309,7 @@ _Open **League table**._
 > is computed from the live feed over the last twenty minutes, so a depot does
 > not jump up and down the table with every poll."
 
-_Open one depot from the table, then its **Yard** page._
+_Switch to one depot with the scope switcher, then open its **Yard** page._
 
 > "The system has no map of our depots. It learns where each yard is from where
 > that depot's buses park. Where it cannot be sure, it says so and does not
