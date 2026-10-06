@@ -18,42 +18,64 @@ import {
   type TrendTableRow,
 } from '@/lib/depot/forecast/trendsTableModel';
 import { pageRange } from '@/lib/depot/listPaging';
+import {
+  TREND_COLUMN_WIDTHS,
+  trendColumnKeys,
+  trendSparkWidth,
+  trendUnitTitle,
+  type TrendColumnKey,
+} from '@/lib/depot/forecast/trendsTableLayout';
+import type { TableTier } from '@/lib/depot/revenue/tableTier';
+import { useTableTier } from '@/components/depot/revenue/useTableTier';
 
 export interface UnitTrendTableProps {
   readonly data: DepotTrendsResponse;
 }
 
-function columnsFor(data: DepotTrendsResponse): readonly Column<TrendTableRow>[] {
+function columnsFor(
+  data: DepotTrendsResponse,
+  tier: TableTier,
+  shown: readonly TrendColumnKey[],
+): readonly Column<TrendTableRow>[] {
   const headers = trendColumnHeaders(data.trendUnit, data.days);
+  const widths = TREND_COLUMN_WIDTHS[tier];
+  const sparkWidth = trendSparkWidth(tier);
   // Missing changes sort last in either direction, as the model's own sort does.
-  return [
+  const all: readonly (Column<TrendTableRow> & { readonly key: TrendColumnKey })[] = [
     {
       key: 'name',
       header: 'Unit',
+      width: widths.name,
       sortValue: (row) => row.name.toLowerCase(),
       render: (row) => (
-        <Link href={row.href} className="depot-link">
+        <Link href={row.href} className="depot-table-link">
           {row.name}
         </Link>
       ),
-      title: (row) => row.name,
+      // What this width drops goes to the unit cell's title (critique §7).
+      title: (row) => trendUnitTitle(row, shown, headers),
     },
     {
       key: 'spark',
       header: headers.spark,
-      render: (row) => <Sparkline values={row.values} label={row.sparkLabel} tagged={false} />,
+      width: widths.spark,
+      render: (row) => (
+        <Sparkline values={row.values} label={row.sparkLabel} tagged={false} width={sparkWidth} />
+      ),
     },
     {
       key: 'week',
       header: headers.week,
       unit: headers.unit,
       align: 'right',
+      width: widths.week,
       sortValue: (row) => row.week,
       render: (row) => row.weekSigned,
     },
     {
       key: 'weekWord',
       header: headers.weekWord,
+      width: widths.weekWord,
       render: (row) => row.weekWord,
     },
     {
@@ -61,32 +83,47 @@ function columnsFor(data: DepotTrendsResponse): readonly Column<TrendTableRow>[]
       header: headers.fourWeeks,
       unit: headers.unit,
       align: 'right',
+      width: widths.fourWeeks,
       sortValue: (row) => row.fourWeeks,
       render: (row) => row.fourWeeksSigned,
     },
     {
       key: 'fourWeeksWord',
       header: headers.fourWeeksWord,
+      width: widths.fourWeeksWord,
       render: (row) => row.fourWeeksWord,
       title: (row) =>
-        row.fourWeeksWord === 'TOO SHORT' ? 'Too little history for a change over 4 weeks' : undefined,
+        row.fourWeeksWord === 'TOO SHORT'
+          ? 'Too little history for a change over 4 weeks'
+          : undefined,
     },
   ];
+  return shown.flatMap((key) => all.filter((column) => column.key === key));
 }
 
 /**
  * Every unit's trend for one metric from the single batch response: a sparkline with
  * its text equivalent, the week's change with its direction word and the four weeks'
  * change with its word. Sortable by either change, worst first, paged at 25; each
- * unit links to its own Trends page.
+ * unit links to its own Trends page. Below 1280 it shows the reduced set of the
+ * layout module, which never drops the column the table is sorted by.
  */
 export function UnitTrendTable({ data }: UnitTrendTableProps) {
+  const tier = useTableTier();
   const rows = useMemo(() => trendTableRows(data), [data]);
-  const columns = useMemo(() => columnsFor(data), [data]);
+  // Every column, so a sort chosen at one width survives a narrower set.
+  const allColumns = useMemo(
+    () => columnsFor(data, 'wide', trendColumnKeys('wide', 'name')),
+    [data],
+  );
   const initial = defaultTrendSort(data.metric.higherIsBetter);
-  const tableSort = useTableSort(columns, initial);
+  const tableSort = useTableSort(allColumns, initial);
   const [page, setPage] = useState(0);
   const sort = tableSort.sort ?? initial;
+  const columns = useMemo(
+    () => columnsFor(data, tier, trendColumnKeys(tier, sort.key as TrendSortKey)),
+    [data, tier, sort.key],
+  );
   const sorted = useMemo(
     () => sortTrendRows(rows, { key: sort.key as TrendSortKey, direction: sort.direction }),
     [rows, sort.key, sort.direction],

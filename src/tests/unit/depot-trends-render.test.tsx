@@ -215,6 +215,59 @@ describe('the unit table', () => {
     act(() => next.click());
     expect(names()).toHaveLength(2);
   });
+
+  describe('below 1280 (critique §7)', () => {
+    let viewport = 1024;
+    const listeners: (() => void)[] = [];
+    const original = window.matchMedia;
+    const headers = (): string[] =>
+      Array.from(container.querySelectorAll('thead th')).map((th) =>
+        (th.textContent ?? '').replace(/[↑↓]/g, ''),
+      );
+
+    beforeEach(() => {
+      viewport = 1024;
+      listeners.length = 0;
+      window.matchMedia = ((query: string) => ({
+        get matches() {
+          return viewport >= Number(/min-width: (\d+)px/.exec(query)?.[1] ?? 0);
+        },
+        addEventListener: (_: string, fn: () => void) => listeners.push(fn),
+        removeEventListener: () => undefined,
+      })) as unknown as typeof window.matchMedia;
+    });
+
+    afterEach(() => {
+      window.matchMedia = original;
+    });
+
+    it('drops "Trend, 7 days" at 1024 into the unit title, and keeps the sorted column at 800', () => {
+      act(() => root.render(<NetworkTrends metric="onRoadShare" />));
+      expect(headers()).toEqual([
+        'Unit',
+        'Last 30 days',
+        'Over 7 days pp',
+        'Over 4 weeks pp',
+        'Trend, 4 weeks',
+      ]);
+      const unit = container.querySelector('tbody tr td:first-child');
+      expect(unit?.getAttribute('title')).toMatch(/; Trend, 7 days: /);
+      expect(unit?.querySelector('a')?.className).toContain('depot-table-link');
+      const week = Array.from(container.querySelectorAll('thead button')).find((b) =>
+        b.textContent?.startsWith('Over 7 days'),
+      ) as HTMLButtonElement;
+      act(() => week.click());
+      viewport = 800;
+      act(() => listeners.forEach((fn) => fn()));
+      expect(headers()).toEqual(['Unit', 'Last 30 days', 'Over 7 days pp', 'Trend, 7 days']);
+    });
+
+    it('shows UNIT · 30 DAYS · 4 WEEKS PP · TREND at 800 by default', () => {
+      viewport = 800;
+      act(() => root.render(<NetworkTrends metric="onRoadShare" />));
+      expect(headers()).toEqual(['Unit', 'Last 30 days', 'Over 4 weeks pp', 'Trend, 4 weeks']);
+    });
+  });
 });
 
 describe('depot Trends page', () => {
