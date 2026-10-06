@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useMemo } from 'react';
 import { useDepotDetail, type DepotDetailState } from '@/hooks/useDepotDetail';
+import { beforeFirstAnswer, useHydrated } from './beforeFirstAnswer';
 
 export interface DepotDetailContextValue extends DepotDetailState {
   readonly depotId: string;
@@ -31,8 +32,10 @@ export function DepotDetailProvider({
 
 export function useDepotDetailContext(): DepotDetailContextValue {
   const value = useContext(DepotDetailContext);
+  const hydrated = useHydrated();
   if (!value) {
     throw new Error('useDepotDetailContext must be used inside <DepotDetailProvider>');
   }
-  return value;
+  // A page's boundary can hydrate after the poll answered; it hydrates what the server had.
+  return hydrated ? value : beforeFirstAnswer(value);
 }
