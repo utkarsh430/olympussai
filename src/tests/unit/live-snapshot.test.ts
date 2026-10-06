@@ -177,6 +177,102 @@ describe('getLiveSnapshot', () => {
     expect(liveDiagnostics.lastSuccessAt).toBe(new Date(T0 + 2).toISOString());
   });
 
+  describe('concurrent failure', () => {
+    function deferred(): {
+      promise: Promise<UpstreamFetchResult>;
+      resolve: (value: UpstreamFetchResult) => void;
+      reject: (reason: Error) => void;
+    } {
+      let resolve: (value: UpstreamFetchResult) => void = () => undefined;
+      let reject: (reason: Error) => void = () => undefined;
+      const promise = new Promise<UpstreamFetchResult>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    }
+
+    it('gives joined callers one fixture result when upstream fails', async () => {
+      const gate = deferred();
+      mockFetch.mockReturnValueOnce(gate.promise);
+      const a = getLiveSnapshot(T0);
+      const b = getLiveSnapshot(T0 + 1);
+      gate.resolve(failResult);
+      const [resultA, resultB] = await Promise.all([a, b]);
+      expect(resultB).toBe(resultA);
+      expect(resultA.source).toBe('fixture');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(liveDiagnostics.consecutiveFailures).toBe(1);
+
+      mockFetch.mockResolvedValueOnce(okResult(LIVE_PAYLOAD));
+      await getLiveSnapshot(T0 + 2);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives joined callers the same last-good result when upstream fails', async () => {
+      mockFetch.mockResolvedValueOnce(okResult(LIVE_PAYLOAD));
+      const first = await getLiveSnapshot(T0);
+      const gate = deferred();
+      mockFetch.mockReturnValueOnce(gate.promise);
+      const later = T0 + LIVE_CACHE_TTL_MS + 1;
+      const a = getLiveSnapshot(later);
+      const b = getLiveSnapshot(later + 1);
+      gate.resolve(failResult);
+      const [resultA, resultB] = await Promise.all([a, b]);
+      expect(resultB).toBe(resultA);
+      expect(resultA.source).toBe('cache');
+      expect(resultA.stale).toBe(true);
+      expect(resultA.snapshot).toBe(first.snapshot);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(liveDiagnostics.consecutiveFailures).toBe(1);
+    });
+
+    it('gives joined callers one result when the upstream call rejects', async () => {
+      const gate = deferred();
+      mockFetch.mockReturnValueOnce(gate.promise);
+      const a = getLiveSnapshot(T0);
+      const b = getLiveSnapshot(T0 + 1);
+      gate.reject(new Error('socket hang up'));
+      const [resultA, resultB] = await Promise.all([a, b]);
+      expect(resultB).toBe(resultA);
+      expect(resultA.source).toBe('fixture');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(liveDiagnostics.consecutiveFailures).toBe(1);
+      expect(liveDiagnostics.lastError).toBe('socket hang up');
+
+      mockFetch.mockResolvedValueOnce(okResult(LIVE_PAYLOAD));
+      const next = await getLiveSnapshot(T0 + 2);
+      expect(next.source).toBe('live');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('ignores an orphaned refresh that finishes after a reset', async () => {
+    let release: (value: UpstreamFetchResult) => void = () => undefined;
+    mockFetch.mockReturnValueOnce(
+      new Promise<UpstreamFetchResult>((resolve) => {
+        release = resolve;
+      }),
+    );
+    const orphan = getLiveSnapshot(T0);
+    resetLiveSnapshotForTests();
+    release(okResult(LIVE_PAYLOAD));
+    // Its own caller still gets an answer.
+    expect((await orphan).source).toBe('live');
+
+    expect(liveDiagnostics).toEqual({
+      lastAttemptAt: null,
+      lastSuccessAt: null,
+      lastError: null,
+      lastStatus: 0,
+      consecutiveFailures: 0,
+    });
+    mockFetch.mockResolvedValueOnce(okResult(LIVE_PAYLOAD));
+    const next = await getLiveSnapshot(T0 + 1);
+    expect(next.source).toBe('live');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   it('builds the fixture snapshot from the bundled sample', async () => {
     mockFetch.mockResolvedValue(failResult);
     const { snapshot } = await getLiveSnapshot(T0);
