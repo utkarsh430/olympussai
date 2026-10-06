@@ -5,11 +5,12 @@ import type {
   DepotNetworkResponse,
 } from '@/lib/depot/api';
 import { buildAnswer, type AnswerData } from '@/lib/depot/copilot/facts/answers';
-import { buildDepotBriefing } from '@/lib/depot/copilot/facts/depot';
+import { buildDepotBriefing, depotFacts } from '@/lib/depot/copilot/facts/depot';
 import { buildNetworkBriefing } from '@/lib/depot/copilot/facts/network';
 import { buildRequest } from '@/lib/depot/copilot/facts/format';
 import { buildTransferRationale } from '@/lib/depot/copilot/facts/transfer';
 import type { CopilotQuery } from '@/lib/depot/copilot/queries';
+import { factEdges } from '@/lib/depot/copilot/factText';
 import { renderDraft } from '@/lib/depot/copilot/render';
 import type { CopilotRequest } from '@/lib/depot/copilot/types';
 import type { ExceptionKind } from '@/lib/depot/exceptions/types';
@@ -963,5 +964,38 @@ describe('singular and plural counts agree with their verb', () => {
       paragraphsOf(buildNetworkBriefing(makeNetwork({ counts: { long_dark: n } }))).at(-1);
     expect(line(1)).toContain('1 exception is flagged on vehicles');
     expect(line(5)).toContain('5 exceptions are flagged on vehicles');
+  });
+});
+
+describe('every figure carries its own noun (S38 items 8 to 11)', () => {
+  const BARE_NUMBER = /^[\p{N}.,\s\u2014-]+$/u;
+  const variants: [string, CopilotRequest][] = [
+    ...allRequests(),
+    ...allRequests(makeData(['A', 'B', 'C'])).map(([l, r]): [string, CopilotRequest] => [`${l} #2`, r]),
+    ['one each network', buildNetworkBriefing(oneEachNetwork())],
+    ['one each depot', buildDepotBriefing(oneEachDetail())],
+  ];
+
+  it.each(variants)('%s has no fact that is, or ends in, a bare number', (_label, request) => {
+    const bare = request.facts.filter(
+      (f) => f.kind !== 'name' && /\p{N}/u.test(f.text) && (BARE_NUMBER.test(f.text) || factEdges(f.text).endsBare),
+    );
+    expect(bare.map((f) => `${f.id}=${f.text}`)).toEqual([]);
+  });
+
+  it.each(variants)('%s marks every depot name as a name', (_label, request) => {
+    const names = request.facts.filter((f) => /(^|\.)(name|other|best_depot|weakest_depot)$/.test(f.id));
+    expect(names.every((f) => f.kind === 'name')).toBe(true);
+  });
+
+  it.each(variants)('%s needs no authored phrase: no one, ones or none', (_label, request) => {
+    expect(proseOf(request)).not.toMatch(/\b(one|ones|none)\b/i);
+  });
+
+  it('writes singular and plural nouns in the server', () => {
+    const one = depotFacts(oneEachDetail());
+    expect(one.find((f) => f.id === 'depot.dark')?.text).toMatch(/^1 bus$/);
+    const index = depotFacts(makeDetail()).find((f) => f.id === 'depot.index');
+    if (index) expect(index.text).toMatch(/^index \d+\.\d$/);
   });
 });
