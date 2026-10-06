@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { logDepotError } from '@/lib/depot/log';
+import { MAX_LOG_MESSAGE_CHARS, logDepotError } from '@/lib/depot/log';
 
 describe('logDepotError', () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
@@ -19,8 +19,26 @@ describe('logDepotError', () => {
     expect(errorSpy).toHaveBeenCalledWith('[depot:scope-b] plain text');
   });
 
-  it('writes an object in a string form', () => {
-    logDepotError('scope-c', { code: 7 });
-    expect(errorSpy).toHaveBeenCalledWith('[depot:scope-c] {"code":7}');
+  it('logs only the type of a value that is neither an Error nor a string', () => {
+    logDepotError('scope-c', { code: 7, token: 'secret-token' });
+    expect(errorSpy).toHaveBeenCalledWith('[depot:scope-c] non-error value thrown (object)');
+    logDepotError('scope-c', 42);
+    expect(errorSpy).toHaveBeenLastCalledWith('[depot:scope-c] non-error value thrown (number)');
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('secret-token');
+  });
+
+  it('collapses whitespace and strips control characters so one error is one line', () => {
+    logDepotError('s', new Error('first\nforged [depot:x] line\r\n\tend\u0007\u001b[31m'));
+    const line = String(errorSpy.mock.calls[0]?.[0]);
+    expect(line).not.toMatch(/[\n\r\t\u0000-\u001f\u007f]/);
+    expect(line).toBe('[depot:s] first forged [depot:x] line end[31m');
+  });
+
+  it('caps a long message with a trailing ellipsis', () => {
+    logDepotError('s', new Error(`line\n${'x'.repeat(1000)}`));
+    const message = String(errorSpy.mock.calls[0]?.[0]).slice('[depot:s] '.length);
+    expect(message).toHaveLength(MAX_LOG_MESSAGE_CHARS);
+    expect(message.endsWith('…')).toBe(true);
+    expect(message).not.toContain('\n');
   });
 });

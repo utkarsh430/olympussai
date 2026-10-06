@@ -95,6 +95,13 @@ const live = (value: CanonicalSchedule | null): ScheduleResponse => ({
   stale: false,
 });
 
+// Silenced for every test in the file so no logged line can leak into the run.
+let errorSpy: ReturnType<typeof vi.spyOn>;
+beforeEach(() => {
+  errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+});
+afterEach(() => errorSpy.mockRestore());
+
 describe('getRouteProfile', () => {
   beforeEach(() => {
     resetRouteCatalogueForTests();
@@ -171,6 +178,8 @@ describe('getRouteProfile', () => {
       status: 'unavailable',
       reason: 'upstream_error',
     });
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith('[depot:route-catalogue] boom');
   });
 
   it('re-tries a negative result only after its TTL', async () => {
@@ -273,6 +282,36 @@ describe('route name verification', () => {
     });
   });
 
+  it('confirms a name that differs only in letter case or padding', async () => {
+    for (const name of ['bly_9509_ord', '  BLY_9509_ORD  ']) {
+      resetRouteCatalogueForTests();
+      mockService.mockResolvedValue(live(schedule(name)));
+      const result = await getRouteProfile('BLY_9509_ORD', view([row('UP1', { routeName: 'BLY_9509_ORD' })]), T0);
+      if (result.status !== 'ok') throw new Error('expected ok');
+      expect(result.profile.routeNameConfirmed).toBe(true);
+    }
+  });
+
+  it('still refuses a genuinely different name', async () => {
+    mockService.mockResolvedValue(live(schedule('BLY_9509_EXP')));
+    const result = await getRouteProfile('BLY_9509_ORD', view([row('UP1', { routeName: 'BLY_9509_ORD' })]), T0);
+    expect(result).toEqual({ status: 'unavailable', reason: 'no_schedule' });
+  });
+
+  it('accepts a null route name as unconfirmed for a bus with no journey id', async () => {
+    mockService.mockResolvedValue(live({ ...schedule(), routeName: null, tripId: '55' }));
+    const result = await getRouteProfile(ROUTE, view([row('UP1', { journeyId: null })]), T0);
+    if (result.status !== 'ok') throw new Error('expected ok');
+    expect(result.profile.routeNameConfirmed).toBe(false);
+  });
+
+  it('accepts a null route name as unconfirmed when the trip id matches', async () => {
+    mockService.mockResolvedValue(live({ ...schedule(), routeName: null, tripId: '30396' }));
+    const result = await getRouteProfile(ROUTE, view([row('UP1')]), T0);
+    if (result.status !== 'ok') throw new Error('expected ok');
+    expect(result.profile.routeNameConfirmed).toBe(false);
+  });
+
   it('refuses a different trip id when the route name is unconfirmed', async () => {
     mockService.mockResolvedValue(live({ ...schedule(), routeName: null, tripId: '99999' }));
     expect(await getRouteProfile(ROUTE, view([row('UP1')]), T0)).toEqual({
@@ -283,13 +322,10 @@ describe('route name verification', () => {
 });
 
 describe('error logging and cache hygiene', () => {
-  let errorSpy: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     resetRouteCatalogueForTests();
     mockService.mockReset();
-    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
-  afterEach(() => errorSpy.mockRestore());
 
   it('logs a bug inside the profile builder instead of swallowing it', async () => {
     mockService.mockResolvedValue(live({ ...schedule(), stops: null as never }));

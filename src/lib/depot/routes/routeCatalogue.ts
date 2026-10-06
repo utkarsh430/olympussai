@@ -40,7 +40,9 @@ function setBounded<V>(map: Map<string, V>, key: string, value: V): void {
   map.set(key, value);
 }
 
-const unavailable = (reason: Unavailable['reason']): Unavailable => ({
+const normaliseName = (name: string): string => name.trim().toUpperCase();
+
+const unavailable =(reason: Unavailable['reason']): Unavailable => ({
   status: 'unavailable',
   reason,
 });
@@ -87,10 +89,14 @@ async function fetchProfile(
     const { schedule } = response;
     // A bus reassigned since the snapshot, or a trip id that fell back to the
     // day's earliest trip, returns another route's stops. Never catalogue those.
-    if (schedule.routeName !== null && schedule.routeName !== routeName) {
+    // Compared without regard to case or padding: the upstream does not format
+    // a route name identically across its two APIs.
+    const sameName =
+      schedule.routeName !== null && normaliseName(schedule.routeName) === normaliseName(routeName);
+    if (schedule.routeName !== null && !sameName) {
       return unavailable('no_schedule');
     }
-    const routeNameConfirmed = schedule.routeName === routeName;
+    const routeNameConfirmed = sameName;
     if (!routeNameConfirmed && bus.journeyId !== null && schedule.tripId !== bus.journeyId) {
       return unavailable('no_schedule');
     }
