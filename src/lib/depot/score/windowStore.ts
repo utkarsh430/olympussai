@@ -93,6 +93,8 @@ function parseFeedMs(feedNow: string | null): number | null {
 /** As many depots as the yard memory keeps; a feed of garbage ids cannot grow it further. */
 export const SCORE_WINDOW_MAX_DEPOTS = 1000;
 const WINDOW_MS = SCORE_WINDOW_MIN * 60_000;
+/** Stragglers in a row (more than one window behind the newest) that start a new epoch. */
+export const NEW_EPOCH_AFTER_BEHIND = 3;
 
 export interface ObserveOptions {
   /** The recorded fixture: scored on its own counts and never offered to the store. */

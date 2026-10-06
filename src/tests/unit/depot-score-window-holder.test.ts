@@ -16,9 +16,10 @@ import { T0, feedTime, network, seeded, snapshotOf } from './depot-score-window.
 
 /*
  * Ruling S50b: the window's content depends only on WHICH snapshots arrived,
- * never on the order they arrived in; a fixture never touches it; a sample
- * more than one window behind starts a new epoch; a repeated feed time with
- * new rows replaces the stored sample.
+ * never on the order they arrived in; a fixture never touches it; a repeated
+ * feed time with new rows replaces the stored sample. Stragglers and epochs
+ * (ruling S56b, which replaced S50b's one-sample epoch) are pinned in
+ * depot-score-window-epoch.test.ts.
  */
 
 const WINDOW_S = SCORE_WINDOW_MIN * 60;
@@ -89,16 +90,6 @@ describe('score window holder: arrival order (I1)', () => {
 });
 
 describe('score window holder: epochs, fixtures and repeats (I2)', () => {
-  it('starts a new epoch for a live sample more than one window behind', () => {
-    const snaps = snapshotsAt([WINDOW_S * 3, WINDOW_S * 3 + 40, 0]);
-    const store = createScoreWindowStore();
-    feed(store, snaps, [WINDOW_S * 3, WINDOW_S * 3 + 40]);
-    const back = observeDepots(store, snaps.get(0) ?? [], feedTime(0));
-    expect(store.lastFeedMs).toBe(T0);
-    expect(store.byDepot.get('1')?.map((s) => s.feedMs)).toEqual([T0]);
-    expect(back.window).toMatchObject({ since: feedTime(0), samples: 1 });
-  });
-
   it('never lets a fixture snapshot touch the store, first or later', () => {
     const snaps = snapshotsAt([0, 40]);
     const empty = createScoreWindowStore();
