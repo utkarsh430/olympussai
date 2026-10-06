@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import FleetDistributionPage from '@/app/(protected)/project/depots/rebalance/page';
 import type { DepotDistributionResponse } from '@/lib/depot/api';
 import type { DepotBalance, TransferPlan } from '@/lib/depot/optimise/types';
+import { bannedOnScreen } from './depot-guard-rendered';
 
 /*
  * Ruling S51 and guard X1: the page's MIXED provenance line, rendered by the page's real
@@ -97,6 +98,11 @@ beforeEach(() => {
 });
 
 describe('the fleet distribution page provenance', () => {
+  it.each(STATES)('shows no "simulated" and no raw date in the %s state', async (_state, make) => {
+    hooks.distribution.mockReturnValue(make());
+    expect(bannedOnScreen(renderToStaticMarkup(await FleetDistributionPage()))).toEqual([]);
+  });
+
   it.each(STATES)('prints its MIXED line in the %s state', async (_state, make) => {
     hooks.distribution.mockReturnValue(make());
     const markup = renderToStaticMarkup(await FleetDistributionPage());

@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DepotCockpitPage from '@/app/(protected)/project/depots/d/[depotId]/page';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { bannedOnScreen } from './depot-guard-rendered';
 
 /**
  * Guard review X1: the cockpit's page-level default (DERIVED) is pinned by rendering the
@@ -70,6 +71,11 @@ function provenanceOf(markup: string): string {
 describe('depot cockpit route page', () => {
   beforeEach(() => {
     contexts.detail = base;
+  });
+
+  it.each(STATES)('shows no "simulated" and no raw date in the %s state', async (_name, partial) => {
+    contexts.detail = { ...base, ...partial };
+    expect(bannedOnScreen(await renderPage())).toEqual([]);
   });
 
   it.each(STATES)('declares DERIVED, computed from the live feed, in the %s state', async (_name, partial) => {

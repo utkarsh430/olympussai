@@ -5,6 +5,7 @@ import { RoutesPage } from '@/components/depot/routes/RoutesPage';
 import { RECOMMENDATION_ONLY } from '@/lib/depot/routes/allocationWording';
 import type { DepotAllocationResponse, DepotRoutesResponse, RouteListItem } from '@/lib/depot/routes/api';
 import { EMPTY_PLAN_FIXTURE } from './depot-routes.fixtures';
+import { bannedOnScreen } from './depot-guard-rendered';
 
 interface Slot<T> {
   data: T | null;
@@ -125,6 +126,10 @@ describe('RoutesPage content', () => {
     const text = textOf(renderToStaticMarkup(<RoutesPage />));
     expect(text.split(RECOMMENDATION_ONLY)).toHaveLength(2);
     expect(text.toLowerCase()).not.toContain('simulated');
+  });
+
+  it('shows no "simulated" and no raw date in its text or attributes', () => {
+    expect(bannedOnScreen(renderToStaticMarkup(<RoutesPage />))).toEqual([]);
   });
 
   it('tags modelled and derived figures in words and marks a move made to make room', () => {

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AskPage from '@/app/(protected)/project/depots/ask/page';
 import type { CopilotState } from '@/hooks/useCopilot';
 import type { CopilotApiResponse } from '@/lib/depot/copilot/wire';
+import { bannedOnScreen } from './depot-guard-rendered';
 
 /*
  * Round 2, guard X8, X1 and M15: the ask page's real top-level component declares MIXED
@@ -149,12 +150,9 @@ describe('the ask page', () => {
     expect(produced).not.toMatch(/\bMODELLED\b/);
   });
 
-  it('never prints a raw ISO date in its text or attributes', async () => {
+  it('never prints a raw ISO date or "simulated" in its text or attributes', async () => {
     await askShort('claude');
-    const attrs = Array.from(container.querySelectorAll('*')).flatMap((el) =>
-      Array.from(el.attributes).map((a) => a.value),
-    );
-    expect([container.textContent ?? '', ...attrs].join(' ')).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(bannedOnScreen(container)).toEqual([]);
   });
 
   it.each(['scripted', 'claude'] as const)(
