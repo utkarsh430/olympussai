@@ -334,16 +334,38 @@ describe('networkKpis', () => {
     ...rowsOf(2, { depotId: '3', depotName: 'ENFORCEMENT_HQ' }),
     ...rowsOf(1, { depotId: null, depotName: null, gpsTimestamp: null }),
   ];
-  const kpis = networkKpis(summariseDepots(rows, FEED_NOW));
+  const summaries = summariseDepots(rows, FEED_NOW);
+  const kpis = networkKpis(summaries);
+  const stateTotal = (pick: (s: (typeof summaries)[number]['states']) => number): number =>
+    summaries.reduce((total, depot) => total + pick(depot.states), 0);
 
   it('totals every bucket', () => {
     expect(kpis.fleet.value).toBe(10);
-    expect(kpis.onRoad.value).toBe(6);
-    expect(kpis.stationary.value).toBe(2);
-    expect(kpis.noSignal.value).toBe(1);
-    expect(kpis.underMaintenance.value).toBe(1);
     expect(kpis.assigned.value).toBe(3);
     expect(kpis.reporting.value).toBe(9);
+  });
+
+  it('counts bus states the way every depot page does, so a network total is the sum of its depots', () => {
+    // One vocabulary on screen: the classified states, not the feed's own status field.
+    // The overview's "On road" for a depot must equal that depot's cockpit and roster.
+    expect(kpis.onRoad.value).toBe(stateTotal((s) => s.inService + s.onRoad));
+    expect(kpis.stationary.value).toBe(stateTotal((s) => s.standing));
+    expect(kpis.noSignal.value).toBe(stateTotal((s) => s.dark));
+    expect(kpis.underMaintenance.value).toBe(stateTotal((s) => s.offRoad));
+  });
+
+  it('partitions the fleet: every bus is in exactly one of the four state totals', () => {
+    expect(
+      kpis.onRoad.value +
+        kpis.stationary.value +
+        kpis.noSignal.value +
+        kpis.underMaintenance.value,
+    ).toBe(kpis.fleet.value);
+  });
+
+  it('counts a bus with no position time as dark, whatever the feed calls it', () => {
+    // The one row with `gpsTimestamp: null` carries the feed's default status, yet it is dark.
+    expect(kpis.noSignal.value).toBeGreaterThanOrEqual(2);
   });
 
   it('counts only real depots in depots', () => {
@@ -352,10 +374,11 @@ describe('networkKpis', () => {
 
   it('assigns provenance', () => {
     expect(kpis.fleet.provenance).toBe('live');
-    expect(kpis.onRoad.provenance).toBe('live');
-    expect(kpis.stationary.provenance).toBe('live');
-    expect(kpis.noSignal.provenance).toBe('live');
-    expect(kpis.underMaintenance.provenance).toBe('live');
+    // Classified from speed, position age and status: computed, so DERIVED.
+    expect(kpis.onRoad.provenance).toBe('derived');
+    expect(kpis.stationary.provenance).toBe('derived');
+    expect(kpis.noSignal.provenance).toBe('derived');
+    expect(kpis.underMaintenance.provenance).toBe('derived');
     expect(kpis.reporting.provenance).toBe('derived');
     expect(kpis.assigned.provenance).toBe('derived');
     expect(kpis.depots.provenance).toBe('derived');
@@ -365,8 +388,8 @@ describe('networkKpis', () => {
     for (const figure of [kpis.fleet, kpis.reporting, kpis.onRoad, kpis.stationary]) {
       expect(figure.coverage).toEqual({ n: figure.value, of: 10 });
     }
-    expect(kpis.noSignal.coverage).toEqual({ n: 1, of: 10 });
-    expect(kpis.underMaintenance.coverage).toEqual({ n: 1, of: 10 });
+    expect(kpis.noSignal.coverage).toEqual({ n: kpis.noSignal.value, of: 10 });
+    expect(kpis.underMaintenance.coverage).toEqual({ n: kpis.underMaintenance.value, of: 10 });
     expect(kpis.assigned.coverage).toEqual({ n: 3, of: 10 });
   });
 
