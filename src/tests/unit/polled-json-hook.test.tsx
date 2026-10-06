@@ -305,3 +305,38 @@ describe('useFetchedJson', () => {
     expect(latest).toMatchObject({ data: null, error: null, loading: false });
   });
 });
+
+describe('usePolledJson keeping the previous answer across a query change', () => {
+  const keep = { keepPreviousOnQueryChange: true } as const;
+
+  it('keeps the previous rows, marked previous and loading, until the new query answers', async () => {
+    await mount(<PolledProbe url="/api/routes?q=a" options={keep} />);
+    await settle(calls[0], 200, doc('a'));
+    await rerender(<PolledProbe url="/api/routes?q=ag" options={keep} />);
+    expect(state()).toMatchObject({ data: doc('a'), loading: true, previous: true, error: null });
+    await settle(calls[1], 200, doc('ag'));
+    expect(state()).toMatchObject({ data: doc('ag'), loading: false, previous: false });
+  });
+
+  it('never carries an answer to another path, such as another depot', async () => {
+    await mount(<PolledProbe url="/api/depot/A/fuel" options={keep} />);
+    await settle(calls[0], 200, doc('A'));
+    await rerender(<PolledProbe url="/api/depot/B/fuel" options={keep} />);
+    expect(state()).toMatchObject({ data: null, loading: true, previous: false });
+  });
+
+  it('never carries an answer when the caller did not ask for it', async () => {
+    await mount(<PolledProbe url="/api/routes?q=a" />);
+    await settle(calls[0], 200, doc('a'));
+    await rerender(<PolledProbe url="/api/routes?q=ag" />);
+    expect(state()).toMatchObject({ data: null, loading: true, previous: false });
+  });
+
+  it('drops the previous rows when the new query fails', async () => {
+    await mount(<PolledProbe url="/api/routes?q=a" options={keep} />);
+    await settle(calls[0], 200, doc('a'));
+    await rerender(<PolledProbe url="/api/routes?q=ag" options={keep} />);
+    await settle(calls[1], 500);
+    expect(state()).toMatchObject({ data: null, error: DEPOT_UNAVAILABLE_MESSAGE, previous: false });
+  });
+});

@@ -15,6 +15,11 @@ export interface PolledState<T> {
   readonly error: string | null;
   /** True only until the first response or error for the current URL arrives. */
   readonly loading: boolean;
+  /**
+   * True while `data` is the previous query's answer, kept on screen while the new query
+   * of the same resource loads (`keepPreviousOnQueryChange`); `loading` is then true too.
+   */
+  readonly previous?: boolean;
   /** Fetch now instead of waiting for the next tick. */
   readonly refresh: () => void;
 }
@@ -23,6 +28,12 @@ export interface PolledJsonOptions {
   readonly intervalMs?: number;
   /** Fixed messages for specific HTTP statuses, e.g. 404. Anything unlisted falls back. */
   readonly statusMessages?: Readonly<Record<number, string>>;
+  /**
+   * Keep the last answer on screen while a new query of the SAME resource loads (only the
+   * query string differs: a search, sort, page or filter). A new path (another depot,
+   * another endpoint) never shows the old answer.
+   */
+  readonly keepPreviousOnQueryChange?: boolean;
 }
 
 /** What one URL has produced so far; tagged so a URL change can never show stale data. */
@@ -38,6 +49,12 @@ function isAbort(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
 
+/** The URL without its query string: two URLs with the same path are one resource. */
+function resourceOf(url: string): string {
+  const query = url.indexOf('?');
+  return query === -1 ? url : url.slice(0, query);
+}
+
 function messageForStatus(status: number, custom: Readonly<Record<number, string>>): string {
   const specific = custom[status];
   if (specific) return specific;
@@ -47,12 +64,14 @@ function messageForStatus(status: number, custom: Readonly<Record<number, string
 /**
  * The single fetch loop behind every depot data hook. `intervalMs` null fetches once
  * per URL. A new request aborts the one in flight; an aborted or unmounted request
- * sets no state; a URL change discards the previous URL's data in the same render.
+ * sets no state; a URL change discards the previous URL's data in the same render,
+ * unless the caller asked to keep it across a query change of the same resource.
  */
 export function useJsonResource<T>(
   url: string | null,
   intervalMs: number | null,
   statusMessages: Readonly<Record<number, string>> = NO_STATUS_MESSAGES,
+  keepPreviousOnQueryChange = false,
 ): PolledState<T> {
   const [slot, setSlot] = useState<Slot<T> | null>(null);
   const messagesRef = useRef(statusMessages);
@@ -106,9 +125,16 @@ export function useJsonResource<T>(
 
   const refresh = useCallback(() => fetchNowRef.current(), []);
 
-  if (url === null) return { data: null, error: null, loading: false, refresh };
-  if (slot?.url !== url) return { data: null, error: null, loading: true, refresh };
-  return { data: slot.data, error: slot.error, loading: false, refresh };
+  if (url === null) return { data: null, error: null, loading: false, previous: false, refresh };
+  if (slot?.url !== url) {
+    const carry =
+      keepPreviousOnQueryChange &&
+      slot !== null &&
+      slot.data !== null &&
+      resourceOf(slot.url) === resourceOf(url);
+    return { data: carry ? slot.data : null, error: null, loading: true, previous: carry, refresh };
+  }
+  return { data: slot.data, error: slot.error, loading: false, previous: false, refresh };
 }
 
 /**
@@ -123,5 +149,6 @@ export function usePolledJson<T>(
     url,
     options.intervalMs ?? DEFAULT_POLL_INTERVAL_MS,
     options.statusMessages,
+    options.keepPreviousOnQueryChange,
   );
 }
