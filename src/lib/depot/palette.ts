@@ -29,7 +29,86 @@ export const DEPOT_PALETTE = {
   green: '#2bff88',
   /** Tailwind slate-400: the quiet neutral (a dark bus, a balanced depot, REFERENCE). */
   slate: '#94a3b8',
+  /** holo-teal: the dashboard's demand curve; here modelled money and energy, forecasts. */
+  teal: '#2ef2c4',
+  /** ol-gold, ol-gold-light: the brand's gold (the emblem and sign-out on the dashboard). */
+  gold: '#d6a13a',
+  goldLight: '#f3c86a',
 } as const;
+
+/** The six tones a figure, bar, mark or series may take; each is a dashboard colour. */
+export type DepotTone = 'cyan' | 'green' | 'amber' | 'slate' | 'crimson' | 'teal';
+
+export const DEPOT_TONE_COLOUR: Readonly<Record<DepotTone, string>> = {
+  cyan: DEPOT_PALETTE.glow,
+  green: DEPOT_PALETTE.green,
+  amber: DEPOT_PALETTE.amber,
+  slate: DEPOT_PALETTE.slate,
+  crimson: DEPOT_PALETTE.crimson,
+  teal: DEPOT_PALETTE.teal,
+};
+
+/** The Tailwind text class of each tone, for a word or figure printed in it. */
+export const DEPOT_TONE_TEXT: Readonly<Record<DepotTone, string>> = {
+  cyan: 'text-holo-glow',
+  green: 'text-alert-green',
+  amber: 'text-alert-amber',
+  slate: 'text-slate-400',
+  crimson: 'text-alert-crimson',
+  teal: 'text-holo-teal',
+};
+
+/** What a colour may say on a depot page. */
+export type DepotMeaning =
+  | 'inService'
+  | 'onRoad'
+  | 'standing'
+  | 'dark'
+  | 'offRoad'
+  | 'critical'
+  | 'warning'
+  | 'info'
+  | 'better'
+  | 'worse'
+  | 'modelled'
+  | 'count'
+  | 'history'
+  | 'forecast'
+  | 'now'
+  | 'threshold';
+
+/**
+ * The one table of colour meanings, the same on every page: a bus in service is green,
+ * on the road cyan (the two sit side by side in every availability bar, so they need two
+ * hues), standing amber, dark slate, off the road crimson; exceptions crimson, amber and
+ * cyan by severity; a change green when it is better and crimson when worse, only where
+ * more is unambiguously better; modelled money and energy teal; a plain count cyan; on a
+ * chart the history cyan, the forecast teal, the "now" marker amber and a threshold
+ * crimson. A colour always sits beside a word that says the same thing.
+ */
+export const DEPOT_MEANING_TONE: Readonly<Record<DepotMeaning, DepotTone>> = {
+  inService: 'green',
+  onRoad: 'cyan',
+  standing: 'amber',
+  dark: 'slate',
+  offRoad: 'crimson',
+  critical: 'crimson',
+  warning: 'amber',
+  info: 'cyan',
+  better: 'green',
+  worse: 'crimson',
+  modelled: 'teal',
+  count: 'cyan',
+  history: 'cyan',
+  forecast: 'teal',
+  now: 'amber',
+  threshold: 'crimson',
+};
+
+/** A meaning's colour as a value (chart and map attributes). */
+export function meaningColour(meaning: DepotMeaning): string {
+  return DEPOT_TONE_COLOUR[DEPOT_MEANING_TONE[meaning]];
+}
 
 /**
  * An ordinal ramp in the dashboard's cyan, darkest for the lowest step: holo-deep, an
