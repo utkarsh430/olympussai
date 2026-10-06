@@ -11,6 +11,11 @@ export default defineConfig({
     exclude: ['tests/e2e/**', 'node_modules/**'],
   },
   resolve: {
-    alias: { '@': path.resolve(__dirname, './src') },
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      // `server-only` is not a direct dependency, so Vite cannot resolve it even
+      // when a test mocks it. Point it at Next's own no-op build of the package.
+      'server-only': path.resolve(__dirname, './node_modules/next/dist/compiled/server-only/empty.js'),
+    },
   },
 });
