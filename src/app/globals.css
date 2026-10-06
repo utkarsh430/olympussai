@@ -698,12 +698,15 @@
     @apply grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px];
   }
 
+  /* A map is its page's hero instrument: the strong panel's border and glow
+     (hud-panel-strong). */
   .depot-map-frame {
-    @apply relative isolate h-[460px] overflow-hidden rounded-md border border-depot-line bg-depot-page;
+    @apply relative isolate h-[460px] overflow-hidden rounded-md border border-depot-line-strong
+      bg-depot-page;
     box-shadow:
-      0 0 0 1px rgba(63, 240, 255, 0.06),
-      0 18px 50px -22px rgba(0, 0, 0, 0.9),
-      inset 0 1px 0 0 rgba(63, 240, 255, 0.08);
+      0 0 0 1px rgba(63, 240, 255, 0.18),
+      0 0 34px -10px rgba(63, 240, 255, 0.4),
+      0 18px 50px -22px rgba(0, 0, 0, 0.9);
   }
 
   /* Overview table in the page flow: the frame still scrolls sideways, but it
