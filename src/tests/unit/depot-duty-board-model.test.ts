@@ -195,10 +195,11 @@ describe('sentences', () => {
     );
   });
 
-  it("states the cost in the assignment module's own terms", () => {
+  it("states the cost in the assignment module's own terms, in its tier order (S47, S55)", () => {
     expect(COST_SENTENCE).toBe(
-      'The matching minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses. A bus is never matched to a duty of another service class.',
+      'The matching keeps buses out on the road in the day first, buses in service before buses merely moving; then it gives a route’s duties to buses running that route, prefers a bus of the duty’s service class, and fits buses to the feed time. Among what is left it minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses.',
     );
+    expect(COST_SENTENCE).not.toMatch(/never matched/);
     expect(COST_SENTENCE).not.toMatch(/optimal/i);
   });
 
