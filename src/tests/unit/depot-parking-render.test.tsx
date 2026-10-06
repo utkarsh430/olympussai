@@ -188,9 +188,17 @@ describe('ParkingPlan', () => {
   });
 
   it('prints the date with the shared formatter and says departures, not tonight', () => {
-    expect(text(html)).toContain('For departures on 7 Oct 2026.');
+    expect(text(html)).toContain('Order for the first departures on 7 Oct 2026.');
     expect(text(html)).not.toContain('2026-10-07');
     expect(text(html).toLowerCase()).not.toContain('tonight');
+  });
+
+  it('sets the plan note in the sans caption face at 80 characters, with nothing dispatched visible', () => {
+    const start = html.indexOf('data-testid="parking-note"');
+    const note = html.slice(html.lastIndexOf('<figcaption', start), html.indexOf('</figcaption>', start));
+    expect(note).toContain('depot-caption');
+    expect(note).toContain('max-w-[80ch]');
+    expect(text(note)).toContain('Nothing is instructed or dispatched.');
   });
 
   // Rewritten for the design wave: the lane cards became one diagram that scrolls

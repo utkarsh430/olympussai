@@ -13,17 +13,21 @@ import { buildYardModel, DISPLAY_RADIUS_FACTOR, type YardModel } from '@/lib/dep
 import { capacityFigure, heldSinceLine, mapCaption } from '@/lib/depot/yard/yardPageModel';
 import { YardMap } from './YardMap';
 import { ParkingPlanSection } from './ParkingPlanSection';
-import { YardMapLegend } from './YardMapLegend';
+import { YardMapKey, YardMapNote } from './YardMapLegend';
 import { YardRoll } from './YardRoll';
-import { YardFigures, YardNotEstablished } from './YardSummary';
+import { HOW_ID, YardFigures, YardNotEstablished } from './YardSummary';
 
 function MapSection({ model }: { readonly model: YardModel }) {
   const held = heldSinceLine(model.yard);
   return (
     <section aria-labelledby="yard-map-heading" className="min-w-0">
       <SectionLabel id="yard-map-heading" label="Yard map" note={held ?? undefined} />
-      <YardMap model={model} />
-      <YardMapLegend caption={mapCaption(model)} />
+      {/* relative: the key is placed inside the map's bottom-left from 640px. */}
+      <div className="relative min-w-0" data-testid="yard-map-wrap">
+        <YardMap model={model} />
+        <YardMapKey />
+      </div>
+      <YardMapNote caption={mapCaption(model)} />
     </section>
   );
 }
@@ -37,17 +41,18 @@ function HowProduced({
   readonly capacityTitle: string;
 }) {
   return (
-    <ClosingDisclosure testId="yard-how">
-        <p>{model.basis}</p>
-        <p>
+    <ClosingDisclosure testId="yard-how" id={HOW_ID}>
+        <p className="depot-prose">{model.basis}</p>
+        {model.rule ? <p className="depot-prose">{model.rule}</p> : null}
+        <p className="depot-prose">
           The yard circle is inferred from where this depot&apos;s buses park; it is not a surveyed
           boundary. Buses further than {DISPLAY_RADIUS_FACTOR} radii from its centre are not drawn.
           A filled dot is one of this depot&apos;s buses; a ring is a bus from another depot.
         </p>
-        <p>
+        <p className="depot-prose">
           {capacityTitle} Bays come from the depot master, not a survey, so capacity is MODELLED.
         </p>
-        <p>{PLAN_NOTICE}</p>
+        <p className="depot-prose">{PLAN_NOTICE}</p>
     </ClosingDisclosure>
   );
 }
@@ -62,11 +67,6 @@ export function YardPage() {
     [network.data],
   );
   const model = useMemo(() => (data ? buildYardModel(data) : null), [data]);
-  const outOfLane = useMemo(
-    () =>
-      new Set((parking.data?.order?.overflow ?? []).map((bus) => bus.registrationNumber.trim())),
-    [parking.data],
-  );
 
   if (!data || !model) {
     if (loading && !error) return <LoadingBlock rows={6} label="Loading the yard" />;
@@ -82,11 +82,15 @@ export function YardPage() {
   const capacity = capacityViewOf(data, parking.data?.capacity.bays.value ?? null);
   const baysPending = !parking.data && parking.loading && !parking.error;
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="depot-stack min-w-0">
       {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
       <YardFigures model={model} capacity={capacity} baysPending={baysPending} />
-      {model.established ? <MapSection model={model} /> : <YardNotEstablished model={model} />}
-      <YardRoll model={model} depotId={depotId} depotNames={depotNames} outOfLane={outOfLane} />
+      {model.established ? (
+        <MapSection model={model} />
+      ) : (
+        <YardNotEstablished model={model} snapshotsSeen={data.yardSnapshotsSeen} />
+      )}
+      <YardRoll model={model} depotId={depotId} depotNames={depotNames} />
       <ParkingPlanSection depotId={depotId} parking={parking} />
       <HowProduced model={model} capacityTitle={capacityFigure(capacity, baysPending).title} />
     </div>

@@ -15,7 +15,6 @@ import {
   capacityFigure,
   heldSinceLine,
   mapCaption,
-  rollSummary,
   visitorRows,
 } from '@/lib/depot/yard/yardPageModel';
 
@@ -100,27 +99,10 @@ describe('mapCaption', () => {
       "3 buses drawn: 1 in the yard, 1 of this depot's just outside it, 1 visiting. 1 in the yard has no position. 2 visiting have no position and are listed below only. 5 more beyond the map's range are listed below.",
     );
   });
-});
 
-describe('rollSummary', () => {
-  it('counts by state and lists only buses that need action, with the reason', () => {
-    const m = model({
-      inYardGroups: [
-        { state: 'standing', buses: [bus('A1'), bus('A2', { gpsAgeMin: 75 }), bus('A3')] },
-        { state: 'dark', buses: [bus('D1', { state: 'dark' })] },
-      ],
-    });
-    const roll = rollSummary(m, new Set(['A3']));
-    expect(roll.counts.map((c) => [c.label, c.count])).toEqual([
-      ['Standing', 3],
-      ['Dark', 1],
-    ]);
-    expect(roll.needsAction.map((a) => [a.bus.registrationNumber, a.reasons])).toEqual([
-      ['A2', ['not heard for 75 min']],
-      ['A3', ['not in a lane']],
-      ['D1', ['dark']],
-    ]);
-    expect(roll.all).toHaveLength(4);
+  it('prints no zero count for visitors when none is drawn', () => {
+    const m = model({ points: [point('A1', 'home')], counts: { inYard: 1, visitors: 0, away: 0, unknown: 0 } });
+    expect(mapCaption(m)).toBe('1 bus drawn: 1 in the yard.');
   });
 });
 

@@ -205,6 +205,6 @@ describe('capacity from the depot detail', () => {
 
 describe('planDateSentence', () => {
   it('names the date of the departures, not a time of day', () => {
-    expect(planDateSentence('2026-10-07')).toBe('For departures on 7 Oct 2026.');
+    expect(planDateSentence('2026-10-07')).toBe('Order for the first departures on 7 Oct 2026.');
   });
 });

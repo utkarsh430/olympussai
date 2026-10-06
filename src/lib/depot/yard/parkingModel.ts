@@ -11,7 +11,7 @@ const plural = (n: number, one: string, many: string): string => (n === 1 ? one 
 
 /** The plan is for the day after the feed date, so it names the date and never a time of day. */
 export function planDateSentence(operatingDate: string): string {
-  return `For departures on ${formatPlainDate(operatingDate)}.`;
+  return `Order for the first departures on ${formatPlainDate(operatingDate)}.`;
 }
 
 export interface CapacityInput {

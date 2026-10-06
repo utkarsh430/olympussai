@@ -1,7 +1,6 @@
-import type { DepotBusView, VisitorBus } from '../api';
+import type { VisitorBus } from '../api';
 import { formatCount, formatFeedTime } from '../format';
 import type { Yard } from '../infer/types';
-import { BUS_STATE_LABEL } from '../labels';
 import type { BusOpState } from '../types';
 import {
   baysMissingSentence,
@@ -10,14 +9,10 @@ import {
   visitingSentence,
   type CapacityView,
 } from './parkingModel';
-import { YARD_STATE_ORDER, type YardModel } from './yardModel';
+import type { YardModel } from './yardModel';
 
-/** A bus in the yard not heard for this long is listed as needing action. */
-export const NOT_HEARD_ACTION_MIN = 60;
 /** Visitors shown before "Show all N". */
 export const VISITOR_CAP = 15;
-
-export const NEEDS_ACTION_RULE = `Listed: buses in the yard that are off the road, dark, not heard for ${NOT_HEARD_ACTION_MIN} minutes or more, or left out of the parking lanes.`;
 
 const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
 
@@ -87,7 +82,7 @@ export function mapCaption(model: YardModel): string {
   const visiting = model.points.length - own.length;
   const parts = [`${formatCount(drawnInYard)} in the yard`];
   if (nearby > 0) parts.push(`${formatCount(nearby)} of this depot's just outside it`);
-  parts.push(`${formatCount(visiting)} visiting`);
+  if (visiting > 0) parts.push(`${formatCount(visiting)} visiting`);
   const total = model.points.length;
   const head = `${formatCount(total)} ${plural(total, 'bus', 'buses')} drawn: ${parts.join(', ')}.`;
   const unplaced = model.counts.inYard - drawnInYard;
@@ -104,56 +99,6 @@ export function mapCaption(model: YardModel): string {
       ? ` ${formatCount(hidden)} visiting ${plural(hidden, 'has', 'have')} no position and ${plural(hidden, 'is', 'are')} listed below only.`
       : '';
   return `${head}${noPosition}${visitorsUnplaced}${far}`;
-}
-
-export interface StateCount {
-  readonly state: BusOpState;
-  readonly label: string;
-  readonly count: number;
-}
-
-export interface ActionBus {
-  readonly bus: DepotBusView;
-  /** Why it is listed, in words: "dark", "not heard for 87 min", "not in a lane". */
-  readonly reasons: readonly string[];
-}
-
-export interface RollSummary {
-  readonly counts: readonly StateCount[];
-  readonly needsAction: readonly ActionBus[];
-  /** Every in-yard bus, by state then registration, for "Show all N". */
-  readonly all: readonly DepotBusView[];
-}
-
-function notHeardMin(bus: DepotBusView): number | null {
-  return bus.notHeardMin ?? bus.gpsAgeMin;
-}
-
-function actionReasons(bus: DepotBusView, outOfLane: ReadonlySet<string>): string[] {
-  const reasons: string[] = [];
-  if (bus.state === 'off_road') reasons.push('off the road');
-  if (bus.state === 'dark') reasons.push('dark');
-  const quiet = notHeardMin(bus);
-  if (quiet !== null && Number.isFinite(quiet) && quiet >= NOT_HEARD_ACTION_MIN) {
-    reasons.push(`not heard for ${formatCount(Math.round(quiet))} min`);
-  }
-  if (outOfLane.has(bus.registrationNumber.trim())) reasons.push('not in a lane');
-  return reasons;
-}
-
-/** "In the yard now" as counts by state, with only the buses that need action listed. */
-export function rollSummary(model: YardModel, outOfLane: ReadonlySet<string>): RollSummary {
-  const groups = model.established ? model.inYardGroups : model.allGroups;
-  const all = groups.flatMap((g) => g.buses);
-  const needsAction = all
-    .map((bus) => ({ bus, reasons: actionReasons(bus, outOfLane) }))
-    .filter((entry) => entry.reasons.length > 0);
-  const counts = YARD_STATE_ORDER.map((state) => ({
-    state,
-    label: BUS_STATE_LABEL[state],
-    count: groups.find((g) => g.state === state)?.buses.length ?? 0,
-  })).filter((c) => c.count > 0);
-  return { counts, needsAction, all };
 }
 
 export interface VisitorRow {
