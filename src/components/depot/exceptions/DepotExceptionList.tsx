@@ -2,8 +2,11 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { EmptyState } from '@/components/depot/shell/DataStates';
+import { DisclosureChevron } from '@/components/depot/shell/DisclosureChevron';
+import { ShowAllButton } from '@/components/depot/shell/LongLists';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { depotHref } from '@/lib/depot/depotNav';
+import { depotBasisLabel } from '@/lib/depot/exceptions/basisWords';
 import {
   EXCEPTION_KIND_LABEL,
   SEVERITY_LABEL,
@@ -14,23 +17,24 @@ import {
   type DepotExceptionGroup,
   type SeveritySection,
 } from '@/lib/depot/exceptions/pageModel';
-import type { ExceptionSeverity } from '@/lib/depot/exceptions/types';
-import { formatCount } from '@/lib/depot/format';
+import type { WindowWordsInput } from '@/lib/depot/score/windowWords';
 import { UNASSIGNED_DEPOT_ID } from '@/lib/depot/types';
 
-const SEVERITY_CLASS: Readonly<Record<ExceptionSeverity, string>> = {
-  critical: 'depot-sev-critical',
-  warning: 'depot-sev-warning',
-  info: 'depot-sev-info',
-};
+interface WindowProps {
+  /** The response's score window and feed time: each exception words its own basis. */
+  readonly window: WindowWordsInput | undefined;
+  readonly feedNow: string | null;
+}
 
-function GroupRow({ group }: { readonly group: DepotExceptionGroup }) {
+/**
+ * One depot: its name and kinds on one line, then one sentence per exception with the
+ * moment its figure describes. The severity is the section's label, not repeated per row;
+ * only a depot holding two levels prefixes each sentence with its own level.
+ */
+function GroupRow({ group, window, feedNow }: WindowProps & { readonly group: DepotExceptionGroup }) {
   return (
-    <li className="px-3 py-2">
+    <li className="py-2">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className={`depot-tag ${SEVERITY_CLASS[group.severity]}`}>
-          {SEVERITY_LABEL[group.severity]}
-        </span>
         {group.depotId === UNASSIGNED_DEPOT_ID ? (
           <span className="min-w-0 font-mono text-[13px] text-depot-ink">{group.depotName}</span>
         ) : (
@@ -47,9 +51,14 @@ function GroupRow({ group }: { readonly group: DepotExceptionGroup }) {
       </div>
       <ul className="mt-1">
         {group.exceptions.map((e) => (
-          <li key={e.id} className="depot-prose">
-            {group.exceptions.length > 1 ? `${SEVERITY_LABEL[e.severity]}: ` : ''}
-            {describeDepotException(e)}
+          <li key={e.id} className="flex flex-wrap items-baseline gap-x-3">
+            <span className="depot-prose min-w-0">
+              {group.exceptions.length > 1 ? `${SEVERITY_LABEL[e.severity]}: ` : ''}
+              {describeDepotException(e)}
+            </span>
+            <span className="depot-label normal-case" data-testid="depot-exception-basis">
+              {depotBasisLabel(e, window, feedNow)}
+            </span>
           </li>
         ))}
       </ul>
@@ -57,57 +66,62 @@ function GroupRow({ group }: { readonly group: DepotExceptionGroup }) {
   );
 }
 
-function Section({ section }: { readonly section: SeveritySection }) {
+function Section({ section, window, feedNow }: WindowProps & { readonly section: SeveritySection }) {
   const [showAll, setShowAll] = useState(false);
   const { shown, hidden } = capGroups(section.groups, showAll);
+  const listId = `depot-exceptions-${section.severity}`;
   return (
     <details open={section.open} className="group">
       <summary className="flex cursor-pointer list-none items-baseline gap-2 py-1 [&::-webkit-details-marker]:hidden">
-        <span aria-hidden className="inline-block w-3 text-depot-faint group-open:rotate-90">
-          ›
-        </span>
+        <DisclosureChevron groupOpen />
         <h3 className="depot-label">{section.heading}</h3>
       </summary>
-      <ul className="depot-panel mt-2 divide-y divide-depot-line">
+      <ul id={listId} className="mt-1 divide-y divide-depot-line border-y border-depot-line">
         {shown.map((g) => (
-          <GroupRow key={g.depotId} group={g} />
+          <GroupRow key={g.depotId} group={g} window={window} feedNow={feedNow} />
         ))}
       </ul>
-      {hidden > 0 ? (
-        <button
-          type="button"
-          className="mt-2 font-mono text-xs text-holo-glow underline-offset-2 hover:underline"
-          onClick={() => setShowAll(true)}
-        >
-          {`Show all ${formatCount(section.groups.length)}`}
-        </button>
+      {hidden > 0 || showAll ? (
+        <ShowAllButton
+          total={section.groups.length}
+          expanded={showAll}
+          onToggle={() => setShowAll(!showAll)}
+          controls={listId}
+        />
       ) : null}
     </details>
   );
 }
 
-/** One row per depot, its kinds listed and worst severity first; critical open, lesser sections folded. */
+/** One row per depot, worst severity first; critical open, lesser sections folded. */
 export function DepotExceptionList({
   sections,
   filterLabel,
-}: {
+  window,
+  feedNow,
+}: WindowProps & {
   readonly sections: readonly SeveritySection[];
-  /** The kind filter in force, for the empty sentence. */
+  /** The kind filter in force, for the nil sentence. */
   readonly filterLabel: string | null;
 }) {
   if (sections.length === 0) {
     return (
-      <EmptyState>
-        {filterLabel === null
-          ? 'No depot is flagged on this snapshot: none has a dark, off-road or on-road rate far enough from its peers, and no depot has a cluster of buses with main power off.'
-          : `No depot is flagged for ${filterLabel.toLowerCase()} on this snapshot.`}
-      </EmptyState>
+      <StatePanel
+        kind="empty"
+        compact
+        tone="ok"
+        sentence={
+          filterLabel === null
+            ? 'No depot is flagged on this snapshot'
+            : `No depot is flagged for ${filterLabel.toLowerCase()} on this snapshot`
+        }
+      />
     );
   }
   return (
     <div className="flex flex-col gap-4" data-testid="depot-exception-list">
       {sections.map((section) => (
-        <Section key={section.severity} section={section} />
+        <Section key={section.severity} section={section} window={window} feedNow={feedNow} />
       ))}
     </div>
   );

@@ -84,6 +84,10 @@ function button(label: string): HTMLButtonElement {
   return found;
 }
 
+function pagerText(): string {
+  return container.querySelector('[data-testid="depot-pager"]')?.textContent ?? '';
+}
+
 function click(el: Element): void {
   act(() => {
     (el as HTMLElement).click();
@@ -101,13 +105,13 @@ describe('exceptions page when a new query fails', () => {
       return { data: null, error: 'Depot data unavailable', loading: false, refresh: retry };
     };
     act(() => root.render(<ExceptionCentre />));
-    expect(container.textContent).toContain('Showing 1–25 of 60');
+    expect(pagerText()).toContain('Rows 1 to 25 of 60');
 
     click(button('Next'));
 
     expect(container.querySelector('[data-testid="depot-error"]')).toBeNull();
     expect(container.querySelector('[data-testid="depot-stale"]')).not.toBeNull();
-    expect(container.textContent).toContain('Showing 1–25 of 60');
+    expect(pagerText()).toContain('Rows 1 to 25 of 60');
     expect(container.textContent).toMatch(/could not load/i);
     expect(button('Next')).toBeDefined();
     expect(container.querySelector('select')).not.toBeNull();
@@ -160,8 +164,47 @@ describe('exceptions page filters and paging', () => {
     expect(hook.queries.every((q) => (q as BusPageQuery).kind === 'long_dark')).toBe(true);
   });
 
-  it('keeps the "press the kind tile again" hint out of the live status line', () => {
-    window.history.replaceState({}, '', '/project/depots/exceptions?kind=long_dark');
+  // Round 2: the pager is the only place the count appears; no "Showing…" sentence above.
+  it('states the bus count once, in the pager, with separators', () => {
+    hook.result = (q) => ({
+      data: response(q as BusPageQuery, 1936, 25),
+      error: null,
+      loading: false,
+      refresh: () => undefined,
+    });
+    act(() => root.render(<ExceptionCentre />));
+    expect(pagerText()).toContain('Rows 1 to 25 of 1,936');
+    expect(container.textContent).not.toMatch(/Showing/);
+    expect(container.querySelector('[data-testid="bus-page-status"]')).toBeNull();
+  });
+
+  // Round 2, ruling 1: the depot cockpit links here with both parameters.
+  it('honours ?kind= and ?depot= on entry, names the depot in a chip that clears it', () => {
+    window.history.replaceState({}, '', '/project/depots/exceptions?kind=emergency&depot=42');
+    hook.result = (q) => ({
+      data: response(q as BusPageQuery, 1, 1),
+      error: null,
+      loading: false,
+      refresh: () => undefined,
+    });
+    act(() => root.render(<ExceptionCentre />));
+    const first = hook.queries[0] as BusPageQuery;
+    expect(first.kind).toBe('emergency');
+    expect(first.depotId).toBe('42');
+    const figure = Array.from(container.querySelectorAll('button[aria-pressed]')).find((b) =>
+      b.textContent?.includes('Emergency flag'),
+    );
+    expect(figure?.getAttribute('aria-pressed')).toBe('true');
+    const chip = container.querySelector('[data-testid="bus-depot-chip"]') as HTMLElement;
+    expect(chip.textContent).toContain('Depot 42');
+    click(chip);
+    expect(window.location.search).toBe('?kind=emergency');
+    expect((hook.queries[hook.queries.length - 1] as BusPageQuery).depotId).toBeNull();
+    expect(container.querySelector('[data-testid="bus-depot-chip"]')).toBeNull();
+  });
+
+  it('ignores an unknown kind and a malformed depot id on entry', () => {
+    window.history.replaceState({}, '', '/project/depots/exceptions?kind=fire&depot=abc');
     hook.result = (q) => ({
       data: response(q as BusPageQuery, 60, 25),
       error: null,
@@ -169,9 +212,8 @@ describe('exceptions page filters and paging', () => {
       refresh: () => undefined,
     });
     act(() => root.render(<ExceptionCentre />));
-    const status = container.querySelector('[data-testid="bus-page-status"]');
-    expect(status?.textContent).not.toMatch(/tile again/);
-    expect(container.textContent).toContain('Press the kind tile again to show every kind.');
+    expect(hook.queries[0]).toMatchObject({ kind: null, depotId: null });
+    expect(container.querySelector('[data-testid="depot-error"]')).toBeNull();
   });
 
   it('moves focus to the status line when Next becomes disabled on the last page', () => {

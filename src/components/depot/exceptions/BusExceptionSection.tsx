@@ -4,6 +4,8 @@ import { useEffect, useMemo } from 'react';
 import { Select } from '@/components/depot/shell/Controls';
 import { Pager } from '@/components/depot/shell/LongLists';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
+import { busBasisNote } from '@/lib/depot/exceptions/basisWords';
 import type { BusExceptionPage } from '@/lib/depot/exceptions/busPage';
 import { busRangeSentence, pageMoves } from '@/lib/depot/exceptions/pageModel';
 import { UNASSIGNED_DEPOT_ID, type DepotSummary } from '@/lib/depot/types';
@@ -17,24 +19,29 @@ export interface BusExceptionSectionProps {
   readonly pending: boolean;
   readonly depots: readonly Pick<DepotSummary, 'id' | 'name'>[];
   readonly depotId: string | null;
+  /** Every bus exception is as of the feed time: said once, beside the label. */
+  readonly feedNow: string | null;
   readonly onDepotChange: (depotId: string | null) => void;
   readonly onOffsetChange: (offset: number) => void;
 }
 
-/** Bus exceptions, paged on the server (25 a page), with the true total for the filter in the status line. */
-export function BusExceptionSection({
-  page,
-  pending,
-  depots,
-  depotId,
-  onDepotChange,
-  onOffsetChange,
-}: BusExceptionSectionProps) {
+/**
+ * Bus exceptions, paged on the server (25 a page, worst first, filtered there by kind and
+ * depot). The shared pager under the table is the only place the count appears; a depot
+ * filter shows as a removable chip ("KAUSHAMBI ×") beside the depot select.
+ */
+export function BusExceptionSection(props: BusExceptionSectionProps) {
+  const { page, pending, depots, depotId, feedNow, onDepotChange, onOffsetChange } = props;
   const options = useMemo(() => {
     const byId = new Map(depots.map((d) => [d.id, d.name]));
     if (!byId.has(UNASSIGNED_DEPOT_ID)) byId.set(UNASSIGNED_DEPOT_ID, 'No home depot');
+    if (depotId !== null && !byId.has(depotId)) {
+      // A depot named by the URL before the network list has loaded: name it from its rows.
+      const fromRows = page.items.find((row) => row.depotId === depotId)?.depotName;
+      byId.set(depotId, fromRows ?? `Depot ${depotId}`);
+    }
     return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1], 'en'));
-  }, [depots]);
+  }, [depots, depotId, page.items]);
   const depotName =
     depotId === null ? null : (options.find(([id]) => id === depotId)?.[1] ?? depotId);
   const moves = pageMoves(page);
@@ -46,14 +53,15 @@ export function BusExceptionSection({
     onOffsetChange(page.total > 0 && moves.previous !== null ? moves.previous : 0);
   }, [pending, page.items.length, page.total, page.offset, moves.previous, onOffsetChange]);
 
-  const status = pending
-    ? 'Loading this page…'
-    : `${busRangeSentence({ ...page, shown: page.items.length }, depotName)}.`;
-
   return (
-    <section aria-labelledby="bus-exceptions-title" className="mt-8">
-      <SectionLabel id="bus-exceptions-title" label="Bus exceptions" count={page.total} note="Worst first" />
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+    <section aria-labelledby="bus-exceptions-title" className="mt-10">
+      <SectionLabel
+        id="bus-exceptions-title"
+        label="Bus exceptions"
+        count={page.total}
+        note={busBasisNote(feedNow)}
+      />
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         <Select
           label="Depot"
           value={depotId ?? ANY}
@@ -66,20 +74,35 @@ export function BusExceptionSection({
             </option>
           ))}
         </Select>
-        <p data-testid="bus-page-status" className="depot-prose min-w-0">
-          {status}
-        </p>
+        {depotName === null ? null : (
+          <button
+            type="button"
+            data-testid="bus-depot-chip"
+            aria-label={`Clear the depot filter ${depotName}: show every depot`}
+            onClick={() => onDepotChange(null)}
+            className="depot-filter-button font-mono text-[11px] uppercase tracking-wider"
+          >
+            {depotName} <span aria-hidden>×</span>
+          </button>
+        )}
+        {pending ? (
+          <span role="status" className="depot-note">
+            Loading this page…
+          </span>
+        ) : null}
       </div>
-      {page.kind === null ? null : (
-        <p className="mb-2 text-[11px] text-depot-muted">Press the kind tile again to show every kind.</p>
-      )}
-      <div aria-busy={pending}>
-        <BusExceptionTable
-          rows={page.items}
-          kind={page.kind}
-          emptyMessage="No bus exceptions on this page."
+      {page.total === 0 && !pending ? (
+        <StatePanel
+          kind="empty"
+          compact
+          tone="ok"
+          sentence={busRangeSentence({ ...page, shown: 0 }, depotName)}
         />
-      </div>
+      ) : (
+        <div aria-busy={pending}>
+          <BusExceptionTable rows={page.items} kind={page.kind} />
+        </div>
+      )}
       <Pager
         page={Math.floor(page.offset / page.limit)}
         total={page.total}

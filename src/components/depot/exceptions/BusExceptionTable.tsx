@@ -1,24 +1,11 @@
 'use client';
 
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
-import {
-  EXCEPTION_KIND_LABEL,
-  SEVERITY_LABEL,
-  describeBusException,
-} from '@/lib/depot/exceptions/describe';
+import { SeverityMark } from '@/components/depot/shell/SeverityMark';
+import { EXCEPTION_KIND_LABEL, describeBusException } from '@/lib/depot/exceptions/describe';
 import { busColumnPlan } from '@/lib/depot/exceptions/pageModel';
-import type {
-  BusException,
-  BusExceptionKind,
-  ExceptionSeverity,
-} from '@/lib/depot/exceptions/types';
+import type { BusException, BusExceptionKind } from '@/lib/depot/exceptions/types';
 import { formatFeedDateTime, formatFeedTime } from '@/lib/depot/format';
-
-const SEVERITY_CLASS: Readonly<Record<ExceptionSeverity, string>> = {
-  critical: 'depot-sev-critical',
-  warning: 'depot-sev-warning',
-  info: 'depot-sev-info',
-};
 
 const REGISTRATION: Column<BusException> = {
   key: 'registration',
@@ -41,9 +28,7 @@ const KIND: Column<BusException> = {
 const SEVERITY: Column<BusException> = {
   key: 'severity',
   header: 'Severity',
-  render: (row) => (
-    <span className={`depot-tag ${SEVERITY_CLASS[row.severity]}`}>{SEVERITY_LABEL[row.severity]}</span>
-  ),
+  render: (row) => <SeverityMark severity={row.severity} />,
 };
 const CODE: Column<BusException> = {
   key: 'code',
