@@ -136,8 +136,20 @@ function exceptionParagraph(depotCountN: number, busCountN: number): string {
     busCountN === 0 ? 'and none on vehicles' : `and ${ph('network.bus_exceptions')} on vehicles`;
   return (
     `The snapshot flags ${ph('network.depot_exceptions')} at depot level ${vehicles}. ` +
-    'Looking at the depot-level ones first would be a sensible order.'
+    'Starting with the depot-level ones would be a sensible order.'
   );
+}
+
+/** Below this spread in the index, naming a place to start would overstate the difference. */
+const MIN_INDEX_GAP = 5;
+
+function rankSentence(ranked: readonly RankedDepot[]): string {
+  const best = ranked[0];
+  const weakest = ranked[ranked.length - 1];
+  if (best && weakest && best.index - weakest.index >= MIN_INDEX_GAP) {
+    return ` That gap makes ${ph('network.weakest_depot')} the natural place to start.`;
+  }
+  return ' The ranked depots sit close together on the index.';
 }
 
 function networkDraft(network: DepotNetworkResponse): CopilotDraft {
@@ -149,16 +161,16 @@ function networkDraft(network: DepotNetworkResponse): CopilotDraft {
     };
   }
   const hasTime = network.feedNow !== null && formatFeedTime(network.feedNow) !== '—';
-  const lead = hasTime ? `At ${ph('network.feed_time')} on the feed clock, the` : 'The';
+  const lead = hasTime ? `As of ${ph('network.feed_time')}, ` : 'On the latest feed, ';
   const stale = network.stale
     ? ' The data is marked stale, so the picture may lag what is happening on the road.'
     : '';
   const ranked = rankedDepots(network);
   const paragraphs = [
-    `${lead} feed shows ${ph('network.reporting')} reporting a recent position and ${ph('network.on_road')} running on the road, ${ph('network.on_road_share')} of the fleet.${stale}`,
-    `The feed shows ${ph('network.no_signal')} with no signal, ${ph('network.no_signal_share')} of the fleet, and ${ph('network.under_maintenance')} under maintenance, ${ph('network.maintenance_share')} of the fleet.`,
+    `${lead}${ph('network.reporting')} are reporting a position and ${ph('network.on_road')} are running, ${ph('network.on_road_share')} of the fleet.${stale}`,
+    `${ph('network.no_signal')} are showing no signal (${ph('network.no_signal_share')}) and ${ph('network.under_maintenance')} are under maintenance (${ph('network.maintenance_share')}).`,
     ranked.length >= 2
-      ? `Among ranked depots, ${ph('network.best_depot')} leads with an efficiency index of ${ph('network.best_index')}, while ${ph('network.weakest_depot')} sits lowest at ${ph('network.weakest_index')}. That gap suggests where support could usefully go first.`
+      ? `Among ranked depots, ${ph('network.best_depot')} leads with an efficiency index of ${ph('network.best_index')}, while ${ph('network.weakest_depot')} sits lowest at ${ph('network.weakest_index')}.${rankSentence(ranked)}`
       : 'Too few depots have enough buses to be ranked against each other on this snapshot.',
     exceptionParagraph(
       DEPOT_KINDS.reduce((n, k) => n + (network.exceptionCounts[k] ?? 0), 0),

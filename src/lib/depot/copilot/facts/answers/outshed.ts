@@ -20,6 +20,7 @@ export function outshedAnswer(data: AnswerData, depotId: string): CopilotRequest
     makeFact('outshed.overdue', 'Overdue to leave', busCount(counts.overdue), 'derived'),
     makeFact('outshed.due', 'Due to leave', busCount(counts.due), 'derived'),
     makeFact('outshed.upcoming', 'Not yet due', busCount(counts.upcoming), 'derived'),
+    makeFact('outshed.ended', 'Schedule over', busCount(counts.ended), 'derived'),
     makeFact('outshed.unknown', 'Unknown', busCount(counts.unknown), 'derived'),
     makeFact('outshed.late', 'Departed late', busCount(late), 'derived'),
   ];
@@ -36,6 +37,7 @@ export function outshedAnswer(data: AnswerData, depotId: string): CopilotRequest
     `${ph('outshed.departed')} already away`,
     counts.due > 0 ? `${ph('outshed.due')} due to leave now` : null,
     counts.upcoming > 0 ? `${ph('outshed.upcoming')} not yet due` : null,
+    counts.ended > 0 ? `${ph('outshed.ended')} whose scheduled window is already over` : null,
     counts.overdue > 0
       ? `${ph('outshed.overdue')} overdue to leave the yard`
       : 'none overdue to leave the yard',

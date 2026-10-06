@@ -47,16 +47,16 @@ export function depotFacts(detail: DepotDetailResponse): CopilotFact[] {
     makeFact('depot.name', 'Depot', cleanName(depot.name), 'live'),
     makeFact('depot.kind', 'Kind', DEPOT_KIND_LABEL[depot.kind], 'reference'),
     makeFact('depot.fleet', 'Fleet', busCount(fleet), 'live'),
-    makeFact('depot.on_road', 'On the road', busCount(onRoadCount(depot.states)), 'derived'),
+    makeFact('depot.on_road', 'On the road', count(onRoadCount(depot.states)), 'derived'),
     makeFact(
       'depot.on_road_share',
       'On-road share',
       share(onRoadCount(depot.states), fleet),
       'derived',
     ),
-    makeFact('depot.dark', 'Dark', busCount(depot.states.dark), 'derived'),
+    makeFact('depot.dark', 'Dark', count(depot.states.dark), 'derived'),
     makeFact('depot.dark_share', 'Dark share', share(depot.states.dark, fleet), 'derived'),
-    makeFact('depot.off_road', 'Off the road', busCount(depot.states.offRoad), 'derived'),
+    makeFact('depot.off_road', 'Off the road', count(depot.states.offRoad), 'derived'),
     makeFact(
       'depot.off_road_share',
       'Off-road share',
@@ -156,6 +156,9 @@ function standingParagraph(detail: DepotDetailResponse): string {
     if (!strongest || !weakest) return base;
     const s = ph('depot.strongest_component');
     const w = ph('depot.weakest_component');
+    // "Weighing on the index" is only true when the weakest component pulls it down.
+    if (weakest.contribution >= 0)
+      return `${base} Its strongest component is ${s}; the weakest is ${w}.`;
     return position > LOWER_SHARE
       ? `${base} The component weighing on the index hardest is ${w}; its strongest, ${s}, shows what the depot already does well.`
       : `${base} Its strongest component is ${s}; the weakest, ${w}, is the natural place to look for further gains.`;
@@ -172,8 +175,8 @@ function fleetParagraph(detail: DepotDetailResponse): string {
   const power =
     detail.depot.powerCut > 0 ? ` Main power reads off on ${ph('depot.power_cut')}.` : '';
   return (
-    `Of ${ph('depot.fleet')} homed here, ${ph('depot.on_road')} running on the road (${ph('depot.on_road_share')}), ` +
-    `${ph('depot.dark')} dark (${ph('depot.dark_share')}) and ${ph('depot.off_road')} off the road (${ph('depot.off_road_share')}).${power}`
+    `Of ${ph('depot.fleet')} homed here, ${ph('depot.on_road')} are on the road (${ph('depot.on_road_share')}), ` +
+    `${ph('depot.dark')} are dark (${ph('depot.dark_share')}) and ${ph('depot.off_road')} are off the road (${ph('depot.off_road_share')}).${power}`
   );
 }
 

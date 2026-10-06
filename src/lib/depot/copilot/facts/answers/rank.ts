@@ -52,7 +52,7 @@ export function rankAnswer(
   return answer('a depot ranking', facts, {
     headline: `${direction} ${label} among ranked depots`,
     paragraphs: [
-      `Leading entries by ${label}, ${direction.toLowerCase()} first: ${entries.join('; ')}.`,
+      `Leading entries by ${label}, from the ${direction === 'Highest' ? 'highest down' : 'lowest up'}: ${entries.join('; ')}.`,
       `${sense} Only the leading entries are listed, and units that are not operating depots, such as hired or electric fleets, are left out.`,
     ],
   });

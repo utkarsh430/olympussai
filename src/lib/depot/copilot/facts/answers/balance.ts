@@ -42,8 +42,8 @@ export function balanceList(data: AnswerData, kind: 'deficit' | 'surplus'): Copi
   ];
   const lead =
     kind === 'deficit'
-      ? `The modelled requirement puts ${ph('list.count')} short of buses, ${ph('list.total')} in all.`
-      : `The modelled requirement puts ${ph('list.count')} above what they need, ${ph('list.total')} of spare buses in all.`;
+      ? `The modelled requirement shows a shortage of buses at ${ph('list.count')}, ${ph('list.total')} in all.`
+      : `The modelled requirement shows spare buses at ${ph('list.count')}, ${ph('list.total')} in all.`;
   const entries = shown.map((_, i) => `${ph(`list.${i + 1}.name`)} by ${ph(`list.${i + 1}.size`)}`);
   return answer('the modelled balance', facts, {
     headline,

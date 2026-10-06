@@ -6,6 +6,7 @@ import {
   MAX_TRANSFER_ROWS,
   answer,
   nameOf,
+  plural,
   unavailable,
 } from '@/lib/depot/copilot/facts/answers/shared';
 import type { AnswerData } from '@/lib/depot/copilot/facts/answers';
@@ -51,6 +52,16 @@ export function transfersAnswer(data: AnswerData, depotId: string): CopilotReque
       makeFact(`t.${i + 1}.distance`, `Distance ${i + 1}`, km1(t.distanceKm), 'derived'),
     );
   });
+  if (mine.length > shown.length) {
+    facts.push(
+      makeFact(
+        't.total',
+        'Transfers in the plan',
+        plural(mine.length, 'transfer', 'transfers'),
+        'modelled',
+      ),
+    );
+  }
   const uncovered = dist.plan.uncovered.find((u) => u.depotId === depotId);
   if (uncovered) {
     facts.push(
@@ -71,12 +82,16 @@ export function transfersAnswer(data: AnswerData, depotId: string): CopilotReque
   const paragraphs = [
     standing,
     lines.length > 0
-      ? `In the current plan: ${lines.join(' ')}`
+      ? `In the current plan: ${lines.join(' ')}${
+          mine.length > shown.length
+            ? ` These are the leading entries; the plan holds ${ph('t.total')} involving this depot.`
+            : ''
+        }`
       : 'No transfer involving this depot is proposed in the current plan.',
   ];
   if (uncovered) {
     paragraphs.push(
-      `${ph('t.uncovered')} of its deficit stays uncovered because ${UNCOVERED_PHRASE[uncovered.reason]}.`,
+      `Left uncovered in the current plan: ${ph('t.uncovered')}, because ${UNCOVERED_PHRASE[uncovered.reason]}.`,
     );
   }
   paragraphs.push(MODELLED_NOTE);

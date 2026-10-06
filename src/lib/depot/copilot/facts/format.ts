@@ -61,10 +61,14 @@ export const DEPOT_EXCEPTION_PHRASE: Readonly<Record<DepotExceptionKind, string>
   power_cut_cluster: 'a cluster of buses with the main power cut',
 };
 
-/** Facts keep their first occurrence, so an id is never duplicated in a request. */
+/** A duplicate id is a builder bug; failing loudly beats silently dropping a fact. */
 function uniqueFacts(facts: readonly CopilotFact[]): CopilotFact[] {
   const seen = new Set<string>();
-  return facts.filter((f) => (seen.has(f.id) ? false : (seen.add(f.id), true)));
+  for (const f of facts) {
+    if (seen.has(f.id)) throw new Error(`Duplicate copilot fact id: ${f.id}`);
+    seen.add(f.id);
+  }
+  return [...facts];
 }
 
 export function buildRequest(parts: {

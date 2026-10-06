@@ -7,6 +7,7 @@ import type {
 import { buildAnswer, type AnswerData } from '@/lib/depot/copilot/facts/answers';
 import { buildDepotBriefing } from '@/lib/depot/copilot/facts/depot';
 import { buildNetworkBriefing } from '@/lib/depot/copilot/facts/network';
+import { buildRequest } from '@/lib/depot/copilot/facts/format';
 import { buildTransferRationale } from '@/lib/depot/copilot/facts/transfer';
 import type { CopilotQuery } from '@/lib/depot/copilot/queries';
 import { renderDraft } from '@/lib/depot/copilot/render';
@@ -76,6 +77,21 @@ const QUANTITY_STEMS = [
   'quarter',
   'fifth',
   'tenth',
+  'first',
+  'second',
+  'twelfth',
+  'twentieth',
+  'thirtieth',
+  'fortieth',
+  'fiftieth',
+  'sixtieth',
+  'seventieth',
+  'eightieth',
+  'ninetieth',
+  'nil',
+  'nought',
+  'naught',
+  'handful',
   'percent',
   'percentage',
   'per\\s+cent',
@@ -84,6 +100,11 @@ const QUANTITY = new RegExp(`\\b(?:${QUANTITY_STEMS.join('|')})(?:s|es|ed|th|ths
 const PLACEHOLDER = /\{\{fact:[a-z0-9][a-z0-9_.-]{0,63}\}\}/g;
 const ALLOWED_PROSE = /^[A-Za-z .,;:'"()-]*$/;
 const BOUNDARY = /[ .,;:()'"-]/;
+const TOUCHING_PLACEHOLDERS = /\}\}[.,;:()'"-]*\{\{fact:/;
+const PUNCTUATION_BEFORE_PLACEHOLDER = /(^|[ (])[-.,]\{\{fact:/;
+const RUN_TOGETHER_NUMBER =
+  /(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)(one|two|three|four|five|six|seven|eight|nine)/i;
+const SINGLE_LETTER_RUN = /\b[A-Za-z](?:[ -][A-Za-z]\b){2,}/;
 const MAX_FACTS = 60;
 const MAX_FACT_TEXT = 120;
 
@@ -99,6 +120,10 @@ function violations(text: string): string[] {
       found.push('placeholder against a character');
     if (after !== undefined && !BOUNDARY.test(after)) found.push('placeholder against a character');
   }
+  if (TOUCHING_PLACEHOLDERS.test(text)) found.push('placeholders only punctuation apart');
+  if (PUNCTUATION_BEFORE_PLACEHOLDER.test(text)) found.push('punctuation before a placeholder');
+  if (RUN_TOGETHER_NUMBER.test(bare)) found.push('number words run together');
+  if (SINGLE_LETTER_RUN.test(bare)) found.push('run of single letters');
   const quantity = QUANTITY.exec(bare);
   if (quantity) found.push(`quantity word: ${quantity[0]}`);
   if (/\b[IVXLCDM]{2,}\b/.test(bare)) found.push('roman-numeral-like word');
@@ -116,6 +141,12 @@ describe('local allowlist checker', () => {
       'x{{fact:a.b}}y',
       'one.two',
       'halves',
+      'deserves a second look',
+      'go first',
+      '{{fact:a.b}},{{fact:c.d}}',
+      'x -{{fact:a.b}}',
+      'twentyfive',
+      'a b c',
     ];
     for (const text of bad) expect(violations(text), text).not.toEqual([]);
     expect(violations('Fine prose: {{fact:a.b}}, and (one) more.')).toEqual([]);
@@ -778,6 +809,88 @@ describe('answers', () => {
     );
     expect(request.facts).toEqual([]);
     expect(proseOf(request)).toContain('not available');
+  });
+});
+
+function paragraphsOf(request: CopilotRequest): readonly string[] {
+  const rendered = renderDraft(request.scriptedDraft, request.facts);
+  if (!rendered.ok) throw new Error(rendered.reason);
+  return rendered.paragraphs;
+}
+
+describe('pinned scripted phrasing', () => {
+  const data = makeData();
+  const dist = makeDistribution();
+  const transfer = dist.plan.transfers[0];
+  if (!transfer) throw new Error('fixture needs a transfer');
+  const caveat =
+    'The requirement is modelled until a network timetable is supplied, so these figures are a planning estimate rather than a measured need.';
+  const unassessed = `${caveat} The move cannot be assessed from the available modelled balances, so the network team may wish to review it before relying on it.`;
+  const closing = (d: DepotDistributionResponse) =>
+    paragraphsOf(buildTransferRationale(transfer, d)).at(-1);
+
+  it('writes the fleet paragraph and the standing sentence', () => {
+    const p = paragraphsOf(buildDepotBriefing(makeDetail()));
+    expect(p[0]).toContain(
+      'a rank of 2 of 12 within mid-sized depots. Its strongest component is On-road share; the weakest, Dark rate, is the natural place to look for further gains.',
+    );
+    expect(p[1]).toBe(
+      'Of 100 buses homed here, 70 are on the road (70%), 6 are dark (6%) and 4 are off the road (4%).',
+    );
+  });
+
+  it('writes the network opening and conditions the place-to-start sentence', () => {
+    const p = paragraphsOf(buildNetworkBriefing(data.network));
+    expect(p[0]).toBe(
+      'As of 14:05, 380 buses are reporting a position and 210 buses are running, 53% of the fleet.',
+    );
+    expect(p[2]).toContain('That gap makes AGRA CANTT the natural place to start.');
+  });
+
+  it('writes list leads, the uncovered deficit and the outshed counts', () => {
+    expect(paragraphsOf(buildAnswer({ kind: 'depotsInSurplus' }, data))[0]).toBe(
+      'The modelled requirement shows spare buses at 1 depot, 9 buses in all.',
+    );
+    expect(paragraphsOf(buildAnswer({ kind: 'transfersFor', depotId: '103' }, data))).toContain(
+      'Left uncovered in the current plan: 3 buses, because no surplus lies within range.',
+    );
+    expect(paragraphsOf(buildAnswer({ kind: 'outshedStatus', depotId: '101' }, data))[1]).toContain(
+      '5 buses whose scheduled window is already over',
+    );
+  });
+
+  it('makes the transfer closing paragraph depend on the modelled balances', () => {
+    expect(closing(dist)).toBe(
+      `${caveat} On the modelled figures the surplus at KANPUR covers the move and ETAWAH has a deficit it would ease; the network team may wish to confirm it.`,
+    );
+    expect(closing({ ...dist, balances: [] })).toBe(unassessed);
+    const giver = (balance: number) =>
+      dist.balances.map((b) => (b.depotId === '101' ? { ...b, balance } : b));
+    expect(closing({ ...dist, balances: giver(0) })).toBe(unassessed);
+    expect(closing({ ...dist, balances: giver(4) })).toBe(unassessed);
+    const request = buildTransferRationale(transfer, dist);
+    expect(request.facts.find((f) => f.id === 'transfer.from_name')?.text).toBe('KANPUR');
+    expect(request.facts.find((f) => f.id === 'transfer.to_name')?.text).toBe('ETAWAH');
+    expect(paragraphsOf(request)[1]).toContain(
+      "within the planner's configured maximum of 250.0 km.",
+    );
+  });
+
+  it('singles out no component on a tie and fails loudly on a duplicate fact id', () => {
+    const keys = ['onRoad', 'offRoad', 'dark', 'scheduled', 'deviceHealth'] as const;
+    const tied = makeScore('101', { components: keys.map((k) => component(k, 0.2)) });
+    const request = buildDepotBriefing(makeDetail({ score: tied }));
+    expect(request.facts.some((f) => f.id.endsWith('_component'))).toBe(false);
+    const fact = { id: 'a.b', label: 'x', text: 'y', provenance: 'live' } as const;
+    expect(() =>
+      buildRequest({
+        task: 'answer',
+        scopeLabel: 's',
+        facts: [fact, fact],
+        guidance: 'g',
+        scriptedDraft: { headline: 'H', paragraphs: ['P'] },
+      }),
+    ).toThrow(/Duplicate copilot fact id/);
   });
 });
 
