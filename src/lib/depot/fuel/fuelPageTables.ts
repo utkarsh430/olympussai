@@ -34,15 +34,15 @@ export interface BandFigure {
   readonly caption: string;
 }
 
-/** The depot's day as five figures; "N of M buses ran" is the first. */
+/** The depot's modelled day as five figures; "N of M buses running duties" is the first. */
 export function fuelBand(data: FuelResponse): readonly BandFigure[] {
   const { totals, day } = data;
   const notRun =
-    data.notRunCount > 0 ? `${formatCount(data.notRunCount)} did not run` : 'every bus ran';
+    data.notRunCount > 0 ? `${formatCount(data.notRunCount)} with no duty` : 'every bus has a duty';
   return [
     {
       key: 'ran',
-      label: 'Buses ran',
+      label: 'Buses running duties',
       value: `${formatCount(totals.busCount)} of ${formatCount(day.buses)}`,
       caption: notRun,
     },
@@ -50,7 +50,7 @@ export function fuelBand(data: FuelResponse): readonly BandFigure[] {
       key: 'distance',
       label: 'Distance',
       value: formatKm(totals.distanceKm),
-      caption: 'run in the day',
+      caption: 'run on duties',
     },
     {
       key: 'fuel',
@@ -60,7 +60,7 @@ export function fuelBand(data: FuelResponse): readonly BandFigure[] {
     },
     {
       key: 'cost',
-      label: 'Cost',
+      label: 'Fuel cost',
       value: formatRupees(totals.cost),
       caption: `${formatCostPerKm(totals.costPerKm)} per km`,
     },
@@ -131,14 +131,14 @@ export function classNote(rows: readonly FuelGroupRow[]): string {
 export function fuelDisclosure(data: FuelResponse): readonly string[] {
   const unit = `${formatRupees(data.pricePerLitre)} per litre`;
   const price = data.priceDefaulted
-    ? `Cost uses a planning price of ${unit}, not a quoted price.`
-    : `Cost uses ${unit}.`;
+    ? `Fuel cost uses a planning price of ${unit}, not a quoted price.`
+    : `Fuel cost uses ${unit}.`;
   return [
     modelledStatement(),
     COST_NOTE,
     price,
     ruleSentence(data.rule.thresholdPct, data.rule.minPeers),
     notRunNote(data.notRunCount) ?? '',
-    'Kilometres per litre is distance over fuel issued; cost per kilometre is cost over distance.',
+    'Kilometres per litre is distance over fuel issued; fuel cost per kilometre is fuel cost over distance.',
   ].filter((p) => p !== '');
 }

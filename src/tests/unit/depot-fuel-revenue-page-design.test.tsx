@@ -128,14 +128,18 @@ afterEach(async () => {
 });
 
 describe('fuel page models', () => {
-  it('shows N of M buses ran as the first band figure, with the not-run count as a caption', () => {
+  // Round 2: tense-neutral for the modelled day (rereview F1 m1); "Cost" names fuel cost.
+  it('shows N of M buses running duties first, with the no-duty count as a caption', () => {
     const band = fuelBand(fuelData());
     expect(band).toHaveLength(5);
     expect(band[0]).toMatchObject({
-      label: 'Buses ran',
+      label: 'Buses running duties',
       value: '158 of 200',
-      caption: '42 did not run',
+      caption: '42 with no duty',
     });
+    expect(band[3]?.label).toBe('Fuel cost');
+    expect(fuelBand(fuelData({ notRunCount: 0 }))[0]?.caption).toBe('every bus has a duty');
+    for (const f of band) expect(`${f.label} ${f.caption}`).not.toMatch(/\bran\b|did not|today/i);
     expect(band[3]?.caption).toBe('₹20.10 per km');
     expect(band[4]?.caption).toContain('planning price');
   });
@@ -154,7 +158,7 @@ describe('fuel page models', () => {
     const line = standOutFooter(fuelData());
     expect(line).toContain('2 buses are above the 15% threshold');
     expect(line).toContain('4 buses have too few similar buses to compare');
-    expect(line).toContain('2 of the day’s duties had no bus');
+    expect(line).toContain('2 of the day’s duties have no bus');
     expect(
       standOutFooter(
         fuelData({

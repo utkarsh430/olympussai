@@ -92,10 +92,10 @@ describe('sentences', () => {
   });
   it('names a defaulted price', () => {
     expect(summarySentence(totals(), { price: 92, defaulted: true })).toContain(
-      'Cost uses a planning price of ₹92 per litre, not a quoted price',
+      'Fuel cost uses a planning price of ₹92 per litre, not a quoted price',
     );
     expect(summarySentence(totals(), { price: 92, defaulted: false })).toContain(
-      'Cost uses ₹92 per litre.',
+      'Fuel cost uses ₹92 per litre.',
     );
     expect(summarySentence(totals(), { price: 92, defaulted: false })).not.toContain('planning');
   });
@@ -115,29 +115,41 @@ describe('sentences', () => {
       '3 buses are above the 15% threshold but are not listed, because their peers differ too much to give a reliable median.',
     );
     expect(noComparisonNote(0)).toBeNull();
-    expect(noComparisonNote(2)).toBe('2 buses have too few similar buses to compare and are not listed.');
-    expect(noComparisonNote(1)).toBe('1 bus has too few similar buses to compare and is not listed.');
+    expect(noComparisonNote(2)).toBe(
+      '2 buses have too few similar buses to compare and are not listed.',
+    );
+    expect(noComparisonNote(1)).toBe(
+      '1 bus has too few similar buses to compare and is not listed.',
+    );
   });
   it('never says no bus stands out without the sentence for an unlisted bus', () => {
     const none = { peersDiffer: 0, noComparison: 0, thresholdPct: 15 };
-    expect(flaggedHeadline(0, 0, none)).toBe('No bus stands out from its peers today.');
+    expect(flaggedHeadline(0, 0, none)).toBe(
+      'No bus stands out from its peers in the modelled day.',
+    );
     const some = flaggedHeadline(0, 0, { ...none, peersDiffer: 2 });
-    expect(some).not.toBe('No bus stands out from its peers today.');
-    expect(some).toContain('No bus is listed as standing out from its peers today.');
+    expect(some).not.toBe('No bus stands out from its peers in the modelled day.');
+    expect(some).toContain('No bus is listed as standing out from its peers in the modelled day.');
     expect(some).toContain('2 buses are above the 15% threshold');
     const other = flaggedHeadline(0, 0, { ...none, noComparison: 1 });
     expect(other).toContain('1 bus has too few similar buses to compare');
-    expect(flaggedHeadline(2, 2, { ...none, peersDiffer: 2 })).toBe('2 buses stand out from their peers.');
+    expect(flaggedHeadline(2, 2, { ...none, peersDiffer: 2 })).toBe(
+      '2 buses stand out from their peers.',
+    );
   });
   it('words the flagged headline and the no-distance note', () => {
-    expect(flaggedHeadline(0, 0)).toBe('No bus stands out from its peers today.');
+    expect(flaggedHeadline(0, 0)).toBe('No bus stands out from its peers in the modelled day.');
     expect(flaggedHeadline(1, 1)).toBe('1 bus stands out from its peers.');
     expect(flaggedHeadline(60, 50)).toBe(
       '60 buses stand out from their peers; the 50 with the largest variance are listed.',
     );
     expect(noDistanceNote(0)).toBeNull();
-    expect(noDistanceNote(1)).toBe('1 bus has no distance today and is not compared.');
-    expect(noDistanceNote(4)).toBe('4 buses have no distance today and are not compared.');
+    expect(noDistanceNote(1)).toBe(
+      '1 bus has no distance in the modelled day and is not compared.',
+    );
+    expect(noDistanceNote(4)).toBe(
+      '4 buses have no distance in the modelled day and are not compared.',
+    );
   });
   it('explains an empty day', () => {
     // S41: an empty fuel page is a depot with no modelled duties, or one with no bus to run them.
@@ -145,13 +157,15 @@ describe('sentences', () => {
     expect(emptyText()).not.toMatch(/today|\bran\b/);
     expect(
       emptyText({ duties: 3, routes: 1, busesRan: 0, buses: 2, dutiesWithoutBus: 3 }),
-    ).toContain('no bus was available');
+    ).toContain('no bus is available');
   });
 });
 
 describe('cost note', () => {
   it('says the cost is summed from each bus to the nearest rupee', () => {
-    expect(COST_NOTE).toBe('Cost is summed from each bus’s cost, each to the nearest rupee.');
+    expect(COST_NOTE).toBe(
+      'Fuel cost is summed from each bus’s fuel cost, each to the nearest rupee.',
+    );
   });
 });
 
@@ -161,7 +175,13 @@ describe('route rows with no distance and the Other row', () => {
     for (const field of ['distance', 'litres', 'cost', 'kmpl', 'cpk'] as const) {
       expect(routeCell(none, field)).toBe('No distance');
     }
-    const fuelOnly = row({ distanceKm: 0, fuelLitres: 12, cost: 1104, kmPerLitre: null, costPerKm: null });
+    const fuelOnly = row({
+      distanceKm: 0,
+      fuelLitres: 12,
+      cost: 1104,
+      kmPerLitre: null,
+      costPerKm: null,
+    });
     expect(routeCell(fuelOnly, 'distance')).toBe('No distance');
     expect(routeCell(fuelOnly, 'kmpl')).toBe('No distance');
     expect(routeCell(fuelOnly, 'litres')).toBe('12 L');
@@ -202,7 +222,8 @@ describe('route labels and row keys', () => {
 
 describe('wording rule', () => {
   it('never names a person, a cause or misconduct', () => {
-    const banned = /theft|pilfer|misuse|driver|conductor|driving|engine|tyre|\bload\b|traffic|simulated/i;
+    const banned =
+      /theft|pilfer|misuse|driver|conductor|driving|engine|tyre|\bload\b|traffic|simulated/i;
     const all = [
       summarySentence(totals()),
       summarySentence(totals({ busCount: 1 }), { price: 90, defaulted: true }),
