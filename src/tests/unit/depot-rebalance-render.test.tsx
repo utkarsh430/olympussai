@@ -384,6 +384,29 @@ describe('provenance tags on the visible page (ruling S51)', () => {
   });
 });
 
+describe('shortfall the plan cannot cover', () => {
+  it('is one compact line with its square when every shortfall is covered', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const line = container.querySelector('[data-testid="rebalance-covered"]');
+    expect(line?.textContent).toContain('Every modelled shortfall is covered');
+    expect(line?.querySelector('[data-testid="depot-state-square"]')).not.toBeNull();
+    expect(container.textContent).not.toMatch(/shortfall the plan cannot cover/i);
+  });
+
+  it('is a full list only when there is something to list', async () => {
+    const data = response();
+    const plan = {
+      ...data.plan,
+      uncovered: [{ depotId: 'kanpur', buses: 2, reason: 'insufficient_surplus' }],
+    };
+    await render(<Distribution data={{ ...data, plan } as typeof data} state={{ error: null }} />);
+    const section = container.querySelector('[data-testid="rebalance-uncovered"]');
+    expect(section?.textContent).toMatch(/shortfall the plan cannot cover/i);
+    expect(section?.querySelectorAll('li')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="rebalance-covered"]')).toBeNull();
+  });
+});
+
 describe('transfer plan split', () => {
   it('puts the table in 55% and the map in 45% at xl, the table first below xl', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
