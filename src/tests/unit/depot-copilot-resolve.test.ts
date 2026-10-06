@@ -3,13 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CLI_CONCURRENCY,
   CLI_COOLDOWN_MS,
+  CLI_FAILURE_THRESHOLD,
   CLI_MAX_OUTPUT_BYTES,
   CLI_QUEUE,
   CLI_TIMEOUT_MS,
   readProviderSetting,
 } from '@/lib/depot/copilot/config';
 import type { ChildLike, SpawnLike } from '@/lib/depot/copilot/cli/run';
-import { createClaudeCliProvider } from '@/lib/depot/copilot/providers/claudeCli';
+import { createClaudeCliProvider, isAbsoluteBinary } from '@/lib/depot/copilot/providers/claudeCli';
 import { createScriptedProvider } from '@/lib/depot/copilot/providers/scripted';
 import { createCopilotEngine } from '@/lib/depot/copilot/resolve';
 import { createSemaphore } from '@/lib/depot/copilot/semaphore';
@@ -137,35 +138,79 @@ describe('createCopilotEngine', () => {
     expect(out.generatedAt).toBe(new Date(1_000_000).toISOString());
   });
 
-  it.each([
-    'not_installed',
-    'not_authenticated',
-    'usage_limit',
-    'timeout',
-    'invalid_output',
-    'error',
-  ] as const)('falls back to scripted on %s and starts the cool-down', async (reason) => {
-    const cli = cliThatFails(reason);
-    const { instance } = engine(cli);
-    const first = await instance.generate(REQUEST);
-    expect(first).toMatchObject({ provider: 'scripted', fellBack: true, fallbackReason: reason });
-    const second = await instance.generate(REQUEST);
-    expect(second).toMatchObject({
-      provider: 'scripted',
-      fellBack: true,
-      fallbackReason: 'cooling_down',
+  it.each(['not_installed', 'not_authenticated', 'usage_limit', 'error'] as const)(
+    'falls back to scripted on %s and starts the cool-down at once',
+    async (reason) => {
+      const cli = cliThatFails(reason);
+      const { instance } = engine(cli);
+      const first = await instance.generate(REQUEST);
+      expect(first).toMatchObject({ provider: 'scripted', fellBack: true, fallbackReason: reason });
+      const second = await instance.generate(REQUEST);
+      expect(second).toMatchObject({
+        provider: 'scripted',
+        fellBack: true,
+        fallbackReason: 'cooling_down',
+      });
+      expect(cli.draft).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  describe.each(['timeout', 'invalid_output'] as const)('repeated %s', (reason) => {
+    it('falls back each time but cools down only after the threshold of consecutive failures', async () => {
+      const cli = cliThatFails(reason);
+      const { instance } = engine(cli);
+      for (let i = 0; i < CLI_FAILURE_THRESHOLD; i += 1) {
+        expect(await instance.generate(REQUEST)).toMatchObject({
+          fellBack: true,
+          fallbackReason: reason,
+        });
+      }
+      expect((await instance.generate(REQUEST)).fallbackReason).toBe('cooling_down');
+      expect(cli.draft).toHaveBeenCalledTimes(CLI_FAILURE_THRESHOLD);
     });
-    expect(cli.draft).toHaveBeenCalledTimes(1);
+
+    it('is reset by a success', async () => {
+      let fail = true;
+      const cli: CopilotProvider = {
+        id: 'claude-cli',
+        draft: vi.fn(async () => {
+          if (fail) throw new CopilotFailure(reason);
+          return GOOD_DRAFT;
+        }),
+      };
+      const { instance } = engine(cli);
+      for (let i = 0; i < CLI_FAILURE_THRESHOLD - 1; i += 1) await instance.generate(REQUEST);
+      fail = false;
+      expect((await instance.generate(REQUEST)).fallbackReason).toBeNull();
+      fail = true;
+      for (let i = 0; i < CLI_FAILURE_THRESHOLD - 1; i += 1) {
+        expect((await instance.generate(REQUEST)).fallbackReason).toBe(reason);
+      }
+      expect(cli.draft).toHaveBeenCalledTimes(2 * (CLI_FAILURE_THRESHOLD - 1) + 1);
+    });
+  });
+
+  it('counts timeouts and invalid output together as one run of soft failures', async () => {
+    const reasons: FallbackReason[] = ['timeout', 'invalid_output', 'timeout'];
+    const cli: CopilotProvider = {
+      id: 'claude-cli',
+      draft: vi.fn(async () => {
+        throw new CopilotFailure(reasons.shift() ?? 'timeout');
+      }),
+    };
+    const { instance } = engine(cli);
+    for (let i = 0; i < 3; i += 1) await instance.generate(REQUEST);
+    expect((await instance.generate(REQUEST)).fallbackReason).toBe('cooling_down');
   });
 
   it('retries the CLI once the cool-down has expired', async () => {
-    const cli = cliThatFails('timeout');
+    const cli = cliThatFails('usage_limit');
     const { instance, advance } = engine(cli);
     await instance.generate(REQUEST);
     advance(999);
     expect((await instance.generate(REQUEST)).fallbackReason).toBe('cooling_down');
     advance(1);
-    expect((await instance.generate(REQUEST)).fallbackReason).toBe('timeout');
+    expect((await instance.generate(REQUEST)).fallbackReason).toBe('usage_limit');
     expect(cli.draft).toHaveBeenCalledTimes(2);
   });
 
@@ -277,8 +322,8 @@ function fakeSpawn(
     const stderr = new EventEmitter();
     const child = {
       stdin: { write: () => true, end: () => undefined, on: () => undefined },
-      stdout: { on: (_e: 'data', l: (c: string) => void) => stdout.on('data', l) },
-      stderr: { on: (_e: 'data', l: (c: string) => void) => stderr.on('data', l) },
+      stdout: { on: (e: string, l: (c: string) => void) => stdout.on(e, l) },
+      stderr: { on: (e: string, l: (c: string) => void) => stderr.on(e, l) },
       on: (event: string, l: (...a: never[]) => void) => emitter.on(event, l as () => void),
       kill: () => true,
     } as unknown as ChildLike;
@@ -290,11 +335,12 @@ function fakeSpawn(
 const providerWith = (spawn: SpawnLike, env: Record<string, string | undefined> = {}) =>
   createClaudeCliProvider({
     spawn,
-    bin: 'claude',
+    bin: '/usr/local/bin/claude',
     model: 'sonnet',
     home: '/tmp/home',
     cwd: () => '/tmp/empty',
     env,
+    nodeDir: '/opt/node/bin',
   });
 
 describe('createClaudeCliProvider', () => {
@@ -317,8 +363,79 @@ describe('createClaudeCliProvider', () => {
       REQUEST,
     );
     const options = spawn.mock.calls[0]?.[2];
-    expect(options?.env).toEqual({ PATH: '/bin', HOME: '/tmp/home' });
+    expect(options?.env).toEqual({ PATH: '/opt/node/bin:/usr/bin:/bin', HOME: '/tmp/home' });
     expect(options?.cwd).toBe('/tmp/empty');
+  });
+
+  it('rejects a relative or empty binary path at construction', () => {
+    const spawn = fakeSpawn(() => undefined);
+    for (const bin of ['claude', './claude', '', 'bin/claude']) {
+      expect(() =>
+        createClaudeCliProvider({
+          spawn,
+          bin,
+          model: 'sonnet',
+          home: '/h',
+          cwd: () => '/c',
+          env: {},
+          nodeDir: '/n',
+        }),
+      ).toThrow(/absolute/i);
+    }
+    expect(isAbsoluteBinary('/usr/bin/claude')).toBe(true);
+    expect(isAbsoluteBinary('claude')).toBe(false);
+  });
+
+  it('rejects an invalid model name at construction', () => {
+    expect(() =>
+      createClaudeCliProvider({
+        spawn: fakeSpawn(() => undefined),
+        bin: '/usr/bin/claude',
+        model: '--evil',
+        home: '/h',
+        cwd: () => '/c',
+        env: {},
+        nodeDir: '/n',
+      }),
+    ).toThrow(RangeError);
+  });
+
+  it('reports invalid_output, not a limit or auth failure, when model text says so', async () => {
+    const spawn = fakeSpawn((child, stdout) => {
+      stdout.emit(
+        'data',
+        JSON.stringify({
+          is_error: false,
+          result: 'quota exceeded, please log in',
+          structured_output: { headline: 1 },
+        }),
+      );
+      child.emit('close', 0);
+    });
+    await expect(providerWith(spawn).draft(REQUEST)).rejects.toMatchObject({
+      reason: 'invalid_output',
+    });
+    const raw = fakeSpawn((child, stdout) => {
+      stdout.emit('data', 'quota exceeded, please log in');
+      child.emit('close', 0);
+    });
+    await expect(providerWith(raw).draft(REQUEST)).rejects.toMatchObject({
+      reason: 'invalid_output',
+    });
+  });
+
+  it('fails with error, without spawning, when the request has too many facts', async () => {
+    const spawn = vi.fn<SpawnLike>(fakeSpawn(() => undefined));
+    const facts = Array.from({ length: 61 }, (_, i) => ({
+      id: `f${i}`,
+      label: 'l',
+      text: 't',
+      provenance: 'live' as const,
+    }));
+    await expect(providerWith(spawn).draft({ ...REQUEST, facts })).rejects.toMatchObject({
+      reason: 'error',
+    });
+    expect(spawn).not.toHaveBeenCalled();
   });
 
   it('throws CopilotFailure(invalid_output) for a malformed envelope', async () => {
