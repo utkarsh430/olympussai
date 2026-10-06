@@ -187,29 +187,51 @@ function buildSnapshot(
  * memoise on that identity, so demo mode and an outage with no history no
  * longer re-run the analysis per request. The payload is the full-fleet file
  * when it loads (read lazily, only here), else the small bundled sample. The
- * map projection is still built per call, because its `lastUpdatedAt` and
- * `dataQuality` depend on `now`. Either way the result is reported as the
- * `fixture` source, so the pages can say the data is a saved sample.
+ * map projection's `lastUpdatedAt` and `dataQuality` depend on `now`, so it is
+ * built per call, but only when a caller reads `buses`: the depot routes never
+ * do. Its counts depend on the payload alone and are taken once. Either way the
+ * result is reported as the `fixture` source, so the pages can say the data is
+ * a saved sample.
  */
 interface FixtureProjection {
   readonly payload: unknown;
   readonly depot: DepotProjection;
+  readonly recordCount: number;
+  readonly rejectedRecordCount: number;
 }
 
 let fixture: FixtureProjection | null = null;
 
-function fixtureResult(now: number): LiveSnapshotResult {
-  if (!fixture) {
-    const payload: unknown = loadFleetFixture() ?? liveFixture;
+function loadFixture(): FixtureProjection {
+  const payload: unknown = loadFleetFixture() ?? liveFixture;
+  const counts = normalizeLivePayload(payload, 0);
+  return {
+    payload,
     // No upper limit (P3): the sample's clock is its own newest receive time, never "ahead"
     // of this machine's clock, which may even be set before the sample was captured.
-    fixture = { payload, depot: projectDepot(payload, Number.POSITIVE_INFINITY) };
-  }
-  return {
-    snapshot: buildSnapshot(fixture.payload, now, fixture.depot),
-    source: 'fixture',
-    stale: true,
+    depot: projectDepot(payload, Number.POSITIVE_INFINITY),
+    recordCount: counts.recordCount,
+    rejectedRecordCount: counts.rejectedRecordCount,
   };
+}
+
+function fixtureResult(now: number): LiveSnapshotResult {
+  fixture ??= loadFixture();
+  const { payload, depot, recordCount, rejectedRecordCount } = fixture;
+  let buses: readonly CanonicalLiveBus[] | null = null;
+  const snapshot: LiveSnapshot = {
+    get buses(): readonly CanonicalLiveBus[] {
+      buses ??= normalizeLivePayload(payload, now).buses;
+      return buses;
+    },
+    depotRows: depot.rows,
+    recordCount,
+    rejectedRecordCount,
+    fetchedAt: new Date(now).toISOString(),
+    feedNow: depot.feedNow,
+    feedClockAheadRows: depot.feedClockAheadRows,
+  };
+  return { snapshot, source: 'fixture', stale: true };
 }
 
 async function safeFetch(): Promise<UpstreamFetchResult> {
