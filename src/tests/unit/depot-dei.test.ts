@@ -225,14 +225,14 @@ describe('scoreDepots', () => {
     expect(score.index).toBeNull();
   });
 
-  it('ranks by index descending and breaks ties by depot id', () => {
+  it('ranks by index descending, and depots with equal indexes share a rank', () => {
     const clones = ['d', 'b', 'a', 'c', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l'].map((id) =>
       depot({ id, states: { inService: 30 } }),
     );
     const byId = new Map(scoreDepots(clones).map((s) => [s.depotId, s]));
     expect(byId.get('a')?.rank).toBe(1);
-    expect(byId.get('b')?.rank).toBe(2);
-    expect(byId.get('l')?.rank).toBe(12);
+    expect(byId.get('b')?.rank).toBe(1);
+    expect(byId.get('l')?.rank).toBe(1);
     expect(byId.get('a')?.peerCount).toBe(12);
 
     const scored = scoreDepots(peers());

@@ -1,5 +1,6 @@
 import { clamp, median, robustZ } from '../stats/robust';
 import type { DepotSummary } from '../types';
+import { competitionRanks } from './competitionRanks';
 import { DEI_COMPONENTS, Z_CLAMP } from './config';
 import { assignPeerGroups } from './peerGroups';
 import type { DeiComponent, DepotScore, PeerGroupId } from './types';
@@ -85,15 +86,14 @@ export function scoreDepots(
     }
   }
 
-  const rankOf = new Map<string, number>();
-  for (const ids of members.values()) {
-    const ordered = [...ids].sort(
-      (a, b) =>
-        (scored.get(b) as { index: number }).index - (scored.get(a) as { index: number }).index ||
-        (a < b ? -1 : a > b ? 1 : 0),
-    );
-    ordered.forEach((id, i) => rankOf.set(id, i + 1));
-  }
+  // Equal indexes share a rank and the next rank skips (1, 2, 2, 4).
+  const rankOf = new Map(
+    [...members.values()].flatMap((ids) => [
+      ...competitionRanks(
+        ids.map((id) => ({ id, index: (scored.get(id) as { index: number }).index })),
+      ),
+    ]),
+  );
 
   return depots.map((depot): DepotScore => {
     const group = groups.get(depot.id);

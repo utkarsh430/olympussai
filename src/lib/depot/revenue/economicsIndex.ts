@@ -1,4 +1,4 @@
-import { compareText } from '../fuel/compare';
+import { competitionRanks } from '../score/competitionRanks';
 import { MIN_PEER_GROUP } from '../score/config';
 import { isRankable, peerGroupClassifier } from '../score/peerGroups';
 import type { Coverage } from '../types';
@@ -86,9 +86,9 @@ export function scoreEconomics(inputs: readonly EconomicsInput[]): DepotEconomic
       );
       scored.set(id, { components, index: indexFrom(components) });
     }
-    [...ids]
-      .sort((a, b) => (scored.get(b)?.index ?? 0) - (scored.get(a)?.index ?? 0) || compareText(a, b))
-      .forEach((id, i) => rankOf.set(id, i + 1));
+    // Equal indexes share a rank and the next rank skips (1, 2, 2, 4).
+    const ranks = competitionRanks(ids.map((id) => ({ id, index: scored.get(id)?.index ?? 0 })));
+    for (const [id, rank] of ranks) rankOf.set(id, rank);
   }
 
   return inputs.map((input): DepotEconomicsScore => {
