@@ -18,6 +18,7 @@ import type {
   ExceptionReport,
   ExceptionSeverity,
 } from './exceptions/types';
+import type { BusExceptionPage } from './exceptions/busPage';
 import type { DepotBalance, RebalanceParams, TransferPlan } from './optimise/types';
 import type { RequirementParams, SeriesAnchor, SeriesPoint } from './sim/types';
 
@@ -49,7 +50,12 @@ export interface DepotNetworkResponse extends DepotFeedEnvelope {
 
 /** GET /api/upsrtc/depot/exceptions */
 export interface DepotExceptionsResponse extends DepotFeedEnvelope {
-  readonly report: ExceptionReport;
+  /** Depot exceptions, counts by kind and the bus total; bus rows come paged below. */
+  readonly report: Omit<ExceptionReport, 'bus'>;
+  /** Every bus exception on the snapshot by severity, before any filter. */
+  readonly busSeverityCounts: Readonly<Record<ExceptionSeverity, number>>;
+  /** One page of bus exceptions for the query's kind and depot, with the true total. */
+  readonly busPage: BusExceptionPage;
 }
 
 /** One bus as a depot manager sees it. Only ever sent for a single depot. */

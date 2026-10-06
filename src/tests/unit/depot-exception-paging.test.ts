@@ -76,7 +76,7 @@ describe('pageBusExceptions', () => {
     const page = pageBusExceptions(ALL, { kind: 'long_dark', depotId: null, offset: 25, limit: 25 });
     expect(page.total).toBe(60);
     expect(page.items).toHaveLength(25);
-    expect(page.items[0].registrationNumber).toBe('UP125');
+    expect(page.items[0]?.registrationNumber).toBe('UP125');
     expect(page).toMatchObject({ kind: 'long_dark', depotId: null, offset: 25, limit: 25 });
   });
 

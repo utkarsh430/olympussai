@@ -8,7 +8,10 @@ import { getRepositories } from '@/lib/depot/repositories';
 import { modelledHistoryRepository } from '@/lib/depot/repositories/modelledHistoryRepository';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
-import { buildExceptionsResponse } from '@/lib/depot/live/exceptionView';
+import {
+  buildExceptionsResponse,
+  buildPagedExceptionsResponse,
+} from '@/lib/depot/live/exceptionView';
 import { GET } from '@/app/api/upsrtc/depot/exceptions/route';
 
 vi.mock('@/lib/auth/authorize', async (importOriginal) => {
@@ -46,40 +49,63 @@ beforeEach(() => {
 });
 
 describe('buildExceptionsResponse', () => {
-  it('carries the envelope and the analysis report, nothing else', () => {
+  it('carries the envelope, the report without the capped list, and the first page', () => {
     const view = fixtureView({ source: 'cache', stale: true });
     const res = buildExceptionsResponse(view);
-    expect(res).toEqual({
+    const { report } = analyseSnapshot(view);
+    expect(res).toMatchObject({
       feedNow: view.feedNow,
       fetchedAt: view.fetchedAt,
       source: 'cache',
       stale: true,
-      report: analyseSnapshot(view).report,
+      report: { depot: report.depot, busTotal: report.busTotal, counts: report.counts },
+      busPage: { kind: null, depotId: null, offset: 0, limit: 25, total: report.busTotal },
     });
-    expect(res.report).toBe(analyseSnapshot(view).report);
+    expect('bus' in res.report).toBe(false);
+    expect(res.busPage.items.length).toBe(Math.min(25, report.busTotal));
   });
 
-  it('passes stale through per request while sharing the report built for the rows', () => {
+  it('passes stale through per request while sharing the list built for the rows', () => {
     const fresh = buildExceptionsResponse(fixtureView({ source: 'cache', stale: false }));
     const lastGood = buildExceptionsResponse(fixtureView({ source: 'cache', stale: true }));
     expect([fresh.stale, lastGood.stale]).toEqual([false, true]);
-    expect(lastGood.report).toBe(fresh.report);
+    expect(lastGood.report.depot).toBe(fresh.report.depot);
+    expect(lastGood.busPage.items[0]).toBe(fresh.busPage.items[0]);
   });
 
   it('agrees with the network counts', () => {
-    const { report } = buildExceptionsResponse(fixtureView());
-    const busCounted = (['long_dark', 'power_cut', 'tamper_code', 'emergency'] as const).reduce(
-      (sum, kind) => sum + report.counts[kind],
-      0,
-    );
-    expect(busCounted).toBe(report.busTotal);
-    expect(report.bus.length).toBeLessThanOrEqual(report.busTotal);
+    const { report, busSeverityCounts } = buildExceptionsResponse(fixtureView());
+    const severityTotal =
+      busSeverityCounts.critical + busSeverityCounts.warning + busSeverityCounts.info;
+    expect(severityTotal).toBe(report.busTotal);
+  });
+
+  it('pages one kind with its true total, beyond the old 500-row cap', () => {
+    const view = fixtureView();
+    const { report } = analyseSnapshot(view);
+    for (const kind of ['long_dark', 'power_cut', 'tamper_code', 'emergency'] as const) {
+      const page = buildPagedExceptionsResponse(view, {
+        kind,
+        depotId: null,
+        offset: 0,
+        limit: 100,
+      }).busPage;
+      expect(page.total).toBe(report.counts[kind]);
+      expect(page.items.every((row) => row.kind === kind)).toBe(true);
+    }
+    const last = buildPagedExceptionsResponse(view, {
+      kind: null,
+      depotId: null,
+      offset: Math.max(0, report.busTotal - 1),
+      limit: 100,
+    }).busPage;
+    expect(last.items.length).toBe(report.busTotal > 0 ? 1 : 0);
   });
 });
 
 describe('GET /api/upsrtc/depot/exceptions', () => {
-  const request = (): NextRequest =>
-    new NextRequest('http://localhost/api/upsrtc/depot/exceptions');
+  const request = (query = ''): NextRequest =>
+    new NextRequest(`http://localhost/api/upsrtc/depot/exceptions${query}`);
 
   it('refuses an unauthorised caller before reading the fleet', async () => {
     vi.mocked(requireUpsrtcAccess).mockResolvedValueOnce(null);
@@ -113,5 +139,35 @@ describe('GET /api/upsrtc/depot/exceptions', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { report: { busTotal: number } };
     expect(body.report.busTotal).toBe(analyseSnapshot(fixtureView()).report.busTotal);
+  });
+
+  it.each(['?limit=101', '?offset=-5', '?kind=dark_share_high', '?depotId=x;y', '?page=2'])(
+    'answers 400 with the fixed body for %s, before reading the fleet',
+    async (query) => {
+      vi.mocked(getRepositories).mockClear();
+      const res = await GET(request(query));
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: 'Invalid query' });
+      expect(getRepositories).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses an unauthorised caller before validating the query', async () => {
+    vi.mocked(requireUpsrtcAccess).mockResolvedValueOnce(null);
+    expect((await GET(request('?limit=999'))).status).toBe(401);
+  });
+
+  it('serves the page asked for with the true total for its filter', async () => {
+    vi.mocked(getRepositories).mockReturnValueOnce(reposWith(async () => fixtureView()));
+    const res = await GET(request('?kind=long_dark&offset=0&limit=10'));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      busPage: { total: number; limit: number; items: { kind: string }[] };
+    };
+    const { report } = analyseSnapshot(fixtureView());
+    expect(body.busPage.total).toBe(report.counts.long_dark);
+    expect(body.busPage.limit).toBe(10);
+    expect(body.busPage.items.length).toBe(Math.min(10, report.counts.long_dark));
+    expect(body.busPage.items.every((row) => row.kind === 'long_dark')).toBe(true);
   });
 });

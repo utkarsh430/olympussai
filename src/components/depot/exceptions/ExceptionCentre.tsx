@@ -30,7 +30,7 @@ export function ExceptionCentre() {
   const [kind, setKind] = useState<BusExceptionKind | typeof ANY>(ANY);
   const [depot, setDepot] = useState<string>(ANY);
 
-  const bus = useMemo(() => data?.report.bus ?? [], [data]);
+  const bus = useMemo(() => data?.busPage.items ?? [], [data]);
   const network = useDepotNetworkContext();
   // Every depot, not only those with rows in the capped list, so a depot whose
   // exceptions all fall beyond the cap can still be chosen.
