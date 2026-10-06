@@ -82,6 +82,30 @@ function buses(depotId: string, name: string, count: number, moving: number): De
 
 beforeEach(() => resetAnalysisForTests());
 
+describe('buildHistoryResponse envelope and memo', () => {
+  const query: HistoryQuery = { metric: 'darkRate', scope: { kind: 'network' }, days: 30 };
+
+  it("carries this request's own feed envelope", async () => {
+    const stale = { ...fixtureView(), source: 'cache' as const, stale: true };
+    const result = await buildHistoryResponse(stale, query);
+    if (result.status !== 200) throw new Error('expected 200');
+    expect(result.body).toMatchObject({
+      feedNow: stale.feedNow,
+      fetchedAt: stale.fetchedAt,
+      source: 'cache',
+      stale: true,
+    });
+  });
+
+  it('models the series once per snapshot rows and query', async () => {
+    const first = await buildHistoryResponse(fixtureView(), query);
+    const poll = await buildHistoryResponse({ ...fixtureView(), stale: true }, query);
+    if (first.status !== 200 || poll.status !== 200) throw new Error('expected 200');
+    expect(poll.body.series).toBe(first.body.series);
+    expect([first.body.stale, poll.body.stale]).toEqual([false, true]);
+  });
+});
+
 describe('buildHistoryResponse anchors', () => {
   const network = (metric: MetricKey, days = 30): HistoryQuery => ({
     metric,

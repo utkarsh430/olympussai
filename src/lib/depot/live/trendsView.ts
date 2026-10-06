@@ -7,7 +7,7 @@ import { metricInfo, trendSentence } from '../forecast/wording';
 import type { FleetSnapshotView } from '../repositories/types';
 import type { HistoryScope, MetricKey } from '../sim/types';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
-import { buildHistoryResponse } from './historyView';
+import { modelHistory } from './historyView';
 import { queryMemo } from './queryMemo';
 
 const METRICS = ['onRoadShare', 'offRoadRate', 'darkRate', 'index', 'available'] as const;
@@ -58,7 +58,7 @@ async function trendRow(
 ): Promise<TrendRow> {
   const id = scope.kind === 'network' ? 'network' : scope.depotId;
   const days = Math.max(query.days, TREND_HISTORY_DAYS);
-  const history = await buildHistoryResponse(view, { metric: query.metric, scope, days });
+  const history = await modelHistory(view, { metric: query.metric, scope, days });
   if (history.status !== 200) return { id, name, endDate: '', values: [], trend: null };
   const { series } = history.body;
   const result = summariseTrend(series, query.metric);

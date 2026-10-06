@@ -8,10 +8,10 @@ import type { FleetSnapshotView } from '../repositories/types';
 import type { MetricKey, SeriesPoint } from '../sim/types';
 import { analyseSnapshot, feedEnvelope } from './analysis';
 import {
-  buildHistoryResponse,
+  modelHistory,
   parseHistoryQuery,
   type HistoryQuery,
-  type HistoryResult,
+  type HistoryBodyResult,
 } from './historyView';
 import { queryMemo } from './queryMemo';
 
@@ -78,7 +78,7 @@ export function forecastSections(
 }
 
 type ForecastBody = Omit<DepotForecastResponse, keyof DepotFeedEnvelope>;
-type HeldForecast = ForecastBody | Extract<HistoryResult, { readonly status: 404 }>;
+type HeldForecast = ForecastBody | Extract<HistoryBodyResult, { readonly status: 404 }>;
 
 /*
  * The body depends on the rows (through the analysis, which also fixes the
@@ -98,7 +98,7 @@ function bodyKey({ metric, scope, days, horizon }: ForecastQuery): string {
 
 async function buildBody(view: FleetSnapshotView, query: ForecastQuery): Promise<HeldForecast> {
   const { metric, scope, days, horizon } = query;
-  const history = await buildHistoryResponse(view, { metric, scope, days });
+  const history = await modelHistory(view, { metric, scope, days });
   if (history.status !== 200) return history;
   const { series, anchor } = history.body;
   return {

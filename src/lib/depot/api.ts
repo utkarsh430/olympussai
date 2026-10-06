@@ -180,7 +180,8 @@ export interface DepotDistributionResponse extends DepotFeedEnvelope {
 }
 
 /** GET /api/upsrtc/depot/history */
-export interface DepotHistoryResponse {
+/** The series ends on the live value of the snapshot the envelope describes. */
+export interface DepotHistoryResponse extends DepotFeedEnvelope {
   readonly series: readonly SeriesPoint[];
   readonly provenance: Provenance;
   readonly anchor: SeriesAnchor;
