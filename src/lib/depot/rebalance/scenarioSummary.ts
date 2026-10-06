@@ -1,13 +1,12 @@
 import { MAX_TRANSFER_KM, MIN_TRANSFER_KM } from '../optimise/config';
 import type { Scenario } from '../optimise/types';
 import { activeSpare, toScenario, type ScenarioFormState } from './scenarioForm';
-import { signedWhole } from '@/lib/depot/format';
+import { capitalise, signedWhole } from '@/lib/depot/format';
 
 /*
  * Sentences describing a scenario and its effect. For display only: the
  * scenario's identity is `scenarioKey`, never these words.
  */
-
 
 /**
  * The maximum distance the engine plans with for this scenario, so sentences
@@ -70,5 +69,5 @@ export function summariseScenario(
   }
   if (parts.length === 0) return 'Baseline: no changes.';
   const text = parts.join(', ');
-  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
+  return `${capitalise(text)}.`;
 }
