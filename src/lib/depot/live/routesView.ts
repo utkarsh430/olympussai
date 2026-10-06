@@ -12,28 +12,31 @@ import { depotPositions, type DepotPosition } from '../routes/depotPositions';
 import type { RouteRow } from '../routes/routeTableTypes';
 import type { RouteProfile } from '../routes/types';
 import { modelTripsPerDay } from '../sim/tripFrequency';
-import { TRIP_MODEL_PARAMS } from '../sim/tripFrequencyConfig';
-import { feedEnvelope } from './analysis';
+import { TRIP_DEFINITION, TRIP_MODEL_PARAMS } from '../sim/tripFrequencyConfig';
 import {
-  coverageOf,
-  memoiseOnCatalogue,
-  operatedBy,
-  parseRouteFilter,
-  type ParsedRouteFilter,
-  type RouteFilterQuery,
-} from './routeInputs';
+  classOptions,
+  depotOptions,
+  inClass,
+  nameMatches,
+  pageItems,
+  sortRoutes,
+} from '../routes/routeListing';
+import type { RoutesQuery } from '../routes/routeQuery';
+import type { FilterOption } from '../routes/api';
+import { feedEnvelope } from './analysis';
+import { coverageOf, memoiseOnCatalogue, operatedBy } from './routeInputs';
 
-export type RoutesQuery = RouteFilterQuery;
-
-/** Validates `?depotId=`; see `parseRouteFilter`. */
-export function parseRoutesQuery(searchParams: URLSearchParams): ParsedRouteFilter {
-  return parseRouteFilter(searchParams);
-}
+export { parseRoutesQuery } from '../routes/routeQuery';
 
 interface RoutesBody {
   readonly operatingDate: string;
   readonly routes: readonly RouteListItem[];
+  readonly depotOptions: readonly FilterOption[];
+  readonly classOptions: readonly FilterOption[];
 }
+
+/** The route table is cheap to rebuild, so a newly cached profile shows on the next request. */
+const ROUTES_MIN_REBUILD_MS = 0;
 
 function deadKmFromPrimary(
   row: RouteRow,
@@ -88,8 +91,14 @@ const routesBody = memoiseOnCatalogue<RoutesBody>(
     const routes = table.map((row) =>
       listItem(row, profiles.get(row.routeName), positions, operatingDate),
     );
-    return { operatingDate, routes };
+    return {
+      operatingDate,
+      routes,
+      depotOptions: depotOptions(routes),
+      classOptions: classOptions(routes),
+    };
   },
+  ROUTES_MIN_REBUILD_MS,
 );
 
 function coverage(routes: readonly RouteListItem[]): RoutesCoverage {
@@ -99,21 +108,45 @@ function coverage(routes: readonly RouteListItem[]): RoutesCoverage {
   };
 }
 
-/** The route table page's payload; never fetches a profile. */
+function matching(routes: readonly RouteListItem[], query: RoutesQuery): readonly RouteListItem[] {
+  const { depotId, serviceClass, q } = query;
+  if (depotId === null && serviceClass === null && q === null) return routes;
+  return routes.filter(
+    (r) =>
+      (depotId === null || operatedBy(r, depotId)) &&
+      inClass(r, serviceClass) &&
+      nameMatches(r.routeName, q),
+  );
+}
+
+/**
+ * One page of the route table, filtered and sorted before paging; never
+ * fetches a profile. Totals, coverage and the filter options are true for
+ * the whole list, so the page never needs all of it.
+ */
 export function buildRoutesResponse(
   view: FleetSnapshotView,
   query: RoutesQuery,
 ): DepotRoutesResponse {
-  const body = routesBody(view);
-  const { depotId } = query;
-  const routes = depotId === null ? body.routes : body.routes.filter((r) => operatedBy(r, depotId));
+  const { body } = routesBody(view, 0);
+  const filtered = sortRoutes(matching(body.routes, query), query.sort);
   return {
     ...feedEnvelope(view),
     operatingDate: body.operatingDate,
-    depotId,
-    routes,
-    coverage: coverage(routes),
+    depotId: query.depotId,
+    serviceClass: query.serviceClass,
+    q: query.q,
+    sort: query.sort,
+    routes: pageItems(filtered, query),
+    total: filtered.length,
+    inFeed: body.routes.length,
+    offset: query.offset,
+    limit: query.limit,
+    coverage: coverage(filtered),
+    depotOptions: body.depotOptions,
+    classOptions: body.classOptions,
     tripModel: TRIP_MODEL_PARAMS,
+    tripDefinition: TRIP_DEFINITION,
     profileEndpoint: ROUTE_PROFILE_ENDPOINT,
   };
 }

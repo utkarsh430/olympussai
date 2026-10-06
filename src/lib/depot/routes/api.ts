@@ -4,6 +4,7 @@ import type { TripBasis } from '../sim/tripFrequency';
 import type { TripModelParams } from '../sim/tripFrequencyConfig';
 import type { Coverage, Figure } from '../types';
 import type { DeadKm } from './deadKm';
+import type { RouteSort } from './routeQuery';
 import type { RouteRow } from './routeTableTypes';
 
 /**
@@ -50,34 +51,73 @@ export interface RoutesCoverage {
 }
 
 /** GET /api/upsrtc/depot/routes */
+export interface FilterOption {
+  readonly value: string;
+  readonly label: string;
+}
+
+/** One page of the route table, filtered and sorted on the server; see `parseRoutesQuery`. */
 export interface DepotRoutesResponse extends DepotFeedEnvelope {
   readonly operatingDate: string;
-  /** The depot filter applied (routes with that depot among their operators), or null. */
   readonly depotId: string | null;
-  /** Buses descending, then route name. */
+  readonly serviceClass: string | null;
+  readonly q: string | null;
+  readonly sort: RouteSort | null;
+  /** This page only. */
   readonly routes: readonly RouteListItem[];
+  /** Routes matching every filter. */
+  readonly total: number;
+  /** Every route in the live table. */
+  readonly inFeed: number;
+  readonly offset: number;
+  readonly limit: number;
+  /** Over the routes matching every filter. */
   readonly coverage: RoutesCoverage;
+  /** Over every route in the table, so the filters never narrow their own options. */
+  readonly depotOptions: readonly FilterOption[];
+  readonly classOptions: readonly FilterOption[];
   readonly tripModel: TripModelParams;
+  /** `TRIP_DEFINITION`: what one modelled trip is. */
+  readonly tripDefinition: string;
   readonly profileEndpoint: string;
 }
 
 /** Why a route takes no part in the allocation, in order of precedence. */
-export type AllocationExclusion =
+/** Why a route is outside the plan, in precedence order. */
+export const ALLOCATION_EXCLUSIONS = [
   /** Two depots field the same number of buses, or none has a home depot. */
-  | 'no_primary_depot'
+  'no_primary_depot',
+  /** Most of its buses carry no home depot in the feed (the unassigned bucket). */
+  'unassigned_bucket',
   /** Its majority operator is a hired, electric or enforcement unit, not a depot. */
-  | 'operator_not_depot'
+  'operator_not_depot',
+  /** More buses than the trip model accepts on one route name: a feed error, not planned. */
+  'bus_count_over_cap',
   /** No profile cached today; opening the route loads one. */
-  | 'not_profiled'
+  'not_profiled',
   /** Fewer than two located stops: no terminals to measure from. */
-  | 'too_few_located_stops'
+  'too_few_located_stops',
   /** Its depot has neither an inferred yard nor a positioned bus. */
-  | 'no_depot_position';
+  'no_depot_position',
+] as const;
+export type AllocationExclusion = (typeof ALLOCATION_EXCLUSIONS)[number];
+
+/** The allocator's reasons a planned route stays, in its precedence order. */
+export const UNCHANGED_REASONS = [
+  'no_candidate',
+  'already_best',
+  'below_threshold',
+  'over_capacity',
+  'move_limit',
+  'no_capacity',
+] as const satisfies readonly UnchangedReason[];
 
 export interface AllocationExcludedRoute {
   readonly routeName: string;
   readonly primaryDepotId: string | null;
   readonly buses: number;
+  /** The primary depot's name, from the feed; null without a primary depot. */
+  readonly depotName: string | null;
   readonly reason: AllocationExclusion;
 }
 
@@ -136,11 +176,26 @@ export interface DepotAllocationResponse extends DepotFeedEnvelope {
   readonly beforeKmPerDay: Figure;
   readonly afterKmPerDay: Figure;
   readonly savedKmPerDay: Figure;
-  /** Sorted by route name. */
+  /** Sorted by route name; in full under the depot filter (the allocator caps how many). */
   readonly moves: readonly AllocationMoveItem[];
+  readonly reason: UnchangedReason | AllocationExclusion | null;
+  readonly q: string | null;
+  readonly offset: number;
+  readonly limit: number;
+  /** This page of the planned routes that stay, by route name, after every filter. */
   readonly unchanged: readonly AllocationUnchangedItem[];
-  /** In route-table order: buses descending, then route name. */
+  readonly unchangedTotal: number;
+  /** Under the depot filter only, so the summary never depends on the page. */
+  readonly unchangedByReason: Readonly<Record<UnchangedReason, number>>;
+  /** This page of the routes outside the plan, in route-table order, after every filter. */
   readonly excluded: readonly AllocationExcludedRoute[];
+  readonly excludedTotal: number;
+  readonly excludedByReason: Readonly<Record<AllocationExclusion, number>>;
+  /** True while profiles cached since this plan was built wait for the next one. */
+  readonly profilesPending: boolean;
+  /** The sentence to print while `profilesPending`; null otherwise. */
+  readonly profilesPendingNote: string | null;
+  readonly tripDefinition: string;
   readonly provenance: {
     readonly deadKmPerTrip: 'derived';
     readonly tripsPerDay: 'modelled';

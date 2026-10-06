@@ -1,7 +1,7 @@
 import type { AllocDepot, AllocRoute } from '../optimise/allocateTypes';
 import { modelDepotMaster } from '../sim/depotMaster';
-import { modelTripsPerDay } from '../sim/tripFrequency';
-import type { DepotSummary } from '../types';
+import { modelTripsPerDay, overBusCap } from '../sim/tripFrequency';
+import { UNASSIGNED_DEPOT_ID, type DepotSummary } from '../types';
 import type { AllocationExcludedRoute, AllocationExclusion } from './api';
 import { deadKmFor, terminalsOf } from './deadKm';
 import type { DepotPosition } from './depotPositions';
@@ -34,6 +34,7 @@ function excluded(row: RouteRow, reason: AllocationExclusion): Classified {
   const route = {
     routeName: row.routeName,
     primaryDepotId: row.primaryDepotId,
+    depotName: row.operators.find((o) => o.depotId === row.primaryDepotId)?.depotName ?? null,
     buses: row.buses,
     reason,
   };
@@ -48,7 +49,9 @@ function classify(
 ): Classified {
   const primary = row.primaryDepotId;
   if (primary === null) return excluded(row, 'no_primary_depot');
+  if (primary === UNASSIGNED_DEPOT_ID) return excluded(row, 'unassigned_bucket');
   if (kinds.get(primary) !== 'depot') return excluded(row, 'operator_not_depot');
+  if (overBusCap(row.buses)) return excluded(row, 'bus_count_over_cap');
   const profile = source.profiles.get(row.routeName);
   if (!profile) return excluded(row, 'not_profiled');
   if (terminalsOf(profile) === null) return excluded(row, 'too_few_located_stops');

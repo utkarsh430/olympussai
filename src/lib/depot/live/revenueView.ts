@@ -79,7 +79,7 @@ export function holdPerSnapshot<T, S>(
     const existing = slot.byKey.get(key);
     if (existing) return existing;
     const own = slot;
-    const pending = build(view, analysis, cachedRouteProfiles(view), operatingDate, key, source);
+    const pending = build(view, analysis, cachedRouteProfiles(view, operatingDate), operatingDate, key, source);
     own.byKey.set(key, pending);
     pending.catch(() => {
       if (own.byKey.get(key) === pending) own.byKey.delete(key);

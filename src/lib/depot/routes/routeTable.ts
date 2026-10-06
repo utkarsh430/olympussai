@@ -7,8 +7,9 @@ import type { RouteDelay, RouteOperator, RouteRow } from './routeTableTypes';
 
 export type { RouteDelay, RouteOperator, RouteRow } from './routeTableTypes';
 
-/** A bus running more than this many minutes behind schedule counts as late. */
-export const LATE_AFTER_MIN = 10;
+import { LATE_AFTER_MIN } from './delayConfig';
+
+export { LATE_AFTER_MIN };
 
 const MEDIAN_DECIMALS = 10;
 const SHARE_DECIMALS = 10_000;

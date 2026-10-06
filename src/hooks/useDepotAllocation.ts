@@ -1,24 +1,35 @@
 'use client';
 
 import type { DepotAllocationResponse } from '@/lib/depot/routes/api';
+import {
+  DEFAULT_ALLOCATION_QUERY,
+  allocationSearch,
+  type AllocationQuery,
+} from '@/lib/depot/routes/routeQuery';
+import { useFetchedJson, type FetchedState } from '@/hooks/useFetchedJson';
 import { usePolledJson, type PolledState } from '@/hooks/usePolledJson';
 
 const ALLOCATION_ENDPOINT = '/api/upsrtc/depot/allocation';
 
 export type DepotAllocationState = PolledState<DepotAllocationResponse>;
 
-/** Builds the allocation URL; a null depot lists every route (totals are network-wide either way). */
-export function depotAllocationUrl(depotId: string | null): string {
-  return depotId === null
-    ? ALLOCATION_ENDPOINT
-    : `${ALLOCATION_ENDPOINT}?depotId=${encodeURIComponent(depotId)}`;
+/** The summary query: totals, every move and the counts by reason, no list rows. */
+export const ALLOCATION_SUMMARY_QUERY: AllocationQuery = { ...DEFAULT_ALLOCATION_QUERY, limit: 0 };
+
+export function depotAllocationUrl(query: AllocationQuery = ALLOCATION_SUMMARY_QUERY): string {
+  return `${ALLOCATION_ENDPOINT}${allocationSearch(query)}`;
 }
 
-/**
- * Polls the route allocation API. The plan covers only routes already
- * profiled, so it grows as routes are opened; `refresh` re-plans at once after
- * a route is profiled. See `usePolledJson` for the failure and abort rules.
- */
-export function useDepotAllocation(depotId: string | null = null): DepotAllocationState {
-  return usePolledJson<DepotAllocationResponse>(depotAllocationUrl(depotId));
+/** Polls the allocation summary; see `usePolledJson` for the failure and abort rules. */
+export function useDepotAllocation(
+  query: AllocationQuery = ALLOCATION_SUMMARY_QUERY,
+): DepotAllocationState {
+  return usePolledJson<DepotAllocationResponse>(depotAllocationUrl(query));
+}
+
+/** One page of one reason's routes; a null query fetches nothing (the group is closed). */
+export function useAllocationList(
+  query: AllocationQuery | null,
+): FetchedState<DepotAllocationResponse> {
+  return useFetchedJson<DepotAllocationResponse>(query === null ? null : depotAllocationUrl(query));
 }

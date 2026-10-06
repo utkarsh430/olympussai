@@ -12,10 +12,10 @@ import {
 import type {
   AllocationExcludedRoute,
   AllocationMoveItem,
-  AllocationParams,
   AllocationUnchangedItem,
-  RouteListItem,
+  DepotAllocationResponse,
 } from './api';
+import type { AllocationListReason } from './routeQuery';
 
 /**
  * Rows for the recommended moves and the groups of routes the plan leaves
@@ -81,19 +81,20 @@ export interface UnmovedItem {
 }
 
 export interface UnmovedGroup {
-  readonly key: string;
+  /** The reason, sent back as `?reason=` to page through this group's routes. */
+  readonly reason: AllocationListReason;
   /** Stays in the plan unchanged, or is outside the plan altogether. */
   readonly kind: 'stay' | 'outside';
   readonly heading: string;
+  readonly count: number;
   readonly countLabel: string;
-  readonly items: readonly UnmovedItem[];
 }
 
 function countLabel(n: number): string {
   return `${formatCount(n)} ${n === 1 ? 'route' : 'routes'}`;
 }
 
-function stayItem(u: AllocationUnchangedItem): UnmovedItem {
+export function stayItem(u: AllocationUnchangedItem): UnmovedItem {
   return {
     routeName: u.routeName,
     depotId: u.depotId,
@@ -104,51 +105,46 @@ function stayItem(u: AllocationUnchangedItem): UnmovedItem {
   };
 }
 
-function outsideItem(e: AllocationExcludedRoute, names: ReadonlyMap<string, string>): UnmovedItem {
-  const id = e.primaryDepotId;
+/** The depot name comes from the server; none is looked up or invented here. */
+export function outsideItem(e: AllocationExcludedRoute): UnmovedItem {
   return {
     routeName: e.routeName,
-    depotId: id,
-    depotName: id === null ? null : (names.get(id) ?? `Depot ${id}`),
-    linked: isRealDepot(id),
+    depotId: e.primaryDepotId,
+    depotName: e.depotName,
+    linked: isRealDepot(e.primaryDepotId),
     trips: null,
     deadKmPerTrip: null,
   };
 }
 
-/** Non-empty groups only: stays in precedence order, then exclusions in theirs. */
+/**
+ * Non-empty groups only, from the server's counts by reason: stays in
+ * precedence order, then exclusions in theirs (not-profiled routes are
+ * stated by the profile coverage section instead).
+ */
 export function unmovedGroups(
-  unchanged: readonly AllocationUnchangedItem[],
-  excluded: readonly AllocationExcludedRoute[],
-  params: Pick<AllocationParams, 'minSavingKmPerDay' | 'maxMoves'>,
-  names: ReadonlyMap<string, string>,
+  a: Pick<
+    DepotAllocationResponse,
+    'unchangedByReason' | 'excludedByReason' | 'params'
+  >,
 ): UnmovedGroup[] {
-  const stays = UNCHANGED_ORDER.map((reason): UnmovedGroup => {
-    const items = unchanged.filter((u) => u.reason === reason).map(stayItem);
-    return {
-      key: reason,
+  const stays = UNCHANGED_ORDER.map(
+    (reason): UnmovedGroup => ({
+      reason,
       kind: 'stay',
-      heading: unchangedReasonText(reason, params),
-      countLabel: countLabel(items.length),
-      items,
-    };
-  });
-  const outside = EXCLUSION_ORDER.filter((reason) => reason !== 'not_profiled').map(
-    (reason): UnmovedGroup => {
-      const items = excluded.filter((e) => e.reason === reason).map((e) => outsideItem(e, names));
-      return {
-        key: reason,
-        kind: 'outside',
-        heading: exclusionText(reason),
-        countLabel: countLabel(items.length),
-        items,
-      };
-    },
+      heading: unchangedReasonText(reason, a.params),
+      count: a.unchangedByReason[reason],
+      countLabel: countLabel(a.unchangedByReason[reason]),
+    }),
   );
-  return [...stays, ...outside].filter((group) => group.items.length > 0);
-}
-
-/** Depot id to name, from the operators the route table lists. */
-export function depotNameMap(routes: readonly RouteListItem[]): ReadonlyMap<string, string> {
-  return new Map(routes.flatMap((r) => r.operators.map((o) => [o.depotId, o.depotName] as const)));
+  const outside = EXCLUSION_ORDER.filter((reason) => reason !== 'not_profiled').map(
+    (reason): UnmovedGroup => ({
+      reason,
+      kind: 'outside',
+      heading: exclusionText(reason),
+      count: a.excludedByReason[reason],
+      countLabel: countLabel(a.excludedByReason[reason]),
+    }),
+  );
+  return [...stays, ...outside].filter((group) => group.count > 0);
 }

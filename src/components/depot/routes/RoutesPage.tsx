@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   EmptyState,
   ErrorPanel,
@@ -10,10 +10,13 @@ import {
 import { useDepotAllocation } from '@/hooks/useDepotAllocation';
 import { useDepotRoutes } from '@/hooks/useDepotRoutes';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
-import { depotNameMap, unmovedGroups } from '@/lib/depot/routes/allocationGroups';
+import { unmovedGroups } from '@/lib/depot/routes/allocationGroups';
+import type { RouteListItem } from '@/lib/depot/routes/api';
+import { DEFAULT_ROUTES_QUERY, type RoutesQuery } from '@/lib/depot/routes/routeQuery';
 import { ROUTES_TEXT } from '@/lib/depot/routes/routesPageText';
 import { AllocationSection } from './AllocationPanel';
 import { ProfileCoverage } from './ProfileCoverage';
+import { RouteDrawer } from './RouteDrawer';
 import { RouteTable } from './RouteTable';
 import { UnmovedRoutes } from './UnmovedRoutes';
 
@@ -36,16 +39,27 @@ function RoutesLoading() {
  * narrows only the table, so no network total is passed off as one depot's.
  */
 export function RoutesPage() {
-  const routes = useDepotRoutes();
+  const [query, setQuery] = useState<RoutesQuery>(DEFAULT_ROUTES_QUERY);
+  const [opened, setOpened] = useState<RouteListItem | null>(null);
+  const openerRef = useRef<HTMLButtonElement | null>(null);
+  const routes = useDepotRoutes(query);
   const allocation = useDepotAllocation();
   const routeData = routes.data;
   const plan = allocation.data;
 
-  const groups = useMemo(() => {
-    if (plan === null) return null;
-    const names = depotNameMap(routeData?.routes ?? []);
-    return unmovedGroups(plan.unchanged, plan.excluded, plan.params, names);
-  }, [plan, routeData]);
+  const groups = useMemo(() => (plan === null ? null : unmovedGroups(plan)), [plan]);
+  const openRoute = useCallback((route: RouteListItem, opener: HTMLButtonElement): void => {
+    openerRef.current = opener;
+    setOpened(route);
+  }, []);
+  const refreshRoutes = routes.refresh;
+  const refreshPlan = allocation.refresh;
+  // A newly loaded profile shows in the table at once and in the plan within its interval.
+  const onProfiled = useCallback((): void => {
+    refreshRoutes();
+    refreshPlan();
+  }, [refreshRoutes, refreshPlan]);
+  const move = opened === null ? null : (plan?.moves.find((m) => m.routeName === opened.routeName) ?? null);
 
   if (routes.loading && allocation.loading) return <RoutesLoading />;
 
@@ -54,7 +68,7 @@ export function RoutesPage() {
     (plan !== null && (plan.stale || allocation.error !== null));
   const strip = stale ? <StaleStrip since={routeData?.feedNow ?? plan?.feedNow ?? null} /> : null;
 
-  if (routeData !== null && routeData.routes.length === 0) {
+  if (routeData !== null && routeData.inFeed === 0) {
     return (
       <>
         {strip}
@@ -79,7 +93,12 @@ export function RoutesPage() {
         {routes.loading ? (
           <LoadingBlock rows={10} label="Loading the route table" />
         ) : routeData !== null ? (
-          <RouteTable routes={routeData.routes} />
+          <RouteTable
+            data={routeData}
+            query={query}
+            onQueryChange={setQuery}
+            onOpenRoute={openRoute}
+          />
         ) : (
           <ErrorPanel
             title="Routes list unavailable"
@@ -88,6 +107,15 @@ export function RoutesPage() {
           />
         )}
       </section>
+      {opened !== null ? (
+        <RouteDrawer
+          route={routeData?.routes.find((r) => r.routeName === opened.routeName) ?? opened}
+          move={move}
+          onClose={() => setOpened(null)}
+          onProfiled={onProfiled}
+          restoreFocusTo={() => openerRef.current}
+        />
+      ) : null}
     </>
   );
 }

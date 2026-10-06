@@ -1,26 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
-import type { RouteListItem } from '@/lib/depot/routes/api';
+import type { DepotRoutesResponse, RouteListItem } from '@/lib/depot/routes/api';
+import { LATE_AFTER_MIN } from '@/lib/depot/routes/delayConfig';
 import { deadKmWords, delayWords, operatorsView } from '@/lib/depot/routes/routeRowWording';
-import { LATE_AFTER_MIN } from '@/lib/depot/routes/routeTable';
-import {
-  NO_ROUTE_FILTERS,
-  classOptions,
-  depotOptions,
-  filterRoutes,
-  pageOf,
-  routeRangeSentence,
-  sortRoutes,
-  type RouteFilters,
-  type RouteSort,
-  type RouteSortKey,
-} from '@/lib/depot/routes/routesPageModel';
+import type { RouteSort, RouteSortKey, RoutesQuery } from '@/lib/depot/routes/routeQuery';
+import { offsetOf, routeRangeSentence, serverPage } from '@/lib/depot/routes/routesPageModel';
 import { formatCount } from '@/lib/depot/format';
 import type { Provenance } from '@/lib/depot/types';
 import { FigureWithNote, OperatorsCell } from './RouteCells';
-import { RouteTableControls } from './RouteTableControls';
+import { RouteTableControls, type RouteFilters } from './RouteTableControls';
 
 /** Route and Depots stay put while the figures scroll sideways inside the frame. */
 const FROZEN = {
@@ -43,11 +32,8 @@ const COLUMNS: readonly RouteColumn[] = [
     key: 'route',
     header: 'Route',
     frozen: FROZEN.route,
-    render: (r) => (
-      <span className="block max-w-[11rem] truncate" title={r.description ?? r.routeName}>
-        {r.routeName}
-      </span>
-    ),
+    // Rendered by the table itself: the route name is the button that opens its drawer.
+    render: (r) => r.routeName,
   },
   {
     key: 'depot',
@@ -62,7 +48,8 @@ const COLUMNS: readonly RouteColumn[] = [
     header: 'Trips a day',
     provenance: 'modelled',
     right: true,
-    render: (r) => formatCount(r.tripsPerDay.value),
+    render: (r) =>
+      r.tripsBasis === 'bus_count_over_cap' ? 'Not modelled' : formatCount(r.tripsPerDay.value),
   },
   {
     key: 'deadKm',
@@ -92,47 +79,45 @@ function ariaSort(sort: RouteSort | null, key: string): 'ascending' | 'descendin
 }
 
 export interface RouteTableProps {
-  /** Every route in the feed, in the server's order (most buses first). */
-  readonly routes: readonly RouteListItem[];
+  /** One server page, filtered and sorted on the server. */
+  readonly data: DepotRoutesResponse;
+  readonly query: RoutesQuery;
+  readonly onQueryChange: (next: RoutesQuery) => void;
+  /** Opens the route's drawer; the button is passed so focus can return to it. */
+  readonly onOpenRoute: (route: RouteListItem, opener: HTMLButtonElement) => void;
 }
 
-/** Every route, filtered and sorted as a whole, then shown one page at a time. */
-export function RouteTable({ routes }: RouteTableProps) {
-  const [filters, setFilters] = useState<RouteFilters>(NO_ROUTE_FILTERS);
-  const [sort, setSort] = useState<RouteSort | null>(null);
-  const [page, setPage] = useState(0);
-
-  const depots = useMemo(() => depotOptions(routes), [routes]);
-  const classes = useMemo(() => classOptions(routes), [routes]);
-  const ordered = useMemo(
-    () => sortRoutes(filterRoutes(routes, filters), sort),
-    [routes, filters, sort],
-  );
-  // pageOf clamps, so a poll or filter that shrinks the list lands on its last page.
-  const current = pageOf(ordered, page);
-
-  const changeFilters = (next: RouteFilters): void => {
-    setFilters(next);
-    setPage(0);
-  };
+/**
+ * One page of the route table. Filters, sort and the page are sent to the
+ * server as query parameters (`routeQuery.ts`), so sorting is on every field
+ * the server sorts by and never reorders only the visible page.
+ */
+export function RouteTable({ data, query, onQueryChange, onOpenRoute }: RouteTableProps) {
+  const sort = query.sort;
+  const current = serverPage(data.total, data.offset, data.limit);
+  const filters: RouteFilters = { depotId: query.depotId, serviceClass: query.serviceClass, q: query.q };
+  const changeFilters = (next: RouteFilters): void => onQueryChange({ ...query, ...next, offset: 0 });
+  const setPage = (page: number): void =>
+    onQueryChange({ ...query, offset: offsetOf(page, query.limit) });
   const toggleSort = (key: RouteSortKey): void => {
-    setSort((s) => ({ key, direction: s?.key === key && s.direction === 'asc' ? 'desc' : 'asc' }));
-    setPage(0);
+    const direction = sort?.key === key && sort.direction === 'asc' ? 'desc' : 'asc';
+    onQueryChange({ ...query, sort: { key, direction }, offset: 0 });
   };
+  const range = { offset: data.offset, shown: data.routes.length, total: data.total };
 
   return (
     <>
       <RouteTableControls
         filters={filters}
-        depots={depots}
-        classes={classes}
+        depots={data.depotOptions}
+        classes={data.classOptions}
         onFiltersChange={changeFilters}
         page={current.page}
         pageCount={current.pageCount}
         onPageChange={setPage}
       />
       <p className="depot-prose mb-2 text-xs" role="status">
-        {`${routeRangeSentence({ ...current, shown: current.items.length }, routes.length)}.`}
+        {`${routeRangeSentence(range, data.inFeed)}.`}
       </p>
       <div role="region" aria-label="Route table" tabIndex={0} className="depot-table-frame">
         <table className="depot-table">
@@ -170,14 +155,14 @@ export function RouteTable({ routes }: RouteTableProps) {
             </tr>
           </thead>
           <tbody>
-            {current.items.length === 0 ? (
+            {data.routes.length === 0 ? (
               <tr>
                 <td colSpan={COLUMNS.length} className="depot-prose !py-6">
-                  No routes match these filters. Choose All depots or All classes to widen the list.
+                  No routes match these filters. Choose All depots or All classes, or clear the name, to widen the list.
                 </td>
               </tr>
             ) : null}
-            {current.items.map((row) => (
+            {data.routes.map((row) => (
               <tr key={row.routeName} className="group hover:bg-depot-raised">
                 {COLUMNS.map((c) => (
                   <td
@@ -186,7 +171,18 @@ export function RouteTable({ routes }: RouteTableProps) {
                       c.right ? 'depot-align-right' : ''
                     }`}
                   >
-                    {c.render(row)}
+                    {c.key === 'route' ? (
+                      <button
+                        type="button"
+                        className="depot-link block max-w-[11rem] truncate text-left"
+                        title={row.description ?? row.routeName}
+                        onClick={(event) => onOpenRoute(row, event.currentTarget)}
+                      >
+                        {row.routeName}
+                      </button>
+                    ) : (
+                      c.render(row)
+                    )}
                   </td>
                 ))}
               </tr>

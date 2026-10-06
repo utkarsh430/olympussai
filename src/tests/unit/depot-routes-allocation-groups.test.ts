@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { depotNameMap, moveRows, unmovedGroups } from '@/lib/depot/routes/allocationGroups';
-import type {
-  AllocationExcludedRoute,
-  AllocationMoveItem,
-  AllocationUnchangedItem,
-  RouteListItem,
+import { TRIP_MODEL_PARAMS } from '@/lib/depot/sim/tripFrequencyConfig';
+import {
+  moveRows,
+  outsideItem,
+  stayItem,
+  unmovedGroups,
+} from '@/lib/depot/routes/allocationGroups';
+import {
+  ALLOCATION_EXCLUSIONS,
+  UNCHANGED_REASONS,
+  type AllocationExcludedRoute,
+  type AllocationMoveItem,
+  type AllocationUnchangedItem,
 } from '@/lib/depot/routes/api';
 
-const PARAMS = { minSavingKmPerDay: 5, maxMoves: 200 };
+const PARAMS = { minSavingKmPerDay: 5, maxMoves: 200, detourFactor: 1.3, tripModel: TRIP_MODEL_PARAMS };
 
 function move(routeName: string, savedKmPerDay: number, madeRoom = false): AllocationMoveItem {
   return {
@@ -34,7 +41,7 @@ function out(
   reason: AllocationExcludedRoute['reason'],
   primaryDepotId: string | null = '2',
 ): AllocationExcludedRoute {
-  return { routeName, primaryDepotId, buses: 1, reason };
+  return { routeName, primaryDepotId, depotName: null, buses: 1, reason };
 }
 
 describe('moveRows', () => {
@@ -58,57 +65,41 @@ describe('moveRows', () => {
   });
 });
 
-describe('unmovedGroups', () => {
-  const names = new Map([['2', 'MATHURA']]);
+const zero = <R extends string>(reasons: readonly R[]): Record<R, number> =>
+  Object.fromEntries(reasons.map((r) => [r, 0])) as Record<R, number>;
 
-  it('groups stays by reason in precedence order, then exclusions, leaving out unprofiled routes', () => {
-    const groups = unmovedGroups(
-      [stay('X', 'no_capacity'), stay('Y', 'already_best'), stay('Z', 'already_best')],
-      [out('P', 'not_profiled'), out('Q', 'no_primary_depot', null), out('R', 'too_few_located_stops')],
-      PARAMS,
-      names,
-    );
-    expect(groups.map((g) => [g.key, g.kind, g.countLabel])).toEqual([
+describe('unmovedGroups', () => {
+  it('groups by the server counts: stays in precedence order, then exclusions, without unprofiled', () => {
+    const groups = unmovedGroups({
+      params: PARAMS,
+      unchangedByReason: { ...zero(UNCHANGED_REASONS), no_capacity: 1, already_best: 2 },
+      excludedByReason: {
+        ...zero(ALLOCATION_EXCLUSIONS),
+        not_profiled: 9,
+        no_primary_depot: 1,
+        unassigned_bucket: 3,
+      },
+    });
+    expect(groups.map((g) => [g.reason, g.kind, g.countLabel])).toEqual([
       ['already_best', 'stay', '2 routes'],
       ['no_capacity', 'stay', '1 route'],
       ['no_primary_depot', 'outside', '1 route'],
-      ['too_few_located_stops', 'outside', '1 route'],
+      ['unassigned_bucket', 'outside', '3 routes'],
     ]);
     expect(groups[0]?.heading).toBe('Already at its nearest depot.');
   });
 
-  it('gives each route its depot, figures where the plan has them, and a link only to a real depot', () => {
-    const [stayGroup, noPrimary, noStops] = unmovedGroups(
-      [stay('Y', 'already_best')],
-      [out('Q', 'no_primary_depot', null), out('R', 'too_few_located_stops')],
-      PARAMS,
-      names,
-    );
-    expect(stayGroup?.items[0]).toEqual({
-      routeName: 'Y', depotId: '1', depotName: 'AGRA', linked: true, trips: '4', deadKmPerTrip: '10.0',
-    });
-    expect(noPrimary?.items[0]).toEqual({
-      routeName: 'Q', depotId: null, depotName: null, linked: false, trips: null, deadKmPerTrip: null,
-    });
-    expect(noStops?.items[0]).toMatchObject({ depotId: '2', depotName: 'MATHURA', linked: true });
-  });
-
-  it('returns no groups when every route moved or lacks a profile', () => {
-    expect(unmovedGroups([], [out('P', 'not_profiled')], PARAMS, names)).toEqual([]);
+  it('returns no groups when every count is zero', () => {
+    const counts = { unchangedByReason: zero(UNCHANGED_REASONS), excludedByReason: zero(ALLOCATION_EXCLUSIONS) };
+    expect(unmovedGroups({ params: PARAMS, ...counts })).toEqual([]);
   });
 });
 
-describe('depotNameMap', () => {
-  it('maps each operating depot id to its name', () => {
-    const route = {
-      operators: [
-        { depotId: '1', depotName: 'AGRA', buses: 2 },
-        { depotId: 'unassigned', depotName: 'No home depot', buses: 1 },
-      ],
-    } as unknown as RouteListItem;
-    expect([...depotNameMap([route]).entries()]).toEqual([
-      ['1', 'AGRA'],
-      ['unassigned', 'No home depot'],
-    ]);
+describe('list items', () => {
+  it('gives a stay its figures and an excluded route the depot name the server sent', () => {
+    expect(stayItem(stay('X', 'already_best'))).toMatchObject({ routeName: 'X', linked: true });
+    const named = outsideItem({ ...out('Q', 'operator_not_depot'), depotName: 'MATHURA' });
+    expect(named).toMatchObject({ depotName: 'MATHURA', trips: null, deadKmPerTrip: null });
+    expect(outsideItem(out('U', 'unassigned_bucket', 'unassigned')).linked).toBe(false);
   });
 });

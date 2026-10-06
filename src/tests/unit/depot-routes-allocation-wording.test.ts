@@ -13,9 +13,10 @@ import {
   DEAD_KM_MEANING,
   PROFILES_GROW_WITH_USE,
   RECOMMENDATION_ONLY,
-  TRIP_MEANING,
+  TRIPS_MODELLED_NOTE,
 } from '@/lib/depot/routes/allocationWording';
-import type { DepotAllocationResponse } from '@/lib/depot/routes/api';
+import { ALLOCATION_EXCLUSIONS, UNCHANGED_REASONS, type DepotAllocationResponse } from '@/lib/depot/routes/api';
+import { TRIP_DEFINITION } from '@/lib/depot/sim/tripFrequencyConfig';
 
 const TRIP_MODEL = {
   factorMin: 1,
@@ -26,6 +27,10 @@ const TRIP_MODEL = {
   noise: 0.15,
 };
 const PARAMS = { minSavingKmPerDay: 5, maxMoves: 200, detourFactor: 1.3, tripModel: TRIP_MODEL };
+
+function countsOf<R extends string>(reasons: readonly R[], items: readonly { reason: R }[]): Record<R, number> {
+  return Object.fromEntries(reasons.map((r) => [r, items.filter((i) => i.reason === r).length])) as Record<R, number>;
+}
 
 function response(partial: Partial<DepotAllocationResponse> = {}): DepotAllocationResponse {
   return {
@@ -42,12 +47,24 @@ function response(partial: Partial<DepotAllocationResponse> = {}): DepotAllocati
     afterKmPerDay: { value: 10000.04, provenance: 'modelled', coverage: { n: 412, of: 1204 } },
     savedKmPerDay: { value: 2345.63, provenance: 'modelled', coverage: { n: 412, of: 1204 } },
     moves: [],
+    reason: null,
+    q: null,
+    offset: 0,
+    limit: 0,
     unchanged: [],
+    unchangedTotal: 0,
     excluded: [],
+    excludedTotal: 0,
+    profilesPending: false,
+    profilesPendingNote: null,
+    tripDefinition: TRIP_DEFINITION,
     provenance: { deadKmPerTrip: 'derived', tripsPerDay: 'modelled', kmPerDay: 'modelled', capacity: 'modelled' },
     params: PARAMS,
     profileEndpoint: '/api/upsrtc/depot/route/{routeName}',
     ...partial,
+    // As the server does: the counts by reason cover the whole lists.
+    unchangedByReason: countsOf(UNCHANGED_REASONS, partial.unchanged ?? []),
+    excludedByReason: countsOf(ALLOCATION_EXCLUSIONS, partial.excluded ?? []),
   };
 }
 
@@ -56,7 +73,7 @@ function unchanged(routeName: string, reason: DepotAllocationResponse['unchanged
 }
 
 function excluded(routeName: string, reason: DepotAllocationResponse['excluded'][number]['reason']) {
-  return { routeName, primaryDepotId: '1', buses: 2, reason };
+  return { routeName, primaryDepotId: '1', depotName: 'AGRA', buses: 2, reason };
 }
 
 describe('kilometre figures', () => {
@@ -79,8 +96,15 @@ describe('reasons in words', () => {
       'no_candidate', 'already_best', 'below_threshold', 'over_capacity', 'move_limit', 'no_capacity',
     ]);
     expect(EXCLUSION_ORDER).toEqual([
-      'no_primary_depot', 'operator_not_depot', 'not_profiled', 'too_few_located_stops', 'no_depot_position',
+      'no_primary_depot', 'unassigned_bucket', 'operator_not_depot', 'bus_count_over_cap',
+      'not_profiled', 'too_few_located_stops', 'no_depot_position',
     ]);
+  });
+
+  it('words the unassigned bucket apart from hired units, and the bus cap with its figure', () => {
+    expect(exclusionText('unassigned_bucket')).toContain('no home depot');
+    expect(exclusionText('unassigned_bucket')).not.toContain('hired');
+    expect(exclusionText('bus_count_over_cap')).toContain('More than 500 buses');
   });
 
   it('states the threshold and the move cap from the server parameters', () => {
@@ -196,10 +220,10 @@ describe('fixed sentences', () => {
   });
 
   it('explains trips, use-driven coverage and recommendation only, never "simulated"', () => {
-    for (const s of [TRIP_MEANING, DEAD_KM_MEANING, PROFILES_GROW_WITH_USE, RECOMMENDATION_ONLY]) {
+    for (const s of [TRIPS_MODELLED_NOTE, DEAD_KM_MEANING, PROFILES_GROW_WITH_USE, RECOMMENDATION_ONLY]) {
       expect(s.toLowerCase()).not.toContain('simulated');
     }
-    expect(TRIP_MEANING).toContain('first stop');
+    expect(TRIPS_MODELLED_NOTE).toContain('modelled from the buses');
     expect(DEAD_KM_MEANING).toContain('first and last stops');
     expect(PROFILES_GROW_WITH_USE).toContain('one route at a time');
     expect(PROFILES_GROW_WITH_USE).toContain('never in bulk');

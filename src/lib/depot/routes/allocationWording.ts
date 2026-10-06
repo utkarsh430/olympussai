@@ -1,6 +1,13 @@
 import { formatCount } from '../format';
 import type { RouteMove, UnchangedReason } from '../optimise/allocateTypes';
-import type { AllocationExclusion, AllocationParams, DepotAllocationResponse } from './api';
+import { MAX_BUSES_PER_ROUTE } from '../sim/tripFrequencyConfig';
+import {
+  ALLOCATION_EXCLUSIONS,
+  UNCHANGED_REASONS,
+  type AllocationExclusion,
+  type AllocationParams,
+  type DepotAllocationResponse,
+} from './api';
 
 /**
  * Every sentence and label the routes page says about the allocation plan.
@@ -29,22 +36,9 @@ function routes(n: number): string {
 }
 
 /** The allocator's precedence: a route that meets several reasons carries the first. */
-export const UNCHANGED_ORDER: readonly UnchangedReason[] = [
-  'no_candidate',
-  'already_best',
-  'below_threshold',
-  'over_capacity',
-  'move_limit',
-  'no_capacity',
-];
+export const UNCHANGED_ORDER: readonly UnchangedReason[] = UNCHANGED_REASONS;
 
-export const EXCLUSION_ORDER: readonly AllocationExclusion[] = [
-  'no_primary_depot',
-  'operator_not_depot',
-  'not_profiled',
-  'too_few_located_stops',
-  'no_depot_position',
-];
+export const EXCLUSION_ORDER: readonly AllocationExclusion[] = ALLOCATION_EXCLUSIONS;
 
 type Params = Pick<AllocationParams, 'minSavingKmPerDay' | 'maxMoves'>;
 
@@ -86,7 +80,9 @@ export function unchangedReasonText(reason: UnchangedReason, params: Params): st
 
 const EXCLUSION_SHORT: Readonly<Record<AllocationExclusion, string>> = {
   no_primary_depot: 'run equally by two depots',
+  unassigned_bucket: 'buses with no home depot in the feed',
   operator_not_depot: 'run by a hired, electric or enforcement unit',
+  bus_count_over_cap: 'more buses than the trip model accepts',
   not_profiled: 'no known profile',
   too_few_located_stops: 'no terminals to measure from',
   no_depot_position: 'depot location unknown',
@@ -94,7 +90,9 @@ const EXCLUSION_SHORT: Readonly<Record<AllocationExclusion, string>> = {
 
 const EXCLUSION_TEXT: Readonly<Record<AllocationExclusion, string>> = {
   no_primary_depot: 'Run equally by two or more depots, so there is no single depot to move it from.',
+  unassigned_bucket: 'Most of its buses carry no home depot in the feed, so there is no depot to move it from.',
   operator_not_depot: 'Run by a hired, electric or enforcement unit, not by a depot.',
+  bus_count_over_cap: `More than ${formatCount(MAX_BUSES_PER_ROUTE)} buses carry this route name, which reads as a feed error, so it is not modelled or planned.`,
   not_profiled: 'No known profile: its stops have not been fetched yet.',
   too_few_located_stops: 'Fewer than two of its stops are located, so there are no terminals to measure from.',
   no_depot_position: 'Its depot has neither an inferred yard nor a median bus position, so its location is unknown.',
@@ -112,13 +110,16 @@ export function moveNote(move: Pick<RouteMove, 'madeRoom' | 'savedKmPerDay'>): s
   return toTenths(move.savedKmPerDay) <= 0 ? `${MADE_ROOM}, no saving of its own` : MADE_ROOM;
 }
 
+const sumOf = (counts: Readonly<Record<string, number>>): number =>
+  Object.values(counts).reduce((total, n) => total + n, 0);
+
 function countsLine<T extends string>(
-  items: readonly { readonly reason: T }[],
+  counts: Readonly<Record<T, number>>,
   order: readonly T[],
   short: (reason: T) => string,
 ): string {
   return order
-    .map((reason) => ({ reason, n: items.filter((item) => item.reason === reason).length }))
+    .map((reason) => ({ reason, n: counts[reason] }))
     .filter((entry) => entry.n > 0)
     .map((entry) => `${formatCount(entry.n)} ${short(entry.reason)}`)
     .join(', ');
@@ -152,6 +153,9 @@ function positionsLine(p: DepotAllocationResponse['depotPositions']): string {
 export function allocationHeadline(a: DepotAllocationResponse): AllocationHeadline {
   const { planned, profiled } = a.coverage;
   const params = a.params;
+  // The lists are paged on the server; the counts by reason are always whole.
+  const staying = sumOf(a.unchangedByReason);
+  const outside = sumOf(a.excludedByReason);
   const madeRoom = a.moves.filter((m) => m.madeRoom).length;
   const movesLine =
     a.moves.length === 0
@@ -167,16 +171,16 @@ export function allocationHeadline(a: DepotAllocationResponse): AllocationHeadli
     emptyLine: `No route can be planned yet: none of the ${routes(planned.of)} in the feed has a known profile that can be measured from a depot.`,
     movesLine,
     stayLine:
-      a.unchanged.length === 0
+      staying === 0
         ? null
-        : `${routes(a.unchanged.length)} would stay: ${countsLine(a.unchanged, UNCHANGED_ORDER, (r) =>
+        : `${routes(staying)} would stay: ${countsLine(a.unchangedByReason, UNCHANGED_ORDER, (r) =>
             unchangedShort(r, params),
           )}.`,
     excludedLine:
-      a.excluded.length === 0
+      outside === 0
         ? null
-        : `${routes(a.excluded.length)} are outside the plan: ${countsLine(
-            a.excluded,
+        : `${routes(outside)} are outside the plan: ${countsLine(
+            a.excludedByReason,
             EXCLUSION_ORDER,
             (r) => EXCLUSION_SHORT[r],
           )}.`,
@@ -194,14 +198,15 @@ export function notProfiledSentence(missing: number, total: number): string {
   return `${formatCount(missing)} of ${routes(total)} have no known profile yet, so the plan cannot measure their dead kilometres.`;
 }
 
-export const TRIP_MEANING =
-  'A trip here is one run out of the depot: the bus drives empty from its depot to the first stop, runs the route, and drives empty back from the last stop. The feed does not carry trip counts, so trips a day are modelled from the buses on the route and its scheduled length.';
+/** Printed after the server's trip definition. */
+export const TRIPS_MODELLED_NOTE =
+  'The feed does not carry trip counts, so trips a day are modelled from the buses on the route and its scheduled length.';
 
 export const DEAD_KM_MEANING =
   "Dead kilometres are the empty running between those positions and each route's first and last stops.";
 
 export const PROFILES_GROW_WITH_USE =
-  "A route's stops are fetched one route at a time, when a depot's roster or a bus on that route is opened, never in bulk, so coverage grows with use.";
+  "A route's stops are fetched one route at a time, when that route is opened below or a depot's roster or a bus on it is opened, never in bulk, so coverage grows with use.";
 
 export const RECOMMENDATION_ONLY =
   'Recommendation only: no route is reassigned. Any change of depot is decided and made outside this page.';

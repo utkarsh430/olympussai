@@ -1,12 +1,12 @@
-import { indiaDate } from '@/lib/upsrtc/client';
 import { fetchBusSchedule } from '@/lib/upsrtc/scheduleService';
 import { isValidRouteName } from '../ids';
 import { logDepotError } from '../log';
 import { classifyBusState, gpsAgeMinutes } from '../infer/busState';
 import type { FleetSnapshotView } from '../repositories/types';
 import type { DepotBusRow } from '@/models/depotLive';
+import { operatingDateOf } from '../sim/seed';
 import { buildRouteProfile } from './routeProfile';
-import type { RouteProfile, RouteProfileResult } from './types';
+import type { RouteProfile, RouteProfileResult, RouteStop } from './types';
 
 /**
  * On-demand route catalogue. A route is read through one bus that is running
@@ -67,11 +67,25 @@ function compareCandidates(
   };
 }
 
-function operatingDate(row: DepotBusRow, view: FleetSnapshotView, now: number): string {
-  const fromStart = row.scheduledStart?.match(DATE_PREFIX)?.[0];
-  if (fromStart) return fromStart;
-  const fromFeed = view.feedNow?.match(DATE_PREFIX)?.[0];
-  return fromFeed ?? indiaDate(new Date(now));
+/**
+ * The bus's own scheduled date, else the date the views derive from the feed's
+ * clock. Never the wall clock: the fetch and the cached lookup must agree on
+ * the key whatever time it is when each runs.
+ */
+function operatingDate(row: DepotBusRow, feedDate: string): string {
+  return row.scheduledStart?.match(DATE_PREFIX)?.[0] ?? feedDate;
+}
+
+/** Frozen on the way into the cache, so no consumer can poison a shared profile. */
+function frozenProfile(profile: RouteProfile): RouteProfile {
+  const freezeStop = (stop: RouteStop | null): RouteStop | null =>
+    stop === null ? null : Object.freeze({ ...stop });
+  return Object.freeze({
+    ...profile,
+    origin: freezeStop(profile.origin),
+    destination: freezeStop(profile.destination),
+    stops: Object.freeze(profile.stops.map((stop) => Object.freeze({ ...stop }))),
+  });
 }
 
 async function fetchProfile(
@@ -114,13 +128,14 @@ async function fetchProfile(
 }
 
 /** The bus a profile is fetched for and its cache key, or null when no bus runs the route. */
-function lookupFor(routeName: string, view: FleetSnapshotView, now: number) {
+function lookupFor(routeName: string, view: FleetSnapshotView) {
   if (!isValidRouteName(routeName)) return null;
   const bus = view.rows
     .filter((row) => row.routeName === routeName)
     .sort(compareCandidates(view.feedNow))[0];
   if (!bus) return null;
-  const date = operatingDate(bus, view, now);
+  // The operating date comes from the feed's clock, never the wall clock.
+  const date = operatingDate(bus, operatingDateOf(view.feedNow, view.fetchedAt));
   return { bus, date, key: `${routeName}:${date}` };
 }
 
@@ -139,7 +154,7 @@ export function routeProfileNeedsFetch(
   view: FleetSnapshotView,
   now: number = Date.now(),
 ): boolean {
-  const lookup = lookupFor(routeName, view, now);
+  const lookup = lookupFor(routeName, view);
   if (!lookup) return false;
   return !profiles.has(lookup.key) && !freshNegative(routeName, now) && !inFlight.has(lookup.key);
 }
@@ -149,7 +164,7 @@ export async function getRouteProfile(
   view: FleetSnapshotView,
   now: number = Date.now(),
 ): Promise<RouteProfileResult> {
-  const lookup = lookupFor(routeName, view, now);
+  const lookup = lookupFor(routeName, view);
   if (!lookup) return unavailable('no_bus_on_route');
   const { bus, date, key } = lookup;
 
@@ -163,15 +178,16 @@ export async function getRouteProfile(
   if (pending) return pending;
 
   const request = fetchProfile(routeName, bus, date, now)
-    .then((result) => {
-      if (result.status === 'ok') {
-        setBounded(profiles, key, result.profile);
-        revision += 1;
-        negatives.delete(routeName);
-      } else {
+    .then((result): RouteProfileResult => {
+      if (result.status !== 'ok') {
         setBounded(negatives, routeName, { result, storedAt: now });
+        return result;
       }
-      return result;
+      const profile = frozenProfile(result.profile);
+      setBounded(profiles, key, profile);
+      revision += 1;
+      negatives.delete(routeName);
+      return { status: 'ok', profile };
     })
     .finally(() => inFlight.delete(key));
   inFlight.set(key, request);
@@ -182,11 +198,12 @@ export async function getRouteProfile(
  * Profiles already cached for the routes in this snapshot, looked up exactly
  * as `getRouteProfile` would (same sampled bus, same operating date) but never
  * fetched: a view over many routes must not turn into a crawl of the upstream.
- * Routes absent from the result have not been profiled today.
+ * Routes absent from the result have not been profiled today. `feedDate` is
+ * the operating date the view derived from the feed's clock.
  */
 export function cachedRouteProfiles(
   view: FleetSnapshotView,
-  now: number = Date.now(),
+  feedDate: string,
 ): ReadonlyMap<string, RouteProfile> {
   const byRoute = new Map<string, DepotBusRow[]>();
   for (const row of view.rows) {
@@ -199,7 +216,7 @@ export function cachedRouteProfiles(
   const found = new Map<string, RouteProfile>();
   for (const [routeName, rows] of byRoute) {
     const bus = rows.reduce((best, row) => (order(row, best) < 0 ? row : best));
-    const profile = profiles.get(`${routeName}:${operatingDate(bus, view, now)}`);
+    const profile = profiles.get(`${routeName}:${operatingDate(bus, feedDate)}`);
     if (profile) found.set(routeName, profile);
   }
   return found;

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { rateLimitSentence } from '@/lib/depot/routes/routeDrawerModel';
 import type { RouteProfileResponse } from '@/lib/depot/routes/types';
 
 export interface UseRouteProfile {
@@ -39,6 +40,12 @@ export function useRouteProfile(routeName: string | null): UseRouteProfile {
         });
         if (response.status === 400) {
           setSettled({ routeName: name, state: { data: null, error: INVALID_NAME_ERROR, loading: false } });
+          return;
+        }
+        if (response.status === 429) {
+          // The throttle's own wait, printed only as a whole number of seconds.
+          const error = rateLimitSentence(response.headers.get('retry-after'));
+          setSettled({ routeName: name, state: { data: null, error, loading: false } });
           return;
         }
         if (!response.ok) throw new Error('unavailable');

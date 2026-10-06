@@ -1,10 +1,16 @@
 'use client';
 
-import type { FilterOption, RouteFilters } from '@/lib/depot/routes/routesPageModel';
+import type { FilterOption } from '@/lib/depot/routes/api';
+import type { RoutesQuery } from '@/lib/depot/routes/routeQuery';
+import { ListPager } from './ListPager';
+
+export type RouteFilters = Pick<RoutesQuery, 'depotId' | 'serviceClass' | 'q'>;
+
+/** Keeps only the route-name character set the server accepts. */
+const searchText = (value: string): string | null =>
+  value.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64) || null;
 
 const ANY = 'any';
-const PAGE_BUTTON =
-  'depot-field px-3 text-xs hover:bg-depot-raised disabled:cursor-not-allowed disabled:opacity-50';
 
 function Select({
   label,
@@ -81,28 +87,18 @@ export function RouteTableControls({
           options={classes}
           onChange={(serviceClass) => onFiltersChange({ ...filters, serviceClass })}
         />
+        <label className="flex min-w-0 flex-col gap-1">
+          <span className="depot-label">Route name contains</span>
+          <input
+            type="search"
+            className="depot-field w-48 max-w-full"
+            value={filters.q ?? ''}
+            maxLength={64}
+            onChange={(event) => onFiltersChange({ ...filters, q: searchText(event.target.value) })}
+          />
+        </label>
       </form>
-      <nav aria-label="Route table pages" className="flex items-center gap-2">
-        <button
-          type="button"
-          className={PAGE_BUTTON}
-          disabled={page === 0}
-          onClick={() => onPageChange(page - 1)}
-        >
-          Previous
-        </button>
-        <span className="font-mono text-xs tabular-nums text-depot-muted">
-          Page {page + 1} of {pageCount}
-        </span>
-        <button
-          type="button"
-          className={PAGE_BUTTON}
-          disabled={page >= pageCount - 1}
-          onClick={() => onPageChange(page + 1)}
-        >
-          Next
-        </button>
-      </nav>
+      <ListPager label="Route table pages" page={page} pageCount={pageCount} onPageChange={onPageChange} />
     </div>
   );
 }

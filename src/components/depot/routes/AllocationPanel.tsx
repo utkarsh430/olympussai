@@ -9,7 +9,7 @@ import { moveRows } from '@/lib/depot/routes/allocationGroups';
 import {
   DEAD_KM_MEANING,
   RECOMMENDATION_ONLY,
-  TRIP_MEANING,
+  TRIPS_MODELLED_NOTE,
   allocationHeadline,
   paramsSentence,
 } from '@/lib/depot/routes/allocationWording';
@@ -82,9 +82,14 @@ export function AllocationPanel({ allocation }: { readonly allocation: DepotAllo
           <ProvenanceBadge provenance="derived" /> {h.positionsLine} {DEAD_KM_MEANING}
         </p>
         <p className="depot-prose">
-          <ProvenanceBadge provenance="modelled" /> {TRIP_MEANING}
+          <ProvenanceBadge provenance="modelled" /> {allocation.tripDefinition} {TRIPS_MODELLED_NOTE}
         </p>
         <p className="depot-prose">{paramsSentence(allocation.params)}</p>
+        {allocation.profilesPendingNote !== null ? (
+          <p className="depot-prose" role="status">
+            {allocation.profilesPendingNote}
+          </p>
+        ) : null}
       </div>
       {rows.length > 0 ? (
         <>

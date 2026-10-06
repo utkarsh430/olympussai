@@ -46,10 +46,15 @@ export const TRIP_FACTOR_NOISE = 0.15;
 export const MAX_PLAUSIBLE_DURATION_MIN = 1440;
 
 /**
- * More buses than this on one route name is a feed error, not a route; the
- * count is capped so the product stays a small finite integer.
+ * More buses than this on one route name is a feed error, not a route: such a
+ * route is refused (not modelled, not planned) rather than capped, so the trip
+ * model and the allocator always agree on its bus count.
  */
 export const MAX_BUSES_PER_ROUTE = 500;
+
+/** Printed with every route and allocation response, so the unit of the savings travels with them. */
+export const TRIP_DEFINITION =
+  'A trip is a run that starts at the depot and returns to it; dead kilometres are charged once per trip.';
 
 /** Salt of the seeded stream, so it is independent of every other modelled figure. */
 export const TRIP_FREQUENCY_SALT = 'trip-frequency';
