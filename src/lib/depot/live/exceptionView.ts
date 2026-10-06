@@ -41,6 +41,7 @@ export function buildPagedExceptionsResponse(
     report: { depot, busTotal, counts },
     busSeverityCounts: severityOf(analysis),
     busPage: pageBusExceptions(analysis.busExceptions, query),
+    scoreWindow: analysis.scoreWindow,
   };
 }
 

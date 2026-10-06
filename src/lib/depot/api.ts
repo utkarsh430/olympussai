@@ -10,7 +10,7 @@ import type {
   Provenance,
 } from './types';
 import type { BusLocation, OutshedSummary, Yard } from './infer/types';
-import type { DepotScore } from './score/types';
+import type { DepotScore, ScoreWindow } from './score/types';
 import type {
   BusException,
   DepotException,
@@ -46,6 +46,11 @@ export interface DepotNetworkResponse extends DepotFeedEnvelope {
   /** Depot and bus exceptions together, counted before the bus cap. */
   readonly exceptionSeverityCounts: Readonly<Record<ExceptionSeverity, number>>;
   readonly recordCount: number;
+  /**
+   * The rolling window the scores and the peer-comparison depot exceptions were
+   * summed over (the widest any depot has). Always sent; optional for older fixtures.
+   */
+  readonly scoreWindow?: ScoreWindow;
 }
 
 /** GET /api/upsrtc/depot/exceptions */
@@ -56,6 +61,8 @@ export interface DepotExceptionsResponse extends DepotFeedEnvelope {
   readonly busSeverityCounts: Readonly<Record<ExceptionSeverity, number>>;
   /** One page of bus exceptions for the query's kind and depot, with the true total. */
   readonly busPage: BusExceptionPage;
+  /** The rolling window the peer-comparison depot exceptions were computed over. */
+  readonly scoreWindow?: ScoreWindow;
 }
 
 /** One bus as a depot manager sees it. Only ever sent for a single depot. */
@@ -83,6 +90,12 @@ export interface DepotBusView {
   readonly delayMinutes: number | null;
   readonly mainPowerOn: boolean | null;
   readonly tamperCode: string | null;
+  /**
+   * Whole minutes since the bus last reported, when that is longer than the
+   * reporting window and the bus is neither dark nor off road: its state is
+   * then what it last reported, not what it is doing now. Null when heard recently.
+   */
+  readonly notHeardMin?: number | null;
 }
 
 /** A bus from another depot standing inside this depot's yard. */
@@ -108,6 +121,8 @@ export interface DepotDetailResponse extends DepotFeedEnvelope {
     readonly bus: readonly BusException[];
   };
   readonly visitors: readonly VisitorBus[];
+  /** The rolling window this depot's score and peer-comparison exceptions were summed over. */
+  readonly scoreWindow?: ScoreWindow;
 }
 
 /** GET /api/upsrtc/depot/distribution */

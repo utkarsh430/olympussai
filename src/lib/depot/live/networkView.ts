@@ -12,6 +12,7 @@ const networkBody = memoiseBody((view, analysis): NetworkBody => ({
   kpis: networkKpis(analysis.depots),
   coverage: fieldCoverage(view.rows),
   scores: analysis.scores,
+  scoreWindow: analysis.scoreWindow,
   exceptionCounts: analysis.report.counts,
   exceptionSeverityCounts: analysis.exceptionSeverityCounts,
 }));
