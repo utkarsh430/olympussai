@@ -1,4 +1,4 @@
-import { formatMinute } from '../duties/dutyBoardModel';
+import { formatMinute } from '../format';
 import type { DepotDetailResponse } from '../api';
 import { formatCount, formatPlainDate, pluralWord } from '../format';
 import type { ParkingLane, ParkingOverflowReason, ParkingState } from './parkingApi';

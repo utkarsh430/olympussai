@@ -42,6 +42,20 @@ export function signedTwoDecimals(n: number): string {
   return `${rounded > 0 ? '+' : MINUS}${Math.abs(rounded).toFixed(2)}`;
 }
 
+const pad2 = (n: number): string => String(n).padStart(2, '0');
+
+/** HH:MM for a minute count as it stands, so the end of the day reads "24:00". */
+export function formatClockMinute(minute: number): string {
+  return `${pad2(Math.floor(minute / MINUTES_PER_HOUR))}:${pad2(minute % MINUTES_PER_HOUR)}`;
+}
+
+/** HH:MM for a minute count; a minute past 24:00 is written on the next day. */
+export function formatMinute(minute: number): string {
+  const nextDay = minute >= MINUTES_PER_DAY;
+  const text = formatClockMinute(nextDay ? minute - MINUTES_PER_DAY : minute);
+  return nextDay ? `${text} next day` : text;
+}
+
 /** The singular word for exactly one, the plural for any other number (zero included). */
 export function pluralWord(n: number, one: string, many: string): string {
   return n === 1 ? one : many;

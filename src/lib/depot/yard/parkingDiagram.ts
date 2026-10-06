@@ -1,4 +1,4 @@
-import { formatMinute } from '../duties/dutyBoardModel';
+import { formatMinute } from '../format';
 import { formatCount } from '../format';
 import type { ParkingOrder } from './parkingApi';
 import { blockedSentence, laneHeading, overflowReasonText, type BlockedLine } from './parkingModel';

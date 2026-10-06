@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BoardDuty, DutyBoardCounts } from '@/lib/depot/duties/api';
+import { formatMinute } from '@/lib/depot/format';
 import {
   AXIS_END_MIN,
   AXIS_START_MIN,
@@ -10,7 +11,6 @@ import {
   barGeometry,
   buildBoardRows,
   emptyDutiesSentence,
-  formatMinute,
   formatSpanShort,
   barTextPlacement,
   barLabel,

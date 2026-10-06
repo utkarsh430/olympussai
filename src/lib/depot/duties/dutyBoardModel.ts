@@ -1,4 +1,10 @@
-import { formatCount, formatFeedTime, pluralWord } from '../format';
+import {
+  formatClockMinute,
+  formatCount,
+  formatFeedTime,
+  formatMinute,
+  pluralWord,
+} from '../format';
 import type { BoardDuty, DutyBlockers, DutyState } from './api';
 import { CLASS_WORD, STANDING_WORD, busClassWord } from './dutyStanding';
 import type { BusStandingNow, SpareByStanding } from './types';
@@ -75,16 +81,6 @@ export interface BoardRow {
   readonly ariaLabel: string;
 }
 
-const pad2 = (n: number): string => String(n).padStart(2, '0');
-
-/** HH:MM for a minute count; a minute past 24:00 is written on the next day. */
-export function formatMinute(minute: number): string {
-  const nextDay = minute >= MINUTES_PER_DAY;
-  const inDay = nextDay ? minute - MINUTES_PER_DAY : minute;
-  const text = `${pad2(Math.floor(inDay / MINUTES_PER_HOUR))}:${pad2(inDay % MINUTES_PER_HOUR)}`;
-  return nextDay ? `${text} next day` : text;
-}
-
 /**
  * A duty's span for the timeline's narrow label column: "07:00–10:00", or
  * "17:15–01:25 +1 day" when it ends after midnight. The full words ("… to 01:25 next
@@ -104,7 +100,7 @@ export function axisTicks(): readonly AxisTick[] {
   const ticks: AxisTick[] = [];
   for (let m = AXIS_START_MIN; m <= AXIS_END_MIN; m += TICK_EVERY_MIN) {
     ticks.push({
-      label: `${pad2(Math.floor(m / MINUTES_PER_HOUR))}:${pad2(m % MINUTES_PER_HOUR)}`,
+      label: formatClockMinute(m),
       leftPct: pctOfAxis(m),
     });
   }
