@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { PANEL_HEADING_ID, clearSelection } from './clearSelection';
 import { depotLink } from '@/lib/depot/network/mapWords';
 import {
   formatIndex,
@@ -26,7 +27,7 @@ function showOnMap(): void {
   document
     .getElementById('depot-map-heading')
     ?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
-  document.getElementById('depot-panel-heading')?.focus({ preventScroll: true });
+  document.getElementById(PANEL_HEADING_ID)?.focus({ preventScroll: true });
 }
 
 /** "Selected: KAUSHAMBI" with Clear, right above the map. */
@@ -46,7 +47,11 @@ export function SelectionLine({
             {row.depot.name}
           </span>
           <span className="text-[13px] tabular-nums text-depot-muted">{detail(row)}</span>
-          <button type="button" onClick={onClear} className="depot-filter-button ml-auto">
+          <button
+            type="button"
+            onClick={() => clearSelection(onClear)}
+            className="depot-filter-button ml-auto"
+          >
             Clear selection
           </button>
         </>

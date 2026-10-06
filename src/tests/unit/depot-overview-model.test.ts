@@ -198,6 +198,6 @@ describe('selectionStatus', () => {
     expect(selectionStatus(small ?? null)).toBe(
       'Selected Depot b, not ranked: Fewer than 10 buses',
     );
-    expect(selectionStatus(null)).toBe('');
+    expect(selectionStatus(null)).toBe('No unit selected');
   });
 });

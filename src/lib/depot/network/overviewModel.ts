@@ -41,7 +41,7 @@ export function unrankedReason(row: DepotRow): string {
 
 /** One line for the screen-reader status when the selection changes. */
 export function selectionStatus(row: DepotRow | null): string {
-  if (!row) return '';
+  if (!row) return 'No unit selected';
   const index = rankedIndex(row);
   const detail =
     index === null ? `not ranked: ${unrankedReason(row)}` : `index ${formatIndex(index)}`;

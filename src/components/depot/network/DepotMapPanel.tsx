@@ -16,6 +16,7 @@ import {
   selectionStatus,
   type DepotRow,
 } from '@/lib/depot/network/overviewModel';
+import { clearSelection, PANEL_HEADING_ID } from './clearSelection';
 import { StatusMixBar, stateSegments } from './StatusMixBar';
 
 export interface DepotMapPanelProps {
@@ -109,7 +110,13 @@ function Suggestion({
  * selection, so the ranked lists and the table fill it as well as the map.
  * It is as tall as its content, never stretched to the map's height.
  */
-export function DepotMapPanel({ row, rows, onSelect, onClear, vanished = false }: DepotMapPanelProps) {
+export function DepotMapPanel({
+  row,
+  rows,
+  onSelect,
+  onClear,
+  vanished = false,
+}: DepotMapPanelProps) {
   const status = (
     <p role="status" className="sr-only">
       {selectionStatus(row)}
@@ -119,7 +126,7 @@ export function DepotMapPanel({ row, rows, onSelect, onClear, vanished = false }
     return (
       <aside className="depot-panel relative min-w-0 p-4" data-testid="depot-map-panel">
         {status}
-        <h3 id="depot-panel-heading" tabIndex={-1} className="depot-label">
+        <h3 id={PANEL_HEADING_ID} tabIndex={-1} className="depot-label">
           Selected depot
         </h3>
         <p className="depot-prose mt-1">
@@ -141,7 +148,7 @@ export function DepotMapPanel({ row, rows, onSelect, onClear, vanished = false }
         <div className="min-w-0">
           <p className="depot-label">Selected depot</p>
           <h3
-            id="depot-panel-heading"
+            id={PANEL_HEADING_ID}
             tabIndex={-1}
             className="mt-1 break-words text-[15px] text-depot-ink"
           >
@@ -151,7 +158,11 @@ export function DepotMapPanel({ row, rows, onSelect, onClear, vanished = false }
         </div>
         <span className="flex shrink-0 items-center gap-3">
           <OpenDepot row={row} />
-          <button type="button" onClick={onClear} className="depot-filter-button">
+          <button
+            type="button"
+            onClick={() => clearSelection(onClear)}
+            className="depot-filter-button"
+          >
             Clear
           </button>
         </span>
@@ -163,9 +174,7 @@ export function DepotMapPanel({ row, rows, onSelect, onClear, vanished = false }
           <dd className="mt-1 text-[13px] tabular-nums text-depot-ink">
             {formatCount(depot.fleet)} buses
           </dd>
-          <dd className="mt-1 text-[11px] text-depot-muted">
-            {positionNote(depot)}
-          </dd>
+          <dd className="mt-1 text-[11px] text-depot-muted">{positionNote(depot)}</dd>
         </div>
         <div>
           <dt className="depot-label flex items-center gap-2">
