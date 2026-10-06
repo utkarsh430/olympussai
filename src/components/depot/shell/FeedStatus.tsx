@@ -25,7 +25,7 @@ export function FeedStatus() {
       data-testid="depot-feed-status"
       data-source={data?.source ?? 'none'}
       data-tone={chip.tone}
-      className={`depot-tag relative ${TONE[chip.tone]}`}
+      className={`depot-tag relative shrink-0 ${TONE[chip.tone]}`}
       title={chip.title}
     >
       <span aria-hidden>{chip.text}</span>
