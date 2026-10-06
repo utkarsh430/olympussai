@@ -13,6 +13,7 @@ import {
 import {
   BASELINE_FORM,
   isBaseline,
+  scenarioKey,
   toScenario,
   withExcluded,
   withFleetAdjustment,
@@ -93,13 +94,32 @@ describe('scenario form state', () => {
     s = withLocked(withLocked(s, 'agra', true), 'kanpur', true);
     s = withFleetAdjustment(s, 'agra', 12);
     expect(summariseScenario(s, nameOf)).toBe(
-      'Spare ratio 10%, maximum distance 150 km, 2 depots locked, AGRA +12 buses.',
+      'Spare ratio 10%, maximum distance 150 km, AGRA and KANPUR locked, AGRA +12 buses.',
     );
     s = withExcluded(s, 'banda', true);
     s = withSurge(withFleetAdjustment(s, 'kanpur', -1), 'kanpur', -20);
     expect(summariseScenario(s, nameOf)).toBe(
-      'Spare ratio 10%, maximum distance 150 km, 2 depots locked, 1 depot excluded, ' +
+      'Spare ratio 10%, maximum distance 150 km, AGRA and KANPUR locked, banda excluded, ' +
         'AGRA +12 buses, KANPUR −1 bus, KANPUR demand −20%.',
+    );
+  });
+
+  it('names the depots a lock or an exclusion applies to, falling back to the id', () => {
+    expect(summariseScenario(withLocked(BASELINE_FORM, 'agra', true), nameOf)).toBe('AGRA locked.');
+    let s = withExcluded(withExcluded(BASELINE_FORM, 'agra', true), 'kanpur', true);
+    expect(summariseScenario(s, nameOf)).toBe('AGRA and KANPUR excluded.');
+    s = withExcluded(s, 'banda', true);
+    expect(summariseScenario(s, nameOf)).toBe('AGRA, KANPUR and banda excluded.');
+  });
+
+  it('gives different labels to scenarios that lock different depots, with the key unchanged', () => {
+    const agra = withLocked(BASELINE_FORM, 'agra', true);
+    const kanpur = withLocked(BASELINE_FORM, 'kanpur', true);
+    expect(summariseScenario(agra, nameOf)).not.toBe(summariseScenario(kanpur, nameOf));
+    expect(scenarioKey(agra)).not.toBe(scenarioKey(kanpur));
+    // The key is pinned: ids and values only, none of the label's words or names.
+    expect(scenarioKey(agra)).toBe(
+      '{"sparePercent":null,"maxTransferKm":null,"locked":["agra"],"excluded":[],"fleet":[],"surge":[]}',
     );
   });
 });
