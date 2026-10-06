@@ -20,6 +20,30 @@ describe('SectionLabel', () => {
     rerender(<SectionLabel label="Bays" tag="modelled" />);
     expect(screen.getByTestId('depot-provenance').textContent).toBe('MODELLED');
   });
+
+  it('holds the controls of a section in its right slot, after the note, inside the label row', () => {
+    // A view toggle or a filter belongs to its section's label row; without a slot a page
+    // has to lay it over the row with absolute positioning.
+    render(
+      <SectionLabel
+        label="Duty timeline"
+        note="Nearest first"
+        controls={<button type="button">Table</button>}
+      />,
+    );
+    const row = screen.getByTestId('depot-section-label');
+    const slot = screen.getByTestId('depot-section-controls');
+    expect(row.contains(slot)).toBe(true);
+    expect(slot.contains(screen.getByRole('button', { name: 'Table' }))).toBe(true);
+    expect(slot.className).toContain('shrink-0');
+    const note = screen.getByText('Nearest first');
+    expect(note.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('renders no controls slot when none are passed', () => {
+    render(<SectionLabel label="Bays" />);
+    expect(screen.queryByTestId('depot-section-controls')).toBeNull();
+  });
 });
 
 describe('FigureBand', () => {

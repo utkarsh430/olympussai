@@ -25,10 +25,11 @@ describe('FigureBand', () => {
     }
   });
 
-  it('wraps to two columns below 1024px', () => {
+  it('wraps to two columns on a phone and three from 640px, so five figures read 3 + 2', () => {
     band();
     const list = screen.getByTestId('depot-figure-band');
     expect(list.className).toContain('grid-cols-2');
+    expect(list.className).toContain('sm:grid-cols-3');
     expect(list.className).toContain('lg:flex');
     expect(list.className).toContain('lg:flex-wrap');
   });
