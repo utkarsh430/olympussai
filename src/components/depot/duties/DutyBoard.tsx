@@ -3,11 +3,17 @@
 import { useState } from 'react';
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
-import { viewAnnouncement, type BoardRow, type BoardView } from '@/lib/depot/duties/dutyBoardModel';
+import {
+  defaultBoardView,
+  viewAnnouncement,
+  type BoardRow,
+  type BoardView,
+} from '@/lib/depot/duties/dutyBoardModel';
 import type { DutyFigure } from '@/lib/depot/duties/dutyPageModel';
 import { DutyLegend } from './DutyLegend';
 import { DutyTable } from './DutyTable';
 import { DutyTimeline } from './DutyTimeline';
+import { useTableFirst } from './useTableFirst';
 
 export interface DutyBoardProps {
   readonly depotId: string;
@@ -52,13 +58,16 @@ function ViewToggle({ view, onView }: {
 }
 
 /**
- * The page's one hero: the day's duties on a timeline in a fixed-height pane, at every
- * size, with a toggle to the same rows as a table. The whole section is the modelled
+ * The page's one hero: the day's duties on a timeline in a fixed-height pane, with a
+ * toggle to the same rows as a table; below 640 px the table is the default view. The whole section is the modelled
  * matching beside real registrations on a MIXED page, so its label carries the MODELLED
  * tag (ruling S51); the band and the notes are its caption. Each switch is announced.
  */
 export function DutyBoard({ depotId, rows, feedNow, figures, notes }: DutyBoardProps) {
-  const [view, setView] = useState<BoardView>('chart');
+  const narrow = useTableFirst();
+  // Until the reader picks a view, the board follows the width: the table below 640 px.
+  const [chosen, setView] = useState<BoardView | null>(null);
+  const view = chosen ?? defaultBoardView(narrow);
   return (
     <section aria-labelledby="duty-board-title" data-testid="duty-board" className="min-w-0">
       <SectionLabel

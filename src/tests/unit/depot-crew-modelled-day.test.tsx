@@ -97,11 +97,22 @@ describe('the crew page header', () => {
       expect(line?.getAttribute('data-tone')).toBe('modelled');
       expect(line?.querySelector('.depot-tag')?.textContent).toBe('MODELLED');
       expect(line?.textContent).toContain('Generated from planning assumptions, not measured.');
-      const people = page.querySelector('[data-testid="crew-people-sentence"]');
-      expect(people?.textContent).toBe(crewModel.PEOPLE_SENTENCE);
-      // directly after the provenance line's header, 8px under it (header 24px, pulled up 16px)
-      expect(people?.className).toContain('-mt-4');
-      expect(line?.closest('header')?.nextElementSibling).toBe(people);
+      // Round 3 (crew Must 1): the people sentence is the description's second sentence,
+      // inside the header, above the provenance line, in every state.
+      const header = line?.closest('header');
+      const description = [...(header?.querySelectorAll('p') ?? [])].find((p) =>
+        p.textContent?.startsWith('Drivers and conductors available'),
+      );
+      expect(description?.textContent).toBe(
+        `Drivers and conductors available against the day's crew shifts. ${crewModel.PEOPLE_SENTENCE}`,
+      );
+      expect(page.querySelector('[data-testid="crew-people-sentence"]')).toBeNull();
+      expect(page.textContent?.split(crewModel.PEOPLE_SENTENCE)).toHaveLength(2);
+      expect(page.textContent ?? '').not.toMatch(/\d{4}-\d{2}-\d{2}/);
+      const attributes = [...page.querySelectorAll('[title],[aria-label]')]
+        .map((el) => `${el.getAttribute('title') ?? ''} ${el.getAttribute('aria-label') ?? ''}`)
+        .join(' ');
+      expect(attributes).not.toMatch(/\d{4}-\d{2}-\d{2}/);
     },
   );
 
@@ -109,11 +120,12 @@ describe('the crew page header', () => {
     setHook({ data: DATA });
     const page = await renderPage();
     const context = page.querySelector('[data-testid="depot-provenance-context"]');
+    // Round 3: the ONE formula (modelledDayLine), plain date, with Data sources on the line.
     expect(context?.textContent).toBe(
-      "The live feed carries a schedule for 5 of 200 of this depot's buses at the feed time. " +
-        'This page is built on the modelled day for 2026-10-06, rebuilt from the live fleet as of ' +
-        'the feed time: 2 duties on 1 route.',
+      'Built on the modelled day for 6 Oct 2026: 2 duties on 1 route; the feed schedules 5 of 200 buses.',
     );
+    expect(context?.nextElementSibling?.textContent).toBe('Data sources');
+    expect(context?.parentElement).toBe(page.querySelector('[data-testid="depot-provenance-line"]'));
     expect(page.querySelector('[data-testid="crew-modelled-day"]')).toBeNull();
   });
 
@@ -167,7 +179,7 @@ describe('crew C, a unit with no duties', () => {
     const page = await renderPage();
     const text = page.textContent ?? '';
     expect(text).toContain(crewModel.emptyCrewSentence('2026-10-06'));
-    expect(text).toContain('for 2026-10-06');
+    expect(text).toContain('for 6 Oct 2026');
     expect(text).toContain(crewModel.EMPTY_CREW_REMEDY);
     const link = [...page.querySelectorAll('a')].find(
       (a) => a.textContent === 'Data sources' && a.getAttribute('href') === crewModel.SOURCES_HREF,
@@ -193,6 +205,10 @@ describe('every string the crew page model can produce', () => {
           cause,
         })),
       ],
+    ],
+    roleBarLabel: [
+      ['Drivers', 234],
+      ['Conductors', 1],
     ],
     crossReferenceSentence: [
       [{ scheduled: { n: 5, of: 200 }, duties: 158, routes: 14, operatingDate: '2026-10-06' }],
@@ -281,13 +297,14 @@ describe('every string the crew page model can produce', () => {
   });
 
   it('dates the modelled day when the date is given', () => {
-    expect(crewModel.modelledDayPhrase('2026-10-06')).toBe('in the modelled day for 2026-10-06');
+    // Round 3 (R2-m1): the date is the plain one ("6 Oct 2026"), never the ISO form.
+    expect(crewModel.modelledDayPhrase('2026-10-06')).toBe('in the modelled day for 6 Oct 2026');
     expect(crewModel.modelledDayPhrase()).toBe('in the modelled day');
     expect(crewModel.shiftsSentence(40, 38, 2, '2026-10-06')).toContain(
-      'required in the modelled day for 2026-10-06;',
+      'required in the modelled day for 6 Oct 2026;',
     );
     expect(crewModel.emptyCrewSentence('2026-10-06')).toBe(
-      'No duties are modelled for this depot for 2026-10-06 (no route is seen running from it), so there are no crew shifts to cover.',
+      'No duties are modelled for this depot for 6 Oct 2026 (no route is seen running from it), so there are no crew shifts to cover.',
     );
   });
 });

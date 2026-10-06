@@ -17,25 +17,20 @@ export interface CrewHeaderProps {
 
 /**
  * The crew page's header in every state (loading, error, empty, data): the title, the
- * MODELLED provenance line with the modelled day when known, and the people sentence 8px
- * under the line, so "Availability and rostering only. No individual is assessed." is on
- * the first screen whatever the page shows below.
+ * description whose second sentence is "Availability and rostering only. No individual
+ * is assessed." (on the first screen whatever the page shows below), and the MODELLED
+ * provenance line, whose second line is the shared modelled-day formula with "Data
+ * sources" at its end (critique round 5, crew Must 1).
  */
 export function CrewHeader({ provenance, modelledDay }: CrewHeaderProps) {
   return (
-    <>
-      <PageHeader
-        title="Crew"
-        description="Drivers and conductors available against the day's crew shifts."
-        provenanceLine={{
-          ...provenance,
-          ...(modelledDay === undefined ? {} : { modelledDay }),
-        }}
-      />
-      {/* The header ends with a 24px margin; -16px leaves 8px under the provenance line. */}
-      <p className="depot-prose -mt-4 mb-6" data-testid="crew-people-sentence">
-        {PEOPLE_SENTENCE}
-      </p>
-    </>
+    <PageHeader
+      title="Crew"
+      description={`Drivers and conductors available against the day's crew shifts. ${PEOPLE_SENTENCE}`}
+      provenanceLine={{
+        ...provenance,
+        ...(modelledDay === undefined ? {} : { modelledDay }),
+      }}
+    />
   );
 }

@@ -69,7 +69,7 @@ export function MaintenancePage() {
   return (
     <div className="flex flex-col">
       {stale || detail.error ? <StaleStrip since={detail.data.feedNow} /> : null}
-      {/* The band's own 24px margin is the gap to the lists: no empty strip under it. */}
+      {/* The band's own 24px margin plus the lists' 16px: 40px from band to section rule. */}
       <FigureBand label="Maintenance figures">
         {figures.map((figure) => (
           <Figure
@@ -81,7 +81,7 @@ export function MaintenancePage() {
           />
         ))}
       </FigureBand>
-      <div className="flex flex-col gap-8">
+      <div data-testid="maintenance-lists" className="flex flex-col gap-8 pt-4">
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
           <div className="min-w-0 xl:col-span-2">
             <OffRoadList depotId={detail.depotId} buses={offRoad} feedNow={detail.data.feedNow} />

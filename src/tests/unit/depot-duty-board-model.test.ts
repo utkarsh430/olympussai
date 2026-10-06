@@ -13,6 +13,9 @@ import {
   formatMinute,
   barTextPlacement,
   barLabel,
+  defaultBoardView,
+  MIN_TRACK_PX,
+  TABLE_FIRST_QUERY,
   heldOutParts,
   nowLabel,
   nowLabelAnchor,
@@ -278,10 +281,23 @@ describe('sentences', () => {
   });
 });
 
+describe('the board view and the timeline width (round 3, Duties Must 1)', () => {
+  it('opens as a table below 640 px and as the chart from 640 px', () => {
+    expect(defaultBoardView(true)).toBe('table');
+    expect(defaultBoardView(false)).toBe('chart');
+    expect(TABLE_FIRST_QUERY).toBe('(max-width: 639px)');
+  });
+
+  it('measures bar text against the narrowest track the fitted chart has (640 px wide)', () => {
+    // 640 less two 16 px gutters, the 160 px duty column and the track's two 16 px insets.
+    expect(MIN_TRACK_PX).toBe(640 - 32 - 160 - 32);
+  });
+});
+
 describe('bar text placement', () => {
-  // 'Assigned UP32A0001' is 18 characters: 18 * 7 + 12 = 138 px; the axis is 700 px wide.
+  // 'Assigned UP32A0001' is 18 characters: 18 * 7 + 12 = 138 px against the narrowest track.
   const LONG = 18;
-  const NEEDED_PCT = (LONG * 7 + 12) / 7;
+  const NEEDED_PCT = ((LONG * 7 + 12) * 100) / MIN_TRACK_PX;
 
   it('keeps the text inside a bar that is wide enough, and puts it beside one that is not', () => {
     expect(barTextPlacement({ leftPct: 10, widthPct: NEEDED_PCT, textLength: LONG })).toBe(
@@ -293,7 +309,8 @@ describe('bar text placement', () => {
   });
 
   it('decides from the label length: a short label fits a bar a long one does not', () => {
-    const width = 9;
+    // 7 characters need about 15% of the narrowest track, 18 about 33%.
+    const width = 20;
     expect(barTextPlacement({ leftPct: 10, widthPct: width, textLength: 7 })).toBe('inside');
     expect(barTextPlacement({ leftPct: 10, widthPct: width, textLength: LONG })).toBe('right');
   });

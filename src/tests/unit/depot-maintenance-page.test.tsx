@@ -79,6 +79,28 @@ describe('MaintenancePage', () => {
     expect(text(markup)).toContain('2 buses are off the road now.');
   });
 
+  // Round 3: no raw ISO date in any text, title or aria-label, in any state of the page.
+  it.each([
+    ['data', { data: DETAIL }, { data: MODELLED }],
+    ['modelled loading', { data: DETAIL }, { loading: true }],
+    ['modelled error', { data: DETAIL }, { error: 'Depot data unavailable' }],
+    ['loading', { loading: true }, {}],
+    ['error', { error: 'Depot data unavailable' }, {}],
+  ] as const)('puts no raw ISO date anywhere (%s)', (_n, detail, maintenance) => {
+    set(detail, maintenance);
+    const markup = renderToStaticMarkup(<MaintenancePage />);
+    expect(text(markup)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    const attributes = [...markup.matchAll(/(?:title|aria-label)="([^"]*)"/g)].map((m) => m[1]);
+    expect(attributes.join(' ')).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
+  // Round 3, maintenance Must 4: 40 px from the band to the off-road section (the band's
+  // own 24 px margin plus 16 px on the lists).
+  it('leaves 40 px between the band and the off-road section', () => {
+    const markup = renderToStaticMarkup(<MaintenancePage />);
+    expect(markup).toContain('data-testid="maintenance-lists" class="flex flex-col gap-8 pt-4"');
+  });
+
   it('puts the live count, not the endpoint count, in the workshop load', () => {
     const body = text(renderToStaticMarkup(<MaintenancePage />));
     expect(body).toContain('2 buses off the road fit in 4 modelled bays');

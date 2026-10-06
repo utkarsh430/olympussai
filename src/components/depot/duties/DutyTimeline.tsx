@@ -109,7 +109,9 @@ export function DutyTimeline({ depotId, rows, feedNow }: DutyTimelineProps) {
       tabIndex={0}
       className="relative max-h-[480px] overflow-auto rounded-md border border-depot-line bg-depot-page"
     >
-      <div className="relative min-w-[900px]">
+      {/* Below 640 the day keeps 900 px and scrolls sideways in the frame; from 640 the
+          04:00 to 24:00 axis fits the frame, so nothing is cut at any width. */}
+      <div data-testid="duty-timeline-canvas" className="relative min-w-[900px] sm:min-w-0">
         <Axis feedNow={feedNow} />
         <div className="relative">
           <Grid feedNow={feedNow} />
@@ -136,7 +138,9 @@ export function DutyTimeline({ depotId, rows, feedNow }: DutyTimelineProps) {
                     />
                     <span aria-hidden className="flex min-w-0 flex-col">
                       <span className="truncate text-depot-ink">{row.routeName}</span>
-                      <span className="hidden truncate text-depot-muted sm:block">
+                      {/* The times repeat the bar's extent: shown only above 1024 px; at
+                          1024 and below they are in the title and the expander. */}
+                      <span className="hidden truncate text-depot-muted min-[1025px]:block">
                         {row.timeText}
                       </span>
                     </span>

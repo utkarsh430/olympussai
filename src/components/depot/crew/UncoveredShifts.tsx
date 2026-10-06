@@ -41,7 +41,14 @@ export function UncoveredShifts({ shifts, total }: UncoveredShiftsProps) {
   const range = pageRange(requested, shifts.length, PAGE_ROWS);
   return (
     <section aria-labelledby="depot-crew-uncovered-heading" className="min-w-0 animate-rise">
-      <SectionLabel id="depot-crew-uncovered-heading" label="Uncovered shifts" count={total} />
+      {/* Generated shifts and a model's reasons beside real routes: the label carries the
+          MODELLED tag (ruling S51, review R2-I3), never a cell or a header. */}
+      <SectionLabel
+        id="depot-crew-uncovered-heading"
+        label="Uncovered shifts"
+        count={total}
+        tag="modelled"
+      />
       {total === 0 ? (
         <p className="flex items-center gap-2 font-sans text-[14px] text-depot-ink" role="status">
           <span aria-hidden className="h-1.5 w-1.5 shrink-0 bg-alert-green" />

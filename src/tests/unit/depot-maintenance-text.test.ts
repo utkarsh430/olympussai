@@ -81,10 +81,15 @@ describe('preventive sentences', () => {
   });
 
   it('words the distance to the next service for the cell title, overdue or not', () => {
-    expect(kmToNextText(-3400)).toBe('Modelled: overdue by 3,400 km');
-    expect(kmToNextText(0)).toBe('Modelled: due now');
-    expect(kmToNextText(800, 1500)).toBe('Modelled: due soon, 800 km to next service');
-    expect(kmToNextText(9000, 1500)).toBe('Modelled: 9,000 km to next service');
+    // Round 3 (M16): every title also says it is not a workshop record.
+    expect(kmToNextText(-3400)).toBe('Modelled: overdue by 3,400 km; not a workshop record');
+    expect(kmToNextText(0)).toBe('Modelled: due now; not a workshop record');
+    expect(kmToNextText(800, 1500)).toBe(
+      'Modelled: due soon, 800 km to next service; not a workshop record',
+    );
+    expect(kmToNextText(9000, 1500)).toBe(
+      'Modelled: 9,000 km to next service; not a workshop record',
+    );
   });
 
   it('summarises the groups against the depot fleet', () => {
