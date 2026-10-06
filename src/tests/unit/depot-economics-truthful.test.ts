@@ -14,6 +14,7 @@ import {
   economicsStatusLine,
   emptyRowText,
   explainEconomics,
+  lengthCoverageLine,
   peerRankPhrase,
   rankingShortfallNotice,
 } from '@/lib/depot/revenue/economicsPageModel';
@@ -100,23 +101,42 @@ const NO_LENGTH = entry(
   },
   { lengthCoverage: { n: 0, of: 9 } },
 );
-const THIN = entry(
-  '6',
-  { ...UNRANKED, reason: 'thin_route_coverage' },
-  { lengthCoverage: { n: 2, of: 9 } },
-);
+/** Ruling S39: 2 real lengths of 9 routes is a coverage figure; the depot is ranked. */
+const THIN = entry('6', { rank: 2 }, { lengthCoverage: { n: 2, of: 9 } });
 const SMALL_GROUP = entry('5', { ...UNRANKED, reason: 'peer_group_too_small' });
 const TINY_FLEET = entry('8', { ...UNRANKED, reason: 'fleet_too_small', peerGroup: null }, { fleet: 4 });
 const OTHER_UNIT = entry('7', { ...UNRANKED, reason: 'not_a_depot', peerGroup: null }, { kind: 'hired' });
 
 function operating(ranked: number, total: number): EconomicsDepotRow[] {
   return Array.from({ length: total }, (_, i) =>
-    i < ranked ? entry(`${i}`) : entry(`${i}`, { ...UNRANKED, reason: 'thin_route_coverage' }),
+    i < ranked ? entry(`${i}`) : entry(`${i}`, { ...UNRANKED, reason: 'peer_group_too_small' }),
   );
 }
 
 const joined = (n: ReturnType<typeof rankingShortfallNotice>): string =>
   n === null ? '' : `${n.lead}${n.linkText}${n.tail}`;
+
+describe('the real-length coverage across the network', () => {
+  it('states how many routes rest on a real length and that the ranking does not wait for it', () => {
+    // Real lengths summed over operating depots: 2 + 2 + 0 + 2 = 6 of 2 + 2 + 9 + 9 = 22
+    // routes; the hired unit (not an operating depot) is left out.
+    expect(lengthCoverageLine([entry('1'), entry('2'), NO_LENGTH, THIN, OTHER_UNIT])).toBe(
+      'Route lengths: 6 of 22 routes run in the modelled day rest on a real route profile; the rest use a MODELLED typical length for their class. Earnings and fuel cost per kilometre do not depend on the length, so it moves the revenue totals, not the ranking.',
+    );
+  });
+  it('says nothing when no route ran', () => {
+    expect(lengthCoverageLine([entry('1', {}, { lengthCoverage: { n: 0, of: 0 } })])).toBeNull();
+    expect(lengthCoverageLine([])).toBeNull();
+  });
+  it('never says depots are unranked for want of route lengths', () => {
+    const everything = [
+      economicsStatusLine([entry('1'), NO_LENGTH, THIN, SMALL_GROUP, TINY_FLEET, OTHER_UNIT]),
+      joined(rankingShortfallNotice(operating(1, 6))),
+      ...buildEconomicsRows([NO_LENGTH, THIN, SMALL_GROUP]).map((r) => r.reasonText ?? ''),
+    ].join('\n');
+    expect(everything).not.toMatch(/known length|length not known|too few routes/i);
+  });
+});
 
 describe('the fuel-only cost column', () => {
   it('calls the cost column Fuel cost per km, with one sentence beside the table', () => {
@@ -133,9 +153,13 @@ describe('the fuel-only cost column', () => {
 
 describe('an almost empty ranking', () => {
   it('explains itself with counts when fewer than half the operating depots are ranked', () => {
-    expect(joined(rankingShortfallNotice(operating(1, 6)))).toBe(
-      'Only 1 of 6 operating depots can be ranked. A depot is ranked once at least two of its routes, and a quarter of them, have a known length; route lengths come from route profiles, which are loaded one route at a time when a route is opened on the Routes page.',
+    // S39: no depot waits for route lengths; the rule left is a duty that ran and the
+    // peer-group size guard (MIN_PEER_GROUP, 5).
+    const text = joined(rankingShortfallNotice(operating(1, 6)));
+    expect(text).toBe(
+      "Only 1 of 6 operating depots are ranked. A depot is ranked when a duty ran in its modelled day and its peer group has at least 5 depots with complete figures. Earnings per kilometre do not depend on a route's length in this model, so no depot waits for route profiles; a real length, once a route is opened on the Routes page, replaces the modelled one in the revenue totals.",
     );
+    expect(text).not.toMatch(/can be ranked|have a known length|a quarter of them/);
     expect(rankingShortfallNotice(operating(1, 6))?.linkText).toBe('Routes page');
     expect(joined(rankingShortfallNotice(operating(0, 3)))).toMatch(/^Only 0 of 3 operating depots/);
   });
@@ -160,28 +184,31 @@ describe('an almost empty ranking', () => {
 describe('a depot without a usable earnings figure', () => {
   const cellOf = (e: EconomicsDepotRow) =>
     buildEconomicsRows([e])[0]?.cells.find((c) => c.key === 'earningsPerKm');
-  it('writes length not known with its coverage, never a dash alone', () => {
-    expect(cellOf(NO_LENGTH)?.valueText).toBe('length not known');
-    expect(cellOf(NO_LENGTH)?.noteText).toBe('0 of 9 routes');
-    expect(cellOf(NO_LENGTH)?.description).toContain('length not known');
+  // S39: the only missing earnings left is a depot where nothing ran; the cell says so in
+  // words and every earnings cell carries its real-length coverage, never a dash alone.
+  it('writes no kilometres run with its coverage, never a dash alone', () => {
+    expect(cellOf(NO_LENGTH)?.valueText).toBe('no kilometres run');
+    expect(cellOf(NO_LENGTH)?.noteText).toBe('lengths: 0 of 9 routes from real route profiles, the rest modelled');
+    expect(cellOf(NO_LENGTH)?.description).toContain('no kilometres run');
   });
-  it('says too few routes with a known length for a thin figure', () => {
-    expect(cellOf(THIN)?.noteText).toBe('too few routes with a known length (2 of 9 routes)');
+  it('gives a thin real-length coverage a figure and its coverage, not a reason', () => {
+    expect(cellOf(THIN)?.valueText).toBe('₹30.00 per km');
+    expect(cellOf(THIN)?.noteText).toBe('lengths: 2 of 9 routes from real route profiles, the rest modelled');
   });
-  it('has no note on a ranked depot', () => {
-    expect(cellOf(entry('1'))?.noteText).toBeNull();
+  it('states full coverage on a ranked depot without a rest-modelled clause', () => {
+    expect(cellOf(entry('1'))?.noteText).toBe('lengths: 2 of 2 routes from real route profiles');
   });
   it('shows the reason in the breakdown value cell too', () => {
     const [row] = buildEconomicsRows([NO_LENGTH]);
-    expect(row && breakdownRows(row, WEIGHTS)[0]?.valueText).toBe('length not known');
+    expect(row && breakdownRows(row, WEIGHTS)[0]?.valueText).toBe('no kilometres run');
   });
 });
 
 describe('the short reason under not ranked', () => {
   it('is a few visible words for every kind of unranked row, and null when ranked', () => {
     const short = (e: EconomicsDepotRow) => buildEconomicsRows([e])[0]?.reasonShort;
-    expect(short(NO_LENGTH)).toBe('length not known');
-    expect(short(THIN)).toBe('too few routes with a known length');
+    expect(short(NO_LENGTH)).toBe('no kilometres run');
+    expect(short(THIN)).toBeNull();
     expect(short(SMALL_GROUP)).toBe('peer group too small');
     expect(short(TINY_FLEET)).toBe('fewer than 10 buses');
     expect(short(OTHER_UNIT)).toBe('not an operating depot');
@@ -263,13 +290,12 @@ describe('no wording reads as profit, loss or margin', () => {
       loadFactor: 0.5,
       boardings: 10,
       revenue: 100,
-      lengthKm: null,
-      revenueBasis: 'flat_fare_unknown_length',
+      lengthKm: 100,
       provenance: 'modelled',
-      serviceKm: null,
-      earningsPerKm: null,
-      earningsWithheld: 'unknown_length',
-      lengthProvenance: null,
+      serviceKm: 200,
+      earningsPerKm: 0.5,
+      earningsWithheld: null,
+      lengthProvenance: 'modelled',
     } as const;
     const collected = strings([
       rows,
@@ -292,14 +318,14 @@ describe('no wording reads as profit, loss or margin', () => {
         boardings: 1,
         revenue: 1,
         loadFactor: 0.5,
-        flatFareRevenueShare: 1,
-        flatFareRouteShare: 1,
+        serviceKm: 200,
+        modelledLengthRevenueShare: 1,
         earningsPerKm: null,
         lengthCoverage: { n: 0, of: 1 },
         provenance: 'modelled',
       }),
-      withheldSentence('unknown_length'),
       withheldSentence('no_service_km'),
+      lengthCoverageLine(entries),
       coverageSentence({ n: 0, of: 3 }),
     ]).join('\n');
     // The one required sentence says "not profit"; every other string must avoid the words.
