@@ -16,6 +16,12 @@ describe('operatingDateOf', () => {
     expect(operatingDateOf('not a time', '2026-10-07T08:00:00Z')).toBe('2026-10-07');
     expect(operatingDateOf('', '2026-10-07T08:00:00Z')).toBe('2026-10-07');
   });
+
+  it('throws a RangeError when neither input begins with a valid date', () => {
+    expect(() => operatingDateOf(null, 'garbage')).toThrow(RangeError);
+    expect(() => operatingDateOf('also bad', '')).toThrow(RangeError);
+    expect(() => operatingDateOf(null, '2026-13-45T00:00:00Z')).toThrow(RangeError);
+  });
 });
 
 describe('seedFor', () => {

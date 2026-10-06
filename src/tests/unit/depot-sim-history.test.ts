@@ -56,6 +56,21 @@ describe('modelSeries shape', () => {
     expectConsecutive(leap);
     const plain = modelSeries('index', DEPOT, 10, { date: '2027-03-04', value: 60 });
     expect(plain.map((p) => p.date)).not.toContain('2027-02-29');
+    expectConsecutive(plain);
+  });
+
+  it('is consecutive across 180 days spanning a year boundary', () => {
+    const s = modelSeries('index', DEPOT, 180, { date: '2027-01-03', value: 60 });
+    expect(s).toHaveLength(180);
+    expect(s.at(-1)?.date).toBe('2027-01-03');
+    expect(s.map((p) => p.date)).toContain('2026-12-31');
+    expectConsecutive(s);
+  });
+
+  // Timezone independence rests on the code using only Date.UTC, getUTCDay and toISOString.
+  it('steps back from 1 March to 28 February in a non-leap year', () => {
+    const s = modelSeries('index', DEPOT, 7, { date: '2026-03-01', value: 60 });
+    expect(s.at(-2)?.date).toBe('2026-02-28');
   });
 
   it('ends exactly on the anchor', () => {
@@ -163,28 +178,77 @@ describe('modelSeries stability when the anchor moves a day', () => {
   // Same anchor value, anchor date one day later. Each day's variation is seeded from its own
   // date, so the only differences are the walk's starting point (which decays by the reversion
   // factor) and the weekly offset re-referenced to the new anchor weekday. Both are a few
-  // percent of the metric's span; we assert 12% as a generous but meaningful ceiling.
-  const TOLERANCE_SHARE_OF_SPAN = 0.12;
-  const SPAN: Record<MetricKey, number> = {
-    onRoadShare: 1,
-    offRoadRate: 1,
-    darkRate: 1,
-    index: 100,
-    available: 120,
-  };
+  // percent of the metric's span. The bound is relative to the series' own peak-to-trough range:
+  // measured worst case is 0.21 of it (index, driven by the weekday re-reference), so 0.28 is
+  // about a third above that. Another depot's series misses by 0.53 or more, so the control
+  // below proves the bound can fail.
+  const TOLERANCE_SHARE_OF_RANGE = 0.28;
+  const OTHER: HistoryScope = { kind: 'depot', depotId: 'NASHIK-2' };
+
+  function gapsOnSharedDates(
+    reference: readonly SeriesPoint[],
+    candidate: readonly SeriesPoint[],
+  ): number[] {
+    const byDate = new Map(candidate.map((p) => [p.date, p.value]));
+    return reference.flatMap((p) => {
+      const other = byDate.get(p.date);
+      return other === undefined ? [] : [Math.abs(other - p.value)];
+    });
+  }
+
+  function rangeOf(series: readonly SeriesPoint[]): number {
+    const values = series.map((p) => p.value);
+    return Math.max(...values) - Math.min(...values);
+  }
 
   it.each(METRICS)('overlaps closely for %s', (metric) => {
     const value = TYPICAL[metric];
     const a = modelSeries(metric, DEPOT, 120, { date: '2026-10-05', value });
     const b = modelSeries(metric, DEPOT, 120, { date: '2026-10-06', value });
-    const byDate = new Map(b.map((p) => [p.date, p.value]));
-    let overlap = 0;
-    a.forEach((p) => {
-      const other = byDate.get(p.date);
-      if (other === undefined) return;
-      overlap += 1;
-      expect(Math.abs(other - p.value)).toBeLessThanOrEqual(SPAN[metric] * TOLERANCE_SHARE_OF_SPAN);
+    const gaps = gapsOnSharedDates(a, b);
+    expect(gaps).toHaveLength(119);
+    expect(Math.max(...gaps)).toBeLessThanOrEqual(rangeOf(a) * TOLERANCE_SHARE_OF_RANGE);
+  });
+
+  it.each(METRICS)('control: another depot exceeds the same bound for %s', (metric) => {
+    const value = TYPICAL[metric];
+    const a = modelSeries(metric, DEPOT, 120, { date: '2026-10-05', value });
+    const other = modelSeries(metric, OTHER, 120, { date: '2026-10-06', value });
+    const gaps = gapsOnSharedDates(a, other);
+    expect(Math.max(...gaps)).toBeGreaterThan(rangeOf(a) * TOLERANCE_SHARE_OF_RANGE);
+  });
+});
+
+describe('modelSeries rate variation scales with the rate level', () => {
+  const at = (metric: MetricKey, value: number, days = 180): SeriesPoint[] =>
+    modelSeries(metric, DEPOT, days, { date: '2026-10-06', value });
+  const stepsOf = (s: readonly SeriesPoint[]): number[] =>
+    s.slice(1).map((p, i) => Math.abs(p.value - (s[i] as SeriesPoint).value));
+
+  it('keeps a dark rate at 3% within 0 to 0.08 with steps under 0.02', () => {
+    const s = at('darkRate', 0.03);
+    s.forEach((p) => {
+      expect(p.value).toBeGreaterThanOrEqual(0);
+      expect(p.value).toBeLessThanOrEqual(0.08);
     });
-    expect(overlap).toBe(119);
+    expect(Math.max(...stepsOf(s))).toBeLessThan(0.02);
+    expect(s.at(-1)?.value).toBe(0.03);
+  });
+
+  it('still shows visible movement for an on-road share at 50%', () => {
+    const values = at('onRoadShare', 0.5).map((p) => p.value);
+    expect(Math.max(...values) - Math.min(...values)).toBeGreaterThanOrEqual(0.05);
+  });
+
+  it.each([0, 1])('is not a flat line for a rate anchored at %s and stays in 0 to 1', (value) => {
+    for (const metric of ['onRoadShare', 'offRoadRate', 'darkRate'] as const) {
+      const s = at(metric, value, 60);
+      expect(new Set(s.map((p) => p.value)).size).toBeGreaterThanOrEqual(4);
+      s.forEach((p) => {
+        expect(p.value).toBeGreaterThanOrEqual(0);
+        expect(p.value).toBeLessThanOrEqual(1);
+      });
+      expect(s.at(-1)?.value).toBe(value);
+    }
   });
 });
