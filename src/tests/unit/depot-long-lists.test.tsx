@@ -13,9 +13,9 @@ describe('listPaging', () => {
   });
 
   it('says the range in words and clamps the page', () => {
-    expect(pageRange(1, 132).words).toBe('Rows 26 to 50 of 132');
-    expect(pageRange(9, 132)).toMatchObject({ page: 5, words: 'Rows 126 to 132 of 132', hasNext: false });
-    expect(pageRange(0, 0)).toMatchObject({ words: 'No rows', hasPrevious: false, hasNext: false });
+    expect(pageRange(1, 132)).toMatchObject({ start: 25, end: 50 });
+    expect(pageRange(9, 132)).toMatchObject({ page: 5, start: 125, end: 132, hasNext: false });
+    expect(pageRange(0, 0)).toMatchObject({ start: 0, end: 0, hasPrevious: false, hasNext: false });
   });
 });
 

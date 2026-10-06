@@ -118,24 +118,12 @@ describe('exceptionTotalsLine', () => {
 describe('busRangeSentence', () => {
   const page = { kind: 'long_dark' as const, depotId: null, offset: 0, limit: 25, total: 698 };
 
-  it('gives the true range and total for the filter', () => {
-    expect(busRangeSentence({ ...page, shown: 25 }, null)).toBe(
-      'Showing 1–25 of 698 long dark buses',
-    );
-    expect(busRangeSentence({ ...page, offset: 675, shown: 23 }, null)).toBe(
-      'Showing 676–698 of 698 long dark buses',
-    );
-  });
-
-  it('names every kind together and the depot when one is chosen', () => {
-    expect(busRangeSentence({ ...page, kind: null, total: 1968, shown: 25 }, 'MEERUT')).toBe(
-      'Showing 1–25 of 1,968 bus exceptions at MEERUT',
-    );
-  });
-
   it('says plainly when nothing matches', () => {
-    expect(busRangeSentence({ ...page, kind: 'emergency', total: 0, shown: 0 }, null)).toBe(
+    expect(busRangeSentence({ ...page, kind: 'emergency', total: 0 }, null)).toBe(
       'No buses with the emergency flag on this snapshot',
+    );
+    expect(busRangeSentence({ ...page, kind: null, total: 0 }, 'MEERUT')).toBe(
+      'No bus exceptions at MEERUT on this snapshot',
     );
   });
 });

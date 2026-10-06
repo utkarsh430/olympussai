@@ -1,7 +1,7 @@
 /**
- * Arithmetic for the long-list rule (rulings, section 3): five rows per group and
- * "Show all N", or pages of 25 where the list is the page's purpose. Pure, so the
- * range words and the edges are tested without a browser.
+ * Arithmetic for the long-list rule: five rows per group and "Show all N", or pages of
+ * 25 where the list is the page's purpose. Pure, so the edges are tested without a
+ * browser; the range sentence is worded where it is shown (`LongLists.tsx`).
  */
 
 export const GROUP_PREVIEW_ROWS = 5;
@@ -21,8 +21,6 @@ export interface PageRange {
   readonly end: number;
   readonly hasPrevious: boolean;
   readonly hasNext: boolean;
-  /** "Rows 26 to 50 of 132", "No rows". */
-  readonly words: string;
 }
 
 export function pageRange(page: number, total: number, size: number = PAGE_ROWS): PageRange {
@@ -32,7 +30,6 @@ export function pageRange(page: number, total: number, size: number = PAGE_ROWS)
   const current = Math.min(Math.max(0, Math.floor(page)), pageCount - 1);
   const start = current * safeSize;
   const end = Math.min(safeTotal, start + safeSize);
-  const words = safeTotal === 0 ? 'No rows' : `Rows ${start + 1} to ${end} of ${safeTotal}`;
   return {
     page: current,
     pageCount,
@@ -40,6 +37,5 @@ export function pageRange(page: number, total: number, size: number = PAGE_ROWS)
     end,
     hasPrevious: current > 0,
     hasNext: current < pageCount - 1,
-    words,
   };
 }
