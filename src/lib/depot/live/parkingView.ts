@@ -15,7 +15,7 @@ import type {
 } from '../yard/parkingApi';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
 import { buildDepotDetail } from './depotView';
-import { dutyPlanFor } from './operatingDayView';
+import { laterDayPlanFor } from './operatingDayView';
 import type { DutyPlan } from '../sim/dayPlan';
 
 type ParkingBody = Omit<ParkingResponse, keyof ReturnType<typeof feedEnvelope>>;
@@ -161,8 +161,8 @@ function buildBody(
   detail: DepotDetailResponse,
   operatingDate: string,
 ): ParkingBody | null {
-  // The depot's one shared plan for that date (ruling S47), as the duty board reads it.
-  const planned = dutyPlanFor(analysis, detail.depot.id, operatingDate);
+  // The depot's plan for that later date: its yard buses are the ones that will leave (S55).
+  const planned = laterDayPlanFor(analysis, detail.depot.id, operatingDate);
   if (!planned) return null;
   const bays = modelDepotMaster(detail.depot).parkingCapacity;
   const capacity = capacityOf(detail, bays);

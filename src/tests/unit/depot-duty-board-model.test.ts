@@ -195,10 +195,11 @@ describe('sentences', () => {
     );
   });
 
-  it("states the cost in the assignment module's own terms", () => {
+  it("states the cost in the assignment module's own terms, in its tier order (S47, S55)", () => {
     expect(COST_SENTENCE).toBe(
-      'The matching minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses. A bus is never matched to a duty of another service class.',
+      'The matching keeps buses out on the road in the day first, buses in service before buses merely moving; then it gives a route’s duties to buses running that route, prefers a bus of the duty’s service class, and fits buses to the feed time. Among what is left it minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses.',
     );
+    expect(COST_SENTENCE).not.toMatch(/never matched/);
     expect(COST_SENTENCE).not.toMatch(/optimal/i);
   });
 
@@ -241,15 +242,17 @@ describe('sentences', () => {
     expect(nowSentence('2026-10-06T23:59:00Z')).toBe('Now 23:59, the feed clock in Indian time.');
   });
 
-  it('describes why an unassigned duty has no bus', () => {
-    const base = duty({ registrationNumber: null, state: 'no_bus' });
+  it('describes why an unassigned duty has no bus, whatever its class (S55, N6)', () => {
+    const base = duty({ registrationNumber: null, state: 'no_bus', serviceClass: 'express' });
     expect(reasonSentence(duty())).toBeNull();
-    expect(reasonSentence({ ...base, blockers: { notInYard: 2, offRoad: 1, dark: 0 } })).toBe(
-      'No free ordinary bus. Held out of the matching: 2 not in the yard, 1 off the road. Every other ordinary bus is on another duty.',
+    const held = { notInYard: 2, notHeard: 1, offRoad: 1, dark: 0 };
+    expect(reasonSentence({ ...base, blockers: held })).toBe(
+      'No eligible bus is left: every eligible bus has another duty. Held out of the matching: 1 not heard recently, 2 not in the yard, 1 off the road.',
     );
     expect(reasonSentence({ ...base, blockers: { notInYard: 0, offRoad: 0, dark: 0 } })).toBe(
-      'No free ordinary bus. Every ordinary bus the depot has is on another duty, or it has none.',
+      'No eligible bus is left: every eligible bus has another duty, or the depot has none.',
     );
+    expect(reasonSentence({ ...base, blockers: held })).not.toMatch(/express/);
   });
 
   it('never says every eligible bus has a duty beside a matching that proposed none', () => {
@@ -270,11 +273,25 @@ describe('sentences', () => {
     expect(spareSentence([], { assigned: 3, locationIgnored: false })).toBe(
       'No bus is spare: every eligible bus has a duty.',
     );
-    expect(spareSentence(['A', 'B'], { assigned: 3, locationIgnored: true })).toBe(
-      '2 buses are standing with no duty.',
-    );
-    expect(spareSentence(['A', 'B'])).toBe('2 buses are in the yard with no duty.');
-    expect(spareSentence(['A'])).toBe('1 bus is in the yard with no duty.');
+    expect(spareSentence(['A', 'B'])).toBe('2 buses have no duty.');
+    expect(spareSentence(['A'])).toBe('1 bus has no duty.');
+  });
+
+  it('says where the spare buses stand, never calling them all in the yard (S55, N2)', () => {
+    const fifteen = Array.from({ length: 15 }, (_, i) => `B${i}`);
+    const ctx = { assigned: 40, locationIgnored: false };
+    expect(
+      spareSentence(fifteen, { ...ctx, byStanding: { inYard: 5, standing: 0, onRoad: 10 } }),
+    ).toBe('15 buses have no duty: 5 in the yard, 10 on the road.');
+    expect(
+      spareSentence(['A', 'B'], { ...ctx, byStanding: { inYard: 2, standing: 0, onRoad: 0 } }),
+    ).toBe('2 buses are in the yard with no duty.');
+    expect(
+      spareSentence(['A', 'B'], { ...ctx, byStanding: { inYard: 0, standing: 2, onRoad: 0 } }),
+    ).toBe('2 buses are standing with no duty.');
+    expect(
+      spareSentence(['A'], { ...ctx, byStanding: { inYard: 0, standing: 0, onRoad: 1 } }),
+    ).toBe('1 bus is on the road with no duty.');
   });
 });
 

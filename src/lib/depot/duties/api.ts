@@ -1,23 +1,28 @@
 import type { DepotFeedEnvelope } from '../api';
 import type { ServiceClass } from '../sim/types';
-import type { BusStandingNow } from './types';
+import type { BusStandingNow, SpareByStanding } from './types';
 
 /**
  * What a duty is doing on the board. `assigned` means the matching proposed a
  * bus (standing, or already out on the road: see `busStanding`); the other two
- * are duties left without one. `bus_not_in_yard` is used when at least one
- * standing bus of the duty's class is held out because it is away from the
- * yard or not heard recently; `no_bus` is every other shortfall.
+ * are duties left without one because no eligible bus of any class was left.
+ * `bus_not_in_yard` is used when at least one bus, of any class, is held out
+ * because it stands away from the yard; `no_bus` is every other shortfall.
  */
 export type DutyState = 'assigned' | 'no_bus' | 'bus_not_in_yard';
 
 /** The buses the matching could not use, by reason. */
 export interface DutyBlockers {
   /**
-   * Not in the yard. When the response says `eligibilityIgnoredLocation`, there
-   * is no yard: this then counts buses that are not standing on a recent report.
+   * Standing away from the established yard. Zero when the response says
+   * `eligibilityIgnoredLocation` (no yard: location decides nothing).
    */
   readonly notInYard: number;
+  /**
+   * Not heard within the reporting window, moving or standing (ruling S55).
+   * Always sent; zero when the feed has no clock (`recencyNotJudged`).
+   */
+  readonly notHeard?: number;
   readonly offRoad: number;
   readonly dark: number;
 }
@@ -39,8 +44,14 @@ export interface BoardDuty {
    * duty with a bus is `assigned` whatever this says.
    */
   readonly busStanding?: BusStandingNow | null;
+  /**
+   * The service class of the duty's bus, so a page can show a bus of another
+   * class on the duty (class is a preference, ruling S47). Null when the duty
+   * has no bus. Always sent.
+   */
+  readonly busClass?: ServiceClass | null;
   readonly state: DutyState;
-  /** For an unassigned duty: the buses of its own class held out of the matching. Null when assigned. */
+  /** For an unassigned duty: the buses of every class held out of the matching. Null when assigned. */
   readonly blockers: DutyBlockers | null;
 }
 
@@ -51,6 +62,8 @@ export interface DutyBoardCounts {
   readonly unassigned: number;
   /** Eligible buses with no duty. */
   readonly spare: number;
+  /** The spare buses by where they stand now; they sum to `spare` (ruling S55). Always sent. */
+  readonly spareByStanding?: SpareByStanding;
   /** Buses held out of the matching, by reason, whatever their class. */
   readonly excluded: DutyBlockers;
 }
@@ -77,6 +90,11 @@ export interface DutyBoardResponse extends DepotFeedEnvelope {
    * eligibility: every standing bus heard recently was eligible. Always sent.
    */
   readonly eligibilityIgnoredLocation?: boolean;
+  /**
+   * True when the feed has no clock, so no bus's last report could be aged and
+   * recency did not decide eligibility (ruling S55). Always sent.
+   */
+  readonly recencyNotJudged?: boolean;
   /** Feed rows left out because their registration repeated an earlier row's. Always sent. */
   readonly duplicateRowsDropped?: number;
 }

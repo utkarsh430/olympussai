@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as depotView from '@/lib/depot/live/depotView';
 import type { DepotBusRow } from '@/models/depotLive';
 import { fromMetres } from '@/lib/depot/infer/geo';
-import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
+import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
+import { dutyPlanFor } from '@/lib/depot/live/operatingDayView';
 import { buildDutyBoard } from '@/lib/depot/live/dutyView';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
 
@@ -120,21 +121,53 @@ describe('buildDutyBoard', () => {
     expect(b.duties.map((d) => d.id)).toEqual(sorted.map((d) => d.id));
   });
 
+  it('counts the held-out buses of every class on each unassigned duty (S55, N6)', () => {
+    const quietSince = new Date(Date.parse(FEED_NOW) - 90 * 60_000).toISOString();
+    const rows = [
+      ...scattered(),
+      row({ registrationNumber: 'E1', routeName: 'EXP_1', latitude: 27.5 }),
+      row({ registrationNumber: 'E2', routeName: 'EXP_1', latitude: 27.6 }),
+    ].map((r) => ({ ...r, gpsTimestamp: quietSince }));
+    const b = board(rows);
+    expect(b.counts.excluded.notHeard).toBe(8);
+    for (const d of b.duties) expect(d.blockers).toEqual(b.counts.excluded);
+  });
+
+  it('carries the class of the bus on each assigned duty, so a mismatch can be shown (m6)', () => {
+    const rows = [...parked(), row({ registrationNumber: 'E1', routeName: 'EXP_1' })];
+    const b = board(rows);
+    const plan = dutyPlanFor(analyseSnapshot(view(rows)), '1', b.operatingDate);
+    for (const d of b.duties) {
+      const expected = d.registrationNumber === null ? null : plan?.fleet.get(d.registrationNumber)?.serviceClass;
+      expect(d.busClass).toBe(expected);
+    }
+  });
+
+  it('hands out frozen copies of the shared plan’s lists, never the lists themselves (m4)', () => {
+    const rows = parked(12);
+    const b = board(rows);
+    const plan = dutyPlanFor(analyseSnapshot(view(rows)), '1', b.operatingDate);
+    expect(b.spareBuses).not.toBe(plan?.plan.spareBuses);
+    expect(b.routesWithoutDuty).not.toBe(plan?.routesWithoutDuty);
+    expect(Object.isFrozen(b.spareBuses)).toBe(true);
+    expect(Object.isFrozen(b.routesWithoutDuty)).toBe(true);
+  });
+
   it('carries the reason through: a depot with no usable bus leaves every duty without one', () => {
-    // No yard, and none of the buses was heard inside the reporting window: with no yard
-    // only a standing bus on a recent report is eligible, so every bus is held out.
+    // No yard, and none of the buses was heard inside the reporting window: every bus is
+    // held out as not heard recently (S55), and no duty blames the yard.
     const quietSince = new Date(Date.parse(FEED_NOW) - 90 * 60_000).toISOString();
     const b = board(scattered().map((r) => ({ ...r, gpsTimestamp: quietSince })));
     expect(b.eligibilityIgnoredLocation).toBe(true);
     expect(b.counts.assigned).toBe(0);
     expect(b.counts.unassigned).toBe(b.counts.duties);
-    expect(b.counts.excluded.notInYard).toBe(6);
+    expect(b.counts.excluded.notHeard).toBe(6);
+    expect(b.counts.excluded.notInYard).toBe(0);
     for (const d of b.duties) {
       expect(d.registrationNumber).toBeNull();
-      expect(d.blockers).not.toBeNull();
-      expect(d.state).toBe(d.blockers && d.blockers.notInYard > 0 ? 'bus_not_in_yard' : 'no_bus');
+      expect(d.blockers?.notHeard).toBe(6);
+      expect(d.state).toBe('no_bus');
     }
-    expect(b.duties.some((d) => d.state === 'bus_not_in_yard')).toBe(true);
   });
 
   it('gives an assigned duty a bus, no blockers and the assigned state', () => {
@@ -195,7 +228,7 @@ describe('buildDutyBoard without a yard, and with repeated rows', () => {
   it('matches standing buses heard recently and says location was ignored', () => {
     const b = board(scattered(6));
     expect(b.eligibilityIgnoredLocation).toBe(true);
-    expect(b.counts.excluded).toEqual({ notInYard: 0, offRoad: 0, dark: 0 });
+    expect(b.counts.excluded).toEqual({ notInYard: 0, notHeard: 0, offRoad: 0, dark: 0 });
     expect(b.counts.assigned + b.counts.spare).toBe(6);
     expect(b.counts.assigned).toBeGreaterThan(0);
   });

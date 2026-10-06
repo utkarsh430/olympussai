@@ -101,6 +101,12 @@ const countBy = (names: readonly string[]): Record<string, number> =>
   names.reduce<Record<string, number>>((acc, n) => ({ ...acc, [n]: (acc[n] ?? 0) + 1 }), {});
 
 describe('every page reads the one shared day (review I4)', () => {
+  it('carries the operating date the day is for on every response, so pages can date it (M2)', async () => {
+    const { board, crew, fuel, revenue, economics, day } = await pages();
+    const dates = [board, crew, fuel, revenue, economics].map((r) => r.operatingDate);
+    expect(new Set(dates)).toEqual(new Set([day.operatingDate]));
+  });
+
   it('states the same day summary, the same route split and the same bus for every duty', async () => {
     const { board, crew, fuel, revenue, economics, day } = await pages();
     expect(board.duties.length).toBeGreaterThan(0);

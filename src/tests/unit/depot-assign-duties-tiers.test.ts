@@ -56,17 +56,20 @@ describe('assignDuties eligibility (ruling S47 b)', () => {
     expect(new Set(Object.values(busOf(plan)))).toEqual(new Set(['A', 'B', null]));
   });
 
-  it('with a yard, a standing bus on an old report is not eligible though it reported the yard', () => {
-    const plan = assignDuties([duty('1', 'R')], [bus('A', 'standing', null, 'in_yard', 300)], fleetOf([]));
-    expect(plan.excluded).toEqual([{ registrationNumber: 'A', reason: 'not_in_yard' }]);
+  it('with a yard, a standing bus on an old report is not heard recently though it reported the yard', () => {
+    const plan = assignDuties([duty('1', 'R')], [bus('A', 'standing', null, 'in_yard', 300)], fleetOf([]), {
+      now: { kind: 'feed_time', feedMinute: 600 },
+    });
+    expect(plan.excluded).toEqual([{ registrationNumber: 'A', reason: 'not_heard' }]);
     expect(plan.unassignedDuties).toBe(1);
   });
 
   it('without a yard, a standing bus on an old report is not eligible either', () => {
     const plan = assignDuties([duty('1', 'R')], [bus('A', 'standing', null, 'unknown', 300)], fleetOf([]), {
       yardEstablished: false,
+      now: { kind: 'feed_time', feedMinute: 600 },
     });
-    expect(plan.excluded).toEqual([{ registrationNumber: 'A', reason: 'not_in_yard' }]);
+    expect(plan.excluded).toEqual([{ registrationNumber: 'A', reason: 'not_heard' }]);
   });
 });
 
@@ -102,10 +105,10 @@ describe('assignDuties cost tiers (ruling S47 b)', () => {
   it('4: a started duty takes the bus on the road, one still to start the standing bus', () => {
     const buses = [bus('A', 'on_road'), bus('B', 'standing')];
     const duties = [duty('early', 'R', 300), duty('late', 'R', 900)];
-    const plan = assignDuties(duties, buses, fleetOf([]), { feedMinute: 600 });
+    const plan = assignDuties(duties, buses, fleetOf([]), { now: { kind: 'feed_time', feedMinute: 600 } });
     expect(busOf(plan)).toEqual({ early: 'A', late: 'B' });
     const swapped = assignDuties(duties, [bus('A', 'standing'), bus('B', 'on_road')], fleetOf([]), {
-      feedMinute: 600,
+      now: { kind: 'feed_time', feedMinute: 600 },
     });
     expect(busOf(swapped)).toEqual({ early: 'B', late: 'A' });
   });
@@ -117,7 +120,7 @@ describe('assignDuties tier weights hold at a large depot', () => {
       bus(`B${String(i).padStart(3, '0')}`, i % 3 === 0 ? 'in_service' : 'standing', `R${i % 7}`),
     );
     const duties = Array.from({ length: 250 }, (_, i) => duty(`D${i}`, `R${i % 5}`, 240 + (i % 60) * 10));
-    const plan = assignDuties(duties, buses, fleetOf([]), { feedMinute: 600 });
+    const plan = assignDuties(duties, buses, fleetOf([]), { now: { kind: 'feed_time', feedMinute: 600 } });
     const taken = new Set(plan.assignments.map((a) => a.registrationNumber));
     for (const b of buses) if (b.state === 'in_service') expect(taken.has(b.registrationNumber)).toBe(true);
     expect(plan.unassignedDuties).toBe(0);

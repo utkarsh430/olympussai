@@ -39,7 +39,25 @@ export interface TimetableRepository {
   dutiesFor(depotId: string, operatingDate: string): Promise<readonly Duty[]>;
 }
 
-export type Ineligibility = 'off_road' | 'dark' | 'not_in_yard' | 'class_mismatch';
+/**
+ * Why a bus is held out of the matching. `not_heard`: its last report is older
+ * than the reporting window, moving or standing (ruling S55). `class_mismatch`
+ * is no longer produced (class is a cost, ruling S47); kept so the vocabulary
+ * only grows.
+ */
+export type Ineligibility = 'off_road' | 'dark' | 'not_in_yard' | 'not_heard' | 'class_mismatch';
+
+/**
+ * The moment a plan is made "as of" (ruling S55). A plan for the feed's own
+ * operating date is as of the feed clock (`feedMinute`, minutes past midnight),
+ * or of no clock when the feed has none. A plan for a later date (the night
+ * parking order plans tomorrow) is not as of any moment of that day: how the
+ * buses stand now cannot rank them for it.
+ */
+export type PlanNow =
+  | { readonly kind: 'feed_time'; readonly feedMinute: number }
+  | { readonly kind: 'no_feed_clock' }
+  | { readonly kind: 'later_day' };
 
 /**
  * How a bus with a duty stands now, by its live state: out on the road (in
@@ -56,10 +74,20 @@ export interface DutyAssignment {
   readonly busStanding: BusStandingNow | null;
 }
 
+/** Spare buses by how they stand now (ruling S55): a spare bus may be out on the road. */
+export interface SpareByStanding {
+  readonly inYard: number;
+  /** Standing where the depot has no yard established, so location is not judged. */
+  readonly standing: number;
+  readonly onRoad: number;
+}
+
 export interface AssignmentPlan {
   readonly assignments: readonly DutyAssignment[];
   /** Eligible buses left without a duty, sorted by registration. */
   readonly spareBuses: readonly string[];
+  /** The spare buses counted by how they stand now. */
+  readonly spareByStanding: SpareByStanding;
   /** Sorted by registration. */
   readonly excluded: readonly {
     readonly registrationNumber: string;

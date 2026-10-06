@@ -139,7 +139,7 @@ describe('DutyBoard', () => {
     expect(body[1]).toContain('Unmatched');
     expect(body[2]).toContain('23:00');
     expect(body[2]).toContain('02:00 next day');
-    expect(body[1]).not.toContain('No free express bus');
+    expect(body[1]).not.toContain('No eligible bus is left');
     // The full text opens from the row's expander (the shared table's), not a selection.
     act(() =>
       table
@@ -148,7 +148,7 @@ describe('DutyBoard', () => {
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true })),
     );
     expect(container.querySelector('[data-testid="duty-row-detail"]')?.textContent).toContain(
-      'No free express bus',
+      'No eligible bus is left',
     );
     expect(button('Table').getAttribute('aria-pressed')).toBe('true');
     act(() => button('Chart').click());
@@ -171,7 +171,7 @@ describe('DutyBoard', () => {
     const rows = [...container.querySelectorAll('[data-testid="duty-row"]')];
     const unassigned = rows[1]?.textContent ?? '';
     expect(unassigned).toContain('modelled');
-    expect(unassigned).toContain('No free express bus');
+    expect(unassigned).toContain('No eligible bus is left');
     expect(rows[0]?.textContent).toContain('(modelled). Assigned: UP32A0001');
     expect(container.querySelector('[title^="Route"]')).toBeNull();
   });

@@ -1,6 +1,7 @@
 import { formatCount, formatFeedTime } from '../format';
 import { modelledDaySentence, type ModelledDayReference } from '../sim/operatingDayWording';
 import type { BoardDuty, DutyBlockers, DutyBoardCounts, DutyState } from './api';
+import type { SpareByStanding } from './types';
 
 /** The timeline axis: 04:00 to 24:00 in the feed's local time. */
 export const AXIS_START_MIN = 240;
@@ -15,9 +16,12 @@ const PERCENT = 100;
 export const MODEL_NOTICE =
   'Duties are a model until a timetable is supplied, and their lengths are generated, not timetabled. The matching of buses to duties is a recommendation: nothing is assigned or dispatched.';
 
-/** Wording follows `assignDuties`: cost is age in years x duty hours; classes never mix. */
+/**
+ * Wording follows `assignDuties`' tiers in order (rulings S47, S55): class is a
+ * preference, not a bar, so a bus of another class can take a duty.
+ */
 export const COST_SENTENCE =
-  'The matching minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses. A bus is never matched to a duty of another service class.';
+  'The matching keeps buses out on the road in the day first, buses in service before buses merely moving; then it gives a route’s duties to buses running that route, prefers a bus of the duty’s service class, and fits buses to the feed time. Among what is left it minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses.';
 
 export const STATE_WORD: Readonly<Record<DutyState, string>> = {
   assigned: 'Assigned',
@@ -178,41 +182,65 @@ export interface SpareContext {
   readonly assigned: number;
   /** `eligibilityIgnoredLocation`: no yard, so "in the yard" cannot be said. */
   readonly locationIgnored: boolean;
+  /** `counts.spareByStanding`: where the spare buses stand. Without it, no place is said. */
+  readonly byStanding?: SpareByStanding;
 }
 
+/**
+ * How many buses have no duty and, when the response says, where they stand
+ * (ruling S55): a spare bus may be out on the road, so they are never all
+ * called "in the yard". Without the split no place is claimed.
+ */
 export function spareSentence(spare: readonly string[], context?: SpareContext): string {
   if (spare.length === 0) {
     const reason = noSpareReason(context?.assigned ?? null);
     return reason === null ? 'No bus is spare.' : `No bus is spare: ${reason}.`;
   }
-  const where = context?.locationIgnored ? 'standing' : 'in the yard';
-  return `${formatCount(spare.length)} ${plural(spare.length, 'bus is', 'buses are')} ${where} with no duty.`;
+  const n = spare.length;
+  const split = context?.byStanding;
+  const parts = split === undefined ? [] : [
+    split.inYard > 0 ? { n: split.inYard, where: 'in the yard' } : null,
+    split.standing > 0 ? { n: split.standing, where: 'standing' } : null,
+    split.onRoad > 0 ? { n: split.onRoad, where: 'on the road' } : null,
+  ].filter((p): p is { n: number; where: string } => p !== null);
+  const only = parts.length === 1 ? parts[0] : undefined;
+  if (only !== undefined && only.n === n) {
+    return `${formatCount(n)} ${plural(n, 'bus is', 'buses are')} ${only.where} with no duty.`;
+  }
+  const head = `${formatCount(n)} ${plural(n, 'bus has', 'buses have')} no duty`;
+  if (parts.length === 0) return `${head}.`;
+  return `${head}: ${parts.map((p) => `${formatCount(p.n)} ${p.where}`).join(', ')}.`;
 }
 
 /**
- * Buses held out of the matching, counted. With no yard established the server
- * ignored location, so its "not in the yard" count means "not standing on a recent
- * report" and is worded so (`eligibilityIgnoredLocation`).
+ * Buses held out of the matching, counted. "Not heard recently" is its own
+ * reason, moving or standing (ruling S55). With no yard established the server
+ * ignores location, so a "not in the yard" count is then worded as "not
+ * standing on a recent report" (`eligibilityIgnoredLocation`).
  */
 export function heldOutParts(blockers: DutyBlockers, locationIgnored = false): readonly string[] {
   const where = locationIgnored ? 'not standing on a recent report' : 'not in the yard';
+  const notHeard = blockers.notHeard ?? 0;
   return [
+    notHeard > 0 ? `${formatCount(notHeard)} not heard recently` : null,
     blockers.notInYard > 0 ? `${formatCount(blockers.notInYard)} ${where}` : null,
     blockers.offRoad > 0 ? `${formatCount(blockers.offRoad)} off the road` : null,
     blockers.dark > 0 ? `${formatCount(blockers.dark)} dark` : null,
   ].filter((p): p is string => p !== null);
 }
 
-/** Why a duty has no bus; null for an assigned duty. */
+/**
+ * Why a duty has no bus; null for an assigned duty. Class is a cost, not a bar
+ * (ruling S47), so a duty is left without a bus only when no eligible bus of
+ * ANY class is left, and the held-out counts are of every class (ruling S55).
+ */
 export function reasonSentence(duty: BoardDuty, locationIgnored = false): string | null {
   if (duty.registrationNumber !== null) return null;
-  const head = `No free ${duty.serviceClass} bus.`;
+  const head = 'No eligible bus is left: every eligible bus has another duty';
   const held =
     duty.blockers === null ? '' : heldOutParts(duty.blockers, locationIgnored).join(', ');
-  if (held === '') {
-    return `${head} Every ${duty.serviceClass} bus the depot has is on another duty, or it has none.`;
-  }
-  return `${head} Held out of the matching: ${held}. Every other ${duty.serviceClass} bus is on another duty.`;
+  if (held === '') return `${head}, or the depot has none.`;
+  return `${head}. Held out of the matching: ${held}.`;
 }
 
 function describe(duty: BoardDuty, timeText: string, stateWord: string): string {

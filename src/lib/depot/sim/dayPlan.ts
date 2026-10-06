@@ -1,5 +1,5 @@
 import type { DepotBusView } from '../api';
-import type { AssignmentPlan, Duty } from '../duties/types';
+import type { AssignmentPlan, Duty, PlanNow } from '../duties/types';
 import { assignDuties } from '../optimise/assignDuties';
 import type { DepotSummary } from '../types';
 import { modelDuties } from './duties';
@@ -24,6 +24,8 @@ export interface DutyPlan {
   readonly plan: AssignmentPlan;
   /** True when the depot has no yard, so eligibility ignored location. */
   readonly locationIgnored: boolean;
+  /** True when the feed has no clock, so recency did not decide eligibility (ruling S55). */
+  readonly recencyNotJudged: boolean;
   /** Feed rows left out because their registration repeated an earlier one's. */
   readonly duplicateRowsDropped: number;
 }
@@ -36,8 +38,8 @@ export interface DayPlanInput {
   readonly operatingDate: string;
   /** False when the depot has no yard: location then cannot decide eligibility. */
   readonly yardEstablished: boolean;
-  /** Minutes past midnight on the feed clock when it reads the operating date, else null. */
-  readonly feedMinute: number | null;
+  /** As of when the plan is made: the feed clock, no clock, or a later day (ruling S55). */
+  readonly now: PlanNow;
 }
 
 const FEED_CLOCK = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/;
@@ -108,7 +110,7 @@ export function planDay(input: DayPlanInput): DutyPlan {
   );
   const plan = assignDuties(duties, buses, fleet, {
     yardEstablished: input.yardEstablished,
-    feedMinute: input.feedMinute,
+    now: input.now,
   });
   return {
     duties,
@@ -119,6 +121,7 @@ export function planDay(input: DayPlanInput): DutyPlan {
     fleet,
     plan,
     locationIgnored: !input.yardEstablished,
+    recencyNotJudged: input.now.kind === 'no_feed_clock',
     duplicateRowsDropped: dropped,
   };
 }

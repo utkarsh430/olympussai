@@ -5,17 +5,23 @@ import type {
   Duty,
   DutyAssignment,
   Ineligibility,
+  PlanNow,
 } from '../duties/types';
 import type { ModelledBus, ServiceClass } from '../sim/types';
 import { isRecentlyHeard } from '../infer/busState';
+import { MAX_BUS_AGE_YEARS } from '../sim/config';
 import { hungarian } from './hungarian';
 
 const MINUTES_PER_HOUR = 60;
 /** Age assumed for a bus the fleet master does not know when the master is empty. */
 const EMPTY_MASTER_AGE_YEARS = 0;
 const DEFAULT_CLASS: ServiceClass = 'ordinary';
+/** The longest modelled duty, in whole hours (`sim/duties.ts` caps a duty at 960 min). */
+const MAX_DUTY_HOURS = 16;
+/** The base tier's cap: the oldest modelled bus on the longest duty. */
+export const MAX_BASE_COST = MAX_BUS_AGE_YEARS * MAX_DUTY_HOURS;
 
-type Exclusion = 'off_road' | 'dark' | 'not_in_yard';
+type Exclusion = 'off_road' | 'dark' | 'not_in_yard' | 'not_heard';
 
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -45,32 +51,54 @@ export interface AssignDutiesOptions {
    */
   readonly yardEstablished?: boolean;
   /**
-   * Minutes past midnight on the feed clock. A duty that has started by then
-   * prefers a bus on the road; one still to start prefers a standing bus. Null
-   * or absent: no duty is treated as started.
+   * As of when the plan is made (ruling S55). On the feed clock, a duty that
+   * has started by then prefers a bus on the road and one still to start a
+   * standing bus. For a later day, how the buses stand now does not count: the
+   * buses standing in the yard are the ones that will leave it, so only they
+   * are eligible, and nothing is ranked by being on the road. Defaults to a
+   * feed with no clock: no duty is treated as started.
    */
-  readonly feedMinute?: number | null;
+  readonly now?: PlanNow;
 }
 
-/** Standing, on a report recent enough to say where the bus is standing now. */
-function isStandingNow(bus: DepotBusView): boolean {
-  return (
-    bus.state === 'standing' && isRecentlyHeard(bus.gpsAgeMin) && (bus.notHeardMin ?? null) === null
-  );
+const NO_FEED_CLOCK: PlanNow = { kind: 'no_feed_clock' };
+
+/**
+ * Heard within the module's reporting window (`isRecentlyHeard`, the rule a
+ * bus's "not heard for N min" comes from), whether moving or standing. A last
+ * report older than that cannot say how the bus stands now (ruling S55).
+ */
+function isHeardRecently(bus: DepotBusView): boolean {
+  return isRecentlyHeard(bus.gpsAgeMin) && (bus.notHeardMin ?? null) === null;
 }
 
 /**
  * How an eligible bus stands now, or why it is not eligible: off the road and
- * dark never; in service or on the road always (it is out working); a standing
- * bus only on a recent report (yard or not: an old report cannot say where it
- * stands now, which `not_in_yard` covers) and, when a yard is established,
- * only in it.
+ * dark never; then, when the feed has a clock, a bus not heard recently
+ * (`not_heard`) whether moving or standing; with no clock no report can be
+ * aged, so recency is not judged. In service or on the road is eligible (it is
+ * out working); a standing bus, when a yard is established, only in it.
  */
-function standingOf(bus: DepotBusView, yardEstablished: boolean): BusStandingNow | Exclusion {
+function standingOf(
+  bus: DepotBusView,
+  yardEstablished: boolean,
+  now: PlanNow,
+): BusStandingNow | Exclusion {
   if (bus.state === 'off_road') return 'off_road';
   if (bus.state === 'dark') return 'dark';
+  if (now.kind === 'later_day') return laterDayStanding(bus, yardEstablished);
+  if (now.kind === 'feed_time' && !isHeardRecently(bus)) return 'not_heard';
   if (bus.state === 'in_service' || bus.state === 'on_road') return 'on_road';
-  if (!isStandingNow(bus)) return 'not_in_yard';
+  if (!yardEstablished) return 'standing';
+  return bus.location === 'in_yard' ? 'in_yard' : 'not_in_yard';
+}
+
+/**
+ * For a later day: a bus the feed places in the yard will leave it (the yard's
+ * parking order is about exactly these buses); every other bus is not in the
+ * yard. With no yard established, location cannot decide: every available bus.
+ */
+function laterDayStanding(bus: DepotBusView, yardEstablished: boolean): BusStandingNow | Exclusion {
   if (!yardEstablished) return 'standing';
   return bus.location === 'in_yard' ? 'in_yard' : 'not_in_yard';
 }
@@ -78,22 +106,52 @@ function standingOf(bus: DepotBusView, yardEstablished: boolean): BusStandingNow
 interface Candidate {
   readonly bus: DepotBusView;
   readonly standing: BusStandingNow;
+  /**
+   * Tiers 1 and 2 in one per-bus rank: 0 in service, 1 merely on the road,
+   * 2 standing. For a later day every bus ranks 0: how it stands now does not count.
+   */
+  readonly rank: number;
+}
+
+function rankOf(bus: DepotBusView, standing: BusStandingNow, now: PlanNow): number {
+  if (now.kind === 'later_day') return 0;
+  if (standing !== 'on_road') return 2;
+  return bus.state === 'in_service' ? 0 : 1;
+}
+
+/**
+ * Tiers 1 and 2 depend on the bus alone, and every duty can take every
+ * eligible bus, so a matching is lexicographically best on them exactly when
+ * it uses every bus ranked better than the `pairs`-th best rank and none ranked
+ * worse. The worse ones are left spare here; of the rest, a 0/1 "boundary"
+ * tier (the bus has that boundary rank) makes the matching use all the better
+ * ones first. Two per-bus tiers thus cost one 0/1 tier, which keeps the
+ * weights inside exact integer arithmetic (see `tierWeights`).
+ */
+function selectByRank(
+  eligible: readonly Candidate[],
+  pairs: number,
+): { readonly inPlay: readonly Candidate[]; readonly boundary: number } {
+  const ranks = eligible.map((c) => c.rank).sort((a, b) => a - b);
+  const boundary = pairs > 0 ? (ranks[pairs - 1] as number) : 0;
+  return { inPlay: eligible.filter((c) => c.rank <= boundary), boundary };
 }
 
 /** The pair's cost in tiers, highest first; each tier but the last is 0 or 1. */
 function tiersOf(duty: Duty, candidate: Candidate, ctx: CostContext): readonly number[] {
-  const { bus, standing } = candidate;
+  const { bus, standing, rank } = candidate;
   const onRoad = standing === 'on_road';
   const modelled = ctx.fleet.get(bus.registrationNumber);
   const started = ctx.feedMinute !== null && duty.startMin <= ctx.feedMinute;
   const age =
     modelled !== undefined && Number.isFinite(modelled.ageYears) ? modelled.ageYears : ctx.fallbackAge;
+  const base = Math.round(age * Math.round((duty.endMin - duty.startMin) / MINUTES_PER_HOUR));
   return [
-    onRoad ? 0 : 1,
+    rank < ctx.boundary ? 0 : 1,
     bus.routeName === duty.routeName ? 0 : 1,
     (modelled?.serviceClass ?? DEFAULT_CLASS) === duty.serviceClass ? 0 : 1,
     started === onRoad ? 0 : 1,
-    Math.round(age * Math.round((duty.endMin - duty.startMin) / MINUTES_PER_HOUR)),
+    Math.min(Math.max(base, 0), MAX_BASE_COST),
   ];
 }
 
@@ -101,20 +159,27 @@ interface CostContext {
   readonly fleet: ReadonlyMap<string, ModelledBus>;
   readonly fallbackAge: number;
   readonly feedMinute: number | null;
+  /** The rank the last pairs are drawn from (`selectByRank`). */
+  readonly boundary: number;
 }
 
 /**
  * Weights that make the tiers lexicographic: each tier's weight exceeds the
  * most every lower tier can add up to over a whole matching (`pairs` pairs),
- * so no number of lower-tier savings can pay for one higher-tier cost. The
- * top weight grows as (pairs + 1)^4 x largest base: for 400 pairs (a larger
- * depot than any in the network) and a base of 20 years x 20 hours it is about
- * 1.03e13, and a matching's total is under pairs x 2 x the top weight, about
- * 8.2e15, below 2^53 (9.0e15), so every sum and every reduced cost is exact.
- * The guard checks that bound; should a depot ever pass it, the base tier (age
- * x hours, the least important) is dropped rather than lose precision.
+ * so no number of lower-tier savings can pay for one higher-tier cost.
+ *
+ * The bound (ruling S55). There are five weighted tiers: the boundary tier
+ * (which carries "on the road" and "in service", see `selectByRank`), route,
+ * class, time fit, each 0 or 1, and the base, capped at MAX_BASE_COST = 15
+ * years x 16 h = 240. With P pairs the weights are 1, then w(k+1) = 1 + P x
+ * (B + w1 + ... + wk) for B = 240, so the top weight is under (P + 1)^4 x B.
+ * At P = 400 it is about 6.2e12; a cell is under 2 x the top weight, and a
+ * matching's total under P x that: 2 x 6.2e12 x 401 is about 5.0e15 < 2^53
+ * (9.0e15). Every cell, total and reduced cost is an exact integer. The guard
+ * re-checks it; past about 450 pairs (no depot comes near) the base tier is
+ * dropped rather than lose precision in the tiers above it.
  */
-function tierWeights(pairs: number, largestBase: number): readonly number[] {
+export function tierWeights(pairs: number, largestBase: number): readonly number[] {
   const build = (base: number): number[] => {
     const weights = [1];
     let reach = pairs * base;
@@ -133,23 +198,27 @@ function tierWeights(pairs: number, largestBase: number): readonly number[] {
 const TIERS = 5;
 
 /**
- * Proposes which bus runs which duty: an exact minimum-cost matching (ruling
- * S47). Buses off the road or dark, and standing buses that are not known to
- * be in the yard now, are excluded first, each with one reason. Every other
- * pairing is allowed and costed in lexicographic tiers:
- *  1. a bus on the road (in service or not) before a standing one, so when
- *     there are fewer duties than buses the buses left over are standing ones;
- *  2. a bus reporting the duty's route live takes that route's duty;
- *  3. a bus of the duty's service class;
- *  4. time fit: a duty started by the feed time on a bus on the road, a duty
+ * Proposes which bus runs which duty: an exact minimum-cost matching (rulings
+ * S47, S55). Buses off the road or dark, buses not heard recently (when the
+ * feed has a clock), and standing buses away from an established yard are
+ * excluded first, each with one reason; a later day's plan takes the buses in
+ * the yard. Every other pairing is allowed and costed in lexicographic tiers:
+ *  1. a bus on the road before a standing one, so when there are fewer duties
+ *     than buses the buses left over are standing ones;
+ *  2. a bus in service before one merely moving (tiers 1 and 2 are per bus,
+ *     and are applied as one 0/1 tier by `selectByRank`);
+ *  3. a bus reporting the duty's route live takes that route's duty;
+ *  4. a bus of the duty's service class;
+ *  5. time fit: a duty started by the feed time on a bus on the road, a duty
  *     still to start on a standing bus;
- *  5. `ageYears x round(durationHours)`, so longer duties prefer younger buses;
+ *  6. `ageYears x round(durationHours)`, capped at MAX_BASE_COST, so longer
+ *     duties prefer younger buses;
  *     then the matcher's fixed scan order over buses sorted by registration.
- * A bus missing from the fleet master counts as ordinary at the master's
- * median age. The matching never fails: duties without a bus are reported as
- * `no_eligible_bus`, eligible buses without a duty as spare. Deterministic
- * whatever the order of `buses`; a repeated registration throws a RangeError.
- * Recommendation only.
+ * A later day has no tiers 1, 2 and 5. A bus missing from the fleet master
+ * counts as ordinary at the master's median age. The matching never fails:
+ * duties without a bus are reported as `no_eligible_bus`, eligible buses
+ * without a duty as spare. Deterministic whatever the order of `buses`; a
+ * repeated registration throws a RangeError. Recommendation only.
  */
 export function assignDuties(
   duties: readonly Duty[],
@@ -158,6 +227,7 @@ export function assignDuties(
   options: AssignDutiesOptions = {},
 ): AssignmentPlan {
   const yardEstablished = options.yardEstablished ?? true;
+  const now = options.now ?? NO_FEED_CLOCK;
   const seen = new Set<string>();
   for (const bus of buses) {
     if (seen.has(bus.registrationNumber)) {
@@ -169,25 +239,24 @@ export function assignDuties(
   const excluded: { registrationNumber: string; reason: Ineligibility }[] = [];
   const eligible: Candidate[] = [];
   for (const bus of sorted) {
-    const standing = standingOf(bus, yardEstablished);
+    const standing = standingOf(bus, yardEstablished, now);
     if (standing === 'on_road' || standing === 'in_yard' || standing === 'standing') {
-      eligible.push({ bus, standing });
+      eligible.push({ bus, standing, rank: rankOf(bus, standing, now) });
     } else excluded.push({ registrationNumber: bus.registrationNumber, reason: standing });
   }
-  const ctx = { fleet, fallbackAge: medianAge(fleet), feedMinute: options.feedMinute ?? null };
-  const tiers = duties.map((duty) => eligible.map((c) => tiersOf(duty, c, ctx)));
-  const largestBase = tiers.reduce(
-    (most, row) => row.reduce((m, t) => Math.max(m, t[TIERS - 1] as number), most),
-    0,
-  );
-  const weights = tierWeights(Math.min(duties.length, eligible.length), largestBase);
+  const feedMinute = now.kind === 'feed_time' ? now.feedMinute : null;
+  const pairs = Math.min(duties.length, eligible.length);
+  const { inPlay, boundary } = selectByRank(eligible, pairs);
+  const ctx = { fleet, fallbackAge: medianAge(fleet), feedMinute, boundary };
+  const tiers = duties.map((duty) => inPlay.map((c) => tiersOf(duty, c, ctx)));
+  const weights = tierWeights(pairs, MAX_BASE_COST);
   const cost = tiers.map((row) =>
     row.map((t) => t.reduce((sum, value, i) => sum + value * (weights[i] as number), 0)),
   );
   const { rowToCol } = hungarian(cost);
 
   const assignments: DutyAssignment[] = duties.map((duty, row) => {
-    const matched = eligible[rowToCol[row] ?? -1];
+    const matched = inPlay[rowToCol[row] ?? -1];
     return matched !== undefined
       ? {
           dutyId: duty.id,
@@ -197,10 +266,14 @@ export function assignDuties(
         }
       : { dutyId: duty.id, registrationNumber: null, reason: 'no_eligible_bus', busStanding: null };
   });
-  const used = new Set(rowToCol.filter((c) => c >= 0));
+  const used = new Set(rowToCol.filter((c) => c >= 0).map((c) => inPlay[c]));
+  const spare = eligible.filter((c) => !used.has(c));
+  const count = (standing: BusStandingNow): number =>
+    spare.filter((c) => c.standing === standing).length;
   return {
     assignments,
-    spareBuses: eligible.filter((_, col) => !used.has(col)).map((c) => c.bus.registrationNumber),
+    spareBuses: spare.map((c) => c.bus.registrationNumber),
+    spareByStanding: { inYard: count('in_yard'), standing: count('standing'), onRoad: count('on_road') },
     excluded,
     unassignedDuties: rowToCol.filter((c) => c < 0).length,
   };

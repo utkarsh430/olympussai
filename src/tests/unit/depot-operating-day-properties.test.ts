@@ -43,14 +43,16 @@ function depotCase(n: number): OperatingDayInput {
 }
 
 const CASES = Array.from({ length: 150 }, (_, n) => depotCase(n));
-const onTheRoad = (b: DepotBusView): boolean => b.state === 'in_service' || b.state === 'on_road';
+/** Out working AND heard within the reporting window: a bus last heard long ago is not (S55). */
+const onTheRoad = (b: DepotBusView): boolean =>
+  (b.state === 'in_service' || b.state === 'on_road') && (b.gpsAgeMin ?? Infinity) <= 30;
 
 function liveRouteOf(input: OperatingDayInput): Map<string, string | null> {
   return new Map(input.buses.map((b) => [b.registrationNumber, b.routeName]));
 }
 
 describe('the modelled day keeps to the live fleet (ruling S47)', () => {
-  it('runs every bus in service or on the road whenever the duties are at least those buses', () => {
+  it('runs every bus in service or on the road, heard recently, whenever the duties are at least those', () => {
     let checked = 0;
     for (const input of CASES) {
       const day = modelOperatingDay(input);
@@ -59,6 +61,19 @@ describe('the modelled day keeps to the live fleet (ruling S47)', () => {
       checked += 1;
       const ran = new Set(day.runs.map((r) => r.registrationNumber));
       for (const b of working) expect(ran.has(b.registrationNumber)).toBe(true);
+    }
+    expect(checked).toBeGreaterThan(30);
+  });
+
+  it('runs every bus in service, heard recently, whenever the duties are at least those (S55, N5)', () => {
+    let checked = 0;
+    for (const input of CASES) {
+      const day = modelOperatingDay(input);
+      const inService = input.buses.filter((b) => b.state === 'in_service' && onTheRoad(b));
+      if (day.duties.length < inService.length) continue;
+      checked += 1;
+      const ran = new Set(day.runs.map((r) => r.registrationNumber));
+      for (const b of inService) expect(ran.has(b.registrationNumber)).toBe(true);
     }
     expect(checked).toBeGreaterThan(30);
   });

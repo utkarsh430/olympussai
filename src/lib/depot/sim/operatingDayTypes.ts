@@ -1,5 +1,5 @@
 import type { DepotBusView } from '../api';
-import type { Duty } from '../duties/types';
+import type { Duty, PlanNow } from '../duties/types';
 import type { DepotSummary } from '../types';
 import type { ServiceClass } from './types';
 
@@ -86,6 +86,8 @@ export interface OperatingDayInput {
   readonly yardEstablished?: boolean;
   /** Minutes past midnight on the feed clock, for the matcher's time-fit tier; none by default. */
   readonly feedMinute?: number | null;
+  /** As of when the plan is made; overrides `feedMinute` (ruling S55). */
+  readonly now?: PlanNow;
 }
 
 /** The few counts every modelled page states about the day it is built on. */
