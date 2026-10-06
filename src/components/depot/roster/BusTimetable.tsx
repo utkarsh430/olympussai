@@ -53,6 +53,8 @@ function TimetableBody({
   if (fetched.data && fetched.data !== kept) setKept(fetched.data);
   const data = fetched.data ?? kept;
   const updating = loading && kept !== null;
+  // A failed refetch for a changed trip leaves the previous trip's stops on screen: say so.
+  const keptAfterFailure = error !== null && fetched.data === null && kept !== null;
   const schedule = data?.schedule ?? null;
   const sample = data?.source === 'fixture';
   // A sample timetable belongs to no real bus, so no next stop is claimed from it.
@@ -105,6 +107,14 @@ function TimetableBody({
       {updating ? (
         <p className="depot-prose" role="status">
           Updating the timetable.
+        </p>
+      ) : null}
+      {keptAfterFailure ? (
+        <p className="depot-prose" role="alert">
+          {`${(error ?? '').replace(/\.$/, '')}. These are the previous trip's stops.`}{' '}
+          <button type="button" className="hud-button" onClick={onRetry}>
+            Retry
+          </button>
         </p>
       ) : null}
       {data.stale ? <p className="depot-prose">Showing the last good timetable.</p> : null}
