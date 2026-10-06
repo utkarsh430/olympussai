@@ -130,7 +130,8 @@ function dutyCoverage(
  * takes the first slot of each role that is free then and stays within the
  * daily and weekly hour limits, so the result does not depend on input order.
  * A shift short of either role is uncovered and books nobody. Back-to-back
- * shifts on one slot have no rest gap in this model. Pure: inputs unchanged.
+ * shifts on one slot have no rest gap in this model. A duty can be partly
+ * covered: its covered shifts keep their crew. Pure: inputs unchanged.
  */
 export function rosterCrew(duties: readonly Duty[], crew: readonly CrewSlot[]): CrewSummary {
   const { shifts, dutiesNeedingRelief, invalidDutyIds } = crewShiftsFor(duties);
