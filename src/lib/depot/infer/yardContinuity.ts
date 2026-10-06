@@ -92,10 +92,11 @@ export function continueYard(
   if (remembered.seenMs === feedMs) return { yard: remembered.yard, remembered };
   const kept = remembered.yard;
   const overlaps =
-    ruleYard !== null &&
-    distanceM(ruleYard.lat, ruleYard.lng, kept.lat, kept.lng) <= kept.radiusM;
+    ruleYard !== null && distanceM(ruleYard.lat, ruleYard.lng, kept.lat, kept.lng) <= kept.radiusM;
   if (overlaps) return fresh;
-  const heldSince = kept.heldSince ?? feedNow;
+  // An older snapshot decided against a later memory is never "held since" its own future.
+  const heldSince =
+    kept.heldSince !== undefined && Date.parse(kept.heldSince) <= feedMs ? kept.heldSince : feedNow;
   if (feedMs - Date.parse(heldSince) > YARD_HOLD_MAX_MS) return fresh;
   const yard = heldYard(kept, depotRows, heldSince, feedNow);
   return yard === null ? fresh : { yard, remembered: { yard, seenMs: feedMs } };
