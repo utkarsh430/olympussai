@@ -1,0 +1,71 @@
+import { formatCount } from '../format';
+import type { FieldCoverage } from '../types';
+
+/**
+ * The Data Sources page's sentences and coverage ordering.
+ *
+ * Why records received and buses counted differ: `recordCount` is the length
+ * of the feed's record array, and the depot rows come from the same fetch
+ * through `normalizeDepotRows`, which (1) rejects an entry that is not an
+ * object or carries no registration number and (2) collapses repeat records of
+ * one registration to the one with the newest GPS time. The response does not
+ * yet say how many records fell under each rule, so the sentence names both.
+ */
+
+const SEP = ' · ';
+const EXCLUSION_REASON =
+  'a record with no registration number, or a repeat of a registration already received, ' +
+  'where the newest GPS time is kept';
+
+/** "9,993 records received · 4 excluded (why) · 9,989 buses counted". */
+export function recordsSentence(recordsReceived: number, busesCounted: number): string {
+  const counted = `${formatCount(busesCounted)} ${busesCounted === 1 ? 'bus' : 'buses'} counted`;
+  // Fewer records than buses cannot come from one fetch: show one snapshot's number only.
+  if (recordsReceived < busesCounted) return `${counted} on this snapshot`;
+  const received = `${formatCount(recordsReceived)} ${
+    recordsReceived === 1 ? 'record' : 'records'
+  } received`;
+  const excluded = recordsReceived - busesCounted;
+  if (excluded === 0) return `${received}${SEP}${counted}: every record is a distinct bus`;
+  return `${received}${SEP}${formatCount(excluded)} excluded (${EXCLUSION_REASON})${SEP}${counted}`;
+}
+
+export type CoverageWord = 'Complete' | 'Partial' | 'Sparse';
+
+/** At or above this share a field is partial; below it, sparse. */
+export const PARTIAL_FROM_SHARE = 0.5;
+const PERCENT = 100;
+
+export interface CoverageRow {
+  readonly field: string;
+  readonly label: string;
+  readonly share: number;
+  /** Rounded, for display; 99.99% shows as 100 but is never called complete. */
+  readonly percent: number;
+  readonly word: CoverageWord;
+  /** "2,204 of 9,989 buses (22%)". */
+  readonly text: string;
+}
+
+function wordFor(populated: number, of: number, share: number): CoverageWord {
+  if (of > 0 && populated === of) return 'Complete';
+  return share >= PARTIAL_FROM_SHARE ? 'Partial' : 'Sparse';
+}
+
+/** Coverage rows, most complete first, each with a word so poor fields stand out. */
+export function coverageRows(coverage: readonly FieldCoverage[]): CoverageRow[] {
+  return coverage
+    .map((item): CoverageRow => {
+      const share = item.of === 0 ? 0 : item.populated / item.of;
+      const percent = Math.round(share * PERCENT);
+      return {
+        field: item.field,
+        label: item.label,
+        share,
+        percent,
+        word: wordFor(item.populated, item.of, share),
+        text: `${formatCount(item.populated)} of ${formatCount(item.of)} buses (${percent}%)`,
+      };
+    })
+    .sort((a, b) => b.share - a.share);
+}
