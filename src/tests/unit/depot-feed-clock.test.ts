@@ -40,12 +40,11 @@ describe('deriveFeedNow (S50a)', () => {
   });
 
   it('keeps a newest row that leads by no more than the named lead', () => {
+    const base = Array.from({ length: 300 }, () => new Date(BASE_MS).toISOString());
     const lead = new Date(BASE_MS + FEED_CLOCK_MAX_LEAD_MIN * 60_000).toISOString();
-    expect(deriveFeedNow(rowsAt([...ordinaryTimes(300), lead]))).toBe(lead);
+    expect(deriveFeedNow(rowsAt([...base, lead]))).toBe(lead);
     const past = new Date(BASE_MS + FEED_CLOCK_MAX_LEAD_MIN * 60_000 + 1000).toISOString();
-    expect(deriveFeedNow(rowsAt([...ordinaryTimes(300), past]))).toBe(
-      new Date(BASE_MS).toISOString(),
-    );
+    expect(deriveFeedNow(rowsAt([...base, past]))).toBe(new Date(BASE_MS).toISOString());
   });
 
   it('with fewer than 100 rows the newest row is the clock, as before', () => {
