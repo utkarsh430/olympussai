@@ -613,7 +613,7 @@
 
   /* The page's one hero figure: a stronger wash and glow. */
   .depot-figure-hero {
-    background-image: linear-gradient(180deg, rgb(var(--depot-tone) / 0.13), transparent 85%);
+    background-image: linear-gradient(180deg, rgb(var(--depot-tone) / 0.1), transparent 80%);
     box-shadow: inset 0 1px 0 0 rgb(var(--depot-tone) / 0.25);
   }
 
