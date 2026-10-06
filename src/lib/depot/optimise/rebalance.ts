@@ -1,5 +1,6 @@
 import { haversineKm } from '@/lib/simulation/seededRandom';
 import type { LatLng } from '../types';
+import { COST_GRID_M } from './allocateConfig';
 import { minCostMaxFlow, type FlowEdgeInput } from './minCostFlow';
 import type {
   DepotBalance,
@@ -11,6 +12,8 @@ import type {
 } from './types';
 
 const METRES_PER_KM = 1000;
+/** Grid steps in a kilometre: a pair's distance is held as a whole number of them. */
+const STEPS_PER_KM = METRES_PER_KM / COST_GRID_M;
 
 /** Straight-line distance scaled by the detour factor to approximate road distance. */
 export function roadDistanceKm(a: LatLng, b: LatLng, detourFactor: number): number {
@@ -36,9 +39,18 @@ export function summariseBalances(balances: readonly DepotBalance[]): NetworkBal
   return { depotsInDeficit, depotsInSurplus, totalDeficit, totalSurplus };
 }
 
-/** Whole metres to kilometres at one decimal, divided once so no float residue reaches the screen. */
-function toTenthsOfKm(metres: number): number {
-  return Math.round(metres / (METRES_PER_KM / 10)) / 10;
+/**
+ * A pair's road distance as whole grid steps (100 m). This one figure is the
+ * flow cost, the distance shown and the base of the bus-km, so buses times the
+ * shown distance is the shown bus-km and the rows add up to the total.
+ */
+function gridSteps(a: LatLng, b: LatLng, detourFactor: number): number {
+  return Math.round((roadDistanceKm(a, b, detourFactor) * METRES_PER_KM) / COST_GRID_M);
+}
+
+/** Whole grid steps to kilometres, divided once so no float residue reaches the screen. */
+function stepsToKm(steps: number): number {
+  return steps / STEPS_PER_KM;
 }
 
 function compareIds(a: string, b: string): number {
@@ -118,22 +130,20 @@ export function planTransfers(
     readonly edge: number;
     readonly giver: number;
     readonly receiver: number;
-    readonly metres: number;
+    readonly steps: number;
   }[] = [];
   const reachable = new Set<number>();
   givers.forEach((g, i) => {
     receivers.forEach((r, j) => {
-      const metres = Math.round(
-        roadDistanceKm(g.position, r.position, params.detourFactor) * METRES_PER_KM,
-      );
-      if (metres > params.maxTransferKm * METRES_PER_KM) return;
+      const steps = gridSteps(g.position, r.position, params.detourFactor);
+      if (steps > params.maxTransferKm * STEPS_PER_KM) return;
       reachable.add(j);
-      pairEdges.push({ edge: edges.length, giver: i, receiver: j, metres });
+      pairEdges.push({ edge: edges.length, giver: i, receiver: j, steps });
       edges.push({
         from: 1 + i,
         to: 1 + givers.length + j,
         capacity: Math.min(g.balance.balance, -r.balance.balance),
-        cost: metres,
+        cost: steps,
       });
     });
   });
@@ -145,22 +155,22 @@ export function planTransfers(
 
   const received = new Array<number>(receivers.length).fill(0);
   const transfers: Transfer[] = [];
-  let totalBusMetres = 0;
-  for (const { edge, giver, receiver, metres } of pairEdges) {
+  let totalBusSteps = 0;
+  for (const { edge, giver, receiver, steps } of pairEdges) {
     const buses = result.edgeFlows[edge] ?? 0;
     if (buses <= 0) continue;
     const from = givers[giver] as Candidate;
     const to = receivers[receiver] as Candidate;
-    const busMetres = buses * metres;
-    totalBusMetres += busMetres;
+    const busSteps = buses * steps;
+    totalBusSteps += busSteps;
     received[receiver] = (received[receiver] ?? 0) + buses;
     transfers.push({
       id: `${from.balance.depotId}>${to.balance.depotId}`,
       fromDepotId: from.balance.depotId,
       toDepotId: to.balance.depotId,
       buses,
-      distanceKm: metres / METRES_PER_KM,
-      busKm: toTenthsOfKm(busMetres),
+      distanceKm: stepsToKm(steps),
+      busKm: stepsToKm(busSteps),
     });
   }
   transfers.sort(
@@ -198,6 +208,6 @@ export function planTransfers(
     after,
     coveredDeficit: result.flow,
     uncovered,
-    totalBusKm: toTenthsOfKm(totalBusMetres),
+    totalBusKm: stepsToKm(totalBusSteps),
   };
 }

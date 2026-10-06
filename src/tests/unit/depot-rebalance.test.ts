@@ -84,8 +84,9 @@ describe('planTransfers', () => {
       PARAMS,
     );
     expect(plan.transfers.map((t) => t.id).sort()).toEqual(['s1>d1', 's2>d2']);
-    const expected = 2 * roadDistanceKm(at(0), at(2), 1);
-    expect(plan.totalBusKm).toBeCloseTo(expected, 1);
+    // Each pair's distance is held to the 100 m grid, so the total is two of that figure.
+    const expected = (2 * Math.round(roadDistanceKm(at(0), at(2), 1) * 10)) / 10;
+    expect(plan.totalBusKm).toBe(expected);
     const nearestFirst = roadDistanceKm(at(3), at(2), 1) + roadDistanceKm(at(0), at(5), 1);
     expect(plan.totalBusKm).toBeLessThan(nearestFirst);
   });

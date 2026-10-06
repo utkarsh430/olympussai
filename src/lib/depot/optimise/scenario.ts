@@ -205,6 +205,11 @@ function uncoveredBuses(plan: TransferPlan): number {
   return plan.uncovered.reduce((sum, u) => sum + u.buses, 0);
 }
 
+/** The difference of two one-decimal figures, taken in whole tenths so no float residue is left. */
+function differenceInTenths(later: number, earlier: number): number {
+  return (Math.round(later * 10) - Math.round(earlier * 10)) / 10;
+}
+
 /** Candidate minus baseline for each headline figure. */
 export function compareOutcomes(
   baseline: ScenarioOutcome,
@@ -215,7 +220,7 @@ export function compareOutcomes(
   return {
     transfers: b.transfers.length - a.transfers.length,
     busesMoved: busesMoved(b) - busesMoved(a),
-    totalBusKm: b.totalBusKm - a.totalBusKm,
+    totalBusKm: differenceInTenths(b.totalBusKm, a.totalBusKm),
     coveredDeficit: b.coveredDeficit - a.coveredDeficit,
     uncoveredDeficit: uncoveredBuses(b) - uncoveredBuses(a),
     depotsInDeficitAfter: b.after.depotsInDeficit - a.after.depotsInDeficit,
