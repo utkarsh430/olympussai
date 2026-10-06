@@ -18,9 +18,6 @@ export const answer = (
 ): CopilotRequest =>
   buildRequest({ task: 'answer', scopeLabel, facts, guidance: GUIDANCE, scriptedDraft: draft });
 
-export const plural = (n: number, one: string, many: string): string =>
-  `${n} ${n === 1 ? one : many}`;
-
 export function unavailable(scope: string): CopilotRequest {
   return answer(scope, [], {
     headline: 'That answer is not available',

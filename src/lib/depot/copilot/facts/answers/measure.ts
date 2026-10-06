@@ -5,7 +5,6 @@ import { depotDraft, depotFacts } from '@/lib/depot/copilot/facts/depot';
 import {
   busCount,
   cleanName,
-  countPhrase,
   makeFact,
   onRoadCount,
   ph,
@@ -13,6 +12,7 @@ import {
 import { MAX_PROVIDER_PARAGRAPHS } from '@/lib/depot/copilot/limits';
 import type { DepotMeasure } from '@/lib/depot/copilot/queries';
 import type { CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
+import { pluralWord } from '@/lib/depot/format';
 
 /**
  * The answer to one measure at one depot. The measure's figure comes
@@ -31,7 +31,7 @@ interface MeasureWording {
 
 const name = ph('depot.name');
 const verb = (n: number, phrase: string): string =>
-  countPhrase(n, `is ${phrase}`, `are ${phrase}`);
+  pluralWord(n, `is ${phrase}`, `are ${phrase}`);
 const ranked = (detail: DepotDetailResponse): boolean =>
   detail.score?.ranked === true && detail.score.index !== null && detail.score.rank !== null;
 

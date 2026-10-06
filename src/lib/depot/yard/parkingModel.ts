@@ -1,13 +1,11 @@
 import { formatMinute } from '../duties/dutyBoardModel';
 import type { DepotDetailResponse } from '../api';
-import { formatCount, formatPlainDate } from '../format';
+import { formatCount, formatPlainDate, pluralWord } from '../format';
 import type { ParkingLane, ParkingOverflowReason, ParkingState } from './parkingApi';
 
 /** Shown with the order wherever it appears; the order is a proposal and nothing is dispatched. */
 export const PLAN_NOTICE =
   'A suggested order, based on modelled duties and a modelled yard layout. It will be replaced when the timetable and a surveyed yard are supplied. Nothing is instructed or dispatched.';
-
-const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
 
 /** The plan is for the day after the feed date, so it names the date and never a time of day. */
 export function planDateSentence(operatingDate: string): string {
@@ -27,7 +25,7 @@ export interface CapacityInput {
 export function capacitySentence({ bays, inYard, visiting }: CapacityInput): string {
   const used = inYard + visiting;
   const free = bays - used;
-  const head = `${formatCount(used)} of ${formatCount(bays)} modelled ${plural(bays, 'bay', 'bays')} in use`;
+  const head = `${formatCount(used)} of ${formatCount(bays)} modelled ${pluralWord(bays, 'bay', 'bays')} in use`;
   if (free > 0) return `${head}; ${formatCount(free)} free.`;
   if (free === 0) return `${head}; none free.`;
   return `${head}; ${formatCount(-free)} over.`;
@@ -63,8 +61,8 @@ export function baysMissingSentence(view: CapacityView, pending: boolean): strin
     : 'The modelled bay count is unavailable, so use is not set against capacity.';
   const counts =
     view.inYard === null
-      ? `No yard is established; ${formatCount(view.fleet)} ${plural(view.fleet, 'bus', 'buses')} in the fleet.`
-      : `${formatCount(view.inYard)} ${plural(view.inYard, 'bus', 'buses')} in the yard, ${formatCount(view.visiting)} visiting.`;
+      ? `No yard is established; ${formatCount(view.fleet)} ${pluralWord(view.fleet, 'bus', 'buses')} in the fleet.`
+      : `${formatCount(view.inYard)} ${pluralWord(view.inYard, 'bus', 'buses')} in the yard, ${formatCount(view.visiting)} visiting.`;
   return `${counts} ${why}`;
 }
 
@@ -78,12 +76,12 @@ export function visitingSentence(visiting: number): string {
 
 /** With no yard established there is no in-yard count, so only the fleet is set against the bays. */
 export function fleetOnlyCapacitySentence(fleet: number, bays: number): string {
-  return `No yard is established, so only the fleet can be set against capacity: ${formatCount(fleet)} ${plural(fleet, 'bus', 'buses')} in the fleet, ${formatCount(bays)} modelled ${plural(bays, 'bay', 'bays')}.`;
+  return `No yard is established, so only the fleet can be set against capacity: ${formatCount(fleet)} ${pluralWord(fleet, 'bus', 'buses')} in the fleet, ${formatCount(bays)} modelled ${pluralWord(bays, 'bay', 'bays')}.`;
 }
 
 export function laneHeading(lane: ParkingLane): string {
   const used = lane.slots.length;
-  return `Lane ${lane.id}: ${formatCount(used)} of ${formatCount(lane.depth)} ${plural(lane.depth, 'place', 'places')} used`;
+  return `Lane ${lane.id}: ${formatCount(used)} of ${formatCount(lane.depth)} ${pluralWord(lane.depth, 'place', 'places')} used`;
 }
 
 export function dutyText(firstDutyStartMin: number | null): string {
@@ -118,7 +116,7 @@ export function blockedSentence(blocked: number): BlockedLine {
   }
   return {
     warning: true,
-    text: `Warning: ${formatCount(blocked)} ${plural(blocked, 'bus would', 'buses would')} be blocked in by a bus that leaves later.`,
+    text: `Warning: ${formatCount(blocked)} ${pluralWord(blocked, 'bus would', 'buses would')} be blocked in by a bus that leaves later.`,
   };
 }
 

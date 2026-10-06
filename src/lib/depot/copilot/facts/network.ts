@@ -3,7 +3,6 @@ import {
   buildRequest,
   busCount,
   cleanName,
-  countPhrase,
   depotCount,
   index1,
   makeFact,
@@ -12,7 +11,7 @@ import {
   share,
 } from '@/lib/depot/copilot/facts/format';
 import type { CopilotDraft, CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
-import { formatFeedTime } from '@/lib/depot/format';
+import { formatFeedTime, plainCountPhrase, pluralWord } from '@/lib/depot/format';
 import { indexWindowFacts, indexWindowSentence } from '@/lib/depot/copilot/facts/window';
 import { BUS_EXCEPTION_KINDS, DEPOT_EXCEPTION_KINDS } from '@/lib/depot/exceptions/config';
 import type { BusExceptionKind, DepotExceptionKind } from '@/lib/depot/exceptions/types';
@@ -23,7 +22,7 @@ const GUIDANCE =
   'how much has no signal or is in maintenance, the strongest and weakest ranked depots, and ' +
   'any exceptions. Use only the supplied facts and describe rather than instruct.';
 
-const exceptionCount = (n: number): string => `${n} ${n === 1 ? 'exception' : 'exceptions'}`;
+const exceptionCount = (n: number): string => plainCountPhrase(n, 'exception', 'exceptions');
 
 interface RankedDepot {
   readonly id: string;
@@ -135,12 +134,12 @@ function exceptionParagraph(depotCountN: number, busCountN: number): string {
     return 'No exceptions are flagged on this snapshot, either for depots or for vehicles.';
   }
   if (depotCountN === 0) {
-    return `No depot-level exceptions are flagged, though ${ph('network.bus_exceptions')} ${countPhrase(busCountN, 'is', 'are')} flagged on vehicles.`;
+    return `No depot-level exceptions are flagged, though ${ph('network.bus_exceptions')} ${pluralWord(busCountN, 'is', 'are')} flagged on vehicles.`;
   }
   const vehicles =
     busCountN === 0
       ? 'nothing is flagged on vehicles'
-      : `${ph('network.bus_exceptions')} ${countPhrase(busCountN, 'is', 'are')} flagged on vehicles`;
+      : `${ph('network.bus_exceptions')} ${pluralWord(busCountN, 'is', 'are')} flagged on vehicles`;
   return (
     `At depot level the snapshot flags ${ph('network.depot_exceptions')}; ${vehicles}. ` +
     'Starting with the depot-level exceptions would be a sensible order.'
@@ -172,8 +171,8 @@ function networkDraft(network: DepotNetworkResponse): CopilotDraft {
   const { kpis } = network;
   const ranked = rankedDepots(network);
   const paragraphs = [
-    `${lead}${ph('network.reporting')} ${countPhrase(kpis.reporting.value, 'is', 'are')} reporting a position and ${ph('network.on_road')} ${countPhrase(kpis.onRoad.value, 'is', 'are')} running, ${ph('network.on_road_share')} of the fleet.`,
-    `${ph('network.no_signal')} ${countPhrase(kpis.noSignal.value, 'has', 'have')} lost signal (${ph('network.no_signal_share')}) and ${ph('network.under_maintenance')} ${countPhrase(kpis.underMaintenance.value, 'is', 'are')} in maintenance (${ph('network.maintenance_share')}).`,
+    `${lead}${ph('network.reporting')} ${pluralWord(kpis.reporting.value, 'is', 'are')} reporting a position and ${ph('network.on_road')} ${pluralWord(kpis.onRoad.value, 'is', 'are')} running, ${ph('network.on_road_share')} of the fleet.`,
+    `${ph('network.no_signal')} ${pluralWord(kpis.noSignal.value, 'has', 'have')} lost signal (${ph('network.no_signal_share')}) and ${ph('network.under_maintenance')} ${pluralWord(kpis.underMaintenance.value, 'is', 'are')} in maintenance (${ph('network.maintenance_share')}).`,
     ranked.length >= 2
       ? `Among ranked depots, ${ph('network.best_depot')} leads at efficiency ${ph('network.best_index')}, while ${ph('network.weakest_depot')} sits lowest at efficiency ${ph('network.weakest_index')}.${indexWindowSentence(network.scoreWindow, 'network.index_window', 'The index here covers')}${rankSentence(ranked)}`
       : 'Too few depots have enough buses to be ranked against each other on this snapshot.',

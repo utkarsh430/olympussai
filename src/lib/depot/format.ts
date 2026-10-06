@@ -11,6 +11,25 @@ export function formatCount(n: number): string {
   return formatNumber(n);
 }
 
+/** The singular word for exactly one, the plural for any other number (zero included). */
+export function pluralWord(n: number, one: string, many: string): string {
+  return n === 1 ? one : many;
+}
+
+/** A count and its noun, the count grouped as the pages show it: "1 bus", "1,204 buses". */
+export function countPhrase(n: number, one: string, many: string): string {
+  return `${formatCount(n)} ${pluralWord(n, one, many)}`;
+}
+
+/**
+ * A count and its noun with the digits as given, never grouped: "1204 buses". For the
+ * copilot's answers and the route loader's progress line, which have always printed the
+ * bare number.
+ */
+export function plainCountPhrase(n: number, one: string, many: string): string {
+  return `${n} ${pluralWord(n, one, many)}`;
+}
+
 /** `n` as a whole-number percentage of `of`; a dash when there is no population. */
 export function formatShare(n: number, of: number): string {
   if (of === 0) return DASH;

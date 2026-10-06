@@ -1,7 +1,6 @@
 import {
   busCount,
   cleanName,
-  countPhrase,
   makeFact,
   nameFact,
   ph,
@@ -9,6 +8,7 @@ import {
 import type { CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
 import { answer, unavailable } from '@/lib/depot/copilot/facts/answers/shared';
 import type { AnswerData } from '@/lib/depot/copilot/facts/answers';
+import { pluralWord } from '@/lib/depot/format';
 
 export function outshedAnswer(data: AnswerData, depotId: string): CopilotRequest {
   const detail = data.details?.[depotId];
@@ -48,7 +48,7 @@ export function outshedAnswer(data: AnswerData, depotId: string): CopilotRequest
       ? `${ph('outshed.overdue')} overdue to leave the yard`
       : 'nothing overdue to leave the yard',
     counts.unknown > 0
-      ? `${ph('outshed.unknown')} that ${countPhrase(counts.unknown, 'is', 'are')} too uncertain to place`
+      ? `${ph('outshed.unknown')} that ${pluralWord(counts.unknown, 'is', 'are')} too uncertain to place`
       : null,
   ].filter((p): p is string => p !== null);
   // Three or more parts end "…; and the last": the semicolon closes the clause, so the last

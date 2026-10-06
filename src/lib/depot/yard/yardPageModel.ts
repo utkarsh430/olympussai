@@ -1,5 +1,5 @@
 import type { VisitorBus } from '../api';
-import { formatCount, formatFeedTimeOn } from '../format';
+import { formatCount, formatFeedTimeOn, pluralWord } from '../format';
 import type { Yard } from '../infer/types';
 import type { BusOpState } from '../types';
 import {
@@ -13,8 +13,6 @@ import type { YardModel } from './yardModel';
 
 /** Visitors shown before "Show all N": five, like every other capped group on the page. */
 export const VISITOR_CAP = 5;
-
-const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
 
 export interface CapacityFigure {
   readonly value: string;
@@ -89,11 +87,11 @@ export function mapCaption(model: YardModel): string {
   if (nearby > 0) parts.push(`${formatCount(nearby)} of this depot's just outside it`);
   if (visiting > 0) parts.push(`${formatCount(visiting)} visiting`);
   const total = model.points.length;
-  const head = `${formatCount(total)} ${plural(total, 'bus', 'buses')} drawn: ${parts.join(', ')}.`;
+  const head = `${formatCount(total)} ${pluralWord(total, 'bus', 'buses')} drawn: ${parts.join(', ')}.`;
   const unplaced = model.counts.inYard - drawnInYard;
   const noPosition =
     unplaced > 0
-      ? ` ${formatCount(unplaced)} in the yard ${plural(unplaced, 'has', 'have')} no position.`
+      ? ` ${formatCount(unplaced)} in the yard ${pluralWord(unplaced, 'has', 'have')} no position.`
       : '';
   const beyond = model.beyondOwn + model.beyondVisiting;
   const far =
@@ -101,7 +99,7 @@ export function mapCaption(model: YardModel): string {
   const hidden = model.visitorsWithoutPosition;
   const visitorsUnplaced =
     hidden > 0
-      ? ` ${formatCount(hidden)} visiting ${plural(hidden, 'has', 'have')} no position and ${plural(hidden, 'is', 'are')} listed below only.`
+      ? ` ${formatCount(hidden)} visiting ${pluralWord(hidden, 'has', 'have')} no position and ${pluralWord(hidden, 'is', 'are')} listed below only.`
       : '';
   return `${head}${noPosition}${visitorsUnplaced}${far}`;
 }

@@ -6,7 +6,6 @@ import {
   depotCount,
   cleanName,
   count,
-  countPhrase,
   index1,
   makeFact,
   nameFact,
@@ -15,7 +14,7 @@ import {
   share,
 } from '@/lib/depot/copilot/facts/format';
 import type { CopilotDraft, CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
-import { formatFeedTime } from '@/lib/depot/format';
+import { formatFeedTime, plainCountPhrase, pluralWord } from '@/lib/depot/format';
 import type { Yard } from '@/lib/depot/infer/types';
 import { DEPOT_KIND_LABEL } from '@/lib/depot/labels';
 import { DEI_COMPONENTS } from '@/lib/depot/score/config';
@@ -44,7 +43,7 @@ const PEER_LABEL: Readonly<Record<PeerGroupId, string>> = {
 const componentLabel = (key: DeiComponentKey): string =>
   DEI_COMPONENTS.find((c) => c.key === key)?.label ?? key;
 
-const exceptionCount = (n: number): string => `${n} ${n === 1 ? 'exception' : 'exceptions'}`;
+const exceptionCount = (n: number): string => plainCountPhrase(n, 'exception', 'exceptions');
 
 /**
  * A yard the single-snapshot rule gives is evidenced by the buses
@@ -209,8 +208,8 @@ function fleetParagraph(detail: DepotDetailResponse): string {
   const power =
     detail.depot.powerCut > 0 ? ` Main power reads off on ${ph('depot.power_cut')}.` : '';
   return (
-    `Of ${ph('depot.fleet')} homed here, ${ph('depot.on_road')} ${countPhrase(states.onRoad, 'is on the road', 'are on the road')} (${ph('depot.on_road_share')}), ` +
-    `${ph('depot.dark')} ${countPhrase(states.dark, 'is dark', 'are dark')} (${ph('depot.dark_share')}) and ${ph('depot.off_road')} ${countPhrase(states.offRoad, 'is off the road', 'are off the road')} (${ph('depot.off_road_share')}).${power}`
+    `Of ${ph('depot.fleet')} homed here, ${ph('depot.on_road')} ${pluralWord(states.onRoad, 'is on the road', 'are on the road')} (${ph('depot.on_road_share')}), ` +
+    `${ph('depot.dark')} ${pluralWord(states.dark, 'is dark', 'are dark')} (${ph('depot.dark_share')}) and ${ph('depot.off_road')} ${pluralWord(states.offRoad, 'is off the road', 'are off the road')} (${ph('depot.off_road_share')}).${power}`
   );
 }
 
@@ -225,10 +224,10 @@ function yardParagraph(detail: DepotDetailResponse): string {
   const evidence =
     detail.yard.value.heldSince !== undefined
       ? `The yard is kept from earlier snapshots rather than placed by this snapshot. It has been held since ${ph('depot.yard_held_since')}. `
-      : `The yard is inferred from where buses park; ${ph('depot.yard_support')} ${countPhrase(detail.yard.value.inCluster, 'falls', 'fall')} inside it. `;
+      : `The yard is inferred from where buses park; ${ph('depot.yard_support')} ${pluralWord(detail.yard.value.inCluster, 'falls', 'fall')} inside it. `;
   return (
     evidence +
-    `It currently holds ${ph('depot.in_yard')}; ${ph('depot.away')} ${countPhrase(detail.locationMix.away, 'is', 'are')} away from it.${visitors}`
+    `It currently holds ${ph('depot.in_yard')}; ${ph('depot.away')} ${pluralWord(detail.locationMix.away, 'is', 'are')} away from it.${visitors}`
   );
 }
 
@@ -256,7 +255,7 @@ function exceptionParagraph(detail: DepotDetailResponse): string {
       ? `Flagged at depot level, for ${kinds.join(' and ')}: ${ph('depot.exceptions_depot')}.`
       : 'Nothing is flagged at depot level.';
   const onVehicles = bus.length > 0 ? ` Flagged on vehicles: ${ph('depot.exceptions_bus')}.` : '';
-  return `${atDepot}${onVehicles} A closer look at ${countPhrase(depot.length + bus.length, 'this item', 'these items')} could be worthwhile.`;
+  return `${atDepot}${onVehicles} A closer look at ${pluralWord(depot.length + bus.length, 'this item', 'these items')} could be worthwhile.`;
 }
 
 export function depotDraft(detail: DepotDetailResponse): CopilotDraft {

@@ -1,4 +1,4 @@
-import { formatCount, formatFeedTime } from '../format';
+import { formatCount, formatFeedTime, pluralWord } from '../format';
 import type { BoardDuty, DutyBlockers, DutyState } from './api';
 import { CLASS_WORD, STANDING_WORD, busClassWord } from './dutyStanding';
 import type { BusStandingNow, SpareByStanding } from './types';
@@ -167,8 +167,6 @@ export function nowSentence(feedNow: string | null): string {
     : `${base}.`;
 }
 
-const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
-
 /**
  * Why no bus is spare, from the number of duties given a bus, so the footer cannot
  * say "every eligible bus has a duty" beside a matching that proposed none. Null
@@ -195,7 +193,7 @@ export function routesWithoutDutySentence(routes: readonly string[]): string | n
   if (routes.length === 0) return null;
   return (
     'The modelled requirement is smaller than the number of routes, so ' +
-    `${formatCount(routes.length)} ${plural(routes.length, 'route has', 'routes have')} no duty: ` +
+    `${formatCount(routes.length)} ${pluralWord(routes.length, 'route has', 'routes have')} no duty: ` +
     `${routes.join(', ')}.`
   );
 }
@@ -229,9 +227,9 @@ export function spareSentence(spare: readonly string[], context?: SpareContext):
   ].filter((p): p is { n: number; where: string } => p !== null);
   const only = parts.length === 1 ? parts[0] : undefined;
   if (only !== undefined && only.n === n) {
-    return `${formatCount(n)} ${plural(n, 'bus is', 'buses are')} ${only.where} with no duty.`;
+    return `${formatCount(n)} ${pluralWord(n, 'bus is', 'buses are')} ${only.where} with no duty.`;
   }
-  const head = `${formatCount(n)} ${plural(n, 'bus has', 'buses have')} no duty`;
+  const head = `${formatCount(n)} ${pluralWord(n, 'bus has', 'buses have')} no duty`;
   if (parts.length === 0) return `${head}.`;
   return `${head}: ${parts.map((p) => `${formatCount(p.n)} ${p.where}`).join(', ')}.`;
 }
@@ -350,5 +348,5 @@ export function nowLabel(feedNow: string | null): string | null {
 }
 
 export function viewAnnouncement(view: BoardView, dutyCount: number): string {
-  return `Showing the ${view}, ${dutyCount} ${plural(dutyCount, 'duty', 'duties')}`;
+  return `Showing the ${view}, ${dutyCount} ${pluralWord(dutyCount, 'duty', 'duties')}`;
 }

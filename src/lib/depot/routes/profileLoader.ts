@@ -1,3 +1,4 @@
+import { plainCountPhrase } from '@/lib/depot/format';
 /**
  * The user-initiated loader of route profiles for one depot. Each route is one lookup on
  * the upstream route-details service, so the loader is deliberately slow: one lookup at a
@@ -120,10 +121,6 @@ function finish(progress: LoaderProgress, deps: LoaderDeps): LoaderProgress {
   return progress;
 }
 
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
 function countLine(p: LoaderProgress): string {
   const parts = [`${p.looked} of ${p.total} loaded`];
   if (p.empty > 0) parts.push(`${p.empty} had no stops in the feed`);
@@ -137,7 +134,7 @@ export function progressSentence(p: LoaderProgress): string {
     case 'idle':
       return '';
     case 'paused':
-      return `Paused: too many lookups; resuming in ${plural(p.pausedSeconds ?? 0, 'second', 'seconds')}. ${p.looked} of ${p.total} loaded.`;
+      return `Paused: too many lookups; resuming in ${plainCountPhrase(p.pausedSeconds ?? 0, 'second', 'seconds')}. ${p.looked} of ${p.total} loaded.`;
     case 'cancelled':
       return `Cancelled: ${countLine(p)}`;
     case 'done':
@@ -159,5 +156,5 @@ export function routesToLoad(
 
 /** The button's words; the depot is the select beside it, the cost is in its `title`. */
 export function loadButtonLabel(routes: number): string {
-  return `Load route details: ${plural(routes, 'lookup', 'lookups')}`;
+  return `Load route details: ${plainCountPhrase(routes, 'lookup', 'lookups')}`;
 }
