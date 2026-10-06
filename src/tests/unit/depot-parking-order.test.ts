@@ -127,7 +127,10 @@ describe('planParking', () => {
   it('rejects a non-finite first duty time', () => {
     for (const bad of [Number.NaN, Infinity, -Infinity]) {
       expect(() =>
-        planParking([{ id: 'L01', depth: 2 }], [{ registrationNumber: 'A', firstDutyStartMin: bad }]),
+        planParking(
+          [{ id: 'L01', depth: 2 }],
+          [{ registrationNumber: 'A', firstDutyStartMin: bad }],
+        ),
       ).toThrow(RangeError);
     }
   });
