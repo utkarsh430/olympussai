@@ -23,7 +23,13 @@ What it does not do:
 
 - **Nothing is dispatched, assigned or written back.** Transfers, route allocations,
   bus-to-duty matches and the parking order are recommendations. Transfer decisions a user
-  records are kept in the browser's `localStorage` (`src/lib/depot/rebalance/decisionStore.ts`).
+  records are kept in this browser's `localStorage` (`depot-transfer-decisions-v1`,
+  `src/lib/depot/rebalance/decisionStore.ts`), visible to anyone who uses the browser, notes
+  included, as the trail's note says. A Clear trail control (with a confirm step) removes the
+  whole trail. A trail that cannot be read is reported, never read as empty, and is copied
+  aside to `depot-transfer-decisions-v1-unreadable` before the next decision is written. Each
+  decision is also copied, with its note emptied, to the command centre's shared audit log
+  (`upsrtc-copilot-audit-v1`, `src/lib/audit/auditLog.ts`), which Clear trail does not reach.
 - **No individual is scored or named.** Crew appear as anonymous slots; scoring is per
   depot, never per driver.
 - **No database.** Live figures come from the current snapshot; history and trends are a
@@ -38,8 +44,9 @@ What it does not do:
 
 There are two scopes: the **network** (every unit in the feed) and **one depot**. A
 "unit" is any home-depot value in the feed; an "operating depot" is a unit whose kind is
-`depot` (section 7.2). Navigation is defined in `src/lib/depot/nav.ts` (network) and
-`src/lib/depot/depotNav.ts` (depot); the root is `/project/depots`.
+`depot` (section 7.2). Every module path is defined once, in `src/lib/depot/nav.ts`, and
+imported from there; the network pages are listed there and the depot pages in
+`src/lib/depot/depotNav.ts`. The root is `/project/depots`.
 
 | Route | Rail label | What it is for | Rests on |
 | --- | --- | --- | --- |
@@ -65,13 +72,24 @@ There are two scopes: the **network** (every unit in the feed) and **one depot**
 Gates: `src/app/(protected)/project/depots/layout.tsx` calls `requireProjectSession`; the
 depot layout (`d/[depotId]/layout.tsx`) refuses a malformed id with `notFound()` before the
 session check, and `d/not-found.tsx` renders the miss. The client polls the depot APIs every
-60 s (`DEFAULT_POLL_INTERVAL_MS` in `src/hooks/usePolledJson.ts`).
+60 s (`DEFAULT_POLL_INTERVAL_MS` in `src/hooks/usePolledJson.ts`). The polling hook's rules:
+a tick never aborts a request in flight, skips while one is pending or the tab is hidden, and
+showing the tab refreshes at once; a new query on the same path can keep the previous answer
+on screen, marked as previous, while it loads (`keepPreviousOnQueryChange`, used by the route
+table); a page's own failed request after a success keeps its figures and says so at once
+(`src/lib/depot/pageRefresh.ts`, `PageRefreshNotice`); a 404 drops the figures and stops
+polling, so the page shows its not-found state; a 401 drops them, stops polling and sends
+the browser once to `/login?next=<this page>` (`src/lib/depot/signInRedirect.ts`), never
+from the sign-in page itself.
 
 **The shell.** One navigation model (`src/lib/depot/shellModel.ts`) feeds two forms: from
 1280 px wide a left rail with the depot's pages first (in depot scope) and then the network
 groups; below 1280 px a top bar and one horizontal strip of the current scope's pages, with
-Operations, Sign out and (in depot scope) the network pages behind the bar's menu. The shared page pieces (page header, provenance line,
-figure bands, tables, notices, the stale strip, the footer) are documented in
+Operations, Sign out and (in depot scope) the network pages behind the bar's menu. The
+shell's geometry (breakpoints, rail, gutters, content width) is defined once in
+`src/lib/depot/shell/geometry.ts`, and every table frame is computed from it. The shared page
+pieces (page header, provenance line, figure bands, tables, notices, the stale notice, the
+footer) are documented in
 [`DEPOT_UI_PATTERNS.md`](DEPOT_UI_PATTERNS.md#shell-navigation-and-the-footer).
 
 ## 3. Provenance
@@ -87,7 +105,7 @@ Four words, defined in `src/lib/depot/labels.ts`:
 
 The word "simulated" is not used for depot data, on screen or in documents.
 
-**Declared once per page (rulings S44 and S51).** Every depot page declares its default
+**Declared once per page.** Every depot page declares its default
 provenance once, in a line under its header: one tag and one fixed-formula sentence, from
 the pure `provenanceLine()` in `src/lib/depot/provenanceLine.ts`, rendered by
 `ProvenanceLine`. Its descriptions are `modelled` (optionally naming what replaces it, with
@@ -98,7 +116,12 @@ sentence (`src/lib/depot/modelledDayLine.ts`). The stale, sample-data, unavailab
 waiting wordings come from the same function, so a page on the saved sample says "sample
 data" in this line.
 
-Only what differs from the page default carries its own tag, with one guard (S51): a
+**"Live" only for live data.** A page on the saved sample or on last-good data never calls
+its figures live: where a sentence, caption, legend or label names the data's source, it
+takes the words the feed chip uses for that source (`src/lib/depot/feedChip.ts`), or it is
+worded so that it is true in all three states (live, last-good, sample).
+
+Only what differs from the page default carries its own tag, with one guard: a
 section or column where a generated figure or status sits beside a real, named bus, depot
 or route carries one tag (on the section label when the whole section is generated,
 otherwise on the column header), on every page, including all-modelled ones. A generated
