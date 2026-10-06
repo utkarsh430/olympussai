@@ -2,6 +2,10 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DepotNav } from '@/components/depot/shell/DepotNav';
 import { NETWORK_NAV } from '@/lib/depot/nav';
+import { depotNav as depotNavForCount } from '@/lib/depot/depotNav';
+
+// The number of depot pages comes from the navigation model, not a literal.
+const DEPOT_PAGE_COUNT = depotNavForCount('49').length;
 
 vi.mock('next/navigation', () => ({
   usePathname: (): string => '/project/depots/sources',
@@ -47,6 +51,6 @@ describe('navigation strip scroll cue', () => {
     expect(screen.getByRole('link', { name: 'Data sources' }).getAttribute('aria-current')).toBe(
       'page',
     );
-    expect(screen.getAllByRole('link')).toHaveLength(8);
+    expect(screen.getAllByRole('link')).toHaveLength(DEPOT_PAGE_COUNT);
   });
 });
