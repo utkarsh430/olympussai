@@ -6,6 +6,7 @@ import { KpiBand } from '@/components/depot/network/KpiBand';
 import type { StatusBoard as StatusBoardModel } from '@/lib/depot/cockpit/cockpitModel';
 import type { LeagueRow } from '@/lib/depot/league/leagueModel';
 import type { Figure, NetworkKpis } from '@/lib/depot/types';
+import { metricInfo } from '@/lib/depot/forecast/wording';
 import { forecastResponse, polled, trendRow, trendsResponse } from './depot-trends-fixtures';
 
 const hooks = vi.hoisted(() => ({ forecast: vi.fn(), trends: vi.fn() }));
@@ -76,7 +77,9 @@ describe('overview KPI band', () => {
 
   it('prints nothing while the trend is loading', () => {
     hooks.forecast.mockReturnValue(polled(null, { loading: true }));
-    expect(renderToStaticMarkup(<KpiBand kpis={KPIS} depots={[]} />)).not.toContain('trend-week-line');
+    expect(renderToStaticMarkup(<KpiBand kpis={KPIS} depots={[]} />)).not.toContain(
+      'trend-week-line',
+    );
   });
 });
 
@@ -98,7 +101,10 @@ describe('cockpit status board', () => {
       metric: 'onRoadShare',
       scope: { kind: 'depot', depotId: '20' },
     });
-    const cell = markup.slice(markup.indexOf('depot-state-on_road'), markup.indexOf('depot-state-dark'));
+    const cell = markup.slice(
+      markup.indexOf('depot-state-on_road'),
+      markup.indexOf('depot-state-dark'),
+    );
     expect(text(cell)).toMatch(/On-road share, MODELLED: .* over 7 days/);
     expect(markup.match(/data-testid="trend-week-line"/g)).toHaveLength(1);
   });
@@ -106,6 +112,8 @@ describe('cockpit status board', () => {
 
 describe('league grid', () => {
   it('fetches the index trends once for every row and tags the column MODELLED', () => {
+    const index = { ...trendsResponse([trendRow('a', 2.1)]), metric: metricInfo('index') };
+    hooks.trends.mockReturnValue(polled({ ...index, trendUnit: 'points' }));
     const markup = renderToStaticMarkup(
       <LeagueGrid
         rows={[leagueRow('a'), leagueRow('b')]}
@@ -123,10 +131,17 @@ describe('league grid', () => {
 
   it('hides the column below the wide breakpoint with a display class, not the hidden attribute', () => {
     const markup = renderToStaticMarkup(
-      <LeagueGrid rows={[leagueRow('a')]} showPeerGroup={false} selectedId={null} onSelect={() => undefined} />,
+      <LeagueGrid
+        rows={[leagueRow('a')]}
+        showPeerGroup={false}
+        selectedId={null}
+        onSelect={() => undefined}
+      />,
     );
     const header = markup.slice(0, markup.indexOf('Index trend, MODELLED'));
     expect(header.slice(header.lastIndexOf('<th'))).toContain('hidden lg:table-cell');
-    expect(markup).not.toMatch(/<t[hd][^>]* hidden[ =>]/);
+    const frame = document.createElement('div');
+    frame.innerHTML = markup;
+    expect(frame.querySelectorAll('[hidden]')).toHaveLength(0);
   });
 });

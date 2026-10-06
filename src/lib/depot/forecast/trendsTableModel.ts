@@ -62,10 +62,15 @@ function fourWeeksText(row: TrendRow, unit: TrendUnit): string {
   return `${trend.direction} ${Math.abs(trend.fourWeeks).toFixed(DECIMALS[unit])}`;
 }
 
-function sparkLabel(row: TrendRow, metricLabel: string): string {
-  const where = `${metricLabel} at ${row.name}`;
-  if (row.trend === null) return `${where}: no MODELLED trend yet`;
-  return `${where}, ${row.trend.sentence}, ending on the live value`;
+/** A sparkline's text equivalent; a unit missing from the response has no trend. */
+export function unitSparkLabel(
+  metricLabel: string,
+  name: string,
+  trend: TrendRow['trend'],
+): string {
+  const where = `${metricLabel} at ${name}`;
+  if (trend === null) return `${where}: no MODELLED trend yet`;
+  return `${where}, ${trend.sentence}, ending on the live value`;
 }
 
 export function trendTableRows(
@@ -77,7 +82,7 @@ export function trendTableRows(
     name: row.name,
     href: trendsHref(depotTrendsPath(row.id), metric.key),
     values: row.values,
-    sparkLabel: sparkLabel(row, metric.label),
+    sparkLabel: unitSparkLabel(metric.label, row.name, row.trend),
     week: row.trend?.week ?? null,
     fourWeeks: row.trend?.fourWeeks ?? null,
     weekText: row.trend === null ? NO_VALUE : signed(row.trend.week, trendUnit),
