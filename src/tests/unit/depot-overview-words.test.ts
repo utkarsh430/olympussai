@@ -9,7 +9,7 @@ import {
   tableColumnKeys,
   tableHeading,
   tableCapLine,
-  TABLE_TOGGLE_LABEL,
+  tableToggleLabel,
   unrankedSentence,
 } from '@/lib/depot/network/overviewWords';
 import type { DepotKind, DepotSummary, NetworkKpis } from '@/lib/depot/types';
@@ -143,8 +143,9 @@ describe('table wording', () => {
     expect(tableCap(25, false)).toEqual({ capped: false, toggle: false });
   });
 
-  it('keeps one fixed toggle label, so aria-expanded alone carries the state', () => {
-    expect(TABLE_TOGGLE_LABEL).toBe('Show all rows');
+  it('names the total in the toggle and keeps that label, so aria-expanded alone carries the state', () => {
+    expect(tableToggleLabel(143)).toBe('Show all 143');
+    expect(tableToggleLabel(1024)).toBe('Show all 1,024');
   });
 
   it('says the order the capped rows are in, as it is', () => {

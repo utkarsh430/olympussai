@@ -13,11 +13,11 @@ import { formatIndex, rankedIndex, type DepotRow } from '@/lib/depot/network/ove
 import {
   KIND_FILTER_OPTIONS,
   TABLE_ROW_CAP,
-  TABLE_TOGGLE_LABEL,
   tableCap,
   tableCapLine,
   tableColumnKeys,
   tableHeading,
+  tableToggleLabel,
   type KindFilter,
   type TableColumnKey,
 } from '@/lib/depot/network/overviewWords';
@@ -42,7 +42,7 @@ const COLUMNS: readonly (Column<DepotRow> & { readonly key: TableColumnKey })[] 
     key: 'name',
     header: 'Unit',
     sortValue: (row) => row.depot.name,
-    render: (row) => <span className="whitespace-nowrap">{row.depot.name}</span>,
+    render: (row) => row.depot.name,
   },
   {
     key: 'kind',
@@ -52,7 +52,7 @@ const COLUMNS: readonly (Column<DepotRow> & { readonly key: TableColumnKey })[] 
       <span className="whitespace-nowrap text-depot-muted">{DEPOT_KIND_LABEL[row.depot.kind]}</span>
     ),
   },
-  { key: 'fleet', header: 'Fleet', ...count((row) => row.depot.fleet) },
+  { key: 'fleet', header: 'Fleet (buses)', ...count((row) => row.depot.fleet) },
   { key: 'onRoad', header: 'On road', ...count((row) => row.depot.status.live) },
   { key: 'stationary', header: 'Stationary', ...count((row) => row.depot.status.stationary) },
   { key: 'noSignal', header: 'No signal', ...count((row) => row.depot.status.noSignal) },
@@ -184,6 +184,12 @@ export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
           ))}
         </div>
       </div>
+      {narrow ? (
+        <p className="mb-2 text-[11px] text-depot-muted" data-testid="depot-table-narrow-note">
+          Kind, stationary, maintenance, status mix and peer group are in the selected-unit panel
+          beside the map: select a row to see them.
+        </p>
+      ) : null}
       <div className="depot-table-flow">
         <DataTable
           id={TABLE_ID}
@@ -197,6 +203,9 @@ export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
           onRowSelect={(row) => onSelect(row.depot.id)}
           selectedKey={selectedId ?? undefined}
           emptyMessage="No units of this kind are in the feed."
+          fixedRows
+          freezeFirstColumn
+          overflowCue
         />
       </div>
       {cap.toggle ? (
@@ -213,7 +222,7 @@ export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
             onClick={() => setExpanded((open) => !open)}
             className="depot-filter-button"
           >
-            {TABLE_TOGGLE_LABEL}
+            {tableToggleLabel(visible.length)}
           </button>
         </p>
       ) : null}

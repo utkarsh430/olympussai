@@ -155,8 +155,13 @@ export function tableColumnKeys(filter: KindFilter, narrow: boolean): TableColum
 
 export const TABLE_ROW_CAP = 25;
 
-/** The toggle under the table: one fixed label, its state carried by `aria-expanded`. */
-export const TABLE_TOGGLE_LABEL = 'Show all rows';
+/**
+ * The toggle under the table: "Show all 143". The label does not flip when the table
+ * opens; its state is carried by `aria-expanded`.
+ */
+export function tableToggleLabel(total: number): string {
+  return `Show all ${formatCount(total)}`;
+}
 
 export interface TableCap {
   /** The table shows only its first rows. */
