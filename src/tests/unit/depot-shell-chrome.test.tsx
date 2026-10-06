@@ -1,8 +1,15 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DepotNav } from '@/components/depot/shell/DepotNav';
+import { DepotTopBar } from '@/components/depot/shell/DepotTopBar';
 
-vi.mock('next/navigation', () => ({ usePathname: (): string => '/project/depots/league' }));
+vi.mock('next/navigation', () => ({
+  usePathname: (): string => '/project/depots/league',
+  useRouter: (): { push: () => void } => ({ push: () => {} }),
+}));
+vi.mock('@/hooks/useProjectSignOut', () => ({
+  useProjectSignOut: (): unknown => ({ signOut: () => {}, pending: false }),
+}));
 vi.mock('@/components/depot/data/DepotNetworkProvider', () => ({
   useDepotNetworkContext: (): unknown => ({ data: null, error: null, loading: true }),
 }));
@@ -36,5 +43,27 @@ describe('the rail from 900px', () => {
         'overflow-y-auto',
       ]),
     );
+  });
+});
+
+describe('the top bar', () => {
+  it('is one row at every width: never a column of two rows', () => {
+    render(<DepotTopBar />);
+    const bar = classes(screen.getByTestId('depot-top-bar'));
+    expect(bar).toEqual(expect.arrayContaining(['flex', 'items-center', 'h-[3.25rem]']));
+    expect(bar.filter((name) => name.includes('flex-col'))).toEqual([]);
+    expect(bar).toContain('sm:h-[var(--depot-bar-h)]');
+  });
+
+  it('keeps Operations and Sign out behind the Menu below 900px, and inline from 900px', () => {
+    render(<DepotTopBar />);
+    const menu = classes(screen.getByTestId('depot-bar-menu'));
+    expect(menu).toContain('min-[900px]:hidden');
+    expect(menu).not.toContain('sm:hidden');
+
+    const operations = classes(screen.getByTestId('depot-back-to-operations'));
+    expect(operations).toEqual(expect.arrayContaining(['hidden', 'min-[900px]:inline-flex']));
+    const signOut = screen.getByTestId('depot-sign-out').parentElement;
+    expect(classes(signOut)).toEqual(expect.arrayContaining(['hidden', 'min-[900px]:contents']));
   });
 });

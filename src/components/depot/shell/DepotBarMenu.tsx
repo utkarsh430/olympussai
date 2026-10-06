@@ -6,7 +6,7 @@ import { ArrowLeft, Menu } from 'lucide-react';
 import { DepotSignOut } from './DepotSignOut';
 
 /**
- * The phone top bar's one menu (under 640px): Operations and Sign out behind a real
+ * The top bar's one menu below 900px: Operations and Sign out behind a real
  * button with `aria-expanded`. The panel is rendered only while open (a `hidden`
  * attribute would lose to a display class) and is positioned against the bar, so it
  * never widens the page. Escape closes it and returns focus to the button.
@@ -23,7 +23,7 @@ export function DepotBarMenu() {
   };
 
   return (
-    <div className="sm:hidden" onKeyDown={onKeyDown} data-testid="depot-bar-menu">
+    <div className="min-[900px]:hidden" onKeyDown={onKeyDown} data-testid="depot-bar-menu">
       <button
         ref={button}
         type="button"

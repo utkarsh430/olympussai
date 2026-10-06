@@ -208,7 +208,8 @@
      in the depot module reads these instead of a literal height. One navigation strip
      below 900px (no depot tabs since the design wave), the rail beside the page above.
        --depot-bar-h     the top bar's sticky height: 0 below 640px (it scrolls away),
-                         5rem (two rows) from 640 to 899px, 3.5rem (one row) from 900px
+                         3.25rem (one row, as on a phone) from 640 to 899px, 3.5rem (one
+                         row) from 900px
        --depot-nav-h     the strip's own height: 2.5rem; auto from 900px (the rail)
        --depot-strip-h   how much the strip adds to the sticky stack: 2.5rem from 640 to
                          899px only (below 640 it scrolls away; from 900 it is the rail)
@@ -237,7 +238,7 @@
 
   @media (min-width: 640px) {
     .depot-shell {
-      --depot-bar-h: 5rem;
+      --depot-bar-h: 3.25rem;
       --depot-strip-h: 2.5rem;
     }
   }
