@@ -46,9 +46,7 @@ export interface BandFigure {
  * depots. A fourth appears only when a component could not be worked out for
  * another reason, so the figures always add up.
  */
-export function economicsBand(
-  depots: readonly EconomicsDepotRow[],
-): readonly BandFigure[] {
+export function economicsBand(depots: readonly EconomicsDepotRow[]): readonly BandFigure[] {
   const operating = depots.filter((d) => d.kind === 'depot');
   const ranked = operating.filter((d) => d.score.ranked).length;
   const noDuty = operating.filter(
@@ -60,7 +58,11 @@ export function economicsBand(
   const other = operating.length - ranked - noDuty - underMinimum;
   const noun = operating.length === 1 ? 'operating depot' : 'operating depots';
   const figures: BandFigure[] = [
-    { label: 'Ranked', value: formatCount(ranked), caption: `of ${formatCount(operating.length)} ${noun}` },
+    {
+      label: 'Ranked',
+      value: formatCount(ranked),
+      caption: `of ${formatCount(operating.length)} ${noun}`,
+    },
     {
       label: 'No duty in the day',
       value: formatCount(noDuty),
@@ -73,7 +75,10 @@ export function economicsBand(
     },
   ];
   return other > 0
-    ? [...figures, { label: 'Not worked out', value: formatCount(other), caption: 'a component is missing' }]
+    ? [
+        ...figures,
+        { label: 'Not worked out', value: formatCount(other), caption: 'a component is missing' },
+      ]
     : figures;
 }
 

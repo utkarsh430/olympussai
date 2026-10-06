@@ -9,6 +9,7 @@ import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
+import { rowActionName } from '@/components/depot/shell/tableLayout';
 import { useDepotEconomics } from '@/hooks/useDepotEconomics';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import type { ProvenanceDescription } from '@/lib/depot/provenanceLine';
@@ -28,7 +29,6 @@ import {
   notRankedPanel,
   rankingShortfallNotice,
   type EconomicsFilters,
-  type EconomicsRow,
 } from '@/lib/depot/revenue/economicsPageModel';
 import type { EconomicsResponse } from '@/lib/depot/revenue/api';
 import { modelledStatement } from '@/lib/depot/revenue/revenuePageModel';
@@ -43,6 +43,15 @@ const SOURCES_PATH = '/project/depots/sources';
 const HOW_ID = 'economics-how';
 const REPLACED_BY = 'each of the fuel issue, odometer, ticketing and route master feeds';
 
+type FocusTarget = { readonly kind: 'breakdown' } | { readonly kind: 'row'; readonly name: string };
+
+/** The depot's row in the table, found by the name the shared row carries when closed. */
+function rowElement(table: HTMLElement | null, name: string): HTMLElement | null {
+  const label = rowActionName(name, { kind: 'expand', open: false });
+  const rows = table?.querySelectorAll<HTMLElement>('tr[aria-expanded]') ?? [];
+  return [...rows].find((row) => row.getAttribute('aria-label') === label) ?? null;
+}
+
 /** The page's provenance line: MODELLED in every state, with the dated day once it is known. */
 export function economicsProvenance(operatingDate: string | null): ProvenanceDescription {
   return operatingDate === null
@@ -56,9 +65,10 @@ export function economicsProvenance(operatingDate: string | null): ProvenanceDes
 
 /**
  * Depots ranked by the MODELLED Depot Economics Index within peer groups. The
- * header lives here so its provenance line can carry the modelled day. The
- * selected depot's breakdown opens beside the table from `2xl` and below it
- * otherwise. No Depot Efficiency Index value is shown here.
+ * header lives here so its provenance line can carry the modelled day. A
+ * depot's breakdown opens as the expanded row directly under its row; focus moves
+ * into it and returns to the row when it closes. No Depot Efficiency Index value
+ * is shown here.
  */
 export function EconomicsPage() {
   const { data, error, loading, refresh } = useDepotEconomics();
@@ -99,9 +109,10 @@ function EconomicsBody({
   const [search, setSearch] = useState('');
   // Null until the reader chooses: then it follows the data (all depots when none is ranked).
   const [showUnrankedChoice, setShowUnrankedChoice] = useState<boolean | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [focusPending, setFocusPending] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
   const breakdownRef = useRef<HTMLElement>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const allRows = useMemo(
     () => buildEconomicsRows(data.depots, data.operatingDate),
@@ -120,28 +131,38 @@ function EconomicsBody({
     [data.depots],
   );
   const shortfall = useMemo(() => rankingShortfallNotice(data.depots), [data.depots]);
-  const select = useCallback((row: EconomicsRow): void => {
-    setSelectedId(row.depotId);
-    setFocusPending(true);
-  }, []);
-  // The selection outlives a filter that hides it, so relaxing the filter reopens it.
-  const selected =
-    selectedId === null ? null : (rows.find((r) => r.depotId === selectedId) ?? null);
-  const selectedHidden = selectedId !== null && selected === null;
-  const selectedName = allRows.find((r) => r.depotId === selectedId)?.name ?? 'the depot';
+  const openChange = useCallback(
+    (next: string | null): void => {
+      const closing = next === null ? openId : null;
+      setOpenId(next);
+      if (next !== null) setFocusTarget({ kind: 'breakdown' });
+      else if (closing !== null) {
+        const name = allRows.find((r) => r.depotId === closing)?.name;
+        if (name !== undefined) setFocusTarget({ kind: 'row', name });
+      }
+    },
+    [openId, allRows],
+  );
+  // The open row outlives a filter that hides it, so relaxing the filter reopens it.
+  const open = openId === null ? null : (rows.find((r) => r.depotId === openId) ?? null);
+  const openHidden = openId !== null && open === null;
+  const openName = allRows.find((r) => r.depotId === openId)?.name ?? 'the depot';
   const noneRanked = !allRows.some((r) => r.ranked);
 
-  // Move focus to the breakdown so keyboard and screen-reader users land on it.
+  // Focus moves into the breakdown when it opens and back to its row when it closes.
   useEffect(() => {
-    if (!focusPending || selected === null || breakdownRef.current === null) return;
+    if (focusTarget === null) return;
+    setFocusTarget(null);
+    if (focusTarget.kind === 'row') {
+      rowElement(tableRef.current, focusTarget.name)?.focus();
+      return;
+    }
+    const panel = breakdownRef.current;
+    if (panel === null) return;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    breakdownRef.current.focus({ preventScroll: true });
-    breakdownRef.current.scrollIntoView({
-      block: 'nearest',
-      behavior: reduceMotion ? 'auto' : 'smooth',
-    });
-    setFocusPending(false);
-  }, [focusPending, selected]);
+    panel.focus({ preventScroll: true });
+    panel.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+  }, [focusTarget]);
 
   return (
     <div className="depot-stack min-w-0">
@@ -198,25 +219,28 @@ function EconomicsBody({
           {ECONOMICS_SIGN_NOTE}
         </p>
         <p className="sr-only" role="status">
-          {selected
-            ? `${breakdownButtonName(selected.name)} is showing.`
-            : selectedHidden
-              ? `The selected depot, ${selectedName}, is hidden by the filters; change them to see its breakdown again.`
-              : 'Select a depot’s economics index to see how it is made up.'}
+          {open
+            ? `${breakdownButtonName(open.name)} is showing.`
+            : openHidden
+              ? `The open depot, ${openName}, is hidden by the filters; change them to see its breakdown again.`
+              : 'Open a depot’s row to see how its economics index is made up.'}
         </p>
-        <div className={selected ? 'grid gap-4 2xl:grid-cols-[minmax(0,1fr)_26rem]' : ''}>
-          <div className="min-w-0">
-            <EconomicsGrid
-              rows={rows}
-              allRows={allRows}
-              filters={filters}
-              selectedId={selected?.depotId ?? null}
-              onSelect={select}
-            />
-          </div>
-          {selected ? (
-            <EconomicsBreakdown row={selected} weights={data.weights} headingRef={breakdownRef} />
-          ) : null}
+        <div ref={tableRef} className="min-w-0">
+          <EconomicsGrid
+            rows={rows}
+            allRows={allRows}
+            filters={filters}
+            openId={openId}
+            onOpenChange={openChange}
+            renderBreakdown={(row) => (
+              <EconomicsBreakdown
+                row={row}
+                weights={data.weights}
+                headingRef={breakdownRef}
+                onClose={() => openChange(null)}
+              />
+            )}
+          />
         </div>
       </section>
       <HowProduced id={HOW_ID} paragraphs={disclosure}>

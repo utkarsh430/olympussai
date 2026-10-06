@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import type { Column } from '@/components/depot/shell/DataTable';
-import { DisclosureChevron } from '@/components/depot/shell/DisclosureChevron';
 import { depotHref } from '@/lib/depot/depotNav';
 import { formatCount } from '@/lib/depot/format';
 import {
@@ -15,15 +14,15 @@ import type { SortValue } from '@/lib/depot/tableSort';
 /*
  * The economics table's columns for the shared DataTable. Units and direction
  * live in the headers and the sign note, so a cell is a bare number with the
- * signed change against the peer median as a muted suffix. The breakdown opens
- * from the index cell: its value and bar are the button, and a chevron shows at
- * the row's end on hover and focus (the league page does the same).
+ * signed change against the peer median as a muted suffix. The breakdown opens as
+ * the shared table's expanded row: the row is the control (one tab stop, the chevron
+ * first), and the index cell's value and bar are also a button for the pointer.
  */
 
 const MEDIAN_TICK = 50;
 const DASH = '—';
-/** Shown on the hovered or focused row, always on the selected one. */
-const ROW_END_REVEAL = 'opacity-0 [tr:focus-within_&]:opacity-100 [tr:hover_&]:opacity-100';
+/** The breakdown's id inside the expanded row, for the index button's `aria-controls`. */
+export const BREAKDOWN_ID = 'economics-breakdown';
 
 const cellOf = (row: EconomicsRow, key: string): EconomicsCell | undefined =>
   row.cells.find((c) => c.key === key);
@@ -44,25 +43,28 @@ function MetricCell({ cell }: { readonly cell: EconomicsCell | undefined }) {
   );
 }
 
-interface SelectProps {
+interface IndexButtonProps {
   readonly row: EconomicsRow;
-  readonly selected: boolean;
-  readonly onSelect: (row: EconomicsRow) => void;
+  readonly open: boolean;
+  readonly onToggle: (row: EconomicsRow) => void;
 }
 
-function IndexButton({ row, selected, onSelect }: SelectProps) {
+/** Out of the tab order: the row is the keyboard control, this is the pointer's target. */
+function IndexButton({ row, open, onToggle }: IndexButtonProps) {
   const index = row.economicsIndex;
   const width = index === null ? 0 : Math.min(100, Math.max(0, index));
-  const spoken = index === null ? `not ranked: ${row.reasonText ?? ''}` : `index ${index.toFixed(1)}`;
+  const spoken =
+    index === null ? `not ranked: ${row.reasonText ?? ''}` : `index ${index.toFixed(1)}`;
   return (
     <>
       <button
         type="button"
-        aria-pressed={selected}
+        tabIndex={-1}
+        aria-expanded={open}
         aria-label={breakdownButtonName(row.name)}
-        aria-controls={selected ? 'economics-breakdown' : undefined}
-        onClick={() => onSelect(row)}
-        className="flex w-full min-w-0 items-center gap-2 rounded-[3px] text-left hover:text-holo-glow focus-visible:outline focus-visible:outline-1 focus-visible:outline-holo-glow aria-pressed:text-holo-glow"
+        aria-controls={open ? BREAKDOWN_ID : undefined}
+        onClick={() => onToggle(row)}
+        className="flex w-full min-w-0 items-center gap-2 rounded-[3px] text-left hover:text-holo-glow aria-expanded:text-holo-glow"
       >
         {index === null ? (
           <span className="min-w-0 truncate text-[11px] text-depot-muted">
@@ -83,46 +85,30 @@ function IndexButton({ row, selected, onSelect }: SelectProps) {
   );
 }
 
-function FleetCell({ row, selected }: { readonly row: EconomicsRow; readonly selected: boolean }) {
-  return (
-    <span className="inline-flex items-center justify-end gap-2">
-      {formatCount(row.fleet)}
-      <span className={selected ? '' : ROW_END_REVEAL}>
-        <DisclosureChevron open={selected} />
-      </span>
-    </span>
-  );
-}
-
 function DepotName({ row }: { readonly row: EconomicsRow }) {
   if (row.kind === 'unassigned') return <span className="block min-w-0 truncate">{row.name}</span>;
   return (
-    <Link
-      href={depotHref(row.depotId)}
-      className="block min-w-0 truncate text-holo-glow underline-offset-2 hover:underline"
-    >
+    <Link href={depotHref(row.depotId)} className="depot-table-link block min-w-0 truncate">
       {row.name}
     </Link>
   );
 }
 
-/** The table's columns for the current selection; memoise on its arguments. */
+/** The table's columns for the open row; memoise on its arguments. */
 export function economicsColumns(
-  selectedId: string | null,
-  onSelect: (row: EconomicsRow) => void,
+  openId: string | null,
+  onToggle: (row: EconomicsRow) => void,
 ): readonly Column<EconomicsRow>[] {
-  const metrics = ECONOMICS_COMPONENT_SPECS.map(
-    (spec): Column<EconomicsRow> => ({
-      key: spec.key,
-      header: spec.header,
-      unit: spec.headerUnit,
-      align: 'right',
-      width: ECONOMICS_COLUMN_WIDTHS[spec.key],
-      sortValue: (r: EconomicsRow): SortValue => cellOf(r, spec.key)?.value ?? null,
-      title: (r) => cellOf(r, spec.key)?.description,
-      render: (r) => <MetricCell cell={cellOf(r, spec.key)} />,
-    }),
-  );
+  const metrics = ECONOMICS_COMPONENT_SPECS.map((spec): Column<EconomicsRow> => ({
+    key: spec.key,
+    header: spec.header,
+    unit: spec.headerUnit,
+    align: 'right',
+    width: ECONOMICS_COLUMN_WIDTHS[spec.key],
+    sortValue: (r: EconomicsRow): SortValue => cellOf(r, spec.key)?.value ?? null,
+    title: (r) => cellOf(r, spec.key)?.description,
+    render: (r) => <MetricCell cell={cellOf(r, spec.key)} />,
+  }));
   return [
     {
       key: 'rank',
@@ -147,9 +133,7 @@ export function economicsColumns(
       width: ECONOMICS_COLUMN_WIDTHS.index,
       sortValue: (r) => r.economicsIndex,
       title: (r) => r.reasonText ?? undefined,
-      render: (r) => (
-        <IndexButton row={r} selected={r.depotId === selectedId} onSelect={onSelect} />
-      ),
+      render: (r) => <IndexButton row={r} open={r.depotId === openId} onToggle={onToggle} />,
     },
     ...metrics,
     {
@@ -159,7 +143,7 @@ export function economicsColumns(
       width: ECONOMICS_COLUMN_WIDTHS.fleet,
       sortValue: (r) => r.fleet,
       title: (r) => `${formatCount(r.fleet)} buses`,
-      render: (r) => <FleetCell row={r} selected={r.depotId === selectedId} />,
+      render: (r) => formatCount(r.fleet),
     },
   ];
 }

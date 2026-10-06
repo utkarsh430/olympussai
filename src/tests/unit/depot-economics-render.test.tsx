@@ -146,7 +146,9 @@ function everyString(): string {
 }
 
 function breakdownButton(): HTMLButtonElement | null {
-  return host.querySelector<HTMLButtonElement>('button[aria-label^="Economics breakdown for"]');
+  return host.querySelector<HTMLButtonElement>(
+    'td:not(.depot-cell-expander) button[aria-label^="Economics breakdown for"]',
+  );
 }
 
 /** X1: the page declares MODELLED in every state, so dropping the default fails here. */
@@ -232,7 +234,7 @@ describe('EconomicsPage', () => {
 
   it('bands ranked, no duty and under a minimum at 24px figures, captions from the page model', async () => {
     await render(<EconomicsPage />);
-    const band = host.querySelector('[data-testid="depot-figure-band"]');
+    const band = host.querySelector('.depot-band');
     expect(band?.textContent).toContain('Ranked');
     expect(band?.textContent).toContain('of 1 operating depot');
     expect(band?.textContent).toContain('No duty in the day');
@@ -246,6 +248,7 @@ describe('EconomicsPage', () => {
       (th) => th.textContent?.trim() ?? '',
     );
     expect(headers).toEqual([
+      'Details',
       'Rank',
       'Depot',
       'Economics index',
@@ -263,10 +266,12 @@ describe('EconomicsPage', () => {
     const cells = [...host.querySelectorAll('tbody tr:not([data-testid]) td')];
     const shown = (i: number): string =>
       [...(cells[i]?.querySelectorAll('[aria-hidden]') ?? [])].map((n) => n.textContent).join(' ');
-    expect(shown(3)).toBe('30.00 +5.00');
-    expect(shown(4)).toBe('20.00 −2.00');
-    expect(shown(5)).toContain('60.0 +5.0');
-    expect(cells[3]?.textContent).toContain('better than peers');
+    // The shared expander's chevron is the first cell (round 5).
+    expect(cells[0]?.className).toContain('depot-cell-expander');
+    expect(shown(4)).toBe('30.00 +5.00');
+    expect(shown(5)).toBe('20.00 −2.00');
+    expect(shown(6)).toContain('60.0 +5.0');
+    expect(cells[4]?.textContent).toContain('better than peers');
     expect(host.textContent).toContain(
       'Change vs peer median; higher earnings and lower fuel cost are better.',
     );
@@ -274,29 +279,74 @@ describe('EconomicsPage', () => {
     expect(host.textContent).not.toContain('Rows 1 to');
   });
 
-  it('opens the breakdown from the index cell, tagged MODELLED, below the table under 2xl', async () => {
+  it('opens the breakdown from the index cell as an expanded row directly under its row', async () => {
     await render(<EconomicsPage />);
     const button = breakdownButton();
-    expect(button?.closest('td')).toBe(host.querySelectorAll('tbody tr:not([data-testid]) td')[2]);
+    const row = button?.closest('tr');
+    expect(button?.closest('td')).toBe(host.querySelectorAll('tbody tr:not([data-testid]) td')[3]);
     expect(button?.textContent).toContain('61.5');
     expect(host.querySelector('tbody button')?.textContent).not.toMatch(/^score$/i);
-    expect(button?.getAttribute('aria-pressed')).toBe('false');
+    expect(button?.getAttribute('aria-expanded')).toBe('false');
+    expect(row?.getAttribute('aria-expanded')).toBe('false');
     await act(async () => button?.click());
-    expect(breakdownButton()?.getAttribute('aria-pressed')).toBe('true');
+    expect(breakdownButton()?.getAttribute('aria-expanded')).toBe('true');
+    expect(row?.getAttribute('aria-expanded')).toBe('true');
     const panel = host.querySelector('[data-testid="depot-economics-breakdown"]');
+    const expanded = panel?.closest('tr');
+    expect(expanded?.getAttribute('data-testid')).toBe('depot-table-expanded');
+    expect(expanded?.previousElementSibling).toBe(row);
+    expect(panel?.querySelector('#economics-breakdown-title')?.textContent).toMatch(
+      /^Economics breakdown for Alambagh/,
+    );
     expect(panel?.querySelector('[data-provenance="modelled"]')).not.toBeNull();
-    expect(panel?.textContent).toContain('rank 1 of 6 in its peer group');
+    expect(panel?.textContent).toContain('Rank 1 of 6 in its peer group');
     expect(panel?.textContent).toContain('₹30.00 per km');
     expect(panel?.textContent).toContain('on 2 of 2 routes');
     expect(panel?.textContent).toContain('Fuel cost per km');
     const inner = [...(panel?.querySelectorAll('th') ?? [])].map((th) => th.textContent ?? '');
     expect(inner).toContain('Peer median');
     expect(panel?.textContent).not.toMatch(/efficiency/i);
-    expect(panel?.className).toContain('2xl:top-[var(--depot-panel-top)]');
-    expect(panel?.className).not.toMatch(/(^|\s)xl:/);
     expect(document.activeElement).toBe(panel);
-    expect(host.querySelector('[class*="2xl:grid-cols"]')).not.toBeNull();
-    expect(host.querySelector('tbody tr[aria-selected]')).toBeNull();
+    // No separate panel beside or below the table remains.
+    expect(host.querySelector('[class*="2xl:grid-cols"]')).toBeNull();
+    expect(panel?.className).not.toContain('depot-panel');
+    expect(host.querySelectorAll('[data-testid="depot-economics-breakdown"]')).toHaveLength(1);
+  });
+
+  it('opens from the row itself with Enter, and Escape closes it with focus back on the row', async () => {
+    await render(<EconomicsPage />);
+    const row = breakdownButton()?.closest('tr') as HTMLTableRowElement;
+    expect(row.getAttribute('tabindex')).toBe('0');
+    expect(row.getAttribute('aria-label')).toBe('Alambagh, show details');
+    // One tab stop per row: the index button is clickable but out of the tab order.
+    expect(breakdownButton()?.getAttribute('tabindex')).toBe('-1');
+    row.focus();
+    await act(async () => {
+      row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    const panel = host.querySelector<HTMLElement>('[data-testid="depot-economics-breakdown"]');
+    expect(panel).not.toBeNull();
+    expect(document.activeElement).toBe(panel);
+    await act(async () => {
+      panel?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(host.querySelector('[data-testid="depot-economics-breakdown"]')).toBeNull();
+    const again = breakdownButton()?.closest('tr');
+    expect(again?.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(again);
+  });
+
+  it('keeps the band directly in the shared stack with no rule of the page own between it and DEPOTS', async () => {
+    await render(<EconomicsPage />);
+    const band = host.querySelector('.depot-band');
+    const stack = band?.parentElement;
+    expect(stack?.className).toContain('depot-stack');
+    expect(stack?.className).not.toMatch(/\bgap-|space-y-/);
+    const section = band?.nextElementSibling;
+    expect(section?.tagName).toBe('SECTION');
+    expect(section?.className ?? '').not.toMatch(/border|\bmt-|\bpt-/);
+    // The section's one rule is the shared label's hairline, its first child.
+    expect(section?.firstElementChild?.className).toContain('border-t');
   });
 });
 
