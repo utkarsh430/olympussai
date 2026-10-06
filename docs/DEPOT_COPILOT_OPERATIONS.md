@@ -36,7 +36,7 @@ Claude text with that list in mind.
   private home), `TMPDIR` (the call's private working folder, so the CLI's temporary files go
   with it), `DISABLE_AUTOUPDATER=1`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` and, when set,
   `CLAUDE_CODE_OAUTH_TOKEN`. `ANTHROPIC_API_KEY`, `SESSION_SECRET` and `PROJECT_PIN_HASH` never
-  reach it. `--max-turns` is not passed. The closing review found that the 2.1.291 binary does
+  reach it. `--max-turns` is not passed. The 2.1.291 binary does
   list it ("only works with --print"); with no tools a call is one turn anyway, so it would
   only be an extra layer. It answers
   only when it is switched on, its binary passes the safety checks, there is allowance and time
@@ -71,16 +71,16 @@ model draft (no rule reads the window or held-yard facts):
 ## What a Claude draft can still say
 
 The checks accept each of these, so read Claude text for them:
-- **A worded relation between two true figures** (S45): "200 buses exceed 3 buses."
-- **A later figure-less sentence that denies an earlier one** (parked by S59): "3 buses are dark.
+- **A worded relation between two true figures**: "200 buses exceed 3 buses."
+- **A later figure-less sentence that denies an earlier one** (left open by decision): "3 buses are dark.
   That is not so." Negation is refused only inside a figure's clause; a contraction or `un-`
   word after a comma does the same within one sentence ("3 buses are dark, which is unlikely").
-- **An instruction without an opening verb, or a noun-use opener** (parked by S59): "Depots
+- **An instruction without an opening verb, or a noun-use opener** (left open by decision): "Depots
   should move buses.", "Move buses is ...". Openers built from noun/verb homographs pass too:
-  "Contact the depot at Agra now." (review L2).
-- **A true figure with a false predicate** (M-A): "141 buses are dark." where 141 is the on-road
+  "Contact the depot at Agra now."
+- **A true figure with a false predicate**: "141 buses are dark." where 141 is the on-road
   count; "The efficiency is 71%." where 71% is the on-road share. Any figure can take any state
-  word that is allowed beside a figure. Closing this (review M-A item 1, not done in round 9)
+  word that is allowed beside a figure. Closing this (not done)
   means every count fact carrying its own state in its text ("141 buses on the road", "3 dark
   buses"), so that a recast contradicts itself on its face. That changes the text of each count
   fact in `facts/` (depot, network, measure, outshed, transfers, balance), every scripted
@@ -88,11 +88,11 @@ The checks accept each of these, so read Claude text for them:
   dark" would read "3 dark buses have gone dark"), the window lists (a state word after a figure
   would no longer be needed), and the pinned phrasings in `depot-copilot-facts.test.ts`.
 - **A true figure with a false scope, rate or period built from words that are not on the
-  clause list** (M-A): "Across the network the depots have 3 buses dark.", "The network has 3
+  clause list**: "Across the network the depots have 3 buses dark.", "The network has 3
   buses dark in a depot.", "At night the yard at Agra has 3 buses dark." (The listed quantifier
   and period words, as in "All depots have 3 buses dark." or "3 buses were dark in the last
-  week.", are refused since round 9.)
-- **A figure under another depot's name, where the rule cannot see it** (M-A). Since round 9 a
+  week.", are refused.)
+- **A figure under another depot's name, where the rule cannot see it**. A
   per-depot figure in a comparison, ranking, list or the network's strongest/weakest pair is
   refused when another depot's name stands in its list entry or is the name it reads as
   belonging to ("3 buses are dark at Kaushambi." with Agra's count). Still accepted: a
@@ -101,9 +101,9 @@ The checks accept each of these, so read Claude text for them:
   dark."); a figure
   with no depot (a network-wide count, a transfer's count) under any depot's name; and the
   transfers answer and transfer rationale, whose facts are not yet tagged with their depot.
-- **A figure reused with another noun, or given a second noun** (M-A): "3 buses are dark. 3 buses
+- **A figure reused with another noun, or given a second noun**: "3 buses are dark. 3 buses
   are in the yard.", "71% of the depots are dark."
-- **A missing or contradicted window or held yard** (M-C): "Agra stands at index 68.1 and rank 2
+- **A missing or contradicted window or held yard**: "Agra stands at index 68.1 and rank 2
   of 12 depots." with no window; "The yard is placed by this snapshot." for a held yard.
 - **A figure-less judgement of a depot or measure** that names no person, cause or alarm: "Fuel
   use at Agra is a serious concern."
@@ -112,7 +112,7 @@ These are accepted for the owner-only command-line writer, whose text the owner 
 writer's name beside it. They are not accepted for a writer that serves staff: before an API-key
 provider is switched on for other people, the later-sentence denial and the obligation words
 must be refused by rule, the noun-use opener replaced by an explicit list, and the figure
-meaning (M-A) and window (M-C) rules enforced on every draft.
+meaning and window rules enforced on every draft.
 
 When Claude was expected but the scripted writer answered, the user sees: "Claude was not
 available, so this is a scripted response." Users never see an error because of Claude.
@@ -199,8 +199,8 @@ person who logs in again and again.
   with the notice. **The person can also make the copilot refuse everyone:** about 556 fresh
   logins, each sending its 10 requests a minute (5,555 / 10), fill the process ceiling, and while
   that lasts every user gets "Too many requests". Logins are not limited on success, so this is a
-  few seconds of scripting. Ruling S37's "nobody can make the copilot refuse everyone" is not
-  true without the header.
+  few seconds of scripting. The aim that nobody can make the copilot refuse everyone is not
+  met without the header.
 - **With the header set behind exactly one proxy that overwrites it:** one IPv4 address, or one
   IPv6 /64 (IPv6 addresses are limited on their /64; an IPv4-mapped address counts as its IPv4
   address), gets at most 8 Claude calls an hour (192 in a whole day, under the 200 cap), 60
