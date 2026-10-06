@@ -154,14 +154,6 @@ export function formatRate(value: number | null): string {
   return value === null ? DASH : `${(value * PERCENT).toFixed(1)}%`;
 }
 
-/** A signed difference in percentage points, using a real minus sign. */
-export function formatPoints(delta: number | null): string {
-  if (delta === null) return DASH;
-  const rounded = Math.round(delta * 10) / 10;
-  if (rounded === 0) return '0.0 pts';
-  return `${rounded > 0 ? '+' : '−'}${Math.abs(rounded).toFixed(1)} pts`;
-}
-
 export type DifferenceDirection = 'better' | 'worse' | 'level' | 'unknown';
 
 export interface DifferenceWording {

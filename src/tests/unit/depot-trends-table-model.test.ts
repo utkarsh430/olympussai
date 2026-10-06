@@ -2,10 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { TrendRow } from '@/lib/depot/forecast/api';
 import { metricInfo } from '@/lib/depot/forecast/wording';
 import {
-  capTrendRows,
   defaultTrendSort,
   sortTrendRows,
-  TREND_ROW_CAP,
   trendColumnHeaders,
   trendTableCaption,
   trendTableRows,
@@ -115,13 +113,6 @@ describe('sorting and capping', () => {
     const before = rows.map((r) => r.id);
     sortTrendRows(rows, { key: 'fourWeeks', direction: 'asc' });
     expect(rows.map((r) => r.id)).toEqual(before);
-  });
-
-  it('shows the first rows until asked for all', () => {
-    const many = Array.from({ length: TREND_ROW_CAP + 5 }, (_, i) => i);
-    expect(capTrendRows(many, false)).toEqual({ shown: many.slice(0, TREND_ROW_CAP), hidden: 5 });
-    expect(capTrendRows(many, true)).toEqual({ shown: many, hidden: 0 });
-    expect(capTrendRows([1, 2], false)).toEqual({ shown: [1, 2], hidden: 0 });
   });
 
   it('captions the table with the metric, the count shown and the order, with no tag', () => {

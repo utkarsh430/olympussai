@@ -122,25 +122,6 @@ export function trendLines(result: TrendResult): readonly string[] {
   return [weekLine, `Trend: ${fourWeeks.sentence}`];
 }
 
-const TREND_TAG = /^(MODELLED trend|Trend): /;
-
-function withoutTrendTag(line: string): string {
-  return line.replace(TREND_TAG, '');
-}
-
-/**
- * The trend lines a page prints under the shared chart, which already prints
- * the headline one (`chartLine`); each sentence then appears exactly once.
- */
-export function trendLinesBesideChart(
-  result: TrendResult,
-  chartLine: string | null,
-): readonly string[] {
-  // The chart prints its own tag on its headline sentence: compare without any tag.
-  const bare = chartLine === null ? null : withoutTrendTag(chartLine);
-  return trendLines(result).filter((line) => withoutTrendTag(line) !== bare);
-}
-
 /**
  * Said in place of the availability comparison when a request behind it failed. Figures
  * kept from an earlier answer are not shown then: a requirement or a forecast from before

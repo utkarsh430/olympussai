@@ -191,15 +191,6 @@ export function depotScopeLine(groups: readonly DepotExceptionGroup[]): string {
   return `${formatCount(exceptions)} exceptions in ${formatCount(groups.length)} depots: a depot is listed once, under its worst level.`;
 }
 
-/** The query string for a kind filter: `?kind=long_dark`, or the bare path when cleared. */
-export function kindSearch(search: string, kind: ExceptionKind | null): string {
-  const params = new URLSearchParams(search);
-  if (kind === null) params.delete('kind');
-  else params.set('kind', kind);
-  const text = params.toString();
-  return text === '' ? '' : `?${text}`;
-}
-
 export interface BusColumnPlan {
   /** A constant column is dropped: the kind column is shown only while every kind is listed. */
   readonly showKind: boolean;

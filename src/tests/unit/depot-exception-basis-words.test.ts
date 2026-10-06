@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { busBasisNote, depotBasisLabel } from '@/lib/depot/exceptions/basisWords';
+import { busBasisNote, fewSnapshotsLabel } from '@/lib/depot/exceptions/basisWords';
 import type { DepotException } from '@/lib/depot/exceptions/types';
 
 /*
- * Round 2, ruling 4: each exception says whether its figure is compared over the rolling
- * window or as of the feed time, from its own `basis`, in the shared window words; a depot
- * scored on fewer snapshots than the network window says so quietly.
+ * Each exception says whether its figure is compared over the rolling window or as of the
+ * feed time; a depot scored on fewer snapshots than the network window says so quietly.
  */
 const NOW = '2026-10-06T14:20:00.000Z';
 const FULL = { lengthMin: 20, since: '2026-10-06T14:00:00.000Z', samples: 30 };
@@ -26,29 +25,15 @@ function exc(over: Partial<DepotException>): DepotException {
   };
 }
 
-describe('depotBasisLabel', () => {
-  it('words a windowed comparison with the shared window words', () => {
-    expect(depotBasisLabel(exc({ basis: 'window', samples: 30 }), FULL, NOW)).toBe('Last 20 min');
-  });
-
+describe('fewSnapshotsLabel', () => {
   it('says quietly when the depot was scored on fewer snapshots than the window', () => {
-    expect(depotBasisLabel(exc({ basis: 'window', samples: 2 }), FULL, NOW)).toBe(
-      'Last 20 min · 2 snapshots',
-    );
-    expect(depotBasisLabel(exc({ basis: 'window', samples: 1 }), FULL, NOW)).toBe(
-      'Last 20 min · 1 snapshot',
-    );
+    expect(fewSnapshotsLabel(exc({ basis: 'window', samples: 2 }), FULL)).toBe('2 snapshots');
+    expect(fewSnapshotsLabel(exc({ basis: 'window', samples: 1 }), FULL)).toBe('1 snapshot');
   });
 
-  it('words a feed-time figure as of the feed time', () => {
-    expect(depotBasisLabel(exc({ kind: 'power_cut_cluster', basis: 'feed_time' }), FULL, NOW)).toBe(
-      'As of 14:20',
-    );
-  });
-
-  it('falls back to the kind when an older response carries no basis', () => {
-    expect(depotBasisLabel(exc({ kind: 'power_cut_cluster' }), FULL, NOW)).toBe('As of 14:20');
-    expect(depotBasisLabel(exc({}), FULL, NOW)).toBe('Last 20 min');
+  it('says nothing for a full window or when the window is unknown', () => {
+    expect(fewSnapshotsLabel(exc({ basis: 'window', samples: 30 }), FULL)).toBeNull();
+    expect(fewSnapshotsLabel(exc({ basis: 'window', samples: 2 }), undefined)).toBeNull();
   });
 });
 

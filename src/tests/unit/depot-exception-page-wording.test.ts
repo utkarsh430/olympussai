@@ -3,7 +3,6 @@ import {
   busColumnPlan,
   depotScopeLine,
   groupDepotExceptions,
-  kindSearch,
   severitySections,
 } from '@/lib/depot/exceptions/pageModel';
 import { depotWindowNote, scoreWindowPhrase as windowPhrase } from '@/lib/depot/score/windowWords';
@@ -73,13 +72,6 @@ describe('depotScopeLine', () => {
   });
 });
 
-describe('kindSearch', () => {
-  it('sets, replaces and clears the kind, keeping other parameters', () => {
-    expect(kindSearch('', 'long_dark')).toBe('?kind=long_dark');
-    expect(kindSearch('?kind=long_dark&x=1', 'emergency')).toBe('?kind=emergency&x=1');
-    expect(kindSearch('?kind=long_dark', null)).toBe('');
-  });
-});
 
 describe('busColumnPlan', () => {
   it('drops the constant kind column and the empty code column', () => {

@@ -3,7 +3,6 @@ import {
   buildLeagueRows,
   explainRow,
   filterLeagueRows,
-  formatPoints,
   formatRate,
   describeDifference,
   differenceDirection,
@@ -185,13 +184,9 @@ describe('explainRow', () => {
 });
 
 describe('formatters', () => {
-  it('formats rates and signed point differences', () => {
+  it('formats rates', () => {
     expect(formatRate(0.3125)).toBe('31.3%');
     expect(formatRate(null)).toBe('—');
-    expect(formatPoints(2.04)).toBe('+2.0 pts');
-    expect(formatPoints(-3.26)).toBe('−3.3 pts');
-    expect(formatPoints(0.01)).toBe('0.0 pts');
-    expect(formatPoints(null)).toBe('—');
   });
 });
 

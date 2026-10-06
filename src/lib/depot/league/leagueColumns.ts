@@ -85,18 +85,6 @@ export function frozenStyles(): Readonly<Record<FrozenKey, Readonly<Record<strin
   return { rank: style('rank'), depot: style('depot'), index: style('index') };
 }
 
-/**
- * Metric columns after the frozen block: schedule coverage and device integrity first,
- * the two that most often explain a low index, so they are on screen at 1440 unscrolled.
- */
-export const LEAGUE_COMPONENT_ORDER: readonly DeiComponentKey[] = [
-  'scheduled',
-  'deviceHealth',
-  'onRoad',
-  'dark',
-  'offRoad',
-];
-
 /*
  * Every column after the frozen block, with the width it needs, so no column is cut and
  * the table never scrolls sideways: each width is the larger of its header (11px mono

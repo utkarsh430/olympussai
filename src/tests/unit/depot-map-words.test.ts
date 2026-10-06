@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  LOWEST_OPERATING_LABEL,
-  SUGGESTION_LABEL,
   SUGGESTION_NOTE,
   depotLink,
-  lowestOperatingDepot,
   markerLabel,
   peerRankLine,
   positionNote,
@@ -77,20 +74,12 @@ describe('positionNote', () => {
   });
 });
 
-describe('lowestOperatingDepot', () => {
-  it('picks the ranked operating depot with the lowest index', () => {
-    const rows = [row('a', 40), row('b', 12.5), row('c', 80), row('enf', 5, 'enforcement')];
-    expect(lowestOperatingDepot(rows)?.depot.id).toBe('b');
-    expect(LOWEST_OPERATING_LABEL).toBe('Lowest index among operating depots');
-    expect(SUGGESTION_LABEL).toBe('Suggestion');
+describe('the suggestion note', () => {
+  it('says the index is scored within peer groups', () => {
     expect(SUGGESTION_NOTE).toMatch(/scored within peer groups/);
     expect(SUGGESTION_NOTE).toMatch(/within its own peer group ranking/);
   });
 
-  it('breaks ties on the smaller id and returns null when nothing is ranked', () => {
-    expect(lowestOperatingDepot([row('z', 10), row('m', 10)])?.depot.id).toBe('m');
-    expect(lowestOperatingDepot([row('a', null, 'depot', 'fleet_too_small')])).toBeNull();
-  });
 });
 
 describe('depotLink', () => {

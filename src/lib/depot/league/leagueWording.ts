@@ -16,31 +16,6 @@ const ROUND_TO_TENTH = 10;
 
 export type DifferenceUnit = 'pp' | 'pts';
 
-function plural(n: number, one: string, many: string): string {
-  return `${formatCount(n)} ${n === 1 ? one : many}`;
-}
-
-/** "118 ranked of 119 operating depots · 1 not ranked (fewer than 10 buses) · 24 other units not ranked". */
-export function leagueStatusLine(
-  depots: readonly Pick<DepotSummary, 'id' | 'kind'>[],
-  scores: readonly Pick<DepotScore, 'depotId' | 'ranked'>[],
-  minFleetForRank: number,
-): string {
-  const rankedIds = new Set(scores.filter((s) => s.ranked).map((s) => s.depotId));
-  const operating = depots.filter((d) => d.kind === 'depot');
-  const ranked = operating.filter((d) => rankedIds.has(d.id)).length;
-  const tooSmall = operating.length - ranked;
-  const others = depots.length - operating.length;
-  const parts = [
-    `${formatCount(ranked)} ranked of ${plural(operating.length, 'operating depot', 'operating depots')}`,
-    tooSmall > 0
-      ? `${formatCount(tooSmall)} not ranked (fewer than ${minFleetForRank} buses)`
-      : null,
-    others > 0 ? `${plural(others, 'other unit', 'other units')} not ranked` : null,
-  ];
-  return parts.filter((p): p is string => p !== null).join(SEP);
-}
-
 /**
  * The one note above the table: ranked of operating depots, and how to open a breakdown.
  * The window words are in the provenance line and the row count in the pager.
