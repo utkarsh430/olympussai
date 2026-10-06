@@ -143,15 +143,3 @@ export function exceptionRows(counts: Readonly<Record<ExceptionKind, number>>): 
     count: safeCount(counts[entry.kind]),
   }));
 }
-
-export type SeverityTotals = Readonly<Record<ExceptionSeverity | 'total', number>>;
-
-/** Totals by severity, from the server's own severity counts (exact, unlike counts by kind). */
-export function severityTotals(
-  severities: Readonly<Record<ExceptionSeverity, number>>,
-): SeverityTotals {
-  const critical = safeCount(severities.critical);
-  const warning = safeCount(severities.warning);
-  const info = safeCount(severities.info);
-  return { critical, warning, info, total: critical + warning + info };
-}

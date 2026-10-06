@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   exceptionRows,
   selectionStatus,
-  severityTotals,
   formatIndex,
   joinScores,
   rankedExtremes,
@@ -178,44 +177,6 @@ describe('exception summaries', () => {
     expect(emergency).toMatchObject({ count: 1, severity: 'critical' });
     const dark = rows.find((row) => row.kind === 'dark_share_high');
     expect(dark?.severity).toBe('variable');
-  });
-});
-
-describe('severityTotals', () => {
-  it('totals the severity counts the server sends', () => {
-    expect(severityTotals({ critical: 2, warning: 41, info: 12 })).toEqual({
-      critical: 2,
-      warning: 41,
-      info: 12,
-      total: 55,
-    });
-  });
-
-  it('can differ from the sum of the kind counts, because depot-rate kinds split by z', () => {
-    const counts: Record<ExceptionKind, number> = {
-      dark_share_high: 2,
-      off_road_high: 1,
-      on_road_low: 0,
-      power_cut_cluster: 3,
-      long_dark: 40,
-      power_cut: 7,
-      tamper_code: 5,
-      emergency: 1,
-    };
-    const kindSum = exceptionRows(counts).reduce((sum, row) => sum + row.count, 0);
-    const totals = severityTotals({ critical: 3, warning: 44, info: 12 });
-    expect(kindSum).toBe(59);
-    expect(totals.total).toBe(59);
-    expect(totals.critical).not.toBe(1);
-  });
-
-  it('treats an invalid count as zero', () => {
-    expect(severityTotals({ critical: Number.NaN, warning: -2, info: 4.4 })).toEqual({
-      critical: 0,
-      warning: 0,
-      info: 4,
-      total: 4,
-    });
   });
 });
 
