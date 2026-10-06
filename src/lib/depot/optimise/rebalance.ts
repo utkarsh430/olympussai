@@ -36,6 +36,11 @@ export function summariseBalances(balances: readonly DepotBalance[]): NetworkBal
   return { depotsInDeficit, depotsInSurplus, totalDeficit, totalSurplus };
 }
 
+/** Whole metres to kilometres at one decimal, divided once so no float residue reaches the screen. */
+function toTenthsOfKm(metres: number): number {
+  return Math.round(metres / (METRES_PER_KM / 10)) / 10;
+}
+
 function compareIds(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
@@ -109,8 +114,12 @@ export function planTransfers(
   givers.forEach((g, i) => {
     edges.push({ from: source, to: 1 + i, capacity: g.balance.balance, cost: 0 });
   });
-  const pairEdges: { readonly edge: number; readonly giver: number; readonly receiver: number }[] =
-    [];
+  const pairEdges: {
+    readonly edge: number;
+    readonly giver: number;
+    readonly receiver: number;
+    readonly metres: number;
+  }[] = [];
   const reachable = new Set<number>();
   givers.forEach((g, i) => {
     receivers.forEach((r, j) => {
@@ -119,7 +128,7 @@ export function planTransfers(
       );
       if (metres > params.maxTransferKm * METRES_PER_KM) return;
       reachable.add(j);
-      pairEdges.push({ edge: edges.length, giver: i, receiver: j });
+      pairEdges.push({ edge: edges.length, giver: i, receiver: j, metres });
       edges.push({
         from: 1 + i,
         to: 1 + givers.length + j,
@@ -136,22 +145,22 @@ export function planTransfers(
 
   const received = new Array<number>(receivers.length).fill(0);
   const transfers: Transfer[] = [];
-  for (const { edge, giver, receiver } of pairEdges) {
+  let totalBusMetres = 0;
+  for (const { edge, giver, receiver, metres } of pairEdges) {
     const buses = result.edgeFlows[edge] ?? 0;
     if (buses <= 0) continue;
     const from = givers[giver] as Candidate;
     const to = receivers[receiver] as Candidate;
-    const distanceKm =
-      Math.round(roadDistanceKm(from.position, to.position, params.detourFactor) * METRES_PER_KM) /
-      METRES_PER_KM;
+    const busMetres = buses * metres;
+    totalBusMetres += busMetres;
     received[receiver] = (received[receiver] ?? 0) + buses;
     transfers.push({
       id: `${from.balance.depotId}>${to.balance.depotId}`,
       fromDepotId: from.balance.depotId,
       toDepotId: to.balance.depotId,
       buses,
-      distanceKm,
-      busKm: buses * distanceKm,
+      distanceKm: metres / METRES_PER_KM,
+      busKm: toTenthsOfKm(busMetres),
     });
   }
   transfers.sort(
@@ -189,6 +198,6 @@ export function planTransfers(
     after,
     coveredDeficit: result.flow,
     uncovered,
-    totalBusKm: transfers.reduce((sum, t) => sum + t.busKm, 0),
+    totalBusKm: toTenthsOfKm(totalBusMetres),
   };
 }

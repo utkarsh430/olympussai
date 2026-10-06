@@ -7,6 +7,11 @@
  * flow of minimum cost. Bellman-Ford (queue based) handles the negative-cost
  * reverse arcs. Pure and deterministic: ties are broken by edge order, so the
  * same input always yields the same flow.
+ *
+ * Input edge costs must be non-negative integers; a negative cost is rejected
+ * with a RangeError because a negative cycle would make the shortest-path step
+ * loop forever. Transfer planning never needs one. (Residual reverse arcs do
+ * carry negative costs internally; that is safe without negative input cycles.)
  */
 
 export interface FlowEdgeInput {
@@ -43,6 +48,11 @@ function validate(
       throw new Error('edge capacity must be a non-negative integer');
     }
     if (!Number.isInteger(e.cost)) throw new Error('edge cost must be an integer');
+    if (e.cost < 0) {
+      throw new RangeError(
+        'edge cost must not be negative: a negative cycle would never terminate',
+      );
+    }
   }
 }
 

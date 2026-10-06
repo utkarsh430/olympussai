@@ -133,4 +133,17 @@ describe('minCostMaxFlow', () => {
     expect(() => minCostMaxFlow(2, [{ from: 0, to: 5, capacity: 1, cost: 1 }], 0, 1)).toThrow();
     expect(() => minCostMaxFlow(2, [{ from: 0, to: 1, capacity: -1, cost: 1 }], 0, 1)).toThrow();
   });
+
+  it('rejects negative costs with a RangeError rather than risk a negative cycle', () => {
+    const cycle: FlowEdgeInput[] = [
+      { from: 0, to: 1, capacity: 1, cost: 1 },
+      { from: 1, to: 2, capacity: 5, cost: -3 },
+      { from: 2, to: 1, capacity: 5, cost: -3 },
+      { from: 1, to: 3, capacity: 1, cost: 1 },
+    ];
+    // Without validation this input loops until memory runs out, which is also a RangeError,
+    // so the message is asserted as well.
+    expect(() => minCostMaxFlow(4, cycle, 0, 3)).toThrow(/negative/i);
+    expect(() => minCostMaxFlow(4, cycle, 0, 3)).toThrow(RangeError);
+  });
 });
