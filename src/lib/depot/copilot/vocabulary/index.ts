@@ -1,6 +1,10 @@
 import { DESCRIPTIVE_WORDS } from '@/lib/depot/copilot/vocabulary/describe';
 import { DOMAIN_WORDS } from '@/lib/depot/copilot/vocabulary/domain';
-import { EXCLUDED_WORDS, isRomanNumeral } from '@/lib/depot/copilot/vocabulary/excluded';
+import {
+  EXCLUDED_QUANTITY_WORDS,
+  EXCLUDED_WORDS,
+  isRomanNumeral,
+} from '@/lib/depot/copilot/vocabulary/excluded';
 import { FUNCTION_WORDS } from '@/lib/depot/copilot/vocabulary/function';
 import { VERBS } from '@/lib/depot/copilot/vocabulary/verbs';
 
@@ -40,13 +44,28 @@ function stemsOf(lower: string): readonly string[] {
   return [...plain, ...droppedE, ...yToI];
 }
 
+const QUANTITY: ReadonlySet<string> = new Set(EXCLUDED_QUANTITY_WORDS);
+
+/** What a form reduces to: each regular ending removed, and a final "es" turned into "s". */
+export function reductionsOf(lower: string): readonly string[] {
+  const esToS = lower.endsWith('es') ? [`${lower.slice(0, -2)}s`] : [];
+  return [...stemsOf(lower), ...esToS];
+}
+
+/** True when the word, or anything it reduces to, is in the set ("nightly" for "night"). */
+export function reducesToAny(lower: string, set: ReadonlySet<string>): boolean {
+  return set.has(lower) || reductionsOf(lower).some((reduced) => set.has(reduced));
+}
+
 /**
  * True when a lowercase token is in the vocabulary: a listed form (which may
  * hold a hyphen or apostrophe), or a listed word with one regular ending. The
- * excluded list is checked first, so no ending can build an excluded word.
+ * excluded list is checked first, and a built form is refused when it reduces
+ * to an excluded quantity word, so no ending can rebuild one ("day" + "es").
  */
 export function isVocabularyWord(lower: string): boolean {
   if (isExcludedWord(lower)) return false;
   if (LISTED.has(lower)) return true;
-  return PLAIN.test(lower) && stemsOf(lower).some(isStem);
+  if (!PLAIN.test(lower) || !stemsOf(lower).some(isStem)) return false;
+  return !reductionsOf(lower).some((reduced) => QUANTITY.has(reduced));
 }

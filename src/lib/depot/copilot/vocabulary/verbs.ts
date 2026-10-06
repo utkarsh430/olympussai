@@ -45,7 +45,7 @@ configure inferred hardest harder worth yet nearer preferable preferably healthy
 arose arisen became began begun bore borne brought built came caught chose chosen dealt drew
 drawn drove driven fell fallen fed felt found gave given went gone grew grown held kept knew
 known laid lain led left lent lost made meant met paid ran rose risen said saw seen sent
-shown sat spoke spoken stood taken took told thought understood understand withdrawn wrote
+shown spoke spoken stood taken took told thought understood understand withdrawn wrote
 written beginning cutting dropped dropping fitted fitting flagged flagging getting letting
 planned planning putting referred referring running setting sitting slipped slipping stopped
 stopping occurred occurring controlled controlling transferred transferring travelled
