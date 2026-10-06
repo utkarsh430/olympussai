@@ -35,7 +35,19 @@ export interface PlacedStop {
   readonly scheduled: string | null;
 }
 
-const TIME_PATTERN = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
+/**
+ * The one time a stop is judged by: its departure, else its arrival. The route
+ * profile keeps the same time, so a bus's own timetable and a route's profile
+ * leave out the same stops.
+ */
+export function judgedTime(stop: {
+  readonly scheduledDeparture: string | null;
+  readonly scheduledArrival: string | null;
+}): string | null {
+  return stop.scheduledDeparture ?? stop.scheduledArrival;
+}
+
+const TIME_PATTERN =/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
 const SECONDS_PER_MINUTE = 60;
 /** Fewer usable times than this and the timetable cannot judge any position. */
 const MIN_TIMED_STOPS = 2;

@@ -2,7 +2,7 @@ import { haversineKm } from '../infer/geo';
 import type { CanonicalSchedule, CanonicalStop } from '@/models/canonical';
 import type { RouteProfile, RouteStop } from './types';
 import { MINUTES_PER_DAY } from '@/lib/depot/units';
-import { parseWallClockMinutes, positionsFitTimetable } from './timetableFit';
+import { judgedTime, parseWallClockMinutes, positionsFitTimetable } from './timetableFit';
 
 type LocatedStop = RouteStop & { readonly lat: number; readonly lng: number };
 
@@ -13,7 +13,7 @@ function toRouteStop(stop: Readonly<CanonicalStop>): RouteStop {
     sequence: stop.sequence,
     lat: located ? stop.latitude : null,
     lng: located ? stop.longitude : null,
-    scheduled: stop.scheduledDeparture ?? stop.scheduledArrival,
+    scheduled: judgedTime(stop),
   };
 }
 
