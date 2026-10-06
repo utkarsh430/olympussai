@@ -3,17 +3,77 @@
 The shared pieces every depot page uses. Each is built once in `src/components/depot/shell/`
 (the copilot footer in `src/components/depot/copilot/`); a page applies them and never
 rebuilds them. The direction they implement is `.superpowers/sdd/_swarm/design-wave-rulings.md`
-(cited below as "Rulings §n"). Page order, top to bottom: `PageHeader` (with its provenance
-line), the one hero, supporting sections under `SectionLabel`s, and one closed disclosure at the
-end, "How these figures are produced".
+(cited below as "Rulings §n"); the measurements come from the round-4 design critique
+(`review-design-critique-round4.md`, "critique §n"). Page order, top to bottom: `PageHeader`
+(with its provenance line), the one hero, supporting sections under `SectionLabel`s, and one
+closed disclosure at the end, "How these figures are produced".
+
+## What not to do (critique §5 and §6)
+
+- No sentence in the mono face. Every `<p>` carries `depot-prose`, `depot-note`, `depot-caption`,
+  `font-sans` or `sr-only` (a source-scan test enforces it; see "Prose and notes").
+- No context sentence between the header and the hero: the modelled-day sentence goes in the
+  provenance line (`modelledDay`); explanations go in the closing disclosure.
+- No boxed explanation paragraph: a `StatePanel` is one sentence, one muted line, one action,
+  with a "How … ›" link to the closing disclosure for the rule.
+- No "Showing 1-25 of N" sentence: the `Pager` under the table is the only count. No top-right
+  "Page 1 of 51" pager, no boxed "SHOW ALL 82", no cyan "Show all" link: use `Pager` and
+  `ShowAllButton`.
+- One disclosure glyph: the muted chevron (`DisclosureChevron`). No "+", "▶" or cyan link.
+- One severity treatment: `SeverityMark`. No boxed badge, no plain coloured word, no
+  lowercase "critical or warning" phrase.
+- Tags in two places only: a `SectionLabel`'s `tag` or a `DataTable` column's `tag`. Never
+  "(MODELLED)" in header text, never a "· modelled" suffix, never a tag in a cell, never a
+  tag on a band label, except a generated figure in a band on a MIXED or DERIVED page
+  (`Figure`'s `tag`).
+- Units and words in the header (`unit`), bare numbers in cells; a repeated column becomes
+  group rows (`group`); a constant column is removed.
+- Bands of two to four figures never stretch; band figures are always 24px.
+- Filters: one `FilterRow` (inline labels, 32px controls), never a stacked label.
+- No hand-picked margins between sections: put the sections in one `depot-stack`.
+
+## Prose and notes
+
+The shell's inherited face is mono (right for data). Sentences use one of these classes:
+`depot-prose` (sans 14/20, body sentences), `depot-note` (sans 13/18, muted: notes, section
+notes, state-panel second lines, legends), `depot-caption` (sans 12/16, muted: a band caption).
+
+```tsx
+<p className="depot-note">Ranked within peer groups of similar fleet size.</p>
+```
+
+`src/tests/unit/depot-prose-face.test.ts` scans every `<p>` under `src/components/depot/**`.
+Its `EXEMPT` list is a ratchet: a page agent removes its files as it converts them; the test
+fails if a listed file no longer needs to be there. The list must end empty.
+
+## Vertical rhythm and depot-stack
+
+Held by the pieces (critique §7): header label 11/16, 4px, title 20/28, 8px, prose 14/20, 8px,
+provenance 12/20, then 24px to the hero. A section: 40px above its hairline (28px under 640px),
+16px to the label, 12px to the content. Band 88px. Table header 32px, rows 36px.
+
+`depot-stack` is the one spacing utility between sections: each direct child is one section
+(a `<section>` holding its label and content) and sits 40px (28px on a phone) below the one
+before; a child's own bottom margin is dropped. The closing disclosure is the stack's last child.
+
+```tsx
+<div className="depot-stack">
+  <FigureBand label="Fleet figures">…</FigureBand>
+  <section aria-labelledby="exc"><SectionLabel id="exc" label="Exceptions" />…</section>
+  <HowProduced id="how-produced" paragraphs={HOW} />
+</div>
+```
+
+The shell's `<main>` ends with 40px of padding, so the disclosure sits 40px above the footer,
+not the critique's 32px (the main padding is chrome; flagged for its owner).
 
 ## PageHeader
 
 `title`, `description` (ONE sentence, about 80 characters), `eyebrow?`, `controls?`,
 `provenanceLine?: ProvenanceDescription`. Earlier props still work: `provenance?` (tag plus the
 old per-tag note) and `children` (placed where `controls` go). On a depot page the depot's name
-appears above the title automatically (the depot layout supplies it); pass `eyebrow` only to
-override it. The title is the page's only `h1`.
+appears above the title automatically; pass `eyebrow` only to override it. The title is the
+page's only `h1`.
 
 ```tsx
 <PageHeader
@@ -29,7 +89,8 @@ Rule: Rulings §1 (anatomy; nothing between the header and the hero).
 ## Provenance line
 
 `provenanceLine` on `PageHeader` (component `ProvenanceLine`, pure `provenanceLine()` in
-`src/lib/depot/provenanceLine.ts`). Descriptions and what they render with a fresh feed:
+`src/lib/depot/provenanceLine.ts`). Sans 12/20; the tag is a pill. Descriptions and what they
+render with a fresh feed:
 
 | Description | Renders |
 |---|---|
@@ -43,14 +104,24 @@ Rule: Rulings §1 (anatomy; nothing between the header and the hero).
 | `{ default: 'live' }` | `LIVE` Live from the feed at 08:51. |
 | `{ default: 'reference' }` | `REFERENCE` Reference data, curated; not from the feed. |
 
-Stale, sample-data, unavailable and waiting variants are worded by the function (a mixed page
-never calls its live part LIVE when it is not). Rule: Rulings §2. After declaring the default,
-tag only what differs: a `SectionLabel`'s `tag`, a column header, a single `Figure`'s `tag`.
-Never a tag in a cell, never "Modelled" in a cell or a title.
+Modelled day: a page that rests on the modelled operating day passes `modelledDay`, worded by
+`modelledDaySentence({ date, duties, routes, scheduled, fleet })`; the line places it after the
+formula and before the link. Nothing else sits above the hero.
+
+```tsx
+provenanceLine={{ default: 'mixed', live: 'Bus states', modelled: 'duties',
+  modelledDay: modelledDaySentence({ date: 'Mon 05 Oct', duties: 163, routes: 4, scheduled: 5, fleet: 200 }) }}
+// MIXED Bus states are LIVE; duties are MODELLED. Built on the modelled day for Mon 05 Oct:
+// 163 duties on 4 routes; the feed schedules 5 of 200 buses.
+```
+
+Stale: the sentence says "… the last good data, feed time 12:36." and "last good data" is drawn
+in the stale tone (amber, semibold; the words carry it). Sample-data, unavailable and waiting
+variants are worded by the function (a mixed page never calls its live part LIVE when it is
+not). Rule: Rulings §2. After declaring the default, tag only what differs (see "Tags").
 
 `feedId` must be a registry id (`src/lib/depot/sources/registry.ts`; a test checks every page).
-Pass it whenever the line names a replacing feed. `indexWindow` puts the index window in the
-line itself: do not repeat it in a section note or status line.
+`indexWindow` puts the index window in the line itself: do not repeat it elsewhere.
 
 ## Index window words
 
@@ -65,113 +136,102 @@ scoreWindowSentence(data.scoreWindow, data.feedNow); // "Efficiency index over t
 
 ## Closing disclosure (HowProduced)
 
-Every page ends with one `HowProduced` (`shell/HowProduced.tsx`): a native `<details>`, closed,
-summary fixed as "How these figures are produced". `paragraphs?` render as text paragraphs,
-then `children`. `id?` makes it an anchor: a link to `#<id>` opens it. `className?` is outer
-spacing only; `testId?` keeps a page's test hook. Never build a page's own copy.
+`paragraphs?`, `children?`, `id?` (an anchor: a link to `#<id>` opens it), `className?` (outer
+spacing only), `testId?`. A native `<details>`, closed, summary "How these figures are
+produced" with the muted chevron. Never build a page's own copy; `StatePanel`'s `howLink`
+targets its `id`.
 
 ```tsx
 <HowProduced paragraphs={OVERVIEW_HOW_PRODUCED} id="how-produced">
-  <p>One more paragraph, or the page's own block.</p>
+  <p className="depot-prose">One more paragraph, or the page's own block.</p>
 </HowProduced>
 ```
 
-## CollapsedSection
+## CollapsedSection and DisclosureChevron
 
-For any other closed part (`shell/CollapsedSection.tsx`): a real button with `aria-expanded`
-and `aria-controls`, closed by default. `variant: 'section'` (default) puts the button in the
-section's `h2` with `count?` and `note?`; `variant: 'row'` is a plain toggle line under an
-existing heading. Closed content is not rendered unless `keepMounted` (kept content is hidden by
-the `hidden` class alone, never the `hidden` attribute). `open`/`onToggle` make it controlled;
-`headingId`/`headingRef` give a focus target.
+`CollapsedSection { label, variant?: 'section' | 'row', count?, note?, open?, onToggle?,
+headingId?, headingRef?, keepMounted?, testId? }`: a real button with `aria-expanded`, closed
+by default; closed content is not rendered unless `keepMounted` (then hidden by class only).
 
 ```tsx
 <CollapsedSection label="What-if sandbox" note="Nothing is sent" headingId="sandbox" keepMounted>
   <ScenarioPanel />
 </CollapsedSection>
-<CollapsedSection variant="row" label="The order as a list">…</CollapsedSection>
 ```
+
+`DisclosureChevron { open?, groupOpen? }` is the one glyph ("›", muted, turned when open) used
+by `HowProduced`, `CollapsedSection`, the table row expander and `ShowAllButton`; a page's own
+disclosure uses it too (`groupOpen` inside a `<details className="group">`).
 
 ## SectionLabel
 
-`label`, `count?`, `note?` (one line, right), `tag?: Provenance` (only when it differs from the
-page default), `level?: 2 | 3 | 4` (default 2), `id?`.
+`label`, `count?`, `note?` (one line, right, `depot-note`), `tag?: Provenance` (a pill after the
+label, only when the section differs from the page default), `level?: 2 | 3 | 4`, `id?`.
+16px from the hairline to the label, 12px to the content.
 
 ```tsx
 <section aria-labelledby="exc">
-  <SectionLabel id="exc" label="Exceptions" count={49} note="Most severe first" />
-  <GroupedList groups={groups} itemKey={(e) => e.id} renderItem={(e) => <ExceptionRow e={e} />} />
+  <SectionLabel id="exc" label="Night parking order" tag="modelled" note="Nearest the gate first" />
+  …
 </section>
 ```
-
-Rule: Rulings §3 (mono 11px uppercase, hairline above; no paragraph under it).
 
 ## FigureBand and Figure
 
 `FigureBand { label, children }` holds up to five `Figure { label, value, caption?, tag?,
-share?, hero?, title? }`. `title` is the figure's one-line explanation, on hover and read by
-assistive technology; keep it in the closing disclosure too. `value` is already formatted. `share` (0 to 1) draws a thin fill bar.
-`hero` uses the display face at 32px: at most one per page, and only when the figure is the
-page's hero. A `Figure` is a list item: always put it inside a `FigureBand`.
+share?, hero?, title? }`. Figures are a fixed width and left-packed: 232px from 1280px, 200px
+from 1024px (wrapping when the column is narrower), two equal columns below 1024px. Every
+figure is mono 24px (`hero`: display 32px, one per page). Label and caption truncate with the
+full text in `title`. 88px tall. `tag` only for a generated figure on a MIXED or DERIVED page.
+No `compact` (16px) form: no page needs one; the two hand-rolled 16px bands (exceptions,
+economics) become ordinary bands.
 
 ```tsx
-<FigureBand label="Fleet figures">
-  <Figure label="Off the road" value={formatCount(off)} caption="live, now" />
-  <Figure label="Overdue" value={formatCount(overdue)} caption="by modelled distance" tag="modelled" />
-  <Figure label="Capacity used" value={formatShare(used, bays)} share={used / bays} />
+<FigureBand label="Ranking">
+  <Figure label="Ranked" value="107" caption="of 119 operating depots" />
+  <Figure label="No duty in the modelled day" value="11" />
 </FigureBand>
 ```
 
-Rule: Rulings §3. Two columns under 640px with no empty tinted cell.
-
 ## Tables (DataTable options)
 
-Opt in per table; the defaults are today's behaviour. `fixedRows` (36px rows, no wrapping,
-long text truncated with the full text in `title`: a string `render` result is used, or give
-the column `title: (row) => string`), `freezeFirstColumn`, `overflowCue` (a right-edge fade
-plus the words "more columns" while columns are hidden to the right). Right-align numbers
-with `align: 'right'` (the header follows); put units in the header.
-
-Row expander: `renderExpanded: (row) => ReactNode | null` adds a narrow disclosure column
-after the first (so a frozen first column still names the row) and opens the content in a
-full-width row beneath; `null` means no button for that row. One row open at a time unless
-`multipleExpanded`; `expandLabel: (row) => string` names the button. Works with sorting,
-`maxRows`, `fixedRows` and the frozen column. Use it, not a selection line under the table,
-for a row's full text.
+Header 32px, rows 36px (every table). Opt-ins: `fixedRows` (no wrapping, truncated with the
+full text in `title`), `freezeFirstColumn`, `overflowCue`, `renderExpanded` / `expandLabel` /
+`multipleExpanded` (row expander with the muted chevron), `maxRows`, `onRowSelect`.
+Column extras: `unit` (shown after the header, "EARNINGS ₹/KM", so cells carry bare numbers);
+`tag` (a pill in the header cell, only when the column differs from the page default).
+`group: { key: (row) => string, label?: (key, count) => string }` prints a repeated column once
+as a group row ("SMALL FLEETS · 35", counting the whole group even when capped); drop that
+column. Groups follow the sort order.
 
 ```tsx
-<DataTable columns={COLUMNS} rows={rows} rowKey={(r) => r.id} caption="Duties" fixedRows
-  renderExpanded={(r) => <p>{r.reason}</p>} expandLabel={() => 'Show this duty in full'} />
+const COLUMNS: Column<Row>[] = [
+  { key: 'depot', header: 'Depot', render: (r) => r.name },
+  { key: 'earn', header: 'Earnings', unit: '₹/km', align: 'right', render: (r) => r.earn.toFixed(2) },
+  { key: 'trips', header: 'Trips/day', tag: 'modelled', align: 'right', render: (r) => r.trips },
+];
+<DataTable columns={COLUMNS} rows={rows} rowKey={(r) => r.id} caption="Depots" fixedRows
+  group={{ key: (r) => r.peerGroup }} />
 ```
 
-```tsx
-<DataTable
-  columns={COLUMNS} rows={rows} rowKey={(r) => r.registration} caption="Roster"
-  fixedRows freezeFirstColumn overflowCue
-  maxRows={25} onRowSelect={select} selectedKey={selected}
-/>
-```
-
-Rule: Rulings §3 (tables). No sentence in a cell; drop constant columns; an empty cell is a
-mono dash with the reason in `title`.
+Rule: Rulings §3 (tables). No sentence in a cell; an empty cell is a mono dash with the reason
+in `title`.
 
 ## StatePanel
 
-`kind: 'empty' | 'loading' | 'error' | 'not-ranked' | 'not-established' | 'no-data'`,
-`sentence` (what is absent and why), `title?` (error: what failed), `remedy?` (one muted line
-of what would change it), `action?`, `rows?` / `rowHeight?` / `minHeight?` (hold the footprint),
-`testId?`. `LoadingBlock`, `ErrorPanel` and `EmptyState` keep their props and render through it.
+`kind`, `sentence` (ONE sentence: what is absent and why), `remedy?` (one muted line: what would
+change it), `action?`, `title?` (error), `howLink?: { label, targetId }` ("How a yard is found ›",
+opens the closing disclosure), `compact?` + `tone?: 'ok' | 'neutral'` (one line with a status
+square, no box: a nil state inside a section), `rows?` / `rowHeight?` / `minHeight?`. Without a
+footprint the panel is exactly as tall as its text; with one the text is centred in it.
 
 ```tsx
-<StatePanel
-  kind="not-ranked" rows={8}
-  sentence="No depot is ranked: none has enough buses reporting."
-  remedy="A depot is ranked once 20 of its buses report."
-  action={<a className="depot-link" href="#unranked">See the unranked depots</a>}
-/>
+<StatePanel kind="not-established" minHeight={460}
+  sentence="No yard is established yet: too few parked buses report a position together."
+  howLink={{ label: 'How a yard is found', targetId: 'how-produced' }}
+  action={<a className="depot-link" href="#by-state">See every bus by state ↓</a>} />
+<StatePanel kind="empty" compact tone="ok" sentence="No shifts are uncovered" />
 ```
-
-Rule: Rulings §3 (one component for every state; never an empty table or a void).
 
 ## Notice
 
@@ -184,53 +244,49 @@ At most one per page; not sticky; only a critical notice is announced as an aler
 </Notice>
 ```
 
-Rule: Rulings §3 (one strip, 2px left rule in the status colour).
+## Pager, ShowAllButton, ShowMore, GroupedList
 
-## ShowMore, GroupedList, Pager
+`Pager { page, total, pageSize? = 25, onPage }`: under the table, mono, Previous / "Rows 1 to 25
+of 1,936" / Next. The ONLY place a list's count appears. It replaces the routes page's top-right
+"Page 1 of 51". Slice rows with `pageRange(page, total)` from `src/lib/depot/listPaging.ts`.
 
-`ShowMore { items, itemKey, renderItem, limit? = 5, label }`;
-`GroupedList { groups: { key, heading, items }[], itemKey, renderItem, limit?, headingLevel? }`
-(heading with count, five rows, "Show all N" with `aria-expanded`);
-`Pager { page, total, pageSize? = 25, onPage }` (Previous / Next and "Rows 26 to 50 of 132";
-focus moves to that line when a press disables the button). Slice rows with
-`pageRange(page, total)` from `src/lib/depot/listPaging.ts`.
+`ShowAllButton { total, expanded, onToggle, controls? }`: the one "Show all N" (quiet text, the
+chevron; "Show fewer" when open). It replaces the yard's boxed "SHOW ALL 82" and the overview's
+cyan link. `ShowMore { items, itemKey, renderItem, limit? = 5, label }` and `GroupedList
+{ groups, itemKey, renderItem, limit?, headingLevel? }` use it.
 
 ```tsx
 const range = pageRange(page, rows.length);
 <DataTable rows={rows.slice(range.start, range.end)} … />
 <Pager page={range.page} total={rows.length} onPage={setPage} />
+<ShowAllButton total={rows.length} expanded={all} onToggle={() => setAll(!all)} controls="units" />
 ```
 
-Rule: Rulings §3 (long lists: group by kind with counts, five per group; page at 25 where the
-list is the page's purpose).
+## BusStateMark and SeverityMark
 
-## BusStateMark
-
-`state: BusOpState`, `short?` ("On road" with the full label in `title`). A 6px square in the
-state's colour plus the word from `labels.ts`: in service green, on road (no schedule) cyan,
-standing grey, dark amber, off road crimson (checked with the dataviz validator on the dark
-surface; the word is always present).
+`BusStateMark { state: BusOpState, short? }` and `SeverityMark { severity: ExceptionSeverity }`:
+a 6px square in the status colour plus the word from `labels.ts` ("Critical", "Warning", "Info").
+Never the colour alone, never a box. On a list grouped by severity, put the severity on the group
+label and drop it from the rows.
 
 ```tsx
-{ key: 'state', header: 'State', render: (bus) => <BusStateMark state={bus.state} short /> }
+{ key: 'severity', header: 'Severity', render: (e) => <SeverityMark severity={e.severity} /> }
 ```
 
-Rule: Rulings §3 (bus state everywhere: square plus word).
+## Controls: FilterRow, SearchField, Select, Checkbox
 
-## Checkbox and Select
-
-`Checkbox { label, ...native input props }`; `Select { label, hideLabel?, children (options),
-...native select props }`. Native elements, themed: dark colour scheme, cyan accent, a muted
-chevron.
+`FilterRow { label, children }`: one wrapping row of filters. `SearchField { label, hideLabel?,
+...input }` and `Select { label, hideLabel?, children, ...select }`: the label inline at the left
+(mono 11px), the control 32px high, mono 12px (`depot-control`). `Checkbox { label, ...input }`.
+League, routes and exceptions share this row.
 
 ```tsx
-<Checkbox label="Only buses in the yard" checked={inYard} onChange={(e) => setInYard(e.target.checked)} />
-<Select label="Peer group" value={group} onChange={(e) => setGroup(e.target.value)}>
-  <option value="all">All depots</option>
-</Select>
+<FilterRow label="Filter depots">
+  <SearchField label="Search depots" value={q} onChange={(e) => setQ(e.target.value)} />
+  <Select label="Peer group" value={group} onChange={(e) => setGroup(e.target.value)}>…</Select>
+  <Checkbox label="Show unranked" checked={all} onChange={(e) => setAll(e.target.checked)} />
+</FilterRow>
 ```
-
-Rule: Rulings §3 (no browser-default controls).
 
 ## Time formatting
 
