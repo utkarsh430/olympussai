@@ -65,7 +65,7 @@ const CORPUS: readonly string[] = [
   'The plan proposes moving {{fact:move}} from {{fact:name}} to {{fact:other}}.',
   '{{fact:name}} holds a surplus of {{fact:surplus}} against its modelled requirement.',
   '{{fact:other}} is short by {{fact:deficit}}, the largest deficit within range.',
-  'The road distance between the depots is about {{fact:km}}, which keeps the move practical.',
+  'The road distance between the depots is {{fact:km}}, which keeps the move practical.',
   'After the transfer, {{fact:name}} would still hold a surplus.',
   'The receiving depot would see its deficit reduced but not removed.',
   'The giving depot can spare these buses without falling below its own requirement.',
@@ -99,11 +99,35 @@ const CORPUS: readonly string[] = [
   'In short: the fleet is largely on the road, and the exceptions are few.',
   'This depot is described as "stretched" because its deficit is large relative to its fleet.',
   'The comparison covers {{fact:name}} and {{fact:other}} only.',
+  // Round 4: the words now refused beside a figure, used honestly away from one.
+  'The yard is full, and the depot reports {{fact:dark}} dark.',
+  'Each depot reports its own figures; {{fact:name}} leads.',
+  'Over time the dark share has been the main concern.',
+  'The daily picture is steady: {{fact:onroad}} of the fleet is on the road.',
+  'No depot is in deficit, and the fleet stands at {{fact:fleet}}.',
+  'The depot is not ranked, although it holds {{fact:dark}} in the dark state.',
+  'Every unit in the comparison is an operating depot.',
+  'This week the focus is on {{fact:name}}.',
+  'By night the yard holds most of the fleet.',
+  'More depots are in surplus than in deficit.',
+  'About the yard: it holds {{fact:dark}} that have gone dark.',
+  'The trip count is not in the feed, so nothing is said about it.',
+  'Under the modelled requirement, {{fact:name}} is short.',
+  'The share is up on the earlier snapshot; it now stands at {{fact:onroad}}.',
+  'Almost every depot reports on time.',
+  'Nearly all of the fleet is reporting, which makes the picture reliable.',
+  'The fleet is {{fact:fleet}}. Each depot has its own yard.',
+  'Without a schedule in the feed, departures cannot be assessed.',
+  'It is not exactly clear why the dark share is high; the figure is {{fact:darkshare}}.',
+  'The period covered by the snapshot is short, so the trend is indicative.',
+  'The monthly review may wish to look at {{fact:other}} more closely.',
+  'Down the ranking, {{fact:third}} sits lowest.',
+  'At this time, {{fact:dark}} are dark.',
 ];
 
 describe('honest corpus (over-rejection measure)', () => {
   it('holds at least sixty sentences', () => {
-    expect(CORPUS.length).toBeGreaterThanOrEqual(60);
+    expect(CORPUS.length).toBeGreaterThanOrEqual(86);
   });
 
   it('accepts every honest sentence', () => {
