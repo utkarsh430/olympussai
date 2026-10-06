@@ -6,18 +6,25 @@ import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { rosterBusHref } from '@/lib/depot/depotNav';
 import type { FuelFlaggedBus, FuelResponse } from '@/lib/depot/fuel/api';
-import { formatKmPerLitre, groupLabel } from '@/lib/depot/fuel/fuelPageModel';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
+import { groupLabel } from '@/lib/depot/fuel/fuelPageModel';
 import {
   BASIS_LABEL,
-  NOTHING_STANDS_OUT,
+  STAND_OUT_HEADERS,
+  formatLitresPer100Km,
   formatVariance,
+  nothingStandsOut,
   routeDash,
   showRouteColumn,
   standOutFooter,
   standOutNote,
-} from '@/lib/depot/fuel/fuelPageTables';
+} from '@/lib/depot/fuel/fuelStandOut';
 
-function buildColumns(depotId: string, withRoute: boolean): readonly Column<FuelFlaggedBus>[] {
+function buildColumns(
+  depotId: string,
+  withRoute: boolean,
+  thresholdPct: number,
+): readonly Column<FuelFlaggedBus>[] {
   const route: Column<FuelFlaggedBus> = {
     key: 'route',
     header: 'Route',
@@ -48,25 +55,26 @@ function buildColumns(depotId: string, withRoute: boolean): readonly Column<Fuel
     },
     ...(withRoute ? [route] : []),
     {
-      key: 'kmpl',
-      header: 'Km per litre',
+      key: 'bus',
+      ...STAND_OUT_HEADERS.bus,
       align: 'right',
-      sortValue: (b) => b.kmPerLitre,
-      render: (b) => formatKmPerLitre(b.kmPerLitre),
+      // A lower km per litre is more fuel per kilometre: sort on the consumption shown.
+      sortValue: (b) => -b.kmPerLitre,
+      render: (b) => formatLitresPer100Km(b.kmPerLitre),
     },
     {
       key: 'median',
-      header: "Peers' median",
+      ...STAND_OUT_HEADERS.peers,
       align: 'right',
-      sortValue: (b) => b.peerMedianKmPerLitre,
-      render: (b) => formatKmPerLitre(b.peerMedianKmPerLitre),
+      sortValue: (b) => -b.peerMedianKmPerLitre,
+      render: (b) => formatLitresPer100Km(b.peerMedianKmPerLitre),
     },
     {
       key: 'variance',
-      header: 'Variance',
+      ...STAND_OUT_HEADERS.variance,
       align: 'right',
       sortValue: (b) => b.variancePct,
-      render: (b) => formatVariance(b.variancePct),
+      render: (b) => formatVariance(b.variancePct, thresholdPct),
     },
     {
       key: 'basis',
@@ -77,10 +85,14 @@ function buildColumns(depotId: string, withRoute: boolean): readonly Column<Fuel
   ];
 }
 
-/** The buses whose use per kilometre stands out from their peers: a numeric variance and a short basis. */
+/** The buses that use more fuel per kilometre than their peers: consumption, a signed variance and a basis. */
 export function FlaggedList({ data }: { readonly data: FuelResponse }) {
   const withRoute = showRouteColumn(data.flagged);
-  const columns = useMemo(() => buildColumns(data.depot.id, withRoute), [data.depot.id, withRoute]);
+  const threshold = data.rule.thresholdPct;
+  const columns = useMemo(
+    () => buildColumns(data.depot.id, withRoute, threshold),
+    [data.depot.id, withRoute, threshold],
+  );
   const footer = standOutFooter(data);
   return (
     <section aria-labelledby="depot-fuel-flagged-heading" className="min-w-0">
@@ -88,12 +100,10 @@ export function FlaggedList({ data }: { readonly data: FuelResponse }) {
         id="depot-fuel-flagged-heading"
         label="Buses that stand out"
         count={data.flaggedTotal}
-        note={standOutNote(data.rule.thresholdPct, data.rule.minPeers)}
+        note={standOutNote(threshold)}
       />
       {data.flagged.length === 0 ? (
-        <p className="depot-prose" role="status">
-          {NOTHING_STANDS_OUT}
-        </p>
+        <StatePanel kind="empty" compact tone="ok" sentence={nothingStandsOut(threshold)} />
       ) : (
         <DataTable
           columns={columns}

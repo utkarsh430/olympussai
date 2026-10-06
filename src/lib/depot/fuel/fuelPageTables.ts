@@ -1,5 +1,5 @@
 import { formatCount } from '../format';
-import type { FuelFlaggedBus, FuelResponse } from './api';
+import type { FuelResponse } from './api';
 import { formatRupees } from './format';
 import {
   COST_NOTE,
@@ -8,12 +8,8 @@ import {
   formatKmPerLitre,
   formatLitres,
   modelledStatement,
-  noComparisonNote,
-  noDistanceNote,
   notRunNote,
-  peersDifferNote,
   ruleSentence,
-  shortfallNote,
 } from './fuelPageModel';
 import type { FuelGroupRow } from './types';
 
@@ -78,50 +74,6 @@ export function fuelBand(data: FuelResponse): readonly BandFigure[] {
     },
   ];
 }
-
-/** Signed variance against the peers' median: "+18.8%". */
-export function formatVariance(pct: number): string {
-  const rounded = Math.round(pct * TENTH) / TENTH;
-  return `${rounded > 0 ? '+' : ''}${rounded.toFixed(1)}%`;
-}
-
-export const BASIS_LABEL: Readonly<Record<FuelFlaggedBus['comparison'], string>> = {
-  route: 'route peers',
-  depot: 'class in depot',
-};
-
-/** A route cell with no route is a dash. */
-export function routeDash(routeName: string | null): string {
-  return routeName === null ? DASH : routeName;
-}
-
-/** The route column is dropped from the stand-out table when most rows have no route. */
-export function showRouteColumn(rows: readonly FuelFlaggedBus[]): boolean {
-  if (rows.length === 0) return false;
-  const without = rows.filter((r) => r.routeName === null).length;
-  return without * 2 <= rows.length;
-}
-
-/** The rule, once, as the section's one-line note. */
-export function standOutNote(thresholdPct: number, minPeers: number): string {
-  return `More than ${thresholdPct}% above the peers' median, with at least ${minPeers} peers close to it`;
-}
-
-/** What is under the list, as one line: what was listed in part, and what could not be compared. */
-export function standOutFooter(data: FuelResponse): string | null {
-  const parts = [
-    data.flagged.length < data.flaggedTotal
-      ? `The ${formatCount(data.flagged.length)} with the largest variance are listed.`
-      : null,
-    peersDifferNote(data.peersDifferCount, data.rule.thresholdPct),
-    noComparisonNote(data.noComparisonCount),
-    noDistanceNote(data.noDistanceCount),
-    shortfallNote(data.day.dutiesWithoutBus),
-  ].filter((p): p is string => p !== null);
-  return parts.length === 0 ? null : parts.join(' ');
-}
-
-export const NOTHING_STANDS_OUT = 'No bus stands out from its peers today.';
 
 export interface ClassTableRow {
   readonly key: string;

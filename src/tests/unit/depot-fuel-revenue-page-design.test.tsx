@@ -7,18 +7,20 @@ import { useDepotFuel } from '@/hooks/useDepotFuel';
 import { useDepotRevenue } from '@/hooks/useDepotRevenue';
 import type { FuelFlaggedBus, FuelResponse } from '@/lib/depot/fuel/api';
 import {
-  BASIS_LABEL,
   classFloor,
   classNote,
   classTableRows,
-  formatVariance,
   fuelBand,
   fuelDisclosure,
+} from '@/lib/depot/fuel/fuelPageTables';
+import {
+  BASIS_LABEL,
+  formatVariance,
   routeDash,
   showRouteColumn,
   standOutFooter,
   standOutNote,
-} from '@/lib/depot/fuel/fuelPageTables';
+} from '@/lib/depot/fuel/fuelStandOut';
 import { groupLabel } from '@/lib/depot/fuel/fuelPageModel';
 import type { FuelGroupRow } from '@/lib/depot/fuel/types';
 import type { RevenueResponse } from '@/lib/depot/revenue/api';
@@ -139,14 +141,15 @@ describe('fuel page models', () => {
   });
 
   it('writes a signed numeric variance, a short basis and the peers median', () => {
-    expect(formatVariance(18.84)).toBe('+18.8%');
-    expect(formatVariance(-3)).toBe('-3.0%');
+    expect(formatVariance(18.84, 15)).toBe('+18.8%');
+    expect(formatVariance(-3, 15)).toBe('-3.0%');
     expect(BASIS_LABEL).toEqual({ route: 'route peers', depot: 'class in depot' });
   });
 
   it('puts the rule once in a one-line note and the unlisted counts in one line under the table', () => {
-    expect(standOutNote(15, 2)).toBe(
-      "More than 15% above the peers' median, with at least 2 peers close to it",
+    // X3: the note names the measure and its direction (it read "above the peers' median").
+    expect(standOutNote(15)).toBe(
+      'Uses more than 15% more fuel per kilometre than the median of its peers',
     );
     const line = standOutFooter(fuelData());
     expect(line).toContain('2 buses are above the 15% threshold');
@@ -196,7 +199,7 @@ describe('fuel page models', () => {
     expect(disclosure).toContain('planning price of ₹90 per litre, not a quoted price');
     const strings = [
       disclosure,
-      standOutNote(15, 2),
+      standOutNote(15),
       standOutFooter(data) ?? '',
       classNote(data.perClass),
       ...fuelBand(data).flatMap((f) => [f.label, f.value, f.caption]),
@@ -228,11 +231,12 @@ describe('FuelPage', () => {
     const headers = [...(standOut?.querySelectorAll('thead th') ?? [])].map((th) =>
       th.textContent?.trim(),
     );
+    // X3: consumption in the direction of the variance (was km per litre beside "+18.8%").
     expect(headers).toEqual([
       'Registration',
       'Class',
-      'Km per litre',
-      "Peers' median",
+      'L / 100 km',
+      "Peers' median L / 100 km",
       'Variance',
       'Basis',
     ]);
@@ -240,6 +244,12 @@ describe('FuelPage', () => {
       (td) => td.textContent,
     );
     expect(first).toContain('+18.8%');
+    // X3: a bus at 3.7 km per litre against peers at 4.4 reads as MORE fuel, in one direction.
+    expect(first).toEqual(expect.arrayContaining(['27.0', '22.7']));
+    expect(host.textContent).toContain(
+      'Uses more than 15% more fuel per kilometre than the median of its peers',
+    );
+    expect(standOut?.textContent).not.toMatch(/km per litre|above the peers/i);
     expect(first).toContain('class in depot');
     expect(standOut?.textContent).not.toContain('a sentence that must not appear');
     expect(host.querySelector('[data-provenance]')).toBeNull();
