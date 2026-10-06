@@ -121,7 +121,11 @@ describe('buildDutyBoard', () => {
   });
 
   it('carries the reason through: a depot with no usable bus leaves every duty without one', () => {
-    const b = board(scattered());
+    // No yard, and none of the buses was heard inside the reporting window: with no yard
+    // only a standing bus on a recent report is eligible, so every bus is held out.
+    const quietSince = new Date(Date.parse(FEED_NOW) - 90 * 60_000).toISOString();
+    const b = board(scattered().map((r) => ({ ...r, gpsTimestamp: quietSince })));
+    expect(b.eligibilityIgnoredLocation).toBe(true);
     expect(b.counts.assigned).toBe(0);
     expect(b.counts.unassigned).toBe(b.counts.duties);
     expect(b.counts.excluded.notInYard).toBe(6);

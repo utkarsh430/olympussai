@@ -11,6 +11,10 @@ export type DutyState = 'assigned' | 'no_bus' | 'bus_not_in_yard';
 
 /** The buses the matching could not use, by reason. */
 export interface DutyBlockers {
+  /**
+   * Not in the yard. When the response says `eligibilityIgnoredLocation`, there
+   * is no yard: this then counts buses that are not standing on a recent report.
+   */
   readonly notInYard: number;
   readonly offRoad: number;
   readonly dark: number;
@@ -59,4 +63,11 @@ export interface DutyBoardResponse extends DepotFeedEnvelope {
   /** Routes the requirement was too small to give a duty to, alphabetical. */
   readonly routesWithoutDuty: readonly string[];
   readonly counts: DutyBoardCounts;
+  /**
+   * True when the depot has no yard established, so location could not decide
+   * eligibility: every standing bus heard recently was eligible. Always sent.
+   */
+  readonly eligibilityIgnoredLocation?: boolean;
+  /** Feed rows left out because their registration repeated an earlier row's. Always sent. */
+  readonly duplicateRowsDropped?: number;
 }

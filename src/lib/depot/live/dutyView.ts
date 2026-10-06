@@ -78,6 +78,24 @@ export interface DutyPlan {
   readonly peakRequirement: number;
   readonly fleet: ReadonlyMap<string, ModelledBus>;
   readonly plan: AssignmentPlan;
+  /** True when the depot has no yard, so eligibility ignored location. */
+  readonly locationIgnored: boolean;
+  /** Buses left out because their registration repeated an earlier one's. */
+  readonly duplicateRowsDropped: number;
+}
+
+/**
+ * The first bus per trimmed registration. The feed can repeat a registration,
+ * and the matching refuses a repeat: one bus cannot run two duties.
+ */
+function firstPerRegistration(buses: readonly DepotBusView[]): DepotBusView[] {
+  const seen = new Set<string>();
+  return buses.filter((bus) => {
+    const key = bus.registrationNumber.trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /**
@@ -88,11 +106,13 @@ export interface DutyPlan {
 export function planDutiesFor(
   analysis: SnapshotAnalysis,
   depotId: string,
-  buses: readonly DepotBusView[],
+  allBuses: readonly DepotBusView[],
   operatingDate: string,
 ): DutyPlan | null {
   const depot = analysis.depotsById.get(depotId);
   if (!depot) return null;
+  const buses = firstPerRegistration(allBuses);
+  const locationIgnored = !analysis.yards.has(depotId);
   const balance = modelBalances(
     analysis.depots,
     analysis.yards,
@@ -111,7 +131,7 @@ export function planDutiesFor(
   const fleet = new Map(
     buses.map((b) => [b.registrationNumber, modelBus(b.registrationNumber, b.routeName)]),
   );
-  const plan = assignDuties(duties, buses, fleet);
+  const plan = assignDuties(duties, buses, fleet, { yardEstablished: !locationIgnored });
   return {
     duties,
     routesWithoutDuty,
@@ -119,6 +139,8 @@ export function planDutiesFor(
     peakRequirement,
     fleet,
     plan,
+    locationIgnored,
+    duplicateRowsDropped: allBuses.length - buses.length,
   };
 }
 
@@ -151,6 +173,8 @@ function buildBody(
     spareBuses: plan.spareBuses,
     routesWithoutDuty: planned.routesWithoutDuty,
     counts,
+    eligibilityIgnoredLocation: planned.locationIgnored,
+    duplicateRowsDropped: planned.duplicateRowsDropped,
   };
 }
 
