@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAD_TO_SIGMA,
+  MEAN_AD_TO_SIGMA,
   clamp,
   mad,
+  meanAbsoluteDeviation,
   median,
   ratio,
   robustZ,
@@ -49,11 +51,34 @@ describe('robustZ', () => {
     expect(robustZ(5, [5, 5, 5])).toBe(0);
     expect(robustZ(9, [5, 5, 5])).toBe(0);
   });
+  it('falls back to mean absolute deviation when most values are identical', () => {
+    const sample = [1, 1, 1, 1, 1, 1, 0.9, 0.8];
+    // median 1, MAD 0, meanAD 0.3 / 8 = 0.0375, so z(0.8) = -0.2 / (1.2533 * 0.0375).
+    expect(MEAN_AD_TO_SIGMA).toBe(1.2533);
+    expect(robustZ(0.8, sample)).toBeCloseTo(-4.2554, 4);
+    expect(robustZ(0.9, sample)).toBeCloseTo(-2.1277, 4);
+    expect(robustZ(1, sample)).toBe(0);
+  });
+  it('gives an unusually good value a positive z under the fallback', () => {
+    const sample = [1, 1, 1, 1, 1, 1, 1, 1.5];
+    expect(robustZ(1.5, sample)).toBeCloseTo(6.383, 4);
+    expect(robustZ(1, sample)).toBe(0);
+  });
   it('is null for an empty sample', () => {
     expect(robustZ(1, [])).toBeNull();
   });
   it('is 0 for the median itself', () => {
     expect(robustZ(3, [1, 2, 3, 4, 100])).toBe(0);
+  });
+});
+
+describe('meanAbsoluteDeviation', () => {
+  it('averages distances from the median', () => {
+    expect(meanAbsoluteDeviation([1, 1, 1, 1, 1, 1, 0.9, 0.8])).toBeCloseTo(0.0375, 12);
+  });
+  it('is 0 for identical values and null when empty', () => {
+    expect(meanAbsoluteDeviation([2, 2, 2])).toBe(0);
+    expect(meanAbsoluteDeviation([])).toBeNull();
   });
 });
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEI_COMPONENTS, MIN_FLEET_FOR_RANK, MIN_PEER_GROUP } from '@/lib/depot/score/config';
 import { componentValues, scoreDepots } from '@/lib/depot/score/dei';
 import { assignPeerGroups } from '@/lib/depot/score/peerGroups';
+import { median, robustZ } from '@/lib/depot/stats/robust';
 import type { DepotKind, DepotSummary, StateMix } from '@/lib/depot/types';
 
 interface Spec {
@@ -268,5 +269,90 @@ describe('scoreDepots', () => {
   it('returns one score per depot, in input order', () => {
     const input = peers();
     expect(scoreDepots(input).map((s) => s.depotId)).toEqual(input.map((d) => d.id));
+  });
+});
+
+describe('zero-MAD peer groups', () => {
+  it('penalises the one depot with tamper flags when most sit at full device health', () => {
+    const group = Array.from({ length: 12 }, (_, i) =>
+      depot({ id: `h${String(i).padStart(2, '0')}`, tamperFlagged: i === 0 ? 10 : 0 }),
+    );
+    const byId = new Map(scoreDepots(group).map((s) => [s.depotId, s]));
+    const flagged = byId.get('h00');
+    const health = flagged?.components.find((c) => c.key === 'deviceHealth');
+    expect(health?.contribution).toBeLessThan(0);
+    for (const [id, s] of byId) {
+      if (id === 'h00') continue;
+      expect(s.index).toBe(50);
+      expect(flagged?.index as number).toBeLessThan(s.index as number);
+    }
+  });
+});
+
+describe('per-group scoring', () => {
+  const BANDS = [
+    { name: 'small', fleet: 40, base: 20 },
+    { name: 'medium', fleet: 100, base: 40 },
+    { name: 'large', fleet: 300, base: 60 },
+  ] as const;
+
+  /** Six depots per band; within a band onRoad rises with the index i. */
+  function banded(): DepotSummary[] {
+    return BANDS.flatMap((b) =>
+      Array.from({ length: 6 }, (_, i) =>
+        depot({ id: `${b.name}-${i}`, fleet: b.fleet, states: { inService: b.base + i } }),
+      ),
+    );
+  }
+
+  const onRoadValues = (band: (typeof BANDS)[number]): number[] =>
+    Array.from({ length: 6 }, (_, i) => (band.base + i) / band.fleet);
+
+  it('forms three groups with the expected members', () => {
+    const groups = assignPeerGroups(banded());
+    for (const b of BANDS) {
+      for (let i = 0; i < 6; i++) expect(groups.get(`${b.name}-${i}`)).toBe(b.name);
+    }
+    expect(groups.size).toBe(18);
+  });
+
+  it('computes peer median, z and rank within each depot\'s own group', () => {
+    const scores = new Map(scoreDepots(banded()).map((s) => [s.depotId, s]));
+    for (const b of BANDS) {
+      const own = onRoadValues(b);
+      const s = scores.get(`${b.name}-2`);
+      expect(s?.peerGroup).toBe(b.name);
+      expect(s?.peerCount).toBe(6);
+      const c = s?.components.find((x) => x.key === 'onRoad');
+      expect(c?.peerMedian).toBeCloseTo(median(own) as number, 12);
+      expect(c?.z).toBeCloseTo(
+        Math.max(-3, Math.min(3, robustZ((b.base + 2) / b.fleet, own) as number)),
+        12,
+      );
+      const ranks = [...Array(6).keys()].map((i) => scores.get(`${b.name}-${i}`)?.rank);
+      expect([...ranks].sort()).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(scores.get(`${b.name}-5`)?.rank).toBe(1);
+      expect(scores.get(`${b.name}-0`)?.rank).toBe(6);
+    }
+  });
+
+  it('scores a shuffled copy identically', () => {
+    const input = banded();
+    const shuffled = [...input].sort((a, b) => (a.id < b.id ? 1 : -1));
+    expect(shuffled.map((d) => d.id)).not.toEqual(input.map((d) => d.id));
+    const a = new Map(scoreDepots(input).map((s) => [s.depotId, s]));
+    const b = new Map(scoreDepots(shuffled).map((s) => [s.depotId, s]));
+    for (const [id, s] of a) expect(b.get(id)).toEqual(s);
+  });
+
+  it('collapses into all when every fleet is equal', () => {
+    const equal = Array.from({ length: 18 }, (_, i) =>
+      depot({ id: `e${String(i).padStart(2, '0')}`, fleet: 100, states: { inService: 20 + i } }),
+    );
+    const scores = scoreDepots(equal);
+    expect(scores.every((s) => s.peerGroup === 'all' && s.peerCount === 18)).toBe(true);
+    expect(scores.map((s) => s.rank).sort((x, y) => (x as number) - (y as number))).toEqual(
+      Array.from({ length: 18 }, (_, i) => i + 1),
+    );
   });
 });
