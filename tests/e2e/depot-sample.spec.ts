@@ -422,3 +422,65 @@ test.describe('5. the cockpit opens the roster already filtered', () => {
     }
   });
 });
+
+interface ExceptionsBody {
+  readonly busPage: {
+    readonly total: number;
+    readonly items: readonly { readonly registrationNumber: string; readonly depotId: string }[];
+  };
+  readonly depotScope: {
+    readonly depotId: string;
+    readonly depot: readonly { readonly depotId: string }[];
+  };
+}
+
+test.describe('6. the exceptions page scoped to one depot', () => {
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
+
+  test('shows only that depot, its scope chip, and totals that match the cockpit', async ({
+    page,
+    request,
+    sample,
+  }) => {
+    const res = await request.get(
+      `/api/upsrtc/depot/exceptions?depotId=${sample.depotId}&limit=100`,
+    );
+    expect(res.status()).toBe(200);
+    const body = (await res.json()) as ExceptionsBody;
+    expect(body.busPage.total).toBeLessThanOrEqual(100);
+    expect(body.busPage.items.every((item) => item.depotId === sample.depotId)).toBe(true);
+    expect(body.depotScope.depot.every((line) => line.depotId === sample.depotId)).toBe(true);
+    const buses = new Set(body.busPage.items.map((item) => item.registrationNumber)).size;
+
+    await openPage(page, `/project/depots/d/${sample.depotId}`, 'Depot cockpit');
+    // The cockpit lists each bus once and the depot's own exceptions.
+    await expect(page.getByTestId('depot-exceptions').first()).toBeVisible();
+    const cockpitTotal = firstCount(
+      await page
+        .locator('#depot-exceptions, [data-testid="depot-exceptions"] h2')
+        .first()
+        .innerText(),
+    );
+    expect(cockpitTotal).toBe(buses + body.depotScope.depot.length);
+
+    await openPage(page, `/project/depots/exceptions?depot=${sample.depotId}`, 'Exceptions');
+    await expect(page.getByTestId('depot-exception-scope')).toContainText(
+      `Exceptions at ${sample.depotName} only.`,
+    );
+    await expect(page.getByTestId('bus-depot-chip')).toContainText(sample.depotName);
+    await expect(page.getByTestId('depot-exception-counts')).toContainText(
+      `${body.busPage.total} bus exception`,
+    );
+    await expect(
+      page.getByRole('heading', {
+        name: new RegExp(`Bus exceptions · ${body.busPage.total}$`, 'i'),
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', {
+        name: new RegExp(`Depot exceptions · ${body.depotScope.depot.length}$`, 'i'),
+      }),
+    ).toBeVisible();
+    await expect(page.getByTestId('depot-exception-list')).toContainText(sample.depotName);
+  });
+});
