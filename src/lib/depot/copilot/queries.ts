@@ -59,7 +59,6 @@ export const copilotQuerySchema = z.discriminatedUnion('kind', [
 export type CopilotQuery = z.infer<typeof copilotQuerySchema>;
 export type RankMetric = (typeof RANK_METRICS)[number];
 export type DepotMeasure = (typeof DEPOT_MEASURES)[number];
-export const UNSUPPORTED_QUERY: CopilotQuery = { kind: 'unsupported' };
 export const OUT_OF_SCOPE_QUERY: CopilotQuery = { kind: 'unsupported', reason: 'out_of_scope' };
 export const PEOPLE_QUERY: CopilotQuery = { kind: 'unsupported', reason: 'people' };
 export const AMBIGUOUS_DEPOT_QUERY: CopilotQuery = {

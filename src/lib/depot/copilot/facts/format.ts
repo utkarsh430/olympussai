@@ -66,13 +66,6 @@ export const km1 = (n: number): string => `${n.toFixed(1)} km`;
 /** Buses moving: scheduled in service, or on the road with no schedule in the feed. */
 export const onRoadCount = (states: StateMix): number => states.inService + states.onRoad;
 
-/** "{{a}}, {{b}} and {{c}}" from fact ids; empty input gives an empty string. */
-export function listPlaceholders(ids: readonly string[]): string {
-  const marks = ids.map(ph);
-  if (marks.length <= 1) return marks.join('');
-  return `${marks.slice(0, -1).join(', ')} and ${marks[marks.length - 1]}`;
-}
-
 /** Fixed phrases for depot-level exception kinds; they never carry a figure. */
 export const DEPOT_EXCEPTION_PHRASE: Readonly<Record<DepotExceptionKind, string>> = {
   dark_share_high: 'a high share of buses that have gone dark',
