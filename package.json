@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "inspect:api": "tsx scripts/inspect-upsrtc-api.ts",
+    "build:depot-fixture": "tsx scripts/build-depot-fixture.ts",
     "generate-pin-hash": "node scripts/generate-pin-hash.mjs",
     "process-logo": "node scripts/process-logo.mjs",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"docs/**/*.md\""
