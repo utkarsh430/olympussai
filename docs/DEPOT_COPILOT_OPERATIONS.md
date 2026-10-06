@@ -96,7 +96,9 @@ The checks accept each of these, so read Claude text for them:
   per-depot figure in a comparison, ranking, list or the network's strongest/weakest pair is
   refused when another depot's name stands in its list entry or is the name it reads as
   belonging to ("3 buses are dark at Kaushambi." with Agra's count). Still accepted: a
-  restatement in a later clause ("Agra has 3 buses dark, and so does Kaushambi."); a figure
+  restatement in a later clause ("Agra has 3 buses dark, and so does Kaushambi."); an aside
+  between commas that puts the figure's own depot nearest ("Kaushambi, as at Agra, has 3 buses
+  dark."); a figure
   with no depot (a network-wide count, a transfer's count) under any depot's name; and the
   transfers answer and transfer rationale, whose facts are not yet tagged with their depot.
 - **A figure reused with another noun, or given a second noun** (M-A): "3 buses are dark. 3 buses
