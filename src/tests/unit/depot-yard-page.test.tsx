@@ -198,6 +198,23 @@ describe('the yard page', () => {
     expect(bar?.closest('p')?.className).toContain('depot-caption');
   });
 
+  it('keeps the map key in sans, bottom-left in a relative frame, clear of the zoom control', async () => {
+    hooks.detail = { ...base, data: DATA, error: null, loading: false };
+    const doc = new DOMParser().parseFromString(await renderPage(), 'text/html');
+    const key = doc.querySelector('[data-testid="yard-map-key"]');
+    const classes = (key?.className ?? '').split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(['font-sans', 'sm:absolute', 'sm:bottom-8', 'sm:left-2']));
+    expect(classes).toContain('sm:max-w-[calc(100%-4.5rem)]');
+    expect(classes.some((c) => c.includes('font-mono'))).toBe(false);
+    expect(key?.parentElement?.className).toContain('relative');
+  });
+
+  it('drops the band\'s own bottom margin so the stack sets the 40px gap to the map', async () => {
+    hooks.detail = { ...base, data: DATA, error: null, loading: false };
+    const doc = new DOMParser().parseFromString(await renderPage(), 'text/html');
+    expect(doc.querySelector('[data-testid="yard-summary"]')?.className).toContain('[&>div]:!mb-0');
+  });
+
   it('says how many snapshots it has decided the yard on when no yard is placed after one', async () => {
     hooks.detail = { ...base, data: { ...detail([], false), yardSnapshotsSeen: 1 }, error: null, loading: false };
     expect(text(await renderPage())).toContain("This server has decided this depot's yard on 1 snapshot so far");

@@ -72,7 +72,8 @@ export interface YardFiguresProps {
 export function YardFigures({ model, capacity, baysPending }: YardFiguresProps) {
   const cap = capacityFigure(capacity, baysPending);
   return (
-    <div data-testid="yard-summary">
+    // The stack spaces the band from the map (40px): the band's own bottom margin is dropped.
+    <div data-testid="yard-summary" className="[&>div]:!mb-0">
       <FigureBand label="Yard figures">
         {model.established ? (
           <>
