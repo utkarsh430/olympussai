@@ -28,12 +28,17 @@ export const ROUTE_NOT_FOUND = { error: 'Route not found' } as const;
 export const INVALID_ROUTE_HOURLY_QUERY = { error: 'Invalid query' } as const;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
+const FEBRUARY = 2;
+
+const isLeapYear = (year: number): boolean =>
+  year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 
 /** A calendar date, read off its digits (no clock is consulted). */
 function isCalendarDate(value: string): boolean {
   const [year, month, day] = value.split('-').map(Number) as [number, number, number];
-  const days = [31, year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  return month >= 1 && month <= 12 && day >= 1 && day <= (days[month - 1] ?? 0);
+  const last = (DAYS_IN_MONTH[month - 1] ?? 0) + (month === FEBRUARY && isLeapYear(year) ? 1 : 0);
+  return month >= 1 && month <= 12 && day >= 1 && day <= last;
 }
 
 const querySchema = z
