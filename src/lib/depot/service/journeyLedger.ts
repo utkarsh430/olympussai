@@ -45,9 +45,18 @@ export function minutesOfDigits(value: string): number {
 const finiteOrNull = (value: number | null): number | null =>
   value !== null && Number.isFinite(value) ? value : null;
 
+/** Whether a row's journey is scheduled on another date than the operating date. */
+const ofAnotherDate = (row: DepotBusRow, operatingDate: string): boolean =>
+  row.scheduledStart !== null &&
+  ISO_CLOCK.test(row.scheduledStart) &&
+  !row.scheduledStart.startsWith(operatingDate);
+
 /**
- * Every journey the rows report with a route name, as seen at `feedNow`, in
- * journey id order. A journey id on two rows keeps the first in that order.
+ * Every journey of the operating date the rows report with a route name, as
+ * seen at `feedNow`, in journey id order. The feed reuses a journey id on
+ * every day it runs and a row can still carry an earlier day's journey, so a
+ * journey whose scheduled start lies on another date is left out: it belongs
+ * to that date. A journey id on two rows keeps the smaller registration.
  */
 export function ledgerJourneysOf(
   rows: readonly DepotBusRow[],
@@ -57,8 +66,10 @@ export function ledgerJourneysOf(
   const byId = new Map<string, LedgerJourney>();
   for (const row of rows) {
     const { journeyId, routeName } = row;
-    if (journeyId === null || journeyId === '' || byId.has(journeyId)) continue;
+    if (journeyId === null || journeyId === '' || ofAnotherDate(row, operatingDate)) continue;
     if (routeName === null || routeName.trim() === '') continue;
+    const held = byId.get(journeyId);
+    if (held && compareText(held.registrationNumber, row.registrationNumber) <= 0) continue;
     byId.set(journeyId, {
       operatingDate,
       journeyId,
