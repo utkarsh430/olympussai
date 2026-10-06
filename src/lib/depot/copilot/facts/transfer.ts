@@ -57,13 +57,28 @@ function balanceFacts(
   return [];
 }
 
+const MODELLED_CAVEAT =
+  'The requirement is modelled until a network timetable is supplied, so these figures are a planning estimate rather than a measured need.';
+
+/** The closing view follows the balances: it supports the move only when they do. */
+function verdict(
+  giving: DepotBalance | undefined,
+  receiving: DepotBalance | undefined,
+  buses: number,
+): string {
+  const supported = giving && receiving && giving.balance >= buses && receiving.balance < 0;
+  return supported
+    ? `${MODELLED_CAVEAT} On the modelled figures the surplus at ${ph('transfer.from_name')} covers the move and ${ph('transfer.to_name')} has a deficit it would ease; the network team may wish to confirm it.`
+    : `${MODELLED_CAVEAT} The move cannot be assessed from the available modelled balances, so the network team may wish to review it before relying on it.`;
+}
+
 function givingSentence(balance: DepotBalance | undefined): string {
   const from = ph('transfer.from_name');
   if (!balance) return `The modelled balance for ${from} is not available`;
   if (balance.balance > 0) {
     return `On the modelled requirement, ${from} is in surplus by ${ph('transfer.from_surplus')}`;
   }
-  return `The modelled balance does not show a surplus at ${from}, so the plan's reasoning for this move deserves a second look`;
+  return `The modelled balance does not show a surplus at ${from}`;
 }
 
 function receivingSentence(balance: DepotBalance | undefined): string {
@@ -118,13 +133,23 @@ export function buildTransferRationale(
       km1(transfer.distanceKm),
       'derived',
     ),
+    makeFact(
+      'transfer.max_km',
+      "Planner's maximum distance",
+      km1(distribution.rebalanceParams.maxTransferKm),
+      'reference',
+    ),
     ...balanceFacts('from', giving, transfer.buses),
     ...balanceFacts('to', receiving, transfer.buses),
   ];
   const paragraphs = [
     `${givingSentence(giving)}, and ${receivingSentence(receiving)}`,
-    `Moving ${ph('transfer.buses')} would run over about ${ph('transfer.distance_km')} of estimated road distance, which keeps the move within a practical range.${afterSentence(giving, receiving, transfer.buses)}`,
-    'The requirement is modelled until a network timetable is supplied, so these figures are a planning estimate rather than a measured need. On that basis the move looks sensible, and the network team may wish to confirm it.',
+    `Moving ${ph('transfer.buses')} would run over about ${ph('transfer.distance_km')} of estimated road distance, ${
+      transfer.distanceKm <= distribution.rebalanceParams.maxTransferKm
+        ? "within the planner's configured maximum of"
+        : "beyond the planner's configured maximum of"
+    } ${ph('transfer.max_km')}.${afterSentence(giving, receiving, transfer.buses)}`,
+    verdict(giving, receiving, transfer.buses),
   ];
   return buildRequest({
     task: 'rationale',
