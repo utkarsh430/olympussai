@@ -24,7 +24,11 @@ import {
   type ClaudeCliDeps,
 } from '@/lib/depot/copilot/providers/claudeCli';
 import { createScriptedProvider } from '@/lib/depot/copilot/providers/scripted';
-import { createCopilotEngine, UNAVAILABLE_DRAFT } from '@/lib/depot/copilot/resolve';
+import {
+  createCopilotEngine,
+  UNAVAILABLE_DRAFT,
+  type CopilotEngine,
+} from '@/lib/depot/copilot/resolve';
 import { createCallLimiter } from '@/lib/depot/copilot/limiter';
 import { renderDraft } from '@/lib/depot/copilot/render';
 import { logDepotError } from '@/lib/depot/log';
@@ -235,7 +239,10 @@ describe('createCopilotEngine', () => {
         },
         'claude-cli fell back: error',
       ],
-      [cliThatReturns({ headline: 'H', paragraphs: ['About 5 buses.'] }), 'claude-cli fell back: rejected_draft'],
+      [
+        cliThatReturns({ headline: 'H', paragraphs: ['About 5 buses.'] }),
+        'claude-cli fell back: rejected_draft',
+      ],
     ];
     for (const [cli, line] of cases) {
       log.mockClear();
@@ -277,20 +284,57 @@ describe('rolling breaker, budget and fixed fallback', () => {
     expect(cli.draft).toHaveBeenCalledTimes(CLI_FAILURE_THRESHOLD);
   });
 
-  it('is not reset by an interleaved success, and the window forgets old attempts', async () => {
-    let bad = true;
-    const cli: CopilotProvider = {
+  /** A CLI that fails (F) or succeeds (S) in the given order, one letter per call. */
+  const scriptedCli = (sequence: string): CopilotProvider => {
+    let call = 0;
+    return {
       id: 'claude-cli',
-      draft: vi.fn(async () => (bad ? rejectedDraft : GOOD_DRAFT)),
+      draft: vi.fn(async () => (sequence[call++] === 'F' ? rejectedDraft : GOOD_DRAFT)),
     };
-    const { instance } = engine(cli);
-    for (let i = 0; i < CLI_WINDOW; i += 1) {
-      bad = i % 2 === 0 && i < CLI_FAILURE_THRESHOLD * 2 - 1;
-      expect((await instance.generate(REQUEST)).fallbackReason).not.toBe('cooling_down');
+  };
+  const outcomes = async (instance: CopilotEngine, calls: number): Promise<string[]> => {
+    const out: string[] = [];
+    for (let i = 0; i < calls; i += 1) {
+      out.push((await instance.generate(REQUEST)).fallbackReason ?? 'ok');
     }
-    bad = true;
-    await instance.generate(REQUEST);
-    expect((await instance.generate(REQUEST)).fallbackReason).toBe('cooling_down');
+    return out;
+  };
+
+  it('is not reset by an interleaved success', async () => {
+    expect([CLI_WINDOW, CLI_FAILURE_THRESHOLD]).toEqual([10, 5]);
+    const cli = scriptedCli('FSFFFF');
+    const { instance } = engine(cli);
+    expect(await outcomes(instance, 7)).toEqual([
+      'rejected_draft',
+      'ok',
+      'rejected_draft',
+      'rejected_draft',
+      'rejected_draft',
+      'rejected_draft', // fifth failure in the last ten attempts: the cool-down starts
+      'cooling_down',
+    ]);
+    expect(cli.draft).toHaveBeenCalledTimes(6);
+  });
+
+  it('forgets an attempt once it is more than ten attempts old', async () => {
+    // F F F F, then seven successes: the first F leaves the window, so the next
+    // failure makes four in the window, not five, and the next call still runs.
+    const cli = scriptedCli('FFFFSSSSSSSFS');
+    const { instance } = engine(cli);
+    const out = await outcomes(instance, 13);
+    expect(out).not.toContain('cooling_down');
+    expect(out.slice(-2)).toEqual(['rejected_draft', 'ok']);
+    expect(cli.draft).toHaveBeenCalledTimes(13);
+  });
+
+  it('clears the window when a cool-down starts', async () => {
+    const cli = scriptedCli('FFFFF' + 'FFFF' + 'F');
+    const { instance, advance } = engine(cli);
+    await outcomes(instance, 5);
+    advance(1000);
+    // Four failures after the cool-down do not start another: the window was cleared.
+    expect(await outcomes(instance, 4)).toEqual(Array(4).fill('rejected_draft'));
+    expect(await outcomes(instance, 2)).toEqual(['rejected_draft', 'cooling_down']);
   });
 
   it.each(['budget_exhausted', 'request_rejected'] as const)(
