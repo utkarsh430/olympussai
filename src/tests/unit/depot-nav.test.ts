@@ -23,12 +23,30 @@ describe('isNavItemActive', () => {
 });
 
 describe('NETWORK_NAV', () => {
+  const items = NETWORK_NAV.flatMap((group) => group.items);
+
   it('has at least one group and every link lives under the depots root', () => {
     expect(NETWORK_NAV.length).toBeGreaterThan(0);
-    for (const group of NETWORK_NAV) {
-      for (const item of group.items) {
-        expect(item.href.startsWith(DEPOTS_ROOT)).toBe(true);
-      }
+    for (const item of items) {
+      expect(item.href.startsWith(DEPOTS_ROOT)).toBe(true);
+    }
+  });
+
+  it('links every network page that exists, each once', () => {
+    expect(NETWORK_NAV.map((group) => group.heading)).toEqual(['Network', 'System']);
+    expect(items.map((item) => [item.label, item.href])).toEqual([
+      ['Overview', '/project/depots'],
+      ['League table', '/project/depots/league'],
+      ['Exceptions', '/project/depots/exceptions'],
+      ['Data sources', '/project/depots/sources'],
+    ]);
+    expect(new Set(items.map((item) => item.href)).size).toBe(items.length);
+  });
+
+  it('marks exactly one item active on each of its pages', () => {
+    for (const item of items) {
+      const active = items.filter((candidate) => isNavItemActive(item.href, candidate));
+      expect(active, item.href).toEqual([item]);
     }
   });
 });
