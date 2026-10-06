@@ -427,24 +427,68 @@
     @apply h-9 max-w-[18rem] overflow-hidden text-ellipsis whitespace-nowrap py-0;
   }
 
-  /* Frozen first column (DataTable `freezeFirstColumn`): it keeps an opaque background so
-     the columns scrolling under it never show through; the header corner sits above both. */
-  .depot-table-frozen th:first-child,
-  .depot-table-frozen td:first-child {
-    @apply sticky left-0 border-r border-r-depot-line;
+  /* Frozen columns (DataTable `freezeFirstColumn`): the first column, and with an expander
+     the 24px chevron column before it. DataTable marks each frozen cell and gives a later
+     one its `left` offset (tableLayout.ts); each keeps an opaque background so the columns
+     scrolling under it never show through, and the last frozen cell draws the hairline.
+     The header corner sits above both. */
+  .depot-table-frozen .depot-cell-frozen {
+    @apply sticky left-0;
   }
 
-  .depot-table-frozen td:first-child {
+  .depot-table-frozen td.depot-cell-frozen {
     @apply z-[5] bg-depot-page;
   }
 
-  .depot-table-frozen th:first-child {
+  .depot-table-frozen th.depot-cell-frozen {
     @apply z-20;
   }
 
-  .depot-table-frozen .depot-row-selectable:hover td:first-child,
-  .depot-table-frozen .depot-row-selected td:first-child {
+  .depot-table-frozen .depot-cell-frozen-edge {
+    @apply border-r border-r-depot-line;
+  }
+
+  .depot-table-frozen .depot-row-selectable:hover td.depot-cell-frozen,
+  .depot-table-frozen .depot-row-selected td.depot-cell-frozen {
     @apply bg-depot-raised;
+  }
+
+  /* The expander's chevron column: exactly 24px, border included, no padding, so the
+     frozen first data column after it sticks at left 24px. */
+  .depot-table .depot-cell-expander {
+    @apply box-border w-6 min-w-[1.5rem] max-w-[1.5rem] px-0 text-center;
+  }
+
+  /* A row that opens something ends in one muted chevron, shown on hover and keyboard
+     focus only. It sits in the last cell's right padding, so it never adds a column. */
+  .depot-row-selectable > td:last-child:not(.depot-cell-frozen) {
+    @apply relative;
+  }
+
+  .depot-row-chevron {
+    @apply pointer-events-none absolute right-0.5 top-1/2 h-3 w-3 -translate-y-1/2 text-depot-muted
+      opacity-0;
+  }
+
+  .depot-row-selectable:hover .depot-row-chevron,
+  .depot-row-selectable:focus-visible .depot-row-chevron {
+    @apply opacity-100;
+  }
+
+  /* An entity link in a table cell: cyan, no underline at rest (a column of underlines is
+     noise), underlined on hover and keyboard focus. Links in sentences stay underlined. */
+  .depot-table-link {
+    @apply text-holo-glow no-underline underline-offset-2;
+  }
+
+  .depot-table-link:hover,
+  .depot-table-link:focus-visible {
+    @apply underline decoration-holo-glow;
+  }
+
+  /* Zero specificity beyond the element, so a class on the link still decides. */
+  :where(.depot-prose, .depot-note) a {
+    @apply underline decoration-holo-glow/40 underline-offset-2;
   }
 
   /* Filter controls: 3px radius, hairline border, the global focus ring. */
