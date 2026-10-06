@@ -4,12 +4,23 @@ import type { FleetSnapshotView } from '../repositories/types';
 import { UNASSIGNED_DEPOT_ID, type BusOpState, type DepotSummary } from '../types';
 import type { LocatedBus, Yard } from '../infer/types';
 import type { DepotScore } from '../score/types';
-import type { BusException, DepotException, ExceptionReport } from '../exceptions/types';
+import type {
+  BusException,
+  DepotException,
+  ExceptionReport,
+  ExceptionSeverity,
+} from '../exceptions/types';
 import { classifyBusState } from '../infer/busState';
 import { inferYards } from '../infer/yard';
 import { locateBus } from '../infer/location';
 import { scoreDepots } from '../score/dei';
-import { assembleReport, detectBusExceptions, detectDepotExceptions } from '../exceptions';
+import {
+  assembleReport,
+  countBySeverity,
+  detectBusExceptions,
+  detectDepotExceptions,
+} from '../exceptions';
+import { compareText } from '../exceptions/depotExceptions';
 import { summariseDepots } from './aggregate';
 
 export interface DepotExceptions {
@@ -25,8 +36,6 @@ export interface DepotExceptions {
  * (`UNASSIGNED_DEPOT_ID` for buses with no home depot).
  */
 export interface SnapshotAnalysis {
-  /** `fetchedAt` + `source`: the memoisation key for this analysis and its views. */
-  readonly key: string;
   readonly feedNow: string | null;
   readonly states: ReadonlyMap<string, BusOpState>;
   readonly stateOf: (row: DepotBusRow) => BusOpState;
@@ -40,12 +49,9 @@ export interface SnapshotAnalysis {
   /** Buses of other depots (or none) standing inside each host depot's yard. */
   readonly visitorsByDepot: ReadonlyMap<string, readonly DepotBusRow[]>;
   readonly report: ExceptionReport;
+  /** Depot and bus exceptions together, counted before the bus cap. */
+  readonly exceptionSeverityCounts: Readonly<Record<ExceptionSeverity, number>>;
   readonly exceptionsByDepot: ReadonlyMap<string, DepotExceptions>;
-}
-
-/** Memoisation key shared by the analysis and every view built on it. */
-export function snapshotKey(view: Pick<FleetSnapshotView, 'fetchedAt' | 'source'>): string {
-  return `${view.fetchedAt}|${view.source}`;
 }
 
 function groupBy<T>(items: readonly T[], keyOf: (item: T) => string | null): Map<string, T[]> {
@@ -63,11 +69,7 @@ function groupBy<T>(items: readonly T[], keyOf: (item: T) => string | null): Map
 const homeOf = (depotId: string | null): string => depotId ?? UNASSIGNED_DEPOT_ID;
 
 function byRegistration(a: DepotBusRow, b: DepotBusRow): number {
-  return a.registrationNumber < b.registrationNumber
-    ? -1
-    : a.registrationNumber > b.registrationNumber
-      ? 1
-      : 0;
+  return compareText(a.registrationNumber, b.registrationNumber);
 }
 
 function exceptionsByDepot(
@@ -97,7 +99,6 @@ function analyse(view: FleetSnapshotView): SnapshotAnalysis {
   const depotExceptions = detectDepotExceptions(depots, scores, rows, stateOf);
   const busExceptions = detectBusExceptions(rows, depots, feedNow, stateOf);
   return {
-    key: snapshotKey(view),
     feedNow,
     states,
     stateOf,
@@ -110,26 +111,38 @@ function analyse(view: FleetSnapshotView): SnapshotAnalysis {
     locations,
     visitorsByDepot: visitors,
     report: assembleReport(depotExceptions, busExceptions),
+    exceptionSeverityCounts: countBySeverity(depotExceptions, busExceptions),
     exceptionsByDepot: exceptionsByDepot(depotExceptions, busExceptions),
   };
 }
 
-// One entry: views only ever ask about the newest snapshot, so a new key replaces it.
-let memo: SnapshotAnalysis | null = null;
+/*
+ * Keyed on the identity of the snapshot's rows array, not on its envelope. The
+ * live snapshot serves one fetch as `live`, then `cache`, then (during an
+ * outage) stale last-good, all with the same rows: one analysis covers them
+ * all. A WeakMap lets an analysis go when its snapshot is no longer held.
+ */
+let analyses = new WeakMap<readonly DepotBusRow[], SnapshotAnalysis>();
 
-/** The analysis for this snapshot, computed at most once per `fetchedAt` + `source`. */
+/** The analysis for this snapshot's rows, computed at most once per rows array. */
 export function analyseSnapshot(view: FleetSnapshotView): SnapshotAnalysis {
-  const key = snapshotKey(view);
-  if (memo?.key !== key) memo = analyse(view);
-  return memo;
+  const cached = analyses.get(view.rows);
+  if (cached) return cached;
+  const analysis = analyse(view);
+  analyses.set(view.rows, analysis);
+  return analysis;
 }
 
-/** Test seam: forget the memoised analysis. */
+/** Test seam: forget every memoised analysis (and with them every memoised view body). */
 export function resetAnalysisForTests(): void {
-  memo = null;
+  analyses = new WeakMap();
 }
 
-/** The envelope every depot response carries, straight from the snapshot. */
+/**
+ * The envelope every depot response carries. Built from the request's own
+ * view on every call, never memoised: the same rows can be fresh on one
+ * request and stale last-good on the next.
+ */
 export function feedEnvelope(view: FleetSnapshotView): DepotFeedEnvelope {
   return {
     feedNow: view.feedNow,
@@ -140,18 +153,17 @@ export function feedEnvelope(view: FleetSnapshotView): DepotFeedEnvelope {
 }
 
 /**
- * Wraps a view builder so it runs once per snapshot, so polling clients share
- * one built response per fetch. A single entry tied to the analysis object
- * itself: a new snapshot (or a test reset) replaces the analysis and with it
- * every view built on the old one.
+ * Wraps a view-body builder so it runs once per analysis, so polling clients
+ * share one body per snapshot. Callers spread a fresh `feedEnvelope` over it.
+ * Bodies are held weakly by their analysis, so none outlives its snapshot.
  */
-export function memoiseBySnapshot<T>(
+export function memoiseBody<T>(
   build: (view: FleetSnapshotView, analysis: SnapshotAnalysis) => T,
 ): (view: FleetSnapshotView) => T {
-  let entry: { readonly analysis: SnapshotAnalysis; readonly value: T } | null = null;
+  const bodies = new WeakMap<SnapshotAnalysis, T>();
   return (view: FleetSnapshotView): T => {
     const analysis = analyseSnapshot(view);
-    if (entry?.analysis !== analysis) entry = { analysis, value: build(view, analysis) };
-    return entry.value;
+    if (!bodies.has(analysis)) bodies.set(analysis, build(view, analysis));
+    return bodies.get(analysis) as T;
   };
 }

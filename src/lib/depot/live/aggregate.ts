@@ -15,7 +15,7 @@ import { classifyDepotKind } from './depotKind';
 
 const MS_PER_MINUTE = 60_000;
 const UNASSIGNED_NAME = 'Unassigned';
-const NORMAL_TAMPER_CODE = 'C';
+import { NORMAL_TAMPER_CODE } from '../exceptions/config';
 
 const EMPTY_STATUS: StatusMix = { live: 0, stationary: 0, noSignal: 0, underMaintenance: 0, unknown: 0 };
 const EMPTY_STATES: StateMix = { inService: 0, onRoad: 0, standing: 0, dark: 0, offRoad: 0 };

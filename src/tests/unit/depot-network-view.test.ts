@@ -116,12 +116,17 @@ describe('buildNetworkResponse', () => {
     expect(res.depots).toBe(analysis.depots);
     expect(res.scores).toBe(analysis.scores);
     expect(res.exceptionCounts).toBe(analysis.report.counts);
+    expect(res.exceptionSeverityCounts).toBe(analysis.exceptionSeverityCounts);
+    const { critical, warning, info } = res.exceptionSeverityCounts;
+    expect(critical + warning + info).toBe(analysis.report.depot.length + analysis.report.busTotal);
+    expect(critical + warning + info).toBeGreaterThan(0);
     expect(res.kpis.fleet.value).toBe(fixtureRows.length);
     expect(res.coverage.every((c) => c.of === fixtureRows.length)).toBe(true);
     expect(Object.keys(res).sort()).toEqual([
       'coverage',
       'depots',
       'exceptionCounts',
+      'exceptionSeverityCounts',
       'feedNow',
       'fetchedAt',
       'kpis',
@@ -132,15 +137,24 @@ describe('buildNetworkResponse', () => {
     ]);
   });
 
-  it('returns the same object for the same fetchedAt and source', () => {
-    const first = buildNetworkResponse(fixtureView());
-    expect(buildNetworkResponse(fixtureView())).toBe(first);
-    const later = buildNetworkResponse(fixtureView({ fetchedAt: '2026-10-06T08:00:20.000Z' }));
-    expect(later).not.toBe(first);
-    const cached = buildNetworkResponse(
-      fixtureView({ fetchedAt: '2026-10-06T08:00:20.000Z', source: 'cache' }),
-    );
-    expect(cached).not.toBe(later);
+  it('passes stale through per request while sharing the body built for the rows', () => {
+    const fresh = buildNetworkResponse(fixtureView({ source: 'cache', stale: false }));
+    const lastGood = buildNetworkResponse(fixtureView({ source: 'cache', stale: true }));
+    expect(fresh.stale).toBe(false);
+    expect(lastGood.stale).toBe(true);
+    expect(lastGood.depots).toBe(fresh.depots);
+    expect(lastGood.scores).toBe(fresh.scores);
+    expect(lastGood.kpis).toBe(fresh.kpis);
+    expect(lastGood.coverage).toBe(fresh.coverage);
+  });
+
+  it('passes source and fetchedAt through without rebuilding the body', () => {
+    const live = buildNetworkResponse(fixtureView({ source: 'live' }));
+    const cached = buildNetworkResponse(fixtureView({ source: 'cache', fetchedAt: 'later' }));
+    expect([live.source, cached.source, cached.fetchedAt]).toEqual(['live', 'cache', 'later']);
+    expect(cached.depots).toBe(live.depots);
+    const next = buildNetworkResponse(fixtureView({ rows: [...fixtureRows] }));
+    expect(next.depots).not.toBe(live.depots);
   });
 });
 
@@ -156,12 +170,20 @@ describe('GET /api/upsrtc/depot/network', () => {
   });
 
   it('answers 503 without leaking the underlying error', async () => {
-    vi.mocked(getRepositories).mockReturnValueOnce(reposWith(leakyFailure));
-    const res = await GET(request());
-    expect(res.status).toBe(503);
-    const text = await res.text();
-    expect(JSON.parse(text)).toEqual({ error: 'Depot data unavailable' });
-    expect(text).not.toMatch(/ECONNREFUSED|token|10\.0\.0\.7/);
+    // Silenced, then restored: the 503 must still leave a server-side trace.
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      vi.mocked(getRepositories).mockReturnValueOnce(reposWith(leakyFailure));
+      const res = await GET(request());
+      expect(res.status).toBe(503);
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      expect(errorLog).toHaveBeenCalledWith(expect.stringMatching(/^\[depot:network-api\] /));
+      const text = await res.text();
+      expect(JSON.parse(text)).toEqual({ error: 'Depot data unavailable' });
+      expect(text).not.toMatch(/ECONNREFUSED|token|10\.0\.0\.7/);
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 
   it('serves the network view of the repository snapshot', async () => {

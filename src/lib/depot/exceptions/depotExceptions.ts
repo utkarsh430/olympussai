@@ -23,7 +23,11 @@ function affectedFor(kind: DepotExceptionKind, depot: DepotSummary): number {
   const { states, fleet } = depot;
   if (kind === 'dark_share_high') return states.dark;
   if (kind === 'off_road_high') return states.offRoad;
-  // on_road_low: available buses (not off-road) that are not out on the road.
+  // on_road_low: `value` is the on-road share of the depot's *available* buses,
+  // (inService + onRoad) / (fleet - offRoad), the score's onRoad component.
+  // `affected` is the available buses not on the road: fleet - offRoad - inService
+  // - onRoad. `fleet` is the whole fleet, off-road included, so value is not
+  // affected / fleet and must not be shown as a share "of fleet".
   return Math.max(0, fleet - states.offRoad - states.inService - states.onRoad);
 }
 

@@ -82,22 +82,21 @@ beforeEach(() => {
 });
 
 describe('analyseSnapshot', () => {
-  it('runs once per fetchedAt + source and returns the same object', () => {
+  it('runs once per rows array, whatever the envelope says', () => {
     const v = view();
     const first = analyseSnapshot(v);
-    expect(analyseSnapshot({ ...v })).toBe(first);
+    // A fresh fetch is served first as `live`, then as `cache`, then as stale last-good.
+    expect(analyseSnapshot({ ...v, source: 'cache' })).toBe(first);
+    expect(analyseSnapshot({ ...v, source: 'cache', stale: true, fetchedAt: 'later' })).toBe(first);
     expect(inferYards).toHaveBeenCalledTimes(1);
   });
 
-  it('recomputes when fetchedAt or source changes', () => {
-    const first = analyseSnapshot(view());
-    const later = analyseSnapshot(view({ fetchedAt: '2026-10-06T08:00:20.000Z' }));
-    expect(later).not.toBe(first);
-    const cached = analyseSnapshot(
-      view({ fetchedAt: '2026-10-06T08:00:20.000Z', source: 'cache' }),
-    );
-    expect(cached).not.toBe(later);
-    expect(inferYards).toHaveBeenCalledTimes(3);
+  it('recomputes for a new rows array', () => {
+    const v = view();
+    const first = analyseSnapshot(v);
+    const next = analyseSnapshot({ ...v, rows: [...v.rows] });
+    expect(next).not.toBe(first);
+    expect(inferYards).toHaveBeenCalledTimes(2);
   });
 
   it('classifies every bus once, keyed by registration', () => {

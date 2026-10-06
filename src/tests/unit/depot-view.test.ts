@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import type { DepotBusRow } from '@/models/depotLive';
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';
@@ -265,6 +265,11 @@ describe('buildDepotDetail', () => {
 });
 
 describe('GET /api/upsrtc/depot/[depotId]', () => {
+  // Back to the real composition root, even when a test fails midway.
+  afterEach(() => {
+    vi.mocked(getRepositories).mockReset();
+  });
+
   const call = (depotId: string) =>
     GET(new NextRequest(`http://localhost/api/upsrtc/depot/${encodeURIComponent(depotId)}`), {
       params: Promise.resolve({ depotId }),
@@ -300,14 +305,22 @@ describe('GET /api/upsrtc/depot/[depotId]', () => {
   });
 
   it('answers 503 without leaking the underlying error', async () => {
-    vi.mocked(getRepositories).mockReturnValueOnce(
-      reposWith(() => Promise.reject(new Error('socket hang up at 10.9.9.9 key=s3cret'))),
-    );
-    const res = await call('1');
-    expect(res.status).toBe(503);
-    const text = await res.text();
-    expect(JSON.parse(text)).toEqual({ error: 'Depot data unavailable' });
-    expect(text).not.toMatch(/socket|10\.9\.9\.9|s3cret/);
+    // Silenced, then restored: the 503 must still leave a server-side trace.
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      vi.mocked(getRepositories).mockReturnValueOnce(
+        reposWith(() => Promise.reject(new Error('socket hang up at 10.9.9.9 key=s3cret'))),
+      );
+      const res = await call('1');
+      expect(res.status).toBe(503);
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      expect(errorLog).toHaveBeenCalledWith(expect.stringMatching(/^\[depot:depot-api\] /));
+      const text = await res.text();
+      expect(JSON.parse(text)).toEqual({ error: 'Depot data unavailable' });
+      expect(text).not.toMatch(/socket|10\.9\.9\.9|s3cret/);
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 
   it('serves a known depot, including the unassigned bucket', async () => {
@@ -316,6 +329,5 @@ describe('GET /api/upsrtc/depot/[depotId]', () => {
     expect(res.status).toBe(200);
     expect(((await res.json()) as { depot: { id: string } }).depot.id).toBe('1');
     expect((await call('unassigned')).status).toBe(200);
-    vi.mocked(getRepositories).mockReset();
   });
 });

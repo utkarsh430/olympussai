@@ -10,6 +10,7 @@ import {
   isScheduledForFeedDate,
   summariseOutshed,
 } from '../infer/outshed';
+import { compareText } from '../exceptions/depotExceptions';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
 
 const DATE_PREFIX_LENGTH = 10;
@@ -66,13 +67,10 @@ function toBusView(
 }
 
 function compareBuses(a: DepotBusView, b: DepotBusView): number {
-  const byState = STATE_ORDER[a.state] - STATE_ORDER[b.state];
-  if (byState !== 0) return byState;
-  return a.registrationNumber < b.registrationNumber
-    ? -1
-    : a.registrationNumber > b.registrationNumber
-      ? 1
-      : 0;
+  return (
+    STATE_ORDER[a.state] - STATE_ORDER[b.state] ||
+    compareText(a.registrationNumber, b.registrationNumber)
+  );
 }
 
 function yardFigure(yard: Yard | null): Figure<Yard | null> {
