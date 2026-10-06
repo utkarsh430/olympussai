@@ -758,11 +758,11 @@ answers. In summary (detail, settings and limits in
 | --- | --- |
 | `live/` | Snapshot analysis, aggregation, the held peak on-road shares, the bounded query memo, the feed-time hold of the allocation plan, and one view builder per API route |
 | `infer/` | Bus state, location, yard inference and continuity, outshedding |
-| `score/`, `stats/` | Efficiency index, peer groups, rolling window, robust statistics |
+| `score/`, `stats/` | Efficiency index, peer groups, rolling window; robust statistics (`stats/robust.ts`), the rounding helpers and `clamp` (`stats/rounding.ts`), text ordering (`stats/order.ts`) |
 | `exceptions/` | Depot and bus exceptions, paging |
 | `optimise/` | Transfers (min-cost flow), what-if, allocation, Hungarian matching, parking |
 | `sim/` | Every model: requirement, depot and fleet master, duties, operating day, crew, fuel, ridership, history, yard layout |
-| `routes/` | Route catalogue and profiles, route table, allocation inputs, dead kilometres |
+| `routes/` | Route catalogue and profiles, the browser's one client for the route-details endpoint (`routeProfileClient.ts`), route table, allocation inputs, dead kilometres |
 | `crew/`, `fuel/`, `revenue/`, `maintenance/`, `duties/`, `yard/`, `cockpit/`, `roster/`, `league/`, `network/`, `rebalance/` | Per-domain page models and payload types |
 | `score/epoch.ts` | The straggler and epoch rule shared by the score window and the yard memory |
 | `forecast/` | Trend, seasonal-naive, Holt-Winters, backtest, band, chart models |
@@ -771,7 +771,7 @@ answers. In summary (detail, settings and limits in
 | `sources/` | The Data sources registry |
 | `map/` | The overview map's view model, marker diffs and node styles |
 | `shell/` | Shell geometry (`geometry.ts`), the table-width helper (`tableWidth.ts`), the table tiers (`tableTier.ts`) and the figure-band rows (`figureBandLayout.ts`) |
-| top level | Ids (`ids.ts`), paths and navigation (`nav.ts`, `depotNav.ts`, `shellModel.ts`), labels, provenance line, modelled-day line, feed chip, the page-refresh store (`pageRefresh.ts`), the sign-in redirect (`signInRedirect.ts`), scope states (`scopeState.ts`, with `DEPOT_NOT_FOUND_MESSAGE`), the depot gate, rate limiter, formatting, paging, sorting, table overflow, load errors, the copilot footer words and the payload types |
+| top level | Unit constants (`units.ts`), formatting and the plural and count helpers (`format.ts`), ids (`ids.ts`), paths and navigation (`nav.ts`, `depotNav.ts`, `shellModel.ts`), labels, provenance line, modelled-day line, feed chip, the page-refresh store (`pageRefresh.ts`), the sign-in redirect (`signInRedirect.ts`), scope states (`scopeState.ts`, with `DEPOT_NOT_FOUND_MESSAGE`), the depot gate, rate limiter, formatting, paging, sorting, table overflow, load errors, the copilot footer words and the payload types |
 
 Outside `src/lib/depot/`:
 
