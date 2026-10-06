@@ -28,12 +28,17 @@ function stands(a: number, b: number, depotId = '1'): DepotBusRow[] {
   ];
 }
 
+/**
+ * One snapshot. Every bus in these layouts was heard at the snapshot's own feed
+ * time unless the row says otherwise: hold evidence needs a recent report (M9).
+ */
 function step(
   store: YardMemoryStore,
   rows: readonly DepotBusRow[],
   feedNow: string | null,
 ): ReadonlyMap<string, Yard> {
-  return applyYardContinuity(store, rows, inferYards(rows), feedNow);
+  const heard = rows.map((r) => (r.gpsTimestamp === null ? { ...r, gpsTimestamp: feedNow } : r));
+  return applyYardContinuity(store, heard, inferYards(heard), feedNow);
 }
 
 const ruleYardAt = (rows: readonly DepotBusRow[]): Yard => inferYard(rows) as Yard;
@@ -100,20 +105,30 @@ describe('yard continuity', () => {
     expect(step(createYardMemoryStore(), stands(12, 12), at(0)).has('1')).toBe(false);
   });
 
-  it('is unchanged by a repeated snapshot, and neither read nor fed by an older or clockless one', () => {
+  it('returns the same yard for a repeated feed time, and never writes for an older one', () => {
     const store = createYardMemoryStore();
     step(store, stands(12, 6), at(1));
-    step(store, stands(12, 12), at(2));
+    const held = step(store, stands(12, 12), at(2)).get('1');
+    expect(held?.heldSince).toBe(at(2));
     const before = JSON.stringify([store.lastFeedMs, [...store.byDepot]]);
-    expect(step(store, stands(12, 12), at(2)).get('1')?.heldSince).toBe(at(2));
-    expect(step(store, stands(12, 12), at(0)).has('1')).toBe(false);
+    // A re-fetch with new rows at the same feed time: the yard returned is the one remembered (I4).
+    expect(step(store, stands(14, 12), at(2)).get('1')).toEqual(held);
+    expect(step(store, stands(12, 13), at(2)).get('1')).toEqual(held);
+    // An older snapshot is decided against the memory, which it does not write (I1).
+    expect(isAt(step(store, stands(12, 12), at(1.5)).get('1'), yardA)).toBe(true);
     expect(isAt(step(store, stands(0, 12), at(0)).get('1'), yardB)).toBe(true);
     expect(step(store, stands(12, 12), null).has('1')).toBe(false);
     expect(JSON.stringify([store.lastFeedMs, [...store.byDepot]])).toBe(before);
   });
 
   it('does not depend on the order of depots or of rows', () => {
-    const sequence = [[12, 6], [12, 12], [12, 20], [5, 20], [9, 9]] as const;
+    const sequence = [
+      [12, 6],
+      [12, 12],
+      [12, 20],
+      [5, 20],
+      [9, 9],
+    ] as const;
     const run = (arrange: (rows: DepotBusRow[]) => DepotBusRow[]): string => {
       const store = createYardMemoryStore();
       return JSON.stringify(
@@ -128,10 +143,9 @@ describe('yard continuity', () => {
 
   it('holds its properties over many seeded sequences', () => {
     for (let seed = 1; seed <= 25; seed += 1) {
-      const run = (): string => {
+      {
         const random = seededRandom(seed);
         const store = createYardMemoryStore();
-        const out: unknown[] = [];
         let previous: Yard | undefined;
         for (let i = 0; i < 60; i += 1) {
           const rows = stands(Math.floor(random() * 16), Math.floor(random() * 16));
@@ -143,20 +157,15 @@ describe('yard continuity', () => {
             const heldMs = Date.parse(feedNow) - Date.parse(yard.heldSince);
             expect(heldMs).toBeGreaterThanOrEqual(0);
             expect(heldMs).toBeLessThanOrEqual(YARD_HOLD_MAX_HOURS * 3_600_000);
-            // A held yard does not move: its centre stays inside the yard it continues.
+            // A held yard does not move or grow: the circle it continues, exactly (I3).
             const from = previous as Yard;
-            expect(distanceM(yard.lat, yard.lng, from.lat, from.lng)).toBeLessThanOrEqual(
-              from.radiusM,
-            );
+            expect([yard.lat, yard.lng, yard.radiusM]).toEqual([from.lat, from.lng, from.radiusM]);
           }
           // Every fifth step is older than the one before it, so it is not remembered.
           if (i === 0 || i % 5 !== 0) previous = yard;
           expect(store.byDepot.size).toBeLessThanOrEqual(1);
-          out.push(yard ?? null);
         }
-        return JSON.stringify(out);
-      };
-      expect(run()).toBe(run());
+      }
     }
   });
 });
