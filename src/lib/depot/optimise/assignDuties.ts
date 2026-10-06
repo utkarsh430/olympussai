@@ -9,12 +9,17 @@ import type {
 } from '../duties/types';
 import type { ModelledBus, ServiceClass } from '../sim/types';
 import { isRecentlyHeard } from '../infer/busState';
+import { MAX_BUS_AGE_YEARS } from '../sim/config';
 import { hungarian } from './hungarian';
 
 const MINUTES_PER_HOUR = 60;
 /** Age assumed for a bus the fleet master does not know when the master is empty. */
 const EMPTY_MASTER_AGE_YEARS = 0;
 const DEFAULT_CLASS: ServiceClass = 'ordinary';
+/** The longest modelled duty, in whole hours (`sim/duties.ts` caps a duty at 960 min). */
+const MAX_DUTY_HOURS = 16;
+/** The base tier's cap: the oldest modelled bus on the longest duty. */
+export const MAX_BASE_COST = MAX_BUS_AGE_YEARS * MAX_DUTY_HOURS;
 
 type Exclusion = 'off_road' | 'dark' | 'not_in_yard' | 'not_heard';
 
@@ -137,7 +142,7 @@ interface CostContext {
  * The guard checks that bound; should a depot ever pass it, the base tier (age
  * x hours, the least important) is dropped rather than lose precision.
  */
-function tierWeights(pairs: number, largestBase: number): readonly number[] {
+export function tierWeights(pairs: number, largestBase: number): readonly number[] {
   const build = (base: number): number[] => {
     const weights = [1];
     let reach = pairs * base;
