@@ -6,6 +6,14 @@ import {
   metricCellWording,
   peerRankPhrase,
 } from '@/lib/depot/league/leagueWording';
+import {
+  DEFAULT_LEAGUE_FILTERS,
+  selectedRowIn,
+  showsPeerGroupColumn,
+  unrankedSentence,
+  type LeagueRow,
+} from '@/lib/depot/league/leagueModel';
+import { RANK_REASON_LABEL } from '@/lib/depot/labels';
 import type { DepotKind } from '@/lib/depot/types';
 import type { RankReason } from '@/lib/depot/score/types';
 
@@ -118,6 +126,29 @@ describe('metricCellWording', () => {
     expect(cell.difference).toBe('—');
     expect(cell.direction).toBe('unknown');
     expect(cell.description).toBe('On-road share 92.4%, no peer median to compare with');
+  });
+});
+
+describe('league selection and columns', () => {
+  const rows = [
+    { depotId: 'a', name: 'A' },
+    { depotId: 'b', name: 'B' },
+  ] as unknown as readonly LeagueRow[];
+
+  it('finds the selected row again once a filter that hid it is relaxed', () => {
+    expect(selectedRowIn(rows.slice(0, 1), 'b')).toBeNull();
+    expect(selectedRowIn(rows, 'b')?.depotId).toBe('b');
+    expect(selectedRowIn(rows, null)).toBeNull();
+  });
+
+  it('shows the peer group column only when every peer group is shown', () => {
+    expect(showsPeerGroupColumn({ ...DEFAULT_LEAGUE_FILTERS, peerGroup: 'any' })).toBe(true);
+    expect(showsPeerGroupColumn({ ...DEFAULT_LEAGUE_FILTERS, peerGroup: 'small' })).toBe(false);
+  });
+
+  it('words a unit that is not an operating depot with the shared label', () => {
+    const row = { ranked: false, kind: 'hired', fleet: 50 } as unknown as LeagueRow;
+    expect(unrankedSentence(row)).toBe(RANK_REASON_LABEL.not_a_depot);
   });
 });
 
