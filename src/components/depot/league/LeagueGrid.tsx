@@ -110,9 +110,16 @@ export interface LeagueGridProps {
   readonly onPage: (page: number) => void;
   /** The index window's snapshot count; a depot scored on fewer is marked new. */
   readonly windowSamples?: number;
+  /** The selected row's score breakdown: an expanded row directly under that row. */
+  readonly expanded?: React.ReactNode;
 }
 
-export function LeagueGrid({ rows, grouped, selectedId, onSelect, page, onPage, windowSamples }: LeagueGridProps) {
+/** A click on the row's own link or button is that control's, not the row's. */
+function fromControl(target: EventTarget): boolean {
+  return target instanceof Element && target.closest('a, button') !== null;
+}
+
+export function LeagueGrid({ rows, grouped, selectedId, onSelect, page, onPage, windowSamples, expanded }: LeagueGridProps) {
   const [sort, setSort] = useState<Sort | null>(null);
   const frame = useRef<HTMLDivElement>(null);
   const moreColumns = useColumnsToTheRight(frame, true);
@@ -145,10 +152,20 @@ export function LeagueGrid({ rows, grouped, selectedId, onSelect, page, onPage, 
   const renderRow = (row: LeagueRow) => {
     const selected = row.depotId === selectedId;
     return (
+      <Fragment key={row.depotId}>
       <tr
-        key={row.depotId}
-        onClick={() => onSelect(row)}
-        className={`group h-9 depot-row-selectable ${selected ? 'depot-row-selected' : ''}`}
+        tabIndex={0}
+        data-league-row={row.depotId}
+        aria-label={`${row.name}${selected ? ', breakdown open' : ''}: Enter shows the score breakdown`}
+        onClick={(event) => {
+          if (!fromControl(event.target)) onSelect(row);
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' || event.target !== event.currentTarget) return;
+          event.preventDefault();
+          onSelect(row);
+        }}
+        className={`group h-9 depot-row-selectable focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-holo-glow ${selected ? 'depot-row-selected' : ''}`}
       >
         {LEAGUE_COLUMNS.map((c) => (
           <td
@@ -164,6 +181,15 @@ export function LeagueGrid({ rows, grouped, selectedId, onSelect, page, onPage, 
           </td>
         ))}
       </tr>
+      {selected && expanded ? (
+        <tr data-testid="league-breakdown-row">
+          <td colSpan={LEAGUE_COLUMNS.length} className="!p-0 whitespace-normal">
+            {/* Pinned to the frame's left edge, so it stays in view while the table scrolls sideways. */}
+            <div className="sticky left-0 w-full max-w-[calc(100vw-2rem)] p-2">{expanded}</div>
+          </td>
+        </tr>
+      ) : null}
+      </Fragment>
     );
   };
   return (

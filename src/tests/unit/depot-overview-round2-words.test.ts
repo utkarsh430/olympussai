@@ -5,6 +5,8 @@ import {
   TABLE_COLUMN_SPEC,
   TABLE_FRAME_PX_1440,
   TABLE_FRAME_PX_800,
+  TABLE_FRAME_PX_1024,
+  TABLE_FRAME_PX_390,
   tableColumnKeys,
   tableWidthPx,
   unitStateCounts,
@@ -63,22 +65,24 @@ describe('the week trend note', () => {
 });
 
 describe('the units table at 1440 and 800', () => {
-  it('fits every column of the all-units table inside the 1440 frame, INDEX included', () => {
-    const keys = tableColumnKeys('all', false);
+  // Column sums against the frame: 1440 1,044 of 1,160; 1024 732 of 976; 800 452 of 752; 390 304 of 358.
+  it.each([
+    ['full', TABLE_FRAME_PX_1440, 1044],
+    ['mid', TABLE_FRAME_PX_1024, 732],
+    ['narrow', TABLE_FRAME_PX_800, 452],
+    ['phone', TABLE_FRAME_PX_390, 304],
+  ] as const)('fits the %s tier in its frame with INDEX always shown', (tier, frame, sum) => {
+    const keys = tableColumnKeys(tier);
     expect(keys).toContain('index');
-    expect(keys).toContain('peerGroup');
-    expect(tableWidthPx(keys)).toBeLessThanOrEqual(TABLE_FRAME_PX_1440);
+    expect(keys).not.toContain('kind');
+    expect(tableWidthPx(keys)).toBe(sum);
+    expect(sum).toBeLessThanOrEqual(frame);
   });
 
-  it('drops the constant KIND column in the operating-depots segment only', () => {
-    expect(tableColumnKeys('depot', false)).not.toContain('kind');
-    expect(tableColumnKeys('other', false)).toContain('kind');
-  });
-
-  it('keeps a deliberate reduced set at 800 that fits its frame', () => {
-    const keys = tableColumnKeys('all', true);
-    expect(keys).toEqual(['name', 'fleet', 'onRoad', 'standing', 'dark', 'index']);
-    expect(tableWidthPx(keys)).toBeLessThanOrEqual(TABLE_FRAME_PX_800);
+  it('uses the section 7 column sets', () => {
+    expect(tableColumnKeys('mid')).toEqual(['name', 'fleet', 'onRoad', 'standing', 'dark', 'offRoad', 'mix', 'index']);
+    expect(tableColumnKeys('narrow')).toEqual(['name', 'fleet', 'onRoad', 'dark', 'index']);
+    expect(tableColumnKeys('phone')).toEqual(['name', 'fleet', 'index']);
   });
 
   it('shortens the headers, puts the unit in the header and draws the mix at 72 px plus padding', () => {

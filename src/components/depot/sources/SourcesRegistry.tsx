@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
@@ -15,6 +15,7 @@ import {
 import {
   GPS_FEED_ID,
   clockAheadSentence,
+  exclusionNote,
   feedAnchor,
   feedIdFromHash,
   fieldsExpandLabel,
@@ -46,7 +47,7 @@ function feedColumns(clockAhead: string | null): readonly Column<FeedEntry>[] {
       render: (feed) => (
         <span
           id={feedAnchor(feed.id)}
-          className="scroll-mt-[var(--depot-anchor-mt,5rem)] whitespace-nowrap text-depot-ink"
+          className="scroll-mt-[var(--depot-anchor-mt)] whitespace-nowrap text-depot-ink"
         >
           {feed.name}
         </span>
@@ -82,21 +83,32 @@ function feedColumns(clockAhead: string | null): readonly Column<FeedEntry>[] {
   ];
 }
 
-/** Arriving with `#feed-<id>` (other pages link here) scrolls to that row and opens it. */
-function useOpenFeedFromHash(): void {
+/**
+ * The feed a `#feed-<id>` link names (other pages link here), read after mount and on every
+ * hash change. The table opens that row on its first render (`initialExpandedKey`, remounted
+ * per hash), so no toggle is clicked.
+ */
+function useFeedFromHash(): string | null {
+  const [feedId, setFeedId] = useState<string | null>(null);
   useEffect(() => {
-    const open = (): void => {
-      const id = feedIdFromHash(window.location.hash, FEED_IDS);
-      if (id === null) return;
-      const row = document.getElementById(feedAnchor(id))?.closest('tr');
-      if (!row) return;
-      row.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')?.click();
-      row.scrollIntoView?.({ block: 'start' });
-    };
-    open();
-    window.addEventListener('hashchange', open);
-    return () => window.removeEventListener('hashchange', open);
+    const read = (): void => setFeedId(feedIdFromHash(window.location.hash, FEED_IDS));
+    read();
+    window.addEventListener('hashchange', read);
+    return () => window.removeEventListener('hashchange', read);
   }, []);
+  return feedId;
+}
+
+/**
+ * Brings the named row into view once the coverage block above it has its final height
+ * (scrolling while it still loads leaves the row below the fold). The anchor carries the
+ * shell's `--depot-anchor-mt` scroll margin, so it lands below the sticky layers.
+ */
+function useScrollToFeed(feedId: string | null, settled: boolean): void {
+  useEffect(() => {
+    if (feedId === null || !settled) return;
+    document.getElementById(feedAnchor(feedId))?.scrollIntoView?.({ block: 'start' });
+  }, [feedId, settled]);
 }
 
 const HOW_PRODUCED: readonly string[] = [
@@ -127,9 +139,16 @@ function CoverageSection() {
         />
       ) : (
         <>
-          <p className="depot-prose mb-3" data-testid="depot-records-sentence">
+          <div className="mb-3">
+          <p className="depot-prose" data-testid="depot-records-sentence">
             {`${recordsSentence(data.recordCount, busesCounted)}.`}
           </p>
+          {exclusionNote(data.recordCount, busesCounted) ? (
+            <p className="depot-note" data-testid="depot-exclusion-note">
+              {exclusionNote(data.recordCount, busesCounted)}
+            </p>
+          ) : null}
+          </div>
           {data.stale || error ? (
             <div className="mb-3">
               <StaleStrip since={data.feedNow} />
@@ -144,16 +163,19 @@ function CoverageSection() {
 
 /** Every feed, whether it is live, how well it is populated, and the schema a real feed provides. */
 export function SourcesRegistry() {
-  const { data } = useDepotNetworkContext();
+  const { data, loading } = useDepotNetworkContext();
   const clockAhead = clockAheadSentence(data?.feedClockAheadRows);
   const columns = useMemo(() => feedColumns(clockAhead), [clockAhead]);
-  useOpenFeedFromHash();
+  const hashFeed = useFeedFromHash();
+  useScrollToFeed(hashFeed, !loading);
   return (
     <>
       <CoverageSection />
       <SectionLabel label="Feeds" count={FEED_REGISTRY.length} note="Open a feed for its field list" />
       <div data-testid="depot-feed-registry">
         <DataTable
+          key={hashFeed ?? 'none'}
+          initialExpandedKey={hashFeed ?? undefined}
           columns={columns}
           rows={FEED_REGISTRY}
           rowKey={(feed) => feed.id}

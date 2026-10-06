@@ -16,16 +16,19 @@ const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 const copilot = vi.hoisted(() => ({
   state: { status: 'idle' } as unknown,
   request: (() => undefined) as (body: unknown) => void,
+  network: null as unknown,
 }));
+
+const FRESH = {
+  data: { feedNow: '2026-10-06T14:20:00.000Z', stale: false, source: 'live', depots: [] },
+  error: null,
+  loading: false,
+  refresh: () => undefined,
+};
 
 vi.mock('@/lib/auth/server', () => ({ requireProjectSession: async (): Promise<void> => {} }));
 vi.mock('@/components/depot/data/DepotNetworkProvider', () => ({
-  useDepotNetworkContext: (): unknown => ({
-    data: { feedNow: '2026-10-06T14:20:00.000Z', stale: false, source: 'live', depots: [] },
-    error: null,
-    loading: false,
-    refresh: () => undefined,
-  }),
+  useDepotNetworkContext: (): unknown => copilot.network,
 }));
 vi.mock('@/hooks/useCopilot', () => ({
   useCopilot: (): unknown => ({
@@ -42,14 +45,17 @@ const SHORT: CopilotApiResponse = {
   notice: 'none',
   generatedAt: '2026-10-06T14:20:05.000Z',
   cached: false,
+  // The text cites only the count and the total: no row fact reaches the page (guard R2-I2).
   facts: [
-    { id: 'list.1.name', label: 'Depot', text: 'GARH', provenance: 'live' },
-    { id: 'list.1.size', label: 'Short by', text: '9 buses', provenance: 'modelled' },
-    { id: 'list.2.name', label: 'Depot', text: 'KHURJA', provenance: 'live' },
-    { id: 'list.2.size', label: 'Short by', text: '1 bus', provenance: 'modelled' },
+    { id: 'list.count', label: 'Depots', text: '2 depots', provenance: 'modelled' },
+    { id: 'list.total', label: 'Short by in all', text: '10 buses', provenance: 'modelled' },
   ],
   interpretedAs: 'Depots short of buses',
-  table: { columns: ['Depot', 'Short by'], rows: [['GARH', '9 buses'], ['KHURJA', '1 bus']] },
+  table: {
+    columns: ['Depot', 'Short by'],
+    rows: [['GARH', '9 buses'], ['KHURJA', '1 bus']],
+    provenance: [null, 'modelled'],
+  },
   answerScope: { kind: 'depot', depotId: '7', depotName: 'KAUSHAMBI' },
 };
 
@@ -60,6 +66,7 @@ beforeEach(() => {
   actGlobal.IS_REACT_ACT_ENVIRONMENT = true;
   copilot.state = { status: 'idle' };
   copilot.request = () => undefined;
+  copilot.network = FRESH;
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -73,6 +80,22 @@ afterEach(() => {
 async function renderPage(): Promise<void> {
   const page = await AskPage();
   act(() => root.render(page));
+}
+
+/** Submits a question, then returns the short-of-buses answer from the given writer. */
+async function askShort(provider: CopilotApiResponse['provider']): Promise<void> {
+  await renderPage();
+  const box = container.querySelector('textarea') as HTMLTextAreaElement;
+  const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+  act(() => {
+    setValue?.call(box, 'Which depots are short of buses at KAUSHAMBI?');
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  act(() => {
+    (container.querySelector('form') as HTMLFormElement).requestSubmit();
+  });
+  copilot.state = { status: 'done', response: { ...SHORT, provider } };
+  await renderPage();
 }
 
 function line(): Element | null {
@@ -104,6 +127,52 @@ describe('the ask page', () => {
     await renderPage();
     expect(request).not.toHaveBeenCalled();
     expect(container.textContent).toMatch(/of \d+ characters left/);
+  });
+
+  it.each([
+    ['waiting', { data: null, error: null, loading: true }, 'shortfalls, spare buses and transfers are MODELLED.'],
+    ['unavailable', { data: null, error: 'down', loading: false }, 'DERIVED from no data while the feed is unavailable'],
+    ['stale', { ...FRESH, data: { ...FRESH.data, stale: true } }, 'DERIVED from the last good data'],
+  ])('drives the provenance line through the %s feed state', async (_name, network, words) => {
+    copilot.network = { refresh: () => undefined, ...network };
+    await renderPage();
+    expect(line()?.getAttribute('data-tone')).toBe('mixed');
+    expect(line()?.textContent).toContain(words);
+  });
+
+  it('says in the closed disclosure that some answers rest on modelled figures, and tags only tables that exist', async () => {
+    await renderPage();
+    const produced = container.querySelector('[data-testid="depot-produced"]')?.textContent ?? '';
+    expect(produced).not.toContain('every figure in them comes from the latest data');
+    expect(produced).toContain('rest on modelled requirement figures, not on the feed');
+    expect(produced).toContain('an answer about transfers has no table');
+    expect(produced).not.toMatch(/\bMODELLED\b/);
+  });
+
+  it('never prints a raw ISO date in its text or attributes', async () => {
+    await askShort('claude');
+    const attrs = Array.from(container.querySelectorAll('*')).flatMap((el) =>
+      Array.from(el.attributes).map((a) => a.value),
+    );
+    expect([container.textContent ?? '', ...attrs].join(' ')).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
+  it.each(['scripted', 'claude'] as const)(
+    'tags the modelled column from the response provenance on a %s answer that cites only a total',
+    async (provider) => {
+      await askShort(provider);
+      const headers = Array.from(container.querySelectorAll('[data-testid="copilot-table"] th'));
+      expect(headers.find((th) => th.textContent?.includes('Short by'))?.textContent).toContain(
+        'MODELLED',
+      );
+    },
+  );
+
+  it('says when the answer was about a depot while the form is still on the whole network', async () => {
+    await askShort('claude');
+    expect(container.querySelector('[data-testid="ask-scope-mismatch"]')?.textContent).toBe(
+      'The last answer was about KAUSHAMBI; the form is set to the whole network.',
+    );
   });
 
   it('tags a generated evidence column, shows the answer scope, and keeps TRY ASKING labelled', async () => {

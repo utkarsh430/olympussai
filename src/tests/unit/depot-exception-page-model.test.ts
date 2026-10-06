@@ -79,11 +79,11 @@ describe('severitySections', () => {
   it('heads each section with its depot count; warnings open only without criticals', () => {
     const sections = severitySections(groupDepotExceptions(LIST, null));
     expect(sections.map((s) => [s.heading, s.open])).toEqual([
-      ['Critical (1 depot)', true],
-      ['Warning (2 depots)', false],
+      ['Critical · 1 depot', true],
+      ['Warning · 2 depots', false],
     ]);
     const onlyWarnings = severitySections(groupDepotExceptions(LIST, 'on_road_low'));
-    expect(onlyWarnings.map((s) => [s.heading, s.open])).toEqual([['Warning (1 depot)', true]]);
+    expect(onlyWarnings.map((s) => [s.heading, s.open])).toEqual([['Warning · 1 depot', true]]);
   });
 });
 

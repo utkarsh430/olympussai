@@ -90,7 +90,12 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
       {rows.length === 0 ? null : (
         <>
           <div className={SECTION}>
-            <RankedStrip rows={rows} selectedId={selectedId} onSelect={select} />
+            <RankedStrip
+              rows={rows}
+              selectedId={selectedId}
+              onSelect={select}
+              windowSamples={data.scoreWindow?.samples}
+            />
           </div>
           <div className={SECTION}>
             <ExceptionSummary

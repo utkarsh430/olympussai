@@ -10,15 +10,16 @@ import type { DepotException, ExceptionKind } from '@/lib/depot/exceptions/types
  * and each depot exception says the window it was compared over.
  */
 const NOW = '2026-10-06T14:20:00.000Z';
-const hooks = vi.hoisted(() => ({ exceptions: null as unknown }));
+const FRESH = {
+  data: { feedNow: '2026-10-06T14:20:00.000Z', stale: false, source: 'live', depots: [] },
+  error: null,
+  loading: false,
+};
+const hooks = vi.hoisted(() => ({ exceptions: null as unknown, network: null as unknown }));
 
 vi.mock('@/lib/auth/server', () => ({ requireProjectSession: async (): Promise<void> => {} }));
 vi.mock('@/components/depot/data/DepotNetworkProvider', () => ({
-  useDepotNetworkContext: (): unknown => ({
-    data: { feedNow: '2026-10-06T14:20:00.000Z', stale: false, source: 'live', depots: [] },
-    error: null,
-    loading: false,
-  }),
+  useDepotNetworkContext: (): unknown => hooks.network ?? FRESH,
 }));
 vi.mock('@/hooks/useDepotExceptions', () => ({
   DEPOT_UNAVAILABLE_MESSAGE: 'Depot data unavailable',
@@ -85,13 +86,27 @@ describe('the exceptions page provenance', () => {
     expect(text(markup)).toContain('DERIVED Computed from the live feed at');
   });
 
-  it('puts the window words on the page and each exception says its window', async () => {
+  it.each([
+    ['waiting', { data: null, error: null, loading: true }, 'DERIVED Waiting for the feed.'],
+    ['unavailable', { data: null, error: 'down', loading: false }, 'DERIVED The feed is unavailable.'],
+    ['stale', { ...FRESH, data: { ...FRESH.data, stale: true } }, 'feed time 14:20.'],
+  ])('drives the provenance line through the %s feed state', async (_name, network, words) => {
+    hooks.network = network;
+    hooks.exceptions = STATES[3]?.[1];
+    const markup = await renderPage();
+    hooks.network = null;
+    expect(markup).toContain('data-tone="derived"');
+    expect(text(markup)).toContain(words);
+  });
+
+  it('says the window once, in the section note, and no line repeats it', async () => {
     hooks.exceptions = STATES[3]?.[1];
     const page = text(await renderPage());
     expect(page).toContain(
       'Rates are compared with peers over the last 20 minutes; bus counts are as of',
     );
-    expect(page).toContain('Last 20 min');
+    expect(page).not.toContain('Last 20 min');
+    expect(page).not.toMatch(/\d{4}-\d{2}-\d{2}/);
     expect(page).toContain('Off-road rate 12.8% against a peer median of 1.6%');
   });
 

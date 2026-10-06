@@ -1,9 +1,5 @@
 import type { Provenance } from '@/lib/depot/types';
-import type {
-  CopilotAnswerScope,
-  CopilotAnswerTable,
-  CopilotFactView,
-} from '@/lib/depot/copilot/wire';
+import type { CopilotAnswerScope, CopilotAnswerTable } from '@/lib/depot/copilot/wire';
 
 /**
  * The ask page's pure view of one answer: the scope chip the ANSWER used, and the evidence
@@ -17,6 +13,32 @@ export function answerScopeLabel(scope: CopilotAnswerScope | undefined, formLabe
   if (scope.kind === 'network') return 'Whole network';
   if (scope.kind === 'depot') return scope.depotName;
   return scope.depots.length === 0 ? formLabel : scope.depots.map((d) => d.depotName).join(' and ');
+}
+
+/**
+ * A line beside the "About" select when the last answer's scope is not what the form is set
+ * to (a free question that names a depot), so the two never silently disagree. Null when
+ * they agree or when there is no answer scope.
+ */
+export function scopeMismatchLine(
+  scope: CopilotAnswerScope | undefined,
+  form: { readonly depotId: string | null; readonly label: string },
+): string | null {
+  if (!scope) return null;
+  const formWords = form.depotId === null ? 'the whole network' : form.label;
+  if (scope.kind === 'network') {
+    return form.depotId === null
+      ? null
+      : `The last answer was about the whole network; the form is set to ${formWords}.`;
+  }
+  if (scope.kind === 'depot') {
+    return scope.depotId === form.depotId
+      ? null
+      : `The last answer was about ${scope.depotName}; the form is set to ${formWords}.`;
+  }
+  if (scope.depots.length === 0) return null;
+  const names = scope.depots.map((d) => d.depotName).join(' and ');
+  return `The last answer compared ${names}; the form is set to ${formWords}.`;
 }
 
 export interface AnswerColumnView {
@@ -46,35 +68,23 @@ function splitCell(cell: string): { readonly figure: string; readonly unit: stri
 }
 
 /**
- * A column's provenance from the facts behind its cells: the fact of row n has an id
- * `<list>.<n>.<field>` and the cell's text. Any generated fact makes the column MODELLED.
+ * A column's tag comes from the provenance the server computed for it from every fact that
+ * fills the table (`table.provenance`), never from matching cells against the facts the
+ * answer's text happened to cite: an answer that cites only a total still tags its
+ * generated column (guard R2-I2).
  */
-function columnTag(
-  table: CopilotAnswerTable,
-  column: number,
-  facts: readonly CopilotFactView[],
-): Provenance | null {
-  const modelled = table.rows.some((row, index) => {
-    const cell = row[column];
-    const rowPart = `.${index + 1}.`;
-    return facts.some(
-      (f) => f.provenance === 'modelled' && f.id.includes(rowPart) && f.text === cell,
-    );
-  });
-  return modelled ? 'modelled' : null;
+function columnTag(table: CopilotAnswerTable, column: number): Provenance | null {
+  return table.provenance?.[column] === 'modelled' ? 'modelled' : null;
 }
 
-export function answerTableView(
-  table: CopilotAnswerTable,
-  facts: readonly CopilotFactView[],
-): AnswerTableView {
+export function answerTableView(table: CopilotAnswerTable): AnswerTableView {
   const split = table.columns.map((_, c) => table.rows.map((row) => splitCell(row[c] ?? '')));
   const columns = table.columns.map((header, c): AnswerColumnView => {
     const cells = split[c] ?? [];
     const numeric = cells.length > 0 && cells.every((cell) => cell !== null);
     const units = new Set(cells.map((cell) => cell?.unit ?? null));
     const unit = numeric && units.size === 1 ? ([...units][0] ?? null) : null;
-    return { header, unit, align: numeric ? 'right' : 'left', tag: columnTag(table, c, facts) };
+    return { header, unit, align: numeric ? 'right' : 'left', tag: columnTag(table, c) };
   });
   const rows = table.rows.map((row, r) =>
     row.map((cell, c) => {

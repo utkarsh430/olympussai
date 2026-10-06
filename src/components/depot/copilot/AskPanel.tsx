@@ -13,6 +13,7 @@ import {
   sessionNote,
   validateQuestion,
 } from '@/lib/depot/copilot/ui/copilotView';
+import { scopeMismatchLine } from '@/lib/depot/copilot/ui/answerLayout';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import { AnswerPlaceholder, AnswerView, type AnswerEntry } from './AnswerView';
 import { ExampleQuestions } from './ExampleQuestions';
@@ -49,6 +50,11 @@ export function AskPanel() {
   const chosen = depots.find((d) => d.id === scopeValue);
   const scope: CopilotScope = chosen ? { kind: 'depot', depotId: chosen.id } : { kind: 'network' };
   const scopeLabel = chosen ? chosen.name : 'Whole network';
+  // The last answer's scope and the form's never silently disagree (capture item 18).
+  const mismatch = scopeMismatchLine(history[0]?.response.answerScope, {
+    depotId: chosen ? chosen.id : null,
+    label: scopeLabel,
+  });
 
   // A finished answer moves into the session list; the hook then returns to idle.
   useEffect(() => {
@@ -126,6 +132,11 @@ export function AskPanel() {
                 </option>
               ))}
             </Select>
+            {mismatch ? (
+              <p className="depot-note min-w-0" data-testid="ask-scope-mismatch">
+                {mismatch}
+              </p>
+            ) : null}
 
             <div className="flex min-w-0 flex-col gap-1">
               <label htmlFor={ids.text} className="depot-label">
@@ -147,7 +158,7 @@ export function AskPanel() {
                     submit();
                   }
                 }}
-                className="depot-field w-full resize-y font-sans text-sm"
+                className="depot-field min-h-[88px] w-full resize-y font-sans text-sm"
               />
               <p id={ids.help} className="depot-note">
                 <span className={remaining < 0 ? 'text-alert-crimson' : undefined}>
@@ -204,7 +215,10 @@ export function AskPanel() {
         className="flex min-w-0 flex-col gap-3"
         data-testid="ask-try"
       >
-        <SectionLabel id={`${ids.text}-t`} label="Try asking" />
+        {/* No rule above: the label sits on the ABOUT row's line, like the form beside it. */}
+        <h2 id={`${ids.text}-t`} className="depot-label flex min-h-8 items-center">
+          Try asking
+        </h2>
         <ExampleQuestions depotName={chosen ? chosen.name : null} onPick={fillExample} />
       </aside>
     </div>

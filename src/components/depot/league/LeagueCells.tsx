@@ -117,8 +117,8 @@ export function OpenChevron() {
 }
 
 /**
- * The MODELLED index history at the league's width: a 64px sparkline and its four-weeks
- * words (capped, full text in the title). Untagged: the column header carries MODELLED.
+ * The MODELLED index history at the league's width: a 64px sparkline, then the four-weeks
+ * change as a right-aligned signed figure (the trends convention; the words are in the title). Untagged: the column header carries MODELLED.
  */
 export function TrendCell({ name, row }: { readonly name: string; readonly row?: TrendTableRow }) {
   return (
@@ -131,11 +131,12 @@ export function TrendCell({ name, row }: { readonly name: string; readonly row?:
       />
       {row ? (
         <span
-          className="truncate text-[11px] text-depot-muted"
-          style={{ maxWidth: TREND_TEXT_MAX_PX }}
+          className="truncate text-right font-mono text-[12px] tabular-nums text-depot-muted"
+          style={{ width: TREND_TEXT_MAX_PX }}
           title={row.fourWeeksText}
+          data-testid="league-trend-figure"
         >
-          {row.fourWeeksText}
+          {row.fourWeeksSigned}
         </span>
       ) : null}
     </span>

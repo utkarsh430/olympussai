@@ -1,14 +1,9 @@
 import Link from 'next/link';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { formatCount, formatShare } from '@/lib/depot/format';
 import { DEPOT_KIND_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
 import { indexBand } from '@/lib/depot/map/nodeStyle';
 import {
-  LOWEST_OPERATING_LABEL,
-  SUGGESTION_LABEL,
-  SUGGESTION_NOTE,
   depotLink,
-  lowestOperatingDepot,
   peerRankLine,
   positionNote,
 } from '@/lib/depot/network/mapWords';
@@ -24,9 +19,9 @@ import { StatusMixBar, stateSegments } from './StatusMixBar';
 export interface DepotMapPanelProps {
   /** The selected depot, or null when nothing is selected. */
   readonly row: DepotRow | null;
-  /** Every row, so the empty panel can offer the lowest-index operating depot. */
-  readonly rows: readonly DepotRow[];
-  readonly onSelect: (depotId: string) => void;
+  /** Unused since the suggestion went (its row is the lowest list's first); kept for callers. */
+  readonly rows?: readonly DepotRow[];
+  readonly onSelect?: (depotId: string) => void;
   readonly onClear: () => void;
   /** True when the depot selected earlier has dropped out of the feed. */
   readonly vanished?: boolean;
@@ -74,43 +69,6 @@ function OpenDepot({ row }: { readonly row: DepotRow }) {
   );
 }
 
-/** Content-sized empty state: something to act on instead of a tall blank box. */
-function Suggestion({
-  rows,
-  onSelect,
-}: {
-  readonly rows: readonly DepotRow[];
-  readonly onSelect: (depotId: string) => void;
-}) {
-  const lowest = lowestOperatingDepot(rows);
-  if (!lowest) return null;
-  return (
-    <div className="mt-3 border-t border-depot-line pt-3">
-      <div className="depot-label flex items-center gap-2">
-        {SUGGESTION_LABEL} <ProvenanceBadge provenance="derived" />
-      </div>
-      <p className="depot-note mt-1">{LOWEST_OPERATING_LABEL}</p>
-      <div className="mt-1 flex min-w-0 items-baseline justify-between gap-3">
-        <span className="min-w-0 break-words text-[13px] text-depot-ink">{lowest.depot.name}</span>
-        <span className="shrink-0 text-[13px] tabular-nums text-depot-ink">
-          {formatIndex(rankedIndex(lowest))}
-        </span>
-      </div>
-      <p className="depot-note mt-1">{SUGGESTION_NOTE}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={() => onSelect(lowest.depot.id)}
-          className="depot-filter-button"
-        >
-          Select it
-        </button>
-        <OpenDepot row={lowest} />
-      </div>
-    </div>
-  );
-}
-
 /**
  * Summary of the selected depot beside the map. It is fed by the shared
  * selection, so the ranked lists and the table fill it as well as the map.
@@ -118,8 +76,6 @@ function Suggestion({
  */
 export function DepotMapPanel({
   row,
-  rows,
-  onSelect,
   onClear,
   vanished = false,
 }: DepotMapPanelProps) {
@@ -139,7 +95,6 @@ export function DepotMapPanel({
           {vanished ? 'The selected unit is no longer in the feed. ' : null}
           Nothing selected. Pick a unit on the map, in the lists or in the table.
         </p>
-        <Suggestion rows={rows} onSelect={onSelect} />
       </aside>
     );
   }

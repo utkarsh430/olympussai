@@ -7,6 +7,7 @@ import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { busBasisNote } from '@/lib/depot/exceptions/basisWords';
 import type { BusExceptionPage } from '@/lib/depot/exceptions/busPage';
+import type { BusExceptionKind } from '@/lib/depot/exceptions/types';
 import { busRangeSentence, pageMoves } from '@/lib/depot/exceptions/pageModel';
 import { UNASSIGNED_DEPOT_ID, type DepotSummary } from '@/lib/depot/types';
 import { BusExceptionTable } from './BusExceptionTable';
@@ -23,15 +24,17 @@ export interface BusExceptionSectionProps {
   readonly feedNow: string | null;
   readonly onDepotChange: (depotId: string | null) => void;
   readonly onOffsetChange: (offset: number) => void;
+  /** Each bus kind's total in the page's scope, for the group rows. */
+  readonly kindTotals?: Readonly<Partial<Record<BusExceptionKind, number | null>>>;
 }
 
 /**
  * Bus exceptions, paged on the server (25 a page, worst first, filtered there by kind and
- * depot). The shared pager under the table is the only place the count appears; a depot
- * filter shows as a removable chip ("KAUSHAMBI ×") beside the depot select.
+ * depot). The shared pager under the table is the only place the count appears; the
+ * removable depot chip sits on the page's scope line, since the whole page follows it.
  */
 export function BusExceptionSection(props: BusExceptionSectionProps) {
-  const { page, pending, depots, depotId, feedNow, onDepotChange, onOffsetChange } = props;
+  const { page, pending, depots, depotId, feedNow, onDepotChange, onOffsetChange, kindTotals } = props;
   const options = useMemo(() => {
     const byId = new Map(depots.map((d) => [d.id, d.name]));
     if (!byId.has(UNASSIGNED_DEPOT_ID)) byId.set(UNASSIGNED_DEPOT_ID, 'No home depot');
@@ -74,17 +77,6 @@ export function BusExceptionSection(props: BusExceptionSectionProps) {
             </option>
           ))}
         </Select>
-        {depotName === null ? null : (
-          <button
-            type="button"
-            data-testid="bus-depot-chip"
-            aria-label={`Clear the depot filter ${depotName}: show every depot`}
-            onClick={() => onDepotChange(null)}
-            className="depot-filter-button font-mono text-[11px] uppercase tracking-wider"
-          >
-            {depotName} <span aria-hidden>×</span>
-          </button>
-        )}
         {pending ? (
           <span role="status" className="depot-note">
             Loading this page…
@@ -100,7 +92,7 @@ export function BusExceptionSection(props: BusExceptionSectionProps) {
         />
       ) : (
         <div aria-busy={pending}>
-          <BusExceptionTable rows={page.items} kind={page.kind} />
+          <BusExceptionTable rows={page.items} kind={page.kind} kindTotals={kindTotals} />
         </div>
       )}
       <Pager

@@ -6,7 +6,7 @@ import { DisclosureChevron } from '@/components/depot/shell/DisclosureChevron';
 import { ShowAllButton } from '@/components/depot/shell/LongLists';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { depotHref } from '@/lib/depot/depotNav';
-import { depotBasisLabel } from '@/lib/depot/exceptions/basisWords';
+import { fewSnapshotsLabel } from '@/lib/depot/exceptions/basisWords';
 import {
   EXCEPTION_KIND_LABEL,
   SEVERITY_LABEL,
@@ -20,6 +20,13 @@ import {
 import type { WindowWordsInput } from '@/lib/depot/score/windowWords';
 import { UNASSIGNED_DEPOT_ID } from '@/lib/depot/types';
 
+/** The group's coloured severity word, the cockpit's tones; the word carries the meaning. */
+const SEVERITY_TONE: Readonly<Record<SeveritySection['severity'], string>> = {
+  critical: 'text-alert-crimson',
+  warning: 'text-alert-amber',
+  info: 'text-depot-muted',
+};
+
 interface WindowProps {
   /** The response's score window and feed time: each exception words its own basis. */
   readonly window: WindowWordsInput | undefined;
@@ -27,11 +34,12 @@ interface WindowProps {
 }
 
 /**
- * One depot: its name and kinds on one line, then one sentence per exception with the
- * moment its figure describes. The severity is the section's label, not repeated per row;
- * only a depot holding two levels prefixes each sentence with its own level.
+ * One depot: its name and kinds on one line, then one sentence per exception. Each line
+ * says its fact once: the window and feed time are the section note's, the severity is the
+ * group's coloured word; only a line whose level differs from its group's carries its own
+ * level, and only a depot scored on fewer snapshots says so.
  */
-function GroupRow({ group, window, feedNow }: WindowProps & { readonly group: DepotExceptionGroup }) {
+function GroupRow({ group, window }: WindowProps & { readonly group: DepotExceptionGroup }) {
   return (
     <li className="py-2">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -52,13 +60,20 @@ function GroupRow({ group, window, feedNow }: WindowProps & { readonly group: De
       <ul className="mt-1">
         {group.exceptions.map((e) => (
           <li key={e.id} className="flex flex-wrap items-baseline gap-x-3">
-            <span className="depot-prose min-w-0">
-              {group.exceptions.length > 1 ? `${SEVERITY_LABEL[e.severity]}: ` : ''}
-              {describeDepotException(e)}
-            </span>
-            <span className="depot-label normal-case" data-testid="depot-exception-basis">
-              {depotBasisLabel(e, window, feedNow)}
-            </span>
+            {e.severity === group.severity ? null : (
+              <span
+                className={`font-mono text-[11px] uppercase tracking-[0.08em] ${SEVERITY_TONE[e.severity]}`}
+                data-testid="depot-exception-level"
+              >
+                {SEVERITY_LABEL[e.severity]}
+              </span>
+            )}
+            <span className="depot-prose min-w-0">{describeDepotException(e)}</span>
+            {fewSnapshotsLabel(e, window) === null ? null : (
+              <span className="depot-label normal-case" data-testid="depot-exception-basis">
+                {fewSnapshotsLabel(e, window)}
+              </span>
+            )}
           </li>
         ))}
       </ul>
@@ -74,7 +89,10 @@ function Section({ section, window, feedNow }: WindowProps & { readonly section:
     <details open={section.open} className="group">
       <summary className="flex cursor-pointer list-none items-baseline gap-2 py-1 [&::-webkit-details-marker]:hidden">
         <DisclosureChevron groupOpen />
-        <h3 className="depot-label">{section.heading}</h3>
+        <h3 className="depot-label">
+          <span className={SEVERITY_TONE[section.severity]}>{section.heading.split(' · ')[0]}</span>
+          {section.heading.slice(section.heading.indexOf(' · '))}
+        </h3>
       </summary>
       <ul id={listId} className="mt-1 divide-y divide-depot-line border-y border-depot-line">
         {shown.map((g) => (

@@ -203,6 +203,40 @@ describe('exceptions page filters and paging', () => {
     expect(container.querySelector('[data-testid="bus-depot-chip"]')).toBeNull();
   });
 
+  it('makes the whole page about the depot in ?depot=: bands, totals and group rows count that depot (R2-m23)', () => {
+    window.history.replaceState({}, '', '/project/depots/exceptions?depot=49');
+    hook.result = (q) => ({
+      data: {
+        ...response(q as BusPageQuery, 3, 3),
+        report: { depot: [], busTotal: 688, counts: { ...COUNTS, long_dark: 600 } },
+        depotScope: {
+          depotId: '49',
+          depotName: 'KAUSHAMBI',
+          busCounts: { long_dark: 3, power_cut: 0, tamper_code: 0, emergency: 0 },
+          busTotal: 3,
+          depot: [],
+        },
+      } as unknown as DepotExceptionsResponse,
+      error: null,
+      loading: false,
+      refresh: () => undefined,
+    });
+    act(() => root.render(<ExceptionCentre />));
+    const figure = Array.from(container.querySelectorAll('button[aria-pressed]')).find((b) =>
+      b.textContent?.includes('Long dark'),
+    );
+    expect(figure?.textContent).toContain('3');
+    expect(figure?.textContent).not.toContain('600');
+    const page = container.textContent ?? '';
+    expect(page).toContain('Exceptions at KAUSHAMBI only.');
+    expect(page).toContain('0 depot exceptions · 3 bus exceptions');
+    expect(page).toContain('LONG DARK · 3 · WARNING');
+    expect(page).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    // Kind and severity are said by the group row, not by a column on every row.
+    const headers = Array.from(container.querySelectorAll('th')).map((th) => th.textContent);
+    expect(headers.some((h) => h?.startsWith('Kind') || h?.startsWith('Severity'))).toBe(false);
+  });
+
   it('ignores an unknown kind and a malformed depot id on entry', () => {
     window.history.replaceState({}, '', '/project/depots/exceptions?kind=fire&depot=abc');
     hook.result = (q) => ({

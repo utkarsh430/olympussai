@@ -19,7 +19,7 @@ const EXCLUSION_REASON =
   'an entry that is not a record at all, a record with no registration number, ' +
   'or a repeat of a registration already received, where the newest GPS time is kept';
 
-/** "9,993 records received · 4 excluded (why) · 9,989 buses counted". */
+/** "9,993 records received · 4 excluded · 9,989 buses counted"; the why is `exclusionNote`. */
 export function recordsSentence(recordsReceived: number, busesCounted: number): string {
   const counted = `${formatCount(busesCounted)} ${busesCounted === 1 ? 'bus' : 'buses'} counted`;
   // Fewer records than buses cannot come from one fetch: show one snapshot's number only.
@@ -29,7 +29,13 @@ export function recordsSentence(recordsReceived: number, busesCounted: number): 
   } received`;
   const excluded = recordsReceived - busesCounted;
   if (excluded === 0) return `${received}${SEP}${counted}: every record is a distinct bus`;
-  return `${received}${SEP}${formatCount(excluded)} excluded (${EXCLUSION_REASON})${SEP}${counted}`;
+  return `${received}${SEP}${formatCount(excluded)} excluded${SEP}${counted}`;
+}
+
+/** The 12px note under the records line that says what "excluded" means; null when nothing was. */
+export function exclusionNote(recordsReceived: number, busesCounted: number): string | null {
+  if (recordsReceived <= busesCounted) return null;
+  return `Excluded: ${EXCLUSION_REASON}.`;
 }
 
 export type CoverageWord = 'Complete' | 'Partial' | 'Sparse';
@@ -45,8 +51,10 @@ export interface CoverageRow {
   /** Rounded, for display; 99.99% shows as 100 but is never called complete. */
   readonly percent: number;
   readonly word: CoverageWord;
-  /** "2,204 of 9,989 buses (22%)". */
-  readonly text: string;
+  /** "2,204 of 9,989": a fixed nowrap column, so it never wraps. */
+  readonly count: string;
+  /** "22%": its own right-aligned column. */
+  readonly percentText: string;
 }
 
 function wordFor(populated: number, of: number, share: number): CoverageWord {
@@ -66,7 +74,8 @@ export function coverageRows(coverage: readonly FieldCoverage[]): CoverageRow[] 
         share,
         percent,
         word: wordFor(item.populated, item.of, share),
-        text: `${formatCount(item.populated)} of ${formatCount(item.of)} buses (${percent}%)`,
+        count: `${formatCount(item.populated)} of ${formatCount(item.of)}`,
+        percentText: `${percent}%`,
       };
     })
     .sort((a, b) => b.share - a.share);

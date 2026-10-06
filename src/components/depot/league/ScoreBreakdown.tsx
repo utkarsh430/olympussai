@@ -36,7 +36,7 @@ export function ScoreBreakdown({
     <section
       aria-labelledby="score-breakdown-title"
       data-testid="depot-score-breakdown"
-      className="depot-panel min-w-0 p-4 2xl:sticky 2xl:top-[var(--depot-panel-top)] 2xl:self-start"
+      className="depot-panel min-w-0 p-4"
     >
       <div className="depot-label">Score breakdown</div>
       <h2
