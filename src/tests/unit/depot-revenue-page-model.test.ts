@@ -39,6 +39,8 @@ const TOTALS: DepotRevenueTotals = {
   boardings: 1234567,
   revenue: 1234567,
   loadFactor: 0.6123,
+  flatFareRevenueShare: 0.25,
+  flatFareRouteShare: 0.5,
   earningsPerKm: 12.345,
   earningsCoverage: { n: 1, of: 2 },
   provenance: 'modelled',

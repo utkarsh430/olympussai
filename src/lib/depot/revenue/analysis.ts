@@ -40,15 +40,24 @@ function sum(rows: readonly RouteRevenueFigure[], pick: (r: RouteRevenueFigure) 
 function totalsOf(rows: readonly RouteRevenueFigure[]): DepotRevenueTotals {
   const capacity = sum(rows, (r) => r.seatCapacity);
   const boardings = sum(rows, (r) => r.boardings);
+  // Occupied seats, not boardings: a boarding rides only part of a leg, so
+  // boardings can exceed the seats offered while the load factor cannot.
+  const occupied = sum(rows, (r) => r.seatCapacity * r.loadFactor);
+  const revenue = sum(rows, (r) => r.revenue);
+  const flat = rows.filter((r) => r.revenueBasis === 'flat_fare_unknown_length');
   const priced = rows.filter((r) => r.serviceKm !== null && r.serviceKm > 0);
   const serviceKm = sum(priced, (r) => r.serviceKm ?? 0);
   return {
     routes: rows.length,
     trips: sum(rows, (r) => r.trips),
     boardings,
-    revenue: sum(rows, (r) => r.revenue),
-    // Ratio of sums: a big route outweighs a small one, as it does on the road.
-    loadFactor: capacity > 0 ? boardings / capacity : null,
+    revenue,
+    // Occupied seats over seats offered, a ratio of sums: a big route outweighs a
+    // small one, as it does on the road.
+    loadFactor: capacity > 0 ? occupied / capacity : null,
+    // How much of the total rests on the flat fare of a route of unknown length.
+    flatFareRevenueShare: revenue > 0 ? sum(flat, (r) => r.revenue) / revenue : null,
+    flatFareRouteShare: rows.length > 0 ? flat.length / rows.length : null,
     earningsPerKm:
       serviceKm > 0 ? Math.round((sum(priced, (r) => r.revenue) / serviceKm) * CENT) / CENT : null,
     earningsCoverage: { n: priced.length, of: rows.length },

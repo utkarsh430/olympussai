@@ -137,6 +137,8 @@ describe('revenue components', () => {
           boardings: 160,
           revenue: 12345,
           loadFactor: 0.5,
+          flatFareRevenueShare: 0.4,
+          flatFareRouteShare: 0.5,
           earningsPerKm: null,
           earningsCoverage: { n: 0, of: 2 },
           provenance: 'modelled',

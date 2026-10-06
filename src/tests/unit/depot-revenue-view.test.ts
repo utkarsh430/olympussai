@@ -121,8 +121,9 @@ describe('buildRevenueResponse', () => {
     expect(summary.boardings).toBe(routes.reduce((n, r) => n + r.boardings, 0));
     expect(summary.revenue).toBe(routes.reduce((n, r) => n + r.revenue, 0));
     const capacity = routes.reduce((n, r) => n + r.seatCapacity, 0);
+    const occupied = routes.reduce((n, r) => n + r.seatCapacity * r.loadFactor, 0);
     expect(Math.round((summary.loadFactor ?? -1) * 1000)).toBe(
-      Math.round((summary.boardings / capacity) * 1000),
+      Math.round((occupied / capacity) * 1000),
     );
   });
 

@@ -64,8 +64,12 @@ export interface DepotRevenueTotals {
   readonly trips: number;
   readonly boardings: number;
   readonly revenue: number;
-  /** Ratio of sums: boardings over seat capacity; null with no capacity. */
+  /** Ratio of sums: occupied seats over seats offered; null with no capacity. */
   readonly loadFactor: number | null;
+  /** Share of the revenue built on the flat fare (route length unknown); null with no revenue. */
+  readonly flatFareRevenueShare: number | null;
+  /** Share of the routes built on the flat fare; null with no routes. */
+  readonly flatFareRouteShare: number | null;
   /** Revenue over service km of the routes with a known length only. */
   readonly earningsPerKm: number | null;
   /** "Based on N of M routes". */

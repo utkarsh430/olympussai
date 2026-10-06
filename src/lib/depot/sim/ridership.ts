@@ -1,13 +1,10 @@
 import { SeededRandom } from '../../simulation/seededRandom';
 import { compareText } from '../fuel/compare';
-import type { RevenueBasis, RouteRidershipDay, RouteRidershipInput } from '../revenue/types';
+import type { RouteRidershipDay, RouteRidershipInput } from '../revenue/types';
 import { clamp } from '../stats/robust';
 import { STATIC_SEED_DATE } from './config';
 import {
-  AVG_TRIP_LENGTH_SHARE,
   DAILY_NOISE_SALT,
-  FARE_PER_KM,
-  FLAT_FARE_PER_BOARDING,
   LOAD_FACTOR_BASE,
   LOAD_FACTOR_DAILY_NOISE,
   LOAD_FACTOR_ROUTE_SPREAD,
@@ -16,6 +13,7 @@ import {
   MAX_SEATS_PER_BUS,
   ROUTE_FACTOR_SALT,
 } from './revenueConfig';
+import { priceRoute } from './ridershipFigures';
 import { seedFor } from './seed';
 import { modelTripsPerDay } from './tripFrequency';
 
@@ -58,14 +56,14 @@ function dayFor(input: Readonly<RouteRidershipInput>, operatingDate: string): Ro
   const seatsPerTrip = wholeSeats(input.seatsPerBus);
   const seatCapacity = trips * seatsPerTrip;
   const loadFactor = modelLoadFactor(input, operatingDate);
-  // Floored, so rounding can never carry boardings past the capped load factor.
-  const boardings = Math.floor(seatCapacity * loadFactor);
   const lengthKm = usableLength(input.lengthKm);
-  const fare =
-    lengthKm === null
-      ? FLAT_FARE_PER_BOARDING
-      : FARE_PER_KM[input.serviceClass] * AVG_TRIP_LENGTH_SHARE * lengthKm;
-  const revenueBasis: RevenueBasis = lengthKm === null ? 'flat_fare_unknown_length' : 'length_known';
+  const priced = priceRoute({
+    serviceClass: input.serviceClass,
+    trips,
+    seats: seatsPerTrip,
+    loadFactor,
+    lengthKm,
+  });
   return {
     routeName: input.routeName,
     serviceClass: input.serviceClass,
@@ -73,19 +71,16 @@ function dayFor(input: Readonly<RouteRidershipInput>, operatingDate: string): Ro
     seatsPerTrip,
     seatCapacity,
     loadFactor,
-    boardings,
-    revenue: Math.round(boardings * fare),
+    ...priced,
     lengthKm,
-    revenueBasis,
     provenance: 'modelled',
   };
 }
 
 /**
  * One MODELLED day of ridership and revenue per route. Deterministic per route
- * name and operating date. Trips come from the trip-frequency model; boardings
- * are seats times a capped load factor; revenue is boardings times a modelled
- * fare. Output is sorted so input order never matters.
+ * name and operating date. Trips come from the trip-frequency model; the load
+ * factor is capped; boardings and revenue follow the definitions in revenueConfig. Output is sorted so input order never matters.
  */
 export function modelRidershipDay(
   routes: readonly RouteRidershipInput[],
