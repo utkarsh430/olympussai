@@ -363,3 +363,74 @@ Maps rendering in e2e.
 4. **Copilot reach.** The CLI is local only and shares the subscription's limits. `auto`
    falls back to scripted responses, and an API key slots in later.
 5. **No enforced permissions.** Any PIN holder can open any depot; stated in the UI.
+
+---
+
+## Amendments made during the build
+
+Added 2026-10-06 after the build. The approved text above is unchanged; where it and this
+list disagree, this list and the code win. Rulings are numbered as in the build's decision
+ledger (S-numbers) and the P0 phase ledger. Process-only rulings (S1, S2, S4, S8, and the
+dispatch rulings of P0 and P1) are left out. The module as built is described in
+[`docs/DEPOT_MANAGEMENT.md`](../../DEPOT_MANAGEMENT.md).
+
+**Shell and tests**
+
+- P0 Ruling 1: the depot top bar has its own sign-out control at 11 px or larger; the sign-out behaviour moved into `src/hooks/useProjectSignOut.ts`.
+- P0 Ruling 2: the shared `FooterDisclaimer` is reused unchanged on depot pages; the 11 px floor binds new depot components only.
+- S5: the two unreachable steps of command-centre e2e test 21 (Diagnostics and Audit buttons removed on `main`) are dropped; its wording assertions stay.
+- S14/S15: the e2e host and port are configurable and the default host is `localhost`, the origin the Maps key authorises.
+- S23: the bus drawer is a hand-built modal with scroll lock and a focus trap, not a Radix dialog.
+- S24: "unit" means any home-depot value in the feed, "operating depot" a unit of kind `depot`; the feed chip says `LIVE` or `STALE`, never `CACHE`.
+- S44 (amends the plans' "every figure carries a provenance tag"): each page declares its default provenance once, under its header, as one tag and one fixed-formula sentence; only what differs carries its own tag; no "Modelled" in titles, column headers or cells of an all-modelled page.
+
+**Live path and inference**
+
+- S10: the shared snapshot's arrays are read-only, and its concurrent-failure path is tested before anything consumes it.
+- S3: `summariseOutshed` takes an injected `stateOf(row)` rather than importing the bus-state classifier.
+- S6: outshedding order is ended, departed on actual time, upcoming (even when dark), unknown, departed by location, due, overdue.
+- S13, S16, S19 (each superseded by S25): the grid-based yard rules tried in rounds 2 to 4. From S19 the yard radius survives: the largest member distance plus padding, not the 90th percentile.
+- S25 (replaces the spec's "150 m grid, densest cell plus neighbours, centroid and p90 radius ... 50% in-cluster"): yard inference is distance-linked density clustering (150 m link, 4 points for a core), with a share floor of one quarter; minimum 6 buses and 1.5x dominance stay.
+- S43 (replaces the spec's "merged with a seed file to stop jitter"): yard continuity in process memory; an established yard is kept while at least six of the depot's standing buses are in it, for up to twelve hours. No seed file exists.
+- S9: when the MAD is zero, the robust z falls back to the mean absolute deviation around the median (factor 1.2533).
+- S42: the Depot Efficiency Index and the peer-comparison depot exceptions are computed from counts summed over a rolling 20-minute window of snapshots held in process memory, not from one snapshot.
+
+**Fleet distribution and routes**
+
+- S7: excluded depots stay in before/after totals and their deficit is reported as uncovered with reason `excluded`; only units of kind `depot` give or receive buses.
+- S20: an allocation swap is accepted when the swap as a whole saves the minimum, not each leg.
+- S21: unchanged routes gain the reasons `over_capacity` and `move_limit`, with a fixed precedence.
+- S22: a route's per-trip kilometres are the sum of the rounded outbound and inbound figures.
+- S40 (amends the spec's route efficiency and allocation inputs): no background crawl of the route details API; profiles are fetched one route at a time on a user's action. The ruling also approved a user-initiated, bounded per-depot loader; it is not in this build.
+
+**Modelled domains**
+
+- S11: modelled rate series scale their daily variation with the level (sqrt(p(1-p)) with a floor).
+- S41: crew, fuel, revenue and the duty count all derive from one modelled operating day per depot and date.
+- S27: crew are rostered against shifts derived from duties (a duty longer than the daily limit is split), and required crew is the shift count.
+- S30: each crew role gets a fixed reserve of two slots on top of the ratio.
+- S36: an uncovered shift carries a reason per role, and the page says a shortfall is an outcome of the model.
+- S28, S31: a bus's fuel variance is measured against its peers excluding itself (at least two), and it is flagged only when that peer median is supported.
+- S32: revenue per leg is seats x load factor x length x fare per km, two legs per trip, with boardings from a seat-turnover figure.
+- S33 (replaced by S39): the economics index's coverage gate.
+- S39: modelled earnings per kilometre do not depend on route length, so every operating depot is ranked on economics when its peer group is large enough; a route without a real profile uses a modelled typical length for revenue totals.
+
+**Trends and forecasting**
+
+- S34: the forecast method is chosen, and its error reported, over the displayed horizon; the band is the 80th percentile of empirical h-step errors (pooled when thin); values are clipped to the metric's range before the band is built.
+- S35: the long trend window is 28 days ("over 4 weeks"), and "steady" is judged against the series' own variation.
+
+**Copilot**
+
+- S12 (superseded by S26): model prose validated by an allowlist of characters.
+- S17: the CLI has its own hourly and daily call cap and a breaker on rejected drafts.
+- S18: no instruction-word deny-list; "describe, never instruct" is enforced by the system prompt and by presenting briefings as advisory.
+- S26: model prose is validated by a token grammar and a closed vocabulary, so it cannot contain a quantity.
+- S38: further rules on what the model may write next to a figure (refines S26).
+- S29, S37: limits key on a session identity (a random session id claim added to the session token) plus the client address when a trusted header is configured; scripted answers have a high process ceiling; Claude work is bounded by a per-identity allowance and the process budget.
+- S45: a worded relation between two true figures is accepted as a residual risk.
+
+**Differences from the text above with no ruling found in the ledger**
+
+- Depot Efficiency Index components: the code uses on-road share, off-road rate, dark rate, schedule coverage and device integrity (`src/lib/depot/score/config.ts`), not "reporting rate, utilisation, assigned share, off-road rate, device health".
+- Route-to-depot allocation starts from the current allocation and applies single-route shifts and swaps (`src/lib/depot/optimise/allocate.ts`); the code does not describe a regret-greedy construction.
