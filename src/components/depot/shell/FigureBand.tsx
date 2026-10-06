@@ -26,7 +26,9 @@ export interface FigureBandProps {
  * the band is a grid whose columns depend on how many figures it holds: two on a phone,
  * with an odd last figure spanning the row, so no figure is left alone in part of a row
  * (`figureBandLayout`). 88px tall: label 11/16, 6px, figure 24/28, 6px, caption 12/16,
- * with 8px above and below. The label row is a 16px line box (`depot-tag-row`), so a tag
+ * with 8px above and below; a caption that does not fit wraps to a second line. Figures in
+ * a row stretch to the row's height with their content at the top, so a two-line caption
+ * moves no neighbour's figure and every hairline runs the row's full height. The label row is a 16px line box (`depot-tag-row`), so a tag
  * beside a label that fits never lowers that figure; a label that does not fit wraps,
  * with its tag, onto a second line rather than being cut. A value is never cut either.
  *
@@ -46,7 +48,7 @@ export function FigureBand({ label, children, tag }: FigureBandProps) {
       <ul
         aria-label={label}
         data-testid="depot-figure-band"
-        className={`-ml-[17px] grid w-[calc(100%+17px)] gap-y-3 py-2 lg:flex lg:flex-wrap ${figureBandGridClasses(
+        className={`-ml-[17px] grid w-[calc(100%+17px)] items-stretch gap-y-3 py-2 lg:flex lg:flex-wrap ${figureBandGridClasses(
           Children.toArray(children).length,
         )}`}
       >
@@ -60,7 +62,10 @@ export interface FigureProps {
   readonly label: string;
   /** Already formatted ("1,249", "82%", "—"). */
   readonly value: string;
-  /** One line under the value. */
+  /**
+   * A short line under the value. It wraps (two lines at most for the captions the pages
+   * write, checked in `figureBandLayout`'s tests) and is never cut with an ellipsis.
+   */
   readonly caption?: string;
   /** Only when this figure's provenance differs from the page's provenance line. */
   readonly tag?: Provenance;
@@ -96,9 +101,9 @@ const clampShare = (share: number): number =>
   Number.isFinite(share) ? Math.min(1, Math.max(0, share)) : 0;
 
 /**
- * One figure: label, value in mono 24px tabular numerals (20px on a phone), one caption line. Inside a
- * `FigureBand` it is a list item; with `hero` it may also stand alone as the page's
- * hero number.
+ * One figure: label, value in mono 24px tabular numerals (20px on a phone), a caption that
+ * wraps rather than being cut. Inside a `FigureBand` it is a list item; with `hero` it may
+ * also stand alone as the page's hero number.
  */
 export function Figure(props: FigureProps) {
   const { label, value, caption, tag, share, hero = false, title, href, onPress, pressed } = props;
@@ -129,9 +134,7 @@ export function Figure(props: FigureProps) {
         </Row>
       ) : null}
       {caption ? (
-        <Caption className="depot-caption mt-1.5 block truncate" title={caption}>
-          {caption}
-        </Caption>
+        <Caption className="depot-caption mt-1.5 block break-words">{caption}</Caption>
       ) : null}
     </>
   );

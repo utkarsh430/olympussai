@@ -76,6 +76,25 @@ describe('FigureBand', () => {
     expect(row?.className).toContain('min-h-4');
     expect(row?.className.split(/\s+/)).not.toContain('h-4');
   });
+
+  it('wraps a caption instead of cutting it with an ellipsis, at every width', () => {
+    band();
+    const caption = screen.getByText('no yard established yet today');
+    const classes = caption.className.split(/\s+/);
+    expect(classes).toContain('depot-caption');
+    expect(classes).toContain('break-words');
+    for (const cut of ['truncate', 'text-ellipsis', 'whitespace-nowrap', 'line-clamp-1', 'line-clamp-2']) {
+      expect(classes.some((name) => name.endsWith(cut)), cut).toBe(false);
+    }
+  });
+
+  it('aligns the figures in a row to the top, so a two-line caption moves no neighbour', () => {
+    band();
+    const classes = screen.getByTestId('depot-figure-band').className.split(/\s+/);
+    expect(classes).toContain('items-stretch');
+    expect(classes).not.toContain('items-center');
+    expect(classes).not.toContain('items-end');
+  });
 });
 
 describe('FigureBand: one tag for a whole generated band', () => {
