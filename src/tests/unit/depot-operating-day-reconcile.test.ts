@@ -156,6 +156,75 @@ describe('the worked depot, every page side by side', () => {
     expect(revenue.depot.lengthCoverage).toEqual({ n: 2, of: 2 });
   });
 
+  it('pins every page’s figures for the worked depot as literals', () => {
+    // WHO RAN. Duties 000 and 002 on AGRA_EXP_1, 001 on DELHI_EXP_2; in the day's seeded
+    // order K3 took DELHI, K2 and K4 took AGRA (all express, so every class matches); K1 idle.
+    expect(worked.runs.map((r) => [r.registrationNumber, r.routeName, r.distanceKm])).toEqual([
+      ['K3', 'DELHI_EXP_2', 191],
+      ['K2', 'AGRA_EXP_1', 240],
+      ['K4', 'AGRA_EXP_1', 240],
+    ]);
+    expect(worked.notRun).toEqual([{ registrationNumber: 'K1', reason: 'no_duty' }]);
+
+    // CREW. Each of the 3 duties is short enough for one shift, so 3 shifts and no relief.
+    const crew = crewShiftsFor(worked.duties);
+    expect(crew.shifts).toHaveLength(3);
+    expect(crew.dutiesNeedingRelief).toBe(0);
+
+    // FUEL at Rs 92 a litre. Each bus's economy is seeded (K2 4.04, K3 4.64, K4 4.66 km/L);
+    // litres are distance over economy to the tenth, rupees are litres x 92 rounded:
+    //   K2 240 km -> 59.4 L -> 59.4 x 92 = 5,464.8 -> 5,465
+    //   K3 191 km -> 41.2 L -> 41.2 x 92 = 3,790.4 -> 3,790
+    //   K4 240 km -> 51.5 L -> 51.5 x 92 = 4,738.0 -> 4,738
+    //   depot 671 km, 152.1 L, Rs 13,993; cost per km 13,993 / 671 = 20.854
+    expect(fuel.perBus.map((b) => [b.registrationNumber, b.fuelLitres, b.cost])).toEqual([
+      ['K2', 59.4, 5465],
+      ['K3', 41.2, 3790],
+      ['K4', 51.5, 4738],
+    ]);
+    expect(fuel.depot).toMatchObject({ distanceKm: 671, fuelLitres: 152.1, cost: 13993, busCount: 3 });
+    expect(fuel.depot.costPerKm).toBeCloseTo(20.854, 3);
+
+    // REVENUE. Express: 44 seats, Rs 1.50 a seat-km, a boarding rides 45% of the route.
+    // Load factors are seeded per route and date: AGRA 0.544, DELHI 0.437.
+    //   AGRA  2 trips = 4 legs; occupied 44 x 0.544 = 23.936; boardings floor(23.936 / 0.45)
+    //         = 53 a leg -> 212; revenue 23.936 x 120 x 1.5 = 4,308.48 a leg -> 17,233.92
+    //         -> 17,234; earnings 17,234 / 480 = 35.904 -> 35.90 a km
+    //   DELHI 1 trip = 2 legs; occupied 44 x 0.437 = 19.228; boardings floor(42.73) = 42 a leg
+    //         -> 84; revenue 19.228 x 95.5 x 1.5 = 2,754.41 a leg -> 5,508.82 -> 5,509;
+    //         earnings 5,509 / 191 = 28.843 -> 28.84 a km
+    //   depot 296 boardings, Rs 22,743 over 671 km = 33.894 -> 33.89 a km; load factor
+    //         (88 x 0.544 + 44 x 0.437) / 132 = 67.1 / 132 = 0.5083
+    expect(
+      revenue.perRoute.map((r) => [r.routeName, r.loadFactor, r.boardings, r.revenue, r.earningsPerKm]),
+    ).toEqual([
+      ['AGRA_EXP_1', 0.544, 212, 17234, 35.9],
+      ['DELHI_EXP_2', 0.437, 84, 5509, 28.84],
+    ]);
+    expect(revenue.depot).toMatchObject({
+      boardings: 296,
+      revenue: 22743,
+      serviceKm: 671,
+      earningsPerKm: 33.89,
+      modelledLengthRevenueShare: 0,
+      lengthCoverage: { n: 2, of: 2 },
+    });
+    expect(revenue.depot.loadFactor).toBeCloseTo(67.1 / 132, 10);
+
+    // ECONOMICS reads exactly these: earnings 33.89, fuel cost 20.854, load factor 0.5083 and
+    // 2 of 2 routes on a real length (the inputs economicsView builds from the same day).
+    const input = {
+      earningsPerKm: revenue.depot.earningsPerKm,
+      costPerKm: fuel.depot.costPerKm,
+      loadFactor: revenue.depot.loadFactor,
+      lengthCoverage: revenue.depot.lengthCoverage,
+    };
+    expect(input.earningsPerKm).toBe(33.89);
+    expect(input.costPerKm).toBeCloseTo(13993 / 671, 10);
+    expect(input.loadFactor).toBeCloseTo(0.5083, 4);
+    expect(input.lengthCoverage).toEqual({ n: 2, of: 2 });
+  });
+
   it('issues fuel as distance over each bus’s modelled efficiency', () => {
     for (const row of fuel.perBus) {
       expect(row.serviceClass).toBe('express');
