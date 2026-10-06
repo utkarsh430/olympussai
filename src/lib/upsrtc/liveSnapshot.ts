@@ -3,6 +3,7 @@ import type { UpstreamFetchResult } from '@/lib/upsrtc/client';
 import { normalizeLivePayload } from '@/lib/upsrtc/normalizer';
 import { deriveFeedNow, normalizeDepotRows } from '@/lib/upsrtc/depotNormalizer';
 import { TtlCache } from '@/lib/upsrtc/cache';
+import { loadFleetFixture, resetFleetFixtureForTests } from '@/lib/upsrtc/fleetFixture';
 import liveFixture from '@/fixtures/upsrtc-live-sample.json';
 import type { CanonicalLiveBus, UpstreamSource } from '@/models/canonical';
 import type { DepotBusRow } from '@/models/depotLive';
@@ -95,18 +96,29 @@ function buildSnapshot(
 }
 
 /*
- * The fixture never changes, so its depot projection is built once per process
- * and the same rows array is reused: depot views memoise on that identity, so
- * demo mode and an outage with no history no longer re-run the analysis per
- * request. The map projection is still built per call, because its
- * `lastUpdatedAt` and `dataQuality` depend on `now`.
+ * The fixture never changes, so its payload is chosen and its depot projection
+ * built once per process and the same rows array is reused: depot views
+ * memoise on that identity, so demo mode and an outage with no history no
+ * longer re-run the analysis per request. The payload is the full-fleet file
+ * when it loads (read lazily, only here), else the small bundled sample. The
+ * map projection is still built per call, because its `lastUpdatedAt` and
+ * `dataQuality` depend on `now`. Either way the result is reported as the
+ * `fixture` source, so the pages can say the data is a saved sample.
  */
-let fixtureDepot: DepotProjection | null = null;
+interface FixtureProjection {
+  readonly payload: unknown;
+  readonly depot: DepotProjection;
+}
+
+let fixture: FixtureProjection | null = null;
 
 function fixtureResult(now: number): LiveSnapshotResult {
-  fixtureDepot ??= projectDepot(liveFixture);
+  if (!fixture) {
+    const payload: unknown = loadFleetFixture() ?? liveFixture;
+    fixture = { payload, depot: projectDepot(payload) };
+  }
   return {
-    snapshot: buildSnapshot(liveFixture, now, fixtureDepot),
+    snapshot: buildSnapshot(fixture.payload, now, fixture.depot),
     source: 'fixture',
     stale: true,
   };
@@ -187,6 +199,7 @@ export function resetLiveSnapshotForTests(): void {
   cache.clear();
   inFlight = null;
   generation += 1;
-  fixtureDepot = null;
+  fixture = null;
+  resetFleetFixtureForTests();
   Object.assign(liveDiagnostics, INITIAL_DIAGNOSTICS);
 }

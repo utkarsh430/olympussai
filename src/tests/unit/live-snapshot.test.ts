@@ -8,7 +8,13 @@ vi.mock('@/lib/upsrtc/client', () => ({
   REQUEST_TIMEOUT_MS: 10_000,
 }));
 
+vi.mock('@/lib/upsrtc/fleetFixture', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/upsrtc/fleetFixture')>();
+  return { ...actual, loadFleetFixture: vi.fn(actual.loadFleetFixture) };
+});
+
 import { fetchUpstream } from '@/lib/upsrtc/client';
+import { loadFleetFixture } from '@/lib/upsrtc/fleetFixture';
 import {
   LIVE_CACHE_TTL_MS,
   getLiveSnapshot,
@@ -17,7 +23,9 @@ import {
 } from '@/lib/upsrtc/liveSnapshot';
 
 const mockFetch = vi.mocked(fetchUpstream);
+const mockFleet = vi.mocked(loadFleetFixture);
 const T0 = 1_800_000_000_000;
+const liveFixtureLength = (liveFixture as unknown[]).length;
 
 const okResult = (payload: unknown): UpstreamFetchResult => ({
   ok: true,
@@ -53,6 +61,7 @@ describe('getLiveSnapshot', () => {
   beforeEach(() => {
     resetLiveSnapshotForTests();
     mockFetch.mockReset();
+    mockFleet.mockClear();
     delete process.env.NEXT_PUBLIC_DEMO_MODE;
   });
 
@@ -109,7 +118,7 @@ describe('getLiveSnapshot', () => {
     const { snapshot, source, stale } = await getLiveSnapshot(T0);
     expect(source).toBe('fixture');
     expect(stale).toBe(true);
-    expect(snapshot.depotRows).toHaveLength(400);
+    expect(snapshot.depotRows.length).toBeGreaterThan(5_000);
     expect(liveDiagnostics.lastError).toBe('HTTP 502');
   });
 
@@ -145,7 +154,7 @@ describe('getLiveSnapshot', () => {
     const { snapshot, source, stale } = await getLiveSnapshot(T0);
     expect(source).toBe('fixture');
     expect(stale).toBe(true);
-    expect(snapshot.depotRows).toHaveLength(400);
+    expect(snapshot.depotRows.length).toBeGreaterThan(5_000);
     expect(snapshot.buses.length).toBeGreaterThan(0);
     expect(mockFetch).not.toHaveBeenCalled();
     expect(liveDiagnostics.lastError).toContain('NEXT_PUBLIC_DEMO_MODE');
@@ -273,10 +282,38 @@ describe('getLiveSnapshot', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
-  it('builds the fixture snapshot from the bundled sample', async () => {
+  it('builds the fixture snapshot from the full-fleet file and says it is a fixture', async () => {
     mockFetch.mockResolvedValue(failResult);
-    const { snapshot } = await getLiveSnapshot(T0);
-    expect(snapshot.recordCount).toBe((liveFixture as unknown[]).length);
+    const { snapshot, source, stale } = await getLiveSnapshot(T0);
+    expect(source).toBe('fixture');
+    expect(stale).toBe(true);
+    expect(snapshot.recordCount).toBe(mockFleet.mock.results[0]?.value.length);
+    expect(snapshot.recordCount).toBeGreaterThan(liveFixtureLength);
+  });
+
+  it('falls back to the small bundled sample, still as a fixture, when the fleet file is unusable', async () => {
+    mockFleet.mockReturnValueOnce(null);
+    mockFetch.mockResolvedValue(failResult);
+    const { snapshot, source, stale } = await getLiveSnapshot(T0);
+    expect(source).toBe('fixture');
+    expect(stale).toBe(true);
+    expect(snapshot.recordCount).toBe(liveFixtureLength);
+    expect(snapshot.depotRows).toHaveLength(liveFixtureLength);
+  });
+
+  it('does not touch the fleet file while the feed or the cache answers', async () => {
+    mockFleet.mockClear();
+    mockFetch.mockResolvedValueOnce(okResult(LIVE_PAYLOAD));
+    await getLiveSnapshot(T0);
+    await getLiveSnapshot(T0 + 1);
+    expect(mockFleet).not.toHaveBeenCalled();
+  });
+
+  it('reuses the full-fleet depot rows across fallbacks', async () => {
+    mockFetch.mockResolvedValue(failResult);
+    const first = await getLiveSnapshot(T0);
+    const later = await getLiveSnapshot(T0 + 60_000);
+    expect(later.snapshot.depotRows).toBe(first.snapshot.depotRows);
   });
 
   it('reuses the fixture depot rows across requests and re-stamps only the time', async () => {
