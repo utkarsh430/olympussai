@@ -2,10 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   busColumnPlan,
   depotScopeLine,
-  depotWindowNote,
   kindSearch,
-  windowPhrase,
 } from '@/lib/depot/exceptions/pageModel';
+import { depotWindowNote, scoreWindowPhrase as windowPhrase } from '@/lib/depot/score/windowWords';
 import type { DepotException } from '@/lib/depot/exceptions/types';
 
 const NOW = '2026-10-06T14:20:00.000Z';
@@ -21,9 +20,9 @@ describe('windowPhrase', () => {
       'since 14:14, 3 snapshots',
     );
   });
-  it('says latest snapshot for one sample or none', () => {
-    expect(windowPhrase({ lengthMin: 20, since: NOW, samples: 1 }, NOW)).toBe('in the latest snapshot only');
-    expect(windowPhrase(undefined, NOW)).toBe('in the latest snapshot only');
+  it('says one snapshot, with its time, for one sample or none', () => {
+    expect(windowPhrase({ lengthMin: 20, since: NOW, samples: 1 }, NOW)).toBe('from one snapshot at 14:20');
+    expect(windowPhrase(undefined, NOW)).toBe('from one snapshot at 14:20');
   });
 });
 

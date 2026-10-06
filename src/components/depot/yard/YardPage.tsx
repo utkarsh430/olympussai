@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { HowProduced as ClosingDisclosure } from '@/components/depot/shell/HowProduced';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotNetwork';
 import { useDepotParking } from '@/hooks/useDepotParking';
@@ -36,11 +37,7 @@ function HowProduced({
   readonly capacityTitle: string;
 }) {
   return (
-    <details className="border-t border-depot-line pt-3" data-testid="yard-how">
-      <summary className="cursor-pointer font-mono text-[11px] uppercase tracking-[0.16em] text-depot-muted">
-        How these figures are produced
-      </summary>
-      <div className="depot-prose mt-2 max-w-[62ch] space-y-2 text-[13px]">
+    <ClosingDisclosure testId="yard-how">
         <p>{model.basis}</p>
         <p>
           The yard circle is inferred from where this depot&apos;s buses park; it is not a surveyed
@@ -51,8 +48,7 @@ function HowProduced({
           {capacityTitle} Bays come from the depot master, not a survey, so capacity is MODELLED.
         </p>
         <p>{PLAN_NOTICE}</p>
-      </div>
-    </details>
+    </ClosingDisclosure>
   );
 }
 

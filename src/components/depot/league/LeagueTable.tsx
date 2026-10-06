@@ -20,11 +20,11 @@ import {
   type LeagueRow,
 } from '@/lib/depot/league/leagueModel';
 import { computedStamp, leagueStatusLine } from '@/lib/depot/league/leagueWording';
-import { scoreWindowSentence, scoreWindowShort } from '@/lib/depot/network/scoreWindowWords';
+import { scoreWindowShort } from '@/lib/depot/score/windowWords';
 import { MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
 import type { PeerGroupId } from '@/lib/depot/score/types';
 import { LEAGUE_HOW_PRODUCED } from '@/lib/depot/network/howProduced';
-import { HowProduced } from '@/components/depot/network/HowProduced';
+import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { LeagueFilters } from './LeagueFilters';
 import { LeagueGrid } from './LeagueGrid';
 import { ScoreBreakdown } from './ScoreBreakdown';
@@ -96,7 +96,7 @@ export function LeagueTable() {
       <LeagueFilters filters={filters} peerGroups={peerGroups} onChange={setFilters} />
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="depot-prose min-w-0 text-xs" role="status">
-          {`${scoreWindowSentence(data.scoreWindow, data.feedNow)} ${statusLine}. `}
+          {`${statusLine}. `}
           {filtered ? `${formatCount(rows.length)} rows shown with these filters. ` : ''}
           {selected
             ? `Score breakdown showing for ${selected.name}.`
@@ -124,7 +124,7 @@ export function LeagueTable() {
           <ScoreBreakdown row={selected} feedNow={data.feedNow} headingRef={headingRef} />
         ) : null}
       </div>
-      <HowProduced paragraphs={LEAGUE_HOW_PRODUCED} />
+      <HowProduced paragraphs={LEAGUE_HOW_PRODUCED} className="mt-10" />
     </>
   );
 }

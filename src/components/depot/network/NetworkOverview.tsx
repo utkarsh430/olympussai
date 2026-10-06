@@ -13,14 +13,14 @@ import { formatClockTime } from '@/lib/depot/format';
 import { LOAD_ERROR_TITLE, loadErrorBody } from '@/lib/depot/loadError';
 import { OVERVIEW_HOW_PRODUCED } from '@/lib/depot/network/howProduced';
 import { joinScores } from '@/lib/depot/network/overviewModel';
-import { exceptionWindowNote, scoreWindowSentence } from '@/lib/depot/network/scoreWindowWords';
+import { exceptionWindowNote } from '@/lib/depot/score/windowWords';
 import type { DepotNetworkResponse } from '@/lib/depot/api';
 import { BriefingCard } from '@/components/depot/copilot/BriefingCard';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import { DepotTable } from './DepotTable';
 import { MapSection } from './MapSection';
 import { ExceptionSummary } from './ExceptionSummary';
-import { HowProduced } from './HowProduced';
+import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { KpiBand } from './KpiBand';
 import { RankedStrip } from './RankedStrip';
 import { SelectionBar } from './SelectionBar';
@@ -62,7 +62,6 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
     setVanished(true);
   }, [selectedId, selected]);
 
-  const windowSentence = scoreWindowSentence(data.scoreWindow, data.feedNow);
   return (
     <div className="space-y-8">
       <div className={SECTION}>
@@ -81,11 +80,10 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
           selected={selected}
           onSelect={select}
           vanished={vanished}
-          windowNote={windowSentence}
         />
       )}
       <div className={SECTION}>
-        <NetworkBriefingRow />
+        <NetworkBriefingRow feedNow={data.feedNow} />
       </div>
       {rows.length === 0 ? null : (
         <>
@@ -105,21 +103,21 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
           </div>
         </>
       )}
-      <HowProduced paragraphs={OVERVIEW_HOW_PRODUCED} />
+      <HowProduced paragraphs={OVERVIEW_HOW_PRODUCED} className="mt-10" />
     </div>
   );
 }
 
 /**
- * The briefing as one collapsed row that opens in place. The shared card cannot yet
- * take the page's feed time, so its footer cannot say when the page has moved on.
+ * The briefing as one collapsed row that opens in place. The card is given the page's
+ * feed time, so its footer says when the page has moved on since the text was written.
  */
-function NetworkBriefingRow() {
+function NetworkBriefingRow({ feedNow }: { readonly feedNow: string | null }) {
   return (
     <details className="depot-details border-y border-depot-line py-2.5" data-testid="depot-briefing-row">
       <summary>Network briefing · a written summary of these figures, on request</summary>
       <div className="mt-3">
-        <BriefingCard scope={NETWORK_SCOPE} title="Network briefing" />
+        <BriefingCard scope={NETWORK_SCOPE} title="Network briefing" currentFeedTime={feedNow} />
       </div>
     </details>
   );

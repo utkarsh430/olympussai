@@ -1,5 +1,5 @@
 import { SAME_PLACE_KM } from '@/lib/depot/rebalance/pageLayout';
-import { Disclosure } from './Disclosure';
+import { HowProduced } from '@/components/depot/shell/HowProduced';
 
 const PERCENT = 100;
 
@@ -7,8 +7,7 @@ const PERCENT = 100;
 export function RebalanceMethod({ spareRatio }: { readonly spareRatio: number }) {
   const spare = Math.round(spareRatio * PERCENT * 10) / 10;
   return (
-    <Disclosure label="How these figures are produced" testId="rebalance-method">
-      <div className="depot-prose flex max-w-3xl flex-col gap-2 text-[13px]">
+    <HowProduced testId="rebalance-method">
         <p>
           Live: each depot&apos;s fleet, buses off road and buses available come from the latest
           feed snapshot. Modelled: the feed carries no network timetable, so each depot&apos;s
@@ -27,7 +26,6 @@ export function RebalanceMethod({ spareRatio }: { readonly spareRatio: number })
           no transfer order is issued. Hired, electric and enforcement units are listed but take
           no part in the plan.
         </p>
-      </div>
-    </Disclosure>
+    </HowProduced>
   );
 }

@@ -20,7 +20,11 @@ export default async function DepotRevenuePage({
       <PageHeader
         title="Revenue and ridership"
         description="Trips, boardings and revenue by route for the operating date."
-        provenanceLine={{ default: 'modelled', replacedBy: 'a ticketing feed and a route master' }}
+        provenanceLine={{
+          default: 'modelled',
+          replacedBy: 'a ticketing feed and a route master',
+          feedId: 'ticketing-ridership',
+        }}
       />
       <Suspense fallback={<LoadingBlock rows={12} label="Loading the revenue view" />}>
         <RevenuePage />

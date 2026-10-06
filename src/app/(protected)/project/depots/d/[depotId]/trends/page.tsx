@@ -25,7 +25,11 @@ export default async function DepotTrendsForDepotPage({
       <PageHeader
         title="Trends"
         description="Where this depot's measures are heading, and whether buses cover the need."
-        provenanceLine={{ default: 'modelled', replacedBy: 'a database of real history' }}
+        provenanceLine={{
+          default: 'modelled',
+          replacedBy: 'a database of real history',
+          feedId: 'history-store',
+        }}
       />
       <DepotTrends metric={metric} />
     </>

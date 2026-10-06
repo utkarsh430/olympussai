@@ -1,8 +1,11 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { Fragment, useId, useMemo, useRef, useState } from 'react';
 import { sortRows, type SortDirection, type SortValue } from '@/lib/depot/tableSort';
+import { ExpandToggle, expandedRowId, useExpandedRows } from './RowExpander';
 import { TableOverflowCue, useColumnsToTheRight } from './TableOverflowCue';
+
+const EXPAND_KEY = '__expand';
 
 export interface Column<T> {
   readonly key: string;
@@ -49,6 +52,16 @@ export interface DataTableProps<T> {
   readonly freezeFirstColumn?: boolean;
   /** Fade the right edge and say "more columns" while columns are hidden to the right. */
   readonly overflowCue?: boolean;
+  /**
+   * A row expander: a disclosure button in its own narrow column (after the first, so a
+   * frozen first column still names the row) opens this content in a full-width row
+   * beneath. Return null for a row with nothing to show. One row open at a time unless
+   * `multipleExpanded`.
+   */
+  readonly renderExpanded?: (row: T) => React.ReactNode | null;
+  /** The expander button's accessible name for a row; "Show details" by default. */
+  readonly expandLabel?: (row: T) => string;
+  readonly multipleExpanded?: boolean;
 }
 
 export interface TableSortState {
@@ -112,7 +125,34 @@ export function DataTable<T>({
   fixedRows = false,
   freezeFirstColumn = false,
   overflowCue = false,
+  renderExpanded,
+  expandLabel,
+  multipleExpanded = false,
 }: DataTableProps<T>) {
+  const autoId = useId();
+  const expanded = useExpandedRows(multipleExpanded);
+  const tableKey = id ?? autoId;
+  const shownColumns = useMemo<readonly Column<T>[]>(() => {
+    if (!renderExpanded) return columns;
+    const expander: Column<T> = {
+      key: EXPAND_KEY,
+      header: 'Details',
+      width: '2.25rem',
+      render: (row) => {
+        if (renderExpanded(row) === null) return null;
+        const key = rowKey(row);
+        return (
+          <ExpandToggle
+            open={expanded.isOpen(key)}
+            controls={expandedRowId(tableKey, key)}
+            label={expandLabel?.(row) ?? 'Show details'}
+            onToggle={() => expanded.toggle(key)}
+          />
+        );
+      },
+    };
+    return [...columns.slice(0, 1), expander, ...columns.slice(1)];
+  }, [columns, renderExpanded, expandLabel, expanded, rowKey, tableKey]);
   const frame = useRef<HTMLDivElement>(null);
   const moreColumns = useColumnsToTheRight(frame, overflowCue);
   const own = useTableSort(columns, initialSort);
@@ -134,43 +174,56 @@ export function DataTable<T>({
   const renderRow = (row: T) => {
     const key = rowKey(row);
     const selected = selectable ? key === selectedKey : undefined;
+    const detail = renderExpanded && expanded.isOpen(key) ? renderExpanded(row) : null;
     return (
-      <tr
-        key={key}
-        aria-selected={selected}
-        tabIndex={selectable ? 0 : undefined}
-        onClick={selectable ? () => onRowSelect(row) : undefined}
-        onKeyDown={
-          selectable
-            ? (event) => {
-                // Ignore keys that bubble up from a link or button inside the row.
-                if (event.target !== event.currentTarget) return;
-                if (!SELECT_KEYS.has(event.key)) return;
-                event.preventDefault();
-                onRowSelect(row);
-              }
-            : undefined
-        }
-        className={
-          selectable ? `depot-row-selectable ${selected ? 'depot-row-selected' : ''}` : undefined
-        }
-      >
-        {columns.map((column) => {
-          const content = column.render(row);
-          const title = fixedRows
-            ? (column.title?.(row) ?? (typeof content === 'string' ? content : undefined))
-            : undefined;
-          return (
+      <Fragment key={key}>
+        <tr
+          aria-selected={selected}
+          tabIndex={selectable ? 0 : undefined}
+          onClick={selectable ? () => onRowSelect(row) : undefined}
+          onKeyDown={
+            selectable
+              ? (event) => {
+                  // Ignore keys that bubble up from a link or button inside the row.
+                  if (event.target !== event.currentTarget) return;
+                  if (!SELECT_KEYS.has(event.key)) return;
+                  event.preventDefault();
+                  onRowSelect(row);
+                }
+              : undefined
+          }
+          className={
+            selectable ? `depot-row-selectable ${selected ? 'depot-row-selected' : ''}` : undefined
+          }
+        >
+          {shownColumns.map((column) => {
+            const content = column.render(row);
+            const title = fixedRows
+              ? (column.title?.(row) ?? (typeof content === 'string' ? content : undefined))
+              : undefined;
+            return (
+              <td
+                key={column.key}
+                title={title}
+                className={column.align === 'right' ? 'depot-align-right' : undefined}
+              >
+                {content}
+              </td>
+            );
+          })}
+        </tr>
+        {detail === null ? null : (
+          <tr data-testid="depot-table-expanded">
             <td
-              key={column.key}
-              title={title}
-              className={column.align === 'right' ? 'depot-align-right' : undefined}
+              id={expandedRowId(tableKey, key)}
+              colSpan={shownColumns.length}
+              className="!h-auto !max-w-none !whitespace-normal !py-3"
             >
-              {content}
+              <div className="depot-prose max-w-[62ch]">{detail}</div>
             </td>
-          );
-        })}
-      </tr>
+          </tr>
+        )}
+      </Fragment>
     );
   };
 
@@ -193,7 +246,7 @@ export function DataTable<T>({
         <caption className="sr-only">{caption}</caption>
         <thead>
           <tr>
-            {columns.map((column) => {
+            {shownColumns.map((column) => {
               const active = column.sortValue && sort?.key === column.key ? sort : null;
               return (
                 <th
@@ -216,6 +269,8 @@ export function DataTable<T>({
                         {active ? (active.direction === 'asc' ? '↑' : '↓') : ''}
                       </span>
                     </button>
+                  ) : column.key === EXPAND_KEY ? (
+                    <span className="sr-only">{column.header}</span>
                   ) : (
                     column.header
                   )}
@@ -227,7 +282,7 @@ export function DataTable<T>({
         <tbody>
           {visibleRows.length === 0 && emptyMessage ? (
             <tr>
-              <td colSpan={columns.length} className="depot-prose !py-6">
+              <td colSpan={shownColumns.length} className="depot-prose !py-6">
                 {emptyMessage}
               </td>
             </tr>
@@ -236,7 +291,7 @@ export function DataTable<T>({
           {outsideRow !== undefined ? (
             <>
               <tr>
-                <td colSpan={columns.length} className="depot-prose !py-2">
+                <td colSpan={shownColumns.length} className="depot-prose !py-2">
                   Selected row, outside the first {maxRows}
                 </td>
               </tr>

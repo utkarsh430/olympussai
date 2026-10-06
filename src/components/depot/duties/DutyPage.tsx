@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
+import { HowProduced as ClosingDisclosure } from '@/components/depot/shell/HowProduced';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
@@ -65,17 +66,12 @@ function HowProduced({
   const withoutDuty = routesWithoutDutySentence(data.routesWithoutDuty);
   const duplicates = duplicateRowsSentence(data.duplicateRowsDropped);
   return (
-    <details className="border-t border-depot-line pt-3" data-testid="duties-how">
-      <summary className="cursor-pointer font-mono text-[11px] uppercase tracking-[0.16em] text-depot-muted">
-        How these figures are produced
-      </summary>
-      <div className="depot-prose mt-2 max-w-[62ch] space-y-2 text-[13px]">
+    <ClosingDisclosure testId="duties-how">
         <p data-testid="duties-notice">{MODEL_NOTICE}</p>
         <p data-testid="duties-spare">{spare}</p>
         {withoutDuty === null ? null : <p data-testid="duties-routes-without">{withoutDuty}</p>}
         {duplicates === null ? null : <p>{duplicates}</p>}
-      </div>
-    </details>
+    </ClosingDisclosure>
   );
 }
 

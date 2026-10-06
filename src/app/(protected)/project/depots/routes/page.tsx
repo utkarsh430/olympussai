@@ -16,8 +16,9 @@ export default async function DepotRoutesPage() {
         description="Every route in the feed, and which depot should run each one."
         provenanceLine={{
           default: 'mixed',
-          live: 'Routes and buses, and stops and terminals from the route-details feed',
-          modelled: 'depot positions (inferred), trips and the dead kilometres built on them',
+          live: 'Routes and buses',
+          derived: 'stops and terminals from the route-details feed, and inferred depot positions',
+          modelled: 'trips and the dead kilometres built on them',
         }}
       />
       <RoutesPage />

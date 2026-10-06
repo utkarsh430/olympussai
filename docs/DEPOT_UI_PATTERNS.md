@@ -34,7 +34,11 @@ Rule: Rulings §1 (anatomy; nothing between the header and the hero).
 | Description | Renders |
 |---|---|
 | `{ default: 'modelled', replacedBy: 'a crew roster and leave feed' }` | `MODELLED` Generated from planning assumptions, not measured. Replaced when a crew roster and leave feed is connected. Data sources |
+| `{ default: 'modelled', replacedBy: 'fuel issue records', feedId: 'fuel' }` | as above; the Data sources link opens `/project/depots/sources#feed-fuel` |
 | `{ default: 'mixed', live: 'Bus states', modelled: 'duties and bays' }` | `MIXED` Bus states are LIVE; duties and bays are MODELLED. |
+| `{ default: 'mixed', live: 'Routes and buses', derived: 'stops', modelled: 'trips' }` | `MIXED` Routes and buses are LIVE; stops are DERIVED; trips are MODELLED. (an empty part is left out) |
+| `{ default: 'derived', indexWindow: true }` | `DERIVED` Computed from the live feed at 08:51. Efficiency index over the last 20 minutes. |
+| `{ default: 'derived', second: 'One short sentence.' }` | `DERIVED` Computed from the live feed at 08:51. One short sentence. |
 | `{ default: 'derived' }` | `DERIVED` Computed from the live feed at 08:51. |
 | `{ default: 'live' }` | `LIVE` Live from the feed at 08:51. |
 | `{ default: 'reference' }` | `REFERENCE` Reference data, curated; not from the feed. |
@@ -43,6 +47,50 @@ Stale, sample-data, unavailable and waiting variants are worded by the function 
 never calls its live part LIVE when it is not). Rule: Rulings §2. After declaring the default,
 tag only what differs: a `SectionLabel`'s `tag`, a column header, a single `Figure`'s `tag`.
 Never a tag in a cell, never "Modelled" in a cell or a title.
+
+`feedId` must be a registry id (`src/lib/depot/sources/registry.ts`; a test checks every page).
+Pass it whenever the line names a replacing feed. `indexWindow` puts the index window in the
+line itself: do not repeat it in a section note or status line.
+
+## Index window words
+
+One module, `src/lib/depot/score/windowWords.ts`: `scoreWindowPhrase`, `scoreWindowSentence`,
+`scoreWindowShort` (column headers), `exceptionWindowNote`, `depotWindowNote`. Pass the
+response's `scoreWindow`; when it carries `coveredMin`, "over the last N minutes" uses it.
+One sample reads "from one snapshot at 14:20". Never word the window anywhere else.
+
+```ts
+scoreWindowSentence(data.scoreWindow, data.feedNow); // "Efficiency index over the last 20 minutes."
+```
+
+## Closing disclosure (HowProduced)
+
+Every page ends with one `HowProduced` (`shell/HowProduced.tsx`): a native `<details>`, closed,
+summary fixed as "How these figures are produced". `paragraphs?` render as text paragraphs,
+then `children`. `id?` makes it an anchor: a link to `#<id>` opens it. `className?` is outer
+spacing only; `testId?` keeps a page's test hook. Never build a page's own copy.
+
+```tsx
+<HowProduced paragraphs={OVERVIEW_HOW_PRODUCED} id="how-produced">
+  <p>One more paragraph, or the page's own block.</p>
+</HowProduced>
+```
+
+## CollapsedSection
+
+For any other closed part (`shell/CollapsedSection.tsx`): a real button with `aria-expanded`
+and `aria-controls`, closed by default. `variant: 'section'` (default) puts the button in the
+section's `h2` with `count?` and `note?`; `variant: 'row'` is a plain toggle line under an
+existing heading. Closed content is not rendered unless `keepMounted` (kept content is hidden by
+the `hidden` class alone, never the `hidden` attribute). `open`/`onToggle` make it controlled;
+`headingId`/`headingRef` give a focus target.
+
+```tsx
+<CollapsedSection label="What-if sandbox" note="Nothing is sent" headingId="sandbox" keepMounted>
+  <ScenarioPanel />
+</CollapsedSection>
+<CollapsedSection variant="row" label="The order as a list">…</CollapsedSection>
+```
 
 ## SectionLabel
 
@@ -61,7 +109,8 @@ Rule: Rulings §3 (mono 11px uppercase, hairline above; no paragraph under it).
 ## FigureBand and Figure
 
 `FigureBand { label, children }` holds up to five `Figure { label, value, caption?, tag?,
-share?, hero? }`. `value` is already formatted. `share` (0 to 1) draws a thin fill bar.
+share?, hero?, title? }`. `title` is the figure's one-line explanation, on hover and read by
+assistive technology; keep it in the closing disclosure too. `value` is already formatted. `share` (0 to 1) draws a thin fill bar.
 `hero` uses the display face at 32px: at most one per page, and only when the figure is the
 page's hero. A `Figure` is a list item: always put it inside a `FigureBand`.
 
@@ -82,6 +131,18 @@ long text truncated with the full text in `title`: a string `render` result is u
 the column `title: (row) => string`), `freezeFirstColumn`, `overflowCue` (a right-edge fade
 plus the words "more columns" while columns are hidden to the right). Right-align numbers
 with `align: 'right'` (the header follows); put units in the header.
+
+Row expander: `renderExpanded: (row) => ReactNode | null` adds a narrow disclosure column
+after the first (so a frozen first column still names the row) and opens the content in a
+full-width row beneath; `null` means no button for that row. One row open at a time unless
+`multipleExpanded`; `expandLabel: (row) => string` names the button. Works with sorting,
+`maxRows`, `fixedRows` and the frozen column. Use it, not a selection line under the table,
+for a row's full text.
+
+```tsx
+<DataTable columns={COLUMNS} rows={rows} rowKey={(r) => r.id} caption="Duties" fixedRows
+  renderExpanded={(r) => <p>{r.reason}</p>} expandLabel={() => 'Show this duty in full'} />
+```
 
 ```tsx
 <DataTable
@@ -202,6 +263,14 @@ it; a page that wants the "write again" line must pass the feed times.
 ```
 
 Rule: Rulings §3 (copilot output).
+
+`BriefingCard` takes `currentFeedTime?`: pass the page's `feedNow`. The card keeps the feed
+time of its request and passes both to the footer, which then says "The page has updated
+since; write again." and offers the one "Write again".
+
+```tsx
+<BriefingCard scope={scope} title="Depot briefing" currentFeedTime={data.feedNow} />
+```
 
 ## Shell, navigation and the footer
 

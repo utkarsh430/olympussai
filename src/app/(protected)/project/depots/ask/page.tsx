@@ -1,6 +1,6 @@
 import { requireProjectSession } from '@/lib/auth/server';
 import { AskPanel } from '@/components/depot/copilot/AskPanel';
-import { ProducedDisclosure } from '@/components/depot/sources/ProducedDisclosure';
+import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 
 const ASK_PATH = '/project/depots/ask';
@@ -18,7 +18,7 @@ export default async function DepotAskPage() {
         provenanceLine={{ default: 'derived' }}
       />
       <AskPanel />
-      <ProducedDisclosure>
+      <HowProduced testId="depot-produced" className="mt-8">
         <p>
           You can ask about rankings, a depot&apos;s summary, depots short of buses or with spare
           buses, transfers and exceptions. Choose a depot under About for questions about one depot.
@@ -29,7 +29,7 @@ export default async function DepotAskPage() {
           many figures it used.
         </p>
         <p>The last five answers stay on this page and nothing is stored.</p>
-      </ProducedDisclosure>
+      </HowProduced>
     </>
   );
 }

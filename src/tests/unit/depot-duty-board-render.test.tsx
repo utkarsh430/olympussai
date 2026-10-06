@@ -140,7 +140,13 @@ describe('DutyBoard', () => {
     expect(body[2]).toContain('23:00');
     expect(body[2]).toContain('02:00 next day');
     expect(body[1]).not.toContain('No free express bus');
-    act(() => (table?.querySelectorAll('tbody tr')[1] as HTMLElement | undefined)?.click());
+    // The full text opens from the row's expander (the shared table's), not a selection.
+    act(() =>
+      table
+        ?.querySelectorAll('tbody tr')[1]
+        ?.querySelector('button[aria-expanded]')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true })),
+    );
     expect(container.querySelector('[data-testid="duty-row-detail"]')?.textContent).toContain(
       'No free express bus',
     );

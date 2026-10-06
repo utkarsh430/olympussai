@@ -38,6 +38,11 @@ export interface FigureProps {
   readonly share?: number;
   /** The page's single hero figure: display face at 32px. One per page at most. */
   readonly hero?: boolean;
+  /**
+   * The figure's one-line explanation: shown on hover and read as part of the figure by
+   * assistive technology. The closing disclosure keeps the explanation too.
+   */
+  readonly title?: string;
 }
 
 const clampShare = (share: number): number =>
@@ -48,9 +53,13 @@ const clampShare = (share: number): number =>
  * `FigureBand` it is a list item; with `hero` it may also stand alone as the page's
  * hero number.
  */
-export function Figure({ label, value, caption, tag, share, hero = false }: FigureProps) {
+export function Figure(props: FigureProps) {
+  const { label, value, caption, tag, share, hero = false, title } = props;
   return (
-    <li className="min-w-0 list-none px-4 max-sm:odd:pl-0 max-sm:even:border-l max-sm:even:border-depot-line sm:flex-1 sm:basis-28 sm:border-l sm:border-depot-line sm:first:border-l-0 sm:first:pl-0">
+    <li
+      title={title}
+      className="min-w-0 list-none px-4 max-sm:odd:pl-0 max-sm:even:border-l max-sm:even:border-depot-line sm:flex-1 sm:basis-28 sm:border-l sm:border-depot-line sm:first:border-l-0 sm:first:pl-0"
+    >
       <div className="flex min-w-0 items-center gap-2">
         <p className="depot-label truncate">{label}</p>
         {tag ? <ProvenanceBadge provenance={tag} /> : null}
@@ -72,6 +81,7 @@ export function Figure({ label, value, caption, tag, share, hero = false }: Figu
         </div>
       ) : null}
       {caption ? <p className="mt-1 truncate font-sans text-[13px] text-depot-muted">{caption}</p> : null}
+      {title ? <p className="sr-only">{title}</p> : null}
     </li>
   );
 }

@@ -18,7 +18,7 @@ interface MapSectionProps {
   /** Null clears the selection. */
   readonly onSelect: (depotId: string | null) => void;
   readonly vanished: boolean;
-  /** "Efficiency index over the last 20 minutes.": said once, here, where the index first appears. */
+  /** A short note on the right of the label. The index window is in the provenance line. */
   readonly windowNote?: string;
 }
 

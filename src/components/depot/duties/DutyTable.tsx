@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { rosterBusHref } from '@/lib/depot/depotNav';
 import { formatMinute, type BoardRow } from '@/lib/depot/duties/dutyBoardModel';
@@ -57,14 +57,16 @@ function buildColumns(depotId: string): readonly Column<BoardRow>[] {
 }
 
 /**
- * The same rows as the chart. No sentence sits in a cell: selecting a row opens its
- * full text, with the reason an unmatched duty has no bus, in the line under the table
- * (the shared table has no row expander, so selection stands in for one).
+ * The same rows as the chart. No sentence sits in a cell: a row's expander opens its
+ * full text, with the reason an unmatched duty has no bus, in a full-width row beneath.
  */
+function rowDetail(row: BoardRow): React.ReactNode {
+  const text = `${row.ariaLabel}${row.reason === null ? '' : ` ${row.reason}`}`;
+  return <p data-testid="duty-row-detail">{text}</p>;
+}
+
 export function DutyTable({ depotId, rows }: DutyTableProps) {
   const columns = useMemo(() => buildColumns(depotId), [depotId]);
-  const [selected, setSelected] = useState<string | undefined>(undefined);
-  const row = rows.find((r) => r.id === selected);
   return (
     <div className="min-w-0">
       <DataTable
@@ -76,18 +78,9 @@ export function DutyTable({ depotId, rows }: DutyTableProps) {
         fixedRows
         freezeFirstColumn
         overflowCue
-        onRowSelect={(r) => setSelected((current) => (current === r.id ? undefined : r.id))}
-        selectedKey={selected}
+        renderExpanded={rowDetail}
+        expandLabel={() => 'Show this duty in full'}
       />
-      <p
-        role="status"
-        data-testid="duty-row-detail"
-        className="mt-2 min-h-5 text-[13px] text-depot-muted"
-      >
-        {row
-          ? `${row.ariaLabel}${row.reason === null ? '' : ` ${row.reason}`}`
-          : 'Select a duty to read why it has no bus.'}
-      </p>
     </div>
   );
 }
