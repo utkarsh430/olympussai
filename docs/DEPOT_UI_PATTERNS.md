@@ -26,7 +26,7 @@ closed disclosure at the end, "How these figures are produced".
   (`Figure`'s `tag`).
 - Units and words in the header (`unit`), bare numbers in cells; a repeated column becomes
   group rows (`group`); a constant column is removed.
-- Bands of two to four figures never stretch; band figures are always 24px.
+- Bands of two to four figures never stretch; band figures are 24px (20px under 640px, so a value is never cut).
 - Filters: one `FilterRow` (inline labels, 32px controls), never a stacked label.
 - No hand-picked margins between sections: put the sections in one `depot-stack`.
 
@@ -197,11 +197,13 @@ control over the label row with absolute positioning).
 `FigureBand { label, children }` holds up to five `Figure { label, value, caption?, tag?,
 share?, hero?, title? }`. Figures are a fixed width and left-packed: 232px from 1440px, 200px
 from 1280px, 192px from 1024px (five fit one row at each), wrapping when the column is
-narrower. Below 1024px the rows are set by `figureBandColumns`
-(`src/lib/depot/shell/figureBandLayout.ts`): two figures 2, three 3, four 2 + 2 on a phone
-and 4 from 640px, five 3 + 2. Every
-figure is mono 24px (`hero`: display 32px, one per page). Label and caption truncate with the
-full text in `title`. 88px tall. A figure's label row is a fixed 16px line box
+narrower. Below 1024px the rows are set by `figureBandColumns` and `figureBandLastSpans`
+(`src/lib/depot/shell/figureBandLayout.ts`). Under 640px a band has two columns and an odd
+last figure spans the row; from 640px three sit 3 across and five 3 + 2; four sit 2 + 2 up to
+767px and 4 across from 768px (`BAND_FOUR_ACROSS_FROM_PX`). Every
+figure is mono 24px, 20px under 640px (`hero`: display 32px, one per page). Nothing in a
+band is cut: a value, a label (with its tag) and a caption wrap, a caption to at most two
+lines (`CAPTION_MAX_LINES`), and the cells of a row align to the top. At least 88px tall. A figure's label row is a fixed 16px line box
 (`depot-tag-row`): a tag beside the label is drawn 16px tall and never lowers the figure. `tag` only for a generated figure on a MIXED or DERIVED page.
 No `compact` (16px) form: no page needs one; the two hand-rolled 16px bands (exceptions,
 economics) become ordinary bands.
