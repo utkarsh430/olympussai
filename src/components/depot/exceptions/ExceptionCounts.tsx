@@ -1,15 +1,9 @@
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { formatCount } from '@/lib/depot/format';
+import { BUS_EXCEPTION_KINDS, DEPOT_EXCEPTION_KINDS } from '@/lib/depot/exceptions/config';
 import { EXCEPTION_KIND_LABEL } from '@/lib/depot/exceptions/describe';
 import type { ExceptionKind } from '@/lib/depot/exceptions/types';
 
-const DEPOT_KINDS: readonly ExceptionKind[] = [
-  'dark_share_high',
-  'off_road_high',
-  'on_road_low',
-  'power_cut_cluster',
-];
-const BUS_KINDS: readonly ExceptionKind[] = ['long_dark', 'power_cut', 'tamper_code', 'emergency'];
 
 /** While a depot's own bus counts have not arrived the figure is a dash, never the network's. */
 const PENDING_TITLE = "This depot's bus count is still loading";
@@ -56,11 +50,11 @@ export function ExceptionCounts({
       </h2>
       <div className={band} data-testid="depot-exception-band">
         <h3 className="depot-label">Depots</h3>
-        <FigureBand label="Depot exceptions by kind">{figures(DEPOT_KINDS)}</FigureBand>
+        <FigureBand label="Depot exceptions by kind">{figures(DEPOT_EXCEPTION_KINDS)}</FigureBand>
       </div>
       <div className={`-mt-6 ${band}`} data-testid="depot-exception-band">
         <h3 className="depot-label">Buses</h3>
-        <FigureBand label="Bus exceptions by kind">{figures(BUS_KINDS)}</FigureBand>
+        <FigureBand label="Bus exceptions by kind">{figures(BUS_EXCEPTION_KINDS)}</FigureBand>
       </div>
       <p className="depot-caption -mt-4 mb-6">{totalsLine}</p>
     </section>

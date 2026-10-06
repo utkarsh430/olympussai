@@ -14,20 +14,9 @@ import {
 import type { CopilotDraft, CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
 import { formatFeedTime } from '@/lib/depot/format';
 import { indexWindowFacts, indexWindowSentence } from '@/lib/depot/copilot/facts/window';
+import { BUS_EXCEPTION_KINDS, DEPOT_EXCEPTION_KINDS } from '@/lib/depot/exceptions/config';
 import type { BusExceptionKind, DepotExceptionKind } from '@/lib/depot/exceptions/types';
 
-const DEPOT_KINDS: readonly DepotExceptionKind[] = [
-  'dark_share_high',
-  'off_road_high',
-  'on_road_low',
-  'power_cut_cluster',
-];
-const BUS_KINDS: readonly BusExceptionKind[] = [
-  'long_dark',
-  'power_cut',
-  'tamper_code',
-  'emergency',
-];
 
 const GUIDANCE =
   'Write a short briefing for the whole network: its scale, how much of the fleet is running, ' +
@@ -101,13 +90,13 @@ function networkFacts(network: DepotNetworkResponse): CopilotFact[] {
     makeFact(
       'network.depot_exceptions',
       'Depot exceptions',
-      exceptionCount(sum(DEPOT_KINDS)),
+      exceptionCount(sum(DEPOT_EXCEPTION_KINDS)),
       'derived',
     ),
     makeFact(
       'network.bus_exceptions',
       'Vehicle exceptions',
-      exceptionCount(sum(BUS_KINDS)),
+      exceptionCount(sum(BUS_EXCEPTION_KINDS)),
       'derived',
     ),
   ];
@@ -189,8 +178,8 @@ function networkDraft(network: DepotNetworkResponse): CopilotDraft {
       ? `Among ranked depots, ${ph('network.best_depot')} leads at efficiency ${ph('network.best_index')}, while ${ph('network.weakest_depot')} sits lowest at efficiency ${ph('network.weakest_index')}.${indexWindowSentence(network.scoreWindow, 'network.index_window', 'The index here covers')}${rankSentence(ranked)}`
       : 'Too few depots have enough buses to be ranked against each other on this snapshot.',
     exceptionParagraph(
-      DEPOT_KINDS.reduce((n, k) => n + (network.exceptionCounts[k] ?? 0), 0),
-      BUS_KINDS.reduce((n, k) => n + (network.exceptionCounts[k] ?? 0), 0),
+      DEPOT_EXCEPTION_KINDS.reduce((n, k) => n + (network.exceptionCounts[k] ?? 0), 0),
+      BUS_EXCEPTION_KINDS.reduce((n, k) => n + (network.exceptionCounts[k] ?? 0), 0),
     ),
   ];
   return {

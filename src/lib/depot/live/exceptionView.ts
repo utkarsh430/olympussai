@@ -1,6 +1,6 @@
 import type { DepotExceptionsResponse, DepotExceptionsScope } from '../api';
+import { BUS_EXCEPTION_KINDS } from '../exceptions/config';
 import {
-  BUS_EXCEPTION_KINDS,
   DEFAULT_BUS_PAGE_QUERY,
   countBusSeverities,
   pageBusExceptions,

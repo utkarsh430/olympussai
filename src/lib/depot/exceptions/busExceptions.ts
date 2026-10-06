@@ -2,7 +2,7 @@ import type { DepotBusRow } from '@/models/depotLive';
 import type { BusOpState, DepotSummary } from '../types';
 import { gpsAgeMinutes } from '../infer/busState';
 import { LONG_DARK_AFTER_MIN } from '../infer/thresholds';
-import { EXCEPTION_BASIS, NORMAL_TAMPER_CODE, SEVERITY_ORDER } from './config';
+import { BUS_KIND_SEVERITY, EXCEPTION_BASIS, NORMAL_TAMPER_CODE, SEVERITY_ORDER } from './config';
 import { compareText } from './depotExceptions';
 import type { BusException, BusExceptionKind, ExceptionSeverity } from './types';
 
@@ -20,18 +20,18 @@ function findingsFor(row: DepotBusRow, state: BusOpState, feedNow: string | null
   const findings: Finding[] = [];
   const offRoad = state === 'off_road';
   if (row.emergency === true) {
-    findings.push({ kind: 'emergency', severity: 'critical', detail: null });
+    findings.push({ kind: 'emergency', severity: BUS_KIND_SEVERITY.emergency, detail: null });
   }
   const age = gpsAgeMinutes(row, feedNow);
   if (!offRoad && age !== null && age > LONG_DARK_AFTER_MIN) {
-    findings.push({ kind: 'long_dark', severity: 'warning', detail: null });
+    findings.push({ kind: 'long_dark', severity: BUS_KIND_SEVERITY.long_dark, detail: null });
   }
   if (!offRoad && row.mainPowerOn === false) {
-    findings.push({ kind: 'power_cut', severity: 'info', detail: null });
+    findings.push({ kind: 'power_cut', severity: BUS_KIND_SEVERITY.power_cut, detail: null });
   }
   if (row.tamperCode && row.tamperCode !== NORMAL_TAMPER_CODE) {
     // The raw code is shown as-is; its meaning is not asserted.
-    findings.push({ kind: 'tamper_code', severity: 'info', detail: row.tamperCode });
+    findings.push({ kind: 'tamper_code', severity: BUS_KIND_SEVERITY.tamper_code, detail: row.tamperCode });
   }
   return findings;
 }

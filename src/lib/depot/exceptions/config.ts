@@ -1,5 +1,11 @@
 import type { DeiComponentKey } from '../score/types';
-import type { DepotExceptionKind, ExceptionBasis, ExceptionKind, ExceptionSeverity } from './types';
+import type {
+  BusExceptionKind,
+  DepotExceptionKind,
+  ExceptionBasis,
+  ExceptionKind,
+  ExceptionSeverity,
+} from './types';
 
 /**
  * Thresholds for raising exceptions. A depot is flagged only when it is both
@@ -45,17 +51,38 @@ export const SEVERITY_ORDER: Readonly<Record<ExceptionSeverity, number>> = {
   info: 2,
 };
 
-/** Every kind, so a count of zero is reported rather than missing. */
-export const EXCEPTION_KINDS: readonly ExceptionKind[] = [
+/** The kinds raised against a depot, in the order every screen lists them. */
+export const DEPOT_EXCEPTION_KINDS: readonly DepotExceptionKind[] = [
   'dark_share_high',
   'off_road_high',
   'on_road_low',
   'power_cut_cluster',
+];
+
+/** The kinds raised against one bus, in the order every screen lists them. */
+export const BUS_EXCEPTION_KINDS: readonly BusExceptionKind[] = [
   'long_dark',
   'power_cut',
   'tamper_code',
   'emergency',
 ];
+
+/** Every kind, so a count of zero is reported rather than missing. */
+export const EXCEPTION_KINDS: readonly ExceptionKind[] = [
+  ...DEPOT_EXCEPTION_KINDS,
+  ...BUS_EXCEPTION_KINDS,
+];
+
+/**
+ * Each bus kind has one fixed severity. The bus rules raise each kind at this severity,
+ * and the overview splits the bus counts by severity from it.
+ */
+export const BUS_KIND_SEVERITY: Readonly<Record<BusExceptionKind, ExceptionSeverity>> = {
+  emergency: 'critical',
+  long_dark: 'warning',
+  power_cut: 'info',
+  tamper_code: 'info',
+};
 
 /**
  * Which kinds are compared over the rolling score window and which are as of
