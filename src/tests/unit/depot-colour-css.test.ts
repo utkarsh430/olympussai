@@ -21,3 +21,20 @@ describe('the depot colour rules in globals.css', () => {
     expect(Number(top?.[1])).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('the selected row', () => {
+  it('is the flat selected surface, with no gradient under its text', () => {
+    const body = rule('.depot-row-selected');
+    expect(body).toMatch(/\bbg-depot-selected\b/);
+    expect(body).not.toMatch(/background-image|gradient/);
+  });
+});
+
+describe('the page title in forced colours', () => {
+  it('drops the gradient and prints the title in the text colour, never transparent', () => {
+    const block = /@media \(forced-colors: active\)\s*\{\s*\.depot-title\s*\{([^}]*)\}/.exec(CSS);
+    expect(block).not.toBeNull();
+    expect(block?.[1]).toMatch(/background-image:\s*none/);
+    expect(block?.[1]).toMatch(/-webkit-text-fill-color:\s*currentColor/);
+  });
+});

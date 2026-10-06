@@ -69,6 +69,8 @@ const SURFACES: Readonly<Record<string, Rgba>> = {
   bar: over(parse(depot.bar), PAGE),
   raised: over(parse(depot.raised), PAGE),
   selected: over(parse(depot.selected), PAGE),
+  /* A selected or expanded table row: the flat selected surface across its whole width. */
+  'selected row': over(parse(depot.selected), PAGE),
 };
 
 const TEXT: Readonly<Record<string, string>> = {

@@ -406,6 +406,16 @@
     filter: drop-shadow(0 0 10px rgba(63, 240, 255, 0.35));
   }
 
+  /* Forced colours (Windows High Contrast) drop the gradient: print the title in the
+     user's own text colour rather than leave it transparent. */
+  @media (forced-colors: active) {
+    .depot-title {
+      background-image: none;
+      -webkit-text-fill-color: currentColor;
+      filter: none;
+    }
+  }
+
   /* The mono label above a page title (the depot's name on a depot page). */
   .depot-eyebrow {
     @apply mb-1 truncate font-mono text-[11px] uppercase leading-4 tracking-[0.16em] text-depot-muted;
@@ -698,14 +708,15 @@
       hover:text-holo-glow;
   }
 
-  /* Rows: a faint cyan wash on hover, a stronger one when selected or expanded. */
+  /* Rows: a faint cyan wash on hover; when selected or expanded, the flat selected surface
+     (no gradient: every text tier, the faintest included, keeps 4.5:1 across the row) and
+     the 2px cyan edge below. */
   .depot-row-selectable {
     @apply cursor-pointer hover:bg-depot-raised;
   }
 
   .depot-row-selected {
     @apply bg-depot-selected;
-    background-image: linear-gradient(90deg, rgba(63, 240, 255, 0.1), transparent 60%);
   }
 
   /* Selected row is marked like the active nav item: a 2px cyan bar, plus the
