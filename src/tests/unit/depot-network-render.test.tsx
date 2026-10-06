@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DepotMapPanel } from '@/components/depot/network/DepotMapPanel';
 import { ExceptionSummary } from '@/components/depot/network/ExceptionSummary';
 import { SelectionBar } from '@/components/depot/network/SelectionBar';
+import { RankedStrip } from '@/components/depot/network/RankedStrip';
 import type { DepotRow } from '@/lib/depot/network/overviewModel';
 import type { DepotSummary } from '@/lib/depot/types';
 import type { ExceptionKind, ExceptionSeverity } from '@/lib/depot/exceptions/types';
@@ -132,14 +133,42 @@ describe('unit terminology and the empty panel', () => {
     expect(container.textContent).not.toMatch(/Selected depot|No depot selected/);
   });
 
-  it('offers the lowest operating depot as a derived suggestion within its peer group', () => {
+  it('has no suggestion sub-panel: the lowest list already shows that depot', () => {
     act(() => root.render(<Host initial={null} />));
     const panel = container.querySelector('[data-testid="depot-map-panel"]');
-    expect(panel?.textContent).toContain('Suggestion');
-    expect(panel?.querySelector('[data-provenance="derived"]')?.textContent).toBe('DERIVED');
-    expect(panel?.textContent).toContain('Lowest index among operating depots');
-    expect(panel?.textContent).toContain('within its own peer group ranking');
-    expect(panel?.textContent).toContain('Depot b');
+    expect(panel?.textContent).not.toContain('Suggestion');
+    expect(panel?.querySelector('button')?.textContent ?? '').not.toContain('Select it');
+  });
+});
+
+describe('RankedStrip (critique MUST 1, R2-m24)', () => {
+  it('selects by row click or Enter, with no boxed Select, and marks the selected row in words', () => {
+    const picked: string[] = [];
+    act(() =>
+      root.render(<RankedStrip rows={ROWS} selectedId="a" onSelect={(id) => picked.push(id)} />),
+    );
+    expect(Array.from(container.querySelectorAll('button')).map((b) => b.textContent)).not.toContain('Select');
+    const rows = Array.from(container.querySelectorAll<HTMLElement>('[data-testid="depot-ranked-row"]'));
+    expect(rows[0]?.textContent).toContain(', selected');
+    act(() => rows[1]?.click());
+    act(() => {
+      rows[0]?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(picked).toEqual(['b', 'a']);
+    // The peer-group sentence moved under the lowest list (moved, not removed).
+    expect(container.textContent).toContain('within its own peer group ranking');
+  });
+
+  it('marks a depot scored on fewer snapshots than the window "new", as the league does', () => {
+    const fresh: DepotRow = { ...B, score: { ...(B.score as DepotScore), samples: 1 } };
+    act(() =>
+      root.render(
+        <RankedStrip rows={[A, fresh]} selectedId={null} onSelect={() => undefined} windowSamples={20} />,
+      ),
+    );
+    const marks = Array.from(container.querySelectorAll('[title^="Scored on 1 snapshot"]'));
+    expect(marks.length).toBeGreaterThan(0);
+    expect(marks[0]?.textContent).toContain('new');
   });
 });
 
