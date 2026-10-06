@@ -8,8 +8,22 @@ export interface ExpandedRows {
   readonly toggle: (key: string) => void;
 }
 
-/** Which rows are open: one at a time unless `multiple`; a new Set on every change. */
-export function useExpandedRows(multiple: boolean, initialKey?: string): ExpandedRows {
+/** Held by the page: the one open row, and where the table reports a wish to change it. */
+export interface ControlledExpansion {
+  readonly key: string | null;
+  readonly onChange: (key: string | null) => void;
+}
+
+/**
+ * Which rows are open: one at a time unless `multiple`; a new Set on every change. With
+ * `controlled`, the page holds the one open row and the table only reports the wish to
+ * change it (a control elsewhere on the page can then open a row).
+ */
+export function useExpandedRows(
+  multiple: boolean,
+  initialKey?: string,
+  controlled?: ControlledExpansion,
+): ExpandedRows {
   const [open, setOpen] = useState<ReadonlySet<string>>(
     () => new Set(initialKey === undefined ? [] : [initialKey]),
   );
@@ -21,6 +35,12 @@ export function useExpandedRows(multiple: boolean, initialKey?: string): Expande
       }),
     [multiple],
   );
+  if (controlled) {
+    return {
+      isOpen: (key) => controlled.key === key,
+      toggle: (key) => controlled.onChange(controlled.key === key ? null : key),
+    };
+  }
   return { isOpen: (key) => open.has(key), toggle };
 }
 

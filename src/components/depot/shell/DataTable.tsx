@@ -85,6 +85,12 @@ export interface DataTableProps<T> {
   /** A row that is open on first render (a link that lands on one row's detail). */
   readonly initialExpandedKey?: string;
   /**
+   * With `onExpandedChange`: the page holds which one row is open (null for none), so a
+   * control elsewhere on the page can open a row. The table reports the wish to change it.
+   */
+  readonly expandedKey?: string | null;
+  readonly onExpandedChange?: (key: string | null) => void;
+  /**
    * Print a repeated column (peer group, status, severity) once, as a group row with its
    * count, instead of on every row; drop that column from `columns`. Groups follow the
    * sorted order (the group of the first row comes first).
@@ -171,11 +177,17 @@ export function DataTable<T>({
   expandLabel,
   multipleExpanded = false,
   initialExpandedKey,
+  expandedKey,
+  onExpandedChange,
   group,
   rowLabel,
 }: DataTableProps<T>) {
   const autoId = useId();
-  const expanded = useExpandedRows(multipleExpanded, initialExpandedKey);
+  const expanded = useExpandedRows(
+    multipleExpanded,
+    initialExpandedKey,
+    onExpandedChange ? { key: expandedKey ?? null, onChange: onExpandedChange } : undefined,
+  );
   const tableKey = id ?? autoId;
   const shownColumns = useMemo<readonly Column<T>[]>(() => {
     if (!renderExpanded) return columns;

@@ -49,6 +49,33 @@ afterEach(async () => {
 });
 
 describe('DataTable row expander', () => {
+  it('lets the page hold which row is open, so a control elsewhere can open a row', async () => {
+    const changes: (string | null)[] = [];
+    const table = (key: string | null) => (
+      <DataTable
+        columns={COLUMNS}
+        rows={ROWS}
+        rowKey={(r) => r.id}
+        caption="Duties"
+        renderExpanded={expand}
+        expandedKey={key}
+        onExpandedChange={(next) => changes.push(next)}
+      />
+    );
+    await mount(table('a'));
+    expect(expandedRows()).toEqual(['No bus of the class.']);
+    // The table reports the wish; it does not change what is open by itself.
+    const closed = toggles().find((b) => b.getAttribute('aria-expanded') === 'false');
+    await act(async () => closed?.click());
+    expect(changes).toEqual(['c']);
+    expect(expandedRows()).toEqual(['No bus of the class.']);
+    const open = toggles().find((b) => b.getAttribute('aria-expanded') === 'true');
+    await act(async () => open?.click());
+    expect(changes).toEqual(['c', null]);
+    await act(async () => root?.render(table(null)));
+    expect(expandedRows()).toEqual([]);
+  });
+
   it('opens the row named by initialExpandedKey on first render, so a link can land on an open row', async () => {
     await mount(
       <DataTable
