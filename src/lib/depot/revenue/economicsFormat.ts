@@ -1,6 +1,6 @@
 import { formatRupeesPerKm } from './revenuePageModel';
 import type { EconomicsComponentKey } from './types';
-import { TENTH } from '@/lib/depot/units';
+import { roundToDecimals } from '@/lib/depot/stats/rounding';
 
 /*
  * How the economics page writes a component: its label, its value, and the
@@ -10,7 +10,6 @@ import { TENTH } from '@/lib/depot/units';
 export const DASH = '—';
 export const MINUS = '−';
 export const PERCENT = 100;
-export const HUNDREDTH = 100;
 
 export interface ComponentSpec {
   readonly key: EconomicsComponentKey;
@@ -31,13 +30,11 @@ export const ECONOMICS_COMPONENT_SPECS: readonly ComponentSpec[] = [
 export const specOf = (key: EconomicsComponentKey): ComponentSpec =>
   ECONOMICS_COMPONENT_SPECS.find((s) => s.key === key) as ComponentSpec;
 
-export const roundTo = (n: number, scale: number): number => Math.round(n * scale) / scale;
-
 /** One formatter for rupees per kilometre, shared with the revenue page. */
 const rupees = formatRupeesPerKm;
 
 function pointsText(ratio: number): string {
-  return roundTo(ratio * PERCENT, TENTH).toFixed(1);
+  return roundToDecimals(ratio * PERCENT, 1).toFixed(1);
 }
 
 export function formatComponentValue(key: EconomicsComponentKey, value: number | null): string {
@@ -49,24 +46,24 @@ export function formatComponentValue(key: EconomicsComponentKey, value: number |
 export function formatComponentDifference(key: EconomicsComponentKey, delta: number | null): string {
   if (delta === null || !Number.isFinite(delta)) return DASH;
   if (specOf(key).unit === 'rupees') {
-    const rounded = roundTo(delta, HUNDREDTH);
+    const rounded = roundToDecimals(delta, 2);
     return rounded === 0 ? rupees(0) : `${rounded > 0 ? '+' : MINUS}${rupees(Math.abs(rounded))}`;
   }
-  const rounded = roundTo(delta * PERCENT, TENTH);
+  const rounded = roundToDecimals(delta * PERCENT, 1);
   return rounded === 0 ? '0.0 pp' : `${rounded > 0 ? '+' : MINUS}${Math.abs(rounded).toFixed(1)} pp`;
 }
 
 /** A table cell's bare number: the unit is in the header ("40.81", "74.2"). */
 export function bareComponentValue(key: EconomicsComponentKey, value: number | null): string {
   if (value === null || !Number.isFinite(value)) return DASH;
-  return specOf(key).unit === 'rupees' ? roundTo(value, HUNDREDTH).toFixed(2) : pointsText(value);
+  return specOf(key).unit === 'rupees' ? roundToDecimals(value, 2).toFixed(2) : pointsText(value);
 }
 
 /** The muted suffix: the signed change against the peer median, bare ("+6.04", "−0.42", "+3.1"). */
 export function bareComponentDifference(key: EconomicsComponentKey, delta: number | null): string {
   if (delta === null || !Number.isFinite(delta)) return '';
   const rupeeUnit = specOf(key).unit === 'rupees';
-  const rounded = rupeeUnit ? roundTo(delta, HUNDREDTH) : roundTo(delta * PERCENT, TENTH);
+  const rounded = rupeeUnit ? roundToDecimals(delta, 2) : roundToDecimals(delta * PERCENT, 1);
   const digits = rupeeUnit ? 2 : 1;
   if (rounded === 0) return (0).toFixed(digits);
   return `${rounded > 0 ? '+' : MINUS}${Math.abs(rounded).toFixed(digits)}`;
@@ -87,7 +84,7 @@ export function describeDifference(
 ): DifferenceWording {
   if (delta === null || !Number.isFinite(delta)) return { text: 'no peer median', direction: 'unknown' };
   const rupeeUnit = specOf(key).unit === 'rupees';
-  const rounded = rupeeUnit ? roundTo(delta, HUNDREDTH) : roundTo(delta * PERCENT, TENTH);
+  const rounded = rupeeUnit ? roundToDecimals(delta, 2) : roundToDecimals(delta * PERCENT, 1);
   if (rounded === 0) return { text: 'level with peers', direction: 'level' };
   const good = rounded > 0 === higherIsBetter;
   const size = rupeeUnit ? rupees(Math.abs(rounded)) : `${Math.abs(rounded).toFixed(1)} pp`;

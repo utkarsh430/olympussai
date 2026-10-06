@@ -1,8 +1,9 @@
 import { formatCount } from '../format';
 import { ECONOMICS_Z_CLAMP, type ECONOMICS_WEIGHTS } from '../sim/revenueConfig';
-import { DASH, HUNDREDTH, MINUS, PERCENT, formatComponentValue, roundTo } from './economicsFormat';
+import { DASH, MINUS, PERCENT, formatComponentValue } from './economicsFormat';
 import type { EconomicsRow, EconomicsCell } from './economicsRows';
 import type { EconomicsComponentKey } from './types';
+import { roundToDecimals } from '@/lib/depot/stats/rounding';
 
 /* The economics page's sentences: a depot's explanation and its breakdown. */
 
@@ -18,7 +19,7 @@ export function peerRankPhrase(row: EconomicsRow): string {
 export function explainEconomics(row: EconomicsRow): string {
   if (row.reasonText !== null) return row.reasonText;
   const scored = row.cells.filter((c) => c.value !== null);
-  const rounded = (c: EconomicsCell): number => roundTo(c.contribution, HUNDREDTH);
+  const rounded = (c: EconomicsCell): number => roundToDecimals(c.contribution, 2);
   const [first, ...rest] = scored;
   if (first === undefined) return 'No component could be worked out for this depot.';
   const strongest = rest.reduce((a, b) => (rounded(b) > rounded(a) ? b : a), first);
@@ -43,7 +44,7 @@ export interface BreakdownRow {
 }
 
 function signed(n: number): string {
-  const rounded = roundTo(n, HUNDREDTH);
+  const rounded = roundToDecimals(n, 2);
   if (rounded === 0) return '0.00';
   return `${rounded > 0 ? '+' : MINUS}${Math.abs(rounded).toFixed(2)}`;
 }

@@ -9,11 +9,7 @@ import {
 } from './fuelConfig';
 import type { DayRun, OperatingDay } from './operatingDayTypes';
 import { seedFor } from './seed';
-import { TENTH } from '@/lib/depot/units';
-
-function toTenths(value: number): number {
-  return Math.round(value * TENTH) / TENTH;
-}
+import { roundOneDecimal } from '@/lib/depot/stats/rounding';
 
 /**
  * The bus's modelled economy for the day: its class figure, moved by a lasting
@@ -45,7 +41,7 @@ export function modelFuelDay(day: OperatingDay): BusFuelDay[] {
       serviceClass: run.busClass,
       routeName: run.routeName,
       distanceKm: run.distanceKm,
-      fuelLitres: toTenths(run.distanceKm / kmPerLitreOf(run, day.operatingDate)),
+      fuelLitres: roundOneDecimal(run.distanceKm / kmPerLitreOf(run, day.operatingDate)),
     }))
     .sort((a, b) => compareText(a.registrationNumber, b.registrationNumber));
 }

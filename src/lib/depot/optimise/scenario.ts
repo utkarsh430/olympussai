@@ -34,7 +34,7 @@ function surgedPeak(peak: number, surgeHundredths: number): number {
 }
 
 /** Clamps a finite value into [min, max]; non-finite input falls back to `fallback`. */
-function clamp(
+function clampWithNote(
   label: string,
   value: number,
   min: number,
@@ -61,7 +61,7 @@ function cleanFleetDelta(depotId: string, raw: number, notes: string[]): number 
   }
   const whole = Math.trunc(raw) || 0;
   if (whole !== raw) notes.push(`${label} ${raw} is not a whole number; using ${whole}`);
-  return clamp(label, whole, -MAX_FLEET_ADJUSTMENT, MAX_FLEET_ADJUSTMENT, 0, notes);
+  return clampWithNote(label, whole, -MAX_FLEET_ADJUSTMENT, MAX_FLEET_ADJUSTMENT, 0, notes);
 }
 
 /** Largest single surge term kept before summing, so sums of hostile values stay finite. */
@@ -100,7 +100,7 @@ export function runScenario(base: readonly DepotBalance[], scenario: Scenario): 
   const ratio =
     scenario.spareRatio === undefined
       ? DEFAULT_SPARE_RATIO
-      : clamp(
+      : clampWithNote(
           'Spare ratio',
           scenario.spareRatio,
           MIN_SPARE_RATIO,
@@ -111,7 +111,7 @@ export function runScenario(base: readonly DepotBalance[], scenario: Scenario): 
   const maxTransferKm =
     scenario.maxTransferKm === undefined
       ? DEFAULT_REBALANCE_PARAMS.maxTransferKm
-      : clamp(
+      : clampWithNote(
           'Maximum transfer distance',
           scenario.maxTransferKm,
           MIN_TRANSFER_KM,
