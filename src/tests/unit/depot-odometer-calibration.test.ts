@@ -4,6 +4,7 @@ import { fromMetres } from '@/lib/depot/infer/geo';
 import {
   MIN_USABLE_PAIRS,
   calibrateOdometer,
+  backwardsShare,
   describeCalibration,
 } from '@/lib/depot/maintenance/calibration';
 
@@ -163,5 +164,66 @@ describe('describeCalibration', () => {
     expect(text).not.toMatch(/BUS\d{3}/);
     expect(text).toContain('kilometres');
     expect(text).toContain('evidence');
+  });
+});
+
+describe('buses whose distance went backwards', () => {
+  /** `usable` movers whose ratio fits neither unit, plus `back` whose distance fell. */
+  function mixed(usable: number, back: number) {
+    const ok = movers(usable, 40);
+    const reversed = movers(back, 0);
+    const rename = (rows: DepotBusRow[]): DepotBusRow[] =>
+      rows.map((r) => ({ ...r, registrationNumber: `REV${r.registrationNumber}` }));
+    return {
+      first: [...ok.first, ...rename(reversed.first)],
+      second: [...ok.second, ...rename(reversed.second).map((r) => ({ ...r, odometerRaw: 500 }))],
+    };
+  }
+
+  it('counts the share of compared pairs that went backwards', () => {
+    const { first, second } = mixed(30, 4);
+    const report = calibrateOdometer(first, second);
+    expect(report.backwards).toBe(4);
+    expect(backwardsShare(report)).toBeCloseTo(4 / 34, 5);
+    expect(backwardsShare(calibrateOdometer([], []))).toBe(0);
+  });
+
+  it('puts the count in an inconclusive reading when it is more than a tenth of the pairs', () => {
+    const { first, second } = mixed(30, 4);
+    const report = calibrateOdometer(first, second);
+    expect(report.reading).toBe('inconclusive');
+    const text = describeCalibration(report).join('\n');
+    expect(text).toContain('4 of 34 compared pairs went backwards');
+  });
+
+  it('says nothing extra at exactly a tenth, or below it', () => {
+    for (const [usable, back] of [
+      [27, 3],
+      [30, 1],
+    ] as const) {
+      const { first, second } = mixed(usable, back);
+      const text = describeCalibration(calibrateOdometer(first, second)).join('\n');
+      expect(text).not.toContain('compared pairs went backwards');
+    }
+  });
+
+  it('does not add the sentence to a reading that is not inconclusive', () => {
+    const base = movers(MIN_USABLE_PAIRS, 5);
+    const back = movers(10, 0);
+    const first = [
+      ...base.first,
+      ...back.first.map((r) => ({ ...r, registrationNumber: `R${r.registrationNumber}` })),
+    ];
+    const second = [
+      ...base.second,
+      ...back.second.map((r) => ({
+        ...r,
+        registrationNumber: `R${r.registrationNumber}`,
+        odometerRaw: 5,
+      })),
+    ];
+    const report = calibrateOdometer(first, second);
+    expect(report.reading).toBe('kilometres');
+    expect(describeCalibration(report).join('\n')).not.toContain('compared pairs went backwards');
   });
 });
