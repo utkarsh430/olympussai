@@ -78,6 +78,23 @@ describe('yard hold (S50c)', () => {
     expect(store.byDepot.get('1')).toBe(entry);
   });
 
+  // P5: a bus inside the circle but outside the rule's cluster must not join on a re-fetch.
+  it('gives an established yard the same counts on a repeat with identical rows (P5)', () => {
+    const rows = (): DepotBusRow[] =>
+      heardAt(
+        [
+          ...blob('A', 12, A, 20, { depotId: '1' }),
+          ...blob('B', 12, { x: 250, y: 0 }, 20, { depotId: '1' }),
+          busAt('L', { x: 125, y: 160 }, { depotId: '1' }),
+        ],
+        atMin(0),
+      );
+    const store = createYardMemoryStore();
+    const first = step(store, rows(), atMin(0)) as Yard;
+    expect(first.inCluster).toBeLessThan(first.parked);
+    expect(step(store, rows(), atMin(0))).toEqual(first);
+  });
+
   it('lets the rule decide a repeat of a feed time decided as no yard, without writing (N2)', () => {
     const store = createYardMemoryStore();
     expect(step(store, heardAt(tied(), atMin(0)), atMin(0))).toBeUndefined();
