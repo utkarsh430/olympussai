@@ -134,11 +134,14 @@ Before the first check:
 - Treat any Claude text the checks accept as unreviewed wording; read it for false rates,
   periods or comparisons.
 
-After each check, **and after stopping the server**, run `ps -ax | grep -i claude` and
-`ls "$TMPDIR" | grep depot-copilot`. The child runs in its own session, so Ctrl+C on the server
-does not reach it: stopping the server mid-call leaves it running (it finishes its model call)
-and leaves its folders behind. Stop a leftover with `kill -KILL -<pid>` (its process group) and
-remove the leftover folders.
+The child runs in its own session, so Ctrl+C on the server does not reach it directly. When
+the Claude writer is set up, the server registers one handler for SIGTERM and SIGINT: it kills
+the process group of every child it started and has not yet seen exit, removes every call folder
+it has not yet removed, and then lets the signal stop the server as usual. It cannot help when
+the server is killed with SIGKILL or crashes, and it cannot reach a grandchild that left the
+group (L3). So after each check, **and after stopping the server**, still run
+`ps -ax | grep -i claude` and `ls "$TMPDIR" | grep depot-copilot`. Stop a leftover with
+`kill -KILL -<pid>` (its process group) and remove the leftover folders.
 
 1. **One normal briefing.** Look for: the command accepts every flag it is given; the call
    succeeds with the token and the fresh home folder (on macOS the child can also reach the
