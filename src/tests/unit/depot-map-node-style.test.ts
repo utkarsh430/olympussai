@@ -88,7 +88,7 @@ describe('indexBand', () => {
     const colours = new Set(INDEX_BANDS.map((band) => band.fill));
     expect(colours.size).toBe(INDEX_BANDS.length);
     INDEX_BANDS.forEach((band) => {
-      expect(band.label).toMatch(/\d+.\d+/);
+      expect(band.label).toMatch(/^Index \d+ to (under )?\d+$/);
     });
   });
 });
@@ -125,5 +125,12 @@ describe('nodeStyle', () => {
     Object.values(style).forEach((value) => {
       if (typeof value === 'number') expect(Number.isFinite(value)).toBe(true);
     });
+  });
+});
+
+describe('band labels', () => {
+  it('say which band a boundary value belongs to', () => {
+    expect(INDEX_BANDS[0]?.label).toBe('Index 0 to under 20');
+    expect(INDEX_BANDS[4]?.label).toBe('Index 80 to 100');
   });
 });
