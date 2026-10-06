@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planAllocation } from '@/lib/depot/optimise/allocate';
+import { planAllocation, runAllocation } from '@/lib/depot/optimise/allocate';
 import {
   MAX_MOVES,
   MIN_SAVING_KM_PER_DAY,
@@ -90,8 +90,10 @@ function assertInvariants(
   expect(tenths(plan.beforeKmPerDay) - tenths(plan.afterKmPerDay)).toBe(tenths(plan.savedKmPerDay));
   const sum = plan.moves.reduce((s, m) => s + tenths(m.savedKmPerDay), 0);
   expect(sum).toBe(tenths(plan.savedKmPerDay));
+  // Every applied shift or swap saves at least the minimum, so any change saves at least that.
+  if (plan.moves.length > 0) expect(plan.savedKmPerDay).toBeGreaterThanOrEqual(MIN_SAVING_KM_PER_DAY);
   for (const m of plan.moves) {
-    expect(m.savedKmPerDay).toBeGreaterThanOrEqual(MIN_SAVING_KM_PER_DAY);
+    expect(m.madeRoom).toBe(m.savedKmPerDay < MIN_SAVING_KM_PER_DAY);
     expect(m.fromDepotId).not.toBe(m.toDepotId);
   }
   expect(plan.moves.length).toBeLessThanOrEqual(MAX_MOVES);
@@ -215,23 +217,45 @@ describe('planAllocation: construction and search', () => {
     expect(plan.unchanged.map((u) => u.reason)).toEqual(['no_capacity', 'no_capacity']);
   });
 
-  it('reports a route moved twice once, as its net move', () => {
-    // b first takes the only slot at Z; later a swap or shift may relocate it again.
-    const routes = [
-      route('a', 'A', { A: 100, B: 60, C: 20 }, 1),
-      route('b', 'B', { B: 50, A: 40, C: 45 }, 1),
-    ];
-    const depots = [depot('A', 1), depot('B', 1), depot('C', 1)];
+  it('accepts a swap on its total saving and reports the route that made room', () => {
+    const routes = [route('p', 'X', { X: 100, Y: 20 }, 5), route('q', 'Y', { Y: 50, X: 60 }, 5)];
+    const depots = [depot('X', 5), depot('Y', 5)];
     const plan = planAllocation(routes, depots);
-    const names = plan.moves.map((m) => m.routeName);
-    expect(new Set(names).size).toBe(names.length);
-    for (const m of plan.moves) {
-      expect(m.fromDepotId).toBe(routes.find((r) => r.routeName === m.routeName)!.currentDepotId);
-    }
+    expect(plan.moves.map((m) => [m.routeName, m.savedKmPerDay, m.madeRoom])).toEqual([
+      ['p', 80, false],
+      ['q', -10, true],
+    ]);
+    expect(plan.savedKmPerDay).toBe(70);
     assertInvariants(routes, depots, plan);
   });
 
-  it('stops at MAX_MOVES applied moves', () => {
+  it('refuses a swap whose total saving is under the minimum', () => {
+    const routes = [route('p', 'X', { X: 10, Y: 7 }, 5), route('q', 'Y', { Y: 10, X: 11 }, 5)];
+    const plan = planAllocation(routes, [depot('X', 5), depot('Y', 5)]);
+    expect(plan.moves).toEqual([]);
+    expect(plan.unchanged).toEqual([
+      { routeName: 'p', reason: 'below_threshold' },
+      { routeName: 'q', reason: 'already_best' },
+    ]);
+  });
+
+  it('reports a route that moved twice once, as its net move', () => {
+    // Z is full at the start, so a (regret 40) goes to B first; z then leaves Z and a shifts on.
+    const routes = [
+      route('a', 'A', { A: 100, B: 60, Z: 20 }),
+      route('z', 'Z', { Z: 100, Y: 80 }),
+    ];
+    const depots = [depot('A', 1), depot('B', 1), depot('Y', 1), depot('Z', 1)];
+    const run = runAllocation(routes, depots);
+    expect(run.shifts + run.swaps * 2).toBeGreaterThan(run.plan.moves.length);
+    expect(run.plan.moves.map((m) => [m.routeName, m.fromDepotId, m.toDepotId, m.savedKmPerDay])).toEqual([
+      ['a', 'A', 'Z', 80],
+      ['z', 'Z', 'Y', 20],
+    ]);
+    assertInvariants(routes, depots, run.plan);
+  });
+
+  it('stops at MAX_MOVES and says move_limit for routes that still had a move with room', () => {
     const count = MAX_MOVES + 50;
     const routes: AllocRoute[] = [];
     const depots: AllocDepot[] = [];
@@ -239,9 +263,26 @@ describe('planAllocation: construction and search', () => {
       routes.push(route(`R${String(i).padStart(4, '0')}`, `H${i}`, { [`H${i}`]: 100, [`T${i}`]: 10 }));
       depots.push(depot(`H${i}`, 1), depot(`T${i}`, 1));
     }
+    routes.push(route('Rfull', 'HF', { HF: 100, TF: 10 }, 2));
+    depots.push(depot('HF', 2), depot('TF', 1));
     const plan = planAllocation(routes, depots);
     expect(plan.moves).toHaveLength(MAX_MOVES);
+    const reasons = plan.unchanged.map((u) => u.reason);
+    expect(reasons.filter((r) => r === 'move_limit')).toHaveLength(50);
+    expect(plan.unchanged.find((u) => u.routeName === 'Rfull')!.reason).toBe('no_capacity');
     assertInvariants(routes, depots, plan);
+  });
+
+  it('reaches the local search at national scale when every depot starts full', () => {
+    const { routes, depots } = scenario(77, 1200, 143, 10);
+    const load = startLoads(routes);
+    const tight = depots.map((d) => depot(d.depotId, load.get(d.depotId) ?? 0));
+    const started = performance.now();
+    const run = runAllocation(routes, tight);
+    expect(performance.now() - started).toBeLessThan(5000);
+    expect(run.shifts + run.swaps).toBeGreaterThan(0);
+    expect(run.swaps).toBeGreaterThan(0);
+    assertInvariants(routes, tight, run.plan);
   });
 });
 
@@ -260,6 +301,53 @@ describe('planAllocation: over-capacity input', () => {
     expect(moved.get('m1')?.toDepotId).toBe('W');
     expect(loadsOf(routes, plan.moves).get('X')).toBe(12);
     assertInvariants(routes, depots, plan);
+  });
+});
+
+describe('planAllocation: reason precedence', () => {
+  const depots = [depot('X', 10), depot('Y', 10)];
+  const over = (name: string, km: Record<string, number>) => route(name, 'X', km, 6);
+
+  it('says over_capacity for a frozen route with a worthwhile cheaper depot that has room', () => {
+    const routes = [over('o1', { X: 100, Y: 10 }), over('o2', { X: 100, Y: 10 })];
+    expect(planAllocation(routes, depots).unchanged.map((u) => u.reason)).toEqual([
+      'over_capacity',
+      'over_capacity',
+    ]);
+  });
+
+  it('ranks no_candidate, already_best and below_threshold above over_capacity', () => {
+    const routes = [
+      over('a', { X: 100 }),
+      over('b', { X: 10, Y: 50 }),
+      over('c', { X: 100, Y: 97 }),
+      over('d', { X: 100, Y: 10 }),
+    ];
+    const reasons = Object.fromEntries(
+      planAllocation(routes, [depot('X', 10), depot('Y', 10)]).unchanged.map((u) => [u.routeName, u.reason]),
+    );
+    expect(reasons).toEqual({
+      a: 'no_candidate',
+      b: 'already_best',
+      c: 'below_threshold',
+      d: 'over_capacity',
+    });
+  });
+
+  it('keeps no_capacity for a worthwhile depot that has no room, below the other reasons', () => {
+    const plan = planAllocation([route('r', 'A', { A: 100, B: 10 }, 2)], [depot('A', 2), depot('B', 1)]);
+    expect(plan.unchanged).toEqual([{ routeName: 'r', reason: 'no_capacity' }]);
+  });
+});
+
+describe('planAllocation: trips per day', () => {
+  it('rejects a fractional trip count, so it cannot be rounded across the threshold', () => {
+    const plan = planAllocation(
+      [route('r', 'A', { A: 10, B: 5.1 }, 1, 2.5), route('s', 'A', { A: 30, B: 10 })],
+      [depot('A', 5), depot('B', 5)],
+    );
+    expect(plan.unchanged).toEqual([{ routeName: 'r', reason: 'no_candidate' }]);
+    expect(plan.beforeKmPerDay).toBe(30);
   });
 });
 

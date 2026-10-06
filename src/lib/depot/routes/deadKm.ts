@@ -5,7 +5,7 @@ import type { RouteProfile, RouteStop } from './types';
 export interface DeadKm {
   readonly outKm: number;
   readonly inKm: number;
-  /** Out plus in, derived from the whole-metre figures, not from the rounded km. */
+  /** Sum of the rounded out and in figures, so the three shown together always add up. */
   readonly perTripKm: number;
   readonly firstStopUsed: string;
   readonly lastStopUsed: string;
@@ -43,7 +43,6 @@ export function terminalsOf(profile: RouteProfile): Terminals | null {
   if (located.length < 2) return null;
   const first = located[0]!;
   const last = located[located.length - 1]!;
-  if (first === last) return null;
   const approximated = first !== ordered[0] || last !== ordered[ordered.length - 1];
   return { first, last, approximated };
 }
@@ -71,7 +70,7 @@ export function deadKmFor(yard: LatLng, profile: RouteProfile, detourFactor: num
   return {
     outKm: toTenthsKm(outM),
     inKm: toTenthsKm(inM),
-    perTripKm: toTenthsKm(outM + inM),
+    perTripKm: (Math.round(outM / METRES_PER_TENTH_KM) + Math.round(inM / METRES_PER_TENTH_KM)) / TENTHS_PER_KM,
     firstStopUsed: first.name,
     lastStopUsed: last.name,
     approximated: terminals.approximated,
