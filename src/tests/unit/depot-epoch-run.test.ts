@@ -126,6 +126,18 @@ describe('the epoch run (P1)', () => {
     expect(replay([BASE, ...run]).windowEpochs).toEqual([7]);
   });
 
+  // P6: the stored samples are order-free within an epoch; the straggler run is not.
+  it('stores the same samples whatever the order, while the straggler run depends on it', () => {
+    const [a, b, c] = [BASE, BASE + 15 * 60, BASE - 6 * 60];
+    const abc = createScoreWindowStore();
+    const acb = createScoreWindowStore();
+    for (const s of [a, b, c]) observeDepots(abc, snapAt(s), feedTime(s));
+    for (const s of [a, c, b]) observeDepots(acb, snapAt(s), feedTime(s));
+    expect(JSON.stringify([...acb.byDepot])).toBe(JSON.stringify([...abc.byDepot]));
+    expect(abc.behindRun?.count).toBe(1);
+    expect(acb.behindRun).toBeNull();
+  });
+
   it('holds over random interleaves (property)', () => {
     for (let seed = 1; seed <= 40; seed += 1) {
       const random = seeded(seed * 7919);
