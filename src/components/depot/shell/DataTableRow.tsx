@@ -84,6 +84,8 @@ export function DataTableRow<T>(props: DataTableRowProps<T>) {
     <Fragment>
       <tr
         aria-selected={selectable ? selected : undefined}
+        // aria-selected is read only inside a grid; aria-current is announced on any row.
+        aria-current={selectable && selected ? 'true' : undefined}
         aria-label={
           interactive
             ? rowActionName(name, selectable ? { kind: 'open' } : { kind: 'expand', open })
