@@ -312,9 +312,6 @@ const TEXT_PAD_PX = 12;
  */
 export const MIN_TRACK_PX = 640 - 32 - 160 - 32;
 
-/** Below 640 px the board opens as the table; the chart stays one press away. */
-export const TABLE_FIRST_QUERY = '(max-width: 639px)';
-
 /** The view the board opens in until the reader picks one (critique Duties Must 1). */
 export function defaultBoardView(narrow: boolean): BoardView {
   return narrow ? 'table' : 'chart';

@@ -6,9 +6,7 @@ import {
   AWAY_LIST_CAP,
   DISPLAY_RADIUS_FACTOR,
   YARD_STATE_ORDER,
-  beyondRangeSentence,
   buildYardModel,
-  formatHeardAgo,
 } from '@/lib/depot/yard/yardModel';
 
 const YARD: Yard = { lat: 18.5, lng: 73.8, radiusM: 200, parked: 44, inCluster: 38 };
@@ -113,33 +111,6 @@ describe('beyond-range counts', () => {
     );
     expect(m.beyondOwn).toBe(1);
     expect(m.beyondVisiting).toBe(2);
-  });
-
-  it('words each count truthfully', () => {
-    const sentence = (own: number, visiting: number): string =>
-      beyondRangeSentence({ beyondOwn: own, beyondVisiting: visiting });
-    expect(sentence(0, 0)).toBe('every bus with a position is drawn.');
-    expect(sentence(1, 0)).toContain("1 more of this depot's buses");
-    expect(sentence(1, 0)).toContain('see Away from the yard below');
-    expect(sentence(0, 2)).toContain('2 visiting buses');
-    expect(sentence(0, 2)).toContain('listed under Visitors');
-    expect(sentence(0, 2)).not.toContain('Away from the yard');
-    expect(sentence(3, 1)).toContain('3 more of this depot');
-    expect(sentence(3, 1)).toContain('1 visiting bus ');
-  });
-});
-
-describe('formatHeardAgo', () => {
-  it('words the GPS age and survives missing values', () => {
-    expect(formatHeardAgo(4)).toBe('heard 4 min ago');
-    expect(formatHeardAgo(0.2)).toBe('heard just now');
-    expect(formatHeardAgo(135)).toBe('heard 2 h 15 min ago');
-    expect(formatHeardAgo(119.9)).toBe('heard 1 h 59 min ago');
-    expect(formatHeardAgo(20_000)).toBe('heard 13 d 21 h ago');
-    expect(formatHeardAgo(59.9)).toBe('heard 59 min ago');
-    expect(formatHeardAgo(119.9)).not.toMatch(/60 min/);
-    expect(formatHeardAgo(null)).toBe('no GPS time');
-    expect(formatHeardAgo(Number.NaN)).toBe('no GPS time');
   });
 });
 

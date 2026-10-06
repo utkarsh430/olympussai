@@ -1,7 +1,5 @@
 import type { DepotBusView, DepotDetailResponse, VisitorBus } from '@/lib/depot/api';
-import { formatCount } from '@/lib/depot/format';
 import { distanceM, isUsablePosition } from '@/lib/depot/infer/geo';
-import { lastHeardText } from '@/lib/depot/roster/rosterModel';
 import { MOVING_SPEED_KMPH } from '@/lib/depot/infer/thresholds';
 import type { Yard } from '@/lib/depot/infer/types';
 import type { BusOpState } from '@/lib/depot/types';
@@ -143,12 +141,6 @@ function basisSentence(yard: Yard | null, coverage: { n: number; of: number } | 
   return `Learned from where this depot's buses park: ${sample.n} of ${sample.of} parked buses stand together.`;
 }
 
-/** "heard 4 min ago", worded like the roster; plain when there is no usable GPS age. */
-export function formatHeardAgo(ageMin: number | null): string {
-  if (ageMin === null || !Number.isFinite(ageMin) || ageMin < 0) return 'no GPS time';
-  return `heard ${lastHeardText(ageMin)}`;
-}
-
 interface Candidate {
   readonly registration: string;
   readonly lat: number;
@@ -233,27 +225,4 @@ export function buildYardModel(data: DepotDetailResponse): YardModel {
     visitorsDrawn: points.filter((point) => point.relation === 'visiting').length,
     visitorsWithoutPosition: data.visitors.filter((visitor) => visitor.position === null).length,
   };
-}
-
-/**
- * The map note's tail, after "N buses drawn". Own buses beyond the range are in the
- * Away list; visitors beyond it are in the Visitors list, so each is worded alone.
- */
-export function beyondRangeSentence(
-  counts: Pick<YardModel, 'beyondOwn' | 'beyondVisiting'>,
-): string {
-  const { beyondOwn: own, beyondVisiting: visiting } = counts;
-  if (own === 0 && visiting === 0) return 'every bus with a position is drawn.';
-  const parts: string[] = [];
-  if (own > 0) {
-    parts.push(
-      `${formatCount(own)} more of this depot's buses with a position ${own === 1 ? 'lies' : 'lie'} beyond the map's range and ${own === 1 ? 'is' : 'are'} not shown, see Away from the yard below`,
-    );
-  }
-  if (visiting > 0) {
-    parts.push(
-      `${formatCount(visiting)} visiting ${visiting === 1 ? 'bus' : 'buses'} with a position ${visiting === 1 ? 'lies' : 'lie'} beyond the map's range and ${visiting === 1 ? 'is' : 'are'} not shown, ${visiting === 1 ? 'it is' : 'they are'} listed under Visitors`,
-    );
-  }
-  return `${parts.join('; ')}.`;
 }

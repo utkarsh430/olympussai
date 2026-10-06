@@ -52,12 +52,6 @@ const AVAILABILITY_PHRASE: Readonly<Record<CrewAvailability, string>> = {
 };
 
 /**
- * Weekly off and leave are both greys and sit side by side in the bar, so
- * leave alone is drawn hatched: the two differ by pattern, not only by tone.
- */
-export const HATCHED_AVAILABILITY: readonly CrewAvailability[] = ['leave'];
-
-/**
  * How each availability word is drawn, so the segments differ by texture and not only
  * by tone (dataviz: a secondary encoding where colours sit close). Available is the
  * solid accent; weekly off a solid grey; leave 45 degree hatching; training dots;
@@ -311,13 +305,6 @@ export interface Page<T> {
   readonly page: number;
   readonly pageCount: number;
   readonly rows: readonly T[];
-}
-
-/** One page of rows; an out-of-range page is clamped, never empty by accident. */
-export function pageOf<T>(rows: readonly T[], page: number, size: number): Page<T> {
-  const pageCount = Math.max(1, Math.ceil(rows.length / size));
-  const clamped = Math.min(Math.max(0, page), pageCount - 1);
-  return { page: clamped, pageCount, rows: rows.slice(clamped * size, (clamped + 1) * size) };
 }
 
 /** The shared cross-reference to the modelled day; the words are built in one place for every page. */

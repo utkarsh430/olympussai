@@ -84,23 +84,6 @@ export interface GroupedListProps<T> extends Omit<ShowMoreProps<T>, 'items' | 'l
   readonly headingLevel?: 3 | 4;
 }
 
-/** A long list grouped by kind: each group's heading with its count, five rows, "Show all N". */
-export function GroupedList<T>({ groups, headingLevel = 3, ...rest }: GroupedListProps<T>) {
-  const Heading = `h${headingLevel}` as const;
-  return (
-    <div className="flex min-w-0 flex-col gap-4" data-testid="depot-grouped-list">
-      {groups.map((group) => (
-        <section key={group.key} className="min-w-0">
-          <Heading className="depot-label mb-1">
-            {group.heading} · <span className="tabular-nums">{formatCount(group.items.length)}</span>
-          </Heading>
-          <ShowMore {...rest} items={group.items} label={group.heading} />
-        </section>
-      ))}
-    </div>
-  );
-}
-
 export interface PagerProps {
   /** Zero-based page. */
   readonly page: number;

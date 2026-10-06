@@ -149,28 +149,6 @@ export function formatFeedTimeOn(iso: string | null, feedNow: string | null): st
   return sameDay ? stamp.time : `${Number(stamp.day)} ${stamp.month}, ${stamp.time}`;
 }
 
-function spanWords(ms: number): string {
-  if (ms < HOUR_MS) return `${Math.floor(ms / MINUTE_MS)} min`;
-  if (ms < DAY_MS) return `${Math.floor(ms / HOUR_MS)} h`;
-  const days = Math.floor(ms / DAY_MS);
-  return `${days} ${days === 1 ? 'day' : 'days'}`;
-}
-
-/**
- * How far a feed timestamp lies from the feed's own clock: "12 min ago", "3 h ago",
- * "2 days ago", "in 25 min", and "just now" within a minute either way. Both stamps are
- * read as wall-clock digits, so the browser's clock and zone never enter it. Put the
- * full time (`formatFeedDateTime`) in `title` beside it.
- */
-export function formatRelative(iso: string | null, feedNow: string | null): string {
-  const stamp = readFeedStamp(iso);
-  const now = readFeedStamp(feedNow);
-  if (!stamp || !now) return DASH;
-  const delta = now.ms - stamp.ms;
-  if (Math.abs(delta) < MINUTE_MS) return 'just now';
-  return delta > 0 ? `${spanWords(delta)} ago` : `in ${spanWords(-delta)}`;
-}
-
 /** True when feed stamp `a` is strictly later than feed stamp `b`; false if either does not parse. */
 export function isLaterFeedTime(a: string | null, b: string | null): boolean {
   const left = readFeedStamp(a);
