@@ -1,5 +1,6 @@
 import type { DepotBusRow } from '@/models/depotLive';
 import type { Yard } from './types';
+import { arrivalOf } from '../score/epoch';
 import { YARD_HOLD_MAX_MS, continueYard, type RememberedYard } from './yardContinuity';
 
 /*
@@ -14,10 +15,14 @@ import { YARD_HOLD_MAX_MS, continueYard, type RememberedYard } from './yardConti
  *    memory is not written, so polls of one feed time agree (ruling S50c).
  *  - An older feed time: decided against the memory, which is not written,
  *    so it is never fed out of order and a late response still sees the yard.
- *  - No usable feed time: the single-snapshot rule alone.
+ *  - More than one score window behind the newest (a straggler, ruling S56b,
+ *    see score/epoch.ts): the same, and counted; the third in a row, with no
+ *    current snapshot between, starts a new epoch: the memory is emptied, then
+ *    written as for a first snapshot. So a clock that really went back does
+ *    not leave entries from its future deciding every depot for hours.
+ *  - No usable feed time, or the recorded fixture: the single-snapshot rule
+ *    alone; the memory is neither read nor written, and nothing is counted.
  *  - A process that has just started remembers nothing: the full rule applies.
- *  - The fixture is months older than live data, so an entry from either is
- *    more than the hold cap away from the other and is not consulted.
  * Bounds: one entry per depot, dropped when the depot's yard has not been seen
  * for YARD_HOLD_MAX_HOURS of feed time, and never more than
  * YARD_MEMORY_MAX_DEPOTS entries (the least recently seen go first).
@@ -27,13 +32,15 @@ export const YARD_MEMORY_MAX_DEPOTS = 1000;
 
 export interface YardMemoryStore {
   lastFeedMs: number | null;
+  /** Stragglers seen in a row (ruling S56b). */
+  behindRun: number;
   readonly byDepot: Map<string, RememberedYard>;
   /** Depots decided at `lastFeedMs`, so a repeat can tell "no yard" from "never seen". */
   decidedAtLast: ReadonlySet<string>;
 }
 
 export function createYardMemoryStore(): YardMemoryStore {
-  return { lastFeedMs: null, byDepot: new Map(), decidedAtLast: new Set() };
+  return { lastFeedMs: null, behindRun: 0, byDepot: new Map(), decidedAtLast: new Set() };
 }
 
 const GLOBAL_KEY = '__depotYardMemoryStore';
@@ -49,6 +56,7 @@ export function defaultYardMemoryStore(): YardMemoryStore {
 /** Test seam: empty a store (the process-wide one by default). */
 export function resetYardMemoryStore(store: YardMemoryStore = defaultYardMemoryStore()): void {
   store.lastFeedMs = null;
+  store.behindRun = 0;
   store.byDepot.clear();
   store.decidedAtLast = new Set();
 }
@@ -96,6 +104,9 @@ export function applyYardContinuity(
   if (feedNow === null || Number.isNaN(feedMs) || options.fixture === true) {
     return new Map(ruleYards);
   }
+  const { arrival, behindRun } = arrivalOf(store, feedMs);
+  if (arrival === 'new_epoch') resetYardMemoryStore(store);
+  store.behindRun = behindRun;
   const last = store.lastFeedMs;
   const writes = last === null || feedMs > last;
   const isRepeat = feedMs === last;
