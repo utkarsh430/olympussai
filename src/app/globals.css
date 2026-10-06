@@ -321,6 +321,12 @@
     @apply !mb-0;
   }
 
+  /* A band that ends a wrapped stack child (`<div><FigureBand/></div>`) is not a direct
+     child, so the rule above misses it and its 24px would add to the stack's 40px. */
+  .depot-stack .depot-band:last-child {
+    @apply !mb-0;
+  }
+
   .depot-note {
     @apply font-sans text-[13px] leading-[18px] text-depot-muted;
   }

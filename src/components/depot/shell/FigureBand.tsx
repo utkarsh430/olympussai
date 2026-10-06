@@ -30,7 +30,7 @@ export interface FigureBandProps {
  */
 export function FigureBand({ label, children, tag }: FigureBandProps) {
   return (
-    <div className="mb-6 min-w-0 overflow-hidden border-y border-depot-line">
+    <div className="depot-band mb-6 min-w-0 overflow-hidden border-y border-depot-line">
       {tag ? (
         <div data-testid="depot-figure-band-head" className="mt-2 depot-tag-row gap-2">
           <span className="depot-label truncate leading-4">{label}</span>
