@@ -50,7 +50,7 @@ export function ScoreBreakdown({ row }: { readonly row: LeagueRow }) {
             <tbody>
               {row.components.map((c) => (
                 <tr key={c.key}>
-                  <th scope="row" className="!text-left !normal-case !tracking-normal !text-depot-ink">
+                  <th scope="row" className="!static !bg-transparent !text-left !normal-case !tracking-normal !text-depot-ink">
                     {c.label}
                   </th>
                   <td className="depot-align-right">{formatRate(c.value)}</td>
