@@ -57,8 +57,7 @@ function toBoardDuty(
   excluded: Parameters<typeof blockersFor>[0],
   fleet: ReadonlyMap<string, ModelledBus>,
 ): BoardDuty {
-  const blockers =
-    registration === null ? blockersFor(excluded, fleet, duty.serviceClass) : null;
+  const blockers = registration === null ? blockersFor(excluded, fleet, duty.serviceClass) : null;
   return {
     id: duty.id,
     routeName: duty.routeName,

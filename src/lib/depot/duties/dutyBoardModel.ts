@@ -44,6 +44,9 @@ export interface BoardRow {
   readonly id: string;
   readonly routeName: string;
   readonly serviceClass: string;
+  /** Minutes from midnight; the end may pass 1440. */
+  readonly startMin: number;
+  readonly endMin: number;
   readonly timeText: string;
   readonly registrationNumber: string | null;
   readonly state: DutyState;
@@ -65,7 +68,8 @@ export function formatMinute(minute: number): string {
   return nextDay ? `${text} next day` : text;
 }
 
-const pctOfAxis = (minute: number): number => ((minute - AXIS_START_MIN) / AXIS_SPAN_MIN) * PERCENT;
+// Multiply before dividing so whole-minute offsets give clean percentages (30, not 30.000000000000004).
+const pctOfAxis = (minute: number): number => ((minute - AXIS_START_MIN) * PERCENT) / AXIS_SPAN_MIN;
 
 /** Ticks every two hours, from 04:00 to 24:00. */
 export function axisTicks(): readonly AxisTick[] {
@@ -91,7 +95,7 @@ export function barGeometry(startMin: number, endMin: number): BarGeometry {
   const clippedEnd = Math.min(Math.max(endMin, AXIS_START_MIN), AXIS_END_MIN);
   // Widths are measured in minutes first so exact fractions stay exact.
   const widthPct = Math.max(
-    ((clippedEnd - clippedStart) / AXIS_SPAN_MIN) * PERCENT,
+    ((clippedEnd - clippedStart) * PERCENT) / AXIS_SPAN_MIN,
     MIN_BAR_WIDTH_PCT,
   );
   const leftPct = Math.min(pctOfAxis(clippedStart), PERCENT - widthPct);
@@ -197,6 +201,8 @@ export function buildBoardRows(duties: readonly BoardDuty[]): readonly BoardRow[
       id: duty.id,
       routeName: duty.routeName,
       serviceClass: duty.serviceClass,
+      startMin: duty.startMin,
+      endMin: duty.endMin,
       timeText,
       registrationNumber: duty.registrationNumber,
       state: duty.state,
