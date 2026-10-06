@@ -329,9 +329,11 @@ A route profile (ordered stops, terminals, one-way length) is read through one b
 that route, from the schedule API, once per route per operating day, and cached
 (`routes/routeCatalogue.ts`: `ROUTE_CACHE_MAX = 2000`, negative answers for
 `ROUTE_NEGATIVE_TTL_MS = 600_000`). Stops at 0,0 stay in the list but do not count toward
-length. There is **no background crawl** (ruling S40). A profile is fetched when a user opens
-a route, or through the Routes page's user-initiated loader for one depot, which requests
-routes one at a time. Cache misses are limited (`ROUTE_PROFILE_FETCH_LIMITS` in
+length. There is **no background crawl** (ruling S40). A profile is fetched one route at a time,
+when a user opens that route on the Routes page, or opens a depot's roster or a bus on that
+route (`PROFILES_GROW_WITH_USE` in `routes/allocationWording.ts`), so coverage grows with use.
+Ruling S40 also approved a user-initiated, sequential loader for one depot's routes; it is
+not in this build. Cache misses are limited (`ROUTE_PROFILE_FETCH_LIMITS` in
 `rateLimit.ts`): 20 per identity, 40 per trusted address, 120 per process, per minute.
 
 The allocation (`optimise/allocate.ts`) recommends which depot should run each route to cut
