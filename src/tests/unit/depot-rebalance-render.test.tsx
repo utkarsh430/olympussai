@@ -2,6 +2,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Distribution, RESET_ANNOUNCEMENT } from '@/components/depot/rebalance/RebalancePage';
+import { DecisionTrail } from '@/components/depot/rebalance/DecisionTrail';
+import type { TrailItem } from '@/lib/depot/rebalance/decisionEvents';
 import { TransferTable } from '@/components/depot/rebalance/TransferTable';
 import type { DepotDistributionResponse } from '@/lib/depot/api';
 import type { DepotBalance, TransferPlan } from '@/lib/depot/optimise/types';
@@ -118,6 +120,90 @@ describe('fleet distribution page', () => {
     await act(async () => button('Reset to the server plan').click());
     expect(document.activeElement?.id).toBe('rebalance-sandbox-heading');
     expect(container.textContent).toContain(RESET_ANNOUNCEMENT);
+  });
+});
+
+describe('write order', () => {
+  it('writes no audit event and says so when storage refuses the decision slice', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota');
+    });
+    await act(async () => button('Approve').click());
+    spy.mockRestore();
+    expect(window.localStorage.getItem('upsrtc-copilot-audit-v1')).toBeNull();
+    expect(window.localStorage.getItem('depot-transfer-decisions-v1')).toBeNull();
+    const status = container.querySelector('[data-testid="rebalance-notice"] [role="status"]');
+    expect(status?.textContent).toContain('could not be recorded');
+    expect(status?.textContent).toContain('no audit event exists');
+  });
+
+  it('writes the slice and the audit event together when storage accepts', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await act(async () => button('Approve').click());
+    expect(window.localStorage.getItem('upsrtc-copilot-audit-v1')).not.toBeNull();
+    expect(window.localStorage.getItem('depot-transfer-decisions-v1')).not.toBeNull();
+  });
+});
+
+describe('decision trail keys', () => {
+  it('renders entries that share an id without a duplicate-key warning', async () => {
+    const item: TrailItem = {
+      eventId: 'same',
+      at: '2026-10-06T08:00:00Z',
+      transferId: ROW.id,
+      fromDepotId: 'agra',
+      fromDepotName: 'Agra',
+      toDepotId: 'kanpur',
+      toDepotName: 'Kanpur',
+      buses: 5,
+      operatingDate: '2026-10-06',
+      scenario: null,
+      scenarioLabel: null,
+      note: '',
+      decision: 'approved',
+      undoes: null,
+      undoable: false,
+      undone: false,
+      superseded: false,
+    };
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await render(
+      <DecisionTrail
+        trail={{ baseline: [item, item, item], scenario: [] }}
+        operatingDate="2026-10-06"
+        onUndo={() => {}}
+        capacityNote={null}
+      />,
+    );
+    const warned = errors.mock.calls.some((call) => String(call[0]).includes('same key'));
+    errors.mockRestore();
+    expect(warned).toBe(false);
+    expect(container.querySelectorAll('[data-testid="rebalance-trail"] li')).toHaveLength(3);
+  });
+});
+
+describe('undo announcement', () => {
+  it('announces an undo in the same status line', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await act(async () => button('Approve').click());
+    await act(async () => button('Undo').click());
+    const status = container.querySelector('[data-testid="rebalance-notice"] [role="status"]');
+    expect(status?.textContent).toBe(
+      'Undid the approval of 5 buses Agra to Kanpur. Recorded only; nothing dispatched.',
+    );
+  });
+
+  it('says so when the write of an undo is refused', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await act(async () => button('Approve').click());
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota');
+    });
+    await act(async () => button('Undo').click());
+    spy.mockRestore();
+    const status = container.querySelector('[data-testid="rebalance-notice"] [role="status"]');
+    expect(status?.textContent).toContain('The undo could not be recorded');
   });
 });
 

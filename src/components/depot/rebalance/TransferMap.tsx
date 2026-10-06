@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { MapFallback } from '@/components/map/MapFallback';
+import { MapUnavailable } from '@/components/depot/shell/MapUnavailable';
 import type { MapGeometry } from '@/lib/depot/rebalance/mapGeometry';
 import { busesWord } from '@/lib/depot/rebalance/rebalanceModel';
 import { MapHoverCard } from './MapHoverCard';
@@ -117,7 +117,7 @@ export function TransferMap({ geometry, selectedId, onSelect }: TransferMapProps
         </div>
       ) : null}
       {status === 'error' ? (
-        <MapFallback status="error" message={message} onRetry={() => window.location.reload()} />
+        <MapUnavailable message={message || undefined} onRetry={() => window.location.reload()} />
       ) : null}
       {status === 'ready' && hover ? <MapHoverCard hover={hover} geometry={geometry} /> : null}
       {status === 'ready' && chosenArc ? (

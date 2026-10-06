@@ -63,9 +63,18 @@ describe('decision slice', () => {
     );
     expect(slice.dropped).toBe(1);
     expect(trailCapacityNote(slice)).toBe(
-      'The trail holds 3 decisions, the most it keeps; 1 older decision is no longer listed.',
+      'The decision record holds 3 entries across all dates; older ones are no longer listed.',
     );
     expect(MAX_STORED_DECISIONS).toBeGreaterThanOrEqual(250);
+  });
+
+  it('parses at most the cap, keeping the newest, from an oversized store', () => {
+    const newest = stored();
+    const rest = Array.from({ length: MAX_STORED_DECISIONS + 50 }, () => stored());
+    const raw = JSON.stringify({ v: 1, dropped: 0, events: [newest, ...rest] });
+    const slice = parseDecisionSlice(raw);
+    expect(slice.events).toHaveLength(MAX_STORED_DECISIONS);
+    expect(slice.events[0]?.id).toBe(newest.id);
   });
 
   it('reads malformed or foreign data as an empty slice and skips bad entries', () => {

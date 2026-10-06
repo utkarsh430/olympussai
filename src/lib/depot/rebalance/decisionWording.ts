@@ -41,6 +41,22 @@ export function decisionAnnouncement(
   return `${DECISION_WORD[kind]} ${busesWord(buses)} ${fromName} to ${toName}. ${RECORDED_ONLY}`;
 }
 
+const DECISION_NOUN: Readonly<Record<TransferDecisionKind, string>> = {
+  approved: 'approval',
+  rejected: 'rejection',
+  deferred: 'deferral',
+};
+
+/** The polite status line after an undo is recorded. */
+export function undoAnnouncement(
+  kind: TransferDecisionKind,
+  buses: number,
+  fromName: string,
+  toName: string,
+): string {
+  return `Undid the ${DECISION_NOUN[kind]} of ${busesWord(buses)} ${fromName} to ${toName}. ${RECORDED_ONLY}`;
+}
+
 /** One trail line: what was decided, and whether it was later undone or replaced. */
 export function describeTrailItem(item: TrailItem): string {
   const route = `${busesWord(item.buses)}, ${item.fromDepotName} → ${item.toDepotName}`;

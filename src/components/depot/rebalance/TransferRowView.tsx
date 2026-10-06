@@ -37,7 +37,7 @@ export function TransferRowView(props: TransferRowViewProps) {
 
 function RationaleRows(props: TransferRowViewProps) {
   const { row, columns } = props;
-  const rationale = useRationale(row.id);
+  const rationale = useRationale(row.id, row.buses);
   return (
     <>
       <DataRow

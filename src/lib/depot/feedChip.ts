@@ -1,5 +1,6 @@
 import type { UpstreamSource } from '@/models/canonical';
 import { formatFeedTime } from './format';
+import type { Provenance } from './types';
 
 /**
  * Wording of the top bar's feed chip. It says how fresh the data is, never
@@ -77,7 +78,12 @@ export function feedChip({ data, error, loading, nowMs }: FeedChipInput): FeedCh
 
   if (stale) {
     const title = `Showing the last good data, ${received(data, nowMs)}`;
-    return { text: `STALE · ${time}`, tone: 'stale', title, srText: `Feed status: stale. ${title}` };
+    return {
+      text: `STALE · ${time}`,
+      tone: 'stale',
+      title,
+      srText: `Feed status: stale. ${title}`,
+    };
   }
 
   const detail = `data ${received(data, nowMs)}`;
@@ -89,18 +95,40 @@ export function feedChip({ data, error, loading, nowMs }: FeedChipInput): FeedCh
   };
 }
 
+interface NoteLead {
+  /** Start of the fresh sentence; the feed time follows it. */
+  readonly fresh: string;
+  /** Start of the stale and sample-data sentences; the source follows it. */
+  readonly other: string;
+}
+
+/** What each feed-backed tag says about where a page's figures come from. */
+const NOTE_LEADS: Readonly<Record<Exclude<Provenance, 'reference'>, NoteLead>> = {
+  live: { fresh: 'Live from the feed at', other: 'From' },
+  derived: { fresh: 'Derived from the live feed at', other: 'Derived from' },
+  modelled: {
+    fresh: 'Modelled: generated figures, anchored on the live feed at',
+    other: 'Modelled: generated figures, anchored on',
+  },
+};
+
 /**
- * The words after a page header's provenance tag ("DERIVED from the live feed
- * at 12:37"), so the tag says what it applies to and when. Same freshness rule
- * as the chip: a cached answer is the live feed; stale is the last good data.
+ * The words after a page header's provenance tag, so the tag says what it
+ * applies to and when: live ("Live from the feed at 12:37"), derived, modelled
+ * (generated figures, anchored on the feed) or reference (curated, no feed
+ * clock). Same freshness rule as the chip: a cached answer is the live feed;
+ * stale is the last good data. An omitted tag reads as derived.
  */
 export function headerProvenanceNote(
   data: Omit<FeedChipData, 'fetchedAt'> | null,
   error: string | null,
+  provenance: Provenance = 'derived',
 ): string {
-  if (!data) return 'waiting for the feed';
+  if (provenance === 'reference') return 'Reference data, curated';
+  if (!data) return 'Waiting for the feed';
+  const lead = NOTE_LEADS[provenance];
   const time = formatFeedTime(data.feedNow);
-  if (data.source === 'fixture') return `from sample data, feed time ${time}`;
-  if (data.stale || error !== null) return `from the last good data, feed time ${time}`;
-  return `from the live feed at ${time}`;
+  if (data.source === 'fixture') return `${lead.other} sample data, feed time ${time}`;
+  if (data.stale || error !== null) return `${lead.other} the last good data, feed time ${time}`;
+  return `${lead.fresh} ${time}`;
 }

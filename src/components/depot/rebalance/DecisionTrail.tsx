@@ -30,8 +30,9 @@ function List({
   if (items.length === 0) return <p className="depot-prose text-xs">{empty}</p>;
   return (
     <ol className="flex flex-col divide-y divide-depot-line rounded-md border border-depot-line">
-      {items.map((item) => (
-        <li key={item.eventId} className="flex min-w-0 flex-wrap items-baseline gap-x-3 px-3 py-2">
+      {items.map((item, index) => (
+        // A damaged store can repeat ids, so the position is part of the key.
+        <li key={`${index}-${item.eventId}`} className="flex min-w-0 flex-wrap items-baseline gap-x-3 px-3 py-2">
           <span className="text-[11px] text-depot-faint">{timeOf(item.at)}</span>
           <span className="min-w-0 flex-1 text-[13px] text-depot-ink">
             {describeTrailItem(item)}

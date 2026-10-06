@@ -38,8 +38,16 @@ function signed(n: number): string {
   return n < 0 ? `${MINUS}${Math.abs(n)}` : `+${n}`;
 }
 
-function depotCount(n: number, what: string): string {
-  return `${n} ${n === 1 ? 'depot' : 'depots'} ${what}`;
+/** "Agra", "Agra and Kanpur", "Agra, Kanpur and Banda" followed by what happens to them. */
+function depotNames(
+  ids: readonly string[],
+  what: string,
+  nameOf: (depotId: string) => string,
+): string {
+  const names = ids.map(nameOf);
+  const last = names.at(-1);
+  const list = names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${last}`;
+  return `${list} ${what}`;
 }
 
 /** The active changes in plain words, e.g. "Spare ratio 10%, 2 depots locked, AGRA +12 buses." */
@@ -53,9 +61,9 @@ export function summariseScenario(
   if (scenario.maxTransferKm !== undefined) {
     parts.push(`maximum distance ${scenario.maxTransferKm} km`);
   }
-  if (scenario.lockedDepotIds) parts.push(depotCount(scenario.lockedDepotIds.length, 'locked'));
+  if (scenario.lockedDepotIds) parts.push(depotNames(scenario.lockedDepotIds, 'locked', nameOf));
   if (scenario.excludedDepotIds) {
-    parts.push(depotCount(scenario.excludedDepotIds.length, 'excluded'));
+    parts.push(depotNames(scenario.excludedDepotIds, 'excluded', nameOf));
   }
   for (const a of scenario.fleetAdjustments ?? []) {
     const word = Math.abs(a.deltaBuses) === 1 ? 'bus' : 'buses';

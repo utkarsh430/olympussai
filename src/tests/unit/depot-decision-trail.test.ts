@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { appendAuditEvent, type AuditEvent } from '@/lib/audit/auditLog';
 import {
   decisionEvent,
-  parseDecisionEvent,
   undoEvent,
   type DecisionInput,
 } from '@/lib/depot/rebalance/decisionEvents';
@@ -77,16 +76,6 @@ describe('replaced and undone decisions', () => {
     expect(decisionTrail(events, DATE).scenario[0]?.scenarioLabel).toBe('1 depot locked: Agra.');
   });
 
-  it('reads a first-version event, using its sentence as both key and label', () => {
-    const v1 = {
-      id: 'e1',
-      at: '2026-10-06T06:00:00.000Z',
-      type: 'depot-transfer-approved',
-      summary: 'x',
-      detail: JSON.stringify({ ...input({ scenario: 'Spare ratio 10%.' }), v: 1, undoes: null }),
-    };
-    expect(parseDecisionEvent(v1)?.scenarioLabel).toBe('Spare ratio 10%.');
-  });
 });
 
 describe('a decision is for a number of buses', () => {

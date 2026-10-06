@@ -13,6 +13,7 @@ import {
   decisionsFor,
   rowDecisionsFor,
 } from '@/lib/depot/rebalance/decisionReducers';
+import { describeTrailItem, undoAnnouncement } from '@/lib/depot/rebalance/decisionWording';
 
 const DATE = '2026-10-06';
 
@@ -120,6 +121,22 @@ describe('decisionsFor', () => {
     expect(rowDecisionsFor(decisionsFor(events, DATE), null).get('agra>kanpur')?.kind).toBe(
       'approved',
     );
+    // The reducer ignored that undo, so the old decision is not marked as undone.
+    const trail = decisionTrail(events, DATE).baseline;
+    const oldItem = trail.find((e) => e.eventId === old.eventId);
+    expect(oldItem?.undone).toBe(false);
+    expect(oldItem?.superseded).toBe(true);
+    expect(describeTrailItem(oldItem!)).not.toContain('later undone');
+  });
+
+  it('marks a decision undone only when its undo was applied', () => {
+    let events: AuditEvent[] = [];
+    events = record(events, decisionEvent(input({ decision: 'approved' })));
+    const first = decisionTrail(events, DATE).baseline[0]!;
+    events = record(events, undoEvent(first));
+    const item = decisionTrail(events, DATE).baseline.find((e) => e.eventId === first.eventId);
+    expect(item?.undone).toBe(true);
+    expect(describeTrailItem(item!)).toContain('(later undone)');
   });
 
   it('ignores malformed stored events and other event types without throwing', () => {
@@ -177,5 +194,15 @@ describe('validateNote', () => {
     expect(validateNote('x'.repeat(NOTE_MAX_CHARS))).toMatchObject({ ok: true });
     const long = validateNote('x'.repeat(NOTE_MAX_CHARS + 1));
     expect(long.ok).toBe(false);
+  });
+});
+
+describe('undoAnnouncement', () => {
+  it('names the decision that was withdrawn', () => {
+    expect(undoAnnouncement('approved', 5, 'Agra', 'Kanpur')).toBe(
+      'Undid the approval of 5 buses Agra to Kanpur. Recorded only; nothing dispatched.',
+    );
+    expect(undoAnnouncement('rejected', 1, 'Agra', 'Kanpur')).toContain('the rejection of 1 bus ');
+    expect(undoAnnouncement('deferred', 2, 'A', 'B')).toContain('the deferral of 2 buses');
   });
 });

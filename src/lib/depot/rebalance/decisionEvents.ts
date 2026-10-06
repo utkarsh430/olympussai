@@ -11,9 +11,8 @@ import type { TransferDecisionKind } from './rebalanceModel';
 export type { TransferDecisionKind };
 
 export const NOTE_MAX_CHARS = 200;
-/** Version 2 files a scenario decision under `scenarioKey`; version 1 used the sentence. */
+/** Files a scenario decision under `scenarioKey`, with the sentence kept as a label. */
 const PAYLOAD_VERSION = 2;
-const FIRST_PAYLOAD_VERSION = 1;
 
 export interface DecisionInput {
   readonly transferId: string;
@@ -137,14 +136,12 @@ export function parseDecisionEvent(event: unknown): DecisionEntry | null {
   const p = readPayload(e.detail);
   if (!decision || !p || !isString(e.id) || !isString(e.at)) return null;
   const strings = ['transferId', 'fromDepotId', 'fromDepotName', 'toDepotId', 'toDepotName'];
-  const versionKnown = p.v === PAYLOAD_VERSION || p.v === FIRST_PAYLOAD_VERSION;
-  if (!versionKnown || !strings.every((k) => isString(p[k]))) return null;
+  if (p.v !== PAYLOAD_VERSION || !strings.every((k) => isString(p[k]))) return null;
   if (!isString(p.operatingDate) || !isString(p.note)) return null;
   if (typeof p.buses !== 'number' || !Number.isFinite(p.buses)) return null;
   if (p.scenario !== null && !isString(p.scenario)) return null;
   if (p.undoes !== null && !isString(p.undoes)) return null;
-  // A first-version event has no label: its sentence was its key.
-  const label = p.v === FIRST_PAYLOAD_VERSION ? p.scenario : p.scenarioLabel;
+  const label = p.scenarioLabel;
   if (label !== null && !isString(label)) return null;
   return {
     eventId: e.id,

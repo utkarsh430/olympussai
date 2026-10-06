@@ -203,6 +203,28 @@ describe('rationale parts', () => {
     );
   });
 
+  it('starts fresh when the plan changes the bus count for the same transfer', async () => {
+    const fn = stubFetchOk();
+    const element = (buses: number): React.ReactElement => (
+      <RationaleButton transferId="t1" planBuses={buses} label="Kurla to Panvel" />
+    );
+    await render(element(5));
+    const toggle = container.querySelector('button') as HTMLButtonElement;
+    await click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-testid="rationale-panel"]')?.textContent).toContain(
+      'Body.',
+    );
+    // The same count keeps the text; a new count resets it.
+    await act(async () => root?.render(element(5)));
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    await act(async () => root?.render(element(9)));
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-testid="rationale-panel"]')).toBeNull();
+    await click(toggle);
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
   it('live region holds only a short string, never the text', async () => {
     stubFetchOk();
     await render(<RationaleButton transferId="t1" label="x" />);

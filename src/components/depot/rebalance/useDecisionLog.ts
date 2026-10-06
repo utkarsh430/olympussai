@@ -48,7 +48,10 @@ function serverSnapshot(): string | null {
 
 export interface DecisionLog {
   readonly slice: DecisionSlice;
-  /** Writes the event to the audit log and the decision slice; false when storage refused. */
+  /**
+   * Writes the decision slice, then the audit event; false when storage refused the slice,
+   * in which case no audit event exists.
+   */
   readonly record: (event: NewAuditEvent) => boolean;
 }
 
@@ -62,13 +65,15 @@ export function useDecisionLog(): DecisionLog {
   const slice = useMemo(() => parseDecisionSlice(raw), [raw]);
   const record = useCallback((event: NewAuditEvent): boolean => {
     const log = appendAuditEvent(readAuditLog(), event);
-    writeAuditLog(log);
     const stored = log[0];
     if (!stored) return false;
+    // The slice is what the page reads, so it goes first: if storage refuses it, no audit
+    // event is written and the two records cannot disagree.
     const next = appendToSlice(parseDecisionSlice(readStoredSlice(storage())), stored);
-    const written = writeStoredSlice(storage(), next);
-    if (written) window.dispatchEvent(new Event(LOCAL_WRITE_EVENT));
-    return written;
+    if (!writeStoredSlice(storage(), next)) return false;
+    writeAuditLog(log);
+    window.dispatchEvent(new Event(LOCAL_WRITE_EVENT));
+    return true;
   }, []);
   return { slice, record };
 }

@@ -6,10 +6,10 @@ import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/D
 import { useDepotDistribution, type DepotDistributionState } from '@/hooks/useDepotDistribution';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import type { DepotDistributionResponse } from '@/lib/depot/api';
-import { decisionEvent, undoEvent } from '@/lib/depot/rebalance/decisionEvents';
+import { decisionEvent, undoEvent, type TrailItem } from '@/lib/depot/rebalance/decisionEvents';
 import { isRepeatDecision } from '@/lib/depot/rebalance/decisionReducers';
 import { trailCapacityNote } from '@/lib/depot/rebalance/decisionStore';
-import { decisionAnnouncement } from '@/lib/depot/rebalance/decisionWording';
+import { decisionAnnouncement, undoAnnouncement } from '@/lib/depot/rebalance/decisionWording';
 import { busesWord, type TransferDecisionKind } from '@/lib/depot/rebalance/rebalanceModel';
 import { BASELINE_FORM } from '@/lib/depot/rebalance/scenarioForm';
 import type { TransferRow } from '@/lib/depot/rebalance/transferModel';
@@ -26,7 +26,11 @@ import { useDecisionLog } from './useDecisionLog';
 import { useDistributionView } from './useDistributionView';
 
 export const RESET_ANNOUNCEMENT = 'Reset to the server plan';
-const STORAGE_REFUSED = 'The decision could not be recorded: this browser refused to store it.';
+const STORAGE_REFUSED =
+  'The decision could not be recorded: this browser refused to store it, and no audit event exists.';
+
+const UNDO_REFUSED =
+  'The undo could not be recorded: this browser refused to store it, and no audit event exists.';
 
 /** The fleet distribution page: live supply, modelled need, and the plan between them. */
 export function RebalancePage() {
@@ -88,6 +92,12 @@ export function Distribution({
     setAnnouncement(recorded ? said : STORAGE_REFUSED);
   }
 
+  function undo(item: TrailItem): void {
+    const recorded = log.record(undoEvent(item));
+    const said = undoAnnouncement(item.decision, item.buses, item.fromDepotName, item.toDepotName);
+    setAnnouncement(recorded ? said : UNDO_REFUSED);
+  }
+
   return (
     <div className="flex min-w-0 flex-col">
       {data.stale || state.error ? <StaleStrip since={data.feedNow} /> : null}
@@ -147,7 +157,7 @@ export function Distribution({
         <DecisionTrail
           trail={view.trail}
           operatingDate={data.operatingDate}
-          onUndo={(item) => log.record(undoEvent(item))}
+          onUndo={undo}
           capacityNote={trailCapacityNote(log.slice)}
         />
       </div>

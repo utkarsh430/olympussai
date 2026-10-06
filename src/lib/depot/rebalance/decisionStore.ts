@@ -44,7 +44,8 @@ export function parseDecisionSlice(raw: string | null): DecisionSlice {
   if (!isRecord(parsed) || parsed.v !== SLICE_VERSION || !Array.isArray(parsed.events)) {
     return EMPTY_SLICE;
   }
-  const events = parsed.events.filter(
+  // Newest first, so slicing before the checks bounds the work a damaged store can cause.
+  const events = parsed.events.slice(0, MAX_STORED_DECISIONS).filter(
     (e: unknown): e is AuditEvent => isRecord(e) && parseDecisionEvent(e) !== null,
   );
   const dropped = parsed.dropped;
@@ -91,7 +92,7 @@ export function writeStoredSlice(storage: StorageLike | null, slice: DecisionSli
 /** Said under the trail once the cap has dropped anything; null until then. */
 export function trailCapacityNote(slice: DecisionSlice): string | null {
   if (slice.dropped === 0) return null;
-  const older =
-    slice.dropped === 1 ? '1 older decision is' : `${slice.dropped} older decisions are`;
-  return `The trail holds ${slice.events.length} decisions, the most it keeps; ${older} no longer listed.`;
+  // The trail shows one date; this counts the whole record, so it says so.
+  const entries = slice.events.length === 1 ? '1 entry' : `${slice.events.length} entries`;
+  return `The decision record holds ${entries} across all dates; older ones are no longer listed.`;
 }
