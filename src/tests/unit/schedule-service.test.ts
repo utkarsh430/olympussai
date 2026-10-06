@@ -209,3 +209,26 @@ describe('schedule endpoint (characterisation)', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 });
+
+describe('fetchBusSchedule (direct)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(T0);
+    vi.resetModules();
+    mockFetch.mockReset();
+    delete process.env.NEXT_PUBLIC_DEMO_MODE;
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('shares one cache with the endpoint and takes the clock as a parameter', async () => {
+    const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
+    mockFetch.mockResolvedValue(ok(scheduleFixture));
+    const input = { regNum: REG, date: TODAY, tripId: null };
+    const live = await fetchBusSchedule(input, T0);
+    expect(live.source).toBe('live');
+    const cached = await fetchBusSchedule(input, T0 + 60_000);
+    expect(cached.source).toBe('cache');
+    expect(cached.fetchedAt).toBe(new Date(T0 + 60_000).toISOString());
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
