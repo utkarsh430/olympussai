@@ -52,19 +52,26 @@ describe('yardRoll', () => {
   it('counts every bus in the yard by state, whatever its state', () => {
     const roll = yardRoll(m);
     expect(roll.total).toBe(6);
-    expect(roll.counts.map((c) => [c.label, c.count])).toEqual([
+    expect(roll.groups.map((g) => [g.label, g.count])).toEqual([
       ['Standing', 3],
       ['Dark', 2],
       ['Off road', 1],
     ]);
   });
 
-  it('groups only buses with a live reason, by state, longest unheard first', () => {
+  it('lists only buses with a live reason in each state group, longest unheard first', () => {
     const roll = yardRoll(m);
     expect(roll.groups.map((g) => [g.state, g.rows.map((r) => r.registration)])).toEqual([
       ['standing', ['S2']],
       ['dark', ['D1', 'D2']],
       ['off_road', ['O1']],
+    ]);
+  });
+
+  it('keeps a state with nothing to list as a counted group with no rows', () => {
+    const roll = yardRoll(model({ inYardGroups: [{ state: 'in_service', buses: [bus('I1', { state: 'in_service' })] }] }));
+    expect(roll.groups).toEqual([
+      { state: 'in_service', label: 'In service', count: 1, rows: [], showReason: false },
     ]);
   });
 

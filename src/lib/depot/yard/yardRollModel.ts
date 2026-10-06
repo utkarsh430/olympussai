@@ -18,12 +18,6 @@ export const ROLL_NOTE = `Listed: off the road, dark, or not heard for ${formatD
 
 const NOT_HEARD_REASON = 'not heard recently';
 
-export interface StateCount {
-  readonly state: BusOpState;
-  readonly label: string;
-  readonly count: number;
-}
-
 /** One row of the roll's tables: bare figures, the reason never repeating the state. */
 export interface RollRow {
   readonly registration: string;
@@ -34,9 +28,12 @@ export interface RollRow {
   readonly reason: string;
 }
 
+/** One state: every bus counted, and the ones needing action listed (possibly none). */
 export interface RollGroup {
   readonly state: BusOpState;
   readonly label: string;
+  /** Every bus in this state that the roll counts, listed or not. */
+  readonly count: number;
   readonly rows: readonly RollRow[];
   /** False when no row has a reason beyond its state: the constant column is dropped. */
   readonly showReason: boolean;
@@ -46,8 +43,7 @@ export interface YardRollView {
   readonly title: string;
   /** Every bus counted: in the yard (any state), or every bus when no yard is established. */
   readonly total: number;
-  readonly counts: readonly StateCount[];
-  /** Only the buses with a live reason, grouped by state in the fixed state order. */
+  /** One per state present, in the fixed order; rows hold only buses with a live reason. */
   readonly groups: readonly RollGroup[];
 }
 
@@ -95,25 +91,20 @@ export function yardRoll(model: YardModel): YardRollView {
   const source: readonly StateGroup<DepotBusView>[] = model.established
     ? model.inYardGroups
     : model.allGroups;
-  const counts = YARD_STATE_ORDER.map((state) => ({
-    state,
-    label: BUS_STATE_LABEL[state],
-    count: source.find((g) => g.state === state)?.buses.length ?? 0,
-  })).filter((c) => c.count > 0);
   const groups = YARD_STATE_ORDER.map((state) => {
     const buses = source.find((g) => g.state === state)?.buses ?? [];
     const rows = byQuietest(buses.filter(needsAction).map(rowOf));
     return {
       state,
       label: BUS_STATE_LABEL[state],
+      count: buses.length,
       rows,
       showReason: rows.some((r) => r.reason !== ''),
     };
-  }).filter((g) => g.rows.length > 0);
+  }).filter((g) => g.count > 0);
   return {
     title: model.established ? 'In the yard now' : 'Buses by state',
-    total: counts.reduce((sum, c) => sum + c.count, 0),
-    counts,
+    total: groups.reduce((sum, g) => sum + g.count, 0),
     groups,
   };
 }

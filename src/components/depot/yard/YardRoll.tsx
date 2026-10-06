@@ -1,181 +1,151 @@
 'use client';
 
-import Link from 'next/link';
+import { useMemo } from 'react';
 import { BusStateMark } from '@/components/depot/shell/BusStateMark';
-import { ShowMore } from '@/components/depot/shell/LongLists';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
-import type { DepotBusView } from '@/lib/depot/api';
 import { formatCount } from '@/lib/depot/format';
-import { formatHeardAgo, type YardModel } from '@/lib/depot/yard/yardModel';
+import { AWAY_LIST_CAP, type YardModel } from '@/lib/depot/yard/yardModel';
+import {
+  awayRows,
+  ROLL_NOTE,
+  ROLL_PREVIEW_ROWS,
+  unknownRows,
+  yardRoll,
+  type RollGroup,
+} from '@/lib/depot/yard/yardRollModel';
+import { awayColumns, CappedTable, rollColumns, unknownColumns } from './YardTables';
 import { YardVisitors } from './YardVisitors';
-import { NEEDS_ACTION_RULE, rollSummary } from '@/lib/depot/yard/yardPageModel';
 
 export interface YardRollProps {
   readonly model: YardModel;
   /** Depot names by id, to say which yard an at-another-depot bus stands in. */
   readonly depotNames: ReadonlyMap<string, string>;
   readonly depotId: string;
-  /** Registrations the parking order left out of every lane. */
-  readonly outOfLane: ReadonlySet<string>;
 }
 
-function rosterHref(depotId: string, registration: string): string {
-  return `/project/depots/d/${encodeURIComponent(depotId)}/roster?bus=${encodeURIComponent(registration)}`;
+/** The roll's heading id; the no-yard panel's "See every bus by state" link targets it. */
+export const ROLL_SECTION_ID = 'yard-roll-in';
+
+function listedWords(group: RollGroup): string {
+  if (group.rows.length === 0) return '';
+  return group.rows.length === group.count
+    ? 'all listed'
+    : `${formatCount(group.rows.length)} listed`;
 }
 
-function BusLink({
+/** One state: its square and word, every bus counted, then the ones needing action. */
+function StateGroupBlock({
+  group,
   depotId,
-  registration,
 }: {
+  readonly group: RollGroup;
   readonly depotId: string;
-  readonly registration: string;
 }) {
-  return (
-    <Link href={rosterHref(depotId, registration)} className="depot-link font-mono text-[13px]">
-      {registration}
-    </Link>
+  const columns = useMemo(
+    () => rollColumns(depotId, group.showReason),
+    [depotId, group.showReason],
   );
-}
-
-function BusLine({
-  depotId,
-  bus,
-  detail,
-}: {
-  readonly depotId: string;
-  readonly bus: DepotBusView;
-  readonly detail: string;
-}) {
+  const listed = listedWords(group);
   return (
-    <div className="flex min-h-9 min-w-0 flex-wrap items-center gap-x-3 py-1">
-      <BusLink depotId={depotId} registration={bus.registrationNumber} />
-      <BusStateMark state={bus.state} short />
-      <span className="min-w-0 truncate text-[11px] text-depot-muted">{detail}</span>
+    <div className="min-w-0" data-testid="yard-roll-group" data-state={group.state}>
+      <h3 className="flex h-8 items-center gap-3 text-[13px]">
+        <BusStateMark state={group.state} />
+        <span className="font-mono tabular-nums text-depot-ink">{formatCount(group.count)}</span>
+        {listed ? <span className="depot-note">{listed}</span> : null}
+      </h3>
+      {group.rows.length > 0 ? (
+        <CappedTable
+          columns={columns}
+          rows={group.rows}
+          rowKey={(r) => r.registration}
+          caption={`${group.label}: buses needing action`}
+          cap={ROLL_PREVIEW_ROWS}
+        />
+      ) : null}
     </div>
   );
 }
 
-/** Where an away bus is: a distance, or the other depot's yard it stands in. */
-function awayDetail(bus: DepotBusView, depotNames: ReadonlyMap<string, string>): string {
-  const km = bus.distanceFromYardKm;
-  const otherName = bus.otherDepotId === null ? undefined : depotNames.get(bus.otherDepotId);
-  const where =
-    bus.location === 'at_other_yard'
-      ? `at ${otherName ? `${otherName}'s` : "another depot's"} yard`
-      : km === null || !Number.isFinite(km)
-        ? 'distance unknown'
-        : `${km.toFixed(1)} km away`;
-  return `${where} · ${formatHeardAgo(bus.gpsAgeMin)}`;
+/** Every bus counted by state; in each state only the buses with a live reason listed. */
+function Roll({ model, depotId }: Omit<YardRollProps, 'depotNames'>) {
+  const roll = yardRoll(model);
+  const empty = model.established
+    ? "None of this depot's buses is inside the yard"
+    : 'This depot has no buses in the latest feed';
+  const nothingListed = roll.groups.every((g) => g.rows.length === 0);
+  return (
+    <section aria-labelledby={ROLL_SECTION_ID} data-testid="yard-roll">
+      <SectionLabel id={ROLL_SECTION_ID} label={roll.title} count={roll.total} note={ROLL_NOTE} />
+      {roll.total === 0 ? (
+        <StatePanel kind="empty" compact sentence={empty} />
+      ) : (
+        <div className="flex min-w-0 flex-col gap-3">
+          {roll.groups.map((group) => (
+            <StateGroupBlock key={group.state} group={group} depotId={depotId} />
+          ))}
+          {nothingListed ? (
+            <StatePanel kind="empty" compact tone="ok" sentence="No bus here needs action" />
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
 }
 
-/** Counts by state, the buses that need action, and every bus behind "Show all N". */
-function Roll({ model, depotId, outOfLane }: Omit<YardRollProps, 'depotNames'>) {
-  const roll = rollSummary(model, outOfLane);
-  const title = model.established ? 'In the yard now' : 'Buses by state';
-  if (roll.all.length === 0) {
-    return (
-      <section aria-labelledby="yard-roll-in">
-        <SectionLabel id="yard-roll-in" label={title} count={0} />
-        <StatePanel
-          kind="empty"
-          sentence={
-            model.established
-              ? "None of this depot's buses is standing inside the yard."
-              : 'This depot has no buses in the latest feed.'
-          }
-        />
-      </section>
-    );
-  }
+function Away({ model, depotId, depotNames }: YardRollProps) {
+  const rows = awayRows(model.away.buses, depotNames);
+  const showAtYard = rows.some((r) => r.atYard !== '');
+  const columns = useMemo(() => awayColumns(depotId, showAtYard), [depotId, showAtYard]);
   return (
-    <section aria-labelledby="yard-roll-in" data-testid="yard-roll">
-      <SectionLabel id="yard-roll-in" label={title} count={roll.all.length} />
-      <ul className="flex flex-wrap gap-x-6 gap-y-1" data-testid="yard-roll-counts">
-        {roll.counts.map((c) => (
-          <li key={c.state} className="flex items-center gap-2 text-[13px]">
-            <BusStateMark state={c.state} />
-            <span className="font-mono tabular-nums text-depot-ink">{formatCount(c.count)}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="depot-note mt-3">{NEEDS_ACTION_RULE}</p>
-      {roll.needsAction.length === 0 ? (
-        <p className="depot-prose mt-1 text-depot-ink" data-testid="yard-roll-none">
-          No bus in the yard needs action.
-        </p>
-      ) : (
-        <ul className="mt-1" data-testid="yard-roll-action">
-          {roll.needsAction.map((a) => (
-            <li
-              key={a.bus.registrationNumber}
-              className="border-b border-depot-line last:border-b-0"
-            >
-              <BusLine depotId={depotId} bus={a.bus} detail={a.reasons.join(' · ')} />
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="mt-2">
-        <ShowMore
-          items={roll.all}
-          limit={0}
-          label={`Every bus, ${title.toLowerCase()}`}
-          itemKey={(b) => b.registrationNumber}
-          renderItem={(b) => (
-            <BusLine depotId={depotId} bus={b} detail={formatHeardAgo(b.gpsAgeMin)} />
-          )}
-        />
-      </div>
+    <section aria-labelledby="yard-roll-away">
+      <SectionLabel
+        id="yard-roll-away"
+        label="Away from the yard"
+        count={model.away.total}
+        note={`The nearest ${formatCount(Math.min(AWAY_LIST_CAP, rows.length))} listed`}
+      />
+      <CappedTable
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.registration}
+        caption="Nearest buses away from the yard"
+        cap={ROLL_PREVIEW_ROWS}
+      />
+    </section>
+  );
+}
+
+function Unknown({ model, depotId }: Omit<YardRollProps, 'depotNames'>) {
+  const columns = useMemo(() => unknownColumns(depotId), [depotId]);
+  return (
+    <section aria-labelledby="yard-roll-unknown">
+      <SectionLabel id="yard-roll-unknown" label="Location unknown" count={model.unknown.length} />
+      <CappedTable
+        columns={columns}
+        rows={unknownRows(model.unknown)}
+        rowKey={(r) => r.registration}
+        caption="Buses with no known location"
+        cap={ROLL_PREVIEW_ROWS}
+      />
     </section>
   );
 }
 
 /**
- * Text twin of the map, collapsed: counts by state with only the buses that need
- * action listed, visitors as one capped table, the nearest away buses, and buses
- * with no known location. With no yard, buses are counted by state alone.
+ * Text twin of the map: every bus in the yard counted by state with the buses needing
+ * action listed, visitors, the nearest away buses and buses with no known location, each
+ * a table at most 760px wide. Each is one section of the page's stack.
  */
-export function YardRoll({ model, depotId, depotNames, outOfLane }: YardRollProps) {
+export function YardRoll({ model, depotId, depotNames }: YardRollProps) {
   return (
-    <div className="flex min-w-0 flex-col gap-8">
-      <Roll model={model} depotId={depotId} outOfLane={outOfLane} />
+    <>
+      <Roll model={model} depotId={depotId} />
       {model.established ? <YardVisitors model={model} /> : null}
       {model.established && model.away.total > 0 ? (
-        <section aria-labelledby="yard-roll-away">
-          <SectionLabel
-            id="yard-roll-away"
-            label="Away from the yard"
-            count={model.away.total}
-            note={`Nearest ${formatCount(model.away.buses.length)} listed, nearest first`}
-          />
-          <ShowMore
-            items={model.away.buses}
-            label="Nearest buses away from the yard"
-            itemKey={(b) => b.registrationNumber}
-            renderItem={(b) => (
-              <BusLine depotId={depotId} bus={b} detail={awayDetail(b, depotNames)} />
-            )}
-          />
-        </section>
+        <Away model={model} depotId={depotId} depotNames={depotNames} />
       ) : null}
-      {model.unknown.length > 0 ? (
-        <section aria-labelledby="yard-roll-unknown">
-          <SectionLabel
-            id="yard-roll-unknown"
-            label="Location unknown"
-            count={model.unknown.length}
-          />
-          <ShowMore
-            items={model.unknown}
-            label="Buses with no known location"
-            itemKey={(b) => b.registrationNumber}
-            renderItem={(b) => (
-              <BusLine depotId={depotId} bus={b} detail={formatHeardAgo(b.gpsAgeMin)} />
-            )}
-          />
-        </section>
-      ) : null}
-    </div>
+      {model.unknown.length > 0 ? <Unknown model={model} depotId={depotId} /> : null}
+    </>
   );
 }

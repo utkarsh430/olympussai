@@ -3,6 +3,8 @@ import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { formatCount } from '@/lib/depot/format';
 import type { CapacityView } from '@/lib/depot/yard/parkingModel';
 import { capacityFigure } from '@/lib/depot/yard/yardPageModel';
+import { noYardPanel } from '@/lib/depot/yard/yardRollModel';
+import { ROLL_SECTION_ID } from './YardRoll';
 import type { YardModel } from '@/lib/depot/yard/yardModel';
 
 export interface YardFiguresProps {
@@ -27,7 +29,7 @@ export function YardFigures({ model, capacity, baysPending }: YardFiguresProps) 
             <Figure
               label="In the yard"
               value={formatCount(model.counts.inYard)}
-              caption="this depot's buses"
+              caption="inside the yard circle, any state"
             />
             <Figure
               label="Visiting"
@@ -52,7 +54,7 @@ export function YardFigures({ model, capacity, baysPending }: YardFiguresProps) 
           value={cap.value}
           caption={cap.caption}
           share={cap.share}
-          tag="modelled"
+          tag={cap.share === undefined && cap.value === '—' ? undefined : 'modelled'}
           title={cap.title}
         />
       </FigureBand>
@@ -60,8 +62,23 @@ export function YardFigures({ model, capacity, baysPending }: YardFiguresProps) 
   );
 }
 
-/** Takes the map's place when no yard can be placed; the page below still shows what it can. */
-export function YardNotEstablished({ model }: { readonly model: YardModel }) {
+/** The closing disclosure's id: the no-yard panel's "How a yard is found" link opens it. */
+export const HOW_ID = 'yard-how';
+/** The map frame's height (`depot-map-frame`) plus its caption row: the panel's footprint. */
+const MAP_FOOTPRINT_PX = 488;
+
+export interface YardNotEstablishedProps {
+  readonly model: YardModel;
+  /** Snapshots the server has decided this yard on; at 0 or 1 it has only just started. */
+  readonly snapshotsSeen: number | undefined;
+}
+
+/**
+ * Takes the map's place when no yard can be placed: one sentence, one muted line, one
+ * action, centred in the map's footprint. The claiming rule is in the closing disclosure.
+ */
+export function YardNotEstablished({ model, snapshotsSeen }: YardNotEstablishedProps) {
+  const panel = noYardPanel(model, snapshotsSeen);
   return (
     <section aria-labelledby="yard-not-established-heading" data-testid="yard-not-established">
       <h2 id="yard-not-established-heading" className="sr-only">
@@ -69,9 +86,15 @@ export function YardNotEstablished({ model }: { readonly model: YardModel }) {
       </h2>
       <StatePanel
         kind="not-established"
-        minHeight={240}
-        sentence={`${model.basis} ${model.rule ?? ''}`.trim()}
-        remedy={`A yard appears once more of the depot's buses are parked together and reporting their position; ${formatCount(model.parkedWithPosition)} ${model.parkedWithPosition === 1 ? 'is' : 'are'} now. Until then every bus is listed below by state.`}
+        minHeight={MAP_FOOTPRINT_PX}
+        sentence={panel.sentence}
+        remedy={panel.remedy}
+        howLink={{ label: 'How a yard is found', targetId: HOW_ID }}
+        action={
+          <a className="depot-link" href={`#${ROLL_SECTION_ID}`}>
+            See every bus by state ↓
+          </a>
+        }
       />
     </section>
   );
