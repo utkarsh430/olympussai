@@ -8,6 +8,12 @@ import {
   TRANSFER_PREVIEW,
   transferPreview,
 } from '@/lib/depot/rebalance/pageLayout';
+import {
+  spareBeforeAfter,
+  TRANSFER_COLUMNS,
+  TRANSFER_TABLE_PX,
+  transferFrameInnerPx,
+} from '@/lib/depot/rebalance/transferColumns';
 import type { BalanceRow, PlanSummary } from '@/lib/depot/rebalance/rebalanceModel';
 
 const totals = (deficitDepots: number, deficit: number) => ({
@@ -106,5 +112,34 @@ describe('every-depot table', () => {
   it('keeps the part-of-plan column only when it varies', () => {
     expect(partOfPlanVaries(balance(5))).toBe(false);
     expect(partOfPlanVaries([...balance(5), ...balance(1, false)])).toBe(true);
+  });
+});
+
+describe('transfer table columns at 1440', () => {
+  it('keeps transfer, buses, road km and bus-km, and every column fits the frame uncut', () => {
+    expect(TRANSFER_COLUMNS.map((c) => c.label)).toEqual([
+      'Transfer',
+      'Buses',
+      'Road km',
+      'Bus-km',
+      'Decision',
+      'Why?',
+    ]);
+    expect(TRANSFER_TABLE_PX).toBe(616);
+    expect(transferFrameInnerPx()).toBe(622);
+    expect(TRANSFER_TABLE_PX).toBeLessThanOrEqual(transferFrameInnerPx());
+  });
+
+  it('says the giver and receiver figures before and after in one sentence, never below zero', () => {
+    const row = {
+      fromName: 'Meerut',
+      toName: 'Bhaisali',
+      buses: 9,
+      giverSurplusBefore: 20,
+      receiverDeficitBefore: 6,
+    };
+    expect(spareBeforeAfter(row)).toBe(
+      'Meerut has 20 spare before this transfer and 11 after; Bhaisali is 6 short before and 0 after.',
+    );
   });
 });
