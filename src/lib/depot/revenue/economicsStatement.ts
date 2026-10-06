@@ -1,11 +1,6 @@
 import { formatCount } from '../format';
-import {
-  ECONOMICS_MIN_ROUTE_COVERAGE,
-  ECONOMICS_MIN_ROUTES,
-  type REVENUE_MODEL_PARAMS,
-} from '../sim/revenueConfig';
+import { ECONOMICS_MIN_ROUTE_COVERAGE, ECONOMICS_MIN_ROUTES } from '../sim/revenueConfig';
 import type { EconomicsDepotRow } from './api';
-import { modelledStatement } from './revenuePageModel';
 
 /*
  * What the economics page says about itself: that fuel is one cost, what the
@@ -65,18 +60,16 @@ export function rankingShortfallNotice(
 export interface EconomicsStatement {
   /** Before the revenue statement: what this page adds. */
   readonly preface: readonly string[];
-  /** The revenue statement itself: definitions, assumptions, the feeds that replace them. */
-  readonly body: readonly string[];
-  /** After it: the cost, which the revenue page does not have. */
+  /** After the revenue statement (definitions, assumptions, replacing feeds, built by modelledStatement): the cost, which the revenue page does not have. */
   readonly closing: readonly string[];
 }
 
-export function economicsStatement(params: typeof REVENUE_MODEL_PARAMS): EconomicsStatement {
+/** The economics additions around the revenue statement, which ModelledStatement prints between them. */
+export function economicsStatement(): EconomicsStatement {
   return {
     preface: [
       'The Depot Economics Index ranks operating depots on three MODELLED figures: earnings per kilometre, fuel cost per kilometre and load factor. None of them is measured; each is worked out from the assumptions below.',
     ],
-    body: modelledStatement(params),
     closing: [
       'Fuel cost per kilometre is MODELLED too: it comes from the distance each bus is modelled to run, a fuel economy by service class and a fixed price per litre. It counts fuel only. Fuel issue records from the depots would replace it, alongside the ticketing feed and the route master.',
     ],

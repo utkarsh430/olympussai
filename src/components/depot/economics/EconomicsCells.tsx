@@ -7,6 +7,7 @@ import {
   type EconomicsCell,
   type EconomicsRow,
 } from '@/lib/depot/revenue/economicsPageModel';
+import { modelledHeader } from '@/lib/depot/revenue/revenuePageModel';
 import type { SortValue } from '@/lib/depot/tableSort';
 
 /*
@@ -41,7 +42,6 @@ const MEDIAN_TICK = 50;
 export interface Column {
   readonly key: string;
   readonly header: string;
-  readonly modelledTag?: boolean;
   readonly className: string;
   readonly right?: boolean;
   readonly sortValue: (row: EconomicsRow) => SortValue;
@@ -55,15 +55,14 @@ export const COLUMNS: readonly Column[] = [
   { key: 'depot', header: 'Depot', className: FROZEN.depot, sortValue: (r) => r.name },
   {
     key: 'index',
-    header: 'Economics index',
-    modelledTag: true,
+    header: modelledHeader('Economics index'),
     className: FROZEN.index,
     sortValue: (r) => r.economicsIndex,
   },
   { key: 'peerGroup', header: 'Peer group', className: '', sortValue: (r) => r.peerGroupLabel },
   ...ECONOMICS_COMPONENT_SPECS.map((spec) => ({
     key: spec.key,
-    header: spec.label,
+    header: modelledHeader(spec.label),
     className: '',
     right: true,
     sortValue: (r: EconomicsRow): SortValue => cellOf(r, spec.key)?.value ?? null,
@@ -72,13 +71,31 @@ export const COLUMNS: readonly Column[] = [
 ];
 
 function MetricCell({ cell }: { readonly cell: EconomicsCell | undefined }) {
-  if (!cell || cell.value === null) return <span className="text-depot-faint">—</span>;
+  if (!cell) return null;
+  const note =
+    cell.noteText === null ? null : (
+      <span aria-hidden className="block text-[11px] text-depot-muted">
+        {cell.noteText}
+      </span>
+    );
+  if (cell.value === null) {
+    return (
+      <span title={cell.description}>
+        <span aria-hidden className="text-depot-muted">{cell.valueText}</span>
+        {note}
+        <span className="sr-only">{cell.description}</span>
+      </span>
+    );
+  }
   return (
     <span title={cell.description}>
       <span aria-hidden>{cell.valueText}</span>
-      <span aria-hidden className={`ml-2 text-[11px] ${TONE[cell.direction]}`}>
-        {`${cell.differenceText} ${WORD[cell.direction]}`.trim()}
-      </span>
+      {cell.differenceText === '' ? null : (
+        <span aria-hidden className={`ml-2 text-[11px] ${TONE[cell.direction]}`}>
+          {`${cell.differenceText} ${WORD[cell.direction]}`.trim()}
+        </span>
+      )}
+      {note}
       <span className="sr-only">{cell.description}</span>
     </span>
   );
@@ -88,8 +105,10 @@ function IndexCell({ row }: { readonly row: EconomicsRow }) {
   if (row.economicsIndex === null) {
     const reason = row.reasonText ?? 'Not ranked';
     return (
-      <span className="text-[11px] text-depot-muted" title={reason}>
-        not ranked<span className="sr-only">{`: ${reason}`}</span>
+      <span className="block whitespace-normal text-[11px] text-depot-muted" title={reason}>
+        not ranked
+        {row.reasonShort === null ? null : <span className="block">{row.reasonShort}</span>}
+        <span className="sr-only">{`: ${reason}`}</span>
       </span>
     );
   }

@@ -227,7 +227,7 @@ describe('the breakdown note', () => {
 });
 
 describe('the economics statement', () => {
-  const statement = economicsStatement(REVENUE_MODEL_PARAMS);
+  const statement = economicsStatement();
   const all = [...statement.preface, ...statement.closing].join(' ');
   it('says what is modelled and that fuel issue records replace the cost', () => {
     expect(all).toMatch(/MODELLED/);
@@ -278,7 +278,7 @@ describe('no wording reads as profit, loss or margin', () => {
       rankingShortfallNotice(operating(1, 6)),
       emptyRowText(rows, { showUnranked: false, search: '' }),
       emptyRowText(rows, { showUnranked: true, search: 'x' }),
-      economicsStatement(REVENUE_MODEL_PARAMS),
+      economicsStatement(),
       modelledStatement(REVENUE_MODEL_PARAMS),
       INDEX_LIMITS_NOTE,
       INDEX_SEPARATION,

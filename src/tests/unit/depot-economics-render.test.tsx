@@ -112,7 +112,7 @@ describe('EconomicsPage', () => {
     const text = host.textContent ?? '';
     expect(text).toContain('Depot Economics Index ranking within peer groups');
     expect(host.querySelector('[data-provenance="modelled"]')).not.toBeNull();
-    expect(text).toContain('Economics indexMODELLED');
+    expect(text).toContain('Economics index (MODELLED)');
     expect(text).toContain('separate from the Depot Efficiency Index, which is built from live data');
     expect(host.querySelector('a[href="/project/depots/league"]')).not.toBeNull();
     expect(host.querySelector('a[href="/project/depots/d/1"]')).not.toBeNull();
@@ -129,6 +129,105 @@ describe('EconomicsPage', () => {
     expect(panel?.textContent).toContain('rank 1 of 6 in its peer group');
     expect(panel?.textContent).toContain('₹30.00 per km');
     expect(panel?.textContent).toContain('on 2 of 2 routes');
+  });
+});
+
+function sparseData(): EconomicsResponse {
+  const base = DATA.depots[0] as EconomicsResponse['depots'][number];
+  const unranked = (id: string): EconomicsResponse['depots'][number] => ({
+    ...base,
+    depotId: id,
+    name: `Depot ${id}`,
+    earningsCoverage: { n: 0, of: 9 },
+    score: {
+      ...base.score,
+      depotId: id,
+      ranked: false,
+      reason: 'missing_component',
+      missing: ['earningsPerKm'],
+      economicsIndex: null,
+      rank: null,
+      peerCount: null,
+      components: base.score.components.map((c) =>
+        c.key === 'earningsPerKm' ? { ...c, value: null, peerMedian: null, z: null } : c,
+      ),
+    },
+  });
+  return { ...DATA, depots: [unranked('2'), unranked('3'), unranked('4')] } as EconomicsResponse;
+}
+
+function useData(data: EconomicsResponse): void {
+  vi.mocked(useDepotEconomics).mockReturnValue({
+    data,
+    error: null,
+    loading: false,
+    refresh: vi.fn(),
+  } as unknown as ReturnType<typeof useDepotEconomics>);
+}
+
+describe('EconomicsPage truthfulness', () => {
+  it('tags every modelled column header on the grid and the breakdown', async () => {
+    await render(<EconomicsPage />);
+    const headers = [...host.querySelectorAll('thead th')].map((th) => th.textContent ?? '');
+    for (const label of ['Earnings per km', 'Fuel cost per km', 'Load factor']) {
+      expect(headers.some((h) => h.includes(`${label} (MODELLED)`))).toBe(true);
+    }
+    const button = host.querySelector<HTMLButtonElement>('button[aria-label^="Economics breakdown"]');
+    await act(async () => button?.click());
+    const panel = host.querySelector('[data-testid="depot-economics-breakdown"]');
+    const inner = [...(panel?.querySelectorAll('th') ?? [])].map((th) => th.textContent ?? '');
+    expect(inner).toContain('Depot (MODELLED)');
+    expect(inner).toContain('Peer median (MODELLED)');
+    expect(panel?.textContent).toContain('Fuel cost per km');
+  });
+
+  it('says fuel is one cost, what the index can tell, and carries the full statement', async () => {
+    await render(<EconomicsPage />);
+    const text = host.textContent ?? '';
+    expect(text).toContain('Fuel is only one cost. The difference between earnings and fuel cost per kilometre is not profit.');
+    expect(text).toContain('is not a finding about any depot');
+    expect(text).toContain('planning assumptions');
+    expect(text).toMatch(/fuel issue records/i);
+    expect(text).toContain('A trip is a run out and back');
+    expect(host.querySelector('a[href="/project/depots/sources"]')).not.toBeNull();
+  });
+
+  it('puts no aria-selected on a table row', async () => {
+    await render(<EconomicsPage />);
+    expect(host.querySelector('tbody tr[aria-selected]')).toBeNull();
+    expect(host.querySelector('tbody tr button[aria-pressed]')).not.toBeNull();
+  });
+
+  it('explains an almost empty ranking, shows unranked depots, and gives each a visible reason', async () => {
+    useData(sparseData());
+    await render(<EconomicsPage />);
+    const text = host.textContent ?? '';
+    expect(text).toContain('Only 0 of 3 operating depots can be ranked.');
+    expect(host.querySelector('a[href="/project/depots/routes"]')).not.toBeNull();
+    expect(host.querySelectorAll('tbody tr')).toHaveLength(3);
+    const first = host.querySelector('tbody tr')?.textContent ?? '';
+    expect(first).toContain('not ranked');
+    expect(first).toContain('length not known');
+    expect(first).toContain('0 of 9 routes');
+  });
+
+  it('says nothing is ranked yet when the filter is turned off, and filters when searching', async () => {
+    useData(sparseData());
+    await render(<EconomicsPage />);
+    const box = host.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    expect(box?.checked).toBe(true);
+    await act(async () => box?.click());
+    expect(host.textContent).toContain('Nothing is ranked yet.');
+  });
+
+  it('announces a selected depot that the filters hide', async () => {
+    useData(sparseData());
+    await render(<EconomicsPage />);
+    const button = host.querySelector<HTMLButtonElement>('button[aria-label^="Economics breakdown"]');
+    await act(async () => button?.click());
+    const box = host.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    await act(async () => box?.click());
+    expect(host.querySelector('[role="status"]')?.textContent).toMatch(/hidden by the filters/i);
   });
 });
 

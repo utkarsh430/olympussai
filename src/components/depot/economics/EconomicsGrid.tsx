@@ -2,7 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
-import type { EconomicsRow } from '@/lib/depot/revenue/economicsPageModel';
+import {
+  emptyRowText,
+  type EconomicsFilters,
+  type EconomicsRow,
+} from '@/lib/depot/revenue/economicsPageModel';
 import { sortRows, type SortDirection } from '@/lib/depot/tableSort';
 import { COLUMNS, content } from './EconomicsCells';
 
@@ -15,11 +19,14 @@ interface Sort {
 
 export interface EconomicsGridProps {
   readonly rows: readonly EconomicsRow[];
+  /** Every row before filtering, and the filters, so an empty table can say why. */
+  readonly allRows: readonly EconomicsRow[];
+  readonly filters: EconomicsFilters;
   readonly selectedId: string | null;
   readonly onSelect: (row: EconomicsRow) => void;
 }
 
-export function EconomicsGrid({ rows, selectedId, onSelect }: EconomicsGridProps) {
+export function EconomicsGrid({ rows, allRows, filters, selectedId, onSelect }: EconomicsGridProps) {
   const [sort, setSort] = useState<Sort | null>(null);
   const visible = useMemo(() => {
     const column = sort ? COLUMNS.find((c) => c.key === sort.key) : undefined;
@@ -53,7 +60,6 @@ export function EconomicsGrid({ rows, selectedId, onSelect }: EconomicsGridProps
                 >
                   <button type="button" className="depot-sort-button" onClick={() => toggle(c.key)}>
                     {c.header}
-                    {c.modelledTag ? <span className="ml-1 text-alert-amber">MODELLED</span> : null}
                     <span aria-hidden className="inline-block w-3 text-holo-glow">
                       {active === null ? '' : active === 'asc' ? '↑' : '↓'}
                     </span>
@@ -67,7 +73,7 @@ export function EconomicsGrid({ rows, selectedId, onSelect }: EconomicsGridProps
           {visible.length === 0 ? (
             <tr>
               <td colSpan={COLUMNS.length} className="depot-prose !py-6">
-                No depots match. Turn on Show unranked or clear the search.
+                {emptyRowText(allRows, filters)}
               </td>
             </tr>
           ) : null}
@@ -76,7 +82,6 @@ export function EconomicsGrid({ rows, selectedId, onSelect }: EconomicsGridProps
             return (
               <tr
                 key={row.depotId}
-                aria-selected={selected}
                 className={`group depot-row-selectable ${selected ? 'depot-row-selected' : ''}`}
               >
                 {COLUMNS.map((c) => (

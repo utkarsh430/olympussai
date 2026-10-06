@@ -7,7 +7,7 @@ import {
   type EconomicsRow,
 } from '@/lib/depot/revenue/economicsPageModel';
 import type { EconomicsResponse } from '@/lib/depot/revenue/api';
-import { coverageSentence } from '@/lib/depot/revenue/revenuePageModel';
+import { coverageSentence, modelledHeader } from '@/lib/depot/revenue/revenuePageModel';
 
 /**
  * Why one depot scored what it did on the MODELLED economics index: each
@@ -52,11 +52,11 @@ export function EconomicsBreakdown({
           <thead>
             <tr>
               <th scope="col">Component</th>
-              <th scope="col" className="depot-align-right">Depot</th>
-              <th scope="col" className="depot-align-right">Peer median</th>
-              <th scope="col" className="depot-align-right">Z (higher is better)</th>
+              <th scope="col" className="depot-align-right">{modelledHeader('Depot')}</th>
+              <th scope="col" className="depot-align-right">{modelledHeader('Peer median')}</th>
+              <th scope="col" className="depot-align-right">{modelledHeader('Z (higher is better)')}</th>
               <th scope="col" className="depot-align-right">Weight</th>
-              <th scope="col" className="depot-align-right">Contribution</th>
+              <th scope="col" className="depot-align-right">{modelledHeader('Contribution')}</th>
             </tr>
           </thead>
           <tbody>
