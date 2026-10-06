@@ -5,6 +5,16 @@
 
 export type ForecastMethod = 'seasonal_naive' | 'holt_winters';
 
+/**
+ * Why the method was chosen, as a code a page can turn into a sentence:
+ * - `short_history`: fewer than two full weeks before the backtest window, so
+ *   Holt-Winters was not offered and the seasonal-naive baseline was used.
+ * - `within_margin`: Holt-Winters did not beat the baseline by more than the
+ *   margin, so the simpler method was kept.
+ * - `holt_winters_better`: Holt-Winters beat the baseline by more than the margin.
+ */
+export type MethodReason = 'short_history' | 'within_margin' | 'holt_winters_better';
+
 export interface ForecastPoint {
   /** YYYY-MM-DD, consecutive days after the last history date. */
   readonly date: string;
@@ -15,6 +25,7 @@ export interface ForecastPoint {
 
 export interface Forecast {
   readonly method: ForecastMethod;
+  readonly reason: MethodReason;
   readonly horizonDays: number;
   readonly points: readonly ForecastPoint[];
   /** Mean absolute one-step error of the chosen method, in the metric's own scale. */
@@ -22,6 +33,8 @@ export interface Forecast {
   /** How many one-step forecasts the backtest scored. */
   readonly backtestDays: number;
   readonly seasonalNaiveMae: number;
+  /** Null when Holt-Winters was not offered (`short_history`). */
+  readonly holtWintersMae: number | null;
   /** Length of the contiguous run of days ending on the latest date. */
   readonly historyDays: number;
 }
