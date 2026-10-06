@@ -10,13 +10,12 @@ import {
 import { useDepotDistribution, type DepotDistributionState } from '@/hooks/useDepotDistribution';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import type { DepotDistributionResponse } from '@/lib/depot/api';
+import { decisionEvent, undoEvent } from '@/lib/depot/rebalance/decisionEvents';
 import {
-  decisionEvent,
   decisionKindsFor,
   decisionTrail,
   decisionsFor,
-  undoEvent,
-} from '@/lib/depot/decisions';
+} from '@/lib/depot/rebalance/decisionReducers';
 import { compareOutcomes, runScenario } from '@/lib/depot/optimise/scenario';
 import type { ScenarioOutcome } from '@/lib/depot/optimise/types';
 import { mapGeometry } from '@/lib/depot/rebalance/mapGeometry';

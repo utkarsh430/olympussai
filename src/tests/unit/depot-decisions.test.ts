@@ -3,14 +3,16 @@ import { appendAuditEvent, type AuditEvent } from '@/lib/audit/auditLog';
 import {
   NOTE_MAX_CHARS,
   decisionEvent,
-  decisionKindsFor,
-  decisionTrail,
-  decisionsFor,
   parseDecisionEvent,
   undoEvent,
   validateNote,
   type DecisionInput,
-} from '@/lib/depot/decisions';
+} from '@/lib/depot/rebalance/decisionEvents';
+import {
+  decisionKindsFor,
+  decisionTrail,
+  decisionsFor,
+} from '@/lib/depot/rebalance/decisionReducers';
 
 const DATE = '2026-10-06';
 

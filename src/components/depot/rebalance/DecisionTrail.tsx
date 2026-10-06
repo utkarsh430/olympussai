@@ -7,7 +7,11 @@ import {
   writeAuditLog,
   type AuditEvent,
 } from '@/lib/audit/auditLog';
-import type { DecisionTrail as Trail, NewAuditEvent, TrailItem } from '@/lib/depot/decisions';
+import type {
+  DecisionTrail as Trail,
+  NewAuditEvent,
+  TrailItem,
+} from '@/lib/depot/rebalance/decisionEvents';
 
 const DECISION_WORD = { approved: 'Approved', rejected: 'Rejected', deferred: 'Deferred' } as const;
 
