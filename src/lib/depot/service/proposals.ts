@@ -161,7 +161,7 @@ const KIND_ORDER: readonly ProposalKind[] = [
 const carried = (p: Proposal): number => Math.max(0, p.impact?.passengersPerDay.high ?? 0);
 
 /** More passengers carried first, then the earlier hour, then kind. */
-function byImpactThenHour(a: Proposal, b: Proposal): number {
+export function compareProposals(a: Proposal, b: Proposal): number {
   const ia = carried(a);
   const ib = carried(b);
   return (
@@ -185,5 +185,5 @@ export function buildProposals(ctx: ProposalContext): Proposal[] {
     ...bandsOf(short, MIN_BAND_HOURS).map((band) => supplyProposal(ctx, 'add_buses', band)),
     ...bandsOf(spare, MIN_BAND_HOURS).map((band) => supplyProposal(ctx, 'hold_buses', band)),
   ].filter((p): p is Proposal => p !== null);
-  return [...supply, ...timetableFindings(ctx)].sort(byImpactThenHour);
+  return [...supply, ...timetableFindings(ctx)].sort(compareProposals);
 }
