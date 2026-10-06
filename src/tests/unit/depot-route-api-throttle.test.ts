@@ -6,6 +6,7 @@ vi.mock('@/lib/auth/authorize', () => ({
 }));
 vi.mock('@/lib/upsrtc/liveSnapshot', () => ({ getLiveSnapshot: vi.fn() }));
 vi.mock('@/lib/depot/routes/routeCatalogue', () => ({
+  ROUTE_LOOKUP_DEADLINE_MS: 25_000,
   getRouteProfile: vi.fn(),
   routeProfileNeedsFetch: vi.fn(),
 }));
@@ -14,11 +15,17 @@ import { requireUpsrtcAccess } from '@/lib/auth/authorize';
 import { getLiveSnapshot } from '@/lib/upsrtc/liveSnapshot';
 import { getRouteProfile, routeProfileNeedsFetch } from '@/lib/depot/routes/routeCatalogue';
 import { ROUTE_PROFILE_FETCH_LIMITS } from '@/lib/depot/rateLimit';
+import { SCHEDULE_MAX_UPSTREAM_CALLS } from '@/lib/upsrtc/scheduleService';
 import { GET } from '@/app/api/upsrtc/depot/route/[routeName]/route';
 
-/** Cache misses on the route profile reach the government's server, so they are limited. */
+/**
+ * Cache misses on the route profile reach the government's server, so they are limited.
+ * The limits count calls to that server, and each miss is charged the most calls one
+ * lookup can make.
+ */
 
 const { perIdentityPerMinute, perProcessPerMinute } = ROUTE_PROFILE_FETCH_LIMITS;
+const lookupsPerIdentity = Math.floor(perIdentityPerMinute / SCHEDULE_MAX_UPSTREAM_CALLS);
 let sidCounter = 0;
 const signedInAs = (sid: string): void => {
   vi.mocked(requireUpsrtcAccess).mockResolvedValue({
@@ -62,9 +69,14 @@ describe('route profile upstream throttle', () => {
     for (let i = 0; i < perIdentityPerMinute * 2; i += 1) expect((await call()).status).toBe(200);
   });
 
+  it('charges each miss the most upstream calls a lookup can make', () => {
+    expect(SCHEDULE_MAX_UPSTREAM_CALLS).toBeGreaterThan(1);
+    expect(lookupsPerIdentity).toBeGreaterThan(0);
+  });
+
   it('limits cache misses per identity with 429, Retry-After and the fixed body', async () => {
     vi.mocked(routeProfileNeedsFetch).mockReturnValue(true);
-    for (let i = 0; i < perIdentityPerMinute; i += 1) expect((await call()).status).toBe(200);
+    for (let i = 0; i < lookupsPerIdentity; i += 1) expect((await call()).status).toBe(200);
     vi.mocked(getRouteProfile).mockClear();
     const limited = await call();
     expect(limited.status).toBe(429);

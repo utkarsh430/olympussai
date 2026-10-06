@@ -128,7 +128,7 @@ describe('the drawer states', () => {
   });
 
   it('is ready once the profile has arrived', () => {
-    const data = { status: 'unavailable', reason: 'no_schedule', fetchedAt: 'x' } as const;
+    const data = { status: 'unavailable', reason: 'no_schedule', fetchedAt: 'x', feedNow: null, source: 'live', stale: false } as const;
     expect(drawerPhase({ ...idle, data }).kind).toBe('ready');
   });
 

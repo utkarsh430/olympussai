@@ -25,9 +25,21 @@ const CACHE_TTL_MS = 120_000;
 interface ScheduleLookup {
   schedule: CanonicalSchedule | null;
   resolvedDate: string;
+  /**
+   * False when a "not assigned" came with a date that did not answer at all: the
+   * server never said so for that date. Only a strict caller tells the two apart.
+   */
+  everyDateAnswered: boolean;
 }
 
-const cache = new TtlCache<ScheduleLookup>(CACHE_TTL_MS);
+/**
+ * Most lookups the cache holds. Its key includes a trip id the caller chooses,
+ * and a real schedule is about 30 KB, so without a bound one user could grow it
+ * for the life of the process. 500 is about 15 MB at most.
+ */
+export const SCHEDULE_CACHE_MAX_KEYS = 500;
+
+const cache = new TtlCache<ScheduleLookup>(CACHE_TTL_MS, { maxKeys: SCHEDULE_CACHE_MAX_KEYS });
 
 /**
  * This endpoint is far slower than the live feed and asymmetrically so: a
@@ -51,12 +63,43 @@ export interface BusScheduleInput {
   readonly tripId: string | null;
 }
 
+export interface BusScheduleOptions {
+  /**
+   * The operating date the fallback dates count back from. A caller that reads the
+   * feed passes the date from the feed's clock; without one it is the India date of
+   * the `now` passed in, never the machine clock read here.
+   */
+  readonly today?: string;
+  /**
+   * Answer "not assigned" only when every date the lookup tried answered so. A
+   * date that failed then makes the lookup a failure (not cached), and a partial
+   * answer cached for another caller is not served. Without it a partial answer
+   * reads as "not assigned", as the command centre's schedule route has always had.
+   */
+  readonly requireEveryDateAnswered?: boolean;
+}
+
+/** A cached lookup a caller may be served: a strict caller never gets a partial "not assigned". */
+const servable = (lookup: ScheduleLookup, strict: boolean): boolean =>
+  !strict || lookup.schedule !== null || lookup.everyDateAnswered;
+
+/** `today` itself and the days before it that a lookup falls back to. */
+const FALLBACK_DAY_OFFSETS = [0, -1, -2] as const;
+
+/**
+ * The most calls one lookup can make to the schedule server: the requested date,
+ * then each fallback date. A limiter that protects that server charges this much
+ * for every lookup it lets through.
+ */
+export const SCHEDULE_MAX_UPSTREAM_CALLS = 1 + FALLBACK_DAY_OFFSETS.length;
+
 export async function fetchBusSchedule(
   input: BusScheduleInput,
   now: number = Date.now(),
+  options: BusScheduleOptions = {},
 ): Promise<ScheduleResponse> {
   const regNum = input.regNum.toUpperCase();
-  const today = indiaDate();
+  const today = options.today ?? indiaDate(new Date(now));
   const requestedDate = input.date ?? today;
   const tripId = input.tripId;
   // The trip id selects which journey is returned, so it belongs in the key.
@@ -64,8 +107,9 @@ export async function fetchBusSchedule(
 
   scheduleDiagnostics.requestCount += 1;
 
+  const strict = options.requireEveryDateAnswered === true;
   const cached = cache.get(cacheKey, now);
-  if (cached) {
+  if (cached && servable(cached, strict)) {
     return {
       schedule: cached.schedule,
       fetchedAt: new Date(now).toISOString(),
@@ -76,11 +120,16 @@ export async function fetchBusSchedule(
   }
 
   if (process.env.NEXT_PUBLIC_DEMO_MODE === '1') {
-    return fixtureSchedule(regNum, requestedDate, 'Fixture mode forced');
+    return fixtureSchedule(regNum, requestedDate, 'Fixture mode forced', now);
   }
 
   scheduleDiagnostics.lastAttemptAt = new Date(now).toISOString();
-  const lookup = await resolveSchedule(regNum, requestedDate, today, tripId);
+  const resolved = await resolveSchedule(regNum, requestedDate, today, tripId);
+  // A partial "not assigned" is a failure to a strict caller, and is not cached for it.
+  const lookup =
+    resolved.found && !servable(resolved.found, strict)
+      ? { found: null, error: resolved.error }
+      : resolved;
 
   if (lookup.found) {
     cache.set(cacheKey, lookup.found, now);
@@ -108,7 +157,7 @@ export async function fetchBusSchedule(
     } satisfies ScheduleResponse;
   }
 
-  return fixtureSchedule(regNum, requestedDate, scheduleDiagnostics.lastError);
+  return fixtureSchedule(regNum, requestedDate, scheduleDiagnostics.lastError, now);
 }
 
 /**
@@ -122,7 +171,7 @@ export async function fetchBusSchedule(
  * whose live record carries no assignment at all.
  */
 function candidateDates(requested: string, today: string): string[] {
-  return [...new Set([requested, today, shiftDate(today, -1), shiftDate(today, -2)])];
+  return [...new Set([requested, ...FALLBACK_DAY_OFFSETS.map((days) => shiftDate(today, days))])];
 }
 
 interface ResolveResult {
@@ -141,6 +190,7 @@ async function probe(
   return {
     schedule: normalizeSchedulePayload(result.payload, regNum, date, tripId),
     resolvedDate: date,
+    everyDateAnswered: true,
   };
 }
 
@@ -176,9 +226,13 @@ async function resolveSchedule(
     if (outcome.schedule) return { found: outcome, error: null };
   }
 
-  // Every candidate answered, none had an assignment — a real "not assigned",
-  // worth caching. If nothing answered at all, report the upstream failure.
-  if (typeof first !== 'string') return { found: first, error: null };
+  // The requested date answered "not assigned" and no date had an assignment. It is
+  // a real "not assigned" only if every other date answered too; a failed date's
+  // error is kept beside it for the strict caller. If the requested date failed,
+  // report the upstream failure.
+  if (typeof first !== 'string') {
+    return { found: { ...first, everyDateAnswered: error === null }, error };
+  }
   return { found: null, error };
 }
 
@@ -186,11 +240,16 @@ function noAssignmentMessage(date: string): string {
   return `No UPSRTC schedule assigned to this vehicle (checked ${date} and the preceding operating days).`;
 }
 
-function fixtureSchedule(regNum: string, date: string, reason: string | null): ScheduleResponse {
+function fixtureSchedule(
+  regNum: string,
+  date: string,
+  reason: string | null,
+  now: number,
+): ScheduleResponse {
   const schedule = normalizeSchedulePayload(scheduleFixture, regNum, date);
   return {
     schedule,
-    fetchedAt: new Date().toISOString(),
+    fetchedAt: new Date(now).toISOString(),
     source: 'fixture',
     stale: true,
     message: reason

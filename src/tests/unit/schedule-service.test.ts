@@ -231,4 +231,95 @@ describe('fetchBusSchedule (direct)', () => {
     expect(cached.fetchedAt).toBe(new Date(T0 + 60_000).toISOString());
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
+
+  it('answers "not assigned" when a fallback date failed, unless asked to be strict', async () => {
+    const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
+    mockFetch.mockImplementation(async (url) =>
+      new URL(url).searchParams.get('date') === TODAY ? ok(NOT_ASSIGNED) : fail,
+    );
+    const input = { regNum: REG, date: TODAY, tripId: null };
+    const lenient = await fetchBusSchedule(input, T0);
+    expect(lenient.source).toBe('live');
+    expect(lenient.schedule).toBeNull();
+    expect((await fetchBusSchedule(input, T0)).source).toBe('cache');
+    const calls = mockFetch.mock.calls.length;
+
+    // Strict: a date that did not answer means nobody knows, so it is a failure,
+    // and the partial answer cached above is not served as an answer either.
+    const strict = await fetchBusSchedule(input, T0, { requireEveryDateAnswered: true });
+    expect(strict.source).toBe('fixture');
+    expect(strict.message).toBe('Showing UPSRTC fixture fallback (HTTP 502).');
+    expect(mockFetch.mock.calls.length).toBeGreaterThan(calls);
+    // The failure was not cached: asking again calls the server again.
+    const again = mockFetch.mock.calls.length;
+    await fetchBusSchedule(input, T0, { requireEveryDateAnswered: true });
+    expect(mockFetch.mock.calls.length).toBeGreaterThan(again);
+  });
+
+  it('caches a strict "not assigned" when every date answered so', async () => {
+    const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
+    mockFetch.mockResolvedValue(ok(NOT_ASSIGNED));
+    const input = { regNum: REG, date: TODAY, tripId: null };
+    const options = { requireEveryDateAnswered: true };
+    const first = await fetchBusSchedule(input, T0, options);
+    expect(first.source).toBe('live');
+    expect(first.schedule).toBeNull();
+    const second = await fetchBusSchedule(input, T0, options);
+    expect(second.source).toBe('cache');
+    expect(second.schedule).toBeNull();
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('stamps the fallback sample with the clock passed in, not the machine clock', async () => {
+    const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
+    mockFetch.mockResolvedValue(fail);
+    const later = T0 + 3_600_000;
+    const response = await fetchBusSchedule({ regNum: REG, date: TODAY, tripId: null }, later);
+    expect(response.source).toBe('fixture');
+    expect(response.fetchedAt).toBe(new Date(later).toISOString());
+  });
+
+  it('holds at most its bound of lookups, forgetting the oldest first', async () => {
+    const { fetchBusSchedule, SCHEDULE_CACHE_MAX_KEYS } = await import(
+      '@/lib/upsrtc/scheduleService'
+    );
+    mockFetch.mockResolvedValue(ok(scheduleFixture));
+    const lookup = (trip: number) =>
+      fetchBusSchedule({ regNum: REG, date: TODAY, tripId: `t${trip}` }, T0);
+    for (let trip = 0; trip <= SCHEDULE_CACHE_MAX_KEYS; trip += 1) await lookup(trip);
+    const callsAfterFilling = mockFetch.mock.calls.length;
+    expect((await lookup(SCHEDULE_CACHE_MAX_KEYS)).source).toBe('cache');
+    expect((await lookup(1)).source).toBe('cache');
+    expect(mockFetch).toHaveBeenCalledTimes(callsAfterFilling);
+    // The first lookup was forgotten: asking again calls the schedule server.
+    expect((await lookup(0)).source).toBe('live');
+    expect(mockFetch).toHaveBeenCalledTimes(callsAfterFilling + 1);
+  });
+
+  it('counts the fallback dates back from the clock passed in, not the machine clock', async () => {
+    const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
+    mockFetch.mockResolvedValue(ok(NOT_ASSIGNED));
+    const twoDaysOn = T0 + 2 * 86_400_000;
+    await fetchBusSchedule({ regNum: REG, date: '2026-10-01', tripId: null }, twoDaysOn);
+    expect(mockFetch.mock.calls.map(urlDate)).toEqual([
+      '2026-10-01',
+      '2026-10-08',
+      '2026-10-07',
+      '2026-10-06',
+    ]);
+  });
+
+  it('counts the fallback dates back from the operating date it is given', async () => {
+    const { fetchBusSchedule, SCHEDULE_MAX_UPSTREAM_CALLS } = await import(
+      '@/lib/upsrtc/scheduleService'
+    );
+    mockFetch.mockResolvedValue(ok(NOT_ASSIGNED));
+    await fetchBusSchedule({ regNum: REG, date: '2026-10-01', tripId: null }, T0, {
+      today: '2026-10-20',
+    });
+    const dates = mockFetch.mock.calls.map(urlDate);
+    expect(dates).toEqual(['2026-10-01', '2026-10-20', '2026-10-19', '2026-10-18']);
+    // The most calls one lookup can make.
+    expect(SCHEDULE_MAX_UPSTREAM_CALLS).toBe(dates.length);
+  });
 });

@@ -8,10 +8,13 @@ export interface RateDecision {
 }
 
 export interface WindowLimiter {
-  /** Whether `key` has a free slot, without taking it. */
-  check(key: string): RateDecision;
-  /** Takes a slot for `key` when one is free; a refused request takes nothing. */
-  take(key: string): RateDecision;
+  /**
+   * Whether `key` has `cost` free slots (default one), without taking them. A request
+   * that does several units of the limited work costs that many slots.
+   */
+  check(key: string, cost?: number): RateDecision;
+  /** Takes `cost` slots (default one) for `key` when all are free; a refusal takes nothing. */
+  take(key: string, cost?: number): RateDecision;
   /** Gives back the most recent hit for a key: the work it paid for never happened. */
   refund(key: string): void;
   /** Keys currently tracked (for the memory bound's test). */
@@ -39,10 +42,16 @@ export function createWindowLimiter(options: {
   const recentFor = (key: string, now: number): readonly number[] =>
     (hits.get(key) ?? []).filter((t) => now - t < options.windowMs);
 
-  function decide(recent: readonly number[], now: number): RateDecision {
-    const first = recent[0];
-    if (recent.length < options.limit || first === undefined) return ALLOWED;
-    const waitMs = first + options.windowMs - now;
+  /**
+   * Allowed when the cost fits beside the hits still in the window. Refused: the wait
+   * until enough of the oldest hits have left the window for the cost to fit. A cost
+   * above the limit never fits; it is refused with the whole window as the wait.
+   */
+  function decide(recent: readonly number[], now: number, cost: number): RateDecision {
+    if (recent.length + cost <= options.limit) return ALLOWED;
+    const freedAt = recent.length + cost - options.limit - 1;
+    const freedBy = cost > options.limit ? undefined : recent[freedAt];
+    const waitMs = freedBy === undefined ? options.windowMs : freedBy + options.windowMs - now;
     return { limited: true, retryAfterSeconds: Math.max(1, Math.ceil(waitMs / MS_PER_SECOND)) };
   }
 
@@ -56,15 +65,16 @@ export function createWindowLimiter(options: {
   }
 
   return {
-    check(key: string): RateDecision {
+    check(key: string, cost: number = 1): RateDecision {
       const now = options.now();
-      return decide(recentFor(key, now), now);
+      return decide(recentFor(key, now), now, cost);
     },
-    take(key: string): RateDecision {
+    take(key: string, cost: number = 1): RateDecision {
       const now = options.now();
       const recent = recentFor(key, now);
-      const decision = decide(recent, now);
-      store(key, decision.limited ? recent : [...recent, now]);
+      const decision = decide(recent, now, cost);
+      const taken = Array.from({ length: cost }, () => now);
+      store(key, decision.limited ? recent : [...recent, ...taken]);
       return decision;
     },
     refund(key: string): void {
@@ -78,6 +88,8 @@ export function createWindowLimiter(options: {
 export interface LimitCheck {
   readonly limiter: WindowLimiter;
   readonly key: string;
+  /** Slots this request takes from the limit; one when absent. */
+  readonly cost?: number;
 }
 
 /**
@@ -85,12 +97,12 @@ export interface LimitCheck {
  * spends no slot in another. Refused: the longest wait among the refusals.
  */
 export function takeAll(checks: readonly LimitCheck[]): RateDecision {
-  const refusals = checks.map((c) => c.limiter.check(c.key)).filter((d) => d.limited);
+  const refusals = checks.map((c) => c.limiter.check(c.key, c.cost)).filter((d) => d.limited);
   if (refusals.length > 0) {
     const retryAfterSeconds = Math.max(...refusals.map((d) => d.retryAfterSeconds));
     return { limited: true, retryAfterSeconds };
   }
-  checks.forEach((c) => c.limiter.take(c.key));
+  checks.forEach((c) => c.limiter.take(c.key, c.cost));
   return ALLOWED;
 }
 
@@ -197,6 +209,11 @@ export function requestIdentity(
  * `GET /api/upsrtc/depot/route/[routeName]`: a cache miss calls the
  * government's schedule server, so misses (never hits) are limited per
  * identity and for the whole process, which protects that server.
+ *
+ * The limits count calls to that server, not lookups. One lookup can make up
+ * to four calls (the requested date, then three fallback dates), and the route
+ * charges every miss all four, so these are the real ceilings on calls: 20, 40
+ * and 120 a minute, which is 5, 10 and 30 lookups a minute.
  */
 export const ROUTE_PROFILE_FETCH_LIMITS = {
   perIdentityPerMinute: 20,

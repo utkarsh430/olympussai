@@ -9,6 +9,7 @@ import { fetchBusSchedule } from '@/lib/upsrtc/scheduleService';
 import {
   ROUTE_CACHE_MAX,
   ROUTE_NEGATIVE_TTL_MS,
+  cachedRouteProfiles,
   getRouteProfile,
   inFlightSizeForTests,
   resetRouteCatalogueForTests,
@@ -127,6 +128,7 @@ describe('getRouteProfile', () => {
     expect(mockService).toHaveBeenCalledWith(
       { regNum: 'UP78JT4102', date: '2026-10-06', tripId: '30396' },
       T0,
+      { today: '2026-10-06', requireEveryDateAnswered: true },
     );
     if (result.status !== 'ok') throw new Error('expected ok');
     expect(result.profile.routeName).toBe(ROUTE);
@@ -135,6 +137,16 @@ describe('getRouteProfile', () => {
     expect(result.profile.description).toBe('BAREILLY TO RUDRAPUR');
     expect(result.profile.scheduledDurationMin).toBe(120);
     expect(result.profile.lengthKm).toBeCloseTo(111.2, 1);
+  });
+
+  it("asks for the bus's own date and counts fallback dates back from the feed's date", async () => {
+    const overnight = row('UP1', { scheduledStart: '2026-10-04T22:00:00.000Z' });
+    await getRouteProfile(ROUTE, view([overnight]), T0);
+    expect(mockService.mock.calls[0]?.[0].date).toBe('2026-10-04');
+    expect(mockService.mock.calls[0]?.[2]).toEqual({
+      today: '2026-10-06',
+      requireEveryDateAnswered: true,
+    });
   });
 
   it('falls back to the feed date when the bus has no scheduled start', async () => {
@@ -336,17 +348,27 @@ describe('error logging and cache hygiene', () => {
     expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(/^\[depot:route-catalogue\] /);
   });
 
-  it('clears the in-flight entry after a failed fetch and retries after the TTL', async () => {
+  it('clears the in-flight entry after a failed fetch and asks again on the next request', async () => {
     mockService.mockRejectedValue(new Error('boom'));
     await getRouteProfile(ROUTE, view([row('UP1')]), T0);
     expect(inFlightSizeForTests()).toBe(0);
-    await getRouteProfile(ROUTE, view([row('UP1')]), T0 + ROUTE_NEGATIVE_TTL_MS - 1);
-    expect(mockService).toHaveBeenCalledTimes(1);
     mockService.mockResolvedValue(live(schedule()));
-    const retried = await getRouteProfile(ROUTE, view([row('UP1')]), T0 + ROUTE_NEGATIVE_TTL_MS);
+    const retried = await getRouteProfile(ROUTE, view([row('UP1')]), T0 + 1);
     expect(mockService).toHaveBeenCalledTimes(2);
     expect(retried.status).toBe('ok');
     expect(inFlightSizeForTests()).toBe(0);
+  });
+
+  it('never caches a failure as an answer: the fallback sample is asked about again', async () => {
+    const fleet = view([row('UP1')]);
+    mockService.mockResolvedValue({ ...live(schedule()), source: 'fixture', stale: true });
+    expect(await getRouteProfile(ROUTE, fleet, T0)).toEqual({
+      status: 'unavailable',
+      reason: 'upstream_error',
+    });
+    expect(routeProfileNeedsFetch(ROUTE, fleet, T0 + 1)).toBe(true);
+    await getRouteProfile(ROUTE, fleet, T0 + 1);
+    expect(mockService).toHaveBeenCalledTimes(2);
   });
 
   it('does not let another letter case bypass or reuse a negative entry', async () => {
@@ -357,13 +379,38 @@ describe('error logging and cache hygiene', () => {
     expect(mockService).toHaveBeenCalledTimes(1);
   });
 
-  it("does not serve yesterday's ok entry for today's operating date", async () => {
+  it("does not serve yesterday's ok entry once the feed's operating date moves on", async () => {
     mockService.mockResolvedValue(live(schedule()));
     await getRouteProfile(ROUTE, view([row('UP1')]), T0);
     const nextDay = row('UP1', { scheduledStart: '2026-10-07T08:00:00.000Z' });
-    await getRouteProfile(ROUTE, view([nextDay]), T0 + 86_400_000);
+    const nextFeed = { ...view([nextDay]), feedNow: '2026-10-07T10:00:00.000Z' };
+    await getRouteProfile(ROUTE, nextFeed, T0 + 86_400_000);
     expect(mockService).toHaveBeenCalledTimes(2);
     expect(mockService.mock.calls[1]?.[0].date).toBe('2026-10-07');
+  });
+
+  it('keeps a profile for the operating day when the best bus changes to one of another date', async () => {
+    mockService.mockResolvedValue(live(schedule()));
+    await getRouteProfile(ROUTE, view([row('UP1')]), T0);
+    // An overnight service that left yesterday now ranks first for the route.
+    const overnight = row('UP0', { scheduledStart: '2026-10-05T22:00:00.000Z' });
+    const later = view([overnight, row('UP1', { gpsTimestamp: '2026-10-06T09:00:00.000Z' })]);
+    expect(routeProfileNeedsFetch(ROUTE, later, T0 + 1)).toBe(false);
+    expect((await getRouteProfile(ROUTE, later, T0 + 1)).status).toBe('ok');
+    expect(cachedRouteProfiles(later, '2026-10-06').has(ROUTE)).toBe(true);
+    expect(mockService).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a schedule with no stops as no schedule, asked about again after the TTL', async () => {
+    const fleet = view([row('UP1')]);
+    mockService.mockResolvedValue(live({ ...schedule(), stops: [] }));
+    expect(await getRouteProfile(ROUTE, fleet, T0)).toEqual({
+      status: 'unavailable',
+      reason: 'no_schedule',
+    });
+    expect(cachedRouteProfiles(fleet, '2026-10-06').has(ROUTE)).toBe(false);
+    expect(routeProfileNeedsFetch(ROUTE, fleet, T0 + ROUTE_NEGATIVE_TTL_MS - 1)).toBe(false);
+    expect(routeProfileNeedsFetch(ROUTE, fleet, T0 + ROUTE_NEGATIVE_TTL_MS)).toBe(true);
   });
 });
 

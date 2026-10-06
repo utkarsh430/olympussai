@@ -1,3 +1,5 @@
+import type { DepotFeedEnvelope } from '../api';
+
 /**
  * Route catalogue contract: a route's real stop list, read on demand from the
  * upstream route-details API through one bus that is running it.
@@ -41,5 +43,9 @@ export type RouteProfileResult =
       readonly reason: 'no_bus_on_route' | 'no_schedule' | 'upstream_error';
     };
 
-/** Body of `GET /api/upsrtc/depot/route/[routeName]`. */
-export type RouteProfileResponse = RouteProfileResult & { readonly fetchedAt: string };
+/**
+ * Body of `GET /api/upsrtc/depot/route/[routeName]`: the result and the envelope of
+ * the snapshot the route read (`fetchedAt` is that snapshot's fetch time, `stale`
+ * the depot pages' own freshness rule), like every other depot response.
+ */
+export type RouteProfileResponse = RouteProfileResult & DepotFeedEnvelope;
