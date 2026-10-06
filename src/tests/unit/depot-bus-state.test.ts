@@ -58,6 +58,25 @@ describe('gpsAgeMinutes', () => {
   it('clamps a device clock running ahead to 0', () => {
     expect(gpsAgeMinutes(makeRow({ gpsTimestamp: minutesBefore(-5) }), FEED_NOW)).toBe(0);
   });
+
+  it('clamps a fix up to the reporting window ahead of the feed clock to 0', () => {
+    expect(gpsAgeMinutes(makeRow({ gpsTimestamp: minutesBefore(-30) }), FEED_NOW)).toBe(0);
+  });
+
+  it('gives no age for a fix dated further ahead of the feed clock than the reporting window', () => {
+    expect(gpsAgeMinutes(makeRow({ gpsTimestamp: minutesBefore(-31) }), FEED_NOW)).toBeNull();
+    expect(gpsAgeMinutes(makeRow({ gpsTimestamp: minutesBefore(-300) }), FEED_NOW)).toBeNull();
+  });
+
+  it('never counts a moving, scheduled bus with a fix hours in the future as in service', () => {
+    const row = makeRow({
+      speedKmph: 40,
+      routeName: 'R1',
+      ...TODAY,
+      gpsTimestamp: minutesBefore(-300),
+    });
+    expect(classifyBusState(row, FEED_NOW)).toBe('on_road');
+  });
 });
 
 type Case = readonly [string, Partial<DepotBusRow>, string | null, string];
