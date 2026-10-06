@@ -86,6 +86,25 @@ const GROUPED = {
 const group = (state: string): HTMLElement | null =>
   container.querySelector(`[data-testid="yard-roll-group"][data-state="${state}"]`);
 
+describe('YardRoll group with nothing listed', () => {
+  it('says so in one compact line under its heading, never an empty block', async () => {
+    const model = {
+      ...GROUPED,
+      inYardGroups: [
+        { state: 'in_service', buses: [bus('S1', { state: 'in_service' }), bus('S2', { state: 'in_service' })] },
+        { state: 'dark', buses: darkBuses },
+      ],
+    } as unknown as YardModel;
+    await act(async () => {
+      root.render(<YardRoll model={model} depotId="20" depotNames={new Map()} />);
+    });
+    const quiet = group('in_service');
+    expect(quiet?.querySelector('table')).toBeNull();
+    expect(quiet?.querySelector('.depot-note')?.textContent).toBe('None listed.');
+    expect(group('dark')?.querySelector('.depot-note')).toBeNull();
+  });
+});
+
 describe('YardRoll', () => {
   beforeEach(async () => {
     await act(async () => {

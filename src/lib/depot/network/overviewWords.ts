@@ -82,8 +82,10 @@ function fleetFigure(kpis: NetworkKpis): KpiFigure {
     label: 'Fleet',
     value: fleet.value,
     provenance: fleet.provenance,
+    // Short enough for one figure of the band of five at 1024 px (about 24 characters):
+    // "heard" is the module's word for a bus that is reporting; the title has both counts.
     note:
-      `${formatShare(reporting.value, fleet.value)} reporting · ` +
+      `${formatShare(reporting.value, fleet.value)} heard · ` +
       `${formatShare(assigned.value, fleet.value)} assigned`,
     detail: [counts, ...notes].join('. '),
   };

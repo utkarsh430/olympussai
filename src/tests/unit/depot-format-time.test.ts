@@ -3,8 +3,22 @@ import {
   formatDurationMinutes,
   formatFeedDateTime,
   formatFeedTime,
+  formatFeedTimeOn,
+  formatInstantIst,
   formatRelative,
 } from '@/lib/depot/format';
+
+describe('formatInstantIst', () => {
+  it('writes a true instant as Indian time on a 24-hour clock, never "am" or "pm"', () => {
+    expect(formatInstantIst('2026-10-06T13:34:00.000Z')).toBe('19:04');
+    expect(formatInstantIst('2026-10-06T04:04:00.000Z')).toBe('09:34');
+    expect(formatInstantIst('2026-10-06T19:00:00.000Z')).toBe('00:30');
+  });
+
+  it('gives a dash for anything that does not parse', () => {
+    expect(formatInstantIst('not a time')).toBe('—');
+  });
+});
 
 describe('formatFeedDateTime', () => {
   it('writes weekday, day, month and time from the feed digits', () => {
@@ -87,5 +101,24 @@ describe('formatDurationMinutes', () => {
     expect(formatDurationMinutes(undefined)).toBe('—');
     expect(formatDurationMinutes(Number.NaN)).toBe('—');
     expect(formatDurationMinutes(-5)).toBe('—');
+  });
+});
+
+describe('formatFeedTimeOn', () => {
+  const NOW = '2026-10-06T19:16:00Z';
+
+  it("gives the bare clock time on the feed's own day", () => {
+    expect(formatFeedTimeOn('2026-10-06T08:05:00Z', NOW)).toBe('08:05');
+  });
+
+  it('carries the day for a report from the previous day, never a time later than now', () => {
+    expect(formatFeedTimeOn('2026-10-05T19:45:00Z', NOW)).toBe('5 Oct, 19:45');
+    expect(formatFeedTimeOn('2026-10-05 21:50:12', NOW)).toBe('5 Oct, 21:50');
+  });
+
+  it('gives the day when the feed clock is missing, and a dash for a stamp that does not parse', () => {
+    expect(formatFeedTimeOn('2026-10-05T19:45:00Z', null)).toBe('5 Oct, 19:45');
+    expect(formatFeedTimeOn(null, NOW)).toBe('—');
+    expect(formatFeedTimeOn('yesterday', NOW)).toBe('—');
   });
 });

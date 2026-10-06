@@ -150,13 +150,23 @@ export function shortfallText(shortfalls: readonly RoleShortfall[]): string {
     .join(' ');
 }
 
+/** A modelled duty's id: depot, the day's YYYY-MM-DD, then the duty's number. */
+const DATED_DUTY_ID = /^.+-\d{4}-\d{2}-\d{2}-(\d+)$/;
+
+/**
+ * A shift's name: "Duty 009" for a modelled duty (its id carries the day's raw date, which
+ * never reaches the screen, a title or a label; the page says the day once), any other id
+ * as it is, then "shift 2 of 3" when the duty has more than one.
+ */
 export function shiftLabel(shift: {
   readonly dutyId: string;
   readonly shiftIndex: number;
   readonly shiftCount: number;
 }): string {
-  if (shift.shiftCount <= 1) return shift.dutyId;
-  return `${shift.dutyId}, shift ${shift.shiftIndex + 1} of ${shift.shiftCount}`;
+  const dated = DATED_DUTY_ID.exec(shift.dutyId);
+  const name = dated ? `Duty ${dated[1]}` : shift.dutyId;
+  if (shift.shiftCount <= 1) return name;
+  return `${name}, shift ${shift.shiftIndex + 1} of ${shift.shiftCount}`;
 }
 
 export function shiftsSentence(

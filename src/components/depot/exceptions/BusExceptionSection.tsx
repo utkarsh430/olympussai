@@ -92,7 +92,7 @@ export function BusExceptionSection(props: BusExceptionSectionProps) {
         />
       ) : (
         <div aria-busy={pending}>
-          <BusExceptionTable rows={page.items} kind={page.kind} kindTotals={kindTotals} />
+          <BusExceptionTable rows={page.items} kind={page.kind} kindTotals={kindTotals} feedNow={feedNow} />
         </div>
       )}
       <Pager

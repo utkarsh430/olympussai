@@ -245,7 +245,7 @@ describe('the rendered fuel page states the shortfall and prints no raw date', (
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     await act(async () => root.render(<FuelPage provenance={{ default: 'modelled' }} />));
     const band = host.querySelector('[data-testid="depot-figure-band"]');
-    expect(band?.textContent).toContain('6 with no duty · 2 duties without a bus');
+    expect(band?.textContent).toContain('6 no duty · 2 duties unmatched');
     expect(host.querySelector('[data-testid="depot-fuel-standout-foot"]')?.textContent).not.toContain(
       'without a bus',
     );

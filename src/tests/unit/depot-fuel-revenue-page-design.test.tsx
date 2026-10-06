@@ -149,14 +149,17 @@ describe('fuel page models', () => {
     expect(band[0]).toMatchObject({
       label: 'Buses running duties',
       value: '158 of 200',
-      caption: '42 with no duty · 2 duties without a bus',
+      caption: '42 no duty · 2 duties unmatched',
     });
     expect(band[3]?.label).toBe('Fuel cost');
     expect(fuelBand(fuelData({ notRunCount: 0 }))[0]?.caption).toBe(
-      'every bus has a duty · 2 duties without a bus',
+      '2 duties unmatched',
     );
-    expect(ranCaption(42, 0)).toBe('42 with no duty');
-    expect(ranCaption(0, 1)).toBe('every bus has a duty · 1 duty without a bus');
+    expect(ranCaption(42, 0)).toBe('42 no duty');
+    expect(ranCaption(0, 1)).toBe('1 duty unmatched');
+    expect(ranCaption(0, 0)).toBe('every bus has a duty');
+    // One band figure is about 199 px at 1440 (about 36 characters): the caption fits it.
+    expect(ranCaption(113, 75).length).toBeLessThanOrEqual(36);
     for (const f of band) expect(`${f.label} ${f.caption}`).not.toMatch(/\bran\b|did not|today/i);
     expect(band[3]?.caption).toBe('₹20.10 per km');
     expect(band[4]?.caption).toContain('planning price');

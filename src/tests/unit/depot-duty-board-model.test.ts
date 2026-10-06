@@ -11,6 +11,7 @@ import {
   buildBoardRows,
   emptyDutiesSentence,
   formatMinute,
+  formatSpanShort,
   barTextPlacement,
   barLabel,
   defaultBoardView,
@@ -133,6 +134,21 @@ describe('formatMinute', () => {
     expect(formatMinute(1439)).toBe('23:59');
     expect(formatMinute(1500)).toBe('01:00 next day');
     expect(formatMinute(1440)).toBe('00:00 next day');
+  });
+});
+
+describe('formatSpanShort', () => {
+  // The timeline's label column leaves about 127 px for the times at 11 px mono (6.6 px a
+  // character): 19 characters at most, so the label is never cut.
+  const LABEL_CHARS = 19;
+
+  it('writes a span in one day as start and end', () => {
+    expect(formatSpanShort(420, 600)).toBe('07:00–10:00');
+  });
+
+  it('writes a span that ends after midnight with +1 day, short enough for the label', () => {
+    expect(formatSpanShort(1035, 1525)).toBe('17:15–01:25 +1 day');
+    expect(formatSpanShort(1035, 1525).length).toBeLessThanOrEqual(LABEL_CHARS);
   });
 });
 

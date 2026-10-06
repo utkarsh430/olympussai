@@ -58,7 +58,7 @@ function CellContent({ column, row, selected, onSelect, trends, windowSamples }:
     case 'fleet':
       return <>{formatCount(row.fleet)}</>;
     case 'open':
-      return <OpenChevron />;
+      return <OpenChevron open={selected} />;
     default:
       return <MetricCell cell={row.components.find((c) => c.key === (column.key as DeiComponentKey))} />;
   }

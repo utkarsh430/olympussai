@@ -85,7 +85,12 @@ export function DepotCockpit() {
         hasSchedules={model.hasSchedules}
         noSchedulesSentence={model.noSchedulesSentence}
       />
-      <DepotExceptions depotId={depotId} groups={model.exceptionGroups} depotLines={model.depotExceptions} />
+      <DepotExceptions
+        depotId={depotId}
+        groups={model.exceptionGroups}
+        depotLines={model.depotExceptions}
+        feedNow={data.feedNow}
+      />
       <BriefingRow scope={scope} feedNow={data.feedNow} />
       <CockpitMethod
         fleet={model.board.fleet}

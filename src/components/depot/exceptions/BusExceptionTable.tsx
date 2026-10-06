@@ -5,7 +5,8 @@ import { describeBusException } from '@/lib/depot/exceptions/describe';
 import { busGroupLabel } from '@/lib/depot/exceptions/pageScope';
 import { busColumnPlan } from '@/lib/depot/exceptions/pageModel';
 import type { BusException, BusExceptionKind } from '@/lib/depot/exceptions/types';
-import { formatFeedDateTime, formatFeedTime } from '@/lib/depot/format';
+import { useMemo } from 'react';
+import { formatFeedDateTime, formatFeedTimeOn } from '@/lib/depot/format';
 
 const REGISTRATION: Column<BusException> = {
   key: 'registration',
@@ -26,13 +27,16 @@ const CODE: Column<BusException> = {
   render: (row) => row.detail ?? '—',
   title: (row) => (row.detail === null ? 'Only a tamper code row has one' : `Raw code "${row.detail}"`),
 };
-const LAST_SEEN: Column<BusException> = {
-  key: 'lastSeen',
-  header: 'Last seen',
-  align: 'right',
-  render: (row) => formatFeedTime(row.lastSeen),
-  title: (row) => formatFeedDateTime(row.lastSeen),
-};
+/** A bus last heard on an earlier day than the feed's shows that day with its time. */
+function lastSeenColumn(feedNow: string | null): Column<BusException> {
+  return {
+    key: 'lastSeen',
+    header: 'Last seen',
+    align: 'right',
+    render: (row) => formatFeedTimeOn(row.lastSeen, feedNow),
+    title: (row) => formatFeedDateTime(row.lastSeen),
+  };
+}
 
 export interface BusExceptionTableProps {
   /** Rows after the user's filters. */
@@ -42,6 +46,8 @@ export interface BusExceptionTableProps {
   /** Each kind's total in the page's scope, for its group row; the page count when unknown. */
   readonly kindTotals?: Readonly<Partial<Record<BusExceptionKind, number | null>>>;
   readonly emptyMessage?: string;
+  /** The feed's clock, which decides whether a last-seen time needs its day. */
+  readonly feedNow: string | null;
 }
 
 /**
@@ -53,10 +59,12 @@ export function BusExceptionTable({
   kind = null,
   emptyMessage = 'No bus exceptions on this page.',
   kindTotals = {},
+  feedNow,
 }: BusExceptionTableProps) {
   const plan = busColumnPlan(kind, rows);
+  const lastSeen = useMemo(() => lastSeenColumn(feedNow), [feedNow]);
   // Kind and severity are said once per group row, not on every row (critique MUST 3).
-  const columns = [REGISTRATION, DEPOT, ...(plan.showCode ? [CODE] : []), LAST_SEEN];
+  const columns = [REGISTRATION, DEPOT, ...(plan.showCode ? [CODE] : []), lastSeen];
   const severityOf = new Map(rows.map((row) => [row.kind, row.severity]));
   return (
     <DataTable

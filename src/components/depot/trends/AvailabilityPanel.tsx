@@ -36,9 +36,11 @@ function Figures({ comparison, requirement }: FiguresProps) {
         caption={`${formatCount(requirement.peakRequirement)} at peak + ${formatCount(requirement.spareTarget)} spare`}
       />
       <Figure
-        label={`Forecast, next ${comparison.horizonDays} days`}
+        // A short label: the band's three figures share a third of the column each, and at
+        // 1280 "Forecast, next 14 days" did not fit its figure.
+        label={`Next ${comparison.horizonDays} days`}
         value={`${formatCount(comparison.lowest)} to ${formatCount(comparison.highest)}`}
-        caption="available buses"
+        caption="available buses, forecast"
       />
       <Figure
         label="Days short"

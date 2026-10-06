@@ -62,6 +62,8 @@ export interface BoardRow {
   readonly startMin: number;
   readonly endMin: number;
   readonly timeText: string;
+  /** The same span short enough for the timeline's label column (`formatSpanShort`). */
+  readonly spanText: string;
   readonly registrationNumber: string | null;
   readonly state: DutyState;
   readonly stateWord: string;
@@ -83,6 +85,17 @@ export function formatMinute(minute: number): string {
   const inDay = nextDay ? minute - MINUTES_PER_DAY : minute;
   const text = `${pad2(Math.floor(inDay / MINUTES_PER_HOUR))}:${pad2(inDay % MINUTES_PER_HOUR)}`;
   return nextDay ? `${text} next day` : text;
+}
+
+/**
+ * A duty's span for the timeline's narrow label column: "07:00–10:00", or
+ * "17:15–01:25 +1 day" when it ends after midnight. The full words ("… to 01:25 next
+ * day") stay in the row's title, its accessible name and its expander.
+ */
+export function formatSpanShort(startMin: number, endMin: number): string {
+  const clock = (minute: number): string => formatMinute(minute % MINUTES_PER_DAY);
+  const nextDay = endMin >= MINUTES_PER_DAY ? ' +1 day' : '';
+  return `${clock(startMin)}–${clock(endMin)}${nextDay}`;
 }
 
 // Multiply before dividing so whole-minute offsets give clean percentages (30, not 30.000000000000004).
@@ -272,6 +285,7 @@ export function buildBoardRows(duties: readonly BoardDuty[]): readonly BoardRow[
       startMin: duty.startMin,
       endMin: duty.endMin,
       timeText: `${formatMinute(duty.startMin)} to ${formatMinute(duty.endMin)}`,
+      spanText: formatSpanShort(duty.startMin, duty.endMin),
       registrationNumber: duty.registrationNumber,
       state: duty.state,
       stateWord: STATE_WORD[duty.state],

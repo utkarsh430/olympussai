@@ -141,7 +141,7 @@ export function DutyTimeline({ depotId, rows, feedNow }: DutyTimelineProps) {
                       {/* The times repeat the bar's extent: shown only above 1024 px; at
                           1024 and below they are in the title and the expander. */}
                       <span className="hidden truncate text-depot-muted min-[1025px]:block">
-                        {row.timeText}
+                        {row.spanText}
                       </span>
                     </span>
                   </div>

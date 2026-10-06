@@ -220,6 +220,24 @@ describe('league score breakdown focus, on the real page', () => {
     expect(breakdown()).toBeNull();
     expect(document.activeElement).toBe(row());
 
+    // Escape inside the open breakdown closes it and puts focus back on its row, as the
+    // economics table does.
+    enter();
+    expect(breakdown()?.contains(document.activeElement)).toBe(true);
+    act(() => {
+      document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(breakdown()).toBeNull();
+    expect(document.activeElement).toBe(row());
+
+    // Every row ends in one muted chevron; it turns a quarter while its breakdown is open.
+    const chevrons = (): NodeListOf<Element> =>
+      row().querySelectorAll('[data-testid="depot-disclosure-chevron"]');
+    expect(chevrons()).toHaveLength(1);
+    expect(chevrons()[0]?.className).not.toContain('rotate-90');
+    enter();
+    expect(chevrons()[0]?.className).toContain('rotate-90');
+
     act(() => root.unmount());
     host.remove();
     Element.prototype.scrollIntoView = scroll;
