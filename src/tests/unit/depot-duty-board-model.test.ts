@@ -4,6 +4,7 @@ import {
   AXIS_END_MIN,
   AXIS_START_MIN,
   COST_SENTENCE,
+  ELIGIBILITY_SENTENCE,
   MODEL_NOTICE,
   axisTicks,
   barGeometry,
@@ -14,14 +15,14 @@ import {
   barLabel,
   heldOutParts,
   nowLabel,
+  nowLabelAnchor,
   nowLinePct,
   nowSentence,
   viewAnnouncement,
-  reasonSentence,
   routesWithoutDutySentence,
   spareSentence,
-  summarySentence,
 } from '@/lib/depot/duties/dutyBoardModel';
+import { spareCaption } from '@/lib/depot/duties/dutyStanding';
 
 function duty(over: Partial<BoardDuty> = {}): BoardDuty {
   return {
@@ -142,9 +143,12 @@ describe('buildBoardRows', () => {
     expect(rows.map((r) => r.id)).toEqual(['C', 'A', 'B']);
   });
 
-  it('gives every row a state word, a time span, geometry and a text equivalent', () => {
-    const [assigned, nobus, away] = buildBoardRows([
-      duty({ id: 'A', startMin: 400 }),
+  // Rewritten for round 2: "Matched", never "Assigned" (the page says nothing is
+  // assigned); the class in title case; how the bus stands now on a matched row; and
+  // no reason on any row (the reason is stated once above the chart, dispatch item 4).
+  it('gives every row a state word, a time span, how its bus stands, and a text equivalent', () => {
+    const [matched, nobus, away] = buildBoardRows([
+      duty({ id: 'A', startMin: 400, busStanding: 'on_road', busClass: 'express' }),
       duty({
         id: 'B',
         startMin: 410,
@@ -160,19 +164,19 @@ describe('buildBoardRows', () => {
         blockers: { notInYard: 2, offRoad: 0, dark: 0 },
       }),
     ]);
-    expect(assigned?.stateWord).toBe('Assigned');
-    // Rewritten for the design wave: an unmatched row says "Unmatched"; why is in its reason.
+    expect(matched?.stateWord).toBe('Matched');
     expect(nobus?.stateWord).toBe('Unmatched');
     expect(away?.stateWord).toBe('Unmatched');
-    expect(away?.reason).toContain('2 not in the yard');
-    expect(assigned?.timeText).toBe('06:40 to 15:00');
-    expect(assigned?.ariaLabel).toBe(
-      'Route ORD_1, ordinary, 06:40 to 15:00 (modelled). Assigned: UP32A0001.',
+    expect(matched?.classWord).toBe('Ordinary');
+    expect(matched?.standingWord).toBe('On the road');
+    expect(matched?.busClassWord).toBe('Express');
+    expect(nobus?.standingWord).toBeNull();
+    expect(matched?.timeText).toBe('06:40 to 15:00');
+    expect(matched?.ariaLabel).toBe(
+      'Route ORD_1, Ordinary, 06:40 to 15:00. Matched: UP32A0001, on the road now, an Express bus.',
     );
-    expect(nobus?.ariaLabel).toContain('Unmatched');
-    expect(nobus?.registrationNumber).toBeNull();
-    expect(assigned?.reason).toBeNull();
-    expect(away?.reason).toContain('not in the yard');
+    expect(away?.ariaLabel).toBe('Route ORD_1, Ordinary, 07:00 to 15:00. Unmatched.');
+    expect(JSON.stringify([nobus, away])).not.toMatch(/not in the yard|held out/i);
   });
 
   it('shows a duty past midnight with its real end, not the clipped one', () => {
@@ -195,21 +199,16 @@ describe('sentences', () => {
     );
   });
 
+  // Rewritten for round 2: the tiers said in their order, and who is held out (S55).
+  // The summary sentence it sat beside is gone: the four-figure band says the counts.
   it("states the cost in the assignment module's own terms, in its tier order (S47, S55)", () => {
     expect(COST_SENTENCE).toBe(
-      'The matching keeps buses out on the road in the day first, buses in service before buses merely moving; then it gives a route’s duties to buses running that route, prefers a bus of the duty’s service class, and fits buses to the feed time. Among what is left it minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses.',
+      'The matching gives duties first to buses already out on the road, buses in service before buses merely moving, then to standing buses; then it gives a route’s duties to buses running that route, prefers a bus of the duty’s service class, and fits buses to the feed time. Among what is left it minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses.',
     );
-    expect(COST_SENTENCE).not.toMatch(/never matched/);
-    expect(COST_SENTENCE).not.toMatch(/optimal/i);
-  });
-
-  it('summarises the counts with the modelled tag', () => {
-    expect(summarySentence(counts())).toBe(
-      'MODELLED: 5 duties. The matching proposes a bus for 3 and leaves 2 without one; 1 bus is spare.',
+    expect(ELIGIBILITY_SENTENCE).toBe(
+      'A bus off the road, dark, or not heard in the last 30 minutes is held out of the matching; a standing bus must also be in the yard when the depot has one established.',
     );
-    expect(summarySentence(counts({ duties: 1, assigned: 1, unassigned: 0, spare: 4 }))).toBe(
-      'MODELLED: 1 duty. The matching proposes a bus for 1 and leaves 0 without one; 4 buses are spare.',
-    );
+    expect(COST_SENTENCE).not.toMatch(/never matched|optimal/i);
   });
 
   // Rewritten: the shared modelled-day sentence says there are no duties; this gives
@@ -242,30 +241,15 @@ describe('sentences', () => {
     expect(nowSentence('2026-10-06T23:59:00Z')).toBe('Now 23:59, the feed clock in Indian time.');
   });
 
-  it('describes why an unassigned duty has no bus, whatever its class (S55, N6)', () => {
-    const base = duty({ registrationNumber: null, state: 'no_bus', serviceClass: 'express' });
-    expect(reasonSentence(duty())).toBeNull();
-    const held = { notInYard: 2, notHeard: 1, offRoad: 1, dark: 0 };
-    expect(reasonSentence({ ...base, blockers: held })).toBe(
-      'No eligible bus is left: every eligible bus has another duty. Held out of the matching: 1 not heard recently, 2 not in the yard, 1 off the road.',
-    );
-    expect(reasonSentence({ ...base, blockers: { notInYard: 0, offRoad: 0, dark: 0 } })).toBe(
-      'No eligible bus is left: every eligible bus has another duty, or the depot has none.',
-    );
-    expect(reasonSentence({ ...base, blockers: held })).not.toMatch(/express/);
-  });
-
+  // Rewritten for round 2: the per-row reason is gone (stated once above the chart; its
+  // "whatever the class" pin moved to unmatchedLine in depot-duty-page-model), and the
+  // summary sentence became the band, whose spare caption is checked here instead.
   it('never says every eligible bus has a duty beside a matching that proposed none', () => {
     const none = counts({ duties: 158, assigned: 0, unassigned: 158, spare: 0 });
-    const summary = summarySentence(none);
     const footer = spareSentence([], { assigned: none.assigned, locationIgnored: false });
-    expect(summary).toBe(
-      'MODELLED: 158 duties. The matching proposes a bus for 0 and leaves 158 without one; ' +
-        'no bus is eligible, so none is spare.',
-    );
+    expect(spareCaption(none)).toBe('none eligible');
     expect(footer).toBe('No bus is spare: no bus is eligible for a duty.');
-    expect(`${summary} ${footer}`).not.toMatch(/every eligible bus has a duty|0 buses are spare/);
-    expect(summarySentence(counts({ spare: 0 }))).toMatch(/; no bus is spare\.$/);
+    expect(footer).not.toMatch(/every eligible bus has a duty/);
   });
 
   it('names the spare buses, or says there are none', () => {
@@ -331,11 +315,16 @@ describe('bar text placement', () => {
 // Rewritten for the design wave: the automatic fallback to the table above 60 duties is
 // removed (the chart scrolls in a fixed pane), so the board always opens on the chart.
 describe('bar labels and the now label', () => {
-  it('labels a bar with its registration, or the state word when unmatched', () => {
-    expect(barLabel({ registrationNumber: 'UP78JN1770', stateWord: 'Assigned' })).toBe(
-      'UP78JN1770',
-    );
-    expect(barLabel({ registrationNumber: null, stateWord: 'Unmatched' })).toBe('Unmatched');
+  // Rewritten for round 2: an unmatched bar carries no word (critique Must 3).
+  it('labels a matched bar with its registration and an unmatched one with nothing', () => {
+    expect(barLabel({ registrationNumber: 'UP78JN1770' })).toBe('UP78JN1770');
+    expect(barLabel({ registrationNumber: null })).toBeNull();
+  });
+
+  it('keeps the now flag inside the axis near either end', () => {
+    expect(nowLabelAnchor(50)).toBe('middle');
+    expect(nowLabelAnchor(2)).toBe('start');
+    expect(nowLabelAnchor(97)).toBe('end');
   });
 
   it('labels the now line with its time, and gives none off the axis', () => {

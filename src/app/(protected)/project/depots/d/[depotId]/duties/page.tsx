@@ -1,10 +1,9 @@
 import { Suspense } from 'react';
-import { DutyPage } from '@/components/depot/duties/DutyPage';
-import { LoadingBlock } from '@/components/depot/shell/DataStates';
-import { PageHeader } from '@/components/depot/shell/PageHeader';
+import { DutiesHeader } from '@/components/depot/duties/DutiesHeader';
+import { DutiesLoading, DutyPage } from '@/components/depot/duties/DutyPage';
 import { requireDepotPage } from '@/lib/depot/depotGate';
 
-/** The day's modelled duties for one depot and the buses proposed for them. */
+/** The day's modelled duties for one depot and the bus matched to each. */
 export default async function DepotDutiesPage({
   params,
 }: {
@@ -15,20 +14,18 @@ export default async function DepotDutiesPage({
   // the id is checked before the session gate sees it.
   await requireDepotPage(depotId, '/duties');
 
+  // The header renders inside DutyPage, so the provenance line can carry the dated
+  // modelled-day sentence once the board has loaded.
   return (
-    <>
-      <PageHeader
-        title="Duties"
-        description="The day's duties and the bus proposed for each; nothing is assigned or dispatched."
-        provenanceLine={{
-          default: 'mixed',
-          live: 'Bus states',
-          modelled: 'duties and the matching',
-        }}
-      />
-      <Suspense fallback={<LoadingBlock rows={4} label="Loading the duty board" />}>
-        <DutyPage depotId={depotId} />
-      </Suspense>
-    </>
+    <Suspense
+      fallback={
+        <>
+          <DutiesHeader />
+          <DutiesLoading />
+        </>
+      }
+    >
+      <DutyPage depotId={depotId} />
+    </Suspense>
   );
 }

@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { DutyPage } from '@/components/depot/duties/DutyPage';
 import type { DutyBoardResponse } from '@/lib/depot/duties/api';
-import { NO_DUTIES_REASON } from '@/lib/depot/sim/operatingDayWording';
+import { NO_DUTIES_REASON, noDutiesReason } from '@/lib/depot/sim/operatingDayWording';
 
 /*
  * The duty board prints the shared modelled-day sentence once, beside its
@@ -11,6 +11,10 @@ import { NO_DUTIES_REASON } from '@/lib/depot/sim/operatingDayWording';
 
 const hook = vi.hoisted(() => ({ value: null as unknown }));
 vi.mock('@/hooks/useDepotDuties', () => ({ useDepotDuties: (): unknown => hook.value }));
+// The duty page now renders its own header (the provenance line carries the sentence).
+vi.mock('@/components/depot/data/DepotNetworkProvider', () => ({
+  useDepotNetworkContext: (): unknown => ({ data: null, error: null }),
+}));
 
 function duty(id: string, routeName: string): DutyBoardResponse['duties'][number] {
   return {
@@ -59,14 +63,18 @@ describe('the duty board names the modelled day', () => {
     const body = render(
       board([duty('a', 'AGRA_EXP_1'), duty('b', 'DELHI_EXP_2'), duty('c', 'AGRA_EXP_1')]),
     );
+    // Round 2: the board passes its operatingDate, so the sentence is dated.
     const sentence =
-      'This page is built on the modelled day, rebuilt from the live fleet as of the feed time: 3 duties on 2 routes.';
+      'This page is built on the modelled day for 2026-10-06, rebuilt from the live fleet as of the feed time: 3 duties on 2 routes.';
     expect(body).toContain(sentence);
     expect(body.split(sentence)).toHaveLength(2);
   });
 
   it('gives a depot with no duties the shared reason, in the words the other pages use', () => {
     const body = render(board([]));
-    expect(body).toContain(`${NO_DUTIES_REASON}, so this page has no modelled day to show.`);
+    expect(body).toContain(
+      `${noDutiesReason('2026-10-06')}, so this page has no modelled day to show.`,
+    );
+    expect(noDutiesReason('2026-10-06')).toContain(NO_DUTIES_REASON.split(' (')[0]);
   });
 });

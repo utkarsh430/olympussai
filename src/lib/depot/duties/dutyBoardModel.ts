@@ -1,7 +1,9 @@
 import { formatCount, formatFeedTime } from '../format';
 import { modelledDaySentence, type ModelledDayReference } from '../sim/operatingDayWording';
-import type { BoardDuty, DutyBlockers, DutyBoardCounts, DutyState } from './api';
-import type { SpareByStanding } from './types';
+import type { BoardDuty, DutyBlockers, DutyState } from './api';
+import { REPORTING_WINDOW_MIN } from '../infer/thresholds';
+import { CLASS_WORD, STANDING_WORD, busClassWord } from './dutyStanding';
+import type { BusStandingNow, SpareByStanding } from './types';
 
 /** The timeline axis: 04:00 to 24:00 in the feed's local time. */
 export const AXIS_START_MIN = 240;
@@ -21,10 +23,16 @@ export const MODEL_NOTICE =
  * preference, not a bar, so a bus of another class can take a duty.
  */
 export const COST_SENTENCE =
-  'The matching keeps buses out on the road in the day first, buses in service before buses merely moving; then it gives a route’s duties to buses running that route, prefers a bus of the duty’s service class, and fits buses to the feed time. Among what is left it minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses.';
+  'The matching gives duties first to buses already out on the road, buses in service before buses merely moving, then to standing buses; then it gives a route’s duties to buses running that route, prefers a bus of the duty’s service class, and fits buses to the feed time. Among what is left it minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses.';
 
+/** Who `assignDuties` holds out (ruling S55); the window is the module's reporting rule. */
+export const ELIGIBILITY_SENTENCE =
+  `A bus off the road, dark, or not heard in the last ${REPORTING_WINDOW_MIN} minutes is held out of the matching; ` +
+  'a standing bus must also be in the yard when the depot has one established.';
+
+/** "Matched", never "Assigned": the matching is a recommendation and nothing is assigned. */
 export const STATE_WORD: Readonly<Record<DutyState, string>> = {
-  assigned: 'Assigned',
+  assigned: 'Matched',
   no_bus: 'Unmatched',
   bus_not_in_yard: 'Unmatched',
 };
@@ -45,7 +53,8 @@ export interface AxisTick {
 export interface BoardRow {
   readonly id: string;
   readonly routeName: string;
-  readonly serviceClass: string;
+  /** The duty's service class in title case. */
+  readonly classWord: string;
   /** Minutes from midnight; the end may pass 1440. */
   readonly startMin: number;
   readonly endMin: number;
@@ -53,8 +62,11 @@ export interface BoardRow {
   readonly registrationNumber: string | null;
   readonly state: DutyState;
   readonly stateWord: string;
-  /** Why an unassigned duty has no bus; null when assigned. */
-  readonly reason: string | null;
+  /** How the matched bus stands now; null when the duty has no bus or the server did not say. */
+  readonly busStanding: BusStandingNow | null;
+  readonly standingWord: string | null;
+  /** The bus's class, only where it differs from the duty's. */
+  readonly busClassWord: string | null;
   readonly geometry: BarGeometry;
   /** The text equivalent of the bar. */
   readonly ariaLabel: string;
@@ -123,6 +135,15 @@ export function nowLinePct(feedNow: string | null): number | null {
   return pctOfAxis(minutes);
 }
 
+/** Within this share of either axis end the now flag is anchored to its line's edge. */
+const NOW_FLAG_EDGE_PCT = 6;
+
+/** How the now flag hangs from its line, so it never leaves the axis near 04:00 or 24:00. */
+export function nowLabelAnchor(pct: number): 'start' | 'middle' | 'end' {
+  if (pct < NOW_FLAG_EDGE_PCT) return 'start';
+  return pct > PERCENT - NOW_FLAG_EDGE_PCT ? 'end' : 'middle';
+}
+
 export function nowSentence(feedNow: string | null): string {
   const minutes = feedMinutes(feedNow);
   if (minutes === null) return 'The feed has no clock, so there is no now line.';
@@ -135,24 +156,13 @@ export function nowSentence(feedNow: string | null): string {
 const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
 
 /**
- * Why no bus is spare, from the number of duties given a bus. Both sentences
- * below read it, so one cannot say "every eligible bus has a duty" while the
- * other says the matching proposed none. Null when that number is not known.
+ * Why no bus is spare, from the number of duties given a bus, so the footer cannot
+ * say "every eligible bus has a duty" beside a matching that proposed none. Null
+ * when that number is not known.
  */
 function noSpareReason(assigned: number | null): string | null {
   if (assigned === null) return null;
   return assigned === 0 ? 'no bus is eligible for a duty' : 'every eligible bus has a duty';
-}
-
-export function summarySentence(counts: DutyBoardCounts): string {
-  const some = `${formatCount(counts.spare)} ${plural(counts.spare, 'bus is', 'buses are')} spare`;
-  const none = counts.assigned === 0 ? 'no bus is eligible, so none is spare' : 'no bus is spare';
-  const spare = counts.spare > 0 ? some : none;
-  return (
-    `MODELLED: ${formatCount(counts.duties)} ${plural(counts.duties, 'duty', 'duties')}. ` +
-    `The matching proposes a bus for ${formatCount(counts.assigned)} and leaves ` +
-    `${formatCount(counts.unassigned)} without one; ${spare}.`
-  );
 }
 
 export function emptyDutiesSentence(input: {
@@ -230,48 +240,42 @@ export function heldOutParts(blockers: DutyBlockers, locationIgnored = false): r
 }
 
 /**
- * Why a duty has no bus; null for an assigned duty. Class is a cost, not a bar
- * (ruling S47), so a duty is left without a bus only when no eligible bus of
- * ANY class is left, and the held-out counts are of every class (ruling S55).
+ * A row's text equivalent. No reason on an unmatched row: it is the same for every
+ * one and is said once above the chart. Under the MODELLED section label, so no tag.
  */
-export function reasonSentence(duty: BoardDuty, locationIgnored = false): string | null {
-  if (duty.registrationNumber !== null) return null;
-  const head = 'No eligible bus is left: every eligible bus has another duty';
-  const held =
-    duty.blockers === null ? '' : heldOutParts(duty.blockers, locationIgnored).join(', ');
-  if (held === '') return `${head}, or the depot has none.`;
-  return `${head}. Held out of the matching: ${held}.`;
-}
-
-function describe(duty: BoardDuty, timeText: string, stateWord: string): string {
-  const who = duty.registrationNumber === null ? '' : `: ${duty.registrationNumber}`;
-  return `Route ${duty.routeName}, ${duty.serviceClass}, ${timeText} (modelled). ${stateWord}${who}.`;
+function describe(row: Omit<BoardRow, 'ariaLabel' | 'geometry'>): string {
+  const head = `Route ${row.routeName}, ${row.classWord}, ${row.timeText}. ${row.stateWord}`;
+  if (row.registrationNumber === null) return `${head}.`;
+  const now = row.standingWord === null ? '' : `, ${row.standingWord.toLowerCase()} now`;
+  const other = row.busClassWord === null ? '' : `, an ${row.busClassWord} bus`;
+  return `${head}: ${row.registrationNumber}${now}${other}.`;
 }
 
 const byStartThenId = (a: BoardDuty, b: BoardDuty): number =>
   a.startMin - b.startMin || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 /** One row per duty, ordered by start; the chart and the table both render these. */
-export function buildBoardRows(
-  duties: readonly BoardDuty[],
-  locationIgnored = false,
-): readonly BoardRow[] {
+export function buildBoardRows(duties: readonly BoardDuty[]): readonly BoardRow[] {
   return [...duties].sort(byStartThenId).map((duty) => {
-    const timeText = `${formatMinute(duty.startMin)} to ${formatMinute(duty.endMin)}`;
-    const stateWord = STATE_WORD[duty.state];
-    return {
+    const busStanding = duty.registrationNumber === null ? null : (duty.busStanding ?? null);
+    const fields = {
       id: duty.id,
       routeName: duty.routeName,
-      serviceClass: duty.serviceClass,
+      classWord: CLASS_WORD[duty.serviceClass],
       startMin: duty.startMin,
       endMin: duty.endMin,
-      timeText,
+      timeText: `${formatMinute(duty.startMin)} to ${formatMinute(duty.endMin)}`,
       registrationNumber: duty.registrationNumber,
       state: duty.state,
-      stateWord,
-      reason: reasonSentence(duty, locationIgnored),
+      stateWord: STATE_WORD[duty.state],
+      busStanding,
+      standingWord: busStanding === null ? null : STANDING_WORD[busStanding],
+      busClassWord: busClassWord(duty),
+    };
+    return {
+      ...fields,
       geometry: barGeometry(duty.startMin, duty.endMin),
-      ariaLabel: describe(duty, timeText, stateWord),
+      ariaLabel: describe(fields),
     };
   });
 }
@@ -301,9 +305,12 @@ export function barTextPlacement(input: {
 
 export type BoardView = 'chart' | 'table';
 
-/** Text on or beside a bar: the registration when a bus is proposed, else the state word. */
-export function barLabel(row: Pick<BoardRow, 'registrationNumber' | 'stateWord'>): string {
-  return row.registrationNumber ?? row.stateWord;
+/**
+ * Text on or beside a bar: the registration of the matched bus. An unmatched bar
+ * carries no word: its dashed outline and the legend say it (critique, Duties Must 3).
+ */
+export function barLabel(row: Pick<BoardRow, 'registrationNumber'>): string | null {
+  return row.registrationNumber;
 }
 
 /** The label at the top of the now line, or null when there is no line. */
