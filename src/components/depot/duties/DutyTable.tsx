@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { rosterBusHref } from '@/lib/depot/depotNav';
 import { formatMinute, type BoardRow } from '@/lib/depot/duties/dutyBoardModel';
@@ -15,27 +15,22 @@ const DASH = '—';
 
 function buildColumns(depotId: string): readonly Column<BoardRow>[] {
   return [
-    {
-      key: 'route',
-      header: 'Route (MODELLED)',
-      sortValue: (r) => r.routeName,
-      render: (r) => r.routeName,
-    },
+    { key: 'route', header: 'Route', sortValue: (r) => r.routeName, render: (r) => r.routeName },
     {
       key: 'class',
-      header: 'Class (MODELLED)',
+      header: 'Class',
       sortValue: (r) => r.serviceClass,
       render: (r) => r.serviceClass,
     },
     {
       key: 'start',
-      header: 'Start (MODELLED)',
+      header: 'Start',
       sortValue: (r) => r.startMin,
       render: (r) => formatMinute(r.startMin),
     },
     {
       key: 'end',
-      header: 'End (MODELLED)',
+      header: 'End',
       sortValue: (r) => r.endMin,
       render: (r) => formatMinute(r.endMin),
     },
@@ -44,6 +39,8 @@ function buildColumns(depotId: string): readonly Column<BoardRow>[] {
       key: 'bus',
       header: 'Bus',
       sortValue: (r) => r.registrationNumber,
+      title: (r) =>
+        r.registrationNumber === null ? 'No bus is proposed for this duty' : undefined,
       render: (r) =>
         r.registrationNumber === null ? (
           DASH
@@ -56,25 +53,41 @@ function buildColumns(depotId: string): readonly Column<BoardRow>[] {
           </Link>
         ),
     },
-    {
-      key: 'why',
-      header: 'Why no bus',
-      render: (r) =>
-        r.reason === null ? DASH : <span className="font-sans text-[13px]">{r.reason}</span>,
-    },
   ];
 }
 
-/** The same rows as the chart, for keyboard and screen-reader users. */
+/**
+ * The same rows as the chart. No sentence sits in a cell: selecting a row opens its
+ * full text, with the reason an unmatched duty has no bus, in the line under the table
+ * (the shared table has no row expander, so selection stands in for one).
+ */
 export function DutyTable({ depotId, rows }: DutyTableProps) {
   const columns = useMemo(() => buildColumns(depotId), [depotId]);
+  const [selected, setSelected] = useState<string | undefined>(undefined);
+  const row = rows.find((r) => r.id === selected);
   return (
-    <DataTable
-      columns={columns}
-      rows={rows}
-      rowKey={(r) => r.id}
-      caption="Modelled duties and the buses proposed for them"
-      initialSort={{ key: 'start', direction: 'asc' }}
-    />
+    <div className="min-w-0">
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.id}
+        caption="Modelled duties and the buses proposed for them"
+        initialSort={{ key: 'start', direction: 'asc' }}
+        fixedRows
+        freezeFirstColumn
+        overflowCue
+        onRowSelect={(r) => setSelected((current) => (current === r.id ? undefined : r.id))}
+        selectedKey={selected}
+      />
+      <p
+        role="status"
+        data-testid="duty-row-detail"
+        className="mt-2 min-h-5 text-[13px] text-depot-muted"
+      >
+        {row
+          ? `${row.ariaLabel}${row.reason === null ? '' : ` ${row.reason}`}`
+          : 'Select a duty to read why it has no bus.'}
+      </p>
+    </div>
   );
 }

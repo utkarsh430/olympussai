@@ -72,7 +72,9 @@ describe('DutyPage states', () => {
     expect(text(markup)).toContain('Retry');
   });
 
-  it('gives an empty board one sentence with its reason, and still the model notice', () => {
+  // Rewritten for the design wave: one "no duties" sentence (the shared one) with the
+  // cause as its remedy line; the model notice moved into the closed disclosure.
+  it('gives an empty board one "no duties" sentence with its cause, and still the model notice', () => {
     setHook({
       data: {
         ...BASE,
@@ -84,19 +86,23 @@ describe('DutyPage states', () => {
       },
     });
     const body = text(renderToStaticMarkup(<DutyPage depotId="20" />));
-    expect(body).toContain(
-      'No duties are modelled for this depot: none of its buses reports a route',
-    );
+    expect(body).toContain('None of its buses reports a route');
+    expect(body.split('No duties are modelled for this depot')).toHaveLength(2);
     expect(body).toContain(MODEL_NOTICE);
     expect(body).not.toContain('Duty timeline');
   });
 
-  it('shows the notice, summary, cost sentence, spare buses and routes without a duty', () => {
+  // Rewritten: the summary sentence became the four-figure band; the notice, cost,
+  // spare and routes sentences sit in the closed "How these figures are produced".
+  it('shows the figure band, and the notice, cost, spare and routes sentences once', () => {
     setHook({ data: BASE });
     const markup = renderToStaticMarkup(<DutyPage depotId="20" />);
     const body = text(markup);
     expect(body).toContain(MODEL_NOTICE);
-    expect(body).toContain('MODELLED: 1 duty.');
+    expect(markup).toContain('Duty figures');
+    expect(body).toContain('Matched');
+    expect(body).toContain('Spare buses');
+    expect(body).toContain('How these figures are produced');
     expect(body).toContain(COST_SENTENCE);
     expect(body).toContain('1 bus is in the yard with no duty.');
     expect(body).toContain('1 route has no duty: ORD_2.');

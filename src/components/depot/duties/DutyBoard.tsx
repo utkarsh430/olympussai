@@ -1,14 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  CHART_DUTY_LIMIT,
-  defaultView,
-  largeBoardSentence,
-  viewAnnouncement,
-  type BoardRow,
-  type BoardView,
-} from '@/lib/depot/duties/dutyBoardModel';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { viewAnnouncement, type BoardRow, type BoardView } from '@/lib/depot/duties/dutyBoardModel';
 import { DutyLegend } from './DutyLegend';
 import { DutyTable } from './DutyTable';
 import { DutyTimeline } from './DutyTimeline';
@@ -18,6 +12,8 @@ export interface DutyBoardProps {
   /** Already ordered by start (see `buildBoardRows`). */
   readonly rows: readonly BoardRow[];
   readonly feedNow: string | null;
+  /** The reason unmatched duties have no bus, stated once above the chart. */
+  readonly unmatched: string | null;
 }
 
 const VIEWS: readonly { readonly id: BoardView; readonly label: string }[] = [
@@ -26,19 +22,23 @@ const VIEWS: readonly { readonly id: BoardView; readonly label: string }[] = [
 ];
 
 /**
- * The page's one hero: the day's modelled duties on a timeline, with a toggle to
- * the same rows as a table. The chart is the default up to a named number of
- * duties; past it the table opens first and says why. Each switch is announced.
+ * The page's one hero: the day's duties on a timeline in a fixed-height pane, at
+ * every size and every number of duties, with a toggle to the same rows as a table.
+ * Each switch is announced.
  */
-export function DutyBoard({ depotId, rows, feedNow }: DutyBoardProps) {
-  const [view, setView] = useState<BoardView>(() => defaultView(rows.length));
+export function DutyBoard({ depotId, rows, feedNow, unmatched }: DutyBoardProps) {
+  const [view, setView] = useState<BoardView>('chart');
   return (
-    <section aria-labelledby="duty-board-title" data-testid="duty-board">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h2 id="duty-board-title" className="depot-label">
-          Duty timeline, 04:00 to 24:00 (MODELLED)
-        </h2>
-        <div role="group" aria-label="Show duties as" className="flex gap-1">
+    <section aria-labelledby="duty-board-title" data-testid="duty-board" className="min-w-0">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <SectionLabel
+            id="duty-board-title"
+            label="Duty timeline, 04:00 to 24:00"
+            count={rows.length}
+          />
+        </div>
+        <div role="group" aria-label="Show duties as" className="mb-2 flex gap-1">
           {VIEWS.map((option) => (
             <button
               key={option.id}
@@ -59,11 +59,11 @@ export function DutyBoard({ depotId, rows, feedNow }: DutyBoardProps) {
       <p className="sr-only" role="status" data-testid="duty-view-status">
         {viewAnnouncement(view, rows.length)}
       </p>
-      {rows.length > CHART_DUTY_LIMIT ? (
-        <p className="depot-prose mb-2 text-xs" data-testid="duty-large-note">
-          {largeBoardSentence(rows.length)}
+      {unmatched === null ? null : (
+        <p className="mb-2 text-[13px] text-depot-ink" data-testid="duty-unmatched-line">
+          {unmatched}
         </p>
-      ) : null}
+      )}
       {view === 'chart' ? (
         <>
           <DutyTimeline depotId={depotId} rows={rows} feedNow={feedNow} />
