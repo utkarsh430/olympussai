@@ -192,6 +192,15 @@ describe('analyseRevenue', () => {
     expect(result.depot.loadFactor ?? 2).toBeLessThanOrEqual(MAX_LOAD_FACTOR);
   });
 
+  it('weights the depot load factor by trips, with worked figures stated as literals', () => {
+    // Route A offers 100 seats and fills half of them; route B offers 300 and fills 90%.
+    // Occupied: 50 + 270 = 320 of 400 offered, so 0.80. The plain mean of 0.5 and 0.9 is 0.70.
+    const a: RouteRidershipDay = { ...dayStub, routeName: 'A', seatCapacity: 100, loadFactor: 0.5 };
+    const b: RouteRidershipDay = { ...dayStub, routeName: 'B', seatCapacity: 300, loadFactor: 0.9 };
+    expect(analyseRevenue([a, b]).depot.loadFactor).toBeCloseTo(0.8, 10);
+    expect(analyseRevenue([b, a]).depot.loadFactor).toBeCloseTo(0.8, 10);
+  });
+
   it('says how much of the revenue and of the routes rest on the flat fare', () => {
     const days: RouteRidershipDay[] = [
       { ...dayStub, routeName: 'A', revenue: 600, revenueBasis: 'length_known' },
