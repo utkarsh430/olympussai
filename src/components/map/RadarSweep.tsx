@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { removeMapListeners } from '@/lib/maps/listeners';
 import type { CanonicalLiveBus } from '@/models/canonical';
 
 /**
@@ -67,7 +68,7 @@ export function RadarSweep({ map, bus }: { map: google.maps.Map; bus: CanonicalL
 
     return () => {
       cancelAnimationFrame(frame);
-      listeners.forEach((listener) => listener.remove());
+      removeMapListeners(listeners);
     };
   }, [map, bus.latitude, bus.longitude]);
 

@@ -188,7 +188,7 @@ _Point at the response timeline._
 
 ## 8. Demand capability — 75 seconds
 
-_Open the demand view: select a bus and choose **Demand–Supply** from its analysis menu, or open it from Scenario Lab. (The **Depot Management** button in the command bar opens the depot module, which is a shell for now, not this view.)_
+_Open the demand view: select a bus and choose **Demand - Supply Analysis** from its analysis menu, or open it from Scenario Lab. (The **Depot Management** button in the command bar opens the depot module, which is a shell for now, not this view.)_
 
 > "Fourth scenario. This one is about the fleet, not one vehicle."
 

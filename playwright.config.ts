@@ -1,8 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Overridable so a run can avoid a port another project already holds.
+// The host defaults to `localhost` because that is the origin the Google Maps key
+// authorises; on any other host Maps refuses the key and the basemap never loads.
+// Both are overridable so a run can avoid a port another project already holds.
+const HOST = process.env.E2E_HOST ?? 'localhost';
 const PORT = process.env.E2E_PORT ?? '3000';
-const BASE_URL = `http://127.0.0.1:${PORT}`;
+const BASE_URL = `http://${HOST}:${PORT}`;
 
 export default defineConfig({
   testDir: './tests/e2e',

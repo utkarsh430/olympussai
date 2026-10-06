@@ -39,7 +39,7 @@ Run through this five minutes before presenting.
 - [ ] The schedule section fills in (or says "no schedule assigned" — both fine).
 - [ ] The Alert Centre shows five alerts; click one — the analysis panel opens.
 - [ ] Click **Depot Management** in the command bar — the depot module opens (a shell for now; use **Back to Operations** to return).
-- [ ] Open the demand view from a bus's analysis menu (**Demand–Supply**) or from Scenario Lab.
+- [ ] Open the demand view from a bus's analysis menu (**Demand - Supply Analysis**) or from Scenario Lab.
 - [ ] Open **Audit**, click **Clear** to start with an empty trail.
 - [ ] Open **Scenario Lab**, click **Reset Demonstration**.
 - [ ] Browser at 100% zoom, full screen ready.

@@ -37,7 +37,9 @@ function collectConsoleErrors(page: Page): string[] {
 
 // The raw PIN is never committed; without it the suite is skipped, not failed.
 const E2E_PIN = process.env.E2E_PROJECT_PIN;
-const E2E_ORIGIN = process.env.E2E_ORIGIN ?? 'http://127.0.0.1:3000';
+const E2E_ORIGIN =
+  process.env.E2E_ORIGIN ??
+  `http://${process.env.E2E_HOST ?? 'localhost'}:${process.env.E2E_PORT ?? '3000'}`;
 const E2E_PROJECT_NAME = process.env.E2E_PROJECT_NAME ?? 'upsrtc';
 
 const NETWORK_OVERVIEW = /Network overview/i;

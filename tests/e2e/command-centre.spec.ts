@@ -52,7 +52,9 @@ async function selectFirstBus(page: Page): Promise<void> {
  * Without it the authenticated suite is skipped rather than failing.
  */
 const E2E_PIN = process.env.E2E_PROJECT_PIN;
-const E2E_ORIGIN = process.env.E2E_ORIGIN ?? 'http://127.0.0.1:3000';
+const E2E_ORIGIN =
+  process.env.E2E_ORIGIN ??
+  `http://${process.env.E2E_HOST ?? 'localhost'}:${process.env.E2E_PORT ?? '3000'}`;
 // Must match the target environment's PROJECT_NAME (defaults to 'upsrtc').
 const E2E_PROJECT_NAME = process.env.E2E_PROJECT_NAME ?? 'upsrtc';
 

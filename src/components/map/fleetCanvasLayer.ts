@@ -1,4 +1,5 @@
 import type { CanonicalLiveBus, DataQuality } from '@/models/canonical';
+import { removeMapListeners } from '@/lib/maps/listeners';
 
 /**
  * Canvas overlay for the live fleet.
@@ -255,8 +256,7 @@ export function createFleetLayer(
       scheduleRedraw();
     },
     destroy() {
-      clickListener.remove();
-      moveListeners.forEach((listener) => listener.remove());
+      removeMapListeners([clickListener, ...moveListeners]);
       overlay.setMap(null);
     },
   };
