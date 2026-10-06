@@ -8,6 +8,7 @@ import type { CapacityView } from '@/lib/depot/yard/parkingModel';
 import { capacityFigure } from '@/lib/depot/yard/yardPageModel';
 import { noYardPanel } from '@/lib/depot/yard/yardRollModel';
 import { ROLL_SECTION_ID } from './YardRoll';
+import { meaningToneClass, type DepotMeaning } from '@/lib/depot/palette';
 import type { YardModel } from '@/lib/depot/yard/yardModel';
 
 interface YardFigureProps {
@@ -18,6 +19,10 @@ interface YardFigureProps {
   /** A share from 0 to 1: a 120px bar at the head of the caption line. */
   readonly share?: number;
   readonly title?: string;
+  /** What the figure measures (a plain count unless said), as every band's figures are. */
+  readonly tone?: DepotMeaning;
+  /** The band's headline figure: the buses in the yard. */
+  readonly lead?: boolean;
 }
 
 const PERCENT = 100;
@@ -31,19 +36,21 @@ const PERCENT = 100;
  * of a 360px column, 120px from 640 and 80px at 1024, where a figure is 200px, so "79 free"
  * is never cut. On a phone the caption wraps instead of cutting.
  */
-function YardFigure({ label, value, caption, tag, share, title }: YardFigureProps) {
+function YardFigure(props: YardFigureProps) {
+  const { label, value, caption, tag, share, title, tone = 'count', lead = false } = props;
+  const toneClass = meaningToneClass(tone);
   const width = share === undefined ? 0 : Math.round(Math.min(1, Math.max(0, share)) * PERCENT);
   return (
     <li
       title={title}
       data-testid="yard-figure"
-      className={`min-w-0 list-none border-l border-depot-line px-4 lg:w-[200px] lg:flex-none xl:w-[232px] ${FIGURE_ROWS_CLASSES}`}
+      className={`depot-figure ${toneClass} ${lead ? 'depot-figure-hero ' : ''}min-w-0 list-none border-l border-depot-line px-4 lg:w-[200px] lg:flex-none xl:w-[232px] ${FIGURE_ROWS_CLASSES}`}
     >
       <div className="flex min-h-4 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 [&_.depot-tag]:!py-0 [&_.depot-tag]:!leading-[14px]">
         <div className="depot-label min-w-0 break-words leading-4">{label}</div>
         {tag ? <ProvenanceBadge provenance={tag} /> : null}
       </div>
-      <div className="mt-1.5 break-words font-mono text-xl leading-7 tabular-nums text-depot-ink sm:text-2xl">
+      <div className="mt-1.5 break-words font-mono text-xl leading-7 tabular-nums depot-figure-value sm:text-2xl">
         {value}
       </div>
       <p className="depot-caption mt-1.5 flex min-w-0 items-center gap-2">
@@ -86,6 +93,7 @@ export function YardFigures({ model, capacity, baysPending }: YardFiguresProps) 
               label="In the yard"
               value={formatCount(model.counts.inYard)}
               caption="ours, inside the circle"
+              lead
               title="This depot's buses inside the yard circle, in any state. Buses from other depots inside it are counted under Visiting."
             />
             <YardFigure

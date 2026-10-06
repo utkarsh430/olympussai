@@ -146,7 +146,9 @@ export function feedChip({ data, error, loading, nowMs, page }: FeedChipInput): 
     const text = ['FIXTURE', stale || pageFailed ? 'stale' : null, time]
       .filter((part): part is string => part !== null)
       .join(' · ');
-    return { text, tone: 'fixture', title, srText: `Feed status: ${title}` };
+    // A stale fixture says STALE, so it takes the stale amber rather than the fixture cyan.
+    const tone: FeedChipTone = stale || pageFailed ? 'stale' : 'fixture';
+    return { text, tone, title, srText: `Feed status: ${title}` };
   }
 
   const clock = clockWarning(data);

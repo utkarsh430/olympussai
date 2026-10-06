@@ -63,7 +63,13 @@ export function AllocationPanel({ allocation, groups }: AllocationPanelProps) {
         {plannedAt === null ? null : ` ${plannedAt}`}
       </p>
       <FigureBand label="Dead kilometres a day, modelled">
-        <Figure label={ROUTES_TEXT.savedLabel} value={h.saving} caption={ROUTES_TEXT.kmADay} />
+        <Figure
+          label={ROUTES_TEXT.savedLabel}
+          value={h.saving}
+          caption={ROUTES_TEXT.kmADay}
+          tone="better"
+          lead
+        />
         <Figure label={ROUTES_TEXT.nowLabel} value={h.now} caption={ROUTES_TEXT.kmADay} />
         <Figure label={ROUTES_TEXT.afterLabel} value={h.after} caption={ROUTES_TEXT.kmADay} />
       </FigureBand>
@@ -104,7 +110,12 @@ export function AllocationSection({ state, groups, loader }: AllocationSectionPr
   const { data, error, loading, refresh } = state;
   return (
     <section aria-labelledby={TITLE_ID} className="mb-8 min-w-0">
-      <SectionLabel id={TITLE_ID} label={ROUTES_TEXT.allocationTitle} tag="modelled" note={RECOMMENDATION_ONLY} />
+      <SectionLabel
+        id={TITLE_ID}
+        label={ROUTES_TEXT.allocationTitle}
+        tag="modelled"
+        note={RECOMMENDATION_ONLY}
+      />
       {loader}
       {loading ? (
         <LoadingBlock rows={3} rowHeight={48} label="Loading the allocation plan" />

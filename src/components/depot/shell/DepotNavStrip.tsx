@@ -3,6 +3,7 @@
 import type { ShellNav } from '@/lib/depot/shellModel';
 import { NavLinks } from './NavLinks';
 import { ScrollStrip } from './ScrollStrip';
+import { navGroupToneClass } from '@/lib/depot/palette';
 
 const SCROLLER =
   'flex h-full items-center gap-4 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
@@ -35,7 +36,9 @@ export function DepotNavStrip({
         {(depot ? [depot] : nav.networkGroups).map((group, position) => (
           <div
             key={group.heading}
-            className={`flex shrink-0 items-center ${position > 0 ? 'border-l border-depot-line pl-4' : ''}`}
+            className={`flex shrink-0 items-center ${navGroupToneClass(group.heading, Boolean(depot))} ${
+              position > 0 ? 'border-l border-depot-line pl-4' : ''
+            }`}
           >
             <p className="sr-only">{group.heading}</p>
             <NavLinks items={group.items} pathname={pathname} className="flex" />

@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { meaningTextClass } from '@/lib/depot/palette';
 import Link from 'next/link';
 import { Sparkline } from '@/components/depot/trendChart/Sparkline';
 import { DisclosureChevron } from '@/components/depot/shell/DisclosureChevron';
@@ -120,6 +121,16 @@ export function OpenChevron({ open }: { readonly open: boolean }) {
 }
 
 /**
+ * A higher index is better, so a four-week change the dead band calls UP is green and DOWN
+ * crimson; STEADY and no change keep the muted label colour.
+ */
+export function trendFigureClass(word: string): string {
+  if (word === 'UP') return meaningTextClass('better');
+  if (word === 'DOWN') return meaningTextClass('worse');
+  return 'text-depot-muted';
+}
+
+/**
  * The MODELLED index history at the league's width: a 64px sparkline, then the four-weeks
  * change as a right-aligned signed figure (the trends convention; the words are in the title). Untagged: the column header carries MODELLED.
  */
@@ -134,7 +145,7 @@ export function TrendCell({ name, row }: { readonly name: string; readonly row?:
       />
       {row ? (
         <span
-          className="truncate text-right font-mono text-[12px] tabular-nums text-depot-muted"
+          className={`truncate text-right font-mono text-[12px] tabular-nums ${trendFigureClass(row.fourWeeksWord)}`}
           style={{ width: TREND_TEXT_MAX_PX }}
           title={row.fourWeeksText}
           data-testid="league-trend-figure"

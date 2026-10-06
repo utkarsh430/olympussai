@@ -1,4 +1,5 @@
 import { formatCount } from '@/lib/depot/format';
+import { meaningTextClass, type DepotMeaning } from '@/lib/depot/palette';
 import type { Provenance } from '@/lib/depot/types';
 import { ProvenanceBadge } from './ProvenanceBadge';
 
@@ -8,6 +9,8 @@ export interface SectionLabelProps {
   readonly count?: number;
   /** One line on the right, e.g. "Nearest first". Never a paragraph. */
   readonly note?: string;
+  /** When the note names a severity or state ("Critical"), it is printed in that colour. */
+  readonly noteTone?: DepotMeaning;
   /** Only when this section's provenance differs from the page's provenance line. */
   readonly tag?: Provenance;
   /** Heading level under the page's h1; 2 by default. */
@@ -30,6 +33,7 @@ export function SectionLabel({
   label,
   count,
   note,
+  noteTone,
   tag,
   level = 2,
   id,
@@ -51,7 +55,11 @@ export function SectionLabel({
         </Heading>
         {tag ? <ProvenanceBadge provenance={tag} pill /> : null}
       </div>
-      {note ? <p className="depot-note min-w-0">{note}</p> : null}
+      {note ? (
+        <p className={noteTone ? `depot-note min-w-0 ${meaningTextClass(noteTone)}` : 'depot-note min-w-0'}>
+          {note}
+        </p>
+      ) : null}
       {controls ? (
         <div data-testid="depot-section-controls" className="flex shrink-0 items-center gap-1">
           {controls}

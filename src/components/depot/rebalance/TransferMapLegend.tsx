@@ -1,9 +1,12 @@
 import { MAX_ARC_PX, arcWidthPx } from '@/lib/depot/rebalance/mapGeometry';
 import { BALANCED_COLOUR, DEFICIT_COLOUR, SURPLUS_COLOUR } from './BalanceBar';
-import { DEPOT_PALETTE } from '@/lib/depot/palette';
+import { meaningColour } from '@/lib/depot/palette';
 
-/** Same arc colour the map draws with. */
-export const ARC_COLOUR = DEPOT_PALETTE.label;
+/**
+ * Same arc colour the map draws with: every transfer is a MODELLED recommendation, so the
+ * arcs take the meaning table's modelled teal.
+ */
+export const ARC_COLOUR = meaningColour('plan');
 
 const SAMPLE_SHARES = [1, 0.25, 0.04] as const;
 const SAMPLE_LENGTH_PX = 36;

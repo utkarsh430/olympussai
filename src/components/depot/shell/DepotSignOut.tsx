@@ -21,7 +21,11 @@ export function DepotSignOut({ quiet = false }: { readonly quiet?: boolean }) {
       disabled={pending}
       data-testid="depot-sign-out"
       title={failed ? SIGN_OUT_FAILED : undefined}
-      className={quiet ? 'depot-bar-button depot-bar-button-quiet' : 'depot-bar-button'}
+      className={
+        quiet
+          ? 'depot-bar-button depot-bar-button-gold depot-bar-button-quiet'
+          : 'depot-bar-button depot-bar-button-gold'
+      }
     >
       <LogOut className="h-3.5 w-3.5" aria-hidden />
       {pending ? 'Signing out…' : failed ? 'Sign-out failed: retry' : 'Sign out'}

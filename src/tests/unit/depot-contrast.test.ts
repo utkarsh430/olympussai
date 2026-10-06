@@ -56,11 +56,11 @@ function contrast(text: Rgba, surface: Rgba): number {
 const PAGE = parse(depot.page);
 /**
  * The page where the shell's backdrop (`.depot-shell::before` in globals.css) is
- * brightest: the ambient glow's centre (0.08) under a grid line (0.033).
+ * brightest: the cyan glow's centre (0.1) under a grid line (0.033).
  */
 const BACKDROP_PEAK = over(
   parse('rgba(63, 240, 255, 0.033)'),
-  over(parse('rgba(34, 217, 245, 0.08)'), PAGE),
+  over(parse('rgba(34, 217, 245, 0.1)'), PAGE),
 );
 const SURFACES: Readonly<Record<string, Rgba>> = {
   page: PAGE,
@@ -69,6 +69,8 @@ const SURFACES: Readonly<Record<string, Rgba>> = {
   bar: over(parse(depot.bar), PAGE),
   raised: over(parse(depot.raised), PAGE),
   selected: over(parse(depot.selected), PAGE),
+  /* A selected or expanded table row: the flat selected surface across its whole width. */
+  'selected row': over(parse(depot.selected), PAGE),
 };
 
 const TEXT: Readonly<Record<string, string>> = {
@@ -82,7 +84,22 @@ const TEXT: Readonly<Record<string, string>> = {
   'alert-green': palette.alert.green,
   /* The quiet REFERENCE tag. */
   'slate-400': colors.slate[400],
+  /* Modelled money and energy, forecasts, the Intelligence rail tab. */
+  'holo-teal': palette.holo.teal,
+  /* The brand mark, sign-out and the System rail tab. */
+  'ol-gold': palette.ol.gold,
+  'ol-gold-light': palette.ol['gold-light'],
 };
+
+/**
+ * Toned text on a wash of its own tone: the rail's category tones on the current tab
+ * (20%, the strongest), and every figure tone on the hero figure's wash (13%, stronger
+ * than a figure's 7% or a selected row's 10%).
+ */
+const TONE_WASHES: readonly (readonly [string, number])[] = [
+  ...['holo-glow', 'alert-green', 'holo-teal', 'ol-gold'].map((t) => [t, 0.2] as const),
+  ...['alert-amber', 'alert-crimson', 'slate-400'].map((t) => [t, 0.13] as const),
+];
 
 /** The tones that print a word on their own wash (provenance and feed tags). */
 const TAG_TONES = ['holo-glow', 'alert-amber', 'alert-crimson', 'alert-green', 'slate-400'];
@@ -101,6 +118,16 @@ describe('depot palette contrast', () => {
       it(`a ${tone} tag on its own wash over ${surfaceName} clears ${AA}:1`, () => {
         const text = parse(TEXT[tone] as string);
         const wash = over(withAlpha(text, TAG_WASH_ALPHA), surface);
+        expect(contrast(text, wash)).toBeGreaterThanOrEqual(AA);
+      });
+    }
+  }
+
+  for (const [tone, alpha] of TONE_WASHES) {
+    for (const [surfaceName, surface] of Object.entries(SURFACES)) {
+      it(`${tone} on a ${alpha * 100}% wash of itself over ${surfaceName} clears ${AA}:1`, () => {
+        const text = parse(TEXT[tone] as string);
+        const wash = over(withAlpha(text, alpha), surface);
         expect(contrast(text, wash)).toBeGreaterThanOrEqual(AA);
       });
     }

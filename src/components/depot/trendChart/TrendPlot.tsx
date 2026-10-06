@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import {
   Area,
   CartesianGrid,
@@ -16,7 +16,15 @@ import {
 import type { MetricUnit } from '@/lib/depot/forecast/api';
 import type { ChartPoint, PlotRow, TrendChartModel } from '@/lib/depot/forecast/chartModel';
 import { formatDate, formatTick, formatValue } from '@/lib/depot/forecast/chartScale';
-import { AXIS_FONT_SIZE, BAND_OPACITY, FORECAST_DASH, TREND_COLOUR } from './trendStyle';
+import {
+  AXIS_FONT_SIZE,
+  BAND_OPACITY,
+  FORECAST_DASH,
+  GLOW_OPACITY,
+  GLOW_WIDTH,
+  HISTORY_FILL_TOP,
+  TREND_COLOUR,
+} from './trendStyle';
 import { DEPOT_PALETTE } from '@/lib/depot/palette';
 
 export interface TrendPlotProps {
@@ -99,9 +107,16 @@ export function TrendPlot({ model, unit, height, nowFlag = false }: TrendPlotPro
   const rows = model.rows as PlotRow[];
   const { domain, ticks, step } = model.yScale;
   const now = model.now;
+  const fillId = `depot-trend-fill-${useId().replace(/:/g, '')}`;
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={rows} margin={MARGIN}>
+        <defs>
+          <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={TREND_COLOUR.history} stopOpacity={HISTORY_FILL_TOP} />
+            <stop offset="100%" stopColor={TREND_COLOUR.history} stopOpacity={0} />
+          </linearGradient>
+        </defs>
         <CartesianGrid vertical={false} stroke={TREND_COLOUR.grid} />
         <XAxis
           dataKey="date"
@@ -125,10 +140,21 @@ export function TrendPlot({ model, unit, height, nowFlag = false }: TrendPlotPro
         <Area
           dataKey="band"
           stroke="none"
-          fill={TREND_COLOUR.accent}
+          fill={TREND_COLOUR.forecast}
           fillOpacity={BAND_OPACITY}
           isAnimationActive={false}
           activeDot={false}
+        />
+        <Area
+          dataKey="history"
+          stroke={TREND_COLOUR.history}
+          strokeOpacity={GLOW_OPACITY}
+          strokeWidth={GLOW_WIDTH}
+          fill={`url(#${fillId})`}
+          isAnimationActive={false}
+          activeDot={false}
+          legendType="none"
+          tooltipType="none"
         />
         <Line
           dataKey="history"
@@ -140,7 +166,7 @@ export function TrendPlot({ model, unit, height, nowFlag = false }: TrendPlotPro
         />
         <Line
           dataKey="forecast"
-          stroke={TREND_COLOUR.accent}
+          stroke={TREND_COLOUR.forecast}
           strokeWidth={2}
           strokeDasharray={FORECAST_DASH}
           dot={false}

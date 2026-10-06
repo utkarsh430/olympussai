@@ -201,6 +201,17 @@ describe('the yard page', () => {
     }
   });
 
+  it('draws the yard figures as every band does: a tone accent, the value in its tone, one lead', async () => {
+    hooks.detail = { ...base, data: DATA, error: null, loading: false };
+    const doc = new DOMParser().parseFromString(await renderPage(), 'text/html');
+    const figures = Array.from(doc.querySelectorAll('[data-testid="yard-figure"]'));
+    for (const figure of figures) {
+      expect(figure.className).toContain('depot-figure');
+      expect(figure.querySelector('.depot-figure-value')).not.toBeNull();
+    }
+    expect(figures.filter((f) => f.className.includes('depot-figure-hero'))).toHaveLength(1);
+  });
+
   it('sets the capacity tag inside the label line and the bar at the head of the caption', async () => {
     hooks.detail = { ...base, data: DATA, error: null, loading: false };
     const doc = new DOMParser().parseFromString(await renderPage(), 'text/html');

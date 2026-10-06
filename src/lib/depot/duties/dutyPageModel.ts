@@ -1,4 +1,5 @@
 import { formatCount, formatPlainDate, pluralWord } from '../format';
+import type { DepotMeaning } from '@/lib/depot/palette';
 import { REPORTING_WINDOW_MIN } from '../infer/thresholds';
 import { modelledDayLine } from '../modelledDayLine';
 import type { Coverage } from '../types';
@@ -11,6 +12,10 @@ export interface DutyFigure {
   readonly label: string;
   readonly value: string;
   readonly caption: string;
+  /** Unmatched takes the timeline's crimson unmatched tick, so the problem figure reads as one. */
+  readonly tone?: DepotMeaning;
+  /** The page's headline figure (the duties in the day). */
+  readonly lead?: boolean;
 }
 
 /**
@@ -23,9 +28,14 @@ export function dutyFigures(
 ): readonly DutyFigure[] {
   const { counts } = response;
   return [
-    { label: 'Duties', value: formatCount(counts.duties), caption: 'in the modelled day' },
+    { label: 'Duties', value: formatCount(counts.duties), caption: 'in the modelled day', lead: true },
     { label: 'Matched', value: formatCount(counts.assigned), caption: matchedCaption(response.duties) },
-    { label: 'Unmatched', value: formatCount(counts.unassigned), caption: 'no bus' },
+    {
+      label: 'Unmatched',
+      value: formatCount(counts.unassigned),
+      caption: 'no bus',
+      tone: 'critical',
+    },
     { label: 'Spare buses', value: formatCount(counts.spare), caption: spareCaption(counts) },
   ];
 }

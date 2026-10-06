@@ -6,6 +6,7 @@ import { formatCount } from '@/lib/depot/format';
 import { figureTag, kpiLayout, type KpiFigure } from '@/lib/depot/network/overviewWords';
 import type { DepotSummary, NetworkKpis } from '@/lib/depot/types';
 import { WeekTrendNote } from './WeekTrendNote';
+import { KPI_MEANING } from '@/lib/depot/figureTones';
 
 const COUNT_UP_MS = 700;
 const DONE = 1;
@@ -55,6 +56,8 @@ function BandFigure({ figure, progress }: { readonly figure: KpiFigure; readonly
       caption={figure.note ?? undefined}
       tag={figureTag(figure.provenance)}
       title={figure.detail ?? undefined}
+      tone={KPI_MEANING[figure.key]}
+      lead={figure.key === 'fleet'}
     />
   );
 }

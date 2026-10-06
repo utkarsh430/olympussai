@@ -63,9 +63,53 @@ amber, DERIVED and FIXTURE cyan, REFERENCE slate; the feed chip's STALE, FEED QU
 CLOCK amber. Bus states: green in service, cyan on the road, amber standing, slate dark,
 crimson off the road. Every one is also a word.
 
-Glow is `box-shadow` or `text-shadow` only, never a filter or a size change, and nothing
-moves. `depot-contrast.test.ts` holds every text colour to 4.5:1 on every depot surface,
-the brightest point of the backdrop included; check it when a token changes.
+### Colour meanings
+
+Cyan on navy is the base; the dashboard's second colours each say one thing, the same on
+every page. The one table is `DEPOT_MEANING_TONE` in `src/lib/depot/palette.ts` (with
+`meaningColour`, `meaningTextClass` and `meaningToneClass`); what each page's figures
+measure is in `src/lib/depot/figureTones.ts`. `depot-palette.test.ts` holds both.
+
+| Meaning | Tone |
+|---|---|
+| In service; a change that is better (only where the page states the direction); a complete data field | green |
+| On the road; a plain count; information; chart history | cyan |
+| Standing; warning; a sparse data field; a stale feed (sample data too); the chart's "now" marker | amber |
+| Dark | slate |
+| Off the road; critical; a change that is worse; a threshold | crimson |
+| Money and energy (fuel, cost, revenue); forecasts; planned transfer arcs | teal |
+
+Teal says what a figure measures; whether it is modelled is the amber MODELLED tag's job. A
+distance (empty running, distance run) is a plain count. Every exception figure, depot or
+bus, takes its severity (too many buses off the road critical, the other depot kinds
+warnings), and a severity word in a group row or heading is printed in its colour. A bus
+state is the same colour in the figure band, the state squares, the yard map and the status
+mix bar.
+
+The index has one ramp everywhere (`DEPOT_INDEX_RAMP`): deep crimson, crimson, amber, soft
+green, green, each step lighter than the last, so "lighter is better" holds on the overview
+map's nodes, its highest and lowest dots, and the league and economics index bars.
+
+Structure, not status: the rail's categories have their own colour (the depot's pages green,
+Network cyan, Intelligence teal, System gold); only the current category's tab is lit, the
+others keep a quieter edge. The brand mark and sign-out are the brand gold. A figure takes a
+tone with `<Figure tone="…">`: a short lit accent on its own tile's top edge and the value in
+the tone, with a faint wash for every tone but a plain cyan count. Each band page has one
+headline figure (`lead`) with the stronger wash and glow at the band's size: Fleet on the
+overview, the emergency flag on exceptions, the deficit met on fleet distribution, the
+saving on routes, the forecast on trends, the duties, the buses in the yard, fuel issued,
+revenue, the buses off the road, the ranked depots. A pressed figure filter has a 2px
+underline in its tone. A selected row is the flat selected surface with the 2px cyan edge
+(no gradient). Bars and balance bars brighten along their length; coverage bars take their
+word's colour; the title runs cyan to teal (plain text under forced colours); the live feed
+chip breathes and only clickable panels brighten on hover (both stop under reduced motion).
+The tones are CSS variables (`depot-tone-*` in `globals.css`), so no depot component writes
+a colour literal.
+
+Glow is `box-shadow`, `text-shadow` or (on the title only) a drop shadow, never a size
+change. `depot-contrast.test.ts` holds every text colour to 4.5:1 on every depot surface,
+the brightest point of the backdrop and each tone's strongest wash included; check it when
+a token changes.
 
 ## Prose and notes
 

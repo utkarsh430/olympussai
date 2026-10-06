@@ -1,6 +1,7 @@
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { planFigures } from '@/lib/depot/rebalance/pageLayout';
 import type { PlanSummary } from '@/lib/depot/rebalance/rebalanceModel';
+import { PLAN_FIGURE_MEANING, isLeadFigure } from '@/lib/depot/figureTones';
 
 export interface BalanceSummaryProps {
   readonly summary: PlanSummary;
@@ -26,6 +27,8 @@ export function BalanceSummary({ summary, scenarioActive }: BalanceSummaryProps)
             label={f.label}
             value={f.value}
             caption={f.caption}
+            tone={PLAN_FIGURE_MEANING[f.key]}
+            lead={isLeadFigure(f.key)}
           />
         ))}
       </FigureBand>

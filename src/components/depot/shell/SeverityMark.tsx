@@ -1,5 +1,6 @@
 import type { ExceptionSeverity } from '@/lib/depot/exceptions/types';
 import { SEVERITY_LABEL } from '@/lib/depot/labels';
+import { meaningTextClass } from '@/lib/depot/palette';
 
 /**
  * Square colour per severity, the same status colours as `BusStateMark` (crimson,
@@ -30,7 +31,7 @@ export function SeverityMark({ severity }: SeverityMarkProps) {
       className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap"
     >
       <span aria-hidden className={`h-1.5 w-1.5 shrink-0 ${SEVERITY_SQUARE[severity]}`} />
-      <span className="truncate">{SEVERITY_LABEL[severity]}</span>
+      <span className={`truncate ${meaningTextClass(severity)}`}>{SEVERITY_LABEL[severity]}</span>
     </span>
   );
 }

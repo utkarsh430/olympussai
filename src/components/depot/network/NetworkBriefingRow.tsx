@@ -41,7 +41,7 @@ export function NetworkBriefingRow({ feedNow }: { readonly feedNow: string | nul
         </p>
         <button
           type="button"
-          className="hud-button shrink-0"
+          className="hud-button shrink-0 depot-button-primary"
           aria-expanded={open}
           aria-controls={bodyId}
           onClick={toggle}

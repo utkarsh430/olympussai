@@ -5,7 +5,7 @@ import type { Yard } from '@/lib/depot/infer/types';
 import type { BusOpState } from '@/lib/depot/types';
 import { YARD_RULE_SENTENCE } from '@/lib/depot/infer/yardRuleText';
 import { compareText } from '@/lib/depot/stats/order';
-import { DEPOT_PALETTE } from '@/lib/depot/palette';
+import { meaningColour } from '@/lib/depot/palette';
 
 /** Fixed order for every state grouping, busiest operational state first. */
 export const YARD_STATE_ORDER: readonly BusOpState[] = [
@@ -24,11 +24,11 @@ export const YARD_STATE_ORDER: readonly BusOpState[] = [
  * the same hues.
  */
 export const BUS_STATE_COLOUR: Readonly<Record<BusOpState, string>> = {
-  in_service: DEPOT_PALETTE.green,
-  on_road: DEPOT_PALETTE.glow,
-  standing: DEPOT_PALETTE.amber,
-  dark: DEPOT_PALETTE.slate,
-  off_road: DEPOT_PALETTE.crimson,
+  in_service: meaningColour('inService'),
+  on_road: meaningColour('onRoad'),
+  standing: meaningColour('standing'),
+  dark: meaningColour('dark'),
+  off_road: meaningColour('offRoad'),
 };
 
 /** Buses are drawn out to this many yard radii; further out is not on the map. */
