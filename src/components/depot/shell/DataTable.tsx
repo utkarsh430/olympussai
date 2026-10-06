@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { sortRows, type SortDirection, type SortValue } from '@/lib/depot/tableSort';
+import { TableOverflowCue, useColumnsToTheRight } from './TableOverflowCue';
 
 export interface Column<T> {
   readonly key: string;
@@ -11,6 +12,8 @@ export interface Column<T> {
   readonly sortValue?: (row: T) => SortValue;
   readonly render: (row: T) => React.ReactNode;
   readonly width?: number | string;
+  /** Full text for a cell that may truncate (`fixedRows`); a string `render` result is used when absent. */
+  readonly title?: (row: T) => string | undefined;
 }
 
 export interface TableSort {
@@ -40,6 +43,12 @@ export interface DataTableProps<T> {
   readonly maxRows?: number;
   /** Lifted sort state, for a parent that must say what order the rows are in. */
   readonly tableSort?: TableSortState;
+  /** Rulings table rows: a constant 36px, cells never wrap (truncated, full text in `title`). */
+  readonly fixedRows?: boolean;
+  /** Freeze the first column while the frame scrolls sideways (a wide table). */
+  readonly freezeFirstColumn?: boolean;
+  /** Fade the right edge and say "more columns" while columns are hidden to the right. */
+  readonly overflowCue?: boolean;
 }
 
 export interface TableSortState {
@@ -100,7 +109,12 @@ export function DataTable<T>({
   id,
   maxRows,
   tableSort,
+  fixedRows = false,
+  freezeFirstColumn = false,
+  overflowCue = false,
 }: DataTableProps<T>) {
+  const frame = useRef<HTMLDivElement>(null);
+  const moreColumns = useColumnsToTheRight(frame, overflowCue);
   const own = useTableSort(columns, initialSort);
   const { sort, setSort } = tableSort ?? own;
 
@@ -141,20 +155,33 @@ export function DataTable<T>({
           selectable ? `depot-row-selectable ${selected ? 'depot-row-selected' : ''}` : undefined
         }
       >
-        {columns.map((column) => (
-          <td
-            key={column.key}
-            className={column.align === 'right' ? 'depot-align-right' : undefined}
-          >
-            {column.render(row)}
-          </td>
-        ))}
+        {columns.map((column) => {
+          const content = column.render(row);
+          const title = fixedRows
+            ? (column.title?.(row) ?? (typeof content === 'string' ? content : undefined))
+            : undefined;
+          return (
+            <td
+              key={column.key}
+              title={title}
+              className={column.align === 'right' ? 'depot-align-right' : undefined}
+            >
+              {content}
+            </td>
+          );
+        })}
       </tr>
     );
   };
 
-  return (
+  const tableClass = [
+    'depot-table',
+    fixedRows ? 'depot-table-fixed' : '',
+    freezeFirstColumn ? 'depot-table-frozen' : '',
+  ].join(' ');
+  const scroller = (
     <div
+      ref={frame}
       id={id}
       role="region"
       aria-label={caption}
@@ -162,7 +189,7 @@ export function DataTable<T>({
       data-testid="depot-table"
       className="depot-table-frame"
     >
-      <table className="depot-table">
+      <table className={tableClass.trim()}>
         <caption className="sr-only">{caption}</caption>
         <thead>
           <tr>
@@ -218,6 +245,14 @@ export function DataTable<T>({
           ) : null}
         </tbody>
       </table>
+    </div>
+  );
+  if (!overflowCue) return scroller;
+  // The cue sits on a non-scrolling wrapper so it stays at the frame's right edge.
+  return (
+    <div className="relative min-w-0">
+      {scroller}
+      {moreColumns ? <TableOverflowCue /> : null}
     </div>
   );
 }

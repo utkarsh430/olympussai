@@ -372,6 +372,32 @@
     @apply border-l-holo-glow;
   }
 
+  /* Rulings rows (DataTable `fixedRows`): a constant 36px, never wrapping; a long cell
+     truncates and DataTable puts its full text in `title`. */
+  .depot-table-fixed td {
+    @apply h-9 max-w-[18rem] overflow-hidden text-ellipsis whitespace-nowrap py-0;
+  }
+
+  /* Frozen first column (DataTable `freezeFirstColumn`): it keeps an opaque background so
+     the columns scrolling under it never show through; the header corner sits above both. */
+  .depot-table-frozen th:first-child,
+  .depot-table-frozen td:first-child {
+    @apply sticky left-0 border-r border-r-depot-line;
+  }
+
+  .depot-table-frozen td:first-child {
+    @apply z-[5] bg-depot-page;
+  }
+
+  .depot-table-frozen th:first-child {
+    @apply z-20;
+  }
+
+  .depot-table-frozen .depot-row-selectable:hover td:first-child,
+  .depot-table-frozen .depot-row-selected td:first-child {
+    @apply bg-depot-raised;
+  }
+
   /* Filter controls: 3px radius, hairline border, the global focus ring. */
   .depot-field {
     @apply rounded-[3px] border border-depot-line bg-depot-surface px-2 py-1.5 font-mono text-[13px]
