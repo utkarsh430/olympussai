@@ -226,6 +226,16 @@ describe('routes view', () => {
     expect(classes.classOptions.map((o) => o.value)).toEqual(['EXP', 'ORD']);
     expect(classes.depotOptions.map((o) => o.label)).toEqual(['Alpha', 'Beta']);
   });
+
+  it("gives each depot option its number of distinct routes, whatever the page's filters", () => {
+    const expected = [
+      { value: ALPHA.id, label: 'Alpha', routes: 3 },
+      { value: BETA.id, label: 'Beta', routes: 1 },
+    ];
+    expect(buildRoutesResponse(view(), RQ()).depotOptions).toEqual(expected);
+    const narrowed = buildRoutesResponse(view(), RQ({ depotId: BETA.id, serviceClass: 'EXP' }));
+    expect(narrowed.depotOptions).toEqual(expected);
+  });
 });
 
 describe('the catalogue without a clock in the rows', () => {
