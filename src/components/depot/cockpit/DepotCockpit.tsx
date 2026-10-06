@@ -9,8 +9,10 @@ import {
   LoadingBlock,
   StaleStrip,
 } from '@/components/depot/shell/DataStates';
+import { BriefingCard } from '@/components/depot/copilot/BriefingCard';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
 import { buildCockpit } from '@/lib/depot/cockpit/cockpitModel';
+import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import { DEPOTS_ROOT } from '@/lib/depot/nav';
 import { DepotExceptions } from './DepotExceptions';
 import { DepotHeader } from './DepotHeader';
@@ -54,6 +56,7 @@ function UnknownDepot({ depotId }: { readonly depotId: string }) {
 export function DepotCockpit() {
   const { data, error, loading, refresh, depotId } = useDepotDetailContext();
   const model = useMemo(() => (data ? buildCockpit(data) : null), [data]);
+  const scope = useMemo<CopilotScope>(() => ({ kind: 'depot', depotId }), [depotId]);
 
   if (!data || !model) {
     if (error === DEPOT_NOT_FOUND_MESSAGE) return <UnknownDepot depotId={depotId} />;
@@ -70,6 +73,7 @@ export function DepotCockpit() {
     <div data-testid="depot-cockpit" className="space-y-8">
       {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
       <DepotHeader header={model.header} />
+      <BriefingCard scope={scope} title="Depot briefing" />
       <StatusBoard board={model.board} status={data.depot.status} />
       <OutshedTracker
         depotId={depotId}
