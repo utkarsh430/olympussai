@@ -272,3 +272,6 @@ export interface RouteHourlyBody {
 }
 
 export interface RouteHourlyResponse extends RouteHourlyBody, DepotFeedEnvelope {}
+
+/** What this server has observed of a date: since when (`HH:MM` feed digits), hours, samples. */
+export type ObservedSummary = NonNullable<RouteHourlyBody['observed']>;
