@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { rosterBusHref } from '@/lib/depot/depotNav';
+import { CollapsedSection } from '@/components/depot/shell/CollapsedSection';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import type { ParkingLane, ParkingOrder } from '@/lib/depot/yard/parkingApi';
 import {
@@ -152,16 +153,15 @@ export function ParkingPlan({ depotId, order, operatingDate }: ParkingPlanProps)
           </ul>
         </div>
       ) : null}
-      <details className="mt-3" data-testid="parking-list">
-        <summary className="cursor-pointer text-[13px] text-depot-muted">
-          The order as a list
-        </summary>
-        <ul className="mt-2">
-          {order.lanes.map((lane) => (
-            <LaneList key={lane.id} depotId={depotId} lane={lane} />
-          ))}
-        </ul>
-      </details>
+      <div className="mt-3">
+        <CollapsedSection variant="row" label="The order as a list" testId="parking-list" keepMounted>
+          <ul className="mt-2">
+            {order.lanes.map((lane) => (
+              <LaneList key={lane.id} depotId={depotId} lane={lane} />
+            ))}
+          </ul>
+        </CollapsedSection>
+      </div>
     </section>
   );
 }
