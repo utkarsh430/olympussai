@@ -176,6 +176,21 @@ describe('cockpit page with data', () => {
     expect(markup).toContain('data-testid="depot-no-yard"');
   });
 
+  it('has no raw ISO date anywhere in its text or attributes', () => {
+    const dated = {
+      ...data,
+      outshed: { rows: [], coverage: { n: 3, of: 7 } },
+      exceptions: {
+        ...data.exceptions,
+        bus: data.exceptions.bus.map((e) => ({ ...e, lastSeen: '2026-10-05T13:02:00.000Z' })),
+      },
+    };
+    setContext({ data: dated as unknown as DepotDetailContextValue['data'] });
+    const markup = renderToStaticMarkup(<DepotCockpit />);
+    expect(textOf(markup)).toContain('5 Oct 2026');
+    expect(markup).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
   it('says how many snapshots it has decided the yard on instead of "no yard" at one or none', () => {
     setContext({ data: { ...data, yardSnapshotsSeen: 1 } as unknown as DepotDetailContextValue['data'] });
     const text = textOf(renderToStaticMarkup(<DepotCockpit />));
