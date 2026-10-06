@@ -73,6 +73,9 @@ describe('a repeated registration keeps the row heard most recently (S62, m-a)',
     expect(firstPerRegistration([a, b]).buses[0]?.routeName).toBe('A_ORD_1');
     expect(firstPerRegistration([b, a]).buses[0]?.routeName).toBe('A_ORD_1');
     expect(firstPerRegistration([none, a]).buses[0]?.routeName).toBe('B_ORD_2');
+    const noAgeA = bus('UP1', 'standing', null, { routeName: 'B_ORD_2' });
+    const noAgeB = bus('UP1', 'standing', null, { routeName: 'A_ORD_1' });
+    expect(firstPerRegistration([noAgeA, noAgeB]).buses[0]?.routeName).toBe('A_ORD_1');
     const onRoad = bus('UP1', 'on_road', 2);
     expect(firstPerRegistration([onRoad, a]).buses[0]?.state).toBe('on_road');
   });

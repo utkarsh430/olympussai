@@ -63,13 +63,15 @@ export function feedMinuteOn(feedNow: string | null, operatingDate: string): num
 }
 
 /**
- * The first bus per trimmed registration, with its registration trimmed, and
- * how many rows were dropped. The feed can repeat a registration (the same
- * text, or with stray spaces) and one bus cannot run two duties. "First" is the
- * order of the bus views, which `depotBusViews` sorts by state then
- * registration; rows that tie on both (a repeat of the same text) keep the
- * one with a route, then the lower route name, so the pick never depends on
- * the order the feed sent them in.
+ * One bus per trimmed registration, with its registration trimmed, and how
+ * many rows were dropped. The feed can repeat a registration (the same text,
+ * or with stray spaces) and one bus cannot run two duties. The row heard most
+ * recently is kept (ruling S62), so a stale repeat cannot hold out a bus heard
+ * a minute ago; a row with no age is heard least recently. Rows heard equally
+ * recently keep the first in the order of the bus views, which `depotBusViews`
+ * sorts by state then registration; rows that tie on that too (a repeat of the
+ * same text) keep the one with a route, then the lower route name, so the pick
+ * never depends on the order the feed sent them in.
  */
 export function firstPerRegistration(buses: readonly DepotBusView[]): {
   readonly buses: readonly DepotBusView[];
@@ -80,14 +82,23 @@ export function firstPerRegistration(buses: readonly DepotBusView[]): {
   for (const bus of buses) {
     const key = bus.registrationNumber.trim();
     const held = kept.get(key);
+    const newer = held === undefined ? 0 : Math.sign(compareAge(held, bus));
     const tie =
       held !== undefined && raw.get(key) === bus.registrationNumber && held.state === bus.state;
-    if (held === undefined || (tie && routeFirst(bus, held))) {
+    if (held === undefined || newer > 0 || (newer === 0 && tie && routeFirst(bus, held))) {
       kept.set(key, bus.registrationNumber === key ? bus : { ...bus, registrationNumber: key });
       raw.set(key, bus.registrationNumber);
     }
   }
   return { buses: [...kept.values()], dropped: buses.length - kept.size };
+}
+
+/** Positive when `b` was heard more recently than `a`; a row with no age is heard least recently. */
+function compareAge(a: DepotBusView, b: DepotBusView): number {
+  if (a.gpsAgeMin === b.gpsAgeMin) return 0;
+  if (a.gpsAgeMin === null) return 1;
+  if (b.gpsAgeMin === null) return -1;
+  return a.gpsAgeMin - b.gpsAgeMin;
 }
 
 /** True when `a` should win a tie against `b`: a route beats none, then the lower route name. */
