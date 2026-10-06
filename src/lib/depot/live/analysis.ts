@@ -212,12 +212,24 @@ export function analyseSnapshot(view: FleetSnapshotView): SnapshotAnalysis {
   return analysis;
 }
 
+const resetHooks = new Set<() => void>();
+
+/**
+ * Registers how a memo that outlives one snapshot (so is not held by an
+ * analysis) forgets itself when the process is reset for a test.
+ */
+export function forgetWithAnalyses(forget: () => void): void {
+  resetHooks.add(forget);
+}
+
 /**
  * Test seam: a process that has just started. Forgets every memoised analysis
- * (and with them every memoised view body), the score window and the yards.
+ * (and with them every memoised view body), every memo registered through
+ * `forgetWithAnalyses`, the score window and the yards.
  */
 export function resetAnalysisForTests(): void {
   analyses = new WeakMap();
+  resetHooks.forEach((forget) => forget());
   resetScoreWindowStore();
   resetYardMemoryStore();
 }

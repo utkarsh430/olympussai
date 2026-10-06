@@ -204,6 +204,13 @@ export interface DepotAllocationResponse extends DepotFeedEnvelope {
   readonly profilesPending: boolean;
   /** The sentence to print while `profilesPending`; null otherwise. */
   readonly profilesPendingNote: string | null;
+  /**
+   * The feed time (`feedNow` of the snapshot) the plan in this response was
+   * built at. The plan is held across snapshots for a span of feed time, so it
+   * can be older than this response's own `feedNow`; null when that snapshot's
+   * feed had no clock.
+   */
+  readonly plannedAt: string | null;
   readonly tripDefinition: string;
   readonly provenance: {
     readonly deadKmPerTrip: 'derived';
