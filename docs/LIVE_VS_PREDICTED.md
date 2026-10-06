@@ -143,3 +143,82 @@ and `Routes API: not used`.
   together while an analysis is on screen.
 - Playwright test 21 asserts the words "simulated" and "demonstrate" appear
   nowhere in the rendered interface.
+
+---
+
+## Depot Management (`/project/depots`)
+
+The depot module does not use the `PREDICTIVE` marker. It uses four provenance
+words (`src/lib/depot/labels.ts`), declared once per page under the header,
+with a tag only on a figure, column or section that differs from the page
+default (ruling S44; `src/lib/depot/provenanceLine.ts`):
+
+| Word | Meaning |
+| --- | --- |
+| `LIVE` | Read from the GPS feed or the route details API as sent |
+| `DERIVED` | Computed on the server from live data only |
+| `MODELLED` | Generated from planning assumptions; not measured |
+| `REFERENCE` | Curated static data, not from any feed |
+
+All depot figures are computed from the same snapshot as the command-centre
+map (`src/lib/upsrtc/liveSnapshot.ts`), and every age is measured against the
+feed's own clock. Full detail: [`DEPOT_MANAGEMENT.md`](DEPOT_MANAGEMENT.md).
+
+### Per page
+
+| Page | LIVE | DERIVED | MODELLED | REFERENCE |
+| --- | --- | --- | --- | --- |
+| Network overview | Fleet counts, state and status mix | KPIs, unit kind, efficiency index | — | — |
+| League table | — | Efficiency index and rank over a rolling 20-minute window; peer groups | — | — |
+| Fleet distribution | Fleet, off-road | Available buses, depot positions (inferred yards), transfer plan | Requirement, hence surplus and deficit | — |
+| Routes | Routes seen in the feed, buses on them | Route profiles (stops, terminals, length) once loaded; dead kilometres; allocation plan | Trips per day | — |
+| Exceptions | Bus flags (power, tamper code, emergency, long silence) | Depot exceptions against peers | — | — |
+| Economics | — | Real route lengths where profiles are cached | Earnings, cost and load factor per km; the economics index | — |
+| Network and depot trends | Today's value (the series' last point) | — | Every earlier point, every forecast and band | — |
+| Cockpit, Roster | Bus states, positions, last report, timetable on demand | Location against the yard, outshedding, depot exceptions | — | — |
+| Yard | Positions of standing buses | The yard (inferred; held for up to 12 h) | Lane layout and capacity; the parking order rests on modelled duties | — |
+| Duties | Bus states | Eligibility (in yard, not dark, not off road) | Duties; bus class and age | — |
+| Maintenance | Buses the feed reports under maintenance | Silence age on the feed clock | Odometer, service history and due dates; workshop bays | — |
+| Crew | — | — | Every figure: anonymous slots, shifts, coverage | — |
+| Fuel and cost | — | Real route lengths where cached | Litres, km per litre, cost, flagged buses | — |
+| Revenue | — | Real route lengths where cached | Trips, boardings, revenue | — |
+| Data sources | Field coverage of the live feed | — | — | The registry of feeds and expected schemas |
+
+### Model assumptions and parameters
+
+All paths are under `src/lib/depot/`.
+
+| Model | Assumption | Parameters (file) |
+| --- | --- | --- |
+| Requirement | A depot needs a share of its available buses at peak, raised when its on-road share is above its peers' | base 0.86, sensitivity 0.5, seeded ±0.04 (`sim/config.ts`); spare ratio 0.08, range 0–0.3 (`optimise/config.ts`) |
+| Depot master | Parking capacity 1.0–1.25 × fleet; one workshop bay per 25 buses; one fuel point per 60 | `sim/config.ts`, `sim/depotMaster.ts` |
+| Fleet master | Class from route-name tokens, else seeded proportions; seats 52 / 44 / 40 / 45 (ordinary / express / ac / premium); age up to 15 years | `sim/config.ts`, `sim/fleetMaster.ts` |
+| Trip frequency | 1–2 depot-anchored runs per bus per day | `sim/tripFrequencyConfig.ts` |
+| Duties | One duty per bus needed at peak, round-robin over routes; 4–10 h when no duration is known | `sim/duties.ts` |
+| Operating day | One modelled day per depot and date feeds crew, fuel and revenue (ruling S41); a typical length by class for a route with no cached profile | `sim/operatingDay.ts`, `sim/operatingDayConfig.ts` |
+| Crew | 1.45 drivers and 1.4 conductors per shift plus 2 reserve slots; leave 6%, training 3%, absent 4%; 10 h a day, 48 h a week | `sim/crew.ts`, `crew/types.ts` |
+| Fuel | 4.8 / 4.6 / 4.0 / 3.6 km per litre; ₹92 per litre; a bus flagged at 15% from the median of at least 2 peers | `sim/fuelConfig.ts`, `fuel/types.ts` |
+| Revenue | Load factor 0.62 / 0.55 / 0.45 / 0.40; fare ₹1.1 / 1.5 / 2.2 / 2.8 per occupied seat-km; two legs per trip | `sim/revenueConfig.ts` |
+| Economics index | Weights: earnings per km 0.40, cost per km 0.35, load factor 0.25 | `sim/revenueConfig.ts` |
+| Maintenance | Service every 10,000 / 12,000 / 8,000 / 8,000 km; 60,000–90,000 km a year by class; due soon within 1,500 km | `maintenance/config.ts` |
+| Yard lanes | Lanes of 6–10 buses summing to the modelled capacity | `sim/yardLayout.ts` |
+| History | Mean-reverting walk with a weekly rhythm, ending on today's live value | `sim/history.ts` |
+
+### What changes when a real feed replaces a model
+
+A real feed is a new adapter behind the same repository interface
+(`src/lib/depot/repositories/index.ts`) or, for a model not yet behind one, a
+new repository. The page's provenance declaration and the Data sources entry
+change from `MODELLED` to `LIVE`; the screens and algorithms stay. A depot
+master replaces inferred yards and modelled capacity; a network timetable
+replaces the requirement, duties and trip frequency, so surplus and deficit
+become real; crew, fuel, ticketing and maintenance feeds replace their models;
+a history store makes trends and forecasts real. The schema each feed must
+provide is listed on the Data sources page (`src/lib/depot/sources/registry.ts`).
+
+### What the depot module never claims
+
+- The feed's `distance` field is never shown as kilometres; its unit is unconfirmed.
+- Tamper codes other than `C` are flagged, but their meaning is not asserted.
+- No transfer, allocation, duty match or parking order is dispatched or assigned.
+- No individual driver or conductor is named or scored.

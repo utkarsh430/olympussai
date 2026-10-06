@@ -101,3 +101,64 @@ guards).
 - The inspector redacts device identifiers and personal fields before writing
   fixtures.
 - No raw upstream payload is persisted client-side.
+
+## Depot Management module
+
+The depot module (`/project/depots`, `src/lib/depot/`) is a second consumer of
+the same upstream fetch as the command centre. Full reference:
+[`DEPOT_MANAGEMENT.md`](DEPOT_MANAGEMENT.md).
+
+```
+UPSRTC getGpsLiveData.php
+   │  single-flight fetch, 15s TTL, last-known-good, fixture
+   ▼
+src/lib/upsrtc/liveSnapshot.ts ── map projection ──► /api/upsrtc/live
+   │
+   └── depot projection (depotNormalizer.ts, models/depotLive.ts)
+          ▼
+   repositories/ (fleet: live; history, crew, fuel, revenue: modelled)
+          ▼
+   live/analysis.ts — states, locations, yards, scores, exceptions,
+                      once per snapshot rows array
+          ▼
+   live/*View.ts — one body per route, memoised per snapshot;
+                   feed envelope built per request
+          ▼
+   /api/upsrtc/depot/* (17 GET + copilot POST)  ◄── browser polls every 60s
+```
+
+| Layer | Location | Responsibility |
+| --- | --- | --- |
+| Shared snapshot | `src/lib/upsrtc/liveSnapshot.ts` | One upstream fetch, two projections; fallback ladder as above |
+| Depot schema | `src/models/depotLive.ts`, `src/lib/upsrtc/depotNormalizer.ts` | The depot projection of each feed row |
+| Repositories | `src/lib/depot/repositories/` | The seam to data; composition root in `index.ts` |
+| Analysis and views | `src/lib/depot/live/` | Per-snapshot analysis; one view builder per route |
+| Inference, scoring, optimisers, models | `infer/`, `score/`, `exceptions/`, `optimise/`, `sim/`, `forecast/` | Pure TypeScript, no clock but the feed's |
+| Routes | `src/app/api/upsrtc/depot/` | Session check, validation, fixed errors, `no-store` |
+| Pages | `src/app/(protected)/project/depots/`, `src/components/depot/` | Network and depot scopes |
+| Copilot | `src/lib/depot/copilot/` | Facts, closed-vocabulary checks, providers |
+
+**Feed clock.** Every age, window and operating date is measured against the
+snapshot's own `feedNow`, so a stale or fixture snapshot is internally
+consistent.
+
+**In-process state.** The rolling 20-minute score window, the yard memory
+(holds of up to 12 hours), memoised analyses, the route-profile cache, the
+allocation plan, rate limiters and the copilot's caches, allowances and
+breaker all live in server memory. A restart or cold start clears them; with
+several instances each has its own copy, so scores can be summed over
+different windows and every limit and budget multiplies. A shared store is
+not built.
+
+**Copilot provider seam.** `CopilotProvider` (`src/lib/depot/copilot/types.ts`)
+has two implementations: `scripted` and `claude-cli` (the local `claude`
+command, usable only where Claude Code is signed in). An API-key provider for a
+staff-facing deployment would be a third implementation behind the same
+interface; it is not built. See
+[`DEPOT_COPILOT_OPERATIONS.md`](DEPOT_COPILOT_OPERATIONS.md).
+
+**Next step: the database phase (not built).** A history store of daily
+per-depot snapshots, filled by an ingestion worker, behind the existing
+`HistoryRepository` interface; real feeds for crew, fuel and revenue as new
+adapters in the composition root; and a shared store for the state listed
+above. Pages and algorithms stay as they are.
