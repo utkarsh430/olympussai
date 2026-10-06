@@ -19,8 +19,12 @@ export default async function DepotDutiesPage({
     <>
       <PageHeader
         title="Duties"
-        description="The day's duties for this depot and the buses a matching would put on them. Duties are modelled; bus states are live."
-        provenance="modelled"
+        description="The day's duties and the bus proposed for each; nothing is assigned or dispatched."
+        provenanceLine={{
+          default: 'mixed',
+          live: 'Bus states',
+          modelled: 'duties and the matching',
+        }}
       />
       <Suspense fallback={<LoadingBlock rows={4} label="Loading the duty board" />}>
         <DutyPage depotId={depotId} />

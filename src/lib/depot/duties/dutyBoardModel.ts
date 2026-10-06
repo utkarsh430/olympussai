@@ -21,8 +21,8 @@ export const COST_SENTENCE =
 
 export const STATE_WORD: Readonly<Record<DutyState, string>> = {
   assigned: 'Assigned',
-  no_bus: 'No bus',
-  bus_not_in_yard: 'Bus not in yard',
+  no_bus: 'Unmatched',
+  bus_not_in_yard: 'Unmatched',
 };
 
 export interface BarGeometry {
@@ -155,11 +155,12 @@ export function emptyDutiesSentence(input: {
   readonly routeCount: number;
   readonly peakRequirement: number;
 }): string {
-  const head = 'No duties are modelled for this depot:';
+  // The shared "no duties" sentence (crossReferenceSentence) says that there are none;
+  // this says only why, so an empty board never carries two "no duties" sentences.
   if (input.routeCount === 0) {
-    return `${head} none of its buses reports a route in the live feed, so there is nothing to run a duty on.`;
+    return 'None of its buses reports a route in the live feed, so there is nothing to run a duty on.';
   }
-  return `${head} the modelled peak requirement is zero buses.`;
+  return 'The modelled peak requirement is zero buses.';
 }
 
 export function routesWithoutDutySentence(routes: readonly string[]): string | null {
@@ -188,20 +189,26 @@ export function spareSentence(spare: readonly string[], context?: SpareContext):
   return `${formatCount(spare.length)} ${plural(spare.length, 'bus is', 'buses are')} ${where} with no duty.`;
 }
 
-function heldOut(blockers: DutyBlockers): string {
-  const parts = [
-    blockers.notInYard > 0 ? `${blockers.notInYard} not in the yard` : null,
-    blockers.offRoad > 0 ? `${blockers.offRoad} off road` : null,
-    blockers.dark > 0 ? `${blockers.dark} dark` : null,
+/**
+ * Buses held out of the matching, counted. With no yard established the server
+ * ignored location, so its "not in the yard" count means "not standing on a recent
+ * report" and is worded so (`eligibilityIgnoredLocation`).
+ */
+export function heldOutParts(blockers: DutyBlockers, locationIgnored = false): readonly string[] {
+  const where = locationIgnored ? 'not standing on a recent report' : 'not in the yard';
+  return [
+    blockers.notInYard > 0 ? `${formatCount(blockers.notInYard)} ${where}` : null,
+    blockers.offRoad > 0 ? `${formatCount(blockers.offRoad)} off the road` : null,
+    blockers.dark > 0 ? `${formatCount(blockers.dark)} dark` : null,
   ].filter((p): p is string => p !== null);
-  return parts.join(', ');
 }
 
 /** Why a duty has no bus; null for an assigned duty. */
-export function reasonSentence(duty: BoardDuty): string | null {
+export function reasonSentence(duty: BoardDuty, locationIgnored = false): string | null {
   if (duty.registrationNumber !== null) return null;
   const head = `No free ${duty.serviceClass} bus.`;
-  const held = duty.blockers === null ? '' : heldOut(duty.blockers);
+  const held =
+    duty.blockers === null ? '' : heldOutParts(duty.blockers, locationIgnored).join(', ');
   if (held === '') {
     return `${head} Every ${duty.serviceClass} bus the depot has is on another duty, or it has none.`;
   }
@@ -217,7 +224,10 @@ const byStartThenId = (a: BoardDuty, b: BoardDuty): number =>
   a.startMin - b.startMin || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 /** One row per duty, ordered by start; the chart and the table both render these. */
-export function buildBoardRows(duties: readonly BoardDuty[]): readonly BoardRow[] {
+export function buildBoardRows(
+  duties: readonly BoardDuty[],
+  locationIgnored = false,
+): readonly BoardRow[] {
   return [...duties].sort(byStartThenId).map((duty) => {
     const timeText = `${formatMinute(duty.startMin)} to ${formatMinute(duty.endMin)}`;
     const stateWord = STATE_WORD[duty.state];
@@ -231,7 +241,7 @@ export function buildBoardRows(duties: readonly BoardDuty[]): readonly BoardRow[
       registrationNumber: duty.registrationNumber,
       state: duty.state,
       stateWord,
-      reason: reasonSentence(duty),
+      reason: reasonSentence(duty, locationIgnored),
       geometry: barGeometry(duty.startMin, duty.endMin),
       ariaLabel: describe(duty, timeText, stateWord),
     };
@@ -261,20 +271,18 @@ export function barTextPlacement(input: {
   return input.leftPct + input.widthPct + neededPct <= PERCENT ? 'right' : 'left';
 }
 
-/** Above this many duties the chart is several screens tall, so the table opens first. */
-export const CHART_DUTY_LIMIT = 60;
-
 export type BoardView = 'chart' | 'table';
 
-export function defaultView(dutyCount: number): BoardView {
-  return dutyCount > CHART_DUTY_LIMIT ? 'table' : 'chart';
+/** Text on or beside a bar: the registration when a bus is proposed, else the state word. */
+export function barLabel(row: Pick<BoardRow, 'registrationNumber' | 'stateWord'>): string {
+  return row.registrationNumber ?? row.stateWord;
 }
 
-export function largeBoardSentence(dutyCount: number): string {
-  return (
-    `This depot has ${dutyCount} duties, more than ${CHART_DUTY_LIMIT}, so the table is shown ` +
-    'first because the chart would be very tall. The chart is one button away.'
-  );
+/** The label at the top of the now line, or null when there is no line. */
+export function nowLabel(feedNow: string | null): string | null {
+  const minutes = feedMinutes(feedNow);
+  if (minutes === null || nowLinePct(feedNow) === null) return null;
+  return `Now ${formatMinute(minutes)}`;
 }
 
 export function viewAnnouncement(view: BoardView, dutyCount: number): string {

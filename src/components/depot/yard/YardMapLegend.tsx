@@ -1,12 +1,7 @@
-import { formatCount } from '@/lib/depot/format';
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
-import {
-  BUS_STATE_COLOUR,
-  DISPLAY_RADIUS_FACTOR,
-  YARD_STATE_ORDER,
-} from '@/lib/depot/yard/yardModel';
+import { BUS_STATE_COLOUR, YARD_STATE_ORDER } from '@/lib/depot/yard/yardModel';
 
-const SWATCH_PX = 14;
+const SWATCH_PX = 12;
 const CENTRE = SWATCH_PX / 2;
 
 function Dot({ colour, hollow }: { readonly colour: string; readonly hollow: boolean }) {
@@ -15,62 +10,44 @@ function Dot({ colour, hollow }: { readonly colour: string; readonly hollow: boo
       <circle
         cx={CENTRE}
         cy={CENTRE}
-        r={hollow ? 5 : 4}
+        r={hollow ? 4 : 3.5}
         fill={hollow ? 'none' : colour}
         stroke={hollow ? colour : '#02040a'}
-        strokeWidth={hollow ? 2 : 1}
+        strokeWidth={hollow ? 1.5 : 1}
       />
     </svg>
   );
 }
 
+const MARK_COLOUR = '#c7d2e0';
+
 /**
- * Says in words what every mark on the yard map means, with the mark beside the
- * words. States are listed by name, so colour is never the only carrier.
+ * The map's one caption row: what is drawn (the model's caption, which reconciles
+ * with the figures), the state colours by name, the two marker shapes and what the
+ * circle is. Colour never carries a state alone: each swatch has its word.
  */
-export function YardMapLegend({
-  visitorsDrawn,
-  visitorsWithoutPosition,
-}: {
-  readonly visitorsDrawn: number;
-  readonly visitorsWithoutPosition: number;
-}) {
+export function YardMapLegend({ caption }: { readonly caption: string }) {
   return (
     <div
       data-testid="yard-map-legend"
-      className="grid grid-cols-1 gap-x-8 gap-y-3 text-[11px] text-depot-muted md:grid-cols-2"
+      className="mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-depot-muted"
     >
-      <div>
-        <p className="depot-label mb-1.5">Bus state</p>
-        <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
-          {YARD_STATE_ORDER.map((state) => (
-            <li key={state} className="flex items-center gap-1.5">
-              <Dot colour={BUS_STATE_COLOUR[state]} hollow={false} />
-              <span>{BUS_STATE_LABEL[state]}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 font-sans text-xs leading-snug">
-          A filled dot is one of this depot&apos;s own buses.
-          {visitorsDrawn > 0
-            ? ` A ring with no fill is a bus from another depot standing here: ${formatCount(visitorsDrawn)} drawn${
-                visitorsWithoutPosition > 0
-                  ? `, ${formatCount(visitorsWithoutPosition)} with no position in the feed, listed below only`
-                  : ''
-              }.`
-            : ''}
-          {visitorsDrawn === 0 && visitorsWithoutPosition > 0
-            ? ` ${formatCount(visitorsWithoutPosition)} ${visitorsWithoutPosition === 1 ? 'bus' : 'buses'} from other depots ${visitorsWithoutPosition === 1 ? 'has' : 'have'} no position in the feed and ${visitorsWithoutPosition === 1 ? 'is' : 'are'} listed below only.`
-            : ''}
-        </p>
-      </div>
-      <div>
-        <p className="depot-label mb-1.5">Yard</p>
-        <p className="font-sans text-xs leading-snug">
-          The circle is inferred from where this depot&apos;s buses park. It is not a surveyed
-          boundary. Buses further than {DISPLAY_RADIUS_FACTOR} radii from its centre are not drawn.
-        </p>
-      </div>
+      <span className="min-w-0 text-depot-ink" data-testid="yard-map-note">
+        {caption}
+      </span>
+      <ul className="flex flex-wrap items-center gap-x-3 gap-y-1" aria-label="Bus state colours">
+        {YARD_STATE_ORDER.map((state) => (
+          <li key={state} className="flex items-center gap-1">
+            <Dot colour={BUS_STATE_COLOUR[state]} hollow={false} />
+            <span>{BUS_STATE_LABEL[state]}</span>
+          </li>
+        ))}
+      </ul>
+      <span className="flex items-center gap-1">
+        <Dot colour={MARK_COLOUR} hollow={false} /> this depot&apos;s
+        <Dot colour={MARK_COLOUR} hollow /> visiting
+      </span>
+      <span>Circle: the yard inferred from where buses park, not surveyed.</span>
     </div>
   );
 }
