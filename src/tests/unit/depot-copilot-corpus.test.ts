@@ -50,7 +50,7 @@ const CORPUS: readonly string[] = [
   'Nothing is flagged at depot level, though {{fact:dark}} are flagged on vehicles.',
   'The picture is broadly stable compared with the earlier snapshot.',
   'Maintenance pressure is concentrated in a few of the smaller depots.',
-  'The feed was last updated at {{fact:time}}.',
+  'The feed was updated at {{fact:time}}.',
   'A closer look at the depots with a high dark share could be worthwhile.',
   'The ranked depots sit close together on the index, so small changes can move the order.',
   'Visitors from other depots account for {{fact:move}} in the yard.',
