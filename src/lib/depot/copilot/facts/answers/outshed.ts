@@ -44,7 +44,6 @@ export function outshedAnswer(data: AnswerData, depotId: string): CopilotRequest
     `${ph('outshed.departed')} already away`,
     counts.due > 0 ? `${ph('outshed.due')} due to leave now` : null,
     counts.upcoming > 0 ? `${ph('outshed.upcoming')} yet to reach their departure` : null,
-    counts.ended > 0 ? `${ph('outshed.ended')} whose scheduled window is already over` : null,
     counts.overdue > 0
       ? `${ph('outshed.overdue')} overdue to leave the yard`
       : 'nothing overdue to leave the yard',
@@ -52,11 +51,21 @@ export function outshedAnswer(data: AnswerData, depotId: string): CopilotRequest
       ? `${ph('outshed.unknown')} that ${countPhrase(counts.unknown, 'is', 'are')} too uncertain to place`
       : null,
   ].filter((p): p is string => p !== null);
-  const body = `${parts.slice(0, -1).join('; ')} and ${parts[parts.length - 1]}`;
+  // Three or more parts end "…; and the last": the semicolon closes the clause, so the last
+  // figure is never judged against the words that end the part before it ("their departure
+  // and N buses" is refused by the draft rules). Two parts read "A already away and B".
+  const last = parts[parts.length - 1];
+  const body =
+    parts.length <= 2 ? parts.join(' and ') : `${parts.slice(0, -1).join('; ')}; and ${last}`;
   const paragraphs = [
     `Schedules are known for ${ph('outshed.coverage')} at ${ph('depot.name')}.`,
     `Of those, ${body}.`,
   ];
+  // A sentence of its own, as in the depot briefing: joined into the list above, "already
+  // over and N buses overdue" put "over" right before a figure, which the draft rules refuse.
+  if (counts.ended > 0) {
+    paragraphs.push(`For ${ph('outshed.ended')} the scheduled window is already over.`);
+  }
   if (late > 0) paragraphs.push(`Departed later than scheduled: ${ph('outshed.late')}.`);
   return answer(cleanName(detail.depot.name), facts, { headline, paragraphs });
 }

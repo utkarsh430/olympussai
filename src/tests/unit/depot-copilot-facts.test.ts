@@ -957,6 +957,9 @@ describe('pinned scripted phrasing', () => {
       { upcoming: 0, due: 0, departed: 40, overdue: 2, ended: 5, unknown: 4 },
       { upcoming: 0, due: 0, departed: 0, overdue: 0, ended: 5, unknown: 0 },
       { upcoming: 0, due: 0, departed: 40, overdue: 2, ended: 0, unknown: 0 },
+      { upcoming: 3, due: 0, departed: 40, overdue: 0, ended: 0, unknown: 0 },
+      { upcoming: 3, due: 1, departed: 40, overdue: 0, ended: 0, unknown: 4 },
+      { upcoming: 0, due: 1, departed: 0, overdue: 0, ended: 0, unknown: 0 },
     ];
     for (const counts of mixes) {
       const mixed: AnswerData = {
@@ -967,7 +970,10 @@ describe('pinned scripted phrasing', () => {
         },
       };
       const request = buildAnswer({ kind: 'outshedStatus', depotId: '101' }, mixed);
-      expect(renderDraft(request.scriptedDraft, request.facts)).toMatchObject({ ok: true });
+      const rendered = renderDraft(request.scriptedDraft, request.facts);
+      expect({ counts, rendered, prose: rendered.ok ? '' : proseOf(request) }).toMatchObject({
+        rendered: { ok: true },
+      });
     }
   });
 
