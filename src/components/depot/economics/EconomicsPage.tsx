@@ -59,7 +59,15 @@ export function EconomicsPage() {
   }, [focusPending, selected]);
 
   if (loading) return <LoadingBlock rows={10} label="Loading the economics ranking" />;
-  if (!data) return <ErrorPanel message={error ?? DEPOT_UNAVAILABLE_MESSAGE} onRetry={refresh} />;
+  if (!data) {
+    return (
+      <ErrorPanel
+        title="Could not load the economics ranking"
+        message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
+        onRetry={refresh}
+      />
+    );
+  }
   if (allRows.length === 0) {
     return <EmptyState>The live feed returned no depots, so there is nothing to rank yet.</EmptyState>;
   }

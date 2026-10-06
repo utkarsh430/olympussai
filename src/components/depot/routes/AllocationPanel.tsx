@@ -110,7 +110,11 @@ export function AllocationSection({ state }: { readonly state: DepotAllocationSt
       ) : data ? (
         <AllocationPanel allocation={data} />
       ) : (
-        <ErrorPanel message={error ?? DEPOT_UNAVAILABLE_MESSAGE} onRetry={refresh} />
+        <ErrorPanel
+          title="Allocation plan unavailable"
+          message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
+          onRetry={refresh}
+        />
       )}
     </section>
   );

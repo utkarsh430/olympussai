@@ -81,7 +81,11 @@ export function RoutesPage() {
         ) : routeData !== null ? (
           <RouteTable routes={routeData.routes} />
         ) : (
-          <ErrorPanel message={routes.error ?? DEPOT_UNAVAILABLE_MESSAGE} onRetry={routes.refresh} />
+          <ErrorPanel
+            title="Routes list unavailable"
+            message={routes.error ?? DEPOT_UNAVAILABLE_MESSAGE}
+            onRetry={routes.refresh}
+          />
         )}
       </section>
     </>

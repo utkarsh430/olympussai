@@ -26,7 +26,7 @@ export function RevenuePage() {
   if (!data) {
     return (
       <ErrorPanel
-        title={error === DEPOT_NOT_FOUND_MESSAGE ? DEPOT_NOT_FOUND_MESSAGE : undefined}
+        title={error === DEPOT_NOT_FOUND_MESSAGE ? DEPOT_NOT_FOUND_MESSAGE : 'Could not load revenue figures'}
         message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
         onRetry={refresh}
       />
