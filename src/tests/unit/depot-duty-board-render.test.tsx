@@ -296,7 +296,8 @@ describe('DutyBoard by width (round 3, Duties Must 1)', () => {
   const realMatchMedia = window.matchMedia;
   const phone = (matches: boolean): void => {
     window.matchMedia = ((query: string) => ({
-      matches: matches && query === '(max-width: 639px)',
+      // A phone matches no min-width query; anything wider matches them all.
+      matches: !matches && query.includes('min-width'),
       media: query,
       addEventListener: () => {},
       removeEventListener: () => {},

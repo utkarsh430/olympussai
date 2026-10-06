@@ -28,7 +28,7 @@ import {
   preventiveTier,
   type PreventiveColumnKey,
 } from '@/lib/depot/maintenance/preventiveLayout';
-import { useBelowDesktop, usePhone } from './useBelowDesktop';
+import { useBelowDesktop, usePhone } from '@/components/depot/shell/useBelowDesktop';
 
 const GROUP_ORDER: readonly ServiceGroup[] = ['overdue', 'due_soon', 'not_due'];
 
