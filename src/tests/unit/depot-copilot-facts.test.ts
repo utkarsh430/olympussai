@@ -751,6 +751,16 @@ describe('pinned scripted phrasing', () => {
     );
   });
 
+  it('says the move is beyond the maximum, never supported, when the distance exceeds it', () => {
+    const far = { ...dist, rebalanceParams: { ...dist.rebalanceParams, maxTransferKm: 100 } };
+    expect(closing(far)).toBe(
+      `${caveat} The modelled balances alone would suit the move, but the distance is beyond the planner's maximum, so the network team may wish to review it before relying on it.`,
+    );
+    expect(closing(far)).not.toContain('covers the move');
+    const edge = { ...dist, rebalanceParams: { ...dist.rebalanceParams, maxTransferKm: 142.34 } };
+    expect(closing(edge)).toContain('covers the move');
+  });
+
   it('singles out no component on a tie and fails loudly on a duplicate fact id', () => {
     const keys = ['onRoad', 'offRoad', 'dark', 'scheduled', 'deviceHealth'] as const;
     const tied = makeScore('101', { components: keys.map((k) => component(k, 0.2)) });
@@ -812,5 +822,72 @@ describe('hostile text in data', () => {
     expect(rendered.headline).toContain('fact:x b7 three/b http://evil.test rm');
     expect(rendered.headline).not.toMatch(/[{}<>`]/);
     expect(rendered.usedFactIds).not.toContain('x');
+  });
+});
+
+describe('singular and plural counts agree with their verb', () => {
+  const fleetLine = (o: Partial<StateMix>): string | undefined =>
+    paragraphsOf(
+      buildDepotBriefing(makeDetail({ depot: makeDepot('101', 'KANPUR', 'depot', o) })),
+    )[1];
+
+  it('says "is" for a single bus and "are" otherwise in the fleet paragraph', () => {
+    const one = fleetLine({ inService: 0, onRoad: 1, dark: 1, offRoad: 1 });
+    expect(one).toContain('1 is on the road');
+    expect(one).toContain('1 is dark');
+    expect(one).toContain('1 is off the road');
+    const many = fleetLine({ inService: 0, onRoad: 2, dark: 3, offRoad: 4 });
+    expect(many).toContain('2 are on the road');
+    expect(many).toContain('3 are dark');
+    expect(many).toContain('4 are off the road');
+  });
+
+  it('agrees in the yard sentence', () => {
+    const yardLine = (inCluster: number): string | undefined => {
+      const detail = makeDetail();
+      const yard = {
+        value: { lat: 26.4, lng: 80.3, radiusM: 300, parked: 40, inCluster },
+        provenance: 'derived' as const,
+      };
+      return paragraphsOf(buildDepotBriefing({ ...detail, yard })).find((p) =>
+        p.includes('The yard is inferred'),
+      );
+    };
+    expect(yardLine(1)).toContain('1 of 40 parked buses falls inside it');
+    expect(yardLine(33)).toContain('33 of 40 parked buses fall inside it');
+  });
+
+  const withKpis = (k: { reporting: number; onRoad: number; noSignal: number; maint: number }) => {
+    const net = makeNetwork();
+    return paragraphsOf(
+      buildNetworkBriefing({
+        ...net,
+        kpis: {
+          ...net.kpis,
+          reporting: fig(k.reporting),
+          onRoad: fig(k.onRoad, 'derived'),
+          noSignal: fig(k.noSignal),
+          underMaintenance: fig(k.maint),
+        },
+      }),
+    );
+  };
+
+  it('agrees in the network opening', () => {
+    const one = withKpis({ reporting: 1, onRoad: 1, noSignal: 1, maint: 1 });
+    expect(one[0]).toContain('1 bus is reporting a position and 1 bus is running');
+    expect(one[1]).toContain('1 bus is showing no signal');
+    expect(one[1]).toContain('1 bus is under maintenance');
+    const many = withKpis({ reporting: 5, onRoad: 4, noSignal: 3, maint: 2 });
+    expect(many[0]).toContain('5 buses are reporting a position and 4 buses are running');
+    expect(many[1]).toContain('3 buses are showing no signal');
+    expect(many[1]).toContain('2 buses are under maintenance');
+  });
+
+  it('agrees in the vehicle-only exception sentence', () => {
+    const line = (n: number) =>
+      paragraphsOf(buildNetworkBriefing(makeNetwork({ counts: { long_dark: n } }))).at(-1);
+    expect(line(1)).toContain('1 exception is flagged on vehicles');
+    expect(line(5)).toContain('5 exceptions are flagged on vehicles');
   });
 });

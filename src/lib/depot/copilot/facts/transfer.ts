@@ -65,9 +65,17 @@ function verdict(
   giving: DepotBalance | undefined,
   receiving: DepotBalance | undefined,
   buses: number,
+  withinMaximum: boolean,
 ): string {
-  const supported = giving && receiving && giving.balance >= buses && receiving.balance < 0;
-  return supported
+  const balancesSupport =
+    giving !== undefined &&
+    receiving !== undefined &&
+    giving.balance >= buses &&
+    receiving.balance < 0;
+  if (balancesSupport && !withinMaximum) {
+    return `${MODELLED_CAVEAT} The modelled balances alone would suit the move, but the distance is beyond the planner's maximum, so the network team may wish to review it before relying on it.`;
+  }
+  return balancesSupport
     ? `${MODELLED_CAVEAT} On the modelled figures the surplus at ${ph('transfer.from_name')} covers the move and ${ph('transfer.to_name')} has a deficit it would ease; the network team may wish to confirm it.`
     : `${MODELLED_CAVEAT} The move cannot be assessed from the available modelled balances, so the network team may wish to review it before relying on it.`;
 }
@@ -113,6 +121,7 @@ export function buildTransferRationale(
 ): CopilotRequest {
   const giving = distribution.balances.find((b) => b.depotId === transfer.fromDepotId);
   const receiving = distribution.balances.find((b) => b.depotId === transfer.toDepotId);
+  const withinMaximum = transfer.distanceKm <= distribution.rebalanceParams.maxTransferKm;
   const facts: CopilotFact[] = [
     makeFact(
       'transfer.from_name',
@@ -145,11 +154,11 @@ export function buildTransferRationale(
   const paragraphs = [
     `${givingSentence(giving)}, and ${receivingSentence(receiving)}`,
     `Moving ${ph('transfer.buses')} would run over about ${ph('transfer.distance_km')} of estimated road distance, ${
-      transfer.distanceKm <= distribution.rebalanceParams.maxTransferKm
+      withinMaximum
         ? "within the planner's configured maximum of"
         : "beyond the planner's configured maximum of"
     } ${ph('transfer.max_km')}.${afterSentence(giving, receiving, transfer.buses)}`,
-    verdict(giving, receiving, transfer.buses),
+    verdict(giving, receiving, transfer.buses, withinMaximum),
   ];
   return buildRequest({
     task: 'rationale',

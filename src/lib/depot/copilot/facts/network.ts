@@ -3,6 +3,7 @@ import {
   buildRequest,
   busCount,
   cleanName,
+  countPhrase,
   depotCount,
   index1,
   makeFact,
@@ -130,7 +131,7 @@ function exceptionParagraph(depotCountN: number, busCountN: number): string {
     return 'No exceptions are flagged on this snapshot, either for depots or for vehicles.';
   }
   if (depotCountN === 0) {
-    return `No depot-level exceptions are flagged, though ${ph('network.bus_exceptions')} are flagged on vehicles.`;
+    return `No depot-level exceptions are flagged, though ${ph('network.bus_exceptions')} ${countPhrase(busCountN, 'is', 'are')} flagged on vehicles.`;
   }
   const vehicles =
     busCountN === 0 ? 'and none on vehicles' : `and ${ph('network.bus_exceptions')} on vehicles`;
@@ -165,10 +166,11 @@ function networkDraft(network: DepotNetworkResponse): CopilotDraft {
   const stale = network.stale
     ? ' The data is marked stale, so the picture may lag what is happening on the road.'
     : '';
+  const { kpis } = network;
   const ranked = rankedDepots(network);
   const paragraphs = [
-    `${lead}${ph('network.reporting')} are reporting a position and ${ph('network.on_road')} are running, ${ph('network.on_road_share')} of the fleet.${stale}`,
-    `${ph('network.no_signal')} are showing no signal (${ph('network.no_signal_share')}) and ${ph('network.under_maintenance')} are under maintenance (${ph('network.maintenance_share')}).`,
+    `${lead}${ph('network.reporting')} ${countPhrase(kpis.reporting.value, 'is', 'are')} reporting a position and ${ph('network.on_road')} ${countPhrase(kpis.onRoad.value, 'is', 'are')} running, ${ph('network.on_road_share')} of the fleet.${stale}`,
+    `${ph('network.no_signal')} ${countPhrase(kpis.noSignal.value, 'is', 'are')} showing no signal (${ph('network.no_signal_share')}) and ${ph('network.under_maintenance')} ${countPhrase(kpis.underMaintenance.value, 'is', 'are')} under maintenance (${ph('network.maintenance_share')}).`,
     ranked.length >= 2
       ? `Among ranked depots, ${ph('network.best_depot')} leads with an efficiency index of ${ph('network.best_index')}, while ${ph('network.weakest_depot')} sits lowest at ${ph('network.weakest_index')}.${rankSentence(ranked)}`
       : 'Too few depots have enough buses to be ranked against each other on this snapshot.',
