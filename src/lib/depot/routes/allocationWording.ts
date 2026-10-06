@@ -1,4 +1,5 @@
 import { formatCount } from '../format';
+import { PROFILE_LOAD_CAP } from './profileLoader';
 import type { RouteMove, UnchangedReason } from '../optimise/allocateTypes';
 import { MAX_BUSES_PER_ROUTE } from '../sim/tripFrequencyConfig';
 import {
@@ -206,7 +207,8 @@ export const DEAD_KM_MEANING =
   "Dead kilometres are the empty running between those positions and each route's first and last stops.";
 
 export const PROFILES_GROW_WITH_USE =
-  "A route's stops are fetched one route at a time: when the route is opened below, when a depot's roster or a bus on it is opened, or when a depot's routes are loaded from the plan panel, at most 40 a press and never by itself, so coverage grows with use.";
+  "A route's stops are fetched one route at a time: when the route is opened below, when a depot's roster or a bus on it is opened, or when a depot's routes are loaded from the plan panel, " +
+  `at most ${PROFILE_LOAD_CAP} a press and never by itself, so coverage grows with use.`;
 
 export const RECOMMENDATION_ONLY =
   'Recommendation only: no route is reassigned. Any change of depot is decided and made outside this page.';

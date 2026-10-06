@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PROFILE_LOAD_CAP } from '@/lib/depot/routes/profileLoader';
 import {
   EXCLUSION_ORDER,
   UNCHANGED_ORDER,
@@ -237,7 +238,8 @@ describe('fixed sentences', () => {
     expect(DEAD_KM_MEANING).toContain('first and last stops');
     expect(PROFILES_GROW_WITH_USE).toContain('one route at a time');
     expect(PROFILES_GROW_WITH_USE).toContain('never by itself');
-    expect(PROFILES_GROW_WITH_USE).toContain('at most 40 a press');
+    // The number on screen is the loader's own cap, never a second copy of it.
+    expect(PROFILES_GROW_WITH_USE).toContain(`at most ${PROFILE_LOAD_CAP} a press`);
     expect(RECOMMENDATION_ONLY).toContain('no route is reassigned');
   });
 });
