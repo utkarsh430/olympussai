@@ -294,8 +294,11 @@ buses park; not a surveyed location" (`live/depotView.ts`).
 
 Ruling S43. Once a yard is established in this process it is kept while at least
 `YARD_MIN_CLUSTER` (6) of the depot's standing buses are inside it, even when another stand
-has grown as large, for up to `YARD_HOLD_MAX_HOURS = 12` hours of feed time; it is then shown
-as "held since HH:MM" (`Yard.heldSince`). Only a newer feed time writes the memory; an older
+has grown as large, for up to `YARD_HOLD_MAX_HOURS = 12` hours of feed time. A held yard
+carries `Yard.heldSince`, and the depot response's yard note reads "Kept where the depot's
+yard was learned earlier: this snapshot alone would not place it." (`live/depotView.ts`).
+Ruling S43 asks for "held since HH:MM" on screen; no page model renders `heldSince` at the
+time of writing. Only a newer feed time writes the memory; an older
 one bypasses it. A fresh process remembers nothing.
 
 ### 7.7 Outshedding — `infer/outshed.ts`
