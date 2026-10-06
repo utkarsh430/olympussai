@@ -38,7 +38,8 @@ Run through this five minutes before presenting.
 - [ ] Click one bus — the detail drawer opens with coordinates.
 - [ ] The schedule section fills in (or says "no schedule assigned" — both fine).
 - [ ] The Alert Centre shows five alerts; click one — the analysis panel opens.
-- [ ] Click **Depot Management** in the command bar — the depot module opens (a shell for now; use **Back to Operations** to return).
+- [ ] Click **Depot Management** in the command bar — the depot module opens on its network overview; the feed chip reads `LIVE` (not `STALE` or `FIXTURE`). Use **Back to Operations** to return.
+- [ ] If you will show route allocation, open a few routes on the depot **Routes** page beforehand: the plan only covers routes whose details have been fetched since the server started.
 - [ ] Open the demand view from a bus's analysis menu (**Demand - Supply Analysis**) or from Scenario Lab.
 - [ ] Open **Audit**, click **Clear** to start with an empty trail.
 - [ ] Open **Scenario Lab**, click **Reset Demonstration**.
@@ -114,6 +115,31 @@ the same baseline figures.
 
 ---
 
+## Depot Management walk-through
+
+Optional, about four minutes, after the command centre. Every depot page states
+its provenance once, under its title: `LIVE` (from the feed), `DERIVED`
+(computed from it), `MODELLED` (generated from planning assumptions) or
+`REFERENCE`. Read that line aloud on each page; it is the honest answer to
+"is this real?". Full detail: [`DEPOT_MANAGEMENT.md`](DEPOT_MANAGEMENT.md).
+
+| Order | Page | What it shows | What to say about provenance |
+| --- | --- | --- | --- |
+| 1 | **Overview** (`/project/depots`) | Fleet strength and state mix for every unit in the feed | Counts and states are live; the efficiency index is derived from them. |
+| 2 | **League table** | Operating depots ranked within peers of similar fleet size | Derived. The index is computed over the last 20 minutes of feed snapshots, so it does not jump with each poll; just after a restart the window is shorter and the page says "since". |
+| 3 | **Exceptions** | Depots and buses that stand out, with the figures behind each | Derived. Tamper codes are flagged, but their meaning is not asserted. |
+| 4 | A depot's **Cockpit**, then **Yard** | What is on the road, standing, late out; who is in the yard now | States are live. The yard is inferred from where buses park, not surveyed; some depots show no yard because the rule refuses to guess. |
+| 5 | **Fleet distribution** | Buses each depot has against what it needs; recommended transfers | Supply is live; the requirement is modelled, so surplus, deficit and every transfer rest on a model. Nothing is dispatched. |
+| 6 | **Routes** | Which depot should run each route to cut empty kilometres | Stops and terminals are real, fetched one route at a time when opened; trip frequency is modelled. A route nobody has opened is not in the plan. |
+| 7 | **Economics**, a depot's **Revenue**, **Fuel**, **Crew** | Earnings, costs, crew coverage | All modelled: the feed carries no ticketing, fuel or crew data. Say so before showing a figure. |
+| 8 | **Data sources** | Each feed: live, modelled or awaiting, and the schema a real feed must supply | Reference. Close here: "this is the list of what we need from you." |
+
+Do not present the trends pages as history: every point before today's is
+modelled, and so is every forecast drawn from them. Do not name or point at an
+individual: crew appear only as anonymous slots.
+
+---
+
 ## Speaking points that land well
 
 - **"Every marker is a real bus."** Say this early. It is the single most
@@ -165,6 +191,17 @@ the same baseline figures.
 **"Are you contacting real drivers?"**
 > No. No message, SMS or call leaves the browser. The banner on every
 > communication screen says so explicitly.
+
+**"Are the depot revenue, fuel and crew figures real?"**
+> No. The feed carries positions and device status only, so those pages are
+> modelled from planning assumptions and say so under their titles. Bus
+> counts, states and positions on the depot pages are live. The Data sources
+> page lists exactly what the corporation would need to supply to replace
+> each model.
+
+**"Does the depot module move buses or assign duties?"**
+> No. Transfers, route allocations, duty matches and the parking order are
+> recommendations. A recorded approve or reject stays in this browser.
 
 **"What would a pilot cost and how long?"**
 > The proposal is one depot, one corridor, ninety days, advisory mode only.
