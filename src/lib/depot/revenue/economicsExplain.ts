@@ -1,45 +1,10 @@
 import { formatCount } from '../format';
-import { MIN_FLEET_FOR_RANK } from '../score/config';
 import { ECONOMICS_Z_CLAMP, type ECONOMICS_WEIGHTS } from '../sim/revenueConfig';
-import type { EconomicsDepotRow } from './api';
 import { DASH, HUNDREDTH, MINUS, PERCENT, formatComponentValue, roundTo } from './economicsFormat';
 import type { EconomicsRow, EconomicsCell } from './economicsRows';
-import type { EconomicsComponentKey, EconomicsRankReason } from './types';
+import type { EconomicsComponentKey } from './types';
 
-/* The economics page's sentences: the status line, a depot's explanation and its breakdown. */
-
-const SEP = ' · ';
-
-function count(depots: readonly EconomicsDepotRow[], reason: EconomicsRankReason): number {
-  return depots.filter((d) => d.score.reason === reason).length;
-}
-
-/** "4 ranked of 6 operating depots · 1 not ranked: no duty in the modelled day". */
-export function economicsStatusLine(depots: readonly EconomicsDepotRow[]): string {
-  const operating = depots.filter((d) => d.kind === 'depot');
-  const ranked = operating.filter((d) => d.score.ranked).length;
-  const noLength = operating.filter(
-    (d) => d.score.reason === 'missing_component' && d.score.missing.includes('earningsPerKm'),
-  ).length;
-  const tooSmall = operating.filter((d) => d.score.reason === 'fleet_too_small').length;
-  const smallGroup = count(operating, 'peer_group_too_small');
-  const otherMissing = operating.filter((d) => d.score.reason === 'missing_component').length - noLength;
-  const others = depots.length - operating.length;
-  const noun = operating.length === 1 ? 'operating depot' : 'operating depots';
-  const parts = [
-    `${formatCount(ranked)} ranked of ${formatCount(operating.length)} ${noun}`,
-    noLength > 0 ? `${formatCount(noLength)} not ranked: no duty in the modelled day` : null,
-    smallGroup > 0
-      ? `${formatCount(smallGroup)} not ranked: its peer group has too few depots with complete figures`
-      : null,
-    tooSmall > 0 ? `${formatCount(tooSmall)} not ranked: fewer than ${MIN_FLEET_FOR_RANK} buses` : null,
-    otherMissing > 0 ? `${formatCount(otherMissing)} not ranked: a component could not be worked out` : null,
-    others > 0
-      ? `${formatCount(others)} other ${others === 1 ? 'unit is not an operating depot' : 'units are not operating depots'}`
-      : null,
-  ];
-  return parts.filter((p): p is string => p !== null).join(SEP);
-}
+/* The economics page's sentences: a depot's explanation and its breakdown. */
 
 /** "rank 1 of 6 in its peer group (All depots)". */
 export function peerRankPhrase(row: EconomicsRow): string {

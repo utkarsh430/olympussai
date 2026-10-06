@@ -17,7 +17,6 @@ import {
   buildEconomicsRows,
   defaultShowUnranked,
   economicsStatement,
-  economicsStatusLine,
   emptyRowText,
   explainEconomics,
   lengthCoverageLine,
@@ -27,9 +26,9 @@ import {
 import {
   buildRouteRows,
   coverageSentence,
-  heroBars,
   modelledStatement,
-  summaryTiles,
+  modelledLengthSentence,
+  TRIPS_NOTE,
   withheldSentence,
 } from '@/lib/depot/revenue/revenuePageModel';
 import { ECONOMICS_Z_CLAMP, REVENUE_MODEL_PARAMS } from '@/lib/depot/sim/revenueConfig';
@@ -136,7 +135,6 @@ describe('the real-length coverage across the network', () => {
   });
   it('never says depots are unranked for want of route lengths', () => {
     const everything = [
-      economicsStatusLine([entry('1'), NO_LENGTH, THIN, SMALL_GROUP, TINY_FLEET, OTHER_UNIT]),
       joined(rankingShortfallNotice(operating(1, 6))),
       ...buildEconomicsRows([NO_LENGTH, THIN, SMALL_GROUP]).map((r) => r.reasonText ?? ''),
     ].join('\n');
@@ -309,7 +307,6 @@ describe('no wording reads as profit, loss or margin', () => {
     const collected = strings([
       rows,
       rows.map((r) => [explainEconomics(r), peerRankPhrase(r), breakdownRows(r, WEIGHTS)]),
-      economicsStatusLine(entries),
       rankingShortfallNotice(operating(1, 6)),
       emptyRowText(rows, { showUnranked: false, search: '' }),
       emptyRowText(rows, { showUnranked: true, search: 'x' }),
@@ -320,8 +317,8 @@ describe('no wording reads as profit, loss or margin', () => {
       BREAKDOWN_NOTE,
       ECONOMICS_COMPONENT_SPECS,
       buildRouteRows([route]),
-      heroBars([route], false),
-      summaryTiles({
+      TRIPS_NOTE,
+      modelledLengthSentence({
         routes: 1,
         trips: 1,
         boardings: 1,

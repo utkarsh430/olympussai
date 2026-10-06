@@ -7,7 +7,6 @@ import {
   BREAKDOWN_NOTE,
   INDEX_SEPARATION,
   describeDifference,
-  economicsStatusLine,
   explainEconomics,
   filterEconomicsRows,
   formatComponentDifference,
@@ -167,31 +166,6 @@ describe('filterEconomicsRows', () => {
   });
 });
 
-describe('economicsStatusLine', () => {
-  it('counts ranked depots and each reason for the rest', () => {
-    const line = economicsStatusLine([
-      entry('1'),
-      entry('2', { rank: 2 }),
-      UNRANKED_NO_LENGTH,
-      UNRANKED_SMALL,
-      OTHER_UNIT,
-    ]);
-    expect(line).toBe(
-      '2 ranked of 4 operating depots · 1 not ranked: no duty in the modelled day · 1 not ranked: fewer than 10 buses · 1 other unit is not an operating depot',
-    );
-  });
-  it('counts a thin real-length coverage as ranked and the group reason on its own', () => {
-    // The coverage gate is gone (S39): only the peer-group size guard is left to count here.
-    expect(economicsStatusLine([RANKED_THIN, UNRANKED_GROUP, UNRANKED_GROUP])).toBe(
-      '1 ranked of 3 operating depots · 2 not ranked: its peer group has too few depots with complete figures',
-    );
-  });
-  it('uses the singular for one operating depot and omits empty reasons', () => {
-    expect(economicsStatusLine([entry('1', { peerCount: 1 })])).toBe(
-      '1 ranked of 1 operating depot',
-    );
-  });
-});
 
 describe('explainEconomics', () => {
   it('names the component that helped most and the one that held back most', () => {
