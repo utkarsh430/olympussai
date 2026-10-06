@@ -5,13 +5,16 @@ import type { DepotSummary } from '../types';
 import { seedFor } from './seed';
 
 /*
- * Strength is a multiple of the duty count because one person works one duty a
- * day and roughly a quarter of the roster is off, on leave, training or absent
- * on any day (the shares below). A ratio near 1 / (1 - unavailable share)
- * leaves a depot just about covered on an average day, with real shortfalls on
- * bad ones. Conductors run slightly leaner than drivers.
+ * Strength is a multiple of the crew shift count (not the duty count: a long
+ * bus duty is relieved, so it needs more than one crew). About 27% of slots
+ * are off, on leave, training or absent on any day (the shares below), so
+ * 1.45 drivers per shift leaves about 1.06 available per shift. Shifts are
+ * staggered through the day, so a slot can take two that do not overlap, and
+ * measured over 28 dates a 40 to 150 shift depot is fully covered on most
+ * dates and a few percent short (at most about 15%) on the rest, when many
+ * shifts start together. Conductors run slightly leaner than drivers.
  */
-export const CREW_PER_DUTY: Readonly<Record<CrewRole, number>> = {
+export const CREW_PER_SHIFT: Readonly<Record<CrewRole, number>> = {
   driver: 1.45,
   conductor: 1.4,
 };
@@ -24,8 +27,13 @@ export const ABSENCE_SHARES: Readonly<Record<Exclude<CrewAvailability, 'availabl
   absent: 0.04,
 };
 
-/** Hours already worked this week, drawn within the weekly limit and leaving room for a shift. */
-export const HOURS_THIS_WEEK_RANGE = { min: 8, max: MAX_HOURS_PER_WEEK } as const;
+/** A typical shift, used to keep most slots able to take one this week. */
+const TYPICAL_SHIFT_HOURS = 8;
+/** Hours already worked this week: below the weekly limit by a typical shift, so most slots fit one. */
+export const HOURS_THIS_WEEK_RANGE = {
+  min: 8,
+  max: MAX_HOURS_PER_WEEK - TYPICAL_SHIFT_HOURS,
+} as const;
 const HOURS_STEP = 0.5;
 
 const ROLE_LETTER: Readonly<Record<CrewRole, string>> = { driver: 'D', conductor: 'C' };
@@ -54,21 +62,21 @@ function drawHours(rng: SeededRandom): number {
 
 /**
  * The depot's modelled crew for one operating date. Strength and slot ids
- * depend on the depot and duty count only; the absence mix and hours depend on
+ * depend on the depot and shift count only; the absence mix and hours depend on
  * the date too. Slots are anonymous: availability and hours, nothing else.
  */
 export function modelCrew(
   depot: DepotSummary,
-  dutyCount: number,
+  shiftCount: number,
   operatingDate: string,
-): CrewSlot[] {
-  if (!Number.isInteger(dutyCount) || dutyCount < 0) {
-    throw new RangeError(`dutyCount must be a non-negative integer, got ${dutyCount}`);
+): readonly CrewSlot[] {
+  if (!Number.isInteger(shiftCount) || shiftCount < 0) {
+    throw new RangeError(`shiftCount must be a non-negative integer, got ${shiftCount}`);
   }
   const rng = new SeededRandom(seedFor(depot.id, operatingDate, 'crew'));
   const crew: CrewSlot[] = [];
   for (const role of ROLES) {
-    const strength = Math.max(dutyCount, Math.ceil(dutyCount * CREW_PER_DUTY[role]));
+    const strength = Math.max(shiftCount, Math.ceil(shiftCount * CREW_PER_SHIFT[role]));
     for (let number = 1; number <= strength; number += 1) {
       // Both draws are always taken so the stream stays aligned.
       const availability = drawAvailability(rng);
