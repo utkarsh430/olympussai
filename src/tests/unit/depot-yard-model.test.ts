@@ -66,9 +66,27 @@ const SAMPLE = response(
   ],
   YARD,
   [
-    { registrationNumber: 'V1', homeDepotId: 'x', homeDepotName: 'Xton', state: 'standing' },
-    { registrationNumber: 'V2', homeDepotId: 'x', homeDepotName: 'Xton', state: 'dark' },
-    { registrationNumber: 'V3', homeDepotId: null, homeDepotName: null, state: 'standing' },
+    {
+      registrationNumber: 'V1',
+      homeDepotId: 'x',
+      homeDepotName: 'Xton',
+      state: 'standing',
+      position: { lat: YARD.lat, lng: YARD.lng },
+    },
+    {
+      registrationNumber: 'V2',
+      homeDepotId: 'x',
+      homeDepotName: 'Xton',
+      state: 'dark',
+      position: null,
+    },
+    {
+      registrationNumber: 'V3',
+      homeDepotId: null,
+      homeDepotName: null,
+      state: 'standing',
+      position: null,
+    },
   ],
 );
 
@@ -76,7 +94,9 @@ describe('formatHeardAgo', () => {
   it('words the GPS age and survives missing values', () => {
     expect(formatHeardAgo(4)).toBe('heard 4 min ago');
     expect(formatHeardAgo(0.2)).toBe('heard just now');
-    expect(formatHeardAgo(135)).toBe('heard 2 h 15 min ago');
+    expect(formatHeardAgo(135)).toBe('heard 2 h ago');
+    expect(formatHeardAgo(59.9)).toBe('heard 59 min ago');
+    expect(formatHeardAgo(119.9)).not.toMatch(/60 min/);
     expect(formatHeardAgo(null)).toBe('no GPS time');
     expect(formatHeardAgo(Number.NaN)).toBe('no GPS time');
   });
@@ -127,9 +147,43 @@ describe('buildYardModel', () => {
     const m = buildYardModel(SAMPLE);
     const limit = YARD.radiusM * DISPLAY_RADIUS_FACTOR;
     expect(limit).toBeLessThan(0.01 * M_PER_DEG_LAT);
-    expect(m.points.map((p) => p.registration).sort()).toEqual(['B1', 'B2', 'B3']);
+    expect(m.points.map((p) => p.registration).sort()).toEqual(['B1', 'B2', 'B3', 'V1']);
     expect(m.beyondCount).toBe(3);
-    expect(m.points.every((p) => p.relation === 'home')).toBe(true);
+    expect(m.points.filter((p) => p.relation === 'home')).toHaveLength(3);
+  });
+
+  it('draws visitors that have a position and counts those without', () => {
+    const m = buildYardModel(SAMPLE);
+    const visitor = m.points.find((p) => p.registration === 'V1');
+    expect(visitor?.relation).toBe('visiting');
+    expect(visitor?.state).toBe('standing');
+    expect(m.visitorsDrawn).toBe(1);
+    expect(m.visitorsWithoutPosition).toBe(2);
+  });
+
+  it('treats a (0, 0) fix as no position everywhere', () => {
+    const r = response(
+      [
+        ...Array.from({ length: 6 }, (_, i) => bus(`P${i}`, 'standing', 'in_yard')),
+        bus('Z1', 'standing', 'away', { latitude: 0, longitude: 0, distanceFromYardKm: 9 }),
+      ],
+      YARD,
+      [
+        {
+          registrationNumber: 'VZ',
+          homeDepotId: 'x',
+          homeDepotName: 'Xton',
+          state: 'standing',
+          position: null,
+        },
+      ],
+    );
+    const m = buildYardModel(r);
+    expect(m.points.find((p) => p.registration === 'Z1')).toBeUndefined();
+    expect(m.beyondCount).toBe(0);
+    expect(m.parkedWithPosition).toBe(6);
+    const none = buildYardModel(response([bus('Z', 'standing', 'unknown', { latitude: 0, longitude: 0 })], null));
+    expect(none.parkedWithPosition).toBe(0);
   });
 
   it('never draws a bus with a null position', () => {
