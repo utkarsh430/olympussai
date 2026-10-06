@@ -12,7 +12,7 @@ const SOURCES_PATH = '/project/depots/sources';
 export function HowProduced({ paragraphs }: { readonly paragraphs: readonly string[] }) {
   return (
     <ClosingDisclosure paragraphs={paragraphs}>
-      <p>
+      <p className="depot-prose">
         The fields each feed must provide are listed on the{' '}
         <Link href={SOURCES_PATH} className="depot-link">
           Data sources page
