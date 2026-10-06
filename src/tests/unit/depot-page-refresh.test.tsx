@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PageRefreshNotice, pageRefreshSentence } from '@/components/depot/shell/PageRefreshNotice';
-import { StaleStrip } from '@/components/depot/shell/StaleNotice';
+import { StaleNotice } from '@/components/depot/shell/StaleNotice';
 import { feedChip } from '@/lib/depot/feedChip';
 import {
   PAGE_REFRESH_OK,
@@ -74,7 +74,7 @@ describe('the shell notice for a page whose own request fails', () => {
 
   it('stands the page stale strip down, so the page keeps one notice', () => {
     act(() => reportRefreshFailure('page', { since: null }));
-    render(<StaleStrip since={null} fetchedAt={null} />);
+    render(<StaleNotice since={null} fetchedAt={null} />);
     expect(screen.getByTestId('depot-stale').getAttribute('data-state')).toBe('covered');
     expect(screen.queryByTestId('depot-notice')).toBeNull();
   });

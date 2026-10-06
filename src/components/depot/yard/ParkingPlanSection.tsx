@@ -1,6 +1,6 @@
 'use client';
 
-import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import type { DepotParkingState } from '@/hooks/useDepotParking';
@@ -25,7 +25,7 @@ export function ParkingPlanSection({
   const { data, error, loading, refresh } = parking;
   return (
     <div className="flex min-w-0 flex-col gap-3" data-testid="parking-section">
-      {data && (data.stale || error) ? <StaleStrip since={data.feedNow} /> : null}
+      {data && (data.stale || error) ? <StaleNotice since={data.feedNow} /> : null}
       {data ? (
         <PlanArea depotId={depotId} data={data} />
       ) : loading && !error ? (

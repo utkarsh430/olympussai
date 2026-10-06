@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
 import { FiguresDisclosure } from '@/components/depot/maintenance/FiguresDisclosure';
-import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import {
   crewDisclosure,
@@ -61,7 +61,7 @@ export function CrewPage({ provenance }: CrewPageProps) {
       </>
     );
   }
-  const stale = data.stale || error ? <StaleStrip since={data.feedNow} /> : null;
+  const stale = data.stale || error ? <StaleNotice since={data.feedNow} /> : null;
   if (data.summary.shiftsRequired === 0) {
     // Crew C: the panel's own sentence names the date, so the header adds no second one.
     return (

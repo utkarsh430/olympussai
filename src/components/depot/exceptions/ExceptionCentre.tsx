@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import { useDepotExceptions, DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotExceptions';
-import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
@@ -117,7 +117,7 @@ export function ExceptionCentre() {
   if (nothingFlagged) {
     return (
       <>
-        {shown.stale || error ? <StaleStrip since={shown.feedNow} /> : null}
+        {shown.stale || error ? <StaleNotice since={shown.feedNow} /> : null}
         <StatePanel
           kind="empty"
           sentence="Nothing stands out on this snapshot: no depot and no bus is flagged."
@@ -130,7 +130,7 @@ export function ExceptionCentre() {
   }
   return (
     <>
-      {shown.stale || error ? <StaleStrip since={shown.feedNow} /> : null}
+      {shown.stale || error ? <StaleNotice since={shown.feedNow} /> : null}
       {failure !== null ? (
         <p role="alert" className="depot-prose mb-3 flex flex-wrap items-center gap-3">
           {failedQuerySentence(failure)}

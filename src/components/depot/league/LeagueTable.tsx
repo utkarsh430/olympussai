@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
-import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
@@ -93,7 +93,7 @@ export function LeagueTable() {
 
   return (
     <>
-      {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
+      {data.stale || error ? <StaleNotice since={data.feedNow} /> : null}
       <div className="depot-stack">
         <section aria-labelledby="league-ranked">
           <SectionLabel id="league-ranked" label="Ranked depots" note={note} />

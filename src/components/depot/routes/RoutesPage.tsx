@@ -7,7 +7,7 @@ import {
   EmptyState,
   ErrorPanel,
   LoadingBlock,
-  StaleStrip,
+  StaleNotice,
 } from '@/components/depot/shell/DataStates';
 import { useDepotAllocation } from '@/hooks/useDepotAllocation';
 import { useDebounced } from '@/hooks/useDebounced';
@@ -83,7 +83,7 @@ export function RoutesPage() {
   const stale =
     (routeData !== null && (routeData.stale || routes.error !== null)) ||
     (plan !== null && (plan.stale || allocation.error !== null));
-  const strip = stale ? <StaleStrip since={routeData?.feedNow ?? plan?.feedNow ?? null} /> : null;
+  const strip = stale ? <StaleNotice since={routeData?.feedNow ?? plan?.feedNow ?? null} /> : null;
 
   if (routeData !== null && routeData.inFeed === 0) {
     return (

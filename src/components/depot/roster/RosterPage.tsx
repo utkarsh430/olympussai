@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
-import { ErrorPanel, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, StaleNotice } from '@/components/depot/shell/DataStates';
 import { Pager } from '@/components/depot/shell/LongLists';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
@@ -106,7 +106,7 @@ export function RosterPage() {
         onRetry={refresh}
       />
     );
-  const staleStrip = data.stale || error ? <StaleStrip since={data.feedNow} /> : null;
+  const staleStrip = data.stale || error ? <StaleNotice since={data.feedNow} /> : null;
   if (allRows.length === 0 && openBus === null) {
     return (
       <>

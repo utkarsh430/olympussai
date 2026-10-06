@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
-import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { HowProduced as ClosingDisclosure } from '@/components/depot/shell/HowProduced';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
@@ -102,7 +102,7 @@ function useDutyBody(depotId: string): {
       ),
     };
   }
-  const stale = data.stale || error ? <StaleStrip since={data.feedNow} /> : null;
+  const stale = data.stale || error ? <StaleNotice since={data.feedNow} /> : null;
   if (rows.length === 0) {
     // One "no duties" sentence: the shared one, in the panel, not also in the line.
     const empty = (

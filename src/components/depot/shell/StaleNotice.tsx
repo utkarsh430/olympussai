@@ -7,7 +7,7 @@ import { formatFeedTime } from '@/lib/depot/format';
 import { Notice } from './Notice';
 import { usePageRefresh } from './PageRefreshNotice';
 
-export interface StaleStripProps {
+export interface StaleNoticeProps {
   /** The feed time of the last good data (ISO string), or null when unknown. */
   readonly since: string | null;
   /**
@@ -40,7 +40,7 @@ const SLOT = 'min-h-[3.75rem]';
  * page each time a response turns stale and fresh again, so the notice costs one move,
  * when it appears. A timer re-renders it when the notice falls due.
  */
-export function StaleStrip({ since, fetchedAt }: StaleStripProps) {
+export function StaleNotice({ since, fetchedAt }: StaleNoticeProps) {
   const shellFetchedAt = useShellFetchedAt();
   // The shell's page notice already says these figures are the last received.
   const covered = usePageRefresh().failed;

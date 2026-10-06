@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
-import { EmptyState, StaleStrip } from '@/components/depot/shell/DataStates';
+import { EmptyState, StaleNotice } from '@/components/depot/shell/DataStates';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { chartDisclosureParagraphs, depotTrendsPath } from '@/lib/depot/forecast/trendsPageModel';
 import type { MetricKey } from '@/lib/depot/sim/types';
@@ -53,7 +53,7 @@ export function DepotTrends({ metric }: DepotTrendsProps) {
     <div className="depot-stack">
       <div className="flex min-w-0 flex-col gap-3">
         <MetricChooser path={depotTrendsPath(depotId)} metric={metric} />
-        {stale ? <StaleStrip since={chosen.data?.feedNow ?? null} /> : null}
+        {stale ? <StaleNotice since={chosen.data?.feedNow ?? null} /> : null}
         <ForecastBlock state={chosen} errorTitle="Could not load this depot's trend" />
       </div>
       <AvailabilityPanel depotId={depotId} available={available} distribution={distribution} />

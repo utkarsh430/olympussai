@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
-import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { useDepotDistribution, type DepotDistributionState } from '@/hooks/useDepotDistribution';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import type { DepotDistributionResponse } from '@/lib/depot/api';
@@ -126,7 +126,7 @@ export function Distribution({
   const maxBuses = view.rows.reduce((m, r) => Math.max(m, r.buses), 0);
   return (
     <div className="flex min-w-0 flex-col">
-      {data.stale || state.error ? <StaleStrip since={data.feedNow} /> : null}
+      {data.stale || state.error ? <StaleNotice since={data.feedNow} /> : null}
       <RecommendationNotice fixture={data.source === 'fixture'} />
       <WhatIfStrip sentence={view.sentence} onReset={reset} />
       <BalanceSummary summary={view.summary} scenarioActive={view.key !== null} />

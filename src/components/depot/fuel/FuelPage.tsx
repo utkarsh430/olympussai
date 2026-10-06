@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
 import { HowProduced } from '@/components/depot/revenue/HowProduced';
-import { ErrorPanel, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, StaleNotice } from '@/components/depot/shell/DataStates';
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
@@ -72,7 +72,7 @@ export function FuelPage({ provenance }: { readonly provenance: ProvenanceDescri
 function FuelBody({ data, stale }: { readonly data: FuelResponse; readonly stale: boolean }) {
   return (
     <div className="depot-stack">
-      {stale ? <StaleStrip since={data.feedNow} /> : null}
+      {stale ? <StaleNotice since={data.feedNow} /> : null}
       {isEmptyDay(data) ? (
         <StatePanel
           kind="empty"

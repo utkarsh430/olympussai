@@ -7,7 +7,7 @@ import { StatePanel } from '@/components/depot/shell/StatePanel';
 import {
   ErrorPanel,
   LoadingBlock,
-  StaleStrip,
+  StaleNotice,
 } from '@/components/depot/shell/DataStates';
 import { formatClockTime } from '@/lib/depot/format';
 import { LOAD_ERROR_TITLE, loadErrorBody } from '@/lib/depot/loadError';
@@ -145,7 +145,7 @@ export function NetworkOverview() {
 
   return (
     <div data-testid="depot-overview">
-      {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
+      {data.stale || error ? <StaleNotice since={data.feedNow} /> : null}
       <OverviewBody data={data} />
     </div>
   );

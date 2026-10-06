@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
-import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleNotice } from '@/components/depot/shell/DataStates';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotNetwork';
@@ -151,7 +151,7 @@ function CoverageSection() {
           </div>
           {data.stale || error ? (
             <div className="mb-3">
-              <StaleStrip since={data.feedNow} />
+              <StaleNotice since={data.feedNow} />
             </div>
           ) : null}
           <CoverageBars coverage={data.coverage} />

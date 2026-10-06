@@ -427,7 +427,7 @@ Pages do nothing here; for reference.
   | 360 | none | 32 | 328px |
 
 - **Stale feed, said once.** While a response is stale, a page renders
-  `<StaleStrip since={data.feedNow} />` as before. For the first `STALE_NOTICE_AFTER_MS`
+  `<StaleNotice since={data.feedNow} />` as before. For the first `STALE_NOTICE_AFTER_MS`
   (5 minutes) of the data's age, from its fetch time against the browser clock, the chip and
   the provenance line carry it alone and the strip shows nothing; after that, or when the age
   cannot be known, it shows the one shared `Notice` (STALE, "Showing last good data from
@@ -441,7 +441,7 @@ Pages do nothing here; for reference.
   refreshed": "This page's figures could not be refreshed. The figures on screen are the
   last ones received, feed time HH:MM."), in fixed words, never the server's text. While it
   shows, the feed chip reads STALE at that time and the provenance line says "the last good
-  data", and a page's `StaleStrip` stands down (one notice per page). It clears when the
+  data", and a page's `StaleNotice` stands down (one notice per page). It clears when the
   request succeeds again or the page unmounts. Pages do nothing: every `useDepot*` hook
   reports through the shared hook. The shell's own network feed does not report; it keeps
   the chip, the provenance line and the timed strip above.
