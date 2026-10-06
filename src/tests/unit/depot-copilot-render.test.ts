@@ -284,7 +284,7 @@ describe('renderDraft', () => {
 
     it('accepts placeholders separated by words or spaces', () => {
       expect(bad('Between {{fact:a}} and {{fact:b}}.')).toBe(false);
-      expect(bad('Pair {{fact:a}} ({{fact:b}}) here.')).toBe(false);
+      expect(bad('Values {{fact:a}} ({{fact:b}}) here.')).toBe(false);
     });
 
     it.each([
@@ -375,7 +375,7 @@ describe('renderDraft', () => {
       const emoji = sanitizeFactText('\u{1F600}'.repeat(50), 10);
       expect(Array.from(emoji)).toHaveLength(10);
       expect(emoji).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
-      const marks = sanitizeFactText('é'.repeat(20), 10);
+      const marks = sanitizeFactText('x́'.repeat(20), 10);
       expect(marks).not.toMatch(/^́|́…$/);
       expect(Array.from(marks).at(-2)).toBe('́');
     });
