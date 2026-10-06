@@ -23,8 +23,17 @@ export interface LiveSnapshot {
   readonly rejectedRecordCount: number;
   /** Server ISO time the snapshot was built. */
   readonly fetchedAt: string;
-  /** Newest upstream `receivedAt` across the depot rows. */
+  /**
+   * The feed clock (ruling S56a): the newest upstream `receivedAt` not later
+   * than the fetch time read in Indian time plus FEED_CLOCK_MAX_LEAD_MIN.
+   */
   readonly feedNow: string | null;
+  /**
+   * Depot rows stamped later than that, ignored for the clock. Above zero, the
+   * feed sent future stamps or this server's clock is slow (the clock then
+   * lags). Optional only for older literals; always set here.
+   */
+  readonly feedClockAheadRows?: number;
 }
 
 export interface LiveSnapshotResult {

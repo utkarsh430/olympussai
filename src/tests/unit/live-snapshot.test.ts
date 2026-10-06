@@ -81,6 +81,26 @@ describe('getLiveSnapshot', () => {
     expect(snapshot.fetchedAt).toBe(new Date(T0).toISOString());
   });
 
+  it('sets the feed clock from the fetch time read in Indian time and counts later rows (S56a)', async () => {
+    const ist = (offsetMin: number): string =>
+      new Date(T0 + (330 + offsetMin) * 60_000).toISOString().replace('.000Z', 'Z');
+    const base = LIVE_PAYLOAD[0]!;
+    const payload = [
+      { ...base, regNum: 'UP78JT0001', receivedTime: ist(-1) },
+      { ...base, regNum: 'UP78JT0002', receivedTime: ist(330) },
+    ];
+    mockFetch.mockResolvedValue(okResult(payload));
+    const { snapshot } = await getLiveSnapshot(T0);
+    expect(snapshot.feedNow).toBe(new Date(T0 + 329 * 60_000).toISOString());
+    expect(snapshot.feedClockAheadRows).toBe(1);
+  });
+
+  it('keeps an old payload on its own clock with nothing counted as ahead', async () => {
+    mockFetch.mockResolvedValue(okResult(LIVE_PAYLOAD));
+    const { snapshot } = await getLiveSnapshot(T0);
+    expect(snapshot.feedClockAheadRows).toBe(0);
+  });
+
   it('serves from cache within the TTL', async () => {
     mockFetch.mockResolvedValue(okResult(LIVE_PAYLOAD));
     const first = await getLiveSnapshot(T0);
