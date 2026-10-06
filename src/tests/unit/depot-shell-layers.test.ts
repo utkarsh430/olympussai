@@ -59,4 +59,11 @@ describe('the quiet top-bar button', () => {
     expect(body).toMatch(/\bh-8\b/);
     expect(body).toMatch(/\bborder-transparent\b/);
   });
+
+  it('is muted text at rest and full ink on hover or keyboard focus (faint still reads at 5.3:1)', () => {
+    const body = /\.depot-bar-button-quiet \{([^}]*)\}/.exec(CSS)?.[1] ?? '';
+    expect(body).toMatch(/\btext-depot-faint\b/);
+    expect(body).toMatch(/\bhover:text-depot-ink\b/);
+    expect(body).toMatch(/\bfocus-visible:text-depot-ink\b/);
+  });
 });

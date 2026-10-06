@@ -355,9 +355,12 @@
   }
 
   /* The bar's in-row actions from 1280px: 32px and no outline at rest, so they never
-     weigh more than the feed chip beside them; the hairline appears on hover. */
+     weigh more than the feed chip beside them; the hairline appears on hover. The text is
+     the faint tone at rest (5.3:1, still AA) and full ink on hover or keyboard focus, so
+     the LIVE chip stays the heaviest thing in the bar. */
   .depot-bar-button-quiet {
-    @apply h-8 border-transparent py-0 hover:border-depot-line hover:bg-depot-raised;
+    @apply h-8 border-transparent py-0 text-depot-faint hover:border-depot-line hover:bg-depot-raised
+      hover:text-depot-ink focus-visible:text-depot-ink;
   }
 
   /* Provenance and feed tags: flat, 3px radius, always carry a word. */
