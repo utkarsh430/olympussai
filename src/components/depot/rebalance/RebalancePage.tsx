@@ -25,7 +25,7 @@ import { BalanceSummary } from './BalanceSummary';
 import { BalanceTable } from './BalanceTable';
 import { DecisionTrail } from './DecisionTrail';
 import { CollapsedSection } from '@/components/depot/shell/CollapsedSection';
-import { RecommendationNotice, WhatIfStrip } from './PageIntro';
+import { RecommendationNotice, WhatIfNotice } from './RebalanceNotices';
 import { RebalanceMethod } from './RebalanceMethod';
 import { ScenarioCompare } from './ScenarioCompare';
 import { ScenarioPanel } from './ScenarioPanel';
@@ -128,7 +128,7 @@ export function Distribution({
     <div className="flex min-w-0 flex-col">
       {data.stale || state.error ? <StaleNotice since={data.feedNow} /> : null}
       <RecommendationNotice fixture={data.source === 'fixture'} />
-      <WhatIfStrip sentence={view.sentence} onReset={reset} />
+      <WhatIfNotice sentence={view.sentence} onReset={reset} />
       <BalanceSummary summary={view.summary} scenarioActive={view.key !== null} />
       {view.delta ? (
         <ScenarioCompare delta={view.delta} baseline={view.baselineSummary} scenario={view.summary} />
