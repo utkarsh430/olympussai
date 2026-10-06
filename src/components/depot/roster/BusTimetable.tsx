@@ -88,7 +88,7 @@ function TimetableBody({
   const stops = [...schedule.stops].sort((a, b) => a.sequence - b.sequence);
   return (
     <div className="flex flex-col gap-2">
-      <p className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {sample ? (
           <span className="depot-tag border-alert-amber/50 text-alert-amber">Sample data</span>
         ) : (
@@ -98,7 +98,7 @@ function TimetableBody({
           {schedule.routeName ?? 'Route'}
           {schedule.direction ? `, ${schedule.direction}` : ''}
         </span>
-      </p>
+      </div>
       {sample ? (
         <p className="depot-prose" role="note">
           This is sample data, not this bus&apos;s timetable.
@@ -125,8 +125,7 @@ function TimetableBody({
         <p className="depot-prose" role="note">{`Position not used for the next stop: ${lowerFirst(reason)}`}</p>
       ) : null}
       {next ? (
-        <p className="flex flex-wrap items-center gap-2 font-mono text-xs text-depot-muted">
-          <ProvenanceBadge provenance="derived" />
+        <p className="depot-note">
           {`Next stop ${next.stop.name}, worked out ${
             next.method === 'position' ? 'by position' : 'by timetable'
           }.`}

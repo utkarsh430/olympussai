@@ -1,8 +1,9 @@
 import type { DepotBusView } from '@/lib/depot/api';
 import { NORMAL_TAMPER_CODE } from '@/lib/depot/exceptions/config';
 import type { BusLocation } from '@/lib/depot/infer/types';
-import { formatFeedDateTime, formatFeedTime } from '@/lib/depot/format';
+import { BUS_STATE_LABEL } from '@/lib/depot/labels';
 import type { BusOpState } from '@/lib/depot/types';
+import { lastHeardCell } from './rosterCells';
 
 /** Display order: most useful to least. */
 export const BUS_STATE_ORDER: readonly BusOpState[] = [
@@ -12,6 +13,12 @@ export const BUS_STATE_ORDER: readonly BusOpState[] = [
   'dark',
   'off_road',
 ];
+
+/** The short word for a state where room is tight; the full label goes in `title`. */
+export const ROSTER_STATE_WORD: Readonly<Record<BusOpState, string>> = {
+  ...BUS_STATE_LABEL,
+  on_road: 'On road',
+};
 
 export interface RosterFilters {
   /** Buses in any of these states; empty means every state. */
@@ -46,19 +53,27 @@ export const DEFAULT_ROSTER_FILTERS: RosterFilters = {
 
 export interface RosterRow {
   readonly bus: DepotBusView;
+  /** LAST HEARD's words: "2 min ago", or "not heard 3 h 12 min" past the recency rule. */
   readonly lastHeard: string;
+  /** True when `lastHeard` says "not heard": drawn in the warning tone. */
+  readonly notHeard: boolean;
   readonly flags: readonly string[];
   readonly delay: string | null;
 }
+
+const ON_TIME_WITHIN_MIN = 1;
 
 const MINUTES_PER_HOUR = 60;
 const MINUTES_PER_DAY = 1440;
 const HOURS_SHOWN_BELOW_MIN = 120;
 const DAYS_SHOWN_FROM_MIN = 2 * MINUTES_PER_DAY;
-const ON_TIME_WITHIN_MIN = 1;
 const UNKNOWN = 'unknown';
 
-/** How long since the bus was heard from, as a short phrase. */
+/**
+ * How long since the bus was heard from, as a short phrase. Kept in its coarse wording
+ * for the yard, maintenance and next-stop sentences that share it; the roster's own
+ * LAST HEARD cell uses `lastHeardCell` (full durations through `formatDurationMinutes`).
+ */
 export function lastHeardText(gpsAgeMin: number | null): string {
   if (gpsAgeMin === null || !Number.isFinite(gpsAgeMin)) return UNKNOWN;
   if (gpsAgeMin < 1) return 'just now';
@@ -89,23 +104,10 @@ export function delayText(delayMinutes: number | null): string | null {
   return minutes > 0 ? `${minutes} min late` : `${-minutes} min early`;
 }
 
-const DASH = '—';
-
-/**
- * A scheduled time: the time alone on the feed date, the day and time otherwise
- * (a schedule from yesterday must not read as today's). Never an ISO string.
- */
-export function scheduleText(iso: string | null, feedNow: string | null): string {
-  if (iso === null) return DASH;
-  const sameDay = feedNow !== null && iso.slice(0, 10) === feedNow.slice(0, 10);
-  return sameDay ? formatFeedTime(iso) : formatFeedDateTime(iso);
-}
-
-/** The quiet word beside a state whose report is too old to describe the present. */
-export function notHeardText(bus: Pick<DepotBusView, 'notHeardMin'>): string | null {
-  const minutes = bus.notHeardMin;
-  if (minutes === null || minutes === undefined || !Number.isFinite(minutes)) return null;
-  return `not heard ${lastHeardText(minutes).replace(' ago', '')}`;
+/** "not heard 3 h 12 min" for a bus unheard past the recency rule; else null. */
+export function notHeardText(bus: Pick<DepotBusView, 'gpsAgeMin' | 'notHeardMin'>): string | null {
+  const cell = lastHeardCell(bus);
+  return cell.warning ? cell.text : null;
 }
 
 /** A tamper code other than the feed's normal one. */
@@ -153,7 +155,8 @@ export function buildRosterRows(buses: readonly DepotBusView[]): readonly Roster
     )
     .map((bus) => ({
       bus,
-      lastHeard: lastHeardText(bus.gpsAgeMin),
+      lastHeard: lastHeardCell(bus).text,
+      notHeard: lastHeardCell(bus).warning,
       flags: deviceFlags(bus),
       delay: delayText(bus.delayMinutes),
     }));

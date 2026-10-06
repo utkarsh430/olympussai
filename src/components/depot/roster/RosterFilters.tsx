@@ -7,6 +7,7 @@ import { BUS_LOCATION_LABEL, BUS_STATE_LABEL } from '@/lib/depot/labels';
 import {
   BUS_STATE_ORDER,
   ROSTER_FLAG_LABEL,
+  ROSTER_STATE_WORD,
   type RosterFilters as Filters,
 } from '@/lib/depot/roster/rosterModel';
 import { MAX_SEARCH_LENGTH, ROSTER_LOCATIONS } from '@/lib/depot/roster/rosterQuery';
@@ -17,23 +18,18 @@ export interface RosterFiltersProps {
   readonly filters: Filters;
   readonly counts: Readonly<Record<BusOpState, number>>;
   readonly onChange: (next: Filters) => void;
-  /** "Showing 25 of 200 buses", on the right of the row. */
-  readonly countText: string;
 }
-
-/** Short words for the toggles; the full label is in `title`. */
-const SHORT_STATE: Readonly<Record<BusOpState, string>> = { ...BUS_STATE_LABEL, on_road: 'On road' };
 
 function isLocation(value: string): value is BusLocation {
   return (ROSTER_LOCATIONS as readonly string[]).includes(value);
 }
 
 /**
- * One row: state toggles with counts, location, search, "Has a route", and the
- * count on the right. A flag set by a link (main power off, not heard, tamper)
- * shows as one more pressed toggle that clears it.
+ * One row: state toggles with counts, location, search and "Has a route". The count of
+ * matches is the section label's and the pager's, never this row's. A flag set by a link
+ * (main power off, not heard, tamper) shows as one more pressed toggle that clears it.
  */
-export function RosterFilters({ filters, counts, onChange, countText }: RosterFiltersProps) {
+export function RosterFilters({ filters, counts, onChange }: RosterFiltersProps) {
   const toggleState = (state: BusOpState): void => {
     const on = !filters.states.includes(state);
     const states = on
@@ -60,7 +56,7 @@ export function RosterFilters({ filters, counts, onChange, countText }: RosterFi
             className="depot-filter-button inline-flex items-center gap-1.5"
           >
             <span aria-hidden className={`h-1.5 w-1.5 shrink-0 ${BUS_STATE_SQUARE[state]}`} />
-            {SHORT_STATE[state]} <span className="tabular-nums">{formatCount(counts[state])}</span>
+            {ROSTER_STATE_WORD[state]} <span className="tabular-nums">{formatCount(counts[state])}</span>
           </button>
         ))}
         {filters.flag !== 'any' ? (
@@ -107,9 +103,6 @@ export function RosterFilters({ filters, counts, onChange, countText }: RosterFi
         checked={filters.hasRouteOnly}
         onChange={(event) => onChange({ ...filters, hasRouteOnly: event.target.checked })}
       />
-      <p className="ml-auto font-mono text-xs tabular-nums text-depot-muted" role="status">
-        {countText}
-      </p>
     </form>
   );
 }
