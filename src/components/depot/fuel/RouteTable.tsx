@@ -90,7 +90,7 @@ export function RouteTable({ rows, total }: RouteTableProps) {
           <DataTable
             columns={COLUMNS}
             rows={shaped}
-            rowKey={(r) => r.label}
+            rowKey={(r) => r.rowKey}
             caption="Modelled fuel and cost by route"
           />
         </>

@@ -13,6 +13,7 @@ import {
   noComparisonNote,
   noDistanceNote,
   peersDifferNote,
+  routeLabel,
   ruleSentence,
 } from '@/lib/depot/fuel/fuelPageModel';
 
@@ -41,7 +42,7 @@ function buildColumns(depotId: string): readonly Column<FuelFlaggedBus>[] {
       key: 'route',
       header: 'Route',
       sortValue: (b) => b.routeName,
-      render: (b) => groupLabel(b.routeName),
+      render: (b) => routeLabel(b.routeName),
     },
     {
       key: 'kmpl',

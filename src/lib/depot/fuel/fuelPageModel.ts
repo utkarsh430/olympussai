@@ -46,6 +46,11 @@ export function groupLabel(key: string | null): string {
   return CLASS_LABELS[key] ?? key;
 }
 
+/** A route name as the page words it; a null key is a bus with no route. Not a class label. */
+export function routeLabel(key: string | null): string {
+  return key === null ? NO_ROUTE : key;
+}
+
 export interface ClassBar {
   readonly key: string;
   readonly label: string;
@@ -74,10 +79,18 @@ export function classBars(rows: readonly FuelGroupRow[]): readonly ClassBar[] {
 
 export interface RouteRow extends FuelGroupRow {
   readonly label: string;
+  /** Stable and unique per group: never the label, which two groups can share. */
+  readonly rowKey: string;
 }
 
+const NO_ROUTE_KEY = '\u0000no-route';
+
 export function routeRows(rows: readonly FuelGroupRow[]): readonly RouteRow[] {
-  return rows.map((row) => ({ ...row, label: groupLabel(row.key) }));
+  return rows.map((row) => ({
+    ...row,
+    label: routeLabel(row.key),
+    rowKey: row.key === null ? NO_ROUTE_KEY : `route:${row.key}`,
+  }));
 }
 
 export interface SummaryPrice {

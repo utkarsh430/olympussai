@@ -11,6 +11,7 @@ import {
   noComparisonNote,
   noDistanceNote,
   peersDifferNote,
+  routeLabel,
   routeRows,
   ruleSentence,
   summarySentence,
@@ -138,6 +139,28 @@ describe('sentences', () => {
   });
   it('explains an empty day', () => {
     expect(emptyText()).toContain('no bus has modelled distance');
+  });
+});
+
+describe('route labels and row keys', () => {
+  it('labels a route as it is named and a null route as No route', () => {
+    expect(routeLabel(null)).toBe('No route');
+    expect(routeLabel('ORD_1')).toBe('ORD_1');
+    // A route named like a class is a route, not a class.
+    expect(routeLabel('ac')).toBe('ac');
+    expect(routeLabel('express')).toBe('express');
+    expect(groupLabel('ac')).toBe('AC');
+  });
+
+  it('keys rows apart even when a route is literally named No route or like a class', () => {
+    const rows = routeRows([
+      row({ key: null }),
+      row({ key: 'No route' }),
+      row({ key: 'ac' }),
+      row({ key: 'AC' }),
+    ]);
+    expect(new Set(rows.map((r) => r.rowKey)).size).toBe(4);
+    expect(rows.map((r) => r.label)).toEqual(['No route', 'No route', 'ac', 'AC']);
   });
 });
 
