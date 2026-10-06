@@ -16,9 +16,12 @@ const PERCENT = 100;
 export const MODEL_NOTICE =
   'Duties are a model until a timetable is supplied, and their lengths are generated, not timetabled. The matching of buses to duties is a recommendation: nothing is assigned or dispatched.';
 
-/** Wording follows `assignDuties`: cost is age in years x duty hours; classes never mix. */
+/**
+ * Wording follows `assignDuties`' tiers in order (rulings S47, S55): class is a
+ * preference, not a bar, so a bus of another class can take a duty.
+ */
 export const COST_SENTENCE =
-  'The matching minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses. A bus is never matched to a duty of another service class.';
+  'The matching keeps buses out on the road in the day first, buses in service before buses merely moving; then it gives a route’s duties to buses running that route, prefers a bus of the duty’s service class, and fits buses to the feed time. Among what is left it minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses.';
 
 export const STATE_WORD: Readonly<Record<DutyState, string>> = {
   assigned: 'Assigned',
