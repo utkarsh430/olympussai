@@ -117,7 +117,7 @@ const ROUTE_DETAILS: FeedEntry = {
     {
       name: 'stops[].latitude',
       type: 'number | null',
-      note: 'Some stops arrive as 0,0, which is not a position.',
+      note: 'Some stops arrive as 0,0, and some at a same-named place elsewhere; a position that does not fit the timetable is not used.',
     },
     { name: 'stops[].longitude', type: 'number | null' },
     { name: 'stops[].scheduledArrival', type: 'string | null', note: FEED_TIME_NOTE },
