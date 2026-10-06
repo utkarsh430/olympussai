@@ -3,12 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { MapFallback } from '@/components/map/MapFallback';
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, MAP_DARK_STYLE } from '@/lib/constants';
-import type {
-  BalanceClass,
-  MapArc,
-  MapGeometry,
-  MapNode,
-} from '@/lib/depot/rebalance/rebalanceModel';
+import type { MapArc, MapGeometry, MapNode } from '@/lib/depot/rebalance/mapGeometry';
+import type { BalanceClass } from '@/lib/depot/rebalance/rebalanceModel';
 import { onMapsAuthFailure } from '@/lib/maps/authFailure';
 import { removeMapListeners } from '@/lib/maps/listeners';
 import { getMapsLoader, isMapsConfigured } from '@/lib/maps/loader';

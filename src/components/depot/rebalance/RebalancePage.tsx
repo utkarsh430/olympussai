@@ -19,14 +19,9 @@ import {
 } from '@/lib/depot/decisions';
 import { compareOutcomes, runScenario } from '@/lib/depot/optimise/scenario';
 import type { ScenarioOutcome } from '@/lib/depot/optimise/types';
-import {
-  balanceRows,
-  busesWord,
-  mapGeometry,
-  planSummary,
-  transferRows,
-  uncoveredRows,
-} from '@/lib/depot/rebalance/rebalanceModel';
+import { mapGeometry } from '@/lib/depot/rebalance/mapGeometry';
+import { balanceRows, busesWord, planSummary } from '@/lib/depot/rebalance/rebalanceModel';
+import { transferRows, uncoveredRows } from '@/lib/depot/rebalance/transferModel';
 import {
   BASELINE_FORM,
   effectiveMaxTransferKm,

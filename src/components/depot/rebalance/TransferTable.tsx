@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { NOTE_MAX_CHARS, validateNote } from '@/lib/depot/decisions';
 import { formatCount } from '@/lib/depot/format';
-import type { TransferDecisionKind, TransferRow } from '@/lib/depot/rebalance/rebalanceModel';
+import type { TransferDecisionKind } from '@/lib/depot/rebalance/rebalanceModel';
+import type { TransferRow } from '@/lib/depot/rebalance/transferModel';
 
 export interface TransferTableProps {
   readonly rows: readonly TransferRow[];

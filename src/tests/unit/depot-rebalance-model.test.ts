@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import {
-  MAX_ARC_PX,
-  MIN_ARC_PX,
-  arcWidthPx,
-  balanceRows,
-  mapGeometry,
-  planSummary,
-  transferRows,
-  uncoveredRows,
-} from '@/lib/depot/rebalance/rebalanceModel';
+import { MAX_ARC_PX, MIN_ARC_PX, arcWidthPx, mapGeometry } from '@/lib/depot/rebalance/mapGeometry';
+import { balanceRows, planSummary } from '@/lib/depot/rebalance/rebalanceModel';
+import { transferRows, uncoveredRows } from '@/lib/depot/rebalance/transferModel';
 import type { DepotBalance, TransferPlan } from '@/lib/depot/optimise/types';
 
 function balance(

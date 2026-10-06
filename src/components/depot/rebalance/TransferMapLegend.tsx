@@ -1,4 +1,4 @@
-import { MAX_ARC_PX, MIN_ARC_PX, arcWidthPx } from '@/lib/depot/rebalance/rebalanceModel';
+import { MAX_ARC_PX, MIN_ARC_PX, arcWidthPx } from '@/lib/depot/rebalance/mapGeometry';
 import { BALANCED_COLOUR, DEFICIT_COLOUR, SURPLUS_COLOUR } from './BalanceBar';
 
 /** Same arc colour the map draws with. */
