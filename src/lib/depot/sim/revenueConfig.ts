@@ -18,8 +18,8 @@ import type { ServiceClass } from './types';
  *    the seats offered while the load factor stays under its cap.
  *  - The fare is per occupied seat-kilometre for the class. Revenue per leg on a
  *    route of known length = seats x load factor x length x fare per km.
- *    On a route of unknown length each boarding pays FLAT_FARE_PER_BOARDING and
- *    earnings per kilometre are withheld.
+ *    A route with no real profile is priced on the modelled typical length of
+ *    its class (operatingDayConfig) and says so.
  *  - Hence earnings per service kilometre = seats x load factor x fare per km,
  *    independent of length. At the base load factor and the class seat count
  *    (52, 44, 40, 45): ordinary about Rs 35.5, express Rs 36.3, ac Rs 39.6,
@@ -77,20 +77,11 @@ export const FARE_PER_KM: Readonly<Record<ServiceClass, number>> = {
 export const AVG_TRIP_LENGTH_SHARE = 0.45;
 
 /**
- * Average fare per boarding in rupees on a route whose length is unknown.
- * Basis: a round planning figure for a short-to-medium ordinary journey.
- */
-export const FLAT_FARE_PER_BOARDING = 45;
-
-/**
  * A run is out and back: a trip starts and ends at the depot, so one trip is
  * two legs and covers the route length twice. Used for service kilometres and
  * for the boardings and revenue of a day.
  */
 export const LEGS_PER_TRIP = 2;
-
-/** A length beyond this is a corrupt value, not a route; it is treated as unknown. */
-export const MAX_PLAUSIBLE_LENGTH_KM = 2000;
 
 /** Seats beyond this per bus are a corrupt value, not a bus. */
 export const MAX_SEATS_PER_BUS = 150;
@@ -103,18 +94,7 @@ export const DAILY_NOISE_SALT = 'ridership-day';
  * classes, but one route is priced as one class.
  */
 export const MIXED_CLASS_NOTE =
-  'A route with buses of several classes is priced at its most numerous class (ties go to the more specific class); its seats are the average across its buses.';
-
-/**
- * Earnings per kilometre enter the Depot Economics Index only when they rest
- * on at least this share of the depot's routes (one quarter): a figure from
- * one route in twenty says little about the depot. Both this and
- * ECONOMICS_MIN_ROUTES must hold.
- */
-export const ECONOMICS_MIN_ROUTE_COVERAGE = 0.25;
-
-/** ...and on at least this many routes, so a depot with a single route is never ranked on it. */
-export const ECONOMICS_MIN_ROUTES = 2;
+  'A route is priced at the class its name states (ordinary when it states none); its seats are the average across the buses that ran it.';
 
 /** Weights of the Depot Economics Index components; they sum to 1 (a test asserts it). */
 export const ECONOMICS_WEIGHTS = {
@@ -140,6 +120,5 @@ export const REVENUE_MODEL_PARAMS = {
   maxLoadFactor: MAX_LOAD_FACTOR,
   farePerKm: FARE_PER_KM,
   avgTripLengthShare: AVG_TRIP_LENGTH_SHARE,
-  flatFarePerBoarding: FLAT_FARE_PER_BOARDING,
   legsPerTrip: LEGS_PER_TRIP,
 } as const;

@@ -40,34 +40,42 @@ export function formatLoadFactor(ratio: number | null): string {
   return `${(Math.round(ratio * PERCENT * TENTH) / TENTH).toFixed(1)}%`;
 }
 
+/** Trips here are the day's; the Routes page counts turn-rounds of the buses seen on a route now. */
+export const TRIPS_NOTE = 'Duties that ran in the modelled day, one trip out and back each';
+
+/** "Lengths: 3 of 14 routes from real route profiles, the rest modelled": a coverage figure, never a gate. */
 export function coverageSentence(coverage: Coverage): string {
-  if (coverage.of === 0) return 'No routes to base it on';
+  if (coverage.of === 0) return 'No routes ran in the modelled day';
   const noun = coverage.of === 1 ? 'route' : 'routes';
-  return `Based on ${formatCount(coverage.n)} of ${formatCount(coverage.of)} ${noun} with kilometres run and a known length`;
+  const rest = coverage.n >= coverage.of ? '' : ', the rest modelled';
+  return `Lengths: ${formatCount(coverage.n)} of ${formatCount(coverage.of)} ${noun} from real route profiles${rest}`;
 }
 
-/** What a depot-level earnings cell says when there is no figure to show. */
-export const LENGTH_NOT_KNOWN = 'length not known';
+/** Shown for earnings per km when nothing ran, so there are no kilometres to divide by. */
+export const NO_KM_RUN = 'no kilometres run';
 
 /** A column header that tags its figures MODELLED. */
 export function modelledHeader(label: string): string {
   return `${label} (MODELLED)`;
 }
 
-/** The route length column: a length read from a real route profile is DERIVED. */
-export const DERIVED_LENGTH_HEADER = 'Route length (DERIVED)';
+/** The route length column: each cell says whether its length is DERIVED (a real profile) or MODELLED. */
+export const DERIVED_LENGTH_HEADER = 'Route length';
+
+const WITHHELD_SENTENCE: Readonly<Record<EarningsWithheldReason, string>> = {
+  no_service_km:
+    'No duty on this route had a bus in the modelled day, so it ran no kilometres and has no earnings per kilometre.',
+};
 
 export function withheldSentence(reason: EarningsWithheldReason): string {
-  return reason === 'unknown_length'
-    ? 'The length is not known for this route (its stops have not been profiled; a route is profiled when it is opened on the Routes page), so earnings per kilometre are withheld rather than guessed. The revenue shown uses a flat fare per boarding.'
-    : 'The route ran no kilometres in the model, so earnings per kilometre are withheld.';
+  return WITHHELD_SENTENCE[reason];
 }
 
-/** How much of the total rests on the flat fare; null when there is nothing to say. */
-export function flatFareSentence(totals: DepotRevenueTotals): string | null {
-  const { flatFareRevenueShare: revenue, flatFareRouteShare: routes } = totals;
-  if (revenue === null || routes === null) return null;
-  return `Flat fare, length not known: ${formatLoadFactor(revenue)} of revenue, ${formatLoadFactor(routes)} of routes`;
+/** How much of the revenue rests on a modelled route length; null when there is nothing to say. */
+export function modelledLengthSentence(totals: DepotRevenueTotals): string | null {
+  const share = totals.modelledLengthRevenueShare;
+  if (share === null || share <= 0) return null;
+  return `${formatLoadFactor(share)} of revenue is on routes of modelled length (no real profile yet)`;
 }
 
 export interface SummaryTile {
@@ -79,7 +87,7 @@ export interface SummaryTile {
 
 export function summaryTiles(totals: DepotRevenueTotals): readonly SummaryTile[] {
   return [
-    { key: 'trips', label: 'Trips', value: formatCount(totals.trips), note: null },
+    { key: 'trips', label: 'Trips', value: formatCount(totals.trips), note: TRIPS_NOTE },
     { key: 'boardings', label: 'Boardings', value: formatCount(totals.boardings), note: null },
     {
       key: 'loadFactor',
@@ -91,13 +99,13 @@ export function summaryTiles(totals: DepotRevenueTotals): readonly SummaryTile[]
       key: 'revenue',
       label: 'Revenue',
       value: formatRupees(totals.revenue),
-      note: flatFareSentence(totals),
+      note: modelledLengthSentence(totals),
     },
     {
       key: 'earningsPerKm',
       label: 'Earnings per km',
-      value: totals.earningsPerKm === null ? LENGTH_NOT_KNOWN : formatRupeesPerKm(totals.earningsPerKm),
-      note: coverageSentence(totals.earningsCoverage),
+      value: totals.earningsPerKm === null ? NO_KM_RUN : formatRupeesPerKm(totals.earningsPerKm),
+      note: coverageSentence(totals.lengthCoverage),
     },
   ];
 }
@@ -116,14 +124,13 @@ export interface RevenueRow {
   /** The reason, in a sentence; null when earnings are shown. */
   readonly withheldText: string | null;
   readonly lengthText: string;
-  /** The length in kilometres, for sorting; null when not known. */
-  readonly lengthKm: number | null;
+  /** The length in kilometres, for sorting. */
+  readonly lengthKm: number;
 }
 
 function lengthText(route: RouteRevenueFigure): string {
-  if (route.lengthKm === null) return 'not known';
   const km = `${formatCount(Math.round(route.lengthKm))} km`;
-  return route.lengthProvenance === 'derived' ? `${km} (derived)` : km;
+  return route.lengthProvenance === 'derived' ? `${km} (derived)` : `${km} (modelled)`;
 }
 
 export function buildRouteRows(routes: readonly RouteRevenueFigure[]): RevenueRow[] {
@@ -138,7 +145,7 @@ export function buildRouteRows(routes: readonly RouteRevenueFigure[]): RevenueRo
     revenueText: formatRupees(route.revenue),
     earningsPerKm: route.earningsPerKm,
     earningsText:
-      route.earningsPerKm === null ? LENGTH_NOT_KNOWN : formatRupeesPerKm(route.earningsPerKm),
+      route.earningsPerKm === null ? NO_KM_RUN : formatRupeesPerKm(route.earningsPerKm),
     withheldText: route.earningsWithheld === null ? null : withheldSentence(route.earningsWithheld),
     lengthText: lengthText(route),
     lengthKm: route.lengthKm,
@@ -174,7 +181,7 @@ export function heroBars(routes: readonly RouteRevenueFigure[], showAll: boolean
       valueText,
       widthPercent: largest === 0 ? 0 : Math.round((route.revenue / largest) * PERCENT),
       description: `${route.routeName}: ${valueText} modelled revenue${
-        route.revenueBasis === 'flat_fare_unknown_length' ? ' (flat fare, length not known)' : ''
+        route.lengthProvenance === 'modelled' ? ' (modelled route length)' : ''
       }`,
     };
   });
@@ -198,8 +205,8 @@ export function modelledStatement(params: Params): readonly string[] {
   const fares = CLASS_ORDER.map((c) => `${c} ₹${params.farePerKm[c].toFixed(2)}`).join(', ');
   return [
     'Everything on this page is MODELLED. The live feed carries no ticketing, so trips, boardings, load factors, fares and revenue are generated by a model, not measured.',
-    `Trips come from the buses seen running each route and its scheduled duration. A trip is a run out and back, so two legs. For a route, load factor is the share of seats filled on a leg: a typical share by service class (${loads}), moved up or down by a lasting factor of up to ${percent(params.routeSpread)} for each route and by up to ${percent(params.dailyNoise)} from day to day, and never above ${percent(params.maxLoadFactor)}. For a depot, occupied seats over seats offered, weighted by trips, so a route with more trips counts for more.`,
-    `Revenue on a leg is seats times load factor times the route length times a fare per kilometre by class (${fares}), so earnings per kilometre are seats times load factor times the fare, whatever the length. The average boarding rides ${percent(params.avgTripLengthShare)} of the route, which gives the number of boardings. Where the length is not known the model uses a flat ₹${params.flatFarePerBoarding} per boarding and earnings per kilometre are withheld. A route length taken from a real route profile is DERIVED; the earnings built on it stay MODELLED.`,
+    `Trips come from the modelled day: each duty that a bus ran is one trip, a run out and back, so two legs. (The Routes page counts something else: how often the buses seen on a route now would turn round.) For a route, load factor is the share of seats filled on a leg: a typical share by service class (${loads}), moved up or down by a lasting factor of up to ${percent(params.routeSpread)} for each route and by up to ${percent(params.dailyNoise)} from day to day, and never above ${percent(params.maxLoadFactor)}. For a depot, occupied seats over seats offered, weighted by trips, so a route with more trips counts for more.`,
+    `Revenue on a leg is seats times load factor times the route length times a fare per kilometre by class (${fares}), so earnings per kilometre are seats times load factor times the fare, whatever the length. The average boarding rides ${percent(params.avgTripLengthShare)} of the route, which gives the number of boardings. A route with a real profile uses its real length (DERIVED); one without uses a typical length for its class (MODELLED), and each row says which.`,
     "These are planning assumptions, not the corporation's figures. A ticketing feed and a route master with real route lengths would replace them.",
   ];
 }
