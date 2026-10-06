@@ -6,7 +6,11 @@ import {
   MAX_HEADLINE_CHARS,
   MAX_PARAGRAPHS,
   MAX_PARAGRAPH_CHARS,
+  PROSE_PUNCTUATION,
+  QUANTITY_SUFFIXES,
   QUANTITY_WORDS,
+  ROMAN_NUMERAL_LETTERS,
+  SIGN_MARKS,
 } from '@/lib/depot/copilot/limits';
 import type { CopilotDraft, CopilotFact } from '@/lib/depot/copilot/types';
 
@@ -28,6 +32,10 @@ export const draftSchema: z.ZodType<CopilotDraft> = z
 
 const PLACEHOLDER = /\{\{fact:([a-z0-9][a-z0-9_.-]{0,63})\}\}/g;
 
+/** Escapes characters for use inside a regular-expression character class. */
+const inClass = (chars: readonly string[]): string =>
+  chars.map((c) => c.replace(/[\\\]^-]/g, '\\$&')).join('');
+
 /**
  * The one rule that keeps figures out of model prose: once placeholders are
  * removed, only ASCII letters, space and `. , ; : ' " ( ) -` may remain. This
@@ -35,16 +43,17 @@ const PLACEHOLDER = /\{\{fact:([a-z0-9][a-z0-9_.-]{0,63})\}\}/g;
  * letters, invisible and control characters (soft hyphen, zero-width, bidi,
  * tag block, tabs, newlines) and symbols such as `%`, `@`, `/`, `<`, `>`, `` ` ``.
  */
-const ALLOWED_PROSE = /^[A-Za-z .,;:'"()-]*$/;
+const ALLOWED_PROSE = new RegExp(`^[A-Za-z ${inClass(PROSE_PUNCTUATION)}]*$`);
 
-/** What may touch a placeholder: the string edge, a space or this punctuation. */
-const PLACEHOLDER_NEIGHBOUR = new Set([' ', '.', ',', ';', ':', '(', ')', "'", '"', '-']);
+/** What may touch a placeholder: the string edge, a space or the allowed punctuation. */
+const PLACEHOLDER_NEIGHBOUR = new Set([' ', ...PROSE_PUNCTUATION]);
 
 const QUANTITY = new RegExp(
-  `\\b(?:${QUANTITY_WORDS.map((w) => w.replace(/\s+/g, '\\s+')).join('|')})(?:s|es|ed|th|ths|fold)?\\b`,
+  `\\b(?:${QUANTITY_WORDS.map((w) => w.replace(/\s+/g, '\\s+')).join('|')})` +
+    `(?:${QUANTITY_SUFFIXES.join('|')})?\\b`,
   'i',
 );
-const ROMAN_NUMERAL = /\b[IVXLCDM]{2,}\b/;
+const ROMAN_NUMERAL = new RegExp(`\\b[${ROMAN_NUMERAL_LETTERS}]{2,}\\b`);
 const LINK = /www\.|:\/\/|mailto|javascript|[A-Za-z]\.[A-Za-z]/i;
 
 const fail = (reason: string): RenderResult => ({ ok: false, reason });
@@ -56,7 +65,7 @@ const MARKUP_CHARS = /[<>`{}[\]]/g;
 const INVISIBLE_FILLERS = /[ㅤᅠ⠀͏឴឵︀-️]/g;
 
 const FUSED_PLACEHOLDERS = /\}\}[^A-Za-z\s]*\{\{/;
-const SIGNED_PLACEHOLDER = /(?:^|[\s(])[-.,]\{\{/;
+const SIGNED_PLACEHOLDER = new RegExp(`(?:^|[\\s(])[${inClass(SIGN_MARKS)}]\\{\\{`);
 const SPACED_LETTERS = /\b(?:[A-Za-z][ -]){2,}[A-Za-z]\b/;
 const NUMBER_STEMS = [...new Set([...QUANTITY_WORDS.filter((w) => !w.includes(' ')), 'one'])];
 
@@ -139,13 +148,20 @@ function checkWords(text: string): string | null {
 
 /**
  * Validates a model draft and fills in the server's fact values. Fact text is
- * trusted and inserted in one pass, so a placeholder inside it is never expanded.
+ * sanitised and inserted in one pass, so a placeholder inside it is never expanded.
  *
- * Residual risk, stated plainly: a word list can never be complete (a number
- * word transliterated from another language would pass), so the guarantee is
- * "no digits in any script, no symbols, and no known quantity words". The model
- * can also attach a true value to a wrong statement; that is mitigated by the
- * facts and guidance it is given, not here.
+ * The guarantee is "no digits in any script, no symbols, and no known quantity
+ * words". Documented residuals, accepted by ruling and not caught here:
+ * - lowercase Roman numerals ("iii", "xiv"); only all-capitals ones are refused;
+ * - non-numeric quantifiers such as none, all, every, few and many;
+ * - number words transliterated from another language;
+ * - ranking by order (a list in order implies a rank without stating one);
+ * - a true value attached to a false statement, mitigated only by the facts
+ *   and guidance the model is given.
+ *
+ * "Describe, never instruct" is not enforced here, and by ruling there is no
+ * deny-list of instruction words: it is enforced by the system prompt and by
+ * the interface presenting briefings as advisory.
  */
 export function renderDraft(draft: CopilotDraft, facts: readonly CopilotFact[]): RenderResult {
   const parsed = draftSchema.safeParse(draft);

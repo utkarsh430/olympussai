@@ -13,11 +13,29 @@ export const MAX_RENDERED_HEADLINE_CHARS = 240;
 export const MAX_FACTS = 60;
 export const MAX_PROMPT_BYTES = 32_768;
 
+/*
+ * The draft rules below are shared by the renderer (render.ts), which enforces
+ * them, and the system prompt (cli/prompt.ts), which states them, so the two
+ * cannot drift.
+ */
+
+/** Besides ASCII letters and the space, the only characters model prose may use. */
+export const PROSE_PUNCTUATION: readonly string[] = ['.', ',', ';', ':', "'", '"', '(', ')', '-'];
+
+/** Marks that would change a figure's sign or decimal place if put right before it. */
+export const SIGN_MARKS: readonly string[] = ['-', '.', ','];
+
+/** An all-capitals word of two or more of these letters reads as a Roman numeral. */
+export const ROMAN_NUMERAL_LETTERS = 'IVXLCDM';
+
+/** Endings matched after every quantity word ("fours", "tenths", "twofold"); no "d" ("tend"). */
+export const QUANTITY_SUFFIXES: readonly string[] = ['s', 'es', 'ed', 'th', 'ths', 'fold'];
+
 /**
- * Base words that smuggle a quantity past the digit check. Matching adds the
- * suffixes s, es, ed, d, th, ths and fold (see render.ts). "one" is allowed on
- * purpose: it is ordinary prose ("one of the larger depots") and states no
- * figure that could be wrong.
+ * Base words that smuggle a quantity past the digit check; each is also matched
+ * with every QUANTITY_SUFFIXES ending. "one" is allowed on purpose: it is
+ * ordinary prose ("one of the larger depots") and states no figure that could
+ * be wrong.
  */
 export const QUANTITY_WORDS: readonly string[] = [
   'zero',
@@ -104,4 +122,5 @@ export const QUANTITY_WORDS: readonly string[] = [
   'halved',
 ];
 
+/** Authored guidance is sanitised like fact text and capped at this many characters. */
 export const MAX_GUIDANCE_CHARS = 600;
