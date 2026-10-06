@@ -104,4 +104,11 @@ export interface DutyBoardResponse extends DepotFeedEnvelope {
   readonly planMode?: PlanMode;
   /** Feed rows left out because their registration repeated an earlier row's. Always sent. */
   readonly duplicateRowsDropped?: number;
+  /**
+   * How many snapshots this server process has decided this depot's yard on, exactly as the
+   * depot's own response says it. At 0 or 1 a missing yard may be a fresh start rather than
+   * evidence. Not sent for the recorded fixture or the unassigned group, which the yard
+   * memory never decides (P2).
+   */
+  readonly yardSnapshotsSeen?: number;
 }

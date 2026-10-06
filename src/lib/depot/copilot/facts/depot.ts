@@ -141,6 +141,11 @@ export function depotFacts(detail: DepotDetailResponse): CopilotFact[] {
         'derived',
       ),
     );
+    if (outshed.counts.ended > 0) {
+      facts.push(
+        makeFact('depot.outshed_ended', 'Schedule over', busCount(outshed.counts.ended), 'derived'),
+      );
+    }
   }
   facts.push(
     makeFact(
@@ -233,7 +238,13 @@ function outshedParagraph(detail: DepotDetailResponse): string | null {
     detail.outshed.counts.overdue > 0
       ? `${ph('depot.outshed_overdue')} overdue to leave the yard`
       : 'nothing overdue to leave the yard';
-  return `Departure schedules are known for ${ph('depot.outshed_coverage')}. Of those, ${ph('depot.outshed_departed')} already away and ${overdue}.`;
+  // Named so that, beside a page listing "Window ended" rows, the briefing does not read as
+  // if nothing happened. Its own sentence: "over" may not stand just before another figure.
+  const ended =
+    detail.outshed.counts.ended > 0
+      ? ` For ${ph('depot.outshed_ended')} the scheduled window is already over.`
+      : '';
+  return `Departure schedules are known for ${ph('depot.outshed_coverage')}. Of those, ${ph('depot.outshed_departed')} already away and ${overdue}.${ended}`;
 }
 
 function exceptionParagraph(detail: DepotDetailResponse): string {

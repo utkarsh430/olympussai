@@ -13,6 +13,7 @@ import type { BusLocation, OutshedSummary, Yard } from './infer/types';
 import type { DepotScore, ScoreWindow } from './score/types';
 import type {
   BusException,
+  BusExceptionKind,
   DepotException,
   ExceptionBasis,
   ExceptionKind,
@@ -81,6 +82,26 @@ export interface DepotExceptionsResponse extends DepotFeedEnvelope {
   readonly scoreWindow?: ScoreWindow;
   /** Which exception kinds are over the window and which as of the feed time. Always sent. */
   readonly exceptionBasis?: Readonly<Record<ExceptionKind, ExceptionBasis>>;
+  /**
+   * Sent only when the query names a depot: that depot's own figures, so a page
+   * can label its scope and show counts that agree with `busPage`. `report` and
+   * `busSeverityCounts` stay the network's.
+   */
+  readonly depotScope?: DepotExceptionsScope;
+}
+
+/** One depot's share of the exception queue, for a depot-filtered exceptions request. */
+export interface DepotExceptionsScope {
+  /** The depot id the query asked for, echoed back. */
+  readonly depotId: string;
+  /** Its name on this snapshot; null when the snapshot holds no such depot. */
+  readonly depotName: string | null;
+  /** This depot's bus exceptions by kind, before the kind filter and paging. */
+  readonly busCounts: Readonly<Record<BusExceptionKind, number>>;
+  /** This depot's bus exceptions of every kind (the sum of `busCounts`). */
+  readonly busTotal: number;
+  /** This depot's own depot exceptions, in network order (a subset of `report.depot`). */
+  readonly depot: readonly DepotException[];
 }
 
 /** One bus as a depot manager sees it. Only ever sent for a single depot. */

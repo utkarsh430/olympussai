@@ -2,6 +2,7 @@ import { DEFAULT_REBALANCE_PARAMS } from '../optimise/config';
 import type { FleetSnapshotView } from '../repositories/types';
 import {
   ROUTE_PROFILE_ENDPOINT,
+  type DepotFilterOption,
   type DepotRoutesResponse,
   type RouteDeadKm,
   type RouteListItem,
@@ -31,8 +32,26 @@ export { parseRoutesQuery } from '../routes/routeQuery';
 interface RoutesBody {
   readonly operatingDate: string;
   readonly routes: readonly RouteListItem[];
-  readonly depotOptions: readonly FilterOption[];
+  readonly depotOptions: readonly DepotFilterOption[];
   readonly classOptions: readonly FilterOption[];
+}
+
+/**
+ * The depot options with each depot's count of distinct routes. The table holds one row per
+ * route name, so a depot's count is the rows it operates on; built over the whole list, so a
+ * filter never changes it.
+ */
+function depotOptionsWithRoutes(routes: readonly RouteListItem[]): DepotFilterOption[] {
+  const counts = new Map<string, number>();
+  for (const route of routes) {
+    for (const id of new Set(route.operators.map((o) => o.depotId))) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+  return depotOptions(routes).map((option) => ({
+    ...option,
+    routes: counts.get(option.value) ?? 0,
+  }));
 }
 
 /** The route table is cheap to rebuild, so a newly cached profile shows on the next request. */
@@ -94,7 +113,7 @@ const routesBody = memoiseOnCatalogue<RoutesBody>(
     return {
       operatingDate,
       routes,
-      depotOptions: depotOptions(routes),
+      depotOptions: depotOptionsWithRoutes(routes),
       classOptions: classOptions(routes),
     };
   },

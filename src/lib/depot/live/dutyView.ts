@@ -83,6 +83,7 @@ function buildBody(
     spareByStanding: plan.spareByStanding,
     excluded: heldOut,
   };
+  const seen = analysis.yardSnapshotsSeen?.[depotId];
   return {
     depotId,
     depotName,
@@ -98,6 +99,8 @@ function buildBody(
     recencyNotJudged: planned.recencyNotJudged,
     planMode: planned.mode,
     duplicateRowsDropped: planned.duplicateRowsDropped,
+    // As the depot's own response: absent for the fixture and the unassigned group (P2).
+    ...(seen === undefined ? {} : { yardSnapshotsSeen: seen }),
   };
 }
 
