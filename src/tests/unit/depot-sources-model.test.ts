@@ -1,7 +1,41 @@
 import { describe, it, expect } from 'vitest';
 import liveFixture from '@/fixtures/upsrtc-live-sample.json';
 import { normalizeDepotRows } from '@/lib/upsrtc/depotNormalizer';
-import { coverageRows, recordsSentence, schemaSummary } from '@/lib/depot/sources/sourcesModel';
+import {
+  GPS_FEED_ID,
+  clockAheadSentence,
+  coverageRows,
+  fieldsExpandLabel,
+  recordsSentence,
+  schemaSummary,
+} from '@/lib/depot/sources/sourcesModel';
+import { FEED_REGISTRY } from '@/lib/depot/sources/registry';
+
+describe('feed row words (round 2)', () => {
+  const fields = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ name: `f${i}`, type: 'string' }));
+  it('puts the field count in the row expander label', () => {
+    expect(fieldsExpandLabel({ name: 'Fuel', status: 'awaiting', fields: fields(12) })).toBe(
+      'Fuel: show 12 fields expected from this feed',
+    );
+    expect(fieldsExpandLabel({ name: 'GPS', status: 'live', fields: fields(1) })).toBe(
+      'GPS: show 1 field read from this feed',
+    );
+  });
+  it('says in one line when rows ran ahead of the server clock, and nothing otherwise', () => {
+    expect(clockAheadSentence(undefined)).toBeNull();
+    expect(clockAheadSentence(0)).toBeNull();
+    expect(clockAheadSentence(1)).toBe(
+      "1 row carried a receive time ahead of the server's clock and was ignored for the feed clock.",
+    );
+    expect(clockAheadSentence(1234)).toBe(
+      "1,234 rows carried a receive time ahead of the server's clock and were ignored for the feed clock.",
+    );
+  });
+  it('names the GPS feed by its registry id', () => {
+    expect(FEED_REGISTRY.some((feed) => feed.id === GPS_FEED_ID)).toBe(true);
+  });
+});
 
 describe('recordsSentence', () => {
   it('reconciles records received with buses counted, giving the reason from the normaliser', () => {
