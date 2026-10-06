@@ -1,4 +1,5 @@
 import { CLI_WINDOW, CLI_WINDOW_FAILURES, type ProviderSetting } from '@/lib/depot/copilot/config';
+import { monotonicNow } from '@/lib/depot/copilot/limiter';
 import { renderDraft } from '@/lib/depot/copilot/render';
 import { logDepotError } from '@/lib/depot/log';
 import {
@@ -11,7 +12,7 @@ import {
 } from '@/lib/depot/copilot/types';
 
 export interface CopilotEngine {
-  generate(request: CopilotRequest): Promise<CopilotText>;
+  generate(request: CopilotRequest, signal?: AbortSignal): Promise<CopilotText>;
 }
 
 export interface CopilotEngineDeps {
@@ -19,7 +20,10 @@ export interface CopilotEngineDeps {
   /** Null when no CLI provider exists (for example on Vercel). */
   readonly cli: CopilotProvider | null;
   readonly scripted: CopilotProvider;
+  /** Wall clock, used only to stamp `generatedAt`. */
   readonly now: () => number;
+  /** Clock for the cool-down; defaults to a monotonic one, immune to wall-clock jumps. */
+  readonly monotonicNow?: () => number;
   readonly cooldownMs: number;
 }
 
@@ -32,22 +36,30 @@ export const UNAVAILABLE_DRAFT: CopilotDraft = {
 /** The CLI was never called, or says nothing about its health: not an attempt. */
 const NOT_AN_ATTEMPT: readonly FallbackReason[] = ['busy', 'budget_exhausted', 'request_rejected'];
 /** Count in the rolling window rather than cooling down on their own. */
-const SOFT_FAILURES: readonly FallbackReason[] = ['timeout', 'invalid_output', 'rejected_draft'];
+const SOFT_FAILURES: readonly FallbackReason[] = [
+  'timeout',
+  'invalid_output',
+  'rejected_draft',
+  // Unclassified: one odd exit must not lock the CLI out for every user.
+  'error',
+];
 
 /**
- * Chooses who writes the text. Hard CLI failures cool it down at once; soft
+ * Chooses who writes the text. Only not_installed, not_authenticated and
+ * usage_limit cool it down at once; soft
  * ones (timeout, bad output, a draft the renderer rejects) count in a rolling
  * window of the last CLI_WINDOW attempts and cool it down at CLI_WINDOW_FAILURES.
  * A success never resets the window, so a prompt that makes most drafts fail
  * cannot spend on every request forever. `provider` and `fellBack` are truthful.
  */
 export function createCopilotEngine(deps: CopilotEngineDeps): CopilotEngine {
-  let coolingUntil = 0;
+  const mono = deps.monotonicNow ?? monotonicNow;
+  let coolingUntil = Number.NEGATIVE_INFINITY;
   let window: readonly boolean[] = []; // true = failed attempt
 
   function startCooldown(): void {
     window = [];
-    coolingUntil = deps.now() + deps.cooldownMs;
+    coolingUntil = mono() + deps.cooldownMs;
   }
 
   function recordAttempt(failed: boolean): void {
@@ -67,7 +79,13 @@ export function createCopilotEngine(deps: CopilotEngineDeps): CopilotEngine {
     fellBack: boolean,
   ): Promise<CopilotText> {
     const generatedAt = new Date(deps.now()).toISOString();
-    const rendered = renderDraft(await deps.scripted.draft(request), request.facts);
+    // Nothing the scripted provider or the renderer throws may escape the fallback.
+    let rendered: ReturnType<typeof renderDraft>;
+    try {
+      rendered = renderDraft(await deps.scripted.draft(request), request.facts);
+    } catch {
+      rendered = { ok: false, reason: 'threw' };
+    }
     if (!rendered.ok) {
       // A feed-driven condition must not turn the fallback into a server error.
       logDepotError('copilot', `scripted ${request.task} draft failed: ${rendered.reason}`);
@@ -93,16 +111,16 @@ export function createCopilotEngine(deps: CopilotEngineDeps): CopilotEngine {
   }
 
   return {
-    async generate(request: CopilotRequest): Promise<CopilotText> {
+    async generate(request: CopilotRequest, signal?: AbortSignal): Promise<CopilotText> {
       const cli = deps.cli;
       if (deps.setting === 'scripted' || cli === null) {
         return scripted(request, 'not_selected', false);
       }
-      if (deps.now() < coolingUntil) return scripted(request, 'cooling_down', true);
+      if (mono() < coolingUntil) return scripted(request, 'cooling_down', true);
 
       let draft: CopilotDraft;
       try {
-        draft = await cli.draft(request);
+        draft = await cli.draft(request, signal);
       } catch (error: unknown) {
         const reason: FallbackReason = error instanceof CopilotFailure ? error.reason : 'error';
         logDepotError('copilot', `claude-cli fell back: ${reason}`); // reason only

@@ -22,10 +22,6 @@ import {
   MAX_FACTS,
   MAX_GUIDANCE_CHARS,
   MAX_PROMPT_BYTES,
-  PROSE_PUNCTUATION,
-  QUANTITY_SUFFIXES,
-  QUANTITY_WORDS,
-  ROMAN_NUMERAL_LETTERS,
 } from '@/lib/depot/copilot/limits';
 import type { CopilotRequest, CopilotTask } from '@/lib/depot/copilot/types';
 
@@ -221,7 +217,7 @@ describe('prompts', () => {
     expect(prompt).toMatch(/only JSON/i);
     expect(prompt).toContain('{{fact:id}}');
     expect(prompt).toMatch(/never write a digit/i);
-    expect(prompt).toMatch(/quantity word/i);
+    expect(prompt).toMatch(/allowed words/i);
     expect(prompt).toMatch(/only the facts/i);
     expect(prompt).toMatch(/never instruct/i);
     expect(prompt).toMatch(/individual person/i);
@@ -542,40 +538,6 @@ describe('buildChildEnv node directory', () => {
       expect(() => buildChildEnv({}, '/h', dir)).toThrow(RangeError);
     },
   );
-});
-
-describe('system prompt rule text', () => {
-  const prompt = buildSystemPrompt('briefing');
-
-  it('names every quantity word, and says their endings are rejected too', () => {
-    for (const word of QUANTITY_WORDS) expect(prompt, word).toContain(word);
-    expect(prompt).toContain(QUANTITY_WORDS.join(', '));
-    for (const suffix of QUANTITY_SUFFIXES) expect(prompt).toContain(`"${suffix}"`);
-  });
-
-  it('states the exact character set', () => {
-    expect(PROSE_PUNCTUATION.join(' ')).toBe(`. , ; : ' " ( ) -`);
-    expect(prompt).toContain(`letters A to Z, the space, and ${PROSE_PUNCTUATION.join(' ')}`);
-  });
-
-  it('states the placeholder, numeral, full-stop and spelling rules', () => {
-    expect(prompt).toMatch(/separate placeholders from one another by at least one word/i);
-    expect(prompt).toMatch(
-      /never put a minus sign, full stop or comma directly before a placeholder/i,
-    );
-    expect(prompt).toContain(ROMAN_NUMERAL_LETTERS.split('').join(' '));
-    expect(prompt).toMatch(/all-capitals word/i);
-    expect(prompt).toMatch(/full stop must be followed by a space/i);
-    expect(prompt).toMatch(/never run number words together/i);
-    expect(prompt).toMatch(/never spell out letters separated by spaces or hyphens/i);
-  });
-
-  it('gives every task the same rule text', () => {
-    const rules = (t: CopilotTask): string => buildSystemPrompt(t).split('Rules: ')[1] ?? '';
-    expect(rules('briefing').length).toBeGreaterThan(0);
-    expect(rules('rationale')).toBe(rules('briefing'));
-    expect(rules('answer')).toBe(rules('briefing'));
-  });
 });
 
 describe('parseCliOutput', () => {

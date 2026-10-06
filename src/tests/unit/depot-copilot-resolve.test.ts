@@ -53,8 +53,8 @@ const REQUEST: CopilotRequest = {
 };
 
 const GOOD_DRAFT: CopilotDraft = {
-  headline: 'Claude headline',
-  paragraphs: ['Claude says {{fact:buses}}.'],
+  headline: 'Fleet headline',
+  paragraphs: ['The fleet is {{fact:buses}}.'],
 };
 
 const cliThatReturns = (draft: CopilotDraft): CopilotProvider => ({
@@ -75,6 +75,7 @@ function engine(cli: CopilotProvider | null, setting: 'auto' | 'claude-cli' | 's
     cli,
     scripted: createScriptedProvider(),
     now: () => clock,
+    monotonicNow: () => clock,
     cooldownMs: 1000,
   });
   return {
@@ -148,8 +149,8 @@ describe('createCopilotEngine', () => {
       provider: 'claude-cli',
       fellBack: false,
       fallbackReason: null,
-      headline: 'Claude headline',
-      paragraphs: ['Claude says 1,204.'],
+      headline: 'Fleet headline',
+      paragraphs: ['The fleet is 1,204.'],
       usedFactIds: ['buses'],
     });
     expect(Number.isNaN(Date.parse(out.generatedAt))).toBe(false);
@@ -160,7 +161,7 @@ describe('createCopilotEngine', () => {
     expect(out.generatedAt).toBe(new Date(1_000_000).toISOString());
   });
 
-  it.each(['not_installed', 'not_authenticated', 'usage_limit', 'error'] as const)(
+  it.each(['not_installed', 'not_authenticated', 'usage_limit'] as const)(
     'falls back to scripted on %s and starts the cool-down at once',
     async (reason) => {
       const cli = cliThatFails(reason);
@@ -214,7 +215,7 @@ describe('createCopilotEngine', () => {
     expect(cli.draft).toHaveBeenCalledTimes(2);
   });
 
-  it('treats an unexpected thrown error as error and cools down', async () => {
+  it('treats an unexpected thrown error as error and counts it as a soft failure', async () => {
     const cli: CopilotProvider = {
       id: 'claude-cli',
       draft: vi.fn(async () => {
@@ -223,7 +224,7 @@ describe('createCopilotEngine', () => {
     };
     const { instance } = engine(cli);
     expect((await instance.generate(REQUEST)).fallbackReason).toBe('error');
-    expect((await instance.generate(REQUEST)).fallbackReason).toBe('cooling_down');
+    expect((await instance.generate(REQUEST)).fallbackReason).toBe('error');
   });
 
   it('logs every CLI fallback with its reason only, never the detail or the error text', async () => {
@@ -451,8 +452,8 @@ function fakeSpawn(
   };
 }
 
-const SAFE_FILE: StatLike = { isFile: true, mode: 0o100755 };
-const SAFE_DIR: StatLike = { isFile: false, mode: 0o40755 };
+const SAFE_FILE: StatLike = { uid: 0, isFile: true, mode: 0o100755 };
+const SAFE_DIR: StatLike = { uid: 0, isFile: false, mode: 0o40755 };
 
 /** A file system with one link, one binary and its directory; every call is recorded. */
 function fakeFs(file: StatLike = SAFE_FILE, dir: StatLike = SAFE_DIR) {
@@ -488,6 +489,9 @@ const providerWith = (
     env,
     nodeDir: '/opt/node/bin',
     fs: fakeFs().fs,
+    repoRoot: '/srv/app',
+    semaphore: createSemaphore(CLI_CONCURRENCY, CLI_QUEUE),
+    limiter: createCallLimiter({ now: () => 0, perHour: 1000, perDay: 1000 }),
     ...extra,
   });
 
@@ -497,12 +501,12 @@ describe('binaryProblem', () => {
   });
 
   it.each([
-    ['a directory', { isFile: false, mode: 0o40755 }, SAFE_DIR],
-    ['a file nobody can execute', { isFile: true, mode: 0o100644 }, SAFE_DIR],
-    ['a group-writable file', { isFile: true, mode: 0o100775 }, SAFE_DIR],
-    ['a world-writable file', { isFile: true, mode: 0o100757 }, SAFE_DIR],
-    ['a group-writable directory', SAFE_FILE, { isFile: false, mode: 0o40775 }],
-    ['a world-writable sticky directory', SAFE_FILE, { isFile: false, mode: 0o41777 }],
+    ['a directory', { uid: 0, isFile: false, mode: 0o40755 }, SAFE_DIR],
+    ['a file nobody can execute', { uid: 0, isFile: true, mode: 0o100644 }, SAFE_DIR],
+    ['a group-writable file', { uid: 0, isFile: true, mode: 0o100775 }, SAFE_DIR],
+    ['a world-writable file', { uid: 0, isFile: true, mode: 0o100757 }, SAFE_DIR],
+    ['a group-writable directory', SAFE_FILE, { uid: 0, isFile: false, mode: 0o40775 }],
+    ['a world-writable sticky directory', SAFE_FILE, { uid: 0, isFile: false, mode: 0o41777 }],
   ] as const)('rejects %s', (_name, file, dir) => {
     expect(binaryProblem(file, dir)).toEqual(expect.any(String));
   });
@@ -528,11 +532,11 @@ describe('assertUsableBinary', () => {
   });
 
   it('rejects an unsafe target and a missing file', () => {
-    const writable = fakeFs(SAFE_FILE, { isFile: false, mode: 0o40777 }).fs;
+    const writable = fakeFs(SAFE_FILE, { uid: 0, isFile: false, mode: 0o40777 }).fs;
     expect(() => assertUsableBinary('/usr/local/bin/claude', writable)).toThrow(/writable/i);
-    const notFile = fakeFs({ isFile: false, mode: 0o40755 }).fs;
+    const notFile = fakeFs({ uid: 0, isFile: false, mode: 0o40755 }).fs;
     expect(() => assertUsableBinary('/usr/local/bin/claude', notFile)).toThrow(/not a file/i);
-    expect(() => assertUsableBinary('/nowhere/claude', fakeFs().fs)).toThrow(/ENOENT/);
+    expect(() => assertUsableBinary('/nowhere/claude', fakeFs().fs)).toThrow(/missing/);
   });
 });
 
@@ -546,7 +550,7 @@ describe('createClaudeCliProvider', () => {
     );
     await providerWith(spawn).draft(REQUEST);
     expect(spawn.mock.calls[0]?.[0]).toBe('/opt/claude/2.1/claude');
-    const unsafe = fakeFs({ isFile: true, mode: 0o100777 }).fs;
+    const unsafe = fakeFs({ uid: 0, isFile: true, mode: 0o100777 }).fs;
     expect(() => providerWith(spawn, {}, { fs: unsafe })).toThrow(/writable/i);
   });
 
@@ -618,6 +622,8 @@ describe('createClaudeCliProvider', () => {
           bin,
           model: 'sonnet',
           home: '/h',
+          semaphore: createSemaphore(1, 1),
+          limiter: { tryAcquire: () => true },
           cwd: () => '/c',
           env: {},
           nodeDir: '/n',
@@ -635,6 +641,8 @@ describe('createClaudeCliProvider', () => {
         bin: '/usr/bin/claude',
         model: '--evil',
         home: '/h',
+        semaphore: createSemaphore(1, 1),
+        limiter: { tryAcquire: () => true },
         cwd: () => '/c',
         env: {},
         nodeDir: '/n',
@@ -666,7 +674,7 @@ describe('createClaudeCliProvider', () => {
     });
   });
 
-  it('fails with error, without spawning, when the request has too many facts', async () => {
+  it('rejects the request, without spawning, when it has too many facts', async () => {
     const spawn = vi.fn<SpawnLike>(fakeSpawn(() => undefined));
     const facts = Array.from({ length: 61 }, (_, i) => ({
       id: `f${i}`,

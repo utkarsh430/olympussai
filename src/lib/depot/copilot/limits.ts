@@ -22,8 +22,26 @@ export const MAX_PROMPT_BYTES = 32_768;
 /** Besides ASCII letters and the space, the only characters model prose may use. */
 export const PROSE_PUNCTUATION: readonly string[] = ['.', ',', ';', ':', "'", '"', '(', ')', '-'];
 
-/** Marks that would change a figure's sign or decimal place if put right before it. */
-export const SIGN_MARKS: readonly string[] = ['-', '.', ','];
+/** The documented fact id pattern; ids are checked before they reach a prompt or a draft. */
+export const FACT_ID_SOURCE = '[a-z0-9][a-z0-9_.-]{0,63}';
+export const FACT_ID_PATTERN = new RegExp(`^${FACT_ID_SOURCE}$`);
+
+/** Token grammar (grammar.ts enforces it, cli/prompt.ts states it). */
+export const WORD_OPENERS: readonly string[] = ['(', '"'];
+export const WORD_CLOSERS: readonly string[] = [')', '"'];
+/** At most one of these may end a token. */
+export const TRAILING_MARKS: readonly string[] = ['.', ',', ';', ':'];
+/** Two placeholders may sit side by side with this mark unless their digits would fuse. */
+export const NAME_LIST_MARK = ',';
+/** Two placeholders may always sit side by side with this mark: it reads only as a list. */
+export const VALUE_LIST_MARK = ';';
+/** Any other two placeholders need a word of at least this many letters between them. */
+export const MIN_JOINING_WORD_LETTERS = 2;
+
+/** Combining marks kept per base character in fact text; more are dropped. */
+export const MAX_COMBINING_MARKS = 4;
+/** The system prompt travels as one argument; it must stay under this many bytes. */
+export const MAX_SYSTEM_PROMPT_BYTES = 24_576;
 
 /** An all-capitals word of two or more of these letters reads as a Roman numeral. */
 export const ROMAN_NUMERAL_LETTERS = 'IVXLCDM';
@@ -32,10 +50,9 @@ export const ROMAN_NUMERAL_LETTERS = 'IVXLCDM';
 export const QUANTITY_SUFFIXES: readonly string[] = ['s', 'es', 'ed', 'th', 'ths', 'fold'];
 
 /**
- * Base words that smuggle a quantity past the digit check; each is also matched
- * with every QUANTITY_SUFFIXES ending. "one" is allowed on purpose: it is
- * ordinary prose ("one of the larger depots") and states no figure that could
- * be wrong.
+ * The last net behind the closed vocabulary (lastNet.ts): base words that
+ * would smuggle a quantity, each also matched with every QUANTITY_SUFFIXES
+ * ending. Vague quantifiers that state no figure (most, several) are not here.
  */
 export const QUANTITY_WORDS: readonly string[] = [
   'zero',
@@ -77,10 +94,14 @@ export const QUANTITY_WORDS: readonly string[] = [
   'couple',
   'pair',
   'both',
-  'several',
-  'majority',
-  'minority',
-  'most',
+  'lac',
+  'trio',
+  'dual',
+  'quintuple',
+  'quintupled',
+  'decade',
+  'fortnight',
+  'umpteen',
   'once',
   'twice',
   'thrice',

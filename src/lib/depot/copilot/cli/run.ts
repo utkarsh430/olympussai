@@ -8,6 +8,8 @@ export interface SpawnOptionsLike {
   /** Typed as Node's own env so the real `spawn` fits; the value is always an allowlisted record. */
   readonly env: NodeJS.ProcessEnv;
   readonly shell: false;
+  /** Own process group, so the whole group can be killed. */
+  readonly detached: true;
   readonly stdio: ['pipe', 'pipe', 'pipe'];
   readonly windowsHide: true;
 }
@@ -18,6 +20,7 @@ interface DataStream {
 }
 
 export interface ChildLike {
+  readonly pid?: number;
   readonly stdin: {
     write(chunk: string): unknown;
     end(): unknown;
@@ -42,7 +45,16 @@ export interface RunCliInput {
   readonly stdin: string;
   readonly timeoutMs: number;
   readonly maxOutputBytes: number;
+  /** Aborting kills the process group and reports `request_rejected`. */
+  readonly signal?: AbortSignal;
 }
+
+export type KillGroup = (pid: number) => void;
+
+/** SIGKILL to the child's whole process group (the child is spawned detached). */
+export const killProcessGroup: KillGroup = (pid) => {
+  process.kill(-pid, 'SIGKILL');
+};
 
 export type RunCliResult =
   | { readonly ok: true; readonly stdout: string }
@@ -64,12 +76,19 @@ const failure = (reason: FallbackReason, detail: string): RunCliResult => ({
  * stdin, a wall-clock timeout and a cap on captured output. The spawn function
  * is a parameter so the trust boundary can be tested without a process.
  */
-export function runCli(input: RunCliInput, spawn: SpawnLike): Promise<RunCliResult> {
+export function runCli(
+  input: RunCliInput,
+  spawn: SpawnLike,
+  killGroup: KillGroup = killProcessGroup,
+): Promise<RunCliResult> {
+  // The child runs detached in its own process group; the whole group is killed
+  // on timeout, on the output cap and on abort, so no grandchild outlives the slot.
   // The provider rejects an oversized request before it takes a slot or a call
   // from the budget; this is the backstop, reported the same way and never spawned.
   if (Buffer.byteLength(input.stdin, 'utf8') > MAX_PROMPT_BYTES) {
     return Promise.resolve(failure('request_rejected', 'prompt exceeds the size cap'));
   }
+  if (input.signal?.aborted) return Promise.resolve(failure('request_rejected', 'aborted'));
   return new Promise<RunCliResult>((resolve) => {
     let child: ChildLike;
     try {
@@ -77,6 +96,7 @@ export function runCli(input: RunCliInput, spawn: SpawnLike): Promise<RunCliResu
         cwd: input.cwd,
         env: input.env as NodeJS.ProcessEnv,
         shell: false,
+        detached: true,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
       });
@@ -94,14 +114,26 @@ export function runCli(input: RunCliInput, spawn: SpawnLike): Promise<RunCliResu
     let captured = 0;
     let settled = false;
 
+    const killAll = (): void => {
+      try {
+        if (child.pid === undefined) child.kill('SIGKILL');
+        else killGroup(child.pid);
+      } catch {
+        child.kill('SIGKILL'); // the group is already gone or cannot be signalled
+      }
+    };
+    const onAbort = (): void => settle(failure('request_rejected', 'aborted'), true);
     const settle = (result: RunCliResult, kill: boolean): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      if (kill) child.kill('SIGKILL');
+      input.signal?.removeEventListener('abort', onAbort);
+      if (kill) killAll();
       resolve(result);
     };
     const timer = setTimeout(() => settle(failure('timeout', 'timed out'), true), input.timeoutMs);
+
+    input.signal?.addEventListener('abort', onAbort, { once: true });
 
     const collect = (sink: Buffer[]) => (chunk: Buffer | string) => {
       if (settled) return;
