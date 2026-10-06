@@ -492,6 +492,8 @@ Pages do nothing here; for reference.
 - **Skip link and footer.** "Skip to depot content" is the first focusable element on every
   depot page and moves focus to `<main>`. The prototype disclaimer is in the page flow after
   the content, in the footer's `depot` variant: after the PROTOTYPE pill the sentence starts at
-  "Vehicle positions…" (the leading "Prototype." is dropped there only, `depotDisclaimerText`),
-  wraps in sans 11/16 at most 90 characters wide, never cut off.
+  "Vehicle positions…" (the leading "Prototype." is dropped there only, and "are live UPSRTC
+  data" reads "are UPSRTC data", since a depot page can be on the sample or last-good data;
+  `depotDisclaimerText` in `src/lib/depot/shellModel.ts`; the command centre's sentence is
+  unchanged), wraps in sans 11/16 at most 90 characters wide, never cut off.
 
