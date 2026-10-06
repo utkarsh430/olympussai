@@ -17,7 +17,7 @@ export function RebalanceMethod({ spareRatio }: { readonly spareRatio: number })
           than its peers&apos; is assumed stretched, one with many standing buses to have slack)
           plus a spare margin of {spare}% of peak need. The rule reads each depot&apos;s
           busiest {SCORE_WINDOW_MIN}-minute on-road share so far today, so the requirement, and the
-          modelled day built on it, can grow until the morning peak has passed and then holds as
+          modelled day built on it, can still change until the morning peak has passed and then holds as
           buses come home; a bus taken off the road still lowers what is available. Each server
           works from the feed it has seen, so two servers can differ until each has seen the
           peak, and one restarted later in the day starts again from what it then sees. The

@@ -202,7 +202,7 @@ All paths are under `src/lib/depot/`.
 
 | Model | Assumption | Parameters (file) |
 | --- | --- | --- |
-| Requirement | A depot needs a share of its available buses at peak, raised when its busiest on-road share over the rolling window so far today is above its peers' (so the requirement can grow until the morning peak has passed, then holds; per server instance) | base 0.86, sensitivity 0.5, seeded ±0.04 (`sim/config.ts`); spare ratio 0.08, range 0–0.3 (`optimise/config.ts`) |
+| Requirement | A depot needs a share of its available buses at peak, raised when its busiest on-road share over the rolling window so far today is above its peers' (so the requirement can still change until the morning peak has passed, then holds; per server instance) | base 0.86, sensitivity 0.5, seeded ±0.04 (`sim/config.ts`); spare ratio 0.08, range 0–0.3 (`optimise/config.ts`) |
 | Depot master | Parking capacity 1.0–1.25 × fleet; one workshop bay per 25 buses; one fuel point per 60 | `sim/config.ts`, `sim/depotMaster.ts` |
 | Fleet master | Class from route-name tokens, else seeded proportions; seats 52 / 44 / 40 / 45 (ordinary / express / ac / premium); age up to 15 years | `sim/config.ts`, `sim/fleetMaster.ts` |
 | Trip frequency | 1–2 depot-anchored runs per bus per day | `sim/tripFrequencyConfig.ts` |

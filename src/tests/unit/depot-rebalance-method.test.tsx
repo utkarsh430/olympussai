@@ -21,7 +21,7 @@ describe('how the requirement is produced', () => {
   it('says the requirement reads the busiest window so far today and then holds', () => {
     const body = text();
     expect(body).toContain(`busiest ${SCORE_WINDOW_MIN}-minute on-road share so far today`);
-    expect(body).toContain('can grow until the morning peak has passed and then holds');
+    expect(body).toContain('can still change until the morning peak has passed and then holds');
     expect(body).toContain('a bus taken off the road still lowers what is available');
   });
 

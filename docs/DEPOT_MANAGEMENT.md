@@ -444,7 +444,8 @@ those maxima. The windowed share is the `onRoad` component the efficiency index 
 on the analysis as `requirementShares`, which the modelled day (`live/operatingDayView.ts`)
 and the fleet distribution (`live/distributionView.ts`) both read. "Peak requirement" is
 therefore the depot's busiest window so far today: the modelled day and the transfer plan
-can grow until the morning peak has passed and then hold; they do not shrink in the evening
+can still change until the morning peak has passed (a depot rises with its own busiest
+window and can dip a little when its peers' median rises) and then hold; they do not shrink in the evening
 as buses come home. A later operating date (the feed's, `operatingDateOf`) starts afresh; a
 snapshot of an earlier date, one with no date and the saved sample read their own windowed
 shares and leave the maxima as they were. A depot

@@ -10,8 +10,9 @@ import type { WindowedOnRoadShares } from '../sim/requirement';
  * plan shrink through the evening with no bus taken off the road. So the
  * requirement reads, per depot, the HIGHEST windowed share seen so far in the
  * operating date, and the peer median of those maxima: "peak requirement" is
- * the depot's busiest window so far today. The day can grow until the morning
- * peak has passed and then holds. `available` (fleet less off-road) is not
+ * the depot's busiest window so far today. The day can still change until the
+ * morning peak has passed (a depot rises with its own busiest window and can
+ * dip a little when its peers' median rises) and then holds. `available` (fleet less off-road) is not
  * held here, so the day still follows a bus that really goes off the road.
  *
  * What each snapshot does (`holdPeakShares`, once per snapshot analysis):

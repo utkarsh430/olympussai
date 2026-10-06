@@ -87,7 +87,7 @@ differs between instances or after a restart:
 - **The held peak shares** (`src/lib/depot/live/peakShareHold.ts`). The modelled
   requirement reads each depot's busiest on-road share over that window so far in the
   operating date, so the modelled operating day (duties, crew, fuel, revenue, economics)
-  and the fleet-distribution plan built on it can grow until the morning peak has passed
+  and the fleet-distribution plan built on it can still change until the morning peak has passed
   and then hold. Each instance holds its own maxima from the snapshots it has seen, so two
   instances give a different modelled day and plan until each has seen the peak, and an
   instance started in the evening models a smaller day than one that saw the morning.
