@@ -19,12 +19,13 @@ export const YARD_MIN_SHARE = 0.5;
 /** A yard is never claimed smaller than a few bays. */
 export const YARD_MIN_RADIUS_M = 120;
 /*
- * There is deliberately no maximum radius. The cluster is the winning stand's centre cell
- * plus its eight neighbours, a 3x3 block, so every member and therefore the
- * cluster mean lie inside it, and no member is farther from the centre than the
- * block's diagonal (3 * sqrt(2) * YARD_CELL_M, about 636 m). The radius is the
- * 90th-percentile distance plus YARD_RADIUS_PAD_M, so the cell size already
- * bounds it; a separate cap could never take effect.
+ * There is deliberately no maximum radius. The measured cluster is the winning
+ * block (3x3 cells) plus the ring of cells touching it, a 5x5 block of
+ * YARD_CELL_M cells. Every member, and so the cluster mean, lies inside that
+ * block, so no member is farther from the centre than its diagonal
+ * (5 * sqrt(2) * YARD_CELL_M, about 1061 m). The radius is the 90th-percentile
+ * distance plus YARD_RADIUS_PAD_M, so the cell size already bounds it; a
+ * separate cap could never take effect.
  */
 /**
  * The winning stand must hold at least this multiple of the best rival stand.
@@ -32,8 +33,16 @@ export const YARD_MIN_RADIUS_M = 120;
  * kilometres, and two near-equal stands would yield an arbitrary pick.
  */
 export const YARD_DOMINANCE_RATIO = 1.5;
-/** Blocks whose centres are 3+ cells apart share no cell: different stands. */
-const RIVAL_MIN_GRID_DISTANCE = 3;
+/**
+ * A rival stand's centre must be at least 4 cells from the winner's. Blocks 3
+ * apart share an edge, so they are one yard seen through the grid, not two; at
+ * 4 a full empty cell separates them.
+ */
+const RIVAL_MIN_GRID_DISTANCE = 4;
+/** Cells at this distance from the winner's centre touch its block and join the cluster. */
+const CLUSTER_RADIUS_CELLS = 2;
+/** Tolerance when comparing distances to the median, so float noise never decides a tie. */
+const TIE_EPSILON_M = 1e-6;
 /**
  * Grid origin is the median position snapped to this many degrees (about 1 km),
  * so cell boundaries do not shift when a single bus moves the median.
@@ -104,7 +113,8 @@ function binIntoCells(candidates: readonly Candidate[]): readonly Cell[] {
  * Infer one depot's yard from where its buses are parked.
  *
  * No surveyed location exists, so a yard is claimed only on strong evidence:
- * enough parked buses, a majority of them in one stand (a 3x3 block of cells),
+ * enough parked buses, a majority of them in one stand (a 3x3 block of cells plus the ring
+ * touching it),
  * and that stand at least YARD_DOMINANCE_RATIO times any separate rival stand.
  * Two comparable stands are ambiguity, not a yard. Anything weaker returns null
  * rather than a guess or a midpoint.
@@ -113,8 +123,11 @@ export function inferYard(rows: readonly DepotBusRow[]): Yard | null {
   const parked = rows.filter(isParkedWithFix);
   if (parked.length < YARD_MIN_CLUSTER) return null;
 
-  const originLat = snap(median(parked.map((row) => row.latitude)));
-  const originLng = snap(median(parked.map((row) => row.longitude)));
+  const medianLat = median(parked.map((row) => row.latitude));
+  const medianLng = median(parked.map((row) => row.longitude));
+  const originLat = snap(medianLat);
+  const originLng = snap(medianLng);
+  const medianPoint = toMetres(medianLat, medianLng, originLat, originLng);
   const candidates = parked
     .map((row) => ({
       registrationNumber: row.registrationNumber,
@@ -123,24 +136,37 @@ export function inferYard(rows: readonly DepotBusRow[]): Yard | null {
     .sort(byPointThenId);
 
   const cells = binIntoCells(candidates);
-  // The fullest stand wins; cells are in key order, so ties go to the lowest key.
-  const winner = cells.reduce<Cell | null>(
-    (best, cell) => (best === null || cell.blockTotal > best.blockTotal ? cell : best),
-    null,
-  );
+  const distanceToMedian = (cell: Cell): number =>
+    Math.hypot(
+      (cell.cx + 0.5) * YARD_CELL_M - medianPoint.x,
+      (cell.cy + 0.5) * YARD_CELL_M - medianPoint.y,
+    );
+  // The fullest stand wins. Equal stands go to the one centred nearest the
+  // median of all parked buses (so a wide yard is centred, not lopsided), then
+  // to the lowest cell key; cells are in key order, so only a strict win replaces.
+  const winner = cells.reduce<Cell | null>((best, cell) => {
+    if (best === null || cell.blockTotal > best.blockTotal) return cell;
+    if (cell.blockTotal < best.blockTotal) return best;
+    return distanceToMedian(cell) < distanceToMedian(best) - TIE_EPSILON_M ? cell : best;
+  }, null);
   if (!winner) return null;
 
-  // A rival is a stand that shares no cell with the winner's. Overlapping
-  // blocks are the same stand, so a wide yard never rivals itself.
+  // The yard is the winning block plus the ring of cells touching it, so a yard
+  // up to five cells across is measured whole.
+  const cluster = candidates.filter((candidate) => {
+    const { cx, cy } = cellOf(candidate.point);
+    return (
+      Math.abs(cx - winner.cx) <= CLUSTER_RADIUS_CELLS &&
+      Math.abs(cy - winner.cy) <= CLUSTER_RADIUS_CELLS
+    );
+  });
+
+  // A rival is a stand separated from the winner's by at least one empty cell.
+  // Blocks that touch or overlap are the same yard, so a wide yard never rivals itself.
   const rivalTotal = cells
     .filter((cell) => gridDistance(cell, winner) >= RIVAL_MIN_GRID_DISTANCE)
     .reduce((best, cell) => Math.max(best, cell.blockTotal), 0);
-  if (winner.blockTotal < YARD_DOMINANCE_RATIO * rivalTotal) return null;
-
-  const cluster = candidates.filter((candidate) => {
-    const { cx, cy } = cellOf(candidate.point);
-    return Math.abs(cx - winner.cx) <= 1 && Math.abs(cy - winner.cy) <= 1;
-  });
+  if (cluster.length < YARD_DOMINANCE_RATIO * rivalTotal) return null;
   if (cluster.length < YARD_MIN_CLUSTER) return null;
   if (cluster.length / candidates.length < YARD_MIN_SHARE) return null;
 
