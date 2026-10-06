@@ -16,7 +16,7 @@ export interface TransferSectionProps {
 /** The transfer table (or why there is none) and the shortfall the plan cannot cover. */
 export function TransferSection({ view, selectedId, onSelect, onDecide }: TransferSectionProps) {
   return (
-    <>
+    <div className="min-w-0">
       {view.rows.length ? (
         <TransferTable
           rows={view.rows}
@@ -32,7 +32,7 @@ export function TransferSection({ view, selectedId, onSelect, onDecide }: Transf
             : 'No transfers are possible: no depot short of buses can be reached from one with spare buses. The shortfall is listed below.'}
         </EmptyState>
       )}
-      <h3 className="depot-label mb-1.5 mt-6">Shortfall the plan cannot cover · modelled</h3>
+      <h3 className="depot-label mb-1.5 mt-6">Shortfall the plan cannot cover</h3>
       {view.uncovered.length ? (
         <ul className="depot-prose flex flex-col gap-1">
           {view.uncovered.map((u) => (
@@ -42,6 +42,6 @@ export function TransferSection({ view, selectedId, onSelect, onDecide }: Transf
       ) : (
         <p className="depot-prose">Every modelled shortfall is covered by the transfers above.</p>
       )}
-    </>
+    </div>
   );
 }

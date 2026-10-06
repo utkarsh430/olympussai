@@ -1,6 +1,5 @@
 'use client';
 
-import type { Ref } from 'react';
 import { DEFAULT_REBALANCE_PARAMS, DEFAULT_SPARE_RATIO } from '@/lib/depot/optimise/config';
 import { FIELD_LABELS } from '@/lib/depot/rebalance/scenarioFields';
 import {
@@ -35,8 +34,6 @@ export interface ScenarioPanelProps {
   readonly depots: readonly DepotOption[];
   /** The optimiser's clamp notes, already in the planner's units and depot names. */
   readonly clampNotes: readonly string[];
-  /** Focus lands here after a reset, so keyboard users keep their place. */
-  readonly headingRef: Ref<HTMLHeadingElement>;
 }
 
 const PERCENT = 100;
@@ -50,22 +47,14 @@ function signed(n: number): string {
  * sent. Values pass on as typed: the optimiser clamps, and says so below.
  */
 export function ScenarioPanel(props: ScenarioPanelProps) {
-  const { form, onChange, onReset, depots, clampNotes, headingRef } = props;
+  const { form, onChange, onReset, depots, clampNotes } = props;
   const nameOf = (id: string): string => depots.find((d) => d.id === id)?.name ?? id;
   const list = (
     items: readonly { key: string; text: string }[],
     remove: (id: string) => Update,
   ) => <ActiveList items={items} onRemove={(id) => onChange(remove(id))} />;
   return (
-    <section aria-labelledby="rebalance-sandbox-heading" data-testid="rebalance-sandbox">
-      <h2
-        id="rebalance-sandbox-heading"
-        ref={headingRef}
-        tabIndex={-1}
-        className="depot-section-label scroll-mt-[var(--depot-scroll-mt)]"
-      >
-        What-if sandbox
-      </h2>
+    <div data-testid="rebalance-sandbox">
       <p className="depot-prose mb-3 text-xs">
         Change an assumption and the plan is recomputed here in your browser once you pause, leave
         the field or press Enter. Nothing is sent and nothing is dispatched.
@@ -161,6 +150,6 @@ export function ScenarioPanel(props: ScenarioPanelProps) {
           </button>
         </div>
       </form>
-    </section>
+    </div>
   );
 }

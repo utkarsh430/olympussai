@@ -105,7 +105,7 @@ describe('fleet distribution page', () => {
   it('announces a decision politely and ignores a repeat click', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     await act(async () => button('Approve').click());
-    const status = container.querySelector('[data-testid="rebalance-notice"] [role="status"]');
+    const status = container.querySelector('[data-testid="rebalance-status"]');
     expect(status?.textContent).toBe(
       'Approved 5 buses Agra to Kanpur. Recorded only; nothing dispatched.',
     );
@@ -133,7 +133,7 @@ describe('write order', () => {
     spy.mockRestore();
     expect(window.localStorage.getItem('upsrtc-copilot-audit-v1')).toBeNull();
     expect(window.localStorage.getItem('depot-transfer-decisions-v1')).toBeNull();
-    const status = container.querySelector('[data-testid="rebalance-notice"] [role="status"]');
+    const status = container.querySelector('[data-testid="rebalance-status"]');
     expect(status?.textContent).toContain('could not be recorded');
     expect(status?.textContent).toContain('no audit event exists');
   });
@@ -188,7 +188,7 @@ describe('undo announcement', () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     await act(async () => button('Approve').click());
     await act(async () => button('Undo').click());
-    const status = container.querySelector('[data-testid="rebalance-notice"] [role="status"]');
+    const status = container.querySelector('[data-testid="rebalance-status"]');
     expect(status?.textContent).toBe(
       'Undid the approval of 5 buses Agra to Kanpur. Recorded only; nothing dispatched.',
     );
@@ -202,7 +202,7 @@ describe('undo announcement', () => {
     });
     await act(async () => button('Undo').click());
     spy.mockRestore();
-    const status = container.querySelector('[data-testid="rebalance-notice"] [role="status"]');
+    const status = container.querySelector('[data-testid="rebalance-status"]');
     expect(status?.textContent).toContain('The undo could not be recorded');
   });
 });
@@ -219,7 +219,7 @@ describe('transfer rationale row', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     const detail = container.querySelector('[data-testid="transfer-detail-agra>kanpur"] td');
-    expect(detail?.getAttribute('colspan')).toBe('8');
+    expect(detail?.getAttribute('colspan')).toBe('9');
     expect(detail?.textContent).toContain('Try again');
   });
 
@@ -260,13 +260,13 @@ describe('reset to the server plan', () => {
   it('offers one reset while no what-if shows, in the sandbox', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     expect(resetButtons()).toHaveLength(1);
-    expect(container.querySelector('[data-testid="rebalance-notice"] button')).toBeNull();
+    expect(container.querySelector('[data-testid="rebalance-whatif-strip"] button')).toBeNull();
   });
 
-  it('adds one in the sticky strip while a what-if shows, with a distinct accessible name', async () => {
+  it('adds one in the what-if strip while a what-if shows, with a distinct accessible name', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     await typeInto('scenario-spare', '15');
-    const inStrip = container.querySelectorAll('[data-testid="rebalance-notice"] button');
+    const inStrip = container.querySelectorAll('[data-testid="rebalance-whatif-strip"] button');
     expect(inStrip).toHaveLength(1);
     const names = resetButtons().map(accessibleName);
     expect(names).toHaveLength(2);
@@ -276,15 +276,56 @@ describe('reset to the server plan', () => {
   it('shows each field empty with its default as the placeholder, and no strip reset', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     await typeInto('scenario-spare', '15');
-    const inStrip = container.querySelector('[data-testid="rebalance-notice"] button');
+    const inStrip = container.querySelector('[data-testid="rebalance-whatif-strip"] button');
     await act(async () => (inStrip as HTMLButtonElement).click());
     const spare = container.querySelector<HTMLInputElement>('#scenario-spare');
     const distance = container.querySelector<HTMLInputElement>('#scenario-distance');
     expect(spare?.value).toBe('');
     expect(spare?.placeholder).toBe('8 (default)');
     expect(distance?.placeholder).toBe('250 (default)');
-    expect(container.querySelector('[data-testid="rebalance-notice"] button')).toBeNull();
+    expect(container.querySelector('[data-testid="rebalance-whatif-strip"] button')).toBeNull();
     expect(container.querySelector('[data-testid="rebalance-whatif-sentence"]')).toBeNull();
     expect(resetButtons()).toHaveLength(1);
+  });
+});
+
+describe('page layout', () => {
+  it('has one notice in the flow, never sticky, and no what-if strip on the server plan', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const notices = container.querySelectorAll('[data-testid="depot-notice"]');
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.className).not.toMatch(/sticky/);
+    expect(notices[0]?.textContent).toMatch(/nothing is dispatched or reassigned/i);
+    expect(container.querySelector('[data-testid="rebalance-whatif-strip"]')).toBeNull();
+  });
+
+  it('tags the transfer section, not its columns, and keeps sandbox and depot table closed', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const label = container.querySelector('#rebalance-map-heading')?.parentElement;
+    expect(label?.textContent).toMatch(/modelled/i);
+    const sandbox = container.querySelector('#rebalance-sandbox-heading button');
+    const balances = container.querySelector('#rebalance-balance-heading button');
+    expect(sandbox?.getAttribute('aria-expanded')).toBe('false');
+    expect(balances?.getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+describe('transfer table preview', () => {
+  const many = Array.from({ length: 12 }, (_, i) => ({ ...ROW, id: `t${i}` }));
+  const props = { selectedId: null, onSelect: () => {}, onDecide: () => {} };
+
+  it('shows ten transfers and a "Show all" control that reveals the rest', async () => {
+    await render(<TransferTable rows={many} {...props} serverPlan={false} />);
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(10);
+    await act(async () => button('Show all 12 transfers').click());
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(12);
+  });
+
+  it('says in a title when the two depots stand at the same place', async () => {
+    const near = { ...ROW, fromName: 'Meerut', toName: 'Bhaisali', distanceKm: 0.2 };
+    await render(<TransferTable rows={[near]} {...props} serverPlan={false} />);
+    expect(container.querySelector('tbody tr')?.getAttribute('title')).toBe(
+      'Meerut and Bhaisali stand at the same place by their inferred positions (0.2 km apart).',
+    );
   });
 });

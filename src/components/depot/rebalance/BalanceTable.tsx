@@ -1,11 +1,13 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { DEPOT_KIND_LABEL } from '@/lib/depot/labels';
 import { formatCount } from '@/lib/depot/format';
+import { balancePreview, partOfPlanVaries } from '@/lib/depot/rebalance/pageLayout';
 import type { BalanceRow } from '@/lib/depot/rebalance/rebalanceModel';
 import { BalanceBar } from './BalanceBar';
+import { Disclosure } from './Disclosure';
 
 export interface BalanceTableProps {
   /** In model order: operating depots by balance, deepest deficit first; other kinds after. */
@@ -16,17 +18,13 @@ function count(n: number): string {
   return formatCount(n);
 }
 
-function columnsFor(maxMagnitude: number): readonly Column<BalanceRow>[] {
-  return [
+function columnsFor(maxMagnitude: number, withPart: boolean): readonly Column<BalanceRow>[] {
+  const all: readonly Column<BalanceRow>[] = [
     {
       key: 'name',
       header: 'Depot',
       sortValue: (r) => r.depotName,
-      render: (r) => (
-        <span className="block max-w-[220px] truncate" title={r.depotName}>
-          {r.depotName}
-        </span>
-      ),
+      render: (r) => r.depotName,
     },
     {
       key: 'kind',
@@ -35,83 +33,105 @@ function columnsFor(maxMagnitude: number): readonly Column<BalanceRow>[] {
     },
     {
       key: 'fleet',
-      header: 'Fleet · live',
+      header: 'Fleet',
       align: 'right',
       sortValue: (r) => r.fleet,
       render: (r) => count(r.fleet),
     },
     {
       key: 'offRoad',
-      header: 'Off road · live',
+      header: 'Off road',
       align: 'right',
       sortValue: (r) => r.offRoad,
       render: (r) => count(r.offRoad),
     },
     {
       key: 'available',
-      header: 'Available · live',
+      header: 'Available',
       align: 'right',
       sortValue: (r) => r.available,
       render: (r) => count(r.available),
     },
     {
       key: 'peak',
-      header: 'Peak need · modelled',
+      header: 'Peak need',
       align: 'right',
       sortValue: (r) => r.peakRequirement,
       render: (r) => count(r.peakRequirement),
     },
     {
       key: 'spare',
-      header: 'Spare · modelled',
+      header: 'Spare',
       align: 'right',
       sortValue: (r) => r.spareTarget,
       render: (r) => count(r.spareTarget),
     },
     {
       key: 'required',
-      header: 'Required · modelled',
+      header: 'Required',
       align: 'right',
       sortValue: (r) => r.required,
       render: (r) => count(r.required),
     },
     {
       key: 'balance',
-      header: 'Balance · modelled',
+      header: 'Balance',
       sortValue: (r) => r.balance,
       render: (r) => <BalanceBar balance={r.balance} maxMagnitude={maxMagnitude} />,
     },
   ];
+  return withPart ? all : all.filter((c) => c.key !== 'kind');
 }
 
 /**
- * Every depot's live availability against its modelled requirement. Columns
- * name their provenance in the header; the balance is a diverging bar with
- * its figure written beside it.
+ * Every depot's live availability against its modelled requirement, collapsed under its
+ * heading: the fifteen deepest shortfalls, then "Show all N". The "Part of plan" column
+ * shows only when some unit takes no part (it is constant otherwise).
  */
 export function BalanceTable({ rows }: BalanceTableProps) {
+  const [showAll, setShowAll] = useState(false);
   const maxMagnitude = useMemo(
     () => rows.filter((r) => r.takesPart).reduce((m, r) => Math.max(m, Math.abs(r.balance)), 0),
     [rows],
   );
-  const columns = useMemo(() => columnsFor(maxMagnitude), [maxMagnitude]);
+  const withPart = partOfPlanVaries(rows);
+  const columns = useMemo(() => columnsFor(maxMagnitude, withPart), [maxMagnitude, withPart]);
+  const shown = balancePreview(rows, showAll);
 
   return (
-    <section aria-labelledby="rebalance-balance-heading" data-testid="rebalance-balances">
-      <h2 id="rebalance-balance-heading" className="depot-section-label">
-        Every depot: available against required
-      </h2>
-      <p className="depot-prose mb-2 text-xs">
-        Deepest shortfall first. Hired, electric and enforcement units are listed after the depots
-        and take no part in the plan.
-      </p>
+    <Disclosure
+      label="Every depot: available against required"
+      count={rows.length}
+      note="Deepest shortfall first"
+      headingId="rebalance-balance-heading"
+      testId="rebalance-balances"
+    >
+      {withPart ? (
+        <p className="depot-prose mb-2 text-xs">
+          Hired, electric and enforcement units are listed after the depots and take no part in
+          the plan.
+        </p>
+      ) : null}
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={shown}
         rowKey={(r) => r.depotId}
         caption="Depot balances: live availability against modelled requirement"
         emptyMessage="No depot balances are available on this snapshot."
+        fixedRows
+        freezeFirstColumn
+        overflowCue
       />
-    </section>
+      {rows.length > shown.length || showAll ? (
+        <button
+          type="button"
+          className="depot-link mt-2 text-[13px]"
+          aria-expanded={showAll}
+          onClick={() => setShowAll((v) => !v)}
+        >
+          {showAll ? 'Show the fifteen deepest' : `Show all ${formatCount(rows.length)} depots`}
+        </button>
+      ) : null}
+    </Disclosure>
   );
 }

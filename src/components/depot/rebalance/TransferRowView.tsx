@@ -7,6 +7,7 @@ import {
   useRationale,
 } from '@/components/depot/copilot/RationaleButton';
 import { formatCount } from '@/lib/depot/format';
+import { samePlaceNote } from '@/lib/depot/rebalance/pageLayout';
 import { NOTE_MAX_CHARS, validateNote } from '@/lib/depot/rebalance/decisionEvents';
 import { decisionStatusText, isDecisionCurrent } from '@/lib/depot/rebalance/decisionWording';
 import type { TransferDecisionKind } from '@/lib/depot/rebalance/rebalanceModel';
@@ -29,6 +30,9 @@ export interface TransferRowViewProps {
   /** Columns in the table, so the detail row spans all of them. */
   readonly columns: number;
 }
+
+/** A full-width row under a transfer: it may wrap, unlike the 36px data rows. */
+const DETAIL_CELL = '!h-auto !max-w-none !whitespace-normal !py-3';
 
 /** One transfer: its data row and, with a rationale open, a full-width detail row. */
 export function TransferRowView(props: TransferRowViewProps) {
@@ -54,7 +58,10 @@ function RationaleRows(props: TransferRowViewProps) {
       />
       {rationale.expanded ? (
         <tr data-testid={`transfer-detail-${row.id}`}>
-          <td colSpan={columns}>
+          <td colSpan={columns} className={DETAIL_CELL}>
+            {samePlaceNote(row) ? (
+              <p className="depot-prose mb-2 max-w-[62ch] text-[13px]">{samePlaceNote(row)}</p>
+            ) : null}
             <RationalePanel
               id={rationale.panelId}
               expanded={rationale.expanded}
@@ -68,11 +75,14 @@ function RationaleRows(props: TransferRowViewProps) {
   );
 }
 
+const RATIONALE_ABSENT = 'A written rationale is available for the server plan only.';
+
 function DataRow({
   row,
   selected,
   onSelect,
   onDecide,
+  columns,
   actions,
 }: TransferRowViewProps & { readonly actions: ReactNode }) {
   const [note, setNote] = useState('');
@@ -87,60 +97,69 @@ function DataRow({
     setError('');
   }
 
+  const samePlace = samePlaceNote(row);
   return (
-    <tr className={selected ? 'depot-row-selected' : undefined}>
-      <td>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+    <>
+      <tr className={selected ? 'depot-row-selected' : undefined} title={samePlace ?? undefined}>
+        <td>
           <button
             type="button"
             aria-pressed={selected}
             onClick={() => onSelect(selected ? null : row.id)}
-            className="depot-link max-w-[260px] truncate text-left"
+            className="depot-link block max-w-[16rem] truncate text-left"
             title={`${row.fromName} to ${row.toName}`}
           >
             {row.fromName} → {row.toName}
           </button>
-          {actions}
-        </div>
-      </td>
-      <td className="depot-align-right">{formatCount(row.buses)}</td>
-      <td className="depot-align-right">{row.distanceKm.toFixed(1)}</td>
-      <td className="depot-align-right">{row.busKm.toFixed(1)}</td>
-      <td className="depot-align-right">{formatCount(row.giverSurplusBefore)}</td>
-      <td className="depot-align-right">{formatCount(row.receiverDeficitBefore)}</td>
-      <td>{decisionStatusText(row.decision, row.buses)}</td>
-      <td>
-        <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor={noteId} className="sr-only">
-            Note for {row.fromName} to {row.toName}, optional, up to {NOTE_MAX_CHARS} characters
-          </label>
-          <input
-            id={noteId}
-            type="text"
-            maxLength={NOTE_MAX_CHARS}
-            placeholder="Note (optional)"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            className="depot-field w-40"
-          />
-          {DECISIONS.map((d) => (
-            <button
-              key={d.kind}
-              type="button"
-              aria-pressed={isDecisionCurrent(row.decision, d.kind, row.buses)}
-              onClick={() => decide(d.kind)}
-              className="depot-filter-button"
-            >
-              {d.label}
-            </button>
-          ))}
-        </div>
-        {error ? (
-          <p role="alert" className="mt-1 text-[11px] text-alert-amber">
-            {error}
-          </p>
-        ) : null}
-      </td>
-    </tr>
+        </td>
+        <td className="depot-align-right">{formatCount(row.buses)}</td>
+        <td className="depot-align-right" title={samePlace ?? undefined}>
+          {row.distanceKm.toFixed(1)}
+        </td>
+        <td className="depot-align-right">{row.busKm.toFixed(1)}</td>
+        <td className="depot-align-right">{formatCount(row.giverSurplusBefore)}</td>
+        <td className="depot-align-right">{formatCount(row.receiverDeficitBefore)}</td>
+        <td title={decisionStatusText(row.decision, row.buses)}>
+          {decisionStatusText(row.decision, row.buses)}
+        </td>
+        <td>{actions ?? <span title={RATIONALE_ABSENT}>—</span>}</td>
+        <td className="!max-w-none">
+          <div className="flex flex-nowrap items-center gap-2">
+            <label htmlFor={noteId} className="sr-only">
+              Note for {row.fromName} to {row.toName}, optional, up to {NOTE_MAX_CHARS} characters
+            </label>
+            <input
+              id={noteId}
+              type="text"
+              maxLength={NOTE_MAX_CHARS}
+              placeholder="Note (optional)"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="depot-field w-36 py-0.5"
+            />
+            {DECISIONS.map((d) => (
+              <button
+                key={d.kind}
+                type="button"
+                aria-pressed={isDecisionCurrent(row.decision, d.kind, row.buses)}
+                onClick={() => decide(d.kind)}
+                className="depot-filter-button shrink-0"
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </td>
+      </tr>
+      {error ? (
+        <tr>
+          <td colSpan={columns} className={DETAIL_CELL}>
+            <p role="alert" className="text-[11px] text-alert-amber">
+              {error}
+            </p>
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 }

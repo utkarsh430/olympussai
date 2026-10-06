@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import {
   balancePreview,
   partOfPlanVaries,
@@ -37,17 +38,17 @@ describe('plan figures', () => {
       'Empty running',
       'Deficit covered',
     ]);
-    expect(figures[0].value).toBe('9 → 0');
-    expect(figures[1].caption).toBe('in 13 transfers');
-    expect(figures[2].value).toBe('576.0');
-    expect(figures[2].caption).toBe('bus-km, road estimate');
-    expect(figures[3].value).toBe('29 of 31');
-    expect(figures[3].caption).toBe('2 buses left uncovered');
+    expect(figures[0]?.value).toBe('9 → 0');
+    expect(figures[1]?.caption).toBe('in 13 transfers');
+    expect(figures[2]?.value).toBe('576.0');
+    expect(figures[2]?.caption).toBe('bus-km, road estimate');
+    expect(figures[3]?.value).toBe('29 of 31');
+    expect(figures[3]?.caption).toBe('2 buses left uncovered');
   });
 
   it('says every bus is covered when nothing is left', () => {
     const covered = { ...SUMMARY, uncoveredDeficit: 0 } as PlanSummary;
-    expect(planFigures(covered)[3].caption).toBe('every short bus covered');
+    expect(planFigures(covered)[3]?.caption).toBe('every short bus covered');
   });
 });
 
