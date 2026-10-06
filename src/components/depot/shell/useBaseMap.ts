@@ -16,6 +16,8 @@ const MAP_BACKGROUND = '#02040a';
 export interface BaseMapOptions {
   /** The sentence after every failure: where the map's content is also shown. */
   readonly stillAvailable: string;
+  /** What the timeout says before `stillAvailable`; each map keeps its own sentence. */
+  readonly timeoutText?: string;
   /** Map options beyond the house defaults, resolved once the libraries have loaded. */
   readonly extraOptions?: () => Promise<google.maps.MapOptions>;
   /** Removes the page's own overlays and listeners when the map goes away. */
@@ -48,6 +50,7 @@ export function useBaseMap(
 
   useEffect(() => {
     const { stillAvailable, extraOptions } = optionsRef.current;
+    const timeoutText = optionsRef.current.timeoutText ?? 'The basemap took too long to load.';
     if (!isMapsConfigured()) {
       setStatus('error');
       setMessage(`The basemap is not configured for this environment. ${stillAvailable}`);
@@ -61,7 +64,7 @@ export function useBaseMap(
       setMessage(`${text} ${stillAvailable}`);
     };
     const timer = setTimeout(() => {
-      if (!refused && mapRef.current === null) showError('The basemap took too long to load.');
+      if (!refused && mapRef.current === null) showError(timeoutText);
     }, BASE_MAP_LOAD_TIMEOUT_MS);
     const unsubscribe = onMapsAuthFailure(() => {
       refused = true;
