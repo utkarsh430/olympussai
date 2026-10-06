@@ -1,0 +1,77 @@
+import type { CopilotQuery, RankMetric } from '@/lib/depot/copilot/queries';
+import { cleanName } from '@/lib/depot/copilot/facts/format';
+import type { CopilotFact } from '@/lib/depot/copilot/types';
+import type { CopilotAnswerTable } from '@/lib/depot/copilot/wire';
+
+/**
+ * The "interpreted as" line and the result table for an answered question.
+ * Both are built from the typed query and the server's own facts, never from
+ * the question's text, so nothing the user typed is echoed back.
+ */
+
+const METRIC_LABEL: Readonly<Record<RankMetric, string>> = {
+  index: 'Efficiency index',
+  onRoad: 'On-road share',
+  offRoad: 'Off-road rate',
+  dark: 'Dark rate',
+  scheduled: 'Schedule coverage',
+};
+
+export function interpretQuery(query: CopilotQuery, nameOf: (depotId: string) => string): string {
+  const name = (id: string): string => cleanName(nameOf(id));
+  switch (query.kind) {
+    case 'networkSummary':
+      return 'A summary of the whole network';
+    case 'depotSummary':
+      return `A summary of ${name(query.depotId)}`;
+    case 'rankDepots':
+      return `Depots by ${METRIC_LABEL[query.metric].toLowerCase()}, ${
+        query.order === 'top' ? 'highest' : 'lowest'
+      } first, up to ${query.limit}`;
+    case 'depotsInDeficit':
+      return 'Depots in deficit on the modelled requirement';
+    case 'depotsInSurplus':
+      return 'Depots in surplus on the modelled requirement';
+    case 'transfersFor':
+      return `Proposed transfers involving ${name(query.depotId)}`;
+    case 'exceptionsFor':
+      return `Exceptions at ${name(query.depotId)}`;
+    case 'compareDepots':
+      return `A comparison of ${name(query.depotA)} and ${name(query.depotB)}`;
+    case 'outshedStatus':
+      return `Departures from the yard at ${name(query.depotId)}`;
+    case 'unsupported':
+      return 'A question outside what can be answered here';
+  }
+}
+
+/** Rows `<prefix>.<n>.name` and `<prefix>.<n>.<valueKey>`, in order, while both exist. */
+function rowsFrom(facts: readonly CopilotFact[], prefix: string, valueKey: string): string[][] {
+  const text = new Map(facts.map((f) => [f.id, f.text] as const));
+  const rows: string[][] = [];
+  for (let n = 1; ; n += 1) {
+    const name = text.get(`${prefix}.${n}.name`);
+    const value = text.get(`${prefix}.${n}.${valueKey}`);
+    if (name === undefined || value === undefined) return rows;
+    rows.push([name, value]);
+  }
+}
+
+/** A table for the list queries; none for a single answer or an empty list. */
+export function answerTable(
+  query: CopilotQuery,
+  facts: readonly CopilotFact[],
+): CopilotAnswerTable | undefined {
+  let table: CopilotAnswerTable | undefined;
+  if (query.kind === 'rankDepots') {
+    table = {
+      columns: ['Depot', METRIC_LABEL[query.metric]],
+      rows: rowsFrom(facts, 'rank', 'value'),
+    };
+  } else if (query.kind === 'depotsInDeficit') {
+    table = { columns: ['Depot', 'Short by'], rows: rowsFrom(facts, 'list', 'size') };
+  } else if (query.kind === 'depotsInSurplus') {
+    table = { columns: ['Depot', 'Spare'], rows: rowsFrom(facts, 'list', 'size') };
+  }
+  return table && table.rows.length > 0 ? table : undefined;
+}
