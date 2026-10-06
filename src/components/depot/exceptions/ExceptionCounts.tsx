@@ -65,8 +65,8 @@ export function ExceptionCounts({
       </h2>
       <p className="depot-prose mb-3 mt-1">{totalsLine}</p>
       <div className="grid gap-5 xl:grid-cols-2">
-        <TileGroup heading="Depots: exceptions" kinds={DEPOT_KINDS} counts={counts} selected={selected} onToggle={onToggle} />
-        <TileGroup heading="Buses: exceptions" kinds={BUS_KINDS} counts={counts} selected={selected} onToggle={onToggle} />
+        <TileGroup heading="Depots" kinds={DEPOT_KINDS} counts={counts} selected={selected} onToggle={onToggle} />
+        <TileGroup heading="Buses" kinds={BUS_KINDS} counts={counts} selected={selected} onToggle={onToggle} />
       </div>
     </section>
   );

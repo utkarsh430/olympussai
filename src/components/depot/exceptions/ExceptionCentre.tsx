@@ -61,7 +61,7 @@ export function ExceptionCentre() {
 
   const toggleKind = (next: ExceptionKind): void => {
     setKind((current) => (current === next ? null : next));
-    if (isBusKind(next)) setOffset(0);
+    setOffset(0);
   };
 
   if (!shown) {

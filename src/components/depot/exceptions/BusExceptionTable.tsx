@@ -63,7 +63,7 @@ export interface BusExceptionTableProps {
  * One server page of buses that need attention, in the server's order (worst
  * first). Not sortable here: sorting one page would misstate the order of the whole list.
  */
-export function BusExceptionTable({ rows, emptyMessage = 'No buses match these filters.' }: BusExceptionTableProps) {
+export function BusExceptionTable({ rows, emptyMessage = 'No bus exceptions on this page.' }: BusExceptionTableProps) {
   return (
     <DataTable
       columns={COLUMNS}
