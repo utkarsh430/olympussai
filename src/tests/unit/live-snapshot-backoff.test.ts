@@ -19,6 +19,15 @@ import {
 } from '@/lib/upsrtc/liveSnapshot';
 
 const mockFetch = vi.mocked(fetchUpstream);
+
+// The wall clock stands still in this file: the snapshot times an answer from when it
+// arrives, and every expected time here assumes it arrives the moment it is asked for.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 const T0 = 1_800_000_000_000;
 const DEPOT = { serveLastGoodWithinMs: 90_000 } as const;
 
@@ -214,5 +223,41 @@ describe('live snapshot: a reply far shorter than the last good one', () => {
     // The count starts again: a later short reply is refused once more.
     mockFetch.mockResolvedValueOnce(okResult(fleet(1)));
     expect((await getLiveSnapshot(at + LIVE_CACHE_TTL_MS + 1)).source).toBe('cache');
+  });
+});
+
+describe('live snapshot: an answer is timed from when it arrived', () => {
+  const UPSTREAM_WAIT_MS = 8_000;
+
+  beforeEach(() => {
+    resetLiveSnapshotForTests();
+    mockFetch.mockReset();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  const slowly = (result: UpstreamFetchResult) => async (): Promise<UpstreamFetchResult> => {
+    vi.setSystemTime(Date.now() + UPSTREAM_WAIT_MS);
+    return result;
+  };
+
+  it('stamps the fetch time and starts the TTL when a slow answer arrives', async () => {
+    mockFetch.mockImplementationOnce(slowly(okResult(payload('UP78JT4102'))));
+    const first = await getLiveSnapshot(T0);
+    const arrived = T0 + UPSTREAM_WAIT_MS;
+    expect(first.snapshot.fetchedAt).toBe(new Date(arrived).toISOString());
+
+    const cached = await getLiveSnapshot(arrived + LIVE_CACHE_TTL_MS - 1);
+    expect(cached.source).toBe('cache');
+    expect(cached.stale).toBe(false);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts the back-off when a slow failure arrives', async () => {
+    mockFetch.mockImplementationOnce(slowly(failResult));
+    await getLiveSnapshot(T0);
+    await getLiveSnapshot(T0 + UPSTREAM_WAIT_MS + LIVE_RETRY_BACKOFF_MS - 1);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });

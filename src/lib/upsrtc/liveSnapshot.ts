@@ -245,14 +245,19 @@ async function safeFetch(): Promise<UpstreamFetchResult> {
   }
 }
 
-async function refresh(now: number): Promise<LiveSnapshotResult> {
+async function refresh(startedAt: number): Promise<LiveSnapshotResult> {
   const startedIn = generation;
   // A test reset during the fetch orphans this refresh: it still answers its own
   // callers but must not touch the cache or diagnostics the reset just cleared.
   const isCurrent = (): boolean => generation === startedIn;
 
-  liveDiagnostics.lastAttemptAt = new Date(now).toISOString();
+  liveDiagnostics.lastAttemptAt = new Date(startedAt).toISOString();
+  const wallAtStart = Date.now();
   const result = await safeFetch();
+  // Everything after this is timed from when the answer arrived, not from when the first
+  // caller asked: a slow answer would otherwise start part-way through its TTL, read older
+  // than it is ("received … ago"), and cut short the back-off and the last-good grace.
+  const now = startedAt + Math.max(0, Date.now() - wallAtStart);
   if (isCurrent()) liveDiagnostics.lastStatus = result.status;
 
   let failure: string;

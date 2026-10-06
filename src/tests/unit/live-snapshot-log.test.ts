@@ -16,6 +16,15 @@ import {
 } from '@/lib/upsrtc/liveSnapshot';
 
 const mockFetch = vi.mocked(fetchUpstream);
+
+// The wall clock stands still in this file: the snapshot times an answer from when it
+// arrives, and every expected time here assumes it arrives the moment it is asked for.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 const T0 = 1_800_000_000_000;
 
 const ok: UpstreamFetchResult = {
