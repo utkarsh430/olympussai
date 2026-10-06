@@ -23,14 +23,22 @@ const FIVE = [
 ];
 
 describe('the attention strip', () => {
-  it('draws the bottom rule across the empty fifth cell of a 3+2 strip', () => {
-    const filler = render(FIVE).querySelector('[data-testid="depot-attention-filler"]');
-    expect(filler?.className).toContain('border-b');
+  it('closes the strip with one rule of its own, across the empty fifth cell of a 3+2 strip', () => {
+    const strip = render(FIVE);
+    const list = strip.querySelector('ul');
+    // One closing rule on the list (S3 rhythm cause); rows draw only the rules between them.
+    expect(list?.className).toContain('border-y');
+    const items = [...(list?.querySelectorAll('li') ?? [])];
+    for (const item of items) expect(item.className).not.toContain('border-b');
+    const filler = strip.querySelector('[data-testid="depot-attention-filler"]');
+    expect(filler?.className).toContain('border-t');
     expect(filler?.getAttribute('aria-hidden')).not.toBeNull();
   });
 
   it('has no filler when the strip is even', () => {
-    expect(render(FIVE.slice(0, 4)).querySelector('[data-testid="depot-attention-filler"]')).toBeNull();
+    expect(
+      render(FIVE.slice(0, 4)).querySelector('[data-testid="depot-attention-filler"]'),
+    ).toBeNull();
   });
 
   it('keeps one heading on the opened briefing: the card label and headline are not drawn', () => {

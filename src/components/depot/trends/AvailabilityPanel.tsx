@@ -79,7 +79,7 @@ export function AvailabilityPanel({ depotId, available, distribution }: Availabi
     );
     body =
       comparison.status === 'ok' && balance !== null ? (
-        <div className="flex flex-col gap-2" data-testid="trends-availability" title={comparison.sentence}>
+        <div data-testid="trends-availability" title={comparison.sentence}>
           <Figures comparison={comparison} requirement={balance} />
         </div>
       ) : (

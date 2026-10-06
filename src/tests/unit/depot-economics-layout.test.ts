@@ -2,18 +2,20 @@ import { describe, expect, it } from 'vitest';
 import type { EconomicsDepotRow } from '@/lib/depot/revenue/api';
 import {
   ECONOMICS_COLUMN_WIDTHS,
-  ECONOMICS_ROW_CONTROLS_PX,
+  ECONOMICS_EXPANDER_PX,
+  MIN_SPARE_PX,
   ECONOMICS_SIGN_NOTE,
   ECONOMICS_TABLE_NOTE,
-  FRAME_AT_1440,
   breakdownButtonName,
   economicsBand,
   economicsColumnKeys,
   economicsDaySentence,
+  economicsTableWidth,
   noDutyPhrase,
 } from '@/lib/depot/revenue/economicsLayout';
+import { EXPANDER_WIDTH_PX } from '@/components/depot/shell/tableLayout';
 import { networkModelledDayLine } from '@/lib/depot/modelledDayLine';
-import { TIER_FRAME_PX, columnSum, type TableTier } from '@/lib/depot/revenue/tableTier';
+import { TIER_FRAME_PX, type TableTier } from '@/lib/depot/revenue/tableTier';
 
 function depot(
   id: string,
@@ -82,15 +84,25 @@ describe('economics layout', () => {
     expect(band[3]?.value).toBe('1');
   });
 
-  it.each<TableTier>(['wide', 'medium', 'narrow'])(
-    'fits the %s frame with the chevron and expander',
-    (tier) => {
-      const sum =
-        columnSum(ECONOMICS_COLUMN_WIDTHS, economicsColumnKeys(tier)) + ECONOMICS_ROW_CONTROLS_PX;
-      expect(sum).toBeLessThanOrEqual(TIER_FRAME_PX[tier]);
-      expect(sum).toBeLessThanOrEqual(FRAME_AT_1440);
-    },
-  );
+  /*
+   * Round 5 reported 1,002 px against 1,000 at 1280. The old test added a hand-set 64 px of
+   * "controls" that the shell no longer draws (the expander is 24 px, the row-end chevron
+   * sits in a cell's padding), ignored the frame's 2 px border, and summed with a helper that
+   * counts a column without a width as 0, so a lost width could never fail it. The sum is
+   * now strict, uses the shell's expander width and is pinned per tier.
+   */
+  it.each<[TableTier, number]>([
+    ['wide', 914],
+    ['medium', 914],
+    ['narrow', 704],
+  ])('fits the %s frame with at least 8 px to spare (%i px)', (tier, sum) => {
+    expect(economicsTableWidth(tier)).toBe(sum);
+    expect(economicsTableWidth(tier)).toBeLessThanOrEqual(TIER_FRAME_PX[tier] - MIN_SPARE_PX);
+  });
+
+  it('counts the expander the shell draws', () => {
+    expect(ECONOMICS_EXPANDER_PX).toBe(EXPANDER_WIDTH_PX);
+  });
 
   it('keeps RANK · DEPOT · INDEX · EARNINGS · FUEL at 800 and gives the index 150 px', () => {
     expect(economicsColumnKeys('narrow')).toEqual([

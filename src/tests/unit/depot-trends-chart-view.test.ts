@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { trendSummary } from '@/lib/depot/forecast/chartModel';
 import { buildTrendsChartView, chartCaption } from '@/lib/depot/forecast/trendsChartView';
 import { forecastResponse } from './depot-trends-fixtures';
 
@@ -39,6 +42,19 @@ describe('the Trends chart view', () => {
     expect(summary.match(/MODELLED/g)).toHaveLength(1);
     expect(summary).toContain('LIVE value');
     expect(summary).toMatch(/forecast to .* range /);
+  });
+
+  it('builds the text equivalent once with the word in its one place, never by repairing a string (R2-m18)', () => {
+    const { model, summary } = buildTrendsChartView(FULL);
+    expect(summary).toBe(trendSummary(FULL, model.points, 'once'));
+    expect(summary).toMatch(/^On-road share, MODELLED history from /);
+    // The shared chart keeps the word on every generated part.
+    expect(model.summary.match(/MODELLED/g)).toHaveLength(2);
+    const source = readFileSync(
+      join(process.cwd(), 'src/lib/depot/forecast/trendsChartView.ts'),
+      'utf8',
+    );
+    expect(source).not.toMatch(/\.replace\(\s*\/MODELLED/);
   });
 
   it('keeps the unavailable sentence in the text equivalent of a history without a forecast', () => {

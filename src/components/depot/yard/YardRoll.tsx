@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { BUS_STATE_SQUARE } from '@/components/depot/shell/BusStateMark';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
@@ -13,8 +13,11 @@ import {
   rollGroupHeading,
   unknownRows,
   yardRoll,
+  type AwayRow,
   type RollGroup,
 } from '@/lib/depot/yard/yardRollModel';
+import { sharedReason, showAtYardFor, type YardTier } from '@/lib/depot/yard/yardTableLayout';
+import { usePhone } from '@/components/depot/maintenance/useBelowDesktop';
 import { awayColumns, CappedTable, rollColumns, unknownColumns } from './YardTables';
 import { YardVisitors } from './YardVisitors';
 
@@ -36,16 +39,20 @@ function StateGroupBlock({
   readonly group: RollGroup;
   readonly depotId: string;
 }) {
+  const tier: YardTier = usePhone() ? 'phone' : 'wide';
   const columns = useMemo(
-    () => rollColumns(depotId, group.showReason),
-    [depotId, group.showReason],
+    () => rollColumns(depotId, group.showReason, tier),
+    [depotId, group.showReason, tier],
   );
+  // On a phone REASON leaves the rows; one reason shared by every row becomes the note.
+  const note = tier === 'phone' && group.showReason ? sharedReason(group.rows) : null;
   return (
     <div className="min-w-0" data-testid="yard-roll-group" data-state={group.state}>
-      <h3 className="flex h-8 items-center gap-2 font-mono text-[11px] tracking-[0.12em] tabular-nums text-depot-ink">
+      <h3 className="flex h-8 items-center gap-2 font-mono text-[11px] tabular-nums tracking-[0.12em] text-depot-ink">
         <span aria-hidden className={`h-1.5 w-1.5 shrink-0 ${BUS_STATE_SQUARE[group.state]}`} />
         {rollGroupHeading(group)}
       </h3>
+      {note !== null ? <p className="depot-note mb-2">{note}</p> : null}
       {group.rows.length > 0 ? (
         <CappedTable
           columns={columns}
@@ -92,8 +99,12 @@ function Roll({ model, depotId }: Omit<YardRollProps, 'depotNames'>) {
 
 function Away({ model, depotId, depotNames }: YardRollProps) {
   const rows = awayRows(model.away.buses, depotNames);
-  const showAtYard = rows.some((r) => r.atYard !== '');
-  const columns = useMemo(() => awayColumns(depotId, showAtYard), [depotId, showAtYard]);
+  const tier: YardTier = usePhone() ? 'phone' : 'wide';
+  // Decided from the rows on screen, and again when "Show all" opens.
+  const columns = useCallback(
+    (visible: readonly AwayRow[]) => awayColumns(depotId, showAtYardFor(visible), tier),
+    [depotId, tier],
+  );
   return (
     <section aria-labelledby="yard-roll-away">
       <SectionLabel
@@ -114,7 +125,8 @@ function Away({ model, depotId, depotNames }: YardRollProps) {
 }
 
 function Unknown({ model, depotId }: Omit<YardRollProps, 'depotNames'>) {
-  const columns = useMemo(() => unknownColumns(depotId), [depotId]);
+  const tier: YardTier = usePhone() ? 'phone' : 'wide';
+  const columns = useMemo(() => unknownColumns(depotId, tier), [depotId, tier]);
   return (
     <section aria-labelledby="yard-roll-unknown">
       <SectionLabel id="yard-roll-unknown" label="Location unknown" count={model.unknown.length} />

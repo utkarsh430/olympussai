@@ -145,8 +145,20 @@ function xTicks(points: readonly ChartPoint[], nowIndex: number): string[] {
   return points.filter((_, i) => (i - nowIndex) % every === 0).map((p) => p.date);
 }
 
-function summaryOf(input: TrendChartInput, points: readonly ChartPoint[]): string {
+/** Where the text equivalent says MODELLED: on every generated part, or once, on the history. */
+export type ModelledWordPlacement = 'every-part' | 'once';
+
+/**
+ * The chart's text equivalent, built once with the word where it belongs: the shared chart
+ * says MODELLED on the history and on the forecast; the Trends pages say it once (R2-m18).
+ */
+export function trendSummary(
+  input: TrendChartInput,
+  points: readonly ChartPoint[],
+  placement: ModelledWordPlacement,
+): string {
   const { label, unit } = input.metric;
+  const forecastWord = placement === 'every-part' ? 'MODELLED forecast' : 'forecast';
   const history = points.filter((p) => p.kind === 'history');
   const live = points.find((p) => p.kind === 'live');
   const last = points.at(-1);
@@ -160,7 +172,7 @@ function summaryOf(input: TrendChartInput, points: readonly ChartPoint[]): strin
   if (last?.kind === 'forecast' && last.low !== null && last.high !== null) {
     const band = `${formatValue(last.low, unit)} to ${formatValue(last.high, unit)}`;
     const ends = `ends at ${formatValue(last.value, unit)}, range ${band}`;
-    parts.push(`MODELLED forecast to ${formatDate(last.date)} ${ends}`);
+    parts.push(`${forecastWord} to ${formatDate(last.date)} ${ends}`);
   }
   const unavailable = input.sentences.unavailable;
   const why = unavailable ? ` ${unavailable}` : '';
@@ -185,7 +197,7 @@ export function buildTrendChartModel(input: TrendChartInput): TrendChartModel {
     yScale: valueScale(extents, input.metric.range, input.metric.kind),
     xTicks: xTicks(points, Math.max(0, nowIndex)),
     now: points[nowIndex] ?? null,
-    summary: summaryOf(input, points),
+    summary: trendSummary(input, points, 'every-part'),
     notes: [trend, method, error, horizon, unavailable].filter((s): s is string => s !== null),
   };
 }

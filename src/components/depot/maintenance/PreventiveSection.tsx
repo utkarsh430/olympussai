@@ -44,7 +44,10 @@ const EXPANDED_WORDS: Readonly<Record<PreventiveColumnKey, (bus: ModelledService
 };
 
 /** What the width's column set leaves out, as labelled values under the row. */
-function ExpandedBus({ bus, keys }: {
+function ExpandedBus({
+  bus,
+  keys,
+}: {
   readonly bus: ModelledService;
   readonly keys: readonly PreventiveColumnKey[];
 }) {
@@ -57,14 +60,20 @@ function ExpandedBus({ bus, keys }: {
   );
 }
 
-function buildColumns(depotId: string, dueSoonWithinKm: number): readonly Column<ModelledService>[] {
+function buildColumns(
+  depotId: string,
+  dueSoonWithinKm: number,
+): readonly Column<ModelledService>[] {
   const columns: Column<ModelledService>[] = [
     {
       key: 'registration',
       header: 'Registration',
       sortValue: (bus) => bus.registrationNumber,
       render: (bus) => (
-        <Link href={rosterBusHref(depotId, bus.registrationNumber)} className="depot-table-link text-holo-glow underline-offset-2 hover:underline focus-visible:underline">
+        <Link
+          href={rosterBusHref(depotId, bus.registrationNumber)}
+          className="depot-table-link"
+        >
           {bus.registrationNumber}
         </Link>
       ),
@@ -167,8 +176,11 @@ export function PreventiveSection({ depotId, preventive }: PreventiveSectionProp
                   label: (key) =>
                     groupRowLabel(key as ServiceGroup, view.totals[key as ServiceGroup] ?? 0),
                 }}
-                renderExpanded={hidden.length > 0 ? (bus) => <ExpandedBus bus={bus} keys={hidden} /> : undefined}
+                renderExpanded={
+                  hidden.length > 0 ? (bus) => <ExpandedBus bus={bus} keys={hidden} /> : undefined
+                }
                 expandLabel={(bus) => `Show ${bus.registrationNumber} in full`}
+                rowLabel={(bus) => bus.registrationNumber}
               />
               {view.cappable.includes(group) ? (
                 <div className="mt-1">

@@ -96,9 +96,15 @@ describe('MaintenancePage', () => {
 
   // Round 3, maintenance Must 4: 40 px from the band to the off-road section (the band's
   // own 24 px margin plus 16 px on the lists).
-  it('leaves 40 px between the band and the off-road section', () => {
+  it('leaves 40 px between the band and the off-road section: the shared stack, no page spacing', () => {
     const markup = renderToStaticMarkup(<MaintenancePage />);
-    expect(markup).toContain('data-testid="maintenance-lists" class="flex flex-col gap-8 pt-4"');
+    const doc = new DOMParser().parseFromString(markup, 'text/html');
+    const band = doc.querySelector('.depot-band');
+    // The band sits directly in the shared stack (its own margin dropped, 40 px to the next rule).
+    expect(band?.parentElement?.className).toBe('depot-stack');
+    const lists = doc.querySelector('[data-testid="maintenance-lists"]');
+    expect(lists?.className).toBe('depot-stack');
+    expect(lists?.previousElementSibling).toBe(band);
   });
 
   it('puts the live count, not the endpoint count, in the workshop load', () => {
@@ -119,8 +125,8 @@ describe('MaintenancePage', () => {
     // queried per figure on the visible band, not by character offsets (guard M19)
     const page = document.createElement('div');
     page.innerHTML = markup;
-    const tagsOf = [...page.querySelectorAll('[data-testid="depot-figure-band"] li')].map((li) =>
-      li.querySelectorAll('[data-provenance="modelled"]').length,
+    const tagsOf = [...page.querySelectorAll('[data-testid="depot-figure-band"] li')].map(
+      (li) => li.querySelectorAll('[data-provenance="modelled"]').length,
     );
     expect(tagsOf).toEqual([0, 1, 1]);
   });

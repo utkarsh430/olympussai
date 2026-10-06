@@ -5,9 +5,11 @@
  * caption line under the chart, and the table rows with the values to sort by. The
  * shared chart model is read, never changed. Pure.
  */
+import type { MetricUnit } from './api';
 import { BAND_QUANTILE } from './config';
 import {
   buildTrendChartModel,
+  trendSummary,
   type LegendEntry,
   type TrendChartInput,
   type TrendChartModel,
@@ -25,8 +27,6 @@ export const TRENDS_LEGEND_LABEL: Readonly<Record<LegendEntry['key'], string>> =
   band: `${BAND_SHARE}% band`,
   live: 'Now (live)',
 };
-
-const LEGEND_ORDER: readonly LegendEntry['key'][] = ['history', 'forecast', 'band', 'live'];
 
 const UNIT_SHORT: Readonly<Record<TrendUnit, { one: string; many: string; decimals: number }>> = {
   percentage_points: { one: 'pp', many: 'pp', decimals: 1 },
@@ -148,21 +148,28 @@ export interface TrendsChartView {
   readonly horizonDays: number;
 }
 
-/** The shared summary names MODELLED on each part; the page says it once, on the history. */
-function summaryOnce(summary: string): string {
-  return summary.replace(/MODELLED /g, '').replace(/history from/, 'MODELLED history from');
+/**
+ * The legend with the page's own labels, in the order of `labels`' keys; an entry the
+ * model does not draw is left out.
+ */
+export function relabelLegend(
+  legend: readonly LegendEntry[],
+  labels: Readonly<Partial<Record<LegendEntry['key'], string>>>,
+): readonly LegendEntry[] {
+  const byKey = new Map(legend.map((entry) => [entry.key, entry] as const));
+  return (Object.keys(labels) as LegendEntry['key'][]).flatMap((key) => {
+    const entry = byKey.get(key);
+    const label = labels[key];
+    return entry === undefined || label === undefined ? [] : [{ ...entry, label }];
+  });
 }
 
-export function buildTrendsChartView(input: TrendChartInput): TrendsChartView {
-  const model = buildTrendChartModel(input);
-  const hasForecast = model.points.some((p) => p.kind === 'forecast');
-  const byKey = new Map(model.legend.map((entry) => [entry.key, entry] as const));
-  const legend = LEGEND_ORDER.flatMap((key) => {
-    const entry = byKey.get(key);
-    return entry === undefined ? [] : [{ ...entry, label: TRENDS_LEGEND_LABEL[key] }];
-  });
-  const { unit } = input.metric;
-  const table = model.points.map((point, index): TrendsTableRow => {
+/** The table view's rows, with the values to sort by and the Kind in plain words. */
+export function trendsTableRows(
+  model: TrendChartModel,
+  unit: MetricUnit,
+): readonly TrendsTableRow[] {
+  return model.points.map((point, index): TrendsTableRow => {
     const row = model.table[index];
     return {
       key: point.date,
@@ -177,13 +184,19 @@ export function buildTrendsChartView(input: TrendChartInput): TrendsChartView {
       sortHigh: point.high,
     };
   });
+}
+
+export function buildTrendsChartView(input: TrendChartInput): TrendsChartView {
+  const model = buildTrendChartModel(input);
+  const hasForecast = model.points.some((p) => p.kind === 'forecast');
   return {
     model,
     label: `${input.metric.label}: trend and forecast`,
-    legend,
-    summary: summaryOnce(model.summary),
+    legend: relabelLegend(model.legend, TRENDS_LEGEND_LABEL),
+    // Built once with MODELLED in its one place, never repaired from the shared string.
+    summary: trendSummary(input, model.points, 'once'),
     caption: chartCaption(input),
-    table,
+    table: trendsTableRows(model, input.metric.unit),
     hasForecast,
     horizonDays: input.horizonDays,
   };

@@ -71,7 +71,7 @@ export function FuelPage({ provenance }: { readonly provenance: ProvenanceDescri
 
 function FuelBody({ data, stale }: { readonly data: FuelResponse; readonly stale: boolean }) {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="depot-stack">
       {stale ? <StaleStrip since={data.feedNow} /> : null}
       {isEmptyDay(data) ? (
         <StatePanel

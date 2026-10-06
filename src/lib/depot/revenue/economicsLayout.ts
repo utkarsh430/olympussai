@@ -46,9 +46,7 @@ export interface BandFigure {
  * depots. A fourth appears only when a component could not be worked out for
  * another reason, so the figures always add up.
  */
-export function economicsBand(
-  depots: readonly EconomicsDepotRow[],
-): readonly BandFigure[] {
+export function economicsBand(depots: readonly EconomicsDepotRow[]): readonly BandFigure[] {
   const operating = depots.filter((d) => d.kind === 'depot');
   const ranked = operating.filter((d) => d.score.ranked).length;
   const noDuty = operating.filter(
@@ -60,7 +58,11 @@ export function economicsBand(
   const other = operating.length - ranked - noDuty - underMinimum;
   const noun = operating.length === 1 ? 'operating depot' : 'operating depots';
   const figures: BandFigure[] = [
-    { label: 'Ranked', value: formatCount(ranked), caption: `of ${formatCount(operating.length)} ${noun}` },
+    {
+      label: 'Ranked',
+      value: formatCount(ranked),
+      caption: `of ${formatCount(operating.length)} ${noun}`,
+    },
     {
       label: 'No duty in the day',
       value: formatCount(noDuty),
@@ -73,7 +75,10 @@ export function economicsBand(
     },
   ];
   return other > 0
-    ? [...figures, { label: 'Not worked out', value: formatCount(other), caption: 'a component is missing' }]
+    ? [
+        ...figures,
+        { label: 'Not worked out', value: formatCount(other), caption: 'a component is missing' },
+      ]
     : figures;
 }
 
@@ -98,8 +103,29 @@ export const ECONOMICS_COLUMN_WIDTHS = {
 
 export type EconomicsColumnKey = keyof typeof ECONOMICS_COLUMN_WIDTHS;
 
-/** The end-of-row chevron (28 px) and the table's row-expander column (36 px). */
-export const ECONOMICS_ROW_CONTROLS_PX = 64;
+/** The shared table's row-expander column (the chevron, first): `EXPANDER_WIDTH_PX`. */
+export const ECONOMICS_EXPANDER_PX = 24;
+
+/** The table frame's border, 1 px each side: the columns get the frame minus this. */
+export const TABLE_FRAME_BORDER_PX = 2;
+
+/** Every column set leaves at least this much of its frame unused. */
+export const MIN_SPARE_PX = 8;
+
+/**
+ * The table's laid-out width for a tier: its columns, the expander column and the frame's
+ * border. Strict: a column without a width throws instead of counting as 0, so a test on
+ * this sum cannot pass by losing a column.
+ */
+export function economicsTableWidth(tier: TableTier): number {
+  const widths: Readonly<Record<string, number>> = ECONOMICS_COLUMN_WIDTHS;
+  const columns = economicsColumnKeys(tier).reduce((sum, key) => {
+    const width = widths[key];
+    if (width === undefined) throw new Error(`economics column ${key} has no width`);
+    return sum + width;
+  }, 0);
+  return columns + ECONOMICS_EXPANDER_PX + TABLE_FRAME_BORDER_PX;
+}
 
 /** Every column from 1024; at 800 LOAD % and FLEET go to the breakdown (critique §7). */
 export function economicsColumnKeys(tier: TableTier): readonly EconomicsColumnKey[] {

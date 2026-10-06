@@ -102,6 +102,44 @@ describe('TrendChart', () => {
     expect(text().toLowerCase()).not.toContain('simulated');
   });
 
+  it('keeps its own head and sentences when no Trends option is passed (one chart, two looks)', () => {
+    render(<TrendChart data={sample()} />);
+    expect(container.querySelector('[data-testid="depot-section-label"]')).toBeNull();
+    expect(container.querySelector('[data-testid="trends-caption"]')).toBeNull();
+    expect([...container.querySelectorAll('button')].map((b) => b.textContent)).toEqual([
+      'Show as table',
+    ]);
+    expect(container.querySelector('section')?.hasAttribute('data-testid')).toBe(false);
+  });
+
+  it('takes the Trends pages title, tag, legend words, caption, summary and sortable table', () => {
+    render(
+      <TrendChart
+        data={sample()}
+        title="On-road share: trend and forecast"
+        tag="modelled"
+        legendLabels={{ history: 'History', live: 'Now (live)' }}
+        caption="Steady over 4 weeks"
+        summary="One text equivalent."
+        sortableTable
+        nowFlag
+      />,
+    );
+    const label = container.querySelector('[data-testid="depot-section-label"]');
+    expect(label?.querySelector('[data-provenance="modelled"]')).not.toBeNull();
+    const legend = [...container.querySelectorAll('[data-legend]')].map((e) => e.textContent);
+    expect(legend).toEqual(['History', 'Now (live)']);
+    expect(container.querySelector('[data-testid="trends-caption"]')?.textContent).toBe(
+      'Steady over 4 weeks',
+    );
+    expect(container.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(
+      'One text equivalent.',
+    );
+    const table = [...container.querySelectorAll('button')].find((b) => b.textContent === 'table');
+    act(() => table?.click());
+    expect(container.querySelector('thead button')?.textContent).toMatch(/^Date/);
+  });
+
   it('swaps the chart for a table of the same points and back', () => {
     render(<TrendChart data={sample()} headingLevel={2} />);
     const button = container.querySelector('button');
