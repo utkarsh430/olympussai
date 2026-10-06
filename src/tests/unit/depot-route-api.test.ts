@@ -72,6 +72,38 @@ describe('GET /api/upsrtc/depot/route/[routeName]', () => {
     expect(mockProfile.mock.calls[0]?.[0]).toBe('RKD_4560_ORD_OUT');
   });
 
+  it("carries the envelope of the snapshot it read: fetch time, source, staleness", async () => {
+    const fresh = await call('RKD_4560_ORD_OUT');
+    expect(await fresh.json()).toMatchObject({
+      feedNow: null,
+      fetchedAt: '2026-10-06T10:00:00.000Z',
+      source: 'live',
+      stale: false,
+    });
+    mockSnapshot.mockResolvedValue({
+      snapshot: {
+        buses: [],
+        depotRows: [],
+        recordCount: 0,
+        rejectedRecordCount: 0,
+        fetchedAt: '2026-10-06T09:00:00.000Z',
+        feedNow: '2026-10-06T14:29:00.000Z',
+        feedClockAheadRows: 2,
+      },
+      source: 'cache',
+      stale: true,
+    });
+    const lastGood = await call('RKD_4560_ORD_OUT');
+    expect(await lastGood.json()).toMatchObject({
+      status: 'unavailable',
+      feedNow: '2026-10-06T14:29:00.000Z',
+      fetchedAt: '2026-10-06T09:00:00.000Z',
+      source: 'cache',
+      stale: true,
+      feedClockAheadRows: 2,
+    });
+  });
+
   it('answers any thrown error as a 503 that leaks nothing, and logs it', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mockSnapshot.mockRejectedValue(new Error('secret upstream detail'));

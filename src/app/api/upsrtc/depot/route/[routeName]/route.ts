@@ -1,7 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
 import { jsonResponse } from '@/lib/upsrtc/respond';
-import { getLiveSnapshot } from '@/lib/upsrtc/liveSnapshot';
 import { isValidRouteName } from '@/lib/depot/ids';
 import { logDepotError } from '@/lib/depot/log';
 import {
@@ -18,7 +17,8 @@ import {
   routeProfileNeedsFetch,
 } from '@/lib/depot/routes/routeCatalogue';
 import type { RouteProfileResponse } from '@/lib/depot/routes/types';
-import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
+import { getRepositories } from '@/lib/depot/repositories';
+import { feedEnvelope } from '@/lib/depot/live/analysis';
 import { SCHEDULE_MAX_UPSTREAM_CALLS } from '@/lib/upsrtc/scheduleService';
 
 export const runtime = 'nodejs';
@@ -78,19 +78,6 @@ function throttleMiss(request: NextRequest, claims: Readonly<IdentityClaims>): R
   );
 }
 
-// TODO: read the fleet through the repository once its composition root lands.
-async function readFleetView(now: number): Promise<FleetSnapshotView> {
-  const { snapshot, source, stale } = await getLiveSnapshot(now);
-  return {
-    rows: snapshot.depotRows,
-    feedNow: snapshot.feedNow,
-    fetchedAt: snapshot.fetchedAt,
-    source,
-    stale,
-    recordCount: snapshot.recordCount,
-  };
-}
-
 const PAST_DEADLINE = Symbol('past deadline');
 
 /** The work's own outcome, or `PAST_DEADLINE` once `ms` have gone by; no timer is left behind. */
@@ -114,14 +101,15 @@ async function answer(
 ): Promise<Response> {
   const acceptEncoding = request.headers.get('accept-encoding');
   const now = Date.now();
-  const view = await readFleetView(now);
+  const view = await getRepositories().fleet.snapshot();
   // Only a cache miss reaches the government's server, so only a miss is limited.
   if (routeProfileNeedsFetch(routeName, view, now)) {
     const refused = throttleMiss(request, session);
     if (refused) return refused;
   }
   const result = await getRouteProfile(routeName, view, now);
-  const body: RouteProfileResponse = { ...result, fetchedAt: new Date(now).toISOString() };
+  // The envelope is the snapshot's own, so a stale or sample fleet says so here too.
+  const body: RouteProfileResponse = { ...result, ...feedEnvelope(view) };
   return jsonResponse(body, { acceptEncoding });
 }
 
