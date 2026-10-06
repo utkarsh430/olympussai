@@ -81,7 +81,8 @@ function peakRequirementFor(
   operatingDate: string,
   params: RequirementParams,
 ): number {
-  const share = componentValues(depot).onRoad ?? peerMedian;
+  const live = componentValues(depot).onRoad;
+  const share = live !== null && Number.isFinite(live) ? live : peerMedian;
   const rng = new SeededRandom(seedFor(depot.id, operatingDate, 'requirement'));
   const epsilon = rng.float(-params.noise, params.noise);
   const utilisation = clamp(
@@ -92,6 +93,22 @@ function peakRequirementFor(
   return Math.round(available * utilisation);
 }
 
+/** A count: finite, whole and non-negative; anything else is zero. */
+function wholeCount(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+}
+
+/**
+ * The live anchors, made consistent once at the door so that
+ * `available = fleet - offRoad` holds literally for every output: fleet is a
+ * non-negative integer and off-road an integer within [0, fleet].
+ */
+function sanitiseAnchors(depot: DepotSummary): DepotSummary {
+  const fleet = wholeCount(depot.fleet);
+  const offRoad = Math.min(fleet, wholeCount(depot.states.offRoad));
+  return { ...depot, fleet, states: { ...depot.states, offRoad } };
+}
+
 function balanceFor(
   depot: DepotSummary,
   yards: ReadonlyMap<string, Yard>,
@@ -99,9 +116,9 @@ function balanceFor(
   operatingDate: string,
   params: RequirementParams,
 ): DepotBalance {
-  const fleet = Math.max(0, depot.fleet);
+  const { fleet } = depot;
   const offRoad = depot.states.offRoad;
-  const available = Math.max(0, fleet - offRoad);
+  const available = fleet - offRoad;
   const modelled = depot.kind === 'depot' && available > 0;
   const peakRequirement = modelled
     ? peakRequirementFor(depot, available, peerMedian, operatingDate, params)
@@ -131,8 +148,9 @@ export function modelBalances(
   params: RequirementParams,
 ): DepotBalance[] {
   const safe = clampRequirementParams(params);
-  const peerMedian = peerMedianOnRoad(depots);
-  return [...depots]
+  const clean = depots.map(sanitiseAnchors);
+  const peerMedian = peerMedianOnRoad(clean);
+  return clean
     .sort((a, b) => compareDepotIds(a.id, b.id))
     .map((d) => balanceFor(d, yards, peerMedian, operatingDate, safe));
 }
