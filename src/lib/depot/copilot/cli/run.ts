@@ -1,4 +1,5 @@
 import { classifyCliFailure } from '@/lib/depot/copilot/cli/classify';
+import { MAX_PROMPT_BYTES } from '@/lib/depot/copilot/limits';
 import type { FallbackReason } from '@/lib/depot/copilot/types';
 
 /** Minimal structural views of Node's `child_process.spawn`, so tests can fake it. */
@@ -13,6 +14,7 @@ export interface SpawnOptionsLike {
 
 interface DataStream {
   on(event: 'data', listener: (chunk: Buffer | string) => void): unknown;
+  on(event: 'error', listener: (error: Error) => void): unknown;
 }
 
 export interface ChildLike {
@@ -63,6 +65,9 @@ const failure = (reason: FallbackReason, detail: string): RunCliResult => ({
  * is a parameter so the trust boundary can be tested without a process.
  */
 export function runCli(input: RunCliInput, spawn: SpawnLike): Promise<RunCliResult> {
+  if (Buffer.byteLength(input.stdin, 'utf8') > MAX_PROMPT_BYTES) {
+    return Promise.resolve(failure('error', 'prompt exceeds the size cap'));
+  }
   return new Promise<RunCliResult>((resolve) => {
     let child: ChildLike;
     try {
@@ -94,10 +99,7 @@ export function runCli(input: RunCliInput, spawn: SpawnLike): Promise<RunCliResu
       if (kill) child.kill('SIGKILL');
       resolve(result);
     };
-    const timer = setTimeout(
-      () => settle(failure('timeout', `no result within ${input.timeoutMs} ms`), true),
-      input.timeoutMs,
-    );
+    const timer = setTimeout(() => settle(failure('timeout', 'timed out'), true), input.timeoutMs);
 
     const collect = (sink: Buffer[]) => (chunk: Buffer | string) => {
       if (settled) return;
@@ -111,12 +113,17 @@ export function runCli(input: RunCliInput, spawn: SpawnLike): Promise<RunCliResu
     };
     child.stdout.on('data', collect(out));
     child.stderr.on('data', collect(err));
+    // An unhandled 'error' event on a stream would crash the server; the child's
+    // own 'close' or 'error' event reports the outcome.
+    child.stdout.on('error', () => undefined);
+    child.stderr.on('error', () => undefined);
 
+    // Fixed strings only: an error message can contain the binary path.
     child.on('error', (error: Error) =>
       settle(
         isMissingBinary(error)
           ? failure('not_installed', 'binary not found')
-          : failure('error', error.message),
+          : failure('error', 'process error'),
         false,
       ),
     );

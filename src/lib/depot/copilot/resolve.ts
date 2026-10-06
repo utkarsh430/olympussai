@@ -1,7 +1,8 @@
-import type { ProviderSetting } from '@/lib/depot/copilot/config';
+import { CLI_FAILURE_THRESHOLD, type ProviderSetting } from '@/lib/depot/copilot/config';
 import { renderDraft } from '@/lib/depot/copilot/render';
 import {
   CopilotFailure,
+  type CopilotDraft,
   type CopilotProvider,
   type CopilotRequest,
   type CopilotText,
@@ -24,6 +25,9 @@ export interface CopilotEngineDeps {
 /** A busy slot or a rejected draft says nothing about whether the CLI is healthy. */
 const NO_COOLDOWN: readonly FallbackReason[] = ['busy', 'rejected_draft'];
 
+/** One bad output or slow call is noise; only a run of them counts as an outage. */
+const SOFT_FAILURES: readonly FallbackReason[] = ['timeout', 'invalid_output'];
+
 /**
  * Chooses who writes the text. The CLI is tried when selected and healthy; any
  * failure falls back to the scripted draft, and a failing CLI is left alone
@@ -31,6 +35,17 @@ const NO_COOLDOWN: readonly FallbackReason[] = ['busy', 'rejected_draft'];
  */
 export function createCopilotEngine(deps: CopilotEngineDeps): CopilotEngine {
   let coolingUntil = 0;
+  let softFailures = 0;
+
+  function recordFailure(reason: FallbackReason): void {
+    if (NO_COOLDOWN.includes(reason)) return;
+    if (SOFT_FAILURES.includes(reason)) {
+      softFailures += 1;
+      if (softFailures < CLI_FAILURE_THRESHOLD) return;
+    }
+    softFailures = 0;
+    coolingUntil = deps.now() + deps.cooldownMs;
+  }
 
   async function scripted(
     request: CopilotRequest,
@@ -64,14 +79,15 @@ export function createCopilotEngine(deps: CopilotEngineDeps): CopilotEngine {
       }
       if (deps.now() < coolingUntil) return scripted(request, 'cooling_down', true);
 
-      let draft;
+      let draft: CopilotDraft;
       try {
         draft = await cli.draft(request);
       } catch (error: unknown) {
         const reason = failureReason(error);
-        if (!NO_COOLDOWN.includes(reason)) coolingUntil = deps.now() + deps.cooldownMs;
+        recordFailure(reason);
         return scripted(request, reason, true);
       }
+      softFailures = 0;
 
       const rendered = renderDraft(draft, request.facts);
       if (!rendered.ok) return scripted(request, 'rejected_draft', true);
