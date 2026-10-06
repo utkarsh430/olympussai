@@ -140,3 +140,24 @@ export function trendLinesBesideChart(
   const bare = chartLine === null ? null : withoutTrendTag(chartLine);
   return trendLines(result).filter((line) => withoutTrendTag(line) !== bare);
 }
+
+/**
+ * Said in place of the availability comparison when a request behind it failed. Figures
+ * kept from an earlier answer are not shown then: a requirement or a forecast from before
+ * the failure would read as current. Null when both requests last succeeded.
+ */
+export function availabilityFailureSentence(
+  forecastFailed: boolean,
+  distributionFailed: boolean,
+): string | null {
+  if (forecastFailed && distributionFailed) {
+    return 'Neither the forecast of available buses nor the fleet distribution loaded, so the comparison is not shown.';
+  }
+  if (forecastFailed) {
+    return 'The forecast of available buses did not load, so it is not set against the requirement.';
+  }
+  if (distributionFailed) {
+    return 'The fleet distribution did not load, so the requirement and the days short are not shown.';
+  }
+  return null;
+}
