@@ -103,7 +103,7 @@ describe('buildTrendChartModel', () => {
       'History, MODELLED',
       'Live value, LIVE',
       'Forecast, MODELLED',
-      'Forecast range (80% of past errors), MODELLED',
+      'Forecast range (80% of past errors at each day ahead), MODELLED',
     ]);
     expect(model.points[0]?.description).toBe('MODELLED history');
     expect(model.now?.description).toBe('LIVE value');
@@ -118,6 +118,7 @@ describe('buildTrendChartModel', () => {
       'No forecast: it needs at least 28 days of history and this series has 20.',
     );
     expect(model.summary).toContain('No forecast');
+    expect(model.summary).toContain('Values are available as a table.');
   });
 
   it('draws a single point without a NaN anywhere', () => {
