@@ -29,7 +29,14 @@ describe('repeated registrations: the depot projection keeps the row the map kee
   it('keeps the older row with a fix over a newer row without one', () => {
     const payload = [
       raw({ speed: 1, home_depot: '81', timestamp: '2026-07-20T07:00:00Z' }),
-      raw({ speed: 2, home_depot: '92', timestamp: '2026-07-20T07:30:00Z', latitude: 0, longitude: 0 }),
+      // Newer, but at 0,0: the "no fix" sentinel the map refuses.
+      raw({
+        speed: 2,
+        home_depot: '92',
+        timestamp: '2026-07-20T07:30:00Z',
+        latitude: 0,
+        longitude: 0,
+      }),
     ];
     expect(picks(payload)).toEqual({ map: 1, depot: 1 });
     expect(normalizeDepotRows(payload).rows[0]?.depotId).toBe('81');

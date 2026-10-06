@@ -105,12 +105,14 @@ describe('live snapshot: one log line per change of what is served', () => {
     await getLiveSnapshot(T0 + LIVE_RETRY_BACKOFF_MS + LIVE_CACHE_TTL_MS + 1);
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith(
-      '[depot:live-snapshot] upstream recovered; serving live data again instead of the saved sample',
+      '[depot:live-snapshot] upstream recovered; ' +
+        'serving live data again instead of the saved sample',
     );
   });
 
   it('never writes an address, which may carry credentials, into the line', async () => {
-    mockFetch.mockResolvedValue(failed('request to https://user:secret@feed.example/x?key=k1 failed'));
+    const message = 'request to https://user:secret@feed.example/x?key=k1 failed';
+    mockFetch.mockResolvedValue(failed(message));
     await getLiveSnapshot(T0);
     const [line] = lines();
     expect(line).toContain('(address withheld)');

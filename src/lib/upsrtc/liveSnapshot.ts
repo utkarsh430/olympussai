@@ -56,8 +56,10 @@ export const LIVE_RETRY_BACKOFF_MS = 20_000;
  * refresh: a cut-off or partial answer would otherwise be served as live and offered to the
  * score window and the yard memory as a real sample, with every depot's fleet near zero.
  * Safe at night: the feed lists every registered vehicle on every answer, with its last
- * known record and a status (live, stationary, no signal, under maintenance), so the row
- * count follows the size of the fleet, not the hour; parked buses stay in the list.
+ * known record and a status (live, stationary, no signal, under maintenance), whether or
+ * not it is reporting; the saved full-fleet sample holds rows last heard two weeks before
+ * it was taken. So the row count follows the size of the fleet, not the hour: buses
+ * parked for the night stay in the list, and only a cut-off reply falls below half.
  */
 export const MIN_ROWS_SHARE_OF_LAST_GOOD = 0.5;
 /**
@@ -105,6 +107,8 @@ export const liveDiagnostics: LiveDiagnostics = { ...INITIAL_DIAGNOSTICS };
 // Module-scoped: survives across requests in a warm server process.
 const cache = new TtlCache<LiveSnapshot>(LIVE_CACHE_TTL_MS);
 let inFlight: Promise<LiveSnapshotResult> | null = null;
+// Bumped by the test reset so a refresh started before it cannot write afterwards.
+let generation = 0;
 // Until this wall time, a failed refresh is not retried; null while the upstream answers.
 let retryAfterMs: number | null = null;
 // Short replies refused in a row (see SHORT_REPLIES_BEFORE_ACCEPTED).
@@ -144,8 +148,6 @@ function noteFallback(result: LiveSnapshotResult, reason: string): LiveSnapshotR
   noteServing(result.source === 'fixture' ? 'sample' : 'last-good', reason);
   return result;
 }
-// Bumped by the test reset so a refresh started before it cannot write afterwards.
-let generation = 0;
 
 interface DepotProjection {
   readonly rows: readonly DepotBusRow[];
