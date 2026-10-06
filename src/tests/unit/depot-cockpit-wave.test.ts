@@ -211,6 +211,12 @@ describe('index meta in the header', () => {
     expect(indexMeta(header, full, FEED_NOW).href).toBe('/project/depots/league');
   });
 
+  it('has a phone form with the index and rank only, so it never wraps mid-phrase', () => {
+    expect(indexMeta(header, full, FEED_NOW).shortLabel).toBe('Index 31.6 · rank 34/38');
+    const unranked = { ...header, ranked: false, index: null, unrankedReason: 'Not an operating depot.' };
+    expect(indexMeta(unranked, full, FEED_NOW).shortLabel).toBe('Index not ranked');
+  });
+
   it('gives an unranked depot its reason as a separate sentence', () => {
     const meta = indexMeta({ ...header, ranked: false, index: null, unrankedReason: 'Not an operating depot.' }, full, FEED_NOW);
     expect(meta.label).toBe('Index not ranked');
