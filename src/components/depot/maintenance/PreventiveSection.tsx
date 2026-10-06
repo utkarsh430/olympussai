@@ -21,23 +21,50 @@ import {
   preventiveGuard,
   serviceClassLabel,
 } from '@/lib/depot/maintenance/text';
-import { useBelowDesktop } from './useBelowDesktop';
+import {
+  PREVENTIVE_COLUMN_WIDTH_PX,
+  preventiveColumnKeys,
+  preventiveExpanderKeys,
+  preventiveTier,
+  type PreventiveColumnKey,
+} from '@/lib/depot/maintenance/preventiveLayout';
+import { useBelowDesktop, usePhone } from './useBelowDesktop';
 
-function buildColumns(
-  depotId: string,
-  dueSoonWithinKm: number,
-  odometerColumn: boolean,
-): readonly Column<ModelledService>[] {
+const GROUP_ORDER: readonly ServiceGroup[] = ['overdue', 'due_soon', 'not_due'];
+
+const groupsShown = (rows: readonly ModelledService[]): readonly ServiceGroup[] =>
+  GROUP_ORDER.filter((group) => rows.some((bus) => bus.group === group));
+
+const EXPANDED_WORDS: Readonly<Record<PreventiveColumnKey, (bus: ModelledService) => string>> = {
+  registration: (bus) => bus.registrationNumber,
+  next: (bus) => kmToNextCell(bus.kmToNextService),
+  class: (bus) => `Class: ${serviceClassLabel(bus.serviceClass)}`,
+  odometer: (bus) => `Odometer: ${formatCount(bus.odometerKm)} km`,
+  age: (bus) => `Age: ${bus.ageYears} years`,
+};
+
+/** What the width's column set leaves out, as labelled values under the row. */
+function ExpandedBus({ bus, keys }: {
+  readonly bus: ModelledService;
+  readonly keys: readonly PreventiveColumnKey[];
+}) {
+  return (
+    <p className="depot-note flex flex-wrap gap-x-6">
+      {keys.map((key) => (
+        <span key={key}>{EXPANDED_WORDS[key](bus)}</span>
+      ))}
+    </p>
+  );
+}
+
+function buildColumns(depotId: string, dueSoonWithinKm: number): readonly Column<ModelledService>[] {
   const columns: Column<ModelledService>[] = [
     {
       key: 'registration',
       header: 'Registration',
       sortValue: (bus) => bus.registrationNumber,
       render: (bus) => (
-        <Link
-          href={rosterBusHref(depotId, bus.registrationNumber)}
-          className="text-holo-glow underline-offset-2 hover:underline"
-        >
+        <Link href={rosterBusHref(depotId, bus.registrationNumber)} className="depot-table-link">
           {bus.registrationNumber}
         </Link>
       ),
@@ -59,16 +86,14 @@ function buildColumns(
       sortValue: (bus) => bus.serviceClass,
       render: (bus) => serviceClassLabel(bus.serviceClass),
     },
-  ];
-  if (odometerColumn) {
-    columns.push({
+    {
       key: 'odometer',
       header: 'Odometer, km',
       align: 'right',
       sortValue: (bus) => bus.odometerKm,
       render: (bus) => formatCount(bus.odometerKm),
-    });
-  }
+    },
+  ];
   columns.push({
     key: 'age',
     header: 'Age, years',
@@ -92,12 +117,18 @@ export interface PreventiveSectionProps {
  */
 export function PreventiveSection({ depotId, preventive }: PreventiveSectionProps) {
   const [opened, setOpened] = useState<ReadonlySet<ServiceGroup>>(() => new Set());
-  const below = useBelowDesktop();
+  const tier = preventiveTier(useBelowDesktop(), usePhone());
+  const hidden = preventiveExpanderKeys(tier);
   const view = useMemo(() => preventiveView(preventive.buses, opened), [preventive.buses, opened]);
-  const columns = useMemo(
-    () => buildColumns(depotId, preventive.dueSoonWithinKm, !below),
-    [depotId, preventive.dueSoonWithinKm, below],
-  );
+  const columns = useMemo(() => {
+    const shown = new Set<string>(preventiveColumnKeys(tier));
+    return buildColumns(depotId, preventive.dueSoonWithinKm)
+      .filter((column) => shown.has(column.key))
+      .map((column) => ({
+        ...column,
+        width: PREVENTIVE_COLUMN_WIDTH_PX[column.key as PreventiveColumnKey],
+      }));
+  }, [depotId, preventive.dueSoonWithinKm, tier]);
   const toggle = (group: ServiceGroup): void =>
     setOpened((current) =>
       current.has(group)
@@ -117,42 +148,41 @@ export function PreventiveSection({ depotId, preventive }: PreventiveSectionProp
       {preventive.buses.length === 0 ? (
         <StatePanel kind="empty" sentence={noAttentionText()} />
       ) : (
-        <>
-          <DataTable
-            columns={columns}
-            rows={view.rows}
-            rowKey={(bus) => bus.registrationNumber}
-            caption={preventiveCaption()}
-            fixedRows
-            freezeFirstColumn
-            overflowCue
-            group={{
-              key: (bus) => bus.group,
-              label: (key) =>
-                groupRowLabel(key as ServiceGroup, view.totals[key as ServiceGroup] ?? 0),
-            }}
-            renderExpanded={
-              below
-                ? (bus) => <p className="depot-note">Odometer: {formatCount(bus.odometerKm)} km</p>
-                : undefined
-            }
-            expandLabel={(bus) => `Show the odometer of ${bus.registrationNumber}`}
-          />
-          {view.cappable.length > 0 ? (
-            <div className="mt-1 flex flex-wrap items-center gap-x-6">
-              {view.cappable.map((group) => (
-                <span key={group} className="flex items-center gap-2">
-                  <span className="depot-note">{groupRowLabel(group, view.totals[group])}</span>
+        // One table per group, so each group's "SHOW ALL N ›" is its own last row (critique
+        // round 5, maintenance Must 2); the shared widths keep the groups' columns aligned.
+        <div className="flex flex-col gap-4">
+          {groupsShown(view.rows).map((group) => (
+            <div key={group} data-testid="depot-preventive-group" className="min-w-0">
+              <DataTable
+                id={`depot-preventive-${group}`}
+                columns={columns}
+                rows={view.rows.filter((bus) => bus.group === group)}
+                rowKey={(bus) => bus.registrationNumber}
+                caption={preventiveCaption()}
+                fixedRows
+                freezeFirstColumn
+                overflowCue
+                group={{
+                  key: (bus) => bus.group,
+                  label: (key) =>
+                    groupRowLabel(key as ServiceGroup, view.totals[key as ServiceGroup] ?? 0),
+                }}
+                renderExpanded={hidden.length > 0 ? (bus) => <ExpandedBus bus={bus} keys={hidden} /> : undefined}
+                expandLabel={(bus) => `Show ${bus.registrationNumber} in full`}
+              />
+              {view.cappable.includes(group) ? (
+                <div className="mt-1">
                   <ShowAllButton
                     total={view.totals[group]}
                     expanded={opened.has(group)}
                     onToggle={() => toggle(group)}
+                    controls={`depot-preventive-${group}`}
                   />
-                </span>
-              ))}
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </>
+          ))}
+        </div>
       )}
     </section>
   );
