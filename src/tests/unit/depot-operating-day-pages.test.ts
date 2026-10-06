@@ -86,13 +86,13 @@ beforeEach(() => {
   vi.mocked(cachedRouteProfiles).mockReturnValue(new Map([['AGRA_EXP_11', profile(61.4)]]));
 });
 
-async function pages() {
-  const board = buildDutyBoard(VIEW, '1');
-  const crew = await buildCrewResponse(VIEW, '1', modelledCrewRepository);
-  const fuel = await buildFuelResponse(VIEW, '1', modelledFuelRepository);
-  const revenue = await buildRevenueResponse(VIEW, '1', SOURCES);
-  const economics = await buildEconomicsResponse(VIEW, SOURCES);
-  const day = operatingDayFor(VIEW, '1');
+async function pages(view: FleetSnapshotView = VIEW) {
+  const board = buildDutyBoard(view, '1');
+  const crew = await buildCrewResponse(view, '1', modelledCrewRepository);
+  const fuel = await buildFuelResponse(view, '1', modelledFuelRepository);
+  const revenue = await buildRevenueResponse(view, '1', SOURCES);
+  const economics = await buildEconomicsResponse(view, SOURCES);
+  const day = operatingDayFor(view, '1');
   if (!board || !crew || !fuel || !revenue || !day) throw new Error('depot 1 is missing');
   return { board, crew, fuel, revenue, economics, day };
 }
@@ -151,7 +151,13 @@ describe('every page reads the one shared day (review I4)', () => {
     vi.mocked(cachedRouteProfiles).mockReturnValue(
       new Map([['AGRA_EXP_11', profile(61.4)], ['KANPUR_ORD_21', profile(12.5)]]),
     );
-    const after = await pages();
+    // The board and the day are memoised per analysis, so the after-set must be a
+    // fresh build on a new rows array: otherwise it is the before-set's own body
+    // and "unchanged" could never fail.
+    resetAnalysisForTests();
+    const after = await pages({ ...VIEW, rows: [...VIEW.rows] });
+    expect(after.board.duties).not.toBe(before.board.duties);
+    expect(after.day.runs).not.toBe(before.day.runs);
     expect(tenths(after.fuel.totals.distanceKm)).toBe(tenths(after.revenue.summary.serviceKm));
     expect(after.fuel.totals.distanceKm).not.toBe(before.fuel.totals.distanceKm);
     expect(after.board.duties).toEqual(before.board.duties);
