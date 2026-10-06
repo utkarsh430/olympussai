@@ -79,11 +79,18 @@ describe('capacityFigure', () => {
 describe('heldSinceLine', () => {
   it('names the time a held yard dates from, and nothing otherwise', () => {
     const yard = { heldSince: '2026-10-05T14:02:00.000Z' } as YardModel['yard'];
-    expect(heldSinceLine(yard)).toBe(
+    expect(heldSinceLine(yard, '2026-10-05T18:30:00Z')).toBe(
       'Yard held since 14:02: this snapshot alone would not place it.',
     );
-    expect(heldSinceLine({} as YardModel['yard'])).toBeNull();
-    expect(heldSinceLine(null)).toBeNull();
+    expect(heldSinceLine({} as YardModel['yard'], '2026-10-05T18:30:00Z')).toBeNull();
+    expect(heldSinceLine(null, '2026-10-05T18:30:00Z')).toBeNull();
+  });
+
+  it("gives the day when the yard has been held since an earlier day than the feed's", () => {
+    const yard = { heldSince: '2026-10-05T19:45:00Z' } as YardModel['yard'];
+    expect(heldSinceLine(yard, '2026-10-06T08:10:00Z')).toBe(
+      'Yard held since 5 Oct, 19:45: this snapshot alone would not place it.',
+    );
   });
 });
 

@@ -17,8 +17,14 @@ import { YardMapKey, YardMapNote } from './YardMapLegend';
 import { YardRoll } from './YardRoll';
 import { HOW_ID, YardFigures, YardNotEstablished } from './YardSummary';
 
-function MapSection({ model }: { readonly model: YardModel }) {
-  const held = heldSinceLine(model.yard);
+interface MapSectionProps {
+  readonly model: YardModel;
+  /** The feed's clock: a yard held since an earlier day says that day. */
+  readonly feedNow: string | null;
+}
+
+function MapSection({ model, feedNow }: MapSectionProps) {
+  const held = heldSinceLine(model.yard, feedNow);
   return (
     <section aria-labelledby="yard-map-heading" className="min-w-0">
       <SectionLabel id="yard-map-heading" label="Yard map" note={held ?? undefined} />
@@ -86,7 +92,7 @@ export function YardPage() {
       {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
       <YardFigures model={model} capacity={capacity} baysPending={baysPending} />
       {model.established ? (
-        <MapSection model={model} />
+        <MapSection model={model} feedNow={data.feedNow} />
       ) : (
         <YardNotEstablished model={model} snapshotsSeen={data.yardSnapshotsSeen} />
       )}
