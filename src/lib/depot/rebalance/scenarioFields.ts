@@ -31,7 +31,7 @@ type NameOf = (depotId: string) => string;
 
 interface ClampRule {
   readonly pattern: RegExp;
-  readonly render: (m: RegExpMatchArray, nameOf: NameOf) => string;
+  readonly render: (m: (group: number) => string, nameOf: NameOf) => string;
 }
 
 function percentText(raw: string): string {
@@ -43,34 +43,34 @@ const RULES: readonly ClampRule[] = [
   {
     pattern: /^Spare ratio (\S+) was outside (\S+) to (\S+); using (\S+)$/,
     render: (m) =>
-      `Spare ratio ${percentText(m[1])} was outside ${percentText(m[2])} to ` +
-      `${percentText(m[3])}; using ${percentText(m[4])}`,
+      `Spare ratio ${percentText(m(1))} was outside ${percentText(m(2))} to ` +
+      `${percentText(m(3))}; using ${percentText(m(4))}`,
   },
   {
     pattern: /^Spare ratio (\S+) is not a number; using (\S+)$/,
-    render: (m) => `Spare ratio is not a number; using ${percentText(m[2])}`,
+    render: (m) => `Spare ratio is not a number; using ${percentText(m(2))}`,
   },
   {
     pattern: /^Maximum transfer distance (\S+) was outside (\S+) to (\S+); using (\S+)$/,
     render: (m) =>
-      `Maximum transfer distance ${m[1]} km was outside ${m[2]} to ${m[3]} km; using ${m[4]} km`,
+      `Maximum transfer distance ${m(1)} km was outside ${m(2)} to ${m(3)} km; using ${m(4)} km`,
   },
   {
     pattern: /^Fleet adjustment for (\S+) (.*) was outside (\S+) to (\S+); using (\S+)$/,
     render: (m, nameOf) =>
-      `Change in buses at ${nameOf(m[1])} ${m[2]} was outside ${m[3]} to ${m[4]} buses; ` +
-      `using ${m[5]}`,
+      `Change in buses at ${nameOf(m(1))} ${m(2)} was outside ${m(3)} to ${m(4)} buses; ` +
+      `using ${m(5)}`,
   },
   {
     pattern: /^Fleet adjustment for (\S+) limited to (\S+): available cannot go below 0$/,
     render: (m, nameOf) =>
-      `Change in buses at ${nameOf(m[1])} limited to ${m[2]}: available buses cannot go below 0`,
+      `Change in buses at ${nameOf(m(1))} limited to ${m(2)}: available buses cannot go below 0`,
   },
   {
     pattern: /^Demand surge for (\S+) totals (\S+), outside (\S+) to (\S+); using (\S+)$/,
     render: (m, nameOf) =>
-      `Demand change at ${nameOf(m[1])} totals ${m[2]}, outside ${m[3]}% to ${m[4]}%; ` +
-      `using ${m[5]}%`,
+      `Demand change at ${nameOf(m(1))} totals ${m(2)}, outside ${m(3)}% to ${m(4)}%; ` +
+      `using ${m(5)}%`,
   },
 ];
 
@@ -84,7 +84,7 @@ const PREFIX_WORDS: Readonly<Record<string, string>> = {
 export function describeClamp(note: string, nameOf: NameOf): string {
   for (const rule of RULES) {
     const match = note.match(rule.pattern);
-    if (match) return rule.render(match, nameOf);
+    if (match) return rule.render((group) => match[group] ?? '', nameOf);
   }
   // Any other note keeps its wording but never shows a raw depot id.
   return note.replace(
