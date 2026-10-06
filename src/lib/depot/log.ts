@@ -29,7 +29,6 @@ function describeError(error: unknown): string {
 function neutralise(message: string): string {
   const oneLine = message
     .replace(/\s+/g, ' ')
-    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f-\u009f]/g, '')
     .trim();
   if (oneLine.length <= MAX_LOG_MESSAGE_CHARS) return oneLine;
