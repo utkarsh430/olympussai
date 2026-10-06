@@ -8,8 +8,8 @@ import { PAGE_ROWS, pageRange } from '@/lib/depot/listPaging';
 import { rosterBusHref } from '@/lib/depot/depotNav';
 import { formatMinute, type BoardRow } from '@/lib/depot/duties/dutyBoardModel';
 import {
-  DUTY_COLUMN_WIDTH_PX,
   dutyColumnKeys,
+  dutyColumnWidths,
   dutyTableTier,
   type DutyColumnKey,
 } from '@/lib/depot/duties/dutyTableLayout';
@@ -82,9 +82,10 @@ export function DutyTable({ depotId, rows }: DutyTableProps) {
   const tier = dutyTableTier(useBelowDesktop(), useTableFirst());
   const columns = useMemo(() => {
     const keys = new Set<string>(dutyColumnKeys(tier));
+    const widths = dutyColumnWidths(tier);
     return buildColumns(depotId)
       .filter((column) => keys.has(column.key))
-      .map((column) => ({ ...column, width: DUTY_COLUMN_WIDTH_PX[column.key as DutyColumnKey] }));
+      .map((column) => ({ ...column, width: widths[column.key as DutyColumnKey] }));
   }, [depotId, tier]);
   const [requested, setRequested] = useState(0);
   const range = pageRange(requested, rows.length, PAGE_ROWS);

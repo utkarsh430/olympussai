@@ -19,6 +19,18 @@ export const DUTY_COLUMN_WIDTH_PX: Readonly<Record<DutyColumnKey, number>> = {
   now: 156,
 };
 
+/*
+ * The middle tier from 640 px, where the shell's gutter is 24 px a side: 640 less both
+ * gutters leaves 592, and the table's frame takes 2 of those. State and bus give up the
+ * slack beyond their longest typical values ("Unmatched", a ten-character registration),
+ * so the five columns and the expander fit in 588.
+ */
+const MEDIUM_COLUMN_WIDTH_PX: Readonly<Record<DutyColumnKey, number>> = {
+  ...DUTY_COLUMN_WIDTH_PX,
+  state: 100,
+  bus: 108,
+};
+
 const COLUMNS_BY_TIER: Readonly<Record<DutyTableTier, readonly DutyColumnKey[]>> = {
   // 1024 and up: every column.
   wide: ['route', 'class', 'start', 'end', 'state', 'bus', 'now'],
@@ -36,4 +48,9 @@ export function dutyTableTier(belowDesktop: boolean, phone: boolean): DutyTableT
 
 export function dutyColumnKeys(tier: DutyTableTier): readonly DutyColumnKey[] {
   return COLUMNS_BY_TIER[tier];
+}
+
+/** The column widths a tier draws at: the middle tier's are trimmed, the others shared. */
+export function dutyColumnWidths(tier: DutyTableTier): Readonly<Record<DutyColumnKey, number>> {
+  return tier === 'medium' ? MEDIUM_COLUMN_WIDTH_PX : DUTY_COLUMN_WIDTH_PX;
 }
