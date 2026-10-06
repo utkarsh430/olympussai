@@ -58,6 +58,16 @@ describe('provenance line: stale wording', () => {
     expect(segments.map((part) => part.text).join('')).toBe(line.sentence);
   });
 
+  it('marks every occurrence on a mixed page that says it twice', () => {
+    const line = provenanceLine(
+      { default: 'mixed', live: 'Bus states', derived: 'stops', modelled: 'trips' },
+      feed(true),
+    );
+    const segments = sentenceSegments(line.sentence, line.staleWords);
+    expect(segments.filter((part) => part.stale)).toHaveLength(2);
+    expect(segments.map((part) => part.text).join('')).toBe(line.sentence);
+  });
+
   it('returns the sentence whole when nothing is stale', () => {
     expect(sentenceSegments('Computed from the live feed at 12:36.', undefined)).toEqual([
       { text: 'Computed from the live feed at 12:36.', stale: false },

@@ -108,14 +108,19 @@ export function sentenceSegments(
   sentence: string,
   staleWords: string | undefined,
 ): readonly SentenceSegment[] {
-  const at = staleWords ? sentence.indexOf(staleWords) : -1;
-  if (!staleWords || at < 0) return [{ text: sentence, stale: false }];
-  const end = at + staleWords.length;
-  return [
-    { text: sentence.slice(0, at), stale: false },
-    { text: staleWords, stale: true },
-    { text: sentence.slice(end), stale: false },
-  ].filter((part) => part.text.length > 0);
+  if (!staleWords || !sentence.includes(staleWords)) return [{ text: sentence, stale: false }];
+  // A mixed page can say it twice (its live and its derived part): mark every occurrence.
+  return sentence
+    .split(staleWords)
+    .flatMap((text, index) =>
+      index === 0
+        ? [{ text, stale: false }]
+        : [
+            { text: staleWords, stale: true },
+            { text, stale: false },
+          ],
+    )
+    .filter((part) => part.text.length > 0);
 }
 
 type FeedState =

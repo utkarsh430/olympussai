@@ -41,10 +41,10 @@ export function ProvenanceLine({ description }: { readonly description: Provenan
         {line.tag}
       </span>
       <span className="text-depot-muted">
-        {sentenceSegments(line.sentence, line.staleWords).map((part) =>
+        {sentenceSegments(line.sentence, line.staleWords).map((part, index) =>
           part.stale ? (
             <span
-              key="stale"
+              key={index}
               data-testid="depot-provenance-stale"
               className="font-semibold text-alert-amber"
             >
