@@ -9,6 +9,7 @@ import {
   MIN_SURGE_PERCENT,
   MIN_TRANSFER_KM,
 } from './config';
+import { spareTargetFor } from '../sim/requirement';
 import { planTransfers } from './rebalance';
 import type {
   DepotBalance,
@@ -19,20 +20,9 @@ import type {
   TransferPlan,
 } from './types';
 
-/** Ratios are held in basis points and surges in hundredths of a percent, so all maths is integer. */
-const BASIS_POINTS = 10_000;
+/** Surges are held in hundredths of a percent, so the maths is integer. */
 const HUNDREDTHS_OF_PERCENT = 100;
 const FULL_SCALE = 10_000;
-
-/**
- * Spare buses for a peak: the exact ceiling of peak * ratio. The ratio is
- * rounded to whole basis points first, so float noise such as
- * 100 * 0.07 = 7.000000000000001 cannot add a bus.
- */
-function spareFor(peak: number, ratio: number): number {
-  const numerator = peak * Math.round(ratio * BASIS_POINTS);
-  return Math.floor((numerator + BASIS_POINTS - 1) / BASIS_POINTS);
-}
 
 /**
  * Peak after a surge given in hundredths of a percent, rounded to a whole bus
@@ -88,7 +78,7 @@ function cleanSurgeTerm(depotId: string, raw: number, notes: string[]): number {
 }
 
 function recompute(b: DepotBalance, available: number, peak: number, ratio: number): DepotBalance {
-  const spareTarget = spareFor(peak, ratio);
+  const spareTarget = spareTargetFor(peak, ratio);
   const required = peak + spareTarget;
   return {
     ...b,

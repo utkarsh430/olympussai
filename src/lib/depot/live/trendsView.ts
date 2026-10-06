@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_HISTORY_DAYS } from '../sim/config';
 import type { DepotFeedEnvelope } from '../api';
 import type { DepotTrendsResponse, TrendRow } from '../forecast/api';
 import { metricKindOf, UNIT_OF_KIND } from '../forecast/config';
@@ -11,7 +12,6 @@ import { modelHistory } from './historyView';
 import { queryMemo } from './queryMemo';
 
 const METRICS = ['onRoadShare', 'offRoadRate', 'darkRate', 'index', 'available'] as const;
-const DEFAULT_DAYS = 30;
 const MIN_DAYS = 7;
 /** A sparkline is a glance; three months is the longest worth drawing that small. */
 const MAX_DAYS = 90;
@@ -38,7 +38,7 @@ const querySchema = z
       .regex(WHOLE_NUMBER)
       .transform(Number)
       .pipe(z.number().int().min(MIN_DAYS).max(MAX_DAYS))
-      .default(String(DEFAULT_DAYS)),
+      .default(String(DEFAULT_HISTORY_DAYS)),
   })
   .strict();
 

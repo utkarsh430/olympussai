@@ -1,4 +1,5 @@
-import { DEFAULT_SPARE_RATIO } from '../optimise/config';
+import { DEFAULT_SPARE_RATIO, MAX_SPARE_RATIO, MIN_SPARE_RATIO } from '../optimise/config';
+import { MIN_FLEET_FOR_RANK } from '../score/config';
 import type { RequirementParams, ServiceClass } from './types';
 
 /*
@@ -28,7 +29,7 @@ export const DEFAULT_REQUIREMENT_PARAMS: RequirementParams = {
   noise: DEFAULT_NOISE,
 };
 
-export const SPARE_RATIO_BOUNDS = { min: 0, max: 0.3 } as const;
+export const SPARE_RATIO_BOUNDS = { min: MIN_SPARE_RATIO, max: MAX_SPARE_RATIO } as const;
 export const BASE_UTILISATION_BOUNDS = { min: 0.5, max: 1.1 } as const;
 export const UTILISATION_SENSITIVITY_BOUNDS = { min: 0, max: 2 } as const;
 export const NOISE_BOUNDS = { min: 0, max: 0.2 } as const;
@@ -36,8 +37,14 @@ export const NOISE_BOUNDS = { min: 0, max: 0.2 } as const;
 /** A peak share outside this band is not a plausible need for a depot. */
 export const PEAK_SHARE_BOUNDS = { min: 0.7, max: 1.12 } as const;
 
-/** Peers are only the depots big enough for their on-road share to mean something. */
-export const MIN_PEER_FLEET = 10;
+/**
+ * Peers are only the depots big enough for their on-road share to mean something: the
+ * same fleet size below which a depot is not ranked.
+ */
+export const MIN_PEER_FLEET = MIN_FLEET_FOR_RANK;
+
+/** Days of modelled history a history or trend request returns when it names none. */
+export const DEFAULT_HISTORY_DAYS = 30;
 
 /** Basis points keep the spare-target arithmetic exact. */
 export const BASIS_POINTS = 10_000;

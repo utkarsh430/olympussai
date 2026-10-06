@@ -1,5 +1,6 @@
 import { DEI_COMPONENTS, MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
 import { SCORE_WINDOW_MIN } from '@/lib/depot/score/window';
+import { DEFAULT_HISTORY_DAYS } from '@/lib/depot/sim/config';
 import { DARK_HEADER_TITLE } from './unitsTable';
 
 /*
@@ -31,7 +32,7 @@ export const LEAGUE_HOW_PRODUCED: readonly string[] = [
   indexDefinition(),
   WINDOW,
   RANKED,
-  'The index trend column is MODELLED: a generated 30-day history that ends on the live ' +
+  `The index trend column is MODELLED: a generated ${DEFAULT_HISTORY_DAYS}-day history that ends on the live ` +
     'value, with its direction over four weeks. It is not measured.',
 ];
 
