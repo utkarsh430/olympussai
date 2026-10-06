@@ -49,8 +49,8 @@ import { densityClusters } from './yardClusters';
  *    closer joins whatever it reaches; the span limit then decides.
  *  - A bus standing just outside the circle reads as away. No margin is added:
  *    under this rule the snapshot gives 95 of 119 depots a yard, with 2,444
- *    parked buses inside their own yard and 50 within 450 m outside it, mostly
- *    a second stand beside the yard at three depots.
+ *    parked buses inside their own yard and 50 within 450 m outside it, 23 of
+ *    those at three depots.
  */
 
 /** Two parked buses this close stand in the same place. */
