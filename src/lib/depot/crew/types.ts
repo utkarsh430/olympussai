@@ -49,6 +49,19 @@ export interface CrewShifts {
 
 export type UncoveredReason = 'no_available_crew' | 'hours_limit';
 
+/**
+ * Why one role could not be filled for a shift. `hours_limit` wins when any
+ * slot that was free at that time was refused on hours; `all_rostered` means
+ * every available slot was already booked then; `no_slot_available` means the
+ * role has no available slot at all today.
+ */
+export type ShortfallCause = 'no_slot_available' | 'all_rostered' | 'hours_limit';
+
+export interface RoleShortfall {
+  readonly role: CrewRole;
+  readonly cause: ShortfallCause;
+}
+
 export interface CrewAssignment extends CrewShift {
   /** Both slots are null when the shift is uncovered; no half-crewed shift is booked. */
   readonly driverSlot: string | null;
@@ -60,6 +73,8 @@ export interface CrewAssignment extends CrewShift {
   readonly uncoveredReason: UncoveredReason | null;
   /** The roles that could not be filled; empty when covered. */
   readonly shortRoles: readonly CrewRole[];
+  /** One entry per short role, in role order (driver, conductor); empty when covered. */
+  readonly shortfalls: readonly RoleShortfall[];
 }
 
 export interface CrewSummary {

@@ -139,6 +139,70 @@ describe('rosterCrew review focus', () => {
   });
 });
 
+describe('rosterCrew per-role shortfalls', () => {
+  const causeOf = (
+    summary: ReturnType<typeof rosterCrew>,
+    index: number,
+    role: CrewRole,
+  ): string | undefined =>
+    summary.assignments[index]?.shortfalls.find((s) => s.role === role)?.cause;
+
+  it('says no slot of the role is available at all, for each role', () => {
+    const noDrivers = rosterCrew([duty('001', 300, 600)], [slot('C-001', 'conductor')]);
+    expect(noDrivers.assignments[0]?.shortfalls).toEqual([
+      { role: 'driver', cause: 'no_slot_available' },
+    ]);
+    const noConductors = rosterCrew([duty('001', 300, 600)], [slot('D-001', 'driver')]);
+    expect(noConductors.assignments[0]?.shortfalls).toEqual([
+      { role: 'conductor', cause: 'no_slot_available' },
+    ]);
+    const offDuty = rosterCrew(
+      [duty('001', 300, 600)],
+      [slot('D-001', 'driver', 0, 'leave'), slot('C-001', 'conductor')],
+    );
+    expect(causeOf(offDuty, 0, 'driver')).toBe('no_slot_available');
+  });
+
+  it('says every available slot is already rostered at that time, for each role', () => {
+    const duties = [duty('001', 300, 600), duty('002', 400, 700)];
+    const drivers = rosterCrew(duties, [slot('D-001', 'driver'), ...pair(1).slice(1), ...pair(2).slice(1)]);
+    expect(causeOf(drivers, 1, 'driver')).toBe('all_rostered');
+    expect(causeOf(drivers, 1, 'conductor')).toBeUndefined();
+    const conductors = rosterCrew(duties, [...pair(1).slice(0, 1), ...pair(2).slice(0, 1), slot('C-001', 'conductor')]);
+    expect(causeOf(conductors, 1, 'conductor')).toBe('all_rostered');
+    expect(causeOf(conductors, 1, 'driver')).toBeUndefined();
+  });
+
+  it('says an otherwise free slot would exceed the hours limit, for each role', () => {
+    const tired = (role: CrewRole): CrewSlot => slot(role === 'driver' ? 'D-001' : 'C-001', role, 47);
+    const drivers = rosterCrew([duty('001', 300, 600)], [tired('driver'), slot('C-001', 'conductor')]);
+    expect(drivers.assignments[0]?.shortfalls).toEqual([{ role: 'driver', cause: 'hours_limit' }]);
+    const conductors = rosterCrew([duty('001', 300, 600)], [slot('D-001', 'driver'), tired('conductor')]);
+    expect(conductors.assignments[0]?.shortfalls).toEqual([
+      { role: 'conductor', cause: 'hours_limit' },
+    ]);
+  });
+
+  it('keeps a different cause for each short role', () => {
+    const summary = rosterCrew(
+      [duty('001', 300, 600)],
+      [slot('D-001', 'driver', 47)],
+    );
+    expect(summary.assignments[0]?.shortfalls).toEqual([
+      { role: 'driver', cause: 'hours_limit' },
+      { role: 'conductor', cause: 'no_slot_available' },
+    ]);
+    // The older single reason keeps its meaning.
+    expect(summary.assignments[0]?.uncoveredReason).toBe('no_available_crew');
+    expect(summary.assignments[0]?.shortRoles).toEqual(['driver', 'conductor']);
+  });
+
+  it('has no shortfall on a covered shift', () => {
+    const summary = rosterCrew([duty('001', 300, 600)], pair(1));
+    expect(summary.assignments[0]?.shortfalls).toEqual([]);
+  });
+});
+
 describe('rosterCrew shifts and relief', () => {
   it('covers a long duty with two shifts and reports it fully covered', () => {
     const crew = [...pair(1), ...pair(2)];
