@@ -157,8 +157,11 @@ describe('an almost empty ranking', () => {
     // peer-group size guard (MIN_PEER_GROUP, 5).
     const text = joined(rankingShortfallNotice(operating(1, 6)));
     expect(text).toBe(
-      "Only 1 of 6 operating depots are ranked. A depot is ranked when a duty ran in its modelled day and its peer group has at least 5 depots with complete figures. Earnings per kilometre do not depend on a route's length in this model, so no depot waits for route profiles; a real length, once a route is opened on the Routes page, replaces the modelled one in the revenue totals.",
+      "Only 1 of 6 operating depots are ranked. A depot is ranked when a duty is run in its modelled day and its peer group has at least 5 depots with complete figures. Earnings per kilometre on a route do not depend on its length, but a depot's figures weight its routes by the distance they run, so no depot waits for route profiles to be ranked; a real length, once a route is opened on the Routes page, replaces the modelled one, and can move the depot's figures and its rank.",
     );
+    // The same claim as the length-coverage line on the same page (review I3-rest).
+    expect(text).toContain("a depot's figures weight its routes by the distance they run");
+    expect(text).not.toMatch(/revenue totals|in this model/);
     expect(text).not.toMatch(/can be ranked|have a known length|a quarter of them/);
     expect(rankingShortfallNotice(operating(1, 6))?.linkText).toBe('Routes page');
     expect(joined(rankingShortfallNotice(operating(0, 3)))).toMatch(/^Only 0 of 3 operating depots/);
