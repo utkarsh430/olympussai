@@ -77,6 +77,22 @@ export interface BusScheduleOptions {
    * reads as "not assigned", as the command centre's schedule route has always had.
    */
   readonly requireEveryDateAnswered?: boolean;
+  /**
+   * Asked once immediately before each call to the schedule server, and the call is
+   * made only when it answers true, so a caller can charge each call as it happens. A
+   * refusal stops the lookup there: nothing is cached and `ScheduleLookupStopped` is
+   * thrown. A cache hit asks nothing. Without it every call is made, as the command
+   * centre's schedule route has always done.
+   */
+  readonly beforeUpstreamCall?: () => boolean;
+}
+
+/** The caller's `beforeUpstreamCall` refused a call: the lookup stopped and has no answer. */
+export class ScheduleLookupStopped extends Error {
+  constructor() {
+    super('Schedule lookup stopped: a call to the schedule server was not permitted');
+    this.name = 'ScheduleLookupStopped';
+  }
 }
 
 /** A cached lookup a caller may be served: a strict caller never gets a partial "not assigned". */
@@ -88,8 +104,8 @@ const FALLBACK_DAY_OFFSETS = [0, -1, -2] as const;
 
 /**
  * The most calls one lookup can make to the schedule server: the requested date,
- * then each fallback date. A limiter that protects that server charges this much
- * for every lookup it lets through.
+ * then each fallback date. A caller that limits calls to that server is asked
+ * before each one (`beforeUpstreamCall`), so a lookup is charged only what it makes.
  */
 export const SCHEDULE_MAX_UPSTREAM_CALLS = 1 + FALLBACK_DAY_OFFSETS.length;
 
@@ -124,7 +140,15 @@ export async function fetchBusSchedule(
   }
 
   scheduleDiagnostics.lastAttemptAt = new Date(now).toISOString();
-  const resolved = await resolveSchedule(regNum, requestedDate, today, tripId);
+  const resolved = await resolveSchedule(
+    regNum,
+    requestedDate,
+    today,
+    tripId,
+    options.beforeUpstreamCall ?? (() => true),
+  );
+  // A stopped lookup has no answer to cache or fall back from.
+  if (resolved === STOPPED) throw new ScheduleLookupStopped();
   // A partial "not assigned" is a failure to a strict caller, and is not cached for it.
   const lookup =
     resolved.found && !servable(resolved.found, strict)
@@ -179,6 +203,9 @@ interface ResolveResult {
   error: string | null;
 }
 
+/** The lookup stopped because a call was not permitted. */
+const STOPPED = Symbol('stopped');
+
 async function probe(
   regNum: string,
   date: string,
@@ -200,23 +227,38 @@ async function probe(
  * The fan-out runs concurrently — sequential probes would stack four timeouts
  * onto a single click — but the winner is still chosen by candidate priority,
  * so a bus assigned on two dates resolves to the more likely one.
+ *
+ * `permit` is asked immediately before each call, so each call is charged at the
+ * moment it is made. The fallback calls are started in candidate order as each is
+ * granted; at the first refusal the lookup stops (`STOPPED`). Calls already started
+ * then run to their end unobserved: they were granted and made, and their answers
+ * alone cannot say what the refused date would have said.
  */
 async function resolveSchedule(
   regNum: string,
   requestedDate: string,
   today: string,
   tripId: string | null,
-): Promise<ResolveResult> {
+  permit: () => boolean,
+): Promise<ResolveResult | typeof STOPPED> {
   const [primary = requestedDate, ...fallbacks] = candidateDates(requestedDate, today);
   let error: string | null = null;
 
+  if (!permit()) return STOPPED;
   const first = await probe(regNum, primary, SCHEDULE_TIMEOUT_MS, tripId);
   if (typeof first === 'string') error = first;
   else if (first.schedule) return { found: first, error: null };
 
-  const rest = await Promise.all(
-    fallbacks.map((date) => probe(regNum, date, SCHEDULE_TIMEOUT_MS, tripId)),
-  );
+  const started: Promise<ScheduleLookup | string>[] = [];
+  for (const date of fallbacks) {
+    if (!permit()) {
+      // Settled, not awaited: the person is told now, and no rejection goes unhandled.
+      void Promise.allSettled(started);
+      return STOPPED;
+    }
+    started.push(probe(regNum, date, SCHEDULE_TIMEOUT_MS, tripId));
+  }
+  const rest = await Promise.all(started);
 
   for (const outcome of rest) {
     if (typeof outcome === 'string') {

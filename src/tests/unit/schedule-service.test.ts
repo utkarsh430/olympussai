@@ -323,3 +323,90 @@ describe('fetchBusSchedule (direct)', () => {
     expect(SCHEDULE_MAX_UPSTREAM_CALLS).toBe(dates.length);
   });
 });
+
+describe('fetchBusSchedule with a permit before each upstream call', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(T0);
+    vi.resetModules();
+    mockFetch.mockReset();
+    delete process.env.NEXT_PUBLIC_DEMO_MODE;
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const input = { regNum: REG, date: TODAY, tripId: null };
+  /** A permit that grants `slots` calls, then refuses, counting every request. */
+  const permitFor = (slots: number): { asked: () => number; permit: () => boolean } => {
+    let asked = 0;
+    return { asked: () => asked, permit: () => (asked += 1) <= slots };
+  };
+
+  it('asks once, before the only call, when the first date answers', async () => {
+    const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
+    mockFetch.mockResolvedValue(ok(scheduleFixture));
+    const { asked, permit } = permitFor(10);
+    const response = await fetchBusSchedule(input, T0, { beforeUpstreamCall: permit });
+    expect(response.source).toBe('live');
+    expect(asked()).toBe(1);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks once before each call when every date must be tried', async () => {
+    const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
+    mockFetch.mockResolvedValue(ok(NOT_ASSIGNED));
+    const { asked, permit } = permitFor(10);
+    await fetchBusSchedule(input, T0, { beforeUpstreamCall: permit });
+    expect(asked()).toBe(3);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('makes no call and caches nothing when the first call is refused', async () => {
+    const { fetchBusSchedule, ScheduleLookupStopped } = await import(
+      '@/lib/upsrtc/scheduleService'
+    );
+    mockFetch.mockResolvedValue(ok(scheduleFixture));
+    const refused = fetchBusSchedule(input, T0, { beforeUpstreamCall: () => false });
+    await expect(refused).rejects.toBeInstanceOf(ScheduleLookupStopped);
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect((await fetchBusSchedule(input, T0)).source).toBe('live');
+  });
+
+  it('stops at a refused fallback call, after one call, and caches nothing', async () => {
+    const { fetchBusSchedule, ScheduleLookupStopped } = await import(
+      '@/lib/upsrtc/scheduleService'
+    );
+    mockFetch.mockResolvedValue(ok(NOT_ASSIGNED));
+    const strict = { requireEveryDateAnswered: true };
+    const { permit } = permitFor(1);
+    const stopped = fetchBusSchedule(input, T0, { ...strict, beforeUpstreamCall: permit });
+    await expect(stopped).rejects.toBeInstanceOf(ScheduleLookupStopped);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    // Nothing was cached: the next lookup asks the server about every date again.
+    const again = await fetchBusSchedule(input, T0, strict);
+    expect(again.source).toBe('live');
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+  });
+
+  it('launches only the fallback calls it was granted before a refusal', async () => {
+    const { fetchBusSchedule, ScheduleLookupStopped } = await import(
+      '@/lib/upsrtc/scheduleService'
+    );
+    mockFetch.mockResolvedValue(ok(NOT_ASSIGNED));
+    const { asked, permit } = permitFor(2);
+    const stopped = fetchBusSchedule(input, T0, { beforeUpstreamCall: permit });
+    await expect(stopped).rejects.toBeInstanceOf(ScheduleLookupStopped);
+    // The first date and one fallback were granted and made; the next was refused.
+    expect(asked()).toBe(3);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('costs nothing on a cache hit', async () => {
+    const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
+    mockFetch.mockResolvedValue(ok(scheduleFixture));
+    await fetchBusSchedule(input, T0);
+    const { asked, permit } = permitFor(0);
+    const cached = await fetchBusSchedule(input, T0, { beforeUpstreamCall: permit });
+    expect(cached.source).toBe('cache');
+    expect(asked()).toBe(0);
+  });
+});
