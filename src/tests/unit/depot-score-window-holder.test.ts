@@ -42,16 +42,21 @@ const contentOf = (store: ScoreWindowStore): string =>
   JSON.stringify([...store.byDepot].sort(([a], [b]) => (a < b ? -1 : 1)));
 
 describe('score window holder: arrival order (I1)', () => {
-  it('inserts a late sample inside the window and scores it on the window as it stands', () => {
-    const snaps = snapshotsAt([0, 40, 80, 60]);
+  it('inserts a late sample inside the window and scores it only on samples up to its own time (N7)', () => {
+    const snaps = snapshotsAt([0, 40, 100, 60]);
     const store = createScoreWindowStore();
-    feed(store, snaps, [0, 40, 80]);
+    feed(store, snaps, [0, 40, 100]);
     const late = observeDepots(store, snaps.get(60) ?? [], feedTime(60));
-    expect(store.lastFeedMs).toBe(T0 + 80_000);
+    expect(store.lastFeedMs).toBe(T0 + 100_000);
     const held = store.byDepot.get('1') ?? [];
-    expect(held.map((s) => s.feedMs - T0)).toEqual([0, 40_000, 60_000, 80_000]);
-    expect(late.windows.get('1')).toMatchObject({ since: feedTime(0), samples: 4 });
-    expect(late.values.get('1')).toEqual(windowedValues(held));
+    expect(held.map((s) => s.feedMs - T0)).toEqual([0, 40_000, 60_000, 100_000]);
+    expect(late.windows.get('1')).toEqual({
+      lengthMin: SCORE_WINDOW_MIN,
+      since: feedTime(0),
+      samples: 3,
+      coveredMin: 1,
+    });
+    expect(late.values.get('1')).toEqual(windowedValues(held.slice(0, 3)));
   });
 
   it('holds the same window, and scores the same, whatever order the snapshots arrive in', () => {
