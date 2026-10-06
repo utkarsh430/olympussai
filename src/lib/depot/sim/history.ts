@@ -1,0 +1,120 @@
+/**
+ * Modelled daily history. The app has no database, so a trend line is
+ * generated: a mean-reverting walk with a weekly rhythm, built backwards from
+ * today's real value so it can never contradict the live figure beside it.
+ *
+ * Every day's variation is seeded from that day's own date (plus scope and
+ * metric), not from its array position. Moving the anchor forward a day
+ * therefore keeps earlier dates recognisably the same.
+ */
+import { SeededRandom } from '@/lib/simulation/seededRandom';
+import type { HistoryScope, MetricKey, SeriesAnchor, SeriesPoint } from './types';
+import { seedFor } from './seed';
+
+const MIN_DAYS = 7;
+const MAX_DAYS = 180;
+const MS_PER_DAY = 86_400_000;
+/** Share of the previous day's deviation that carries to the day before it. */
+const REVERSION = 0.8;
+/** Half-width of a day's own shock, as a share of the metric's span. */
+const SHOCK_SHARE = 0.025;
+/** Size of the weekly rhythm, as a share of the metric's span. */
+const WEEKLY_SHARE = 0.03;
+const WEEKEND_DAYS: ReadonlySet<number> = new Set([0, 6]);
+const MIN_AVAILABLE_SPAN = 20;
+
+interface MetricRange {
+  readonly min: number;
+  readonly max: number;
+  readonly decimals: number;
+}
+
+const RANGES: Readonly<Record<MetricKey, MetricRange>> = {
+  onRoadShare: { min: 0, max: 1, decimals: 4 },
+  offRoadRate: { min: 0, max: 1, decimals: 4 },
+  darkRate: { min: 0, max: 1, decimals: 4 },
+  index: { min: 0, max: 100, decimals: 1 },
+  available: { min: 0, max: Number.POSITIVE_INFINITY, decimals: 0 },
+};
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function round(value: number, decimals: number): number {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function parseDay(date: string): number {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const time = match ? Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : NaN;
+  if (Number.isNaN(time) || new Date(time).toISOString().slice(0, 10) !== date) {
+    throw new RangeError(`Anchor date must be a valid YYYY-MM-DD date, got "${date}"`);
+  }
+  return time;
+}
+
+function formatDay(time: number): string {
+  return new Date(time).toISOString().slice(0, 10);
+}
+
+function scopeKeyOf(scope: HistoryScope): string {
+  return scope.kind === 'network' ? 'network' : `depot:${scope.depotId}`;
+}
+
+/** The weekly rhythm: weekend vs weekday direction is fixed per scope and metric. */
+function weeklyOffsets(scopeKey: string, metric: MetricKey, span: number): readonly number[] {
+  const rng = new SeededRandom(seedFor(scopeKey, 'weekly', `history:${metric}`));
+  const weekendSign = rng.bool() ? 1 : -1;
+  const amplitude = span * WEEKLY_SHARE;
+  return Array.from({ length: 7 }, (_, dow) => {
+    const base = WEEKEND_DAYS.has(dow) ? weekendSign * amplitude : 0;
+    return base + rng.float(-0.25, 0.25) * amplitude;
+  });
+}
+
+function shockOn(scopeKey: string, metric: MetricKey, date: string, span: number): number {
+  const rng = new SeededRandom(seedFor(scopeKey, date, `history:${metric}:shock`));
+  return rng.float(-1, 1) * span * SHOCK_SHARE;
+}
+
+/**
+ * A daily series of `days` points (clamped to 7-180) ending on `anchor.date`
+ * with exactly `anchor.value` (itself clamped to the metric's valid range).
+ * Throws RangeError for a non-finite anchor value or an invalid anchor date.
+ */
+export function modelSeries(
+  metric: MetricKey,
+  scope: HistoryScope,
+  days: number,
+  anchor: SeriesAnchor,
+): SeriesPoint[] {
+  if (!Number.isFinite(anchor.value)) {
+    throw new RangeError(`Anchor value must be finite, got ${anchor.value}`);
+  }
+  const anchorTime = parseDay(anchor.date);
+  const { min, max, decimals } = RANGES[metric];
+  const count = clamp(Math.trunc(Number.isFinite(days) ? days : MIN_DAYS), MIN_DAYS, MAX_DAYS);
+  const anchorValue = round(clamp(anchor.value, min, max), decimals);
+
+  const span = metric === 'available' ? Math.max(anchorValue, MIN_AVAILABLE_SPAN) : max - min;
+  const scopeKey = scopeKeyOf(scope);
+  const weekly = weeklyOffsets(scopeKey, metric, span);
+  const weeklyAt = (time: number): number => weekly[new Date(time).getUTCDay()] as number;
+  const anchorWeekly = weeklyAt(anchorTime);
+
+  // Walk backwards: deviation is zero on the anchor day, then each earlier day
+  // keeps part of the later day's deviation (pull back towards the anchor
+  // level) plus its own date-seeded shock.
+  const points: SeriesPoint[] = [{ date: anchor.date, value: anchorValue }];
+  let deviation = 0;
+  for (let back = 1; back < count; back += 1) {
+    const time = anchorTime - back * MS_PER_DAY;
+    const date = formatDay(time);
+    deviation = deviation * REVERSION + shockOn(scopeKey, metric, date, span);
+    const raw = anchorValue + deviation + weeklyAt(time) - anchorWeekly;
+    points.push({ date, value: round(clamp(raw, min, max), decimals) });
+  }
+  return points.reverse();
+}
