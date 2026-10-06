@@ -8,6 +8,7 @@ import { getRepositories } from '@/lib/depot/repositories';
 import { modelledHistoryRepository } from '@/lib/depot/repositories/modelledHistoryRepository';
 import { modelledCrewRepository } from '@/lib/depot/repositories/modelledCrewRepository';
 import { modelledFuelRepository } from '@/lib/depot/repositories/modelledFuelRepository';
+import { modelledRevenueRepository } from '@/lib/depot/repositories/modelledRevenueRepository';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
 import {
@@ -46,6 +47,7 @@ function reposWith(snapshot: () => Promise<FleetSnapshotView>): DepotRepositorie
     history: modelledHistoryRepository,
     crew: modelledCrewRepository,
     fuel: modelledFuelRepository,
+  revenue: modelledRevenueRepository,
     fleet: { snapshot },
   };
 }

@@ -49,6 +49,7 @@ function reposWith(snapshot: () => Promise<FleetSnapshotView>): DepotRepositorie
     history: modelledHistoryRepository,
     crew: modelledCrewRepository,
     fuel: modelledFuelRepository,
+  revenue: modelledRevenueRepository,
     fleet: { snapshot },
   };
 }

@@ -2,6 +2,7 @@ import type { UpstreamSource } from '@/models/canonical';
 import type { DepotBusRow } from '@/models/depotLive';
 import type { CrewRepository } from '../crew/types';
 import type { FuelRepository } from '../fuel/types';
+import type { RevenueRepository } from '../revenue/types';
 import type { HistoryScope, MetricKey, SeriesAnchor, SeriesPoint } from '../sim/types';
 
 /**
@@ -45,4 +46,5 @@ export interface DepotRepositories {
   readonly history: HistoryRepository;
   readonly crew: CrewRepository;
   readonly fuel: FuelRepository;
+  readonly revenue: RevenueRepository;
 }

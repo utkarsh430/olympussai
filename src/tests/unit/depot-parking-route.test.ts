@@ -6,6 +6,7 @@ import { requireUpsrtcAccess } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
 import { modelledCrewRepository } from '@/lib/depot/repositories/modelledCrewRepository';
 import { modelledFuelRepository } from '@/lib/depot/repositories/modelledFuelRepository';
+import { modelledRevenueRepository } from '@/lib/depot/repositories/modelledRevenueRepository';
 import { modelledHistoryRepository } from '@/lib/depot/repositories/modelledHistoryRepository';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
@@ -72,6 +73,7 @@ const reposWith = (snapshot: () => Promise<FleetSnapshotView>): DepotRepositorie
   fleet: { snapshot },
   crew: modelledCrewRepository,
   fuel: modelledFuelRepository,
+  revenue: modelledRevenueRepository,
 });
 
 const call = (depotId: string) =>

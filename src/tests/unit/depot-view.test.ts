@@ -7,6 +7,7 @@ import { getRepositories } from '@/lib/depot/repositories';
 import { modelledHistoryRepository } from '@/lib/depot/repositories/modelledHistoryRepository';
 import { modelledCrewRepository } from '@/lib/depot/repositories/modelledCrewRepository';
 import { modelledFuelRepository } from '@/lib/depot/repositories/modelledFuelRepository';
+import { modelledRevenueRepository } from '@/lib/depot/repositories/modelledRevenueRepository';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { fromMetres } from '@/lib/depot/infer/geo';
 import { inferYards } from '@/lib/depot/infer/yard';
@@ -306,6 +307,7 @@ describe('GET /api/upsrtc/depot/[depotId]', () => {
     history: modelledHistoryRepository,
     crew: modelledCrewRepository,
     fuel: modelledFuelRepository,
+  revenue: modelledRevenueRepository,
     fleet: { snapshot },
   });
 
