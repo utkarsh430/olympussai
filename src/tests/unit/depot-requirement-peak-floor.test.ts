@@ -111,7 +111,7 @@ describe('the peak requirement floored by its highest earlier in the date', () =
     expectConsistent(held);
   });
 
-  it('touches only the depot the floor names, and ignores a floor that is not a finite number', () => {
+  it('touches only the depot the floor names, and ignores a floor that is not finite', () => {
     const list = balances(new Map([['1', plain.peakRequirement + 2], ['2', Number.NaN]]));
     expect(one(list, '2')).toEqual(one(balances(), '2'));
     expect(one(list, '3')).toEqual(one(balances(), '3'));

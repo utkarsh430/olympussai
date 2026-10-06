@@ -39,7 +39,10 @@ function computedPeaks(balances: readonly DepotBalance[]): ReadonlyMap<string, n
   );
 }
 
-/** Offers this snapshot's computed peaks to the holder, once; null when the snapshot has no date. */
+/**
+ * Offers this snapshot's computed peaks to the holder, once, and returns the
+ * floored balances; null when the snapshot has no date.
+ */
 export function holdRequirement(input: HeldRequirementInput): HeldRequirement | null {
   const { depots, yards, shares, operatingDate, store } = input;
   if (operatingDate === null) return null;

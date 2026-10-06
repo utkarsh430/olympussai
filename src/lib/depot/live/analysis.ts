@@ -68,10 +68,10 @@ export interface DepotExceptions {
  * continuity from infer/yardMemory.ts, `requirementShares` hold each
  * depot's busiest windowed on-road share so far in the operating date
  * (live/peakShareHold.ts), and `requirement` floors each depot's peak by its
- * highest so far in the date (live/peakRequirementHold.ts). All are read once, when the snapshot is first
- * analysed, and then held with the rest; everything else is this snapshot
- * alone. The tops of those modules say exactly what depends on history and
- * what a repeated, stale, older or first snapshot does.
+ * highest so far in the date (live/peakRequirementHold.ts). All are read once,
+ * when the snapshot is first analysed, and then held with the rest; everything
+ * else is this snapshot alone. The tops of those modules say exactly what
+ * depends on history and what a repeated, stale, older or first snapshot does.
  */
 export interface SnapshotAnalysis {
   readonly feedNow: string | null;

@@ -148,7 +148,9 @@ function peakRequirementFor(depot: DepotSummary, available: number, basis: Basis
  * dropped or a rising peer median cannot lower the peak within the date, but a
  * real loss of buses still does.
  */
-function flooredPeak(computed: number, floor: number | undefined, available: number): number {
+function flooredPeak(depot: DepotSummary, available: number, basis: Basis): number {
+  const computed = peakRequirementFor(depot, available, basis);
+  const floor = basis.floors.get(depot.id);
   if (floor === undefined || !Number.isFinite(floor)) return computed;
   return Math.max(computed, Math.min(Math.floor(floor), available));
 }
@@ -178,9 +180,7 @@ function balanceFor(
   const offRoad = depot.states.offRoad;
   const available = fleet - offRoad;
   const modelled = depot.kind === 'depot' && available > 0;
-  const peakRequirement = modelled
-    ? flooredPeak(peakRequirementFor(depot, available, basis), basis.floors.get(depot.id), available)
-    : available;
+  const peakRequirement = modelled ? flooredPeak(depot, available, basis) : available;
   const spareTarget = modelled ? spareTargetFor(peakRequirement, basis.params.spareRatio) : 0;
   const required = peakRequirement + spareTarget;
   return {

@@ -123,7 +123,8 @@ function liftOthers(rows: readonly DepotBusRow[], count: number, feedNow: string
 
 function expectConsistent(b: DepotBalance): void {
   expect(b.available).toBe(b.fleet - b.offRoad);
-  expect(b.spareTarget).toBe(spareTargetFor(b.peakRequirement, DEFAULT_REQUIREMENT_PARAMS.spareRatio));
+  const ratio = DEFAULT_REQUIREMENT_PARAMS.spareRatio;
+  expect(b.spareTarget).toBe(spareTargetFor(b.peakRequirement, ratio));
   expect(b.required).toBe(b.peakRequirement + b.spareTarget);
   expect(b.balance).toBe(b.available - b.required);
 }
