@@ -6,6 +6,8 @@ import { deriveFeedNow, normalizeDepotRows } from '@/lib/upsrtc/depotNormalizer'
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
 import { modelledHistoryRepository } from '@/lib/depot/repositories/modelledHistoryRepository';
+import { modelledCrewRepository } from '@/lib/depot/repositories/modelledCrewRepository';
+import { modelledFuelRepository } from '@/lib/depot/repositories/modelledFuelRepository';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
 import {
@@ -40,7 +42,12 @@ function fixtureView(over: Partial<FleetSnapshotView> = {}): FleetSnapshotView {
 }
 
 function reposWith(snapshot: () => Promise<FleetSnapshotView>): DepotRepositories {
-  return { history: modelledHistoryRepository, fleet: { snapshot } };
+  return {
+    history: modelledHistoryRepository,
+    crew: modelledCrewRepository,
+    fuel: modelledFuelRepository,
+    fleet: { snapshot },
+  };
 }
 
 beforeEach(() => {

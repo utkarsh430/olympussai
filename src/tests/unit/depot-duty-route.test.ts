@@ -5,6 +5,8 @@ import type { DepotBusRow } from '@/models/depotLive';
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
 import { modelledHistoryRepository } from '@/lib/depot/repositories/modelledHistoryRepository';
+import { modelledCrewRepository } from '@/lib/depot/repositories/modelledCrewRepository';
+import { modelledFuelRepository } from '@/lib/depot/repositories/modelledFuelRepository';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
 import type { DutyBoardResponse } from '@/lib/depot/duties/api';
@@ -67,6 +69,8 @@ function view(): FleetSnapshotView {
 
 const reposWith = (snapshot: () => Promise<FleetSnapshotView>): DepotRepositories => ({
   history: modelledHistoryRepository,
+  crew: modelledCrewRepository,
+  fuel: modelledFuelRepository,
   fleet: { snapshot },
 });
 
