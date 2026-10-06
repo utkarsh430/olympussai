@@ -73,7 +73,13 @@ function row(over: Partial<DepotBusRow> = {}): DepotBusRow {
 function world(extra: readonly DepotBusRow[] = []): DepotBusRow[] {
   const home = Array.from({ length: 8 }, (_, i) => row({ registrationNumber: `A${7 - i}` }));
   const far = Array.from({ length: 8 }, (_, i) =>
-    row({ registrationNumber: `B${i}`, depotId: '2', depotName: 'Barabanki', latitude: FAR.lat, longitude: FAR.lng }),
+    row({
+      registrationNumber: `B${i}`,
+      depotId: '2',
+      depotName: 'Barabanki',
+      latitude: FAR.lat,
+      longitude: FAR.lng,
+    }),
   );
   const visitor = row({ registrationNumber: 'B-VISIT', depotId: '2', depotName: 'Barabanki' });
   const homeless = row({ registrationNumber: 'U1', depotId: null, depotName: null });
@@ -81,7 +87,10 @@ function world(extra: readonly DepotBusRow[] = []): DepotBusRow[] {
   return [...home, ...far, visitor, homeless, loner, ...extra];
 }
 
-function view(rows: readonly DepotBusRow[] = world(), over: Partial<FleetSnapshotView> = {}): FleetSnapshotView {
+function view(
+  rows: readonly DepotBusRow[] = world(),
+  over: Partial<FleetSnapshotView> = {},
+): FleetSnapshotView {
   return {
     rows,
     feedNow: FEED_NOW,
@@ -116,17 +125,36 @@ describe('buildDepotDetail', () => {
     const v = view(world(), { source: 'cache', stale: true });
     const d = buildDepotDetail(v, '1');
     const a = analyseSnapshot(v);
-    expect(d).toMatchObject({ feedNow: FEED_NOW, fetchedAt: v.fetchedAt, source: 'cache', stale: true });
+    expect(d).toMatchObject({
+      feedNow: FEED_NOW,
+      fetchedAt: v.fetchedAt,
+      source: 'cache',
+      stale: true,
+    });
     expect(d?.depot).toBe(a.depotsById.get('1'));
     expect(d?.score).toBe(a.scoresById.get('1'));
   });
 
   it("lists only the depot's buses, by state then registration", () => {
-    const moving = row({ registrationNumber: 'A9', speedKmph: 30, routeName: 'R1', vehicleStatus: 'live' });
+    const moving = row({
+      registrationNumber: 'A9',
+      speedKmph: 30,
+      routeName: 'R1',
+      vehicleStatus: 'live',
+    });
     const dark = row({ registrationNumber: 'A0X', vehicleStatus: 'no_signal' });
     const d = detail(world([moving, dark]));
     expect(d.buses.map((b) => b.registrationNumber)).toEqual([
-      'A9', 'A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A0X',
+      'A9',
+      'A0',
+      'A1',
+      'A2',
+      'A3',
+      'A4',
+      'A5',
+      'A6',
+      'A7',
+      'A0X',
     ]);
     expect(d.buses.map((b) => b.state).slice(0, 2)).toEqual(['in_service', 'standing']);
   });
@@ -150,7 +178,12 @@ describe('buildDepotDetail', () => {
 
   it('rounds GPS age to a whole minute and maps the row fields', () => {
     const rows = world([
-      row({ registrationNumber: 'G1', gpsTimestamp: at(-2.6), tamperCode: 'W', mainPowerOn: false }),
+      row({
+        registrationNumber: 'G1',
+        gpsTimestamp: at(-2.6),
+        tamperCode: 'W',
+        mainPowerOn: false,
+      }),
       row({ registrationNumber: 'G2', gpsTimestamp: null }),
     ]);
     expect(busOf(rows, 'G1')).toMatchObject({
@@ -185,7 +218,9 @@ describe('buildDepotDetail', () => {
   });
 
   it('builds outshedding from the shared states and yards', () => {
-    const rows = world([row({ registrationNumber: 'S1', scheduledStart: at(-30), scheduledEnd: at(240) })]);
+    const rows = world([
+      row({ registrationNumber: 'S1', scheduledStart: at(-30), scheduledEnd: at(240) }),
+    ]);
     const a = analyseSnapshot(view(rows));
     const expected = summariseOutshed(a.rowsByDepot.get('1') ?? [], a.yards, FEED_NOW, a.stateOf);
     expect(detail(rows).outshed).toEqual(expected);
@@ -194,7 +229,14 @@ describe('buildDepotDetail', () => {
 
   it('lists visitors standing in this yard, including homeless buses', () => {
     expect(detail(world()).visitors).toEqual([
-      { registrationNumber: 'B-VISIT', homeDepotId: '2', homeDepotName: 'Barabanki', state: 'standing' },
+      {
+        registrationNumber: 'B-VISIT',
+        homeDepotId: '2',
+        homeDepotName: 'Barabanki',
+        state: 'standing',
+      },
+      // Depot 3 has too few buses for a yard of its own, so its bus is a visitor here.
+      { registrationNumber: 'C1', homeDepotId: '3', homeDepotName: 'Chinhat', state: 'standing' },
       { registrationNumber: 'U1', homeDepotId: null, homeDepotName: null, state: 'standing' },
     ]);
     expect(detail(world(), '2').visitors).toEqual([]);
