@@ -86,6 +86,8 @@ export interface ExceptionLine {
 
 export interface VisitorRow {
   readonly registrationNumber: string;
+  /** The visitor's own depot, whose roster lists it; null when the feed gives none. */
+  readonly homeDepotId: string | null;
   readonly homeDepotLabel: string;
   readonly stateLabel: string;
 }
@@ -289,6 +291,7 @@ function buildVisitors(visitors: readonly VisitorBus[]): VisitorRow[] {
   return visitors
     .map((v) => ({
       registrationNumber: v.registrationNumber,
+      homeDepotId: v.homeDepotId,
       homeDepotLabel:
         v.homeDepotName ?? (v.homeDepotId ? `Depot ${v.homeDepotId}` : 'No home depot in the feed'),
       stateLabel: BUS_STATE_LABEL[v.state],

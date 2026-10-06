@@ -319,6 +319,7 @@ describe('buildCockpit exceptions and visitors', () => {
       ['V-2', 'Agra'],
       ['V-1', 'No home depot in the feed'],
     ]);
+    expect(model.visitors.map((v) => v.homeDepotId)).toEqual(['7', null]);
   });
 });
 
