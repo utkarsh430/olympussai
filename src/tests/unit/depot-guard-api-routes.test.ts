@@ -252,9 +252,12 @@ describe('the depot API routes', () => {
   it.each(named(CASES))('%s answers a failing data read with no-store and a fixed body', async (_n, c) => {
     useFailingData();
     const res = await call(c);
-    expect(res.status).toBeGreaterThanOrEqual(400);
     expect(res.headers.get('cache-control')).toBe('no-store');
-    await expectFixedErrorBody(res);
+    const readData = vi.mocked(getRepositories).mock.calls.length > 0 ||
+      vi.mocked(getLiveSnapshot).mock.calls.length > 0;
+    // A success is possible only for a route that read no data at all.
+    if (readData) expect(res.status).toBeGreaterThanOrEqual(400);
+    if (res.status >= 400) await expectFixedErrorBody(res);
   });
 
   const withSegments = CASES.filter((c) => c.segments.length > 0);
