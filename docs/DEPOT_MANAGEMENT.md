@@ -216,7 +216,7 @@ views (src/lib/depot/live/*View.ts) ──► route handlers (src/app/api/upsrtc
 
 When the live feed and last-good data are both unavailable, or `NEXT_PUBLIC_DEMO_MODE=1`, the
 app serves a saved sample of the whole fleet: `src/fixtures/upsrtc-fleet-sample.json.gz`,
-gzip-compressed JSON (ruling S52). It is read lazily on the first fallback and memoised for
+gzip-compressed JSON. It is read lazily on the first fallback and memoised for
 the life of the process (`src/lib/upsrtc/fleetFixture.ts`); if it is missing or unreadable,
 the small `src/fixtures/upsrtc-live-sample.json` is used instead. The response's `source` is
 `fixture`, the chip reads `FIXTURE`, and every page's provenance line says "sample data" with
@@ -719,19 +719,24 @@ answers. In summary (detail, settings and limits in
   model. Questions about people are declined.
 - **Every figure comes from server facts.** A writer supplies only the wording around them,
   as a draft checked by a token grammar, a closed vocabulary and the wording rules before
-  anyone sees it (rulings S26, S38, S49, S61). The vocabulary holds no word that states a
+  anyone sees it. The vocabulary holds no word that states a
   cause, blames or names a person, or raises an alarm; the rules refuse numbers, units, rates,
   other days, negation and a second noun beside a figure.
 - **The scripted writer is the default.** Two providers sit behind the `CopilotProvider`
   interface (`copilot/types.ts`): `scripted`, fixed server templates, always available; and
   `claude-cli`, which runs the locally installed `claude` command and is created only when
   `CLAUDE_BIN` is set to a binary that passes the safety checks and `DEPOT_COPILOT_PROVIDER` is
-  not `scripted` (`copilot/service/cliFactory.ts`). Without that, every answer is scripted.
+  unset, `auto` or `claude-cli` (`copilot/service/cliFactory.ts`); any other value, a
+  misspelling included, selects scripted and is logged once. Without that, every answer is
+  scripted.
+- **Data source.** On last-good data or the saved sample the response carries `dataSource`
+  (`last_good` or `sample`), the answer says so in the pages' own words, and the footer shows
+  "last good data" or "sample data".
 - **The command-line writer is for the owner's own machine only.** It uses the owner's
   personal sign-in. A staff-facing deployment needs an API-key provider behind the same
   interface; it does not exist. The wording rules still open on the model path (a later
   sentence denying an earlier one, obligation words, a true figure given a false meaning or
-  window) are recorded limits of that owner-only path (rulings S59, S61) and must be closed
+  window) are recorded limits of that owner-only path and must be closed
   before any staff-facing provider is switched on.
 - Answer tables carry provenance per column.
 
@@ -741,7 +746,7 @@ answers. In summary (detail, settings and limits in
 
 | Folder | Holds |
 | --- | --- |
-| `live/` | Snapshot analysis, aggregation, the held peak on-road shares, and one view builder per API route |
+| `live/` | Snapshot analysis, aggregation, the held peak on-road shares, the bounded query memo, the feed-time hold of the allocation plan, and one view builder per API route |
 | `infer/` | Bus state, location, yard inference and continuity, outshedding |
 | `score/`, `stats/` | Efficiency index, peer groups, rolling window, robust statistics |
 | `exceptions/` | Depot and bus exceptions, paging |
@@ -754,26 +759,66 @@ answers. In summary (detail, settings and limits in
 | `copilot/` | Facts, grammar, vocabulary, providers, CLI runner, service, client |
 | `repositories/` | The data seam and composition root |
 | `sources/` | The Data sources registry |
-| top level | Ids, navigation and the shell model, labels, provenance line, modelled-day line, feed chip, rate limiter, formatting |
+| `map/` | The overview map's view model, marker diffs and node styles |
+| `shell/` | Shell geometry (`geometry.ts`), the table-width helper (`tableWidth.ts`), the table tiers (`tableTier.ts`) and the figure-band rows (`figureBandLayout.ts`) |
+| top level | Ids (`ids.ts`), paths and navigation (`nav.ts`, `depotNav.ts`, `shellModel.ts`), labels, provenance line, modelled-day line, feed chip, the page-refresh store (`pageRefresh.ts`), the sign-in redirect (`signInRedirect.ts`), scope states (`scopeState.ts`, with `DEPOT_NOT_FOUND_MESSAGE`), the depot gate, rate limiter, formatting, paging, sorting, table overflow, load errors, the copilot footer words and the payload types |
+
+Outside `src/lib/depot/`:
+
+| Path | Holds |
+| --- | --- |
+| `src/lib/upsrtc/` | The module's files there: the live snapshot chain (`liveSnapshot.ts`), the depot projection (`depotNormalizer.ts`), the saved sample (`fleetFixture.ts`, `fleetFixtureShape.ts`), the schedule service (`scheduleService.ts`), the bounded TTL cache (`cache.ts`) and `jsonResponse` (`respond.ts`); `normalizer.ts` is the command centre's map projection |
+| `src/lib/serverLog.ts` | `logDepotError` and `logDepotNotice`: one bounded server log line each |
+| `src/hooks/` | `usePolledJson`, `useFetchedJson`, one `useDepot*` hook per endpoint, `useRouteProfile`, `useRouteProfileLoader`, `useCopilot`, `useProjectSignOut`, `useDebounced` |
+| `src/app/api/upsrtc/depot/` | The route handlers |
+| `src/app/(protected)/project/depots/` | The pages and their gates |
 
 `src/components/depot/`: one folder per page (`cockpit`, `roster`, `yard`, `duties`,
 `maintenance`, `crew`, `fuel`, `revenue`, `economics`, `league`, `network`, `rebalance`,
 `routes`, `exceptions`, `trends`, `sources`, `copilot`) plus `shell` (header, navigation,
-provenance line, data states), `trendChart` (the trend chart, its plot and the sparkline)
-and `data`.
+provenance line, data states, and the hooks `useWidthTier`, `useTableTier`,
+`useBelowDesktop` and `useBaseMap`), `trendChart` (the trend chart, its plot and the
+sparkline) and `data`.
 
 ## 10. Testing
 
 - **Unit:** Vitest under `src/tests/unit/`, module tests named `depot-<subject>.test.ts(x)`
-  (plus the `fleet-fixture-*` tests). On 6 Oct 2026, listing that folder gave 371 test files,
-  352 of them named `depot-*` (file counts, not test counts). Run one with
+  (plus the `fleet-fixture-*` tests). On 6 Oct 2026, listing that folder gave 419 test files,
+  396 of them named `depot-*` (file counts, not test counts).
+- **Guards** (unit tests that scan the module, under `src/tests/unit/depot-guard-*.test.ts`):
+  no wall-clock or random read in `src/lib/depot` outside three named files that inject a
+  clock (engine purity); every depot API route answers 401 without a session, `no-store`
+  always, fixed error bodies that never carry the thrown message, and a fixed 400 that
+  reflects nothing for a malformed path segment or query (API routes); every depot page and
+  layout reaches the session gate (page gates); no view builder or route except the route
+  lookup calls the upstream (no upstream); and "simulated" never appears in the module's text
+  or rendered pages, nor a raw `YYYY-MM-DD` date on screen (banned word). Each has an
+  exception list that is empty today. Run one with
   `npx vitest run src/tests/unit/depot-yard.test.ts`, or all with `npm run test`.
-- **Browser:** `tests/e2e/depot-management.spec.ts`, run with `npm run test:e2e` after
-  `npm run build`. It covers the deep link through login, the shell, Back to Operations, the
-  banned-wording check, no sideways scroll at 1440, 1024 and 800 px, the skip link and a
-  console-error-free load, all on the network overview. It needs `E2E_PROJECT_PIN` (without
-  it the suite is skipped); optional `E2E_PROJECT_NAME`, `E2E_HOST`, `E2E_PORT`,
-  `E2E_ORIGIN`. The server needs the app's own environment (section 3 of the README).
+- **Browser, live suite:** `tests/e2e/depot-management.spec.ts`, run with `npm run test:e2e`
+  after `npm run build`. It covers the deep link through login, the shell, Back to
+  Operations, the banned-wording check, no sideways scroll at 1440, 1024 and 800 px, the
+  skip link and a console-error-free load, on the network overview, against whatever feed
+  the server has.
+- **Browser, sample suite:** `tests/e2e/depot-sample.spec.ts`, run with
+  `npm run test:e2e:sample` (`E2E_SUITE=sample`) after `npm run build`. Playwright starts the
+  server with `NEXT_PUBLIC_DEMO_MODE=1`, so every figure comes from the saved sample, and a
+  fixture fails the run unless the network endpoint reports `source: 'fixture'`. It walks
+  every depot route and page found on disk: the 401 and `no-store` answers, bad ids and
+  queries, each page's heading, provenance, console and wording, five widths, cockpit links
+  into the roster, exceptions totals against the API, keyboard paths, the copilot, and that
+  no page calls the sample live. On 6 Oct 2026 nine of its tests are parked with
+  `test.fixme`, each naming a known defect: the crew page's duty ids print a raw date; the
+  transfers table is wider than its box at 1280 px; Escape on the league's score breakdown;
+  the copilot's decline, four pages (both trends pages, league, routes) and the footer
+  disclaimer calling the sample live.
+- **What both need:** `E2E_PROJECT_PIN` (without it each suite prints a `SKIPPED:` reason and
+  skips; a top-level test fails when `CI` is set and the PIN is missing); optional
+  `E2E_PROJECT_NAME`, `E2E_HOST`, `E2E_PORT` (default `localhost:3000`), `E2E_ORIGIN`.
+  Playwright starts its own server with the scripted copilot writer
+  (`DEPOT_COPILOT_PROVIDER=scripted`); a server already on the port is reused only with
+  `E2E_REUSE_SERVER=1`, so a stray server fails the run. The server needs the app's own
+  environment (section 3 of the README).
 - **Odometer evidence:** `npx tsx scripts/calibrate-odometer.ts --live` (two upstream reads
   at least a minute apart; aggregates only).
 
