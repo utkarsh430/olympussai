@@ -1,4 +1,6 @@
 import { formatCount } from '../format';
+import type { ModelledDaySummary } from '../sim/operatingDayTypes';
+import { NO_DUTIES_REASON } from '../sim/operatingDayWording';
 import { formatRupees } from './format';
 import type { FuelGroupRow, FuelTotals } from './types';
 
@@ -138,10 +140,20 @@ export interface SummaryPrice {
   readonly defaulted: boolean;
 }
 
+/** '158 of 200 buses ran (modelled)': the buses that ran, out of the depot's buses. */
+function ranText(ran: number, day: ModelledDaySummary | undefined): string {
+  if (!day) return `${buses(ran)} ran`;
+  return `${formatCount(ran)} of ${buses(day.buses)} ran (modelled)`;
+}
+
 /** The depot's day in one sentence. The page tags it MODELLED beside the sentence. */
-export function summarySentence(totals: FuelTotals, price?: SummaryPrice): string {
+export function summarySentence(
+  totals: FuelTotals,
+  price?: SummaryPrice,
+  day?: ModelledDaySummary,
+): string {
   const base =
-    `${buses(totals.busCount)} covered ${formatKm(totals.distanceKm)} and were issued ` +
+    `${ranText(totals.busCount, day)} and covered ${formatKm(totals.distanceKm)}, and were issued ` +
     `${formatLitres(totals.fuelLitres)} of fuel, costing ${formatRupees(totals.cost)}.`;
   if (!price) return base;
   const unit = `${formatRupees(price.price)} per litre`;
@@ -218,17 +230,31 @@ export function noDistanceNote(count: number): string | null {
     : `${formatCount(count)} buses have no distance today and are not compared.`;
 }
 
-export function emptyText(): string {
-  return (
-    'No fuel figures to show: no bus has modelled distance for this date, ' +
-    'because none of the depot’s buses is running or standing.'
-  );
+/** Buses that did not run are said to have not run: they are in no total and have no distance. */
+export function notRunNote(count: number): string | null {
+  if (count <= 0) return null;
+  return count === 1
+    ? '1 bus did not run in the modelled day; it has no distance and is in no figure here.'
+    : `${formatCount(count)} buses did not run in the modelled day; they have no distance and are in no figure here.`;
+}
+
+/** The shortfall, stated: duties that had no bus because too few were available. */
+export function shortfallNote(dutiesWithoutBus: number): string | null {
+  if (dutiesWithoutBus <= 0) return null;
+  return `${formatCount(dutiesWithoutBus)} of the day’s duties had no bus: fewer buses were available than duties.`;
+}
+
+export function emptyText(day?: ModelledDaySummary): string {
+  if (!day || day.duties === 0) {
+    return `${NO_DUTIES_REASON}, so no bus ran and there is no distance or fuel to show.`;
+  }
+  return 'No fuel figures to show: no bus was available to run a duty in the modelled day.';
 }
 
 /** What is modelled, that it is not the corporation's figures, and what replaces it. */
 export function modelledStatement(): string {
   return (
-    'Every figure on this page is MODELLED. Distance for each bus, a lasting per-vehicle ' +
+    'Every figure on this page is MODELLED. Each bus that ran covered the route of its duty out and back in the modelled day; that distance, a lasting per-vehicle ' +
     'factor, the daily variation and the price per litre are planning assumptions, not the ' +
     'corporation’s figures. Real fuel issue records and odometer readings from the ' +
     'transport department will replace them when those feeds are connected.'

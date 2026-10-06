@@ -17,9 +17,13 @@ import {
   type FlaggedBus,
   type FuelRepository,
 } from '../fuel/types';
+import { cachedRouteProfiles, routeCatalogueRevision } from '../routes/routeCatalogue';
+import { summariseDay } from '../sim/operatingDay';
+import type { OperatingDay } from '../sim/operatingDayTypes';
 import { operatingDateOf } from '../sim/seed';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
 import { buildDepotDetail } from './depotView';
+import { operatingDayFor } from './operatingDayView';
 
 type FuelBody = Omit<FuelResponse, keyof ReturnType<typeof feedEnvelope>>;
 
@@ -57,8 +61,9 @@ function otherRoutesOf(rest: readonly FuelGroupRow[]): FuelOtherRoutes | null {
 function shape(
   analysis: FuelAnalysis,
   depot: FuelBody['depot'],
-  operatingDate: string,
+  day: OperatingDay,
 ): FuelBody {
+  const { operatingDate } = day;
   const byRegistration = new Map(analysis.perBus.map((bus) => [bus.registrationNumber, bus]));
   const flagged = analysis.flagged
     .map((flag) => toFlaggedBus(flag, byRegistration.get(flag.registrationNumber)))
@@ -70,6 +75,8 @@ function shape(
     operatingDate,
     pricePerLitre: analysis.pricePerLitre,
     priceDefaulted: analysis.priceDefaulted,
+    day: summariseDay(day),
+    notRunCount: day.notRun.length,
     totals: analysis.depot,
     perClass: analysis.perClass,
     perRoute: byCost.slice(0, FUEL_ROUTE_CAP),
@@ -93,13 +100,22 @@ async function buildBody(
   const detail = buildDepotDetail(view, depotId);
   if (!detail) return null;
   const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
-  const days = await fuel.fuelDay(detail.buses, operatingDate);
-  return shape(analyseFuel(days), { id: detail.depot.id, name: detail.depot.name }, operatingDate);
+  const day = operatingDayFor(
+    analyseSnapshot(view),
+    depotId,
+    detail.buses,
+    cachedRouteProfiles(view, operatingDate),
+    operatingDate,
+  );
+  if (!day) return null;
+  const days = await fuel.fuelDay(day);
+  return shape(analyseFuel(days), { id: detail.depot.id, name: detail.depot.name }, day);
 }
 
 /*
  * The body depends on the rows (through the analysis), the depot, the operating
- * date and the fuel source, so it is held under all four, as a promise so
+ * date, the route-catalogue revision (a newly cached profile changes a route's
+ * length, so the day's distances) and the fuel source, so it is held under all five, as a promise so
  * concurrent polls share one read. `memoiseBody` is not used: it is synchronous
  * and keyed on the snapshot alone, while this body awaits a repository and
  * varies by depot, date and source. A failed read is dropped so the next
@@ -132,7 +148,8 @@ export async function buildFuelResponse(
 ): Promise<FuelResponse | null> {
   const analysis = analyseSnapshot(view);
   const perKey = heldFor(analysis, fuel);
-  const key = `${depotId}|${operatingDateOf(view.feedNow, view.fetchedAt)}`;
+  const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
+  const key = `${depotId}|${operatingDate}|${routeCatalogueRevision()}`;
   const held = perKey.get(key);
   const pending = held ?? buildBody(view, depotId, fuel);
   if (held === undefined) {

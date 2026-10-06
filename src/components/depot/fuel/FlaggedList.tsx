@@ -12,6 +12,8 @@ import {
   groupLabel,
   noComparisonNote,
   noDistanceNote,
+  notRunNote,
+  shortfallNote,
   peersDifferNote,
   routeLabel,
   ruleSentence,
@@ -81,6 +83,8 @@ export function FlaggedList({ data }: { readonly data: FuelResponse }) {
     listed ? peersDifferNote(unlisted.peersDiffer, unlisted.thresholdPct) : null,
     listed ? noComparisonNote(unlisted.noComparison) : null,
     noDistanceNote(data.noDistanceCount),
+    notRunNote(data.notRunCount),
+    shortfallNote(data.day.dutiesWithoutBus),
   ].filter((n): n is string => n !== null);
   return (
     <section aria-labelledby="depot-fuel-flagged-heading" className="animate-rise">
