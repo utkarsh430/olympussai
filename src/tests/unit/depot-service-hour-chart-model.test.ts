@@ -52,6 +52,12 @@ describe('hour chart model', () => {
     expect(model.yTicks.at(-1)).toBe(model.yDomain[1]);
   });
 
+  it('keeps a scale when a figure is not a number', () => {
+    const body = routeHourlyFixture();
+    const hours = body.hours.map((h) => (h.hour === 3 ? { ...h, needed: Number.NaN } : h));
+    expect(buildHourChartModel({ hours, currentHour: 11 }).yDomain).toEqual([0, 20]);
+  });
+
   it('has no now marker without a feed clock, and then no hour is "not observed"', () => {
     const cold = buildHourChartModel(routeHourlyFixture({ currentHour: null }));
     expect(cold.nowLabel).toBeNull();

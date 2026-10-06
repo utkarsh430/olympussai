@@ -107,9 +107,12 @@ function niceStep(top: number): number {
 }
 
 function yScale(columns: readonly HourColumn[]): Pick<HourChartModel, 'yDomain' | 'yTicks'> {
+  // A figure that is not a finite number is left out, so the step search always ends.
   const top = Math.max(
     1,
-    ...columns.flatMap((c) => [c.deployed, c.scheduled ?? 0, c.needed, c.neededBand[1]]),
+    ...columns
+      .flatMap((c) => [c.deployed, c.scheduled ?? 0, c.needed, c.neededBand[1]])
+      .filter(Number.isFinite),
   );
   const step = niceStep(top);
   const max = Math.ceil(top / step) * step;
