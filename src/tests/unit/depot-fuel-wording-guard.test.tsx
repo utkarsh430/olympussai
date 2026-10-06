@@ -71,7 +71,8 @@ const totals = (km: number) => ({
 const group = (key: string | null, km: number) => ({ key, ...totals(km) });
 const day = (duties: number) => ({ duties, routes: 2, busesRan: 3, buses: 9, dutiesWithoutBus: 2 });
 const bus = (route: string | null) => ({
-  registrationNumber: 'UP32-1',
+  // Distinct registrations: the table keys its rows on the registration.
+  registrationNumber: route ? 'UP32-1' : 'UP32-2',
   routeName: route,
   serviceClass: 'ordinary',
   kmPerLitre: 3.7,

@@ -61,11 +61,13 @@ const COUNTS: Record<ExceptionKind, number> = {
 };
 
 function bus(n: number): BusException {
+  const registrationNumber = `MH12AB${1000 + n}`;
   return {
+    id: `long_dark:${registrationNumber}`,
     kind: 'long_dark',
     severity: 'warning',
     depotId: 'd1',
-    registrationNumber: `MH12AB${1000 + n}`,
+    registrationNumber,
   } as unknown as BusException;
 }
 
