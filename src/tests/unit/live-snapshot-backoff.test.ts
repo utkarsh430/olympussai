@@ -11,7 +11,10 @@ import { fetchUpstream } from '@/lib/upsrtc/client';
 import {
   LIVE_CACHE_TTL_MS,
   LIVE_RETRY_BACKOFF_MS,
+  MIN_ROWS_SHARE_OF_LAST_GOOD,
+  SHORT_REPLIES_BEFORE_ACCEPTED,
   getLiveSnapshot,
+  liveDiagnostics,
   resetLiveSnapshotForTests,
 } from '@/lib/upsrtc/liveSnapshot';
 
@@ -158,5 +161,58 @@ describe('live snapshot for a caller that accepts young last-good data', () => {
     expect(next.source).toBe('live');
     expect(next.stale).toBe(false);
     expect(next.snapshot.buses[0]?.registrationNumber).toBe('UP78JT9999');
+  });
+});
+
+describe('live snapshot: a reply far shorter than the last good one', () => {
+  const fleet = (count: number): unknown[] =>
+    Array.from({ length: count }, (_, i) => payload(`UP78JT${String(1000 + i)}`)[0]);
+
+  beforeEach(() => {
+    resetLiveSnapshotForTests();
+    mockFetch.mockReset();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('is a failed refresh: last-good is served, flagged stale, with the reason kept', async () => {
+    mockFetch.mockResolvedValueOnce(okResult(fleet(10)));
+    const first = await getLiveSnapshot(T0);
+    mockFetch.mockResolvedValueOnce(okResult(fleet(4)));
+    const next = await getLiveSnapshot(T0 + LIVE_CACHE_TTL_MS + 1);
+    expect(next.source).toBe('cache');
+    expect(next.stale).toBe(true);
+    expect(next.snapshot).toBe(first.snapshot);
+    expect(liveDiagnostics.lastError).toBe(
+      'Upstream reply had 4 bus rows against 10 in the last good reply',
+    );
+  });
+
+  it('is served as live at exactly the named share', async () => {
+    expect(MIN_ROWS_SHARE_OF_LAST_GOOD).toBe(0.5);
+    mockFetch.mockResolvedValueOnce(okResult(fleet(10)));
+    await getLiveSnapshot(T0);
+    mockFetch.mockResolvedValueOnce(okResult(fleet(5)));
+    const next = await getLiveSnapshot(T0 + LIVE_CACHE_TTL_MS + 1);
+    expect(next.source).toBe('live');
+    expect(next.snapshot.depotRows).toHaveLength(5);
+  });
+
+  it("is taken as the fleet's new size once it repeats, so old data is not held for ever", async () => {
+    mockFetch.mockResolvedValueOnce(okResult(fleet(10)));
+    await getLiveSnapshot(T0);
+    mockFetch.mockResolvedValue(okResult(fleet(4)));
+    let at = T0 + LIVE_CACHE_TTL_MS + 1;
+    for (let refused = 1; refused < SHORT_REPLIES_BEFORE_ACCEPTED; refused += 1) {
+      expect((await getLiveSnapshot(at)).source).toBe('cache');
+      at += LIVE_RETRY_BACKOFF_MS;
+    }
+    const accepted = await getLiveSnapshot(at);
+    expect(accepted.source).toBe('live');
+    expect(accepted.snapshot.depotRows).toHaveLength(4);
+    // The count starts again: a later short reply is refused once more.
+    mockFetch.mockResolvedValueOnce(okResult(fleet(1)));
+    expect((await getLiveSnapshot(at + LIVE_CACHE_TTL_MS + 1)).source).toBe('cache');
   });
 });

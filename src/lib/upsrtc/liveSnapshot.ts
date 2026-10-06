@@ -51,6 +51,20 @@ export const LIVE_CACHE_TTL_MS = 15_000;
  * upstream that has just failed. The first request after it tries the upstream again.
  */
 export const LIVE_RETRY_BACKOFF_MS = 20_000;
+/**
+ * A reply with fewer depot rows than this share of the last good reply's is a failed
+ * refresh: a cut-off or partial answer would otherwise be served as live and offered to the
+ * score window and the yard memory as a real sample, with every depot's fleet near zero.
+ * Safe at night: the feed lists every registered vehicle on every answer, with its last
+ * known record and a status (live, stationary, no signal, under maintenance), so the row
+ * count follows the size of the fleet, not the hour; parked buses stay in the list.
+ */
+export const MIN_ROWS_SHARE_OF_LAST_GOOD = 0.5;
+/**
+ * After this many short replies in a row the shorter list is taken as the fleet's real
+ * size, so a lasting change upstream cannot hold the chain on old data for ever.
+ */
+export const SHORT_REPLIES_BEFORE_ACCEPTED = 3;
 const CACHE_KEY = 'live';
 
 /** How a caller may be answered while the cached snapshot is older than its TTL. */
@@ -93,6 +107,8 @@ const cache = new TtlCache<LiveSnapshot>(LIVE_CACHE_TTL_MS);
 let inFlight: Promise<LiveSnapshotResult> | null = null;
 // Until this wall time, a failed refresh is not retried; null while the upstream answers.
 let retryAfterMs: number | null = null;
+// Short replies refused in a row (see SHORT_REPLIES_BEFORE_ACCEPTED).
+let shortReplies = 0;
 
 /*
  * What the chain is serving, so that each change is logged once with its reason and never
@@ -220,7 +236,9 @@ async function refresh(now: number): Promise<LiveSnapshotResult> {
   let failure: string;
   if (result.ok) {
     const snapshot = buildSnapshot(result.payload, now);
-    if (snapshot.buses.length > 0) {
+    const verdict = judgeReply(snapshot);
+    if (isCurrent()) shortReplies = verdict.short ? shortReplies + 1 : 0;
+    if (verdict.reason === null) {
       if (isCurrent()) {
         cache.set(CACHE_KEY, snapshot, now);
         liveDiagnostics.lastSuccessAt = snapshot.fetchedAt;
@@ -231,7 +249,7 @@ async function refresh(now: number): Promise<LiveSnapshotResult> {
       }
       return { snapshot, source: 'live', stale: false };
     }
-    failure = 'Upstream responded but contained no usable bus records';
+    failure = verdict.reason;
   } else {
     failure = result.error ?? 'Unknown upstream failure';
   }
@@ -243,6 +261,30 @@ async function refresh(now: number): Promise<LiveSnapshotResult> {
     return noteFallback(fallbackResult(now), `upstream refresh failed (${failure})`);
   }
   return fallbackResult(now);
+}
+
+interface ReplyVerdict {
+  /** Why the reply is refused, or null when it is served as live. */
+  readonly reason: string | null;
+  /** Refused for being short (counted towards SHORT_REPLIES_BEFORE_ACCEPTED). */
+  readonly short: boolean;
+}
+
+/**
+ * The map projection must hold at least one bus (the command centre never receives an
+ * empty live list), and the depot rows at least MIN_ROWS_SHARE_OF_LAST_GOOD of last-good's.
+ */
+function judgeReply(snapshot: LiveSnapshot): ReplyVerdict {
+  if (snapshot.buses.length === 0) {
+    return { reason: 'Upstream responded but contained no usable bus records', short: false };
+  }
+  const lastGood = cache.getLastGood(CACHE_KEY)?.value;
+  const rows = snapshot.depotRows.length;
+  const goodRows = lastGood?.depotRows.length ?? 0;
+  if (rows >= goodRows * MIN_ROWS_SHARE_OF_LAST_GOOD) return { reason: null, short: false };
+  if (shortReplies + 1 >= SHORT_REPLIES_BEFORE_ACCEPTED) return { reason: null, short: false };
+  const reason = `Upstream reply had ${rows} bus rows against ${goodRows} in the last good reply`;
+  return { reason, short: true };
 }
 
 /** Degrade gracefully: last-known-good, then the saved sample. Never a blank screen. */
@@ -307,6 +349,7 @@ export function resetLiveSnapshotForTests(): void {
   cache.clear();
   inFlight = null;
   retryAfterMs = null;
+  shortReplies = 0;
   servingFrom = 'live';
   generation += 1;
   fixture = null;
