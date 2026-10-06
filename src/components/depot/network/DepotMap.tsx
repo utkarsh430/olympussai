@@ -12,6 +12,7 @@ import {
   type DepotRow,
 } from '@/lib/depot/network/overviewModel';
 import { markerLabel } from '@/lib/depot/network/mapWords';
+import { FIT_PADDING_PX, SINGLE_NODE_ZOOM, refitOnResize } from '@/lib/depot/map/overviewMapView';
 import { removeMapListeners } from '@/lib/maps/listeners';
 import { useDepotMap, type DepotMapStatus } from './useDepotMap';
 
@@ -26,8 +27,6 @@ interface DepotMarker {
 const SELECTED_STROKE = '#3ff0ff';
 const SELECTED_STROKE_WEIGHT = 2.5;
 const SELECTED_Z = 5000;
-const FIT_PADDING_PX = 24;
-const SINGLE_NODE_ZOOM = 9;
 
 function iconFor(style: NodeStyle, selected: boolean): google.maps.Symbol {
   return {
@@ -48,6 +47,33 @@ function zIndexFor(style: NodeStyle, selected: boolean): number {
 function styleFor(row: DepotRow, maxFleet: number): NodeStyle {
   const index = rankedIndex(row);
   return nodeStyle({ fleet: row.depot.fleet, index, ranked: index !== null }, maxFleet);
+}
+
+/**
+ * Frames the map on the units' own bounds (a single unit is centred instead). `fitting`
+ * is held until the map settles, so the zoom change the fit causes is not taken for a
+ * person moving the map.
+ */
+function fitToUnits(
+  map: google.maps.Map,
+  markers: ReadonlyMap<string, DepotMarker>,
+  fitting: { current: boolean },
+): void {
+  if (markers.size === 0) return;
+  const bounds = new google.maps.LatLngBounds();
+  markers.forEach((entry) => {
+    if (entry.row.depot.centroid) bounds.extend(entry.row.depot.centroid);
+  });
+  fitting.current = true;
+  google.maps.event.addListenerOnce(map, 'idle', () => {
+    fitting.current = false;
+  });
+  if (markers.size === 1) {
+    map.setCenter(bounds.getCenter());
+    map.setZoom(SINGLE_NODE_ZOOM);
+  } else {
+    map.fitBounds(bounds, FIT_PADDING_PX);
+  }
 }
 
 function paint(entry: DepotMarker, selectedId: string | null): void {
@@ -72,13 +98,17 @@ export interface DepotMapProps {
  * One circle per depot at the median position of its buses: size from fleet,
  * colour from the efficiency index. Plain `google.maps.Marker` symbols, so no
  * map id is needed. Polls move and restyle markers in place, keyed by depot
- * id; the camera is framed once and never moved by a poll.
+ * id; the camera is framed on the units' bounds, framed again when the frame changes size
+ * until a person moves the map, and never moved by a poll. The zoom control sits top
+ * right (`overviewMapView.ts`), so it is on the first screen at 1440 x 900.
  */
 export function DepotMap({ rows, maxFleet, selectedId, onSelect, onStatusChange }: DepotMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { mapRef, status } = useDepotMap(containerRef);
   const markersRef = useRef<Map<string, DepotMarker>>(new Map());
   const fittedRef = useRef(false);
+  const fittingRef = useRef(false);
+  const userMovedRef = useRef(false);
   const selectedRef = useRef(selectedId);
   const onSelectRef = useRef(onSelect);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -138,18 +168,31 @@ export function DepotMap({ rows, maxFleet, selectedId, onSelect, onStatusChange 
 
     if (!fittedRef.current && markers.size > 0) {
       fittedRef.current = true;
-      const bounds = new google.maps.LatLngBounds();
-      markers.forEach((entry) => {
-        if (entry.row.depot.centroid) bounds.extend(entry.row.depot.centroid);
-      });
-      if (markers.size === 1) {
-        map.setCenter(bounds.getCenter());
-        map.setZoom(SINGLE_NODE_ZOOM);
-      } else {
-        map.fitBounds(bounds, FIT_PADDING_PX);
-      }
+      fitToUnits(map, markers, fittingRef);
     }
   }, [rows, maxFleet, status, mapRef]);
+
+  // ---- Framing: the frame grows with the panel beside it, so refit on resize ----
+  useEffect(() => {
+    const map = mapRef.current;
+    const frame = containerRef.current;
+    if (status !== 'ready' || !map || !frame) return;
+    const moved = (): void => {
+      if (!fittingRef.current) userMovedRef.current = true;
+    };
+    const listeners = [map.addListener('dragstart', moved), map.addListener('zoom_changed', moved)];
+    if (typeof ResizeObserver === 'undefined') return () => removeMapListeners(listeners);
+    const observer = new ResizeObserver(() => {
+      if (refitOnResize({ fitted: fittedRef.current, userMoved: userMovedRef.current })) {
+        fitToUnits(map, markersRef.current, fittingRef);
+      }
+    });
+    observer.observe(frame);
+    return () => {
+      observer.disconnect();
+      removeMapListeners(listeners);
+    };
+  }, [status, mapRef]);
 
   // Remove every marker and listener when the map goes away or fails.
   useEffect(() => {

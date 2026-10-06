@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, MAP_DARK_STYLE } from '@/lib/constants';
 import { onMapsAuthFailure } from '@/lib/maps/authFailure';
 import { getMapsLoader, isMapsConfigured } from '@/lib/maps/loader';
+import { zoomControlOptions } from '@/lib/depot/map/overviewMapView';
 
 export type DepotMapStatus = 'loading' | 'ready' | 'error';
 
@@ -63,6 +64,9 @@ export function useDepotMap(containerRef: RefObject<HTMLDivElement | null>): Dep
     getMapsLoader()
       .importLibrary('maps')
       .then(async ({ Map }) => {
+        const { ControlPosition } = (await getMapsLoader().importLibrary(
+          'core',
+        )) as google.maps.CoreLibrary;
         await getMapsLoader().importLibrary('marker');
         if (settled || !containerRef.current) return;
         mapRef.current = new Map(containerRef.current, {
@@ -71,6 +75,8 @@ export function useDepotMap(containerRef: RefObject<HTMLDivElement | null>): Dep
           styles: MAP_DARK_STYLE,
           disableDefaultUI: true,
           zoomControl: true,
+          // Top right: the frame's bottom can fall below the fold at 1440 x 900.
+          zoomControlOptions: zoomControlOptions(ControlPosition),
           // fitBounds may then stop between whole zoom levels, so the units fill the frame.
           isFractionalZoomEnabled: true,
           gestureHandling: 'cooperative',
