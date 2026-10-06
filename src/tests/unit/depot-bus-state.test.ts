@@ -124,6 +124,13 @@ describe('classifyBusState, overnight trips (M2)', () => {
     const quiet = { ...heard, gpsTimestamp: '2026-10-05T23:30:00.000Z' };
     expect(classifyBusState(makeRow({ ...quiet, ...overnight }), AFTER_MIDNIGHT)).toBe('on_road');
   });
+
+  it('ignores a trip whose scheduled span exceeds a day, such as a mistyped end date (N8)', () => {
+    const days = { ...overnight, scheduledEnd: '2026-10-09T03:01:00.000Z' };
+    expect(classifyBusState(makeRow({ ...heard, ...days }), AFTER_MIDNIGHT)).toBe('on_road');
+    const day = { ...overnight, scheduledEnd: '2026-10-06T16:01:00.000Z' };
+    expect(classifyBusState(makeRow({ ...heard, ...day }), AFTER_MIDNIGHT)).toBe('in_service');
+  });
 });
 
 describe('notHeardMinutes', () => {
