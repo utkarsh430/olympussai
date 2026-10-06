@@ -148,6 +148,29 @@ factor of 8, kept to a fifth of one core.
 **All limits are held in memory, per server process.** A restart clears them, and if the app runs
 as several processes each has its own limits and its own Claude budget.
 
+## Server log
+
+Each failure writes one line under `[depot:copilot-api]` (or `[depot:copilot]` for the writers
+themselves). The answer the user gets never changes: a failure before the text is a fixed 503
+body; a failure while writing it is a scripted answer.
+
+| Line | Stage |
+|---|---|
+| `snapshot_failed writer=<w>: <Class>: <message>` | Reading the fleet snapshot |
+| `snapshot_deadline` | The snapshot did not arrive before the request deadline |
+| `prepare_failed writer=<w>: <Class>: <message>` | Building the facts from the snapshot |
+| `engine_failed writer=<w>: <Class>: <message>` | The writer threw outside its own fallbacks |
+| `scripted_failed writer=scripted: <Class>: <message>` | The scripted last resort threw |
+| `unexpected writer=<w>: <Class>: <message>` | Anything else in the handler |
+| `scripted <task> draft failed: <reason>` (with `: <Class>: <message>` when it threw) | The scripted draft did not render |
+| `claude-cli fell back: <reason>` | Claude was not used for this answer |
+| `provider_setting_unrecognised: "<value>"; the scripted writer is used` | Once per process: see `DEPOT_COPILOT_PROVIDER` |
+
+`<w>` is the writer the server is set up with (`scripted` or `claude-cli`). The message is cut to
+160 characters, and before that the user's question, every fact value and every environment
+value of 8 characters or more are replaced with `[withheld]`. The prompt is never logged. The
+Claude fallback line carries only its reason code, never the child's output or the binary's path.
+
 ## What one person holding the shared PIN can still do
 
 The app has one shared PIN, and every login is a new identity, so per-login limits do not stop a
@@ -196,8 +219,8 @@ its own terminal, never by closing the window.
 2. In that server's environment only, set `DEPOT_COPILOT_PROVIDER=claude-cli` (so a failure shows
    the notice, not a silent scripted answer), `CLAUDE_BIN=~/.local/bin/claude` (the stable link,
    not a versioned folder) and `CLAUDE_CODE_OAUTH_TOKEN`.
-3. Keep the server log visible: reason codes such as `cli_unavailable` and
-   `claude-cli fell back: <reason>` are the only diagnostics.
+3. Keep the server log visible: for Claude, reason codes such as `cli_unavailable` and
+   `claude-cli fell back: <reason>` are the only diagnostics (see "Server log").
 4. Save `ls -la ~/.claude` to compare afterwards, and run `ls "$TMPDIR" | grep depot-copilot`:
    it should show nothing.
 
