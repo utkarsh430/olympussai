@@ -61,7 +61,7 @@ describe('robustZ', () => {
   });
   it('gives an unusually good value a positive z under the fallback', () => {
     const sample = [1, 1, 1, 1, 1, 1, 1, 1.5];
-    expect(robustZ(1.5, sample)).toBeCloseTo(6.383, 4);
+    expect(robustZ(1.5, sample)).toBeCloseTo(8 / 1.2533, 4);
     expect(robustZ(1, sample)).toBe(0);
   });
   it('is null for an empty sample', () => {
