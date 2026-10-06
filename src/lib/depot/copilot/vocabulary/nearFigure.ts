@@ -36,14 +36,17 @@ export const STATE_PREPOSITION = 'in';
 
 /**
  * Refused anywhere in a figure's clause: negation, rate makers, aggregates,
- * limiters and day shifts. Every figure is as of the feed time, for the scope
- * its fact names, so none of these can be true of one.
+ * limiters, day shifts, and (closing review M-A) the quantifiers and period
+ * words that would stretch one depot's figure to many depots or to a period.
+ * Every figure is as of the feed time, for the scope its fact names, so none
+ * of these can be true of one.
  */
 export const NEGATION_WORDS: readonly string[] = words('not no never nor cannot without');
 export const CLAUSE_SCOPE_STEMS: readonly string[] = words(`
 each every per apiece daily weekly monthly yearly nightly
 average typical total combined overall altogether bulk majority minority rest portion fraction
 earlier later next previous prior former past future recently lately soon
+all several many whole both last day week month year shift
 `);
 export const LIMITER_WORDS: readonly string[] = words(`
 only just merely mere barely nearly almost roughly exactly least most fewer less

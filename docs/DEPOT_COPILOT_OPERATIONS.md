@@ -50,8 +50,10 @@ figure (each enforced by `renderDraft`):
   bare verb; a test fails if it starts to.
 - Rate, total, limiter and negation words, and the listed day-shift stems (earlier, later, next,
   previous, prior, former, past, future, recently, lately, soon), are refused at every position
-  of a clause that holds a figure (tested per class, at every position of a long clause). Other
-  period and quantifier words are refused only within two words of a figure.
+  of a clause that holds a figure (tested per class, at every position of a long clause). So are
+  the quantifiers all, several, many, whole and both, and the period words last, day, week,
+  month, year and shift in any form. Any other word is checked only within two words of a
+  figure.
 - No word that states a cause, blames or characterises a person, or raises a safety or urgency
   alarm is in the vocabulary (cause, because, fault, blame, driver, staff, crew, manager, safe,
   safety, incident, urgent, alert, risk, fail and the rest of `vocabulary/judgement.ts`), so no
@@ -79,9 +81,11 @@ The checks accept each of these, so read Claude text for them:
 - **A true figure with a false predicate** (M-A): "141 buses are dark." where 141 is the on-road
   count; "The efficiency is 71%." where 71% is the on-road share. Any figure can take any state
   word that is allowed beside a figure.
-- **A true figure with a false scope or period** (M-A): "All depots in the network have 3 buses
-  dark.", "3 buses were dark in the last week." Quantifier and period words are refused only
-  within two words of a figure.
+- **A true figure with a false scope, rate or period built from words that are not on the
+  clause list** (M-A): "Across the network the depots have 3 buses dark.", "The network has 3
+  buses dark in a depot.", "At night the yard at Agra has 3 buses dark." (The listed quantifier
+  and period words, as in "All depots have 3 buses dark." or "3 buses were dark in the last
+  week.", are refused since round 9.)
 - **A figure under another depot's name** (M-A), wherever two depots' facts are in one request:
   "3 buses are dark at Kaushambi." using Agra's count.
 - **A figure reused with another noun, or given a second noun** (M-A): "3 buses are dark. 3 buses
