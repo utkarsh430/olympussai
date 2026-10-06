@@ -235,6 +235,20 @@ export function resetAnalysisForTests(): void {
 }
 
 /**
+ * Whether a list's depot filter names a unit of this snapshot; no filter
+ * always does. A well-formed id the feed does not have gets the same fixed 404
+ * as the depot routes, rather than a 200 with an empty list.
+ */
+export function depotFilterKnown(view: FleetSnapshotView, depotId: string | null): boolean {
+  if (depotId === null) return true;
+  const analysis = analyseSnapshot(view);
+  return analysis.depotsById.has(depotId) || analysis.exceptionsByDepot.has(depotId);
+}
+
+/** The fixed body for a depot the snapshot does not have. */
+export const DEPOT_NOT_FOUND = { error: 'Depot not found' } as const;
+
+/**
  * The envelope every depot response carries. Built from the request's own
  * view on every call, never memoised: the same rows can be fresh on one
  * request and stale last-good on the next.

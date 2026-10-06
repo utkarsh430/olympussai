@@ -4,6 +4,7 @@ import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize'
 import { getRepositories } from '@/lib/depot/repositories';
 import { buildAllocationResponse, parseAllocationQuery } from '@/lib/depot/live/allocationView';
 import { logDepotError } from '@/lib/depot/log';
+import { DEPOT_NOT_FOUND, depotFilterKnown } from '@/lib/depot/live/analysis';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,10 @@ export async function GET(request: NextRequest): Promise<Response> {
   const acceptEncoding = request.headers.get('accept-encoding');
   try {
     const view = await getRepositories().fleet.snapshot();
+    // A well-formed depot id the feed does not have is a 404, as on the depot routes.
+    if (!depotFilterKnown(view, parsed.query.depotId)) {
+      return jsonResponse(DEPOT_NOT_FOUND, { status: 404 });
+    }
     return jsonResponse(buildAllocationResponse(view, parsed.query), { acceptEncoding });
   } catch (error) {
     // The upstream message can name hosts or carry tokens; it is logged, never returned.

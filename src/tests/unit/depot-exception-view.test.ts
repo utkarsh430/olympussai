@@ -161,6 +161,14 @@ describe('GET /api/upsrtc/depot/exceptions', () => {
     },
   );
 
+  it('answers the fixed 404 for a well-formed depot id the feed does not have', async () => {
+    vi.mocked(getRepositories).mockReturnValueOnce(reposWith(async () => fixtureView()));
+    const res = await GET(request('?depotId=999999'));
+    expect(res.status).toBe(404);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.json()).toEqual({ error: 'Depot not found' });
+  });
+
   it('refuses an unauthorised caller before validating the query', async () => {
     vi.mocked(requireUpsrtcAccess).mockResolvedValueOnce(null);
     expect((await GET(request('?limit=999'))).status).toBe(401);
