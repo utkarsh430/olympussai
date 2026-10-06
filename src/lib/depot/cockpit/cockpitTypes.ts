@@ -2,6 +2,7 @@ import type { ExceptionSeverity } from '@/lib/depot/exceptions/types';
 import type { BusLocation, OutshedState } from '@/lib/depot/infer/types';
 import type { BusOpState, Coverage } from '@/lib/depot/types';
 import type { Attention } from './attention';
+import type { IndexMeta } from './indexMeta';
 import type { AvailabilitySegment, StandingLine } from './availability';
 import type { DepotExceptionLine, ExceptionGroup } from './exceptionGroups';
 
@@ -78,8 +79,8 @@ export interface VisitorRow {
 
 export interface CockpitModel {
   readonly header: CockpitHeader;
-  /** Index, rank, peer group and the window, as one line. */
-  readonly indexLine: string;
+  /** Index, rank, peer group and the window: the header's meta line. */
+  readonly indexMeta: IndexMeta;
   readonly attention: Attention;
   readonly availability: readonly AvailabilitySegment[];
   readonly availabilityText: string;

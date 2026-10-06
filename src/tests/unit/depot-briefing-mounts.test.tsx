@@ -24,7 +24,7 @@ vi.mock('@/components/depot/cockpit/CockpitMethod', () => ({ CockpitMethod: () =
 vi.mock('@/lib/depot/cockpit/cockpitModel', () => ({
   buildCockpit: (): unknown => ({
     header: { kindLabel: 'Depot', fleet: 0 },
-    indexLine: '',
+    indexMeta: { label: '', reason: null, href: '' },
     board: { fleet: 0, yard: { established: false, sentence: '' } },
     tracker: [],
     visitorCount: 0,

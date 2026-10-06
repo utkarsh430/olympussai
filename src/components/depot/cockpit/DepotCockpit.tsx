@@ -79,14 +79,10 @@ export function DepotCockpit() {
     );
   }
 
-  const { header } = model;
   return (
     <div data-testid="depot-cockpit" className="min-w-0 space-y-8">
       {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
       <AttentionStrip attention={model.attention} />
-      <p className="min-w-0 font-mono text-[13px] tabular-nums text-depot-muted" data-testid="depot-cockpit-index">
-        {`${header.kindLabel} · ${formatCount(header.fleet)} buses · ${model.indexLine}`}
-      </p>
       <AvailabilityBar
         fleet={model.board.fleet}
         segments={model.availability}

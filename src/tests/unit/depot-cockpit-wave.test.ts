@@ -7,7 +7,7 @@ import {
   standingLine,
 } from '@/lib/depot/cockpit/availability';
 import { depotExceptionLines, groupBusExceptions } from '@/lib/depot/cockpit/exceptionGroups';
-import { indexLine } from '@/lib/depot/cockpit/indexLine';
+import { indexMeta } from '@/lib/depot/cockpit/indexMeta';
 import type { CockpitHeader, StatusBoard } from '@/lib/depot/cockpit/cockpitTypes';
 import type { BusException, DepotException } from '@/lib/depot/exceptions/types';
 import type { OutshedRow } from '@/lib/depot/infer/types';
@@ -152,31 +152,37 @@ describe('availability bar', () => {
   });
 });
 
-describe('index line', () => {
+describe('index meta in the header', () => {
   const header: CockpitHeader = {
     name: 'K', kindLabel: 'Depot', fleet: 200, ranked: true, index: 31.64, rank: 34, peerCount: 38,
     peerGroupLabel: 'Large fleets', unrankedReason: null,
   };
+  const full = { lengthMin: 20, since: '2026-10-05T14:00:00.000Z', samples: 30 };
 
-  // The window words come from the shared module; the cockpit line must use them.
-  it('words the window', () => {
-    const line = (w: Parameters<typeof indexLine>[1]): string => indexLine(header, w, FEED_NOW);
-    expect(line({ lengthMin: 20, since: '2026-10-05T14:00:00.000Z', samples: 30 })).toMatch(/ · over the last 20 minutes$/);
-    expect(line({ lengthMin: 20, since: '2026-10-05T14:02:00.000Z', samples: 3 })).toMatch(/ · since 14:02, 3 snapshots$/);
-    expect(line({ lengthMin: 20, since: FEED_NOW, samples: 1 })).toMatch(/ · from one snapshot at 14:20$/);
-    expect(line(undefined)).toBe('Efficiency index 31.6 · rank 34 of 38 in Large fleets');
+  // The window words come from the shared module (its short form, for a meta line).
+  it('words the window with the shared short words', () => {
+    const label = (w: Parameters<typeof indexMeta>[1], samples?: number): string =>
+      indexMeta(header, w, FEED_NOW, samples).label;
+    expect(label(full)).toBe('Index 31.6 · rank 34/38 Large fleets · last 20 min');
+    expect(label({ lengthMin: 20, since: '2026-10-05T14:02:00.000Z', samples: 3 })).toMatch(/ · since 14:02$/);
+    expect(label({ lengthMin: 20, since: FEED_NOW, samples: 1 })).toMatch(/ · one snapshot at 14:20$/);
   });
 
-  it('carries index, rank, peer group and window on one line', () => {
-    expect(indexLine(header, { lengthMin: 20, since: '2026-10-05T14:00:00.000Z', samples: 30 }, FEED_NOW)).toBe(
-      'Efficiency index 31.6 · rank 34 of 38 in Large fleets · over the last 20 minutes',
-    );
+  it('never claims a span from one sample: no window, or this depot summed once', () => {
+    expect(indexMeta(header, undefined, FEED_NOW).label).toMatch(/ · one snapshot at 14:20$/);
+    const once = indexMeta(header, full, FEED_NOW, 1).label;
+    expect(once).not.toMatch(/last 20 min|over the last/);
+    expect(once).toMatch(/one snapshot/);
   });
 
-  it('gives an unranked depot its reason', () => {
-    expect(indexLine({ ...header, ranked: false, index: null, unrankedReason: 'Not an operating depot.' }, undefined, FEED_NOW)).toBe(
-      'Efficiency index: not ranked. Not an operating depot.',
-    );
+  it('links to the league table', () => {
+    expect(indexMeta(header, full, FEED_NOW).href).toBe('/project/depots/league');
+  });
+
+  it('gives an unranked depot its reason as a separate sentence', () => {
+    const meta = indexMeta({ ...header, ranked: false, index: null, unrankedReason: 'Not an operating depot.' }, full, FEED_NOW);
+    expect(meta.label).toBe('Index not ranked');
+    expect(meta.reason).toBe('Not an operating depot.');
   });
 });
 
