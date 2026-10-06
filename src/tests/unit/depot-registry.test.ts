@@ -19,13 +19,34 @@ describe('FEED_REGISTRY', () => {
     }
   });
 
-  it('uses only valid statuses, with the two live feeds live and the rest awaiting', () => {
+  it('uses only valid statuses: two live feeds, three modelled, the rest awaiting', () => {
     const live = FEED_REGISTRY.filter((f) => f.status === 'live').map((f) => f.id);
     expect(live).toEqual(['gps-device', 'route-details']);
     for (const feed of FEED_REGISTRY) {
       expect(['live', 'modelled', 'awaiting']).toContain(feed.status);
     }
-    expect(FEED_REGISTRY.filter((f) => f.status === 'awaiting')).toHaveLength(8);
+    const modelled = FEED_REGISTRY.filter((f) => f.status === 'modelled').map((f) => f.id);
+    expect(modelled).toEqual(['crew-duties', 'fuel', 'ticketing-ridership']);
+    expect(FEED_REGISTRY.filter((f) => f.status === 'awaiting')).toHaveLength(5);
+  });
+
+  it('states for each modelled feed the schema the real feed must provide and the pages it unlocks', () => {
+    const field = (id: string, name: string) =>
+      FEED_REGISTRY.find((f) => f.id === id)?.fields.find((f) => f.name === name);
+    expect(field('crew-duties', 'availability')?.type).toBe(
+      'available | weekly_off | leave | training | absent',
+    );
+    expect(field('crew-duties', 'role')?.type).toBe('driver | conductor');
+    expect(field('fuel', 'distanceKm')?.type).toBe('number');
+    expect(field('fuel', 'fuelLitres')?.note).toMatch(/litres/i);
+    expect(field('ticketing-ridership', 'boardings')?.type).toBe('integer');
+    expect(field('ticketing-ridership', 'revenue')?.note).toMatch(/rupees/i);
+    for (const id of ['crew-duties', 'fuel', 'ticketing-ridership']) {
+      const feed = FEED_REGISTRY.find((f) => f.id === id);
+      expect(feed?.summary).toMatch(/modelled/i);
+      expect(feed?.unlocks).toMatch(/page/i);
+      for (const entry of feed?.fields ?? []) expect(entry.note ?? '').not.toBe('');
+    }
   });
 
   it('labels statuses LIVE, MODELLED and AWAITING FEED', () => {
