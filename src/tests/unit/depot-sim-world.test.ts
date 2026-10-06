@@ -224,14 +224,14 @@ describe('parameters', () => {
 });
 
 describe('modelDepotMaster', () => {
-  it('never parks fewer than the fleet and is stable by depot, not date', () => {
+  it('never parks fewer than the fleet and is stable per depot', () => {
     for (const d of network(150, 'master')) {
-      const m = modelDepotMaster(d, DATE);
+      const m = modelDepotMaster(d);
       expect(m.parkingCapacity).toBeGreaterThanOrEqual(d.fleet);
       expect(m.parkingCapacity).toBeLessThanOrEqual(Math.ceil(d.fleet * 1.25));
       expect(m.workshopBays).toBe(Math.max(1, Math.round(d.fleet / 25)));
       expect(m.fuelPoints).toBe(Math.max(1, Math.round(d.fleet / 60)));
-      expect(modelDepotMaster(d, '2027-01-01')).toEqual(m);
+      expect(modelDepotMaster({ ...d })).toEqual(m);
     }
   });
 });

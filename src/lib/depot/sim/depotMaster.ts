@@ -10,15 +10,11 @@ import { seedFor } from './seed';
 import type { ModelledDepotMaster } from './types';
 
 /**
- * Parking, workshop and fuel capacity for a depot. Seeded by depot id only:
- * a depot's yard does not change from day to day. `_operatingDate` is accepted
- * so a dated feed can be swapped in later without changing the signature.
+ * Parking, workshop and fuel capacity for a depot. A depot's yard and bays do
+ * not change from day to day, which is why this takes no date: it is seeded by
+ * depot id only.
  */
-export function modelDepotMaster(
-  depot: DepotSummary,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- reserved, see above
-  _operatingDate: string,
-): ModelledDepotMaster {
+export function modelDepotMaster(depot: DepotSummary): ModelledDepotMaster {
   const fleet = Math.max(0, depot.fleet);
   const rng = new SeededRandom(seedFor(depot.id, STATIC_SEED_DATE, 'depot-master'));
   const factor = rng.float(PARKING_FACTOR_RANGE.min, PARKING_FACTOR_RANGE.max);
