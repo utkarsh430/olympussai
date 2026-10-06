@@ -86,6 +86,8 @@ function frozenStyle(columns: readonly RouteColumnSpec[], c: RouteColumnSpec): R
 export interface RouteTableProps {
   /** One server page, filtered and sorted on the server. */
   readonly data: DepotRoutesResponse;
+  /** The rows are the previous query's while the new one loads: dimmed and marked busy. */
+  readonly busy?: boolean;
   readonly query: RoutesQuery;
   readonly onQueryChange: (next: RoutesQuery) => void;
   /** Opens the route's drawer; the button is passed so focus can return to it. */
@@ -97,7 +99,7 @@ export interface RouteTableProps {
  * parameters (`routeQuery.ts`), so sorting is on every field the server sorts by and never
  * reorders only the visible page. Widths and tags come from `routeTableColumns`.
  */
-export function RouteTable({ data, query, onQueryChange, onOpenRoute }: RouteTableProps) {
+export function RouteTable({ data, busy = false, query, onQueryChange, onOpenRoute }: RouteTableProps) {
   const filtered = Boolean(query.depotId || query.serviceClass || query.q);
   const sort = query.sort;
   const frame = useRef<HTMLDivElement>(null);
@@ -120,7 +122,15 @@ export function RouteTable({ data, query, onQueryChange, onOpenRoute }: RouteTab
         onFiltersChange={changeFilters}
       />
       <div className="relative min-w-0">
-        <div ref={frame} role="region" aria-label="Route table" tabIndex={0} className="depot-table-frame">
+        <div
+          ref={frame}
+          role="region"
+          aria-label="Route table"
+          aria-busy={busy || undefined}
+          data-testid="route-table-frame"
+          tabIndex={0}
+          className={`depot-table-frame ${busy ? 'opacity-60' : ''}`}
+        >
           <table className={`depot-table depot-table-fixed ${TIER_MIN_WIDTH}`} style={tierWidths(columns)}>
             <caption className="sr-only">Every route in the live feed</caption>
             <thead>

@@ -10,6 +10,7 @@ import {
   StaleStrip,
 } from '@/components/depot/shell/DataStates';
 import { useDepotAllocation } from '@/hooks/useDepotAllocation';
+import { useDebounced } from '@/hooks/useDebounced';
 import { useDepotRoutes } from '@/hooks/useDepotRoutes';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { unmovedGroups } from '@/lib/depot/routes/allocationGroups';
@@ -25,6 +26,8 @@ import { RouteTable } from './RouteTable';
 import { RoutesMethod } from './RoutesMethod';
 
 const TABLE_TITLE_ID = 'route-table-title';
+/** The name search asks the server once typing pauses, not on every key. */
+export const ROUTE_SEARCH_DEBOUNCE_MS = 250;
 
 /** The page's footprint while neither response has arrived: hero band, then the table. */
 function RoutesLoading() {
@@ -47,7 +50,10 @@ export function RoutesPage() {
   const [query, setQuery] = useState<RoutesQuery>(DEFAULT_ROUTES_QUERY);
   const [opened, setOpened] = useState<RouteListItem | null>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
-  const routes = useDepotRoutes(query);
+  // The box shows every key at once; the request waits for a pause in typing.
+  const searched = useDebounced(query.q, ROUTE_SEARCH_DEBOUNCE_MS);
+  const requested = useMemo(() => ({ ...query, q: searched }), [query, searched]);
+  const routes = useDepotRoutes(requested);
   const allocation = useDepotAllocation();
   const routeData = routes.data;
   const plan = allocation.data;
@@ -72,7 +78,7 @@ export function RoutesPage() {
   }, [refreshRoutes, refreshPlan]);
   const move = opened === null ? null : (plan?.moves.find((m) => m.routeName === opened.routeName) ?? null);
 
-  if (routes.loading && allocation.loading) return <RoutesLoading />;
+  if (routeData === null && routes.loading && allocation.loading) return <RoutesLoading />;
 
   const stale =
     (routeData !== null && (routeData.stale || routes.error !== null)) ||
@@ -110,15 +116,18 @@ export function RoutesPage() {
           count={routeData?.inFeed}
           note="Select a route to see its stops"
         />
-        {routes.loading ? (
-          <LoadingBlock rows={10} label="Loading the route table" />
-        ) : routeData !== null ? (
+        {/* The table, its filters and its pager stay mounted while a new query loads, so
+            the search box keeps focus and every key; the previous rows show as busy. */}
+        {routeData !== null ? (
           <RouteTable
             data={routeData}
+            busy={routes.previous === true}
             query={query}
             onQueryChange={setQuery}
             onOpenRoute={openRoute}
           />
+        ) : routes.loading ? (
+          <LoadingBlock rows={10} label="Loading the route table" />
         ) : (
           <ErrorPanel
             title="Routes list unavailable"
