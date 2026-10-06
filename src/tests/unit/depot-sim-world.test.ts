@@ -44,7 +44,9 @@ function network(count: number, seed: string): DepotSummary[] {
     const fleet = rng.int(0, 200);
     const offRoad = rng.int(0, fleet);
     const kind = rng.pick<DepotKind>(['depot', 'depot', 'depot', 'depot', 'hired', 'electric']);
-    return depot(String(i + 1), fleet, offRoad, rng.int(0, fleet), kind);
+    // Every seventh depot carries an inconsistent anchor so the sanitising branch is exercised.
+    const skewed = i % 7 === 3 ? rng.pick([fleet + rng.int(1, 30), -rng.int(1, 30)]) : offRoad;
+    return depot(String(i + 1), fleet, skewed, rng.int(0, fleet), kind);
   });
 }
 
@@ -62,6 +64,7 @@ function assertSane(balance: DepotBalance): void {
     expect(n).toBeGreaterThanOrEqual(0);
   }
   expect(Number.isInteger(balance.balance)).toBe(true);
+  expect(balance.offRoad).toBeLessThanOrEqual(balance.fleet);
   expect(balance.available).toBe(balance.fleet - balance.offRoad);
   expect(balance.required).toBe(balance.peakRequirement + balance.spareTarget);
   expect(balance.balance).toBe(balance.available - balance.required);
@@ -92,6 +95,10 @@ describe('modelBalances anchoring invariants', () => {
     expect(depots).toHaveLength(150);
     const out = modelBalances(depots, NO_YARDS, DATE, DEFAULT_REQUIREMENT_PARAMS);
     out.forEach(assertSane);
+    // A sanity check for the default parameters on a synthetic network, not a guarantee for
+    // live data: the model is centred on the peer median with symmetric noise, so on a
+    // balanced-looking network the errors largely cancel. A skewed real network can still
+    // be genuinely short or long.
     const required = out.reduce((s, b) => s + b.required, 0);
     const available = out.reduce((s, b) => s + b.available, 0);
     expect(Math.abs(required - available)).toBeLessThanOrEqual(0.2 * available);
@@ -161,6 +168,37 @@ describe('modelBalances anchoring invariants', () => {
   });
 });
 
+describe('inconsistent live anchors', () => {
+  const run = (d: DepotSummary): DepotBalance =>
+    modelBalances([d], NO_YARDS, DATE, DEFAULT_REQUIREMENT_PARAMS)[0] as DepotBalance;
+
+  it('clamps off-road above fleet to fleet', () => {
+    const b = run(depot('1', 10, 15, 3));
+    expect(b.fleet).toBe(10);
+    expect(b.offRoad).toBe(10);
+    expect(b.available).toBe(0);
+    expect(b.required).toBe(0);
+    assertSane(b);
+  });
+
+  it('clamps negative off-road to zero', () => {
+    const b = run(depot('1', 10, -4, 3));
+    expect(b.offRoad).toBe(0);
+    expect(b.available).toBe(10);
+    assertSane(b);
+  });
+
+  it('floors fractional anchors and zeroes non-finite ones', () => {
+    const frac = run(depot('1', 10.7, 2.6, 3));
+    expect([frac.fleet, frac.offRoad, frac.available]).toEqual([10, 2, 8]);
+    assertSane(frac);
+    for (const bad of [Number.NaN, Infinity, -Infinity]) {
+      assertSane(run(depot('1', bad, 2, 3)));
+      assertSane(run(depot('1', 20, bad, 3)));
+    }
+  });
+});
+
 describe('parameters', () => {
   it('uses the optimiser default spare ratio', () => {
     expect(DEFAULT_REQUIREMENT_PARAMS.spareRatio).toBe(DEFAULT_SPARE_RATIO);
@@ -194,6 +232,35 @@ describe('modelDepotMaster', () => {
       expect(m.workshopBays).toBe(Math.max(1, Math.round(d.fleet / 25)));
       expect(m.fuelPoints).toBe(Math.max(1, Math.round(d.fleet / 60)));
       expect(modelDepotMaster(d, '2027-01-01')).toEqual(m);
+    }
+  });
+});
+
+describe('service class precedence', () => {
+  const classOf = (route: string): string => modelBus('REG-X', route).serviceClass;
+
+  it('lets the most specific class win: premium over ac over express over ordinary', () => {
+    expect(classOf('ORD_VOLVO')).toBe('premium');
+    expect(classOf('VOLVO_ORD')).toBe('premium');
+    expect(classOf('EXP_AC')).toBe('ac');
+    expect(classOf('AC_EXP')).toBe('ac');
+    expect(classOf('ORD_EXP')).toBe('express');
+    expect(classOf('EXP_ORD')).toBe('express');
+    expect(classOf('AC_SCANIA')).toBe('premium');
+  });
+
+  it('leaves a single token unchanged', () => {
+    expect(classOf('X_ORD')).toBe('ordinary');
+    expect(classOf('X_EXP')).toBe('express');
+    expect(classOf('X_AC')).toBe('ac');
+    expect(classOf('X_JAN')).toBe('premium');
+  });
+
+  it('does not match partial tokens; the seeded sample decides', () => {
+    for (const route of ['ACCESS', 'BAREILLY_AC2', 'EXPRESSWAY_BACK', 'JANUARY']) {
+      for (const reg of ['REG-A', 'REG-B', 'REG-C', 'KA01F1234']) {
+        expect(modelBus(reg, route).serviceClass).toBe(modelBus(reg, null).serviceClass);
+      }
     }
   });
 });
