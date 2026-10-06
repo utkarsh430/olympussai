@@ -375,9 +375,12 @@ describe('renderDraft', () => {
       const emoji = sanitizeFactText('\u{1F600}'.repeat(50), 10);
       expect(Array.from(emoji)).toHaveLength(10);
       expect(emoji).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+      // 'x' + U+0301 has no precomposed form, so NFKC keeps two code points.
+      // A naive cut at 9 code points would keep the tenth 'x' and drop its mark.
       const marks = sanitizeFactText('x́'.repeat(20), 10);
-      expect(marks).not.toMatch(/^́|́…$/);
-      expect(Array.from(marks).at(-2)).toBe('́');
+      expect(marks).toBe(`${'x́'.repeat(4)}…`);
+      expect(marks.slice(0, -1)).toMatch(/^(?:x́)+$/u);
+      expect(Array.from(marks).length).toBeLessThanOrEqual(10);
     });
   });
 
