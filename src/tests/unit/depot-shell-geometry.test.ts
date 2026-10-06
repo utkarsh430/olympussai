@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -47,7 +48,8 @@ describe('the shell geometry', () => {
 
 describe('tableWidth', () => {
   it('sums the named columns', () => {
-    expect(tableWidth({ a: 100, b: 50, c: 7 }, ['a', 'b'])).toBe(150);
+    const widths = { a: 100, b: 50, c: 7 };
+    expect(tableWidth(widths, ['a', 'b'])).toBe(150);
   });
 
   it('adds the expander column when the table has one', () => {
