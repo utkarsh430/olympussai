@@ -91,13 +91,42 @@ function toRow(raw: Rec, registrationNumber: string): DepotBusRow {
   };
 }
 
-function gpsTime(row: DepotBusRow): number {
-  return row.gpsTimestamp ? Date.parse(row.gpsTimestamp) : -Infinity;
+/**
+ * The time fields the map projection (`normalizeLivePayload`) reads, in its order. Repeated
+ * registrations are decided by the same time, so both projections keep the same row.
+ */
+const MAP_TIME_ALIASES = ['timestamp', 'receivedTime', 'gps_timestamp', 'gpsTimestamp', 'time'];
+
+interface Candidate {
+  readonly row: DepotBusRow;
+  readonly hasFix: boolean;
+  readonly timeMs: number;
+}
+
+function toCandidate(raw: Rec, row: DepotBusRow): Candidate {
+  const time = parseTimestamp(pick(raw, MAP_TIME_ALIASES));
+  return {
+    row,
+    hasFix: row.latitude !== null && row.longitude !== null,
+    timeMs: time === null ? -Infinity : Date.parse(time),
+  };
+}
+
+/**
+ * The map keeps, among a registration's rows with a fix, the newest by its time, and the
+ * first on a tie; it never shows a row without a fix. So a row with a fix always beats
+ * one without, and otherwise only a strictly newer row replaces the one kept: the depot
+ * pages count the bus under the depot of the row whose pin the map shows. A bus with no
+ * fix in any row keeps its newest row in the same way.
+ */
+function replaces(incoming: Candidate, kept: Candidate): boolean {
+  if (incoming.hasFix !== kept.hasFix) return incoming.hasFix;
+  return incoming.timeMs > kept.timeMs;
 }
 
 export function normalizeDepotRows(payload: unknown): NormalizeDepotResult {
   const records = extractArray(payload);
-  const byReg = new Map<string, DepotBusRow>();
+  const byReg = new Map<string, Candidate>();
   let rejected = 0;
 
   for (const record of records) {
@@ -107,14 +136,13 @@ export function normalizeDepotRows(payload: unknown): NormalizeDepotResult {
       continue;
     }
 
-    const row = toRow(record, registrationNumber);
-    // Duplicate registrations: newest GPS timestamp wins, as in normalizeLivePayload.
-    const existing = byReg.get(registrationNumber);
-    if (!existing || gpsTime(row) > gpsTime(existing)) byReg.set(registrationNumber, row);
+    const candidate = toCandidate(record, toRow(record, registrationNumber));
+    const kept = byReg.get(registrationNumber);
+    if (!kept || replaces(candidate, kept)) byReg.set(registrationNumber, candidate);
   }
 
   return {
-    rows: [...byReg.values()],
+    rows: [...byReg.values()].map((candidate) => candidate.row),
     recordCount: records.length,
     rejectedRecordCount: rejected,
   };
