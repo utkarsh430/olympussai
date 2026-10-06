@@ -51,12 +51,20 @@ const INITIAL_DIAGNOSTICS: Readonly<LiveDiagnostics> = {
   consecutiveFailures: 0,
 };
 
-/** Diagnostics snapshot, surfaced via the developer drawer. */
+/**
+ * Diagnostics snapshot, surfaced via the developer drawer.
+ *
+ * Behaviour change from the pre-snapshot route: diagnostics advance once per
+ * upstream fetch, not once per request, so N concurrent failing requests that
+ * share one fetch count as a single failure.
+ */
 export const liveDiagnostics: LiveDiagnostics = { ...INITIAL_DIAGNOSTICS };
 
 // Module-scoped: survives across requests in a warm server process.
 const cache = new TtlCache<LiveSnapshot>(LIVE_CACHE_TTL_MS);
 let inFlight: Promise<LiveSnapshotResult> | null = null;
+// Bumped by the test reset so a refresh started before it cannot write afterwards.
+let generation = 0;
 
 /** Both projections from one payload, so they can never describe different fetches. */
 function buildSnapshot(payload: unknown, now: number): LiveSnapshot {
@@ -72,8 +80,7 @@ function buildSnapshot(payload: unknown, now: number): LiveSnapshot {
   };
 }
 
-function fixtureResult(reason: string, now: number): LiveSnapshotResult {
-  liveDiagnostics.lastError = reason;
+function fixtureResult(now: number): LiveSnapshotResult {
   return { snapshot: buildSnapshot(liveFixture, now), source: 'fixture', stale: true };
 }
 
@@ -89,36 +96,48 @@ async function safeFetch(): Promise<UpstreamFetchResult> {
 }
 
 async function refresh(now: number): Promise<LiveSnapshotResult> {
+  const startedIn = generation;
+  // A test reset during the fetch orphans this refresh: it still answers its own
+  // callers but must not touch the cache or diagnostics the reset just cleared.
+  const isCurrent = (): boolean => generation === startedIn;
+
   liveDiagnostics.lastAttemptAt = new Date(now).toISOString();
   const result = await safeFetch();
-  liveDiagnostics.lastStatus = result.status;
+  if (isCurrent()) liveDiagnostics.lastStatus = result.status;
 
+  let failure: string;
   if (result.ok) {
     const snapshot = buildSnapshot(result.payload, now);
     if (snapshot.buses.length > 0) {
-      cache.set(CACHE_KEY, snapshot, now);
-      liveDiagnostics.lastSuccessAt = snapshot.fetchedAt;
-      liveDiagnostics.lastError = null;
-      liveDiagnostics.consecutiveFailures = 0;
+      if (isCurrent()) {
+        cache.set(CACHE_KEY, snapshot, now);
+        liveDiagnostics.lastSuccessAt = snapshot.fetchedAt;
+        liveDiagnostics.lastError = null;
+        liveDiagnostics.consecutiveFailures = 0;
+      }
       return { snapshot, source: 'live', stale: false };
     }
-    liveDiagnostics.lastError = 'Upstream responded but contained no usable bus records';
+    failure = 'Upstream responded but contained no usable bus records';
   } else {
-    liveDiagnostics.lastError = result.error ?? 'Unknown upstream failure';
+    failure = result.error ?? 'Unknown upstream failure';
   }
 
-  liveDiagnostics.consecutiveFailures += 1;
+  if (isCurrent()) {
+    liveDiagnostics.lastError = failure;
+    liveDiagnostics.consecutiveFailures += 1;
+  }
 
   // Degrade gracefully: last-known-good, then fixture. Never a blank screen.
   const lastGood = cache.getLastGood(CACHE_KEY);
   if (lastGood) return { snapshot: lastGood.value, source: 'cache', stale: true };
-  return fixtureResult(liveDiagnostics.lastError ?? 'Upstream unavailable', now);
+  return fixtureResult(now);
 }
 
 export function getLiveSnapshot(now: number = Date.now()): Promise<LiveSnapshotResult> {
   // Explicit offline demo mode for presentations without connectivity.
   if (process.env.NEXT_PUBLIC_DEMO_MODE === '1') {
-    return Promise.resolve(fixtureResult('Fixture mode forced via NEXT_PUBLIC_DEMO_MODE', now));
+    liveDiagnostics.lastError = 'Fixture mode forced via NEXT_PUBLIC_DEMO_MODE';
+    return Promise.resolve(fixtureResult(now));
   }
 
   const cached = cache.get(CACHE_KEY, now);
@@ -139,5 +158,6 @@ export function getLiveSnapshot(now: number = Date.now()): Promise<LiveSnapshotR
 export function resetLiveSnapshotForTests(): void {
   cache.clear();
   inFlight = null;
+  generation += 1;
   Object.assign(liveDiagnostics, INITIAL_DIAGNOSTICS);
 }
