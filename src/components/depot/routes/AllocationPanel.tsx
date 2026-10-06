@@ -14,6 +14,7 @@ import {
   paramsSentence,
 } from '@/lib/depot/routes/allocationWording';
 import type { DepotAllocationResponse } from '@/lib/depot/routes/api';
+import { ROUTES_TEXT } from '@/lib/depot/routes/routesPageText';
 import type { Coverage } from '@/lib/depot/types';
 import { MovesTable } from './MovesTable';
 
@@ -43,7 +44,7 @@ function KmFigure({
       >
         {value}
       </dd>
-      <dd className="depot-prose text-xs">km a day</dd>
+      <dd className="depot-prose text-xs">{ROUTES_TEXT.kmADay}</dd>
     </div>
   );
 }
@@ -57,14 +58,14 @@ export function AllocationPanel({ allocation }: { readonly allocation: DepotAllo
       {h.planned ? (
         <dl className="depot-kpi-grid">
           <KmFigure
-            label="Dead km saved"
+            label={ROUTES_TEXT.savedLabel}
             value={h.saving}
             coverage={allocation.savedKmPerDay.coverage}
             hero
           />
-          <KmFigure label="Dead km now" value={h.now} coverage={allocation.beforeKmPerDay.coverage} />
+          <KmFigure label={ROUTES_TEXT.nowLabel} value={h.now} coverage={allocation.beforeKmPerDay.coverage} />
           <KmFigure
-            label="After the moves"
+            label={ROUTES_TEXT.afterLabel}
             value={h.after}
             coverage={allocation.afterKmPerDay.coverage}
           />
@@ -87,7 +88,7 @@ export function AllocationPanel({ allocation }: { readonly allocation: DepotAllo
       </div>
       {rows.length > 0 ? (
         <>
-          <h3 className="depot-label mb-2 mt-5">Recommended moves, largest saving first</h3>
+          <h3 className="depot-label mb-2 mt-5">{ROUTES_TEXT.movesTitle}</h3>
           <MovesTable rows={rows} />
         </>
       ) : null}
@@ -101,9 +102,9 @@ export function AllocationSection({ state }: { readonly state: DepotAllocationSt
   return (
     <section aria-labelledby={TITLE_ID} className="mb-10">
       <h2 id={TITLE_ID} className="depot-section-label">
-        Which depot should run each route
+        {ROUTES_TEXT.allocationTitle}
       </h2>
-      <p className="font-sans text-sm leading-[1.55] text-depot-ink mb-3">{RECOMMENDATION_ONLY}</p>
+      <p className="mb-3 font-sans text-sm leading-[1.55] text-depot-ink">{RECOMMENDATION_ONLY}</p>
       {loading ? (
         <LoadingBlock rows={4} rowHeight={48} label="Loading the allocation plan" />
       ) : data ? (
