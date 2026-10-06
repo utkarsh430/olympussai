@@ -34,7 +34,11 @@ const call = (): Promise<Response> =>
     params: Promise.resolve({ routeName: 'R_1' }),
   });
 
+/** The route keeps its limiters on `globalThis`; each test starts from fresh, empty windows. */
+const LIMITERS_KEY = Symbol.for('olympuss.depot.routeProfileFetchLimiters');
+
 beforeEach(() => {
+  delete (globalThis as Record<symbol, unknown>)[LIMITERS_KEY];
   sidCounter += 1;
   signedInAs(`throttle-${sidCounter}`);
   vi.mocked(getLiveSnapshot)
@@ -83,12 +87,17 @@ describe('route profile upstream throttle', () => {
 
   it('limits cache misses from all identities together', async () => {
     vi.mocked(routeProfileNeedsFetch).mockReturnValue(true);
-    // Earlier tests in this file spent some of the process window; fill the rest.
+    // A fresh process window, each miss from a new identity: some misses pass, and the
+    // window closes within the stated ceiling (a miss may be charged more than one call).
+    let passed = 0;
     let status = 200;
     for (let i = 0; i <= perProcessPerMinute && status === 200; i += 1) {
       signedInAs(`crowd-${i}`);
       status = (await call()).status;
+      if (status === 200) passed += 1;
     }
+    expect(passed).toBeGreaterThan(0);
+    expect(passed).toBeLessThanOrEqual(perProcessPerMinute);
     expect(status).toBe(429);
     vi.mocked(routeProfileNeedsFetch).mockReturnValue(false);
     expect((await call()).status).toBe(200);
