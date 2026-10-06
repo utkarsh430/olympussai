@@ -4,6 +4,7 @@ import { haversineKm } from '@/lib/depot/infer/geo';
 import { REPORTING_WINDOW_MIN } from '@/lib/depot/infer/thresholds';
 import { lastHeardText } from '@/lib/depot/roster/rosterModel';
 import type { BusOpState } from '@/lib/depot/types';
+import { judgedTime, positionsFitTimetable } from './timetableFit';
 
 export type NextStopMethod = 'position' | 'schedule';
 
@@ -36,6 +37,18 @@ export function feedTimeOfDay(feedNow: string | null): string | null {
 
 function isLocated(stop: CanonicalStop): stop is LocatedStop {
   return Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude);
+}
+
+/**
+ * The located stops whose position fits the timetable, by the rule the route
+ * profile uses: a stop placed at a same-named place elsewhere is never the
+ * nearest stop and never widens the longest gap.
+ */
+function fittingStops(located: readonly LocatedStop[]): readonly LocatedStop[] {
+  const fits = positionsFitTimetable(
+    located.map((stop) => ({ lat: stop.latitude, lng: stop.longitude, scheduled: judgedTime(stop) })),
+  );
+  return located.filter((_, index) => fits[index]);
 }
 
 function isUsablePosition(position: BusPosition | null): position is BusPosition {
@@ -164,7 +177,7 @@ export function resolveNextStop(
   timeOfDay: string | null,
 ): NextStopResolution {
   const ordered = [...stops].sort((a, b) => a.sequence - b.sequence);
-  const located = ordered.filter(isLocated);
+  const located = fittingStops(ordered.filter(isLocated));
   const { position } = bus;
   let reason: string | null = null;
   if (isUsablePosition(position) && located.length >= MIN_LOCATED_STOPS) {

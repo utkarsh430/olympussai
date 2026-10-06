@@ -3,6 +3,7 @@ import type { CanonicalStop } from '@/models/canonical';
 import { REPORTING_WINDOW_MIN } from '@/lib/depot/infer/thresholds';
 import { feedTimeOfDay, resolveNextStop } from '@/lib/depot/routes/nextStop';
 import type { BusOpState } from '@/lib/depot/types';
+import { VND_1613_STOPS } from './depot-route-vnd-1613.fixtures';
 
 /** Stops spaced 0.1 degrees of longitude apart along one latitude, in sequence order. */
 function stop(sequence: number, longitude: number | null, time: string | null): CanonicalStop {
@@ -181,5 +182,37 @@ describe('resolveNextStop trust rule', () => {
       next: null,
       reason: 'No stop is scheduled later than the feed time.',
     });
+  });
+});
+
+describe('next stop with a stop placed far off its route', () => {
+  /** A same-named place about 200 km north, timed between B and C. */
+  const FAR: CanonicalStop = { ...stop(3, 73.15, '08:45:00'), latitude: 20.8, name: 'Far off' };
+  const LAST: CanonicalStop = { ...C, sequence: 4 };
+  const WITH_FAR = [A, B, FAR, LAST];
+  const bus = (latitude: number, longitude: number) => ({
+    position: { latitude, longitude },
+    gpsAgeMin: 0,
+    state: 'in_service' as const,
+  });
+
+  it('never names the far-off stop as the nearest one, nor counts its gap', () => {
+    // Beside the far-off position: without it the bus is far from every stop.
+    const result = resolveNextStop(WITH_FAR, bus(20.8, 73.15), '08:35');
+    expect(result.next).toEqual({ stop: FAR, method: 'schedule' });
+    expect(result.reason).toBe('This bus is away from this route.');
+  });
+
+  it('names the next kept stop for a bus on the line', () => {
+    expect(resolveNextStop(WITH_FAR, bus(19, 73.12), '08:35').next).toEqual({
+      stop: LAST,
+      method: 'position',
+    });
+  });
+
+  it('names MOHANSARAI, not the far-off RAMNAGAR VARANASI, just past ADALHAT on the recorded route', () => {
+    const result = resolveNextStop(VND_1613_STOPS, bus(25.15, 83.02), '19:45');
+    expect(result.next?.method).toBe('position');
+    expect(result.next?.stop.name).toBe('MOHANSARAI');
   });
 });

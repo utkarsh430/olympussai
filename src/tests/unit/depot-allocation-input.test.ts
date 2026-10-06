@@ -62,6 +62,7 @@ function profile(name: string): RouteProfile {
     destination: stops[1]!,
     stops,
     unlocatedStops: 0,
+    mislocatedStops: 0,
     scheduledDurationMin: 120,
     lengthKm: 4.4,
     sampledFrom: 'UP32X1',

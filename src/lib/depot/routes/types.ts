@@ -8,6 +8,10 @@ import type { DepotFeedEnvelope } from '../api';
 export interface RouteStop {
   readonly name: string;
   readonly sequence: number;
+  /**
+   * Null when the upstream gave no usable position, or when the position given does
+   * not fit the timetable (`RouteProfile.mislocatedStops`): either way it is not used.
+   */
   readonly lat: number | null;
   readonly lng: number | null;
   /** Scheduled wall-clock time, `HH:MM:SS`. */
@@ -22,14 +26,20 @@ export interface RouteProfile {
   readonly routeId: string | null;
   readonly description: string | null;
   readonly direction: string | null;
-  /** First and last stop by sequence, located or not. */
+  /** First and last stop by sequence, located or not (`terminalsOf` gives the located ends). */
   readonly origin: RouteStop | null;
   readonly destination: RouteStop | null;
   readonly stops: readonly RouteStop[];
   /** Stops the upstream gave no usable coordinates for. */
   readonly unlocatedStops: number;
+  /**
+   * Stops whose given position does not fit the timetable (a same-named place
+   * elsewhere, `timetableFit.ts`): their position is dropped, so they are left out
+   * of the length and never a terminal. Not counted in `unlocatedStops`.
+   */
+  readonly mislocatedStops: number;
   readonly scheduledDurationMin: number | null;
-  /** Straight-line sum over located stops; null with fewer than two of them. */
+  /** Straight-line sum over located stops that fit the timetable; null with fewer than two. */
   readonly lengthKm: number | null;
   /** Registration the profile was read from. */
   readonly sampledFrom: string;

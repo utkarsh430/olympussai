@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { RouteProfile, RouteStop } from '@/lib/depot/routes/types';
 import { deadKmFor, terminalsOf } from '@/lib/depot/routes/deadKm';
 import { haversineKm } from '@/lib/depot/infer/geo';
+import { buildRouteProfile } from '@/lib/depot/routes/routeProfile';
+import type { CanonicalStop } from '@/models/canonical';
+import { VND_1613_SCHEDULE } from './depot-route-vnd-1613.fixtures';
 
 function stop(sequence: number, lat: number | null, lng: number | null, name = `S${sequence}`) {
   return { name, sequence, lat, lng, scheduled: null } satisfies RouteStop;
@@ -18,6 +21,7 @@ function profile(stops: readonly RouteStop[], confirmed = true): RouteProfile {
     destination: stops[stops.length - 1] ?? null,
     stops,
     unlocatedStops: stops.filter((s) => s.lat === null).length,
+    mislocatedStops: 0,
     scheduledDurationMin: null,
     lengthKm: null,
     sampledFrom: 'UP00',
@@ -145,5 +149,44 @@ describe('deadKmFor', () => {
     const a = deadKmFor(YARD, profile(stops), 1)!;
     const b = deadKmFor(YARD, profile(stops), 2)!;
     expect(b.perTripKm).toBeGreaterThan(a.perTripKm * 1.9);
+  });
+
+  it('measures from the kept terminal when the first stop is placed far off its route', () => {
+    const timed = (sequence: number, lat: number, lng: number, time: string): CanonicalStop => ({
+      id: `t-${sequence}`,
+      name: `T${sequence}`,
+      sequence,
+      latitude: lat,
+      longitude: lng,
+      scheduledArrival: time,
+      scheduledDeparture: time,
+    });
+    // T1 is a same-named place about 300 km away, timed ten minutes before T2.
+    const built = buildRouteProfile(
+      {
+        ...VND_1613_SCHEDULE,
+        stops: [
+          timed(1, 29.5, 78.5, '10:00:00'),
+          timed(2, 26.9, 80.9, '10:10:00'),
+          timed(3, 26.85, 80.95, '10:20:00'),
+          timed(4, 26.8, 81.1, '10:40:00'),
+        ],
+      },
+      'UP00',
+      '2026-10-06',
+    );
+    const dead = deadKmFor(YARD, built, 1.3)!;
+    const outM = Math.round(haversineKm(YARD.lat, YARD.lng, 26.9, 80.9) * 1000 * 1.3);
+    expect(dead.firstStopUsed).toBe('T2');
+    expect(dead.lastStopUsed).toBe('T4');
+    expect(dead.approximated).toBe(true);
+    expect(dead.outKm).toBe(Math.round(outM / 100) / 10);
+  });
+
+  it('measures the recorded route from its real terminals', () => {
+    const dead = deadKmFor(YARD, buildRouteProfile(VND_1613_SCHEDULE, 'UP00', '2026-10-06'), 1.3)!;
+    expect(dead.firstStopUsed).toBe('VINDHYANAGAR');
+    expect(dead.lastStopUsed).toBe('VARANASI CANT');
+    expect(dead.approximated).toBe(false);
   });
 });

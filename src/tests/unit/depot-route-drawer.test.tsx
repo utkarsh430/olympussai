@@ -17,6 +17,8 @@ vi.mock('@/hooks/useRouteProfile', () => ({
 }));
 
 import { RouteDrawer } from '@/components/depot/routes/RouteDrawer';
+import { buildRouteProfile } from '@/lib/depot/routes/routeProfile';
+import { VND_1613_SCHEDULE } from './depot-route-vnd-1613.fixtures';
 
 const ROUTE = { routeName: 'RKD_1_ORD_OUT', buses: 2, operators: [], deadKm: null };
 let host: HTMLDivElement;
@@ -113,5 +115,20 @@ describe('RouteDrawer', () => {
     expect(document.querySelector('[data-testid="route-drawer-empty"]')?.textContent).toContain(
       'No stops in the feed for this route.',
     );
+  });
+
+  it('lists every stop of the recorded route and says which positions are left out', () => {
+    const profile = buildRouteProfile(VND_1613_SCHEDULE, 'UP64AT0001', '2026-10-06');
+    hook.state = { data: { status: 'ok', profile, fetchedAt: 'x' }, error: null, loading: false, retryAfterSeconds: null, slow: false };
+    render(() => undefined);
+    const text = document.body.textContent ?? '';
+    expect(text).toContain('From VINDHYANAGAR to VARANASI CANT');
+    expect(text).toContain('8 of 37 stops have no usable position, so they are left out of distances.');
+    expect(text).toContain(
+      '4 stops have a position that does not fit the timetable and are left out of distances.',
+    );
+    expect(text).toContain('NIGAHEE');
+    expect(text).toContain('RAMNAGAR VARANASI');
+    expect(text).toContain('20:09');
   });
 });
