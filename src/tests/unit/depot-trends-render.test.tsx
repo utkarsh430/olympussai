@@ -237,9 +237,11 @@ describe('depot Trends page', () => {
     expect(renderToStaticMarkup(<DepotTrends metric="onRoadShare" />)).toContain(
       'modelled requirement of 40 (36 at peak plus 4 spare)',
     );
-    expect(page).toContain('Both sides are MODELLED');
+    expect(page).toContain('The forecast rests on a generated history');
+    expect(page).not.toContain('Both sides are MODELLED');
     expect(page).toContain('Requirement');
-    expect(page).toContain('Days below the requirement');
+    expect(page).toContain('Days short');
+    expect(page).toContain('below the requirement');
   });
 
   it('links the measures to this depot', () => {

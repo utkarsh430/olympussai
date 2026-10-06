@@ -103,7 +103,13 @@ describe('the depot availability band', () => {
     expect(band.match(/<li/g)).toHaveLength(3);
     const section = text(markup.slice(markup.indexOf('trends-availability')));
     expect(section).toContain('36 at peak + 4 spare');
-    expect(section.match(/Both sides are MODELLED/g)).toHaveLength(1);
+    // Critique depot trends MUST 1: the note sits on the tagged label, the tag word never in prose.
+    expect(
+      markup
+        .slice(markup.indexOf('trends-availability-heading'))
+        .match(/The forecast rests on a generated history/g),
+    ).toHaveLength(1);
+    expect(section).not.toMatch(/Both sides are MODELLED/);
   });
 });
 
@@ -145,7 +151,9 @@ describe('the depot chart table', () => {
     act(() => header.click());
     const descending = values().map((v) => parseFloat(v));
     expect([...descending].sort((a, b) => b - a)).toEqual(descending);
-    expect(container.querySelector('th[aria-sort="ascending"], th[aria-sort="descending"]')?.textContent).toContain('Value');
+    expect(
+      container.querySelector('th[aria-sort="ascending"], th[aria-sort="descending"]')?.textContent,
+    ).toContain('Value');
   });
 });
 

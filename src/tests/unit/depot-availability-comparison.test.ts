@@ -97,7 +97,7 @@ describe('available buses against the modelled requirement', () => {
 
   it('says plainly that both sides are modelled', () => {
     expect(BOTH_MODELLED_NOTE).toBe(
-      'Both sides are MODELLED: the forecast rests on a generated history, and the requirement ' +
+      'The forecast rests on a generated history, and the requirement ' +
         'stands in for a network timetable that has not been supplied.',
     );
   });
