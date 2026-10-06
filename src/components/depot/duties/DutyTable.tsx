@@ -23,6 +23,9 @@ export interface DutyTableProps {
 }
 
 const DASH = '—';
+/** Cyan, underlined on hover and focus (the shared `depot-table-link`, spelled out until the shell has it). */
+const TABLE_LINK =
+  'depot-table-link text-holo-glow underline-offset-2 hover:underline focus-visible:underline';
 
 /**
  * The section label's MODELLED tag covers the board (ruling S51), so no header repeats
@@ -53,7 +56,7 @@ function buildColumns(depotId: string): readonly Column<BoardRow>[] {
         r.registrationNumber === null ? (
           DASH
         ) : (
-          <Link href={rosterBusHref(depotId, r.registrationNumber)} className="depot-table-link">
+          <Link href={rosterBusHref(depotId, r.registrationNumber)} className={TABLE_LINK}>
             {r.registrationNumber}
           </Link>
         ),
