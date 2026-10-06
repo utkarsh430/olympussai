@@ -11,6 +11,7 @@ import {
   WORD_OPENERS,
 } from '@/lib/depot/copilot/limits';
 import { isVocabularyWord } from '@/lib/depot/copilot/vocabulary';
+import { BOUND_PHRASES } from '@/lib/depot/copilot/vocabulary/judgement';
 import { sentenceProblem, type SentenceProblem } from '@/lib/depot/copilot/sentenceRules';
 
 export type { FactEdges };
@@ -45,10 +46,26 @@ export function tokenize(text: string): Token[] | null {
   return parsed.every((t): t is Token => t !== null) ? parsed : null;
 }
 
+/** The phrase's words stand at `start`, with no mark before its last word. */
+function phraseAt(tokens: readonly Token[], phrase: readonly string[], start: number): boolean {
+  return phrase.every((word, offset) => {
+    const token = tokens[start + offset];
+    if (token?.kind !== 'word' || token.core !== word) return false;
+    return offset === phrase.length - 1 || token.mark === '';
+  });
+}
+
+/** Ruling M-B: a judgement word the scripted writer needs, inside its one fixed phrase. */
+function inBoundPhrase(tokens: readonly Token[], index: number, core: string): boolean {
+  return BOUND_PHRASES.some((phrase) =>
+    phrase.some((word, at) => word === core && phraseAt(tokens, phrase, index - at)),
+  );
+}
+
 function knownWord(tokens: readonly Token[], index: number): boolean {
   const token = tokens[index];
   const core = token?.kind === 'word' ? token.core : '';
-  if (isVocabularyWord(core)) return true;
+  if (isVocabularyWord(core) || inBoundPhrase(tokens, index, core)) return true;
   return core.endsWith(POSSESSIVE) && isVocabularyWord(core.slice(0, -POSSESSIVE.length));
 }
 

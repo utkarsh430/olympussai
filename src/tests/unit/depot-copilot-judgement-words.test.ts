@@ -36,7 +36,7 @@ const CAUSE_BLAME_ALARM_DRAFTS: readonly string[] = [
   'The operator at {{fact:name}} is at fault.',
   'Employees at {{fact:name}} are the reason for the loss.',
   'The people at {{fact:name}} are poor at fuel.',
-  'Who is behind the fuel variance at {{fact:name}}?',
+  'The question is who is behind the fuel variance at {{fact:name}}.',
   'The drivers at {{fact:name}} are weak.',
   'The depot is unsafe.',
   'Safety is the main concern at {{fact:name}}.',
@@ -116,7 +116,7 @@ describe('M-B: the vocabulary holds no cause, blame, person or alarm word', () =
 describe('M-B: a bound word renders only inside its phrase', () => {
   it.each([
     'Flagged at depot level: {{fact:dark}}. Rated critical: {{fact:crit}}.',
-    'Of the buses with a schedule, {{fact:dark}} due to leave now.',
+    'Of the buses with a known schedule, {{fact:dark}} are due to leave now.',
     'Questions about people are outside that scope.',
   ])('renders: %s', (paragraph) => {
     expect(render('Exceptions', paragraph)).toMatchObject({ ok: true });
@@ -127,7 +127,7 @@ describe('M-B: a bound word renders only inside its phrase', () => {
     'The rating is critical.',
     'Rated critically: {{fact:crit}}.',
     '{{fact:dark}} are due.',
-    'Due to leave, {{fact:dark}} are dark.',
+    'Due to {{fact:name}}, {{fact:dark}} are dark.',
     'Questions, about people, are outside that scope.',
     'People are outside that scope.',
   ])('refuses: %s', (paragraph) => {
