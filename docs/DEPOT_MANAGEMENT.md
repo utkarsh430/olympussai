@@ -173,7 +173,8 @@ views (src/lib/depot/live/*View.ts) ──► route handlers (src/app/api/upsrtc
     size, so a fleet that really shrinks is not held at its old size for ever. A reply with
     no bus rows is always refused.
   - **Log lines.** Each change of what is served is logged once per process, never per
-    request (`src/lib/serverLog.ts`, scope `live-snapshot`): "serving last good data instead
+    request, as one `[depot:live-snapshot] …` line (`src/lib/serverLog.ts`, which cuts a line at
+    `MAX_LOG_MESSAGE_CHARS = 300`): "serving last good data instead
     of live data: <reason>" (or "the saved sample"), and on recovery the notice "upstream
     recovered; serving live data again instead of …". An address in the reason is replaced
     by "(address withheld)".
