@@ -301,15 +301,38 @@ describe('rosterCrew over many seeded duty sets', () => {
 });
 
 const FORBIDDEN_TERMS = ['name', 'score', 'rank', 'rating', 'performance', 'speed', 'violation'];
+/** Word stems that describe an individual, matched as a prefix of each camelCase word of a key. */
+const FORBIDDEN_STEMS = ['name', 'scor', 'rank', 'rate', 'rating', 'perform', 'speed', 'violat'];
+/** Legitimate keys that name a place, not a person. */
+const ALLOWED_KEYS: readonly string[] = ['depotName', 'routeName'];
 
-/** Every key and string value as a lowercase word list, so only whole words can match. */
-function wordsOf(value: unknown, out: string[] = []): string[] {
-  if (Array.isArray(value)) value.forEach((v) => wordsOf(v, out));
+/** True when a key reads as a fact about an individual: a word of it starts with a forbidden stem. */
+function isForbiddenKey(key: string): boolean {
+  if (ALLOWED_KEYS.includes(key)) return false;
+  const words = key
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[^a-z]+/);
+  return words.some((word) => FORBIDDEN_STEMS.some((stem) => word.startsWith(stem)));
+}
+
+/** Every key at every depth. */
+function keysOf(value: unknown, out: string[] = []): string[] {
+  if (Array.isArray(value)) value.forEach((v) => keysOf(v, out));
   else if (value !== null && typeof value === 'object') {
     for (const [key, v] of Object.entries(value)) {
-      out.push(...key.toLowerCase().split(/[^a-z]+/));
-      wordsOf(v, out);
+      out.push(key);
+      keysOf(v, out);
     }
+  }
+  return out;
+}
+
+/** Every string value as a lowercase word list, so only whole words can match. */
+function valueWordsOf(value: unknown, out: string[] = []): string[] {
+  if (Array.isArray(value)) value.forEach((v) => valueWordsOf(v, out));
+  else if (value !== null && typeof value === 'object') {
+    Object.values(value).forEach((v) => valueWordsOf(v, out));
   } else if (typeof value === 'string') out.push(...value.toLowerCase().split(/[^a-z]+/));
   return out;
 }
@@ -323,14 +346,35 @@ describe('people constraint', () => {
       DATE,
     ).duties;
     const crew = modelCrew(depot, crewShiftsFor(duties).shifts.length, DATE);
-    const words = wordsOf(JSON.parse(JSON.stringify([crew, rosterCrew(duties, crew)])));
+    const output = JSON.parse(JSON.stringify([crew, rosterCrew(duties, crew)]));
+    expect(keysOf(output).filter(isForbiddenKey)).toEqual([]);
+    const words = valueWordsOf(output);
     for (const term of FORBIDDEN_TERMS) expect(words).not.toContain(term);
   });
 
-  it('the detector fails when a forbidden key appears and ignores look-alikes', () => {
-    expect(wordsOf({ name: 'x' })).toContain('name');
-    expect(wordsOf({ score: 1 })).toContain('score');
-    expect(wordsOf({ depotName: 'x' })).not.toContain('name'); // camel case is one word
-    expect(wordsOf({ operatingDate: 'x' })).not.toContain('rating');
+  it.each([
+    'driverName',
+    'safetyScore',
+    'speedRating',
+    'driverRank',
+    'performanceIndex',
+    'violations',
+    'ranking',
+    'name',
+    'score',
+  ])('the detector trips on %s', (key) => {
+    expect(isForbiddenKey(key)).toBe(true);
+  });
+
+  it.each([
+    'depotName',
+    'routeName',
+    'operatingDate',
+    'driverSlot',
+    'conductorSlot',
+    'shortRoles',
+    'shiftsCovered',
+  ])('the detector lets %s through', (key) => {
+    expect(isForbiddenKey(key)).toBe(false);
   });
 });
