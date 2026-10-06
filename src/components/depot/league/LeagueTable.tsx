@@ -2,14 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
-import {
-  EmptyState,
-  ErrorPanel,
-  LoadingBlock,
-  StaleStrip,
-} from '@/components/depot/shell/DataStates';
+import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { HowProduced } from '@/components/depot/shell/HowProduced';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotNetwork';
-import { formatCount } from '@/lib/depot/format';
 import {
   DEFAULT_LEAGUE_FILTERS,
   buildLeagueRows,
@@ -19,26 +16,26 @@ import {
   type LeagueFilters as Filters,
   type LeagueRow,
 } from '@/lib/depot/league/leagueModel';
-import { computedStamp, leagueStatusLine } from '@/lib/depot/league/leagueWording';
-import { scoreWindowShort } from '@/lib/depot/score/windowWords';
-import { MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
+import { leagueSectionNote } from '@/lib/depot/league/leagueWording';
 import type { PeerGroupId } from '@/lib/depot/score/types';
 import { LEAGUE_HOW_PRODUCED } from '@/lib/depot/network/howProduced';
-import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { LeagueFilters } from './LeagueFilters';
 import { LeagueGrid } from './LeagueGrid';
 import { ScoreBreakdown } from './ScoreBreakdown';
 
 const PEER_GROUP_DISPLAY_ORDER: readonly PeerGroupId[] = ['small', 'medium', 'large', 'all'];
+export const EMPTY_FEED_SENTENCE = 'The live feed returned no depots, so there is nothing to rank yet.';
 
 /**
- * Depots ranked within peer groups. The selected depot's breakdown opens beside the
- * table only from `2xl` (1536px), where the table keeps its frozen block and four
- * metric columns; below that it opens under the table, so it never squeezes it.
+ * Depots ranked within peer groups. Above the table: the header and its provenance line
+ * (which carries the index window), then the filter row and one section note. The
+ * selected depot's breakdown opens beside the table only from `2xl` (1536px); below that
+ * it opens under the table, so it never squeezes it.
  */
 export function LeagueTable() {
   const { data, error, loading, refresh } = useDepotNetworkContext();
   const [filters, setFilters] = useState<Filters>(DEFAULT_LEAGUE_FILTERS);
+  const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusPending, setFocusPending] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -49,10 +46,11 @@ export function LeagueTable() {
     () => PEER_GROUP_DISPLAY_ORDER.filter((g) => allRows.some((r) => r.peerGroup === g)),
     [allRows],
   );
-  const statusLine = useMemo(
-    () => (data ? leagueStatusLine(data.depots, data.scores, MIN_FLEET_FOR_RANK) : ''),
-    [data],
-  );
+  const note = useMemo(() => (data ? leagueSectionNote(data.depots, data.scores) : ''), [data]);
+  const changeFilters = useCallback((next: Filters): void => {
+    setFilters(next);
+    setPage(0);
+  }, []);
   const select = useCallback((row: LeagueRow): void => {
     setSelectedId(row.depotId);
     setFocusPending(true);
@@ -65,66 +63,47 @@ export function LeagueTable() {
     if (!focusPending || selected === null || headingRef.current === null) return;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     headingRef.current.focus({ preventScroll: true });
-    headingRef.current.scrollIntoView({
-      block: 'nearest',
-      behavior: reduceMotion ? 'auto' : 'smooth',
-    });
+    headingRef.current.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
     setFocusPending(false);
   }, [focusPending, selected]);
 
   if (loading) return <LoadingBlock rows={10} label="Loading the league table" />;
   if (!data) {
     return (
-      <ErrorPanel
-        title="Could not load the league"
-        message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
-        onRetry={refresh}
-      />
+      <ErrorPanel title="Could not load the league" message={error ?? DEPOT_UNAVAILABLE_MESSAGE} onRetry={refresh} />
     );
   }
   if (allRows.length === 0) {
     return (
-      <EmptyState>The live feed returned no depots, so there is nothing to rank yet.</EmptyState>
+      <StatePanel kind="no-data" rows={10} sentence={EMPTY_FEED_SENTENCE}
+        remedy="Depots are ranked as soon as the feed reports buses with a home depot." />
     );
   }
 
-  const filtered =
-    filters.peerGroup !== 'any' || filters.search.trim() !== '' || filters.showUnranked;
   return (
     <>
       {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
-      <LeagueFilters filters={filters} peerGroups={peerGroups} onChange={setFilters} />
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <p className="depot-prose min-w-0 text-xs" role="status">
-          {`${statusLine}. `}
-          {filtered ? `${formatCount(rows.length)} rows shown with these filters. ` : ''}
-          {selected
-            ? `Score breakdown showing for ${selected.name}.`
-            : 'Select Score on a row to see how its index is made up.'}
-        </p>
-        <span className="font-mono text-[11px] tabular-nums text-depot-faint">
-          {computedStamp(data.feedNow)}
-        </span>
+      <div className="depot-stack">
+        <section aria-labelledby="league-ranked">
+          <SectionLabel id="league-ranked" label="Ranked depots" note={note} />
+          <LeagueFilters filters={filters} peerGroups={peerGroups} onChange={changeFilters} />
+          <div className={selected ? 'grid gap-4 2xl:grid-cols-[minmax(0,1fr)_28rem]' : ''}>
+            <div className="min-w-0">
+              <LeagueGrid
+                rows={rows}
+                grouped={showsPeerGroupColumn(filters)}
+                selectedId={selected?.depotId ?? null}
+                onSelect={select}
+                page={page}
+                onPage={setPage}
+                windowSamples={data.scoreWindow?.samples}
+              />
+            </div>
+            {selected ? <ScoreBreakdown row={selected} headingRef={headingRef} /> : null}
+          </div>
+        </section>
+        <HowProduced paragraphs={LEAGUE_HOW_PRODUCED} />
       </div>
-      <p className="depot-prose mb-2 text-xs lg:hidden">
-        This narrow view shows Rank, Depot, Index, Schedule coverage and Device integrity. Select
-        Score on a row for the other measures.
-      </p>
-      <div className={selected ? 'grid gap-4 2xl:grid-cols-[minmax(0,1fr)_28rem]' : ''}>
-        <div className="min-w-0">
-          <LeagueGrid
-            rows={rows}
-            showPeerGroup={showsPeerGroupColumn(filters)}
-            selectedId={selected?.depotId ?? null}
-            onSelect={select}
-            indexWindow={scoreWindowShort(data.scoreWindow, data.feedNow)}
-          />
-        </div>
-        {selected ? (
-          <ScoreBreakdown row={selected} feedNow={data.feedNow} headingRef={headingRef} />
-        ) : null}
-      </div>
-      <HowProduced paragraphs={LEAGUE_HOW_PRODUCED} className="mt-10" />
     </>
   );
 }

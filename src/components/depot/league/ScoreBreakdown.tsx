@@ -7,7 +7,7 @@ import {
   formatRate,
   type LeagueRow,
 } from '@/lib/depot/league/leagueModel';
-import { computedStamp, peerRankPhrase } from '@/lib/depot/league/leagueWording';
+import { peerRankPhrase } from '@/lib/depot/league/leagueWording';
 
 const WEIGHT_PERCENT = 100;
 
@@ -23,12 +23,9 @@ function signed(n: number): string {
  */
 export function ScoreBreakdown({
   row,
-  feedNow,
   headingRef,
 }: {
   readonly row: LeagueRow;
-  /** The feed clock the scores were computed at. */
-  readonly feedNow: string | null;
   /** Lets the page move focus here after a selection. */
   readonly headingRef?: React.Ref<HTMLHeadingElement>;
 }) {
@@ -41,12 +38,7 @@ export function ScoreBreakdown({
       data-testid="depot-score-breakdown"
       className="depot-panel min-w-0 p-4 2xl:sticky 2xl:top-[var(--depot-panel-top)] 2xl:self-start"
     >
-      <p className="flex flex-wrap justify-between gap-x-3">
-        <span className="depot-label">Score breakdown</span>
-        <span className="font-mono text-[11px] tabular-nums text-depot-faint">
-          {computedStamp(feedNow)}
-        </span>
-      </p>
+      <div className="depot-label">Score breakdown</div>
       <h2
         id="score-breakdown-title"
         ref={headingRef}

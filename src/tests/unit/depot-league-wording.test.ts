@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  computedStamp,
   formatSignedDifference,
   leagueSectionNote,
   leagueStatusLine,
@@ -151,16 +150,6 @@ describe('league selection and columns', () => {
   it('words a unit that is not an operating depot with the shared label', () => {
     const row = { ranked: false, kind: 'hired', fleet: 50 } as unknown as LeagueRow;
     expect(unrankedSentence(row)).toBe(RANK_REASON_LABEL.not_a_depot);
-  });
-});
-
-describe('computedStamp', () => {
-  it('reads the feed clock as HH:MM', () => {
-    expect(computedStamp('2026-10-06T12:37:10+05:30')).toBe('Computed 12:37');
-  });
-
-  it('says the time is unknown when the feed carries none', () => {
-    expect(computedStamp(null)).toBe('Computed at an unknown time');
   });
 });
 

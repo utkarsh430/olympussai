@@ -175,6 +175,3 @@ export function tableWidthPx(at: ColumnTier | 'phone'): number {
     block,
   );
 }
-
-/** The old narrow set; the grid moves to `LEAGUE_SCROLLING_COLUMNS` tiers. */
-export const NARROW_COMPONENTS: ReadonlySet<DeiComponentKey> = new Set(['scheduled', 'deviceHealth']);

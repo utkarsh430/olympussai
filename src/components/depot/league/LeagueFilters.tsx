@@ -1,6 +1,6 @@
 'use client';
 
-import { Checkbox, Select } from '@/components/depot/shell/Controls';
+import { Checkbox, FilterRow, SearchField, Select } from '@/components/depot/shell/Controls';
 import {
   PEER_GROUP_LABEL,
   type LeagueFilters as Filters,
@@ -22,47 +22,38 @@ function isPeerGroupFilter(
   return value === 'any' || groups.some((group) => group === value);
 }
 
-/** Real form controls, each with a visible label; the select and checkbox are the themed ones. */
+/** The shared filter row: each label inline at the left of its control. */
 export function LeagueFilters({ filters, peerGroups, onChange }: LeagueFiltersProps) {
   return (
-    <form
-      role="search"
-      aria-label="Filter the league table"
-      className="mb-3 flex flex-wrap items-end gap-x-4 gap-y-3"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <Select
-        label="Peer group"
-        value={filters.peerGroup}
-        onChange={(event) => {
-          const next = event.target.value;
-          if (isPeerGroupFilter(next, peerGroups)) onChange({ ...filters, peerGroup: next });
-        }}
-      >
-        <option value="any">All peer groups</option>
-        {peerGroups.map((group) => (
-          <option key={group} value={group}>
-            {PEER_GROUP_LABEL[group]}
-          </option>
-        ))}
-      </Select>
-      <label className="flex flex-col gap-1">
-        <span className="depot-label">Depot name</span>
-        <input
-          type="search"
-          className="depot-field w-56 max-w-full"
+    <form role="search" aria-label="Filter the league table" className="mb-3" onSubmit={(event) => event.preventDefault()}>
+      <FilterRow label="Filter depots">
+        <Select
+          label="Peer group"
+          value={filters.peerGroup}
+          onChange={(event) => {
+            const next = event.target.value;
+            if (isPeerGroupFilter(next, peerGroups)) onChange({ ...filters, peerGroup: next });
+          }}
+        >
+          <option value="any">All peer groups</option>
+          {peerGroups.map((group) => (
+            <option key={group} value={group}>
+              {PEER_GROUP_LABEL[group]}
+            </option>
+          ))}
+        </Select>
+        <SearchField
+          label="Depot name"
           value={filters.search}
           placeholder="Search depots"
           onChange={(event) => onChange({ ...filters, search: event.target.value })}
         />
-      </label>
-      <span className="pb-1.5">
         <Checkbox
           label="Show unranked"
           checked={filters.showUnranked}
           onChange={(event) => onChange({ ...filters, showUnranked: event.target.checked })}
         />
-      </span>
+      </FilterRow>
     </form>
   );
 }

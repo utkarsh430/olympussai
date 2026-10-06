@@ -1,52 +1,46 @@
+import { useId } from 'react';
 import Link from 'next/link';
+import { Sparkline } from '@/components/depot/shared/Sparkline';
+import { DisclosureChevron } from '@/components/depot/shell/DisclosureChevron';
 import { depotHref } from '@/lib/depot/depotNav';
-import { metricCellWording } from '@/lib/depot/league/leagueWording';
-import {
-  unrankedSentence,
-  type ComponentCell,
-  type DifferenceDirection,
-  type LeagueRow,
-} from '@/lib/depot/league/leagueModel';
+import { unitSparkLabel, type TrendTableRow } from '@/lib/depot/forecast/trendsTableModel';
+import { METRIC_LABEL } from '@/lib/depot/forecast/wording';
+import { TREND_SPARK_PX, TREND_TEXT_MAX_PX } from '@/lib/depot/league/leagueColumns';
+import { metricCellWording, windowMark } from '@/lib/depot/league/leagueWording';
+import { unrankedSentence, type ComponentCell, type LeagueRow } from '@/lib/depot/league/leagueModel';
 import { IndexBar } from './IndexBar';
 
-/** Colour only reinforces the word in the cell's title and screen-reader text. */
-const DIRECTION_TONE: Readonly<Record<DifferenceDirection, string>> = {
-  better: 'text-alert-green',
-  worse: 'text-alert-amber',
-  level: 'text-depot-faint',
-  unknown: 'text-depot-faint',
-};
-
-/** Value and signed difference from the peer median on one line, in tabular mono. */
+/**
+ * The depot's value only, in tabular mono. Its difference from the peer median and
+ * whether that is better or worse are said in the cell's title and screen-reader text,
+ * and shown in the breakdown.
+ */
 export function MetricCell({ cell }: { readonly cell: ComponentCell | undefined }) {
   if (!cell) return <span className="text-depot-faint">—</span>;
   const wording = metricCellWording(cell);
   return (
-    <span className="whitespace-nowrap" title={wording.description}>
+    <span title={wording.description}>
       <span aria-hidden>{wording.value}</span>
-      <span aria-hidden className={`ml-2 inline-block w-[5.5rem] ${DIRECTION_TONE[wording.direction]}`}>
-        {wording.difference}
-      </span>
       <span className="sr-only">{wording.description}</span>
     </span>
   );
 }
 
 /**
- * The depot name links to its cockpit; the select button beside it opens the
- * score breakdown. The unassigned bucket is not a fleet, so it gets no link.
+ * The depot name links to its cockpit (the unassigned bucket is not a fleet, so it gets
+ * no link). A depot scored on fewer snapshots than the window carries a quiet "new" with
+ * the counts in its title, so a newcomer is not read as a settled rank.
  */
 export function DepotCell({
   row,
-  selected,
-  onSelect,
+  windowSamples,
 }: {
   readonly row: LeagueRow;
-  readonly selected: boolean;
-  readonly onSelect: (row: LeagueRow) => void;
+  readonly windowSamples?: number;
 }) {
+  const mark = windowMark(row.samples, windowSamples);
   return (
-    <span className="flex min-w-0 items-center gap-2">
+    <span className="flex min-w-0 items-baseline gap-1.5">
       {row.kind === 'unassigned' ? (
         <span className="min-w-0 truncate" title={row.name}>{row.name}</span>
       ) : (
@@ -59,38 +53,91 @@ export function DepotCell({
           {row.name}
         </Link>
       )}
-      <button
-        type="button"
-        aria-pressed={selected}
-        aria-label={`Score breakdown for ${row.name}`}
-        className="ml-auto shrink-0 rounded-[3px] border border-depot-line px-1.5 text-[11px] uppercase tracking-[0.08em] text-depot-muted hover:text-depot-ink aria-pressed:border-holo-glow aria-pressed:text-holo-glow"
-        onClick={(event) => {
-          event.stopPropagation();
-          onSelect(row);
-        }}
-      >
-        Score
-      </button>
+      {mark ? (
+        <span className="shrink-0 text-[11px] text-depot-faint" title={mark.title}>
+          {mark.word}
+          <span className="sr-only">{`: ${mark.title}`}</span>
+        </span>
+      ) : null}
     </span>
   );
 }
 
-/** Index numeral, with the bar from `lg` up; an unranked row says why in its title. */
-export function IndexCell({ row }: { readonly row: LeagueRow }) {
-  if (row.index === null) {
-    const reason = unrankedSentence(row) ?? 'Not ranked';
-    return (
-      <span className="text-[11px] text-depot-faint" title={reason}>
-        not ranked<span className="sr-only">{`: ${reason}`}</span>
-      </span>
-    );
-  }
+/**
+ * The index cell IS the breakdown control: numeral and bar (the bar from 640px) form one
+ * button named "Score breakdown for <depot>", described by the value it shows. An
+ * unranked depot's button says "not ranked" with the reason in its title.
+ */
+export function IndexButton({
+  row,
+  selected,
+  onSelect,
+}: {
+  readonly row: LeagueRow;
+  readonly selected: boolean;
+  readonly onSelect: (row: LeagueRow) => void;
+}) {
+  const valueId = useId();
+  const reason = row.index === null ? (unrankedSentence(row) ?? 'Not ranked') : null;
   return (
-    <span className="flex items-center gap-2">
-      <span className="w-10 text-right">{row.index.toFixed(1)}</span>
-      <span className="hidden w-16 lg:inline-flex">
-        <IndexBar value={row.index} />
-      </span>
+    <button
+      type="button"
+      aria-pressed={selected}
+      aria-label={`Score breakdown for ${row.name}`}
+      aria-describedby={valueId}
+      className="flex w-full items-center gap-2 text-left focus-visible:outline-offset-[-2px] hover:text-holo-glow aria-pressed:text-holo-glow"
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect(row);
+      }}
+    >
+      {row.index === null ? (
+        <span id={valueId} className="text-[11px] text-depot-faint" title={reason ?? undefined}>
+          not ranked<span className="sr-only">{`: ${reason}`}</span>
+        </span>
+      ) : (
+        <>
+          <span id={valueId} className="w-10 text-right">{row.index.toFixed(1)}</span>
+          <span aria-hidden className="hidden w-16 sm:inline-flex">
+            <IndexBar value={row.index} />
+          </span>
+        </>
+      )}
+    </button>
+  );
+}
+
+/** The row-end chevron, shown while the row is hovered or holds focus. */
+export function OpenChevron() {
+  return (
+    <span className="invisible group-focus-within:visible group-hover:visible">
+      <DisclosureChevron />
+    </span>
+  );
+}
+
+/**
+ * The MODELLED index history at the league's width: a 64px sparkline and its four-weeks
+ * words (capped, full text in the title). Untagged: the column header carries MODELLED.
+ */
+export function TrendCell({ name, row }: { readonly name: string; readonly row?: TrendTableRow }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <Sparkline
+        values={row?.values ?? []}
+        label={row?.sparkLabel ?? unitSparkLabel(METRIC_LABEL.index, name, null)}
+        tagged={false}
+        width={TREND_SPARK_PX}
+      />
+      {row ? (
+        <span
+          className="truncate text-[11px] text-depot-muted"
+          style={{ maxWidth: TREND_TEXT_MAX_PX }}
+          title={row.fourWeeksText}
+        >
+          {row.fourWeeksText}
+        </span>
+      ) : null}
     </span>
   );
 }

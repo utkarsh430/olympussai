@@ -1,4 +1,4 @@
-import { formatCount, formatFeedTime } from '@/lib/depot/format';
+import { formatCount } from '@/lib/depot/format';
 import type { DepotScore } from '@/lib/depot/score/types';
 import type { DepotSummary } from '@/lib/depot/types';
 import { differenceDirection, formatRate, type DifferenceDirection } from './leagueModel';
@@ -136,10 +136,4 @@ export function metricCellWording(cell: MetricCellInput): MetricCellWording {
     direction,
     description: `${cell.label} ${value}, ${comparison[direction]}`,
   };
-}
-
-/** "Computed 12:37" from the feed clock, so live drift between visits is explained. */
-export function computedStamp(feedNow: string | null): string {
-  const time = formatFeedTime(feedNow);
-  return time === DASH ? 'Computed at an unknown time' : `Computed ${time}`;
 }

@@ -117,14 +117,16 @@ describe('league grid', () => {
     const markup = renderToStaticMarkup(
       <LeagueGrid
         rows={[leagueRow('a'), leagueRow('b')]}
-        showPeerGroup={false}
+        grouped={false}
         selectedId={null}
         onSelect={() => undefined}
+        page={0}
+        onPage={() => undefined}
       />,
     );
     expect(hooks.trends).toHaveBeenCalledTimes(1);
     expect(hooks.trends).toHaveBeenCalledWith({ metric: 'index' });
-    expect(text(markup)).toContain('Index trend, MODELLED');
+    expect(text(markup)).toMatch(/Trend\s*MODELLED/);
     expect(markup).toContain('aria-label="Efficiency index at Depot a, MODELLED trend:');
     expect(markup).toContain('aria-label="Efficiency index at Depot b: no MODELLED trend yet"');
   });
@@ -133,13 +135,15 @@ describe('league grid', () => {
     const markup = renderToStaticMarkup(
       <LeagueGrid
         rows={[leagueRow('a')]}
-        showPeerGroup={false}
+        grouped={false}
         selectedId={null}
         onSelect={() => undefined}
+        page={0}
+        onPage={() => undefined}
       />,
     );
-    const header = markup.slice(0, markup.indexOf('Index trend, MODELLED'));
-    expect(header.slice(header.lastIndexOf('<th'))).toContain('hidden lg:table-cell');
+    const header = markup.slice(0, markup.indexOf('data-provenance="modelled"'));
+    expect(header.slice(header.lastIndexOf('<th'))).toContain('hidden min-[1424px]:table-cell');
     const frame = document.createElement('div');
     frame.innerHTML = markup;
     expect(frame.querySelectorAll('[hidden]')).toHaveLength(0);
