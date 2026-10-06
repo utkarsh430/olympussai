@@ -102,22 +102,40 @@ describe('MaintenancePage', () => {
   it('guards the generated status beside a real registration on every surface that shows it', () => {
     const markup = renderToStaticMarkup(<MaintenancePage />);
     const body = text(markup);
-    // the section label carries the tag, the one sentence says not workshop records
-    const section = markup.slice(markup.indexOf('depot-preventive-heading'));
-    expect(section.slice(0, 600)).toMatch(/modelled/i);
+    // the section label carries the ONE tag (queried on the visible page, not by offset)
+    const page = document.createElement('div');
+    page.innerHTML = markup;
+    const section = page.querySelector('section[aria-labelledby="depot-preventive-heading"]');
+    expect(section).not.toBeNull();
+    const tags = section?.querySelectorAll('[data-provenance]') ?? [];
+    expect(tags).toHaveLength(1);
+    expect(
+      section?.querySelector('[data-testid="depot-section-label"] [data-provenance="modelled"]'),
+    ).not.toBeNull();
     expect(body).toContain('they are not workshop records');
-    // both column headers carry the tag; the cells hold the word and the number only
-    expect(body).toContain('Status (MODELLED)');
-    expect(body).toContain('To next service, km (MODELLED)');
+    // no "(MODELLED)" in any header, no status column; the group row says it in words
+    expect(body).not.toMatch(/\(MODELLED\)/);
+    expect(body).toContain('To next service, km');
+    expect([...page.querySelectorAll('th')].map((th) => th.textContent)).not.toContain('Status');
     expect(body).toContain('UP32A0009');
     expect(body).not.toContain('Modelled: overdue');
-    expect(markup).toMatch(/<td[^>]*>Overdue<\/td>/);
+    expect(page.querySelector('[data-testid="depot-table-group"]')?.textContent).toBe(
+      'Modelled overdue \u00b7 1',
+    );
     expect(markup).toContain('\u22123,400');
   });
 
-  it('says once, above the off-road table, what every row shares, with no constant columns', () => {
+  it('puts the one MODELLED tag on the workshop label and none on its rows', () => {
+    const page = document.createElement('div');
+    page.innerHTML = renderToStaticMarkup(<MaintenancePage />);
+    const section = page.querySelector('section[aria-labelledby="depot-workshop-heading"]');
+    expect(section?.querySelectorAll('[data-provenance]')).toHaveLength(1);
+    expect(section?.querySelector('dl [data-provenance]')).toBeNull();
+  });
+
+  it('says once, as the off-road section note, what every row shares, with no constant columns', () => {
     const body = text(renderToStaticMarkup(<MaintenancePage />));
-    expect(body).toContain('Every bus here has feed status Under maintenance');
+    expect(body).toContain('Every bus here has feed status: Under maintenance');
     expect(body).not.toContain('Feed status');
     expect(body.match(/Under maintenance/g)).toHaveLength(1);
   });

@@ -67,8 +67,9 @@ export function MaintenancePage() {
   const preventive = modelled.data?.preventive ?? null;
   const figures = bandFigures(offRoad.length, preventive);
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col">
       {stale || detail.error ? <StaleStrip since={detail.data.feedNow} /> : null}
+      {/* The band's own 24px margin is the gap to the lists: no empty strip under it. */}
       <FigureBand label="Maintenance figures">
         {figures.map((figure) => (
           <Figure
@@ -80,37 +81,36 @@ export function MaintenancePage() {
           />
         ))}
       </FigureBand>
-      <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
-        <div className="min-w-0 xl:col-span-2">
-          <OffRoadList
-            depotId={detail.depotId}
-            buses={offRoad}
-            feedNow={detail.data.feedNow}
+      <div className="flex flex-col gap-8">
+        <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
+          <div className="min-w-0 xl:col-span-2">
+            <OffRoadList depotId={detail.depotId} buses={offRoad} feedNow={detail.data.feedNow} />
+          </div>
+          <div className="min-w-0">{load ? <WorkshopSection load={load} /> : null}</div>
+        </div>
+        {modelled.data && preventive ? (
+          <>
+            <PreventiveSection depotId={detail.depotId} preventive={preventive} />
+            <FiguresDisclosure
+              sections={disclosureItems(
+                { ...preventive, intervals: INTERVAL_LINES },
+                modelled.data.distanceCoverage.coverage,
+              )}
+            />
+          </>
+        ) : modelled.error && !modelled.loading ? (
+          <ErrorPanel
+            title="The modelled parts did not load"
+            message={modelled.error || DEPOT_UNAVAILABLE_MESSAGE}
+            onRetry={modelled.refresh}
           />
-        </div>
-        <div className="min-w-0">
-          {load ? <WorkshopSection load={load} /> : null}
-        </div>
+        ) : (
+          <LoadingBlock
+            rows={MODELLED_LOADING_ROWS}
+            label="Loading the modelled maintenance view"
+          />
+        )}
       </div>
-      {modelled.data && preventive ? (
-        <>
-          <PreventiveSection depotId={detail.depotId} preventive={preventive} />
-          <FiguresDisclosure
-            sections={disclosureItems(
-              { ...preventive, intervals: INTERVAL_LINES },
-              modelled.data.distanceCoverage.coverage,
-            )}
-          />
-        </>
-      ) : modelled.error && !modelled.loading ? (
-        <ErrorPanel
-          title="The modelled parts did not load"
-          message={modelled.error || DEPOT_UNAVAILABLE_MESSAGE}
-          onRetry={modelled.refresh}
-        />
-      ) : (
-        <LoadingBlock rows={MODELLED_LOADING_ROWS} label="Loading the modelled maintenance view" />
-      )}
     </div>
   );
 }

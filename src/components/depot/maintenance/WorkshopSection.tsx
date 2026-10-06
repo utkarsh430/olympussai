@@ -1,4 +1,3 @@
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { workshopRows } from '@/lib/depot/maintenance/pageModel';
 import { workshopSentence } from '@/lib/depot/maintenance/text';
@@ -24,10 +23,7 @@ export function WorkshopSection({ load }: WorkshopSectionProps) {
       <dl className="divide-y divide-depot-line border-y border-depot-line font-mono text-[13px]">
         {workshopRows(load).map((row) => (
           <div key={row.label} className="flex items-center justify-between gap-3 py-2">
-            <dt className="flex min-w-0 items-center gap-2 text-depot-muted">
-              <span className="truncate">{row.label}</span>
-              {row.tag ? <ProvenanceBadge provenance={row.tag} /> : null}
-            </dt>
+            <dt className="min-w-0 truncate text-depot-muted">{row.label}</dt>
             <dd className="tabular-nums text-depot-ink">{row.value}</dd>
           </div>
         ))}
