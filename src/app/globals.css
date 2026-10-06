@@ -409,6 +409,25 @@
     text-shadow: 0 0 12px rgba(63, 240, 255, 0.45);
   }
 
+  /* A rail group's heading, drawn as a category tab: a cyan-washed strip with a lit left
+     edge, so each group reads as a section of the rail and its links as that section's
+     pages. Its text starts where the links' text starts (18px from the rail's edge). The
+     edge and the glow are shadows, so they take no room. */
+  .depot-nav-category {
+    @apply mx-2 mb-1.5 rounded-[3px] border border-holo-glow/25 bg-holo-glow/[0.07] py-1.5 pl-[9px] pr-2
+      font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-holo-glow/80;
+    box-shadow: inset 2px 0 0 0 rgba(63, 240, 255, 0.5);
+  }
+
+  /* The category that holds the current page is the lit tab. */
+  .depot-nav-category-current {
+    @apply border-holo-glow/60 bg-holo-glow/[0.16] text-holo-glow;
+    box-shadow:
+      inset 2px 0 0 0 rgb(63, 240, 255),
+      0 0 18px -6px rgba(63, 240, 255, 0.6);
+    text-shadow: 0 0 12px rgba(63, 240, 255, 0.45);
+  }
+
   /* Top-bar actions in the command centre's button colours (hud-button); transition on
      colour only. */
   .depot-bar-button {

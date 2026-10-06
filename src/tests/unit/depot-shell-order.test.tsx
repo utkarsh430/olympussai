@@ -45,7 +45,7 @@ describe('DepotShell structure', () => {
     expect(all[0]?.getAttribute('href')).toBe('#depot-main');
 
     const rail = screen.getByTestId('depot-nav');
-    expect(rail.querySelector('.depot-label')?.textContent).toBe('KAUSHAMBI');
+    expect(rail.querySelector('[data-testid="depot-nav-category"]')?.textContent).toBe('KAUSHAMBI');
     expect(focusables(rail)[0]?.textContent).toBe('Cockpit');
     // The bar comes before the navigation, the navigation before the page.
     const order = all.map((el) => el.textContent);
