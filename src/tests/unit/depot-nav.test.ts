@@ -42,6 +42,7 @@ describe('NETWORK_NAV', () => {
       ['Overview', '/project/depots'],
       ['League table', '/project/depots/league'],
       ['Fleet distribution', '/project/depots/rebalance'],
+      ['Routes', '/project/depots/routes'],
       ['Exceptions', '/project/depots/exceptions'],
       ['Ask', '/project/depots/ask'],
       ['Data sources', '/project/depots/sources'],
