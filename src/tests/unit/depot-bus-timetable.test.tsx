@@ -122,7 +122,7 @@ describe('BusTimetable refetch for a changed trip', () => {
     await act(async () => {
       pending[pending.length - 1]?.fail();
     });
-    expect(text()).toContain('Could not reach the server');
+    expect(text()).toContain("Could not reach the server. These are the previous trip's stops.");
     expect(text()).toContain('Wai');
     expect(text()).not.toContain('Updating the timetable.');
   });
