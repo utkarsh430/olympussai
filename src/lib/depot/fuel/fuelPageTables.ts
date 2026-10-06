@@ -138,6 +138,13 @@ export function classNote(rows: readonly FuelGroupRow[]): string {
   return `Bars start at ${classFloor(rows).toFixed(1)} km per litre, not zero`;
 }
 
+/**
+ * Where a route's distance comes from. The fuel response does not carry each route's
+ * length provenance, so the table cannot mark its rows; the disclosure says so instead.
+ */
+const ROUTE_LENGTH_NOTE =
+  "A route's distance rests on its one-way length: the real length where the route's stop profile has been looked up, otherwise a modelled length typical of its service class. The route table does not mark which routes use a modelled length.";
+
 /** The closing disclosure's paragraphs: the modelled statement, the cost note, the price and the rule. */
 export function fuelDisclosure(data: FuelResponse): readonly string[] {
   const unit = `${formatRupees(data.pricePerLitre)} per litre`;
@@ -151,6 +158,7 @@ export function fuelDisclosure(data: FuelResponse): readonly string[] {
     ruleSentence(data.rule.thresholdPct, data.rule.minPeers),
     notRunNote(data.notRunCount) ?? '',
     'Kilometres per litre is distance over fuel issued; fuel cost per kilometre is fuel cost over distance.',
+    ROUTE_LENGTH_NOTE,
   ].filter((p) => p !== '');
 }
 
