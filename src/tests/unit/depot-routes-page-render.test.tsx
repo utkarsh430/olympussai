@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { TRIP_DEFINITION } from '@/lib/depot/sim/tripFrequencyConfig';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RoutesPage } from '@/components/depot/routes/RoutesPage';
 import { RECOMMENDATION_ONLY } from '@/lib/depot/routes/allocationWording';
@@ -42,7 +43,9 @@ const ROUTE: RouteListItem = {
 
 const ROUTES: DepotRoutesResponse = {
   ...ENVELOPE, routes: [ROUTE], coverage: { profiled: { n: 1, of: 2 }, tripsOnDuration: { n: 1, of: 2 } },
-  tripModel: TRIP_MODEL,
+  tripModel: TRIP_MODEL, serviceClass: null, q: null, sort: null, total: 1, inFeed: 2, offset: 0, limit: 25,
+  depotOptions: [{ value: '1', label: 'AGRA' }], classOptions: [{ value: 'ORD', label: 'ORD' }],
+  tripDefinition: TRIP_DEFINITION,
 };
 
 const FIG = (value: number) => ({ value, provenance: 'modelled' as const, coverage: { n: 1, of: 2 } });
@@ -58,6 +61,14 @@ const PLAN: DepotAllocationResponse = {
   }],
   unchanged: [{ routeName: 'X', depotId: '1', depotName: 'AGRA', reason: 'already_best', tripsPerDay: 2, deadKmPerTrip: 3 }],
   excluded: [{ routeName: 'Y', primaryDepotId: '2', depotName: 'KANPUR', buses: 1, reason: 'not_profiled' }],
+  reason: null, q: null, offset: 0, limit: 0, unchangedTotal: 1, excludedTotal: 1,
+  unchangedByReason: { no_candidate: 0, already_best: 1, below_threshold: 0, over_capacity: 0, move_limit: 0, no_capacity: 0 },
+  excludedByReason: {
+    no_primary_depot: 0, unassigned_bucket: 0, operator_not_depot: 0, bus_count_over_cap: 0,
+    not_profiled: 1, too_few_located_stops: 0, no_depot_position: 0,
+  },
+  profilesPending: true, profilesPendingNote: 'New route profiles will be included in the next plan, within half a minute.',
+  tripDefinition: TRIP_DEFINITION,
   provenance: { deadKmPerTrip: 'derived', tripsPerDay: 'modelled', kmPerDay: 'modelled', capacity: 'modelled' },
   params: { minSavingKmPerDay: 5, maxMoves: 200, detourFactor: 1.3, tripModel: TRIP_MODEL },
 };
@@ -77,7 +88,7 @@ describe('RoutesPage states', () => {
   });
 
   it('says why there is nothing when the feed carries no route', () => {
-    state.routes = slot({ data: { ...ROUTES, routes: [] } });
+    state.routes = slot({ data: { ...ROUTES, routes: [], total: 0, inFeed: 0 } });
     const markup = renderToStaticMarkup(<RoutesPage />);
     expect(markup).toContain('data-testid="depot-empty"');
     expect(textOf(markup)).toContain('no bus carrying a route name');

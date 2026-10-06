@@ -2,12 +2,71 @@
 
 import { useState } from 'react';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
-import type { UnmovedGroup } from '@/lib/depot/routes/allocationGroups';
+import { ErrorPanel, LoadingBlock } from '@/components/depot/shell/DataStates';
+import { ALLOCATION_SUMMARY_QUERY, useAllocationList } from '@/hooks/useDepotAllocation';
+import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
+import {
+  outsideItem,
+  stayItem,
+  type UnmovedGroup,
+  type UnmovedItem,
+} from '@/lib/depot/routes/allocationGroups';
+import { ROUTE_LIST_DEFAULT_LIMIT } from '@/lib/depot/routes/routeQuery';
+import { offsetOf, serverPage } from '@/lib/depot/routes/routesPageModel';
+import { ListPager } from './ListPager';
 import { ROUTES_TEXT, disclosureWord } from '@/lib/depot/routes/routesPageText';
 import { DepotLink } from './RouteCells';
 
-/** Rows render only while the group is open: a closed group of hundreds costs nothing. */
-function GroupTable({ group }: { readonly group: UnmovedGroup }) {
+/**
+ * One page of one reason's routes, fetched from the server only while the
+ * group is open, with the group's true total from the response.
+ */
+function GroupPage({
+  group,
+  onRetry,
+}: {
+  readonly group: UnmovedGroup;
+  readonly onRetry: () => void;
+}) {
+  const [page, setPage] = useState(0);
+  const limit = ROUTE_LIST_DEFAULT_LIMIT;
+  const query = { ...ALLOCATION_SUMMARY_QUERY, reason: group.reason, offset: offsetOf(page, limit), limit };
+  const list = useAllocationList(query);
+  if (list.data === null) {
+    return list.loading ? (
+      <LoadingBlock rows={3} label={`Loading: ${group.heading}`} />
+    ) : (
+      <ErrorPanel message={list.error ?? DEPOT_UNAVAILABLE_MESSAGE} onRetry={onRetry} />
+    );
+  }
+  const stay = group.kind === 'stay';
+  const items = stay ? list.data.unchanged.map(stayItem) : list.data.excluded.map(outsideItem);
+  const total = stay ? list.data.unchangedTotal : list.data.excludedTotal;
+  const current = serverPage(total, list.data.offset, list.data.limit);
+  return (
+    <>
+      <GroupTable group={group} items={items} />
+      {current.pageCount > 1 ? (
+        <div className="mt-2">
+          <ListPager
+            label={`Pages of: ${group.heading}`}
+            page={current.page}
+            pageCount={current.pageCount}
+            onPageChange={setPage}
+          />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function GroupTable({
+  group,
+  items,
+}: {
+  readonly group: UnmovedGroup;
+  readonly items: readonly UnmovedItem[];
+}) {
   const figures = group.kind === 'stay';
   return (
     <div role="region" aria-label={group.heading} tabIndex={0} className="depot-table-frame mt-2 max-h-[50vh]">
@@ -34,7 +93,7 @@ function GroupTable({ group }: { readonly group: UnmovedGroup }) {
           </tr>
         </thead>
         <tbody>
-          {group.items.map((item) => (
+          {items.map((item) => (
             <tr key={item.routeName}>
               <td title={item.routeName}>
                 <span className="block max-w-[16rem] truncate">{item.routeName}</span>
@@ -62,6 +121,8 @@ function GroupTable({ group }: { readonly group: UnmovedGroup }) {
 
 function GroupBlock({ group }: { readonly group: UnmovedGroup }) {
   const [open, setOpen] = useState(false);
+  // A new key remounts the page, which fetches it again.
+  const [attempt, setAttempt] = useState(0);
   return (
     <details
       className="depot-details border-b border-depot-line py-2.5"
@@ -74,7 +135,9 @@ function GroupBlock({ group }: { readonly group: UnmovedGroup }) {
         </span>
         <span className="ml-auto">{disclosureWord(open)}</span>
       </summary>
-      {open ? <GroupTable group={group} /> : null}
+      {open ? (
+        <GroupPage key={attempt} group={group} onRetry={() => setAttempt((n) => n + 1)} />
+      ) : null}
     </details>
   );
 }
@@ -92,7 +155,7 @@ function GroupList({
       <h3 className="depot-label">{title}</h3>
       <div className="border-t border-depot-line">
         {groups.map((g) => (
-          <GroupBlock key={g.key} group={g} />
+          <GroupBlock key={g.reason} group={g} />
         ))}
       </div>
     </div>
