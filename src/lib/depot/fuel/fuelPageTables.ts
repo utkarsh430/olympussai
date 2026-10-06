@@ -1,19 +1,16 @@
 import { formatCount } from '../format';
-import type { FuelFlaggedBus, FuelResponse } from './api';
+import type { FuelResponse } from './api';
 import { formatRupees } from './format';
 import {
   COST_NOTE,
   formatCostPerKm,
   formatKm,
+  formatTenths,
   formatKmPerLitre,
   formatLitres,
   modelledStatement,
-  noComparisonNote,
-  noDistanceNote,
   notRunNote,
-  peersDifferNote,
   ruleSentence,
-  shortfallNote,
 } from './fuelPageModel';
 import type { FuelGroupRow } from './types';
 
@@ -38,15 +35,15 @@ export interface BandFigure {
   readonly caption: string;
 }
 
-/** The depot's day as five figures; "N of M buses ran" is the first. */
+/** The depot's modelled day as five figures; "N of M buses running duties" is the first. */
 export function fuelBand(data: FuelResponse): readonly BandFigure[] {
   const { totals, day } = data;
   const notRun =
-    data.notRunCount > 0 ? `${formatCount(data.notRunCount)} did not run` : 'every bus ran';
+    data.notRunCount > 0 ? `${formatCount(data.notRunCount)} with no duty` : 'every bus has a duty';
   return [
     {
       key: 'ran',
-      label: 'Buses ran',
+      label: 'Buses running duties',
       value: `${formatCount(totals.busCount)} of ${formatCount(day.buses)}`,
       caption: notRun,
     },
@@ -54,7 +51,7 @@ export function fuelBand(data: FuelResponse): readonly BandFigure[] {
       key: 'distance',
       label: 'Distance',
       value: formatKm(totals.distanceKm),
-      caption: 'run in the day',
+      caption: 'run on duties',
     },
     {
       key: 'fuel',
@@ -64,7 +61,7 @@ export function fuelBand(data: FuelResponse): readonly BandFigure[] {
     },
     {
       key: 'cost',
-      label: 'Cost',
+      label: 'Fuel cost',
       value: formatRupees(totals.cost),
       caption: `${formatCostPerKm(totals.costPerKm)} per km`,
     },
@@ -78,50 +75,6 @@ export function fuelBand(data: FuelResponse): readonly BandFigure[] {
     },
   ];
 }
-
-/** Signed variance against the peers' median: "+18.8%". */
-export function formatVariance(pct: number): string {
-  const rounded = Math.round(pct * TENTH) / TENTH;
-  return `${rounded > 0 ? '+' : ''}${rounded.toFixed(1)}%`;
-}
-
-export const BASIS_LABEL: Readonly<Record<FuelFlaggedBus['comparison'], string>> = {
-  route: 'route peers',
-  depot: 'class in depot',
-};
-
-/** A route cell with no route is a dash. */
-export function routeDash(routeName: string | null): string {
-  return routeName === null ? DASH : routeName;
-}
-
-/** The route column is dropped from the stand-out table when most rows have no route. */
-export function showRouteColumn(rows: readonly FuelFlaggedBus[]): boolean {
-  if (rows.length === 0) return false;
-  const without = rows.filter((r) => r.routeName === null).length;
-  return without * 2 <= rows.length;
-}
-
-/** The rule, once, as the section's one-line note. */
-export function standOutNote(thresholdPct: number, minPeers: number): string {
-  return `More than ${thresholdPct}% above the peers' median, with at least ${minPeers} peers close to it`;
-}
-
-/** What is under the list, as one line: what was listed in part, and what could not be compared. */
-export function standOutFooter(data: FuelResponse): string | null {
-  const parts = [
-    data.flagged.length < data.flaggedTotal
-      ? `The ${formatCount(data.flagged.length)} with the largest variance are listed.`
-      : null,
-    peersDifferNote(data.peersDifferCount, data.rule.thresholdPct),
-    noComparisonNote(data.noComparisonCount),
-    noDistanceNote(data.noDistanceCount),
-    shortfallNote(data.day.dutiesWithoutBus),
-  ].filter((p): p is string => p !== null);
-  return parts.length === 0 ? null : parts.join(' ');
-}
-
-export const NOTHING_STANDS_OUT = 'No bus stands out from its peers today.';
 
 export interface ClassTableRow {
   readonly key: string;
@@ -161,10 +114,10 @@ export function classTableRows(
       key: row.key ?? '',
       label: labelOf(row.key),
       busCount: row.busCount,
-      distanceText: row.distanceKm > 0 ? formatKm(row.distanceKm) : DASH,
+      distanceText: row.distanceKm > 0 ? formatTenths(row.distanceKm) : DASH,
       kmPerLitre: row.kmPerLitre,
       valueText: has ? formatKmPerLitre(row.kmPerLitre) : DASH,
-      costPerKmText: has ? formatCostPerKm(row.costPerKm) : DASH,
+      costPerKmText: has && row.costPerKm !== null ? row.costPerKm.toFixed(2) : DASH,
       widthPct: has ? Math.round(Math.max(MIN_BAR_PCT, share * FULL_BAR_PCT)) : 0,
     };
   });
@@ -179,14 +132,21 @@ export function classNote(rows: readonly FuelGroupRow[]): string {
 export function fuelDisclosure(data: FuelResponse): readonly string[] {
   const unit = `${formatRupees(data.pricePerLitre)} per litre`;
   const price = data.priceDefaulted
-    ? `Cost uses a planning price of ${unit}, not a quoted price.`
-    : `Cost uses ${unit}.`;
+    ? `Fuel cost uses a planning price of ${unit}, not a quoted price.`
+    : `Fuel cost uses ${unit}.`;
   return [
     modelledStatement(),
     COST_NOTE,
     price,
     ruleSentence(data.rule.thresholdPct, data.rule.minPeers),
     notRunNote(data.notRunCount) ?? '',
-    'Kilometres per litre is distance over fuel issued; cost per kilometre is cost over distance.',
+    'Kilometres per litre is distance over fuel issued; fuel cost per kilometre is fuel cost over distance.',
   ].filter((p) => p !== '');
+}
+
+/** The empty modelled day's one muted line: what would bring figures to the page. */
+export function emptyRemedy(day: FuelResponse['day']): string {
+  return day.duties === 0
+    ? 'Figures appear once a route is seen running from this depot in the live feed.'
+    : 'Figures appear once a bus of this depot is free to run a duty.';
 }

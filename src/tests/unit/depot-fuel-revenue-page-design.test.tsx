@@ -7,22 +7,28 @@ import { useDepotFuel } from '@/hooks/useDepotFuel';
 import { useDepotRevenue } from '@/hooks/useDepotRevenue';
 import type { FuelFlaggedBus, FuelResponse } from '@/lib/depot/fuel/api';
 import {
-  BASIS_LABEL,
   classFloor,
   classNote,
   classTableRows,
-  formatVariance,
   fuelBand,
   fuelDisclosure,
+} from '@/lib/depot/fuel/fuelPageTables';
+import {
+  BASIS_LABEL,
+  formatVariance,
   routeDash,
   showRouteColumn,
   standOutFooter,
   standOutNote,
-} from '@/lib/depot/fuel/fuelPageTables';
+} from '@/lib/depot/fuel/fuelStandOut';
 import { groupLabel } from '@/lib/depot/fuel/fuelPageModel';
 import type { FuelGroupRow } from '@/lib/depot/fuel/types';
 import type { RevenueResponse } from '@/lib/depot/revenue/api';
 
+// The pages now render their own header (round 2), whose provenance line reads the feed.
+vi.mock('@/components/depot/data/DepotNetworkProvider', () => ({
+  useDepotNetworkContext: () => ({ data: null, error: null }),
+}));
 vi.mock('@/hooks/useDepotFuel', () => ({ useDepotFuel: vi.fn() }));
 vi.mock('@/hooks/useDepotRevenue', () => ({ useDepotRevenue: vi.fn() }));
 vi.mock('@/components/depot/data/DepotDetailProvider', () => ({
@@ -107,9 +113,18 @@ async function render(element: React.ReactElement): Promise<void> {
   });
 }
 
+function sectionTags(): (string | null)[][] {
+  return [...host.querySelectorAll('[data-testid="depot-section-label"]')].map((label) => [
+    (label.querySelector('h2, h3, h4')?.textContent ?? '').replace(/ · .*$/, '').trim(),
+    label.querySelector('[data-provenance]')?.getAttribute('data-provenance') ?? null,
+  ]);
+}
+
 function withoutDisclosure(): string {
   const clone = host.cloneNode(true) as HTMLElement;
   clone.querySelector('[data-testid="depot-how-produced"]')?.remove();
+  // The header's provenance line is the page default, pinned in depot-fuel-revenue-provenance.
+  clone.querySelector('[data-testid="depot-page-header"]')?.remove();
   return clone.textContent ?? '';
 }
 
@@ -126,32 +141,37 @@ afterEach(async () => {
 });
 
 describe('fuel page models', () => {
-  it('shows N of M buses ran as the first band figure, with the not-run count as a caption', () => {
+  // Round 2: tense-neutral for the modelled day (rereview F1 m1); "Cost" names fuel cost.
+  it('shows N of M buses running duties first, with the no-duty count as a caption', () => {
     const band = fuelBand(fuelData());
     expect(band).toHaveLength(5);
     expect(band[0]).toMatchObject({
-      label: 'Buses ran',
+      label: 'Buses running duties',
       value: '158 of 200',
-      caption: '42 did not run',
+      caption: '42 with no duty',
     });
+    expect(band[3]?.label).toBe('Fuel cost');
+    expect(fuelBand(fuelData({ notRunCount: 0 }))[0]?.caption).toBe('every bus has a duty');
+    for (const f of band) expect(`${f.label} ${f.caption}`).not.toMatch(/\bran\b|did not|today/i);
     expect(band[3]?.caption).toBe('₹20.10 per km');
     expect(band[4]?.caption).toContain('planning price');
   });
 
   it('writes a signed numeric variance, a short basis and the peers median', () => {
-    expect(formatVariance(18.84)).toBe('+18.8%');
-    expect(formatVariance(-3)).toBe('-3.0%');
+    expect(formatVariance(18.84, 15)).toBe('+18.8%');
+    expect(formatVariance(-3, 15)).toBe('-3.0%');
     expect(BASIS_LABEL).toEqual({ route: 'route peers', depot: 'class in depot' });
   });
 
   it('puts the rule once in a one-line note and the unlisted counts in one line under the table', () => {
-    expect(standOutNote(15, 2)).toBe(
-      "More than 15% above the peers' median, with at least 2 peers close to it",
+    // X3: the note names the measure and its direction (it read "above the peers' median").
+    expect(standOutNote(15)).toBe(
+      'Uses more than 15% more fuel per kilometre than the median of its peers',
     );
     const line = standOutFooter(fuelData());
     expect(line).toContain('2 buses are above the 15% threshold');
     expect(line).toContain('4 buses have too few similar buses to compare');
-    expect(line).toContain('2 of the day’s duties had no bus');
+    expect(line).toContain('2 of the day’s duties have no bus');
     expect(
       standOutFooter(
         fuelData({
@@ -196,7 +216,7 @@ describe('fuel page models', () => {
     expect(disclosure).toContain('planning price of ₹90 per litre, not a quoted price');
     const strings = [
       disclosure,
-      standOutNote(15, 2),
+      standOutNote(15),
       standOutFooter(data) ?? '',
       classNote(data.perClass),
       ...fuelBand(data).flatMap((f) => [f.label, f.value, f.caption]),
@@ -219,7 +239,7 @@ describe('FuelPage', () => {
       loading: false,
       refresh: vi.fn(),
     } as unknown as ReturnType<typeof useDepotFuel>);
-    await render(<FuelPage />);
+    await render(<FuelPage provenance={{ default: 'modelled' }} />);
     expect(host.querySelector('[data-testid="depot-figure-band"]')?.textContent).toContain(
       '158 of 200',
     );
@@ -228,11 +248,12 @@ describe('FuelPage', () => {
     const headers = [...(standOut?.querySelectorAll('thead th') ?? [])].map((th) =>
       th.textContent?.trim(),
     );
+    // X3: consumption in the direction of the variance (was km per litre beside "+18.8%").
     expect(headers).toEqual([
       'Registration',
       'Class',
-      'Km per litre',
-      "Peers' median",
+      'L / 100 km',
+      "Peers' median L / 100 km",
       'Variance',
       'Basis',
     ]);
@@ -240,14 +261,44 @@ describe('FuelPage', () => {
       (td) => td.textContent,
     );
     expect(first).toContain('+18.8%');
+    // X3: a bus at 3.7 km per litre against peers at 4.4 reads as MORE fuel, in one direction.
+    expect(first).toEqual(expect.arrayContaining(['27.0', '22.7']));
+    expect(host.textContent).toContain(
+      'Uses more than 15% more fuel per kilometre than the median of its peers',
+    );
+    expect(standOut?.textContent).not.toMatch(/km per litre|above the peers/i);
     expect(first).toContain('class in depot');
     expect(standOut?.textContent).not.toContain('a sentence that must not appear');
-    expect(host.querySelector('[data-provenance]')).toBeNull();
-    expect(withoutDisclosure()).not.toMatch(/MODELLED|\(modelled\)/);
+    // Ruling S51 (round 2): the sections that put generated figures beside real
+    // registrations and route names carry ONE tag on their label; nothing else does.
+    expect(sectionTags()).toEqual([
+      ['Buses that stand out', 'modelled'],
+      ['By service class', null],
+      ['By route', 'modelled'],
+    ]);
+    expect(host.querySelectorAll('[data-provenance]')).toHaveLength(2);
+    expect(withoutDisclosure().match(/MODELLED/g)).toHaveLength(2);
+    expect(withoutDisclosure()).not.toMatch(/\(modelled\)/);
     expect(
       host.querySelector('details[data-testid="depot-how-produced"]')?.hasAttribute('open'),
     ).toBe(false);
     expect(host.querySelectorAll('tbody tr')).toHaveLength(3 + 4 + 1);
+    // Critique fuel #3: LITRES dropped from BY ROUTE so it fits at 800; units in headers.
+    const routeHeaders = [...(tables[2]?.querySelectorAll('thead th') ?? [])].map((th) =>
+      th.textContent?.trim(),
+    );
+    expect(routeHeaders).toEqual([
+      'Route',
+      'Buses',
+      'Distance km',
+      'Fuel cost ₹',
+      'Km per litre',
+      'Fuel cost ₹/km',
+    ]);
+    const routeCells = [...(tables[2]?.querySelectorAll('tbody tr:first-child td') ?? [])].map(
+      (td) => td.textContent,
+    );
+    expect(routeCells.slice(2)).toEqual(['100', '1,800', '4.4', '18.00']);
     expect(host.textContent).not.toMatch(BANNED);
   });
 
@@ -261,7 +312,7 @@ describe('FuelPage', () => {
       loading: false,
       refresh: vi.fn(),
     } as never);
-    await render(<FuelPage />);
+    await render(<FuelPage provenance={{ default: 'modelled' }} />);
     expect(host.querySelector('table thead')?.textContent).toContain('Route');
     const none = fuelData({
       totals: {
@@ -279,7 +330,7 @@ describe('FuelPage', () => {
       loading: false,
       refresh: vi.fn(),
     } as never);
-    await render(<FuelPage />);
+    await render(<FuelPage provenance={{ default: 'modelled' }} />);
     expect(host.querySelector('[data-state="empty"]')).not.toBeNull();
     expect(host.querySelector('table')).toBeNull();
   });
@@ -330,19 +381,23 @@ describe('RevenuePage', () => {
       loading: false,
       refresh: vi.fn(),
     } as never);
-    await render(<RevenuePage />);
+    await render(<RevenuePage provenance={{ default: 'modelled' }} />);
     expect(host.querySelector('[data-testid="depot-figure-band"]')?.textContent).toContain(
       '₹12,345',
     );
     expect(host.querySelectorAll('table')).toHaveLength(1);
     expect(host.querySelector('[aria-label="Modelled revenue by route"]')).toBeNull();
-    expect(host.textContent).toContain(
-      'lengths: 1 of 2 routes from real route profiles, the rest modelled'.replace('l', 'L'),
+    // Round 2: the length coverage is the band caption, from the response (critique revenue).
+    expect(host.querySelector('[data-testid="depot-figure-band"]')?.textContent).toContain(
+      '1 of 2 route lengths from real profiles',
     );
+    // Ruling S51: the by-route label carries MODELLED; a real-profile length says DERIVED.
+    expect(sectionTags()).toEqual([['By route', 'modelled']]);
     expect(
       [...host.querySelectorAll('[data-provenance]')].map((t) => t.getAttribute('data-provenance')),
-    ).toEqual(['derived']);
-    expect(withoutDisclosure()).not.toMatch(/MODELLED|\(modelled\)/);
+    ).toEqual(['modelled', 'derived']);
+    expect(host.textContent).not.toMatch(/Rows 1 to|Previous/);
+    expect(withoutDisclosure().match(/MODELLED/g)).toHaveLength(1);
     expect(
       host.querySelector('details[data-testid="depot-how-produced"]')?.hasAttribute('open'),
     ).toBe(false);

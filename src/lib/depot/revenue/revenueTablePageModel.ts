@@ -10,6 +10,8 @@ import {
   modelledStatement,
   type RevenueRow,
 } from './revenuePageModel';
+import type { ModelledDaySummary } from '../sim/operatingDayTypes';
+import { NO_DUTIES_REASON } from '../sim/operatingDayWording';
 import type { DepotRevenueTotals, RouteRevenueFigure } from './types';
 
 /*
@@ -38,9 +40,8 @@ export function formatRupeesPerKmPlain(value: number | null): string {
 
 /** Trips, boardings, load factor, revenue and earnings per kilometre, each with a short caption. */
 export function revenueBand(totals: DepotRevenueTotals): readonly RevenueBandFigure[] {
-  const modelledShare = totals.modelledLengthRevenueShare;
   return [
-    { key: 'trips', label: 'Trips', value: formatCount(totals.trips), caption: 'duties that ran' },
+    { key: 'trips', label: 'Trips', value: formatCount(totals.trips), caption: 'one per duty' },
     {
       key: 'boardings',
       label: 'Boardings',
@@ -57,27 +58,50 @@ export function revenueBand(totals: DepotRevenueTotals): readonly RevenueBandFig
       key: 'revenue',
       label: 'Revenue',
       value: formatRupees(totals.revenue),
-      caption:
-        modelledShare !== null && modelledShare > 0
-          ? `${formatLoadFactor(modelledShare)} on modelled lengths`
-          : 'for the day',
+      caption: lengthsCaption(totals.lengthCoverage),
     },
     {
       key: 'earningsPerKm',
-      label: 'Earnings per km',
+      label: '₹ / km',
       value: totals.earningsPerKm === null ? DASH : formatRupeesPerKmPlain(totals.earningsPerKm),
       caption: totals.earningsPerKm === null ? NO_KM_RUN : 'per kilometre run',
     },
   ];
 }
 
+/** How many route lengths come from real profiles: "route lengths modelled" when none. */
+export function lengthsCaption(coverage: DepotRevenueTotals['lengthCoverage']): string {
+  if (coverage.n <= 0) return 'route lengths modelled';
+  return `${formatCount(coverage.n)} of ${formatCount(coverage.of)} route lengths from real profiles`;
+}
+
+/** The empty modelled day: what is absent and why, in the state panel's one sentence. */
+export function noTripsSentence(day: ModelledDaySummary): string {
+  return day.duties === 0
+    ? `${NO_DUTIES_REASON}, so there are no trips and no revenue to show.`
+    : 'No trips are modelled: no bus of this depot is free to run a duty.';
+}
+
+/** The state panel's muted line: what would bring figures to the page. */
+export const NO_TRIPS_REMEDY =
+  'Figures appear once a bus of this depot runs a duty in the modelled day.';
+
 export interface RevenueTableRow extends RevenueRow {
   /** 0 to 100 against the largest revenue listed; 0 when nothing earned. */
   readonly barPct: number;
+  /** The load factor as a 0 to 100 bar width; 0 when there is none. */
+  readonly loadBarPct: number;
+  /** Rupees, grouped, with no sign: the unit is in the header. */
+  readonly revenuePlain: string;
   readonly lengthRounded: number;
   readonly lengthDerived: boolean;
   readonly earningsCell: string;
 }
+
+const loadBar = (share: number | null): number =>
+  share === null || !Number.isFinite(share)
+    ? 0
+    : Math.round(Math.min(1, Math.max(0, share)) * FULL_BAR_PCT);
 
 /** Every route's row with the bar geometry and the plain cells. Order is the input's. */
 export function revenueTableRows(
@@ -88,9 +112,11 @@ export function revenueTableRows(
   return rows.map((row, index) => ({
     ...row,
     barPct: top <= 0 ? 0 : Math.round((row.revenue / top) * FULL_BAR_PCT),
+    loadBarPct: loadBar(routes[index]?.loadFactor ?? null),
+    revenuePlain: formatCount(Math.round(row.revenue)),
     lengthRounded: Math.round(row.lengthKm),
     lengthDerived: routes[index]?.lengthProvenance === 'derived',
-    earningsCell: row.earningsPerKm === null ? DASH : formatRupeesPerKmPlain(row.earningsPerKm),
+    earningsCell: row.earningsPerKm === null ? DASH : row.earningsPerKm.toFixed(2),
   }));
 }
 

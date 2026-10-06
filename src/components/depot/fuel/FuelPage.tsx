@@ -2,15 +2,20 @@
 
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
 import { HowProduced } from '@/components/depot/revenue/HowProduced';
-import { modelledDaySentence } from '@/lib/depot/sim/operatingDayWording';
 import { ErrorPanel, StaleStrip } from '@/components/depot/shell/DataStates';
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
+import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import type { ProvenanceDescription } from '@/lib/depot/provenanceLine';
 import { useDepotFuel } from '@/hooks/useDepotFuel';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
+import { formatPlainDate } from '@/lib/depot/format';
+import type { FuelResponse } from '@/lib/depot/fuel/api';
+import { fuelHeader } from '@/lib/depot/fuel/fuelHeader';
 import { emptyText } from '@/lib/depot/fuel/fuelPageModel';
-import { fuelBand, fuelDisclosure } from '@/lib/depot/fuel/fuelPageTables';
+import { emptyRemedy, fuelBand, fuelDisclosure } from '@/lib/depot/fuel/fuelPageTables';
+import { modelledDayLine } from '@/lib/depot/revenue/modelledDayLine';
 import { ClassTable } from './ClassTable';
 import { FlaggedList } from './FlaggedList';
 import { RouteTable } from './RouteTable';
@@ -19,51 +24,56 @@ import { RouteTable } from './RouteTable';
 const LOADING_ROWS = 14;
 
 /**
- * The fuel and cost page body for one depot. The page's provenance line is in its
- * header; here the band, "Buses that stand out" (the hero), the class and route
- * tables, and the closed disclosure that says how the figures are produced.
+ * The fuel and cost page for one depot: the header (its provenance line carries the
+ * dated modelled day once the response arrives), the band, "Buses that stand out" (the
+ * hero), the class and route tables, and the closed disclosure. An empty modelled day
+ * is the state panel in place of the band, never a band of zeros.
  */
-export function FuelPage() {
+export function FuelPage({ provenance }: { readonly provenance: ProvenanceDescription }) {
   const { depotId, data: detail } = useDepotDetailContext();
   const { data, error, loading, refresh } = useDepotFuel(depotId);
+  const modelledDay = data
+    ? modelledDayLine({
+        operatingDate: data.operatingDate,
+        duties: data.day.duties,
+        routes: data.day.routes,
+        scheduled: detail?.outshed.coverage ?? null,
+      })
+    : undefined;
+  return (
+    <>
+      <PageHeader {...fuelHeader(provenance, modelledDay)} />
+      {loading ? (
+        <StatePanel kind="loading" rows={LOADING_ROWS} sentence="Loading the fuel and cost view" />
+      ) : data ? (
+        <FuelBody data={data} stale={data.stale || error !== null} />
+      ) : (
+        <ErrorPanel
+          title={
+            error === DEPOT_NOT_FOUND_MESSAGE ? DEPOT_NOT_FOUND_MESSAGE : 'Could not load fuel data'
+          }
+          message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
+          onRetry={refresh}
+        />
+      )}
+    </>
+  );
+}
 
-  if (loading)
-    return (
-      <StatePanel kind="loading" rows={LOADING_ROWS} sentence="Loading the fuel and cost view" />
-    );
-  if (!data) {
-    return (
-      <ErrorPanel
-        title={
-          error === DEPOT_NOT_FOUND_MESSAGE ? DEPOT_NOT_FOUND_MESSAGE : 'Could not load fuel data'
-        }
-        message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
-        onRetry={refresh}
-      />
-    );
-  }
+function FuelBody({ data, stale }: { readonly data: FuelResponse; readonly stale: boolean }) {
   const empty = data.totals.distanceKm <= 0;
   return (
     <div className="flex flex-col gap-6">
-      {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
-      <p className="-mt-3 max-w-3xl font-sans text-[13px] text-depot-muted">
-        {modelledDaySentence({
-          scheduled: detail?.outshed.coverage ?? null,
-          duties: data.day.duties,
-          routes: data.day.routes,
-        })}
-      </p>
-      <div>
-        <FigureBand label={`Fuel and cost for ${data.operatingDate}`}>
-          {fuelBand(data).map((f) => (
-            <Figure key={f.key} label={f.label} value={f.value} caption={f.caption} />
-          ))}
-        </FigureBand>
-      </div>
+      {stale ? <StaleStrip since={data.feedNow} /> : null}
       {empty ? (
-        <StatePanel kind="empty" sentence={emptyText(data.day)} />
+        <StatePanel kind="empty" sentence={emptyText(data.day)} remedy={emptyRemedy(data.day)} />
       ) : (
         <>
+          <FigureBand label={`Fuel and fuel cost for ${formatPlainDate(data.operatingDate)}`}>
+            {fuelBand(data).map((f) => (
+              <Figure key={f.key} label={f.label} value={f.value} caption={f.caption} />
+            ))}
+          </FigureBand>
           <FlaggedList data={data} />
           <ClassTable rows={data.perClass} />
           <RouteTable rows={data.perRoute} total={data.routeTotal} other={data.otherRoutes} />

@@ -121,17 +121,18 @@ export type RouteField = 'distance' | 'litres' | 'cost' | 'kmpl' | 'cpk';
 export function routeCell(row: FuelGroupRow, field: RouteField): string {
   const noDistance = row.distanceKm <= 0;
   const nothing = noDistance && row.fuelLitres <= 0 && row.cost <= 0;
+  // Bare figures: the unit is in the column header.
   switch (field) {
     case 'distance':
-      return noDistance ? NO_DISTANCE : formatKm(row.distanceKm);
+      return noDistance ? NO_DISTANCE : formatTenths(row.distanceKm);
     case 'kmpl':
       return noDistance ? NO_DISTANCE : formatKmPerLitre(row.kmPerLitre);
     case 'cpk':
-      return noDistance ? NO_DISTANCE : formatCostPerKm(row.costPerKm);
+      return noDistance || row.costPerKm === null ? NO_DISTANCE : row.costPerKm.toFixed(2);
     case 'litres':
-      return nothing ? NO_DISTANCE : formatLitres(row.fuelLitres);
+      return nothing ? NO_DISTANCE : formatTenths(row.fuelLitres);
     case 'cost':
-      return nothing ? NO_DISTANCE : formatRupees(row.cost);
+      return nothing ? NO_DISTANCE : formatCount(Math.round(row.cost));
   }
 }
 
@@ -158,12 +159,13 @@ export function summarySentence(
   if (!price) return base;
   const unit = `${formatRupees(price.price)} per litre`;
   return price.defaulted
-    ? `${base} Cost uses a planning price of ${unit}, not a quoted price.`
-    : `${base} Cost uses ${unit}.`;
+    ? `${base} Fuel cost uses a planning price of ${unit}, not a quoted price.`
+    : `${base} Fuel cost uses ${unit}.`;
 }
 
 /** Cost is a sum of per-bus rounded rupees, so it need not equal litres times the price. */
-export const COST_NOTE = 'Cost is summed from each bus’s cost, each to the nearest rupee.';
+export const COST_NOTE =
+  'Fuel cost is summed from each bus’s fuel cost, each to the nearest rupee.';
 
 /** The flagging rule in one sentence, from the module's own constants. */
 export function ruleSentence(thresholdPct: number, minPeers: number): string {
@@ -213,8 +215,11 @@ export function flaggedHeadline(total: number, shown: number, unlisted?: Unliste
         ]
       : [];
     const present = notes.filter((n): n is string => n !== null);
-    if (present.length === 0) return 'No bus stands out from its peers today.';
-    return ['No bus is listed as standing out from its peers today.', ...present].join(' ');
+    if (present.length === 0) return 'No bus stands out from its peers in the modelled day.';
+    return [
+      'No bus is listed as standing out from its peers in the modelled day.',
+      ...present,
+    ].join(' ');
   }
   if (total === 1) return '1 bus stands out from its peers.';
   const lead = `${formatCount(total)} buses stand out from their peers`;
@@ -226,29 +231,29 @@ export function flaggedHeadline(total: number, shown: number, unlisted?: Unliste
 export function noDistanceNote(count: number): string | null {
   if (count <= 0) return null;
   return count === 1
-    ? '1 bus has no distance today and is not compared.'
-    : `${formatCount(count)} buses have no distance today and are not compared.`;
+    ? '1 bus has no distance in the modelled day and is not compared.'
+    : `${formatCount(count)} buses have no distance in the modelled day and are not compared.`;
 }
 
-/** Buses that did not run are said to have not run: they are in no total and have no distance. */
+/** Buses with no duty in the modelled day are said to have none: they are in no total and have no distance. */
 export function notRunNote(count: number): string | null {
   if (count <= 0) return null;
   return count === 1
-    ? '1 bus did not run in the modelled day; it has no distance and is in no figure here.'
-    : `${formatCount(count)} buses did not run in the modelled day; they have no distance and are in no figure here.`;
+    ? '1 bus has no duty in the modelled day; it has no distance and is in no figure here.'
+    : `${formatCount(count)} buses have no duty in the modelled day; they have no distance and are in no figure here.`;
 }
 
 /** The shortfall, stated: duties that had no bus because too few were available. */
 export function shortfallNote(dutiesWithoutBus: number): string | null {
   if (dutiesWithoutBus <= 0) return null;
-  return `${formatCount(dutiesWithoutBus)} of the day’s duties had no bus: fewer buses were available than duties.`;
+  return `${formatCount(dutiesWithoutBus)} of the day’s duties have no bus: fewer buses are available than duties.`;
 }
 
 export function emptyText(day?: ModelledDaySummary): string {
   if (!day || day.duties === 0) {
     return `${NO_DUTIES_REASON}, so no bus runs a duty and there is no distance or fuel to show.`;
   }
-  return 'No fuel figures to show: no bus was available to run a duty in the modelled day.';
+  return 'No fuel figures to show: no bus is available to run a duty in the modelled day.';
 }
 
 /** What is modelled, that it is not the corporation's figures, and what replaces it. */
