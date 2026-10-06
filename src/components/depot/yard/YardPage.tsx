@@ -8,6 +8,7 @@ import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotNetwork';
 import { formatCount } from '@/lib/depot/format';
 import { beyondRangeSentence, buildYardModel } from '@/lib/depot/yard/yardModel';
 import { YardMap } from './YardMap';
+import { ParkingPlanSection } from './ParkingPlanSection';
 import { YardMapLegend } from './YardMapLegend';
 import { YardRoll } from './YardRoll';
 import { YardSummary } from './YardSummary';
@@ -49,6 +50,7 @@ export function YardPage() {
         </section>
       ) : null}
       <YardRoll model={model} depotId={depotId} depotNames={depotNames} />
+      <ParkingPlanSection depotId={depotId} />
     </div>
   );
 }
