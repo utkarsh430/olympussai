@@ -221,7 +221,10 @@ const bodies = new WeakMap<SnapshotAnalysis, Map<string, ParkingBody>>();
  * One depot's night parking order, or null when the feed has no such depot.
  * It is for the day after the feed date, except before the first duty of the
  * feed date, when it is for that date itself (ruling S62); `operatingDate`
- * says which. The order rests on modelled duties and a
+ * says which. For the day after, each bus's first duty comes from the
+ * later-day plan, which covers the YARD BUSES ONLY (every bus out now is held
+ * out): it says which yard bus leaves first, never how many duties the depot
+ * can cover that day. The order rests on modelled duties and a
  * modelled yard layout, so it is tagged MODELLED; it is a suggestion only and
  * nothing is dispatched. The clock is the feed's, never the wall clock.
  */
