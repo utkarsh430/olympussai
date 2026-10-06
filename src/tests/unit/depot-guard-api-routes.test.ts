@@ -14,6 +14,9 @@ import { modelledCrewRepository } from '@/lib/depot/repositories/modelledCrewRep
 import { modelledFuelRepository } from '@/lib/depot/repositories/modelledFuelRepository';
 import { modelledHistoryRepository } from '@/lib/depot/repositories/modelledHistoryRepository';
 import { modelledRevenueRepository } from '@/lib/depot/repositories/modelledRevenueRepository';
+import { getRouteProfile } from '@/lib/depot/routes/routeCatalogue';
+import { fetchUpstream } from '@/lib/upsrtc/client';
+import { fetchBusSchedule } from '@/lib/upsrtc/scheduleService';
 import { filesUnder, ROOT } from './depot-guard-source';
 import { guardView } from './depot-guard-fixtures';
 
@@ -38,6 +41,20 @@ vi.mock('@/lib/upsrtc/liveSnapshot', async (importOriginal) => ({
 vi.mock('@/lib/depot/copilot/service/runtime', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/lib/depot/copilot/service/runtime')>();
   return { ...real, getCopilotRuntime: vi.fn(real.getCopilotRuntime) };
+});
+// The upstream paths are watched (and left working) so the success rows can show
+// that only the route lookup reaches the corporation's servers.
+vi.mock('@/lib/upsrtc/client', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/upsrtc/client')>();
+  return { ...real, fetchUpstream: vi.fn(real.fetchUpstream) };
+});
+vi.mock('@/lib/upsrtc/scheduleService', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/upsrtc/scheduleService')>();
+  return { ...real, fetchBusSchedule: vi.fn(real.fetchBusSchedule) };
+});
+vi.mock('@/lib/depot/routes/routeCatalogue', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/depot/routes/routeCatalogue')>();
+  return { ...real, getRouteProfile: vi.fn(real.getRouteProfile) };
 });
 vi.mock('@/lib/depot/log', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/depot/log')>()),
@@ -195,12 +212,19 @@ describe('the depot API routes', () => {
     },
   );
 
-  it.each(named(CASES))('%s with a session answers with no-store, and its success path runs', async (_n, c) => {
+  it.each(named(CASES))('%s with a session answers with no-store, and only the route lookup goes upstream', async (_n, c) => {
     useGoodData();
     const res = await call(c);
     expect(res.headers.get('cache-control')).toBe('no-store');
     if (res.status >= 400) await expectFixedErrorBody(res);
-    if (c.file !== ROUTE_LOOKUP) expect(fetchStub).not.toHaveBeenCalled();
+    if (c.file === ROUTE_LOOKUP) return;
+    // No upstream call from any other route: not a fetch, not the upstream client,
+    // not a route lookup, not a fresh live snapshot outside the fleet repository.
+    expect(fetchStub).not.toHaveBeenCalled();
+    expect(fetchUpstream).not.toHaveBeenCalled();
+    expect(fetchBusSchedule).not.toHaveBeenCalled();
+    expect(getRouteProfile).not.toHaveBeenCalled();
+    expect(getLiveSnapshot).not.toHaveBeenCalled();
   });
 
   it('answers 200 on the success path of every data route', async () => {
