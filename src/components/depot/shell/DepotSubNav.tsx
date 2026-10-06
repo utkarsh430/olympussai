@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
+import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import { depotNav, isDepotNavItemActive } from '@/lib/depot/depotNav';
+import { depotScopeState } from '@/lib/depot/scopeState';
 
 export interface DepotSubNavProps {
   readonly depotId: string;
@@ -13,10 +16,21 @@ export interface DepotSubNavProps {
  * active page is marked like the left rail's active item: a 2px cyan edge and the
  * raised surface, plus `aria-current`. The strip scrolls inside itself on a narrow
  * column, so the page never scrolls sideways; focus rings are drawn inside each
- * link for the same reason the rail draws them inside.
+ * link for the same reason the rail draws them inside. For a depot the feed does not
+ * know (`depotScopeState`) it renders nothing, so no tab leads to a page that cannot exist.
  */
 export function DepotSubNav({ depotId }: DepotSubNavProps) {
   const pathname = usePathname() ?? '';
+  const network = useDepotNetworkContext();
+  const detail = useDepotDetailContext();
+  const scope = depotScopeState({
+    depotId,
+    depots: network.data?.depots ?? null,
+    detailError: detail.error,
+  });
+
+  // A depot the feed does not know has no pages to go to: render no tabs at all.
+  if (!scope.known) return null;
 
   return (
     <nav
