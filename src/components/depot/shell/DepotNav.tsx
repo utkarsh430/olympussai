@@ -41,13 +41,14 @@ export function DepotNav() {
               key={`${position}-${group.heading}`}
               data-testid={position === 0 && nav.depotGroup ? 'depot-nav-depot-group' : undefined}
             >
-              <p
+              {/* A label, not a sentence: a div keeps it out of the prose rule. */}
+              <div
                 className={`depot-label mb-1.5 truncate px-4 ${
                   position === 0 && nav.depotGroup ? 'text-depot-ink' : ''
                 }`}
               >
                 {group.heading}
-              </p>
+              </div>
               <NavLinks items={group.items} pathname={pathname} />
             </div>
           ))}

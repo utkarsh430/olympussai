@@ -69,7 +69,7 @@ export function DepotNavStrip({ nav, pathname }: { readonly nav: ShellNav; reado
         >
           {nav.networkGroups.map((group) => (
             <div key={group.heading}>
-              <p className="depot-label mb-1 px-4">{group.heading}</p>
+              <div className="depot-label mb-1 px-4">{group.heading}</div>
               <NavLinks items={group.items} pathname={pathname} className="flex flex-wrap" />
             </div>
           ))}

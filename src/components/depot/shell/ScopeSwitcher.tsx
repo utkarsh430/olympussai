@@ -89,7 +89,7 @@ export function ScopeSwitcher() {
 
   if (!data && error && !loading) {
     return (
-      <p
+      <div
         data-testid="depot-scope-switcher"
         className={`${CRUMB} min-w-0 truncate text-depot-faint`}
       >
@@ -97,7 +97,7 @@ export function ScopeSwitcher() {
         <span className="ml-2 normal-case tracking-normal text-depot-muted">
           Depot list unavailable
         </span>
-      </p>
+      </div>
     );
   }
 
