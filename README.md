@@ -577,7 +577,7 @@ each opens a full surface, not an overlay on the map. Depot Management
 (`data-testid="open-depot-management"`) goes to `/project/depots`; it replaced
 the former Fleet Distribution button. The demand view ("Demand and Fleet
 Redistribution") is unchanged and is opened from a bus's analysis menu
-(**Demand–Supply**), from Scenario Lab and from Pitch Mode.
+(**Demand - Supply Analysis**), from Scenario Lab and from Pitch Mode.
 
 > **Known gap.** The Bunching link took the slot previously occupied by the
 > **Audit** and **Diagnostics** buttons. Both drawers are still mounted in
@@ -644,7 +644,7 @@ Opens on selection with live readouts (position, speed, heading, ignition, GPS
 age, depot, route, data quality) and the retrieved schedule (origin,
 destination, departure, arrival, stop sequence, trip count). Five actions
 launch analyses: **Bunching**, **Traffic**, **Incident Response**,
-**Demand–Supply**, and **Contact Driver**. Escape closes it.
+**Demand - Supply Analysis**, and **Contact Driver**. Escape closes it.
 
 ### Copilot panel (right, 344 px)
 
@@ -1358,7 +1358,7 @@ npm run lint         # ESLint (next lint)
 npm run typecheck    # tsc --noEmit, strict
 npm run test         # Vitest — 243 unit tests, no network required
 npm run test:watch   # Vitest in watch mode
-npm run test:e2e     # Playwright — 31 specs (starts the app via npm run start; E2E_PORT overrides port 3000)
+npm run test:e2e     # Playwright — 32 specs (starts the app via npm run start; E2E_PORT overrides port 3000)
 npm run format       # Prettier over src/**/*.{ts,tsx,css} and docs/**/*.md
 ```
 
@@ -1382,7 +1382,7 @@ asserts the control equations against hand-computed values, that the overtaking
 floor prevents inversion, that the controller never breaches the safety floor,
 and that each scenario's two runs diverge in the documented direction.
 
-### End-to-end (Playwright) — 31 specs across 2 files
+### End-to-end (Playwright) — 32 specs across 2 files
 
 The suite serves the production build on port 3000 by default. Set `E2E_PORT`
 to use another port when 3000 is taken, for example
@@ -1408,10 +1408,12 @@ Escape closing the detail drawer · and an assertion that the words
 Diagnostics and Audit drawer steps are omitted because nothing opens those
 drawers; see the known gap under the top command bar).
 
-The Depot Management spec (`tests/e2e/depot-management.spec.ts`, 6 specs)
+The Depot Management spec (`tests/e2e/depot-management.spec.ts`, 7 specs)
 covers the login deep link surviving sign-in, the shell's top bar, navigation
-and footer, the Back to Operations link, the banned-wording check, the skip
-link and a console-error-free load.
+and footer, the Back to Operations link, the banned-wording check, no sideways
+scroll (one spec run at three widths: 1440, 1024 and 800 px), the skip link and a
+console-error-free load. A full run reports 34 results, because that one spec
+runs three times.
 
 Spec 25 covers the simulator end to end: navigating from the command bar,
 both panes rendering, stepping advancing the two runs in lockstep, the
