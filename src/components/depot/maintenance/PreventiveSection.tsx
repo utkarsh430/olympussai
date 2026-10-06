@@ -89,7 +89,7 @@ export interface PreventiveSectionProps {
 
 /**
  * Buses grouped by words (overdue, due soon, not due) on a modelled odometer.
- * Only the buses that need attention are listed; the rest are counted.
+ * The response carries only the buses that need attention; the rest are counted.
  */
 export function PreventiveSection({
   depotId,
@@ -99,10 +99,6 @@ export function PreventiveSection({
   const columns = useMemo(
     () => buildColumns(depotId, preventive.dueSoonWithinKm),
     [depotId, preventive.dueSoonWithinKm],
-  );
-  const attention = useMemo(
-    () => preventive.buses.filter((bus) => bus.group !== 'not_due'),
-    [preventive.buses],
   );
   return (
     <section aria-labelledby="depot-preventive-heading" className="min-w-0 animate-rise">
@@ -127,12 +123,12 @@ export function PreventiveSection({
       <p className="depot-prose mb-3" role="status">
         {groupSummary(preventive.counts)}
       </p>
-      {attention.length === 0 ? (
+      {preventive.buses.length === 0 ? (
         <EmptyState>{noAttentionText()}</EmptyState>
       ) : (
         <DataTable
           columns={columns}
-          rows={attention}
+          rows={preventive.buses}
           rowKey={(bus) => bus.registrationNumber}
           caption="Buses overdue or due soon for a preventive service, modelled"
         />
