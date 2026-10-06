@@ -17,8 +17,7 @@ import { compareText } from '../exceptions/depotExceptions';
 import type { FleetSnapshotView } from '../repositories/types';
 import { operatingDateOf } from '../sim/seed';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
-import { buildDepotDetail } from './depotView';
-import { planDutiesFor } from './dutyView';
+import { dutyPlanFor } from './operatingDayView';
 
 /** The most covered shifts sent to the browser; the total is stated beside them. */
 export const ROSTER_CAP = 200;
@@ -75,11 +74,11 @@ async function buildBody(
   depotId: string,
   crewRepository: CrewRepository,
 ): Promise<CrewBody | null> {
-  const detail = buildDepotDetail(view, depotId);
   const depot = analysis.depotsById.get(depotId);
-  if (!detail || !depot) return null;
+  if (!depot) return null;
   const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
-  const planned = planDutiesFor(analysis, depotId, detail.buses, operatingDate);
+  // The depot's one shared plan (ruling S47): the duty board's duties, exactly.
+  const planned = dutyPlanFor(analysis, depotId, operatingDate);
   if (!planned) return null;
   const { duties } = planned;
   const crew = await crewRepository.crewFor(
@@ -107,7 +106,7 @@ async function buildBody(
   );
   return {
     depotId,
-    depotLabel: detail.depot.name,
+    depotLabel: depot.name,
     operatingDate,
     provenance: 'modelled',
     summary: {

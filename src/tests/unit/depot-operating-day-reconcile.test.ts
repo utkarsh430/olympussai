@@ -21,7 +21,10 @@ const STATES: readonly BusOpState[] = ['in_service', 'on_road', 'standing', 'dar
 const ROUTES: readonly (string | null)[] = ['A_EXP_1', 'B_ORD_2', 'C_AC_3', 'D_VOLVO_4', 'E_5', null];
 
 function bus(registrationNumber: string, state: BusOpState, routeName: string | null): DepotBusView {
-  return { registrationNumber, state, routeName } as unknown as DepotBusView;
+  // Heard a minute ago, in the yard: a standing bus is then eligible for a duty (ruling S47).
+  return {
+    registrationNumber, state, routeName, location: 'in_yard', gpsAgeMin: 1, notHeardMin: null,
+  } as unknown as DepotBusView;
 }
 
 /** Depot `n`: its size, states, routes, requirement and date all vary deterministically. */
@@ -157,33 +160,33 @@ describe('the worked depot, every page side by side', () => {
   });
 
   it('pins every page’s figures for the worked depot as literals', () => {
-    // WHO RAN. Duties 000 and 002 on AGRA_EXP_1, 001 on DELHI_EXP_2; in the day's seeded
-    // order K3 took DELHI, K2 and K4 took AGRA (all express, so every class matches); K1 idle.
+    // WHO RUNS. Duties 000 and 002 on AGRA_EXP_1, 001 on DELHI_EXP_2. Each bus takes a duty
+    // of the route it reports live (ruling S47): K2 DELHI, K1 and K3 AGRA; K4 (DELHI) has none.
     expect(worked.runs.map((r) => [r.registrationNumber, r.routeName, r.distanceKm])).toEqual([
-      ['K3', 'DELHI_EXP_2', 191],
-      ['K2', 'AGRA_EXP_1', 240],
-      ['K4', 'AGRA_EXP_1', 240],
+      ['K2', 'DELHI_EXP_2', 191],
+      ['K1', 'AGRA_EXP_1', 240],
+      ['K3', 'AGRA_EXP_1', 240],
     ]);
-    expect(worked.notRun).toEqual([{ registrationNumber: 'K1', reason: 'no_duty' }]);
+    expect(worked.notRun).toEqual([{ registrationNumber: 'K4', reason: 'no_duty' }]);
 
     // CREW. Each of the 3 duties is short enough for one shift, so 3 shifts and no relief.
     const crew = crewShiftsFor(worked.duties);
     expect(crew.shifts).toHaveLength(3);
     expect(crew.dutiesNeedingRelief).toBe(0);
 
-    // FUEL at Rs 92 a litre. Each bus's economy is seeded (K2 4.04, K3 4.64, K4 4.66 km/L);
+    // FUEL at Rs 92 a litre. Each bus's economy is seeded (K1 4.97, K2 4.04, K3 4.64 km/L);
     // litres are distance over economy to the tenth, rupees are litres x 92 rounded:
-    //   K2 240 km -> 59.4 L -> 59.4 x 92 = 5,464.8 -> 5,465
-    //   K3 191 km -> 41.2 L -> 41.2 x 92 = 3,790.4 -> 3,790
-    //   K4 240 km -> 51.5 L -> 51.5 x 92 = 4,738.0 -> 4,738
-    //   depot 671 km, 152.1 L, Rs 13,993; cost per km 13,993 / 671 = 20.854
+    //   K1 240 km -> 48.3 L -> 48.3 x 92 = 4,443.6 -> 4,444
+    //   K2 191 km -> 47.3 L -> 47.3 x 92 = 4,351.6 -> 4,352
+    //   K3 240 km -> 51.7 L -> 51.7 x 92 = 4,756.4 -> 4,756
+    //   depot 671 km, 147.3 L, Rs 13,552; cost per km 13,552 / 671 = 20.197
     expect(fuel.perBus.map((b) => [b.registrationNumber, b.fuelLitres, b.cost])).toEqual([
-      ['K2', 59.4, 5465],
-      ['K3', 41.2, 3790],
-      ['K4', 51.5, 4738],
+      ['K1', 48.3, 4444],
+      ['K2', 47.3, 4352],
+      ['K3', 51.7, 4756],
     ]);
-    expect(fuel.depot).toMatchObject({ distanceKm: 671, fuelLitres: 152.1, cost: 13993, busCount: 3 });
-    expect(fuel.depot.costPerKm).toBeCloseTo(20.854, 3);
+    expect(fuel.depot).toMatchObject({ distanceKm: 671, fuelLitres: 147.3, cost: 13552, busCount: 3 });
+    expect(fuel.depot.costPerKm).toBeCloseTo(20.197, 3);
 
     // REVENUE. Express: 44 seats, Rs 1.50 a seat-km, a boarding rides 45% of the route.
     // Load factors are seeded per route and date: AGRA 0.544, DELHI 0.437.
@@ -211,7 +214,7 @@ describe('the worked depot, every page side by side', () => {
     });
     expect(revenue.depot.loadFactor).toBeCloseTo(67.1 / 132, 10);
 
-    // ECONOMICS reads exactly these: earnings 33.89, fuel cost 20.854, load factor 0.5083 and
+    // ECONOMICS reads exactly these: earnings 33.89, fuel cost 20.197, load factor 0.5083 and
     // 2 of 2 routes on a real length (the inputs economicsView builds from the same day).
     const input = {
       earningsPerKm: revenue.depot.earningsPerKm,
@@ -220,7 +223,7 @@ describe('the worked depot, every page side by side', () => {
       lengthCoverage: revenue.depot.lengthCoverage,
     };
     expect(input.earningsPerKm).toBe(33.89);
-    expect(input.costPerKm).toBeCloseTo(13993 / 671, 10);
+    expect(input.costPerKm).toBeCloseTo(13552 / 671, 10);
     expect(input.loadFactor).toBeCloseTo(0.5083, 4);
     expect(input.lengthCoverage).toEqual({ n: 2, of: 2 });
   });

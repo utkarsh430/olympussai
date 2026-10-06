@@ -1,4 +1,3 @@
-import type { DepotBusView } from '../api';
 import type {
   BoardDuty,
   DutyBlockers,
@@ -6,25 +5,16 @@ import type {
   DutyBoardResponse,
   DutyState,
 } from '../duties/api';
-import type { AssignmentPlan, Duty } from '../duties/types';
+import type { Duty, DutyAssignment } from '../duties/types';
 import type { FleetSnapshotView } from '../repositories/types';
-import { assignDuties } from '../optimise/assignDuties';
-import { DEFAULT_REQUIREMENT_PARAMS } from '../sim/config';
-import { modelDuties } from '../sim/duties';
-import { modelBus } from '../sim/fleetMaster';
-import { modelBalances } from '../sim/requirement';
 import { operatingDateOf } from '../sim/seed';
 import type { ModelledBus, ServiceClass } from '../sim/types';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
-import { buildDepotDetail } from './depotView';
+import { dutyPlanFor } from './operatingDayView';
 
 type DutyBoardBody = Omit<DutyBoardResponse, keyof ReturnType<typeof feedEnvelope>>;
 
 const NO_BLOCKERS: DutyBlockers = { notInYard: 0, offRoad: 0, dark: 0 };
-
-function routeNamesOf(buses: readonly DepotBusView[]): string[] {
-  return [...new Set(buses.flatMap((b) => (b.routeName ? [b.routeName] : [])))];
-}
 
 /** Counts the held-out buses of one class (or of any class) by reason. */
 function blockersFor(
@@ -53,10 +43,11 @@ function stateOf(registration: string | null, blockers: DutyBlockers): DutyState
 
 function toBoardDuty(
   duty: Duty,
-  registration: string | null,
+  assignment: DutyAssignment | undefined,
   excluded: Parameters<typeof blockersFor>[0],
   fleet: ReadonlyMap<string, ModelledBus>,
 ): BoardDuty {
+  const registration = assignment?.registrationNumber ?? null;
   const blockers = registration === null ? blockersFor(excluded, fleet, duty.serviceClass) : null;
   return {
     id: duty.id,
@@ -65,82 +56,9 @@ function toBoardDuty(
     endMin: duty.endMin,
     serviceClass: duty.serviceClass,
     registrationNumber: registration,
+    busStanding: registration === null ? null : (assignment?.busStanding ?? null),
     state: stateOf(registration, blockers ?? NO_BLOCKERS),
     blockers,
-  };
-}
-
-/** The modelled duties for one operating date and the matching of the depot's buses to them. */
-export interface DutyPlan {
-  readonly duties: readonly Duty[];
-  readonly routesWithoutDuty: readonly string[];
-  readonly routeCount: number;
-  readonly peakRequirement: number;
-  readonly fleet: ReadonlyMap<string, ModelledBus>;
-  readonly plan: AssignmentPlan;
-  /** True when the depot has no yard, so eligibility ignored location. */
-  readonly locationIgnored: boolean;
-  /** Buses left out because their registration repeated an earlier one's. */
-  readonly duplicateRowsDropped: number;
-}
-
-/**
- * The first bus per trimmed registration. The feed can repeat a registration,
- * and the matching refuses a repeat: one bus cannot run two duties.
- */
-function firstPerRegistration(buses: readonly DepotBusView[]): DepotBusView[] {
-  const seen = new Set<string>();
-  return buses.filter((bus) => {
-    const key = bus.registrationNumber.trim();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-/**
- * Builds the day's modelled duties and assigns the depot's buses to them, or
- * null for an unknown depot. Exported so another view (the night parking
- * order) can read each bus's duty for a date without a second assignment.
- */
-export function planDutiesFor(
-  analysis: SnapshotAnalysis,
-  depotId: string,
-  allBuses: readonly DepotBusView[],
-  operatingDate: string,
-): DutyPlan | null {
-  const depot = analysis.depotsById.get(depotId);
-  if (!depot) return null;
-  const buses = firstPerRegistration(allBuses);
-  const locationIgnored = !analysis.yards.has(depotId);
-  const balance = modelBalances(
-    analysis.depots,
-    analysis.yards,
-    operatingDate,
-    DEFAULT_REQUIREMENT_PARAMS,
-  ).find((b) => b.depotId === depotId);
-  const peakRequirement = balance?.peakRequirement ?? 0;
-  const routeNames = routeNamesOf(buses);
-  // The feed carries no scheduled durations, so every duty length is a seeded range.
-  const { duties, routesWithoutDuty } = modelDuties(
-    depot,
-    routeNames.map((routeName) => ({ routeName, scheduledDurationMin: null })),
-    peakRequirement,
-    operatingDate,
-  );
-  const fleet = new Map(
-    buses.map((b) => [b.registrationNumber, modelBus(b.registrationNumber, b.routeName)]),
-  );
-  const plan = assignDuties(duties, buses, fleet, { yardEstablished: !locationIgnored });
-  return {
-    duties,
-    routesWithoutDuty,
-    routeCount: routeNames.length,
-    peakRequirement,
-    fleet,
-    plan,
-    locationIgnored,
-    duplicateRowsDropped: allBuses.length - buses.length,
   };
 }
 
@@ -148,14 +66,13 @@ function buildBody(
   analysis: SnapshotAnalysis,
   depotId: string,
   depotName: string,
-  buses: readonly DepotBusView[],
   operatingDate: string,
 ): DutyBoardBody | null {
-  const planned = planDutiesFor(analysis, depotId, buses, operatingDate);
+  const planned = dutyPlanFor(analysis, depotId, operatingDate);
   if (!planned) return null;
   const { duties, plan, fleet } = planned;
-  const byDuty = new Map(plan.assignments.map((a) => [a.dutyId, a.registrationNumber]));
-  const board = duties.map((d) => toBoardDuty(d, byDuty.get(d.id) ?? null, plan.excluded, fleet));
+  const byDuty = new Map(plan.assignments.map((a) => [a.dutyId, a]));
+  const board = duties.map((d) => toBoardDuty(d, byDuty.get(d.id), plan.excluded, fleet));
   const counts: DutyBoardCounts = {
     duties: board.length,
     assigned: board.length - plan.unassignedDuties,
@@ -193,8 +110,8 @@ const bodies = new WeakMap<SnapshotAnalysis, Map<string, DutyBoardBody>>();
  */
 export function buildDutyBoard(view: FleetSnapshotView, depotId: string): DutyBoardResponse | null {
   const analysis = analyseSnapshot(view);
-  // Existence and the name come from the shared analysis; the bus list is built
-  // only on a memo miss, so a repeat poll does no per-request work.
+  // Existence and the name come from the shared analysis; the plan is the
+  // depot's one shared plan (ruling S47), so a repeat poll does no per-request work.
   const depot = analysis.depotsById.get(depotId);
   if (!depot) return null;
   const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
@@ -203,9 +120,7 @@ export function buildDutyBoard(view: FleetSnapshotView, depotId: string): DutyBo
   bodies.set(analysis, held);
   let body = held.get(key);
   if (!body) {
-    const detail = buildDepotDetail(view, depotId);
-    if (!detail) return null;
-    const built = buildBody(analysis, depotId, depot.name, detail.buses, operatingDate);
+    const built = buildBody(analysis, depotId, depot.name, operatingDate);
     if (!built) return null;
     body = built;
     held.set(key, body);

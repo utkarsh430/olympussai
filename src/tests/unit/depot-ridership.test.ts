@@ -26,7 +26,10 @@ import type { BusOpState, DepotSummary } from '@/lib/depot/types';
 const DEPOT = { id: '7', name: 'Kaushambi', kind: 'depot', fleet: 24 } as unknown as DepotSummary;
 
 function bus(registrationNumber: string, state: BusOpState, routeName: string | null): DepotBusView {
-  return { registrationNumber, state, routeName } as unknown as DepotBusView;
+  // Heard a minute ago, in the yard: a standing bus is then eligible for a duty (ruling S47).
+  return {
+    registrationNumber, state, routeName, location: 'in_yard', gpsAgeMin: 1, notHeardMin: null,
+  } as unknown as DepotBusView;
 }
 
 const BUSES = Array.from({ length: 24 }, (_, i) =>

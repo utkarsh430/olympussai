@@ -5,11 +5,9 @@ import { scoreEconomics } from '../revenue/economicsIndex';
 import type { EconomicsInput } from '../revenue/types';
 import type { DepotSummary } from '../types';
 import { ECONOMICS_WEIGHTS } from '../sim/revenueConfig';
-import { feedEnvelope, type SnapshotAnalysis } from './analysis';
-import { depotBusViews } from './depotView';
+import { feedEnvelope } from './analysis';
 import { operatingDayFor } from './operatingDayView';
 import { analyseDepotRevenue, holdPerSnapshot } from './revenueView';
-import type { RouteProfile } from '../routes/types';
 
 type EconomicsBody = Omit<EconomicsResponse, keyof ReturnType<typeof feedEnvelope>>;
 
@@ -24,16 +22,12 @@ interface DepotFigures {
 
 /** Only an operating depot is scored; the rest are listed with their reason and no figures. */
 async function figuresFor(
-  analysis: SnapshotAnalysis,
+  view: FleetSnapshotView,
   depot: DepotSummary,
-  profiles: ReadonlyMap<string, RouteProfile>,
-  operatingDate: string,
   sources: EconomicsSources,
 ): Promise<DepotFigures> {
-  const day =
-    depot.kind === 'depot'
-      ? operatingDayFor(analysis, depot.id, depotBusViews(analysis, depot.id), profiles, operatingDate)
-      : null;
+  // The depot's one shared day: the day its own fuel and revenue pages read.
+  const day = depot.kind === 'depot' ? operatingDayFor(view, depot.id) : null;
   if (day === null) {
     return {
       input: {
@@ -64,9 +58,9 @@ async function figuresFor(
 }
 
 const heldBody = holdPerSnapshot<EconomicsBody, EconomicsSources>(
-  async (_view, analysis, profiles, operatingDate, _key, sources): Promise<EconomicsBody> => {
+  async (view, analysis, operatingDate, _key, sources): Promise<EconomicsBody> => {
     const figures = await Promise.all(
-      analysis.depots.map((depot) => figuresFor(analysis, depot, profiles, operatingDate, sources)),
+      analysis.depots.map((depot) => figuresFor(view, depot, sources)),
     );
     const scores = scoreEconomics(figures.map((f) => f.input));
     const depots = analysis.depots.map(

@@ -3,14 +3,12 @@ import type { FleetSnapshotView, DepotRepositories } from '../repositories/types
 import type { RevenueResponse } from '../revenue/api';
 import { analyseRevenue } from '../revenue/analysis';
 import type { RevenueAnalysis } from '../revenue/types';
-import { cachedRouteProfiles, routeCatalogueRevision } from '../routes/routeCatalogue';
-import type { RouteProfile } from '../routes/types';
+import { routeCatalogueRevision } from '../routes/routeCatalogue';
 import { MIXED_CLASS_NOTE, REVENUE_MODEL_PARAMS } from '../sim/revenueConfig';
 import { summariseDay } from '../sim/operatingDay';
 import type { OperatingDay } from '../sim/operatingDayTypes';
 import { operatingDateOf } from '../sim/seed';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
-import { buildDepotDetail } from './depotView';
 import { operatingDayFor } from './operatingDayView';
 
 type RevenueBody = Omit<RevenueResponse, keyof ReturnType<typeof feedEnvelope>>;
@@ -25,46 +23,47 @@ export async function analyseDepotRevenue(
   return analyseRevenue(await repositories.revenue.ridershipDay(day));
 }
 
-interface Held<T> {
+interface Held<T, S extends object> {
   readonly operatingDate: string;
   readonly revision: number;
-  readonly byKey: Map<string, Promise<T>>;
+  readonly bySource: WeakMap<S, Map<string, Promise<T>>>;
 }
 
 /**
- * Holds an asynchronous body per analysis (so per rows array), keyed within it,
- * and for the operating date and route-catalogue revision it was built for: a
- * new day or a newly cached profile starts afresh. The promise is held, so
- * concurrent pollers share one build (the source is not part of the key); one that fails is dropped so the next
+ * Holds an asynchronous body per analysis (so per rows array), per source and
+ * per key within it, for the operating date and route-catalogue revision it was
+ * built for: a new day or a newly cached profile resets the one slot, so the
+ * memo never grows while one snapshot is served. The promise is held, so
+ * concurrent pollers share one build; one that fails is dropped so the next
  * request tries again. The envelope is never part of a held body.
  */
-export function holdPerSnapshot<T, S>(
+export function holdPerSnapshot<T, S extends object>(
   build: (
     view: FleetSnapshotView,
     analysis: SnapshotAnalysis,
-    profiles: ReadonlyMap<string, RouteProfile>,
     operatingDate: string,
     key: string,
     source: S,
   ) => Promise<T>,
 ): (view: FleetSnapshotView, key: string, source: S) => Promise<T> {
-  const held = new WeakMap<SnapshotAnalysis, Held<T>>();
+  const held = new WeakMap<SnapshotAnalysis, Held<T, S>>();
   return (view, key, source) => {
     const analysis = analyseSnapshot(view);
     const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
     const revision = routeCatalogueRevision();
     let slot = held.get(analysis);
     if (slot?.operatingDate !== operatingDate || slot.revision !== revision) {
-      slot = { operatingDate, revision, byKey: new Map() };
+      slot = { operatingDate, revision, bySource: new WeakMap() };
       held.set(analysis, slot);
     }
-    const existing = slot.byKey.get(key);
+    const byKey = slot.bySource.get(source) ?? new Map<string, Promise<T>>();
+    slot.bySource.set(source, byKey);
+    const existing = byKey.get(key);
     if (existing) return existing;
-    const own = slot;
-    const pending = build(view, analysis, cachedRouteProfiles(view, operatingDate), operatingDate, key, source);
-    own.byKey.set(key, pending);
+    const pending = build(view, analysis, operatingDate, key, source);
+    byKey.set(key, pending);
     pending.catch(() => {
-      if (own.byKey.get(key) === pending) own.byKey.delete(key);
+      if (byKey.get(key) === pending) byKey.delete(key);
     });
     return pending;
   };
@@ -78,14 +77,13 @@ function byRevenueThenName(
 }
 
 const heldBody = holdPerSnapshot<RevenueBody, RevenueSource>(
-  async (view, snapshot, profiles, operatingDate, depotId, source): Promise<RevenueBody> => {
-    // The caller has already confirmed the depot exists.
-    const detail = buildDepotDetail(view, depotId);
-    const day = operatingDayFor(snapshot, depotId, detail?.buses ?? [], profiles, operatingDate);
+  async (view, snapshot, operatingDate, depotId, source): Promise<RevenueBody> => {
+    // The caller has already confirmed the depot exists. The day is the shared one.
+    const day = operatingDayFor(view, depotId);
     if (!day) throw new Error(`No depot ${depotId} in the snapshot`);
     const analysis = await analyseDepotRevenue(source, day);
     return {
-      depot: { id: depotId, name: detail?.depot.name ?? depotId },
+      depot: { id: depotId, name: snapshot.depotsById.get(depotId)?.name ?? depotId },
       operatingDate,
       day: summariseDay(day),
       summary: analysis.depot,

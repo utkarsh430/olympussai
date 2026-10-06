@@ -3,10 +3,9 @@ import type { DepotBusView } from '../api';
 import type { Duty } from '../duties/types';
 import { compareText } from '../fuel/compare';
 import { STATIC_SEED_DATE } from './config';
-import { modelDuties } from './duties';
-import { classFromRoute, modelBus } from './fleetMaster';
+import { planDay, type DutyPlan } from './dayPlan';
+import { classFromRoute } from './fleetMaster';
 import {
-  BUS_ORDER_SALT,
   MAX_REAL_LENGTH_KM,
   ROUTE_LENGTH_SALT,
   TYPICAL_ROUTE_LENGTH_KM,
@@ -49,45 +48,6 @@ function isAvailable(view: DepotBusView): boolean {
   return view.state !== 'off_road' && view.state !== 'dark';
 }
 
-/** The available buses in the day's order: a draw per bus and date, so no bus moves another. */
-function inDayOrder(buses: readonly DepotBusView[], operatingDate: string): ModelledBus[] {
-  return buses
-    .map((view) => ({
-      bus: modelBus(view.registrationNumber, view.routeName),
-      key: new SeededRandom(seedFor(view.registrationNumber, operatingDate, BUS_ORDER_SALT)).float(0, 1),
-    }))
-    .sort((a, b) => a.key - b.key || compareText(a.bus.registrationNumber, b.bus.registrationNumber))
-    .map((entry) => entry.bus);
-}
-
-/**
- * Gives each duty, in order, the first free bus of its class in the whole
- * available pool, so a duty never runs on a bus of another class while one of
- * its own class stands idle; the duties still open then take the free buses
- * left, in the day's order. As many buses run as there are duties, or as there
- * are buses if fewer; a duty beyond the buses stays without one.
- */
-function matchInOrder(
-  duties: readonly Duty[],
-  pool: readonly ModelledBus[],
-): ReadonlyMap<string, ModelledBus> {
-  const taken = new Set<string>();
-  const byDuty = new Map<string, ModelledBus>();
-  const give = (duty: Duty, bus: ModelledBus | undefined): void => {
-    if (!bus) return;
-    byDuty.set(duty.id, bus);
-    taken.add(bus.registrationNumber);
-  };
-  const free = (bus: ModelledBus): boolean => !taken.has(bus.registrationNumber);
-  for (const duty of duties) {
-    give(duty, pool.find((bus) => free(bus) && bus.serviceClass === duty.serviceClass));
-  }
-  for (const duty of duties) {
-    if (!byDuty.has(duty.id)) give(duty, pool.find(free));
-  }
-  return byDuty;
-}
-
 function routeOf(
   routeName: string,
   duties: readonly Duty[],
@@ -123,34 +83,28 @@ function toMatch(duty: Duty, bus: ModelledBus): Match {
 }
 
 /**
- * The depot's one MODELLED day for an operating date (ruling S41). The duties
- * are `modelDuties`' own; the available buses, in a seeded order that changes
- * with the date, run one duty each, class matched across the whole available
- * pool where it allows; every other bus did not run and has no distance. A bus that ran
- * covered its duty's route out and back. This is a record of the day and is
- * separate from the duty board's live matching of buses now standing in the
- * yard to duties still to come; both read the same duties. Pure: no clock, no
- * randomness beyond the seeds, and input order never matters.
+ * The depot's one MODELLED day for an operating date (ruling S41), read off
+ * the depot's one duty plan (ruling S47): its duties, and for each duty the
+ * bus the plan matched to it. A bus with a duty runs its route out and back;
+ * every other bus of the plan's fleet does not run and has no distance, so
+ * runs + not run = the plan's buses (one per registration). Pure.
  */
-export function modelOperatingDay(input: OperatingDayInput): OperatingDay {
-  const { depot, buses, operatingDate } = input;
-  const names = [...new Set(buses.flatMap((b) => (b.routeName ? [b.routeName] : [])))];
-  // The feed carries no scheduled durations, exactly as the duty board models them.
-  const { duties, routesWithoutDuty } = modelDuties(
-    depot,
-    names.map((routeName) => ({ routeName, scheduledDurationMin: null })),
-    input.peakRequirement,
-    operatingDate,
-  );
-  const available = inDayOrder(buses.filter(isAvailable), operatingDate);
-  const byDuty = matchInOrder(duties, available);
+export function dayFromPlan(
+  depotId: string,
+  operatingDate: string,
+  planned: DutyPlan,
+  realLengthKm: ReadonlyMap<string, number | null>,
+): OperatingDay {
+  const { duties, buses, fleet } = planned;
+  const busOf = new Map(planned.plan.assignments.map((a) => [a.dutyId, a.registrationNumber]));
   const matches = duties.flatMap((duty) => {
-    const bus = byDuty.get(duty.id);
+    const registration = busOf.get(duty.id) ?? null;
+    const bus = registration === null ? undefined : fleet.get(registration);
     return bus ? [toMatch(duty, bus)] : [];
   });
   const routes = [...new Set(duties.map((duty) => duty.routeName))]
     .sort(compareText)
-    .map((name) => routeOf(name, duties, matches, input.realLengthKm.get(name)));
+    .map((name) => routeOf(name, duties, matches, realLengthKm.get(name)));
   const tripTenths = new Map(routes.map((route) => [route.routeName, route.roundTripTenths]));
   const runs = matches.map(
     (match): DayRun => ({ ...match, distanceKm: (tripTenths.get(match.routeName) ?? 0) / TENTH }),
@@ -164,18 +118,34 @@ export function modelOperatingDay(input: OperatingDayInput): OperatingDay {
     }))
     .sort((a, b) => compareText(a.registrationNumber, b.registrationNumber));
   return {
-    depotId: depot.id,
+    depotId,
     operatingDate,
     duties,
-    routesWithoutDuty,
+    routesWithoutDuty: planned.routesWithoutDuty,
     routes,
     runs,
     notRun,
     fleet: buses.length,
-    availableBuses: available.length,
+    availableBuses: buses.filter(isAvailable).length,
     dutiesWithoutBus: duties.length - runs.length,
     provenance: 'modelled',
   };
+}
+
+/**
+ * The day for one depot from its raw inputs: the plan, then the day read off
+ * it. The views use the same two steps with each held once per snapshot.
+ */
+export function modelOperatingDay(input: OperatingDayInput): OperatingDay {
+  const planned = planDay({
+    depot: input.depot,
+    buses: input.buses,
+    peakRequirement: input.peakRequirement,
+    operatingDate: input.operatingDate,
+    yardEstablished: input.yardEstablished ?? true,
+    feedMinute: input.feedMinute ?? null,
+  });
+  return dayFromPlan(input.depot.id, input.operatingDate, planned, input.realLengthKm);
 }
 
 /** The counts every modelled page states about the day it is built on. */

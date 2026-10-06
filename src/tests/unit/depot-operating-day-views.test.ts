@@ -2,8 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { DepotBusRow } from '@/models/depotLive';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
-import { buildDepotDetail } from '@/lib/depot/live/depotView';
-import { planDutiesFor } from '@/lib/depot/live/dutyView';
+import { dutyPlanFor } from '@/lib/depot/live/operatingDayView';
 import { buildEconomicsResponse } from '@/lib/depot/live/economicsView';
 import { buildFuelResponse } from '@/lib/depot/live/fuelView';
 import { buildRevenueResponse } from '@/lib/depot/live/revenueView';
@@ -64,8 +63,7 @@ beforeEach(() => resetAnalysisForTests());
 
 describe('one modelled day behind every page', () => {
   it('the duty board, fuel and revenue pages count the same duties, trips, buses and kilometres', async () => {
-    const detail = buildDepotDetail(VIEW, '1');
-    const planned = planDutiesFor(analyseSnapshot(VIEW), '1', detail?.buses ?? [], '2026-10-06');
+    const planned = dutyPlanFor(analyseSnapshot(VIEW), '1', '2026-10-06');
     const fuel = await buildFuelResponse(VIEW, '1', modelledFuelRepository);
     const revenue = await buildRevenueResponse(VIEW, '1', SOURCES);
     if (!planned || !fuel || !revenue) throw new Error('depot 1 is missing');

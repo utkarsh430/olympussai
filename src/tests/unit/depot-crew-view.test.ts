@@ -7,8 +7,7 @@ import { getRepositories } from '@/lib/depot/repositories';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { modelledCrewRepository } from '@/lib/depot/repositories/modelledCrewRepository';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
-import { buildDepotDetail } from '@/lib/depot/live/depotView';
-import { planDutiesFor } from '@/lib/depot/live/dutyView';
+import { dutyPlanFor } from '@/lib/depot/live/operatingDayView';
 import { buildCrewResponse, ROSTER_CAP, UNCOVERED_CAP } from '@/lib/depot/live/crewView';
 import { rosterCrew } from '@/lib/depot/crew/roster';
 import { crewShiftsFor } from '@/lib/depot/crew/roster';
@@ -119,9 +118,8 @@ describe('buildCrewResponse', () => {
     const rows = world();
     const v = view(rows);
     const analysis = analyseSnapshot(v);
-    const detail = buildDepotDetail(v, '1');
     const date = operatingDateOf(v.feedNow, v.fetchedAt);
-    const duties = planDutiesFor(analysis, '1', detail?.buses ?? [], date)?.duties ?? [];
+    const duties = dutyPlanFor(analysis, '1', date)?.duties ?? [];
     const depot = analysis.depotsById.get('1');
     if (!depot) throw new Error('no depot');
     const expected = rosterCrew(
@@ -153,9 +151,8 @@ describe('buildCrewResponse', () => {
     const rows = world();
     const v = view(rows);
     const analysis = analyseSnapshot(v);
-    const detail = buildDepotDetail(v, '1');
     const date = operatingDateOf(v.feedNow, v.fetchedAt);
-    const duties = planDutiesFor(analysis, '1', detail?.buses ?? [], date)?.duties ?? [];
+    const duties = dutyPlanFor(analysis, '1', date)?.duties ?? [];
     const response = await build(rows, modelledCrewRepository);
     expect(response.day.duties).toBe(duties.length);
     expect(response.day.routes).toBe(new Set(duties.map((d) => d.routeName)).size);
