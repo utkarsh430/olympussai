@@ -35,8 +35,9 @@ const SLOT = 'min-h-[3.75rem]';
  * The stale feed, said once. Pages mount this while their response says stale. For the
  * first `STALE_NOTICE_AFTER_MS` of the data's age the top bar's chip and the provenance
  * line carry it alone and this shows nothing; after that it shows the one shared
- * `Notice`. Its slot keeps the notice's height from the moment it mounts, so nothing
- * below moves when the notice appears. A timer re-renders it when the notice falls due.
+ * `Notice`. While it waits it takes no room: an empty gap held open would itself move the
+ * page each time a response turns stale and fresh again, so the notice costs one move,
+ * when it appears. A timer re-renders it when the notice falls due.
  */
 export function StaleStrip({ since, fetchedAt }: StaleStripProps) {
   const shellFetchedAt = useShellFetchedAt();
@@ -57,8 +58,8 @@ export function StaleStrip({ since, fetchedAt }: StaleStripProps) {
     <div
       role="status"
       data-testid="depot-stale"
-      data-state={timing.show ? 'shown' : 'reserved'}
-      className={SLOT}
+      data-state={timing.show ? 'shown' : 'waiting'}
+      className={timing.show ? SLOT : undefined}
     >
       {timing.show ? (
         <Notice status="warning" word="Stale">
