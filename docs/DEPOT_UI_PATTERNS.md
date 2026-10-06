@@ -442,7 +442,9 @@ Pages do nothing here; for reference.
   mark is a 20px glyph with the name read to screen readers (the 13px wordmark leaves no room
   for the scope at 360px); from 640px it is the "DEPOT MANAGEMENT" wordmark. Never initials.
 - **Navigation.** From 1280px (Tailwind `xl`) the 232px rail leads with the depot's name and its pages in depot
-  scope, then the network groups. The rail's surface and right hairline run the full height
+  scope, then the network groups. Each group's heading (the depot's name, Network, Intelligence,
+  System) is a category tab (`depot-nav-category`: a cyan-washed strip with a lit left edge), and
+  the tab of the group that holds the current page is lit (`depot-nav-category-current`). The rail's surface and right hairline run the full height
   of the page (the `<nav>` is stretched by the row); its links sit in a sticky column under
   the bar that scrolls inside itself on a short viewport. Below 1280px one strip shows the
   depot's pages only (the network links in network scope): no fixed item, so its end caps sit
