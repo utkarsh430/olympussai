@@ -59,8 +59,10 @@ export interface CrewResponse extends DepotFeedEnvelope {
     readonly dutiesNeedingRelief: number;
   };
   readonly availability: Readonly<Record<CrewRole, AvailabilityCounts>>;
-  /** Most pressing first. */
+  /** Most pressing first, capped at `uncoveredCap`; `uncoveredTotal` is the full count. */
   readonly uncovered: readonly UncoveredShiftRow[];
+  readonly uncoveredTotal: number;
+  readonly uncoveredCap: number;
   /** Covered shifts in start order, capped at `rosterCap`; `rosterTotal` is the full count. */
   readonly roster: readonly RosterShiftRow[];
   readonly rosterTotal: number;

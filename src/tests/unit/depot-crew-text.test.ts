@@ -10,6 +10,7 @@ import {
   modelledStatement,
   pageOf,
   shortfallText,
+  uncoveredCountSentence,
   reliefSentence,
   shiftLabel,
   shiftsSentence,
@@ -119,6 +120,14 @@ describe('crew page wording', () => {
       'A shortfall here is an outcome of the model: a drawn mix of weekly off, leave, training and absence, and shifts that start together. It is not a finding about this depot.',
     );
     expect(text).not.toMatch(/simulated/i);
+  });
+
+  it('states the true uncovered count, capped or not', () => {
+    expect(uncoveredCountSentence(3, 3)).toBe('3 uncovered shifts.');
+    expect(uncoveredCountSentence(1, 1)).toBe('1 uncovered shift.');
+    expect(uncoveredCountSentence(200, 1234)).toBe(
+      'Showing the first 200 of 1,234 uncovered shifts, most pressing first.',
+    );
   });
 
   it('pages rows without mutating them', () => {

@@ -11,6 +11,7 @@ import {
   shiftLabel,
 } from '@/lib/depot/crew/crewPageModel';
 import { formatMinute } from '@/lib/depot/duties/dutyBoardModel';
+import { Pager } from './Pager';
 
 /** Slot ids are shown as plain identifiers: no other figure sits beside them. */
 const COLUMNS: readonly Column<RosterShiftRow>[] = [
@@ -50,27 +51,12 @@ export function RosterSection({ roster, total }: RosterSectionProps) {
         caption="Covered shifts and the crew slots suggested for them"
         emptyMessage="No shift is covered on the modelled crew."
       />
-      <div className="mt-3 flex flex-wrap items-center gap-4">
-        <button
-          type="button"
-          className="depot-filter-button"
-          disabled={page === 0}
-          onClick={() => setRequested(page - 1)}
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          className="depot-filter-button"
-          disabled={page >= pageCount - 1}
-          onClick={() => setRequested(page + 1)}
-        >
-          Next
-        </button>
-        <p role="status" className="depot-prose">
-          Page {page + 1} of {pageCount}. {rosterCountSentence(roster.length, total)}
-        </p>
-      </div>
+      <Pager
+        page={page}
+        pageCount={pageCount}
+        summary={rosterCountSentence(roster.length, total)}
+        onPage={setRequested}
+      />
     </section>
   );
 }

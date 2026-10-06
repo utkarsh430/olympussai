@@ -9,7 +9,7 @@ import { modelledCrewRepository } from '@/lib/depot/repositories/modelledCrewRep
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
 import { buildDepotDetail } from '@/lib/depot/live/depotView';
 import { planDutiesFor } from '@/lib/depot/live/dutyView';
-import { buildCrewResponse, ROSTER_CAP } from '@/lib/depot/live/crewView';
+import { buildCrewResponse, ROSTER_CAP, UNCOVERED_CAP } from '@/lib/depot/live/crewView';
 import { rosterCrew } from '@/lib/depot/crew/roster';
 import { crewShiftsFor } from '@/lib/depot/crew/roster';
 import { modelCrew } from '@/lib/depot/sim/crew';
@@ -209,6 +209,22 @@ describe('buildCrewResponse', () => {
     expect(response.roster.length).toBeLessThanOrEqual(ROSTER_CAP);
     expect(response.rosterCap).toBe(ROSTER_CAP);
     expect(response.rosterTotal).toBe(response.summary.shiftsRequired);
+  });
+
+  it('caps the uncovered list and states the true count', async () => {
+    const big = Array.from({ length: 500 }, (_, i) =>
+      row(i, { routeName: `R_${i % 300}`, registrationNumber: `B${i}` }),
+    );
+    const response = await build(big, repoOf([]));
+    expect(response.summary.shiftsUncovered).toBeGreaterThan(UNCOVERED_CAP);
+    expect(response.uncovered).toHaveLength(UNCOVERED_CAP);
+    expect(response.uncoveredCap).toBe(UNCOVERED_CAP);
+    expect(response.uncoveredTotal).toBe(response.summary.shiftsUncovered);
+  });
+
+  it('states the true uncovered count when nothing is capped', async () => {
+    const response = await build(world(), repoOf([]));
+    expect(response.uncoveredTotal).toBe(response.uncovered.length);
   });
 
   it('answers an empty depot with zero shifts, not an error', async () => {

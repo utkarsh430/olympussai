@@ -148,6 +148,11 @@ export function rosterCountSentence(shown: number, total: number): string {
   return `Showing the first ${formatCount(shown)} of ${countOf(total, 'covered shift', 'covered shifts')}.`;
 }
 
+export function uncoveredCountSentence(shown: number, total: number): string {
+  if (shown >= total) return `${countOf(total, 'uncovered shift', 'uncovered shifts')}.`;
+  return `Showing the first ${formatCount(shown)} of ${countOf(total, 'uncovered shift', 'uncovered shifts')}, most pressing first.`;
+}
+
 export function modelledStatement(limits: {
   readonly dailyHours: number;
   readonly weeklyHours: number;

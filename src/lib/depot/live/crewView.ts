@@ -23,6 +23,9 @@ import { planDutiesFor } from './dutyView';
 /** The most covered shifts sent to the browser; the total is stated beside them. */
 export const ROSTER_CAP = 200;
 
+/** The same cap for the shifts with no crew, so a depot with no crew cannot send them all. */
+export const UNCOVERED_CAP = 200;
+
 type CrewBody = Omit<CrewResponse, keyof ReturnType<typeof feedEnvelope>>;
 
 const emptyCounts = (): Record<keyof AvailabilityCounts, number> => ({
@@ -119,7 +122,9 @@ async function buildBody(
       dutiesNeedingRelief: summary.dutiesNeedingRelief,
     },
     availability: { driver: countsFor(crew, 'driver'), conductor: countsFor(crew, 'conductor') },
-    uncovered,
+    uncovered: uncovered.slice(0, UNCOVERED_CAP),
+    uncoveredTotal: uncovered.length,
+    uncoveredCap: UNCOVERED_CAP,
     roster: covered.slice(0, ROSTER_CAP),
     rosterTotal: covered.length,
     rosterCap: ROSTER_CAP,
