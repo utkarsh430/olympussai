@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireProjectSession } from '@/lib/auth/server';
 import { DepotDetailProvider } from '@/components/depot/data/DepotDetailProvider';
+import { DepotScopeIdProvider } from '@/components/depot/shell/DepotEyebrow';
 import { DepotSubNav } from '@/components/depot/shell/DepotSubNav';
 import { depotHref } from '@/lib/depot/depotNav';
 import { isValidDepotId } from '@/lib/depot/ids';
@@ -24,8 +25,10 @@ export default async function DepotScopeLayout({
 
   return (
     <DepotDetailProvider depotId={depotId}>
-      <DepotSubNav depotId={depotId} />
-      {children}
+      <DepotScopeIdProvider depotId={depotId}>
+        <DepotSubNav depotId={depotId} />
+        {children}
+      </DepotScopeIdProvider>
     </DepotDetailProvider>
   );
 }

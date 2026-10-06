@@ -1,34 +1,53 @@
+import type { ProvenanceDescription } from '@/lib/depot/provenanceLine';
 import type { Provenance } from '@/lib/depot/types';
+import { DepotEyebrow } from './DepotEyebrow';
 import { HeaderProvenance } from './HeaderProvenance';
+import { ProvenanceLine } from './ProvenanceLine';
+
+export interface PageHeaderProps {
+  readonly title: string;
+  /** ONE sentence, at most about 80 characters. */
+  readonly description: string;
+  /** Mono label above the title. On a depot page the layout supplies the depot's name. */
+  readonly eyebrow?: string;
+  /** Controls on the right of the title row (filters, a refresh button). */
+  readonly controls?: React.ReactNode;
+  /** The page's default provenance, rendered as the fixed-formula provenance line. */
+  readonly provenanceLine?: ProvenanceDescription;
+  /** Earlier form: a tag and the per-tag note. Kept working; prefer `provenanceLine`. */
+  readonly provenance?: Provenance;
+  /** Earlier form of `controls`; still placed on the right. */
+  readonly children?: React.ReactNode;
+}
 
 /**
- * Opening block of every depot page: title, one sentence of prose, and the
- * page's controls aligned right. Controls wrap beneath the text on narrow widths.
- *
- * Pass `provenance` (rather than a tag in `children`) to place the page's tag
- * on its own line after the sentence, with what it applies to and the feed
- * time, the same on every page. Pages whose figures each carry their own tag
- * (the overview) pass none.
+ * Opening block of every depot page (rulings, section 1): optional mono label, the
+ * title as the page's only `h1` (display face, 20px), one sentence, controls on the
+ * right of the title row, then the provenance line. Nothing else goes between it and
+ * the hero. Controls wrap beneath the title on a narrow column.
  */
 export function PageHeader({
   title,
   description,
+  eyebrow,
+  controls,
+  provenanceLine,
   provenance,
   children,
-}: {
-  readonly title: string;
-  readonly description: string;
-  readonly provenance?: Provenance;
-  readonly children?: React.ReactNode;
-}) {
+}: PageHeaderProps) {
+  const right = controls ?? children;
   return (
-    <header className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-      <div className="min-w-0 max-w-2xl">
-        <h1 className="depot-title">{title}</h1>
-        <p className="depot-prose mt-1.5">{description}</p>
-        {provenance ? <HeaderProvenance provenance={provenance} /> : null}
+    <header className="mb-6" data-testid="depot-page-header">
+      {eyebrow ? <p className="depot-eyebrow">{eyebrow}</p> : <DepotEyebrow />}
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0 max-w-2xl">
+          <h1 className="depot-title">{title}</h1>
+          <p className="depot-prose mt-1.5">{description}</p>
+        </div>
+        {right ? <div className="flex min-w-0 flex-wrap items-center gap-2">{right}</div> : null}
       </div>
-      {children ? <div className="flex flex-wrap items-center gap-2">{children}</div> : null}
+      {provenanceLine ? <ProvenanceLine description={provenanceLine} /> : null}
+      {!provenanceLine && provenance ? <HeaderProvenance provenance={provenance} /> : null}
     </header>
   );
 }
