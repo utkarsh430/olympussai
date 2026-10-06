@@ -137,6 +137,17 @@ function liveValue(
   return value[metric] ?? NO_VALUE;
 }
 
+/** The most a modelled day may reach: the fleet, for available buses; no limit otherwise. */
+function ceilingOf(
+  metric: MetricKey,
+  scope: HistoryScope,
+  analysis: SnapshotAnalysis,
+): number | undefined {
+  if (metric !== 'available') return undefined;
+  if (scope.kind === 'depot') return analysis.depotsById.get(scope.depotId)?.fleet;
+  return analysis.depots.filter((d) => d.kind === 'depot').reduce((total, d) => total + d.fleet, 0);
+}
+
 /**
  * The modelled trend for one metric, ending on today's live value, without an
  * envelope and without a memo: for views that hold their own bodies. The
@@ -152,15 +163,19 @@ export async function modelHistory(
   if (typeof live !== 'number') return live;
   if (!Number.isFinite(live)) return NO_VALUE;
   const date = operatingDateOf(view.feedNow, view.fetchedAt);
+  const ceiling = ceilingOf(query.metric, query.scope, analysis);
   const series = await getRepositories().history.series(query.metric, query.scope, query.days, {
     date,
     value: live,
+    ...(ceiling === undefined ? {} : { ceiling }),
   });
   // The generator clamps and rounds the anchor to the metric's precision; the
   // response reports what it actually ended on, so the two cannot diverge.
   const last = series.at(-1);
   if (last === undefined) throw new RangeError('History series is empty');
-  return { status: 200, body: { series, provenance: 'modelled', anchor: { date: last.date, value: last.value } } };
+  const { date: endDate, value, ceiling: limit } = last;
+  const anchor = limit === undefined ? { date: endDate, value } : { date: endDate, value, ceiling: limit };
+  return { status: 200, body: { series, provenance: 'modelled', anchor } };
 }
 
 /*
