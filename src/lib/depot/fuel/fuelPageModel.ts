@@ -92,7 +92,9 @@ export function summarySentence(totals: FuelTotals, price?: SummaryPrice): strin
     `${formatLitres(totals.fuelLitres)} of fuel, costing ${formatRupees(totals.cost)}.`;
   if (!price) return base;
   const unit = `${formatRupees(price.price)} per litre`;
-  return `${base} Cost uses ${price.defaulted ? `the default price of ${unit}` : unit}.`;
+  return price.defaulted
+    ? `${base} Cost uses a planning price of ${unit}, not a quoted price.`
+    : `${base} Cost uses ${unit}.`;
 }
 
 /** The flagging rule in one sentence, from the module's own constants. */

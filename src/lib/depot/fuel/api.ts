@@ -29,6 +29,7 @@ export interface FuelResponse extends DepotFeedEnvelope {
   /** The operating date, taken from the feed's clock. */
   readonly operatingDate: string;
   readonly pricePerLitre: number;
+  /** True when no price was supplied and the planning price stands in; the view supplies none. */
   readonly priceDefaulted: boolean;
   readonly totals: FuelTotals;
   readonly perClass: readonly FuelGroupRow[];

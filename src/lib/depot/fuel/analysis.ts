@@ -166,15 +166,16 @@ function flagFor(row: BusFuelFigure): FlaggedBus | null {
  * depot). Variance is a figure about a vehicle, stated without a cause. Output
  * order never depends on input order.
  *
- * A price that is not finite and positive is replaced by DEFAULT_PRICE_PER_LITRE
- * and `priceDefaulted` is true, so a page can say so.
+ * A price that is missing, or not finite and positive, is replaced by
+ * DEFAULT_PRICE_PER_LITRE and `priceDefaulted` is true, so a page can say so.
  */
 export function analyseFuel(
   days: readonly BusFuelDay[],
-  pricePerLitre: number = DEFAULT_PRICE_PER_LITRE,
+  pricePerLitre?: number,
 ): FuelAnalysis {
-  const priceDefaulted = !(Number.isFinite(pricePerLitre) && pricePerLitre > 0);
-  const price = priceDefaulted ? DEFAULT_PRICE_PER_LITRE : pricePerLitre;
+  const supplied = pricePerLitre !== undefined && Number.isFinite(pricePerLitre) && pricePerLitre > 0;
+  const priceDefaulted = !supplied;
+  const price = supplied ? pricePerLitre : DEFAULT_PRICE_PER_LITRE;
   const base = days
     .map((day) => figureFor(day, price))
     .sort((a, b) => compareText(a.registrationNumber, b.registrationNumber));

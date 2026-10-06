@@ -288,6 +288,11 @@ describe('analyseFuel: price', () => {
     expect(result.pricePerLitre).toBe(DEFAULT_PRICE_PER_LITRE);
   });
 
+  it('marks the planning price as the default when no price is supplied', () => {
+    const result = analyseFuel([day('A', 5)]);
+    expect(result).toMatchObject({ priceDefaulted: true, pricePerLitre: DEFAULT_PRICE_PER_LITRE });
+  });
+
   it('uses a valid price as given', () => {
     const result = analyseFuel([day('A', 5)], 80);
     expect(result).toMatchObject({ priceDefaulted: false, pricePerLitre: 80 });

@@ -88,8 +88,13 @@ describe('sentences', () => {
     expect(summarySentence(totals({ busCount: 3 }))).toContain('3 buses');
   });
   it('names a defaulted price', () => {
-    expect(summarySentence(totals(), { price: 92, defaulted: true })).toContain('default');
-    expect(summarySentence(totals(), { price: 92, defaulted: false })).not.toContain('default');
+    expect(summarySentence(totals(), { price: 92, defaulted: true })).toContain(
+      'Cost uses a planning price of ₹92 per litre, not a quoted price',
+    );
+    expect(summarySentence(totals(), { price: 92, defaulted: false })).toContain(
+      'Cost uses ₹92 per litre.',
+    );
+    expect(summarySentence(totals(), { price: 92, defaulted: false })).not.toContain('planning');
   });
   it('states the rule from the constants', () => {
     const s = ruleSentence(15, 2);

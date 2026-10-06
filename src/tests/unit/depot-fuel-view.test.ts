@@ -9,7 +9,7 @@ import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
 import { buildFuelResponse } from '@/lib/depot/live/fuelView';
 import { analyseFuel } from '@/lib/depot/fuel/analysis';
 import { FUEL_FLAGGED_CAP, FUEL_ROUTE_CAP } from '@/lib/depot/fuel/api';
-import { FUEL_VARIANCE_FLAG_PCT, MIN_PEERS } from '@/lib/depot/fuel/types';
+import { DEFAULT_PRICE_PER_LITRE, FUEL_VARIANCE_FLAG_PCT, MIN_PEERS } from '@/lib/depot/fuel/types';
 import type { BusFuelDay, FuelRepository } from '@/lib/depot/fuel/types';
 import { GET } from '@/app/api/upsrtc/depot/[depotId]/fuel/route';
 
@@ -117,7 +117,9 @@ describe('buildFuelResponse', () => {
     expect(response.perClass).toEqual(analysis.perClass);
     expect(response.perRoute).toEqual(analysis.perRoute);
     expect(response.pricePerLitre).toBe(analysis.pricePerLitre);
-    expect(response.priceDefaulted).toBe(false);
+    // The view supplies no price, so the planning price is the default and says so.
+    expect(response.priceDefaulted).toBe(true);
+    expect(response.pricePerLitre).toBe(DEFAULT_PRICE_PER_LITRE);
     expect(response.provenance).toBe('modelled');
     expect(response.operatingDate).toBe('2026-10-06');
   });

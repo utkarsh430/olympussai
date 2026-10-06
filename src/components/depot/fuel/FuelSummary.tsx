@@ -41,7 +41,7 @@ export function FuelSummary({ data }: { readonly data: FuelResponse }) {
         <Figure label="Km per litre" value={formatKmPerLitre(totals.kmPerLitre)} />
         <Figure label="Cost per km" value={formatCostPerKm(totals.costPerKm)} />
         <Figure
-          label={data.priceDefaulted ? 'Price per litre (default)' : 'Price per litre'}
+          label={data.priceDefaulted ? 'Planning price per litre' : 'Price per litre'}
           value={formatRupees(data.pricePerLitre)}
         />
       </dl>
