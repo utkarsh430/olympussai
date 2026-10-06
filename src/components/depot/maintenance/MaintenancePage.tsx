@@ -8,7 +8,13 @@ import { useDepotMaintenance } from '@/hooks/useDepotMaintenance';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
 import { FigureBand, Figure } from '@/components/depot/shell/FigureBand';
 import { SERVICE_INTERVAL_KM } from '@/lib/depot/maintenance/config';
-import { bandFigures, disclosureItems } from '@/lib/depot/maintenance/pageModel';
+import {
+  bandFigures,
+  disclosureItems,
+  MODELLED_PARTS_FAILED,
+  WORKSHOP_LOAD_FAILED,
+} from '@/lib/depot/maintenance/pageModel';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { intervalText } from '@/lib/depot/maintenance/text';
 import type { ServiceClass } from '@/lib/depot/sim/types';
 import { FiguresDisclosure } from './FiguresDisclosure';
@@ -36,12 +42,16 @@ const INTERVAL_LINES: readonly string[] = (
  */
 export function MaintenancePage() {
   const detail = useDepotDetailContext();
-  const modelled = useDepotMaintenance(detail.depotId);
+  const polled = useDepotMaintenance(detail.depotId);
+  // After a failed poll the hook keeps the last answer; it is not shown, since the band
+  // and the preventive table would present it as current beside the live list.
+  const modelledFailed = polled.error !== null;
+  const modelledData = modelledFailed ? null : polled.data;
   const offRoad = useMemo(
     () => (detail.data ? offRoadBusesFrom(detail.data.buses) : []),
     [detail.data],
   );
-  const bays = modelled.data?.workshop.load.bays;
+  const bays = modelledData?.workshop.load.bays;
   const load = useMemo(
     () => (bays === undefined ? null : workshopLoad(offRoad.length, bays)),
     [bays, offRoad.length],
@@ -63,8 +73,8 @@ export function MaintenancePage() {
       />
     );
   }
-  const stale = detail.data.stale || modelled.data?.stale === true;
-  const preventive = modelled.data?.preventive ?? null;
+  const stale = detail.data.stale || modelledData?.stale === true;
+  const preventive = modelledData?.preventive ?? null;
   const figures = bandFigures(offRoad.length, preventive);
   return (
     <div className="depot-stack">
@@ -86,24 +96,31 @@ export function MaintenancePage() {
           <div className="min-w-0 xl:col-span-2">
             <OffRoadList depotId={detail.depotId} buses={offRoad} feedNow={detail.data.feedNow} />
           </div>
-          <div className="min-w-0">{load ? <WorkshopSection load={load} /> : null}</div>
+          <div className="min-w-0">
+            {load ? (
+              <WorkshopSection load={load} />
+            ) : modelledFailed ? (
+              <StatePanel kind="error" compact sentence={WORKSHOP_LOAD_FAILED} />
+            ) : null}
+          </div>
         </div>
-        {modelled.data && preventive ? (
+        {modelledData && preventive ? (
           <>
             <PreventiveSection depotId={detail.depotId} preventive={preventive} />
             <FiguresDisclosure
               sections={disclosureItems(
                 { ...preventive, intervals: INTERVAL_LINES },
-                modelled.data.distanceCoverage.coverage,
+                modelledData.distanceCoverage.coverage,
               )}
             />
           </>
-        ) : modelled.error && !modelled.loading ? (
-          <ErrorPanel
-            title="The modelled parts did not load"
-            message={modelled.error || DEPOT_UNAVAILABLE_MESSAGE}
-            onRetry={modelled.refresh}
-          />
+        ) : modelledFailed ? (
+          <div role="alert" className="flex min-w-0 flex-wrap items-center gap-3">
+            <StatePanel kind="error" compact sentence={MODELLED_PARTS_FAILED} />
+            <button type="button" className="depot-filter-button" onClick={polled.refresh}>
+              Retry
+            </button>
+          </div>
         ) : (
           <LoadingBlock
             rows={MODELLED_LOADING_ROWS}

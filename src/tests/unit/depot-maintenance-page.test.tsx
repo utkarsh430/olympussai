@@ -194,6 +194,26 @@ describe('MaintenancePage', () => {
     expect(markup).toContain('role="alert"');
   });
 
+  it('says in its section, with fixed words, that the modelled parts did not refresh, and keeps no older rows', () => {
+    set({ data: DETAIL }, { data: MODELLED, error: 'Depot data unavailable' });
+    const markup = renderToStaticMarkup(<MaintenancePage />);
+    const words = text(markup).replace(/&#x27;/g, "'");
+    expect(markup).toContain('LIVE1');
+    expect(words).toContain(
+      'The modelled maintenance figures did not load, so the overdue and due-soon counts and the preventive table are not shown.',
+    );
+    expect(words).toContain("The workshop's bay count did not load, so its load is not shown.");
+    expect(markup).not.toContain('UP32A0009');
+    expect(words).not.toContain('Overdue');
+    expect(words).not.toContain('Depot data unavailable');
+  });
+
+  it('names the missing workshop load when the modelled parts never loaded', () => {
+    set({ data: DETAIL }, { data: null, error: 'Depot data unavailable' });
+    const words = text(renderToStaticMarkup(<MaintenancePage />)).replace(/&#x27;/g, "'");
+    expect(words).toContain("The workshop's bay count did not load, so its load is not shown.");
+  });
+
   it('shows the modelled sections as loading while the live list is already there', () => {
     set({ data: DETAIL }, { loading: true });
     const markup = renderToStaticMarkup(<MaintenancePage />);
