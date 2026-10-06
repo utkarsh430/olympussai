@@ -56,6 +56,15 @@ export interface FilterOption {
   readonly label: string;
 }
 
+/** A depot filter option, with how many distinct routes the snapshot shows that depot on. */
+export interface DepotFilterOption extends FilterOption {
+  /**
+   * Distinct route names the snapshot shows this depot's buses on, over the whole table (no
+   * filter narrows it). Always sent by the routes view; optional for older fixtures.
+   */
+  readonly routes?: number;
+}
+
 /** One page of the route table, filtered and sorted on the server; see `parseRoutesQuery`. */
 export interface DepotRoutesResponse extends DepotFeedEnvelope {
   readonly operatingDate: string;
@@ -74,7 +83,7 @@ export interface DepotRoutesResponse extends DepotFeedEnvelope {
   /** Over the routes matching every filter. */
   readonly coverage: RoutesCoverage;
   /** Over every route in the table, so the filters never narrow their own options. */
-  readonly depotOptions: readonly FilterOption[];
+  readonly depotOptions: readonly DepotFilterOption[];
   readonly classOptions: readonly FilterOption[];
   readonly tripModel: TripModelParams;
   /** `TRIP_DEFINITION`: what one modelled trip is. */
