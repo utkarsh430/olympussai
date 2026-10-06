@@ -1,7 +1,7 @@
 const SYSTEM_PATH = '/usr/bin:/bin';
 
 /**
- * Fixed, non-secret switches (review L5): no self-update and no non-essential
+ * Fixed, non-secret switches: no self-update and no non-essential
  * network traffic from a child whose HOME is empty and whose time is bounded.
  */
 const FIXED_SWITCHES = {

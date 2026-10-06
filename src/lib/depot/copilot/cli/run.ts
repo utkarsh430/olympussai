@@ -118,7 +118,7 @@ export function runCli(
       return;
     }
 
-    // Review L4: known to the shutdown handler until Node reports the child exited.
+    // Known to the shutdown handler until Node reports the child exited.
     const pid = child.pid;
     if (pid !== undefined) {
       calls.addPid(pid);

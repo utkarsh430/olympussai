@@ -57,7 +57,7 @@ export function unmatchedLine(
 /**
  * The server ignored location because no yard is established. Recency still applies
  * unless the feed has no clock (`recencyNotJudged`), when it is not claimed. A bus out
- * on the road is eligible as much as a standing one, so both are named (review m2).
+ * on the road is eligible as much as a standing one, so both are named.
  */
 export function locationIgnoredSentence(
   ignored: boolean | undefined,

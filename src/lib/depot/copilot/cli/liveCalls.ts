@@ -1,5 +1,5 @@
 /**
- * Review L4: the CLI calls in flight, so a server shutdown can end them.
+ * The CLI calls in flight, so a server shutdown can end them.
  *
  * `runCli` adds a child's pid when it spawns one and drops it the moment Node
  * reports the child exited (after which the pid may be reused, so it is never

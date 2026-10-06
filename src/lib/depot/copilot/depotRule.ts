@@ -29,7 +29,7 @@ function entryOf(
 }
 
 /**
- * Closing review M-A: "3 buses are dark at KAUSHAMBI." used AGRA's count. Where a
+ * A draft once read "3 buses are dark at KAUSHAMBI." with AGRA's count. Where a
  * request holds more than one depot, each name and per-depot figure knows its depot
  * (`CopilotFact.depotId`). A figure with a depot is refused when, in its clause,
  *  - a name of another depot stands in the same list entry (between the same commas), or

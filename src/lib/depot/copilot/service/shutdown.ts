@@ -3,7 +3,7 @@ import { killProcessGroup, type KillGroup } from '@/lib/depot/copilot/cli/kill';
 import { liveCalls, type LiveCalls } from '@/lib/depot/copilot/cli/liveCalls';
 
 /**
- * Review L4: stopping the server mid-call must not leave a `claude` child running
+ * Stopping the server mid-call must not leave a `claude` child running
  * (it is detached in its own session, so Ctrl+C does not reach it) or its private
  * folders behind.
  *
