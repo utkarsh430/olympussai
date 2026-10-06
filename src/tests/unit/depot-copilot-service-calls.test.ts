@@ -36,7 +36,10 @@ function prepared(depotIndex = -1) {
 type Draft = (request: CopilotRequest, signal?: AbortSignal) => Promise<CopilotDraft>;
 function runtimeWith(draft: Draft, minClaudeMs = 0) {
   const provider = { id: 'claude-cli' as const, draft: vi.fn(draft) };
-  return { provider, runtime: buildCopilotRuntime({ setting: 'auto', cli: provider, minClaudeMs }) };
+  return {
+    provider,
+    runtime: buildCopilotRuntime({ setting: 'auto', cli: provider, minClaudeMs }),
+  };
 }
 
 /** Like the real provider: never settles until its signal aborts. */
@@ -77,7 +80,11 @@ describe('answerCopilot spending Claude calls', () => {
 
   it('on the deadline aborts the provider call and writes exactly one log line', async () => {
     const { runtime, provider } = runtimeWith(hangUntilAborted);
-    const response = await answerCopilot(runtime, prepared(), call({ deadlineAt: Date.now() + 20 }));
+    const response = await answerCopilot(
+      runtime,
+      prepared(),
+      call({ deadlineAt: Date.now() + 20 }),
+    );
     expect(response).toMatchObject({ provider: 'scripted', notice: 'claude_unavailable' });
     expect(provider.draft.mock.calls[0]?.[1]?.aborted).toBe(true);
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -138,7 +145,11 @@ describe('answerCopilot spending Claude calls', () => {
 
   it('starts no Claude call when too little of the deadline is left', async () => {
     const { runtime, provider } = runtimeWith(async (r) => r.scriptedDraft, 1_000);
-    const response = await answerCopilot(runtime, prepared(), call({ deadlineAt: Date.now() + 500 }));
+    const response = await answerCopilot(
+      runtime,
+      prepared(),
+      call({ deadlineAt: Date.now() + 500 }),
+    );
     expect(response).toMatchObject({ provider: 'scripted', notice: 'claude_unavailable' });
     expect(provider.draft).not.toHaveBeenCalled();
   });

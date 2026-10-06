@@ -98,11 +98,14 @@ const post = (body: BodyInit | null, headers: Record<string, string> = {}): Requ
 
 describe('readCappedBody', () => {
   it('reads a body within the cap', async () => {
-    expect(await readCappedBody(post('{"a":1}'), 100)).toEqual({ ok: true, text: '{"a":1}' });
+    expect(await readCappedBody(post('{"a":1}'), 100, 1_000)).toEqual({
+      ok: true,
+      text: '{"a":1}',
+    });
   });
 
   it('refuses a declared length over the cap without reading', async () => {
-    const result = await readCappedBody(post('{}', { 'content-length': '999999' }), 100);
+    const result = await readCappedBody(post('{}', { 'content-length': '999999' }), 100, 1_000);
     expect(result).toEqual({ ok: false, status: 413 });
   });
 
@@ -115,12 +118,15 @@ describe('readCappedBody', () => {
         else controller.enqueue(new Uint8Array(1_024));
       },
     });
-    expect(await readCappedBody(post(stream), MAX_BODY_BYTES)).toEqual({ ok: false, status: 413 });
+    expect(await readCappedBody(post(stream), MAX_BODY_BYTES, 1_000)).toEqual({
+      ok: false,
+      status: 413,
+    });
     expect(pulls).toBeLessThan(MAX_BODY_BYTES / 1_024 + 4);
   });
 
   it('refuses bytes that are not UTF-8', async () => {
-    const result = await readCappedBody(post(new Uint8Array([0xff, 0xfe, 0x22])), 100);
+    const result = await readCappedBody(post(new Uint8Array([0xff, 0xfe, 0x22])), 100, 1_000);
     expect(result).toEqual({ ok: false, status: 400 });
   });
 });

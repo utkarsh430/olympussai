@@ -56,6 +56,10 @@ function post(body: unknown, headers: Record<string, string> = {}): NextRequest 
   });
 }
 const NETWORK_BRIEFING = { task: 'briefing', scope: { kind: 'network' } };
+/** Limits key on the verified claims' session id, never on the cookie string. */
+const signedInAs = (sid: string): void => {
+  vi.mocked(requireUpsrtcAccess).mockResolvedValue({ ...SESSION, sid });
+};
 
 beforeEach(() => {
   cookieCounter += 1;
@@ -184,11 +188,11 @@ describe('POST /api/upsrtc/depot/copilot', () => {
   });
 
   it('limits each session, answering 429 with Retry-After and the contract body', async () => {
-    const cookie = 'olympuss_session=same-session';
+    signedInAs('same-session');
     for (let i = 0; i < IDENTITY_REQUESTS_PER_MINUTE; i += 1) {
-      expect((await POST(post(NETWORK_BRIEFING, { cookie }))).status).toBe(200);
+      expect((await POST(post(NETWORK_BRIEFING))).status).toBe(200);
     }
-    const limited = await POST(post(NETWORK_BRIEFING, { cookie }));
+    const limited = await POST(post(NETWORK_BRIEFING));
     expect(limited.status).toBe(429);
     expect(limited.headers.get('cache-control')).toBe('no-store');
     const seconds = Number(limited.headers.get('retry-after'));
@@ -198,6 +202,7 @@ describe('POST /api/upsrtc/depot/copilot', () => {
       retryAfterSeconds: seconds,
     });
     // Another session is unaffected.
+    signedInAs('other-session');
     expect((await POST(post(NETWORK_BRIEFING))).status).toBe(200);
   });
 
@@ -206,10 +211,11 @@ describe('POST /api/upsrtc/depot/copilot', () => {
       buildCopilotRuntime({ setting: 'scripted', cli: null }),
     );
     for (let i = 0; i < PROCESS_REQUESTS_PER_MINUTE; i += 1) {
-      const response = await POST(post(NETWORK_BRIEFING, { cookie: `olympuss_session=s${i}` }));
-      expect(response.status).toBe(200);
+      signedInAs(`s${i}`);
+      expect((await POST(post(NETWORK_BRIEFING))).status).toBe(200);
     }
-    const limited = await POST(post(NETWORK_BRIEFING, { cookie: 'olympuss_session=fresh' }));
+    signedInAs('fresh');
+    const limited = await POST(post(NETWORK_BRIEFING));
     expect(limited.status).toBe(429);
     expect(Number(limited.headers.get('retry-after'))).toBeGreaterThan(0);
   });

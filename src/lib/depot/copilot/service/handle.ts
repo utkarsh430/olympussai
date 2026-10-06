@@ -1,53 +1,21 @@
-import { createHash } from 'node:crypto';
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { SESSION_COOKIE } from '@/lib/auth/config';
+import type { NextRequest, NextResponse } from 'next/server';
 import { isSameOrigin } from '@/lib/auth/origin';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
-import type { CopilotApiError, CopilotApiResponse } from '@/lib/depot/copilot/wire';
 import { logDepotError } from '@/lib/depot/log';
-import { takeAll } from '@/lib/depot/rateLimit';
+import { requestIdentity, takeAll, type IdentityClaims } from '@/lib/depot/rateLimit';
 import { readCappedBody } from '@/lib/depot/copilot/service/body';
-import { LOG_SCOPE, MAX_BODY_BYTES } from '@/lib/depot/copilot/service/constants';
+import { BODY_READ_MS, LOG_SCOPE, MAX_BODY_BYTES } from '@/lib/depot/copilot/service/constants';
 import { answerCopilot } from '@/lib/depot/copilot/service/generate';
 import { prepareCopilotRequest, type Prepared } from '@/lib/depot/copilot/service/prepare';
+import { fail, isJsonMediaType, reply, tooMany } from '@/lib/depot/copilot/service/respond';
 import type { CopilotRuntime } from '@/lib/depot/copilot/service/runtime';
-import { parseCopilotBody } from '@/lib/depot/copilot/service/schema';
+import { parseCopilotBody, type ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
+import { staleSentence } from '@/lib/depot/copilot/service/stale';
 
-/** Fixed error bodies: nothing in them depends on the request or the failure. */
-const ERRORS = {
-  origin: { status: 403, error: 'Invalid request origin' },
-  contentType: { status: 415, error: 'Unsupported content type' },
-  tooLarge: { status: 413, error: 'Request too large' },
-  invalid: { status: 400, error: 'Invalid request' },
-  notFound: { status: 404, error: 'Not found' },
-  unavailable: { status: 503, error: 'Depot data unavailable' },
-} as const;
-
-const GLOBAL_KEY = 'all';
+const PROCESS_KEY = 'all';
 const SNAPSHOT_DEADLINE = Symbol('snapshot-deadline');
 
-function reply(
-  body: CopilotApiResponse | CopilotApiError,
-  status = 200,
-  headers: Readonly<Record<string, string>> = {},
-): NextResponse {
-  return NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
-}
-
-const fail = (kind: keyof typeof ERRORS): NextResponse =>
-  reply({ error: ERRORS[kind].error }, ERRORS[kind].status);
-
-const tooMany = (retryAfterSeconds: number): NextResponse =>
-  reply({ error: 'Too many requests', retryAfterSeconds }, 429, {
-    'Retry-After': String(retryAfterSeconds),
-  });
-
-/** The session is identified by a hash of its cookie, never by the raw value. */
-function sessionKey(request: NextRequest): string {
-  const token = request.cookies.get(SESSION_COOKIE)?.value ?? '';
-  return createHash('sha256').update(token).digest('hex');
-}
+type Loaded = { readonly prepared: Prepared; readonly staleSentence?: string };
 
 async function loadWithin(
   load: () => Promise<FleetSnapshotView>,
@@ -62,12 +30,12 @@ async function loadWithin(
 }
 
 /** Snapshot, then facts; a failure here has no facts to answer from, so it is a fixed 503. */
-async function prepare(
-  body: NonNullable<ReturnType<typeof parseCopilotBody>>,
+async function loadAndPrepare(
+  body: ValidCopilotRequest,
   load: () => Promise<FleetSnapshotView>,
   runtime: CopilotRuntime,
   deadlineAt: number,
-): Promise<Prepared | null> {
+): Promise<Loaded | null> {
   let view: FleetSnapshotView | typeof SNAPSHOT_DEADLINE;
   try {
     view = await loadWithin(load, deadlineAt, runtime.now());
@@ -80,7 +48,7 @@ async function prepare(
     return null;
   }
   try {
-    return prepareCopilotRequest(body, view);
+    return { prepared: prepareCopilotRequest(body, view), staleSentence: staleSentence(view) };
   } catch {
     logDepotError(LOG_SCOPE, 'prepare_failed');
     return null;
@@ -89,34 +57,62 @@ async function prepare(
 
 /**
  * Everything after authentication, in the order that keeps work cheapest for
- * a hostile caller: origin and content type, then both rate limits, then a
- * capped body read and a strict parse, and only then the snapshot and the
- * engine. The caller has already checked the session.
+ * a hostile caller: origin and media type, then both request limits (checked
+ * before either is spent), then a capped, timed body read and a strict parse,
+ * and only then the snapshot and the engine.
+ */
+async function handleChecked(
+  request: NextRequest,
+  runtime: CopilotRuntime,
+  loadSnapshot: () => Promise<FleetSnapshotView>,
+  claims: Readonly<IdentityClaims>,
+): Promise<NextResponse> {
+  const deadlineAt = runtime.now() + runtime.deadlineMs;
+  if (!isSameOrigin(request)) return fail('origin');
+  if (!isJsonMediaType(request.headers.get('content-type'))) return fail('contentType');
+
+  const identity = requestIdentity(claims, request.headers, runtime.env);
+  const limit = takeAll([
+    { limiter: runtime.identityLimiter, key: identity },
+    { limiter: runtime.processLimiter, key: PROCESS_KEY },
+  ]);
+  if (limit.limited) return tooMany(limit.retryAfterSeconds);
+
+  const waitMs = Math.min(BODY_READ_MS, deadlineAt - runtime.now());
+  const raw = await readCappedBody(request, MAX_BODY_BYTES, waitMs);
+  if (!raw.ok) return fail(raw.status === 413 ? 'tooLarge' : 'invalid');
+  const body = parseCopilotBody(raw.text);
+  if (!body) return fail('invalid');
+
+  const loaded = await loadAndPrepare(body, loadSnapshot, runtime, deadlineAt);
+  if (!loaded) return fail('unavailable');
+  if (!loaded.prepared.ok) return fail('notFound');
+  return reply(
+    await answerCopilot(runtime, loaded.prepared, {
+      deadlineAt,
+      signal: request.signal,
+      identity,
+      staleSentence: loaded.staleSentence,
+    }),
+  );
+}
+
+/**
+ * The route's handler. The caller has already verified the session and
+ * passes its claims, which identify the caller for the limits. Anything that
+ * throws past the guards is a fixed 503 with `no-store` and one reason code,
+ * as in the house pattern; the error itself never leaves the server.
  */
 export async function handleCopilotPost(
   request: NextRequest,
   runtime: CopilotRuntime,
   loadSnapshot: () => Promise<FleetSnapshotView>,
+  claims: Readonly<IdentityClaims>,
 ): Promise<NextResponse> {
-  const deadlineAt = runtime.now() + runtime.deadlineMs;
-  if (!isSameOrigin(request)) return fail('origin');
-  const contentType = (request.headers.get('content-type') ?? '').toLowerCase();
-  if (!contentType.startsWith('application/json')) return fail('contentType');
-
-  const identity = sessionKey(request);
-  const limit = takeAll([
-    { limiter: runtime.identityLimiter, key: identity },
-    { limiter: runtime.processLimiter, key: GLOBAL_KEY },
-  ]);
-  if (limit.limited) return tooMany(limit.retryAfterSeconds);
-
-  const raw = await readCappedBody(request, MAX_BODY_BYTES);
-  if (!raw.ok) return fail(raw.status === 413 ? 'tooLarge' : 'invalid');
-  const body = parseCopilotBody(raw.text);
-  if (!body) return fail('invalid');
-
-  const prepared = await prepare(body, loadSnapshot, runtime, deadlineAt);
-  if (!prepared) return fail('unavailable');
-  if (!prepared.ok) return fail('notFound');
-  return reply(await answerCopilot(runtime, prepared, { deadlineAt, signal: request.signal, identity }));
+  try {
+    return await handleChecked(request, runtime, loadSnapshot, claims);
+  } catch {
+    logDepotError(LOG_SCOPE, 'unexpected');
+    return fail('unavailable');
+  }
 }

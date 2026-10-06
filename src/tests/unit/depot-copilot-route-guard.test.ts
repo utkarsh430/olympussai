@@ -5,6 +5,7 @@ import liveFixture from '@/fixtures/upsrtc-live-sample.json';
 import { deriveFeedNow, normalizeDepotRows } from '@/lib/upsrtc/depotNormalizer';
 import { createSessionToken, verifySessionToken } from '@/lib/auth/session';
 import { formatFeedTime } from '@/lib/depot/format';
+import type { CopilotRequest } from '@/lib/depot/copilot/types';
 import { getRepositories } from '@/lib/depot/repositories';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
@@ -40,7 +41,10 @@ let runtime: CopilotRuntime;
 let errorSpy: ReturnType<typeof vi.spyOn>;
 let token = '';
 
-function post(body: unknown, init: { token?: string; type?: string; stream?: ReadableStream } = {}) {
+function post(
+  body: unknown,
+  init: { token?: string; type?: string; stream?: ReadableStream } = {},
+) {
   current = new NextRequest('http://localhost:3000/api/upsrtc/depot/copilot', {
     method: 'POST',
     headers: {
@@ -62,7 +66,9 @@ beforeEach(async () => {
   token = await createSessionToken('upsrtc');
   resetAnalysisForTests();
   snapshot.mockReset().mockResolvedValue(view());
-  vi.mocked(getRepositories).mockReturnValue({ fleet: { snapshot } } as unknown as DepotRepositories);
+  vi.mocked(getRepositories).mockReturnValue({
+    fleet: { snapshot },
+  } as unknown as DepotRepositories);
   runtime = buildCopilotRuntime({ setting: 'scripted', cli: null });
   vi.mocked(getCopilotRuntime).mockImplementation(() => runtime);
   errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -156,17 +162,24 @@ describe('stale snapshot wording', () => {
     () => ({ task: 'ask', question: 'which depots have a deficit', scope: { kind: 'network' } }),
   ];
 
-  it.each(BODIES.map((b, i) => [i, b] as const))('ends answer %i with one server sentence', async (_i, body) => {
-    snapshot.mockResolvedValue(view(true));
-    const json = await (await post(body())).json();
-    const paragraphs: string[] = json.paragraphs;
-    expect(paragraphs.at(-1)).toBe(sentence());
-    expect(paragraphs.filter((p) => p === sentence())).toHaveLength(1);
-  });
+  it.each(BODIES.map((b, i) => [i, b] as const))(
+    'ends answer %i with one server sentence',
+    async (_i, body) => {
+      snapshot.mockResolvedValue(view(true));
+      const json = await (await post(body())).json();
+      const paragraphs: string[] = json.paragraphs;
+      expect(paragraphs.at(-1)).toBe(sentence());
+      expect(paragraphs.filter((p) => p === sentence())).toHaveLength(1);
+    },
+  );
 
   it('adds it to a Claude text cached while the data was fresh', async () => {
-    const draft = vi.fn(async (r: { scriptedDraft: unknown }) => r.scriptedDraft);
-    runtime = buildCopilotRuntime({ setting: 'auto', cli: { id: 'claude-cli', draft }, minClaudeMs: 0 });
+    const draft = vi.fn(async (r: CopilotRequest) => r.scriptedDraft);
+    runtime = buildCopilotRuntime({
+      setting: 'auto',
+      cli: { id: 'claude-cli', draft },
+      minClaudeMs: 0,
+    });
     const body = BODIES[1]!();
     const fresh = await (await post(body)).json();
     expect(fresh.paragraphs).not.toContain(sentence());
