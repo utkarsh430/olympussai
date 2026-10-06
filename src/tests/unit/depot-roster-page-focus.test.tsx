@@ -26,9 +26,9 @@ function bus(registrationNumber: string): DepotBusView {
   return {
     registrationNumber,
     state: 'in_service',
-    location: 'yard',
+    location: 'away',
     otherDepotId: null,
-    distanceFromYardKm: null,
+    distanceFromYardKm: 12,
     latitude: null,
     longitude: null,
     speedKmph: null,

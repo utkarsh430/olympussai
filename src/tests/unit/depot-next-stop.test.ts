@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CanonicalStop } from '@/models/canonical';
 import { REPORTING_WINDOW_MIN } from '@/lib/depot/infer/thresholds';
-import { feedTimeOfDay, inferNextStop, resolveNextStop } from '@/lib/depot/routes/nextStop';
+import { feedTimeOfDay, resolveNextStop } from '@/lib/depot/routes/nextStop';
 import type { BusOpState } from '@/lib/depot/types';
 
 /** Stops spaced 0.1 degrees of longitude apart along one latitude, in sequence order. */
@@ -22,80 +22,87 @@ const C = stop(3, 73.2, '09:00:00');
 const STOPS = [A, B, C];
 const at = (longitude: number) => ({ latitude: 19, longitude });
 
-describe('inferNextStop by position', () => {
+/** The next stop for a bus whose fix is fresh and in service, so only the geometry decides. */
+const infer = (
+  stops: readonly CanonicalStop[],
+  position: { latitude: number; longitude: number } | null,
+  timeOfDay: string | null,
+) => resolveNextStop(stops, { position, gpsAgeMin: 0, state: 'in_service' }, timeOfDay).next;
+
+describe('next stop by position', () => {
   it('names the first stop for a bus before it', () => {
-    expect(inferNextStop(STOPS, at(72.95), null)).toEqual({ stop: A, method: 'position' });
+    expect(infer(STOPS, at(72.95), null)).toEqual({ stop: A, method: 'position' });
   });
   it('names the stop after the nearest one for a bus past it', () => {
-    expect(inferNextStop(STOPS, at(73.02), null)).toEqual({ stop: B, method: 'position' });
+    expect(infer(STOPS, at(73.02), null)).toEqual({ stop: B, method: 'position' });
   });
   it('names the nearest stop itself for a bus approaching it', () => {
-    expect(inferNextStop(STOPS, at(73.08), null)).toEqual({ stop: B, method: 'position' });
+    expect(infer(STOPS, at(73.08), null)).toEqual({ stop: B, method: 'position' });
   });
   it('mid-route, past the middle stop, names the last stop', () => {
-    expect(inferNextStop(STOPS, at(73.12), null)).toEqual({ stop: C, method: 'position' });
+    expect(infer(STOPS, at(73.12), null)).toEqual({ stop: C, method: 'position' });
   });
   it('has no next stop for a bus at the last stop', () => {
-    expect(inferNextStop(STOPS, at(73.2), '08:10')).toBeNull();
+    expect(infer(STOPS, at(73.2), '08:10')).toBeNull();
   });
   it('has no next stop for a bus beyond the last stop', () => {
-    expect(inferNextStop(STOPS, at(73.3), null)).toBeNull();
+    expect(infer(STOPS, at(73.3), null)).toBeNull();
   });
   it('picks the stop ahead for a bus equidistant between two', () => {
-    expect(inferNextStop(STOPS, at(73.05), null)).toEqual({ stop: B, method: 'position' });
+    expect(infer(STOPS, at(73.05), null)).toEqual({ stop: B, method: 'position' });
   });
   it('does not depend on the order the stops arrive in', () => {
-    expect(inferNextStop([C, A, B], at(73.02), null)?.stop).toEqual(B);
+    expect(infer([C, A, B], at(73.02), null)?.stop).toEqual(B);
   });
   it('skips stops without coordinates', () => {
     const stops = [A, stop(2, null, '08:20:00'), C];
-    expect(inferNextStop(stops, at(73.02), null)).toEqual({ stop: C, method: 'position' });
+    expect(infer(stops, at(73.02), null)).toEqual({ stop: C, method: 'position' });
   });
   it('does not mutate its input', () => {
     const input = Object.freeze([...STOPS]);
-    expect(() => inferNextStop(input, at(73.02), '08:10')).not.toThrow();
+    expect(() => infer(input, at(73.02), '08:10')).not.toThrow();
   });
 });
 
-describe('inferNextStop by schedule', () => {
+describe('next stop by schedule', () => {
   it('names the first stop before the first scheduled time', () => {
-    expect(inferNextStop(STOPS, null, '07:00')).toEqual({ stop: A, method: 'schedule' });
+    expect(infer(STOPS, null, '07:00')).toEqual({ stop: A, method: 'schedule' });
   });
   it('names the first stop later than the feed time', () => {
-    expect(inferNextStop(STOPS, null, '08:10')).toEqual({ stop: B, method: 'schedule' });
+    expect(infer(STOPS, null, '08:10')).toEqual({ stop: B, method: 'schedule' });
   });
   it('treats a stop at exactly the feed time as already reached', () => {
-    expect(inferNextStop(STOPS, null, '08:30')).toEqual({ stop: C, method: 'schedule' });
+    expect(infer(STOPS, null, '08:30')).toEqual({ stop: C, method: 'schedule' });
   });
   it('is null after the last scheduled time', () => {
-    expect(inferNextStop(STOPS, null, '09:30')).toBeNull();
+    expect(infer(STOPS, null, '09:30')).toBeNull();
   });
   it('falls back to the schedule with fewer than two located stops', () => {
     const stops = [A, stop(2, null, '08:30:00'), stop(3, null, '09:00:00')];
-    expect(inferNextStop(stops, at(73.0), '08:10')).toEqual({
+    expect(infer(stops, at(73.0), '08:10')).toEqual({
       stop: stops[1],
       method: 'schedule',
     });
   });
   it('uses the departure time when a stop has no arrival time', () => {
     const stops = [{ ...A, scheduledArrival: null, scheduledDeparture: '08:05:00' }];
-    expect(inferNextStop(stops, null, '08:00')?.stop).toEqual(stops[0]);
+    expect(infer(stops, null, '08:00')?.stop).toEqual(stops[0]);
   });
   it('skips stops with no usable time', () => {
     const stops = [stop(1, null, null), stop(2, null, 'garbage'), stop(3, null, '10:00:00')];
-    expect(inferNextStop(stops, null, '08:00')?.stop.sequence).toBe(3);
+    expect(infer(stops, null, '08:00')?.stop.sequence).toBe(3);
   });
 });
 
-describe('inferNextStop with nothing to go on', () => {
+describe('next stop with nothing to go on', () => {
   it('is null for an empty stop list', () => {
-    expect(inferNextStop([], at(73), '08:00')).toBeNull();
+    expect(infer([], at(73), '08:00')).toBeNull();
   });
   it('is null with no position and no feed time', () => {
-    expect(inferNextStop(STOPS, null, null)).toBeNull();
+    expect(infer(STOPS, null, null)).toBeNull();
   });
   it('never yields NaN for a non-finite position', () => {
-    const result = inferNextStop(STOPS, { latitude: Number.NaN, longitude: 73 }, '08:10');
+    const result = infer(STOPS, { latitude: Number.NaN, longitude: 73 }, '08:10');
     expect(result).toEqual({ stop: B, method: 'schedule' });
   });
 });
