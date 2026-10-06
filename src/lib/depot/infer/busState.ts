@@ -9,15 +9,19 @@ const MS_PER_MINUTE = 60_000;
  * Minutes between a bus's last GPS fix and the feed's own clock.
  *
  * Null when either time is missing or unparsable. Device clocks run slightly
- * ahead of the feed, so a small negative age is clamped to 0 rather than
- * reported as a fix from the future.
+ * ahead of the feed, so a fix up to the reporting window ahead is given age 0
+ * rather than reported as a fix from the future. A fix further ahead than that
+ * is a faulty device clock that says nothing about when the bus last
+ * reported, so it has no age either and never counts as recently heard.
  */
 export function gpsAgeMinutes(row: Readonly<DepotBusRow>, feedNow: string | null): number | null {
   if (row.gpsTimestamp === null || feedNow === null) return null;
   const fix = Date.parse(row.gpsTimestamp);
   const now = Date.parse(feedNow);
   if (Number.isNaN(fix) || Number.isNaN(now)) return null;
-  return Math.max(0, (now - fix) / MS_PER_MINUTE);
+  const age = (now - fix) / MS_PER_MINUTE;
+  if (age < -REPORTING_WINDOW_MIN) return null;
+  return Math.max(0, age);
 }
 
 /** Heard within the reporting window. An unknown age is not a recent report. */

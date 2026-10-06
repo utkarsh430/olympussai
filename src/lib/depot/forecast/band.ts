@@ -53,8 +53,9 @@ export function bandPoint(
   if (!wholeNumbers) return { date, value, low, high };
   const whole = { date, value: Math.round(value), low: Math.round(low), high: Math.round(high) };
   if (halfWidth === 0 || whole.low < whole.high) return whole;
-  // Rounding swallowed a band under half a bus: keep one bus on the inner side.
-  return whole.value > range.min
-    ? { ...whole, low: whole.value - 1 }
-    : { ...whole, high: whole.value + 1 };
+  // Rounding swallowed a band under half a bus: keep one bus on the inner side,
+  // unless the range is a single value and there is no inner side to take.
+  if (whole.value > range.min) return { ...whole, low: whole.value - 1 };
+  if (whole.value < range.max) return { ...whole, high: whole.value + 1 };
+  return whole;
 }

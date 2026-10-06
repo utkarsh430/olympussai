@@ -82,7 +82,7 @@ describe('scoreEconomics, worked figures', () => {
     expect(first?.components.map((c) => c.peerMedian)).toEqual([null, null, null]);
   });
 
-  it('judges each peer group on its own: one falls below the minimum, the others do not', () => {
+  it('merges into one group when a tercile of the complete depots is thin, as the efficiency index does', () => {
     const small = Array.from({ length: 5 }, (_, i) => fleetInput(`d${i}`, 20));
     const medium = Array.from({ length: 5 }, (_, i) =>
       fleetInput(`d${5 + i}`, 50, i < 2 ? { loadFactor: null } : {}),
@@ -90,13 +90,35 @@ describe('scoreEconomics, worked figures', () => {
     const large = Array.from({ length: 5 }, (_, i) => fleetInput(`d${10 + i}`, 90));
     const scores = scoreEconomics([...small, ...medium, ...large]);
     const byId = new Map(scores.map((s) => [s.depotId, s] as const));
-    expect(scores.filter((s) => s.peerGroup === 'small' && s.ranked)).toHaveLength(5);
-    expect(scores.filter((s) => s.peerGroup === 'large' && s.ranked)).toHaveLength(5);
-    // Medium keeps three complete depots, under the minimum of five.
-    expect(byId.get('d7')?.reason).toBe('peer_group_too_small');
-    expect(byId.get('d7')?.ranked).toBe(false);
+    // Medium keeps three complete depots, under the minimum of five, so all thirteen
+    // complete depots are ranked together rather than three of them left out.
+    expect(scores.filter((s) => s.peerGroup === 'all' && s.ranked)).toHaveLength(13);
+    expect(byId.get('d7')?.reason).toBe('ok');
+    expect(byId.get('d7')?.peerCount).toBe(13);
     expect(byId.get('d5')?.reason).toBe('missing_component');
-    expect(byId.get('d0')?.reason).toBe('ok');
+    expect(byId.get('d5')?.peerGroup).toBe('all');
+  });
+
+  it('groups only the complete depots: a tercile thinned by missing components is never left unranked', () => {
+    // Eighteen depots, the two smallest without earnings.
+    const inputs = Array.from({ length: 18 }, (_, i) =>
+      fleetInput(`d${i}`, 20 + 5 * i, i < 2 ? { earningsPerKm: null } : {}),
+    );
+    const scores = scoreEconomics(inputs);
+    const complete = scores.filter((s) => s.reason !== 'missing_component');
+    expect(complete).toHaveLength(16);
+    expect(complete.every((s) => s.ranked)).toBe(true);
+    expect(scores.filter((s) => s.reason === 'missing_component').map((s) => s.depotId)).toEqual([
+      'd0',
+      'd1',
+    ]);
+  });
+
+  it('keeps fleet-size terciles when every tercile of complete depots is large enough', () => {
+    const inputs = Array.from({ length: 15 }, (_, i) => fleetInput(`d${i}`, 20 + 10 * i));
+    const scores = scoreEconomics(inputs);
+    expect(new Set(scores.map((s) => s.peerGroup))).toEqual(new Set(['small', 'medium', 'large']));
+    expect(scores.every((s) => s.ranked && s.peerCount === 5)).toBe(true);
   });
 });
 

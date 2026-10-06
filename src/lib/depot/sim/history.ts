@@ -42,6 +42,18 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/**
+ * The metric's own maximum, tightened by the unit's ceiling when one is given
+ * (never below the metric's minimum). Throws RangeError for a ceiling that is
+ * not a finite number.
+ */
+function upperLimit(metric: MetricKey, ceiling: number | undefined): number {
+  const { min, max } = METRIC_RANGES[metric];
+  if (ceiling === undefined) return max;
+  if (!Number.isFinite(ceiling)) throw new RangeError(`Ceiling must be finite, got ${ceiling}`);
+  return clamp(ceiling, min, max);
+}
+
 function round(value: number, decimals: number): number {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
@@ -101,7 +113,9 @@ function shockOn(scopeKey: string, metric: MetricKey, date: string, span: number
 /**
  * A daily series of `days` points (clamped to 7-180) ending on `anchor.date`
  * with exactly `anchor.value` (itself clamped to the metric's valid range).
- * Throws RangeError for a non-finite anchor value or an invalid anchor date.
+ * With `anchor.ceiling`, no day exceeds it either and every point carries it.
+ * Throws RangeError for a non-finite anchor value or ceiling, or an invalid
+ * anchor date.
  */
 export function modelSeries(
   metric: MetricKey,
@@ -113,9 +127,12 @@ export function modelSeries(
     throw new RangeError(`Anchor value must be finite, got ${anchor.value}`);
   }
   const anchorTime = parseDay(anchor.date);
-  const { min, max, decimals } = METRIC_RANGES[metric];
+  const { min, decimals } = METRIC_RANGES[metric];
+  const max = upperLimit(metric, anchor.ceiling);
   const count = clamp(Math.trunc(Number.isFinite(days) ? days : MIN_DAYS), MIN_DAYS, MAX_DAYS);
   const anchorValue = round(clamp(anchor.value, min, max), decimals);
+  // Every day carries the unit's own limit, so a forecast of this series can clip to it.
+  const limit = anchor.ceiling === undefined ? {} : { ceiling: max };
 
   const span = variationScale(metric, anchorValue);
   const scopeKey = scopeKeyOf(scope);
@@ -126,14 +143,14 @@ export function modelSeries(
   // Walk backwards: deviation is zero on the anchor day, then each earlier day
   // keeps part of the later day's deviation (pull back towards the anchor
   // level) plus its own date-seeded shock.
-  const points: SeriesPoint[] = [{ date: anchor.date, value: anchorValue }];
+  const points: SeriesPoint[] = [{ date: anchor.date, value: anchorValue, ...limit }];
   let deviation = 0;
   for (let back = 1; back < count; back += 1) {
     const time = anchorTime - back * MS_PER_DAY;
     const date = formatDay(time);
     deviation = deviation * REVERSION + shockOn(scopeKey, metric, date, span);
     const raw = anchorValue + deviation + weeklyAt(time) - anchorWeekly;
-    points.push({ date, value: round(clamp(raw, min, max), decimals) });
+    points.push({ date, value: round(clamp(raw, min, max), decimals), ...limit });
   }
   return points.reverse();
 }

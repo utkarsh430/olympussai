@@ -1,6 +1,6 @@
-import { compareText } from '../fuel/compare';
+import { competitionRanks } from '../score/competitionRanks';
 import { MIN_PEER_GROUP } from '../score/config';
-import { assignPeerGroups } from '../score/peerGroups';
+import { isRankable, peerGroupClassifier } from '../score/peerGroups';
 import type { Coverage } from '../types';
 import {
   COMPONENTS,
@@ -34,30 +34,37 @@ function standingOf(values: Values): Standing {
   return missingOf(values).length > 0 ? 'missing_component' : 'eligible';
 }
 
-function unrankedReason(
-  input: Readonly<EconomicsInput>,
-  grouped: boolean,
-  standing: Standing,
-): EconomicsRankReason {
+function unrankedReason(input: Readonly<EconomicsInput>, standing: Standing): EconomicsRankReason {
   if (input.depot.kind !== 'depot') return 'not_a_depot';
-  if (!grouped) return 'fleet_too_small';
+  if (!isRankable(input.depot)) return 'fleet_too_small';
   return standing === 'eligible' ? 'peer_group_too_small' : standing;
 }
 
 /**
- * Scores depots (kind depot only) against peers of similar fleet size, the
- * same groups the efficiency index uses. A depot missing a component is set
- * aside and says why; how many of its route lengths are real is carried as a
- * coverage figure and never withholds a rank (ruling S39). The
- * rest are ranked only if at least MIN_PEER_GROUP of their group remain, else
- * they are unranked as peer_group_too_small: a rank among two or three depots
- * is not a rank. Output follows the input order; a result never depends on it.
+ * Scores depots (kind depot only) against peers of similar fleet size. A
+ * depot missing a component is set aside and says why; how many of its route
+ * lengths are real is carried as a coverage figure and never withholds a
+ * rank. The peer groups are drawn over the complete depots only, with
+ * the efficiency index's rule: a fleet-size tercile thinner than
+ * MIN_PEER_GROUP merges everyone into one group, so missing components never
+ * leave a thin tercile unranked. A group still under MIN_PEER_GROUP (too few
+ * complete depots in all) is unranked as peer_group_too_small: a rank among
+ * two or three depots is not a rank. A set-aside depot is shown the group its
+ * fleet size falls in. Output follows the input order; a result never depends
+ * on it.
  */
 export function scoreEconomics(inputs: readonly EconomicsInput[]): DepotEconomicsScore[] {
-  const groups = assignPeerGroups(inputs.map((i) => i.depot));
   const values = new Map(inputs.map((i) => [i.depot.id, valuesOf(i)] as const));
   const standings = new Map(
     inputs.map((i) => [i.depot.id, standingOf(values.get(i.depot.id) as Values)] as const),
+  );
+  const classify = peerGroupClassifier(
+    inputs.filter((i) => standings.get(i.depot.id) === 'eligible').map((i) => i.depot),
+  );
+  const groups = new Map(
+    inputs.flatMap((i) =>
+      classify !== null && isRankable(i.depot) ? [[i.depot.id, classify(i.depot.fleet)] as const] : [],
+    ),
   );
   const eligible = new Map<string, string[]>();
   for (const [id, group] of groups) {
@@ -79,9 +86,9 @@ export function scoreEconomics(inputs: readonly EconomicsInput[]): DepotEconomic
       );
       scored.set(id, { components, index: indexFrom(components) });
     }
-    [...ids]
-      .sort((a, b) => (scored.get(b)?.index ?? 0) - (scored.get(a)?.index ?? 0) || compareText(a, b))
-      .forEach((id, i) => rankOf.set(id, i + 1));
+    // Equal indexes share a rank and the next rank skips (1, 2, 2, 4).
+    const ranks = competitionRanks(ids.map((id) => ({ id, index: scored.get(id)?.index ?? 0 })));
+    for (const [id, rank] of ranks) rankOf.set(id, rank);
   }
 
   return inputs.map((input): DepotEconomicsScore => {
@@ -95,7 +102,7 @@ export function scoreEconomics(inputs: readonly EconomicsInput[]): DepotEconomic
         depotId: id,
         peerGroup: group,
         ranked: false,
-        reason: unrankedReason(input, group !== null, standings.get(id) as Standing),
+        reason: unrankedReason(input, standings.get(id) as Standing),
         missing: missingOf(own),
         economicsIndex: null,
         rank: null,
