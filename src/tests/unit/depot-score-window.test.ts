@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { scoreDepots } from '@/lib/depot/score/dei';
 import {
   SCORE_WINDOW_MAX_SAMPLES,
@@ -117,6 +117,27 @@ describe('score window, holder', () => {
       };
       expect(run()).toBe(run());
     }
+  });
+
+  it('gives the same window whatever the wall clock says', () => {
+    const run = (wall: string): string => {
+      vi.useFakeTimers({ now: new Date(wall) });
+      try {
+        const store = createScoreWindowStore();
+        const random = seeded(5);
+        // Three snapshots over 25 minutes of feed time: the first must age out, by the feed.
+        for (const seconds of [0, 600, 1500]) {
+          observeDepots(store, snapshotOf(net, random), feedTime(seconds));
+        }
+        return JSON.stringify([...store.byDepot]);
+      } finally {
+        vi.useRealTimers();
+      }
+    };
+    const duringTheFeed = run(feedTime(600));
+    expect(duringTheFeed).toBe(run('2031-01-01T00:00:00.000Z'));
+    expect(duringTheFeed).toBe(run('2001-01-01T00:00:00.000Z'));
+    expect(JSON.parse(duringTheFeed)[0][1]).toHaveLength(2);
   });
 
   it('forgets a depot that has left the feed once its samples age out', () => {
