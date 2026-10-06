@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DepotCrewPage from '@/app/(protected)/project/depots/d/[depotId]/crew/page';
 import * as crewModel from '@/lib/depot/crew/crewPageModel';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import { bannedOnScreen } from './depot-guard-rendered';
 
 const hooks = vi.hoisted(() => ({ crew: null as unknown }));
 
@@ -84,6 +85,36 @@ async function renderPage(): Promise<HTMLElement> {
   page.innerHTML = renderToStaticMarkup(element);
   return page;
 }
+
+// The server's own duty ids carry the modelled day's raw date.
+const DATED_ID = '20-2026-10-06-009';
+const DATED = {
+  ...DATA,
+  uncovered: DATA.uncovered.map((row) => ({ ...row, dutyId: DATED_ID })),
+  roster: [
+    {
+      dutyId: DATED_ID, route: 'R1', shiftIndex: 0, shiftCount: 2, startMin: 400, endMin: 700,
+      driverSlot: 'DRV-01', conductorSlot: 'CON-01',
+    },
+  ],
+  rosterTotal: 1,
+};
+
+describe('the crew page on the shared rendered-page check', () => {
+  it.each([...STATES, ['data with dated duty ids', { data: DATED }] as const])(
+    'shows no banned word and no raw date in text, a title or a label, in the %s state',
+    async (_name, partial) => {
+      setHook(partial);
+      const page = await renderPage();
+      expect(bannedOnScreen(page)).toEqual([]);
+    },
+  );
+
+  it('names a dated duty by its number', async () => {
+    setHook({ data: DATED });
+    expect((await renderPage()).textContent).toContain('Duty 009');
+  });
+});
 
 describe('the crew page header', () => {
   beforeEach(() => setHook({}));

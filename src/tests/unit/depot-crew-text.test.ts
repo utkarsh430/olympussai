@@ -91,6 +91,11 @@ describe('crew page wording', () => {
   it('labels a shift with its place in the duty', () => {
     expect(shiftLabel({ dutyId: 'D-12', shiftIndex: 0, shiftCount: 1 })).toBe('D-12');
     expect(shiftLabel({ dutyId: 'D-12', shiftIndex: 1, shiftCount: 2 })).toBe('D-12, shift 2 of 2');
+    // A modelled duty's id carries the day's raw date: the label prints only its number.
+    expect(shiftLabel({ dutyId: '49-2026-10-06-009', shiftIndex: 0, shiftCount: 1 })).toBe('Duty 009');
+    expect(shiftLabel({ dutyId: '49-2026-10-06-009', shiftIndex: 1, shiftCount: 2 })).toBe(
+      'Duty 009, shift 2 of 2',
+    );
   });
 
   it('words shifts, singular and plural, and says MODELLED', () => {
