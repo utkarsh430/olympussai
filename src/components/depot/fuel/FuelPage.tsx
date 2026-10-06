@@ -50,7 +50,7 @@ export function FuelPage({ provenance }: { readonly provenance: ProvenanceDescri
       ) : (
         <ErrorPanel
           title={
-            error === DEPOT_NOT_FOUND_MESSAGE ? DEPOT_NOT_FOUND_MESSAGE : 'Could not load fuel data'
+            error === DEPOT_NOT_FOUND_MESSAGE ? DEPOT_NOT_FOUND_MESSAGE : 'Fuel data is unavailable'
           }
           message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
           onRetry={refresh}
