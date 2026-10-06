@@ -3,6 +3,7 @@ import type { BoardDuty, DutyBoardCounts } from '@/lib/depot/duties/api';
 import {
   AXIS_END_MIN,
   AXIS_START_MIN,
+  CHART_DUTY_LIMIT,
   COST_SENTENCE,
   MODEL_NOTICE,
   axisTicks,
@@ -10,8 +11,12 @@ import {
   buildBoardRows,
   emptyDutiesSentence,
   formatMinute,
+  barTextPlacement,
+  defaultView,
+  largeBoardSentence,
   nowLinePct,
   nowSentence,
+  viewAnnouncement,
   reasonSentence,
   routesWithoutDutySentence,
   spareSentence,
@@ -184,7 +189,7 @@ describe('buildBoardRows', () => {
 describe('sentences', () => {
   it('says the duties are a model and the matching only a recommendation', () => {
     expect(MODEL_NOTICE).toBe(
-      'Duties are a model until a timetable is supplied. The matching of buses to duties is a recommendation: nothing is assigned or dispatched.',
+      'Duties are a model until a timetable is supplied, and their lengths are generated, not timetabled. The matching of buses to duties is a recommendation: nothing is assigned or dispatched.',
     );
   });
 
@@ -224,12 +229,12 @@ describe('sentences', () => {
   });
 
   it('says what the now line is, or why it is missing', () => {
-    expect(nowSentence('2026-10-06T10:05:00Z')).toBe('Now 10:05, from the feed clock.');
+    expect(nowSentence('2026-10-06T10:05:00Z')).toBe('Now 10:05, the feed clock in Indian time.');
     expect(nowSentence(null)).toBe('The feed has no clock, so there is no now line.');
     expect(nowSentence('2026-10-06T02:30:00Z')).toBe(
-      'Now 02:30, from the feed clock; it is before the 04:00 start of the axis.',
+      'Now 02:30, the feed clock in Indian time; it is before the 04:00 start of the axis.',
     );
-    expect(nowSentence('2026-10-06T23:59:00Z')).toBe('Now 23:59, from the feed clock.');
+    expect(nowSentence('2026-10-06T23:59:00Z')).toBe('Now 23:59, the feed clock in Indian time.');
   });
 
   it('describes why an unassigned duty has no bus', () => {
@@ -247,5 +252,52 @@ describe('sentences', () => {
     expect(spareSentence([])).toBe('No bus is spare: every eligible bus has a duty.');
     expect(spareSentence(['A', 'B'])).toBe('2 buses are in the yard with no duty.');
     expect(spareSentence(['A'])).toBe('1 bus is in the yard with no duty.');
+  });
+});
+
+describe('bar text placement', () => {
+  // 'Assigned UP32A0001' is 18 characters: 18 * 7 + 12 = 138 px; the axis is 700 px wide.
+  const LONG = 18;
+  const NEEDED_PCT = (LONG * 7 + 12) / 7;
+
+  it('keeps the text inside a bar that is wide enough, and puts it beside one that is not', () => {
+    expect(barTextPlacement({ leftPct: 10, widthPct: NEEDED_PCT, textLength: LONG })).toBe('inside');
+    expect(barTextPlacement({ leftPct: 10, widthPct: NEEDED_PCT - 0.1, textLength: LONG })).toBe(
+      'right',
+    );
+  });
+
+  it('decides from the label length: a short label fits a bar a long one does not', () => {
+    const width = 9;
+    expect(barTextPlacement({ leftPct: 10, widthPct: width, textLength: 7 })).toBe('inside');
+    expect(barTextPlacement({ leftPct: 10, widthPct: width, textLength: LONG })).toBe('right');
+  });
+
+  it('goes to the left of a bar with no room on its right, and right at the exact boundary', () => {
+    const w = 5;
+    expect(barTextPlacement({ leftPct: 100 - w, widthPct: w, textLength: LONG })).toBe('left');
+    const room = NEEDED_PCT;
+    expect(barTextPlacement({ leftPct: 100 - w - room, widthPct: w, textLength: LONG })).toBe('right');
+    expect(barTextPlacement({ leftPct: 100 - w - room + 0.1, widthPct: w, textLength: LONG })).toBe(
+      'left',
+    );
+  });
+});
+
+describe('a large board', () => {
+  it('opens on the chart up to the limit and on the table past it', () => {
+    expect(defaultView(CHART_DUTY_LIMIT)).toBe('chart');
+    expect(defaultView(CHART_DUTY_LIMIT + 1)).toBe('table');
+  });
+
+  it('says why the table opened and offers the chart', () => {
+    expect(largeBoardSentence(CHART_DUTY_LIMIT + 40)).toBe(
+      `This depot has ${CHART_DUTY_LIMIT + 40} duties, more than ${CHART_DUTY_LIMIT}, so the table is shown first because the chart would be very tall. The chart is one button away.`,
+    );
+  });
+
+  it('announces which view is showing and how many duties', () => {
+    expect(viewAnnouncement('table', 120)).toBe('Showing the table, 120 duties');
+    expect(viewAnnouncement('chart', 1)).toBe('Showing the chart, 1 duty');
   });
 });
