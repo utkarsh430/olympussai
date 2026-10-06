@@ -71,6 +71,9 @@ same feed can give different figures from one request to the next: a 1-sample
 index on one instance and a 20-minute one on another, or a held yard on one and
 no yard on another. The responses say so (`scoreWindow.samples` and
 `coveredMin`, `yard.heldSince`), but they do not agree across instances.
+The modelled requirement reads the on-road share over that same score window,
+so the modelled operating day (duties, crew, fuel, revenue, economics) and the
+fleet-distribution plan built on it can also differ between instances.
 For stable depot figures, serve the depot routes from one long-lived Node
 process (`next start`) until this state is shared (e.g. Redis/Upstash).
 
