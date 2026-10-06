@@ -24,7 +24,7 @@ export const TRENDS_LEGEND_LABEL: Readonly<Record<LegendEntry['key'], string>> =
   history: 'History',
   forecast: 'Forecast',
   band: `${BAND_SHARE}% band`,
-  live: 'Now (live)',
+  live: 'Now (feed)',
 };
 
 const UNIT_SHORT: Readonly<Record<TrendUnit, { one: string; many: string; decimals: number }>> = {
@@ -58,7 +58,7 @@ function trendPiece(change: TrendChange, span: string, unit: TrendUnit): string 
 /** The table's Kind cell: plain words, never the tag word; the live point says so. */
 export const TRENDS_KIND_WORDS: Readonly<Record<'history' | 'live' | 'forecast', string>> = {
   history: 'History',
-  live: 'Now (live)',
+  live: 'Now (feed)',
   forecast: 'Forecast',
 };
 

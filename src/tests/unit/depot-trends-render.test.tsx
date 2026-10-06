@@ -86,10 +86,10 @@ describe('network Trends page', () => {
   it('prints one caption line and the legend in four plain words under the chart', () => {
     const markup = renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />);
     const page = text(markup);
-    for (const label of ['History', 'Forecast', '80% band', 'Now (live)']) {
+    for (const label of ['History', 'Forecast', '80% band', 'Now (feed)']) {
       expect(page).toContain(label);
     }
-    expect(page).not.toMatch(/Forecast, MODELLED|History, MODELLED|Live value, LIVE/);
+    expect(page).not.toMatch(/Forecast, MODELLED|History, MODELLED|Feed value, LIVE/);
     const caption = markup.match(/data-testid="trends-caption"[^>]*>([^<]*)</)?.[1] ?? '';
     expect(caption).toMatch(
       / over 4 weeks · .* over 7 days · \d+-day forecast, (seasonal|Holt-Winters) method, within /,
@@ -103,7 +103,7 @@ describe('network Trends page', () => {
     const markup = renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />);
     const label = markup.match(/role="img" aria-label="([^"]*)"/)?.[1] ?? '';
     expect(label.match(/MODELLED/g)).toHaveLength(1);
-    expect(label).toContain('LIVE value');
+    expect(label).toContain('feed value');
   });
 
   it('never shows a forecast without its band, its horizon, its method and its error in words', () => {

@@ -69,7 +69,7 @@ export function breakdownRows(
 
 /** The one sentence that keeps the two indices apart; the link goes between lead and tail. */
 export const INDEX_SEPARATION = {
-  lead: 'The Depot Economics Index is modelled from planning assumptions and is separate from the Depot Efficiency Index, which is built from live data. The efficiency index is on the ',
+  lead: 'The Depot Economics Index is modelled from planning assumptions and is separate from the Depot Efficiency Index, which is built from the feed. The efficiency index is on the ',
   linkText: 'league table',
   tail: '.',
 } as const;

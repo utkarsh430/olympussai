@@ -17,9 +17,17 @@ function summary(text: string = FOOTER_DISCLAIMER): HTMLElement {
 describe('the depot disclaimer sentence', () => {
   it('drops the leading "Prototype." because the pill beside it already says it', () => {
     expect(FOOTER_DISCLAIMER.startsWith('Prototype. ')).toBe(true);
-    expect(DEPOT_TEXT.startsWith('Vehicle positions and schedules are live')).toBe(true);
-    expect(DEPOT_TEXT).toBe(FOOTER_DISCLAIMER.slice('Prototype. '.length));
+    expect(DEPOT_TEXT.startsWith('Vehicle positions and schedules are UPSRTC data.')).toBe(true);
     expect(depotDisclaimerText('No lead word here.')).toBe('No lead word here.');
+  });
+
+  it('never calls the data live, as a page can be showing the sample or last-good data', () => {
+    expect(DEPOT_TEXT).not.toMatch(/\blive\b/i);
+    expect(DEPOT_TEXT).toBe(
+      FOOTER_DISCLAIMER.slice('Prototype. '.length).replace('are live UPSRTC data', 'are UPSRTC data'),
+    );
+    // The command centre's own sentence keeps its words.
+    expect(FOOTER_DISCLAIMER).toContain('Vehicle positions and schedules are live UPSRTC data.');
   });
 });
 

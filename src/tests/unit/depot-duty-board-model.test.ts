@@ -232,7 +232,7 @@ describe('sentences', () => {
   // only the cause, so an empty board has one "no duties" sentence, not two.
   it('explains an empty board by its cause alone', () => {
     expect(emptyDutiesSentence({ routeCount: 0, peakRequirement: 5 })).toBe(
-      'None of its buses reports a route in the live feed, so there is nothing to run a duty on.',
+      'None of its buses reports a route in the feed, so there is nothing to run a duty on.',
     );
     expect(emptyDutiesSentence({ routeCount: 3, peakRequirement: 0 })).toBe(
       'The modelled peak requirement is zero buses.',

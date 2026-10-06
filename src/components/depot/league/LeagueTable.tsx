@@ -24,7 +24,7 @@ import { LeagueGrid } from './LeagueGrid';
 import { ScoreBreakdown } from './ScoreBreakdown';
 
 const PEER_GROUP_DISPLAY_ORDER: readonly PeerGroupId[] = ['small', 'medium', 'large', 'all'];
-export const EMPTY_FEED_SENTENCE = 'The live feed returned no depots, so there is nothing to rank yet.';
+export const EMPTY_FEED_SENTENCE = 'The feed returned no depots, so there is nothing to rank yet.';
 
 /**
  * Depots ranked within peer groups. Above the table: the header and its provenance line

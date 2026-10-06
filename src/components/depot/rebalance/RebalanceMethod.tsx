@@ -11,8 +11,8 @@ export function RebalanceMethod({ spareRatio }: { readonly spareRatio: number })
   return (
     <HowProduced testId="rebalance-method">
         <p className="depot-prose">
-          Live: each depot&apos;s fleet, buses off road and buses available come from the latest
-          feed snapshot. Modelled: the feed carries no network timetable, so each depot&apos;s
+          From the feed: each depot&apos;s fleet, buses off road and buses available come from the
+          latest snapshot. Modelled: the feed carries no network timetable, so each depot&apos;s
           requirement is modelled by a stated rule (a depot whose buses are more on the road
           than its peers&apos; is assumed stretched, one with many standing buses to have slack)
           plus a spare margin of {spare}% of peak need. The rule reads each depot&apos;s

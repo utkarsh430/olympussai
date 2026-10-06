@@ -18,7 +18,7 @@ export const ROUTES_TEXT = {
   profileTitle: 'Routes without a profile',
   tableTitle: 'Every route in the feed',
   noRoutes:
-    'The live feed shows no bus carrying a route name right now, so there are no routes to list.',
+    'The feed shows no bus carrying a route name right now, so there are no routes to list.',
 } as const;
 
 /** The word on a collapsed or expanded group's control. */

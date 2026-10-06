@@ -198,7 +198,7 @@ describe('the roster page, as the reader meets it', () => {
   it('says what is absent, what would change it and offers one action, in both empty states', async () => {
     setDetail(dataState([]));
     const none = await render();
-    expect(none.body.textContent).toContain('The live feed lists no buses homed at this depot.');
+    expect(none.body.textContent).toContain('The feed lists no buses homed at this depot.');
     expect(none.body.textContent).toContain('Buses appear here as soon as the feed homes one');
     expect(none.querySelector('a[href$="/sources"]')?.textContent).toBe('Data sources');
 

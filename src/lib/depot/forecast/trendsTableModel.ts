@@ -119,7 +119,7 @@ export function unitSparkLabel(
 ): string {
   const where = `${metricLabel} at ${name}`;
   if (trend === null) return `${where}: no MODELLED trend yet`;
-  return `${where}, ${trend.sentence}, ending on the live value`;
+  return `${where}, ${trend.sentence}, ending on today's feed value`;
 }
 
 export function trendTableRows(
