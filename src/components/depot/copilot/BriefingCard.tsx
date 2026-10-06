@@ -110,6 +110,7 @@ function BriefingBody({
             generatedAt={state.response.generatedAt}
             cached={state.response.cached}
             facts={state.response.facts}
+            dataSource={state.response.dataSource}
             writtenFromFeedTime={writtenFrom}
             currentFeedTime={currentFeedTime}
             onWriteAgain={write}

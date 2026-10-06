@@ -55,6 +55,19 @@ describe('AnswerView layout', () => {
     expect(last?.querySelector('[data-testid="copilot-provider"]')).not.toBeNull();
   });
 
+  it("says the answer's data source on its footer line", () => {
+    const response = { ...RESPONSE, dataSource: 'sample' } as CopilotApiResponse;
+    act(() =>
+      root.render(
+        <ol>
+          <AnswerView entry={{ id: 1, question: 'Which depots are dark?', scopeLabel: 'Whole network', response }} />
+        </ol>,
+      ),
+    );
+    const source = container.querySelector('[data-testid="copilot-data-source"]');
+    expect(source?.textContent).toBe('sample data');
+  });
+
   it('does not draw a title on the evidence table, but names it for assistive technology', () => {
     act(() =>
       root.render(

@@ -56,6 +56,7 @@ export function AnswerView({ entry }: { readonly entry: AnswerEntry }) {
         generatedAt={response.generatedAt}
         cached={response.cached}
         facts={response.facts}
+        dataSource={response.dataSource}
       />
     </li>
   );
