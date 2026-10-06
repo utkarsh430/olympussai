@@ -137,6 +137,10 @@ describe('buildDutyBoard', () => {
     const rows = [...parked(), row({ registrationNumber: 'E1', routeName: 'EXP_1' })];
     const b = board(rows);
     const plan = dutyPlanFor(analyseSnapshot(view(rows)), '1', b.operatingDate);
+    // Without a plan both sides below would be undefined and the loop would prove nothing.
+    expect(plan).not.toBeNull();
+    // The express bus the test is named for is on a duty, carrying its own class.
+    expect(b.duties.some((d) => d.busClass === 'express')).toBe(true);
     for (const d of b.duties) {
       const expected = d.registrationNumber === null ? null : plan?.fleet.get(d.registrationNumber)?.serviceClass;
       expect(d.busClass).toBe(expected);
@@ -172,7 +176,9 @@ describe('buildDutyBoard', () => {
 
   it('gives an assigned duty a bus, no blockers and the assigned state', () => {
     const b = board(parked());
-    for (const d of b.duties.filter((x) => x.registrationNumber !== null)) {
+    const assigned = b.duties.filter((x) => x.registrationNumber !== null);
+    expect(assigned.length).toBeGreaterThan(0);
+    for (const d of assigned) {
       expect(d.state).toBe('assigned');
       expect(d.blockers).toBeNull();
     }
