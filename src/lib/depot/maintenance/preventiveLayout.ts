@@ -2,7 +2,8 @@
  * The preventive table's columns per width and their widths (round 3), so no column is
  * cut at 1440, 1280 or 1024, and each narrower width shows a deliberate set; what a set
  * drops is in the row expander. Every group's table uses the same widths, so the groups
- * line up. Widths in px; the shared expander column after the first is 36 px.
+ * line up. Widths in px; the shared table's expander is its FIRST column, 24 px (the
+ * shell's `EXPANDER_WIDTH_PX`), and the row itself opens it.
  */
 
 export type PreventiveColumnKey = 'registration' | 'next' | 'class' | 'odometer' | 'age';
@@ -17,7 +18,7 @@ export const PREVENTIVE_COLUMN_WIDTH_PX: Readonly<Record<PreventiveColumnKey, nu
   age: 120,
 };
 
-export const EXPANDER_WIDTH_PX = 36;
+export const EXPANDER_WIDTH_PX = 24;
 
 const COLUMNS: Readonly<Record<PreventiveTier, readonly PreventiveColumnKey[]>> = {
   wide: ['registration', 'next', 'class', 'odometer', 'age'],
