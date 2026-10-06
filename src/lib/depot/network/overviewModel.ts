@@ -125,7 +125,7 @@ export function kpiRows(kpis: NetworkKpis): KpiRow[] {
 /**
  * Severity per exception kind, as the exception rules assign it. The three
  * depot-rate kinds are `critical` or `warning` depending on how far the depot
- * sits from its peers, which a count by kind cannot tell apart: `variable`.
+ * sits from its peers, which a count by kind cannot tell apart: `variable` (worded "Critical or warning").
  */
 export type KindSeverity = ExceptionSeverity | 'variable';
 
@@ -162,15 +162,14 @@ export function exceptionRows(counts: Readonly<Record<ExceptionKind, number>>): 
   }));
 }
 
-export type SeverityTotals = Readonly<Record<KindSeverity | 'total', number>>;
+export type SeverityTotals = Readonly<Record<ExceptionSeverity | 'total', number>>;
 
-export function exceptionTotals(counts: Readonly<Record<ExceptionKind, number>>): SeverityTotals {
-  const rows = exceptionRows(counts);
-  const sum = (severity: KindSeverity): number =>
-    rows.filter((row) => row.severity === severity).reduce((acc, row) => acc + row.count, 0);
-  const critical = sum('critical');
-  const warning = sum('warning');
-  const info = sum('info');
-  const variable = sum('variable');
-  return { critical, warning, info, variable, total: critical + warning + info + variable };
+/** Totals by severity, from the server's own severity counts (exact, unlike counts by kind). */
+export function severityTotals(
+  severities: Readonly<Record<ExceptionSeverity, number>>,
+): SeverityTotals {
+  const critical = safeCount(severities.critical);
+  const warning = safeCount(severities.warning);
+  const info = safeCount(severities.info);
+  return { critical, warning, info, total: critical + warning + info };
 }

@@ -102,7 +102,10 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
             <RankedStrip rows={rows} selectedId={selectedId} onSelect={select} />
           </div>
           <div className={SECTION}>
-            <ExceptionSummary counts={data.exceptionCounts} />
+            <ExceptionSummary
+              counts={data.exceptionCounts}
+              severities={data.exceptionSeverityCounts}
+            />
           </div>
           <div className={SECTION}>
             <DepotTable rows={rows} selectedId={selectedId} onSelect={select} />
