@@ -1185,7 +1185,7 @@ describe('every figure carries its own noun', () => {
 });
 
 /** A figure never stands under another depot's name. */
-describe('M-A: a figure beside another depot name', () => {
+describe('a figure beside another depot name', () => {
   const DEPOT_REASON = "Draft puts a figure beside another depot's name";
   const comparison = buildAnswer(
     { kind: 'compareDepots', depotA: '101', depotB: '102' },

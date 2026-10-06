@@ -133,7 +133,7 @@ describe('buildDutyBoard', () => {
     for (const d of b.duties) expect(d.blockers).toEqual(b.counts.excluded);
   });
 
-  it('carries the class of the bus on each assigned duty, so a mismatch can be shown (m6)', () => {
+  it('carries the class of the bus on each assigned duty, so a mismatch can be shown', () => {
     const rows = [...parked(), row({ registrationNumber: 'E1', routeName: 'EXP_1' })];
     const b = board(rows);
     const plan = dutyPlanFor(analyseSnapshot(view(rows)), '1', b.operatingDate);
@@ -147,7 +147,7 @@ describe('buildDutyBoard', () => {
     }
   });
 
-  it('hands out frozen copies of the shared plan’s lists, never the lists themselves (m4)', () => {
+  it('hands out frozen copies of the shared plan’s lists, never the lists themselves', () => {
     const rows = parked(12);
     const b = board(rows);
     const plan = dutyPlanFor(analyseSnapshot(view(rows)), '1', b.operatingDate);

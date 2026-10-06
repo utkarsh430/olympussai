@@ -36,7 +36,7 @@ const SCOPE_AND_PERIOD_DRAFTS: readonly string[] = [
   'On the day shift at {{fact:name}} the depot had {{fact:dark}} dark.',
 ];
 
-describe('M-A: quantifier and period words in a figure clause', () => {
+describe('quantifier and period words in a figure clause', () => {
   it.each(SCOPE_AND_PERIOD_DRAFTS)('refuses: %s', (draft) => {
     expect(ok(draft)).toBe(false);
   });

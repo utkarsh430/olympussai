@@ -75,7 +75,7 @@ describe('how eligibility was judged, for each mode, clock and yard', () => {
   });
 });
 
-describe('why duties have no bus (m-e)', () => {
+describe('why duties have no bus', () => {
   it('says every eligible bus has another duty only when a bus was eligible', () => {
     expect(unmatchedLine({ counts: counts(2, HELD) })).toBe(
       'No bus for 3 duties: every eligible bus has another duty. Held out of the matching: 1 not heard recently · 2 not in the yard · 1 off the road.',
@@ -108,7 +108,7 @@ const duty = (serviceClass: ServiceClass, busClass: ServiceClass): BoardDuty => 
   blockers: null,
 });
 
-describe('the article before a class name (m-f)', () => {
+describe('the article before a class name', () => {
   const cases: readonly (readonly [ServiceClass, string])[] = [
     ['premium', 'a Premium bus'],
     ['express', 'an Express bus'],

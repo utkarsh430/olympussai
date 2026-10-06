@@ -65,7 +65,7 @@ const CAUSE_BLAME_ALARM_DRAFTS: readonly string[] = [
   'The loss is due to {{fact:other}}.',
 ];
 
-describe('M-B: cause, blame and alarm drafts are refused', () => {
+describe('cause, blame and alarm drafts are refused', () => {
   it('holds the listed drafts and at least twenty more', () => {
     expect(CAUSE_BLAME_ALARM_DRAFTS.length).toBeGreaterThanOrEqual(25);
   });
@@ -102,7 +102,7 @@ failing failure failures
 /** Allowed only inside the fixed phrase the scripted writer needs (vocabulary/judgement.ts). */
 const BOUND_WORDS: readonly string[] = ['due', 'critical', 'people'];
 
-describe('M-B: the vocabulary holds no cause, blame, person or alarm word', () => {
+describe('the vocabulary holds no cause, blame, person or alarm word', () => {
   it.each(FORBIDDEN_FORMS)('%s is neither listed nor buildable', (word) => {
     expect(VOCABULARY_WORDS).not.toContain(word);
     expect(isVocabularyWord(word)).toBe(false);
@@ -113,7 +113,7 @@ describe('M-B: the vocabulary holds no cause, blame, person or alarm word', () =
   });
 });
 
-describe('M-B: a bound word renders only inside its phrase', () => {
+describe('a bound word renders only inside its phrase', () => {
   it.each([
     'Flagged at depot level: {{fact:dark}}. Rated critical: {{fact:crit}}.',
     'Of the buses with a known schedule, {{fact:dark}} are due to leave now.',

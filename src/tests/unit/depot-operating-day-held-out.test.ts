@@ -25,7 +25,7 @@ function bus(reg: string, state: BusOpState, over: Partial<DepotBusView> = {}): 
   } as unknown as DepotBusView;
 }
 
-describe('why a bus did not run in the day (m-g)', () => {
+describe('why a bus did not run in the day', () => {
   it('says held_out for a held-out bus, unavailable when off the road or dark, no_duty when spare', () => {
     const buses = [
       bus('A', 'standing'),

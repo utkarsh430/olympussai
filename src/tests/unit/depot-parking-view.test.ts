@@ -294,7 +294,7 @@ describe('buildParkingResponse', () => {
     for (const s of slots) expect(s.firstDutyStartMin).not.toBeNull();
   });
 
-  it('leaves today\'s board as it is without a parking request (m-c)', () => {
+  it('leaves today\'s board as it is without a parking request', () => {
     // Each board on its own fresh rows and a process just started, so no memo is shared.
     for (const feedNow of ['2026-10-06T08:00:00Z', '2026-10-07T00:05:00Z']) {
       resetAnalysisForTests();
