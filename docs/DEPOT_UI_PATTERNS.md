@@ -190,8 +190,8 @@ control over the label row with absolute positioning).
 ## FigureBand and Figure
 
 `FigureBand { label, children }` holds up to five `Figure { label, value, caption?, tag?,
-share?, hero?, title? }`. Figures are a fixed width and left-packed: 232px from 1280px, 200px
-from 1024px (wrapping when the column is narrower), two equal columns below 1024px. Every
+share?, hero?, title? }`. Figures are a fixed width and left-packed: 232px from 1440px, 200px
+from 1280px, 192px from 1024px (five fit one row at each) (wrapping when the column is narrower), two equal columns below 1024px. Every
 figure is mono 24px (`hero`: display 32px, one per page). Label and caption truncate with the
 full text in `title`. 88px tall. A figure's label row is a fixed 16px line box
 (`depot-tag-row`): a tag beside the label is drawn 16px tall and never lowers the figure. `tag` only for a generated figure on a MIXED or DERIVED page.

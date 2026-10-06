@@ -18,11 +18,23 @@ describe('FigureBand', () => {
   it('gives every figure a fixed width from 1024px and never stretches it to fill the row', () => {
     band();
     for (const item of screen.getAllByRole('listitem')) {
-      expect(item.className).toContain('xl:w-[232px]');
-      expect(item.className).toContain('lg:w-[200px]');
+      expect(item.className).toContain('lg:w-[192px]');
+      expect(item.className).toContain('xl:w-[200px]');
+      expect(item.className).toContain('min-[1440px]:w-[232px]');
       expect(item.className).toContain('lg:flex-none');
       expect(item.className).not.toContain('flex-1');
     }
+  });
+
+  it('fits five figures on one row at 1024, 1280 and 1440 now the rail shows only from 1280', () => {
+    // Content width (viewport less rail and gutters) and figure width at each breakpoint;
+    // the list is 17px wider than the column (the first figure's hidden hairline).
+    const rows = [
+      { content: 976, figure: 192 },
+      { content: 1000, figure: 200 },
+      { content: 1160, figure: 232 },
+    ];
+    for (const { content, figure } of rows) expect(5 * figure).toBeLessThanOrEqual(content + 17);
   });
 
   it('wraps to two columns on a phone and three from 640px, so five figures read 3 + 2', () => {

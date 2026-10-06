@@ -18,7 +18,8 @@ export interface FigureBandProps {
 /**
  * A row of up to five figures separated by 1px vertical hairlines, with no box per
  * figure (rulings, section 3). Figures are a fixed width and LEFT-PACKED: 232px from
- * 1280px (five fill a 1440 column exactly), 200px from 1024px, so a band of two to four
+ * 1440px (five fill the 1,160px column exactly), 200px from 1280px (1,000px beside the
+ * rail), 192px from 1024px (976px, no rail), so five always fit one row and a band of two to four
  * never stretches to leave wide gaps; it wraps when the column is narrower. Below 1024px
  * the band is two equal columns. 88px tall: label 11/16, 6px, figure 24/28, 6px,
  * caption 12/16, with 8px above and below. The label row is a fixed 16px line box
@@ -125,7 +126,7 @@ export function Figure(props: FigureProps) {
   return (
     <li
       title={title}
-      className="min-w-0 list-none border-l border-depot-line px-4 lg:w-[200px] lg:flex-none xl:w-[232px]"
+      className="min-w-0 list-none border-l border-depot-line px-4 lg:w-[192px] lg:flex-none xl:w-[200px] min-[1440px]:w-[232px]"
     >
       {href !== undefined ? (
         <Link href={href} className={INTERACTIVE}>
