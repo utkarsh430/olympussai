@@ -85,8 +85,11 @@ const COLUMNS: readonly Column<DepotRow>[] = [
       const index = rankedIndex(row);
       if (index !== null) return formatIndex(index);
       const reason = row.score ? RANK_REASON_LABEL[row.score.reason] : 'Not scored';
+      // `relative` gives the visually-hidden text a containing block inside the
+      // table's scroll frame; without it the absolutely positioned span escapes
+      // the frame's clipping and widens the page.
       return (
-        <span className="text-depot-faint" title={reason}>
+        <span className="relative text-depot-faint" title={reason}>
           —<span className="sr-only">{`, ${reason}`}</span>
         </span>
       );
