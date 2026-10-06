@@ -56,7 +56,9 @@ export function SectionLabel({
         {tag ? <ProvenanceBadge provenance={tag} pill /> : null}
       </div>
       {note ? (
-        <p className={`depot-note min-w-0 ${noteTone ? meaningTextClass(noteTone) : ''}`}>{note}</p>
+        <p className={noteTone ? `depot-note min-w-0 ${meaningTextClass(noteTone)}` : 'depot-note min-w-0'}>
+          {note}
+        </p>
       ) : null}
       {controls ? (
         <div data-testid="depot-section-controls" className="flex shrink-0 items-center gap-1">
