@@ -107,9 +107,48 @@ function idMentions(text: string, depots: readonly DepotRef[]): Mention[] {
   return found;
 }
 
+/**
+ * Feed names carry suffixes ("BAREILLY(R)"), so people write the stem. After
+ * full names and ids, words (and adjacent word pairs) of three or more
+ * characters are offered to `resolveDepot`; only a unique depot whose name
+ * starts with the words counts, so a stray word cannot match mid-name.
+ */
+function partialMentions(
+  text: string,
+  depots: readonly DepotRef[],
+  taken: readonly Mention[],
+): Mention[] {
+  const words = [...text.matchAll(/[a-z0-9]+/g)].map((m) => ({
+    word: m[0],
+    start: m.index ?? 0,
+    end: (m.index ?? 0) + m[0].length,
+  }));
+  const free = (start: number, end: number): boolean =>
+    !taken.some((t) => start < t.end && end > t.start);
+  const found: Mention[] = [];
+  const used = new Set<number>();
+  const tryWindow = (from: number, to: number): void => {
+    const first = words[from];
+    const last = words[to];
+    if (!first || !last || [...used].some((i) => i >= from && i <= to)) return;
+    const phrase = text.slice(first.start, last.end);
+    if (phrase.replace(/\s/g, '').length < MIN_NAME_CHARS || !free(first.start, last.end)) return;
+    if (words.slice(from, to + 1).some((w) => w.word.length < MIN_NAME_CHARS)) return;
+    const id = resolveDepot(phrase, depots);
+    const depot = depots.find((d) => d.id === id);
+    if (!depot || !depot.name.toLowerCase().startsWith(phrase)) return;
+    found.push({ id: depot.id, start: first.start, end: last.end });
+    for (let i = from; i <= to; i += 1) used.add(i);
+  };
+  for (let i = 0; i < words.length - 1; i += 1) tryWindow(i, i + 1);
+  for (let i = 0; i < words.length; i += 1) tryWindow(i, i);
+  return found;
+}
+
 /** Depots the question refers to, in the order written, each at most once. */
 function findDepots(text: string, depots: readonly DepotRef[]): string[] {
-  const mentions = [...nameMentions(text, depots), ...idMentions(text, depots)].sort(
+  const exact = [...nameMentions(text, depots), ...idMentions(text, depots)];
+  const mentions = [...exact, ...partialMentions(text, depots, exact)].sort(
     (a, b) => a.start - b.start,
   );
   const ids: string[] = [];
