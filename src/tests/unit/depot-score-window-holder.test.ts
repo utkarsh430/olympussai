@@ -16,9 +16,10 @@ import { T0, feedTime, network, seeded, snapshotOf } from './depot-score-window.
 
 /*
  * Ruling S50b: the window's content depends only on WHICH snapshots arrived,
- * never on the order they arrived in; a fixture never touches it; a sample
- * more than one window behind starts a new epoch; a repeated feed time with
- * new rows replaces the stored sample.
+ * never on the order they arrived in; a fixture never touches it; a repeated
+ * feed time with new rows replaces the stored sample. Stragglers and epochs
+ * (ruling S56b, which replaced S50b's one-sample epoch) are pinned in
+ * depot-score-window-epoch.test.ts.
  */
 
 const WINDOW_S = SCORE_WINDOW_MIN * 60;
@@ -41,16 +42,21 @@ const contentOf = (store: ScoreWindowStore): string =>
   JSON.stringify([...store.byDepot].sort(([a], [b]) => (a < b ? -1 : 1)));
 
 describe('score window holder: arrival order (I1)', () => {
-  it('inserts a late sample inside the window and scores it on the window as it stands', () => {
-    const snaps = snapshotsAt([0, 40, 80, 60]);
+  it('inserts a late sample inside the window and scores it only on samples up to its own time (N7)', () => {
+    const snaps = snapshotsAt([0, 40, 100, 60]);
     const store = createScoreWindowStore();
-    feed(store, snaps, [0, 40, 80]);
+    feed(store, snaps, [0, 40, 100]);
     const late = observeDepots(store, snaps.get(60) ?? [], feedTime(60));
-    expect(store.lastFeedMs).toBe(T0 + 80_000);
+    expect(store.lastFeedMs).toBe(T0 + 100_000);
     const held = store.byDepot.get('1') ?? [];
-    expect(held.map((s) => s.feedMs - T0)).toEqual([0, 40_000, 60_000, 80_000]);
-    expect(late.windows.get('1')).toMatchObject({ since: feedTime(0), samples: 4 });
-    expect(late.values.get('1')).toEqual(windowedValues(held));
+    expect(held.map((s) => s.feedMs - T0)).toEqual([0, 40_000, 60_000, 100_000]);
+    expect(late.windows.get('1')).toEqual({
+      lengthMin: SCORE_WINDOW_MIN,
+      since: feedTime(0),
+      samples: 3,
+      coveredMin: 1,
+    });
+    expect(late.values.get('1')).toEqual(windowedValues(held.slice(0, 3)));
   });
 
   it('holds the same window, and scores the same, whatever order the snapshots arrive in', () => {
@@ -89,16 +95,6 @@ describe('score window holder: arrival order (I1)', () => {
 });
 
 describe('score window holder: epochs, fixtures and repeats (I2)', () => {
-  it('starts a new epoch for a live sample more than one window behind', () => {
-    const snaps = snapshotsAt([WINDOW_S * 3, WINDOW_S * 3 + 40, 0]);
-    const store = createScoreWindowStore();
-    feed(store, snaps, [WINDOW_S * 3, WINDOW_S * 3 + 40]);
-    const back = observeDepots(store, snaps.get(0) ?? [], feedTime(0));
-    expect(store.lastFeedMs).toBe(T0);
-    expect(store.byDepot.get('1')?.map((s) => s.feedMs)).toEqual([T0]);
-    expect(back.window).toMatchObject({ since: feedTime(0), samples: 1 });
-  });
-
   it('never lets a fixture snapshot touch the store, first or later', () => {
     const snaps = snapshotsAt([0, 40]);
     const empty = createScoreWindowStore();

@@ -54,6 +54,13 @@ export interface DepotNetworkResponse extends DepotFeedEnvelope {
   readonly scoreWindow?: ScoreWindow;
   /** Which exception kinds are over the window and which as of the feed time. Always sent. */
   readonly exceptionBasis?: Readonly<Record<ExceptionKind, ExceptionBasis>>;
+  /**
+   * Per depot id: the feed times this server process has decided the depot's
+   * yard on, since it started (or its yard memory last restarted). A yard is
+   * held only from the second; at 0 or 1 a missing yard may be a fresh start
+   * rather than evidence. 0 for the recorded fixture. Always sent.
+   */
+  readonly yardSnapshotsSeen?: Readonly<Record<string, number>>;
 }
 
 /** GET /api/upsrtc/depot/exceptions */

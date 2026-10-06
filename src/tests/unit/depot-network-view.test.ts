@@ -148,6 +148,7 @@ describe('buildNetworkResponse', () => {
       'scores',
       'source',
       'stale',
+      'yardSnapshotsSeen',
     ]);
   });
 

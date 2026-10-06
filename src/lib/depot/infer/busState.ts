@@ -62,16 +62,23 @@ export function classifyBusState(row: Readonly<DepotBusRow>, feedNow: string | n
   return inService ? 'in_service' : 'on_road';
 }
 
+/** No scheduled trip runs longer; a longer span is a mistyped date (N8). */
+export const MAX_TRIP_SPAN_MS = 24 * 3_600_000;
+
 /**
  * The feed time falls between the trip's scheduled start and end (M2). An
  * overnight trip that started before midnight is not "for the feed date",
  * yet it is the bus's current trip until its scheduled end. No grace is added
- * past the end: none is defined for an end, only for a push-out.
+ * past the end: none is defined for an end, only for a push-out. A span over
+ * MAX_TRIP_SPAN_MS is not trusted, so a mistyped end cannot keep a bus in
+ * service for days.
  */
 function isOnScheduledTrip(row: Readonly<DepotBusRow>, feedNow: string | null): boolean {
   if (row.scheduledStart === null || row.scheduledEnd === null || feedNow === null) return false;
   const now = Date.parse(feedNow);
-  return Date.parse(row.scheduledStart) <= now && now <= Date.parse(row.scheduledEnd);
+  const start = Date.parse(row.scheduledStart);
+  const end = Date.parse(row.scheduledEnd);
+  return end - start <= MAX_TRIP_SPAN_MS && start <= now && now <= end;
 }
 
 /**

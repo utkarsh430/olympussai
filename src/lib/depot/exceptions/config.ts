@@ -60,8 +60,9 @@ export const EXCEPTION_KINDS: readonly ExceptionKind[] = [
 /**
  * Which kinds are compared over the rolling score window and which are as of
  * the feed time (M6). Severity counts add both; a screen states which is which.
+ * Frozen: the one table is placed in every memoised response body.
  */
-export const EXCEPTION_BASIS: Readonly<Record<ExceptionKind, ExceptionBasis>> = {
+export const EXCEPTION_BASIS: Readonly<Record<ExceptionKind, ExceptionBasis>> = Object.freeze({
   dark_share_high: 'window',
   off_road_high: 'window',
   on_road_low: 'window',
@@ -70,4 +71,4 @@ export const EXCEPTION_BASIS: Readonly<Record<ExceptionKind, ExceptionBasis>> = 
   power_cut: 'feed_time',
   tamper_code: 'feed_time',
   emergency: 'feed_time',
-};
+});

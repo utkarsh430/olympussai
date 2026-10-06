@@ -94,9 +94,11 @@ describe('score window, holder', () => {
     const repeated = observeDepots(store, other, feedTime(40));
     expect(repeated.window.samples).toBe(2);
     expect(scoreDepots(other, repeated.values)).not.toEqual(scoreDepots(other));
-    // A late snapshot inside the window is inserted in feed-time order, not dropped.
+    // A late snapshot inside the window is inserted in feed-time order, not dropped, and
+    // scored on the samples up to its own feed time (N7).
     const older = observeDepots(store, other, feedTime(10));
-    expect(older.window).toMatchObject({ since: feedTime(0), samples: 3 });
+    expect(older.window).toMatchObject({ since: feedTime(0), samples: 2 });
+    expect(store.byDepot.get('1')).toHaveLength(3);
     const before = JSON.stringify([...store.byDepot]);
     expect(observeDepots(store, other, null).window.since).toBeNull();
     expect(JSON.stringify([...store.byDepot])).toBe(before);

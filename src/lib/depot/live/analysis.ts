@@ -16,6 +16,7 @@ import {
   applyYardContinuity,
   defaultYardMemoryStore,
   resetYardMemoryStore,
+  yardSnapshotsSeen,
   type YardMemoryStore,
 } from '../infer/yardMemory';
 import { locateBus } from '../infer/location';
@@ -67,6 +68,11 @@ export interface SnapshotAnalysis {
   readonly scoreWindow: ScoreWindow;
   /** After yard continuity: the one set of yards every location and page uses. */
   readonly yards: ReadonlyMap<string, Yard>;
+  /**
+   * Per depot id with a home depot: feed times the yard memory has decided
+   * the depot on, as it stood after this snapshot (N10). 0 for the fixture.
+   */
+  readonly yardSnapshotsSeen: Readonly<Record<string, number>>;
   readonly rowsByDepot: ReadonlyMap<string, readonly DepotBusRow[]>;
   readonly locations: ReadonlyMap<string, LocatedBus>;
   /** The one function a bus's location comes from, for every view. */
@@ -132,20 +138,35 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
   const stateOf = (r: DepotBusRow): BusOpState =>
     states.get(r.registrationNumber) ?? classifyBusState(r, feedNow);
   const depots = summariseDepots(rows, feedNow);
-  const windowed = observeDepots(stores.scoreWindow, depots, feedNow, {
-    fixture: view.source === 'fixture',
-  });
+  // The recorded fixture never reads or writes either store (S50b, S56b).
+  const fixture = view.source === 'fixture';
+  const windowed = observeDepots(stores.scoreWindow, depots, feedNow, { fixture });
   const scores = scoreDepots(depots, windowed.values).map((score): DepotScore => {
     const window = windowed.windows.get(score.depotId);
     return { ...score, window, samples: window?.samples };
   });
-  const yards = applyYardContinuity(stores.yardMemory, rows, inferYards(rows), feedNow);
+  const yards = applyYardContinuity(stores.yardMemory, rows, inferYards(rows), feedNow, {
+    fixture,
+  });
+  // Copied now: the store moves on, the memoised analysis must not.
+  const seen = Object.freeze(
+    Object.fromEntries(
+      [...new Set(rows.flatMap((r) => (r.depotId === null ? [] : [r.depotId])))]
+        .sort()
+        .map((id) => [id, fixture ? 0 : yardSnapshotsSeen(stores.yardMemory, id)]),
+    ),
+  );
   const locations = new Map(rows.map((r) => [r.registrationNumber, locateBus(r, yards)]));
   const locate = (r: DepotBusRow): LocatedBus =>
     locations.get(r.registrationNumber) ?? locateBus(r, yards);
   const visitors = groupBy(rows, (r) => locations.get(r.registrationNumber)?.otherDepotId ?? null);
   for (const group of visitors.values()) group.sort(byRegistration);
-  const depotExceptions = detectDepotExceptions(depots, scores, rows, stateOf);
+  const scoresById = new Map(scores.map((s) => [s.depotId, s]));
+  // A windowed exception states its own depot's samples, not the network's widest (N9).
+  const depotExceptions = detectDepotExceptions(depots, scores, rows, stateOf).map(
+    (e): DepotException =>
+      e.basis === 'window' ? { ...e, samples: scoresById.get(e.depotId)?.samples ?? 1 } : e,
+  );
   const busExceptions = detectBusExceptions(rows, depots, feedNow, stateOf);
   return {
     feedNow,
@@ -154,9 +175,10 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
     depots,
     depotsById: new Map(depots.map((d) => [d.id, d])),
     scores,
-    scoresById: new Map(scores.map((s) => [s.depotId, s])),
+    scoresById,
     scoreWindow: windowed.window,
     yards,
+    yardSnapshotsSeen: seen,
     rowsByDepot: groupBy(rows, (r) => homeOf(r.depotId)),
     locations,
     locate,

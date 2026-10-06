@@ -42,6 +42,12 @@ export interface DepotException {
    * the detector.
    */
   readonly basis?: ExceptionBasis;
+  /**
+   * `window` only: the snapshots this depot's window holds (its score's
+   * `samples`), which may be fewer than the network window's (N9). Set by the
+   * live analysis.
+   */
+  readonly samples?: number;
 }
 
 export interface BusException {
