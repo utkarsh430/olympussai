@@ -137,6 +137,7 @@ export function buildDepotDetail(
     depot,
     score: analysis.scoresById.get(depotId) ?? null,
     yard: yardFigure(yards.get(depotId) ?? null),
+    yardSnapshotsSeen: analysis.yardSnapshotsSeen[depotId] ?? 0,
     buses,
     locationMix: locationMixOf(buses),
     outshed: summariseOutshed(rows, yards, feedNow, stateOf),

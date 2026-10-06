@@ -10,6 +10,7 @@ import {
 import { YARD_HOLD_MAX_HOURS } from '@/lib/depot/infer/yardContinuity';
 import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
 import { buildNetworkResponse } from '@/lib/depot/live/networkView';
+import { buildDepotDetail } from '@/lib/depot/live/depotView';
 import { blob, type XY } from './depot-yard.fixtures';
 
 /*
@@ -79,5 +80,13 @@ describe('network response: yardSnapshotsSeen (N10)', () => {
 
   it('says 0 for the fixture, which never uses the memory', () => {
     expect(buildNetworkResponse(viewAt(0, 'fixture')).yardSnapshotsSeen).toEqual({ '1': 0, '2': 0 });
+  });
+
+  it('gives a depot page the same count for its own depot', () => {
+    // The cockpit and the yard page read the depot response, not the network one: they
+    // need the count to tell "the server has only just started" from "no yard is found".
+    expect(buildDepotDetail(viewAt(0), '1')?.yardSnapshotsSeen).toBe(1);
+    expect(buildDepotDetail(viewAt(1), '1')?.yardSnapshotsSeen).toBe(2);
+    expect(buildDepotDetail(viewAt(1), '2')?.yardSnapshotsSeen).toBe(2);
   });
 });

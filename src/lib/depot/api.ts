@@ -130,6 +130,11 @@ export interface DepotDetailResponse extends DepotFeedEnvelope {
   readonly depot: DepotSummary;
   readonly score: DepotScore | null;
   readonly yard: Figure<Yard | null>;
+  /**
+   * How many snapshots this server process has decided this depot's yard on (0 for the
+   * recorded fixture). At 0 or 1 a missing yard may only mean the server has just started.
+   */
+  readonly yardSnapshotsSeen?: number;
   readonly buses: readonly DepotBusView[];
   readonly locationMix: Readonly<Record<BusLocation, number>>;
   readonly outshed: OutshedSummary;
