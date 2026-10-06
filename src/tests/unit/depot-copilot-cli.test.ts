@@ -300,7 +300,10 @@ describe('runCli', () => {
   it('maps ENOENT from the error event to not_installed', async () => {
     const child = fakeChild();
     const { promise } = run(child);
-    child.emitter.emit('error', Object.assign(new Error('spawn claude ENOENT'), { code: 'ENOENT' }));
+    child.emitter.emit(
+      'error',
+      Object.assign(new Error('spawn claude ENOENT'), { code: 'ENOENT' }),
+    );
     await expect(promise).resolves.toMatchObject({ ok: false, reason: 'not_installed' });
   });
 
@@ -367,7 +370,10 @@ describe('parseCliOutput', () => {
     ['missing structured_output', envelope({ result: 'prose' })],
     ['wrong shape', envelope({ structured_output: { headline: 1 } })],
     ['extra fields', envelope({ structured_output: { headline: 'h', paragraphs: ['p'], x: 1 } })],
-    ['error envelope', envelope({ is_error: true, structured_output: { headline: 'h', paragraphs: ['p'] } })],
+    [
+      'error envelope',
+      envelope({ is_error: true, structured_output: { headline: 'h', paragraphs: ['p'] } }),
+    ],
     ['non-JSON', 'not json at all'],
     ['JSON null', 'null'],
     ['JSON array', '[]'],
