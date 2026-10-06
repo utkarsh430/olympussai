@@ -638,3 +638,31 @@ test.describe('8. the copilot on its scripted writer', () => {
     await expect(page.getByTestId('ask-countdown')).toHaveText(/^Try again in \d+ seconds?\.$/);
   });
 });
+
+test.describe('9. the route drawer on the sample', () => {
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
+
+  test('a route opens to the honest unavailable state, and Escape returns focus', async ({
+    page,
+    sample,
+  }) => {
+    // Only on the sample: there the server refuses the lookup without an outside call.
+    expect(sample.depotId).toBeTruthy();
+    await openPage(page, '/project/depots/routes', 'Routes');
+    const opener = page.getByTestId('route-table-frame').locator('tbody tr button').first();
+    await opener.focus();
+    await page.keyboard.press('Enter');
+
+    const drawer = page.getByTestId('route-drawer');
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole('heading', { level: 2, name: /^Route / })).toBeVisible();
+    await expect(page.getByTestId('route-drawer-empty')).toContainText(
+      'Its profile is unavailable',
+    );
+    await expect(drawer).not.toContainText(/\blive\b/i);
+
+    await page.keyboard.press('Escape');
+    await expect(drawer).toBeHidden();
+    await expect(opener).toBeFocused();
+  });
+});
