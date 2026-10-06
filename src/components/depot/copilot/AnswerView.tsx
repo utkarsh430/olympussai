@@ -1,3 +1,4 @@
+import { answerScopeLabel } from '@/lib/depot/copilot/ui/answerLayout';
 import type { CopilotApiResponse } from '@/lib/depot/copilot/wire';
 import { AnswerTable } from './AnswerTable';
 import { CopilotFooter } from './CopilotFooter';
@@ -13,28 +14,41 @@ export interface AnswerEntry {
 const PLACEHOLDER_ROWS_PX: readonly number[] = [18, 20, 56, 56, 96];
 
 /**
- * One question and its answer in the session list: the question, "Understood as"
- * as a muted mono line directly under it, the answer, its rows, then the shared
- * footer line. A refusal is an ordinary calm answer with no rows and no figures.
- * All server text is rendered as text.
+ * One question and its answer in the session list: the question on one line (mono 13px)
+ * with a muted chip naming the scope the ANSWER used (from `answerScope`, not the form),
+ * "Understood as" as a muted line directly under it, then the answer, its rows and the
+ * shared footer. A refusal is an ordinary calm answer with no rows and no figures. All
+ * server text is rendered as text.
  */
 export function AnswerView({ entry }: { readonly entry: AnswerEntry }) {
   const { response } = entry;
   return (
     <li className="flex min-w-0 flex-col gap-2 border-t border-depot-line pt-3" data-testid="ask-answer">
-      <p className="font-mono text-[13px] text-depot-muted">
-        <span className="sr-only">Question: </span>
-        <span className="break-words text-depot-ink">{entry.question}</span>{' '}
-        <span className="text-depot-faint">({entry.scopeLabel})</span>
-      </p>
-      {response.interpretedAs ? (
-        <p className="break-words font-mono text-[12px] text-depot-faint">
-          Understood as: {response.interpretedAs}
-        </p>
-      ) : null}
-      <CopilotText headline={response.headline} paragraphs={response.paragraphs} headingLevel={3} />
+      <div className="flex min-w-0 flex-col">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <span className="sr-only">Question: </span>
+          <span className="min-w-0 truncate font-mono text-[13px] text-depot-ink" title={entry.question}>
+            {entry.question}
+          </span>
+          <span
+            data-testid="ask-answer-scope"
+            className="shrink-0 rounded-[3px] border border-depot-line px-1.5 font-mono text-[11px] leading-4 text-depot-muted"
+          >
+            <span className="sr-only">About: </span>
+            {answerScopeLabel(response.answerScope, entry.scopeLabel)}
+          </span>
+        </div>
+        {response.interpretedAs ? (
+          <p className="depot-note mt-0.5 break-words" data-testid="ask-understood-as">
+            {`Understood as: ${response.interpretedAs}`}
+          </p>
+        ) : null}
+      </div>
+      <div className="mt-1 min-w-0">
+        <CopilotText headline={response.headline} paragraphs={response.paragraphs} headingLevel={3} />
+      </div>
       {response.table ? (
-        <AnswerTable table={response.table} caption={response.headline} />
+        <AnswerTable table={response.table} facts={response.facts} caption={response.headline} />
       ) : null}
       <CopilotFooter
         provider={response.provider}
@@ -51,7 +65,7 @@ export function AnswerView({ entry }: { readonly entry: AnswerEntry }) {
 export function AnswerPlaceholder({ question }: { readonly question: string }) {
   return (
     <li aria-hidden className="flex min-w-0 flex-col gap-2 border-t border-depot-line pt-3">
-      <p className="break-words font-mono text-[13px] text-depot-muted">{question}</p>
+      <p className="truncate font-mono text-[13px] text-depot-muted">{question}</p>
       {PLACEHOLDER_ROWS_PX.map((height, index) => (
         <div key={index} className="depot-skeleton" style={{ height }} />
       ))}

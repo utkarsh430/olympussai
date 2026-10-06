@@ -41,9 +41,15 @@ describe('AnswerView layout', () => {
         </ol>,
       ),
     );
+    // Round 2: the question line, then "Understood as" directly under it as its own muted
+    // line, both in the first block; the headline starts a separate block.
     const parts = Array.from(container.querySelectorAll('li > *')).map((el) => el.textContent ?? '');
     expect(parts[0]).toContain('Which depots are dark?');
-    expect(parts[1]).toBe('Understood as: Depots by dark rate, highest first, up to 5');
+    const understood = container.querySelector('[data-testid="ask-understood-as"]');
+    expect(understood?.textContent).toBe('Understood as: Depots by dark rate, highest first, up to 5');
+    expect(understood?.previousElementSibling?.textContent).toContain('Which depots are dark?');
+    expect(understood?.className).toContain('depot-note');
+    expect(parts[1]).not.toContain('Understood as');
     expect(container.querySelector('b')).toBeNull();
     const last = container.querySelector('li')?.lastElementChild;
     expect(last?.querySelector('[data-testid="copilot-provider"]')).not.toBeNull();
