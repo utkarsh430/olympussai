@@ -67,6 +67,15 @@ export type WindowedOnRoadShares = ReadonlyMap<string, number | null>;
 const NO_WINDOW: WindowedOnRoadShares = new Map();
 
 /**
+ * Per depot id, the highest peak requirement computed for it earlier in the
+ * operating date (`live/peakRequirementHold.ts`): the peak does not fall below
+ * it while the buses are available.
+ */
+export type PeakFloors = ReadonlyMap<string, number>;
+
+const NO_FLOORS: PeakFloors = new Map();
+
+/**
  * Each depot's on-road share over the rolling score window in this snapshot: the
  * `onRoad` component the scores were summed over, the same one the efficiency
  * index and the league breakdown use. Built by the callers from the analysis.
@@ -109,6 +118,7 @@ function positionOf(depot: DepotSummary, yards: ReadonlyMap<string, Yard>): LatL
 interface Basis {
   readonly peerMedian: number;
   readonly windowed: WindowedOnRoadShares;
+  readonly floors: PeakFloors;
   readonly operatingDate: string;
   readonly params: RequirementParams;
 }
@@ -130,6 +140,19 @@ function peakRequirementFor(depot: DepotSummary, available: number, basis: Basis
     PEAK_SHARE_BOUNDS.max,
   );
   return Math.round(available * utilisation);
+}
+
+/**
+ * The computed peak, lifted to the depot's floor where it has one, the floor
+ * capped at what is available now: a rounding at a boundary, a row the feed
+ * dropped or a rising peer median cannot lower the peak within the date, but a
+ * real loss of buses still does.
+ */
+function flooredPeak(depot: DepotSummary, available: number, basis: Basis): number {
+  const computed = peakRequirementFor(depot, available, basis);
+  const floor = basis.floors.get(depot.id);
+  if (floor === undefined || !Number.isFinite(floor)) return computed;
+  return Math.max(computed, Math.min(Math.floor(floor), available));
 }
 
 /** A count: finite, whole and non-negative; anything else is zero. */
@@ -157,7 +180,7 @@ function balanceFor(
   const offRoad = depot.states.offRoad;
   const available = fleet - offRoad;
   const modelled = depot.kind === 'depot' && available > 0;
-  const peakRequirement = modelled ? peakRequirementFor(depot, available, basis) : available;
+  const peakRequirement = modelled ? flooredPeak(depot, available, basis) : available;
   const spareTarget = modelled ? spareTargetFor(peakRequirement, basis.params.spareRatio) : 0;
   const required = peakRequirement + spareTarget;
   return {
@@ -179,8 +202,11 @@ function balanceFor(
  * One balance per depot, sorted by depot id. Pure; never mutates its inputs.
  * `windowed` gives each depot's busiest windowed on-road share so far in the
  * operating date (`live/peakShareHold.ts`); a depot it lacks a value for reads its
- * single-snapshot share, then the peer median. Every caller that shows a
- * requirement passes the same map, so they all rest on one requirement.
+ * single-snapshot share, then the peer median. `floors` lifts each depot's
+ * peak to the highest computed for it earlier in the date, capped at what is
+ * available now; the spare target, requirement and balance follow the lifted
+ * peak. Every caller that shows a requirement passes the same maps, so they
+ * all rest on one requirement.
  */
 export function modelBalances(
   depots: readonly DepotSummary[],
@@ -188,10 +214,12 @@ export function modelBalances(
   operatingDate: string,
   params: RequirementParams,
   windowed: WindowedOnRoadShares = NO_WINDOW,
+  floors: PeakFloors = NO_FLOORS,
 ): DepotBalance[] {
   const safe = clampRequirementParams(params);
   const clean = depots.map(sanitiseAnchors);
-  const basis = { peerMedian: peerMedianOnRoad(clean, windowed), windowed, operatingDate, params: safe };
+  const peerMedian = peerMedianOnRoad(clean, windowed);
+  const basis = { peerMedian, windowed, floors, operatingDate, params: safe };
   return clean
     .sort((a, b) => compareDepotIds(a.id, b.id))
     .map((d) => balanceFor(d, yards, basis));

@@ -1,13 +1,12 @@
 import type { FleetSnapshotView } from '../repositories/types';
 import { cachedRouteProfiles, routeCatalogueRevision } from '../routes/routeCatalogue';
-import { DEFAULT_REQUIREMENT_PARAMS } from '../sim/config';
 import { feedMinuteOn, planDay, type DutyPlan } from '../sim/dayPlan';
 import { dayFromPlan, nowOnFeedClock } from '../sim/operatingDay';
 import type { OperatingDay } from '../sim/operatingDayTypes';
-import { modelBalances } from '../sim/requirement';
 import { operatingDateOf } from '../sim/seed';
 import { analyseSnapshot, type SnapshotAnalysis } from './analysis';
 import { depotBusViews } from './depotView';
+import { requirementBalances } from './heldRequirement';
 
 /*
  * The depot's one modelled operating day, held once per snapshot and SHARED:
@@ -55,22 +54,18 @@ const days = new WeakMap<SnapshotAnalysis, DaySlot>();
 
 /**
  * The peak requirement of every depot: the model works on the whole network at
- * once, on each depot's busiest windowed on-road share so far in the operating
- * date (the analysis's `requirementShares`), as the fleet-distribution view
- * does. Those shares are fixed when the snapshot is first analysed, so a memo
- * on the analysis also holds them; a later-day plan reads the same shares.
+ * once. For the feed's date these are the analysis's held balances, the ones
+ * the fleet-distribution view shows: each depot's peak floored by its highest
+ * earlier in the date, so the day's duty total does not fall unless fewer buses
+ * are available than it needs. They are fixed when the snapshot is first
+ * analysed, so a memo on the analysis also holds them. A later-day plan reads
+ * the same shares for its own date, with no floor.
  */
 function peakRequirements(
   analysis: SnapshotAnalysis,
   operatingDate: string,
 ): ReadonlyMap<string, number> {
-  const balances = modelBalances(
-    analysis.depots,
-    analysis.yards,
-    operatingDate,
-    DEFAULT_REQUIREMENT_PARAMS,
-    analysis.requirementShares,
-  );
+  const balances = requirementBalances(analysis, operatingDate);
   return new Map(balances.map((balance) => [balance.depotId, balance.peakRequirement] as const));
 }
 

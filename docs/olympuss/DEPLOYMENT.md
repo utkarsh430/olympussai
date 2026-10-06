@@ -87,11 +87,15 @@ differs between instances or after a restart:
   another, or a held yard on one and no yard on another. The responses say so
   (`scoreWindow.samples` and `coveredMin`, `yard.heldSince`), but they do not agree across
   instances.
-- **The held peak shares** (`src/lib/depot/live/peakShareHold.ts`). The modelled
-  requirement reads each depot's busiest on-road share over that window so far in the
-  operating date, so the modelled operating day (duties, crew, fuel, revenue, economics)
-  and the fleet-distribution plan built on it can still change until the morning peak has passed
-  and then hold. Each instance holds its own maxima from the snapshots it has seen, so two
+- **The held peak shares and peak requirements** (`src/lib/depot/live/peakShareHold.ts`,
+  `src/lib/depot/live/peakRequirementHold.ts`). The modelled requirement reads each
+  depot's busiest on-road share over that window so far in the operating date, so the
+  modelled operating day (duties, crew, fuel, revenue, economics) and the
+  fleet-distribution plan built on it can still rise until the morning peak has passed and
+  then hold. The peak requirement does not fall during the day unless fewer buses are
+  available than it needs: each depot's peak is held at its highest so far in the date, so
+  a row the feed drops or a peer's rising share does not move the day's duty count. Each
+  instance holds its own maxima from the snapshots it has seen, so two
   instances give a different modelled day and plan until each has seen the peak, the
   first snapshots after a restart can set the day's high values, and an instance started
   in the evening models a smaller day than one that saw the morning.
@@ -122,7 +126,7 @@ differs between instances or after a restart:
 - **The failed-login limiter** (section 7).
 
 After a restart, all of the above is empty: the score window starts at one sample, no
-yard is held, the held peak shares start again from the next snapshot, there is no last good copy (an outage at that moment shows the saved
+yard is held, the held peak shares and peak requirements start again from the next snapshot, there is no last good copy (an outage at that moment shows the saved
 sample), every route reads "not profiled" until it is loaded again, the plan is made
 afresh, and every limiter's allowance is full again.
 
