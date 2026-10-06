@@ -146,3 +146,27 @@ export function isLaterFeedTime(a: string | null, b: string | null): boolean {
   const right = readFeedStamp(b);
   return left !== null && right !== null && left.ms > right.ms;
 }
+
+const MINUTES_PER_HOUR = 60;
+const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
+
+/**
+ * A length of time given in minutes, in the largest two units that matter: "47 min",
+ * "3 h 12 min", "13 d 21 h". Never raw minutes above an hour, and a zero second part is
+ * dropped ("1 h", "1 d"). A dash for anything that is not a duration.
+ */
+export function formatDurationMinutes(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined || !Number.isFinite(minutes) || minutes < 0) {
+    return DASH;
+  }
+  const whole = Math.floor(minutes);
+  if (whole < MINUTES_PER_HOUR) return `${whole} min`;
+  if (whole < MINUTES_PER_DAY) {
+    const hours = Math.floor(whole / MINUTES_PER_HOUR);
+    const rest = whole % MINUTES_PER_HOUR;
+    return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+  }
+  const days = Math.floor(whole / MINUTES_PER_DAY);
+  const hours = Math.floor((whole % MINUTES_PER_DAY) / MINUTES_PER_HOUR);
+  return hours === 0 ? `${days} d` : `${days} d ${hours} h`;
+}

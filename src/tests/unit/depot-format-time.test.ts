@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatFeedDateTime, formatFeedTime, formatRelative } from '@/lib/depot/format';
+import {
+  formatDurationMinutes,
+  formatFeedDateTime,
+  formatFeedTime,
+  formatRelative,
+} from '@/lib/depot/format';
 
 describe('formatFeedDateTime', () => {
   it('writes weekday, day, month and time from the feed digits', () => {
@@ -55,5 +60,32 @@ describe('formatRelative', () => {
     expect(formatRelative('nope', now)).toBe('—');
     expect(formatRelative('2026-10-06T13:48:00Z', null)).toBe('—');
     expect(formatRelative(null, now)).toBe('—');
+  });
+});
+
+describe('formatDurationMinutes', () => {
+  it('keeps minutes under an hour', () => {
+    expect(formatDurationMinutes(0)).toBe('0 min');
+    expect(formatDurationMinutes(47)).toBe('47 min');
+    expect(formatDurationMinutes(59.6)).toBe('59 min');
+  });
+
+  it('says hours and minutes under a day, and drops a zero part', () => {
+    expect(formatDurationMinutes(60)).toBe('1 h');
+    expect(formatDurationMinutes(192)).toBe('3 h 12 min');
+    expect(formatDurationMinutes(1_439)).toBe('23 h 59 min');
+  });
+
+  it('says days and hours from a day up, never raw minutes', () => {
+    expect(formatDurationMinutes(1_440)).toBe('1 d');
+    expect(formatDurationMinutes(19_991)).toBe('13 d 21 h');
+    expect(formatDurationMinutes(11_776)).toBe('8 d 4 h');
+  });
+
+  it('gives a dash for a duration that is not one', () => {
+    expect(formatDurationMinutes(null)).toBe('—');
+    expect(formatDurationMinutes(undefined)).toBe('—');
+    expect(formatDurationMinutes(Number.NaN)).toBe('—');
+    expect(formatDurationMinutes(-5)).toBe('—');
   });
 });
