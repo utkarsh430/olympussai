@@ -108,7 +108,7 @@ const heldBody = holdPerSnapshot<EconomicsBody, EconomicsSources>(
  * Every unit's Depot Economics Index (MODELLED), scored within peer groups.
  * It is separate from the Depot Efficiency Index: nothing here reads the live
  * scores, and no efficiency value is returned. Every operating depot with a
- * duty that ran has all three figures (ruling S39); how many of its route
+ * duty that ran has all three figures; how many of its route
  * lengths are real travels beside them. The envelope is built per request.
  */
 export async function buildEconomicsResponse(

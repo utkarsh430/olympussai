@@ -19,7 +19,7 @@ export interface DutyBlockers {
    */
   readonly notInYard: number;
   /**
-   * Not heard within the reporting window, moving or standing (ruling S55).
+   * Not heard within the reporting window, moving or standing.
    * Always sent; zero when the feed has no clock (`recencyNotJudged`).
    */
   readonly notHeard?: number;
@@ -38,7 +38,7 @@ export interface BoardDuty {
   readonly serviceClass: ServiceClass;
   readonly registrationNumber: string | null;
   /**
-   * How the duty's bus stands now (ruling S47): `on_road` (in service or on
+   * How the duty's bus stands now: `on_road` (in service or on
    * the road, already out working), `in_yard`, or `standing` where the depot
    * has no yard to judge by. Null when the duty has no bus. Always sent; a
    * duty with a bus is `assigned` whatever this says.
@@ -46,7 +46,7 @@ export interface BoardDuty {
   readonly busStanding?: BusStandingNow | null;
   /**
    * The service class of the duty's bus, so a page can show a bus of another
-   * class on the duty (class is a preference, ruling S47). Null when the duty
+   * class on the duty (class is a preference). Null when the duty
    * has no bus. Always sent.
    */
   readonly busClass?: ServiceClass | null;
@@ -62,7 +62,7 @@ export interface DutyBoardCounts {
   readonly unassigned: number;
   /** Eligible buses with no duty. */
   readonly spare: number;
-  /** The spare buses by where they stand now; they sum to `spare` (ruling S55). Always sent. */
+  /** The spare buses by where they stand now; they sum to `spare`. Always sent. */
   readonly spareByStanding?: SpareByStanding;
   /** Buses held out of the matching, by reason, whatever their class. */
   readonly excluded: DutyBlockers;
@@ -92,7 +92,7 @@ export interface DutyBoardResponse extends DepotFeedEnvelope {
   readonly eligibilityIgnoredLocation?: boolean;
   /**
    * True when the feed has no clock, so no bus's last report could be aged and
-   * recency did not decide eligibility (ruling S55). Always sent.
+   * recency did not decide eligibility. Always sent.
    */
   readonly recencyNotJudged?: boolean;
   /**
@@ -108,7 +108,7 @@ export interface DutyBoardResponse extends DepotFeedEnvelope {
    * How many snapshots this server process has decided this depot's yard on, exactly as the
    * depot's own response says it. At 0 or 1 a missing yard may be a fresh start rather than
    * evidence. Not sent for the recorded fixture or the unassigned group, which the yard
-   * memory never decides (P2).
+   * memory never decides.
    */
   readonly yardSnapshotsSeen?: number;
 }

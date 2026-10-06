@@ -17,7 +17,7 @@ export const MODEL_NOTICE =
   'Duties are a model until a timetable is supplied, and their lengths are generated, not timetabled. The matching of buses to duties is a recommendation: nothing is assigned or dispatched.';
 
 /**
- * Wording follows `assignDuties`' tiers in order (rulings S47, S55, S62): class is a
+ * Wording follows `assignDuties`' tiers in order: class is a
  * preference, not a bar, so a bus of another class can take a duty. Before the day's
  * first duty how the buses stand and the feed time do not count, so those tiers are
  * said to apply once it has started; the page's notes say which mode the plan is in.
@@ -212,8 +212,8 @@ export interface SpareContext {
 }
 
 /**
- * How many buses have no duty and, when the response says, where they stand
- * (ruling S55): a spare bus may be out on the road, so they are never all
+ * How many buses have no duty and, when the response says, where they stand:
+ * a spare bus may be out on the road, so they are never all
  * called "in the yard". Without the split no place is claimed.
  */
 export function spareSentence(spare: readonly string[], context?: SpareContext): string {
@@ -239,7 +239,7 @@ export function spareSentence(spare: readonly string[], context?: SpareContext):
 
 /**
  * Buses held out of the matching, counted. "Not heard recently" is its own
- * reason, moving or standing (ruling S55). With no yard established the server
+ * reason, moving or standing. With no yard established the server
  * ignores location, so a "not in the yard" count is then worded as "not
  * standing on a recent report" (`eligibilityIgnoredLocation`).
  */
@@ -311,7 +311,7 @@ const TEXT_PAD_PX = 12;
  */
 export const MIN_TRACK_PX = 640 - 32 - 160 - 32;
 
-/** The view the board opens in until the reader picks one (critique Duties Must 1). */
+/** The view the board opens in until the reader picks one. */
 export function defaultBoardView(narrow: boolean): BoardView {
   return narrow ? 'table' : 'chart';
 }
@@ -337,7 +337,7 @@ export type BoardView = 'chart' | 'table';
 
 /**
  * Text on or beside a bar: the registration of the matched bus. An unmatched bar
- * carries no word: its dashed outline and the legend say it (critique, Duties Must 3).
+ * carries no word: its dashed outline and the legend say it.
  */
 export function barLabel(row: Pick<BoardRow, 'registrationNumber'>): string | null {
   return row.registrationNumber;

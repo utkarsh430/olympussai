@@ -51,9 +51,9 @@ export interface AssignDutiesOptions {
    */
   readonly yardEstablished?: boolean;
   /**
-   * As of when the plan is made (ruling S55). On the feed clock, a duty that
+   * As of when the plan is made. On the feed clock, a duty that
    * has started by then prefers a bus on the road and one still to start a
-   * standing bus. Before the first duty of the feed's date (ruling S62b) every
+   * standing bus. Before the first duty of the feed's date every
    * bus eligible on the feed clock can take a duty, but the buses standing in
    * the yard leave first: they hold the earliest duties and the buses still out
    * take the ones after, with no time fit. For a later day how the buses stand
@@ -69,7 +69,7 @@ const NO_FEED_CLOCK: PlanNow = { kind: 'no_feed_clock' };
 /**
  * Heard within the module's reporting window (`isRecentlyHeard`, the rule a
  * bus's "not heard for N min" comes from), whether moving or standing. A last
- * report older than that cannot say how the bus stands now (ruling S55).
+ * report older than that cannot say how the bus stands now.
  */
 function isHeardRecently(bus: DepotBusView): boolean {
   return isRecentlyHeard(bus.gpsAgeMin) && (bus.notHeardMin ?? null) === null;
@@ -99,8 +99,7 @@ function standingOf(
 }
 
 /**
- * False for a later day and before the feed date's first duty (rulings S62,
- * S62b): no duty has started, so there is no time to fit and being out working
+ * False for a later day and before the feed date's first duty: no duty has started, so there is no time to fit and being out working
  * does not put a bus first.
  */
 function dayHasBegun(now: PlanNow): boolean {
@@ -123,7 +122,7 @@ interface Candidate {
   /**
    * Tiers 1 and 2 in one per-bus rank: 0 in service, 1 merely on the road,
    * 2 standing. Before the first duty a standing bus (in the yard) ranks 0 and
-   * a bus still out 1 (ruling S62b); for a later day every bus ranks 0.
+   * a bus still out 1; for a later day every bus ranks 0.
    */
   readonly rank: number;
 }
@@ -155,7 +154,7 @@ function selectByRank(
 
 /**
  * The top tier. Once the day has begun: the boundary tier (`selectByRank`).
- * Before the first duty (ruling S62b) it also says which duties: a bus that
+ * Before the first duty it also says which duties: a bus that
  * leaves first (rank 0) on one of the earliest duties, a bus still out on one
  * after them. That is still 0 or 1 per pair, and a total of 0 exists, so the
  * yard buses hold the earliest duties and, as the boundary tier would make
@@ -216,7 +215,7 @@ interface CostContext {
  * most every lower tier can add up to over a whole matching (`pairs` pairs),
  * so no number of lower-tier savings can pay for one higher-tier cost.
  *
- * The bound (ruling S55). There are five weighted tiers in every mode: the
+ * The bound. There are five weighted tiers in every mode: the
  * top tier (the boundary tier, which carries "on the road" and "in service",
  * see `selectByRank`; before the first duty, the yard buses on the earliest
  * duties, see `firstTier`), route, class, time fit (0 throughout when no duty
@@ -248,15 +247,15 @@ export function tierWeights(pairs: number, largestBase: number): readonly number
 const TIERS = 5;
 
 /**
- * Proposes which bus runs which duty: an exact minimum-cost matching (rulings
- * S47, S55). Buses off the road or dark, buses not heard recently (when the
+ * Proposes which bus runs which duty: an exact minimum-cost matching.
+ * Buses off the road or dark, buses not heard recently (when the
  * feed has a clock), and standing buses away from an established yard are
  * excluded first, each with one reason; a later day's plan takes the buses in
  * the yard only. Every other pairing is allowed and costed in lexicographic
  * tiers:
  *  1. a bus on the road before a standing one, so when there are fewer duties
- *     than buses the buses left over are standing ones (before the first duty,
- *     ruling S62b, the other way round: a bus standing in the yard leaves
+ *     than buses the buses left over are standing ones (before the first duty
+ *     it is the other way round: a bus standing in the yard leaves
  *     first, on the earliest duties, and the buses still out take the ones
  *     after);
  *  2. a bus in service before one merely moving (tiers 1 and 2 are per bus,

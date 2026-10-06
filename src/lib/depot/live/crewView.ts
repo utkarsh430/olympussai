@@ -77,7 +77,7 @@ async function buildBody(
   const depot = analysis.depotsById.get(depotId);
   if (!depot) return null;
   const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
-  // The depot's one shared plan (ruling S47): the duty board's duties, exactly.
+  // The depot's one shared plan: the duty board's duties, exactly.
   const planned = dutyPlanFor(analysis, depotId, operatingDate);
   if (!planned) return null;
   const { duties } = planned;

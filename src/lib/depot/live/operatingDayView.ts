@@ -10,15 +10,15 @@ import { analyseSnapshot, type SnapshotAnalysis } from './analysis';
 import { depotBusViews } from './depotView';
 
 /*
- * The depot's one modelled operating day, held once per snapshot and SHARED
- * (ruling S47): the duty board, crew, parking, fuel, revenue and economics all
+ * The depot's one modelled operating day, held once per snapshot and SHARED:
+ * the duty board, crew, parking, fuel, revenue and economics all
  * read these objects, so they cannot disagree. Two layers, each in one slot
  * per analysis that is reset (never grown) when its key changes:
  *  - the plan (duties and the bus for each), per depot, for at most two
  *    operating dates: the feed's, and the next one the parking order plans
- *    as a later day (ruling S55) once the feed's day has begun. Before the
+ *    as a later day once the feed's day has begun. Before the
  *    feed date's first duty, the parking order reads the feed date's own
- *    plan instead (ruling S62), so there is still one plan per date. Each
+ *    plan instead, so there is still one plan per date. Each
  *    plan says which way it was made (`DutyPlan.mode`); that rests on the
  *    feed clock, which is the analysis's, so the key needs no more;
  *  - the day (the plan with route lengths and distances), per depot, for one
@@ -119,7 +119,7 @@ function planFor(
 /**
  * The depot's one duty plan for the feed's operating date, as of the feed
  * clock (no clock when the feed has none), or null for an unknown depot.
- * Before the date's first duty starts, the day has not begun (ruling S62b):
+ * Before the date's first duty starts, the day has not begun:
  * every eligible bus can take a duty, the buses standing in the yard on the
  * earliest duties and the buses still out on the ones after. The bus set is
  * the depot's bus views, one per trimmed registration. No upstream call is
@@ -137,7 +137,7 @@ export function dutyPlanFor(
  * The depot's duty plan for a LATER operating date (the night parking order
  * plans tomorrow once today has begun), or null for an unknown depot. It does
  * not rank buses by how they stand now: the buses standing in the yard are the
- * ones that will leave it (ruling S55). It covers the YARD BUSES ONLY: every
+ * ones that will leave it. It covers the YARD BUSES ONLY: every
  * bus out now is held out as `not_in_yard`, so its duties without a bus are
  * not a shortfall of the depot. Only the parking order's first-duty lookup may
  * read it; never take it as the depot's whole day.
@@ -163,8 +163,8 @@ function daySlotFor(view: FleetSnapshotView, analysis: SnapshotAnalysis, date: s
 }
 
 /**
- * The depot's one modelled operating day for the feed's operating date
- * (ruling S41), read off its one duty plan, or null for an unknown depot. The
+ * The depot's one modelled operating day for the feed's operating date,
+ * read off its one duty plan, or null for an unknown depot. The
  * route lengths are the cached real profiles where there are any.
  */
 export function operatingDayFor(view: FleetSnapshotView, depotId: string): OperatingDay | null {

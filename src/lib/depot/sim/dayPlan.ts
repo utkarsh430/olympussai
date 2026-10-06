@@ -8,7 +8,7 @@ import type { ModelledBus } from './types';
 
 /*
  * The one place a depot's modelled duties are generated and its buses matched
- * to them (ruling S47). The duty board, the crew roster, the night parking
+ * to them. The duty board, the crew roster, the night parking
  * order and the modelled day (fuel, revenue, economics) all read this plan.
  */
 
@@ -22,11 +22,11 @@ export interface DutyPlan {
   readonly buses: readonly DepotBusView[];
   readonly fleet: ReadonlyMap<string, ModelledBus>;
   readonly plan: AssignmentPlan;
-  /** Which of the three ways the plan was made (`PlanMode`, rulings S55, S62). */
+  /** Which of the three ways the plan was made (`PlanMode`). */
   readonly mode: PlanMode;
   /** True when the depot has no yard, so eligibility ignored location. */
   readonly locationIgnored: boolean;
-  /** True when the feed has no clock, so recency did not decide eligibility (ruling S55). */
+  /** True when the feed has no clock, so recency did not decide eligibility. */
   readonly recencyNotJudged: boolean;
   /** Feed rows left out because their registration repeated an earlier one's. */
   readonly duplicateRowsDropped: number;
@@ -41,9 +41,9 @@ export interface DayPlanInput {
   /** False when the depot has no yard: location then cannot decide eligibility. */
   readonly yardEstablished: boolean;
   /**
-   * As of when the plan is made: the feed clock, no clock, or a later day
-   * (ruling S55). On the feed clock before the first duty, the plan is made as
-   * `before_first_duty` (rulings S62, S62b): the yard buses take the earliest
+   * As of when the plan is made: the feed clock, no clock, or a later day.
+   * On the feed clock before the first duty, the plan is made as
+   * `before_first_duty`: the yard buses take the earliest
    * duties and the buses still out the ones after.
    */
   readonly now: PlanNow;
@@ -67,7 +67,7 @@ export function feedMinuteOn(feedNow: string | null, operatingDate: string): num
  * One bus per trimmed registration, with its registration trimmed, and how
  * many rows were dropped. The feed can repeat a registration (the same text,
  * or with stray spaces) and one bus cannot run two duties. The row heard most
- * recently is kept (ruling S62), so a stale repeat cannot hold out a bus heard
+ * recently is kept, so a stale repeat cannot hold out a bus heard
  * a minute ago; a row with no age is heard least recently. Rows heard equally
  * recently keep the first in the order of the bus views, which `depotBusViews`
  * sorts by state then registration; rows that tie on that too (a repeat of the
@@ -113,7 +113,7 @@ function routeNamesOf(buses: readonly DepotBusView[]): string[] {
 }
 
 /**
- * Which way the plan is made (ruling S62). On the feed clock, before the first
+ * Which way the plan is made. On the feed clock, before the first
  * duty starts the day has not begun. A depot with no duties waits for none, and
  * a feed with no clock cannot be placed before a duty: both are as of the feed.
  */

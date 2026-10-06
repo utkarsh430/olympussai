@@ -86,9 +86,9 @@ export interface SnapshotAnalysis {
   readonly yards: ReadonlyMap<string, Yard>;
   /**
    * Per depot id with a home depot: feed times the yard memory has decided
-   * the depot on, as it stood after this snapshot (N10). Absent for the
+   * the depot on, as it stood after this snapshot. Absent for the
    * fixture, and never keyed by the unassigned group: the memory decides
-   * neither, so a count there would not mean "just started" (P2).
+   * neither, so a count there would not mean "just started".
    */
   readonly yardSnapshotsSeen?: Readonly<Record<string, number>>;
   readonly rowsByDepot: ReadonlyMap<string, readonly DepotBusRow[]>;
@@ -183,7 +183,7 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
   const stateOf = (r: DepotBusRow): BusOpState =>
     states.get(r.registrationNumber) ?? classifyBusState(r, feedNow);
   const depots = summariseDepots(rows, feedNow);
-  // The recorded fixture never reads or writes either store (S50b, S56b).
+  // The recorded fixture never reads or writes either store.
   const fixture = view.source === 'fixture';
   const windowed = observeDepots(stores.scoreWindow, depots, feedNow, { fixture });
   const scores = scoreDepots(depots, windowed.values).map((score): DepotScore => {
@@ -209,7 +209,7 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
   const visitors = groupBy(rows, (r) => locations.get(r.registrationNumber)?.otherDepotId ?? null);
   for (const group of visitors.values()) group.sort(byRegistration);
   const scoresById = new Map(scores.map((s) => [s.depotId, s]));
-  // A windowed exception states its own depot's samples, not the network's widest (N9).
+  // A windowed exception states its own depot's samples, not the network's widest.
   const depotExceptions = detectDepotExceptions(depots, scores, rows, stateOf).map(
     (e): DepotException =>
       e.basis === 'window' ? { ...e, samples: scoresById.get(e.depotId)?.samples ?? 1 } : e,

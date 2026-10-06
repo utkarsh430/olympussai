@@ -37,14 +37,14 @@ export interface ParkingPlan {
 
 /**
  * Why a bus is held out of the matching. `not_heard`: its last report is older
- * than the reporting window, moving or standing (ruling S55). `class_mismatch`
- * is no longer produced (class is a cost, ruling S47); kept so the vocabulary
+ * than the reporting window, moving or standing. `class_mismatch`
+ * is no longer produced (class is a cost); kept so the vocabulary
  * only grows.
  */
 export type Ineligibility = 'off_road' | 'dark' | 'not_in_yard' | 'not_heard' | 'class_mismatch';
 
 /**
- * The moment a plan is made "as of" (rulings S55, S62). A plan for the feed's
+ * The moment a plan is made "as of". A plan for the feed's
  * own operating date is as of the feed clock (`feedMinute`, minutes past
  * midnight), or of no clock when the feed has none. A plan for a later date,
  * and the feed's own date before its first duty starts (`before_first_duty`),
@@ -58,7 +58,7 @@ export type PlanNow =
   | { readonly kind: 'later_day' };
 
 /**
- * Which of the three ways a plan was made (rulings S55, S62). There is one plan
+ * Which of the three ways a plan was made. There is one plan
  * per snapshot, depot and date, and it is in exactly one of them:
  *  - `as_of_feed_time`: the feed's own date once its first duty has started
  *    (or a feed with no clock, which cannot be placed before a duty): buses are
@@ -87,7 +87,7 @@ export interface DutyAssignment {
   readonly busStanding: BusStandingNow | null;
 }
 
-/** Spare buses by how they stand now (ruling S55): a spare bus may be out on the road. */
+/** Spare buses by how they stand now: a spare bus may be out on the road. */
 export interface SpareByStanding {
   readonly inYard: number;
   /** Standing where the depot has no yard established, so location is not judged. */

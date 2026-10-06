@@ -18,7 +18,7 @@ const NO_BLOCKERS: DutyBlockers = { notInYard: 0, notHeard: 0, offRoad: 0, dark:
 
 /**
  * Counts the held-out buses by reason, of every class: class is a cost, not a
- * bar (ruling S47), so any held-out bus could have run any duty (ruling S55).
+ * bar, so any held-out bus could have run any duty.
  */
 function blockersFor(
   excluded: readonly { readonly registrationNumber: string; readonly reason: string }[],
@@ -99,7 +99,7 @@ function buildBody(
     recencyNotJudged: planned.recencyNotJudged,
     planMode: planned.mode,
     duplicateRowsDropped: planned.duplicateRowsDropped,
-    // As the depot's own response: absent for the fixture and the unassigned group (P2).
+    // As the depot's own response: absent for the fixture and the unassigned group.
     ...(seen === undefined ? {} : { yardSnapshotsSeen: seen }),
   };
 }
@@ -120,7 +120,7 @@ const bodies = new WeakMap<SnapshotAnalysis, Map<string, DutyBoardBody>>();
 export function buildDutyBoard(view: FleetSnapshotView, depotId: string): DutyBoardResponse | null {
   const analysis = analyseSnapshot(view);
   // Existence and the name come from the shared analysis; the plan is the
-  // depot's one shared plan (ruling S47), so a repeat poll does no per-request work.
+  // depot's one shared plan, so a repeat poll does no per-request work.
   const depot = analysis.depotsById.get(depotId);
   if (!depot) return null;
   const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);

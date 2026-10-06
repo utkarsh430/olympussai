@@ -1,6 +1,6 @@
 /*
  * The duty table's columns per width, and their widths, so no column is cut at 1440,
- * 1280 or 1024 and each narrower width shows a deliberate set (round 3). What a set drops
+ * 1280 or 1024 and each narrower width shows a deliberate set. What a set drops
  * is in the row expander ("Show this duty in full": route, time, class, state) or the
  * cell's title. Widths in px; the shared expander column after the first is 36 px.
  */
