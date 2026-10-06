@@ -46,8 +46,12 @@ export const MAX_TRACKED_IDENTITIES = 5_000;
  */
 export const IDENTITY_CLAUDE_CALLS_PER_HOUR = 5;
 export const CLAUDE_ALLOWANCE_WINDOW_MS = 3_600_000;
-/** Claude calls from one address alone per `CLAUDE_ALLOWANCE_WINDOW_MS`, whatever the session. */
-export const ADDRESS_CLAUDE_CALLS_PER_HOUR = 10;
+/**
+ * Claude calls from one address alone per `CLAUDE_ALLOWANCE_WINDOW_MS`, whatever the session.
+ * 8 × 24 = 192, under the core's daily cap of 200 (`CLI_MAX_CALLS_PER_DAY`), so one
+ * address running all day cannot use up the day's calls for everyone; 10 reached it in 20 hours.
+ */
+export const ADDRESS_CLAUDE_CALLS_PER_HOUR = 8;
 
 /** The largest request is an ask with a 300-character question: a few hundred bytes. */
 export const MAX_BODY_BYTES = 4_096;
