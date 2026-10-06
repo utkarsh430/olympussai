@@ -3,21 +3,15 @@ import type { FleetSnapshotView } from '../repositories/types';
 import { DEFAULT_REBALANCE_PARAMS } from '../optimise/config';
 import { planTransfers } from '../optimise/rebalance';
 import { DEFAULT_REQUIREMENT_PARAMS } from '../sim/config';
-import { modelBalances } from '../sim/requirement';
 import { operatingDateOf } from '../sim/seed';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
+import { requirementBalances } from './heldRequirement';
 
 type DistributionBody = Omit<DepotDistributionResponse, keyof DepotFeedEnvelope | 'operatingDate'>;
 
 function buildBody(analysis: SnapshotAnalysis, operatingDate: string): DistributionBody {
-  // Each depot's busiest windowed on-road share so far today, as the operating day reads them.
-  const balances = modelBalances(
-    analysis.depots,
-    analysis.yards,
-    operatingDate,
-    DEFAULT_REQUIREMENT_PARAMS,
-    analysis.requirementShares,
-  );
+  // The analysis's held requirement: the balances the operating day reads too.
+  const balances = requirementBalances(analysis, operatingDate);
   return {
     balances,
     plan: planTransfers(balances, DEFAULT_REBALANCE_PARAMS),
