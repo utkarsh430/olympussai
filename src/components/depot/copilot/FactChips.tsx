@@ -1,3 +1,6 @@
+'use client';
+
+import { useId, useState } from 'react';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { groupFactsByProvenance } from '@/lib/depot/copilot/ui/copilotView';
 import type { CopilotFactView } from '@/lib/depot/copilot/wire';
@@ -12,19 +15,27 @@ export interface FactChipsProps {
  * carries its provenance word.
  */
 export function FactChips({ facts }: FactChipsProps) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
   if (facts.length === 0) {
     return <p className="depot-prose">No figures were used for this text.</p>;
   }
   const rows = groupFactsByProvenance(facts).flatMap((group) => group.facts);
   return (
-    <details data-testid="copilot-facts" className="min-w-0">
-      <summary className="depot-label cursor-pointer select-none">
+    <div data-testid="copilot-facts" className="min-w-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((value) => !value)}
+        className="depot-label cursor-pointer select-none text-left hover:text-depot-ink"
+      >
         Figures used: {facts.length}
-      </summary>
-      <ul className="mt-2 flex flex-col gap-1">
-        {rows.map((fact) => (
+      </button>
+      <ul id={listId} hidden={!open} className="mt-2 flex flex-col gap-1">
+        {rows.map((fact, index) => (
           <li
-            key={fact.id}
+            key={`${fact.id}-${index}`}
             className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-depot-line py-1"
           >
             <span className="min-w-0 break-words font-mono text-[12px] text-depot-muted">
@@ -37,6 +48,6 @@ export function FactChips({ facts }: FactChipsProps) {
           </li>
         ))}
       </ul>
-    </details>
+    </div>
   );
 }
