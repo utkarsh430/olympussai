@@ -213,6 +213,30 @@ describe('the yard page', () => {
     expect(bar?.closest('p')?.className).toContain('depot-caption');
   });
 
+  it('never cuts the capacity label or its caption on a phone, and keeps the band rows level', async () => {
+    hooks.detail = { ...base, data: DATA, error: null, loading: false };
+    const doc = new DOMParser().parseFromString(await renderPage(), 'text/html');
+    const figures = Array.from(doc.querySelectorAll('[data-testid="yard-figure"]'));
+    for (const figure of figures) {
+      expect(figure.className.split(/\s+/)).toEqual(
+        expect.arrayContaining(['max-lg:row-span-3', 'max-lg:grid', 'max-lg:grid-rows-subgrid']),
+      );
+      const label = figure.querySelector('.depot-label');
+      expect(label?.className.split(/\s+/)).not.toContain('truncate');
+      expect(label?.className.split(/\s+/)).toContain('break-words');
+      expect(label?.parentElement?.className.split(/\s+/)).toContain('flex-wrap');
+    }
+    const capacity = figures.find((li) => (li.textContent ?? '').startsWith('Capacity'));
+    const track = capacity?.querySelector('[data-testid="depot-figure-share"]')?.parentElement;
+    // 64px on a phone, so the bar and "52 free" share half of a 360px column.
+    expect((track?.className ?? '').split(/\s+/)).toEqual(
+      expect.arrayContaining(['w-16', 'sm:w-[120px]']),
+    );
+    const caption = (track?.nextElementSibling?.className ?? '').split(/\s+/);
+    expect(caption).not.toContain('truncate');
+    expect(caption).toContain('break-words');
+  });
+
   it('keeps the map key in sans, bottom-left in a relative frame, clear of the zoom control', async () => {
     hooks.detail = { ...base, data: DATA, error: null, loading: false };
     const doc = new DOMParser().parseFromString(await renderPage(), 'text/html');
