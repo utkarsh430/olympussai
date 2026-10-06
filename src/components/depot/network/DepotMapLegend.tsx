@@ -45,7 +45,7 @@ export function DepotMapLegend({ maxFleet }: DepotMapLegendProps) {
       <div>
         <p className="depot-label mb-1.5">Size</p>
         <p className="mb-2 font-sans text-xs leading-snug">
-          Circle area grows with the depot&apos;s fleet.
+          Circle area grows with the unit&apos;s fleet.
         </p>
         <ul className="flex flex-wrap items-end gap-4">
           {samples.map((fleet) => (

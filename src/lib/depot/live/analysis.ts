@@ -49,6 +49,8 @@ export interface SnapshotAnalysis {
   /** Buses of other depots (or none) standing inside each host depot's yard. */
   readonly visitorsByDepot: ReadonlyMap<string, readonly DepotBusRow[]>;
   readonly report: ExceptionReport;
+  /** Every bus exception on the snapshot, uncapped and in network order; `report.bus` is its head. */
+  readonly busExceptions: readonly BusException[];
   /** Depot and bus exceptions together, counted before the bus cap. */
   readonly exceptionSeverityCounts: Readonly<Record<ExceptionSeverity, number>>;
   readonly exceptionsByDepot: ReadonlyMap<string, DepotExceptions>;
@@ -111,6 +113,7 @@ function analyse(view: FleetSnapshotView): SnapshotAnalysis {
     locations,
     visitorsByDepot: visitors,
     report: assembleReport(depotExceptions, busExceptions),
+    busExceptions,
     exceptionSeverityCounts: countBySeverity(depotExceptions, busExceptions),
     exceptionsByDepot: exceptionsByDepot(depotExceptions, busExceptions),
   };

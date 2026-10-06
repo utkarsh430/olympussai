@@ -41,7 +41,11 @@ export function ParkingPlanSection({ depotId }: { readonly depotId: string }) {
       ) : baysPending ? (
         <LoadingBlock rows={4} rowHeight={48} label="Loading parking" />
       ) : (
-        <ErrorPanel message={error ?? DEPOT_UNAVAILABLE_MESSAGE} onRetry={refresh} />
+        <ErrorPanel
+          title="Parking plan unavailable"
+          message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
+          onRetry={refresh}
+        />
       )}
     </div>
   );

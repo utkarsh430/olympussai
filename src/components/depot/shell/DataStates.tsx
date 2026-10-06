@@ -1,5 +1,5 @@
 import { formatFeedTime } from '@/lib/depot/format';
-import { LOAD_ERROR_TITLE } from '@/lib/depot/loadError';
+import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 
 export interface LoadingBlockProps {
   /** Number of placeholder rows. Match the rows the data will occupy. */
@@ -38,26 +38,34 @@ export function LoadingBlock({
   );
 }
 
+/**
+ * The body when a fetch failed and the hook has only its generic reason. The
+ * title says what failed; this says what to do, and never repeats it.
+ */
+export const GENERIC_ERROR_BODY = 'The service did not answer. Try again in a moment.';
+
 export interface ErrorPanelProps {
   /** What happened and when, in plain words; must not repeat the title. */
   readonly message: string;
   readonly onRetry: () => void;
-  readonly title?: string;
+  /**
+   * What failed: the page's main data ("Could not load the league") or a block
+   * inside a page that did load ("Parking plan unavailable"). Required, so no
+   * page can inherit a title that names the wrong thing.
+   */
+  readonly title: string;
   /** Further ways out beside Retry, for example a link back to Operations. */
   readonly children?: React.ReactNode;
 }
 
 /** What failed, and a way to try again; never a blank page. */
-export function ErrorPanel({
-  message,
-  onRetry,
-  title = LOAD_ERROR_TITLE,
-  children,
-}: ErrorPanelProps) {
+export function ErrorPanel({ message, onRetry, title, children }: ErrorPanelProps) {
   return (
     <div role="alert" data-testid="depot-error" className="depot-error-panel">
       <h2 className="text-[13px] text-alert-crimson">{title}</h2>
-      <p className="depot-prose mt-1">{message}</p>
+      <p className="depot-prose mt-1">
+        {message === DEPOT_UNAVAILABLE_MESSAGE ? GENERIC_ERROR_BODY : message}
+      </p>
       <div className="mt-3 flex flex-wrap items-center gap-4">
         <button type="button" onClick={onRetry} className="depot-filter-button">
           Retry

@@ -126,7 +126,10 @@ export function filterLeagueRows(rows: readonly LeagueRow[], filters: LeagueFilt
  * itself is kept while a filter hides the row, so relaxing the filter reopens
  * its breakdown.
  */
-export function selectedRowIn(rows: readonly LeagueRow[], selectedId: string | null): LeagueRow | null {
+export function selectedRowIn(
+  rows: readonly LeagueRow[],
+  selectedId: string | null,
+): LeagueRow | null {
   if (selectedId === null) return null;
   return rows.find((row) => row.depotId === selectedId) ?? null;
 }
@@ -158,6 +161,23 @@ export interface DifferenceWording {
   readonly direction: DifferenceDirection;
 }
 
+const ROUND_TO_TENTH = 10;
+
+/**
+ * The one rule for "is this difference good": the sign of the difference as
+ * shown (to a tenth), read against whether higher is better. Zero after
+ * rounding is level; no peer median is unknown.
+ */
+export function differenceDirection(
+  deltaPoints: number | null,
+  higherIsBetter: boolean,
+): DifferenceDirection {
+  if (deltaPoints === null) return 'unknown';
+  const rounded = Math.round(deltaPoints * ROUND_TO_TENTH) / ROUND_TO_TENTH;
+  if (rounded === 0) return 'level';
+  return rounded > 0 === higherIsBetter ? 'better' : 'worse';
+}
+
 /**
  * Says in words whether a difference from the peer median is good or bad. For
  * off-road and dark rates a positive difference is worse, so the sign alone
@@ -167,14 +187,11 @@ export function describeDifference(
   deltaPoints: number | null,
   higherIsBetter: boolean,
 ): DifferenceWording {
-  if (deltaPoints === null) return { text: 'no peer median', direction: 'unknown' };
-  const rounded = Math.round(Math.abs(deltaPoints) * 10) / 10;
-  if (rounded === 0) return { text: 'level with peers', direction: 'level' };
-  const good = deltaPoints > 0 === higherIsBetter;
-  return {
-    text: `${rounded.toFixed(1)} pts ${good ? 'better' : 'worse'} than peers`,
-    direction: good ? 'better' : 'worse',
-  };
+  const direction = differenceDirection(deltaPoints, higherIsBetter);
+  if (deltaPoints === null) return { text: 'no peer median', direction };
+  if (direction === 'level') return { text: 'level with peers', direction };
+  const rounded = Math.round(Math.abs(deltaPoints) * ROUND_TO_TENTH) / ROUND_TO_TENTH;
+  return { text: `${rounded.toFixed(1)} pts ${direction} than peers`, direction };
 }
 
 /** Why a depot has no rank; null for a ranked depot. */

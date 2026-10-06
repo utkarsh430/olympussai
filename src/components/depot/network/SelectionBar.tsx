@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { PANEL_HEADING_ID, clearSelection } from './clearSelection';
 import { depotLink } from '@/lib/depot/network/mapWords';
 import {
   formatIndex,
@@ -26,7 +27,7 @@ function showOnMap(): void {
   document
     .getElementById('depot-map-heading')
     ?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
-  document.getElementById('depot-panel-heading')?.focus({ preventScroll: true });
+  document.getElementById(PANEL_HEADING_ID)?.focus({ preventScroll: true });
 }
 
 /** "Selected: KAUSHAMBI" with Clear, right above the map. */
@@ -46,12 +47,16 @@ export function SelectionLine({
             {row.depot.name}
           </span>
           <span className="text-[13px] tabular-nums text-depot-muted">{detail(row)}</span>
-          <button type="button" onClick={onClear} className="depot-filter-button ml-auto">
+          <button
+            type="button"
+            onClick={() => clearSelection(onClear)}
+            className="depot-filter-button ml-auto"
+          >
             Clear selection
           </button>
         </>
       ) : (
-        <span className="font-sans text-[13px] text-depot-muted">No depot selected.</span>
+        <span className="font-sans text-[13px] text-depot-muted">No unit selected.</span>
       )}
     </div>
   );
@@ -82,7 +87,7 @@ export function SelectionBar({ row }: { readonly row: DepotRow | null }) {
         </>
       ) : (
         <span className="font-sans text-[13px] text-depot-muted">
-          Select a row to see the depot on the map and in the summary beside it.
+          Select a row to see the unit on the map and in the summary beside it.
         </span>
       )}
     </div>

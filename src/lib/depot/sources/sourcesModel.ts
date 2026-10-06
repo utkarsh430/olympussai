@@ -14,9 +14,10 @@ import type { FeedEntry } from './registry';
  */
 
 const SEP = ' · ';
+/** What the depot normaliser drops: an entry that is not an object, a blank registration, a repeat. */
 const EXCLUSION_REASON =
-  'a record with no registration number, or a repeat of a registration already received, ' +
-  'where the newest GPS time is kept';
+  'an entry that is not a record at all, a record with no registration number, ' +
+  'or a repeat of a registration already received, where the newest GPS time is kept';
 
 /** "9,993 records received · 4 excluded (why) · 9,989 buses counted". */
 export function recordsSentence(recordsReceived: number, busesCounted: number): string {

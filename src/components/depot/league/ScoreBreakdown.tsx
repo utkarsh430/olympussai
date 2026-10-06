@@ -1,3 +1,4 @@
+import { formatCount } from '@/lib/depot/format';
 import {
   PEER_GROUP_LABEL,
   explainRow,
@@ -53,7 +54,10 @@ export function ScoreBreakdown({
           ? ` · ${peerRankPhrase(row.rank, row.peerCount, group)}`
           : ' · not ranked'}
       </h2>
-      <p className="depot-prose mt-1">{explainRow(row)}</p>
+      <p className="depot-prose mt-1">
+        {`Fleet: ${formatCount(row.fleet)} ${row.fleet === 1 ? 'bus' : 'buses'}. `}
+        {explainRow(row)}
+      </p>
       {row.components.length > 0 ? (
         <div className="depot-table-frame mt-3">
           <table className="depot-table">
@@ -61,17 +65,30 @@ export function ScoreBreakdown({
             <thead>
               <tr>
                 <th scope="col">Component</th>
-                <th scope="col" className="depot-align-right">Depot</th>
-                <th scope="col" className="depot-align-right">Peer median</th>
-                <th scope="col" className="depot-align-right">Z (higher is better)</th>
-                <th scope="col" className="depot-align-right">Weight</th>
-                <th scope="col" className="depot-align-right">Contribution</th>
+                <th scope="col" className="depot-align-right">
+                  Depot
+                </th>
+                <th scope="col" className="depot-align-right">
+                  Peer median
+                </th>
+                <th scope="col" className="depot-align-right">
+                  Z (higher is better)
+                </th>
+                <th scope="col" className="depot-align-right">
+                  Weight
+                </th>
+                <th scope="col" className="depot-align-right">
+                  Contribution
+                </th>
               </tr>
             </thead>
             <tbody>
               {row.components.map((c) => (
                 <tr key={c.key}>
-                  <th scope="row" className="!static !bg-transparent !text-left !normal-case !tracking-normal !text-depot-ink">
+                  <th
+                    scope="row"
+                    className="!static !bg-transparent !text-left !normal-case !tracking-normal !text-depot-ink"
+                  >
                     {c.label}
                   </th>
                   <td className="depot-align-right">{formatRate(c.value)}</td>

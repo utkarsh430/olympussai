@@ -140,6 +140,16 @@ describe('analyseSnapshot', () => {
     expect(a.exceptionsByDepot.get('1')?.bus).toHaveLength(n);
   });
 
+  it('exposes the uncapped network bus list, in the order the report caps from', () => {
+    const n = BUS_EXCEPTION_CAP + 50;
+    const rows = Array.from({ length: n }, (_, i) =>
+      row({ registrationNumber: `R${String(i).padStart(4, '0')}`, mainPowerOn: false }),
+    );
+    const a = analyseSnapshot(view({ rows }));
+    expect(a.busExceptions).toHaveLength(n);
+    expect(a.busExceptions.slice(0, BUS_EXCEPTION_CAP)).toEqual(a.report.bus);
+  });
+
   it('files depot exceptions under their depot', () => {
     const a = analyseSnapshot(view());
     for (const [id, group] of a.exceptionsByDepot) {

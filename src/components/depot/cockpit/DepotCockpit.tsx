@@ -63,6 +63,7 @@ export function DepotCockpit() {
     if (loading || !error) return <CockpitLoading />;
     return (
       <ErrorPanel
+        title="Could not load the depot cockpit"
         message={`${error}. The cockpit will appear once the feed answers.`}
         onRetry={refresh}
       />

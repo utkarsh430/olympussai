@@ -31,6 +31,23 @@ export interface DataTableProps<T> {
   readonly selectedKey?: string;
   /** Shown inside the table frame, under the header, when there are no rows. */
   readonly emptyMessage?: string;
+  /** Id of the scroll region, so a toggle elsewhere can name it in `aria-controls`. */
+  readonly id?: string;
+  /**
+   * Shows only the first N rows of the sorted order. A selected row beyond the
+   * cap is kept, after the capped rows, and marked in words.
+   */
+  readonly maxRows?: number;
+  /** Lifted sort state, for a parent that must say what order the rows are in. */
+  readonly tableSort?: TableSortState;
+}
+
+export interface TableSortState {
+  /** The sort in force; null when the table is unsorted. */
+  readonly sort: TableSort | null;
+  /** True when `sort` is the default the table started with. */
+  readonly isDefault: boolean;
+  readonly setSort: (next: TableSort) => void;
 }
 
 const ARIA_SORT = { asc: 'ascending', desc: 'descending' } as const;
@@ -41,6 +58,28 @@ function nextSort(current: TableSort | null, key: string): TableSort {
     return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
   }
   return { key, direction: 'asc' };
+}
+
+function sortable(columns: readonly Column<unknown>[], sort: TableSort | null): boolean {
+  return sort !== null && columns.some((c) => c.key === sort.key && c.sortValue !== undefined);
+}
+
+/**
+ * Sort state that returns to the default when the sorted column leaves the
+ * column set (a filter drops it, or the viewport does), so the table never sits
+ * in an order that no header shows.
+ */
+export function useTableSort<T>(
+  columns: readonly Column<T>[],
+  initialSort?: TableSort,
+): TableSortState {
+  const [chosen, setChosen] = useState<TableSort | null>(null);
+  const cols = columns as readonly Column<unknown>[];
+  const chosenValid = sortable(cols, chosen);
+  if (chosen !== null && !chosenValid) setChosen(null);
+  const fallback = sortable(cols, initialSort ?? null) ? (initialSort ?? null) : null;
+  const sort = chosenValid ? chosen : fallback;
+  return { sort, isDefault: !chosenValid, setSort: setChosen };
 }
 
 /**
@@ -58,19 +97,65 @@ export function DataTable<T>({
   onRowSelect,
   selectedKey,
   emptyMessage,
+  id,
+  maxRows,
+  tableSort,
 }: DataTableProps<T>) {
-  const [sort, setSort] = useState<TableSort | null>(initialSort ?? null);
+  const own = useTableSort(columns, initialSort);
+  const { sort, setSort } = tableSort ?? own;
 
   const sortColumn = sort ? columns.find((column) => column.key === sort.key) : undefined;
-  const visibleRows = useMemo(() => {
+  const sortedRows = useMemo(() => {
     if (!sort || !sortColumn?.sortValue) return rows;
     return sortRows(rows, sortColumn.sortValue, sort.direction);
   }, [rows, sort, sortColumn]);
+  const capped = maxRows !== undefined && sortedRows.length > maxRows;
+  const visibleRows = capped ? sortedRows.slice(0, maxRows) : sortedRows;
+  const outsideRow = capped
+    ? sortedRows.slice(maxRows).find((row) => rowKey(row) === selectedKey)
+    : undefined;
 
   const selectable = onRowSelect !== undefined;
 
+  const renderRow = (row: T) => {
+    const key = rowKey(row);
+    const selected = selectable ? key === selectedKey : undefined;
+    return (
+      <tr
+        key={key}
+        aria-selected={selected}
+        tabIndex={selectable ? 0 : undefined}
+        onClick={selectable ? () => onRowSelect(row) : undefined}
+        onKeyDown={
+          selectable
+            ? (event) => {
+                // Ignore keys that bubble up from a link or button inside the row.
+                if (event.target !== event.currentTarget) return;
+                if (!SELECT_KEYS.has(event.key)) return;
+                event.preventDefault();
+                onRowSelect(row);
+              }
+            : undefined
+        }
+        className={
+          selectable ? `depot-row-selectable ${selected ? 'depot-row-selected' : ''}` : undefined
+        }
+      >
+        {columns.map((column) => (
+          <td
+            key={column.key}
+            className={column.align === 'right' ? 'depot-align-right' : undefined}
+          >
+            {column.render(row)}
+          </td>
+        ))}
+      </tr>
+    );
+  };
+
   return (
     <div
+      id={id}
       role="region"
       aria-label={caption}
       tabIndex={0}
@@ -97,7 +182,7 @@ export function DataTable<T>({
                     <button
                       type="button"
                       className="depot-sort-button"
-                      onClick={() => setSort((current) => nextSort(current, column.key))}
+                      onClick={() => setSort(nextSort(sort, column.key))}
                     >
                       {column.header}
                       <span aria-hidden className="inline-block w-3 text-holo-glow">
@@ -120,43 +205,17 @@ export function DataTable<T>({
               </td>
             </tr>
           ) : null}
-          {visibleRows.map((row) => {
-            const key = rowKey(row);
-            const selected = selectable ? key === selectedKey : undefined;
-            return (
-              <tr
-                key={key}
-                aria-selected={selected}
-                tabIndex={selectable ? 0 : undefined}
-                onClick={selectable ? () => onRowSelect(row) : undefined}
-                onKeyDown={
-                  selectable
-                    ? (event) => {
-                        // Ignore keys that bubble up from a link or button inside the row.
-                        if (event.target !== event.currentTarget) return;
-                        if (!SELECT_KEYS.has(event.key)) return;
-                        event.preventDefault();
-                        onRowSelect(row);
-                      }
-                    : undefined
-                }
-                className={
-                  selectable
-                    ? `depot-row-selectable ${selected ? 'depot-row-selected' : ''}`
-                    : undefined
-                }
-              >
-                {columns.map((column) => (
-                  <td
-                    key={column.key}
-                    className={column.align === 'right' ? 'depot-align-right' : undefined}
-                  >
-                    {column.render(row)}
-                  </td>
-                ))}
+          {visibleRows.map(renderRow)}
+          {outsideRow !== undefined ? (
+            <>
+              <tr>
+                <td colSpan={columns.length} className="depot-prose !py-2">
+                  Selected row, outside the first {maxRows}
+                </td>
               </tr>
-            );
-          })}
+              {renderRow(outsideRow)}
+            </>
+          ) : null}
         </tbody>
       </table>
     </div>

@@ -38,7 +38,11 @@ export function RebalancePage() {
   if (state.loading) return <LoadingBlock rows={10} label="Loading fleet distribution" />;
   if (!state.data) {
     return (
-      <ErrorPanel message={state.error ?? DEPOT_UNAVAILABLE_MESSAGE} onRetry={state.refresh} />
+      <ErrorPanel
+        title="Could not load rebalancing"
+        message={state.error ?? DEPOT_UNAVAILABLE_MESSAGE}
+        onRetry={state.refresh}
+      />
     );
   }
   return <Distribution data={state.data} state={state} />;

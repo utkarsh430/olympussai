@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   LOWEST_OPERATING_LABEL,
+  SUGGESTION_LABEL,
+  SUGGESTION_NOTE,
   depotLink,
   lowestOperatingDepot,
   markerLabel,
@@ -80,6 +82,9 @@ describe('lowestOperatingDepot', () => {
     const rows = [row('a', 40), row('b', 12.5), row('c', 80), row('enf', 5, 'enforcement')];
     expect(lowestOperatingDepot(rows)?.depot.id).toBe('b');
     expect(LOWEST_OPERATING_LABEL).toBe('Lowest index among operating depots');
+    expect(SUGGESTION_LABEL).toBe('Suggestion');
+    expect(SUGGESTION_NOTE).toMatch(/scored within peer groups/);
+    expect(SUGGESTION_NOTE).toMatch(/within its own peer group ranking/);
   });
 
   it('breaks ties on the smaller id and returns null when nothing is ranked', () => {

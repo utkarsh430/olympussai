@@ -33,7 +33,7 @@ export function CrewPage() {
   if (!data) {
     return (
       <ErrorPanel
-        title={error === DEPOT_NOT_FOUND_MESSAGE ? DEPOT_NOT_FOUND_MESSAGE : undefined}
+        title={error === DEPOT_NOT_FOUND_MESSAGE ? DEPOT_NOT_FOUND_MESSAGE : 'Could not load crew data'}
         message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
         onRetry={refresh}
       />

@@ -6,9 +6,9 @@ import { coverageRows, recordsSentence, schemaSummary } from '@/lib/depot/source
 describe('recordsSentence', () => {
   it('reconciles records received with buses counted, giving the reason from the normaliser', () => {
     expect(recordsSentence(9993, 9989)).toBe(
-      '9,993 records received · 4 excluded (a record with no registration number, or a ' +
-        'repeat of a registration already received, where the newest GPS time is kept) · ' +
-        '9,989 buses counted',
+      '9,993 records received · 4 excluded (an entry that is not a record at all, a record ' +
+        'with no registration number, or a repeat of a registration already received, where ' +
+        'the newest GPS time is kept) · 9,989 buses counted',
     );
   });
 
@@ -37,7 +37,7 @@ describe('recordsSentence', () => {
     const result = normalizeDepotRows(payload);
     expect(result.recordCount - result.rows.length).toBe(3);
     expect(recordsSentence(result.recordCount, result.rows.length)).toMatch(
-      /^5 records received · 3 excluded/,
+      /^5 records received · 3 excluded \(an entry that is not a record at all/,
     );
   });
 

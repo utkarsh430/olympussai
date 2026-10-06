@@ -70,7 +70,11 @@ export function LeagueTable() {
 
   if (loading) return <LoadingBlock rows={10} label="Loading the league table" />;
   if (!data) {
-    return <ErrorPanel message={error ?? DEPOT_UNAVAILABLE_MESSAGE} onRetry={refresh} />;
+    return <ErrorPanel
+        title="Could not load the league"
+        message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
+        onRetry={refresh}
+      />;
   }
   if (allRows.length === 0) {
     return <EmptyState>The live feed returned no depots, so there is nothing to rank yet.</EmptyState>;

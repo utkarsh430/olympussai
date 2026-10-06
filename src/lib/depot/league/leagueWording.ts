@@ -1,7 +1,7 @@
 import { formatCount, formatFeedTime } from '@/lib/depot/format';
 import type { DepotScore } from '@/lib/depot/score/types';
 import type { DepotSummary } from '@/lib/depot/types';
-import { formatRate, type DifferenceDirection } from './leagueModel';
+import { differenceDirection, formatRate, type DifferenceDirection } from './leagueModel';
 
 /**
  * The league page's sentences, built from the data so the counts on screen
@@ -33,7 +33,9 @@ export function leagueStatusLine(
   const others = depots.length - operating.length;
   const parts = [
     `${formatCount(ranked)} ranked of ${plural(operating.length, 'operating depot', 'operating depots')}`,
-    tooSmall > 0 ? `${formatCount(tooSmall)} not ranked (fewer than ${minFleetForRank} buses)` : null,
+    tooSmall > 0
+      ? `${formatCount(tooSmall)} not ranked (fewer than ${minFleetForRank} buses)`
+      : null,
     others > 0 ? `${plural(others, 'other unit', 'other units')} not ranked` : null,
   ];
   return parts.filter((p): p is string => p !== null).join(SEP);
@@ -74,20 +76,13 @@ export interface MetricCellWording {
   readonly description: string;
 }
 
-function directionOf(delta: number | null, higherIsBetter: boolean): DifferenceDirection {
-  if (delta === null) return 'unknown';
-  const rounded = roundTenth(delta);
-  if (rounded === 0) return 'level';
-  return rounded > 0 === higherIsBetter ? 'better' : 'worse';
-}
-
 /**
  * One league cell. The sign shows the raw difference; the word (derived from
  * `higherIsBetter`) shows whether that is good, because for the dark and
  * off-road rates a positive difference is worse.
  */
 export function metricCellWording(cell: MetricCellInput): MetricCellWording {
-  const direction = directionOf(cell.deltaPoints, cell.higherIsBetter);
+  const direction = differenceDirection(cell.deltaPoints, cell.higherIsBetter);
   const value = formatRate(cell.value);
   const median = formatRate(cell.peerMedian);
   const size =

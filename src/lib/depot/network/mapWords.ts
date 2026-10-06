@@ -26,7 +26,16 @@ export function positionNote(depot: Pick<DepotSummary, 'positioned'>): string {
   return `Position: median of ${formatCount(depot.positioned)} positioned ${noun} (derived)`;
 }
 
+export const SUGGESTION_LABEL = 'Suggestion';
 export const LOWEST_OPERATING_LABEL = 'Lowest index among operating depots';
+
+/**
+ * Why the suggestion is not a league table: an index is scored within a peer
+ * group, so "lowest" is the lowest on the depot's own peer group's ranking, and
+ * a tie goes to the smaller depot id.
+ */
+export const SUGGESTION_NOTE =
+  'Indices are scored within peer groups, so this is the lowest within its own peer group ranking, not a like-for-like comparison across groups. A tie goes to the smaller depot id.';
 
 /**
  * What the empty selected-depot panel offers: the ranked operating depot with

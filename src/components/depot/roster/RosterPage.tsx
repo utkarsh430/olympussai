@@ -64,7 +64,13 @@ export function RosterPage() {
   }, []);
 
   if (loading) return <LoadingBlock rows={10} label="Loading the roster" />;
-  if (!data) return <ErrorPanel message={error ?? DEPOT_UNAVAILABLE_MESSAGE} onRetry={refresh} />;
+  if (!data) return (
+      <ErrorPanel
+        title="Could not load the roster"
+        message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
+        onRetry={refresh}
+      />
+    );
   if (allRows.length === 0 && openBus === null) {
     return <EmptyState>The live feed lists no buses homed at this depot.</EmptyState>;
   }

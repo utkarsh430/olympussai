@@ -6,9 +6,11 @@ import {
   formatPoints,
   formatRate,
   describeDifference,
+  differenceDirection,
   unrankedSentence,
   type LeagueRow,
 } from '@/lib/depot/league/leagueModel';
+import { metricCellWording } from '@/lib/depot/league/leagueWording';
 import type { DepotSummary, DepotKind } from '@/lib/depot/types';
 import type { DeiComponent, DepotScore, PeerGroupId } from '@/lib/depot/score/types';
 
@@ -222,5 +224,35 @@ describe('describeDifference', () => {
   it('carries higherIsBetter on each component cell', () => {
     const [row] = buildLeagueRows([DEPOTS[0] as DepotSummary], [score('1', 'large', 1)]);
     expect(row?.components.map((c) => c.higherIsBetter)).toEqual([true, false, false, true, true]);
+  });
+});
+
+describe('differenceDirection', () => {
+  it('derives the word from the sign and whether higher is better', () => {
+    expect(differenceDirection(3, true)).toBe('better');
+    expect(differenceDirection(3, false)).toBe('worse');
+    expect(differenceDirection(-3, true)).toBe('worse');
+    expect(differenceDirection(-3, false)).toBe('better');
+    expect(differenceDirection(0.04, false)).toBe('level');
+    expect(differenceDirection(null, true)).toBe('unknown');
+  });
+
+  it('is the one rule behind describeDifference and the league cell wording', () => {
+    for (const delta of [null, -30, -0.3, -0.04, 0, 0.04, 0.3, 30]) {
+      for (const higher of [true, false]) {
+        expect(describeDifference(delta, higher).direction).toBe(
+          differenceDirection(delta, higher),
+        );
+        expect(
+          metricCellWording({
+            label: 'x',
+            value: 0.5,
+            peerMedian: 0.4,
+            deltaPoints: delta,
+            higherIsBetter: higher,
+          }).direction,
+        ).toBe(differenceDirection(delta, higher));
+      }
+    }
   });
 });
