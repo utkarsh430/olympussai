@@ -16,7 +16,7 @@ import {
   revenueTableShape,
   type RevenueKey,
 } from '@/lib/depot/revenue/revenueColumns';
-import { useTableTier } from './useTableTier';
+import { useTableTier } from '@/components/depot/shell/useTableTier';
 import {
   NO_ROUTES_RAN,
   REVENUE_PAGE_ROWS,

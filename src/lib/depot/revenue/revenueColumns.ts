@@ -1,6 +1,6 @@
 import { formatCount } from '../format';
 import type { RevenueTableRow } from './revenueTablePageModel';
-import type { TableTier } from './tableTier';
+import type { TableTier } from '../shell/tableTier';
 
 /*
  * The revenue page's BY ROUTE columns per width (critique round 5, section 7) and the
@@ -22,9 +22,6 @@ export const REVENUE_WIDTHS: Readonly<Record<RevenueKey, number>> = {
   length: 120,
   basis: 80,
 };
-
-/** The row expander's own column at 800 (DataTable's expander). */
-export const EXPANDER_WIDTH_PX = 36;
 
 export interface RevenueTableShape {
   /** CLASS only when the routes differ in class. */

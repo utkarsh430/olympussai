@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { TIER_FROM_PX, type TableTier } from '@/lib/depot/revenue/tableTier';
+import { TIER_FROM_PX, type TableTier } from '@/lib/depot/shell/tableTier';
 
 const WIDE_QUERY = `(min-width: ${TIER_FROM_PX.wide}px)`;
 const MEDIUM_QUERY = `(min-width: ${TIER_FROM_PX.medium}px)`;

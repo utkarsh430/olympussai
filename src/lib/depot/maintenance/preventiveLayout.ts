@@ -3,7 +3,7 @@
  * cut at 1440, 1280 or 1024, and each narrower width shows a deliberate set; what a set
  * drops is in the row expander. Every group's table uses the same widths, so the groups
  * line up. Widths in px; the shared table's expander is its FIRST column, 24 px (the
- * shell's `EXPANDER_WIDTH_PX`), and the row itself opens it.
+ * shared `EXPANDER_WIDTH_PX`), and the row itself opens it.
  */
 
 export type PreventiveColumnKey = 'registration' | 'next' | 'class' | 'odometer' | 'age';
@@ -17,8 +17,6 @@ export const PREVENTIVE_COLUMN_WIDTH_PX: Readonly<Record<PreventiveColumnKey, nu
   odometer: 140,
   age: 120,
 };
-
-export const EXPANDER_WIDTH_PX = 24;
 
 const COLUMNS: Readonly<Record<PreventiveTier, readonly PreventiveColumnKey[]>> = {
   wide: ['registration', 'next', 'class', 'odometer', 'age'],
@@ -39,10 +37,4 @@ export function preventiveColumnKeys(tier: PreventiveTier): readonly PreventiveC
 export function preventiveExpanderKeys(tier: PreventiveTier): readonly PreventiveColumnKey[] {
   const shown = new Set(COLUMNS[tier]);
   return COLUMNS.wide.filter((key) => !shown.has(key));
-}
-
-/** The table's width at a tier: its columns, plus the expander column when it has one. */
-export function preventiveTableWidth(tier: PreventiveTier): number {
-  const columns = COLUMNS[tier].reduce((sum, key) => sum + PREVENTIVE_COLUMN_WIDTH_PX[key], 0);
-  return preventiveExpanderKeys(tier).length > 0 ? columns + EXPANDER_WIDTH_PX : columns;
 }

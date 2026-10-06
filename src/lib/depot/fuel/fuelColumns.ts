@@ -1,4 +1,4 @@
-import type { TableTier } from '../revenue/tableTier';
+import type { TableTier } from '../shell/tableTier';
 import type { FuelFlaggedBus } from './api';
 import { groupLabel } from './fuelPageModel';
 import { BASIS_LABEL, routeDash } from './fuelStandOut';

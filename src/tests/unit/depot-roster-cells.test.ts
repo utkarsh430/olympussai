@@ -7,13 +7,17 @@ import {
 } from '@/lib/depot/roster/rosterCells';
 import {
   ROSTER_TIER_FRAME_PX,
+  ROSTER_TIER_WIDTHS,
   rosterColumnKeys,
   rosterColumnWidth,
   rosterShortLocation,
   rosterTier,
-  rosterWidthSum,
   type RosterTier,
 } from '@/lib/depot/roster/rosterColumns';
+import { tableWidth } from '@/lib/depot/shell/tableWidth';
+
+const rosterWidthSum = (tier: RosterTier): number =>
+  tableWidth(ROSTER_TIER_WIDTHS[tier], rosterColumnKeys(tier));
 
 const FEED_NOW = '2026-10-06T09:30:00.000Z';
 

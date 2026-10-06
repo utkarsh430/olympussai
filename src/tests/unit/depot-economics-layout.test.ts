@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { EconomicsDepotRow } from '@/lib/depot/revenue/api';
 import {
   ECONOMICS_COLUMN_WIDTHS,
-  ECONOMICS_EXPANDER_PX,
   MIN_SPARE_PX,
   ECONOMICS_SIGN_NOTE,
   ECONOMICS_TABLE_NOTE,
@@ -10,12 +9,12 @@ import {
   economicsBand,
   economicsColumnKeys,
   economicsDaySentence,
-  economicsTableWidth,
   noDutyPhrase,
 } from '@/lib/depot/revenue/economicsLayout';
-import { EXPANDER_WIDTH_PX } from '@/components/depot/shell/tableLayout';
+import { TABLE_FRAME_BORDER_PX } from '@/lib/depot/shell/geometry';
+import { tableWidth } from '@/lib/depot/shell/tableWidth';
 import { networkModelledDayLine } from '@/lib/depot/modelledDayLine';
-import { TIER_FRAME_PX, type TableTier } from '@/lib/depot/revenue/tableTier';
+import { TIER_FRAME_PX, type TableTier } from '@/lib/depot/shell/tableTier';
 
 function depot(
   id: string,
@@ -96,12 +95,11 @@ describe('economics layout', () => {
     ['medium', 914],
     ['narrow', 704],
   ])('fits the %s frame with at least 8 px to spare (%i px)', (tier, sum) => {
-    expect(economicsTableWidth(tier)).toBe(sum);
-    expect(economicsTableWidth(tier)).toBeLessThanOrEqual(TIER_FRAME_PX[tier] - MIN_SPARE_PX);
-  });
-
-  it('counts the expander the shell draws', () => {
-    expect(ECONOMICS_EXPANDER_PX).toBe(EXPANDER_WIDTH_PX);
+    const laidOut =
+      tableWidth(ECONOMICS_COLUMN_WIDTHS, economicsColumnKeys(tier), { expander: true }) +
+      TABLE_FRAME_BORDER_PX;
+    expect(laidOut).toBe(sum);
+    expect(laidOut).toBeLessThanOrEqual(TIER_FRAME_PX[tier] - MIN_SPARE_PX);
   });
 
   it('keeps RANK · DEPOT · INDEX · EARNINGS · FUEL at 800 and gives the index 150 px', () => {

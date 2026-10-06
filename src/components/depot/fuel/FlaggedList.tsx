@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
-import { useTableTier } from '@/components/depot/revenue/useTableTier';
+import { useTableTier } from '@/components/depot/shell/useTableTier';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
@@ -27,7 +27,7 @@ import {
   standOutFooter,
   standOutNote,
 } from '@/lib/depot/fuel/fuelStandOut';
-import type { TableTier } from '@/lib/depot/revenue/tableTier';
+import type { TableTier } from '@/lib/depot/shell/tableTier';
 
 function registrationCell(depotId: string, bus: FuelFlaggedBus, tier: TableTier) {
   const link = (

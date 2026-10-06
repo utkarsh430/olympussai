@@ -3,7 +3,7 @@ import { networkModelledDayLine } from '../modelledDayLine';
 import { MIN_FLEET_FOR_RANK, MIN_PEER_GROUP } from '../score/config';
 import type { EconomicsDepotRow } from './api';
 import type { EconomicsRow } from './economicsRows';
-import type { TableTier } from './tableTier';
+import type { TableTier } from '../shell/tableTier';
 
 /*
  * The economics page's layout words and geometry (design wave, round 2): the
@@ -87,10 +87,7 @@ export function economicsGroupKey(row: EconomicsRow): string {
   return row.peerGroupLabel ?? 'Not ranked';
 }
 
-/** The content column at 1440: 1440 minus the 232px rail and two 24px gutters. */
-export const FRAME_AT_1440 = 1160;
-
-/** Every column's width at 1440, in px; their sum stays inside the frame (no column cut). */
+/** Every column's width, in px; their sum stays inside each tier's frame (no column cut). */
 export const ECONOMICS_COLUMN_WIDTHS = {
   rank: 48,
   depot: 180,
@@ -103,29 +100,8 @@ export const ECONOMICS_COLUMN_WIDTHS = {
 
 export type EconomicsColumnKey = keyof typeof ECONOMICS_COLUMN_WIDTHS;
 
-/** The shared table's row-expander column (the chevron, first): `EXPANDER_WIDTH_PX`. */
-export const ECONOMICS_EXPANDER_PX = 24;
-
-/** The table frame's border, 1 px each side: the columns get the frame minus this. */
-export const TABLE_FRAME_BORDER_PX = 2;
-
 /** Every column set leaves at least this much of its frame unused. */
 export const MIN_SPARE_PX = 8;
-
-/**
- * The table's laid-out width for a tier: its columns, the expander column and the frame's
- * border. Strict: a column without a width throws instead of counting as 0, so a test on
- * this sum cannot pass by losing a column.
- */
-export function economicsTableWidth(tier: TableTier): number {
-  const widths: Readonly<Record<string, number>> = ECONOMICS_COLUMN_WIDTHS;
-  const columns = economicsColumnKeys(tier).reduce((sum, key) => {
-    const width = widths[key];
-    if (width === undefined) throw new Error(`economics column ${key} has no width`);
-    return sum + width;
-  }, 0);
-  return columns + ECONOMICS_EXPANDER_PX + TABLE_FRAME_BORDER_PX;
-}
 
 /** Every column from 1024; at 800 LOAD % and FLEET go to the breakdown (critique §7). */
 export function economicsColumnKeys(tier: TableTier): readonly EconomicsColumnKey[] {

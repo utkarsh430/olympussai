@@ -6,11 +6,13 @@
  *   wide    (1440 and up, ~1,158 px inside the frame): every column, 1,048 px.
  *   desk    (1280 to 1439, ~998 px): every column, tighter, 988 px.
  *   medium  (1024 to 1279, ~974 px): SCHEDULED START goes to the drawer, 880 px.
- *   narrow  (640 to 1023, ~750 px): registration, state, short location, last heard, 516 px.
- *   phone   (under 640, ~356 px): registration, state (square and word), short location.
+ *   narrow  (640 to 1023, ~590 px): registration, state, short location, last heard, 516 px.
+ *   phone   (under 640, ~326 px at 360): registration, state (square and word), short location.
  *
  * RUNNING is never a column: it was a near-constant dash, and the drawer has it.
  */
+
+import { tableRoomAt } from '../shell/geometry';
 
 export type RosterColumnKey =
   | 'registration'
@@ -32,13 +34,22 @@ export const ROSTER_TIER_FROM_PX: ReadonlyArray<readonly [RosterTier, number]> =
   ['phone', 0],
 ];
 
-/** The content frame's inner width at the narrowest viewport of each tier. */
+/** The narrowest viewport each tier is checked at (where it starts; a 360 px phone). */
+const TIER_CHECK_VIEWPORT_PX: Readonly<Record<RosterTier, number>> = {
+  wide: 1440,
+  desk: 1280,
+  medium: 1024,
+  narrow: 640,
+  phone: 360,
+};
+
+/** The room inside the table's frame at the narrowest viewport of each tier, from the shell. */
 export const ROSTER_TIER_FRAME_PX: Readonly<Record<RosterTier, number>> = {
-  wide: 1158,
-  desk: 998,
-  medium: 974,
-  narrow: 606,
-  phone: 326,
+  wide: tableRoomAt(TIER_CHECK_VIEWPORT_PX.wide),
+  desk: tableRoomAt(TIER_CHECK_VIEWPORT_PX.desk),
+  medium: tableRoomAt(TIER_CHECK_VIEWPORT_PX.medium),
+  narrow: tableRoomAt(TIER_CHECK_VIEWPORT_PX.narrow),
+  phone: tableRoomAt(TIER_CHECK_VIEWPORT_PX.phone),
 };
 
 type Widths = Readonly<Partial<Record<RosterColumnKey, number>>>;
@@ -85,7 +96,8 @@ const PHONE: Widths = {
   location: 96,
 };
 
-const TIER_WIDTHS: Readonly<Record<RosterTier, Widths>> = {
+/** Each tier's column widths; a column a tier does not show has none. */
+export const ROSTER_TIER_WIDTHS: Readonly<Record<RosterTier, Widths>> = {
   wide: WIDE,
   desk: DESK,
   medium: MEDIUM,
@@ -111,16 +123,12 @@ export function rosterTier(viewportPx: number): RosterTier {
 
 /** The columns a tier shows, in reading order. */
 export function rosterColumnKeys(tier: RosterTier): readonly RosterColumnKey[] {
-  const widths = TIER_WIDTHS[tier];
+  const widths = ROSTER_TIER_WIDTHS[tier];
   return COLUMN_ORDER.filter((key) => widths[key] !== undefined);
 }
 
 export function rosterColumnWidth(key: RosterColumnKey, tier: RosterTier): number {
-  return TIER_WIDTHS[tier][key] ?? 0;
-}
-
-export function rosterWidthSum(tier: RosterTier): number {
-  return rosterColumnKeys(tier).reduce((sum, key) => sum + rosterColumnWidth(key, tier), 0);
+  return ROSTER_TIER_WIDTHS[tier][key] ?? 0;
 }
 
 /** LOCATION in its short form ("29 km", "Yard") below 1024. */

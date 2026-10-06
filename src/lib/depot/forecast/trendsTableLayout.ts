@@ -1,4 +1,4 @@
-import { TIER_FRAME_PX, type TableTier } from '../revenue/tableTier';
+import type { TableTier } from '../shell/tableTier';
 import type { TrendSortKey, TrendTableRow } from './trendsTableModel';
 
 /*
@@ -39,9 +39,6 @@ export function trendSparkWidth(tier: TableTier): number {
   return tier === 'wide' ? SPARKLINE_PX : NARROW_SPARK_PX - CELL_PADDING_PX;
 }
 
-/** The table frame's border, 1 px each side. */
-export const TREND_FRAME_BORDER_PX = 2;
-
 /** Every column set leaves at least this much of its frame unused. */
 export const TREND_MIN_SPARE_PX = 8;
 
@@ -69,22 +66,6 @@ export function trendColumnKeys(tier: TableTier, sortKey: TrendSortKey): readonl
     [SIBLING[word] as TrendColumnKey, word],
   ]);
   return base.map((key) => swaps.get(key) ?? key);
-}
-
-/** The laid-out width: the shown columns plus the frame border. Throws on a missing width. */
-export function trendTableWidth(tier: TableTier, sortKey: TrendSortKey): number {
-  const widths = TREND_COLUMN_WIDTHS[tier];
-  const columns = trendColumnKeys(tier, sortKey).reduce((sum, key) => {
-    const width = widths[key];
-    if (width === undefined) throw new Error(`trend column ${key} has no width`);
-    return sum + width;
-  }, 0);
-  return columns + TREND_FRAME_BORDER_PX;
-}
-
-/** The frame a tier's table must fit, less the spare. */
-export function trendFrameBudget(tier: TableTier): number {
-  return TIER_FRAME_PX[tier] - TREND_MIN_SPARE_PX;
 }
 
 /**
