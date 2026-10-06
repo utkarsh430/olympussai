@@ -6,9 +6,10 @@ import { useProjectSignOut } from '@/hooks/useProjectSignOut';
 /**
  * Sign-out for the depot top bar. Depot pages run without CSS zoom and with an
  * 11px type floor, so this is its own control rather than the command centre's
- * smaller `ProjectSignOut`; both share `useProjectSignOut`.
+ * smaller `ProjectSignOut`; both share `useProjectSignOut`. `quiet` is the bar's
+ * in-row form from 900px; inside the Menu panel it keeps its outline.
  */
-export function DepotSignOut() {
+export function DepotSignOut({ quiet = false }: { readonly quiet?: boolean }) {
   const { signOut, pending } = useProjectSignOut();
 
   return (
@@ -17,7 +18,7 @@ export function DepotSignOut() {
       onClick={signOut}
       disabled={pending}
       data-testid="depot-sign-out"
-      className="depot-bar-button"
+      className={quiet ? 'depot-bar-button depot-bar-button-quiet' : 'depot-bar-button'}
     >
       <LogOut className="h-3.5 w-3.5" aria-hidden />
       {pending ? 'Signing out…' : 'Sign out'}

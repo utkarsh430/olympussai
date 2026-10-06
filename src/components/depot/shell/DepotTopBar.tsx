@@ -18,7 +18,8 @@ import { ScopeSwitcher } from './ScopeSwitcher';
  * - Below 900px Operations and Sign out sit behind one Menu button, so nothing in the
  *   bar can push the page sideways at 360px. Below 640px the bar scrolls away; from
  *   640px it sticks at 3.25rem, the same row as on a phone.
- * - From 900px it sticks at 3.5rem, with Operations and Sign out in the row.
+ * - From 900px it sticks at 3.5rem, with Operations and Sign out in the row as quiet
+ *   32px buttons (`depot-bar-button-quiet`), no heavier than the chip.
  */
 export function DepotTopBar() {
   return (
@@ -46,13 +47,13 @@ export function DepotTopBar() {
         <Link
           href="/project/upsrtc"
           data-testid="depot-back-to-operations"
-          className="depot-bar-button hidden min-[900px]:inline-flex"
+          className="depot-bar-button depot-bar-button-quiet hidden min-[900px]:inline-flex"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
           Operations
         </Link>
         <span className="hidden min-[900px]:contents">
-          <DepotSignOut />
+          <DepotSignOut quiet />
         </span>
         <DepotBarMenu />
       </div>

@@ -36,3 +36,11 @@ describe('the depot sticky layers', () => {
     });
   });
 });
+
+describe('the quiet top-bar button', () => {
+  it('is 32px tall with no outline at rest, so it is never heavier than the feed chip', () => {
+    const body = /\.depot-bar-button-quiet \{([^}]*)\}/.exec(CSS)?.[1] ?? '';
+    expect(body).toMatch(/\bh-8\b/);
+    expect(body).toMatch(/\bborder-transparent\b/);
+  });
+});

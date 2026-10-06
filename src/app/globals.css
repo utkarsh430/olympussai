@@ -300,6 +300,12 @@
       disabled:cursor-not-allowed disabled:opacity-40;
   }
 
+  /* The bar's in-row actions from 900px: 32px and no outline at rest, so they never
+     weigh more than the feed chip beside them; the hairline appears on hover. */
+  .depot-bar-button-quiet {
+    @apply h-8 border-transparent py-0 hover:border-depot-line hover:bg-depot-raised;
+  }
+
   /* Provenance and feed tags: flat, 3px radius, always carry a word. */
   .depot-tag {
     @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-[3px] border px-1.5 py-0.5

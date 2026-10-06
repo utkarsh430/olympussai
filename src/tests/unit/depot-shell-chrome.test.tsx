@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DepotNav } from '@/components/depot/shell/DepotNav';
 import { DepotTopBar } from '@/components/depot/shell/DepotTopBar';
@@ -77,5 +77,20 @@ describe('the top bar', () => {
     expect(operations).toEqual(expect.arrayContaining(['hidden', 'min-[900px]:inline-flex']));
     const signOut = screen.getByTestId('depot-sign-out').parentElement;
     expect(classes(signOut)).toEqual(expect.arrayContaining(['hidden', 'min-[900px]:contents']));
+  });
+
+  it('sets the in-row Operations and Sign out as quiet buttons, and the menu ones outlined', () => {
+    render(<DepotTopBar />);
+    expect(classes(screen.getByTestId('depot-back-to-operations'))).toContain(
+      'depot-bar-button-quiet',
+    );
+    expect(classes(screen.getByTestId('depot-sign-out'))).toContain('depot-bar-button-quiet');
+
+    act(() => within(screen.getByTestId('depot-bar-menu')).getByRole('button').click());
+    const menu = within(screen.getByTestId('depot-bar-menu'));
+    expect(classes(menu.getByRole('link', { name: /Operations/ }))).not.toContain(
+      'depot-bar-button-quiet',
+    );
+    expect(classes(menu.getByTestId('depot-sign-out'))).not.toContain('depot-bar-button-quiet');
   });
 });
