@@ -10,7 +10,7 @@ const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 
 const hook = vi.hoisted(() => ({
   queries: [] as unknown[],
-  result: (_query: unknown): unknown => null,
+  result: null as unknown as (query: unknown) => unknown,
 }));
 
 vi.mock('@/hooks/useDepotExceptions', () => ({
