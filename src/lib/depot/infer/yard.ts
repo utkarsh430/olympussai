@@ -1,5 +1,12 @@
 import type { DepotBusRow } from '@/models/depotLive';
-import { fromMetres, median, toMetres, type PointM } from './geo';
+import {
+  fromMetres,
+  hasUsablePosition,
+  median,
+  toMetres,
+  type PointM,
+  type PositionedRow,
+} from './geo';
 import type { Yard } from './types';
 import { MOVING_SPEED_KMPH } from './thresholds';
 
@@ -35,13 +42,9 @@ interface Cell {
   readonly members: readonly Candidate[];
 }
 
-function isParkedWithFix(row: DepotBusRow): boolean {
-  const { latitude, longitude, speedKmph } = row;
-  if (latitude === null || longitude === null || speedKmph === null) return false;
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false;
-  // (0, 0) is a device default, not a place.
-  if (latitude === 0 && longitude === 0) return false;
-  return speedKmph <= MOVING_SPEED_KMPH;
+function isParkedWithFix(row: DepotBusRow): row is PositionedRow {
+  if (!hasUsablePosition(row) || row.speedKmph === null) return false;
+  return row.speedKmph <= MOVING_SPEED_KMPH;
 }
 
 function byPointThenId(a: Candidate, b: Candidate): number {
@@ -84,12 +87,12 @@ export function inferYard(rows: readonly DepotBusRow[]): Yard | null {
   const parked = rows.filter(isParkedWithFix);
   if (parked.length < YARD_MIN_CLUSTER) return null;
 
-  const originLat = median(parked.map((row) => row.latitude as number));
-  const originLng = median(parked.map((row) => row.longitude as number));
+  const originLat = median(parked.map((row) => row.latitude));
+  const originLng = median(parked.map((row) => row.longitude));
   const candidates = parked
     .map((row) => ({
       registrationNumber: row.registrationNumber,
-      point: toMetres(row.latitude as number, row.longitude as number, originLat, originLng),
+      point: toMetres(row.latitude, row.longitude, originLat, originLng),
     }))
     .sort(byPointThenId);
 
