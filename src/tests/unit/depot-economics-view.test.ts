@@ -12,7 +12,7 @@ import { buildDepotDetail } from '@/lib/depot/live/depotView';
 import { buildEconomicsResponse } from '@/lib/depot/live/economicsView';
 import { buildRevenueResponse } from '@/lib/depot/live/revenueView';
 import { analyseFuel } from '@/lib/depot/fuel/analysis';
-import { cachedRouteProfiles } from '@/lib/depot/routes/routeCatalogue';
+import { cachedRouteProfiles, routeCatalogueRevision } from '@/lib/depot/routes/routeCatalogue';
 import type { RouteProfile } from '@/lib/depot/routes/types';
 import { GET } from '@/app/api/upsrtc/depot/economics/route';
 
@@ -199,6 +199,56 @@ describe('buildEconomicsResponse', () => {
     expect(stale.stale).toBe(true);
     expect(stale.source).toBe('cache');
     expect(stale.depots).toBe(fresh.depots);
+  });
+});
+
+describe('the held economics body', () => {
+  function counted() {
+    const ridershipDay = vi.fn(modelledRevenueRepository.ridershipDay);
+    const fuelDay = vi.fn(modelledFuelRepository.fuelDay);
+    return { sources: { revenue: { ridershipDay }, fuel: { fuelDay } }, ridershipDay, fuelDay };
+  }
+
+  it('does no rebuild for a second request on the same rows', async () => {
+    const rows = world();
+    vi.mocked(cachedRouteProfiles).mockReturnValue(profiles(rows));
+    const { sources, ridershipDay, fuelDay } = counted();
+    const first = await buildEconomicsResponse(view(rows), sources);
+    const builds = ridershipDay.mock.calls.length;
+    expect(builds).toBeGreaterThan(0);
+    const second = await buildEconomicsResponse(view(rows, { fetchedAt: '2026-10-06T08:00:09.000Z' }), sources);
+    expect(ridershipDay.mock.calls.length).toBe(builds);
+    expect(fuelDay.mock.calls.length).toBe(builds);
+    expect(second.depots).toBe(first.depots);
+  });
+
+  it('rebuilds when the operating date changes', async () => {
+    const rows = world();
+    vi.mocked(cachedRouteProfiles).mockReturnValue(profiles(rows));
+    const { sources, ridershipDay } = counted();
+    await buildEconomicsResponse(view(rows), sources);
+    const builds = ridershipDay.mock.calls.length;
+    const next = await buildEconomicsResponse(
+      view(rows, { feedNow: '2026-10-07T08:00:00Z', fetchedAt: '2026-10-07T08:00:05.000Z' }),
+      sources,
+    );
+    expect(next.operatingDate).toBe('2026-10-07');
+    expect(ridershipDay.mock.calls.length).toBeGreaterThan(builds);
+  });
+
+  it('rebuilds when the route catalogue revision changes', async () => {
+    const rows = world();
+    vi.mocked(cachedRouteProfiles).mockReturnValue(profiles(rows));
+    const { sources, ridershipDay } = counted();
+    await buildEconomicsResponse(view(rows), sources);
+    const builds = ridershipDay.mock.calls.length;
+    vi.mocked(routeCatalogueRevision).mockReturnValue(2);
+    try {
+      await buildEconomicsResponse(view(rows), sources);
+    } finally {
+      vi.mocked(routeCatalogueRevision).mockReturnValue(1);
+    }
+    expect(ridershipDay.mock.calls.length).toBeGreaterThan(builds);
   });
 });
 

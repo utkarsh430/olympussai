@@ -209,6 +209,19 @@ describe('buildRevenueResponse', () => {
     vi.mocked(routeCatalogueRevision).mockReturnValue(1);
   });
 
+  it('rebuilds when the operating date changes', async () => {
+    const rows = world();
+    const before = await buildRevenueResponse(view(rows), '1', repositories);
+    const after = await buildRevenueResponse(
+      view(rows, { feedNow: '2026-10-07T08:00:00Z', fetchedAt: '2026-10-07T08:00:05.000Z' }),
+      '1',
+      repositories,
+    );
+    expect(before?.operatingDate).toBe('2026-10-06');
+    expect(after?.operatingDate).toBe('2026-10-07');
+    expect(after?.summary).not.toBe(before?.summary);
+  });
+
   it('keeps depots apart', async () => {
     const other = await build(world(), '2');
     expect(other.routes.map((r) => r.routeName)).toEqual(['Barabanki - Ayodhya']);
