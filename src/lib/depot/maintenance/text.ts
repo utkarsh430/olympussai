@@ -78,6 +78,10 @@ export function groupSummary(counts: Readonly<Record<ServiceGroup, number>>): st
   );
 }
 
+export function noAttentionText(): string {
+  return 'No bus is overdue or due soon on the modelled service history.';
+}
+
 export function preventiveNote(dueSoonWithinKm: number): string {
   return (
     'Each bus has a modelled odometer and service history, anchored on its modelled age, with a ' +

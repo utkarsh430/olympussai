@@ -4,6 +4,7 @@ import {
   groupSummary,
   intervalText,
   kmToNextText,
+  noAttentionText,
   offRoadEmptyText,
   offRoadHeadline,
   preventiveNote,
@@ -68,6 +69,10 @@ describe('preventive sentences', () => {
       'Of 70 buses: 6 overdue, 9 due soon, 55 not due.',
     );
     expect(groupSummary({ overdue: 0, due_soon: 0, not_due: 0 })).toBe('The depot has no buses.');
+  });
+
+  it('says in one sentence when no bus needs a service', () => {
+    expect(noAttentionText()).toBe('No bus is overdue or due soon on the modelled service history.');
   });
 
   it('states what is modelled and what due soon means', () => {
