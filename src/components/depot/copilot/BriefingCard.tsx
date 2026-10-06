@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useCopilot, type CopilotState } from '@/hooks/useCopilot';
 import { failureSentence } from '@/lib/depot/copilot/ui/copilotView';
 import type { CopilotApiRequest, CopilotScope } from '@/lib/depot/copilot/wire';
+import { isOutdatedText } from '@/lib/depot/copilotFooter';
 import { CopilotText } from './CopilotText';
 import { CopilotFooter } from './CopilotFooter';
 
@@ -11,6 +12,12 @@ export interface BriefingCardProps {
   readonly scope: CopilotScope;
   /** Heading of the card, for example "Network briefing" or "Depot briefing". */
   readonly title: string;
+  /**
+   * The page's current feed time. The card keeps the one it had when the text was
+   * requested, so the footer can say that the page has updated since and offer to write
+   * again.
+   */
+  readonly currentFeedTime?: string | null;
 }
 
 /** Failures worth a retry; the others (session, unknown depot, refused) will not change. */
@@ -38,10 +45,16 @@ function statusText(state: CopilotState): string {
   }
 }
 
-function BriefingBody({ scope, title }: BriefingCardProps) {
+function BriefingBody({ scope, title, currentFeedTime = null }: BriefingCardProps) {
   const { state, request } = useCopilot();
+  const [writtenFrom, setWrittenFrom] = useState<string | null>(null);
   const body = useMemo<CopilotApiRequest>(() => ({ task: 'briefing', scope }), [scope]);
-  const write = (): void => request(body);
+  const write = (): void => {
+    setWrittenFrom(currentFeedTime);
+    request(body);
+  };
+  // When the text is behind the page, the footer's line offers the one "Write again".
+  const outdated = isOutdatedText(writtenFrom, currentFeedTime);
 
   return (
     <section aria-label={title} className="depot-panel min-w-0 p-4" data-testid="briefing-card">
@@ -85,12 +98,17 @@ function BriefingBody({ scope, title }: BriefingCardProps) {
             generatedAt={state.response.generatedAt}
             cached={state.response.cached}
             facts={state.response.facts}
+            writtenFromFeedTime={writtenFrom}
+            currentFeedTime={currentFeedTime}
+            onWriteAgain={write}
           />
-          <div>
-            <button type="button" onClick={write} className="hud-button">
-              Write again
-            </button>
-          </div>
+          {outdated ? null : (
+            <div>
+              <button type="button" onClick={write} className="hud-button">
+                Write again
+              </button>
+            </div>
+          )}
         </div>
       ) : null}
 
@@ -119,6 +137,13 @@ function BriefingBody({ scope, title }: BriefingCardProps) {
  * operator's quota. Keyed by scope, so a changed scope starts from idle and
  * the previous text (and any request still running) is discarded.
  */
-export function BriefingCard({ scope, title }: BriefingCardProps) {
-  return <BriefingBody key={scopeKey(scope)} scope={scope} title={title} />;
+export function BriefingCard({ scope, title, currentFeedTime }: BriefingCardProps) {
+  return (
+    <BriefingBody
+      key={scopeKey(scope)}
+      scope={scope}
+      title={title}
+      currentFeedTime={currentFeedTime}
+    />
+  );
 }
