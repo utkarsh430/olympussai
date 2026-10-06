@@ -6,7 +6,8 @@ import {
   tableCap,
   tableColumnKeys,
   tableHeading,
-  unitCounts,
+  tableCapLine,
+  TABLE_TOGGLE_LABEL,
   unrankedSentence,
 } from '@/lib/depot/network/overviewWords';
 import type { DepotKind, DepotSummary, NetworkKpis } from '@/lib/depot/types';
@@ -37,12 +38,6 @@ const KPIS: NetworkKpis = {
   underMaintenance: { value: 277, provenance: 'live', coverage: of(277) },
   assigned: { value: 2204, provenance: 'derived', coverage: { n: 2204, of: 9000 } },
 };
-
-describe('unitCounts', () => {
-  it('counts every unit, the operating depots among them, and the rest', () => {
-    expect(unitCounts(UNITS)).toEqual({ units: 143, operating: 119, other: 24 });
-  });
-});
 
 describe('kpiLayout', () => {
   const layout = kpiLayout(KPIS, UNITS);
@@ -86,9 +81,7 @@ describe('kpiLayout', () => {
   });
 
   it('says "1 unit" for a single unit', () => {
-    expect(kpiLayout(KPIS, [unit('a', 'depot')]).secondary[0]?.note).toBe(
-      'of 1 unit in the feed',
-    );
+    expect(kpiLayout(KPIS, [unit('a', 'depot')]).secondary[0]?.note).toBe('of 1 unit in the feed');
   });
 });
 
@@ -97,7 +90,11 @@ describe('table wording', () => {
     expect(tableHeading('all', 143)).toBe('All units · 143');
     expect(tableHeading('depot', 119)).toBe('Operating depots · 119');
     expect(tableHeading('other', 1024)).toBe('Other units · 1,024');
-    expect(KIND_FILTER_OPTIONS.map((o) => o.label)).toEqual(['All', 'Operating depots', 'Other units']);
+    expect(KIND_FILTER_OPTIONS.map((o) => o.label)).toEqual([
+      'All',
+      'Operating depots',
+      'Other units',
+    ]);
   });
 
   it('puts Reporting and Assigned ahead of the status mix', () => {
@@ -124,19 +121,40 @@ describe('table wording', () => {
     ]);
   });
 
-  it('caps the table and offers to show every row', () => {
+  it('caps the table once it has more rows than the cap, and offers a toggle', () => {
     expect(TABLE_ROW_CAP).toBe(25);
-    expect(tableCap(143, false)).toEqual({ capped: true, shown: 25, toggle: 'Show all 143' });
-    expect(tableCap(143, true)).toEqual({ capped: false, shown: 143, toggle: 'Show first 25' });
-    expect(tableCap(24, false)).toEqual({ capped: false, shown: 24, toggle: null });
+    expect(tableCap(143, false)).toEqual({ capped: true, toggle: true });
+    expect(tableCap(143, true)).toEqual({ capped: false, toggle: true });
+    expect(tableCap(24, false)).toEqual({ capped: false, toggle: false });
+    expect(tableCap(25, false)).toEqual({ capped: false, toggle: false });
+  });
+
+  it('keeps one fixed toggle label, so aria-expanded alone carries the state', () => {
+    expect(TABLE_TOGGLE_LABEL).toBe('Show all rows');
+  });
+
+  it('says the order the capped rows are in, as it is', () => {
+    const fleet = { label: 'Fleet', direction: 'desc' } as const;
+    expect(tableCapLine(25, 143, fleet, true)).toBe(
+      'Showing the first 25 of 143 in the default order',
+    );
+    expect(tableCapLine(25, 143, null, true)).toBe(
+      'Showing the first 25 of 143 in the default order',
+    );
+    expect(tableCapLine(25, 119, { label: 'Stationary', direction: 'desc' }, false)).toBe(
+      'Showing the first 25 of 119, sorted by Stationary (descending)',
+    );
+    expect(tableCapLine(25, 1430, { label: 'Depot', direction: 'asc' }, false)).toBe(
+      'Showing the first 25 of 1,430, sorted by Depot (ascending)',
+    );
   });
 });
 
 describe('unrankedSentence', () => {
   it('says which units are not ranked, in the shared terms', () => {
-    expect(
-      unrankedSentence({ total: 25, fleetTooSmall: 1, notADepot: 24, unscored: 0 }),
-    ).toBe('25 units are not ranked: 1 operating depot with fewer than 10 buses, 24 other units.');
+    expect(unrankedSentence({ total: 25, fleetTooSmall: 1, notADepot: 24, unscored: 0 })).toBe(
+      '25 units are not ranked: 1 operating depot with fewer than 10 buses, 24 other units.',
+    );
     expect(unrankedSentence({ total: 1, fleetTooSmall: 0, notADepot: 1, unscored: 0 })).toBe(
       '1 unit is not ranked: 1 other unit.',
     );

@@ -1,13 +1,21 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { DataTable, type Column } from '@/components/depot/shell/DataTable';
+import {
+  DataTable,
+  useTableSort,
+  type Column,
+  type TableSort,
+} from '@/components/depot/shell/DataTable';
 import { formatCount, formatShare } from '@/lib/depot/format';
 import { DEPOT_KIND_LABEL, PEER_GROUP_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
 import { formatIndex, rankedIndex, type DepotRow } from '@/lib/depot/network/overviewModel';
 import {
   KIND_FILTER_OPTIONS,
+  TABLE_ROW_CAP,
+  TABLE_TOGGLE_LABEL,
   tableCap,
+  tableCapLine,
   tableColumnKeys,
   tableHeading,
   type KindFilter,
@@ -108,6 +116,9 @@ const COLUMNS: readonly (Column<DepotRow> & { readonly key: TableColumnKey })[] 
   },
 ];
 
+const DEFAULT_SORT: TableSort = { key: 'fleet', direction: 'desc' };
+const TABLE_ID = 'depot-table-region';
+
 const COLUMN_BY_KEY: ReadonlyMap<TableColumnKey, Column<DepotRow>> = new Map(
   COLUMNS.map((column) => [column.key, column]),
 );
@@ -125,10 +136,12 @@ export interface DepotTableProps {
 
 /**
  * Every unit in the feed, largest fleet first, in the page flow: no second
- * scroll axis. The first 25 rows of the current sort show until "Show all N";
- * the cap is applied by CSS after the table sorts, so sorting always ranks every
- * row. Below 900px only the core columns stay. Selecting a row selects the same
- * depot as the map and the ranked lists.
+ * scroll axis. The first 25 rows show until the toggle; the table applies the
+ * cap after its own sort, so sorting always ranks every row, and a selected row
+ * beyond the cap is kept. The sort lives here so the line under the table says
+ * the order truly in force: it returns to the default when its column drops out
+ * (a filter, or a width under 900px). Selecting a row selects the same unit as
+ * the map and the ranked lists.
  */
 export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
   const [filter, setFilter] = useState<KindFilter>('all');
@@ -144,6 +157,12 @@ export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
     [filter, narrow],
   );
   const cap = tableCap(visible.length, expanded);
+  const tableSort = useTableSort(columns, DEFAULT_SORT);
+  const sortedColumn = columns.find((column) => column.key === tableSort.sort?.key);
+  const sortDescription =
+    tableSort.sort && sortedColumn
+      ? { label: sortedColumn.header, direction: tableSort.sort.direction }
+      : null;
 
   return (
     <section aria-labelledby="depot-table-heading" data-testid="depot-table-section">
@@ -165,13 +184,16 @@ export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
           ))}
         </div>
       </div>
-      <div className={`depot-table-flow ${cap.capped ? 'depot-table-capped' : ''}`}>
+      <div className="depot-table-flow">
         <DataTable
+          id={TABLE_ID}
+          maxRows={cap.capped ? TABLE_ROW_CAP : undefined}
+          tableSort={tableSort}
           columns={columns}
           rows={visible}
           rowKey={(row) => row.depot.id}
           caption="Units with fleet, reporting, assignment, status, index and peer group"
-          initialSort={{ key: 'fleet', direction: 'desc' }}
+          initialSort={DEFAULT_SORT}
           onRowSelect={(row) => onSelect(row.depot.id)}
           selectedKey={selectedId ?? undefined}
           emptyMessage="No units of this kind are in the feed."
@@ -181,16 +203,17 @@ export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
         <p className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-depot-muted">
           {cap.capped ? (
             <span>
-              Showing the first {cap.shown} of {visible.length} in the current sort order
+              {tableCapLine(TABLE_ROW_CAP, visible.length, sortDescription, tableSort.isDefault)}
             </span>
           ) : null}
           <button
             type="button"
             aria-expanded={!cap.capped}
+            aria-controls={TABLE_ID}
             onClick={() => setExpanded((open) => !open)}
             className="depot-filter-button"
           >
-            {cap.toggle}
+            {TABLE_TOGGLE_LABEL}
           </button>
         </p>
       ) : null}

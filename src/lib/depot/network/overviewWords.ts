@@ -10,17 +10,6 @@ import type { UnrankedSummary } from './overviewModel';
  * against units, never against buses.
  */
 
-export interface UnitCounts {
-  readonly units: number;
-  readonly operating: number;
-  readonly other: number;
-}
-
-export function unitCounts(depots: readonly Pick<DepotSummary, 'kind'>[]): UnitCounts {
-  const operating = depots.filter((depot) => depot.kind === 'depot').length;
-  return { units: depots.length, operating, other: depots.length - operating };
-}
-
 export interface KpiFigure {
   readonly key: keyof NetworkKpis;
   readonly label: string;
@@ -96,12 +85,14 @@ export function kpiLayout(
 
 export type KindFilter = 'all' | 'depot' | 'other';
 
-export const KIND_FILTER_OPTIONS: ReadonlyArray<{ readonly id: KindFilter; readonly label: string }> =
-  [
-    { id: 'all', label: 'All' },
-    { id: 'depot', label: 'Operating depots' },
-    { id: 'other', label: 'Other units' },
-  ];
+export const KIND_FILTER_OPTIONS: ReadonlyArray<{
+  readonly id: KindFilter;
+  readonly label: string;
+}> = [
+  { id: 'all', label: 'All' },
+  { id: 'depot', label: 'Operating depots' },
+  { id: 'other', label: 'Other units' },
+];
 
 const HEADING: Readonly<Record<KindFilter, string>> = {
   all: 'All units',
@@ -164,17 +155,41 @@ export function tableColumnKeys(filter: KindFilter, narrow: boolean): TableColum
 
 export const TABLE_ROW_CAP = 25;
 
+/** The toggle under the table: one fixed label, its state carried by `aria-expanded`. */
+export const TABLE_TOGGLE_LABEL = 'Show all rows';
+
 export interface TableCap {
+  /** The table shows only its first rows. */
   readonly capped: boolean;
-  readonly shown: number;
-  readonly toggle: string | null;
+  /** Whether the toggle is worth showing: there are more rows than the cap. */
+  readonly toggle: boolean;
 }
 
-/** First 25 rows in the current sort order, then "Show all N". */
 export function tableCap(total: number, expanded: boolean): TableCap {
-  if (total <= TABLE_ROW_CAP) return { capped: false, shown: total, toggle: null };
-  if (expanded) return { capped: false, shown: total, toggle: `Show first ${TABLE_ROW_CAP}` };
-  return { capped: true, shown: TABLE_ROW_CAP, toggle: `Show all ${formatCount(total)}` };
+  const overCap = total > TABLE_ROW_CAP;
+  return { capped: overCap && !expanded, toggle: overCap };
+}
+
+export interface SortDescription {
+  readonly label: string;
+  readonly direction: 'asc' | 'desc';
+}
+
+/**
+ * What order the capped rows are in, said as it is: "in the default order" while
+ * the table sits in its starting sort, "sorted by <column>" after a person
+ * chose one.
+ */
+export function tableCapLine(
+  shown: number,
+  total: number,
+  sort: SortDescription | null,
+  isDefault: boolean,
+): string {
+  const head = `Showing the first ${formatCount(shown)} of ${formatCount(total)}`;
+  if (isDefault || !sort) return `${head} in the default order`;
+  const way = sort.direction === 'asc' ? 'ascending' : 'descending';
+  return `${head}, sorted by ${sort.label} (${way})`;
 }
 
 function counted(n: number, one: string, many: string): string {
