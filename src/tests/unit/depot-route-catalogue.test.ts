@@ -13,6 +13,7 @@ import {
   inFlightSizeForTests,
   resetRouteCatalogueForTests,
   routeCacheSizeForTests,
+  routeProfileNeedsFetch,
 } from '@/lib/depot/routes/routeCatalogue';
 
 const mockService = vi.mocked(fetchBusSchedule);
@@ -363,5 +364,29 @@ describe('error logging and cache hygiene', () => {
     await getRouteProfile(ROUTE, view([nextDay]), T0 + 86_400_000);
     expect(mockService).toHaveBeenCalledTimes(2);
     expect(mockService.mock.calls[1]?.[0].date).toBe('2026-10-07');
+  });
+});
+
+describe('routeProfileNeedsFetch', () => {
+  beforeEach(() => resetRouteCatalogueForTests());
+
+  it('is true only when getRouteProfile would call the upstream', async () => {
+    const fleet = view([row('UP1')]);
+    expect(routeProfileNeedsFetch('NO_SUCH_ROUTE', fleet, T0)).toBe(false);
+    expect(routeProfileNeedsFetch(ROUTE, fleet, T0)).toBe(true);
+    mockService.mockResolvedValue(live(schedule()));
+    const pending = getRouteProfile(ROUTE, fleet, T0);
+    expect(routeProfileNeedsFetch(ROUTE, fleet, T0)).toBe(false); // in flight
+    await pending;
+    expect(routeProfileNeedsFetch(ROUTE, fleet, T0)).toBe(false); // cached
+    expect(mockService).toHaveBeenCalledTimes(1);
+  });
+
+  it('is false while a negative answer is fresh, and true once it ages out', async () => {
+    const fleet = view([row('UP1')]);
+    mockService.mockResolvedValue(live(null));
+    await getRouteProfile(ROUTE, fleet, T0);
+    expect(routeProfileNeedsFetch(ROUTE, fleet, T0 + ROUTE_NEGATIVE_TTL_MS - 1)).toBe(false);
+    expect(routeProfileNeedsFetch(ROUTE, fleet, T0 + ROUTE_NEGATIVE_TTL_MS)).toBe(true);
   });
 });
