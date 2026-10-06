@@ -5,6 +5,7 @@ import {
   LEAGUE_COMPONENT_ORDER,
   NARROW_COMPONENTS,
   frozenBlockRem,
+  frozenColumn,
   frozenLayout,
   frozenStyle,
 } from '@/lib/depot/league/leagueColumns';
@@ -35,20 +36,20 @@ describe('league frozen block', () => {
   });
 
   it('leaves room inside Rank for its sorted header, so no digit is pushed under Depot', () => {
-    const rank = frozenLayout('wide')[0];
+    const rank = frozenColumn('wide', 'rank');
     expect(rank.innerRem).toBeGreaterThanOrEqual(4 * HEADER_CHAR_REM + SORT_ARROW_REM);
   });
 
   it('leaves room inside Index for the numeral and bar, and for the window line under its header', () => {
-    expect(frozenLayout('wide')[2].innerRem).toBeGreaterThanOrEqual(7);
-    expect(frozenLayout('compact')[2].innerRem).toBeGreaterThanOrEqual(11 * HEADER_CHAR_REM);
+    expect(frozenColumn('wide', 'index').innerRem).toBeGreaterThanOrEqual(7);
+    expect(frozenColumn('compact', 'index').innerRem).toBeGreaterThanOrEqual(11 * HEADER_CHAR_REM);
   });
 
   it('inner widths are the column width less the side padding and the borders', () => {
-    const [rank, depot, index] = frozenLayout('wide');
-    expect(rank.innerRem).toBeCloseTo(rank.widthRem - 2 * CELL_PADDING_X_REM - 2 / PX_PER_REM, 6);
-    expect(depot.innerRem).toBeCloseTo(depot.widthRem - 2 * CELL_PADDING_X_REM, 6);
-    expect(index.innerRem).toBeCloseTo(index.widthRem - 2 * CELL_PADDING_X_REM - 1 / PX_PER_REM, 6);
+    const [rank, depot, index] = (['rank', 'depot', 'index'] as const).map((k) => frozenColumn('wide', k));
+    expect(rank!.innerRem).toBeCloseTo(rank!.widthRem - 2 * CELL_PADDING_X_REM - 2 / PX_PER_REM, 6);
+    expect(depot!.innerRem).toBeCloseTo(depot!.widthRem - 2 * CELL_PADDING_X_REM, 6);
+    expect(index!.innerRem).toBeCloseTo(index!.widthRem - 2 * CELL_PADDING_X_REM - 1 / PX_PER_REM, 6);
   });
 
   it('fits the compact block inside a phone-width frame', () => {
@@ -56,7 +57,7 @@ describe('league frozen block', () => {
   });
 
   it('writes the arithmetic once as CSS properties for both sizes', () => {
-    const style = frozenStyle(frozenLayout('compact')[1], frozenLayout('wide')[1]);
+    const style = frozenStyle(frozenColumn('compact', 'depot'), frozenColumn('wide', 'depot'));
     expect(style).toEqual({
       '--frozen-left': '4.75rem',
       '--frozen-left-wide': '4.75rem',

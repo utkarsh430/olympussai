@@ -49,6 +49,13 @@ export function frozenLayout(size: FrozenSize): readonly FrozenColumn[] {
   ).columns;
 }
 
+/** One frozen column of one size. */
+export function frozenColumn(size: FrozenSize, key: FrozenKey): FrozenColumn {
+  const found = frozenLayout(size).find((c) => c.key === key);
+  if (!found) throw new Error(`Unknown frozen column ${key}`);
+  return found;
+}
+
 export function frozenBlockRem(size: FrozenSize): number {
   return FROZEN_KEYS.reduce((sum, key) => sum + WIDTH_REM[key][size], 0);
 }
@@ -68,6 +75,12 @@ export function frozenStyle(
     '--frozen-inner': rem(compact.innerRem),
     '--frozen-inner-wide': rem(wide.innerRem),
   };
+}
+
+/** The properties for every frozen column, both sizes, keyed by column. */
+export function frozenStyles(): Readonly<Record<FrozenKey, Readonly<Record<string, string>>>> {
+  const style = (key: FrozenKey) => frozenStyle(frozenColumn('compact', key), frozenColumn('wide', key));
+  return { rank: style('rank'), depot: style('depot'), index: style('index') };
 }
 
 /**
