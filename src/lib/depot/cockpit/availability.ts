@@ -53,13 +53,19 @@ const PLACE_WORDS: Readonly<Record<BusLocation, string>> = {
   unknown: 'location unknown',
 };
 
-/** At or below this many yard decisions, a missing yard may only mean the server just started. */
+/** At or below this many yard decisions, a missing yard is not yet evidence of anything. */
 export const YARD_STARTING_SNAPSHOTS = 1;
 
 export const NO_YARD_LINE =
   'No yard is established yet: no place where these buses park meets the yard rule.';
-export const YARD_STARTING_LINE =
-  'The server has only just started, so no yard is placed yet; one may be found within a few snapshots.';
+/**
+ * The count restarts with the yard memory (a new epoch, a long absence), so the line
+ * states the count and claims nothing about why it is low (P2).
+ */
+export function yardStartingLine(snapshotsSeen: number): string {
+  const counted = `${formatCount(snapshotsSeen)} ${snapshotsSeen === 1 ? 'snapshot' : 'snapshots'}`;
+  return `This server has decided this depot's yard on ${counted} so far; a yard may be found as more arrive.`;
+}
 
 export type YardLine =
   | { readonly kind: 'split'; readonly text: string; readonly held: string | null }
@@ -82,10 +88,9 @@ export interface YardFacts {
  */
 export function yardLine(board: StatusBoard, facts: YardFacts): YardLine {
   if (board.locations === null) {
-    const starting =
-      facts.snapshotsSeen !== undefined && facts.snapshotsSeen <= YARD_STARTING_SNAPSHOTS;
-    return starting
-      ? { kind: 'starting', sentence: YARD_STARTING_LINE }
+    const seen = facts.snapshotsSeen;
+    return seen !== undefined && seen <= YARD_STARTING_SNAPSHOTS
+      ? { kind: 'starting', sentence: yardStartingLine(seen) }
       : { kind: 'no-yard', sentence: NO_YARD_LINE };
   }
   const visiting =

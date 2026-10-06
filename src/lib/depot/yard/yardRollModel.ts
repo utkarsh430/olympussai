@@ -154,19 +154,22 @@ export interface NoYardPanel {
 }
 
 /**
- * The panel that takes the map's place. At 0 or 1 snapshots the server has only just
- * begun deciding yards, so a missing yard is not yet evidence of anything.
+ * The panel that takes the map's place. At 0 or 1 snapshots a missing yard is not yet
+ * evidence of anything. The count restarts with the yard memory (a new epoch, a long
+ * absence), so the sentence states the count and claims nothing about why it is low (P2).
  */
 export function noYardPanel(model: YardModel, snapshotsSeen: number | undefined): NoYardPanel {
+  const n = model.parkedWithPosition;
+  const remedy = `A yard appears when more of the ${formatCount(n)} parked ${n === 1 ? 'bus' : 'buses'} with a position stand together.`;
   if (snapshotsSeen !== undefined && snapshotsSeen <= 1) {
+    const counted = `${formatCount(snapshotsSeen)} ${snapshotsSeen === 1 ? 'snapshot' : 'snapshots'}`;
     return {
-      sentence: 'The server has only just started, so no yard is placed yet.',
-      remedy: 'A yard may be found shortly, as the next snapshots of the feed arrive.',
+      sentence: `This server has decided this depot's yard on ${counted} so far; a yard may be found as more arrive.`,
+      remedy,
     };
   }
-  const n = model.parkedWithPosition;
   return {
     sentence: 'No yard is established yet: too few parked buses report a position together.',
-    remedy: `A yard appears when more of the ${formatCount(n)} parked ${n === 1 ? 'bus' : 'buses'} with a position stand together.`,
+    remedy,
   };
 }
