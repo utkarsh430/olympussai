@@ -7,7 +7,9 @@ import {
   coverageSentence,
   formatLoadFactor,
   formatRupeesPerKm,
+  DERIVED_LENGTH_HEADER,
   heroBars,
+  modelledHeader,
   modelledStatement,
   summaryTiles,
   withheldSentence,
@@ -56,12 +58,13 @@ describe('formatting', () => {
     expect(formatLoadFactor(null)).toBe('—');
   });
   it('words the earnings coverage in singular and plural', () => {
-    expect(coverageSentence({ n: 1, of: 2 })).toBe('Based on 1 of 2 routes whose length is known');
-    expect(coverageSentence({ n: 1, of: 1 })).toBe('Based on 1 of 1 route whose length is known');
+    expect(coverageSentence({ n: 1, of: 2 })).toBe('Based on 1 of 2 routes with kilometres run and a known length');
+    expect(coverageSentence({ n: 1, of: 1 })).toBe('Based on 1 of 1 route with kilometres run and a known length');
     expect(coverageSentence({ n: 0, of: 0 })).toBe('No routes to base it on');
   });
   it('says why earnings are withheld', () => {
     expect(withheldSentence('unknown_length')).toMatch(/length is not known/i);
+    expect(withheldSentence('unknown_length')).toMatch(/opened on the Routes page/i);
     expect(withheldSentence('no_service_km')).toMatch(/no kilometres/i);
   });
 });
@@ -82,7 +85,7 @@ describe('summaryTiles', () => {
     expect(value('loadFactor')).toBe('61.2%');
     expect(value('earningsPerKm')).toBe('₹12.35 per km');
     expect(tiles.find((t) => t.key === 'earningsPerKm')?.note).toBe(
-      'Based on 1 of 2 routes whose length is known',
+      'Based on 1 of 2 routes with kilometres run and a known length',
     );
   });
   it('states the share of revenue and of routes that rests on the flat fare, on the revenue tile', () => {
@@ -90,16 +93,16 @@ describe('summaryTiles', () => {
     expect(tiles.find((t) => t.key === 'revenue')?.note).toBe(
       'Flat fare, length not known: 25.0% of revenue, 50.0% of routes',
     );
-    expect(tiles.find((t) => t.key === 'loadFactor')?.note).toBe('Occupied seats over seats offered');
+    expect(tiles.find((t) => t.key === 'loadFactor')?.note).toBe('Occupied seats over seats offered, weighted by trips');
     const none = summaryTiles({ ...TOTALS, flatFareRevenueShare: null, flatFareRouteShare: null });
     expect(none.find((t) => t.key === 'revenue')?.note).toBeNull();
   });
-  it('shows a withheld earnings tile as a dash with the reason', () => {
+  it('shows a withheld earnings tile as length not known, with its coverage', () => {
     const tile = summaryTiles({ ...TOTALS, earningsPerKm: null, earningsCoverage: { n: 0, of: 2 } }).find(
       (t) => t.key === 'earningsPerKm',
     );
-    expect(tile?.value).toBe('—');
-    expect(tile?.note).toBe('Based on 0 of 2 routes whose length is known');
+    expect(tile?.value).toBe('length not known');
+    expect(tile?.note).toBe('Based on 0 of 2 routes with kilometres run and a known length');
   });
 });
 
@@ -144,10 +147,19 @@ describe('heroBars', () => {
     expect(hero.toggleLabel).toBe(`Show all ${HERO_CAP + 3}`);
     expect(hero.bars[0]?.widthPercent).toBe(100);
   });
-  it('shows every route when asked and offers to collapse', () => {
+  it('shows every route when asked, under the same fixed label', () => {
     const hero = heroBars(routes, true);
     expect(hero.bars).toHaveLength(HERO_CAP + 3);
-    expect(hero.toggleLabel).toBe(`Show top ${HERO_CAP}`);
+    expect(hero.toggleLabel).toBe(`Show all ${HERO_CAP + 3}`);
+  });
+  it('says in a flat-fare bar that the length is not known', () => {
+    const flat = heroBars([route({ routeName: 'F', revenue: 100 })], false).bars[0];
+    expect(flat?.description).toBe('F: ₹100 modelled revenue (flat fare, length not known)');
+    const known = heroBars(
+      [route({ routeName: 'K', revenue: 100, revenueBasis: 'length_known', lengthKm: 40 })],
+      false,
+    ).bars[0];
+    expect(known?.description).toBe('K: ₹100 modelled revenue');
   });
   it('offers no toggle when every route fits', () => {
     const hero = heroBars(routes.slice(0, 3), false);
@@ -159,7 +171,23 @@ describe('heroBars', () => {
     expect(heroBars([route({ routeName: 'Z', revenue: 0 })], false).bars[0]?.widthPercent).toBe(0);
   });
   it('gives each bar a text equivalent', () => {
-    expect(heroBars(routes, false).bars[0]?.description).toBe('R0: ₹13,000 modelled revenue');
+    expect(heroBars(routes, false).bars[0]?.description).toBe(
+      'R0: ₹13,000 modelled revenue (flat fare, length not known)',
+    );
+  });
+});
+
+describe('route rows and headers', () => {
+  it('carries the numeric length so the column can sort by it', () => {
+    const [row] = buildRouteRows([
+      route({ routeName: 'L', lengthKm: 41.6, lengthProvenance: 'derived', revenueBasis: 'length_known' }),
+    ]);
+    expect(row?.lengthKm).toBe(41.6);
+    expect(buildRouteRows([route({ routeName: 'N' })])[0]?.lengthKm).toBeNull();
+  });
+  it('tags a modelled column header and a derived one', () => {
+    expect(modelledHeader('Earnings per km')).toBe('Earnings per km (MODELLED)');
+    expect(DERIVED_LENGTH_HEADER).toBe('Route length (DERIVED)');
   });
 });
 
@@ -169,7 +197,9 @@ describe('modelledStatement', () => {
     expect(text).toContain('MODELLED');
     expect(text).toMatch(/no ticketing/i);
     expect(text).toMatch(/a trip is a run out and back/i);
-    expect(text).toMatch(/occupied seat-kilometres over seat-kilometres/i);
+    expect(text).toMatch(/for a route, load factor is the share of seats filled/i);
+    expect(text).toMatch(/for a depot, occupied seats over seats offered, weighted by trips/i);
+    expect(text).not.toMatch(/seat-kilometres over seat-kilometres/i);
     expect(text).toMatch(/earnings per kilometre are seats times load factor times the fare/i);
     expect(text).toMatch(/average boarding rides 45% of the route/i);
     expect(text).toMatch(/planning assumptions/i);

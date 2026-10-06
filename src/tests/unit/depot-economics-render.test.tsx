@@ -153,14 +153,14 @@ describe('revenue components', () => {
     );
     expect(host.querySelectorAll('[data-provenance="modelled"]')).toHaveLength(5);
     expect(host.textContent).toContain('₹12,345');
-    expect(host.textContent).toContain('Based on 0 of 2 routes whose length is known');
+    expect(host.textContent).toContain('Based on 0 of 2 routes with kilometres run and a known length');
     expect(host.textContent).toContain('Flat fare, length not known: 40.0% of revenue, 50.0% of routes');
   });
 
   it('prints the response notes and the definitions in the MODELLED statement', async () => {
     await render(<ModelledStatement params={REVENUE_MODEL_PARAMS} notes={[MIXED_CLASS_NOTE]} />);
     expect(host.textContent).toContain('most numerous class');
-    expect(host.textContent).toContain('occupied seat-kilometres over seat-kilometres');
+    expect(host.textContent).toContain('occupied seats over seats offered, weighted by trips');
   });
 
   it('caps the hero and offers Show all', async () => {
@@ -169,8 +169,44 @@ describe('revenue components', () => {
     expect(host.querySelectorAll('li')).toHaveLength(10);
     const toggle = host.querySelector<HTMLButtonElement>('button');
     expect(toggle?.textContent).toBe('Show all 12');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle?.hasAttribute('aria-pressed')).toBe(false);
     await act(async () => toggle?.click());
     expect(host.querySelectorAll('li')).toHaveLength(12);
+    // One signal: the label stays, the expanded state changes.
+    expect(toggle?.textContent).toBe('Show all 12');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('keeps one fixed Show all label with aria-expanded on the route table', async () => {
+    const routes = Array.from({ length: 30 }, (_, i) => route(`R${i}`, 100 + i));
+    await render(<RevenueRoutesTable routes={routes} />);
+    const toggle = host.querySelector<HTMLButtonElement>('button[aria-expanded]');
+    expect(toggle?.textContent).toBe('Show all 30');
+    await act(async () => toggle?.click());
+    expect(toggle?.textContent).toBe('Show all 30');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('tags every modelled route-table header and the derived length', async () => {
+    await render(<RevenueRoutesTable routes={[route('R0', 100)]} />);
+    const headers = [...host.querySelectorAll('th')].map((th) => th.textContent ?? '');
+    for (const label of ['Trips', 'Boardings', 'Load factor', 'Revenue', 'Earnings per km']) {
+      expect(headers.some((h) => h.includes(`${label} (MODELLED)`))).toBe(true);
+    }
+    expect(headers.some((h) => h.includes('Route length (DERIVED)'))).toBe(true);
+  });
+
+  it('sorts the route length column by the length itself', async () => {
+    const long = { ...route('Long', 100), lengthKm: 90, lengthProvenance: 'derived' } as RouteRevenueFigure;
+    const short = { ...route('Short', 200), lengthKm: 10, lengthProvenance: 'derived' } as RouteRevenueFigure;
+    await render(<RevenueRoutesTable routes={[long, short]} />);
+    const button = [...host.querySelectorAll<HTMLButtonElement>('th button')].find((b) =>
+      b.textContent?.includes('Route length'),
+    );
+    await act(async () => button?.click());
+    const names = [...host.querySelectorAll('tbody tr td:first-child')].map((td) => td.textContent);
+    expect(names).toEqual(['Short', 'Long']);
   });
 
   it('says why earnings are withheld in the route table', async () => {
