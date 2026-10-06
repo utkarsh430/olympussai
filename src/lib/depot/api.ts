@@ -14,6 +14,7 @@ import type { DepotScore, ScoreWindow } from './score/types';
 import type {
   BusException,
   DepotException,
+  ExceptionBasis,
   ExceptionKind,
   ExceptionReport,
   ExceptionSeverity,
@@ -51,6 +52,8 @@ export interface DepotNetworkResponse extends DepotFeedEnvelope {
    * summed over (the widest any depot has). Always sent; optional for older fixtures.
    */
   readonly scoreWindow?: ScoreWindow;
+  /** Which exception kinds are over the window and which as of the feed time. Always sent. */
+  readonly exceptionBasis?: Readonly<Record<ExceptionKind, ExceptionBasis>>;
 }
 
 /** GET /api/upsrtc/depot/exceptions */
@@ -63,6 +66,8 @@ export interface DepotExceptionsResponse extends DepotFeedEnvelope {
   readonly busPage: BusExceptionPage;
   /** The rolling window the peer-comparison depot exceptions were computed over. */
   readonly scoreWindow?: ScoreWindow;
+  /** Which exception kinds are over the window and which as of the feed time. Always sent. */
+  readonly exceptionBasis?: Readonly<Record<ExceptionKind, ExceptionBasis>>;
 }
 
 /** One bus as a depot manager sees it. Only ever sent for a single depot. */

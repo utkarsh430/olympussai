@@ -5,6 +5,7 @@ import type { DeiComponent, DepotScore } from '../score/types';
 import {
   COMPONENT_EXCEPTIONS,
   CRITICAL_Z,
+  EXCEPTION_BASIS,
   EXCEPTION_Z,
   MIN_RATE_GAP,
   POWER_CUT_CLUSTER_MIN,
@@ -57,6 +58,7 @@ function fromComponent(
     z,
     affected: affectedFor(kind, depot),
     fleet: depot.fleet,
+    basis: EXCEPTION_BASIS[kind],
   };
 }
 
@@ -87,6 +89,7 @@ function powerCutCluster(depot: DepotSummary, count: number): DepotException | n
     z: null,
     affected: count,
     fleet: depot.fleet,
+    basis: EXCEPTION_BASIS.power_cut_cluster,
   };
 }
 

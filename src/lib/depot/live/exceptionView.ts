@@ -5,6 +5,7 @@ import {
   pageBusExceptions,
   type BusPageQuery,
 } from '../exceptions/busPage';
+import { EXCEPTION_BASIS } from '../exceptions/config';
 import type { ExceptionSeverity } from '../exceptions/types';
 import type { FleetSnapshotView } from '../repositories/types';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
@@ -42,6 +43,7 @@ export function buildPagedExceptionsResponse(
     busSeverityCounts: severityOf(analysis),
     busPage: pageBusExceptions(analysis.busExceptions, query),
     scoreWindow: analysis.scoreWindow,
+    exceptionBasis: EXCEPTION_BASIS,
   };
 }
 

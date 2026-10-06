@@ -1,5 +1,5 @@
 import type { DeiComponentKey } from '../score/types';
-import type { DepotExceptionKind, ExceptionKind, ExceptionSeverity } from './types';
+import type { DepotExceptionKind, ExceptionBasis, ExceptionKind, ExceptionSeverity } from './types';
 
 /**
  * Thresholds for raising exceptions. A depot is flagged only when it is both
@@ -56,3 +56,18 @@ export const EXCEPTION_KINDS: readonly ExceptionKind[] = [
   'tamper_code',
   'emergency',
 ];
+
+/**
+ * Which kinds are compared over the rolling score window and which are as of
+ * the feed time (M6). Severity counts add both; a screen states which is which.
+ */
+export const EXCEPTION_BASIS: Readonly<Record<ExceptionKind, ExceptionBasis>> = {
+  dark_share_high: 'window',
+  off_road_high: 'window',
+  on_road_low: 'window',
+  power_cut_cluster: 'feed_time',
+  long_dark: 'feed_time',
+  power_cut: 'feed_time',
+  tamper_code: 'feed_time',
+  emergency: 'feed_time',
+};
