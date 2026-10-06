@@ -28,7 +28,7 @@ export function DepotShell({ children }: { readonly children: React.ReactNode })
           <main
             id="depot-main"
             tabIndex={-1}
-            className="min-w-0 flex-1 px-6 py-6 focus-visible:outline-offset-[-2px]"
+            className="min-w-0 flex-1 px-4 pb-[calc(var(--depot-footer-h)+1.5rem)] pt-6 focus-visible:outline-offset-[-2px] sm:px-6"
           >
             {children}
           </main>
