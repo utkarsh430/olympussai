@@ -1,44 +1,34 @@
 'use client';
 
-import {
-  EmptyState,
-  ErrorPanel,
-  LoadingBlock,
-  StaleStrip,
-} from '@/components/depot/shell/DataStates';
-import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
-import { useDepotParking } from '@/hooks/useDepotParking';
+import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
+import type { DepotParkingState } from '@/hooks/useDepotParking';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotNetwork';
-import {
-  capacityViewOf,
-  droppedRowsSentence,
-  emptyOrderSentence,
-} from '@/lib/depot/yard/parkingModel';
+import { droppedRowsSentence, emptyOrderSentence } from '@/lib/depot/yard/parkingModel';
 import type { ParkingResponse } from '@/lib/depot/yard/parkingApi';
 import { ParkingPlan } from './ParkingPlan';
-import { YardCapacity } from './YardCapacity';
 
 /**
- * Yard capacity and the night parking order for one depot. The capacity counts
- * come from the depot detail the page already holds, so a failed parking
- * request leaves them on screen; only the modelled bay count and the lane order
- * come from the parking endpoint, and the plan area shows that failure with
- * retry. Rendered conditionally throughout: no element is hidden by an
- * attribute. Nothing here instructs or dispatches anything.
+ * The night parking order for one depot. The parking request is made once by the
+ * yard page (its bay count also feeds the capacity figure) and handed in here, so a
+ * failed request shows here with retry while the figures above keep the live counts.
+ * Rendered conditionally throughout. Nothing here instructs or dispatches anything.
  */
-export function ParkingPlanSection({ depotId }: { readonly depotId: string }) {
-  const { data, error, loading, refresh } = useDepotParking(depotId);
-  const { data: detail } = useDepotDetailContext();
-  const capacity = detail ? capacityViewOf(detail, data?.capacity.bays.value ?? null) : null;
-  const baysPending = !data && loading && !error;
-
+export function ParkingPlanSection({
+  depotId,
+  parking,
+}: {
+  readonly depotId: string;
+  readonly parking: DepotParkingState;
+}) {
+  const { data, error, loading, refresh } = parking;
   return (
-    <div className="flex min-w-0 flex-col gap-6" data-testid="parking-section">
+    <div className="flex min-w-0 flex-col gap-3" data-testid="parking-section">
       {data && (data.stale || error) ? <StaleStrip since={data.feedNow} /> : null}
-      {capacity ? <YardCapacity capacity={capacity} baysPending={baysPending} /> : null}
       {data ? (
         <PlanArea depotId={depotId} data={data} />
-      ) : baysPending ? (
+      ) : loading && !error ? (
         <LoadingBlock rows={4} rowHeight={48} label="Loading parking" />
       ) : (
         <ErrorPanel
@@ -51,29 +41,23 @@ export function ParkingPlanSection({ depotId }: { readonly depotId: string }) {
   );
 }
 
-function PlanArea({
-  depotId,
-  data,
-}: {
-  readonly depotId: string;
-  readonly data: ParkingResponse;
-}) {
+function PlanArea({ depotId, data }: { readonly depotId: string; readonly data: ParkingResponse }) {
   const dropped = droppedRowsSentence(data.droppedRows);
-  if (data.order) {
-    return (
-      <>
-        <ParkingPlan depotId={depotId} order={data.order} operatingDate={data.operatingDate} />
-        {dropped ? <p className="depot-prose text-xs">{dropped}</p> : null}
-      </>
-    );
-  }
   return (
-    <section aria-labelledby="parking-empty-heading">
-      <h2 id="parking-empty-heading" className="depot-section-label">
-        Night parking order
-      </h2>
-      <EmptyState>{emptyOrderSentence(data.state)}</EmptyState>
-      {dropped ? <p className="depot-prose mt-2 text-xs">{dropped}</p> : null}
-    </section>
+    <>
+      {data.order ? (
+        <ParkingPlan depotId={depotId} order={data.order} operatingDate={data.operatingDate} />
+      ) : (
+        <section aria-labelledby="parking-empty-heading">
+          <SectionLabel id="parking-empty-heading" label="Night parking order" tag="modelled" />
+          <StatePanel
+            kind={data.state === 'no_yard' ? 'not-established' : 'empty'}
+            sentence={emptyOrderSentence(data.state)}
+            testId="depot-empty"
+          />
+        </section>
+      )}
+      {dropped ? <p className="text-[11px] text-depot-muted">{dropped}</p> : null}
+    </>
   );
 }

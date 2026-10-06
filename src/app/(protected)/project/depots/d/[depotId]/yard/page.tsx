@@ -17,7 +17,8 @@ export default async function DepotYardPage({
     <>
       <PageHeader
         title="Yard"
-        description="Who is physically in this depot's yard right now. The yard is inferred from where the depot's buses park, not surveyed."
+        description="Who is in this depot's yard now, on a yard inferred from where buses park."
+        provenanceLine={{ default: 'derived' }}
       />
       <YardPage />
     </>

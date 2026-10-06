@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import type { DepotBusView } from '@/lib/depot/api';
 import type { ParkingOrder } from '@/lib/depot/yard/parkingApi';
 import {
@@ -93,9 +94,10 @@ describe('mapCaption', () => {
       points: [point('A1', 'home'), point('B9', 'home'), point('V1', 'visiting')],
       beyondOwn: 4,
       beyondVisiting: 1,
+      visitorsWithoutPosition: 2,
     });
     expect(mapCaption(m)).toBe(
-      "3 buses drawn: 1 in the yard, 1 of this depot's just outside it, 1 visiting. 1 in the yard has no position. 5 more beyond the map's range are listed below.",
+      "3 buses drawn: 1 in the yard, 1 of this depot's just outside it, 1 visiting. 1 in the yard has no position. 2 visiting have no position and are listed below only. 5 more beyond the map's range are listed below.",
     );
   });
 });

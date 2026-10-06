@@ -98,7 +98,12 @@ export function mapCaption(model: YardModel): string {
   const beyond = model.beyondOwn + model.beyondVisiting;
   const far =
     beyond > 0 ? ` ${formatCount(beyond)} more beyond the map's range are listed below.` : '';
-  return `${head}${noPosition}${far}`;
+  const hidden = model.visitorsWithoutPosition;
+  const visitorsUnplaced =
+    hidden > 0
+      ? ` ${formatCount(hidden)} visiting ${plural(hidden, 'has', 'have')} no position and ${plural(hidden, 'is', 'are')} listed below only.`
+      : '';
+  return `${head}${noPosition}${visitorsUnplaced}${far}`;
 }
 
 export interface StateCount {

@@ -2,12 +2,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ParkingPlan } from '@/components/depot/yard/ParkingPlan';
 import { ParkingPlanSection } from '@/components/depot/yard/ParkingPlanSection';
-import { YardCapacity } from '@/components/depot/yard/YardCapacity';
-import type {
-  ParkingCapacity,
-  ParkingOrder,
-  ParkingResponse,
-} from '@/lib/depot/yard/parkingApi';
+import { YardFigures } from '@/components/depot/yard/YardSummary';
+import type { DepotParkingState } from '@/hooks/useDepotParking';
+import type { YardModel } from '@/lib/depot/yard/yardModel';
+import type { ParkingCapacity, ParkingOrder, ParkingResponse } from '@/lib/depot/yard/parkingApi';
 import { capacityViewOf, PLAN_NOTICE } from '@/lib/depot/yard/parkingModel';
 import type { DepotDetailResponse } from '@/lib/depot/api';
 
@@ -83,38 +81,78 @@ beforeEach(() => {
   hook.detail = detailOf({}, 38, 2);
 });
 
-describe('YardCapacity', () => {
-  it('says bays in use against modelled capacity and tags each source', () => {
+// Rewritten for the design wave: capacity is now a figure in the yard's band (the old
+// capacity panel is gone); its full sentences moved to the page's closed disclosure.
+const yardModel = (established: boolean): YardModel =>
+  ({
+    established,
+    counts: { inYard: 38, visitors: 2, away: 10, unknown: 0 },
+    parkedWithPosition: 12,
+  }) as unknown as YardModel;
+
+describe('YardFigures', () => {
+  it('sets buses in the yard and visiting against the modelled bays, tagged MODELLED', () => {
     const html = renderToStaticMarkup(
-      <YardCapacity capacity={capacityViewOf(detailOf({}, 38, 2), 60)} />,
+      <YardFigures
+        model={yardModel(true)}
+        capacity={capacityViewOf(detailOf({}, 38, 2), 60)}
+        baysPending={false}
+      />,
     );
-    expect(text(html)).toContain('40 of 60 modelled bays in use; 20 free.');
-    expect(text(html)).toContain('2 buses from other depots');
-    expect(html).toContain('data-provenance="derived"');
+    expect(text(html)).toContain('40 of 60');
+    expect(text(html)).toContain('modelled bays in use; 20 free');
+    expect(html).toContain('depot-figure-share');
     expect(html).toContain('data-provenance="modelled"');
   });
 
   it('sets only the fleet against the bays when no yard is established', () => {
     const t = text(
-      renderToStaticMarkup(<YardCapacity capacity={capacityViewOf(detailOf(null, 0, 0), 60)} />),
+      renderToStaticMarkup(
+        <YardFigures
+          model={yardModel(false)}
+          capacity={capacityViewOf(detailOf(null, 0, 0), 60)}
+          baysPending={false}
+        />,
+      ),
     );
-    expect(t).toContain('No yard is established');
-    expect(t).toContain('50 buses in the fleet, 60 modelled bays');
-    expect(t).not.toMatch(/in use/);
+    expect(t).toContain('50 of 60');
+    expect(t).toContain('fleet against modelled bays');
+    expect(t).not.toMatch(/In the yard/);
   });
 
-  it('shows the live counts and no modelled tag when the bay count is missing', () => {
-    const html = renderToStaticMarkup(
-      <YardCapacity capacity={capacityViewOf(detailOf({}, 38, 2), null)} />,
+  it('keeps the live counts and says the bay count is unavailable when it is missing', () => {
+    const t = text(
+      renderToStaticMarkup(
+        <YardFigures
+          model={yardModel(true)}
+          capacity={capacityViewOf(detailOf({}, 38, 2), null)}
+          baysPending={false}
+        />,
+      ),
     );
-    expect(text(html)).toContain('38 buses in the yard, 2 visiting.');
-    expect(text(html)).toContain('modelled bay count is unavailable');
-    expect(html).not.toContain('data-provenance="modelled"');
+    expect(t).toContain('38');
+    expect(t).toContain('bay count unavailable');
+  });
+
+  it('takes the counts from the depot detail and only the bays from the parking response', () => {
+    const t = text(
+      renderToStaticMarkup(
+        <YardFigures
+          model={yardModel(true)}
+          capacity={capacityViewOf(detailOf({}, 55, 10), 60)}
+          baysPending={false}
+        />,
+      ),
+    );
+    expect(t).toContain('65 of 60');
+    expect(t).toContain('5 over');
   });
 });
 
 describe('ParkingPlan', () => {
-  const html = renderToStaticMarkup(<ParkingPlan depotId="20" order={ORDER} operatingDate="2026-10-07" />);
+  const html = renderToStaticMarkup(
+    <ParkingPlan depotId="20" order={ORDER} operatingDate="2026-10-07" />,
+  );
 
   it('tags the order MODELLED and carries the one-sentence notice', () => {
     expect(html).toContain('data-provenance="modelled"');
@@ -155,9 +193,13 @@ describe('ParkingPlan', () => {
     expect(text(html).toLowerCase()).not.toContain('tonight');
   });
 
-  it('goes to two lane columns only at xl, never at md or lg', () => {
-    expect(html).toContain('xl:grid-cols-2');
-    expect(html).not.toMatch(/(?:^|[\s"])(?:sm|md|lg):grid-cols-/);
+  // Rewritten for the design wave: the lane cards became one diagram that scrolls
+  // sideways in its own relative frame, so no grid of lane cards exists at any width.
+  it('draws the lanes in their own scrolling frame, never a grid of lane cards', () => {
+    expect(html).toContain('parking-diagram');
+    expect(html).toMatch(/relative min-w-0 overflow-x-auto/);
+    expect(html).not.toMatch(/grid-cols-/);
+    expect(html).toContain('title="Lane L01, place 1: UP32A0001, first duty 05:30"');
   });
 
   it('uses no hidden attribute and never says simulated', () => {
@@ -169,38 +211,37 @@ describe('ParkingPlan', () => {
 describe('ParkingPlanSection', () => {
   it('shows a loading placeholder while the first response is awaited', () => {
     setHook({ loading: true });
-    expect(renderToStaticMarkup(<ParkingPlanSection depotId="20" />)).toContain('depot-loading');
+    expect(
+      renderToStaticMarkup(
+        <ParkingPlanSection depotId="20" parking={hook.value as DepotParkingState} />,
+      ),
+    ).toContain('depot-loading');
   });
 
   it('shows an error panel with Retry when there is no data', () => {
     setHook({ error: 'Depot data unavailable' });
-    const html = renderToStaticMarkup(<ParkingPlanSection depotId="20" />);
+    const html = renderToStaticMarkup(
+      <ParkingPlanSection depotId="20" parking={hook.value as DepotParkingState} />,
+    );
     expect(html).toContain('depot-error');
     expect(text(html)).toContain('Retry');
   });
 
-  it('keeps the live capacity counts on screen when the parking endpoint fails', () => {
+  it('shows the failure with retry and no plan when the parking endpoint fails', () => {
     setHook({ error: 'Depot data unavailable' });
-    const html = renderToStaticMarkup(<ParkingPlanSection depotId="20" />);
-    expect(html).toContain('yard-capacity');
-    expect(text(html)).toContain('38 buses in the yard, 2 visiting.');
-    expect(text(html)).toContain('modelled bay count is unavailable');
+    const html = renderToStaticMarkup(
+      <ParkingPlanSection depotId="20" parking={hook.value as DepotParkingState} />,
+    );
     expect(html).toContain('depot-error');
     expect(html).not.toContain('parking-plan"');
   });
 
-  it('takes the counts from the depot detail and only the bays from the parking response', () => {
-    hook.detail = detailOf({}, 55, 10);
-    setHook({ data: { ...BASE, capacity: { ...CAPACITY, inYard: { value: 1, provenance: 'derived' } } } });
-    const t = text(renderToStaticMarkup(<ParkingPlanSection depotId="20" />));
-    expect(t).toContain('65 of 60 modelled bays in use; 5 over.');
-  });
-
-  it('shows capacity and the order, with a stale strip on last-good data', () => {
+  it('shows the order with a stale strip on last-good data', () => {
     setHook({ data: { ...BASE, stale: true } });
-    const html = renderToStaticMarkup(<ParkingPlanSection depotId="20" />);
+    const html = renderToStaticMarkup(
+      <ParkingPlanSection depotId="20" parking={hook.value as DepotParkingState} />,
+    );
     expect(html).toContain('depot-stale');
-    expect(html).toContain('yard-capacity');
     expect(html).toContain('parking-plan');
   });
 
@@ -214,7 +255,9 @@ describe('ParkingPlanSection', () => {
       },
     });
     hook.detail = detailOf(null, 0, 0);
-    const html = renderToStaticMarkup(<ParkingPlanSection depotId="20" />);
+    const html = renderToStaticMarkup(
+      <ParkingPlanSection depotId="20" parking={hook.value as DepotParkingState} />,
+    );
     expect(html).toContain('depot-empty');
     expect(text(html)).toContain('No yard is established for this depot');
     expect(html).not.toContain('parking-plan"');
