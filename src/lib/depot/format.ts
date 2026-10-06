@@ -1,5 +1,5 @@
 import { formatNumber } from '@/lib/formatters';
-import { MINUTES_PER_DAY, MINUTES_PER_HOUR } from '@/lib/depot/units';
+import { MINUTES_PER_DAY, MINUTES_PER_HOUR, MS_PER_DAY } from '@/lib/depot/units';
 import { roundToDecimals } from '@/lib/depot/stats/rounding';
 
 const DASH = '—';
@@ -196,10 +196,6 @@ export function formatFeedDateTime(iso: string | null): string {
   return stamp ? `${stamp.weekday} ${stamp.day} ${stamp.month}, ${stamp.time}` : DASH;
 }
 
-const MINUTE_MS = 60_000;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
-
 /**
  * A feed timestamp as a clock time beside the feed's own clock: "19:45" when it falls on
  * the feed's day, "5 Oct, 19:45" when it falls on another day (a bus last heard
@@ -210,7 +206,7 @@ export function formatFeedTimeOn(iso: string | null, feedNow: string | null): st
   const stamp = readFeedStamp(iso);
   if (!stamp) return DASH;
   const now = readFeedStamp(feedNow);
-  const sameDay = now !== null && Math.floor(now.ms / DAY_MS) === Math.floor(stamp.ms / DAY_MS);
+  const sameDay = now !== null && Math.floor(now.ms / MS_PER_DAY) === Math.floor(stamp.ms / MS_PER_DAY);
   return sameDay ? stamp.time : `${Number(stamp.day)} ${stamp.month}, ${stamp.time}`;
 }
 

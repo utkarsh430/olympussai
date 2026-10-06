@@ -1,5 +1,4 @@
-const HOUR_MS = 3_600_000;
-const DAY_MS = 86_400_000;
+import { MS_PER_DAY, MS_PER_HOUR } from '@/lib/depot/units';
 
 /** Monotonic milliseconds: unlike the wall clock it never jumps back or forward. */
 export const monotonicNow = (): number => performance.now();
@@ -24,8 +23,8 @@ export function createCallLimiter(options: {
   return {
     tryAcquire(): boolean {
       const now = clock();
-      calls = calls.filter((t) => now - t < DAY_MS);
-      const inHour = calls.filter((t) => now - t < HOUR_MS).length;
+      calls = calls.filter((t) => now - t < MS_PER_DAY);
+      const inHour = calls.filter((t) => now - t < MS_PER_HOUR).length;
       if (inHour >= options.perHour || calls.length >= options.perDay) return false;
       calls = [...calls, now];
       return true;

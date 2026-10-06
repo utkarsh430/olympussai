@@ -10,6 +10,9 @@ export const MS_PER_SECOND = 1_000;
 /** Milliseconds in a minute. */
 export const MS_PER_MINUTE = 60_000;
 
+/** Milliseconds in an hour. */
+export const MS_PER_HOUR = 3_600_000;
+
 /** Milliseconds in a day. */
 export const MS_PER_DAY = 86_400_000;
 
