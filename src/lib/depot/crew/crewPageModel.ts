@@ -1,5 +1,9 @@
 import { formatCount } from '../format';
-import { modelledDaySentence, type ModelledDayReference } from '../sim/operatingDayWording';
+import {
+  modelledDaySentence,
+  noDutiesReason,
+  type ModelledDayReference,
+} from '../sim/operatingDayWording';
 import type { AvailabilityCounts } from './api';
 import type { CrewAvailability, CrewRole, RoleShortfall, ShortfallCause } from './types';
 
@@ -111,8 +115,23 @@ export function availabilityText(role: CrewRole, counts: AvailabilityCounts): st
   return `${ROLE_PLURAL[role]}, ${countOf(total, 'slot', 'slots')}: ${parts.join(', ')}.`;
 }
 
+/**
+ * The modelled day, in words, for a sentence that stands on the page: dated when the
+ * response gave its operating date. The day is a model rebuilt from the live fleet, so
+ * no sentence on this page says "today" (review M2).
+ */
+export function modelledDayPhrase(operatingDate?: string): string {
+  return operatingDate === undefined
+    ? 'in the modelled day'
+    : `in the modelled day for ${operatingDate}`;
+}
+
+/*
+ * A line repeated on every row of a table says "in the modelled day" without the date:
+ * the date is said once, in the provenance line above the page's first figure.
+ */
 const CAUSE_TEXT: Readonly<Record<ShortfallCause, (role: CrewRole) => string>> = {
-  no_slot_available: (role) => `no ${role} is available today.`,
+  no_slot_available: (role) => `no ${role} is available ${modelledDayPhrase()}.`,
   all_rostered: (role) => `all available ${role}s are already rostered at this time.`,
   hours_limit: () => 'would exceed the hours limit.',
 };
@@ -135,9 +154,14 @@ export function shiftLabel(shift: {
   return `${shift.dutyId}, shift ${shift.shiftIndex + 1} of ${shift.shiftCount}`;
 }
 
-export function shiftsSentence(required: number, covered: number, uncovered: number): string {
+export function shiftsSentence(
+  required: number,
+  covered: number,
+  uncovered: number,
+  operatingDate?: string,
+): string {
   return (
-    `${countOf(required, 'shift is', 'shifts are')} required today; ` +
+    `${countOf(required, 'shift is', 'shifts are')} required ${modelledDayPhrase(operatingDate)}; ` +
     `${formatCount(covered)} ${plural(covered, 'is', 'are')} covered and ` +
     `${formatCount(uncovered)} ${plural(uncovered, 'is', 'are')} uncovered (MODELLED).`
   );
@@ -166,9 +190,14 @@ export function reliefSentence(count: number): string {
   return `${countOf(count, 'duty needs', 'duties need')} a relief crew.`;
 }
 
-export function emptyCrewSentence(): string {
-  return 'No duties are modelled for this depot today (no route is seen running from it), so there are no crew shifts to cover.';
+/** Crew C: the one sentence of the state panel; the remedy line and link are separate. */
+export function emptyCrewSentence(operatingDate?: string): string {
+  return `${noDutiesReason(operatingDate)}, so there are no crew shifts to cover.`;
 }
+
+/** What would change the empty state, as the panel's one muted line. */
+export const EMPTY_CREW_REMEDY =
+  'Crew shifts appear once the live feed shows a route running from this depot; the data sources page says which feeds the day is built from.';
 
 export function rosterCountSentence(shown: number, total: number): string {
   if (shown >= total) return `${countOf(total, 'covered shift', 'covered shifts')}.`;
@@ -186,7 +215,7 @@ export const SHORTFALL_EXPLANATION =
   'absence, and shifts that start together. It is not a finding about this depot.';
 
 const CAUSE_COUNT_TEXT: Readonly<Record<ShortfallCause, string>> = {
-  no_slot_available: 'none available today',
+  no_slot_available: 'none available',
   all_rostered: 'all already rostered at the time',
   hours_limit: 'hours limit',
 };
@@ -256,7 +285,7 @@ export function modelledStatement(limits: {
   return (
     'No crew feed exists yet, so everything on this page is MODELLED: crew strength as a ratio ' +
     'of the day’s shifts, the mix of weekly off, leave, training and absence, and hours ' +
-    `worked this week. A slot is limited to ${limits.dailyHours} hours a day and ` +
+    `in the modelled week. A slot is limited to ${limits.dailyHours} hours a day and ` +
     `${limits.weeklyHours} hours a week. A crew roster and leave feed from the depot will ` +
     `replace the model. ${SHORTFALL_EXPLANATION}`
   );
@@ -303,12 +332,18 @@ export function crewDisclosure(
     readonly dutiesNeedingRelief: number;
   },
   limits: { readonly dailyHours: number; readonly weeklyHours: number },
+  operatingDate?: string,
 ): readonly CrewDisclosureSection[] {
   return [
     {
-      heading: 'Today’s cover',
+      heading: 'Cover in the modelled day',
       lines: [
-        shiftsSentence(summary.shiftsRequired, summary.shiftsCovered, summary.shiftsUncovered),
+        shiftsSentence(
+          summary.shiftsRequired,
+          summary.shiftsCovered,
+          summary.shiftsUncovered,
+          operatingDate,
+        ),
         `${strengthSentence('driver', summary.driver)} ${strengthSentence('conductor', summary.conductor)}`,
         `${dutiesSentence(summary.dutiesFullyCovered, summary.dutiesPartlyCovered, summary.dutiesUncovered)} ${reliefSentence(summary.dutiesNeedingRelief)}`,
       ],
