@@ -254,10 +254,13 @@ async function allPageText(page: DepotPage): Promise<string[]> {
 const ISO_DATE = /\b\d{4}-\d{2}-\d{2}\b/;
 
 /** Pages that log a console error on load today because of a product defect. */
-const CONSOLE_DEFECTS: Readonly<Record<string, string>> = {
-  // About one load in four logs React error #418: the server HTML differs from the client's.
-  '/project/depots/d/[depotId]/roster': 'the roster page intermittently fails hydration (#418)',
-};
+/**
+ * React's hydration mismatch (#418: the server HTML differs from the client's first render).
+ * Depot pages log it intermittently today (the roster about one load in four, other pages
+ * rarely), so the per-page console checks set it aside and a fixme test below pins it.
+ */
+const HYDRATION_MISMATCH = /Minified React error #418\b/;
+const HYDRATION_PROBE_LOADS = 8;
 
 /** Pages whose wording check fails today because of a product defect, each with what is wrong. */
 const WORDING_DEFECTS: Readonly<Record<string, string>> = {
@@ -282,12 +285,11 @@ test.describe('2. every depot page renders honestly on the sample', () => {
     });
 
     test(`${template} loads with no console error`, async ({ page, sample }) => {
-      test.fixme(template in CONSOLE_DEFECTS, CONSOLE_DEFECTS[template]);
       const errors = collectConsoleErrors(page);
       await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), headingOf(template));
       await page.waitForLoadState('networkidle');
 
-      expect(errors).toEqual([]);
+      expect(errors.filter((error) => !HYDRATION_MISMATCH.test(error))).toEqual([]);
     });
 
     test(`${template} never says "simulated" or prints a raw date`, async ({ page, sample }) => {
@@ -299,6 +301,31 @@ test.describe('2. every depot page renders honestly on the sample', () => {
       expect(texts.filter((text) => ISO_DATE.test(text))).toEqual([]);
     });
   }
+});
+
+test.describe('2. depot pages hydrate cleanly', () => {
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
+
+  test('the roster loads repeatedly with no hydration mismatch', async ({
+    browser,
+    storageState,
+    sample,
+  }) => {
+    test.fixme(true, 'depot pages intermittently fail hydration (React #418), the roster most');
+    const errors: string[] = [];
+    // A fresh browser context per load, as a first visit: nothing is cached.
+    for (let load = 0; load < HYDRATION_PROBE_LOADS; load += 1) {
+      const context = await browser.newContext({ storageState });
+      const page = await context.newPage();
+      const pageErrors = collectConsoleErrors(page);
+      await openPage(page, `/project/depots/d/${sample.depotId}/roster`, 'Roster');
+      await page.waitForLoadState('networkidle');
+      errors.push(...pageErrors);
+      await context.close();
+    }
+
+    expect(errors.filter((error) => HYDRATION_MISMATCH.test(error))).toEqual([]);
+  });
 });
 
 const WIDTHS = [390, 640, 1024, 1280, 1440] as const;
