@@ -77,14 +77,19 @@ function groupPosition(row: LeagueRow): number {
   return row.peerGroup === null ? UNRANKED_GROUP_POSITION : PEER_GROUP_ORDER.indexOf(row.peerGroup);
 }
 
-/** Peer group, then rank; unranked depots last, biggest fleet first. */
+/** Name, then id: equal indexes share a rank, so the order must not rest on input order. */
+function compareNameThenId(a: LeagueRow, b: LeagueRow): number {
+  return a.name.localeCompare(b.name, 'en') || a.depotId.localeCompare(b.depotId, 'en');
+}
+
+/** Peer group, then rank; unranked depots last, biggest fleet first; then name and id. */
 function compareDefault(a: LeagueRow, b: LeagueRow): number {
   const byGroup = groupPosition(a) - groupPosition(b);
   if (byGroup !== 0) return byGroup;
-  if (a.rank !== null && b.rank !== null) return a.rank - b.rank;
+  if (a.rank !== null && b.rank !== null) return a.rank - b.rank || compareNameThenId(a, b);
   if (a.rank !== null) return -1;
   if (b.rank !== null) return 1;
-  return b.fleet - a.fleet || a.name.localeCompare(b.name, 'en');
+  return b.fleet - a.fleet || compareNameThenId(a, b);
 }
 
 /** Joins depots to their scores. A depot without a score is shown as unranked. */
