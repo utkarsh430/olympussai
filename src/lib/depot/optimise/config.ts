@@ -29,3 +29,6 @@ export const MAX_TRANSFER_KM = 600;
 export const MIN_SURGE_PERCENT = -50;
 /** Demand more than doubling is outside what this model can speak to. */
 export const MAX_SURGE_PERCENT = 100;
+
+/** Largest bus change a single fleet adjustment may make; beyond it the input is a typo. */
+export const MAX_FLEET_ADJUSTMENT = 500;

@@ -1,6 +1,7 @@
 import {
   DEFAULT_REBALANCE_PARAMS,
   DEFAULT_SPARE_RATIO,
+  MAX_FLEET_ADJUSTMENT,
   MAX_SPARE_RATIO,
   MAX_SURGE_PERCENT,
   MAX_TRANSFER_KM,
@@ -61,6 +62,31 @@ function clamp(
   return clamped;
 }
 
+/** A user-entered fleet delta as a whole number within the allowed magnitude; never throws. */
+function cleanFleetDelta(depotId: string, raw: number, notes: string[]): number {
+  const label = `Fleet adjustment for ${depotId}`;
+  if (!Number.isFinite(raw)) {
+    notes.push(`${label} ${String(raw)} is not a number; using 0`);
+    return 0;
+  }
+  const whole = Math.trunc(raw) || 0;
+  if (whole !== raw) notes.push(`${label} ${raw} is not a whole number; using ${whole}`);
+  return clamp(label, whole, -MAX_FLEET_ADJUSTMENT, MAX_FLEET_ADJUSTMENT, 0, notes);
+}
+
+/** Largest single surge term kept before summing, so sums of hostile values stay finite. */
+const SURGE_TERM_LIMIT_PERCENT = 1_000_000;
+
+/** One surge in whole hundredths of a percent; non-finite counts as 0 with a note. */
+function cleanSurgeTerm(depotId: string, raw: number, notes: string[]): number {
+  if (!Number.isFinite(raw)) {
+    notes.push(`Demand surge for ${depotId} ${String(raw)} is not a number; using 0`);
+    return 0;
+  }
+  const bounded = Math.min(SURGE_TERM_LIMIT_PERCENT, Math.max(-SURGE_TERM_LIMIT_PERCENT, raw));
+  return Math.round(bounded * HUNDREDTHS_OF_PERCENT);
+}
+
 function recompute(b: DepotBalance, available: number, peak: number, ratio: number): DepotBalance {
   const spareTarget = spareFor(peak, ratio);
   const required = peak + spareTarget;
@@ -104,36 +130,45 @@ export function runScenario(base: readonly DepotBalance[], scenario: Scenario): 
           notes,
         );
 
-  const isDepot = (id: string): boolean => base.some((b) => b.depotId === id && b.kind === 'depot');
+  const depotIds = new Set(base.filter((b) => b.kind === 'depot').map((b) => b.depotId));
+
+  // Several adjustments on one depot are summed; the availability floor applies to the sum.
   const fleetDelta = new Map<string, number>();
   for (const adj of scenario.fleetAdjustments ?? []) {
-    if (!isDepot(adj.depotId)) {
+    if (!depotIds.has(adj.depotId)) {
       notes.push(`Fleet adjustment for ${adj.depotId} ignored: not an operating depot`);
       continue;
     }
     fleetDelta.set(
       adj.depotId,
-      (fleetDelta.get(adj.depotId) ?? 0) + Math.trunc(adj.deltaBuses || 0),
+      (fleetDelta.get(adj.depotId) ?? 0) + cleanFleetDelta(adj.depotId, adj.deltaBuses, notes),
     );
   }
+
+  // Several surges on one depot are summed in hundredths of a percent, then the sum is clamped.
   const surgeHundredths = new Map<string, number>();
   for (const surge of scenario.demandSurges ?? []) {
-    if (!isDepot(surge.depotId)) {
+    if (!depotIds.has(surge.depotId)) {
       notes.push(`Demand surge for ${surge.depotId} ignored: not an operating depot`);
       continue;
     }
-    const percent = clamp(
-      `Demand surge for ${surge.depotId}`,
-      surge.percent,
-      MIN_SURGE_PERCENT,
-      MAX_SURGE_PERCENT,
-      0,
-      notes,
-    );
     surgeHundredths.set(
       surge.depotId,
-      (surgeHundredths.get(surge.depotId) ?? 0) + Math.round(percent * HUNDREDTHS_OF_PERCENT),
+      (surgeHundredths.get(surge.depotId) ?? 0) +
+        cleanSurgeTerm(surge.depotId, surge.percent, notes),
     );
+  }
+  for (const [depotId, total] of [...surgeHundredths]) {
+    const min = MIN_SURGE_PERCENT * HUNDREDTHS_OF_PERCENT;
+    const max = MAX_SURGE_PERCENT * HUNDREDTHS_OF_PERCENT;
+    const bounded = Math.min(max, Math.max(min, total));
+    if (bounded !== total) {
+      notes.push(
+        `Demand surge for ${depotId} totals ${total / HUNDREDTHS_OF_PERCENT}%, outside ` +
+          `${MIN_SURGE_PERCENT} to ${MAX_SURGE_PERCENT}; using ${bounded / HUNDREDTHS_OF_PERCENT}`,
+      );
+      surgeHundredths.set(depotId, bounded);
+    }
   }
 
   const balances = base.map((b): DepotBalance => {
