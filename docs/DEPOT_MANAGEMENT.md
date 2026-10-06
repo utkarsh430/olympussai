@@ -283,7 +283,7 @@ not in the feed answers the fixed `404 {"error":"Depot not found"}`. Payload typ
 | `economics` | The modelled economics index, network and per depot | none |
 | `history` | A daily series for one metric, with the feed envelope; `available` points carry `ceiling` (the fleet) | `metric` (onRoadShare, offRoadRate, darkRate, index, available), `scope` network or depot, `depotId` when scope is depot, `days` 7–180 default 30 (`live/historyView.ts`); `404` "No value for this metric" / "No index for this depot" |
 | `trends` | History with trend words for many units | strict parser in `live/trendsView.ts`, `days` 7–90 default 30 |
-| `forecast` | Trend and forecast for one series | the history query plus one `horizon` (`live/forecastView.ts`) |
+| `forecast` | Trend and forecast for one series | the history query, with `days` defaulting to 90 here (`FORECAST_DEFAULT_DAYS`), plus at most one `horizon`, 7–28, default 14 (`live/forecastView.ts`) |
 | `[depotId]` | One depot's detail: summary, buses, yard, outshedding, exceptions | depot id |
 | `[depotId]/parking` | The yard's modelled lanes and the night parking order | depot id |
 | `[depotId]/duties` | The duty board: duties, proposed bus matches, exclusions | depot id |
@@ -634,7 +634,9 @@ board says where the spare buses stand. Each assignment records how its bus stan
   taken, and tiers 1, 2 and 5 drop: how buses stand now says nothing about that day.
 
 A feed with no clock, or a depot with no duties, plans `as_of_feed_time`. The day is
-recomputed from each snapshot, so its duty count can change from one feed time to the next;
+recomputed from each snapshot; because the requirement reads the busiest window so far today
+(section 7.8), its duty count can still change until the morning peak has passed, or when
+buses go off the road, but does not shrink in the evening as buses come home;
 it is worded "as of the feed time" and would become fixed only when a real timetable is
 supplied.
 
