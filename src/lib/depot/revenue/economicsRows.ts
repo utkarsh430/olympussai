@@ -84,7 +84,7 @@ function unrankedText(entry: EconomicsDepotRow): string | null {
     return 'No route has a known length, so earnings per kilometre cannot be modelled for this depot.';
   }
   if (score.missing.includes('costPerKm')) {
-    return 'No distance is modelled for its buses, so cost per kilometre cannot be worked out.';
+    return 'No distance is modelled for its buses, so fuel cost per kilometre cannot be worked out.';
   }
   return 'No seats are offered in the model, so its load factor cannot be worked out.';
 }
