@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { CollapsedSection } from '@/components/depot/shell/CollapsedSection';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { Pager } from '@/components/depot/shell/LongLists';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
@@ -38,13 +39,7 @@ export function RosterSection({ roster, total }: RosterSectionProps) {
   return (
     <section aria-labelledby="depot-crew-roster-heading" className="min-w-0 animate-rise">
       <SectionLabel id="depot-crew-roster-heading" label="Suggested roster" count={total} />
-      <details className="group min-w-0">
-        <summary className="flex cursor-pointer list-none items-baseline gap-2 py-1 font-sans text-sm text-depot-muted hover:text-depot-ink [&::-webkit-details-marker]:hidden">
-          <span aria-hidden className="inline-block w-3 text-depot-faint group-open:rotate-90">
-            ›
-          </span>
-          Show the suggested roster
-        </summary>
+      <CollapsedSection variant="row" label="Show the suggested roster" keepMounted>
         <p className="depot-prose my-2">{ROSTER_NOTE}</p>
         <DataTable
           columns={COLUMNS}
@@ -59,7 +54,7 @@ export function RosterSection({ roster, total }: RosterSectionProps) {
         <p className="depot-prose mt-2">{SLOT_NOTE}</p>
         <p className="depot-prose mt-1">{rosterCountSentence(roster.length, total)}</p>
         <Pager page={range.page} total={roster.length} onPage={setRequested} />
-      </details>
+      </CollapsedSection>
     </section>
   );
 }
