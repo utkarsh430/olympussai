@@ -13,6 +13,7 @@ import {
   MAX_HORIZON_DAYS,
   MIN_HISTORY_DAYS,
   metricKindOf,
+  seriesRulesOf,
   validRangeOf,
 } from './config';
 import { bandHalfWidth, bandPoint, nearestRankQuantile } from './band';
@@ -25,7 +26,7 @@ import {
 } from './backtest';
 import { fitHoltWinters, holtWintersForecast } from './holtWinters';
 import { seasonalNaiveForecast } from './seasonalNaive';
-import { addDays, prepareSeries } from './series';
+import { addDays, insufficientHistory, prepareSeries } from './series';
 import type { ForecastResult } from './types';
 
 function validHorizon(horizonDays: number): boolean {
@@ -60,12 +61,12 @@ export function forecastSeries(
 ): ForecastResult {
   if (!validHorizon(horizonDays)) return { status: 'invalid_input', reason: 'invalid_horizon' };
   const range = validRangeOf(metric);
-  const prepared = prepareSeries(series, range);
+  const prepared = prepareSeries(series, seriesRulesOf(metric));
   if (!prepared.ok) return { status: 'invalid_input', reason: prepared.reason };
   const { run } = prepared;
   const last = run.at(-1);
   if (last === undefined || run.length < MIN_HISTORY_DAYS) {
-    return { status: 'insufficient_history', historyDays: run.length, required: MIN_HISTORY_DAYS };
+    return insufficientHistory(prepared, MIN_HISTORY_DAYS);
   }
 
   const values = run.map((p) => p.value);

@@ -5,9 +5,9 @@
  * noise is never reported as a direction. Pure, like the forecasts.
  */
 import type { MetricKey, SeriesPoint } from '../sim/types';
-import { higherIsBetter, metricKindOf, STEADY_BAND, validRangeOf, type MetricKind } from './config';
-import { prepareSeries } from './series';
-import type { SeriesInputReason } from './types';
+import { higherIsBetter, metricKindOf, seriesRulesOf, STEADY_BAND, type MetricKind } from './config';
+import { insufficientHistory, prepareSeries } from './series';
+import type { InsufficientHistory, SeriesInputReason } from './types';
 
 export type TrendDirection = 'up' | 'down' | 'steady';
 export type TrendUnit = 'percentage_points' | 'points' | 'buses';
@@ -42,11 +42,7 @@ export interface TrendSummary {
 
 export type TrendResult =
   | { readonly status: 'ok'; readonly summary: TrendSummary }
-  | {
-      readonly status: 'insufficient_history';
-      readonly historyDays: number;
-      readonly required: number;
-    }
+  | InsufficientHistory
   | { readonly status: 'invalid_input'; readonly reason: SeriesInputReason };
 
 interface UnitFormat {
@@ -112,14 +108,14 @@ function changeOver(
  * eight such days for the week; the month needs 31.
  */
 export function summariseTrend(series: readonly SeriesPoint[], metric: MetricKey): TrendResult {
-  const prepared = prepareSeries(series, validRangeOf(metric));
+  const prepared = prepareSeries(series, seriesRulesOf(metric));
   if (!prepared.ok) return { status: 'invalid_input', reason: prepared.reason };
   const { run } = prepared;
   const kind = metricKindOf(metric);
   const latest = run.at(-1);
   const week = changeOver(run, WEEK_DAYS, kind);
   if (latest === undefined || week === null) {
-    return { status: 'insufficient_history', historyDays: run.length, required: WEEK_DAYS + 1 };
+    return insufficientHistory(prepared, WEEK_DAYS + 1);
   }
   const month = changeOver(run, MONTH_DAYS, kind);
   return {

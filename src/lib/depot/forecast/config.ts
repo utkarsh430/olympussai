@@ -52,6 +52,28 @@ export function validRangeOf(metric: MetricKey): ValidRange {
   return { min, max };
 }
 
+/**
+ * No depot or network holds anywhere near this many buses (the state fleet is
+ * a few thousand), so a larger count is a feed fault, not a reading. It also
+ * keeps every error sum finite.
+ */
+export const COUNT_SANE_MAX = 100_000;
+
+/** What a series must satisfy before any forecast or trend reads it. */
+export interface SeriesRules {
+  readonly min: number;
+  /** Always finite: an unbounded count is capped at `COUNT_SANE_MAX`. */
+  readonly max: number;
+  /** Counts of buses are whole numbers. */
+  readonly wholeNumbers: boolean;
+}
+
+export function seriesRulesOf(metric: MetricKey): SeriesRules {
+  const { min, max } = validRangeOf(metric);
+  const wholeNumbers = metricKindOf(metric) === 'count';
+  return { min, max: Number.isFinite(max) ? max : COUNT_SANE_MAX, wholeNumbers };
+}
+
 /** Changes smaller than this, in the metric's own unit, read as steady. */
 export const STEADY_BAND: Readonly<Record<MetricKind, number>> = {
   rate: 0.5, // percentage points

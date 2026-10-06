@@ -110,6 +110,8 @@ describe('forecastSections', () => {
       status: 'insufficient_history',
       historyDays: 20,
       required: MIN_HISTORY_DAYS,
+      cause: 'short_record',
+      missingDate: null,
     });
     expect(sections.sentences.method).toBeNull();
     expect(sections.sentences.error).toBeNull();

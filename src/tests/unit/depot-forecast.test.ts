@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { forecastSeries } from '@/lib/depot/forecast/forecast';
-import { DEFAULT_HORIZON_DAYS, MIN_HISTORY_DAYS } from '@/lib/depot/forecast/config';
+import { COUNT_SANE_MAX, DEFAULT_HORIZON_DAYS, MIN_HISTORY_DAYS } from '@/lib/depot/forecast/config';
 import type { Forecast, ForecastResult } from '@/lib/depot/forecast/types';
 import { seedFor } from '@/lib/depot/sim/seed';
 import type { MetricKey, SeriesPoint } from '@/lib/depot/sim/types';
@@ -49,6 +49,21 @@ describe('forecastSeries input rules', () => {
     expect(forecastSeries(series, 'index')).toEqual({ status: 'invalid_input', reason });
   });
 
+  it.each([
+    ['non_integer_count', 10.4],
+    ['out_of_range', COUNT_SANE_MAX + 1],
+    ['out_of_range', 1e308],
+  ])('refuses a bus count with %s (%s)', (reason, value) => {
+    const counts = seriesOf(weekly(35)).map((p) => ({ ...p, value: Math.round(p.value) }));
+    const series = [...counts.slice(0, 34), { date: dateAt(34), value }];
+    expect(forecastSeries(series, 'available')).toEqual({ status: 'invalid_input', reason });
+  });
+
+  it('accepts a whole bus count up to the sane maximum', () => {
+    const counts = seriesOf(weekly(35)).map((p, i) => ({ ...p, value: i === 34 ? COUNT_SANE_MAX : 50 }));
+    expect(forecastSeries(counts, 'available').status).toBe('ok');
+  });
+
   it.each([0, -1, 1.5, 29, Number.NaN])('rejects a horizon of %s days', (horizon) => {
     expect(forecastSeries(good, 'index', horizon)).toEqual({
       status: 'invalid_input',
@@ -65,11 +80,15 @@ describe('forecastSeries input rules', () => {
       status: 'insufficient_history',
       historyDays: 27,
       required: MIN_HISTORY_DAYS,
+      cause: 'short_record',
+      missingDate: null,
     });
     expect(forecastSeries([], 'index')).toEqual({
       status: 'insufficient_history',
       historyDays: 0,
       required: MIN_HISTORY_DAYS,
+      cause: 'short_record',
+      missingDate: null,
     });
     expect(okOf(forecastSeries(seriesOf(weekly(28)), 'index')).historyDays).toBe(28);
   });
@@ -81,6 +100,8 @@ describe('forecastSeries input rules', () => {
       status: 'insufficient_history',
       historyDays: 10,
       required: MIN_HISTORY_DAYS,
+      cause: 'gap',
+      missingDate: dateAt(29),
     });
     const oldGap = full.filter((_, i) => i !== 5);
     const result = okOf(forecastSeries(oldGap, 'index'));

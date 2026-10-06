@@ -101,12 +101,16 @@ describe('summariseTrend', () => {
       status: 'insufficient_history',
       historyDays: 7,
       required: 8,
+      cause: 'short_record',
+      missingDate: null,
     });
     const gapped = seriesWith(40, 50, { latest: 50 }).filter((_, i) => i !== 36);
     expect(summariseTrend(gapped, 'index')).toEqual({
       status: 'insufficient_history',
       historyDays: 3,
       required: 8,
+      cause: 'gap',
+      missingDate: dateAt(36),
     });
     const oldGap = seriesWith(40, 50, { month: 40, latest: 50 }).filter((_, i) => i !== 5);
     const summary = okOf(summariseTrend(oldGap, 'index'));

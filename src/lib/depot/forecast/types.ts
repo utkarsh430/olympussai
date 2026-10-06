@@ -40,16 +40,30 @@ export interface Forecast {
 }
 
 /** A daily series refused as a whole, reported instead of thrown. */
-export type SeriesInputReason = 'invalid_date' | 'duplicate_date' | 'non_finite_value' | 'out_of_range';
+export type SeriesInputReason =
+  | 'invalid_date'
+  | 'duplicate_date'
+  | 'non_finite_value'
+  | 'out_of_range'
+  | 'non_integer_count';
+
+/**
+ * Why a run is too short. `gap`: earlier days exist but a missing day ends
+ * the run, and `missingDate` is that day (the latest one missing). `short_record`:
+ * the series simply does not reach back far enough; `missingDate` is null.
+ */
+export interface InsufficientHistory {
+  readonly status: 'insufficient_history';
+  readonly historyDays: number;
+  readonly required: number;
+  readonly cause: 'gap' | 'short_record';
+  readonly missingDate: string | null;
+}
 
 /** Input the forecast refuses, reported instead of thrown. */
 export type InvalidInputReason = SeriesInputReason | 'invalid_horizon';
 
 export type ForecastResult =
   | { readonly status: 'ok'; readonly forecast: Forecast }
-  | {
-      readonly status: 'insufficient_history';
-      readonly historyDays: number;
-      readonly required: number;
-    }
+  | InsufficientHistory
   | { readonly status: 'invalid_input'; readonly reason: InvalidInputReason };
