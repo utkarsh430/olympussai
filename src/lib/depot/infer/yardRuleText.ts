@@ -6,9 +6,9 @@ import {
   YARD_MIN_CLUSTER,
   YARD_MIN_SHARE,
 } from './yard';
+import { METRES_PER_KM } from '@/lib/depot/units';
 
 const PERCENT = 100;
-const METRES_PER_KM = 1000;
 
 /**
  * The yard rule in words, for every screen that has to explain why a yard is or

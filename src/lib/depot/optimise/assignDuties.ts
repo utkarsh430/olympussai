@@ -11,8 +11,8 @@ import type { ModelledBus, ServiceClass } from '../sim/types';
 import { isRecentlyHeard } from '../infer/busState';
 import { MAX_BUS_AGE_YEARS } from '../sim/config';
 import { hungarian } from './hungarian';
+import { MINUTES_PER_HOUR } from '@/lib/depot/units';
 
-const MINUTES_PER_HOUR = 60;
 /** Age assumed for a bus the fleet master does not know when the master is empty. */
 const EMPTY_MASTER_AGE_YEARS = 0;
 const DEFAULT_CLASS: ServiceClass = 'ordinary';

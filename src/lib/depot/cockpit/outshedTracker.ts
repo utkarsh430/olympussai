@@ -2,6 +2,7 @@ import { formatCount, formatDurationMinutes, formatPlainDate } from '@/lib/depot
 import type { OutshedRow, OutshedState } from '@/lib/depot/infer/types';
 import type { Coverage } from '@/lib/depot/types';
 import type { TrackerRow } from './cockpitTypes';
+import { MS_PER_MINUTE } from '@/lib/depot/units';
 
 /** The outshedding tracker: today's departures in urgency order, and how much they cover. */
 
@@ -22,13 +23,12 @@ const OUTSHED_ORDER: readonly OutshedState[] = [
   'ended',
 ];
 const DASH = '—';
-const MS_PER_MIN = 60_000;
 
 /** Minutes from the feed clock to a feed timestamp; both carry the same nominal zone. */
 function minutesFromNow(feedNow: string | null, at: string): number | null {
   if (feedNow === null) return null;
   const diff = Date.parse(at) - Date.parse(feedNow);
-  return Number.isFinite(diff) ? Math.round(diff / MS_PER_MIN) : null;
+  return Number.isFinite(diff) ? Math.round(diff / MS_PER_MINUTE) : null;
 }
 
 function departedText(row: OutshedRow): string {

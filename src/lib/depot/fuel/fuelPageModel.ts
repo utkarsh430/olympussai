@@ -2,6 +2,7 @@ import { formatCount } from '../format';
 import type { ModelledDaySummary } from '../sim/operatingDayTypes';
 import { noDutiesReason } from '../sim/operatingDayWording';
 import type { FuelGroupRow, FuelTotals } from './types';
+import { TENTH } from '@/lib/depot/units';
 
 /*
  * Every sentence and grouping the fuel page shows is built here, so the wording
@@ -11,7 +12,6 @@ import type { FuelGroupRow, FuelTotals } from './types';
 
 const DASH = '—';
 const NO_ROUTE = 'No route';
-const TENTH = 10;
 const CLASS_LABELS: Readonly<Record<string, string>> = {
   ordinary: 'Ordinary',
   express: 'Express',

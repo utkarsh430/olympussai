@@ -1,4 +1,5 @@
 import { formatNumber } from '@/lib/formatters';
+import { MINUTES_PER_DAY, MINUTES_PER_HOUR } from '@/lib/depot/units';
 
 const DASH = '—';
 const FEED_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}[T ](\d{2}):(\d{2})/;
@@ -155,9 +156,6 @@ export function isLaterFeedTime(a: string | null, b: string | null): boolean {
   const right = readFeedStamp(b);
   return left !== null && right !== null && left.ms > right.ms;
 }
-
-const MINUTES_PER_HOUR = 60;
-const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
 
 /**
  * A length of time given in minutes, in the largest two units that matter: "47 min",

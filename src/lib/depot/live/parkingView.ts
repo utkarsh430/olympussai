@@ -18,6 +18,7 @@ import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis
 import { buildDepotDetail } from './depotView';
 import { dutyPlanFor, laterDayPlanFor } from './operatingDayView';
 import type { DutyPlan } from '../sim/dayPlan';
+import { MS_PER_DAY } from '@/lib/depot/units';
 
 type ParkingBody = Omit<ParkingResponse, keyof ReturnType<typeof feedEnvelope>>;
 
@@ -25,8 +26,6 @@ interface ParkedBus {
   readonly registrationNumber: string;
   readonly firstDutyStartMin: number | null;
 }
-
-const MS_PER_DAY = 86_400_000;
 
 /**
  * The day after a YYYY-MM-DD operating date. Calendar arithmetic in UTC on the

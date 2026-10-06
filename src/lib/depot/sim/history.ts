@@ -10,10 +10,10 @@
 import { SeededRandom } from '@/lib/simulation/seededRandom';
 import type { HistoryScope, MetricKey, SeriesAnchor, SeriesPoint } from './types';
 import { seedFor } from './seed';
+import { MS_PER_DAY } from '@/lib/depot/units';
 
 const MIN_DAYS = 7;
 const MAX_DAYS = 180;
-const MS_PER_DAY = 86_400_000;
 /** Share of the previous day's deviation that carries to the day before it. */
 const REVERSION = 0.8;
 /** Half-width of a day's own shock, as a share of the metric's span. */

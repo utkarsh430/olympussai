@@ -5,8 +5,8 @@ import type {
   RouteRevenueFigure,
   RouteRidershipDay,
 } from './types';
+import { TENTH } from '@/lib/depot/units';
 
-const TENTH = 10;
 const CENT = 100;
 
 function figureFor(day: RouteRidershipDay): RouteRevenueFigure {

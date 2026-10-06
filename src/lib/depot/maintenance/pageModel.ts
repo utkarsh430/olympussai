@@ -11,6 +11,7 @@ import {
   workshopBaysNote,
 } from './text';
 import type { WorkshopLoad } from './workshop';
+import { MS_PER_MINUTE } from '@/lib/depot/units';
 
 /*
  * What the maintenance page lays out, decided here so it is tested: the
@@ -111,8 +112,6 @@ export function sharedOffRoad(buses: readonly OffRoadBus[]): OffRoadShared {
   };
 }
 
-const MS_PER_MIN = 60_000;
-
 /**
  * When a bus was last heard, as a feed timestamp for the shared time formatters:
  * the feed's clock less the minutes of silence. Null when either is unknown.
@@ -121,7 +120,7 @@ export function lastHeardIso(feedNow: string | null, gpsAgeMin: number | null): 
   if (feedNow === null || gpsAgeMin === null || !Number.isFinite(gpsAgeMin)) return null;
   const at = Date.parse(feedNow);
   if (Number.isNaN(at)) return null;
-  return new Date(at - gpsAgeMin * MS_PER_MIN).toISOString();
+  return new Date(at - gpsAgeMin * MS_PER_MINUTE).toISOString();
 }
 
 export interface WorkshopRow {

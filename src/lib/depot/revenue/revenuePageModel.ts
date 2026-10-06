@@ -4,6 +4,7 @@ import type { REVENUE_MODEL_PARAMS } from '../sim/revenueConfig';
 import type { ServiceClass } from '../sim/types';
 import type { Coverage } from '../types';
 import type { DepotRevenueTotals, EarningsWithheldReason, RouteRevenueFigure } from './types';
+import { TENTH } from '@/lib/depot/units';
 
 /*
  * Every sentence, label and bar of the revenue page, built here so it is
@@ -12,7 +13,6 @@ import type { DepotRevenueTotals, EarningsWithheldReason, RouteRevenueFigure } f
 
 const DASH = '—';
 const PERCENT = 100;
-const TENTH = 10;
 
 export const SERVICE_CLASS_LABEL: Readonly<Record<ServiceClass, string>> = {
   ordinary: 'Ordinary',

@@ -1,3 +1,4 @@
+import { MS_PER_MINUTE } from '@/lib/depot/units';
 /**
  * Seeding helpers for the modelled world.
  *
@@ -7,7 +8,6 @@
  */
 
 const ISO_DATE_PREFIX = /^(\d{4}-\d{2}-\d{2})/;
-const MS_PER_MINUTE = 60_000;
 /** India Standard Time is UTC+05:30 all year (no daylight saving). */
 const IST_OFFSET_MIN = 330;
 const ISO_DATE_LENGTH = 10;

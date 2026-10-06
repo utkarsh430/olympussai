@@ -5,6 +5,7 @@ import type { DepotSummary } from '../types';
 import { modelDuties } from './duties';
 import { modelBus } from './fleetMaster';
 import type { ModelledBus } from './types';
+import { MINUTES_PER_HOUR } from '@/lib/depot/units';
 
 /*
  * The one place a depot's modelled duties are generated and its buses matched
@@ -50,7 +51,6 @@ export interface DayPlanInput {
 }
 
 const FEED_CLOCK = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/;
-const MINUTES_PER_HOUR = 60;
 
 /**
  * Minutes past midnight on the feed clock when that clock reads the operating

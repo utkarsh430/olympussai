@@ -9,8 +9,7 @@ import {
 } from './fuelConfig';
 import type { DayRun, OperatingDay } from './operatingDayTypes';
 import { seedFor } from './seed';
-
-const TENTH = 10;
+import { TENTH } from '@/lib/depot/units';
 
 function toTenths(value: number): number {
   return Math.round(value * TENTH) / TENTH;

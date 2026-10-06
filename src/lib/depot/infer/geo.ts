@@ -1,5 +1,6 @@
 import type { DepotBusRow } from '@/models/depotLive';
 import { haversineKm } from '@/lib/simulation/seededRandom';
+import { METRES_PER_KM } from '@/lib/depot/units';
 
 /**
  * Geometry for depot inference. The great-circle distance is the app's existing
@@ -8,7 +9,6 @@ import { haversineKm } from '@/lib/simulation/seededRandom';
  */
 export { haversineKm };
 
-const METRES_PER_KM = 1000;
 /** Metres per degree of latitude on the mean-radius sphere haversineKm uses. */
 const METRES_PER_DEGREE = (Math.PI / 180) * 6371 * METRES_PER_KM;
 

@@ -2,6 +2,7 @@ import { formatCount, formatFeedTime } from '../format';
 import type { BoardDuty, DutyBlockers, DutyState } from './api';
 import { CLASS_WORD, STANDING_WORD, busClassWord } from './dutyStanding';
 import type { BusStandingNow, SpareByStanding } from './types';
+import { MINUTES_PER_DAY, MINUTES_PER_HOUR } from '@/lib/depot/units';
 
 /** The timeline axis: 04:00 to 24:00 in the feed's local time. */
 export const AXIS_START_MIN = 240;
@@ -9,8 +10,6 @@ export const AXIS_END_MIN = 1440;
 const AXIS_SPAN_MIN = AXIS_END_MIN - AXIS_START_MIN;
 const TICK_EVERY_MIN = 120;
 const MIN_BAR_WIDTH_PCT = 0.8;
-const MINUTES_PER_HOUR = 60;
-const MINUTES_PER_DAY = 1440;
 const PERCENT = 100;
 
 export const MODEL_NOTICE =

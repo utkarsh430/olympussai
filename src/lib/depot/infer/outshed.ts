@@ -2,6 +2,7 @@ import type { DepotBusRow } from '@/models/depotLive';
 import type { BusOpState } from '../types';
 import { locateBus } from './location';
 import type { LocatedBus, OutshedRow, OutshedState, OutshedSummary, Yard } from './types';
+import { MS_PER_MINUTE } from '@/lib/depot/units';
 
 /** Depots tolerate a short push-out; ten minutes is the usual shed turnaround. */
 export const OUTSHED_GRACE_MIN = 10;
@@ -13,7 +14,6 @@ export const ACTUAL_START_WINDOW_MIN = { before: 120, after: 360 } as const;
 /** Beyond this lateness the figure is not reported (the departure still counts). */
 export const MAX_PLAUSIBLE_DELAY_MIN = 180;
 
-const MS_PER_MIN = 60_000;
 const DATE_PREFIX_LENGTH = 10;
 
 function emptyCounts(): Record<OutshedState, number> {
@@ -90,7 +90,7 @@ export function classifyOutshed(
 
   const actual = parseMs(row.actualStart);
   if (!Number.isNaN(actual) && actual <= now) {
-    const lateMin = Math.round((actual - start) / MS_PER_MIN);
+    const lateMin = Math.round((actual - start) / MS_PER_MINUTE);
     if (lateMin >= -ACTUAL_START_WINDOW_MIN.before && lateMin <= ACTUAL_START_WINDOW_MIN.after) {
       return make('departed', {
         evidence: 'actual_time',
@@ -111,7 +111,7 @@ export function classifyOutshed(
   if (isOut) return make('departed', { evidence: 'left_yard' });
 
   // Whole minutes past the scheduled start, grace period included.
-  const minutesPast = Math.floor((now - start) / MS_PER_MIN);
+  const minutesPast = Math.floor((now - start) / MS_PER_MINUTE);
   if (minutesPast <= OUTSHED_GRACE_MIN) return make('due');
   return make('overdue', { minutesOverdue: minutesPast });
 }

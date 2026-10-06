@@ -22,10 +22,10 @@ import type { OperatingDay } from '../sim/operatingDayTypes';
 import { analyseSnapshot, feedEnvelope } from './analysis';
 import { operatingDayFor } from './operatingDayView';
 import { holdPerSnapshot } from './revenueView';
+import { TENTH } from '@/lib/depot/units';
 
 type FuelBody = Omit<FuelResponse, keyof ReturnType<typeof feedEnvelope>>;
 
-const TENTH = 10;
 const toTenth = (value: number): number => Math.round(value * TENTH) / TENTH;
 
 /** The flagged bus with its own figure and the exact median of its peers, both to a tenth. */

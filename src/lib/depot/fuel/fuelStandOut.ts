@@ -1,6 +1,7 @@
 import { formatCount } from '../format';
 import type { FuelFlaggedBus, FuelResponse } from './api';
 import { noComparisonNote, noDistanceNote, peersDifferNote } from './fuelPageModel';
+import { TENTH } from '@/lib/depot/units';
 
 /*
  * "Buses that stand out": the variance is FUEL USED PER KILOMETRE against the peers'
@@ -10,7 +11,6 @@ import { noComparisonNote, noDistanceNote, peersDifferNote } from './fuelPageMod
  */
 
 const DASH = '—';
-const TENTH = 10;
 const HUNDREDTH = 100;
 const PER_100_KM = 100;
 

@@ -3,8 +3,8 @@ import {
   MAX_BUSES,
   MAX_MOVES,
   MAX_TRIPS_PER_DAY,
-  METRES_PER_KM,
 } from './allocateConfig';
+import { METRES_PER_KM } from '@/lib/depot/units';
 import {
   compareText,
   dailyCost,

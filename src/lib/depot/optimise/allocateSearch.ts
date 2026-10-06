@@ -1,4 +1,5 @@
-import { COST_GRID_M, METRES_PER_KM, MIN_SAVING_KM_PER_DAY } from './allocateConfig';
+import { METRES_PER_KM } from '@/lib/depot/units';
+import { COST_GRID_M, MIN_SAVING_KM_PER_DAY } from './allocateConfig';
 
 export const MIN_SAVING_M = MIN_SAVING_KM_PER_DAY * METRES_PER_KM;
 

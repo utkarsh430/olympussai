@@ -23,8 +23,8 @@ import type {
 import { LEGS_PER_TRIP } from './revenueConfig';
 import { seedFor } from './seed';
 import type { ModelledBus, ServiceClass } from './types';
+import { TENTH } from '@/lib/depot/units';
 
-const TENTH = 10;
 type Match = Omit<DayRun, 'distanceKm'>;
 
 /**

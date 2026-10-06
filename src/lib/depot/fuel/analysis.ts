@@ -13,8 +13,8 @@ import {
   type FuelGroupRow,
   type FuelTotals,
 } from './types';
+import { TENTH } from '@/lib/depot/units';
 
-const TENTH = 10;
 const PERCENT = 100;
 const KEY_SEPARATOR = '\u0000';
 

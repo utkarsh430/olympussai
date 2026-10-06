@@ -12,8 +12,8 @@ import type {
   ShortfallCause,
   UncoveredReason,
 } from './types';
+import { MINUTES_PER_HOUR } from '@/lib/depot/units';
 
-const MINUTES_PER_HOUR = 60;
 const DAILY_LIMIT_MIN = MAX_DUTY_HOURS_PER_DAY * MINUTES_PER_HOUR;
 const ROLES: readonly CrewRole[] = ['driver', 'conductor'];
 const AVAILABILITIES: readonly CrewAvailability[] = [

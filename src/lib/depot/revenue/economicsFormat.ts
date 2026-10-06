@@ -1,5 +1,6 @@
 import { formatRupeesPerKm } from './revenuePageModel';
 import type { EconomicsComponentKey } from './types';
+import { TENTH } from '@/lib/depot/units';
 
 /*
  * How the economics page writes a component: its label, its value, and the
@@ -9,7 +10,6 @@ import type { EconomicsComponentKey } from './types';
 export const DASH = '—';
 export const MINUS = '−';
 export const PERCENT = 100;
-export const TENTH = 10;
 export const HUNDREDTH = 100;
 
 export interface ComponentSpec {
