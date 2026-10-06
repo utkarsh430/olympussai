@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_QUESTION_CHARS } from '@/lib/depot/copilot/limits';
 import { copilotQuerySchema, type CopilotQuery } from '@/lib/depot/copilot/queries';
-import { sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
+import { INVISIBLE_CHARACTERS, sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
 import { resolveDepot } from '@/lib/depot/copilot/router/resolveDepot';
 import { scriptedRoute } from '@/lib/depot/copilot/router/scriptedRouter';
 import {
@@ -178,6 +178,7 @@ describe('cliRouter', () => {
     ['null', null],
     ['an array', [{ kind: 'networkSummary' }]],
     ['a missing depot', { kind: 'exceptionsFor' }],
+    ['the same depot twice', { kind: 'compareDepots', depotA: 'Kanpur', depotB: 'KANPUR' }],
   ])('returns unsupported for %s', (_label, output) => {
     expect(parseRouterOutput(output, DEPOTS)).toEqual({ kind: 'unsupported' });
   });
@@ -206,5 +207,91 @@ describe('cliRouter', () => {
     }
     expect(prompt).toContain('KANPUR');
     expect(prompt).not.toContain('"101"');
+  });
+});
+
+describe('sanitizeQuestion with invisible text', () => {
+  it('removes the tag block, Arabic letter mark, soft hyphen, isolates, variation selectors and fillers', () => {
+    const tag = String.fromCodePoint(0xe0001, 0xe0041, 0xe0042, 0xe007f);
+    expect(sanitizeQuestion(`show${tag} depots`)).toBe('show depots');
+    expect(sanitizeQuestion('Kan\u061cpur')).toBe('Kanpur');
+    expect(sanitizeQuestion('Kan\u00adpur')).toBe('Kanpur');
+    expect(
+      sanitizeQuestion('a\u206a\u206fb\u180ec\u3164d\u1160e\u2800f\u034fg\u17b4h\u17b5i'),
+    ).toBe('abcdefghi');
+    expect(sanitizeQuestion('x\ufe0f\ufe00y')).toBe('xy');
+    expect(sanitizeQuestion('\u202eevil\u202c text')).toBe('evil text');
+  });
+
+  it('normalises compatibility characters', () => {
+    expect(sanitizeQuestion('\uff2b\uff21\uff2e')).toBe('KAN');
+  });
+
+  it('exports the shared pattern', () => {
+    expect('a\u200bb'.replace(INVISIBLE_CHARACTERS, '')).toBe('ab');
+  });
+});
+
+const SUFFIXED = [
+  { id: '201', name: 'BAREILLY(R)' },
+  { id: '202', name: 'SAHARANPUR(A)' },
+  { id: '203', name: 'AGRA CANTT' },
+  { id: '204', name: 'AGRA FORT' },
+  { id: '205', name: 'MEERUT CITY' },
+  { id: '206', name: 'MEERUT ROAD' },
+  { id: '207', name: 'ETAWAH' },
+] as const;
+
+describe('scriptedRoute with suffixed and partial names', () => {
+  it.each([
+    ['How is Bareilly doing', { kind: 'depotSummary', depotId: '201' }],
+    ['Any exceptions at saharanpur?', { kind: 'exceptionsFor', depotId: '202' }],
+    ['Tell me about Agra Cantt', { kind: 'depotSummary', depotId: '203' }],
+    ['Tell me about agra can', { kind: 'depotSummary', depotId: '203' }],
+    ['Compare Bareilly and Saharanpur', { kind: 'compareDepots', depotA: '201', depotB: '202' }],
+  ] as const)('routes %j', (question, expected) => {
+    expect(scriptedRoute(question, SUFFIXED)).toEqual(expected);
+  });
+
+  it.each([
+    'Tell me about Meerut',
+    'Tell me about Agra',
+    'How is ET doing',
+    'How are things going',
+    'Compare Bareilly and Bareilly',
+  ])('stays unsupported for %j', (question) => {
+    expect(scriptedRoute(question, SUFFIXED)).toEqual({ kind: 'unsupported' });
+  });
+});
+
+describe('people guard', () => {
+  it.each([
+    'who is driving bus 55 at Agra',
+    'a bus that was driven by Ramesh at Kanpur',
+    'which operator is at Kanpur',
+    'which operators are at Kanpur',
+    'which workers are at Kanpur',
+    'list manpower at Kanpur',
+    'who is on duty at Kanpur',
+    'duties at Kanpur',
+    'shift timings at Kanpur',
+    'the roster for Kanpur',
+    'which manager runs Kanpur',
+    'which supervisor is at Kanpur',
+    'any technician at Kanpur',
+    'which mechanic fixed it at Kanpur',
+    'staff at Kanpur',
+    'employees at Kanpur',
+    'attendance at Kanpur',
+    'salary at Kanpur',
+    'who owns Kanpur',
+    'Whom should I call about Kanpur',
+    'Whose depot is Kanpur',
+  ])('declines %j', (question) => {
+    expect(scriptedRoute(question, DEPOTS)).toEqual({ kind: 'unsupported' });
+  });
+
+  it('still routes a ranking question', () => {
+    expect(scriptedRoute('which depot is on top', DEPOTS)).toMatchObject({ kind: 'rankDepots' });
   });
 });

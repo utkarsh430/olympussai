@@ -1,5 +1,5 @@
 import type { CopilotQuery, RankMetric } from '@/lib/depot/copilot/queries';
-import { UNSUPPORTED_QUERY } from '@/lib/depot/copilot/queries';
+import { UNSUPPORTED_QUERY, metricHigherIsBetter } from '@/lib/depot/copilot/queries';
 import { resolveDepot, type DepotRef } from '@/lib/depot/copilot/router/resolveDepot';
 import { sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
 
@@ -10,7 +10,9 @@ import { sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
  */
 
 const PEOPLE =
-  /\b(crew|crews|drivers?|conductors?|staff|employees?|personnel|people|persons?|individuals?|salary|salaries|attendance|roster|rosters)\b/;
+  /\b(crew|crews|drivers?|driving|driven|drives|conductors?|operators?|workers?|staff|employees?|personnel|manpower|people|persons?|individuals?|duty|duties|shifts?|rosters?|managers?|supervisors?|technicians?|mechanics?|attendance|salary|salaries)\b/;
+/** No catalogue query answers "who", so a question that opens with it is declined. */
+const LEADING_WHO = /^(who|whom|whose)\b/;
 const COMPARE = /\b(compare\w*|versus|vs|against|differ\w*)\b/;
 const TRANSFER =
   /\b(transfers?|transferr\w*|moves?|moved|moving|send\w*|reallocat\w*|redistribut\w*|rebalanc\w*|lend\w*|borrow\w*)\b/;
@@ -36,7 +38,6 @@ const METRIC_PATTERNS: readonly (readonly [RankMetric, RegExp])[] = [
   ['onRoad', /\b(on[\s-]?road|running|moving|active)\b/],
   ['scheduled', /\b(schedul\w*|timetable|assigned|coverage)\b/],
 ];
-const HIGHER_IS_BETTER: ReadonlySet<RankMetric> = new Set(['index', 'onRoad', 'scheduled']);
 
 const NUMBER_WORDS: Readonly<Record<string, number>> = {
   one: 1,
@@ -107,9 +108,48 @@ function idMentions(text: string, depots: readonly DepotRef[]): Mention[] {
   return found;
 }
 
+/**
+ * Feed names carry suffixes ("BAREILLY(R)"), so people write the stem. After
+ * full names and ids, words (and adjacent word pairs) of three or more
+ * characters are offered to `resolveDepot`; only a unique depot whose name
+ * starts with the words counts, so a stray word cannot match mid-name.
+ */
+function partialMentions(
+  text: string,
+  depots: readonly DepotRef[],
+  taken: readonly Mention[],
+): Mention[] {
+  const words = [...text.matchAll(/[a-z0-9]+/g)].map((m) => ({
+    word: m[0],
+    start: m.index ?? 0,
+    end: (m.index ?? 0) + m[0].length,
+  }));
+  const free = (start: number, end: number): boolean =>
+    !taken.some((t) => start < t.end && end > t.start);
+  const found: Mention[] = [];
+  const used = new Set<number>();
+  const tryWindow = (from: number, to: number): void => {
+    const first = words[from];
+    const last = words[to];
+    if (!first || !last || [...used].some((i) => i >= from && i <= to)) return;
+    const phrase = text.slice(first.start, last.end);
+    if (phrase.replace(/\s/g, '').length < MIN_NAME_CHARS || !free(first.start, last.end)) return;
+    if (words.slice(from, to + 1).some((w) => w.word.length < MIN_NAME_CHARS)) return;
+    const id = resolveDepot(phrase, depots);
+    const depot = depots.find((d) => d.id === id);
+    if (!depot || !depot.name.toLowerCase().startsWith(phrase)) return;
+    found.push({ id: depot.id, start: first.start, end: last.end });
+    for (let i = from; i <= to; i += 1) used.add(i);
+  };
+  for (let i = 0; i < words.length - 1; i += 1) tryWindow(i, i + 1);
+  for (let i = 0; i < words.length; i += 1) tryWindow(i, i);
+  return found;
+}
+
 /** Depots the question refers to, in the order written, each at most once. */
 function findDepots(text: string, depots: readonly DepotRef[]): string[] {
-  const mentions = [...nameMentions(text, depots), ...idMentions(text, depots)].sort(
+  const exact = [...nameMentions(text, depots), ...idMentions(text, depots)];
+  const mentions = [...exact, ...partialMentions(text, depots, exact)].sort(
     (a, b) => a.start - b.start,
   );
   const ids: string[] = [];
@@ -131,7 +171,7 @@ function limitFrom(text: string): number {
 
 function rankQuery(text: string): CopilotQuery {
   const metric = METRIC_PATTERNS.find(([, pattern]) => pattern.test(text))?.[0] ?? 'index';
-  const higherIsBetter = HIGHER_IS_BETTER.has(metric);
+  const higherIsBetter = metricHigherIsBetter(metric);
   let order: 'top' | 'bottom' = 'top';
   if (BOTTOM_WORDS.test(text)) order = 'bottom';
   else if (TOP_WORDS.test(text)) order = 'top';
@@ -143,7 +183,7 @@ function rankQuery(text: string): CopilotQuery {
 export function scriptedRoute(question: string, depots: readonly DepotRef[]): CopilotQuery {
   const clean = sanitizeQuestion(question);
   const text = clean.toLowerCase();
-  if (text === '' || PEOPLE.test(text)) return UNSUPPORTED_QUERY;
+  if (text === '' || PEOPLE.test(text) || LEADING_WHO.test(text)) return UNSUPPORTED_QUERY;
 
   const [first, second] = findDepots(text, depots);
   const needsDepot = (build: (id: string) => CopilotQuery): CopilotQuery =>
