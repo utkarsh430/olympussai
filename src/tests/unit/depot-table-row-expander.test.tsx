@@ -65,7 +65,7 @@ describe('DataTable row expander', () => {
     expect(open).toHaveLength(1);
   });
 
-  it('puts a disclosure column after the first, with a button only where there is content', async () => {
+  it('puts the disclosure column first, with a button only where there is content', async () => {
     await mount(
       <DataTable
         columns={COLUMNS}
@@ -78,7 +78,7 @@ describe('DataTable row expander', () => {
       />,
     );
     const headers = [...container.querySelectorAll('th')].map((th) => th.textContent);
-    expect(headers).toEqual(['Duty', 'Details', 'N']);
+    expect(headers).toEqual(['Details', 'Duty', 'N']);
     expect(toggles()).toHaveLength(2);
     expect(toggles().every((b) => b.getAttribute('aria-expanded') === 'false')).toBe(true);
     expect(expandedRows()).toEqual([]);

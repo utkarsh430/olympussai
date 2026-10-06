@@ -20,14 +20,17 @@ function classes(element: Element | null): readonly string[] {
   return (element?.getAttribute('class') ?? '').split(/\s+/);
 }
 
-describe('the rail from 900px', () => {
+describe('the rail from 1280px', () => {
   it('stretches the full height of the row, so its surface and hairline never stop early', () => {
     render(<DepotNav />);
     const rail = screen.getByTestId('depot-nav');
     const own = classes(rail);
-    expect(own).toEqual(expect.arrayContaining(['border-r', 'bg-depot-page']));
+    expect(own).toEqual(
+      expect.arrayContaining(['hidden', 'xl:block', 'xl:w-[232px]', 'border-r', 'bg-depot-page']),
+    );
+    expect(own.some((name) => name.startsWith('min-[900px]'))).toBe(false);
     // Stretched by the flex row, never shrunk to its link list or capped in height.
-    expect(own).not.toContain('min-[900px]:self-start');
+    expect(own).not.toContain('xl:self-start');
     expect(own.some((name) => name.includes('max-h-'))).toBe(false);
   });
 
@@ -67,16 +70,16 @@ describe('the top bar', () => {
     expect(classes(name)).toContain('max-sm:sr-only');
   });
 
-  it('keeps Operations and Sign out behind the Menu below 900px, and inline from 900px', () => {
+  it('keeps Operations and Sign out behind the Menu below 1280px, and inline from 1280px', () => {
     render(<DepotTopBar />);
     const menu = classes(screen.getByTestId('depot-bar-menu'));
-    expect(menu).toContain('min-[900px]:hidden');
+    expect(menu).toContain('xl:hidden');
     expect(menu).not.toContain('sm:hidden');
 
     const operations = classes(screen.getByTestId('depot-back-to-operations'));
-    expect(operations).toEqual(expect.arrayContaining(['hidden', 'min-[900px]:inline-flex']));
+    expect(operations).toEqual(expect.arrayContaining(['hidden', 'xl:inline-flex']));
     const signOut = screen.getByTestId('depot-sign-out').parentElement;
-    expect(classes(signOut)).toEqual(expect.arrayContaining(['hidden', 'min-[900px]:contents']));
+    expect(classes(signOut)).toEqual(expect.arrayContaining(['hidden', 'xl:contents']));
   });
 
   it('sets the in-row Operations and Sign out as quiet buttons, and the menu ones outlined', () => {
@@ -94,7 +97,7 @@ describe('the top bar', () => {
     expect(classes(menu.getByTestId('depot-sign-out'))).not.toContain('depot-bar-button-quiet');
   });
 
-  it('opens the menu panel under the bar, aligned to the bar row at 640 to 899px', () => {
+  it('opens the menu panel under the bar, aligned to the bar row at 640 to 1279px', () => {
     render(<DepotTopBar />);
     act(() => within(screen.getByTestId('depot-bar-menu')).getByRole('button').click());
     const menu = within(screen.getByTestId('depot-bar-menu'));

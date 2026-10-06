@@ -70,7 +70,7 @@ describe('DepotShell structure', () => {
     expect(actionGroup.contains(screen.getByTestId('depot-feed-status'))).toBe(true);
   });
 
-  it('holds Operations and Sign out behind one menu button for phone widths', () => {
+  it('holds Operations and Sign out behind one menu button below the rail breakpoint', () => {
     render(
       <DepotShell>
         <p>page</p>
@@ -82,7 +82,8 @@ describe('DepotShell structure', () => {
     expect(menu.querySelectorAll('a')).toHaveLength(0);
     act(() => button.click());
     expect(button.getAttribute('aria-expanded')).toBe('true');
-    expect(menu.querySelector('a')?.getAttribute('href')).toBe('/project/upsrtc');
+    const operations = [...menu.querySelectorAll('a')].find((a) => a.textContent === 'Operations');
+    expect(operations?.getAttribute('href')).toBe('/project/upsrtc');
     expect(menu.querySelector('[data-testid="depot-sign-out"]')).not.toBeNull();
   });
 

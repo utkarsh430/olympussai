@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
+import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 
@@ -24,6 +25,19 @@ describe('shared vertical rhythm', () => {
     expect(rule('.depot-stack > * + *')).toContain('mt-7');
     expect(rule('.depot-stack > * + *')).toContain('sm:mt-10');
     expect(rule('.depot-stack > *')).toContain('!mb-0');
+  });
+
+  it('keeps a band wrapped in a stack child from adding its own margin to the 40px', () => {
+    // Yard (round 5): the band sat in a wrapper div, so the stack dropped the wrapper's
+    // margin but not the band's 24px, and the next rule landed about 64px down.
+    render(
+      <FigureBand label="Yard figures">
+        <Figure label="Bays" value="1" />
+      </FigureBand>,
+    );
+    const band = screen.getByTestId('depot-figure-band').parentElement;
+    expect(band?.className).toContain('depot-band');
+    expect(rule('.depot-stack .depot-band:last-child')).toContain('!mb-0');
   });
 
   it('puts 16px between a section hairline and its label, then 12px to the content', () => {

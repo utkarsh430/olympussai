@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Info, ChevronUp, ChevronDown } from 'lucide-react';
 import { FOOTER_DISCLAIMER } from '@/lib/constants';
+import { depotDisclaimerText } from '@/lib/depot/shellModel';
 
 /**
  * Permanent, always-accessible prototype disclaimer.
@@ -12,7 +13,9 @@ import { FOOTER_DISCLAIMER } from '@/lib/constants';
  * same disclosure copy without a dark strip across the foot of a white page. The
  * dark default is unchanged for the command centre, which passes nothing. `depot` is
  * the dark strip under the depot shell's 11px type floor: the sentence wraps instead of
- * being cut off mid-word, and the open panel does not print it a second time.
+ * being cut off mid-word, in sans 11/16 at most 90 characters wide; it drops the leading
+ * "Prototype." that the pill beside it already says, and the open panel does not print
+ * it a second time.
  */
 export function FooterDisclaimer({
   variant = 'dark',
@@ -54,11 +57,11 @@ export function FooterDisclaimer({
           Prototype
         </span>
         <span
-          className={`min-w-0 flex-1 ${depot ? 'font-sans' : 'truncate font-mono'} ${text} leading-relaxed ${
-            light ? 'text-sim-muted' : 'text-holo-glow/50'
-          }`}
+          className={`min-w-0 flex-1 ${
+            depot ? 'max-w-[90ch] font-sans leading-4' : 'truncate font-mono leading-relaxed'
+          } ${text} ${light ? 'text-sim-muted' : 'text-holo-glow/50'}`}
         >
-          {FOOTER_DISCLAIMER}
+          {depot ? depotDisclaimerText(FOOTER_DISCLAIMER) : FOOTER_DISCLAIMER}
         </span>
         {expanded ? (
           <ChevronDown
@@ -101,7 +104,7 @@ export function FooterDisclaimer({
             </li>
           </ul>
           <p
-            className={`mt-2 border-t pt-2 font-mono ${small} ${
+            className={`mt-2 border-t pt-2 ${depot ? 'font-sans' : 'font-mono'} ${small} ${
               light ? 'border-sim-line text-sim-faint' : 'border-holo-glow/10 text-holo-glow/45'
             }`}
           >
