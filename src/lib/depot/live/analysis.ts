@@ -1,4 +1,5 @@
 import type { DepotBusRow } from '@/models/depotLive';
+import type { DepotFeedEnvelope } from '../api';
 import type { FleetSnapshotView } from '../repositories/types';
 import { UNASSIGNED_DEPOT_ID, type BusOpState, type DepotSummary } from '../types';
 import type { LocatedBus, Yard } from '../infer/types';
@@ -122,4 +123,29 @@ export function analyseSnapshot(view: FleetSnapshotView): SnapshotAnalysis {
 /** Test seam: forget the memoised analysis. */
 export function resetAnalysisForTests(): void {
   memo = null;
+}
+
+/** The envelope every depot response carries, straight from the snapshot. */
+export function feedEnvelope(view: FleetSnapshotView): DepotFeedEnvelope {
+  return {
+    feedNow: view.feedNow,
+    fetchedAt: view.fetchedAt,
+    source: view.source,
+    stale: view.stale,
+  };
+}
+
+/**
+ * Wraps a view builder so it runs once per snapshot: a single entry keyed like
+ * the analysis, so polling clients share one built response per fetch.
+ */
+export function memoiseBySnapshot<T>(
+  build: (view: FleetSnapshotView) => T,
+): (view: FleetSnapshotView) => T {
+  let entry: { readonly key: string; readonly value: T } | null = null;
+  return (view: FleetSnapshotView): T => {
+    const key = snapshotKey(view);
+    if (entry?.key !== key) entry = { key, value: build(view) };
+    return entry.value;
+  };
 }
