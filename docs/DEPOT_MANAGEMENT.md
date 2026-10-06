@@ -122,7 +122,7 @@ FleetRepository.snapshot() (src/lib/depot/repositories/liveFleetRepository.ts)
                         │
                         ▼
 analyseSnapshot (src/lib/depot/live/analysis.ts): states, locations, yards, scores,
-exceptions — once per snapshot rows array
+exceptions, the requirement's held on-road shares — once per snapshot rows array
                         │
                         ▼
 views (src/lib/depot/live/*View.ts) ──► route handlers (src/app/api/upsrtc/depot/**)
@@ -166,8 +166,8 @@ gzip-compressed JSON (ruling S52). It is read lazily on the first fallback and m
 the life of the process (`src/lib/upsrtc/fleetFixture.ts`); if it is missing or unreadable,
 the small `src/fixtures/upsrtc-live-sample.json` is used instead. The response's `source` is
 `fixture`, the chip reads `FIXTURE`, and every page's provenance line says "sample data" with
-the sample's own feed time. The score window and the yard memory are neither read nor
-written for it.
+the sample's own feed time. The score window, the yard memory and the held peak on-road
+shares are neither read nor written for it.
 
 It is built by `npm run build:depot-fixture` (`scripts/build-depot-fixture.ts`): one request
 to the live feed, no retry, keeping only the raw keys the normalisers read
@@ -256,6 +256,7 @@ first.
 | Live snapshot cache and last-known-good | `src/lib/upsrtc/liveSnapshot.ts` | 15 s TTL |
 | Rolling score window | `score/windowStore.ts` | 20 min of feed time, ≤ 120 samples per depot, ≤ 1,000 depots |
 | Yard memory | `infer/yardMemory.ts` | 12 h hold, ≤ 1,000 depots |
+| Held peak on-road shares (the requirement's basis) | `live/peakShareHold.ts` | one number per depot for one operating date, ≤ 1,000 depots |
 | The modelled day and duty plan | `live/operatingDayView.ts` | one slot per analysis, held per snapshot |
 | Memoised analyses and view bodies | `live/analysis.ts` | held weakly per snapshot |
 | Route-profile cache | `routes/routeCatalogue.ts` | ≤ 2,000 routes; negative answers 10 min |
@@ -266,10 +267,13 @@ first.
 Consequences: a restart or cold start empties all of it. The score window then starts
 with one sample and screens say "from one snapshot at HH:MM", then "over the last N
 minutes" with N the minutes the samples actually span, until the window is full; yards are decided again from single snapshots, and the
-cockpit says "This server has decided this depot's yard on N snapshots so far"; the route
+cockpit says "This server has decided this depot's yard on N snapshots so far"; the held
+peak shares start again from the next snapshot, so a server restarted in the evening models
+a smaller day than one that saw the morning peak; the route
 catalogue is empty until users load details again; the copilot's limits and budget reset.
 With several instances, each holds its own copy: two requests can be scored over different
-windows, see different held yards and different cached routes, and every limit and the
+windows, see different held yards, different held peak shares (so a different modelled day
+and transfer plan until each instance has seen the peak) and different cached routes, and every limit and the
 copilot's Claude budget multiply by the number of instances. A shared store (for example
 Redis) is the fix and is not built.
 
@@ -432,13 +436,22 @@ live figures (`sim/config.ts`): a base utilisation of 0.86 of available buses at
 plus a spare ratio (`DEFAULT_SPARE_RATIO = 0.08`, range 0–0.3, in `optimise/config.ts`).
 Available = fleet − off-road.
 
-The on-road share it reads, and the peer median it is compared with, are taken over the
-rolling score window (ruling S63, `windowedOnRoadShares` in `sim/requirement.ts`), the same
-`onRoad` component the efficiency index sums; a depot new to the window reads its
-single-snapshot share, then the peer median. So the requirement, and with it the modelled
-day and the transfer plan, move only as fast as the window does. On a cold server with one
-sample it equals the single-snapshot requirement. Fleet and off-road counts are still read
-from each snapshot.
+The on-road share it reads is each depot's HIGHEST share over the rolling score window
+seen so far in the operating date, and the peer median it is compared with is the median of
+those maxima. The windowed share is the `onRoad` component the efficiency index sums
+(`windowedOnRoadShares` in `sim/requirement.ts`); the maxima are kept by
+`live/peakShareHold.ts`, offered each snapshot once when it is first analysed, and carried
+on the analysis as `requirementShares`, which the modelled day (`live/operatingDayView.ts`)
+and the fleet distribution (`live/distributionView.ts`) both read. "Peak requirement" is
+therefore the depot's busiest window so far today: the modelled day and the transfer plan
+can grow until the morning peak has passed and then hold; they do not shrink in the evening
+as buses come home. A later operating date (the feed's, `operatingDateOf`) starts afresh; a
+snapshot of an earlier date, one with no date and the saved sample read their own windowed
+shares and leave the maxima as they were. A depot
+with no held value reads its single-snapshot share, then the peer median. On a cold server
+with one sample it equals the single-snapshot requirement, and the maxima are per instance
+(section 6). Fleet and off-road counts are still read from each snapshot, so available
+buses, and the day with them, still follow a bus that really goes off the road.
 
 Transfers (`optimise/rebalance.ts`, `optimise/minCostFlow.ts`): min-cost max-flow by
 successive shortest paths from surplus to deficit depots, distance = straight line × detour
@@ -637,7 +650,7 @@ answers. In summary (detail, settings and limits in
 
 | Folder | Holds |
 | --- | --- |
-| `live/` | Snapshot analysis, aggregation, and one view builder per API route |
+| `live/` | Snapshot analysis, aggregation, the held peak on-road shares, and one view builder per API route |
 | `infer/` | Bus state, location, yard inference and continuity, outshedding |
 | `score/`, `stats/` | Efficiency index, peer groups, rolling window, robust statistics |
 | `exceptions/` | Depot and bus exceptions, paging |
