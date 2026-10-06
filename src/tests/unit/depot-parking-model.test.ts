@@ -1,16 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
+  baysMissingSentence,
   blockedSentence,
+  capacityViewOf,
   capacitySentence,
   dutyText,
+  droppedRowsSentence,
   emptyOrderSentence,
   fleetOnlyCapacitySentence,
   laneHeading,
   overflowReasonText,
   overflowSentence,
+  planDateSentence,
   PLAN_NOTICE,
   visitingSentence,
 } from '@/lib/depot/yard/parkingModel';
+import type { DepotDetailResponse } from '@/lib/depot/api';
 import type { ParkingLane } from '@/lib/depot/yard/parkingApi';
 
 const lane = (slots: number, depth = 8): ParkingLane => ({
@@ -39,6 +44,12 @@ describe('capacitySentence', () => {
   it('says how many are over when the yard holds more than the bays', () => {
     expect(capacitySentence({ bays: 60, inYard: 63, visiting: 1 })).toBe(
       '64 of 60 modelled bays in use; 4 over.',
+    );
+  });
+
+  it('agrees with a plan that seats 50 of 55 own buses when 10 visitors stand in 60 bays', () => {
+    expect(capacitySentence({ bays: 60, inYard: 55, visiting: 10 })).toBe(
+      '65 of 60 modelled bays in use; 5 over.',
     );
   });
 
@@ -110,6 +121,9 @@ describe('overflow wording', () => {
 
   it('gives the reason in words', () => {
     expect(overflowReasonText('no_lane_space')).toBe('No free place in any modelled lane');
+    expect(overflowReasonText('places_taken_by_visitors')).toBe(
+      'Places taken by visiting buses',
+    );
   });
 });
 
@@ -134,7 +148,8 @@ describe('blockedSentence', () => {
 
 describe('notices', () => {
   it('states that the order is a modelled suggestion and dispatches nothing', () => {
-    expect(PLAN_NOTICE).toMatch(/suggested order for tonight/);
+    expect(PLAN_NOTICE).toMatch(/suggested order/);
+    expect(PLAN_NOTICE).not.toMatch(/tonight/);
     expect(PLAN_NOTICE).toMatch(/modelled duties/);
     expect(PLAN_NOTICE).toMatch(/modelled yard layout/);
     expect(PLAN_NOTICE).toMatch(/surveyed yard/);
@@ -143,8 +158,53 @@ describe('notices', () => {
 
   it('gives one sentence per empty state', () => {
     expect(emptyOrderSentence('no_yard')).toMatch(/No yard is established/);
-    expect(emptyOrderSentence('no_buses')).toMatch(/no buses/);
+    expect(emptyOrderSentence('no_buses')).toBe('No bus of this depot is in its yard to order.');
     expect(emptyOrderSentence('not_plannable')).toMatch(/could not be worked out/);
     expect(emptyOrderSentence('planned')).toBe('');
+  });
+});
+
+describe('droppedRowsSentence', () => {
+  it('is empty when nothing was dropped and counts the rows otherwise', () => {
+    expect(droppedRowsSentence(0)).toBe('');
+    expect(droppedRowsSentence(1)).toMatch(/^1 in-yard row with a blank or repeated/);
+    expect(droppedRowsSentence(3)).toMatch(/^3 in-yard rows with a blank or repeated/);
+  });
+});
+
+describe('capacity from the depot detail', () => {
+  const detail = (yard: unknown, inYard: number, visitors: number): DepotDetailResponse =>
+    ({
+      depot: { fleet: 70 },
+      yard: { value: yard },
+      locationMix: { in_yard: inYard },
+      visitors: new Array(visitors).fill({}),
+    }) as unknown as DepotDetailResponse;
+
+  it('takes the live counts from the detail and the bays from the caller', () => {
+    expect(capacityViewOf(detail({}, 55, 10), 60)).toEqual({
+      inYard: 55,
+      visiting: 10,
+      fleet: 70,
+      bays: 60,
+    });
+    expect(capacityViewOf(detail(null, 0, 0), null).inYard).toBeNull();
+  });
+
+  it('states the live counts and that the bay count is unavailable or loading', () => {
+    const view = capacityViewOf(detail({}, 55, 10), null);
+    expect(baysMissingSentence(view, false)).toBe(
+      '55 buses in the yard, 10 visiting. The modelled bay count is unavailable, so use is not set against capacity.',
+    );
+    expect(baysMissingSentence(view, true)).toMatch(/modelled bay count is loading/);
+    expect(baysMissingSentence(capacityViewOf(detail(null, 0, 0), null), false)).toMatch(
+      /^No yard is established; 70 buses in the fleet\./,
+    );
+  });
+});
+
+describe('planDateSentence', () => {
+  it('names the date of the departures, not a time of day', () => {
+    expect(planDateSentence('2026-10-07')).toBe('For departures on 7 Oct 2026.');
   });
 });

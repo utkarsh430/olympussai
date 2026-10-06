@@ -9,6 +9,7 @@ import type {
   ParkingCapacity,
   ParkingLane,
   ParkingOrder,
+  ParkingOverflowReason,
   ParkingResponse,
   ParkingState,
 } from '../yard/parkingApi';
@@ -35,6 +36,9 @@ export function nextOperatingDate(operatingDate: string): string {
   return next.toISOString().slice(0, 10);
 }
 
+/** The one place a registration is cleaned: the duty lookup and the planner share this value. */
+const cleanRegistration = (registration: string): string => registration.trim();
+
 /** The earliest start among the duties each bus was assigned; no entry means no duty. */
 function firstDutyByBus(
   planned: NonNullable<ReturnType<typeof planDutiesFor>>,
@@ -44,32 +48,56 @@ function firstDutyByBus(
   for (const a of planned.plan.assignments) {
     const start = startOf.get(a.dutyId);
     if (a.registrationNumber === null || start === undefined || !Number.isFinite(start)) continue;
-    const known = first.get(a.registrationNumber);
-    if (known === undefined || start < known) first.set(a.registrationNumber, start);
+    const key = cleanRegistration(a.registrationNumber);
+    const known = first.get(key);
+    if (known === undefined || start < known) first.set(key, start);
   }
   return first;
 }
 
+/** The duty assignment rejects a repeated registration, so a live feed's repeat never reaches it. */
+function withoutRepeats(buses: readonly DepotBusView[]): readonly DepotBusView[] {
+  const seen = new Set<string>();
+  return buses.filter((bus) => {
+    if (seen.has(bus.registrationNumber)) return false;
+    seen.add(bus.registrationNumber);
+    return true;
+  });
+}
+
+interface ParkedSet {
+  readonly parked: readonly ParkedBus[];
+  /** In-yard rows left out because the registration is blank or repeats an earlier row. */
+  readonly dropped: number;
+}
+
 /**
- * The buses to park tonight: the depot's own buses the feed places in its yard
- * now, plus its buses standing with no duty tomorrow. A blank or repeated
- * registration is dropped here so the planner, which rejects both, never sees it.
+ * The buses to park: exactly the depot's own buses the feed places in its yard
+ * (`location === 'in_yard'`); a bus standing elsewhere is not in this plan. A
+ * blank or repeated registration is dropped and counted, so the planner, which
+ * rejects both, never sees it and the page can reconcile with the depot detail.
  */
 function parkedBuses(
   buses: readonly DepotBusView[],
   firstDuty: ReadonlyMap<string, number>,
-): ParkedBus[] {
+): ParkedSet {
   const seen = new Set<string>();
   const parked: ParkedBus[] = [];
+  let dropped = 0;
   for (const bus of buses) {
-    const registration = bus.registrationNumber.trim();
-    const start = firstDuty.get(bus.registrationNumber) ?? null;
-    const inScope = bus.location === 'in_yard' || (bus.state === 'standing' && start === null);
-    if (registration === '' || seen.has(registration) || !inScope) continue;
+    if (bus.location !== 'in_yard') continue;
+    const registration = cleanRegistration(bus.registrationNumber);
+    if (registration === '' || seen.has(registration)) {
+      dropped += 1;
+      continue;
+    }
     seen.add(registration);
-    parked.push({ registrationNumber: registration, firstDutyStartMin: start });
+    parked.push({
+      registrationNumber: registration,
+      firstDutyStartMin: firstDuty.get(registration) ?? null,
+    });
   }
-  return parked;
+  return { parked, dropped };
 }
 
 function toLanes(
@@ -92,16 +120,34 @@ function toLanes(
   });
 }
 
-function orderFor(lanes: readonly Lane[], parked: readonly ParkedBus[]): ParkingOrder {
+/**
+ * Overflow reasons. Buses beyond what the bays could hold even with no visitors
+ * did not fit by their own number; the rest are shut out by visiting buses.
+ */
+function overflowReasons(
+  overflow: readonly string[],
+  parkedCount: number,
+  bays: number,
+): readonly ParkingOverflowReason[] {
+  const ownShortfall = Math.max(0, parkedCount - bays);
+  return overflow.map((_, i) => (i < ownShortfall ? 'no_lane_space' : 'places_taken_by_visitors'));
+}
+
+function orderFor(
+  lanes: readonly Lane[],
+  parked: readonly ParkedBus[],
+  bays: number,
+): ParkingOrder {
   const plan = planParking(lanes, parked);
   const startOf = new Map(parked.map((b) => [b.registrationNumber, b.firstDutyStartMin]));
+  const reasons = overflowReasons(plan.overflow, parked.length, bays);
   return {
     provenance: 'modelled',
     lanes: toLanes(lanes, plan.slots),
-    overflow: plan.overflow.map((registrationNumber) => ({
+    overflow: plan.overflow.map((registrationNumber, i) => ({
       registrationNumber,
       firstDutyStartMin: startOf.get(registrationNumber) ?? null,
-      reason: 'no_lane_space',
+      reason: reasons[i] ?? 'no_lane_space',
     })),
     blocked: plan.blocked,
     parkedCount: plan.slots.length,
@@ -124,18 +170,36 @@ function buildBody(
   detail: DepotDetailResponse,
   operatingDate: string,
 ): ParkingBody | null {
-  const planned = planDutiesFor(analysis, detail.depot.id, detail.buses, operatingDate);
+  const planned = planDutiesFor(
+    analysis,
+    detail.depot.id,
+    withoutRepeats(detail.buses),
+    operatingDate,
+  );
   if (!planned) return null;
   const bays = modelDepotMaster(detail.depot).parkingCapacity;
   const capacity = capacityOf(detail, bays);
   const base = { depot: { id: detail.depot.id, name: detail.depot.name }, operatingDate, capacity };
-  const empty = (state: ParkingState): ParkingBody => ({ ...base, state, order: null });
+  const empty = (state: ParkingState): ParkingBody => ({
+    ...base,
+    state,
+    order: null,
+    droppedRows: 0,
+  });
   if (detail.yard.value === null) return empty('no_yard');
-  const parked = parkedBuses(detail.buses, firstDutyByBus(planned));
-  if (parked.length === 0) return empty('no_buses');
+  const { parked, dropped } = parkedBuses(detail.buses, firstDutyByBus(planned));
+  const withDropped = (state: ParkingState, order: ParkingOrder | null): ParkingBody => ({
+    ...base,
+    state,
+    order,
+    droppedRows: dropped,
+  });
+  if (parked.length === 0) return withDropped('no_buses', null);
   try {
-    const order = orderFor(modelYardLayout(detail.depot, bays), parked);
-    return { ...base, state: 'planned', order };
+    // Visiting buses stand in places too: shorten the lanes from the back by that many.
+    const places = Math.max(0, bays - detail.visitors.length);
+    const order = orderFor(modelYardLayout(detail.depot, places), parked, bays);
+    return withDropped('planned', order);
   } catch (error) {
     // The planner and the layout reject only malformed input; that is an empty state, not a 500.
     if (error instanceof RangeError) return empty('not_plannable');

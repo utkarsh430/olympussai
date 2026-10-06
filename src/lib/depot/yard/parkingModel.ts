@@ -1,12 +1,18 @@
 import { formatMinute } from '../duties/dutyBoardModel';
-import { formatCount } from '../format';
-import type { ParkingLane, ParkingState } from './parkingApi';
+import type { DepotDetailResponse } from '../api';
+import { formatCount, formatPlainDate } from '../format';
+import type { ParkingLane, ParkingOverflowReason, ParkingState } from './parkingApi';
 
 /** Shown with the order wherever it appears; the order is a proposal and nothing is dispatched. */
 export const PLAN_NOTICE =
-  'A suggested order for tonight, based on modelled duties and a modelled yard layout. It will be replaced when the timetable and a surveyed yard are supplied. Nothing is instructed or dispatched.';
+  'A suggested order, based on modelled duties and a modelled yard layout. It will be replaced when the timetable and a surveyed yard are supplied. Nothing is instructed or dispatched.';
 
 const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
+
+/** The plan is for the day after the feed date, so it names the date and never a time of day. */
+export function planDateSentence(operatingDate: string): string {
+  return `For departures on ${formatPlainDate(operatingDate)}.`;
+}
 
 export interface CapacityInput {
   readonly bays: number;
@@ -25,6 +31,41 @@ export function capacitySentence({ bays, inYard, visiting }: CapacityInput): str
   if (free > 0) return `${head}; ${formatCount(free)} free.`;
   if (free === 0) return `${head}; none free.`;
   return `${head}; ${formatCount(-free)} over.`;
+}
+
+/**
+ * What the capacity panel shows. The counts come from the depot detail the yard
+ * page already holds; only `bays` (modelled) comes from the parking endpoint, so
+ * a failed parking request leaves the live counts standing and `bays` null.
+ */
+export interface CapacityView {
+  /** Own buses the feed places in the yard; null when no yard is established. */
+  readonly inYard: number | null;
+  readonly visiting: number;
+  readonly fleet: number;
+  /** Modelled bays; null until the parking endpoint has answered. */
+  readonly bays: number | null;
+}
+
+export function capacityViewOf(detail: DepotDetailResponse, bays: number | null): CapacityView {
+  return {
+    inYard: detail.yard.value === null ? null : detail.locationMix.in_yard,
+    visiting: detail.visitors.length,
+    fleet: detail.depot.fleet,
+    bays,
+  };
+}
+
+/** The live counts on their own, when the modelled bay count is missing. */
+export function baysMissingSentence(view: CapacityView, pending: boolean): string {
+  const why = pending
+    ? 'The modelled bay count is loading.'
+    : 'The modelled bay count is unavailable, so use is not set against capacity.';
+  const counts =
+    view.inYard === null
+      ? `No yard is established; ${formatCount(view.fleet)} ${plural(view.fleet, 'bus', 'buses')} in the fleet.`
+      : `${formatCount(view.inYard)} ${plural(view.inYard, 'bus', 'buses')} in the yard, ${formatCount(view.visiting)} visiting.`;
+  return `${counts} ${why}`;
 }
 
 export function visitingSentence(visiting: number): string {
@@ -57,8 +98,10 @@ export function overflowSentence(count: number): string {
     : `${formatCount(count)} buses do not fit in the modelled lanes and are not ordered.`;
 }
 
-export function overflowReasonText(reason: 'no_lane_space'): string {
-  return reason === 'no_lane_space' ? 'No free place in any modelled lane' : '';
+export function overflowReasonText(reason: ParkingOverflowReason): string {
+  return reason === 'places_taken_by_visitors'
+    ? 'Places taken by visiting buses'
+    : 'No free place in any modelled lane';
 }
 
 export interface BlockedLine {
@@ -83,11 +126,19 @@ const EMPTY_SENTENCE: Readonly<Record<ParkingState, string>> = {
   planned: '',
   no_yard:
     'No yard is established for this depot, so no parking order is shown; it would have to be invented.',
-  no_buses: 'This depot has no buses in the feed, so there is nothing to park.',
+  no_buses: 'No bus of this depot is in its yard to order.',
   not_plannable:
     'The parking order could not be worked out from the rows in the feed, so none is shown.',
 };
 
 export function emptyOrderSentence(state: ParkingState): string {
   return EMPTY_SENTENCE[state];
+}
+
+/** Empty when every in-yard row was ordered; otherwise says how many rows were left out and why. */
+export function droppedRowsSentence(dropped: number): string {
+  if (dropped <= 0) return '';
+  return dropped === 1
+    ? '1 in-yard row with a blank or repeated registration is left out of the order.'
+    : `${formatCount(dropped)} in-yard rows with a blank or repeated registration are left out of the order.`;
 }

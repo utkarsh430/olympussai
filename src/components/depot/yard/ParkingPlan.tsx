@@ -9,6 +9,7 @@ import {
   overflowReasonText,
   overflowSentence,
   PLAN_NOTICE,
+  planDateSentence,
 } from '@/lib/depot/yard/parkingModel';
 
 export interface ParkingPlanProps {
@@ -95,7 +96,7 @@ export function ParkingPlan({ depotId, order, operatingDate }: ParkingPlanProps)
       </div>
       <p className="depot-prose mt-2">{PLAN_NOTICE}</p>
       <p className="depot-prose mt-2 text-xs" data-testid="parking-date">
-        For the day starting {operatingDate}.
+        {planDateSentence(operatingDate)}
       </p>
       <p
         role={blocked.warning ? 'alert' : 'status'}
@@ -105,7 +106,7 @@ export function ParkingPlan({ depotId, order, operatingDate }: ParkingPlanProps)
         {blocked.text}
       </p>
       <h3 className="depot-section-label mt-4">Lanes</h3>
-      <ul className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
+      <ul className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-3">
         {order.lanes.map((lane) => (
           <LaneList key={lane.id} depotId={depotId} lane={lane} />
         ))}

@@ -33,10 +33,13 @@ export interface ParkingLane {
   readonly slots: readonly ParkingLaneSlot[];
 }
 
+/** Why a bus is not in a lane: the lanes are full, or visiting buses stand in the places. */
+export type ParkingOverflowReason = 'no_lane_space' | 'places_taken_by_visitors';
+
 export interface ParkingOverflowBus {
   readonly registrationNumber: string;
   readonly firstDutyStartMin: number | null;
-  readonly reason: 'no_lane_space';
+  readonly reason: ParkingOverflowReason;
 }
 
 export interface ParkingOrder {
@@ -55,6 +58,11 @@ export interface ParkingResponse extends DepotFeedEnvelope {
   readonly operatingDate: string;
   readonly state: ParkingState;
   readonly capacity: ParkingCapacity;
+  /**
+   * Own in-yard rows left out of the order because the registration is blank or
+   * repeated. The order's buses plus its overflow equal the in-yard count minus this.
+   */
+  readonly droppedRows: number;
   /** Null unless `state` is `planned`. */
   readonly order: ParkingOrder | null;
 }

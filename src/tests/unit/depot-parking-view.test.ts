@@ -146,6 +146,50 @@ describe('buildParkingResponse', () => {
     expect(order.parkedCount + order.overflow.length).toBe(rows.length);
   });
 
+  it('parks only buses the feed places in this yard, never one away or at another yard', () => {
+    const far = fromMetres({ x: 15_000, y: 0 }, HOME.lat, HOME.lng);
+    const away = Array.from({ length: 3 }, (_, i) =>
+      row({ registrationNumber: `AW${i}`, latitude: far.lat, longitude: far.lng }),
+    );
+    const rows = [...parked(), ...away];
+    const v = view(rows);
+    const detail = buildDepotDetail(v, '1')!;
+    expect(detail.buses.filter((b) => b.location !== 'in_yard').length).toBeGreaterThan(0);
+    const order = parking(rows, v).order!;
+    const placed = [
+      ...order.lanes.flatMap((l) => l.slots.map((s) => s.registrationNumber)),
+      ...order.overflow.map((o) => o.registrationNumber),
+    ];
+    expect(placed.some((r) => r.startsWith('AW'))).toBe(false);
+    expect(order.parkedCount + order.overflow.length).toBe(detail.locationMix.in_yard);
+  });
+
+  it('reconciles with the in-yard count minus the rows it dropped, and says how many', () => {
+    const rows = [...parked(), row({ registrationNumber: '   ' }), row({ registrationNumber: 'A3 ' })];
+    const v = view(rows);
+    const p = parking(rows, v);
+    const inYard = buildDepotDetail(v, '1')!.locationMix.in_yard;
+    expect(p.droppedRows).toBe(2);
+    expect(p.order!.parkedCount + p.order!.overflow.length).toBe(inYard - p.droppedRows);
+    expect(parking(parked()).droppedRows).toBe(0);
+  });
+
+  it('does not throw on a repeated registration, and counts the repeat as dropped', () => {
+    const p = parking([...parked(), row({ registrationNumber: 'A3' })]);
+    expect(p.droppedRows).toBe(1);
+    expect(p.order!.parkedCount + p.order!.overflow.length).toBe(12);
+  });
+
+  it('uses one trimmed registration for the duty lookup and the plan', () => {
+    const padded = parked().map((r) => ({ ...r, registrationNumber: ` ${r.registrationNumber} ` }));
+    const slots = parking(padded).order!.lanes.flatMap((l) => l.slots);
+    expect(slots.every((s) => s.registrationNumber === s.registrationNumber.trim())).toBe(true);
+    const withDuty = (all: typeof slots): number =>
+      all.filter((s) => s.firstDutyStartMin !== null).length;
+    expect(withDuty(slots)).toBeGreaterThan(0);
+    expect(withDuty(slots)).toBe(withDuty(parking(parked()).order!.lanes.flatMap((l) => l.slots)));
+  });
+
   it('counts a bus of another depot standing in the yard against capacity but does not order it', () => {
     const rows = [...parked(), row({ registrationNumber: 'V1', depotId: '2', depotName: 'Other' })];
     const p = parking(rows);
@@ -153,6 +197,50 @@ describe('buildParkingResponse', () => {
     expect(p.capacity.visiting.value).toBe(1);
     expect(regs).not.toContain('V1');
     expect(p.order!.overflow.map((o) => o.registrationNumber)).not.toContain('V1');
+  });
+
+  describe('visiting buses take places', () => {
+    const OWN = 12;
+    /** One bus per home depot, so no visiting depot has enough buses to form a yard of its own. */
+    const visitors = (count: number): DepotBusRow[] =>
+      Array.from({ length: count }, (_, i) =>
+        row({ registrationNumber: `V${i}`, depotId: String(100 + i), depotName: `Other ${i}` }),
+      );
+    const baysFor = (): number => parking(parked(OWN)).capacity.bays.value;
+    const laneCount = (p: ReturnType<typeof parking>): number =>
+      p.order!.lanes.reduce((n, l) => n + l.depth, 0);
+
+    it('with no visitors, builds lanes for every modelled bay and no overflow beyond the bays', () => {
+      const p = parking(parked(OWN));
+      expect(laneCount(p)).toBe(p.capacity.bays.value);
+      expect(p.order!.overflow).toEqual([]);
+      expect(p.order!.parkedCount).toBe(OWN);
+    });
+
+    it('cuts the lanes by the visitors so the order matches the capacity sentence', () => {
+      const bays = baysFor();
+      const over = 3;
+      const visiting = bays - OWN + over;
+      const p = parking([...parked(OWN), ...visitors(visiting)]);
+      expect(p.capacity.visiting.value).toBe(visiting);
+      expect(laneCount(p)).toBe(bays - visiting);
+      expect(p.order!.parkedCount).toBe(OWN - over);
+      expect(p.order!.overflow).toHaveLength(over);
+      expect(p.order!.overflow.every((o) => o.reason === 'places_taken_by_visitors')).toBe(true);
+      expect(p.order!.parkedCount + p.order!.overflow.length).toBe(OWN);
+      // Used = own + visitors; over = used - bays = the overflow.
+      expect(p.capacity.inYard.value! + visiting - bays).toBe(over);
+    });
+
+    it('seats nobody and overflows every own bus when visitors alone exceed the bays', () => {
+      const bays = baysFor();
+      const p = parking([...parked(OWN), ...visitors(bays + 2)]);
+      expect(p.state).toBe('planned');
+      expect(p.order!.lanes).toEqual([]);
+      expect(p.order!.parkedCount).toBe(0);
+      expect(p.order!.overflow).toHaveLength(OWN);
+      expect(p.order!.overflow.every((o) => o.reason === 'places_taken_by_visitors')).toBe(true);
+    });
   });
 
   it('tags the provenance of each field', () => {
@@ -187,6 +275,21 @@ describe('buildParkingResponse', () => {
     expect(p.order).toBeNull();
     expect(p.capacity.fleet.value).toBe(1);
     expect(p.capacity.visiting.value).toBe(0);
+  });
+
+  it('reaches each empty state through the feed rows, and says no order for each', () => {
+    // A yard is learned but no row can be ordered: every in-yard row has a blank registration.
+    const blank = parked().map((r) => ({ ...r, registrationNumber: ' ' }));
+    const noBuses = parking(blank);
+    expect(noBuses.state).toBe('no_buses');
+    expect(noBuses.order).toBeNull();
+    expect(noBuses.droppedRows).toBeGreaterThan(0);
+    // No yard can be learned from buses 15 km apart.
+    const noYard = parking(scattered());
+    expect(noYard.state).toBe('no_yard');
+    expect(noYard.order).toBeNull();
+    expect(noYard.droppedRows).toBe(0);
+    expect(parking(parked()).state).toBe('planned');
   });
 
   it('skips a row with a blank registration instead of throwing', () => {
