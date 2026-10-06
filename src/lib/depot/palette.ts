@@ -151,3 +151,37 @@ export function meaningColour(meaning: DepotMeaning): string {
  * lightness, so it reads as more and less, never as categories.
  */
 export const DEPOT_CYAN_RAMP = ['#075f77', '#0a82a0', '#0ea5c9', '#22d9f5', '#3ff0ff'] as const;
+
+/**
+ * The index ramp, worst to best: deep crimson, the dashboard's crimson, its amber, a soft
+ * green, then its green. Each step is lighter than the last (relative luminance about
+ * 0.10, 0.27, 0.52, 0.64, 0.74), so "lighter is better" stays true, the order reads in
+ * greyscale and for red-green colour-blind readers, and on the dark map the bands read
+ * as the dashboard's good-to-bad colours. One scale for "index" everywhere: the overview
+ * map's nodes, its highest and lowest dots, and the league and economics index bars.
+ */
+export const DEPOT_INDEX_RAMP = [
+  '#a3283a',
+  DEPOT_PALETTE.crimson,
+  DEPOT_PALETTE.amber,
+  '#7fe6a6',
+  DEPOT_PALETTE.green,
+] as const;
+
+/** Index bands are 20 points wide; 100 falls in the top band. */
+const INDEX_BAND_WIDTH = 20;
+
+/** The ramp colour for an index from 0 to 100 (the same bands as the map legend). */
+export function indexRampColour(index: number): string {
+  const step = Math.floor(Math.min(100, Math.max(0, index)) / INDEX_BAND_WIDTH);
+  return DEPOT_INDEX_RAMP[Math.min(step, DEPOT_INDEX_RAMP.length - 1)] as string;
+}
+
+/**
+ * A colour as the `--depot-tone` channels ("255 77 94"), so a bar fill drawn by
+ * `.depot-bar-fill` (its gradient and glow read `--depot-tone`) can take a ramp colour.
+ */
+export function toneChannels(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
+}

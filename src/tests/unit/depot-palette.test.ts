@@ -5,12 +5,15 @@ import colors from 'tailwindcss/colors';
 import config from '../../../tailwind.config';
 import {
   DEPOT_CYAN_RAMP,
+  DEPOT_INDEX_RAMP,
   DEPOT_MEANING_TONE,
   DEPOT_PALETTE,
   DEPOT_TONE_COLOUR,
   DEPOT_TONE_TEXT,
   meaningColour,
+  indexRampColour,
 } from '@/lib/depot/palette';
+import { INDEX_BANDS } from '@/lib/depot/map/nodeStyle';
 import { BUS_STATE_COLOUR } from '@/lib/depot/yard/yardModel';
 import { BUS_STATE_SQUARE } from '@/components/depot/shell/BusStateMark';
 
@@ -117,6 +120,26 @@ describe('depot palette module', () => {
     expect(DEPOT_CYAN_RAMP[0]).toBe(holo.deep);
     expect(DEPOT_CYAN_RAMP[DEPOT_CYAN_RAMP.length - 1]).toBe(holo.glow);
     lightness.slice(1).forEach((value, i) => expect(value).toBeGreaterThan(lightness[i] as number));
+  });
+
+  it('ramps the index from deep crimson to green, each step lighter than the last', () => {
+    const luminance = (hex: string): number => {
+      const n = parseInt(hex.slice(1), 16);
+      const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
+        const v = c / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      }) as [number, number, number];
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const steps = DEPOT_INDEX_RAMP.map(luminance);
+    steps.slice(1).forEach((value, i) => expect(value).toBeGreaterThan(steps[i] as number));
+    expect(DEPOT_INDEX_RAMP[1]).toBe(DEPOT_PALETTE.crimson);
+    expect(DEPOT_INDEX_RAMP[2]).toBe(DEPOT_PALETTE.amber);
+    expect(DEPOT_INDEX_RAMP[4]).toBe(DEPOT_PALETTE.green);
+    expect(indexRampColour(0)).toBe(DEPOT_INDEX_RAMP[0]);
+    expect(indexRampColour(59.9)).toBe(DEPOT_INDEX_RAMP[2]);
+    expect(indexRampColour(100)).toBe(DEPOT_INDEX_RAMP[4]);
+    expect(INDEX_BANDS.map((band) => band.fill)).toEqual([...DEPOT_INDEX_RAMP]);
   });
 
   it('is the only depot source file that writes a colour literal', () => {

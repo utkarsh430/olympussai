@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Column } from '@/components/depot/shell/DataTable';
 import { depotHref } from '@/lib/depot/depotNav';
+import { indexFillStyle } from '@/components/depot/league/IndexBar';
 import { formatCount } from '@/lib/depot/format';
 import {
   ECONOMICS_COLUMN_WIDTHS,
@@ -74,7 +75,7 @@ function IndexButton({ row, open, onToggle }: IndexButtonProps) {
           <>
             <span className="w-10 text-right tabular-nums">{index.toFixed(1)}</span>
             <span aria-hidden className="depot-bar-track w-16">
-              <span className="depot-bar-fill" style={{ width: `${width}%` }} />
+              <span className="depot-bar-fill" style={indexFillStyle(index, width)} />
               <span className="depot-bar-tick" style={{ left: `${MEDIAN_TICK}%` }} />
             </span>
           </>
