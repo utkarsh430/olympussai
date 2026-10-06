@@ -4,6 +4,7 @@ import {
   test,
   expect,
   E2E_PIN,
+  E2E_PROJECT_NAME,
   IN_CI,
   PIN_MISSING,
   SIGNED_OUT,
@@ -190,4 +191,105 @@ test.describe('1. the depot API contract', () => {
       }
     });
   });
+});
+
+const PAGES_DIR = path.join(REPO_ROOT, 'src/app/(protected)/project/depots');
+
+/** Every depot page as the file system declares it, e.g. `/project/depots/d/[depotId]/yard`. */
+const PAGE_TEMPLATES: readonly string[] = discover(PAGES_DIR, 'page.tsx').map((file) => {
+  const dir = path.posix.dirname(file);
+  return `/project/depots${dir === '.' ? '' : `/${dir}`}`;
+});
+
+/** Each page's heading, as the page writes it (the screen shows it in capitals). */
+const PAGE_HEADING: Readonly<Record<string, string>> = {
+  '/project/depots': 'Network overview',
+  '/project/depots/ask': 'Ask',
+  '/project/depots/economics': 'Economics',
+  '/project/depots/exceptions': 'Exceptions',
+  '/project/depots/league': 'League table',
+  '/project/depots/rebalance': 'Fleet distribution',
+  '/project/depots/routes': 'Routes',
+  '/project/depots/sources': 'Data sources',
+  '/project/depots/trends': 'Trends',
+  '/project/depots/d/[depotId]': 'Depot cockpit',
+  '/project/depots/d/[depotId]/crew': 'Crew',
+  '/project/depots/d/[depotId]/duties': 'Duties',
+  '/project/depots/d/[depotId]/fuel': 'Fuel and cost',
+  '/project/depots/d/[depotId]/maintenance': 'Maintenance',
+  '/project/depots/d/[depotId]/revenue': 'Revenue and ridership',
+  '/project/depots/d/[depotId]/roster': 'Roster',
+  '/project/depots/d/[depotId]/trends': 'Trends',
+  '/project/depots/d/[depotId]/yard': 'Yard',
+};
+
+type DepotPage = import('@playwright/test').Page;
+
+/** Opens a depot page and waits until its heading and its data have arrived. */
+async function openPage(page: DepotPage, url: string, heading: string): Promise<void> {
+  await page.goto(url);
+  await expect(page.getByRole('heading', { level: 1, name: heading, exact: true })).toBeVisible();
+  await expect(page.getByTestId('depot-feed-status')).toHaveAttribute('data-source', 'fixture');
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+}
+
+/** The page's rendered text, every `title` and every `aria-label`, one entry each. */
+async function allPageText(page: DepotPage): Promise<string[]> {
+  return page.evaluate(() => [
+    document.body.innerText,
+    ...Array.from(document.querySelectorAll('[title], [aria-label]')).flatMap((el) => [
+      el.getAttribute('title') ?? '',
+      el.getAttribute('aria-label') ?? '',
+    ]),
+  ]);
+}
+
+const ISO_DATE = /\b\d{4}-\d{2}-\d{2}\b/;
+
+/** Pages that log a console error on load today because of a product defect. */
+const CONSOLE_DEFECTS: Readonly<Record<string, string>> = {
+  // About one load in four logs React error #418: the server HTML differs from the client's.
+  '/project/depots/d/[depotId]/roster': 'the roster page intermittently fails hydration (#418)',
+};
+
+/** Pages whose wording check fails today because of a product defect, each with what is wrong. */
+const WORDING_DEFECTS: Readonly<Record<string, string>> = {
+  // The suggested roster prints duty ids such as "49-2026-10-06-009": a raw date, cell and title.
+  '/project/depots/d/[depotId]/crew': 'duty ids carry a raw YYYY-MM-DD date',
+};
+
+test.describe('2. every depot page renders honestly on the sample', () => {
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
+
+  test('every page the file system declares has a heading in this table', () => {
+    expect([...PAGE_TEMPLATES].sort()).toEqual(Object.keys(PAGE_HEADING).sort());
+  });
+
+  for (const template of PAGE_TEMPLATES) {
+    test(`${template} shows its heading and provenance`, async ({ page, sample }) => {
+      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), PAGE_HEADING[template]);
+
+      const provenance = page.getByTestId('depot-provenance-line');
+      await expect(provenance).toBeVisible();
+      await expect(provenance).toContainText(/DERIVED|MODELLED|MIXED|LIVE|REFERENCE/);
+    });
+
+    test(`${template} loads with no console error`, async ({ page, sample }) => {
+      test.fixme(template in CONSOLE_DEFECTS, CONSOLE_DEFECTS[template]);
+      const errors = collectConsoleErrors(page);
+      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), PAGE_HEADING[template]);
+      await page.waitForLoadState('networkidle');
+
+      expect(errors).toEqual([]);
+    });
+
+    test(`${template} never says "simulated" or prints a raw date`, async ({ page, sample }) => {
+      test.fixme(template in WORDING_DEFECTS, WORDING_DEFECTS[template]);
+      await openPage(page, template.replace(DEPOT_SEGMENT, sample.depotId), PAGE_HEADING[template]);
+
+      const texts = await allPageText(page);
+      expect(texts.filter((text) => /simulated/i.test(text))).toEqual([]);
+      expect(texts.filter((text) => ISO_DATE.test(text))).toEqual([]);
+    });
+  }
 });
