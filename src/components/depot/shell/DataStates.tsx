@@ -1,5 +1,6 @@
 import { formatFeedTime } from '@/lib/depot/format';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
+import { StatePanel } from './StatePanel';
 
 export interface LoadingBlockProps {
   /** Number of placeholder rows. Match the rows the data will occupy. */
@@ -11,31 +12,18 @@ export interface LoadingBlockProps {
 
 const DEFAULT_ROWS = 6;
 const DEFAULT_ROW_HEIGHT_PX = 36;
-const ROW_GAP_PX = 8;
 
 /**
  * Static placeholder with the footprint of the data it stands in for: no
- * shimmer, no spinner. Announced once as busy to assistive tech.
+ * shimmer, no spinner. Announced once as busy to assistive tech. A `StatePanel`
+ * of kind loading, kept under its earlier name and props.
  */
 export function LoadingBlock({
   rows = DEFAULT_ROWS,
   rowHeight = DEFAULT_ROW_HEIGHT_PX,
   label = 'Loading depot data',
 }: LoadingBlockProps) {
-  return (
-    <div
-      role="status"
-      aria-busy="true"
-      data-testid="depot-loading"
-      className="flex flex-col"
-      style={{ gap: ROW_GAP_PX }}
-    >
-      <span className="sr-only">{label}</span>
-      {Array.from({ length: rows }, (_, index) => (
-        <div key={index} aria-hidden className="depot-skeleton" style={{ height: rowHeight }} />
-      ))}
-    </div>
-  );
+  return <StatePanel kind="loading" sentence={label} rows={rows} rowHeight={rowHeight} />;
 }
 
 /**
@@ -58,21 +46,23 @@ export interface ErrorPanelProps {
   readonly children?: React.ReactNode;
 }
 
-/** What failed, and a way to try again; never a blank page. */
+/** What failed, and a way to try again; never a blank page. A `StatePanel` of kind error. */
 export function ErrorPanel({ message, onRetry, title, children }: ErrorPanelProps) {
   return (
-    <div role="alert" data-testid="depot-error" className="depot-error-panel">
-      <h2 className="text-[13px] text-alert-crimson">{title}</h2>
-      <p className="depot-prose mt-1">
-        {message === DEPOT_UNAVAILABLE_MESSAGE ? GENERIC_ERROR_BODY : message}
-      </p>
-      <div className="mt-3 flex flex-wrap items-center gap-4">
-        <button type="button" onClick={onRetry} className="depot-filter-button">
-          Retry
-        </button>
-        {children}
-      </div>
-    </div>
+    <StatePanel
+      kind="error"
+      testId="depot-error"
+      title={title}
+      sentence={message === DEPOT_UNAVAILABLE_MESSAGE ? GENERIC_ERROR_BODY : message}
+      action={
+        <>
+          <button type="button" onClick={onRetry} className="depot-filter-button">
+            Retry
+          </button>
+          {children}
+        </>
+      }
+    />
   );
 }
 
@@ -91,11 +81,7 @@ export function StaleStrip({ since }: StaleStripProps) {
   );
 }
 
-/** One sentence in prose saying what is absent and why. */
+/** One sentence in prose saying what is absent and why. A `StatePanel` of kind empty. */
 export function EmptyState({ children }: { readonly children: React.ReactNode }) {
-  return (
-    <div data-testid="depot-empty" className="depot-panel px-4 py-6">
-      <p className="depot-prose">{children}</p>
-    </div>
-  );
+  return <StatePanel kind="empty" testId="depot-empty" sentence={children} />;
 }
