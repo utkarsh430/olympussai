@@ -49,6 +49,23 @@ afterEach(async () => {
 });
 
 describe('DataTable row expander', () => {
+  it('limits only sentences to reading width, so a table inside an expanded row can use the row', async () => {
+    await mount(
+      <DataTable
+        columns={COLUMNS}
+        rows={ROWS}
+        rowKey={(r) => r.id}
+        caption="Duties"
+        renderExpanded={expand}
+        initialExpandedKey="a"
+      />,
+    );
+    const body = container.querySelector('[data-testid="depot-table-expanded"] td > div');
+    const classes = (body?.className ?? '').split(/\s+/);
+    expect(classes).toContain('[&>p]:max-w-[62ch]');
+    expect(classes).not.toContain('max-w-[62ch]');
+  });
+
   it('lets the page hold which row is open, so a control elsewhere can open a row', async () => {
     const changes: (string | null)[] = [];
     const table = (key: string | null) => (
