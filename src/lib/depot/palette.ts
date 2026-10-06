@@ -29,7 +29,7 @@ export const DEPOT_PALETTE = {
   green: '#2bff88',
   /** Tailwind slate-400: the quiet neutral (a dark bus, a balanced depot, REFERENCE). */
   slate: '#94a3b8',
-  /** holo-teal: the dashboard's demand curve; here modelled money and energy, forecasts. */
+  /** holo-teal: the dashboard's demand curve; here money and energy, forecasts, planned transfers. */
   teal: '#2ef2c4',
   /** ol-gold, ol-gold-light: the brand's gold (the emblem and sign-out on the dashboard). */
   gold: '#d6a13a',
@@ -70,7 +70,8 @@ export type DepotMeaning =
   | 'info'
   | 'better'
   | 'worse'
-  | 'modelled'
+  | 'moneyEnergy'
+  | 'plan'
   | 'count'
   | 'history'
   | 'forecast'
@@ -82,8 +83,9 @@ export type DepotMeaning =
  * on the road cyan (the two sit side by side in every availability bar, so they need two
  * hues), standing amber, dark slate, off the road crimson; exceptions crimson, amber and
  * cyan by severity; a change green when it is better and crimson when worse, only where
- * more is unambiguously better; modelled money and energy teal; a plain count cyan; on a
- * chart the history cyan, the forecast teal, the "now" marker amber and a threshold
+ * more is unambiguously better; money and energy figures teal (the MODELLED tag, amber, says
+ * they are modelled; teal says what they measure), a planned transfer's arc teal; a plain
+ * count cyan; on a chart the history cyan, the forecast teal, the "now" marker amber and a threshold
  * crimson. A colour always sits beside a word that says the same thing.
  */
 export const DEPOT_MEANING_TONE: Readonly<Record<DepotMeaning, DepotTone>> = {
@@ -97,7 +99,8 @@ export const DEPOT_MEANING_TONE: Readonly<Record<DepotMeaning, DepotTone>> = {
   info: 'cyan',
   better: 'green',
   worse: 'crimson',
-  modelled: 'teal',
+  moneyEnergy: 'teal',
+  plan: 'teal',
   count: 'cyan',
   history: 'cyan',
   forecast: 'teal',

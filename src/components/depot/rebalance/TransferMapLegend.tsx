@@ -6,7 +6,7 @@ import { meaningColour } from '@/lib/depot/palette';
  * Same arc colour the map draws with: every transfer is a MODELLED recommendation, so the
  * arcs take the meaning table's modelled teal.
  */
-export const ARC_COLOUR = meaningColour('modelled');
+export const ARC_COLOUR = meaningColour('plan');
 
 const SAMPLE_SHARES = [1, 0.25, 0.04] as const;
 const SAMPLE_LENGTH_PX = 36;

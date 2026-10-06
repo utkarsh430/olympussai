@@ -56,17 +56,17 @@ export const PLAN_FIGURE_MEANING: Readonly<Record<string, DepotMeaning>> = {
 };
 
 /**
- * A depot page's figures by key: fuel, its cost and economy, and fare revenue are modelled
+ * A depot page's figures by key: fuel, its cost and economy, and fare revenue are
  * money and energy (teal); a bus off the road is crimson, an overdue service a warning,
  * one due soon information. The cockpit's attention counts use the same keys, with the
  * bus exception severities (an emergency flag critical, power off and tamper information).
  */
 export const DEPOT_FIGURE_MEANING: Readonly<Record<string, DepotMeaning>> = {
-  fuel: 'modelled',
-  cost: 'modelled',
-  kmpl: 'modelled',
-  revenue: 'modelled',
-  earningsPerKm: 'modelled',
+  fuel: 'moneyEnergy',
+  cost: 'moneyEnergy',
+  kmpl: 'moneyEnergy',
+  revenue: 'moneyEnergy',
+  earningsPerKm: 'moneyEnergy',
   off_road: 'offRoad',
   overdue: 'warning',
   due_soon: 'info',
