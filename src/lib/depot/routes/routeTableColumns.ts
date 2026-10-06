@@ -1,6 +1,7 @@
 import type { Provenance } from '../types';
 import type { RouteListItem } from './api';
 import type { RouteSortKey } from './routeQuery';
+import { contentWidthAt } from '../shell/geometry';
 
 /**
  * The route table's columns as data: short headers with the unit in the header, the one
@@ -30,20 +31,17 @@ export type RouteWidthTier = 'base' | 'lg' | 'wide';
 const TIER_ORDER: Readonly<Record<RouteWidthTier, number>> = { base: 0, lg: 1, wide: 2 };
 
 /**
- * The table frame per tier: 1159 px at 1440 (below), 976 px at 1024 (1,000 at 1280 is
- * wider, so the 1024 set fits there too), 752 px at 800.
+ * The table frame per tier, from the shell's geometry: the content column at 1440, at 1024
+ * (1,000 at 1280 is wider, so the 1024 set fits there too) and at 800.
  */
 export const ROUTE_TABLE_FRAME_PX: Readonly<Record<RouteWidthTier, number>> = {
-  base: 752,
-  lg: 976,
-  wide: 1159,
+  base: contentWidthAt(800),
+  lg: contentWidthAt(1024),
+  wide: contentWidthAt(1440),
 };
 
-/**
- * The content column at 1440: the 232 px rail and its hairline, then 24 px gutters
- * (1440 − 233 − 48). A classic vertical scrollbar would take about 15 px more.
- */
-export const ROUTE_TABLE_FRAME_1440_PX = 1159;
+/** The content column at 1440: the viewport less the rail and both gutters. */
+export const ROUTE_TABLE_FRAME_1440_PX = ROUTE_TABLE_FRAME_PX.wide;
 
 /** Tagged headers carry the pill inside the right-aligned cell, after the label. */
 export const ROUTE_COLUMNS: readonly RouteColumnSpec[] = [

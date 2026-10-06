@@ -6,8 +6,10 @@
  * without a browser.
  */
 
-/** The expander column: the chevron's 24px, no padding, so the next frozen cell starts here. */
-export const EXPANDER_WIDTH_PX = 24;
+import { EXPANDER_WIDTH_PX } from '@/lib/depot/shell/tableWidth';
+
+/** The expander column's width, from the shared table-width model so both read one number. */
+export { EXPANDER_WIDTH_PX };
 
 /**
  * The `left` offset of each frozen column, from the frozen columns' widths in order: the

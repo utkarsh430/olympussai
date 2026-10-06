@@ -25,8 +25,8 @@ import {
   trendUnitTitle,
   type TrendColumnKey,
 } from '@/lib/depot/forecast/trendsTableLayout';
-import type { TableTier } from '@/lib/depot/revenue/tableTier';
-import { useTableTier } from '@/components/depot/revenue/useTableTier';
+import type { TableTier } from '@/lib/depot/shell/tableTier';
+import { useTableTier } from '@/components/depot/shell/useTableTier';
 
 export interface UnitTrendTableProps {
   readonly data: DepotTrendsResponse;

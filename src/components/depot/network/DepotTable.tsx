@@ -23,7 +23,7 @@ import {
   type TableColumnKey,
 } from '@/lib/depot/network/unitsTable';
 import { StatusMixBar, stateSegments } from './StatusMixBar';
-import { useUnitsTier } from './useNarrow';
+import { useUnitsTier } from './useUnitsTier';
 
 function ratio(n: number, of: number): number | null {
   return of > 0 ? n / of : null;

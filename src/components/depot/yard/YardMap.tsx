@@ -1,15 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useBaseMap } from '@/components/depot/shell/useBaseMap';
 import { MapUnavailable } from '@/components/depot/shell/MapUnavailable';
-import { MAP_DARK_STYLE } from '@/lib/constants';
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
-import { onMapsAuthFailure } from '@/lib/maps/authFailure';
-import { getMapsLoader, isMapsConfigured } from '@/lib/maps/loader';
 import { removeMapListeners } from '@/lib/maps/listeners';
 import { BUS_STATE_COLOUR, type YardMapPoint, type YardModel } from '@/lib/depot/yard/yardModel';
 
-type Status = 'loading' | 'ready' | 'error';
 type Handle = google.maps.MapsEventListener | undefined;
 
 interface Entry {
@@ -19,10 +16,15 @@ interface Entry {
   readonly relation: YardMapPoint['relation'];
 }
 
-const LOAD_TIMEOUT_MS = 15_000;
 /** The circle is fitted with 32px of map around it (critique, yard Must 3), at any width. */
 const FIT_PADDING_PX = 32;
 const FALLBACK_ZOOM = 17;
+
+/** The yard map's own start: centred later on the yard; a whole zoom level can leave the
+ * circle at half the frame, so it is fitted exactly. */
+async function yardMapOptions(): Promise<google.maps.MapOptions> {
+  return { center: { lat: 0, lng: 0 }, zoom: FALLBACK_ZOOM, isFractionalZoomEnabled: true };
+}
 const YARD_STROKE = '#6b84a0';
 const YARD_FILL_OPACITY = 0.06;
 const DOT_SCALE = 5;
@@ -60,80 +62,28 @@ export interface YardMapProps {
  */
 export function YardMap({ model }: YardMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<google.maps.Map | null>(null);
   const circleRef = useRef<google.maps.Circle | null>(null);
   const entriesRef = useRef<Map<string, Entry>>(new Map());
   const fittedRef = useRef(false);
-  const [status, setStatus] = useState<Status>('loading');
-  const [errorMessage, setErrorMessage] = useState('');
+  // The basemap, its timeout, refusal and clean-up are the shared hook's; this map removes
+  // only its own markers and circle.
+  const removeOverlays = useCallback((): void => {
+    entriesRef.current.forEach((entry) => {
+      removeMapListeners(entry.handles);
+      entry.marker.setMap(null);
+    });
+    entriesRef.current.clear();
+    circleRef.current?.setMap(null);
+    circleRef.current = null;
+  }, []);
+  const { mapRef, status, message: errorMessage } = useBaseMap(containerRef, {
+    stillAvailable: STILL_AVAILABLE,
+    extraOptions: yardMapOptions,
+    onCleanup: removeOverlays,
+  });
   // Only the registration is held; the card reads the current point, so a poll that
   // changes a bus's state is reflected in a card that is already open.
   const [hoveredRegistration, setHovered] = useState<string | null>(null);
-
-  // ---- One-time bootstrap ---------------------------------------------------
-  useEffect(() => {
-    if (!isMapsConfigured()) {
-      setStatus('error');
-      setErrorMessage(`The basemap is not configured for this environment. ${STILL_AVAILABLE}`);
-      return;
-    }
-    let cancelled = false;
-    let refused = false;
-    const fail = (message: string): void => {
-      if (cancelled) return;
-      setStatus('error');
-      setErrorMessage(`${message} ${STILL_AVAILABLE}`);
-    };
-    const unsubscribe = onMapsAuthFailure(() => {
-      refused = true;
-      fail('The basemap refused this request for this domain.');
-    });
-    const timer = window.setTimeout(
-      () => fail('The basemap took too long to load.'),
-      LOAD_TIMEOUT_MS,
-    );
-
-    getMapsLoader()
-      .importLibrary('maps')
-      .then(async ({ Map }) => {
-        await getMapsLoader().importLibrary('marker');
-        // A refusal can arrive before the library resolves; it must win.
-        if (cancelled || refused || !containerRef.current) return;
-        window.clearTimeout(timer);
-        mapRef.current = new Map(containerRef.current, {
-          center: { lat: 0, lng: 0 },
-          zoom: FALLBACK_ZOOM,
-          styles: MAP_DARK_STYLE,
-          disableDefaultUI: true,
-          zoomControl: true,
-          gestureHandling: 'cooperative',
-          backgroundColor: '#02040a',
-          clickableIcons: false,
-          // A whole zoom level can leave the circle at half the frame: fit it exactly.
-          isFractionalZoomEnabled: true,
-        });
-        setStatus('ready');
-      })
-      .catch(() => {
-        window.clearTimeout(timer);
-        fail('The basemap could not be loaded.');
-      });
-
-    const entries = entriesRef.current;
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-      unsubscribe();
-      entries.forEach((entry) => {
-        removeMapListeners(entry.handles);
-        entry.marker.setMap(null);
-      });
-      entries.clear();
-      circleRef.current?.setMap(null);
-      circleRef.current = null;
-      mapRef.current = null;
-    };
-  }, []);
 
   // ---- Yard circle: moved in place, camera fitted once ----------------------
   const yard = model.yard;
@@ -163,7 +113,7 @@ export function YardMap({ model }: YardMapProps) {
       if (bounds) map.fitBounds(bounds, FIT_PADDING_PX);
       else map.setCenter(center);
     }
-  }, [status, yard]);
+  }, [mapRef, status, yard]);
 
   // ---- Markers: created, moved and removed by registration ------------------
   const points = model.points;
@@ -215,7 +165,7 @@ export function YardMap({ model }: YardMapProps) {
         relation: point.relation,
       });
     });
-  }, [points, status]);
+  }, [mapRef, points, status]);
 
   const hovered = points.find((point) => point.registration === hoveredRegistration) ?? null;
 

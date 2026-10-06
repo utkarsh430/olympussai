@@ -9,7 +9,8 @@ import {
   standOutRowTitle,
   standOutSecondLine,
 } from '@/lib/depot/fuel/fuelColumns';
-import { TIER_FRAME_PX, columnSum, tableTierFor, type TableTier } from '@/lib/depot/revenue/tableTier';
+import { TIER_FRAME_PX, tableTierFor, type TableTier } from '@/lib/depot/shell/tableTier';
+import { tableWidth } from '@/lib/depot/shell/tableWidth';
 
 const TIERS: readonly TableTier[] = ['wide', 'medium', 'narrow'];
 const bus = {
@@ -35,7 +36,7 @@ describe('tiers', () => {
 describe('buses that stand out', () => {
   it.each(TIERS)('fits the %s frame with and without the route column', (tier) => {
     for (const withRoute of [true, false]) {
-      expect(columnSum(STAND_OUT_WIDTHS, standOutColumnKeys(tier, withRoute))).toBeLessThanOrEqual(
+      expect(tableWidth(STAND_OUT_WIDTHS, standOutColumnKeys(tier, withRoute))).toBeLessThanOrEqual(
         TIER_FRAME_PX[tier],
       );
     }
@@ -56,7 +57,7 @@ describe('buses that stand out', () => {
 
 describe('by route', () => {
   it.each(TIERS)('fits the %s frame', (tier) => {
-    expect(columnSum(ROUTE_WIDTHS, routeColumnKeys(tier))).toBeLessThanOrEqual(TIER_FRAME_PX[tier]);
+    expect(tableWidth(ROUTE_WIDTHS, routeColumnKeys(tier))).toBeLessThanOrEqual(TIER_FRAME_PX[tier]);
   });
 
   it('at 800 drops FUEL COST ₹ and shortens the rate headers', () => {

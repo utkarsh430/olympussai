@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  YARD_COLUMN_PX,
   YARD_FRAME_PX,
   YARD_MIN_SPARE_PX,
   awayColumnKeys,
@@ -7,10 +8,17 @@ import {
   sharedReason,
   showAtYardFor,
   unknownColumnKeys,
-  yardTableWidth,
   type YardColumnKey,
   type YardTier,
 } from '@/lib/depot/yard/yardTableLayout';
+import { TABLE_FRAME_BORDER_PX } from '@/lib/depot/shell/geometry';
+import { tableWidth } from '@/lib/depot/shell/tableWidth';
+
+/** A set's laid-out width with the frame border; a zero width is a column the tier lacks. */
+function yardTableWidth(tier: YardTier, keys: readonly YardColumnKey[]): number {
+  keys.forEach((key) => expect(YARD_COLUMN_PX[tier][key]).toBeGreaterThan(0));
+  return tableWidth(YARD_COLUMN_PX[tier], keys) + TABLE_FRAME_BORDER_PX;
+}
 
 describe('yard lists per width (critique §7, §8)', () => {
   it('drops REASON on a phone and keeps REGISTRATION · STATE · FROM YARD for away', () => {

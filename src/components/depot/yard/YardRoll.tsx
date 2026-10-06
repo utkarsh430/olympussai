@@ -17,7 +17,7 @@ import {
   type RollGroup,
 } from '@/lib/depot/yard/yardRollModel';
 import { sharedReason, showAtYardFor, type YardTier } from '@/lib/depot/yard/yardTableLayout';
-import { usePhone } from '@/components/depot/maintenance/useBelowDesktop';
+import { usePhone } from '@/components/depot/shell/useBelowDesktop';
 import { awayColumns, CappedTable, rollColumns, unknownColumns } from './YardTables';
 import { YardVisitors } from './YardVisitors';
 

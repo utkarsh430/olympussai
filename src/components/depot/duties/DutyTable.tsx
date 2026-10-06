@@ -13,7 +13,7 @@ import {
   dutyTableTier,
   type DutyColumnKey,
 } from '@/lib/depot/duties/dutyTableLayout';
-import { useBelowDesktop } from '@/components/depot/maintenance/useBelowDesktop';
+import { useBelowDesktop } from '@/components/depot/shell/useBelowDesktop';
 import { DutyDetail } from './DutyDetail';
 import { useTableFirst } from './useTableFirst';
 

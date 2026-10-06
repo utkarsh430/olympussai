@@ -4,6 +4,7 @@
  * becomes the group's note), and the away list keeps REGISTRATION · STATE · FROM YARD. The
  * away list's "In the yard of" column shows only when a row actually shown has a value.
  */
+import { contentWidthAt } from '../shell/geometry';
 
 export type YardTier = 'phone' | 'wide';
 
@@ -15,11 +16,19 @@ export const YARD_COLUMN_PX: Readonly<Record<YardTier, Readonly<Record<YardColum
   phone: { registration: 128, state: 104, km: 96, notHeard: 104, reason: 0, atYard: 0 },
 };
 
-/** The yard table's cap above a phone, and the phone's content frame, in px. */
-export const YARD_FRAME_PX: Readonly<Record<YardTier, number>> = { wide: 760, phone: 358 };
+/** The yard table's width cap above a phone, in px. */
+export const YARD_TABLE_CAP_PX = 760;
 
-/** The frame border, 1 px each side, and the spare every set leaves. */
-const BORDER_PX = 2;
+/**
+ * The frame each tier must fit: above a phone the cap or the 800 px content column,
+ * whichever is narrower; on a phone the content column of a 390 px screen.
+ */
+export const YARD_FRAME_PX: Readonly<Record<YardTier, number>> = {
+  wide: Math.min(YARD_TABLE_CAP_PX, contentWidthAt(800)),
+  phone: contentWidthAt(390),
+};
+
+/** The spare every set leaves. */
 export const YARD_MIN_SPARE_PX = 8;
 
 export function rollColumnKeys(tier: YardTier, showReason: boolean): readonly YardColumnKey[] {
@@ -48,13 +57,4 @@ export function sharedReason(rows: readonly { readonly reason: string }[]): stri
   const first = rows[0]?.reason ?? '';
   if (first === '') return null;
   return rows.every((row) => row.reason === first) ? first : null;
-}
-
-/** A set's laid-out width with the frame border. Throws on a column without a width. */
-export function yardTableWidth(tier: YardTier, keys: readonly YardColumnKey[]): number {
-  return keys.reduce((sum, key) => {
-    const width = YARD_COLUMN_PX[tier][key];
-    if (!width) throw new Error(`yard column ${key} has no width on ${tier}`);
-    return sum + width;
-  }, BORDER_PX);
 }

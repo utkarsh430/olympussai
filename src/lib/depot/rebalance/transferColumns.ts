@@ -1,4 +1,9 @@
 import { formatCount } from '@/lib/depot/format';
+import {
+  TABLE_FRAME_BORDER_PX,
+  WIDE_VIEWPORT_PX,
+  contentWidthAt,
+} from '../shell/geometry';
 
 /*
  * The transfer table's columns and widths. At `xl` the transfer plan is split 55% table
@@ -29,20 +34,22 @@ export const TRANSFER_COLUMNS: readonly TransferColumn[] = [
 /** The sum of the column widths: the table's minimum width; narrower frames scroll. */
 export const TRANSFER_TABLE_PX = TRANSFER_COLUMNS.reduce((sum, c) => sum + c.widthPx, 0);
 
-/** The geometry the widths are checked against: the shell at 1440 and the `xl` split. */
-export const LAYOUT_AT_1440 = {
-  viewportPx: 1440,
-  railPx: 232,
-  mainGuttersPx: 48,
-  splitGapPx: 24,
-  tableShare: 0.55,
-  frameBordersPx: 2,
-} as const;
+/**
+ * The viewport from which the transfers table sits beside the map. Below it the table sits
+ * above the map at the content column's full width: at 1280 the split would leave the
+ * table about 534 px, short of its 616.
+ */
+export const TRANSFER_SPLIT_FROM_PX = WIDE_VIEWPORT_PX;
 
-/** The inside width of the transfer table's frame at 1440 (about 622px). */
-export function transferFrameInnerPx(layout: typeof LAYOUT_AT_1440 = LAYOUT_AT_1440): number {
-  const column = layout.viewportPx - layout.railPx - layout.mainGuttersPx - layout.splitGapPx;
-  return Math.floor(column * layout.tableShare) - layout.frameBordersPx;
+/** The side-by-side split: the gap between map and table, and the table's share of the rest. */
+export const TRANSFER_SPLIT = { gapPx: 24, tableShare: 0.55 } as const;
+
+/** The inside width of the transfer table's frame at a viewport (about 622px at 1440). */
+export function transferFrameInnerPx(viewportPx: number): number {
+  const content = contentWidthAt(viewportPx);
+  if (viewportPx < TRANSFER_SPLIT_FROM_PX) return content - TABLE_FRAME_BORDER_PX;
+  const shared = content - TRANSFER_SPLIT.gapPx;
+  return Math.floor(shared * TRANSFER_SPLIT.tableShare) - TABLE_FRAME_BORDER_PX;
 }
 
 export interface SpareFigures {

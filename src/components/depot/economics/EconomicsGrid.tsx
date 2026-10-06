@@ -1,6 +1,6 @@
 'use client';
 
-import { useTableTier } from '@/components/depot/revenue/useTableTier';
+import { useTableTier } from '@/components/depot/shell/useTableTier';
 import { economicsColumnKeys } from '@/lib/depot/revenue/economicsLayout';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';

@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
-import { useTableTier } from '@/components/depot/revenue/useTableTier';
+import { useTableTier } from '@/components/depot/shell/useTableTier';
 import { formatCount } from '@/lib/depot/format';
 import {
   ROUTE_WIDTHS,
@@ -15,7 +15,7 @@ import {
 import type { FuelOtherRoutes } from '@/lib/depot/fuel/api';
 import { routeCell, routeRows, type RouteRow } from '@/lib/depot/fuel/fuelPageModel';
 import type { FuelGroupRow } from '@/lib/depot/fuel/types';
-import type { TableTier } from '@/lib/depot/revenue/tableTier';
+import type { TableTier } from '@/lib/depot/shell/tableTier';
 
 /** Every column by its key, so a key without a column fails the typecheck. */
 const ALL_COLUMNS: Readonly<Record<RouteKey, Column<RouteRow>>> = {

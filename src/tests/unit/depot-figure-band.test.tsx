@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
+import { contentWidthAt } from '@/lib/depot/shell/geometry';
 
 afterEach(cleanup);
 
@@ -30,18 +31,18 @@ describe('FigureBand', () => {
     // Content width (viewport less rail and gutters) and figure width at each breakpoint;
     // the list is 17px wider than the column (the first figure's hidden hairline).
     const rows = [
-      { content: 976, figure: 192 },
-      { content: 1000, figure: 200 },
-      { content: 1160, figure: 232 },
+      { content: contentWidthAt(1024), figure: 192 },
+      { content: contentWidthAt(1280), figure: 200 },
+      { content: contentWidthAt(1440), figure: 232 },
     ];
     for (const { content, figure } of rows) expect(5 * figure).toBeLessThanOrEqual(content + 17);
   });
 
-  it('wraps to two columns on a phone and three from 640px, so five figures read 3 + 2', () => {
+  it('puts a band of two in two columns below 1024px, so neither sits alone', () => {
     band();
     const list = screen.getByTestId('depot-figure-band');
     expect(list.className).toContain('grid-cols-2');
-    expect(list.className).toContain('sm:grid-cols-3');
+    expect(list.className).toContain('sm:grid-cols-2');
     expect(list.className).toContain('lg:flex');
     expect(list.className).toContain('lg:flex-wrap');
   });

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EXPANDER_WIDTH_PX,
   REVENUE_WIDTHS,
   lengthBasisNote,
   lengthBasisWord,
@@ -9,7 +8,8 @@ import {
   revenueTableShape,
 } from '@/lib/depot/revenue/revenueColumns';
 import type { RevenueTableRow } from '@/lib/depot/revenue/revenueTablePageModel';
-import { TIER_FRAME_PX, columnSum, type TableTier } from '@/lib/depot/revenue/tableTier';
+import { TIER_FRAME_PX, type TableTier } from '@/lib/depot/shell/tableTier';
+import { tableWidth } from '@/lib/depot/shell/tableWidth';
 
 const row = (name: string, derived: boolean, classLabel = 'Ordinary') =>
   ({
@@ -29,8 +29,8 @@ const ALL_SHAPES = [
 describe('revenue BY ROUTE column sets', () => {
   it.each<TableTier>(['wide', 'medium', 'narrow'])('fit the %s frame in every shape', (tier) => {
     for (const shape of ALL_SHAPES) {
-      const extra = tier === 'narrow' ? EXPANDER_WIDTH_PX : 0;
-      expect(columnSum(REVENUE_WIDTHS, revenueColumnKeys(tier, shape)) + extra).toBeLessThanOrEqual(
+      const expander = tier === 'narrow';
+      expect(tableWidth(REVENUE_WIDTHS, revenueColumnKeys(tier, shape), { expander })).toBeLessThanOrEqual(
         TIER_FRAME_PX[tier],
       );
     }

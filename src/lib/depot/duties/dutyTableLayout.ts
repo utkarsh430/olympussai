@@ -19,9 +19,6 @@ export const DUTY_COLUMN_WIDTH_PX: Readonly<Record<DutyColumnKey, number>> = {
   now: 156,
 };
 
-/** The shared row expander's own column (`DataTable`, 2.25rem). */
-export const EXPANDER_WIDTH_PX = 36;
-
 const COLUMNS_BY_TIER: Readonly<Record<DutyTableTier, readonly DutyColumnKey[]>> = {
   // 1024 and up: every column.
   wide: ['route', 'class', 'start', 'end', 'state', 'bus', 'now'],
@@ -39,12 +36,4 @@ export function dutyTableTier(belowDesktop: boolean, phone: boolean): DutyTableT
 
 export function dutyColumnKeys(tier: DutyTableTier): readonly DutyColumnKey[] {
   return COLUMNS_BY_TIER[tier];
-}
-
-/** The table's width at a tier: its columns plus the expander column. */
-export function dutyTableWidth(tier: DutyTableTier): number {
-  return dutyColumnKeys(tier).reduce(
-    (sum, key) => sum + DUTY_COLUMN_WIDTH_PX[key],
-    EXPANDER_WIDTH_PX,
-  );
 }

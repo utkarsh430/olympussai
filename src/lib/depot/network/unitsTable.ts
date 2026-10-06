@@ -1,6 +1,7 @@
 import { DARK_AFTER_MIN } from '@/lib/depot/infer/thresholds';
 import { PAGE_ROWS } from '@/lib/depot/listPaging';
 import type { DepotSummary } from '@/lib/depot/types';
+import { contentWidthAt } from '../shell/geometry';
 
 /**
  * The overview's units table: which columns, in what words, at what widths. The four
@@ -58,14 +59,14 @@ export const TABLE_COLUMN_SPEC: Readonly<Record<TableColumnKey, ColumnSpec>> = {
 };
 
 /** The content column at 1440 (rail and gutters taken off): five 232px figures fill it. */
-export const TABLE_FRAME_PX_1440 = 1160;
+export const TABLE_FRAME_PX_1440 = contentWidthAt(1440);
 /** The content column at 800, where the rail has collapsed into the strip. */
-export const TABLE_FRAME_PX_800 = 752;
+export const TABLE_FRAME_PX_800 = contentWidthAt(800);
 
 /** The content column at 1024 (no rail below 1280). */
-export const TABLE_FRAME_PX_1024 = 976;
+export const TABLE_FRAME_PX_1024 = contentWidthAt(1024);
 /** The content column at 390. */
-export const TABLE_FRAME_PX_390 = 358;
+export const TABLE_FRAME_PX_390 = contentWidthAt(390);
 
 /** The column tier by content width: 1440 and up, 1024 to 1439, 640 to 1023, a phone. */
 export type UnitsTier = 'full' | 'mid' | 'narrow' | 'phone';
