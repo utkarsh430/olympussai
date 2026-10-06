@@ -12,6 +12,12 @@ export interface Yard {
   readonly parked: number;
   /** Of those, how many fell inside the winning cluster. */
   readonly inCluster: number;
+  /**
+   * Set when this snapshot alone would not have placed the yard here and the
+   * yard established earlier is being kept: the feed time since which it has
+   * been held. Absent on a yard the single-snapshot rule gives.
+   */
+  readonly heldSince?: string;
 }
 
 export type BusLocation = 'in_yard' | 'at_other_yard' | 'away' | 'unknown';
