@@ -49,6 +49,21 @@ export function parseRosterQuery(get: Get): RosterFilters {
   };
 }
 
+/**
+ * The longest `?bus=` value accepted. A registration is about ten characters; the cap
+ * keeps a link from putting a sentence in the drawer's heading.
+ */
+export const MAX_BUS_PARAM_LENGTH = 16;
+// Letters and digits, with single spaces or hyphens between them, as feed registrations
+// are written ("UP32AB1234", "UP32 AB 1234").
+const BUS_PARAM_SHAPE = /^[A-Z0-9]+(?:[ -][A-Z0-9]+)*$/i;
+
+/** The open bus from `?bus=`, or null when the value is absent or not a registration. */
+export function parseBusParam(value: string | null): string | null {
+  if (value === null || value.length > MAX_BUS_PARAM_LENGTH) return null;
+  return BUS_PARAM_SHAPE.test(value) ? value : null;
+}
+
 /** "?state=dark&bus=UP1", or "" when every filter is at its default and no bus is open. */
 export function rosterQueryString(filters: RosterFilters, bus: string | null): string {
   const query = new URLSearchParams();
