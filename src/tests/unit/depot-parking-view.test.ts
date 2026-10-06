@@ -181,11 +181,12 @@ describe('buildParkingResponse', () => {
     expect(p.capacity.bays.provenance).toBe('modelled');
   });
 
-  it('answers with a typed empty state for a depot with no buses in its yard rows', () => {
-    const rows = [row({ registrationNumber: 'X1', depotId: '1' })];
-    const none = buildParkingResponse(view([...rows]), '1');
-    expect(none).not.toBeNull();
-    expect(['no_yard', 'no_buses', 'planned']).toContain(none!.state);
+  it('answers with a typed empty state, not an error, for a depot too small to have a yard', () => {
+    const p = parking([row({ registrationNumber: 'X1' })]);
+    expect(p.state).toBe('no_yard');
+    expect(p.order).toBeNull();
+    expect(p.capacity.fleet.value).toBe(1);
+    expect(p.capacity.visiting.value).toBe(0);
   });
 
   it('skips a row with a blank registration instead of throwing', () => {
