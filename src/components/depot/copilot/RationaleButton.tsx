@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useId, useState } from 'react';
 import { useCopilot, type CopilotState } from '@/hooks/useCopilot';
-import { failureSentence, generatedAtText } from '@/lib/depot/copilot/ui/copilotView';
+import { failureSentence } from '@/lib/depot/copilot/ui/copilotView';
 import { CopilotText } from './CopilotText';
-import { FactChips } from './FactChips';
-import { ProviderTag } from './ProviderTag';
+import { CopilotFooter } from './CopilotFooter';
 
 /** Failures worth a retry; the others will not change on a second attempt. */
 const RETRYABLE: readonly string[] = ['rate_limited', 'unavailable', 'network', 'aborted'];
@@ -142,11 +141,13 @@ export function RationalePanel({
             paragraphs={state.response.paragraphs}
             headingLevel={headingLevel ?? null}
           />
-          <ProviderTag provider={state.response.provider} notice={state.response.notice} />
-          <p className="font-mono text-[12px] text-depot-faint">
-            {generatedAtText(state.response.generatedAt, state.response.cached)}
-          </p>
-          <FactChips facts={state.response.facts} />
+          <CopilotFooter
+            provider={state.response.provider}
+            notice={state.response.notice}
+            generatedAt={state.response.generatedAt}
+            cached={state.response.cached}
+            facts={state.response.facts}
+          />
         </div>
       ) : null}
       {state.status === 'failed' ? (

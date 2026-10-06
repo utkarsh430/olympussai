@@ -1,9 +1,7 @@
-import { generatedAtText } from '@/lib/depot/copilot/ui/copilotView';
 import type { CopilotApiResponse } from '@/lib/depot/copilot/wire';
 import { AnswerTable } from './AnswerTable';
+import { CopilotFooter } from './CopilotFooter';
 import { CopilotText } from './CopilotText';
-import { FactChips } from './FactChips';
-import { ProviderTag } from './ProviderTag';
 
 export interface AnswerEntry {
   readonly id: number;
@@ -28,14 +26,16 @@ export function AnswerView({ entry }: { readonly entry: AnswerEntry }) {
         <p className="depot-prose">Understood as: {response.interpretedAs}</p>
       ) : null}
       <CopilotText headline={response.headline} paragraphs={response.paragraphs} headingLevel={3} />
-      <ProviderTag provider={response.provider} notice={response.notice} />
       {response.table ? (
         <AnswerTable table={response.table} caption={response.interpretedAs ?? entry.question} />
       ) : null}
-      <p className="font-mono text-[12px] text-depot-faint">
-        {generatedAtText(response.generatedAt, response.cached)}
-      </p>
-      <FactChips facts={response.facts} />
+      <CopilotFooter
+        provider={response.provider}
+        notice={response.notice}
+        generatedAt={response.generatedAt}
+        cached={response.cached}
+        facts={response.facts}
+      />
     </li>
   );
 }
