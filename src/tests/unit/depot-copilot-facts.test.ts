@@ -751,7 +751,7 @@ describe('depot briefing', () => {
     const rendered = renderDraft(ended.scriptedDraft, ended.facts);
     expect(rendered).toMatchObject({ ok: true });
     expect(rendered.ok && rendered.paragraphs.join(' ')).toContain(
-      'Of those, 40 buses already away; 5 buses whose scheduled window is already over and 2 buses overdue to leave the yard.',
+      'Of those, 40 buses already away and 2 buses overdue to leave the yard. For 5 buses the scheduled window is already over.',
     );
     const none = buildDepotBriefing(
       makeDetail({
