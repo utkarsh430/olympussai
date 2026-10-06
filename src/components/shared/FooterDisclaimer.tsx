@@ -54,7 +54,7 @@ export function FooterDisclaimer({
           Prototype
         </span>
         <span
-          className={`min-w-0 flex-1 ${depot ? '' : 'truncate '}font-mono ${text} leading-relaxed ${
+          className={`min-w-0 flex-1 ${depot ? 'font-sans' : 'truncate font-mono'} ${text} leading-relaxed ${
             light ? 'text-sim-muted' : 'text-holo-glow/50'
           }`}
         >

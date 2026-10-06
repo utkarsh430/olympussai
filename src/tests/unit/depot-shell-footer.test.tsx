@@ -19,6 +19,12 @@ describe('the footer disclaimer in the depot shell', () => {
     expect(line.className).toMatch(/\btext-\[11px\]/);
   });
 
+  it('sets the sentence in the sans face in the depot shell, like every other sentence there', () => {
+    render(<FooterDisclaimer variant="depot" />);
+    expect(summary().className).toMatch(/\bfont-sans\b/);
+    expect(summary().className).not.toMatch(/\bfont-mono\b/);
+  });
+
   it('puts nothing below 11px, open or closed, and does not repeat the sentence when open', () => {
     render(<FooterDisclaimer variant="depot" />);
     fireEvent.click(screen.getByRole('button'));
