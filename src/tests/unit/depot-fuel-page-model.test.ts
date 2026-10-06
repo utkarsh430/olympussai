@@ -140,7 +140,11 @@ describe('sentences', () => {
     expect(noDistanceNote(4)).toBe('4 buses have no distance today and are not compared.');
   });
   it('explains an empty day', () => {
-    expect(emptyText()).toContain('no bus has modelled distance');
+    // S41: an empty fuel page is a depot with no modelled duties, or one with no bus to run them.
+    expect(emptyText()).toContain('No duties are modelled for this depot today');
+    expect(
+      emptyText({ duties: 3, routes: 1, busesRan: 0, buses: 2, dutiesWithoutBus: 3 }),
+    ).toContain('no bus was available');
   });
 });
 
