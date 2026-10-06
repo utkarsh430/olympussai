@@ -132,7 +132,7 @@ export function ParkingPlan({ depotId, order, operatingDate }: ParkingPlanProps)
             ))}
           </div>
         </div>
-        <figcaption className="mt-1 text-[11px] text-depot-muted">
+        <figcaption className="depot-caption mt-2 max-w-[80ch]" data-testid="parking-note">
           Exit on the left; a dashed place is free; hover a place for the full registration.{' '}
           {PLAN_NOTICE}
         </figcaption>
