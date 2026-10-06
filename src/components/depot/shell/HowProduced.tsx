@@ -54,7 +54,9 @@ export function HowProduced(props: HowProducedProps) {
       </summary>
       <div className="depot-prose mt-2 flex min-w-0 max-w-[62ch] flex-col gap-2">
         {paragraphs.map((text) => (
-          <p key={text}>{text}</p>
+          <p key={text} className="depot-prose">
+            {text}
+          </p>
         ))}
         {children}
       </div>

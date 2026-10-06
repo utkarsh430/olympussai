@@ -27,7 +27,7 @@ export function ProvenanceLine({ description }: { readonly description: Provenan
   const { data, error } = useDepotNetworkContext();
   const line = provenanceLine(description, { data, error });
   return (
-    <p
+    <div
       className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1"
       data-testid="depot-provenance-line"
       data-tone={line.tone}
@@ -39,6 +39,6 @@ export function ProvenanceLine({ description }: { readonly description: Provenan
           {line.link.label}
         </Link>
       ) : null}
-    </p>
+    </div>
   );
 }

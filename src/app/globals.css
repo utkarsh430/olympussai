@@ -276,8 +276,18 @@
     @apply mb-1 truncate font-mono text-[11px] uppercase tracking-[0.16em] text-depot-muted;
   }
 
+  /* Prose is never in the mono face (the shell inherits mono, right for data). Every
+     sentence carries one of these three; a source-scan test holds every <p> to it. */
   .depot-prose {
-    @apply font-sans text-sm leading-[1.55] text-depot-muted;
+    @apply font-sans text-sm leading-5 text-depot-muted;
+  }
+
+  .depot-note {
+    @apply font-sans text-[13px] leading-[18px] text-depot-muted;
+  }
+
+  .depot-caption {
+    @apply font-sans text-xs leading-4 text-depot-muted;
   }
 
   .depot-nav-link {

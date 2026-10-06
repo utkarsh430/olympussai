@@ -32,5 +32,5 @@ export function DepotEyebrow() {
 function DepotEyebrowName({ depotId }: { readonly depotId: string }) {
   const { data } = useDepotNetworkContext();
   const name = data?.depots.find((depot) => depot.id === depotId)?.name;
-  return <p className="depot-eyebrow">{name ?? `Depot ${depotId}`}</p>;
+  return <div className="depot-eyebrow">{name ?? `Depot ${depotId}`}</div>;
 }

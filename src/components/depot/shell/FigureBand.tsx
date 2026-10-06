@@ -61,16 +61,16 @@ export function Figure(props: FigureProps) {
       className="min-w-0 list-none px-4 max-sm:odd:pl-0 max-sm:even:border-l max-sm:even:border-depot-line sm:flex-1 sm:basis-28 sm:border-l sm:border-depot-line sm:first:border-l-0 sm:first:pl-0"
     >
       <div className="flex min-w-0 items-center gap-2">
-        <p className="depot-label truncate">{label}</p>
+        <div className="depot-label truncate">{label}</div>
         {tag ? <ProvenanceBadge provenance={tag} /> : null}
       </div>
-      <p
+      <div
         className={`mt-1 truncate ${
           hero ? 'depot-hero-numeral' : 'font-mono text-2xl leading-tight tabular-nums text-depot-ink'
         }`}
       >
         {value}
-      </p>
+      </div>
       {share !== undefined ? (
         <div className="depot-bar-track mt-2 min-w-0" aria-hidden>
           <div
@@ -80,7 +80,7 @@ export function Figure(props: FigureProps) {
           />
         </div>
       ) : null}
-      {caption ? <p className="mt-1 truncate font-sans text-[13px] text-depot-muted">{caption}</p> : null}
+      {caption ? <p className="depot-caption mt-1 truncate">{caption}</p> : null}
       {title ? <p className="sr-only">{title}</p> : null}
     </li>
   );

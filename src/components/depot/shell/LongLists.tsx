@@ -89,7 +89,7 @@ export interface PagerProps {
  */
 export function Pager({ page, total, pageSize, onPage }: PagerProps) {
   const range = pageRange(page, total, pageSize);
-  const status = useRef<HTMLParagraphElement>(null);
+  const status = useRef<HTMLSpanElement>(null);
   const [moveFocus, setMoveFocus] = useState(false);
 
   useEffect(() => {
@@ -113,9 +113,9 @@ export function Pager({ page, total, pageSize, onPage }: PagerProps) {
       >
         Previous
       </button>
-      <p ref={status} tabIndex={-1} role="status" className="font-mono text-[13px] tabular-nums text-depot-muted">
+      <span ref={status} tabIndex={-1} role="status" className="font-mono text-[13px] tabular-nums text-depot-muted">
         {range.words}
-      </p>
+      </span>
       <button
         type="button"
         disabled={!range.hasNext}

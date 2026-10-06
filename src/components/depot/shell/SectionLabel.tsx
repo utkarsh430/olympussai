@@ -38,7 +38,7 @@ export function SectionLabel({ label, count, note, tag, level = 2, id }: Section
         </Heading>
         {tag ? <ProvenanceBadge provenance={tag} /> : null}
       </div>
-      {note ? <p className="min-w-0 font-sans text-[13px] text-depot-muted">{note}</p> : null}
+      {note ? <p className="depot-note min-w-0">{note}</p> : null}
     </div>
   );
 }
