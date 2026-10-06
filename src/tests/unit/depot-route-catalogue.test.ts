@@ -185,6 +185,8 @@ describe('getRouteProfile', () => {
   });
 
   it('never grows the cache past its bound, evicting the oldest first', async () => {
+    // The stand-in schedule carries no route name, so any route name is accepted.
+    mockService.mockResolvedValue(live({ ...schedule(), routeName: null }));
     const total = ROUTE_CACHE_MAX + 5;
     for (let i = 0; i < total; i += 1) {
       await getRouteProfile(`R_${i}`, view([row('UP1', { routeName: `R_${i}` })]), T0);

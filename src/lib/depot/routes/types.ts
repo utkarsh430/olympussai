@@ -13,7 +13,10 @@ export interface RouteStop {
 }
 
 export interface RouteProfile {
+  /** The schedule's own route name; empty when the schedule carried none. */
   readonly routeName: string;
+  /** True only when the schedule's own route name equalled the requested one. */
+  readonly routeNameConfirmed: boolean;
   readonly routeId: string | null;
   readonly description: string | null;
   readonly direction: string | null;

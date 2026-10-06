@@ -83,10 +83,20 @@ async function fetchProfile(
     // The fixture is a stand-in, not this route: never present it as real data.
     if (response.source === 'fixture') return unavailable('upstream_error');
     if (!response.schedule) return unavailable('no_schedule');
-    const built = buildRouteProfile(response.schedule, bus.registrationNumber, date);
+    const { schedule } = response;
+    // A bus reassigned since the snapshot, or a trip id that fell back to the
+    // day's earliest trip, returns another route's stops. Never catalogue those.
+    if (schedule.routeName !== null && schedule.routeName !== routeName) {
+      return unavailable('no_schedule');
+    }
+    const routeNameConfirmed = schedule.routeName === routeName;
+    if (!routeNameConfirmed && bus.journeyId !== null && schedule.tripId !== bus.journeyId) {
+      return unavailable('no_schedule');
+    }
+    const built = buildRouteProfile(schedule, bus.registrationNumber, date);
     return {
       status: 'ok',
-      profile: { ...built, routeName, description: bus.routeDescription },
+      profile: { ...built, routeNameConfirmed, description: bus.routeDescription },
     };
   } catch {
     return unavailable('upstream_error');
@@ -136,6 +146,10 @@ export function resetRouteCatalogueForTests(): void {
   profiles.clear();
   negatives.clear();
   inFlight.clear();
+}
+
+export function inFlightSizeForTests(): number {
+  return inFlight.size;
 }
 
 export function routeCacheSizeForTests(): number {

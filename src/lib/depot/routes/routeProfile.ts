@@ -1,4 +1,4 @@
-import { haversineKm } from '@/lib/simulation/seededRandom';
+import { haversineKm } from '../infer/geo';
 import type { CanonicalSchedule, CanonicalStop } from '@/models/canonical';
 import type { RouteProfile, RouteStop } from './types';
 
@@ -68,6 +68,8 @@ export function buildRouteProfile(
   const destination = stops[stops.length - 1] ?? null;
   return {
     routeName: schedule.routeName ?? '',
+    // Pure builder cannot know the requested name; the catalogue confirms it.
+    routeNameConfirmed: false,
     routeId: schedule.routeId,
     // The schedule carries no description; the catalogue fills it from the feed row.
     description: null,
