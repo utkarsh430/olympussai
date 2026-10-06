@@ -88,3 +88,19 @@ export function feedChip({ data, error, loading, nowMs }: FeedChipInput): FeedCh
     srText: `Feed status: live feed, ${detail}`,
   };
 }
+
+/**
+ * The words after a page header's provenance tag ("DERIVED from the live feed
+ * at 12:37"), so the tag says what it applies to and when. Same freshness rule
+ * as the chip: a cached answer is the live feed; stale is the last good data.
+ */
+export function headerProvenanceNote(
+  data: Omit<FeedChipData, 'fetchedAt'> | null,
+  error: string | null,
+): string {
+  if (!data) return 'waiting for the feed';
+  const time = formatFeedTime(data.feedNow);
+  if (data.source === 'fixture') return `from sample data, feed time ${time}`;
+  if (data.stale || error !== null) return `from the last good data, feed time ${time}`;
+  return `from the live feed at ${time}`;
+}

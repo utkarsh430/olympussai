@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ageWords, feedChip, type FeedChipData } from '@/lib/depot/feedChip';
+import {
+  ageWords,
+  feedChip,
+  headerProvenanceNote,
+  type FeedChipData,
+} from '@/lib/depot/feedChip';
 
 const FETCHED = '2026-10-06T07:06:00.000Z';
 const FETCHED_MS = Date.parse(FETCHED);
@@ -109,5 +114,24 @@ describe('feedChip', () => {
     const failed = feedChip({ data: null, error: 'Depot data unavailable', loading: false, nowMs: 0 });
     expect(failed.text).toBe('Feed unavailable');
     expect(failed.title).toBe('The depot feed has not answered yet');
+  });
+});
+
+describe('headerProvenanceNote', () => {
+  it('says where the page figures come from and the feed time', () => {
+    expect(headerProvenanceNote(data(), null)).toBe('from the live feed at 12:36');
+    expect(headerProvenanceNote(data({ source: 'cache' }), null)).toBe(
+      'from the live feed at 12:36',
+    );
+    expect(headerProvenanceNote(data({ stale: true }), null)).toBe(
+      'from the last good data, feed time 12:36',
+    );
+    expect(headerProvenanceNote(data(), 'Depot data unavailable')).toBe(
+      'from the last good data, feed time 12:36',
+    );
+    expect(headerProvenanceNote(data({ source: 'fixture' }), null)).toBe(
+      'from sample data, feed time 12:36',
+    );
+    expect(headerProvenanceNote(null, null)).toBe('waiting for the feed');
   });
 });
