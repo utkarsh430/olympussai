@@ -73,7 +73,7 @@ function entry(
     name: `Depot ${id}`,
     kind: 'depot',
     fleet: 40,
-    earningsCoverage: { n: 2, of: 2 },
+    lengthCoverage: { n: 2, of: 2 },
     score,
     ...row,
   };
@@ -98,12 +98,12 @@ const NO_LENGTH = entry(
       component('loadFactor', 0.5, null),
     ],
   },
-  { earningsCoverage: { n: 0, of: 9 } },
+  { lengthCoverage: { n: 0, of: 9 } },
 );
 const THIN = entry(
   '6',
   { ...UNRANKED, reason: 'thin_route_coverage' },
-  { earningsCoverage: { n: 2, of: 9 } },
+  { lengthCoverage: { n: 2, of: 9 } },
 );
 const SMALL_GROUP = entry('5', { ...UNRANKED, reason: 'peer_group_too_small' });
 const TINY_FLEET = entry('8', { ...UNRANKED, reason: 'fleet_too_small', peerGroup: null }, { fleet: 4 });
@@ -295,7 +295,7 @@ describe('no wording reads as profit, loss or margin', () => {
         flatFareRevenueShare: 1,
         flatFareRouteShare: 1,
         earningsPerKm: null,
-        earningsCoverage: { n: 0, of: 1 },
+        lengthCoverage: { n: 0, of: 1 },
         provenance: 'modelled',
       }),
       withheldSentence('unknown_length'),

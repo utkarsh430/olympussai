@@ -137,7 +137,7 @@ describe('buildRevenueResponse', () => {
   it('withholds earnings per kilometre with the reason when no length is known', async () => {
     const { summary, routes } = await build(world());
     expect(summary.earningsPerKm).toBeNull();
-    expect(summary.earningsCoverage).toEqual({ n: 0, of: 2 });
+    expect(summary.lengthCoverage).toEqual({ n: 0, of: 2 });
     for (const r of routes) {
       expect(r.earningsPerKm).toBeNull();
       expect(r.earningsWithheld).toBe('unknown_length');
@@ -155,7 +155,7 @@ describe('buildRevenueResponse', () => {
     expect(known?.lengthProvenance).toBe('derived');
     expect(known?.earningsPerKm).not.toBeNull();
     expect(known?.provenance).toBe('modelled');
-    expect(summary.earningsCoverage).toEqual({ n: 1, of: 2 });
+    expect(summary.lengthCoverage).toEqual({ n: 1, of: 2 });
     expect(routes.find((r) => r.routeName === 'Lucknow - Sitapur')?.lengthProvenance).toBeNull();
   });
 
@@ -204,8 +204,8 @@ describe('buildRevenueResponse', () => {
     const { routeCatalogueRevision } = await import('@/lib/depot/routes/routeCatalogue');
     vi.mocked(routeCatalogueRevision).mockReturnValue(2);
     const after = await buildRevenueResponse(view(rows), '1', repositories);
-    expect(before?.summary.earningsCoverage.n).toBe(0);
-    expect(after?.summary.earningsCoverage.n).toBe(1);
+    expect(before?.summary.lengthCoverage.n).toBe(0);
+    expect(after?.summary.lengthCoverage.n).toBe(1);
     vi.mocked(routeCatalogueRevision).mockReturnValue(1);
   });
 

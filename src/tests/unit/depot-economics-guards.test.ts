@@ -42,7 +42,7 @@ function input(i: number, over: Partial<EconomicsInput> = {}): EconomicsInput {
     earningsPerKm: 30 + i * 1.5,
     costPerKm: 20 + ((i * 7) % 9),
     loadFactor: 0.4 + i * 0.02,
-    earningsCoverage: GOOD,
+    lengthCoverage: GOOD,
     ...over,
   };
 }
@@ -80,7 +80,7 @@ describe('peer group size guard', () => {
 
 describe('route coverage guard', () => {
   function reasonFor(coverage: Coverage): { reason: string; ranked: boolean; others: boolean } {
-    const scores = scoreEconomics([input(0, { earningsCoverage: coverage }), ...complete(9).slice(1)]);
+    const scores = scoreEconomics([input(0, { lengthCoverage: coverage }), ...complete(9).slice(1)]);
     const first = scores[0];
     return {
       reason: first?.reason ?? '',
@@ -104,7 +104,7 @@ describe('route coverage guard', () => {
   });
 
   it('carries the coverage on the earnings component of a ranked depot', () => {
-    const score = scoreEconomics([input(0, { earningsCoverage: { n: 3, of: 8 } }), ...complete(9).slice(1)])[0];
+    const score = scoreEconomics([input(0, { lengthCoverage: { n: 3, of: 8 } }), ...complete(9).slice(1)])[0];
     const earnings = score?.components.find((c) => c.key === 'earningsPerKm');
     expect(earnings?.coverage).toEqual({ n: 3, of: 8 });
     expect(score?.components.find((c) => c.key === 'costPerKm')?.coverage).toBeNull();
@@ -112,7 +112,7 @@ describe('route coverage guard', () => {
 
   it('keeps no earnings at all as a missing component, not thin coverage', () => {
     const score = scoreEconomics([
-      input(0, { earningsPerKm: null, earningsCoverage: { n: 0, of: 5 } }),
+      input(0, { earningsPerKm: null, lengthCoverage: { n: 0, of: 5 } }),
       ...complete(9).slice(1),
     ])[0];
     expect(score?.reason).toBe('missing_component');
@@ -214,7 +214,7 @@ describe('properties over seeded cases', () => {
             earningsPerKm: rng.bool(0.3) ? rng.pick(hostileNumbers) : rng.float(1, 50),
             costPerKm: rng.bool(0.3) ? rng.pick(hostileNumbers) : rng.float(1, 50),
             loadFactor: rng.bool(0.3) ? rng.pick(hostileNumbers) : rng.float(0, 1),
-            earningsCoverage: { n: rng.pick([NaN, 0, 1, 4]), of: rng.pick([NaN, 0, 4, 9]) },
+            lengthCoverage: { n: rng.pick([NaN, 0, 1, 4]), of: rng.pick([NaN, 0, 4, 9]) },
           }),
         ),
       );

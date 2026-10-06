@@ -38,7 +38,7 @@ const DATA = {
       name: 'Alambagh',
       kind: 'depot',
       fleet: 40,
-      earningsCoverage: { n: 2, of: 2 },
+      lengthCoverage: { n: 2, of: 2 },
       score: {
         depotId: '1',
         peerGroup: 'all',
@@ -138,7 +138,7 @@ function sparseData(): EconomicsResponse {
     ...base,
     depotId: id,
     name: `Depot ${id}`,
-    earningsCoverage: { n: 0, of: 9 },
+    lengthCoverage: { n: 0, of: 9 },
     score: {
       ...base.score,
       depotId: id,
@@ -245,7 +245,7 @@ describe('revenue components', () => {
           flatFareRevenueShare: 0.4,
           flatFareRouteShare: 0.5,
           earningsPerKm: null,
-          earningsCoverage: { n: 0, of: 2 },
+          lengthCoverage: { n: 0, of: 2 },
           provenance: 'modelled',
         }}
       />,
