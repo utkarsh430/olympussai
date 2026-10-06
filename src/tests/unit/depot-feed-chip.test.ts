@@ -100,6 +100,7 @@ describe('feedChip', () => {
       nowMs: FETCHED_MS,
     });
     expect(stale.text).toBe('FIXTURE · stale · 12:36');
+    expect(stale.tone).toBe('stale');
   });
 
   it('says an unknown age in words when the server time cannot be read', () => {
