@@ -52,12 +52,23 @@ describe('buildDistributionResponse on the sample fixture', () => {
     expect(response.plan.transfers).toBeInstanceOf(Array);
   });
 
-  it('returns the same object for the same snapshot and a new one for a new snapshot', () => {
-    const first = buildDistributionResponse(fixtureView());
-    expect(buildDistributionResponse(fixtureView())).toBe(first);
-    const next = buildDistributionResponse(fixtureView({ fetchedAt: '2026-10-06T08:00:20.000Z' }));
-    expect(next).not.toBe(first);
-    expect(next.fetchedAt).toBe('2026-10-06T08:00:20.000Z');
+  it('reports this request\'s envelope while sharing the body for the same rows', () => {
+    const fresh = buildDistributionResponse(fixtureView({ stale: false, source: 'live' }));
+    const stale = buildDistributionResponse(fixtureView({ stale: true, source: 'cache' }));
+    expect(fresh.stale).toBe(false);
+    expect(stale.stale).toBe(true);
+    expect(stale.source).toBe('cache');
+    expect(stale.balances).toBe(fresh.balances);
+    expect(stale.plan).toBe(fresh.plan);
+  });
+
+  it('rebuilds the balances when the operating date changes', () => {
+    const today = buildDistributionResponse(fixtureView());
+    const tomorrow = buildDistributionResponse(fixtureView({ feedNow: '2026-10-07T08:00:00Z' }));
+    expect(tomorrow.operatingDate).not.toBe(today.operatingDate);
+    expect(tomorrow.balances).not.toBe(today.balances);
+    const again = buildDistributionResponse(fixtureView({ feedNow: '2026-10-07T08:00:00Z' }));
+    expect(again.balances).toBe(tomorrow.balances);
   });
 
   it('keeps every balance consistent with its own live anchors', () => {
