@@ -234,12 +234,38 @@ describe('buildDepotDetail', () => {
         homeDepotId: '2',
         homeDepotName: 'Barabanki',
         state: 'standing',
+        position: HOME,
       },
       // Depot 3 has too few buses for a yard of its own, so its bus is a visitor here.
-      { registrationNumber: 'C1', homeDepotId: '3', homeDepotName: 'Chinhat', state: 'standing' },
-      { registrationNumber: 'U1', homeDepotId: null, homeDepotName: null, state: 'standing' },
+      {
+        registrationNumber: 'C1',
+        homeDepotId: '3',
+        homeDepotName: 'Chinhat',
+        state: 'standing',
+        position: HOME,
+      },
+      {
+        registrationNumber: 'U1',
+        homeDepotId: null,
+        homeDepotName: null,
+        state: 'standing',
+        position: HOME,
+      },
     ]);
     expect(detail(world(), '2').visitors).toEqual([]);
+  });
+
+  it('never lists a bus with a (0, 0) fix as a visitor, so no visitor carries a false place', () => {
+    const noFix = row({
+      registrationNumber: 'Z-NOFIX',
+      depotId: '2',
+      depotName: 'Barabanki',
+      latitude: 0,
+      longitude: 0,
+    });
+    const visitors = detail(world([noFix])).visitors;
+    expect(visitors.find((v) => v.registrationNumber === 'Z-NOFIX')).toBeUndefined();
+    expect(visitors.every((v) => v.position === null || v.position.lat !== 0)).toBe(true);
   });
 
   it("keeps every one of the depot's bus exceptions, beyond the network cap", () => {
