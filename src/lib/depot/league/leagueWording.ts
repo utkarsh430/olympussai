@@ -41,6 +41,43 @@ export function leagueStatusLine(
   return parts.filter((p): p is string => p !== null).join(SEP);
 }
 
+/**
+ * The one note above the table: ranked of operating depots, and how to open a breakdown.
+ * The window words are in the provenance line and the row count in the pager.
+ */
+export function leagueSectionNote(
+  depots: readonly Pick<DepotSummary, 'id' | 'kind'>[],
+  scores: readonly Pick<DepotScore, 'depotId' | 'ranked'>[],
+): string {
+  const rankedIds = new Set(scores.filter((s) => s.ranked).map((s) => s.depotId));
+  const operating = depots.filter((d) => d.kind === 'depot');
+  const ranked = operating.filter((d) => rankedIds.has(d.id)).length;
+  return `${formatCount(ranked)} of ${formatCount(operating.length)} ranked${SEP}the index cell opens how a score is made up`;
+}
+
+export interface WindowMark {
+  /** The quiet word beside the depot's name. */
+  readonly word: string;
+  readonly title: string;
+}
+
+/**
+ * A depot scored on fewer snapshots than the window holds is new to the window: its rank
+ * is not yet settled, so its row says so. Null when it has the whole window or either
+ * count is missing.
+ */
+export function windowMark(
+  samples: number | undefined,
+  windowSamples: number | undefined,
+): WindowMark | null {
+  if (samples === undefined || windowSamples === undefined || samples >= windowSamples) return null;
+  const snapshots = samples === 1 ? '1 snapshot' : `${formatCount(samples)} snapshots`;
+  return {
+    word: 'new',
+    title: `Scored on ${snapshots} so far, of ${formatCount(windowSamples)} in the window.`,
+  };
+}
+
 /** "rank 1 of 41 in its peer group (Small fleets)". */
 export function peerRankPhrase(rank: number, peerCount: number, groupLabel: string): string {
   return `rank ${rank} of ${peerCount} in its peer group (${groupLabel})`;

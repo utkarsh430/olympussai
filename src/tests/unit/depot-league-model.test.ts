@@ -66,6 +66,12 @@ const SCORES: DepotScore[] = [
 describe('buildLeagueRows', () => {
   const rows = buildLeagueRows(DEPOTS, SCORES);
 
+  it("carries each depot's own sample count when the score has one", () => {
+    const withSamples = buildLeagueRows(DEPOTS, [{ ...score('1', 'large', 1), samples: 1 }]);
+    expect(withSamples.find((r) => r.depotId === '1')?.samples).toBe(1);
+    expect(rows.find((r) => r.depotId === '1')?.samples).toBeUndefined();
+  });
+
   it('orders by peer group then rank, unranked last', () => {
     expect(rows.map((r) => r.name)).toEqual(['Charlie', 'Bravo', 'Alpha', 'Squad', 'Tiny']);
   });
