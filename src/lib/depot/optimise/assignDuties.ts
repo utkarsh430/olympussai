@@ -4,14 +4,24 @@ import type { ModelledBus, ServiceClass } from '../sim/types';
 import { hungarian } from './hungarian';
 
 const MINUTES_PER_HOUR = 60;
-/** Age assumed for a bus the fleet master does not know; it also counts as ordinary. */
-const UNKNOWN_BUS_AGE_YEARS = 0;
+/** Age assumed for a bus the fleet master does not know when the master is empty. */
+const EMPTY_MASTER_AGE_YEARS = 0;
 const DEFAULT_CLASS: ServiceClass = 'ordinary';
 
 type Exclusion = 'off_road' | 'dark' | 'not_in_yard';
 
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** Median age over the whole fleet master; zero when it is empty. */
+function medianAge(fleet: ReadonlyMap<string, ModelledBus>): number {
+  const ages = [...fleet.values()].map((b) => b.ageYears).sort((a, b) => a - b);
+  if (ages.length === 0) return EMPTY_MASTER_AGE_YEARS;
+  const mid = Math.floor(ages.length / 2);
+  return ages.length % 2 === 1
+    ? (ages[mid] as number)
+    : ((ages[mid - 1] as number) + (ages[mid] as number)) / 2;
 }
 
 /** Exactly one reason, by precedence: off road, then dark, then away from the yard. */
@@ -30,7 +40,10 @@ function exclusionOf(bus: DepotBusView): Exclusion | null {
  * wear is spread. The matching never fails: duties without a bus are reported
  * as `no_eligible_bus`, and eligible buses without a duty as spare.
  * Deterministic whatever the order of `buses` (they are sorted by registration;
- * a repeated registration is considered once). Recommendation only.
+ * a repeated registration throws a RangeError). A bus missing from the fleet
+ * master counts as ordinary and is costed at the master's median age, so
+ * unknown buses are neither always preferred nor always avoided for the longest
+ * duties. Recommendation only.
  */
 export function assignDuties(
   duties: readonly Duty[],
@@ -38,9 +51,14 @@ export function assignDuties(
   fleet: ReadonlyMap<string, ModelledBus>,
 ): AssignmentPlan {
   const seen = new Set<string>();
-  const sorted = [...buses]
-    .sort((a, b) => compare(a.registrationNumber, b.registrationNumber))
-    .filter((b) => !seen.has(b.registrationNumber) && seen.add(b.registrationNumber));
+  for (const bus of buses) {
+    if (seen.has(bus.registrationNumber)) {
+      throw new RangeError(`Duplicate registration ${bus.registrationNumber}`);
+    }
+    seen.add(bus.registrationNumber);
+  }
+  const sorted = [...buses].sort((a, b) => compare(a.registrationNumber, b.registrationNumber));
+  const fallbackAge = medianAge(fleet);
 
   const excluded: { registrationNumber: string; reason: Ineligibility }[] = [];
   const eligible: DepotBusView[] = [];
@@ -55,7 +73,7 @@ export function assignDuties(
     return eligible.map((bus) => {
       const modelled = fleet.get(bus.registrationNumber);
       if ((modelled?.serviceClass ?? DEFAULT_CLASS) !== duty.serviceClass) return Infinity;
-      return (modelled?.ageYears ?? UNKNOWN_BUS_AGE_YEARS) * hours;
+      return Math.round((modelled?.ageYears ?? fallbackAge) * hours);
     });
   });
   const { rowToCol } = hungarian(cost);

@@ -155,7 +155,9 @@ describe('assignDuties', () => {
       ['K30', 'ordinary', 30],
     ]);
     const buses = [bus('K02'), bus('K10'), bus('K30'), bus('AAA')];
-    expect(assignDuties([duty(0, 'ordinary', 10)], buses, fleet).assignments[0]?.registrationNumber).toBe('K02');
+    expect(
+      assignDuties([duty(0, 'ordinary', 10)], buses, fleet).assignments[0]?.registrationNumber,
+    ).toBe('K02');
   });
 
   it('copes with an empty fleet master by costing every bus alike', () => {
