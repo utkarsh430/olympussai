@@ -143,9 +143,9 @@ exposed to the browser and no key is ever printed.
 | `SITE_URL` | no | server | Canonical origin for metadata, canonical URL, sitemap. Defaults to `https://olympuss.us`. |
 | `UPSRTC_LIVE_URL` | no | server | Overrides the live GPS endpoint. |
 | `UPSRTC_SCHEDULE_URL` | no | server | Overrides the schedule endpoint. |
-| `NEXT_PUBLIC_DEMO_MODE` | no | browser/server | Set to `1` to force offline fixture mode for presentations without connectivity. Depot pages then run on the fixture snapshot. |
+| `NEXT_PUBLIC_DEMO_MODE` | no | browser/server | Set to `1` to force offline fixture mode for presentations without connectivity. Depot pages then run on the saved full-fleet sample and say "sample data" in each page's provenance line. |
 | `DEPOT_COPILOT_PROVIDER` | no | server | Depot copilot writer: `auto` (default), `claude-cli` or `scripted`. Anything else means `auto`. |
-| `CLAUDE_BIN` | no | server | Absolute path to the `claude` binary for the depot copilot; ownership and permission checks apply. |
+| `CLAUDE_BIN` | no | server | Absolute path to the `claude` binary for the depot copilot; ownership and permission checks apply. Unset, the copilot uses its scripted writer only. For the owner's own machine: a staff-facing deployment needs an API-key provider, which does not exist. |
 | `CLAUDE_CODE_OAUTH_TOKEN` | no | server | Claude Code sign-in token; the only secret passed to the `claude` process. |
 | `DEPOT_COPILOT_MODEL` | no | server | Model name for the depot copilot's Claude calls. |
 | `DEPOT_TRUSTED_IP_HEADER` | no | server | Name of a header carrying the client address, which turns on per-address limits for the copilot and route-profile lookups. Set it only behind a proxy that overwrites that header. |
@@ -153,7 +153,11 @@ exposed to the browser and no key is ever printed.
 The depot copilot settings are described in
 [`docs/DEPOT_COPILOT_OPERATIONS.md`](docs/DEPOT_COPILOT_OPERATIONS.md). The depot
 end-to-end suite reads `E2E_PROJECT_PIN` (required, else skipped),
-`E2E_PROJECT_NAME`, `E2E_HOST`, `E2E_PORT` and `E2E_ORIGIN`.
+`E2E_PROJECT_NAME`, `E2E_HOST`, `E2E_PORT` and `E2E_ORIGIN`. These are every
+`process.env` name read under the depot code (`src/lib/depot`, the depot API
+routes and pages, `src/lib/upsrtc`), the e2e spec and `playwright.config.ts`,
+plus `CLAUDE_CODE_OAUTH_TOKEN`, which the copilot reads from the environment it
+is given.
 
 Present in some environments but **intentionally unused**:
 `GOOGLE_ROUTES_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`.
@@ -198,7 +202,8 @@ src/
 │   ├── auth/                         # config, session, server, authorize, password,
 │   │                                 #   origin, rate-limit, redirect
 │   ├── upsrtc/                       # client, normalizer, depotNormalizer, cache,
-│   │                                 #   liveSnapshot (shared fetch), scheduleService, respond
+│   │                                 #   liveSnapshot (shared fetch), scheduleService, respond,
+│   │                                 #   fleetFixture (lazy full-fleet sample loader)
 │   ├── depot/                        # Depot Management engine: live views, inference,
 │   │                                 #   scoring, optimisers, models, copilot, repositories
 │   ├── simulation/                   # scenarioEngine, seededRandom
@@ -230,12 +235,13 @@ src/
 │   └── shared/                       # hud.tsx primitives, footer disclaimer, brand marks
 ├── three/                            # WebGL: ExperienceCanvas, Scene, quality, sceneState
 │   └── globe/                        # Globe, geo, arcs, orbits, landData, data/land-110m.json
-├── fixtures/                         # sanitized captured upstream payloads
+├── fixtures/                         # sanitized captured upstream payloads, and the
+│                                     #   full-fleet depot sample (upsrtc-fleet-sample.json.gz)
 └── tests/unit/                       # Vitest suites
 
 tests/e2e/                            # Playwright specs: command centre, Depot Management
 scripts/                              # generate-pin-hash, process-logo, inspect-upsrtc-api,
-                                      #   calibrate-odometer
+                                      #   calibrate-odometer, build-depot-fixture
 docs/                                 # architecture, API discovery, demo, roadmap, depot docs,
                                       #   olympuss/, superpowers/ (depot spec and plans)
 ```
@@ -1360,14 +1366,19 @@ per session identity, per trusted address and per process
 **Depot copilot** (`POST /api/upsrtc/depot/copilot`). Origin, body size, a
 request deadline and per-identity, per-address and per-process limits are
 enforced in `src/lib/depot/copilot/service/`. Every figure in an answer comes
-from server facts; model-written wording passes a closed-vocabulary check or
-the scripted text is used. The `claude` process runs with no shell, no tools
-and a private home folder. Details and the residual risks:
+from server facts; a typed question is routed by a closed, deterministic
+keyword router and never reaches a model. Writer wording passes a
+closed-vocabulary check and the wording rules, or the scripted text is used.
+The scripted writer answers unless `CLAUDE_BIN` is set; the `claude` process
+runs with no shell, no tools and a private home folder, and is for the owner's
+own machine only. Details and the residual risks:
 [`docs/DEPOT_COPILOT_OPERATIONS.md`](docs/DEPOT_COPILOT_OPERATIONS.md).
 
 **Not enforced.** There is one shared PIN and no per-depot permission: any
 signed-in user can open every depot. All depot limits are held in process
-memory, so a restart clears them and each instance has its own.
+memory, so a restart clears them and each instance has its own. No
+recommendation (transfer, route allocation, duty match, parking order) is
+dispatched or assigned, and no individual is scored or named.
 
 Run a review of pending changes on the current branch with `/security-review`.
 
@@ -1399,6 +1410,8 @@ Each of these was made against a measured problem, not on principle:
 | Depot analysis memoised on the snapshot's rows array, view bodies memoised per analysis | Polling clients share one computation per snapshot; only the feed envelope is built per request |
 | Depot pages receive summaries, not the ~9.6k fleet rows | Per-bus rows are sent only for one depot |
 | Route-to-depot plan re-run at most every 30 s (`REPLAN_MIN_INTERVAL_MS`) | A full re-plan measured about 0.33 s on the event loop |
+| One modelled day and duty plan per snapshot, depot and date (`live/operatingDayView.ts`) | The duty board, crew, parking order, fuel, revenue and economics read one plan instead of matching buses six times |
+| Full-fleet sample gzip-compressed and read lazily on first fallback (`src/lib/upsrtc/fleetFixture.ts`) | Nothing is bundled, read or parsed on the live path |
 
 ---
 
@@ -1407,22 +1420,24 @@ Each of these was made against a measured problem, not on principle:
 ```bash
 npm run lint         # ESLint (next lint)
 npm run typecheck    # tsc --noEmit, strict
-npm run test         # Vitest — 230 unit test files, no network required
+npm run test         # Vitest — 371 unit test files, no network required
 npm run test:watch   # Vitest in watch mode
 npm run test:e2e     # Playwright — 32 specs (starts the app via npm run start; E2E_HOST / E2E_PORT override localhost:3000)
 npm run format       # Prettier over src/**/*.{ts,tsx,css} and docs/**/*.md
 ```
 
-### Unit tests (Vitest, jsdom) — 230 files
+### Unit tests (Vitest, jsdom) — 371 files
 
-Vitest collects `src/tests/**/*.test.ts(x)`. 216 of the 230 files belong to
-Depot Management and are named `depot-<subject>.test.ts(x)`; they are not
+Vitest collects `src/tests/**/*.test.ts(x)`. Listing `src/tests/unit` on
+6 Oct 2026 gave 371 files, 352 of them named `depot-<subject>.test.ts(x)`
+(file counts only; tests per file were not counted). The depot suites are not
 listed here (see [`docs/DEPOT_MANAGEMENT.md`](docs/DEPOT_MANAGEMENT.md#10-testing)).
 The table below lists the suites outside the depot module that it was first
 written for; its per-file counts date from then and were not re-counted for
-this revision. Suites added since and not in the table: `live-snapshot`,
-`schedule-service`, `mapListenerCleanup`, `polled-json-hook` and
-`auth-session-sid`.
+this revision. Suites added since and not in the table include `live-snapshot`,
+`schedule-service`, `mapListenerCleanup`, `polled-json-hook`,
+`auth-session-sid` and the full-fleet sample's `fleet-fixture-shape`,
+`fleet-fixture-file` and `fleet-fixture-loader`.
 
 | File | Tests | Covers |
 | --- | --- | --- |
@@ -1435,7 +1450,7 @@ this revision. Suites added since and not in the table: `live-snapshot`,
 | `globeExtras.test.ts` | 9 | Orbit radii and inclination, great-circle arc packing and lift, deterministic route picking |
 | `redirect.test.ts` | 11 | The post-login redirect allowlist: accepted roots, traversal, lookalike prefixes and protocol-relative tricks |
 | `requireProjectSession.test.ts` | 4 | The server-component session gate and its login redirect |
-| `depot-nav.test.ts` | — | The Depot Management navigation rail definition (now one of the 216 depot suites) |
+| `depot-nav.test.ts` | — | The Depot Management navigation rail definition (now one of the depot suites) |
 
 The bunching suite is the reason the simulator's arithmetic can be trusted: it
 asserts the control equations against hand-computed values, that the overtaking
@@ -1475,8 +1490,10 @@ skipped unless `E2E_PROJECT_PIN` is set, and `E2E_PROJECT_NAME` /
 `E2E_ORIGIN` override the defaults) covers the login deep link surviving sign-in, the shell's top bar, navigation
 and footer, the Back to Operations link, the banned-wording check, no sideways
 scroll (one spec run at three widths: 1440, 1024 and 800 px), the skip link and a
-console-error-free load. A full run reports 34 results, because that one spec
-runs three times.
+console-error-free load, all on the network overview. A full run reports 34
+results (25 `test(` calls in `command-centre.spec.ts` and 7 in
+`depot-management.spec.ts`, counted on 6 Oct 2026), because the width spec runs
+three times.
 
 Spec 25 covers the simulator end to end: navigating from the command bar,
 both panes rendering, stepping advancing the two runs in lockstep, the
@@ -1506,8 +1523,11 @@ the parent directory makes Next infer the wrong workspace root.
 **Before any operational use**, note that the response cache is in-memory
 (per-process) and the audit trail is browser-local. Depot Management adds more
 per-process state (the efficiency index's rolling window, yard memory, the
-route-profile cache, rate limiters and the copilot's caches and budget), and
-its copilot's Claude provider works only where Claude Code is signed in. Both need replacing — see
+route-profile cache, the modelled day, rate limiters and the copilot's caches
+and budget), and its copilot's Claude provider works only where Claude Code is
+signed in. History and trends are a generated series behind a repository
+interface: there is no database. See
+[`docs/olympuss/DEPLOYMENT.md`](docs/olympuss/DEPLOYMENT.md). Both need replacing — see
 [`docs/PRODUCTION_ROADMAP.md`](docs/PRODUCTION_ROADMAP.md). The same applies to
 the login rate limiter.
 
@@ -1533,6 +1553,7 @@ affect the build toolchain only, and do not reach runtime.
 | `npm run inspect:api` | Probe both UPSRTC endpoints and print an empirical report |
 | `npm run generate-pin-hash -- <pin>` | bcrypt hash (cost 12) for `PROJECT_PIN_HASH`; hash to stdout, guidance to stderr |
 | `npm run process-logo` | Regenerate every brand asset from the source logo |
+| `npm run build:depot-fixture` | Depot Management: rebuild `src/fixtures/upsrtc-fleet-sample.json.gz` from one request to the live feed, keeping only allowlisted keys (`scripts/build-depot-fixture.ts`) |
 | `npx tsx scripts/calibrate-odometer.ts --live [--wait-min 5] [--out report.json] [--force]` | Depot Management: read-only evidence on the unit of the feed's `distance` field from two snapshots at least a minute apart (or two saved files). Prints aggregates only; never confirms a unit by itself. No `npm` alias. |
 
 ---
@@ -1585,10 +1606,16 @@ These are enforced in code, not left to discipline:
    depot data; the depot e2e suite checks for banned wording.
 9. A depot page declares its default provenance **once**, in one line under its
    header (`provenanceLine` on `PageHeader`, worded by
-   `src/lib/depot/provenanceLine.ts`; ruling S44). Only a figure, column or
-   section whose provenance differs from that default carries its own tag; no
-   tag sits in a table cell. See
+   `src/lib/depot/provenanceLine.ts`; rulings S44 and S51), pinned for every
+   page by a test. Only a figure, column or section whose provenance differs
+   from that default carries its own tag; no tag sits in a table cell. A
+   section or column where a generated figure sits beside a real bus, depot or
+   route carries one tag on every page. See
    [`docs/DEPOT_UI_PATTERNS.md`](docs/DEPOT_UI_PATTERNS.md).
+10. Depot pages use one state vocabulary, the module's classified states (On
+    road, Standing, Dark, Off road), never the feed's own status field
+    (ruling S60). The efficiency index and depot exceptions state the rolling
+    window they were computed over; bus exceptions are as of the feed time.
 
 ---
 
