@@ -7,12 +7,7 @@ import { operatingDateOf } from '../sim/seed';
 import type { BusOpState } from '../types';
 import { SLOT_MINUTES, type DepotSlotSample, type RouteSlotSample, type SlotSample } from './types';
 
-export {
-  depotHourFromSlots,
-  hourFromSlots,
-  observedHourCount,
-  slotsOfHour,
-} from './observeHours';
+export { depotHourFromSlots, hourFromSlots, observedHourCount, slotsOfHour } from './observeHours';
 
 /*
  * What one fleet snapshot contributes to the day's hourly record: the route
