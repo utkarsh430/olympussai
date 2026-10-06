@@ -151,7 +151,7 @@ and `Routes API: not used`.
 The depot module does not use the `PREDICTIVE` marker. It uses four provenance
 words (`src/lib/depot/labels.ts`), declared once per page in a line under the
 header, with a tag only on a figure, column or section that differs from the
-page default (rulings S44 and S51; `src/lib/depot/provenanceLine.ts`). Where a
+page default (`src/lib/depot/provenanceLine.ts`). Where a
 generated figure or status sits beside a real, named bus, depot or route, that
 column or section carries one tag on every page. Each page's line is pinned by
 a test:
@@ -166,14 +166,16 @@ a test:
 All depot figures are computed from the same snapshot as the command-centre
 map (`src/lib/upsrtc/liveSnapshot.ts`), and every age is measured against the
 feed's own clock. Bus states are the module's classified states (On road,
-Standing, Dark, Off road) everywhere, never the feed's own status field
-(ruling S60), so the network's state counts are DERIVED. The efficiency index
+Standing, Dark, Off road) everywhere, never the feed's own status field,
+so the network's state counts are DERIVED. The efficiency index
 and the depot exceptions that compare a depot with its peers are computed over
 a rolling 20-minute window of snapshots held in the server process
 (`src/lib/depot/score/window.ts`), and each page says the window it covers; bus
 exceptions are as of the feed time. When the live feed and last good data are
 both unavailable, the module runs on a saved full-fleet sample and every page's
-provenance line says "sample data". Full detail:
+provenance line says "sample data". On the sample or on last-good data no page calls its
+figures live: a sentence that names the data's source uses the feed chip's words for it,
+or is worded to be true in all three states. Full detail:
 [`DEPOT_MANAGEMENT.md`](DEPOT_MANAGEMENT.md).
 
 ### Per page
@@ -181,7 +183,7 @@ provenance line says "sample data". Full detail:
 | Page | LIVE | DERIVED | MODELLED | REFERENCE |
 | --- | --- | --- | --- | --- |
 | Network overview | Fleet counts | State counts (classified), KPIs, unit kind, efficiency index over the window | — | — |
-| League table | — | Efficiency index and rank over a rolling 20-minute window; peer groups | — | — |
+| League table | — | Efficiency index and rank over a rolling 20-minute window (equal indexes share a rank); peer groups | — | — |
 | Fleet distribution | Fleet, off-road | Available buses, depot positions (inferred yards), transfer plan | Requirement, hence surplus and deficit | — |
 | Routes | Routes seen in the feed, buses on them | Route profiles (stops, terminals, length) once a person loads them; dead kilometres; allocation plan (empty until profiles are loaded) | Trips per day | — |
 | Exceptions | Bus flags (power, tamper code, emergency, long silence), as of the feed time | Depot exceptions against peers, over the rolling window | — | — |
@@ -202,20 +204,20 @@ All paths are under `src/lib/depot/`.
 
 | Model | Assumption | Parameters (file) |
 | --- | --- | --- |
-| Requirement | A depot needs a share of its available buses at peak, raised when its busiest on-road share over the rolling window so far today is above its peers' (so the requirement can still change until the morning peak has passed, then holds; per server instance) | base 0.86, sensitivity 0.5, seeded ±0.04 (`sim/config.ts`); spare ratio 0.08, range 0–0.3 (`optimise/config.ts`) |
+| Requirement | A depot needs a share of its available buses at peak, raised when its busiest on-road share over the rolling window so far today is above its peers' (so the requirement can still change until the morning peak has passed, then holds; per server instance, and the first snapshots after a restart can set it) | base 0.86, sensitivity 0.5, seeded ±0.04 (`sim/config.ts`); spare ratio 0.08, range 0–0.3 (`optimise/config.ts`) |
 | Depot master | Parking capacity 1.0–1.25 × fleet; one workshop bay per 25 buses; one fuel point per 60 | `sim/config.ts`, `sim/depotMaster.ts` |
 | Fleet master | Class from route-name tokens, else seeded proportions; seats 52 / 44 / 40 / 45 (ordinary / express / ac / premium); age up to 15 years | `sim/config.ts`, `sim/fleetMaster.ts` |
 | Trip frequency | 1–2 depot-anchored runs per bus per day | `sim/tripFrequencyConfig.ts` |
 | Duties | One duty per bus needed at peak, round-robin over routes; a seeded 4–10 h each (the feed carries no durations) | `sim/duties.ts` |
-| Duty plan | One plan per snapshot, depot and date, matched by one matcher; read by the duty board, crew, the night parking order, fuel, revenue and economics (ruling S47) | `sim/dayPlan.ts`, `optimise/assignDuties.ts` |
-| Operating day | The day read off that plan (ruling S41); a typical length by class for a route with no cached profile | `sim/operatingDay.ts`, `sim/operatingDayConfig.ts` |
+| Duty plan | One plan per snapshot, depot and date, matched by one matcher; read by the duty board, crew, the night parking order, fuel, revenue and economics | `sim/dayPlan.ts`, `optimise/assignDuties.ts` |
+| Operating day | The day read off that plan; a typical length by class for a route with no cached profile | `sim/operatingDay.ts`, `sim/operatingDayConfig.ts` |
 | Crew | 1.45 drivers and 1.4 conductors per shift plus 2 reserve slots; leave 6%, training 3%, absent 4%; 10 h a day, 48 h a week | `sim/crew.ts`, `crew/types.ts` |
 | Fuel | 4.8 / 4.6 / 4.0 / 3.6 km per litre; ₹92 per litre; a bus flagged at 15% from the median of at least 2 peers | `sim/fuelConfig.ts`, `fuel/types.ts` |
 | Revenue | Load factor 0.62 / 0.55 / 0.45 / 0.40; fare ₹1.1 / 1.5 / 2.2 / 2.8 per occupied seat-km; two legs per trip | `sim/revenueConfig.ts` |
 | Economics index | Weights: earnings per km 0.40, cost per km 0.35, load factor 0.25 | `sim/revenueConfig.ts` |
 | Maintenance | Service every 10,000 / 12,000 / 8,000 / 8,000 km; 60,000–90,000 km a year by class; due soon within 1,500 km | `maintenance/config.ts` |
 | Yard lanes | Lanes of 6–10 buses summing to the modelled capacity | `sim/yardLayout.ts` |
-| History | Mean-reverting walk with a weekly rhythm, ending on today's live value | `sim/history.ts` |
+| History | Mean-reverting walk with a weekly rhythm, ending on today's live value; available buses never above the fleet | `sim/history.ts` |
 
 ### What changes when a real feed replaces a model
 
