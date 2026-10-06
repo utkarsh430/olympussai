@@ -10,6 +10,7 @@ import {
   decisionsFor,
   isRepeatDecision,
   rowDecisionsFor,
+  undoableFor,
 } from '@/lib/depot/rebalance/decisionReducers';
 import {
   decisionAnnouncement,
@@ -109,5 +110,18 @@ describe('decisionAnnouncement', () => {
     expect(decisionAnnouncement('rejected', 1, 'Agra', 'Kanpur')).toBe(
       'Rejected 1 bus Agra to Kanpur. Recorded only; nothing dispatched.',
     );
+  });
+});
+
+describe('the undo inside a transfer\'s row', () => {
+  it('finds the decision in force for that transfer on the plan showing, and nothing after undo', () => {
+    let events = record([], decisionEvent(input({ decision: 'approved' })));
+    events = record(events, decisionEvent(input({ decision: 'deferred', scenario: KEY })));
+    const trail = decisionTrail(events, DATE);
+    expect(undoableFor(trail, 'agra>kanpur', null)?.decision).toBe('approved');
+    expect(undoableFor(trail, 'agra>kanpur', KEY)?.decision).toBe('deferred');
+    expect(undoableFor(trail, 'meerut>gonda', null)).toBeNull();
+    events = record(events, undoEvent(undoableFor(trail, 'agra>kanpur', null)!));
+    expect(undoableFor(decisionTrail(events, DATE), 'agra>kanpur', null)).toBeNull();
   });
 });

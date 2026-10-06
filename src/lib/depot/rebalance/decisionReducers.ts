@@ -114,3 +114,18 @@ export function decisionTrail(events: readonly AuditEvent[], operatingDate: stri
     scenario: items.filter((e) => e.scenario !== null),
   };
 }
+
+/**
+ * The decision in force for one transfer on the plan showing (baseline null, or a scenario
+ * key): the entry its Undo withdraws, or null when there is nothing to undo.
+ */
+export function undoableFor(
+  trail: DecisionTrail,
+  transferId: string,
+  scenario: string | null,
+): TrailItem | null {
+  const items = scenario === null ? trail.baseline : trail.scenario;
+  return (
+    items.find((i) => i.undoable && i.transferId === transferId && i.scenario === scenario) ?? null
+  );
+}
