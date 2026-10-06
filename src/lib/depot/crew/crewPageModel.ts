@@ -117,9 +117,10 @@ export function strengthSentence(
   role: CrewRole,
   figures: { readonly required: number; readonly available: number },
 ): string {
+  const verb = figures.available === 1 ? 'is' : 'are';
   return (
-    `${countOf(figures.available, role, `${role}s`)} available for ` +
-    `${countOf(figures.required, 'shift', 'shifts')}.`
+    `${countOf(figures.available, role, `${role}s`)} ${verb} available across the day for ` +
+    `${countOf(figures.required, 'shift', 'shifts')}, some of which overlap.`
   );
 }
 
@@ -153,7 +154,9 @@ export function modelledStatement(limits: {
     'of the day’s shifts, the mix of weekly off, leave, training and absence, and hours ' +
     `worked this week. A slot is limited to ${limits.dailyHours} hours a day and ` +
     `${limits.weeklyHours} hours a week. A crew roster and leave feed from the depot will ` +
-    'replace the model.'
+    'replace the model. A shortfall here is an outcome of the model: a drawn mix of weekly ' +
+    'off, leave, training and absence, and shifts that start together. It is not a finding ' +
+    'about this depot.'
   );
 }
 

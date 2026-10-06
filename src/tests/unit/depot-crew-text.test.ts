@@ -84,10 +84,10 @@ describe('crew page wording', () => {
 
   it('words crew strength against need', () => {
     expect(strengthSentence('driver', { required: 40, available: 58 })).toBe(
-      '58 drivers available for 40 shifts.',
+      '58 drivers are available across the day for 40 shifts, some of which overlap.',
     );
     expect(strengthSentence('conductor', { required: 1, available: 1 })).toBe(
-      '1 conductor available for 1 shift.',
+      '1 conductor is available across the day for 1 shift, some of which overlap.',
     );
   });
 
@@ -107,6 +107,9 @@ describe('crew page wording', () => {
     expect(text).toMatch(/crew strength/);
     expect(text).toMatch(/10 hours a day and 48 hours a week/);
     expect(text).toMatch(/crew roster and leave feed/);
+    expect(text).toContain(
+      'A shortfall here is an outcome of the model: a drawn mix of weekly off, leave, training and absence, and shifts that start together. It is not a finding about this depot.',
+    );
     expect(text).not.toMatch(/simulated/i);
   });
 
