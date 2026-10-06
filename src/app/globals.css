@@ -378,6 +378,18 @@
       text-depot-ink;
   }
 
+  /* Themed native controls (Controls.tsx): the dark colour scheme and the cyan accent,
+     so neither the box nor an open option list is browser-default white. */
+  .depot-checkbox {
+    @apply h-3.5 w-3.5 shrink-0 cursor-pointer rounded-[3px] accent-holo-glow;
+    color-scheme: dark;
+  }
+
+  .depot-select {
+    @apply cursor-pointer appearance-none truncate pr-7;
+    color-scheme: dark;
+  }
+
   /* Index bar: a thin fill on a 0-100 track, with a tick at 50 (the peer median).
      One hue; the value is always also written beside it. */
   .depot-bar-track {
