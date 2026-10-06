@@ -71,6 +71,25 @@ export function file(prefix: string, n: number, start: XY, step: XY): DepotBusRo
   );
 }
 
+/**
+ * n buses parked in rows of `across`, `stepM` apart both ways, the first at `corner` and
+ * the rows running north: a parking area whose edges are exactly where they are drawn.
+ */
+export function lot(
+  prefix: string,
+  n: number,
+  corner: XY,
+  across: number,
+  stepM = 20,
+): DepotBusRow[] {
+  return Array.from({ length: n }, (_, i) =>
+    busAt(`${prefix}${i}`, {
+      x: corner.x + (i % across) * stepM,
+      y: corner.y + Math.floor(i / across) * stepM,
+    }),
+  );
+}
+
 /** n buses each alone, kilometres from the layout and from each other: never a cluster. */
 export function scattered(prefix: string, n: number): DepotBusRow[] {
   return file(prefix, n, { x: 20_000, y: 5_000 }, { x: 2_000, y: 700 });
@@ -102,9 +121,15 @@ export function mirrored(
 /** Where a yard's centre lies in the layout, in metres. */
 export const centreOf = (yard: Yard): XY => toMetres(yard.lat, yard.lng, ORIGIN.lat, ORIGIN.lng);
 
-/** Registration numbers forming the yard, or null when none is claimed. */
-export function membersOf(rows: readonly DepotBusRow[]): readonly string[] | null {
-  return inferYardGroup(rows)?.members ?? null;
+/**
+ * Registration numbers forming the yard, or null when none is claimed. Pass an
+ * `adjacentM` of 0 for the rule before Ruling S46 merged near groups.
+ */
+export function membersOf(
+  rows: readonly DepotBusRow[],
+  adjacentM?: number,
+): readonly string[] | null {
+  return inferYardGroup(rows, adjacentM)?.members ?? null;
 }
 
 /** Registration numbers that read `in_yard` against the yard, sorted. */

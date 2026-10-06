@@ -15,6 +15,12 @@ import {
 } from './depot-yard.fixtures';
 
 const HERE = { x: 0, y: 0 };
+/**
+ * Most layouts here put a stand within 300 m of the yard's group, so Ruling S46 now makes
+ * them one place. What they pin is the clustering beneath that merge, so they apply the
+ * rule with an adjacency of 0, as it stood before; what S46 decides is stated beside them.
+ */
+const BEFORE_MERGE = 0;
 const DIAGONAL = Math.SQRT1_2;
 const COMPASS: readonly (readonly [string, XY])[] = [
   ['north', { x: 0, y: 1 }],
@@ -43,7 +49,7 @@ describe('single buses never join two places', () => {
   it.each(COMPASS)('keeps yard and stand apart along a chain running %s', (_, towards) => {
     for (const between of [3, 4, 5, 8]) {
       const { yardRows, queue, all } = joined(towards, between, justUnderLink);
-      const members = membersOf(all)!;
+      const members = membersOf(all, BEFORE_MERGE)!;
       expect(members).toEqual(expect.arrayContaining(regs(yardRows)));
       expect(members.filter((reg) => reg.startsWith('S'))).toEqual([]);
       // At most the chain's first bus (dense against the yard) and the one bordering it.
@@ -51,6 +57,20 @@ describe('single buses never join two places', () => {
       expect(regs(queue).slice(0, 2)).toEqual(expect.arrayContaining(chained));
       expect(members.length).toBe(yardRows.length + chained.length);
     }
+  });
+
+  it.each([
+    [3, true],
+    [4, true],
+    [5, true],
+    [6, false],
+    [8, false],
+  ])('under Ruling S46, with %i buses between, takes the stand in: %s', (between, joins) => {
+    // Each group takes the two chain buses next to it. With five between, the yard's group
+    // ends 280 m short of the stand's; with six, 420 m short, and they stay two places.
+    const { standRows, all } = joined({ x: 1, y: 0 }, between, justUnderLink);
+    const members = membersOf(all)!;
+    expect(members.filter((reg) => reg.startsWith('S'))).toEqual(joins ? regs(standRows) : []);
   });
 
   it('joins them when each end of a two-bus gap is dense against its own side', () => {
@@ -104,11 +124,11 @@ describe('a bus bordering two places', () => {
     ['the yard, whose bus is nearer', 195, true],
   ])('goes to %s, and the mirrored layout gives the mirror image', (_, xEast, inYard) => {
     const rows = contested(xEast);
-    const base = inferYardGroup(rows)!;
+    const base = inferYardGroup(rows, BEFORE_MERGE)!;
     expect(base.members.includes('X')).toBe(inYard);
     expect(base.yard.inCluster).toBe(inYard ? 14 : 13);
     for (const flip of FLIPS) {
-      const image = inferYardGroup(mirrored(rows, flip))!;
+      const image = inferYardGroup(mirrored(rows, flip), BEFORE_MERGE)!;
       expect(image.members).toEqual(base.members);
       expect(Math.abs(image.yard.radiusM - base.yard.radiusM)).toBeLessThanOrEqual(1);
       const [from, to] = [centreOf(base.yard), centreOf(image.yard)];
@@ -143,19 +163,29 @@ describe('a bus bordering two places', () => {
       const pWins = tied(axis, 'C1', 'Z9');
       // Q wins: not the place holding the lowest registration overall (A0).
       const qWins = tied(axis, 'Z9', 'C1');
-      expect(inferYardGroup(pWins)!.yard.inCluster).toBe(13);
-      expect(membersOf(pWins)).not.toContain('X');
-      expect(inferYardGroup(qWins)!.yard.inCluster).toBe(14);
-      expect(membersOf(qWins)).toContain('X');
+      const before = (rows: readonly DepotBusRow[]) => inferYardGroup(rows, BEFORE_MERGE);
+      expect(before(pWins)!.yard.inCluster).toBe(13);
+      expect(membersOf(pWins, BEFORE_MERGE)).not.toContain('X');
+      expect(before(qWins)!.yard.inCluster).toBe(14);
+      expect(membersOf(qWins, BEFORE_MERGE)).toContain('X');
       for (const seed of [1, 2, 3, 4, 5]) {
-        expect(inferYardGroup(seededShuffle(pWins, seed))).toEqual(inferYardGroup(pWins));
-        expect(inferYardGroup(seededShuffle(qWins, seed))).toEqual(inferYardGroup(qWins));
+        expect(before(seededShuffle(pWins, seed))).toEqual(before(pWins));
+        expect(before(seededShuffle(qWins, seed))).toEqual(before(qWins));
       }
     },
   );
 
   it('never lets the bordering bus join the two places', () => {
     const rows = contested(200);
-    expect(membersOf(rows)!.filter((reg) => reg.startsWith('S') || reg === 'Z-Q')).toEqual([]);
+    const members = membersOf(rows, BEFORE_MERGE)!;
+    expect(members.filter((reg) => reg.startsWith('S') || reg === 'Z-Q')).toEqual([]);
+  });
+
+  it('is moot under Ruling S46: the stand stands within 300 m, so both are one place', () => {
+    for (const xEast of [195, 205]) {
+      const rows = contested(xEast);
+      expect(membersOf(rows)).toEqual(regs(rows));
+      expect(inferYard(rows)).toMatchObject({ parked: 21, inCluster: 21 });
+    }
   });
 });

@@ -11,6 +11,7 @@ import {
 import type { Yard } from './types';
 import { MOVING_SPEED_KMPH } from './thresholds';
 import { densityClusters } from './yardClusters';
+import { adjacentPlace } from './yardPlace';
 
 /*
  * A yard is learned, not surveyed: it is where the depot's parked buses stand
@@ -20,18 +21,24 @@ import { densityClusters } from './yardClusters';
  * Parked buses are clustered by distance (see yardClusters.ts). A bus with at
  * least YARD_CORE_MIN_NEIGHBOURS parked buses within YARD_LINK_M, itself
  * included, is a core bus; core buses within that distance of each other are
- * one place; any other bus within that distance of a core bus borders that
- * place and belongs to it, but links nothing further. Real yards are compact:
- * the largest place spans 150 m at the median and 376 m at most.
+ * one group; any other bus within that distance of a core bus borders that
+ * group and belongs to it, but links nothing further.
  *
- * The yard is the largest place, provided it holds at least YARD_MIN_CLUSTER
- * buses, at least YARD_MIN_SHARE of the depot's parked buses, at least
- * YARD_DOMINANCE_RATIO times the second-largest place, and no two of its buses
- * are more than YARD_MAX_SPAN_M apart. Otherwise no yard is claimed, because a
- * guess between comparable stands would put every departure judged against the
- * yard in the wrong place. Two largest places of equal size fail the dominance
- * rule, so there is never a choice to make between them. The share is a
- * quarter, not a half: at midday most of a depot's standing buses are at
+ * Groups whose nearest buses stand within YARD_ADJACENT_M are one place (Ruling
+ * S46, see yardPlace.ts): the place starts as the largest group and takes in
+ * every group within that distance of it, then of what it has taken in, unless
+ * that would make it more than YARD_MAX_SPAN_M across. Real yards are compact:
+ * the largest group spans 150 m at the median and 376 m at most, and the
+ * largest merged place measured 395 m.
+ *
+ * The yard is that place, provided it holds at least YARD_MIN_CLUSTER buses, at
+ * least YARD_MIN_SHARE of the depot's parked buses, at least
+ * YARD_DOMINANCE_RATIO times the largest group left outside it, and no two of
+ * its buses are more than YARD_MAX_SPAN_M apart. Otherwise no yard is claimed,
+ * because a guess between comparable stands would put every departure judged
+ * against the yard in the wrong place. A rival of equal size fails the
+ * dominance rule, so there is never a choice to make between them. The share is
+ * a quarter, not a half: at midday most of a depot's standing buses are at
  * terminals far away, and a half left 65 of 119 depots without a yard.
  *
  * The centre is the median latitude and longitude of the yard's buses. The
@@ -40,21 +47,33 @@ import { densityClusters } from './yardClusters';
  *
  * What this does not do, on purpose:
  *  - A single file parked thinly (a bus every 100 m) has no core bus, so it is
- *    not a place at all: neither a yard nor a rival to one.
- *  - A chain of single buses does not join two places, but its first bus, if it
+ *    not a group at all: neither a yard nor a rival to one.
+ *  - A chain of single buses does not join two groups, but its first bus, if it
  *    stands within the link distance of three yard buses, is itself a core bus
  *    and the next one borders it: up to two buses of an approach queue count as
- *    in the yard and widen the radius. Two places with only two such buses
- *    between them are therefore one place. A queue with a bus every 75 m or
- *    closer joins whatever it reaches; the span limit then decides.
+ *    in the yard and widen the radius. A queue with a bus every 75 m or closer
+ *    joins whatever it reaches; the span limit then decides.
+ *  - A bus that belongs to no group is never taken into the place, however near
+ *    it stands, and does not carry the place's reach on to a group beyond it.
+ *  - Groups further apart than YARD_ADJACENT_M stay two places, and dominance
+ *    refuses a yard between comparable ones: at every depot left without a
+ *    yard, such groups stood 0.8 to 52 km apart.
  *  - A bus standing just outside the circle reads as away. No margin is added:
- *    under this rule the snapshot gives 95 of 119 depots a yard, with 2,444
- *    parked buses inside their own yard and 50 within 450 m outside it, 23 of
- *    those at three depots.
+ *    before groups were merged the snapshot gave 95 of 119 depots a yard, with
+ *    2,444 parked buses inside their own yard and 50 within 450 m outside it,
+ *    23 of those at three depots. The merge changes three depots: one gains a
+ *    yard, two take in 5 and 9 more buses.
  */
 
-/** Two parked buses this close stand in the same place. */
+/** Two parked buses this close stand in the same group. */
 export const YARD_LINK_M = 150;
+/**
+ * Two groups whose nearest buses stand this close are one place (Ruling S46).
+ * Twice the link distance: a compound's two parking areas were measured 126 m
+ * apart, so the link joins them only as the buses at the edges come and go,
+ * while every pair of groups seen without a yard stood 0.8 km or more apart.
+ */
+export const YARD_ADJACENT_M = 2 * YARD_LINK_M;
 /** A core bus has this many parked buses within the link distance, itself included. */
 export const YARD_CORE_MIN_NEIGHBOURS = 4;
 /** Fewer parked buses than this is a coincidence of stops, not a yard. */
@@ -120,8 +139,13 @@ function isConfident(largest: readonly NearPoint[], rivalSize: number, parked: n
  * Infer one depot's yard and the buses forming it; null unless the evidence is
  * strong (see the rule above) rather than a guess or a midpoint. Buses are put
  * in registration order first, so the answer does not depend on input order.
+ * `adjacentM` is the ruled YARD_ADJACENT_M; a test passes 0 to apply the rule
+ * as it stood before groups were merged, which no group can then be.
  */
-export function inferYardGroup(rows: readonly DepotBusRow[]): YardGroup | null {
+export function inferYardGroup(
+  rows: readonly DepotBusRow[],
+  adjacentM: number = YARD_ADJACENT_M,
+): YardGroup | null {
   const candidates: readonly Candidate[] = rows
     .filter(isParkedWithFix)
     .map((row) => ({
@@ -130,15 +154,13 @@ export function inferYardGroup(rows: readonly DepotBusRow[]): YardGroup | null {
     }))
     .sort(byRegistration);
 
-  const [largest, rival] = densityClusters(
-    candidates.map((candidate) => candidate.point),
-    YARD_LINK_M,
-    YARD_CORE_MIN_NEIGHBOURS,
-  );
-  if (!largest) return null;
-  const members = largest.map((index) => candidates[index]!);
+  const allPoints = candidates.map((candidate) => candidate.point);
+  const groups = densityClusters(allPoints, YARD_LINK_M, YARD_CORE_MIN_NEIGHBOURS);
+  const place = adjacentPlace(allPoints, groups, adjacentM, YARD_MAX_SPAN_M);
+  if (!place) return null;
+  const members = place.members.map((index) => candidates[index]!);
   const points = members.map((member) => member.point);
-  if (!isConfident(points, rival?.length ?? 0, candidates.length)) return null;
+  if (!isConfident(points, place.rivalSize, candidates.length)) return null;
 
   const lat = median(points.map((point) => point.lat));
   const lng = median(points.map((point) => point.lng));
