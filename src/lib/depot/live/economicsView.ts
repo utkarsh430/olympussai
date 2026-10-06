@@ -5,8 +5,8 @@ import { scoreEconomics } from '../revenue/economicsIndex';
 import type { EconomicsInput } from '../revenue/types';
 import type { DepotSummary } from '../types';
 import { ECONOMICS_WEIGHTS } from '../sim/revenueConfig';
-import { feedEnvelope } from './analysis';
-import { buildDepotDetail } from './depotView';
+import { feedEnvelope, type SnapshotAnalysis } from './analysis';
+import { depotBusViews } from './depotView';
 import { analyseDepotRevenue, holdPerSnapshot } from './revenueView';
 import type { RouteProfile } from '../routes/types';
 
@@ -23,7 +23,7 @@ interface DepotFigures {
 
 /** Only an operating depot is scored; the rest are listed with their reason and no figures. */
 async function figuresFor(
-  view: FleetSnapshotView,
+  analysis: SnapshotAnalysis,
   depot: DepotSummary,
   profiles: ReadonlyMap<string, RouteProfile>,
   operatingDate: string,
@@ -41,7 +41,7 @@ async function figuresFor(
       coverage: { n: 0, of: 0 },
     };
   }
-  const buses = buildDepotDetail(view, depot.id)?.buses ?? [];
+  const buses = depotBusViews(analysis, depot.id);
   const [revenue, fuelDays] = await Promise.all([
     analyseDepotRevenue(sources, buses, profiles, operatingDate),
     sources.fuel.fuelDay(buses, operatingDate),
@@ -59,9 +59,9 @@ async function figuresFor(
 }
 
 const heldBody = holdPerSnapshot<EconomicsBody, EconomicsSources>(
-  async (view, analysis, profiles, operatingDate, _key, sources): Promise<EconomicsBody> => {
+  async (_view, analysis, profiles, operatingDate, _key, sources): Promise<EconomicsBody> => {
     const figures = await Promise.all(
-      analysis.depots.map((depot) => figuresFor(view, depot, profiles, operatingDate, sources)),
+      analysis.depots.map((depot) => figuresFor(analysis, depot, profiles, operatingDate, sources)),
     );
     const scores = scoreEconomics(figures.map((f) => f.input));
     const depots = analysis.depots.map(

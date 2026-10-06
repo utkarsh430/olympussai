@@ -102,6 +102,24 @@ function visitorsOf(analysis: SnapshotAnalysis, depotId: string): VisitorBus[] {
 }
 
 /**
+ * One depot's buses as views, in the page's order. Cheap: no yard, outshed or
+ * exception work, so a network-wide caller can use it for every depot.
+ */
+export function depotBusViews(analysis: SnapshotAnalysis, depotId: string): DepotBusView[] {
+  const { feedNow, yards, stateOf } = analysis;
+  return (analysis.rowsByDepot.get(depotId) ?? [])
+    .map((row) =>
+      toBusView(
+        row,
+        stateOf(row),
+        analysis.locations.get(row.registrationNumber) ?? locateBus(row, yards),
+        feedNow,
+      ),
+    )
+    .sort(compareBuses);
+}
+
+/**
  * One depot as its manager sees it, or null when the snapshot has no such
  * depot. Reads only the shared analysis: states, yards, locations, visitors
  * and exceptions are never recomputed per request. Bus exceptions come from
@@ -117,16 +135,7 @@ export function buildDepotDetail(
   if (!depot) return null;
   const { feedNow, yards, stateOf } = analysis;
   const rows = analysis.rowsByDepot.get(depotId) ?? [];
-  const buses = rows
-    .map((row) =>
-      toBusView(
-        row,
-        stateOf(row),
-        analysis.locations.get(row.registrationNumber) ?? locateBus(row, yards),
-        feedNow,
-      ),
-    )
-    .sort(compareBuses);
+  const buses = depotBusViews(analysis, depotId);
   const exceptions = analysis.exceptionsByDepot.get(depotId);
   return {
     ...feedEnvelope(view),
