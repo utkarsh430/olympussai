@@ -1,14 +1,14 @@
 'use client';
 
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, type ReactNode } from 'react';
 import {
   RationalePanel,
-  RationaleToggle,
   useRationale,
 } from '@/components/depot/copilot/RationaleButton';
+import { DisclosureChevron } from '@/components/depot/shell/DisclosureChevron';
 import { formatCount } from '@/lib/depot/format';
 import { samePlaceNote } from '@/lib/depot/rebalance/pageLayout';
-import { decisionStatusText } from '@/lib/depot/rebalance/decisionWording';
+import { decisionRowWord, decisionStatusText } from '@/lib/depot/rebalance/decisionWording';
 import type { TransferDecisionKind } from '@/lib/depot/rebalance/rebalanceModel';
 import { spareBeforeAfter } from '@/lib/depot/rebalance/transferColumns';
 import type { TransferRow } from '@/lib/depot/rebalance/transferModel';
@@ -16,104 +16,80 @@ import { TransferDecisionControls } from './TransferDecisionControls';
 
 export interface TransferRowViewProps {
   readonly row: TransferRow;
-  readonly selected: boolean;
-  readonly onSelect: (transferId: string | null) => void;
+  /** True while this row's expanded row is open (it is also the transfer lit on the map). */
+  readonly open: boolean;
+  readonly onActivate: (row: TransferRow) => void;
   /** Records a decision; it changes nothing but the record. */
   readonly onDecide: (row: TransferRow, decision: TransferDecisionKind, note: string) => void;
+  /** Withdraws the decision in force for this row; null when there is none to undo. */
+  readonly onUndo: (() => void) | null;
   /** Only rows of the server's own plan have a written rationale. */
   readonly withRationale: boolean;
-  /** Columns in the table, so the "Why?" row spans all of them. */
+  /** Columns in the table, so the expanded row spans all of them. */
   readonly columns: number;
 }
 
-/** A full-width row under a transfer: it may wrap, unlike the 36px data rows. */
+/** A full-width row under a transfer: it may wrap, unlike the data rows. */
 const DETAIL_CELL = '!h-auto !max-w-none !whitespace-normal !py-3';
+/** Table links: cyan, underlined on hover and focus only (critique round 5, §5). */
+const TABLE_LINK =
+  'depot-table-link text-left text-holo-glow decoration-holo-glow/40 underline-offset-2 hover:underline focus-visible:underline';
+/** A long transfer name wraps at a space to a second line inside its cell, never cut. */
+const NAME_CELL = '!h-auto !whitespace-normal !py-1.5';
 
-/** One transfer: its data row and, once "Why?" is open, a full-width "Why?" row. */
+/** One transfer: its data row and, once opened, its expanded row directly under it. */
 export function TransferRowView(props: TransferRowViewProps) {
-  return props.withRationale ? <RationaleRows {...props} /> : <PlainRows {...props} />;
+  return props.withRationale ? <RationaleRows {...props} /> : <Rows {...props} rationale={null} />;
 }
 
-/** The server plan: "Why?" also asks for the written rationale. */
+/** The server plan: opening the row also asks for the written rationale, once. */
 function RationaleRows(props: TransferRowViewProps) {
-  const { row } = props;
+  const { row, open } = props;
   const rationale = useRationale(row.id, row.buses);
+  const { expanded, toggle } = rationale;
+  // The hook keeps the text when closed; it follows the row's open state.
+  useEffect(() => {
+    if (open !== expanded) toggle();
+  }, [open, expanded, toggle]);
   return (
     <Rows
       {...props}
-      expanded={rationale.expanded}
-      toggle={
-        <RationaleToggle
-          expanded={rationale.expanded}
-          onToggle={rationale.toggle}
-          panelId={rationale.panelId}
-          label={`${row.fromName} to ${row.toName}`}
-          status={rationale.status}
-        />
-      }
       rationale={
         <RationalePanel
-          id={rationale.panelId}
+          id={`${rationale.panelId}-text`}
           expanded={rationale.expanded}
           state={rationale.state}
           onRetry={rationale.retry}
         />
       }
-      detailId={undefined}
     />
   );
 }
 
-/** A what-if: "Why?" opens the figures and the decision, with no written rationale. */
-function PlainRows(props: TransferRowViewProps) {
-  const { row } = props;
-  const [expanded, setExpanded] = useState(false);
+function Rows(props: TransferRowViewProps & { readonly rationale: ReactNode }) {
+  const { row, open, onActivate, onDecide, onUndo, columns, rationale } = props;
   const detailId = useId();
-  return (
-    <Rows
-      {...props}
-      expanded={expanded}
-      toggle={
-        <button
-          type="button"
-          onClick={() => setExpanded((open) => !open)}
-          aria-expanded={expanded}
-          aria-controls={expanded ? detailId : undefined}
-          aria-label={`Why? ${row.fromName} to ${row.toName}`}
-          className="hud-button px-2 py-0.5"
-        >
-          Why?
-        </button>
-      }
-      rationale={null}
-      detailId={detailId}
-    />
-  );
-}
-
-function Rows(
-  props: TransferRowViewProps & {
-    readonly expanded: boolean;
-    readonly toggle: ReactNode;
-    readonly rationale: ReactNode;
-    readonly detailId: string | undefined;
-  },
-) {
-  const { row, selected, onSelect, onDecide, columns, expanded, toggle, rationale } = props;
   const samePlace = samePlaceNote(row);
   const status = decisionStatusText(row.decision, row.buses);
+  const name = `${row.fromName} → ${row.toName}`;
   return (
     <>
-      <tr className={selected ? 'depot-row-selected' : undefined} title={samePlace ?? undefined}>
-        <td>
+      <tr
+        className={`group depot-row-selectable ${open ? 'depot-row-selected' : ''}`}
+        title={samePlace ?? undefined}
+        onClick={() => onActivate(row)}
+        data-testid={`transfer-row-${row.id}`}
+      >
+        <td className={NAME_CELL}>
+          {/* The keyboard way in: Enter or Space on the name opens the row (its click bubbles). */}
           <button
             type="button"
-            aria-pressed={selected}
-            onClick={() => onSelect(selected ? null : row.id)}
-            className="depot-link block max-w-full truncate text-left"
-            title={`${row.fromName} to ${row.toName}`}
+            aria-expanded={open}
+            aria-controls={open ? detailId : undefined}
+            aria-label={`${row.fromName} to ${row.toName}, ${formatCount(row.buses)} buses: ${status}`}
+            className={TABLE_LINK}
           >
-            {row.fromName} → {row.toName}
+            {name}
           </button>
         </td>
         <td className="depot-align-right">{formatCount(row.buses)}</td>
@@ -121,20 +97,34 @@ function Rows(
           {row.distanceKm.toFixed(1)}
         </td>
         <td className="depot-align-right">{row.busKm.toFixed(1)}</td>
-        <td title={status}>{status}</td>
-        <td>{toggle}</td>
+        <td title={status} data-testid="transfer-decision-word">
+          {decisionRowWord(row.decision, row.buses)}
+        </td>
+        <td
+          aria-hidden
+          className={`!px-1.5 text-center ${open ? '' : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'}`}
+        >
+          <DisclosureChevron open={open} />
+        </td>
       </tr>
-      {expanded ? (
+      {open ? (
         <tr data-testid={`transfer-detail-${row.id}`}>
           <td colSpan={columns} className={DETAIL_CELL}>
-            <div id={props.detailId} className="max-w-[62ch]">
-              {samePlace ? <p className="depot-prose mb-2 text-[13px]">{samePlace}</p> : null}
-              <p className="depot-prose mb-2 text-[13px]" data-testid="transfer-spare">
-                {spareBeforeAfter(row)}
-              </p>
+            <div id={detailId} className="flex min-w-0 flex-col gap-2" data-testid="transfer-block">
+              <div className="max-w-[62ch]">
+                {samePlace ? <p className="depot-prose mb-2 text-[13px]">{samePlace}</p> : null}
+                <p className="depot-prose text-[13px]" data-testid="transfer-spare">
+                  {spareBeforeAfter(row)}
+                </p>
+              </div>
+              {rationale}
+              <TransferDecisionControls
+                row={row}
+                status={status}
+                onDecide={onDecide}
+                onUndo={onUndo}
+              />
             </div>
-            {rationale}
-            <TransferDecisionControls row={row} onDecide={onDecide} />
           </td>
         </tr>
       ) : null}
