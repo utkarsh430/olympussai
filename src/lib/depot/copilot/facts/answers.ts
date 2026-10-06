@@ -36,8 +36,8 @@ function unsupported(reason: UnsupportedReason): CopilotRequest {
   }
   const closing =
     reason === 'people'
-      ? 'Questions about people are outside that scope. A question on one of the topics above would be answered from the live data.'
-      : 'A question on one of the topics above would be answered from the live data.';
+      ? 'Questions about people are outside that scope. A question on any topic above would be answered from the live data.'
+      : 'A question on any topic above would be answered from the live data.';
   return answer('an unsupported question', [], {
     headline: 'That question is outside what can be answered here',
     paragraphs: [SCOPE_SENTENCE, closing],

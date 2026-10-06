@@ -1,6 +1,6 @@
 import type { RankMetric } from '@/lib/depot/copilot/queries';
 import { metricHigherIsBetter } from '@/lib/depot/copilot/queries';
-import { cleanName, index1, makeFact, ph } from '@/lib/depot/copilot/facts/format';
+import { cleanName, index1, makeFact, nameFact, ph } from '@/lib/depot/copilot/facts/format';
 import type { CopilotRequest } from '@/lib/depot/copilot/types';
 import { MAX_LIST_ROWS, answer } from '@/lib/depot/copilot/facts/answers/shared';
 import type { AnswerData } from '@/lib/depot/copilot/facts/answers';
@@ -37,7 +37,7 @@ export function rankAnswer(
     });
   }
   const facts = rows.flatMap((row, i) => [
-    makeFact(`rank.${i + 1}.name`, `Depot ${i + 1}`, cleanName(row.name), 'derived'),
+    nameFact(`rank.${i + 1}.name`, `Depot ${i + 1}`, cleanName(row.name), 'derived'),
     makeFact(
       `rank.${i + 1}.value`,
       `Value ${i + 1}`,

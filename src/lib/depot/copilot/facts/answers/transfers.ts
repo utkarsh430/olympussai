@@ -1,4 +1,4 @@
-import { busCount, cleanName, km1, makeFact, ph } from '@/lib/depot/copilot/facts/format';
+import { busCount, cleanName, km1, makeFact, nameFact, ph } from '@/lib/depot/copilot/facts/format';
 import type { CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
 import type { UncoveredReason } from '@/lib/depot/optimise/types';
 import {
@@ -28,7 +28,7 @@ export function transfersAnswer(data: AnswerData, depotId: string): CopilotReque
     (t) => t.fromDepotId === depotId || t.toDepotId === depotId,
   );
   const shown = mine.slice(0, MAX_TRANSFER_ROWS);
-  const facts: CopilotFact[] = [makeFact('depot.name', 'Depot', cleanName(name), 'live')];
+  const facts: CopilotFact[] = [nameFact('depot.name', 'Depot', cleanName(name), 'live')];
   if (balance && balance.balance !== 0) {
     facts.push(
       makeFact(
@@ -43,7 +43,7 @@ export function transfersAnswer(data: AnswerData, depotId: string): CopilotReque
     const other = t.fromDepotId === depotId ? t.toDepotId : t.fromDepotId;
     facts.push(
       makeFact(`t.${i + 1}.buses`, `Buses ${i + 1}`, busCount(t.buses), 'modelled'),
-      makeFact(
+      nameFact(
         `t.${i + 1}.other`,
         `Other depot ${i + 1}`,
         cleanName(names.get(other) ?? nameOf(data, other) ?? other),
@@ -77,7 +77,7 @@ export function transfersAnswer(data: AnswerData, depotId: string): CopilotReque
         : `The modelled requirement puts ${ph('depot.name')} in balance.`;
   const lines = shown.map((t, i) => {
     const give = t.fromDepotId === depotId;
-    return `${give ? 'Sending' : 'Receiving'} ${ph(`t.${i + 1}.buses`)} ${give ? 'to' : 'from'} ${ph(`t.${i + 1}.other`)}, about ${ph(`t.${i + 1}.distance`)} of estimated road distance.`;
+    return `${give ? 'Sending' : 'Receiving'} ${ph(`t.${i + 1}.buses`)} ${give ? 'to' : 'from'} ${ph(`t.${i + 1}.other`)}, an estimated road distance of ${ph(`t.${i + 1}.distance`)}.`;
   });
   const paragraphs = [
     standing,

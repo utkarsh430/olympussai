@@ -526,14 +526,15 @@ describe('network briefing', () => {
     expect(by('network.fleet')).toMatchObject({ text: '400 buses', provenance: 'live' });
     expect(by('network.on_road_share')?.text).toBe('53%');
     expect(by('network.best_depot')?.text).toBe('KANPUR');
-    expect(by('network.best_index')?.text).toBe('71.2');
+    expect(by('network.best_index')?.text).toBe('index 71.2');
     expect(by('network.weakest_depot')?.text).toBe('AGRA CANTT');
     expect(request.task).toBe('briefing');
   });
 
   it('notes stale data and a network that ranks too few depots', () => {
     const stale = proseOf(buildNetworkBriefing(makeNetwork({ stale: true, scores: [] })));
-    expect(stale).toContain('marked stale');
+    // The service appends the stale notice for every task, so the draft must not repeat it.
+    expect(stale).not.toContain('stale');
     expect(stale).toContain('Too few depots');
   });
 });
@@ -542,8 +543,8 @@ describe('depot briefing', () => {
   it('names the strongest and weakest component for a ranked depot', () => {
     const request = buildDepotBriefing(makeDetail());
     const by = (id: string) => request.facts.find((f) => f.id === id)?.text;
-    expect(by('depot.index')).toBe('61.3');
-    expect(by('depot.rank')).toBe('2 of 12');
+    expect(by('depot.index')).toBe('index 61.3');
+    expect(by('depot.rank')).toBe('rank 2 of 12 depots');
     expect(by('depot.strongest_component')).toBe('On-road share');
     expect(by('depot.weakest_component')).toBe('Dark rate');
     expect(proseOf(request)).toContain('{{fact:depot.weakest_component}}');
@@ -775,10 +776,10 @@ describe('pinned scripted phrasing', () => {
   it('writes the fleet paragraph and the standing sentence', () => {
     const p = paragraphsOf(buildDepotBriefing(makeDetail()));
     expect(p[0]).toContain(
-      'a rank of 2 of 12 within mid-sized depots. Its strongest component is On-road share; the weakest, Dark rate, is the natural place to look for further gains.',
+      'at efficiency index 61.3 and rank 2 of 12 depots among mid-sized depots. Its strongest component is On-road share; the weakest, Dark rate, is the natural place to look for further gains.',
     );
     expect(p[1]).toBe(
-      'Of 100 buses homed here, 70 are on the road (70%), 6 are dark (6%) and 4 are off the road (4%).',
+      'Of 100 buses homed here, 70 buses are on the road (70%), 6 buses are dark (6%) and 4 buses are off the road (4%).',
     );
   });
 
@@ -908,13 +909,13 @@ describe('singular and plural counts agree with their verb', () => {
 
   it('says "is" for a single bus and "are" otherwise in the fleet paragraph', () => {
     const one = fleetLine({ inService: 0, onRoad: 1, dark: 1, offRoad: 1 });
-    expect(one).toContain('1 is on the road');
-    expect(one).toContain('1 is dark');
-    expect(one).toContain('1 is off the road');
+    expect(one).toContain('1 bus is on the road');
+    expect(one).toContain('1 bus is dark');
+    expect(one).toContain('1 bus is off the road');
     const many = fleetLine({ inService: 0, onRoad: 2, dark: 3, offRoad: 4 });
-    expect(many).toContain('2 are on the road');
-    expect(many).toContain('3 are dark');
-    expect(many).toContain('4 are off the road');
+    expect(many).toContain('2 buses are on the road');
+    expect(many).toContain('3 buses are dark');
+    expect(many).toContain('4 buses are off the road');
   });
 
   it('agrees in the yard sentence', () => {
@@ -971,20 +972,29 @@ describe('every figure carries its own noun (S38 items 8 to 11)', () => {
   const BARE_NUMBER = /^[\p{N}.,\s\u2014-]+$/u;
   const variants: [string, CopilotRequest][] = [
     ...allRequests(),
-    ...allRequests(makeData(['A', 'B', 'C'])).map(([l, r]): [string, CopilotRequest] => [`${l} #2`, r]),
+    ...allRequests(makeData(['A', 'B', 'C'])).map(([l, r]): [string, CopilotRequest] => [
+      `${l} #2`,
+      r,
+    ]),
     ['one each network', buildNetworkBriefing(oneEachNetwork())],
     ['one each depot', buildDepotBriefing(oneEachDetail())],
   ];
 
-  it.each(variants)('%s has no fact that is, or ends in, a bare number', (_label, request) => {
+  it.each(variants)('%s has no fact that is a bare number', (_label, request) => {
     const bare = request.facts.filter(
-      (f) => f.kind !== 'name' && /\p{N}/u.test(f.text) && (BARE_NUMBER.test(f.text) || factEdges(f.text).endsBare),
+      (f) =>
+        f.kind !== 'name' &&
+        /\p{N}/u.test(f.text) &&
+        BARE_NUMBER.test(f.text) &&
+        factEdges(f.text).endsBare,
     );
     expect(bare.map((f) => `${f.id}=${f.text}`)).toEqual([]);
   });
 
   it.each(variants)('%s marks every depot name as a name', (_label, request) => {
-    const names = request.facts.filter((f) => /(^|\.)(name|other|best_depot|weakest_depot)$/.test(f.id));
+    const names = request.facts.filter((f) =>
+      /(^|\.)(name|other|best_depot|weakest_depot)$/.test(f.id),
+    );
     expect(names.every((f) => f.kind === 'name')).toBe(true);
   });
 

@@ -11,6 +11,11 @@ export interface CopilotFact {
   /** Pre-formatted by the server, for example "1,204", "31%" or "BAREILLY(R)". */
   readonly text: string;
   readonly provenance: Provenance;
+  /**
+   * Set by the server for a depot or place name. A name may hold digits from the feed and is
+   * still not a figure, so the renderer's figure rules do not apply to it.
+   */
+  readonly kind?: 'name';
 }
 
 /** Prose with `{{fact:id}}` placeholders; it never carries a figure itself. */

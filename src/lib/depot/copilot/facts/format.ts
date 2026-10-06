@@ -35,12 +35,24 @@ export function makeFact(
 export const cleanName = (name: string): string =>
   sanitizeQuestion(name).slice(0, MAX_NAME_CHARS) || DASH;
 
+/** A name from the feed: marked so digits inside it never make it a figure. */
+export function nameFact(
+  id: string,
+  label: string,
+  text: string,
+  provenance: Provenance,
+): CopilotFact {
+  return { id, label, text, provenance, kind: 'name' };
+}
+
+/** Only for use inside a longer fact text: a fact must never be a bare number (ruling S38). */
 export const count = (n: number): string => formatCount(n);
 export const busCount = (n: number): string => `${formatCount(n)} ${n === 1 ? 'bus' : 'buses'}`;
 export const depotCount = (n: number): string =>
   `${formatCount(n)} ${n === 1 ? 'depot' : 'depots'}`;
 export const share = (n: number, of: number): string => formatShare(n, of);
-export const index1 = (n: number): string => n.toFixed(1);
+/** An efficiency index with its own noun, so prose cannot attach a unit to it. */
+export const index1 = (n: number): string => `index ${n.toFixed(1)}`;
 /**
  * The verb phrase that agrees with a count the prose cannot contain: "is dark" for
  * one, "are dark" otherwise. Prose may not hold digits, so the server picks the form.

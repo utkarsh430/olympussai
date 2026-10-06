@@ -3,6 +3,7 @@ import {
   cleanName,
   index1,
   makeFact,
+  nameFact,
   onRoadCount,
   ph,
   share,
@@ -17,7 +18,7 @@ function sideFacts(data: AnswerData, side: 'a' | 'b', id: string): CopilotFact[]
   const score = data.network.scores.find((s) => s.depotId === id);
   const onRoad = onRoadCount(depot.states);
   const facts = [
-    makeFact(`${side}.name`, 'Depot', cleanName(depot.name), 'live'),
+    nameFact(`${side}.name`, 'Depot', cleanName(depot.name), 'live'),
     makeFact(`${side}.fleet`, 'Fleet', busCount(depot.fleet), 'live'),
     makeFact(`${side}.on_road_share`, 'On-road share', share(onRoad, depot.fleet), 'derived'),
     makeFact(`${side}.dark_share`, 'Dark share', share(depot.states.dark, depot.fleet), 'derived'),
@@ -44,16 +45,16 @@ export function compareAnswer(data: AnswerData, idA: string, idB: string): Copil
   const indexA = sa?.ranked ? sa.index : null;
   const indexB = sb?.ranked ? sb.index : null;
   const line = (s: 'a' | 'b'): string =>
-    `${ph(`${s}.name`)} has a fleet of ${ph(`${s}.fleet`)}, with ${ph(`${s}.on_road_share`)} on the road, ${ph(`${s}.dark_share`)} dark and ${ph(`${s}.off_road_share`)} off the road.`;
+    `${ph(`${s}.name`)} has a fleet of ${ph(`${s}.fleet`)}, and ${ph(`${s}.on_road_share`)} is on the road, ${ph(`${s}.dark_share`)} dark and ${ph(`${s}.off_road_share`)} off the road.`;
   let verdict: string;
   if (indexA === null || indexB === null) {
     verdict =
-      'At least one of these units is not ranked, so their efficiency indices are not compared.';
+      'A unit among these is not ranked, so their efficiency indices are not compared.';
   } else if (indexA === indexB) {
-    verdict = `Their efficiency indices are level at ${ph('a.index')}.`;
+    verdict = `Their efficiency indices are level, each at ${ph('a.index')}.`;
   } else {
     const [lead, trail] = indexA > indexB ? (['a', 'b'] as const) : (['b', 'a'] as const);
-    verdict = `${ph(`${lead}.name`)} has the higher efficiency index, ${ph(`${lead}.index`)} against ${ph(`${trail}.index`)}.`;
+    verdict = `${ph(`${lead}.name`)} has the higher efficiency index, at ${ph(`${lead}.index`)}; the other stands at ${ph(`${trail}.index`)}.`;
     if (sa?.peerGroup !== sb?.peerGroup) {
       verdict += ' They sit in different peer groups, so the comparison is indicative.';
     }

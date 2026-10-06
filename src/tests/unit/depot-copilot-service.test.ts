@@ -236,10 +236,10 @@ describe('prepareCopilotRequest on the sample fixture', () => {
     expect(JSON.stringify(result)).not.toContain('zqxmarker');
   });
 
-  it("keeps the builders' provenance and says when the snapshot is stale", async () => {
+  it("keeps the builders' provenance and leaves the stale notice to the response step", async () => {
     const runtime = buildCopilotRuntime({ setting: 'scripted', cli: null });
     const response = await answerCopilot(runtime, prepared(NETWORK, view({ stale: true })), soon());
-    expect(response.paragraphs.join(' ')).toContain('marked stale');
+    expect(response.paragraphs.join(' ')).not.toContain('stale');
     expect(
       response.facts.every((f) =>
         ['live', 'derived', 'modelled', 'reference'].includes(f.provenance),
