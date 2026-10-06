@@ -3,38 +3,43 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
-import {
-  EmptyState,
-  ErrorPanel,
-  LoadingBlock,
-  StaleStrip,
-} from '@/components/depot/shell/DataStates';
+import { ErrorPanel, StaleStrip } from '@/components/depot/shell/DataStates';
+import { Pager } from '@/components/depot/shell/LongLists';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotNetwork';
 import { formatCount } from '@/lib/depot/format';
+import { pageRange } from '@/lib/depot/listPaging';
 import {
-  DEFAULT_ROSTER_FILTERS,
+  DEFAULT_ROSTER_FILTERS as DEFAULT_FILTERS,
   buildRosterRows,
   countByState,
   filterRosterRows,
   type RosterFilters as Filters,
 } from '@/lib/depot/roster/rosterModel';
+import { parseRosterQuery, ROSTER_QUERY, rosterQueryString } from '@/lib/depot/roster/rosterQuery';
 import { BusDrawer } from './BusDrawer';
 import { RosterFilters } from './RosterFilters';
 import { RosterTable } from './RosterTable';
 
-const BUS_PARAM = 'bus';
-
 /**
- * Every bus homed at the depot, with filters, and one bus open in a side sheet.
- * The open bus lives in the URL (`?bus=`), so other pages can link to it; opening
- * and closing replace the entry, so Back leaves the page.
+ * Every bus homed at the depot, with filters, paged at 25 (the list is the page's
+ * purpose, so it pages rather than scrolling a pane), and one bus open in a side
+ * sheet. The filters and the open bus live in the URL (validated), so the cockpit
+ * and other pages can link to a filtered roster or a bus; changes replace the
+ * entry, so Back leaves the page.
  */
 export function RosterPage() {
   const { data, error, loading, refresh } = useDepotDetailContext();
   const router = useRouter();
   const pathname = usePathname();
-  const openBus = useSearchParams().get(BUS_PARAM);
-  const [filters, setFilters] = useState<Filters>(DEFAULT_ROSTER_FILTERS);
+  const params = useSearchParams();
+  const openBus = params.get(ROSTER_QUERY.bus);
+  const urlFilters = useMemo(() => parseRosterQuery((key) => params.get(key)), [params]);
+  // The search box types into local state (a controlled input bound to the URL alone
+  // would drop keystrokes while a navigation is pending); the URL follows each change.
+  const [searchDraft, setSearchDraft] = useState(urlFilters.search);
+  const filters = useMemo(() => ({ ...urlFilters, search: searchDraft }), [urlFilters, searchDraft]);
+  const [page, setPage] = useState(0);
   const openerRef = useRef<HTMLElement | null>(null);
   const regionRef = useRef<HTMLDivElement>(null);
 
@@ -45,15 +50,21 @@ export function RosterPage() {
   const open = useCallback(
     (registration: string, opener: HTMLElement): void => {
       openerRef.current = opener;
-      router.replace(`${pathname}?${BUS_PARAM}=${encodeURIComponent(registration)}`, {
-        scroll: false,
-      });
+      router.replace(`${pathname}${rosterQueryString(filters, registration)}`, { scroll: false });
     },
-    [router, pathname],
+    [router, pathname, filters],
   );
   const close = useCallback((): void => {
-    router.replace(pathname, { scroll: false });
-  }, [router, pathname]);
+    router.replace(`${pathname}${rosterQueryString(filters, null)}`, { scroll: false });
+  }, [router, pathname, filters]);
+  const setFilters = useCallback(
+    (next: Filters): void => {
+      setPage(0);
+      setSearchDraft(next.search);
+      router.replace(`${pathname}${rosterQueryString(next, openBus)}`, { scroll: false });
+    },
+    [router, pathname, openBus],
+  );
   // The button that opened the sheet; for a `?bus=` deep link there is none, so
   // focus goes to the table region rather than falling to the body. Read, never
   // cleared here: strict mode runs the drawer's cleanup once at open, and clearing
@@ -63,7 +74,7 @@ export function RosterPage() {
     return opener?.isConnected ? opener : regionRef.current;
   }, []);
 
-  if (loading) return <LoadingBlock rows={10} label="Loading the roster" />;
+  if (loading) return <StatePanel kind="loading" rows={10} sentence="Loading the roster" />;
   if (!data) return (
       <ErrorPanel
         title="Could not load the roster"
@@ -72,24 +83,41 @@ export function RosterPage() {
       />
     );
   if (allRows.length === 0 && openBus === null) {
-    return <EmptyState>The live feed lists no buses homed at this depot.</EmptyState>;
+    return <StatePanel kind="empty" sentence="The live feed lists no buses homed at this depot." />;
   }
 
+  const range = pageRange(page, rows.length);
   const openRow = allRows.find((row) => row.bus.registrationNumber === openBus) ?? null;
   return (
     <>
       {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
-      <RosterFilters filters={filters} counts={counts} onChange={setFilters} />
-      <p className="depot-prose mb-2 text-xs" role="status">
-        {`Showing ${formatCount(rows.length)} of ${formatCount(allRows.length)} buses.`}
-      </p>
-      <div ref={regionRef} tabIndex={-1} aria-label="Roster results" className="outline-none">
+      <RosterFilters
+        filters={filters}
+        counts={counts}
+        onChange={setFilters}
+        countText={`Showing ${formatCount(rows.length)} of ${formatCount(allRows.length)} buses`}
+      />
+      <div ref={regionRef} tabIndex={-1} aria-label="Roster results" className="min-w-0 outline-none">
         {rows.length === 0 ? (
-          <EmptyState>
-            {`No bus matches these filters. This depot has ${formatCount(allRows.length)} buses in all.`}
-          </EmptyState>
+          <StatePanel
+            kind="empty"
+            sentence={`No bus matches these filters. This depot has ${formatCount(allRows.length)} buses in all.`}
+            action={
+              <button type="button" className="depot-filter-button" onClick={() => setFilters(DEFAULT_FILTERS)}>
+                Clear the filters
+              </button>
+            }
+          />
         ) : (
-          <RosterTable rows={rows} selectedRegistration={openBus} onOpen={open} />
+          <>
+            <RosterTable
+              rows={rows.slice(range.start, range.end)}
+              feedNow={data.feedNow}
+              selectedRegistration={openBus}
+              onOpen={open}
+            />
+            <Pager page={range.page} total={rows.length} onPage={setPage} />
+          </>
         )}
       </div>
       {openBus !== null ? (

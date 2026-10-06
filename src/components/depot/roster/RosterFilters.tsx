@@ -1,26 +1,41 @@
 'use client';
 
+import { BUS_STATE_SQUARE } from '@/components/depot/shell/BusStateMark';
+import { Checkbox, Select } from '@/components/depot/shell/Controls';
+import { formatCount } from '@/lib/depot/format';
 import { BUS_LOCATION_LABEL, BUS_STATE_LABEL } from '@/lib/depot/labels';
+import {
+  BUS_STATE_ORDER,
+  ROSTER_FLAG_LABEL,
+  type RosterFilters as Filters,
+} from '@/lib/depot/roster/rosterModel';
+import { MAX_SEARCH_LENGTH, ROSTER_LOCATIONS } from '@/lib/depot/roster/rosterQuery';
 import type { BusLocation } from '@/lib/depot/infer/types';
 import type { BusOpState } from '@/lib/depot/types';
-import { BUS_STATE_ORDER, type RosterFilters as Filters } from '@/lib/depot/roster/rosterModel';
 
 export interface RosterFiltersProps {
   readonly filters: Filters;
-  /** Per-state counts on the unfiltered roster. */
   readonly counts: Readonly<Record<BusOpState, number>>;
   readonly onChange: (next: Filters) => void;
+  /** "Showing 25 of 200 buses", on the right of the row. */
+  readonly countText: string;
 }
 
-const LOCATIONS: readonly BusLocation[] = ['in_yard', 'at_other_yard', 'away', 'unknown'];
+/** Short words for the toggles; the full label is in `title`. */
+const SHORT_STATE: Readonly<Record<BusOpState, string>> = { ...BUS_STATE_LABEL, on_road: 'On road' };
 
-function isLocation(value: string): value is BusLocation | 'any' {
-  return value === 'any' || LOCATIONS.some((location) => location === value);
+function isLocation(value: string): value is BusLocation {
+  return (ROSTER_LOCATIONS as readonly string[]).includes(value);
 }
 
-/** Labelled controls: state checkboxes with counts, location, has-route, search. */
-export function RosterFilters({ filters, counts, onChange }: RosterFiltersProps) {
-  const toggleState = (state: BusOpState, on: boolean): void => {
+/**
+ * One row: state toggles with counts, location, search, "Has a route", and the
+ * count on the right. A flag set by a link (main power off, not heard, tamper)
+ * shows as one more pressed toggle that clears it.
+ */
+export function RosterFilters({ filters, counts, onChange, countText }: RosterFiltersProps) {
+  const toggleState = (state: BusOpState): void => {
+    const on = !filters.states.includes(state);
     const states = on
       ? BUS_STATE_ORDER.filter((s) => s === state || filters.states.includes(s))
       : filters.states.filter((s) => s !== state);
@@ -31,64 +46,70 @@ export function RosterFilters({ filters, counts, onChange }: RosterFiltersProps)
     <form
       role="search"
       aria-label="Filter the roster"
-      className="mb-3 flex flex-col gap-3"
+      className="mb-3 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2"
       onSubmit={(event) => event.preventDefault()}
     >
-      <fieldset className="min-w-0">
-        <legend className="depot-label mb-1">State</legend>
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
-          {BUS_STATE_ORDER.map((state) => (
-            <label key={state} className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={filters.states.includes(state)}
-                onChange={(event) => toggleState(state, event.target.checked)}
-              />
-              <span className="font-mono text-xs text-depot-muted">
-                {BUS_STATE_LABEL[state]} <span className="tabular-nums">({counts[state]})</span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-        <label className="flex flex-col gap-1">
-          <span className="depot-label">Location</span>
-          <select
-            className="depot-field"
-            value={filters.location}
-            onChange={(event) => {
-              const next = event.target.value;
-              if (isLocation(next)) onChange({ ...filters, location: next });
-            }}
+      <div role="group" aria-label="State" className="flex min-w-0 flex-wrap gap-1">
+        {BUS_STATE_ORDER.map((state) => (
+          <button
+            key={state}
+            type="button"
+            aria-pressed={filters.states.includes(state)}
+            title={BUS_STATE_LABEL[state]}
+            onClick={() => toggleState(state)}
+            className="depot-filter-button inline-flex items-center gap-1.5"
           >
-            <option value="any">Anywhere</option>
-            {LOCATIONS.map((location) => (
-              <option key={location} value={location}>
-                {BUS_LOCATION_LABEL[location]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="depot-label">Registration or route</span>
-          <input
-            type="search"
-            className="depot-field w-56 max-w-full"
-            value={filters.search}
-            placeholder="Search buses"
-            onChange={(event) => onChange({ ...filters, search: event.target.value })}
-          />
-        </label>
-        <label className="flex items-center gap-2 pb-1.5">
-          <input
-            type="checkbox"
-            checked={filters.hasRouteOnly}
-            onChange={(event) => onChange({ ...filters, hasRouteOnly: event.target.checked })}
-          />
-          <span className="font-mono text-xs text-depot-muted">Has a route</span>
-        </label>
+            <span aria-hidden className={`h-1.5 w-1.5 shrink-0 ${BUS_STATE_SQUARE[state]}`} />
+            {SHORT_STATE[state]} <span className="tabular-nums">{formatCount(counts[state])}</span>
+          </button>
+        ))}
+        {filters.flag !== 'any' ? (
+          <button
+            type="button"
+            aria-pressed="true"
+            title="Clear this filter"
+            onClick={() => onChange({ ...filters, flag: 'any' })}
+            className="depot-filter-button"
+          >
+            {`${ROSTER_FLAG_LABEL[filters.flag]} ×`}
+          </button>
+        ) : null}
       </div>
+      <Select
+        label="Location"
+        hideLabel
+        value={filters.location}
+        onChange={(event) => {
+          const value = event.target.value;
+          onChange({ ...filters, location: isLocation(value) ? value : 'any' });
+        }}
+      >
+        <option value="any">Any location</option>
+        {ROSTER_LOCATIONS.map((location) => (
+          <option key={location} value={location}>
+            {BUS_LOCATION_LABEL[location]}
+          </option>
+        ))}
+      </Select>
+      <label className="min-w-0">
+        <span className="sr-only">Search registration or route</span>
+        <input
+          type="search"
+          className="depot-field w-48 max-w-full"
+          placeholder="Registration or route"
+          maxLength={MAX_SEARCH_LENGTH}
+          value={filters.search}
+          onChange={(event) => onChange({ ...filters, search: event.target.value })}
+        />
+      </label>
+      <Checkbox
+        label="Has a route"
+        checked={filters.hasRouteOnly}
+        onChange={(event) => onChange({ ...filters, hasRouteOnly: event.target.checked })}
+      />
+      <p className="ml-auto font-mono text-xs tabular-nums text-depot-muted" role="status">
+        {countText}
+      </p>
     </form>
   );
 }

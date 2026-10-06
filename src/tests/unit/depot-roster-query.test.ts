@@ -7,6 +7,8 @@ import {
   notHeardText,
   scheduleText,
 } from '@/lib/depot/roster/rosterModel';
+import { busLocationText } from '@/lib/depot/infer/locationText';
+import { drawerFacts } from '@/lib/depot/roster/drawerFacts';
 import {
   parseRosterQuery,
   rosterFilterHref,
@@ -108,6 +110,22 @@ describe('roster flag filter', () => {
     expect(only('power_off')).toEqual(['A']);
     expect(only('not_heard')).toEqual(['B']);
     expect(only('tamper')).toEqual(['C']);
+  });
+});
+
+describe('drawerFacts', () => {
+  it('words location as the row does, formats times and carries no tag', () => {
+    const [row] = buildRosterRows([
+      bus({ location: 'away', distanceFromYardKm: 14.2, scheduledStart: '2026-10-05T08:51:00.000Z', notHeardMin: 87 }),
+    ]);
+    const facts = drawerFacts(row!);
+    const value = (label: string): string | undefined => facts.find((f) => f.label === label)?.value;
+    expect(value('Location')).toBe(busLocationText(row!.bus));
+    expect(value('Location')).toBe('Away, 14 km from yard');
+    expect(value('Scheduled start')).toBe('Mon 05 Oct, 08:51');
+    expect(value('State')).toBe('Standing; not heard 87 min');
+    expect(JSON.stringify(facts)).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+    expect(facts.every((f) => !('provenance' in f))).toBe(true);
   });
 });
 

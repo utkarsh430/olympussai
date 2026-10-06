@@ -2,11 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
-import { formatCount } from '@/lib/depot/format';
-import { BUS_LOCATION_LABEL, BUS_STATE_LABEL } from '@/lib/depot/labels';
+import { drawerFacts } from '@/lib/depot/roster/drawerFacts';
 import type { RosterRow } from '@/lib/depot/roster/rosterModel';
-import type { Provenance } from '@/lib/depot/types';
 import { BusTimetable } from './BusTimetable';
 
 export interface BusDrawerProps {
@@ -19,46 +16,8 @@ export interface BusDrawerProps {
   readonly restoreFocusTo: () => HTMLElement | null;
 }
 
-const DASH = '—';
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-interface Fact {
-  readonly label: string;
-  readonly value: string;
-  readonly provenance: Provenance;
-}
-
-function factsOf(row: RosterRow): readonly Fact[] {
-  const { bus } = row;
-  const away = bus.location === 'away' && bus.distanceFromYardKm !== null;
-  return [
-    { label: 'State', value: BUS_STATE_LABEL[bus.state], provenance: 'derived' },
-    {
-      label: 'Location',
-      value: away
-        ? `${BUS_LOCATION_LABEL[bus.location]}, ${formatCount(Math.round(bus.distanceFromYardKm ?? 0))} km from yard`
-        : BUS_LOCATION_LABEL[bus.location],
-      provenance: 'derived',
-    },
-    { label: 'Route', value: bus.routeName ?? DASH, provenance: 'live' },
-    { label: 'Scheduled start', value: bus.scheduledStart ?? DASH, provenance: 'live' },
-    { label: 'Scheduled end', value: bus.scheduledEnd ?? DASH, provenance: 'live' },
-    ...(row.delay ? [{ label: 'Running', value: row.delay, provenance: 'derived' as const }] : []),
-    { label: 'Trip status', value: bus.tripStatus ?? DASH, provenance: 'live' },
-    {
-      label: 'Speed',
-      value: bus.speedKmph === null ? DASH : `${formatCount(Math.round(bus.speedKmph))} km/h`,
-      provenance: 'live',
-    },
-    { label: 'Last heard', value: row.lastHeard, provenance: 'live' },
-    {
-      label: 'Device flags',
-      value: row.flags.length === 0 ? 'None raised' : row.flags.join('; '),
-      provenance: 'live',
-    },
-  ];
-}
 
 /**
  * Side sheet for one bus. A modal dialog: focus moves in, Tab is held inside,
@@ -161,12 +120,11 @@ export function BusDrawer({
         ) : (
           <>
             <dl className="m-0 mb-5 grid grid-cols-1 gap-y-2">
-              {factsOf(row).map((fact) => (
+              {drawerFacts(row).map((fact) => (
                 <div key={fact.label} className="grid grid-cols-[8rem_minmax(0,1fr)] gap-x-3">
                   <dt className="depot-label self-center">{fact.label}</dt>
-                  <dd className="m-0 flex min-w-0 flex-wrap items-center gap-2 font-mono text-[13px] text-depot-ink">
-                    <span className="min-w-0 break-words">{fact.value}</span>
-                    <ProvenanceBadge provenance={fact.provenance} />
+                  <dd className="m-0 min-w-0 break-words font-mono text-[13px] text-depot-ink">
+                    {fact.value}
                   </dd>
                 </div>
               ))}
