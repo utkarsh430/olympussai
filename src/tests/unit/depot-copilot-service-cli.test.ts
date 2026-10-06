@@ -11,15 +11,17 @@ import { createCliProvider, type CliFactoryDeps } from '@/lib/depot/copilot/serv
  * real `claude` command: the file system and `spawn` are fakes that record calls.
  */
 
+/** Root owns the fake binary and its directory, as the core's owner check requires. */
+const ROOT_UID = 0;
 const okFs: BinaryFs = {
   realpath: (path) => path,
-  stat: (path) => ({ isFile: path.endsWith('claude'), mode: 0o755 }),
+  stat: (path) => ({ isFile: path.endsWith('claude'), mode: 0o755, uid: ROOT_UID }),
 };
 const throwingFs: BinaryFs = {
   realpath: () => {
     throw new Error('ENOENT: no such file /opt/secret/claude');
   },
-  stat: () => ({ isFile: true, mode: 0o755 }),
+  stat: () => ({ isFile: true, mode: 0o755, uid: ROOT_UID }),
 };
 
 const REQUEST: CopilotRequest = {
