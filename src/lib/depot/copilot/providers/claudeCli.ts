@@ -7,7 +7,7 @@ import {
   buildUserPrompt,
   DRAFT_JSON_SCHEMA,
 } from '@/lib/depot/copilot/cli/prompt';
-import { runCli, type SpawnLike } from '@/lib/depot/copilot/cli/run';
+import { runCli, type KillGroup, type SpawnLike } from '@/lib/depot/copilot/cli/run';
 import { CLI_MAX_OUTPUT_BYTES, CLI_TIMEOUT_MS } from '@/lib/depot/copilot/config';
 import type { CallLimiter } from '@/lib/depot/copilot/limiter';
 import { MAX_PROMPT_BYTES } from '@/lib/depot/copilot/limits';
@@ -56,6 +56,8 @@ export interface ClaudeCliDeps {
   readonly repoRoot?: string;
   /** File-system calls for the binary check; defaults to the real file system. */
   readonly fs?: BinaryFs;
+  /** Kills the child's process group; injected by tests so no real signal is sent. */
+  readonly killGroup?: KillGroup;
 }
 
 const SCHEMA_JSON = JSON.stringify(DRAFT_JSON_SCHEMA);
@@ -132,6 +134,7 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
             signal,
           },
           deps.spawn,
+          deps.killGroup,
         );
       }, signal);
       // runCli reports an abort as `request_rejected`; here it becomes its own reason.

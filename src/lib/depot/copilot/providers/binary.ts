@@ -59,6 +59,23 @@ export function binaryProblem(
   return null;
 }
 
+/** Fixed, with no path, like every message here. */
+export const ANCESTOR_WRITABLE = 'A directory above the Claude binary is group- or world-writable';
+
+/**
+ * Anyone who can write to any directory above the binary can rename that
+ * directory's entry and put their own tree in its place, so every ancestor up
+ * to the filesystem root must be writable only by its owner. The sticky bit
+ * does not help: it stops renaming other users' entries, but the system temp
+ * directory is still no place a trusted binary should live, so it is refused.
+ */
+export function ancestorProblem(real: string, fs: BinaryFs): string | null {
+  for (let dir = dirname(dirname(real)); ; dir = dirname(dir)) {
+    if ((fs.stat(dir).mode & GROUP_OR_WORLD_WRITE) !== 0) return ANCESTOR_WRITABLE;
+    if (dirname(dir) === dir) return null;
+  }
+}
+
 /**
  * Run at startup and again before every call (a few stat calls), so a
  * self-update that replaces the versioned file is picked up without a restart: the path must be absolute; its real path is resolved (so a
@@ -77,7 +94,9 @@ export function assertUsableBinary(
   let problem: string | null;
   try {
     real = fs.realpath(path);
-    problem = binaryProblem(fs.stat(real), fs.stat(dirname(real)), serverUid);
+    problem =
+      binaryProblem(fs.stat(real), fs.stat(dirname(real)), serverUid) ??
+      ancestorProblem(real, fs);
   } catch {
     throw new Error(MISSING); // never Node's message, which contains the path
   }

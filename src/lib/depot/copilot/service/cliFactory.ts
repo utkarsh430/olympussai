@@ -1,5 +1,5 @@
 import { readProviderSetting } from '@/lib/depot/copilot/config';
-import type { SpawnLike } from '@/lib/depot/copilot/cli/run';
+import type { KillGroup, SpawnLike } from '@/lib/depot/copilot/cli/run';
 import type { CallLimiter } from '@/lib/depot/copilot/limiter';
 import type { BinaryFs } from '@/lib/depot/copilot/providers/binary';
 import { createClaudeCliProvider } from '@/lib/depot/copilot/providers/claudeCli';
@@ -28,6 +28,8 @@ export interface CliFactoryDeps {
   readonly semaphore: Semaphore;
   /** The hourly and daily call budget, shared by every request. */
   readonly limiter: CallLimiter;
+  /** Kills the child's process group; defaults to the real signal. */
+  readonly killGroup?: KillGroup;
 }
 
 const HOME_PREFIX = 'depot-copilot-home-';
@@ -45,6 +47,7 @@ function coreProvider(deps: CliFactoryDeps, bin: string, home: string, cwd: stri
     semaphore: deps.semaphore,
     limiter: deps.limiter,
     ...(deps.fs ? { fs: deps.fs } : {}),
+    ...(deps.killGroup ? { killGroup: deps.killGroup } : {}),
   });
 }
 
@@ -61,7 +64,8 @@ async function removeAll(deps: CliFactoryDeps, dirs: readonly string[]): Promise
  * invalid, which is caught and logged as a reason code, never with the path.
  *
  * Every call then gets a fresh private HOME and working directory, removed in
- * `finally`, so nothing the CLI writes (session files holding the server's
+ * `finally`. The draft settles only after the child has closed (or the bounded
+ * grace in `runCli` has passed), so removal never races a dying process. Nothing the CLI writes (session files holding the server's
  * prompts) outlives the call. Sign-in comes from `CLAUDE_CODE_OAUTH_TOKEN`
  * in the child's environment, not from HOME, so HOME need not persist.
  */

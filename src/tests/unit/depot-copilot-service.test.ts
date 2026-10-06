@@ -14,6 +14,7 @@ import { prepareCopilotRequest, type Prepared } from '@/lib/depot/copilot/servic
 import { parseCopilotBody, type ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
 import type { CopilotApiRequest } from '@/lib/depot/copilot/wire';
 import { MAX_PARAGRAPHS, MAX_PROVIDER_PARAGRAPHS } from '@/lib/depot/copilot/limits';
+import { CLI_MAX_CALLS_PER_DAY } from '@/lib/depot/copilot/config';
 import {
   refundClaudeAllowance,
   requestLimitChecks,
@@ -24,7 +25,11 @@ import {
   ADDRESS_REQUESTS_PER_MINUTE,
   IDENTITY_CLAUDE_CALLS_PER_HOUR,
   IDENTITY_REQUESTS_PER_MINUTE,
+  PROCESS_CORE_SHARE,
   PROCESS_REQUESTS_PER_MINUTE,
+  RATE_WINDOW_MS,
+  SCRIPTED_ANSWER_MEASURED_MS,
+  SCRIPTED_ANSWER_SAFETY_FACTOR,
 } from '@/lib/depot/copilot/service/constants';
 import { requestCopilot } from '@/lib/depot/copilot/ui/copilotClient';
 import { createWindowLimiter, requestAddress, takeAll } from '@/lib/depot/rateLimit';
@@ -353,6 +358,21 @@ describe('round 4: stale notice and limits (S37, S38 item 13)', () => {
   it('keeps the process ceiling out of reach of scripted traffic from many identities', () => {
     expect(PROCESS_REQUESTS_PER_MINUTE).toBeGreaterThanOrEqual(IDENTITY_REQUESTS_PER_MINUTE * 500);
     expect(ADDRESS_REQUESTS_PER_MINUTE * 50).toBeLessThanOrEqual(PROCESS_REQUESTS_PER_MINUTE);
+  });
+
+  it('derives the process ceiling from the measured scripted cost and a safety factor', () => {
+    // Measured by depot-copilot-bench.test.ts: warm CPU time per scripted request.
+    expect(SCRIPTED_ANSWER_MEASURED_MS).toBe(0.27);
+    expect(SCRIPTED_ANSWER_SAFETY_FACTOR).toBe(8);
+    const budgetMs = SCRIPTED_ANSWER_MEASURED_MS * SCRIPTED_ANSWER_SAFETY_FACTOR;
+    expect(PROCESS_REQUESTS_PER_MINUTE).toBe(
+      Math.floor((RATE_WINDOW_MS * PROCESS_CORE_SHARE) / budgetMs),
+    );
+  });
+
+  it('keeps one address under the core daily cap over a whole day', () => {
+    expect(ADDRESS_CLAUDE_CALLS_PER_HOUR).toBe(8);
+    expect(ADDRESS_CLAUDE_CALLS_PER_HOUR * 24).toBeLessThan(CLI_MAX_CALLS_PER_DAY);
   });
 
   it('caps Claude calls per address across fresh identities and refunds both allowances', () => {

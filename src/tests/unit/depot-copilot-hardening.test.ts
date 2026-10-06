@@ -35,7 +35,10 @@ const OUTPUT = JSON.stringify({
   structured_output: { headline: 'Fleet headline', paragraphs: ['The fleet is {{fact:buses}}.'] },
 });
 
-function fakeChild(pid: number | undefined = 4242) {
+/** Above every OS pid limit, so a signal that reached the real kill could only fail. */
+const FAKE_PID = 2 ** 30;
+
+function fakeChild(pid: number | undefined = FAKE_PID) {
   const child = Object.assign(new EventEmitter(), {
     pid,
     stdin: Object.assign(new EventEmitter(), { write: vi.fn(), end: vi.fn() }),
@@ -68,25 +71,25 @@ describe('process control', () => {
   it('spawns detached and kills the whole group on timeout', async () => {
     const child = fakeChild();
     const spawn = vi.fn(() => child) as unknown as SpawnLike;
-    const killGroup = vi.fn();
+    const killGroup = vi.fn(() => child.emit('close', null));
     const result = await runCli(INPUT, spawn, killGroup);
     expect(vi.mocked(spawn).mock.calls[0]?.[2]).toMatchObject({ detached: true, shell: false });
     expect(result).toMatchObject({ ok: false, reason: 'timeout' });
-    expect(killGroup).toHaveBeenCalledWith(4242);
+    expect(killGroup).toHaveBeenCalledWith(FAKE_PID);
   });
 
   it('kills the group when output exceeds the cap', async () => {
     const child = fakeChild();
-    const killGroup = vi.fn();
+    const killGroup = vi.fn(() => child.emit('close', null));
     const promise = runCli({ ...INPUT, timeoutMs: 5000 }, () => child, killGroup);
     child.stdout.emit('data', Buffer.alloc(11));
     await expect(promise).resolves.toMatchObject({ ok: false, reason: 'invalid_output' });
-    expect(killGroup).toHaveBeenCalledWith(4242);
+    expect(killGroup).toHaveBeenCalledWith(FAKE_PID);
   });
 
   it('kills the group on abort, and never spawns for an already aborted signal', async () => {
     const child = fakeChild();
-    const killGroup = vi.fn();
+    const killGroup = vi.fn(() => child.emit('close', null));
     const controller = new AbortController();
     const promise = runCli(
       { ...INPUT, timeoutMs: 5000, signal: controller.signal },
@@ -95,7 +98,7 @@ describe('process control', () => {
     );
     controller.abort();
     await expect(promise).resolves.toMatchObject({ ok: false, reason: 'request_rejected' });
-    expect(killGroup).toHaveBeenCalledWith(4242);
+    expect(killGroup).toHaveBeenCalledWith(FAKE_PID);
     const spawn = vi.fn(() => fakeChild());
     await runCli({ ...INPUT, signal: controller.signal }, spawn, killGroup);
     expect(spawn).not.toHaveBeenCalled();
@@ -128,6 +131,7 @@ const deps = (extra: Partial<ClaudeCliDeps> = {}): ClaudeCliDeps => ({
   repoRoot: '/srv/app',
   semaphore: createSemaphore(1, 1),
   limiter: createCallLimiter({ now: () => 0, perHour: 5, perDay: 5 }),
+  killGroup: () => undefined,
   ...extra,
 });
 
