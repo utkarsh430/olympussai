@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { appendAuditEvent, type AuditEvent } from '@/lib/audit/auditLog';
 import {
   NOTE_MAX_CHARS,
