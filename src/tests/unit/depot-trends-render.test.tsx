@@ -20,7 +20,7 @@ const hooks = vi.hoisted(() => ({
   detail: { depotId: '20', error: null as string | null },
 }));
 
-vi.mock('@/components/depot/shared/TrendPlot', () => ({ TrendPlot: () => null }));
+vi.mock('@/components/depot/trendChart/TrendPlot', () => ({ TrendPlot: () => null }));
 vi.mock('@/hooks/useDepotForecast', () => ({ useDepotForecast: hooks.forecast }));
 vi.mock('@/hooks/useDepotTrends', () => ({ useDepotTrends: hooks.trends }));
 vi.mock('@/hooks/useDepotDistribution', () => ({ useDepotDistribution: hooks.distribution }));

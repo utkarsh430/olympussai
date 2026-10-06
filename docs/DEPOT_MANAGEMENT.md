@@ -669,7 +669,8 @@ answers. In summary (detail, settings and limits in
 `src/components/depot/`: one folder per page (`cockpit`, `roster`, `yard`, `duties`,
 `maintenance`, `crew`, `fuel`, `revenue`, `economics`, `league`, `network`, `rebalance`,
 `routes`, `exceptions`, `trends`, `sources`, `copilot`) plus `shell` (header, navigation,
-provenance line, data states), `shared` and `data`.
+provenance line, data states), `trendChart` (the trend chart, its plot and the sparkline)
+and `data`.
 
 ## 10. Testing
 

@@ -5,7 +5,7 @@ import type { SeriesPoint } from '@/lib/depot/sim/types';
 import { forecastSections } from '@/lib/depot/live/forecastView';
 import { metricInfo } from '@/lib/depot/forecast/wording';
 import { buildTrendChartModel } from '@/lib/depot/forecast/chartModel';
-import { TrendPlot } from '@/components/depot/shared/TrendPlot';
+import { TrendPlot } from '@/components/depot/trendChart/TrendPlot';
 
 // jsdom lays every container out at 0 x 0, so ResponsiveContainer would draw
 // nothing. Give the chart a fixed size instead; layout itself needs a browser.

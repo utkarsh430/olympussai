@@ -1,5 +1,5 @@
 import { ErrorPanel, LoadingBlock } from '@/components/depot/shell/DataStates';
-import { TREND_CHART_MIN_HEIGHT, TrendChart } from '@/components/depot/shared/TrendChart';
+import { TREND_CHART_MIN_HEIGHT, TrendChart } from '@/components/depot/trendChart/TrendChart';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { NO_FORECAST_REMEDY, noTrendSentence } from '@/lib/depot/forecast/trendsPageModel';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';

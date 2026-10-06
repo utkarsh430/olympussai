@@ -5,12 +5,12 @@ import type { MetricKey, SeriesPoint } from '@/lib/depot/sim/types';
 import { forecastSections } from '@/lib/depot/live/forecastView';
 import { metricInfo } from '@/lib/depot/forecast/wording';
 import type { TrendChartInput } from '@/lib/depot/forecast/chartModel';
-import { Sparkline } from '@/components/depot/shared/Sparkline';
-import { TrendChart } from '@/components/depot/shared/TrendChart';
+import { Sparkline } from '@/components/depot/trendChart/Sparkline';
+import { TrendChart } from '@/components/depot/trendChart/TrendChart';
 
 // Recharts measures its container, which jsdom lays out at 0 x 0. The plot is
 // stubbed so these tests cover what the component owns: text, legend, table.
-vi.mock('@/components/depot/shared/TrendPlot', () => ({
+vi.mock('@/components/depot/trendChart/TrendPlot', () => ({
   TrendPlot: () => <div data-testid="trend-plot-stub" />,
 }));
 
