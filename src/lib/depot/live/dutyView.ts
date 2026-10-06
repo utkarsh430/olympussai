@@ -8,7 +8,6 @@ import type {
 import type { Duty, DutyAssignment } from '../duties/types';
 import type { FleetSnapshotView } from '../repositories/types';
 import { operatingDateOf } from '../sim/seed';
-import type { ModelledBus, ServiceClass } from '../sim/types';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
 import { dutyPlanFor } from './operatingDayView';
 
@@ -16,20 +15,18 @@ type DutyBoardBody = Omit<DutyBoardResponse, keyof ReturnType<typeof feedEnvelop
 
 const NO_BLOCKERS: DutyBlockers = { notInYard: 0, notHeard: 0, offRoad: 0, dark: 0 };
 
-/** Counts the held-out buses of one class (or of any class) by reason. */
+/**
+ * Counts the held-out buses by reason, of every class: class is a cost, not a
+ * bar (ruling S47), so any held-out bus could have run any duty (ruling S55).
+ */
 function blockersFor(
   excluded: readonly { readonly registrationNumber: string; readonly reason: string }[],
-  fleet: ReadonlyMap<string, ModelledBus>,
-  serviceClass: ServiceClass | null,
 ): DutyBlockers {
   let notInYard = 0;
   let notHeard = 0;
   let offRoad = 0;
   let dark = 0;
   for (const e of excluded) {
-    if (serviceClass !== null && fleet.get(e.registrationNumber)?.serviceClass !== serviceClass) {
-      continue;
-    }
     if (e.reason === 'not_in_yard') notInYard += 1;
     else if (e.reason === 'not_heard') notHeard += 1;
     else if (e.reason === 'off_road') offRoad += 1;
@@ -46,11 +43,10 @@ function stateOf(registration: string | null, blockers: DutyBlockers): DutyState
 function toBoardDuty(
   duty: Duty,
   assignment: DutyAssignment | undefined,
-  excluded: Parameters<typeof blockersFor>[0],
-  fleet: ReadonlyMap<string, ModelledBus>,
+  heldOut: DutyBlockers,
 ): BoardDuty {
   const registration = assignment?.registrationNumber ?? null;
-  const blockers = registration === null ? blockersFor(excluded, fleet, duty.serviceClass) : null;
+  const blockers = registration === null ? heldOut : null;
   return {
     id: duty.id,
     routeName: duty.routeName,
@@ -72,15 +68,16 @@ function buildBody(
 ): DutyBoardBody | null {
   const planned = dutyPlanFor(analysis, depotId, operatingDate);
   if (!planned) return null;
-  const { duties, plan, fleet } = planned;
+  const { duties, plan } = planned;
   const byDuty = new Map(plan.assignments.map((a) => [a.dutyId, a]));
-  const board = duties.map((d) => toBoardDuty(d, byDuty.get(d.id), plan.excluded, fleet));
+  const heldOut = blockersFor(plan.excluded);
+  const board = duties.map((d) => toBoardDuty(d, byDuty.get(d.id), heldOut));
   const counts: DutyBoardCounts = {
     duties: board.length,
     assigned: board.length - plan.unassignedDuties,
     unassigned: plan.unassignedDuties,
     spare: plan.spareBuses.length,
-    excluded: blockersFor(plan.excluded, fleet, null),
+    excluded: heldOut,
   };
   return {
     depotId,

@@ -5,17 +5,17 @@ import type { BusStandingNow } from './types';
 /**
  * What a duty is doing on the board. `assigned` means the matching proposed a
  * bus (standing, or already out on the road: see `busStanding`); the other two
- * are duties left without one. `bus_not_in_yard` is used when at least one
- * standing bus of the duty's class is held out because it is away from the
- * yard or not heard recently; `no_bus` is every other shortfall.
+ * are duties left without one because no eligible bus of any class was left.
+ * `bus_not_in_yard` is used when at least one bus, of any class, is held out
+ * because it stands away from the yard; `no_bus` is every other shortfall.
  */
 export type DutyState = 'assigned' | 'no_bus' | 'bus_not_in_yard';
 
 /** The buses the matching could not use, by reason. */
 export interface DutyBlockers {
   /**
-   * Not in the yard. When the response says `eligibilityIgnoredLocation`, there
-   * is no yard: this then counts buses that are not standing on a recent report.
+   * Standing away from the established yard. Zero when the response says
+   * `eligibilityIgnoredLocation` (no yard: location decides nothing).
    */
   readonly notInYard: number;
   /**
@@ -45,7 +45,7 @@ export interface BoardDuty {
    */
   readonly busStanding?: BusStandingNow | null;
   readonly state: DutyState;
-  /** For an unassigned duty: the buses of its own class held out of the matching. Null when assigned. */
+  /** For an unassigned duty: the buses of every class held out of the matching. Null when assigned. */
   readonly blockers: DutyBlockers | null;
 }
 

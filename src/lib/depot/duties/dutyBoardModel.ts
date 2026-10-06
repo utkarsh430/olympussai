@@ -206,16 +206,18 @@ export function heldOutParts(blockers: DutyBlockers, locationIgnored = false): r
   ].filter((p): p is string => p !== null);
 }
 
-/** Why a duty has no bus; null for an assigned duty. */
+/**
+ * Why a duty has no bus; null for an assigned duty. Class is a cost, not a bar
+ * (ruling S47), so a duty is left without a bus only when no eligible bus of
+ * ANY class is left, and the held-out counts are of every class (ruling S55).
+ */
 export function reasonSentence(duty: BoardDuty, locationIgnored = false): string | null {
   if (duty.registrationNumber !== null) return null;
-  const head = `No free ${duty.serviceClass} bus.`;
+  const head = 'No eligible bus is left: every eligible bus has another duty';
   const held =
     duty.blockers === null ? '' : heldOutParts(duty.blockers, locationIgnored).join(', ');
-  if (held === '') {
-    return `${head} Every ${duty.serviceClass} bus the depot has is on another duty, or it has none.`;
-  }
-  return `${head} Held out of the matching: ${held}. Every other ${duty.serviceClass} bus is on another duty.`;
+  if (held === '') return `${head}, or the depot has none.`;
+  return `${head}. Held out of the matching: ${held}.`;
 }
 
 function describe(duty: BoardDuty, timeText: string, stateWord: string): string {
