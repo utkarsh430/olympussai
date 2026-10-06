@@ -2,8 +2,16 @@ import { Suspense } from 'react';
 import { FuelPage } from '@/components/depot/fuel/FuelPage';
 import { LoadingBlock } from '@/components/depot/shell/DataStates';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
+import type { ProvenanceDescription } from '@/lib/depot/provenanceLine';
 import { requireDepotPage } from '@/lib/depot/depotGate';
 import { fuelHeader } from '@/lib/depot/fuel/fuelHeader';
+
+/** The page default: every figure is MODELLED. */
+const PROVENANCE: ProvenanceDescription = {
+  default: 'modelled',
+  replacedBy: 'fuel issue records and odometer readings',
+  feedId: 'fuel',
+};
 
 /** Modelled fuel issued, kilometres per litre and cost per kilometre, and the buses that stand out. */
 export default async function DepotFuelPage({
@@ -21,12 +29,12 @@ export default async function DepotFuelPage({
     <Suspense
       fallback={
         <>
-          <PageHeader {...fuelHeader()} />
+          <PageHeader {...fuelHeader(PROVENANCE)} />
           <LoadingBlock rows={14} label="Loading the fuel and cost view" />
         </>
       }
     >
-      <FuelPage />
+      <FuelPage provenance={PROVENANCE} />
     </Suspense>
   );
 }

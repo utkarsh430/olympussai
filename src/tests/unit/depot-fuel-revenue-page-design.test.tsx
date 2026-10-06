@@ -239,7 +239,7 @@ describe('FuelPage', () => {
       loading: false,
       refresh: vi.fn(),
     } as unknown as ReturnType<typeof useDepotFuel>);
-    await render(<FuelPage />);
+    await render(<FuelPage provenance={{ default: 'modelled' }} />);
     expect(host.querySelector('[data-testid="depot-figure-band"]')?.textContent).toContain(
       '158 of 200',
     );
@@ -312,7 +312,7 @@ describe('FuelPage', () => {
       loading: false,
       refresh: vi.fn(),
     } as never);
-    await render(<FuelPage />);
+    await render(<FuelPage provenance={{ default: 'modelled' }} />);
     expect(host.querySelector('table thead')?.textContent).toContain('Route');
     const none = fuelData({
       totals: {
@@ -330,7 +330,7 @@ describe('FuelPage', () => {
       loading: false,
       refresh: vi.fn(),
     } as never);
-    await render(<FuelPage />);
+    await render(<FuelPage provenance={{ default: 'modelled' }} />);
     expect(host.querySelector('[data-state="empty"]')).not.toBeNull();
     expect(host.querySelector('table')).toBeNull();
   });
@@ -381,7 +381,7 @@ describe('RevenuePage', () => {
       loading: false,
       refresh: vi.fn(),
     } as never);
-    await render(<RevenuePage />);
+    await render(<RevenuePage provenance={{ default: 'modelled' }} />);
     expect(host.querySelector('[data-testid="depot-figure-band"]')?.textContent).toContain(
       '₹12,345',
     );

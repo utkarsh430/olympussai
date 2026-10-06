@@ -6,6 +6,7 @@ import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import type { ProvenanceDescription } from '@/lib/depot/provenanceLine';
 import { useDepotRevenue } from '@/hooks/useDepotRevenue';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { formatPlainDate } from '@/lib/depot/format';
@@ -29,7 +30,7 @@ const LOADING_ROWS = 8;
  * modelled day once the response arrives; then the day's band, one table by route, and
  * the closed disclosure. An empty modelled day is the state panel in place of the band.
  */
-export function RevenuePage() {
+export function RevenuePage({ provenance }: { readonly provenance: ProvenanceDescription }) {
   const { depotId, data: detail } = useDepotDetailContext();
   const { data, error, loading, refresh } = useDepotRevenue(depotId);
   const modelledDay = data
@@ -42,7 +43,7 @@ export function RevenuePage() {
     : undefined;
   return (
     <>
-      <PageHeader {...revenueHeader(modelledDay)} />
+      <PageHeader {...revenueHeader(provenance, modelledDay)} />
       {loading ? (
         <StatePanel kind="loading" rows={LOADING_ROWS} sentence="Loading the revenue view" />
       ) : data ? (

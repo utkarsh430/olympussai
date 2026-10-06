@@ -181,7 +181,7 @@ describe('the rendered fuel page, with its titles and labels', () => {
     const host = document.createElement('div');
     const root = createRoot(host);
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    await act(async () => root.render(<FuelPage />));
+    await act(async () => root.render(<FuelPage provenance={{ default: 'modelled' }} />));
     const attrs = [...host.querySelectorAll('[title], [aria-label]')].flatMap((el) => [
       el.getAttribute('title') ?? '',
       el.getAttribute('aria-label') ?? '',

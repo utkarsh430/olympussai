@@ -7,6 +7,7 @@ import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
+import type { ProvenanceDescription } from '@/lib/depot/provenanceLine';
 import { useDepotFuel } from '@/hooks/useDepotFuel';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { formatPlainDate } from '@/lib/depot/format';
@@ -28,7 +29,7 @@ const LOADING_ROWS = 14;
  * hero), the class and route tables, and the closed disclosure. An empty modelled day
  * is the state panel in place of the band, never a band of zeros.
  */
-export function FuelPage() {
+export function FuelPage({ provenance }: { readonly provenance: ProvenanceDescription }) {
   const { depotId, data: detail } = useDepotDetailContext();
   const { data, error, loading, refresh } = useDepotFuel(depotId);
   const modelledDay = data
@@ -41,7 +42,7 @@ export function FuelPage() {
     : undefined;
   return (
     <>
-      <PageHeader {...fuelHeader(modelledDay)} />
+      <PageHeader {...fuelHeader(provenance, modelledDay)} />
       {loading ? (
         <StatePanel kind="loading" rows={LOADING_ROWS} sentence="Loading the fuel and cost view" />
       ) : data ? (
