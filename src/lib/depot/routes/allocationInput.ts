@@ -62,6 +62,9 @@ function classify(
       return deadKm === null ? [] : [[id, deadKm.perTripKm] as const];
     }),
   );
+  // Without a figure from its own depot the route's present cost is unknown, so it cannot
+  // be planned: a move would be priced against nothing.
+  if (deadKmByDepot[primary] === undefined) return excluded(row, 'no_depot_position');
   const trips = modelTripsPerDay(
     {
       routeName: row.routeName,

@@ -99,6 +99,28 @@ describe('buildAllocationInput', () => {
     ]);
   });
 
+  it('leaves out a route whose own depot has no dead-km figure, instead of planning it uncosted', () => {
+    // Depot 101 has a position the distance cannot be measured from; 102 is measurable.
+    const positions = new Map<string, DepotPosition>([
+      ['101', { position: { lat: Number.NaN, lng: 80.9 }, kind: 'median' }],
+      ['102', { position: B.centroid!, kind: 'median' }],
+    ]);
+    const table = [route('R_1_ORD_OUT', '101', 2), route('R_2_ORD_OUT', '102', 2)];
+    const input = buildAllocationInput({
+      table,
+      profiles: new Map(table.map((r) => [r.routeName, profile(r.routeName)])),
+      depots: DEPOTS,
+      positions,
+      operatingDate: DATE,
+      detourFactor: 1.3,
+    });
+    expect(input.excluded.map((e) => [e.routeName, e.reason])).toEqual([
+      ['R_1_ORD_OUT', 'no_depot_position'],
+    ]);
+    expect(input.routes.map((r) => r.routeName)).toEqual(['R_2_ORD_OUT']);
+    expect(input.routes[0]!.deadKmByDepot['102']).toBeTypeOf('number');
+  });
+
   it('names the depot of each excluded route', () => {
     const input = inputFor([route('R_2_ORD_OUT', '201', 2)]);
     expect(input.excluded[0]!.depotName).toBe('Depot 201');
