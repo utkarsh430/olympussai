@@ -53,7 +53,8 @@ function dayFor(route: DayRoute, operatingDate: string): RouteRidershipDay {
     serviceClass: route.serviceClass,
     trips: route.trips,
     seatsPerTrip,
-    seatCapacity: route.trips * seatsPerTrip,
+    // The seats actually offered, not trips x a rounded average (review M5).
+    seatCapacity: route.trips === 0 ? 0 : route.seatsOffered,
     loadFactor,
     ...priced,
     lengthKm: route.lengthKm,

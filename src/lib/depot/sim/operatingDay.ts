@@ -7,6 +7,7 @@ import { planDay, type DutyPlan } from './dayPlan';
 import { classFromRoute } from './fleetMaster';
 import {
   MAX_REAL_LENGTH_KM,
+  MIN_REAL_LENGTH_KM,
   ROUTE_LENGTH_SALT,
   TYPICAL_ROUTE_LENGTH_KM,
 } from './operatingDayConfig';
@@ -28,7 +29,7 @@ type Match = Omit<DayRun, 'distanceKm'>;
 
 /**
  * A route's one-way length: the real one when its profile is cached and
- * plausible (DERIVED), otherwise a whole-kilometre figure typical of its class,
+ * plausible, from MIN_REAL_LENGTH_KM to MAX_REAL_LENGTH_KM (DERIVED), otherwise a whole-kilometre figure typical of its class,
  * seeded by the route name alone so it holds on every date (MODELLED).
  */
 export function modelRouteLength(
@@ -36,7 +37,11 @@ export function modelRouteLength(
   serviceClass: ServiceClass,
   realLengthKm: number | null | undefined,
 ): RouteLength {
-  if (typeof realLengthKm === 'number' && realLengthKm > 0 && realLengthKm <= MAX_REAL_LENGTH_KM) {
+  if (
+    typeof realLengthKm === 'number' &&
+    realLengthKm >= MIN_REAL_LENGTH_KM &&
+    realLengthKm <= MAX_REAL_LENGTH_KM
+  ) {
     return { lengthKm: realLengthKm, lengthProvenance: 'derived' };
   }
   const range = TYPICAL_ROUTE_LENGTH_KM[serviceClass];

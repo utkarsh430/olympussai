@@ -29,5 +29,14 @@ export const ROUTE_LENGTH_SALT = 'route-length';
 /** Seeds the order in which a depot's available buses took the day's duties. */
 export const BUS_ORDER_SALT = 'day-bus-order';
 
+/**
+ * A real length under this is not taken as known; the modelled figure is used
+ * and the route counts as modelled. Basis: two located stops a few hundred
+ * metres apart give a "length" of a fraction of a kilometre, while the
+ * shortest town service out of a depot runs several kilometres; 2 km sits
+ * below any real route and above that noise.
+ */
+export const MIN_REAL_LENGTH_KM = 2;
+
 /** A real length beyond this is a corrupt value, not a route; the modelled figure is used. */
 export const MAX_REAL_LENGTH_KM = 2000;
