@@ -4,14 +4,15 @@ import {
   lastHeardCell,
   locationShortText,
   scheduleCell,
-  showRunningColumn,
 } from '@/lib/depot/roster/rosterCells';
-import { buildRosterRows } from '@/lib/depot/roster/rosterModel';
 import {
-  ROSTER_COLUMN_WIDTHS,
-  ROSTER_PHONE_COLUMNS,
+  ROSTER_TIER_FRAME_PX,
   rosterColumnKeys,
+  rosterColumnWidth,
+  rosterShortLocation,
+  rosterTier,
   rosterWidthSum,
+  type RosterTier,
 } from '@/lib/depot/roster/rosterColumns';
 
 const FEED_NOW = '2026-10-06T09:30:00.000Z';
@@ -67,9 +68,9 @@ describe('scheduleCell', () => {
   });
   it('keeps an earlier day, with its date, muted, and says why in the title', () => {
     const cell = scheduleCell('2026-10-05T13:46:00.000Z', FEED_NOW);
-    expect(cell.text).toBe('Mon 05 Oct, 13:46');
+    expect(cell.text).toBe('5 Oct 2026, 13:46');
     expect(cell.earlierDay).toBe(true);
-    expect(cell.title).toContain('Mon 05 Oct, 13:46');
+    expect(cell.title).toContain('5 Oct 2026, 13:46');
     expect(cell.title).toContain("earlier day's schedule for this bus");
   });
   it('is a dash with no schedule', () => {
@@ -89,37 +90,57 @@ describe('locationShortText', () => {
   });
 });
 
-describe('the RUNNING column', () => {
-  it('is dropped when no row has a value', () => {
-    expect(showRunningColumn(buildRosterRows([bus(), bus({ registrationNumber: 'B' })]))).toBe(false);
-  });
-  it('stays when any row has one', () => {
-    const rows = buildRosterRows([bus(), bus({ registrationNumber: 'B', delayMinutes: 6 })]);
-    expect(showRunningColumn(rows)).toBe(true);
-  });
-});
+describe('column sets and widths per tier', () => {
+  const tiers: readonly RosterTier[] = ['wide', 'desk', 'medium', 'narrow', 'phone'];
 
-describe('column widths', () => {
-  it('lists the desktop columns, with RUNNING only when shown', () => {
-    expect(rosterColumnKeys({ phone: false, running: false })).toEqual([
+  it.each(tiers)("%s: the widths sum inside the frame at the tier's narrowest viewport", (tier) => {
+    expect(rosterWidthSum(tier)).toBeLessThanOrEqual(ROSTER_TIER_FRAME_PX[tier]);
+  });
+  it('pins the sums written in the report', () => {
+    expect(tiers.map((tier) => rosterWidthSum(tier))).toEqual([1048, 988, 880, 516, 324]);
+  });
+  it('leaves room to spare at 1440 (it overflowed by 10px)', () => {
+    expect(ROSTER_TIER_FRAME_PX.wide - rosterWidthSum('wide')).toBeGreaterThanOrEqual(100);
+  });
+  it('never shows RUNNING, and gives FLAGS 120px at 1440', () => {
+    for (const tier of tiers) expect(rosterColumnKeys(tier)).not.toContain('running');
+    expect(rosterColumnWidth('flags', 'wide')).toBe(120);
+  });
+  it('shows every column from 1280, and moves SCHEDULED START to the drawer below it', () => {
+    const all = ['registration', 'state', 'location', 'route', 'start', 'heard', 'flags'];
+    expect(rosterColumnKeys('wide')).toEqual(all);
+    expect(rosterColumnKeys('desk')).toEqual(all);
+    expect(rosterColumnKeys('medium')).toEqual([
       'registration',
       'state',
       'location',
       'route',
-      'start',
       'heard',
       'flags',
     ]);
-    expect(rosterColumnKeys({ phone: false, running: true })).toContain('running');
   });
-  it('fits the 1440 frame (1190px of content inside the borders) with every column', () => {
-    expect(rosterWidthSum({ phone: false, running: true })).toBeLessThanOrEqual(1176);
+  it('keeps LAST HEARD at 1024 and 800, with LOCATION short below 1024', () => {
+    expect(rosterColumnKeys('narrow')).toEqual(['registration', 'state', 'location', 'heard']);
+    expect(rosterShortLocation('medium')).toBe(false);
+    expect(rosterShortLocation('narrow')).toBe(true);
+    expect(rosterShortLocation('phone')).toBe(true);
   });
-  it('gives FLAGS 120px', () => {
-    expect(ROSTER_COLUMN_WIDTHS.flags).toBe(120);
+  it('keeps the phone set to registration, state and short location', () => {
+    expect(rosterColumnKeys('phone')).toEqual(['registration', 'state', 'location']);
   });
-  it('keeps the phone set to registration, state and location, inside 358px', () => {
-    expect(ROSTER_PHONE_COLUMNS).toEqual(['registration', 'state', 'location']);
-    expect(rosterWidthSum({ phone: true, running: true })).toBeLessThanOrEqual(358);
+  it.each([
+    [1440, 'wide'],
+    [1439, 'desk'],
+    [1280, 'desk'],
+    [1279, 'medium'],
+    [1024, 'medium'],
+    [1023, 'narrow'],
+    [800, 'narrow'],
+    [640, 'narrow'],
+    [639, 'phone'],
+    [390, 'phone'],
+  ] as const)('a %ipx viewport is the %s tier', (px, tier) => {
+    expect(rosterTier(px)).toBe(tier);
   });
 });
+

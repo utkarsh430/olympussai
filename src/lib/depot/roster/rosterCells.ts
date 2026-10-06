@@ -1,6 +1,6 @@
 import type { DepotBusView } from '@/lib/depot/api';
-import { formatDurationMinutes, formatFeedDateTime, formatFeedTime } from '@/lib/depot/format';
-import type { RosterRow } from './rosterModel';
+import { NORMAL_TAMPER_CODE } from '@/lib/depot/exceptions/config';
+import { formatDurationMinutes, formatFeedTime, formatPlainDate } from '@/lib/depot/format';
 
 /**
  * The roster's cell words. Durations come from `formatDurationMinutes` (never raw minutes
@@ -52,7 +52,7 @@ export interface ScheduleCell {
  */
 export function scheduleCell(iso: string | null, feedNow: string | null): ScheduleCell {
   if (iso === null) return { text: DASH, title: 'No schedule in the feed', earlierDay: false };
-  const full = formatFeedDateTime(iso);
+  const full = datedFeedTime(iso);
   if (feedNow === null) return { text: full, title: full, earlierDay: false };
   const day = iso.slice(0, 10);
   const feedDay = feedNow.slice(0, 10);
@@ -83,7 +83,26 @@ export function locationShortText(
   }
 }
 
-/** RUNNING is shown only when at least one row has a value. */
-export function showRunningColumn(rows: readonly RosterRow[]): boolean {
-  return rows.some((row) => row.delay !== null);
+/**
+ * A feed timestamp with its date in the one plain form: "5 Oct 2026, 13:46". The digits
+ * are read as written (the feed's wall-clock quirk), never through a time zone.
+ */
+export function datedFeedTime(iso: string | null): string {
+  if (iso === null) return DASH;
+  const date = formatPlainDate(iso.slice(0, 10));
+  const time = formatFeedTime(iso);
+  return date === DASH || time === DASH ? DASH : `${date}, ${time}`;
+}
+
+/**
+ * FLAGS in its 120px cell: the short words ("Power off", "Tamper 12"), and "+1" for a
+ * second flag. The full words stay in the cell's `title` and the drawer.
+ */
+export function flagsShortText(bus: Pick<DepotBusView, 'mainPowerOn' | 'tamperCode'>): string {
+  const flags: string[] = [];
+  if (bus.mainPowerOn === false) flags.push('Power off');
+  if (bus.tamperCode && bus.tamperCode !== NORMAL_TAMPER_CODE) flags.push(`Tamper ${bus.tamperCode}`);
+  const [first, ...rest] = flags;
+  if (first === undefined) return DASH;
+  return rest.length === 0 ? first : `${first} +${rest.length}`;
 }

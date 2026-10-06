@@ -1,4 +1,5 @@
-import { formatCount, formatFeedDateTime } from '@/lib/depot/format';
+import { formatCount } from '@/lib/depot/format';
+import { datedFeedTime } from './rosterCells';
 import { busLocationText } from '@/lib/depot/infer/locationText';
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
 import type { RosterRow } from './rosterModel';
@@ -22,8 +23,8 @@ export function drawerFacts(row: RosterRow): readonly DrawerFact[] {
     { label: 'State', value: BUS_STATE_LABEL[bus.state] },
     { label: 'Location', value: busLocationText(bus) },
     { label: 'Route', value: bus.routeName ?? DASH },
-    { label: 'Scheduled start', value: formatFeedDateTime(bus.scheduledStart) },
-    { label: 'Scheduled end', value: formatFeedDateTime(bus.scheduledEnd) },
+    { label: 'Scheduled start', value: datedFeedTime(bus.scheduledStart) },
+    { label: 'Scheduled end', value: datedFeedTime(bus.scheduledEnd) },
     ...(row.delay ? [{ label: 'Running', value: row.delay }] : []),
     { label: 'Trip status', value: bus.tripStatus ?? DASH },
     {

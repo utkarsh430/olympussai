@@ -6,9 +6,15 @@ import { BUS_STATE_SQUARE } from '@/components/depot/shell/BusStateMark';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { useDepotForecast } from '@/hooks/useDepotForecast';
-import type { AvailabilitySegment, YardLine } from '@/lib/depot/cockpit/availability';
+import {
+  legendWord,
+  weekTrendNote,
+  type AvailabilitySegment,
+  type YardLine,
+} from '@/lib/depot/cockpit/availability';
 import { formatCount } from '@/lib/depot/format';
-import { COCKPIT_TREND_METRIC, weekTrendLine } from '@/lib/depot/forecast/trendMounts';
+import { COCKPIT_TREND_METRIC } from '@/lib/depot/forecast/trendMounts';
+import { METRIC_LABEL } from '@/lib/depot/forecast/wording';
 
 export interface AvailabilityBarProps {
   readonly fleet: number;
@@ -25,14 +31,15 @@ export interface AvailabilityBarProps {
 export const NO_BUS_SENTENCE =
   'No bus is homed at this depot on this snapshot, so there is no status to show.';
 
-/** The section's note: the on-road share's MODELLED week (its tag in words, once), when there is one. */
+/** The section's note: the on-road share's modelled week trend, as an ordinary sentence, when there is one. */
 const DEFAULT_NOTE = 'Each bus in one state, from its last report';
 
 function useWeekNote(): string {
   const { depotId } = useDepotDetailContext();
   const state = useDepotForecast({ metric: COCKPIT_TREND_METRIC, scope: { kind: 'depot', depotId } });
-  const line = state.data ? weekTrendLine(COCKPIT_TREND_METRIC, state.data.trend.result) : null;
-  return line ?? DEFAULT_NOTE;
+  const result = state.data?.trend.result;
+  if (result?.status !== 'ok') return DEFAULT_NOTE;
+  return weekTrendNote(METRIC_LABEL[COCKPIT_TREND_METRIC], result.summary.week.sentence);
 }
 
 function YardRow({ yard, yardHref, howId }: Pick<AvailabilityBarProps, 'yard' | 'yardHref' | 'howId'>) {
@@ -50,8 +57,7 @@ function YardRow({ yard, yardHref, howId }: Pick<AvailabilityBarProps, 'yard' | 
   }
   return (
     <p className="depot-prose min-w-0 tabular-nums">
-      {yard.text}
-      {' · '}
+      {yard.text}{' '}
       <Link href={yardHref} className="depot-link whitespace-nowrap">
         Open yard ›
       </Link>
@@ -89,7 +95,7 @@ export function AvailabilityBar({ fleet, segments, text, yard, yardHref, howId }
         {segments.map((s) => (
           <li key={s.state} data-testid={`depot-state-${s.state}`} className="flex min-w-0 items-baseline gap-2">
             <span aria-hidden className={`inline-block h-1.5 w-1.5 shrink-0 self-center ${BUS_STATE_SQUARE[s.state]}`} />
-            <span className="min-w-0 truncate text-[13px] text-depot-muted" title={s.label}>{s.label}</span>
+            <span className="min-w-0 truncate text-[13px] text-depot-muted" title={s.label}>{legendWord(s.state, s.label)}</span>
             <span className="ml-auto shrink-0 font-mono text-[15px] tabular-nums text-depot-ink">{formatCount(s.count)}</span>
             <span className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums text-depot-faint">{s.shareText}</span>
           </li>

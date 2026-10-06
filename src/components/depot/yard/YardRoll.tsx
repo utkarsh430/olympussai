@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { BusStateMark } from '@/components/depot/shell/BusStateMark';
+import { BUS_STATE_SQUARE } from '@/components/depot/shell/BusStateMark';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { formatCount } from '@/lib/depot/format';
@@ -10,6 +10,7 @@ import {
   awayRows,
   ROLL_NOTE,
   ROLL_PREVIEW_ROWS,
+  rollGroupHeading,
   unknownRows,
   yardRoll,
   type RollGroup,
@@ -27,13 +28,6 @@ export interface YardRollProps {
 /** The roll's heading id; the no-yard panel's "See every bus by state" link targets it. */
 export const ROLL_SECTION_ID = 'yard-roll-in';
 
-function listedWords(group: RollGroup): string {
-  if (group.rows.length === 0) return '';
-  return group.rows.length === group.count
-    ? 'all listed'
-    : `${formatCount(group.rows.length)} listed`;
-}
-
 /** One state: its square and word, every bus counted, then the ones needing action. */
 function StateGroupBlock({
   group,
@@ -46,13 +40,11 @@ function StateGroupBlock({
     () => rollColumns(depotId, group.showReason),
     [depotId, group.showReason],
   );
-  const listed = listedWords(group);
   return (
     <div className="min-w-0" data-testid="yard-roll-group" data-state={group.state}>
-      <h3 className="flex h-8 items-center gap-3 text-[13px]">
-        <BusStateMark state={group.state} />
-        <span className="font-mono tabular-nums text-depot-ink">{formatCount(group.count)}</span>
-        {listed ? <span className="depot-note">{listed}</span> : null}
+      <h3 className="flex h-8 items-center gap-2 font-mono text-[11px] tracking-[0.12em] tabular-nums text-depot-ink">
+        <span aria-hidden className={`h-1.5 w-1.5 shrink-0 ${BUS_STATE_SQUARE[group.state]}`} />
+        {rollGroupHeading(group)}
       </h3>
       {group.rows.length > 0 ? (
         <CappedTable

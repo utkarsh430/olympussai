@@ -133,7 +133,9 @@ describe('formatHeardAgo', () => {
   it('words the GPS age and survives missing values', () => {
     expect(formatHeardAgo(4)).toBe('heard 4 min ago');
     expect(formatHeardAgo(0.2)).toBe('heard just now');
-    expect(formatHeardAgo(135)).toBe('heard 2 h ago');
+    expect(formatHeardAgo(135)).toBe('heard 2 h 15 min ago');
+    expect(formatHeardAgo(119.9)).toBe('heard 1 h 59 min ago');
+    expect(formatHeardAgo(20_000)).toBe('heard 13 d 21 h ago');
     expect(formatHeardAgo(59.9)).toBe('heard 59 min ago');
     expect(formatHeardAgo(119.9)).not.toMatch(/60 min/);
     expect(formatHeardAgo(null)).toBe('no GPS time');

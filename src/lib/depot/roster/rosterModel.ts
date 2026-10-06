@@ -3,7 +3,7 @@ import { NORMAL_TAMPER_CODE } from '@/lib/depot/exceptions/config';
 import type { BusLocation } from '@/lib/depot/infer/types';
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
 import type { BusOpState } from '@/lib/depot/types';
-import { lastHeardCell } from './rosterCells';
+import { lastHeardAgo, lastHeardCell } from './rosterCells';
 
 /** Display order: most useful to least. */
 export const BUS_STATE_ORDER: readonly BusOpState[] = [
@@ -63,23 +63,14 @@ export interface RosterRow {
 
 const ON_TIME_WITHIN_MIN = 1;
 
-const MINUTES_PER_HOUR = 60;
-const MINUTES_PER_DAY = 1440;
-const HOURS_SHOWN_BELOW_MIN = 120;
-const DAYS_SHOWN_FROM_MIN = 2 * MINUTES_PER_DAY;
-const UNKNOWN = 'unknown';
-
 /**
- * How long since the bus was heard from, as a short phrase. Kept in its coarse wording
- * for the yard, maintenance and next-stop sentences that share it; the roster's own
- * LAST HEARD cell uses `lastHeardCell` (full durations through `formatDurationMinutes`).
+ * How long since the bus was heard from, for the yard, maintenance and next-stop sentences
+ * that share it: "just now", "47 min ago", "1 h 27 min ago", "13 d 20 h ago". Every
+ * duration goes through `formatDurationMinutes` (never raw minutes above an hour), the
+ * same words as the roster's LAST HEARD cell.
  */
 export function lastHeardText(gpsAgeMin: number | null): string {
-  if (gpsAgeMin === null || !Number.isFinite(gpsAgeMin)) return UNKNOWN;
-  if (gpsAgeMin < 1) return 'just now';
-  if (gpsAgeMin < HOURS_SHOWN_BELOW_MIN) return `${Math.floor(gpsAgeMin)} min ago`;
-  if (gpsAgeMin < DAYS_SHOWN_FROM_MIN) return `${Math.floor(gpsAgeMin / MINUTES_PER_HOUR)} h ago`;
-  return `${Math.floor(gpsAgeMin / MINUTES_PER_DAY)} days ago`;
+  return lastHeardAgo(gpsAgeMin);
 }
 
 /**

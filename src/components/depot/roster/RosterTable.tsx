@@ -1,41 +1,46 @@
 'use client';
 
 import { useMemo } from 'react';
-import { BUS_STATE_SQUARE, BusStateMark } from '@/components/depot/shell/BusStateMark';
+import { BusStateMark } from '@/components/depot/shell/BusStateMark';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import { busLocationText } from '@/lib/depot/infer/locationText';
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
-import { lastHeardCell, locationShortText, scheduleCell } from '@/lib/depot/roster/rosterCells';
+import {
+  flagsShortText,
+  lastHeardCell,
+  locationShortText,
+  scheduleCell,
+} from '@/lib/depot/roster/rosterCells';
 import {
   rosterColumnKeys,
   rosterColumnWidth,
+  rosterShortLocation,
   type RosterColumnKey,
+  type RosterTier,
 } from '@/lib/depot/roster/rosterColumns';
-import { BUS_STATE_ORDER, ROSTER_STATE_WORD, type RosterRow } from '@/lib/depot/roster/rosterModel';
+import { BUS_STATE_ORDER, type RosterRow } from '@/lib/depot/roster/rosterModel';
 
 export interface RosterTableProps {
   readonly rows: readonly RosterRow[];
   readonly feedNow: string | null;
   readonly selectedRegistration: string | null;
   readonly onOpen: (registration: string, opener: HTMLElement) => void;
-  /** Under 640px: three short columns, the state as its square alone. */
-  readonly phone: boolean;
-  /** False when every row has no running value (the column is then left out). */
-  readonly showRunning: boolean;
+  /** The width tier: which columns show, at what widths (`rosterColumns`). */
+  readonly tier: RosterTier;
 }
 
 const DASH = '—';
 
 /**
- * Page-level scroll with a sticky header at 1440 and wider, where every column fits: the
- * frame is clipped (not a scroller), so the header sticks under the shell's bars; the
- * table takes its column widths as given. Narrower, the frame keeps its own sideways
- * scroll, and the frozen registration and the "more columns" cue stay.
+ * Page-level scroll with a sticky header from 640px up, where each tier's column set fits
+ * its frame (`rosterColumns` pins the sums): the frame is clipped (not a scroller), so the
+ * header sticks under the shell's bars; the table takes its column widths as given. On a
+ * phone the frame keeps its own sideways scroll for the narrowest handsets.
  */
 const FLOW_CLASS =
-  'depot-table-flow min-[1440px]:[&_.depot-table-frame]:overflow-clip ' +
-  'min-[1440px]:[&_.depot-table]:table-fixed ' +
-  'min-[1440px]:[&_.depot-table_th]:top-[var(--depot-sticky-top)]';
+  'depot-table-flow min-[640px]:[&_.depot-table-frame]:overflow-clip ' +
+  'min-[640px]:[&_.depot-table]:table-fixed ' +
+  'min-[640px]:[&_.depot-table_th]:top-[var(--depot-sticky-top)]';
 
 type RosterColumns = Readonly<Record<RosterColumnKey, Column<RosterRow>>>;
 
@@ -43,7 +48,7 @@ function buildColumnSet(
   feedNow: string | null,
   selected: string | null,
   onOpen: RosterTableProps['onOpen'],
-  phone: boolean,
+  shortLocation: boolean,
 ): RosterColumns {
   return {
     registration: {
@@ -70,22 +75,9 @@ function buildColumnSet(
       header: 'State',
       sortValue: (row) => BUS_STATE_ORDER.indexOf(row.bus.state),
       title: (row) => BUS_STATE_LABEL[row.bus.state],
-      // The word only; how long the bus has been quiet is LAST HEARD's to say. At a phone
-      // the square is the state and its word is in `title`, read out, and in the drawer.
-      render: (row) =>
-        phone ? (
-          <span
-            data-testid="depot-bus-state"
-            data-state={row.bus.state}
-            title={BUS_STATE_LABEL[row.bus.state]}
-            className="inline-flex items-center"
-          >
-            <span aria-hidden className={`h-1.5 w-1.5 shrink-0 ${BUS_STATE_SQUARE[row.bus.state]}`} />
-            <span className="sr-only">{ROSTER_STATE_WORD[row.bus.state]}</span>
-          </span>
-        ) : (
-          <BusStateMark state={row.bus.state} short />
-        ),
+      // The square and its word at every width (a square alone is colour alone); how long
+      // the bus has been quiet is LAST HEARD's to say.
+      render: (row) => <BusStateMark state={row.bus.state} short />,
     },
     location: {
       key: 'location',
@@ -93,7 +85,7 @@ function buildColumnSet(
       sortValue: (row) => row.bus.location,
       title: (row) => busLocationText(row.bus),
       // The long wording is the one the drawer uses too, so the two can never disagree.
-      render: (row) => (phone ? locationShortText(row.bus) : busLocationText(row.bus)),
+      render: (row) => (shortLocation ? locationShortText(row.bus) : busLocationText(row.bus)),
     },
     route: {
       key: 'route',
@@ -118,12 +110,6 @@ function buildColumnSet(
         );
       },
     },
-    running: {
-      key: 'running',
-      header: 'Running',
-      title: (row) => row.delay ?? 'No delay figure: no schedule for the feed date',
-      render: (row) => row.delay ?? DASH,
-    },
     heard: {
       key: 'heard',
       header: 'Last heard',
@@ -143,7 +129,7 @@ function buildColumnSet(
       header: 'Flags',
       sortValue: (row) => row.flags.length,
       title: (row) => (row.flags.length === 0 ? 'No device flag raised' : row.flags.join('; ')),
-      render: (row) => (row.flags.length === 0 ? DASH : row.flags.join('; ')),
+      render: (row) => flagsShortText(row.bus),
     },
   };
 }
@@ -157,16 +143,15 @@ export function RosterTable({
   feedNow,
   selectedRegistration,
   onOpen,
-  phone,
-  showRunning,
+  tier,
 }: RosterTableProps) {
   const columns = useMemo(() => {
-    const set = buildColumnSet(feedNow, selectedRegistration, onOpen, phone);
-    return rosterColumnKeys({ phone, running: showRunning }).map((key) => ({
+    const set = buildColumnSet(feedNow, selectedRegistration, onOpen, rosterShortLocation(tier));
+    return rosterColumnKeys(tier).map((key) => ({
       ...set[key],
-      width: rosterColumnWidth(key, phone),
+      width: rosterColumnWidth(key, tier),
     }));
-  }, [feedNow, selectedRegistration, onOpen, phone, showRunning]);
+  }, [feedNow, selectedRegistration, onOpen, tier]);
   return (
     <div className={FLOW_CLASS}>
       <DataTable

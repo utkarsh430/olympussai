@@ -39,7 +39,7 @@ export function capacityFigure(view: CapacityView, pending: boolean): CapacityFi
   if (inYard === null) {
     return {
       value: `${formatCount(fleet)} of ${formatCount(bays)}`,
-      caption: 'fleet against modelled bays',
+      caption: 'fleet only',
       share: bays > 0 ? fleet / bays : undefined,
       title: fleetOnlyCapacitySentence(fleet, bays),
     };
@@ -54,7 +54,7 @@ export function capacityFigure(view: CapacityView, pending: boolean): CapacityFi
         : `${formatCount(-free)} over`;
   return {
     value: `${formatCount(used)} of ${formatCount(bays)}`,
-    caption: `modelled bays in use; ${tail}`,
+    caption: tail,
     share: bays > 0 ? used / bays : undefined,
     title: `${capacitySentence({ bays, inYard, visiting })} ${visitingSentence(visiting)}`,
   };
@@ -104,6 +104,8 @@ export function mapCaption(model: YardModel): string {
 export interface VisitorRow {
   readonly registration: string;
   readonly homeDepot: string;
+  /** The home depot's id, for a link to the bus on that depot's roster; null when not known. */
+  readonly homeDepotId: string | null;
   readonly state: BusOpState;
 }
 
@@ -115,6 +117,7 @@ export function visitorRows(visitors: readonly VisitorBus[]): readonly VisitorRo
     .map((v) => ({
       registration: v.registrationNumber,
       homeDepot: v.homeDepotName ?? UNKNOWN_HOME,
+      homeDepotId: v.homeDepotId,
       state: v.state,
       known: v.homeDepotName !== null,
     }))
@@ -124,5 +127,10 @@ export function visitorRows(visitors: readonly VisitorBus[]): readonly VisitorRo
         a.homeDepot.localeCompare(b.homeDepot) ||
         a.registration.localeCompare(b.registration),
     )
-    .map(({ registration, homeDepot, state }) => ({ registration, homeDepot, state }));
+    .map(({ registration, homeDepot, homeDepotId, state }) => ({
+      registration,
+      homeDepot,
+      homeDepotId,
+      state,
+    }));
 }
