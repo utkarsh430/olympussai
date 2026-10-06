@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { DepotBusRow } from '@/models/depotLive';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
+import { busLocationText } from '@/lib/depot/infer/locationText';
 import { SCORE_WINDOW_MIN } from '@/lib/depot/score/window';
 import { defaultScoreWindowStore } from '@/lib/depot/score/windowStore';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
@@ -92,6 +93,17 @@ describe('analysis across snapshots', () => {
     const dueNow = detail?.outshed.rows.find((r) => r.registrationNumber === 'DUE')?.state;
     expect(dueNow).toBe(dueBefore);
     expect(dueNow).not.toBe('unknown');
+  });
+
+  it('words a location in one place, with a distance only when away from a known yard', () => {
+    expect(busLocationText({ location: 'away', distanceFromYardKm: 13.6 })).toBe(
+      'Away, 14 km from yard',
+    );
+    expect(busLocationText({ location: 'away', distanceFromYardKm: null })).toBe('Away');
+    expect(busLocationText({ location: 'unknown', distanceFromYardKm: null })).toBe(
+      'Location unknown',
+    );
+    expect(busLocationText({ location: 'in_yard', distanceFromYardKm: 0.1 })).toBe('In yard');
   });
 
   it('needs the full rule after a restart: the same rows then have no yard', () => {
