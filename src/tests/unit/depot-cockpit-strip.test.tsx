@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { AttentionStrip } from '@/components/depot/cockpit/AttentionStrip';
+import { BRIEFING_BODY, BriefingRow } from '@/components/depot/cockpit/BriefingRow';
+import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import type { AttentionLine } from '@/lib/depot/cockpit/attention';
 
 function line(key: string, count: number, text: string): AttentionLine {
@@ -29,6 +31,17 @@ describe('the attention strip', () => {
 
   it('has no filler when the strip is even', () => {
     expect(render(FIVE.slice(0, 4)).querySelector('[data-testid="depot-attention-filler"]')).toBeNull();
+  });
+
+  it('keeps one heading on the opened briefing: the card label and headline are not drawn', () => {
+    const markup = renderToStaticMarkup(
+      <BriefingRow scope={{ kind: 'depot', depotId: '20' } as CopilotScope} feedNow={null} />,
+    );
+    const doc = new DOMParser().parseFromString(markup, 'text/html');
+    const body = doc.querySelector('[data-testid="depot-briefing-row"] > div[hidden]');
+    expect(body?.className.split(/\s+/)).toEqual(expect.arrayContaining(BRIEFING_BODY.split(' ')));
+    expect(BRIEFING_BODY).toBe('[&_h2]:hidden [&_h3]:hidden');
+    expect(doc.querySelectorAll('h2')).toHaveLength(1);
   });
 
   it('wraps a line on a phone instead of cutting it; truncates only from 640px', () => {
