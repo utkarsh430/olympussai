@@ -41,6 +41,13 @@ describe('FEED_REGISTRY', () => {
     expect(field('fuel', 'fuelLitres')?.note).toMatch(/litres/i);
     expect(field('ticketing-ridership', 'boardings')?.type).toBe('integer');
     expect(field('ticketing-ridership', 'revenue')?.note).toMatch(/rupees/i);
+    // A trip is a run out and back from the depot: two legs. A one-way run is half a trip.
+    expect(field('ticketing-ridership', 'trips')?.note).toMatch(/out and back/i);
+    expect(field('ticketing-ridership', 'trips')?.note).toMatch(/two legs/i);
+    expect(field('ticketing-ridership', 'trips')?.note).toMatch(/half a trip/i);
+    expect(field('ticketing-ridership', 'trips')?.note).not.toMatch(/one end of the route/i);
+    expect(field('ticketing-ridership', 'seatCapacity')?.note).toMatch(/per leg/i);
+    expect(field('ticketing-ridership', 'seatCapacity')?.note).toMatch(/offered/i);
     for (const id of ['crew-duties', 'fuel', 'ticketing-ridership']) {
       const feed = FEED_REGISTRY.find((f) => f.id === id);
       expect(feed?.summary).toMatch(/modelled/i);
