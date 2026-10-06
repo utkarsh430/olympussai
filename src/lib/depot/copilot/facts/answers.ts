@@ -31,7 +31,7 @@ function unsupported(reason: UnsupportedReason): CopilotRequest {
   if (reason === 'ambiguous_depot') {
     return answer('an unsupported question', [], {
       headline: 'That depot name is not specific enough',
-      paragraphs: ["That name matches more than one depot. Use the depot's full name."],
+      paragraphs: ["That name matches several depots. Use the depot's full name."],
     });
   }
   const closing =
