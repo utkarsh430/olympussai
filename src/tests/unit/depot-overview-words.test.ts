@@ -55,7 +55,8 @@ describe('kpiLayout', () => {
 
   it('carries reporting and route assigned as the fleet\'s caption, both shares of it', () => {
     const fleet = layout.figures[0]!;
-    expect(fleet.note).toBe('27% reporting · 22% assigned');
+    expect(fleet.note).toBe('27% heard · 22% assigned');
+    expect(fleet.note.length).toBeLessThanOrEqual(24);
     expect(fleet.detail).toBe('2,662 reporting; 2,204 route assigned · 2,204 of 9,000');
   });
 

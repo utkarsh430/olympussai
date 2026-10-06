@@ -37,7 +37,7 @@ describe('overview band, in the classified state words', () => {
     const { figures } = kpiLayout(KPIS, []);
     expect(figures).toHaveLength(5);
     figures.slice(1).forEach((figure) => expect(figure.note).toMatch(/of fleet/));
-    expect(figures[0]?.note).toBe('90% reporting · 60% assigned');
+    expect(figures[0]?.note).toBe('90% heard · 60% assigned');
   });
 });
 
