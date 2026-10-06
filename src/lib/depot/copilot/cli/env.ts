@@ -3,7 +3,6 @@ const SYSTEM_PATH = '/usr/bin:/bin';
 /**
  * Fixed, non-secret switches (review L5): no self-update and no non-essential
  * network traffic from a child whose HOME is empty and whose time is bounded.
- * There is no `--max-turns`: the installed CLI (2.1.291) has no such flag.
  */
 const FIXED_SWITCHES = {
   DISABLE_AUTOUPDATER: '1',
