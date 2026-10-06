@@ -7,7 +7,7 @@ import {
   standingLine,
 } from '@/lib/depot/cockpit/availability';
 import { depotExceptionLines, groupBusExceptions } from '@/lib/depot/cockpit/exceptionGroups';
-import { indexLine, scoreWindowText } from '@/lib/depot/cockpit/indexLine';
+import { indexLine } from '@/lib/depot/cockpit/indexLine';
 import type { CockpitHeader, StatusBoard } from '@/lib/depot/cockpit/cockpitTypes';
 import type { BusException, DepotException } from '@/lib/depot/exceptions/types';
 import type { OutshedRow } from '@/lib/depot/infer/types';
@@ -147,11 +147,13 @@ describe('index line', () => {
     peerGroupLabel: 'Large fleets', unrankedReason: null,
   };
 
+  // The window words come from the shared module; the cockpit line must use them.
   it('words the window', () => {
-    expect(scoreWindowText({ lengthMin: 20, since: '2026-10-05T14:00:00.000Z', samples: 30 }, FEED_NOW)).toBe('over the last 20 minutes');
-    expect(scoreWindowText({ lengthMin: 20, since: '2026-10-05T14:02:00.000Z', samples: 3 }, FEED_NOW)).toBe('since 14:02, 3 snapshots');
-    expect(scoreWindowText({ lengthMin: 20, since: FEED_NOW, samples: 1 }, FEED_NOW)).toBe('from the latest snapshot only');
-    expect(scoreWindowText(undefined, FEED_NOW)).toBeNull();
+    const line = (w: Parameters<typeof indexLine>[1]): string => indexLine(header, w, FEED_NOW);
+    expect(line({ lengthMin: 20, since: '2026-10-05T14:00:00.000Z', samples: 30 })).toMatch(/ · over the last 20 minutes$/);
+    expect(line({ lengthMin: 20, since: '2026-10-05T14:02:00.000Z', samples: 3 })).toMatch(/ · since 14:02, 3 snapshots$/);
+    expect(line({ lengthMin: 20, since: FEED_NOW, samples: 1 })).toMatch(/ · from one snapshot at 14:20$/);
+    expect(line(undefined)).toBe('Efficiency index 31.6 · rank 34 of 38 in Large fleets');
   });
 
   it('carries index, rank, peer group and window on one line', () => {

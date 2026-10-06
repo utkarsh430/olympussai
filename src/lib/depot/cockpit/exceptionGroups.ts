@@ -11,7 +11,7 @@ import { DEPOTS_ROOT } from '@/lib/depot/nav';
 import type { RosterFilters } from '@/lib/depot/roster/rosterModel';
 import { rosterFilterHref } from '@/lib/depot/roster/rosterQuery';
 import type { ScoreWindow } from '@/lib/depot/score/types';
-import { scoreWindowText } from './indexLine';
+import { scoreWindowPhrase } from '@/lib/depot/score/windowWords';
 
 /**
  * The cockpit's exceptions: bus exceptions merged per bus (one row per bus, its
@@ -106,7 +106,7 @@ export function depotExceptionLines(
   window: ScoreWindow | null | undefined,
   feedNow: string | null,
 ): readonly DepotExceptionLine[] {
-  const span = scoreWindowText(window, feedNow);
+  const span = window ? scoreWindowPhrase(window, feedNow) : null;
   return [...exceptions]
     .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity))
     .map((e) => ({
