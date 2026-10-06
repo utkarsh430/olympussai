@@ -1,9 +1,43 @@
 import { draftSchema } from '@/lib/depot/copilot/render';
 import type { CopilotDraft, FallbackReason } from '@/lib/depot/copilot/types';
 
-const USAGE = /usage limit|rate limit|limit reached|too many requests|\b429\b|quota/i;
-const AUTH =
-  /not logged in|\/login|log in|sign in|invalid api key|unauthori[sz]ed|\b401\b|authentication|oauth token|token (?:has )?expired|credentials/i;
+/**
+ * Specific phrases the CLI or the API prints, anchored to the start of a line
+ * where the message begins one. A word such as "limit", "credentials" or
+ * "sign in" on its own is not enough: unrelated stderr on a non-zero exit must
+ * stay `error`, because these two reasons start a cool-down that hides a bug.
+ */
+const USAGE_PATTERNS: readonly RegExp[] = [
+  // The subscription's own cap: "Claude AI usage limit reached|<reset time>"
+  // (later versions drop the "AI").
+  /\bclaude (?:ai )?usage limit reached\b/i,
+  // The interactive wording of the same cap: "You've hit your limit · resets 5pm".
+  /^(?:error:\s*)?you(?:'ve| have) hit your (?:[a-z-]+ )?limit\b/im,
+  // The rolling-window cap: "5-hour limit reached · resets 3pm".
+  /^(?:error:\s*)?\d+-hour limit reached\b/im,
+  // The API refused for rate: "API Error: 429 …" or "HTTP 429 …".
+  /^(?:api error:|http)\s*429\b/im,
+  // The API error body's type for the same refusal.
+  /"type"\s*:\s*"rate_limit_error"/,
+];
+
+const AUTH_PATTERNS: readonly RegExp[] = [
+  // No stored credentials: "Not logged in · Please run /login".
+  /^(?:error:\s*)?not logged in\b/im,
+  // A rejected key or token: "Invalid API key · Please run /login".
+  /^(?:error:\s*)?invalid api key\b/im,
+  // The CLI's fix-it instruction that accompanies both messages above.
+  /\bplease run \/login\b/i,
+  // An expired subscription token: "OAuth token has expired. Please obtain…".
+  /\boauth token has expired\b/i,
+  // The API refused the credentials: "API Error: 401 …".
+  /^(?:api error:|http)\s*401\b/im,
+  // The API error body's type for the same refusal.
+  /"type"\s*:\s*"authentication_error"/,
+];
+
+const matchesAny = (patterns: readonly RegExp[], text: string): boolean =>
+  patterns.some((pattern) => pattern.test(text));
 
 function parseEnvelope(stdout: string): Readonly<Record<string, unknown>> | null {
   try {
@@ -39,8 +73,8 @@ export function classifyCliFailure(
 ): FallbackReason {
   if (exitCode === null) return 'error';
   const text = `${stderr}\n${envelopeErrorText(stdout)}`;
-  if (USAGE.test(text)) return 'usage_limit';
-  if (AUTH.test(text)) return 'not_authenticated';
+  if (matchesAny(USAGE_PATTERNS, text)) return 'usage_limit';
+  if (matchesAny(AUTH_PATTERNS, text)) return 'not_authenticated';
   return 'error';
 }
 

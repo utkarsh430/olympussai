@@ -65,8 +65,10 @@ const failure = (reason: FallbackReason, detail: string): RunCliResult => ({
  * is a parameter so the trust boundary can be tested without a process.
  */
 export function runCli(input: RunCliInput, spawn: SpawnLike): Promise<RunCliResult> {
+  // The provider rejects an oversized request before it takes a slot or a call
+  // from the budget; this is the backstop, reported the same way and never spawned.
   if (Buffer.byteLength(input.stdin, 'utf8') > MAX_PROMPT_BYTES) {
-    return Promise.resolve(failure('error', 'prompt exceeds the size cap'));
+    return Promise.resolve(failure('request_rejected', 'prompt exceeds the size cap'));
   }
   return new Promise<RunCliResult>((resolve) => {
     let child: ChildLike;

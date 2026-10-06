@@ -15,8 +15,12 @@ export function buildChildEnv(
   home: string,
   nodeDir: string,
 ): Record<string, string> {
+  // Absolute, and no ':' (it would smuggle in a second PATH entry) or NUL.
+  if (!nodeDir.startsWith('/') || nodeDir.includes(':') || nodeDir.includes('\0')) {
+    throw new RangeError('Invalid node directory');
+  }
   const env: Record<string, string> = {
-    PATH: `${nodeDir}:${SYSTEM_PATH}`,
+    PATH: `${SYSTEM_PATH}:${nodeDir}`,
     HOME: home,
   };
   const token = parentEnv.CLAUDE_CODE_OAUTH_TOKEN;

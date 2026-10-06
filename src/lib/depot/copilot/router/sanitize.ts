@@ -1,18 +1,8 @@
 import { MAX_QUESTION_CHARS } from '@/lib/depot/copilot/limits';
+import { INVISIBLE_CHARACTERS } from '@/lib/depot/copilot/unsafeText';
 
-/**
- * Every character that can hide text from a reader or reorder it: control (Cc),
- * format (Cf: bidi, zero-width, soft hyphen, tag block), private-use (Co),
- * unassigned (Cn) and surrogate (Cs) characters, plus invisible fillers that
- * are letters or marks to Unicode (Hangul and Braille fillers, the combining
- * grapheme joiner, Khmer inherent vowels, Mongolian vowel separator) and the
- * variation selectors. Written with escapes so no invisible character is
- * stored in this file. Shareable with the core.
- */
-export const INVISIBLE_CHARACTERS = new RegExp(
-  '[\\p{Cc}\\p{Cf}\\p{Co}\\p{Cn}\\p{Cs}\\u3164\\u1160\\u2800\\u034f\\u17b4\\u17b5\\u180e\\ufe00-\\ufe0f]',
-  'gu',
-);
+/** Re-exported: the one list shared with the core's fact sanitiser (see unsafeText.ts). */
+export { INVISIBLE_CHARACTERS };
 
 /**
  * Makes untrusted text safe to treat as a plain line of data: NFKC, single

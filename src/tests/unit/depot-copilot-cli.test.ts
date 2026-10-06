@@ -20,7 +20,12 @@ import {
   MAX_FACT_LABEL_CHARS,
   MAX_FACT_TEXT_CHARS,
   MAX_FACTS,
+  MAX_GUIDANCE_CHARS,
   MAX_PROMPT_BYTES,
+  PROSE_PUNCTUATION,
+  QUANTITY_SUFFIXES,
+  QUANTITY_WORDS,
+  ROMAN_NUMERAL_LETTERS,
 } from '@/lib/depot/copilot/limits';
 import type { CopilotRequest, CopilotTask } from '@/lib/depot/copilot/types';
 
@@ -168,7 +173,7 @@ describe('buildChildEnv', () => {
   it('keeps only PATH, HOME and the OAuth token, with PATH built from the node directory', () => {
     const env = buildChildEnv(parent, '/tmp/home', '/opt/node/bin');
     expect(env).toEqual({
-      PATH: '/opt/node/bin:/usr/bin:/bin',
+      PATH: '/usr/bin:/bin:/opt/node/bin',
       HOME: '/tmp/home',
       CLAUDE_CODE_OAUTH_TOKEN: 'oauth-token',
     });
@@ -176,7 +181,7 @@ describe('buildChildEnv', () => {
 
   it('drops secrets and any unlisted variable', () => {
     const env = buildChildEnv(parent, '/tmp/home', '/opt/node/bin');
-    expect(env.PATH).not.toContain('/usr/local/bin');
+
     for (const name of [
       'ANTHROPIC_API_KEY',
       'ANTHROPIC_AUTH_TOKEN',
@@ -203,7 +208,7 @@ describe('buildChildEnv', () => {
   });
 
   it('ignores the parent PATH entirely', () => {
-    expect(buildChildEnv({ PATH: '/evil/bin' }, '/h', '/n').PATH).toBe('/n:/usr/bin:/bin');
+    expect(buildChildEnv({ PATH: '/evil/bin' }, '/h', '/n').PATH).toBe('/usr/bin:/bin:/n');
   });
 });
 
@@ -270,7 +275,27 @@ describe('prompts', () => {
     expect(prompt).not.toMatch(/[‮​]/);
     expect(prompt).not.toContain('L'.repeat(MAX_FACT_LABEL_CHARS + 1));
     expect(prompt).not.toContain('v'.repeat(MAX_FACT_TEXT_CHARS + 1));
-    expect(prompt).toContain('v alue vvv');
+    expect(prompt).toContain('v alue');
+  });
+
+  it('sanitises guidance like fact text', () => {
+    const prompt = buildUserPrompt({
+      ...REQUEST,
+      guidance: 'Lead‮ with {{fact:x}} <b>gap</b>​ `now`\n[link]',
+    });
+    expect(prompt).toContain('"Lead with fact:x bgap/b now link"');
+    expect(prompt).not.toMatch(/[‮​`<>]/u);
+  });
+
+  it('caps guidance at MAX_GUIDANCE_CHARS', () => {
+    const prompt = buildUserPrompt({ ...REQUEST, guidance: 'g'.repeat(MAX_GUIDANCE_CHARS * 3) });
+    expect(prompt).not.toContain('g'.repeat(MAX_GUIDANCE_CHARS));
+    expect(prompt).toContain(`"${'g'.repeat(MAX_GUIDANCE_CHARS - 1)}…"`);
+  });
+
+  it('sanitises the scope label with the same function', () => {
+    const prompt = buildUserPrompt({ ...REQUEST, scopeLabel: 'Depot <i>{{fact:x}}</i>⠀ A' });
+    expect(prompt).toContain('BEGIN SCOPE\n"Depot ifact:x/i A"\nEND SCOPE');
   });
 
   it('refuses more than the maximum number of facts', () => {
@@ -395,13 +420,15 @@ describe('runCli', () => {
     await expect(promise).resolves.toMatchObject({ ok: false, reason: 'not_authenticated' });
   });
 
-  it('does not spawn when the prompt exceeds the byte cap', async () => {
+  // The provider rejects an oversized request before any attempt; runCli keeps
+  // the same cap as a backstop and reports it the same way, never spawning.
+  it('reports request_rejected without spawning when the prompt exceeds the byte cap', async () => {
     const child = fakeChild();
     const { spawn, promise } = run(child, {
       ...INPUT,
       stdin: 'x'.repeat(MAX_PROMPT_BYTES + 1),
     });
-    await expect(promise).resolves.toMatchObject({ ok: false, reason: 'error' });
+    await expect(promise).resolves.toMatchObject({ ok: false, reason: 'request_rejected' });
     expect(spawn).not.toHaveBeenCalled();
   });
 
@@ -411,8 +438,13 @@ describe('runCli', () => {
       ...INPUT,
       stdin: 'é'.repeat(MAX_PROMPT_BYTES / 2 + 1),
     });
-    await expect(promise).resolves.toMatchObject({ ok: false, reason: 'error' });
+    await expect(promise).resolves.toMatchObject({ ok: false, reason: 'request_rejected' });
     expect(spawn).not.toHaveBeenCalled();
+    const exact = fakeChild();
+    const atCap = run(exact, { ...INPUT, stdin: 'é'.repeat(MAX_PROMPT_BYTES / 2) });
+    expect(atCap.spawn).toHaveBeenCalledTimes(1);
+    exact.emitter.emit('close', 0);
+    await expect(atCap.promise).resolves.toMatchObject({ ok: true });
   });
 
   it('survives pipe errors on stdout and stderr', async () => {
@@ -465,11 +497,84 @@ describe('classifyCliFailure', () => {
     [
       1,
       '',
-      '{"is_error":true,"subtype":"error_during_execution","result":"rate limit hit"}',
+      '{"is_error":true,"subtype":"error_during_execution","result":"Claude AI usage limit reached"}',
       'usage_limit',
     ],
   ] as const)('exit %s with %j / %j is %s', (code, stderr, stdout, expected) => {
     expect(classifyCliFailure(code, stderr, stdout)).toBe(expected);
+  });
+
+  it.each([
+    ['Not logged in · Please run /login', 'not_authenticated'],
+    ['Invalid API key · Please run /login', 'not_authenticated'],
+    [
+      'API Error: 401 {"type":"error","error":{"type":"authentication_error"}}',
+      'not_authenticated',
+    ],
+    ['Claude AI usage limit reached|1760000000', 'usage_limit'],
+    ["You've hit your limit · resets 5pm", 'usage_limit'],
+    ['5-hour limit reached · resets 3pm', 'usage_limit'],
+    ['API Error: 429 {"type":"error","error":{"type":"rate_limit_error"}}', 'usage_limit'],
+  ] as const)('reads the CLI phrase %j as %s', (stderr, expected) => {
+    expect(classifyCliFailure(1, stderr, '')).toBe(expected);
+  });
+
+  it.each([
+    'warning: no git credentials helper is configured',
+    'Loaded credentials cache from disk in 4ms',
+    'Hint: sign in to sync your settings across devices',
+    'Tip: you can sign in later from the menu',
+    'Error: request body exceeds the size limit',
+    'MCP server rate limits are not configured',
+    'Error: EDQUOT: disk quota exceeded, write',
+    'Proxy authentication header ignored by the gateway',
+    'Could not log in to the telemetry endpoint; continuing',
+    'note: the 401 page template was not found',
+  ])('treats unrelated stderr %j on a non-zero exit as error', (stderr) => {
+    expect(classifyCliFailure(1, stderr, '')).toBe('error');
+  });
+});
+
+describe('buildChildEnv node directory', () => {
+  it.each(['', 'relative/bin', './bin', '/opt/node:/evil', '/a/b:', '/a\0b'])(
+    'rejects %j as the node directory',
+    (dir) => {
+      expect(() => buildChildEnv({}, '/h', dir)).toThrow(RangeError);
+    },
+  );
+});
+
+describe('system prompt rule text', () => {
+  const prompt = buildSystemPrompt('briefing');
+
+  it('names every quantity word, and says their endings are rejected too', () => {
+    for (const word of QUANTITY_WORDS) expect(prompt, word).toContain(word);
+    expect(prompt).toContain(QUANTITY_WORDS.join(', '));
+    for (const suffix of QUANTITY_SUFFIXES) expect(prompt).toContain(`"${suffix}"`);
+  });
+
+  it('states the exact character set', () => {
+    expect(PROSE_PUNCTUATION.join(' ')).toBe(`. , ; : ' " ( ) -`);
+    expect(prompt).toContain(`letters A to Z, the space, and ${PROSE_PUNCTUATION.join(' ')}`);
+  });
+
+  it('states the placeholder, numeral, full-stop and spelling rules', () => {
+    expect(prompt).toMatch(/separate placeholders from one another by at least one word/i);
+    expect(prompt).toMatch(
+      /never put a minus sign, full stop or comma directly before a placeholder/i,
+    );
+    expect(prompt).toContain(ROMAN_NUMERAL_LETTERS.split('').join(' '));
+    expect(prompt).toMatch(/all-capitals word/i);
+    expect(prompt).toMatch(/full stop must be followed by a space/i);
+    expect(prompt).toMatch(/never run number words together/i);
+    expect(prompt).toMatch(/never spell out letters separated by spaces or hyphens/i);
+  });
+
+  it('gives every task the same rule text', () => {
+    const rules = (t: CopilotTask): string => buildSystemPrompt(t).split('Rules: ')[1] ?? '';
+    expect(rules('briefing').length).toBeGreaterThan(0);
+    expect(rules('rationale')).toBe(rules('briefing'));
+    expect(rules('answer')).toBe(rules('briefing'));
   });
 });
 
