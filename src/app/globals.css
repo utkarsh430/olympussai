@@ -330,6 +330,12 @@
       font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.12em];
   }
 
+  /* The tag's two ruled places (the provenance line, a section label or a column header)
+     draw it as a pill, so it reads as a tag and never as a column or a button. */
+  .depot-tag-pill {
+    @apply rounded-full px-2;
+  }
+
   /* Data states. The placeholder is static: no shimmer, no pulse. */
   .depot-skeleton {
     @apply rounded-[3px] bg-depot-surface;

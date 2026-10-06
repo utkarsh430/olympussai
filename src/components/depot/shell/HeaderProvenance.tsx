@@ -13,9 +13,12 @@ import { ProvenanceBadge } from './ProvenanceBadge';
 export function HeaderProvenance({ provenance }: { readonly provenance: Provenance }) {
   const { data, error } = useDepotNetworkContext();
   return (
-    <div className="mt-1.5 flex flex-wrap items-center gap-2" data-testid="depot-header-provenance">
-      <ProvenanceBadge provenance={provenance} />
-      <span className="font-sans text-[13px] text-depot-muted">
+    <div
+      className="mt-2 flex flex-wrap items-center gap-2 font-sans text-xs leading-5"
+      data-testid="depot-header-provenance"
+    >
+      <ProvenanceBadge provenance={provenance} pill />
+      <span className="text-depot-muted">
         {headerProvenanceNote(data, error, provenance)}
       </span>
     </div>
