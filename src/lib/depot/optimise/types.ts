@@ -52,7 +52,11 @@ export interface NetworkBalanceTotals {
   readonly totalSurplus: number;
 }
 
-export type UncoveredReason = 'no_surplus_in_range' | 'insufficient_surplus' | 'no_position';
+export type UncoveredReason =
+  | 'no_surplus_in_range'
+  | 'insufficient_surplus'
+  | 'no_position'
+  | 'excluded';
 
 export interface UncoveredDeficit {
   readonly depotId: string;
