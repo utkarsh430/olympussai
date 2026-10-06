@@ -817,11 +817,9 @@ sparkline) and `data`.
   every depot route and page found on disk: the 401 and `no-store` answers, bad ids and
   queries, each page's heading, provenance, console and wording, five widths, cockpit links
   into the roster, exceptions totals against the API, keyboard paths, the copilot, and that
-  no page calls the sample live. On 6 Oct 2026 nine of its tests are parked with
-  `test.fixme`, each naming a known defect: the crew page's duty ids print a raw date; the
-  transfers table is wider than its box at 1280 px; Escape on the league's score breakdown;
-  the copilot's decline, four pages (both trends pages, league, routes) and the footer
-  disclaimer calling the sample live.
+  no page, footer or copilot decline calls the sample live, plus a repeated-load check for
+  hydration errors on the roster. On 6 Oct 2026 it has no parked (`test.fixme`) tests; the
+  only skips are the missing-PIN ones below.
 - **What both need:** `E2E_PROJECT_PIN` (without it each suite prints a `SKIPPED:` reason and
   skips; a top-level test fails when `CI` is set and the PIN is missing); optional
   `E2E_PROJECT_NAME`, `E2E_HOST`, `E2E_PORT` (default `localhost:3000`), `E2E_ORIGIN`.
