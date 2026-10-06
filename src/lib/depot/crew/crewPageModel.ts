@@ -1,9 +1,5 @@
 import { formatCount, formatPlainDate } from '../format';
-import {
-  modelledDaySentence,
-  noDutiesReason,
-  type ModelledDayReference,
-} from '../sim/operatingDayWording';
+import { noDutiesReason } from '../sim/operatingDayWording';
 import type { AvailabilityCounts } from './api';
 import type { CrewAvailability, CrewRole, RoleShortfall, ShortfallCause } from './types';
 
@@ -305,11 +301,6 @@ export interface Page<T> {
   readonly page: number;
   readonly pageCount: number;
   readonly rows: readonly T[];
-}
-
-/** The shared cross-reference to the modelled day; the words are built in one place for every page. */
-export function crossReferenceSentence(reference: ModelledDayReference): string {
-  return modelledDaySentence(reference);
 }
 
 export interface CrewDisclosureSection {
