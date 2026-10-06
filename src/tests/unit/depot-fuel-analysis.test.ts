@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { analyseFuel } from '@/lib/depot/fuel/analysis';
+import { isSupportedMedian } from '@/lib/depot/fuel/support';
 import {
   DEFAULT_PRICE_PER_LITRE,
   FUEL_REASON_LABELS,
@@ -115,11 +116,15 @@ describe('analyseFuel: comparison group (peers exclude the bus itself)', () => {
     expect(f?.variancePct).toBeNull();
   });
 
-  it('flags both poor buses against a good one: [5, 3, 3]', () => {
+  it('shows a variance but flags nobody when the poor buses are two of three: [5, 3, 3]', () => {
     const result = analyseFuel([day('A', 5), day('B', 3), day('C', 3)], PRICE);
-    expect(result.flagged.map((f) => f.registrationNumber)).toEqual(['B', 'C']);
-    const a = result.perBus.find((b) => b.registrationNumber === 'A');
+    expect(result.flagged).toEqual([]);
+    const b = result.perBus.find((x) => x.registrationNumber === 'B');
+    expect(b?.variancePct).toBeCloseTo(33, 0); // litres are rounded to one decimal
+    expect(b?.withheldReason).toBe('peers_differ');
+    const a = result.perBus.find((x) => x.registrationNumber === 'A');
     expect(a?.variancePct).toBeLessThan(0);
+    expect(a?.withheldReason).toBeNull();
   });
 
   it('flags the single outlier: [5, 5, 3]', () => {
@@ -135,6 +140,85 @@ describe('analyseFuel: comparison group (peers exclude the bus itself)', () => {
     expect(result.flagged[0]?.statement).toBe(
       'uses 25% more fuel per kilometre than similar buses of its class in this depot',
     );
+  });
+});
+
+const flaggedFor = (kmPerLitre: readonly number[]): string[] =>
+  analyseFuel(
+    kmPerLitre.map((km, i) => day(`B${i}`, km)),
+    PRICE,
+  ).flagged.map((f) => f.registrationNumber);
+
+describe('isSupportedMedian', () => {
+  it('needs at least two peers within the flag threshold of their median', () => {
+    expect(isSupportedMedian([4, 8])).toBe(false); // median 6, both 33% away
+    expect(isSupportedMedian([5, 3])).toBe(false); // median 4, both 25% away
+    expect(isSupportedMedian([5, 5])).toBe(true);
+    expect(isSupportedMedian([5, 5, 3])).toBe(true);
+    expect(isSupportedMedian([5, 4])).toBe(true); // median 4.5, both 11.1% away
+    expect(isSupportedMedian([5, 3, 3, 5])).toBe(false); // median 4: all 25% away
+  });
+
+  it('is false for fewer than two peers and for a non-positive median', () => {
+    expect(isSupportedMedian([])).toBe(false);
+    expect(isSupportedMedian([5])).toBe(false);
+    expect(isSupportedMedian([0, 0])).toBe(false);
+  });
+
+  it('counts a peer exactly at the threshold as within it', () => {
+    // Median of [20, 23] is 21.5; 23 is 6.98% away, 20 is 6.98% away: both within.
+    expect(isSupportedMedian([20, 23])).toBe(true);
+    // Median 100; 85 is exactly 15% away and 115 is exactly 15% away.
+    expect(isSupportedMedian([85, 100, 115])).toBe(true);
+    expect(isSupportedMedian([84, 100, 116])).toBe(false);
+  });
+});
+
+describe('analyseFuel: a flag needs a supported peer median', () => {
+  it('flags none for [4, 4, 8]: each 4 has peers 4 and 8, median 6', () => {
+    expect(flaggedFor([4, 4, 8])).toEqual([]);
+    const f = figureOf([day('A', 4), day('B', 4), day('C', 8)], 'A');
+    expect(f?.variancePct).toBeCloseTo(50, 0); // litres are rounded to one decimal
+    expect(f?.withheldReason).toBe('peers_differ');
+  });
+
+  it('flags none for [5, 3, 3]', () => {
+    expect(flaggedFor([5, 3, 3])).toEqual([]);
+  });
+
+  it('flags the 3 for [5, 5, 3]', () => {
+    expect(flaggedFor([5, 5, 3])).toEqual(['B2']);
+  });
+
+  it('flags both 3s for [5, 5, 3, 3]', () => {
+    expect(flaggedFor([5, 5, 3, 3])).toEqual(['B2', 'B3']);
+  });
+
+  it('flags the 3 for [5, 4, 3]: peers 5 and 4 are both 11.1% from their median 4.5', () => {
+    // |5 - 4.5| / 4.5 = 11.1% and |4 - 4.5| / 4.5 = 11.1%, both within 15%.
+    expect(flaggedFor([5, 4, 3])).toEqual(['B2']);
+  });
+
+  it('flags a bus with exactly two peers only when the two agree', () => {
+    expect(flaggedFor([5, 5, 4])).toEqual(['B2']);
+    expect(flaggedFor([8, 4, 4.5])).toEqual([]);
+  });
+
+  it('gives a reason only to a bus that would have been flagged without the rule', () => {
+    const result = analyseFuel([day('A', 4), day('B', 4), day('C', 8)], PRICE);
+    const reasons = result.perBus.map((b) => [b.registrationNumber, b.withheldReason]);
+    expect(reasons).toEqual([
+      ['A', 'peers_differ'],
+      ['B', 'peers_differ'],
+      ['C', null],
+    ]);
+    expect(FUEL_REASON_LABELS.peers_differ).toBe('peers differ too much to compare');
+  });
+
+  it('keeps the figure and the variance on a bus whose peers differ', () => {
+    const f = figureOf([day('A', 4), day('B', 4), day('C', 8)], 'A');
+    expect(f?.kmPerLitre).toBeCloseTo(4, 0);
+    expect(f?.comparison).toBe('route');
   });
 });
 

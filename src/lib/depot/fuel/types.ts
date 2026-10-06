@@ -32,12 +32,17 @@ export interface FuelFigure {
 }
 
 /** Why a figure is withheld. */
-export type FuelWithheldReason = 'no_distance' | 'no_fuel' | 'no_comparison_group';
+export type FuelWithheldReason =
+  | 'no_distance'
+  | 'no_fuel'
+  | 'no_comparison_group'
+  | 'peers_differ';
 
 export const FUEL_REASON_LABELS: Readonly<Record<FuelWithheldReason, string>> = {
   no_distance: 'No distance recorded',
   no_fuel: 'No fuel recorded',
   no_comparison_group: 'Too few similar buses to compare',
+  peers_differ: 'peers differ too much to compare',
 };
 
 export type FuelComparisonScope = 'route' | 'depot';
