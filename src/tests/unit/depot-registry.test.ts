@@ -2,6 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { FEED_REGISTRY, FEED_STATUS_LABEL } from '@/lib/depot/sources/registry';
 import { depotBusRowSchema } from '@/models/depotLive';
 
+describe('the modelled feeds say what the modelled day replaced (S39, S41)', () => {
+  const summary = (id: string): string => FEED_REGISTRY.find((f) => f.id === id)?.summary ?? '';
+  it('anchors fuel, ticketing and crew on the one modelled operating day', () => {
+    expect(summary('fuel')).toContain('the distance each bus ran in the modelled operating day');
+    expect(summary('ticketing-ridership')).toContain('the trips of the modelled operating day');
+    expect(summary('crew-duties')).toContain('duties come from the modelled operating day');
+  });
+  it('no longer says earnings per kilometre wait for a route master', () => {
+    expect(summary('ticketing-ridership')).not.toMatch(/needed for earnings per kilometre/);
+    expect(summary('ticketing-ridership')).toContain('a MODELLED typical length for its class');
+  });
+});
+
 describe('FEED_REGISTRY', () => {
   it('has unique ids', () => {
     const ids = FEED_REGISTRY.map((feed) => feed.id);

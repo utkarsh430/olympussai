@@ -183,7 +183,7 @@ const CREW: FeedEntry = {
   name: 'Crew and duties',
   status: 'modelled',
   summary:
-    'Crew availability as anonymous driver and conductor slots per depot, MODELLED today; duties come from the modelled duty board.',
+    'Crew availability as anonymous driver and conductor slots per depot, MODELLED today; duties come from the modelled operating day, the same duties the duty board shows.',
   unlocks:
     'The crew page: duty coverage and shortfall per depot, on real rosters. Availability and rostering only; no individual is assessed.',
   fields: [
@@ -229,7 +229,7 @@ const FUEL: FeedEntry = {
   name: 'Fuel',
   status: 'modelled',
   summary:
-    'Fuel issued per bus per day, MODELLED today from the distance each bus runs and a consumption per service class.',
+    'Fuel issued per bus per day, MODELLED today from the distance each bus ran in the modelled operating day (the route of its duty, out and back) and a consumption per service class.',
   unlocks:
     'The fuel page: fuel use and cost per kilometre by bus, route and depot, and a way to confirm the odometer unit.',
   fields: [
@@ -255,7 +255,7 @@ const TICKETING: FeedEntry = {
   name: 'Ticketing and ridership',
   status: 'modelled',
   summary:
-    'Boardings and revenue per route per day, MODELLED today from trips, a load factor per class and fares. A route master with real route lengths is also needed for earnings per kilometre.',
+    'Boardings and revenue per route per day, MODELLED today from the trips of the modelled operating day, a load factor per class and fares. A route without a real length runs on a MODELLED typical length for its class; a route master with real route lengths would replace those in the revenue totals.',
   unlocks:
     'The revenue page and the economics page: revenue and load per route and depot, and the Depot Economics Index on measured figures.',
   fields: [

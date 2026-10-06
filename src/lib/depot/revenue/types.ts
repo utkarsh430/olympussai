@@ -1,4 +1,4 @@
-import type { DepotBusView } from '../api';
+import type { OperatingDay, RouteLengthProvenance } from '../sim/operatingDayTypes';
 import type { ServiceClass } from '../sim/types';
 import type { Coverage, DepotSummary } from '../types';
 
@@ -7,27 +7,6 @@ import type { Coverage, DepotSummary } from '../types';
  * no ticketing. Every figure is MODELLED; a route length, where real, is
  * DERIVED, but the earnings built on it stay MODELLED.
  */
-
-/** What the generator needs to know about one route on one day. */
-export interface RouteRidershipInput {
-  readonly routeName: string;
-  readonly serviceClass: ServiceClass;
-  /** Buses running the route today. */
-  readonly buses: number;
-  readonly seatsPerBus: number;
-  readonly scheduledDurationMin: number | null;
-  /** The profiled length; null when the route's stops have not been fetched. */
-  readonly lengthKm: number | null;
-}
-
-/** Route facts from the catalogue, looked up by route name. */
-export interface RouteFacts {
-  readonly routeName: string;
-  readonly scheduledDurationMin: number | null;
-  readonly lengthKm: number | null;
-}
-
-export type RevenueBasis = 'length_known' | 'flat_fare_unknown_length';
 
 /** One route's modelled day. Whole boardings, whole rupees. */
 export interface RouteRidershipDay {
@@ -41,22 +20,21 @@ export interface RouteRidershipDay {
   readonly loadFactor: number;
   readonly boardings: number;
   readonly revenue: number;
-  /** The route's real length when known (DERIVED); null otherwise. */
-  readonly lengthKm: number | null;
-  readonly revenueBasis: RevenueBasis;
+  /** One way: the real length (DERIVED) or the modelled typical length of the class. */
+  readonly lengthKm: number;
+  readonly lengthProvenance: RouteLengthProvenance;
+  /** The operating day's figure: trips times the route out and back, to one decimal. */
+  readonly serviceKm: number;
   readonly provenance: 'modelled';
 }
 
-export type EarningsWithheldReason = 'unknown_length' | 'no_service_km';
+/** Earnings per km are withheld only when nothing ran on the route. */
+export type EarningsWithheldReason = 'no_service_km';
 
 export interface RouteRevenueFigure extends RouteRidershipDay {
-  /** Out-and-back kilometres run; null with an unknown length. */
-  readonly serviceKm: number | null;
   /** Rupees per service kilometre, two decimals; null when withheld. */
   readonly earningsPerKm: number | null;
   readonly earningsWithheld: EarningsWithheldReason | null;
-  /** DERIVED when a real length was used; null when none was. */
-  readonly lengthProvenance: 'derived' | null;
 }
 
 export interface DepotRevenueTotals {
@@ -66,14 +44,14 @@ export interface DepotRevenueTotals {
   readonly revenue: number;
   /** Ratio of sums: occupied seats over seats offered; null with no capacity. */
   readonly loadFactor: number | null;
-  /** Share of the revenue built on the flat fare (route length unknown); null with no revenue. */
-  readonly flatFareRevenueShare: number | null;
-  /** Share of the routes built on the flat fare; null with no routes. */
-  readonly flatFareRouteShare: number | null;
-  /** Revenue over service km of the routes with a known length only. */
+  /** Kilometres run on every route, to one decimal: the fuel page's distance. */
+  readonly serviceKm: number;
+  /** Share of the revenue on routes whose length is modelled; null with no revenue. */
+  readonly modelledLengthRevenueShare: number | null;
+  /** Revenue over service km of every route. */
   readonly earningsPerKm: number | null;
-  /** "Based on N of M routes". */
-  readonly earningsCoverage: Coverage;
+  /** Routes whose length is from a real profile, out of the routes run. Never a reason to hide a figure. */
+  readonly lengthCoverage: Coverage;
   readonly provenance: 'modelled';
 }
 
@@ -84,11 +62,7 @@ export interface RevenueAnalysis {
 
 /** The seam to where ridership comes from; modelled today, ticketing data later. */
 export interface RevenueRepository {
-  ridershipDay(
-    buses: readonly DepotBusView[],
-    routeFacts: readonly RouteFacts[],
-    operatingDate: string,
-  ): Promise<readonly RouteRidershipDay[]>;
+  ridershipDay(day: OperatingDay): Promise<readonly RouteRidershipDay[]>;
 }
 
 export type EconomicsComponentKey = 'earningsPerKm' | 'costPerKm' | 'loadFactor';
@@ -98,8 +72,7 @@ export type EconomicsRankReason =
   | 'not_a_depot'
   | 'fleet_too_small'
   | 'missing_component'
-  | 'peer_group_too_small'
-  | 'thin_route_coverage';
+  | 'peer_group_too_small';
 
 export interface EconomicsInput {
   readonly depot: DepotSummary;
@@ -107,8 +80,8 @@ export interface EconomicsInput {
   /** From the fuel analysis. */
   readonly costPerKm: number | null;
   readonly loadFactor: number | null;
-  /** Routes of known length out of routes run: what the earnings figure rests on. */
-  readonly earningsCoverage: Coverage;
+  /** Routes whose length is from a real profile, out of the routes run. */
+  readonly lengthCoverage: Coverage;
 }
 
 export interface EconomicsComponent {

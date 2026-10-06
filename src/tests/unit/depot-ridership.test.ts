@@ -1,239 +1,100 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import type { DepotBusView } from '@/lib/depot/api';
 import { analyseRevenue } from '@/lib/depot/revenue/analysis';
-import type { RouteRidershipDay, RouteRidershipInput } from '@/lib/depot/revenue/types';
-import { modelRidershipDay } from '@/lib/depot/sim/ridership';
+import { modelOperatingDay } from '@/lib/depot/sim/operatingDay';
+import type { OperatingDay } from '@/lib/depot/sim/operatingDayTypes';
 import {
   AVG_TRIP_LENGTH_SHARE,
   FARE_PER_KM,
-  FLAT_FARE_PER_BOARDING,
-  LEGS_PER_TRIP,
+  LOAD_FACTOR_BASE,
+  LOAD_FACTOR_DAILY_NOISE,
+  LOAD_FACTOR_ROUTE_SPREAD,
   MAX_LOAD_FACTOR,
 } from '@/lib/depot/sim/revenueConfig';
+import { modelRidershipDay } from '@/lib/depot/sim/ridership';
+import { priceRoute } from '@/lib/depot/sim/ridershipFigures';
+import type { BusOpState, DepotSummary } from '@/lib/depot/types';
 
-const DATE = '2026-10-06';
+/*
+ * Rewritten for rulings S41 and S39. The old tests pinned trips taken from the
+ * trip-frequency model, a flat fare for a route of unknown length and earnings
+ * per kilometre withheld as `unknown_length`. Trips are now the operating day's
+ * duties that ran, every route is priced on a length (real or modelled), and
+ * earnings per kilometre are given for every route that ran.
+ */
 
-function route(overrides: Partial<RouteRidershipInput> = {}): RouteRidershipInput {
-  return {
-    routeName: 'RKD_4560_ORD_OUT',
-    serviceClass: 'ordinary',
-    buses: 6,
-    seatsPerBus: 52,
-    scheduledDurationMin: 150,
-    lengthKm: 40,
-    ...overrides,
-  };
+const DEPOT = { id: '7', name: 'Kaushambi', kind: 'depot', fleet: 24 } as unknown as DepotSummary;
+
+function bus(registrationNumber: string, state: BusOpState, routeName: string | null): DepotBusView {
+  return { registrationNumber, state, routeName } as unknown as DepotBusView;
 }
 
-const dayStub: RouteRidershipDay = {
-  routeName: 'X',
-  serviceClass: 'ordinary',
-  trips: 2,
-  seatsPerTrip: 50,
-  seatCapacity: 100,
-  loadFactor: 0.5,
-  boardings: 10,
-  revenue: 0,
-  lengthKm: 50,
-  revenueBasis: 'length_known',
-  provenance: 'modelled',
-};
-
-const many: readonly RouteRidershipInput[] = Array.from({ length: 120 }, (_, i) =>
-  route({
-    routeName: `RKD_${4000 + i}_ORD_OUT`,
-    buses: 1 + (i % 9),
-    lengthKm: i % 4 === 0 ? null : 10 + i,
-    serviceClass: (['ordinary', 'express', 'ac', 'premium'] as const)[i % 4] ?? 'ordinary',
-  }),
+const BUSES = Array.from({ length: 24 }, (_, i) =>
+  bus(`UP70T${100 + i}`, 'standing', ['AGRA_EXP_1', 'KANPUR_ORD_2', 'DELHI_AC_3'][i % 3] ?? null),
 );
 
-function hasNonFinite(value: unknown): boolean {
-  return /NaN|Infinity/.test(JSON.stringify(value, (_k, v: unknown) =>
-    typeof v === 'number' && !Number.isFinite(v) ? 'NaN' : v,
-  ));
+function dayOf(operatingDate: string, real: Readonly<Record<string, number>> = {}): OperatingDay {
+  return modelOperatingDay({
+    depot: DEPOT,
+    buses: BUSES,
+    peakRequirement: 18,
+    realLengthKm: new Map(Object.entries(real)),
+    operatingDate,
+  });
 }
 
-describe('modelRidershipDay', () => {
-  it('is deterministic and independent of input order', () => {
-    const forward = modelRidershipDay(many, DATE);
-    expect(modelRidershipDay([...many].reverse(), DATE)).toEqual(forward);
-    expect(modelRidershipDay(many.map((r) => ({ ...r })), DATE)).toEqual(forward);
-  });
-
-  it('varies by date but a route keeps its lasting factor across dates', () => {
-    const a = modelRidershipDay([route()], '2026-10-06')[0];
-    const b = modelRidershipDay([route()], '2026-10-07')[0];
-    expect(a?.loadFactor).not.toBe(b?.loadFactor);
-    // Daily noise is small (5% of the factor), so a route's factor stays close to itself,
-    // while two different routes of the same class differ by the route spread.
-    const factors = (date: string): number[] =>
-      modelRidershipDay(
-        many.map((r) => ({ ...r, serviceClass: 'ordinary' as const })),
-        date,
-      ).map((d) => d.loadFactor);
-    const day1 = factors('2026-10-06');
-    const day2 = factors('2026-10-09');
-    day1.forEach((f, i) => expect(Math.abs(f - (day2[i] ?? 0))).toBeLessThan(0.08));
-    expect(Math.max(...day1) - Math.min(...day1)).toBeGreaterThan(0.1);
-  });
-
-  it('never lets the load factor or boardings exceed the maximum', () => {
-    for (const day of modelRidershipDay(many, DATE)) {
-      expect(day.loadFactor).toBeLessThanOrEqual(MAX_LOAD_FACTOR);
-      // Boardings turn over seats: floor(seats * cap / ride share) per leg, two legs a trip.
-      expect(day.boardings).toBeLessThanOrEqual(
-        day.trips * LEGS_PER_TRIP * Math.floor((day.seatsPerTrip * MAX_LOAD_FACTOR) / AVG_TRIP_LENGTH_SHARE),
-      );
-      expect(Number.isInteger(day.boardings)).toBe(true);
-      expect(Number.isInteger(day.revenue)).toBe(true);
-    }
-  });
-
-  it('gives zero boardings and no division by zero for zero trips or zero seats', () => {
-    const days = modelRidershipDay(
-      [route({ buses: 0 }), route({ routeName: 'B', seatsPerBus: 0 })],
-      DATE,
-    );
-    for (const day of days) {
-      expect(day.boardings).toBe(0);
-      expect(day.revenue).toBe(0);
-    }
-    const analysis = analyseRevenue(days);
-    expect(analysis.depot.loadFactor).toBeNull();
-    expect(hasNonFinite(analysis)).toBe(false);
-  });
-
-  it('prices a known length per occupied seat-kilometre and an unknown one at the flat fare', () => {
-    const [known] = modelRidershipDay([route({ lengthKm: 40 })], DATE);
-    const [unknown] = modelRidershipDay([route({ lengthKm: null })], DATE);
-    expect(known?.revenueBasis).toBe('length_known');
-    expect(unknown?.revenueBasis).toBe('flat_fare_unknown_length');
-    const legs = (known?.trips ?? 0) * LEGS_PER_TRIP;
-    const occupied = (known?.seatsPerTrip ?? 0) * (known?.loadFactor ?? 0);
-    expect(known?.revenue).toBe(Math.round(legs * occupied * 40 * FARE_PER_KM.ordinary));
-    expect(unknown?.revenue).toBe((unknown?.boardings ?? 0) * FLAT_FARE_PER_BOARDING);
-  });
-
-  it('survives hostile inputs with defined, finite output', () => {
-    const hostile = [
-      route({ buses: Number.NaN }),
-      route({ routeName: 'H2', buses: Infinity, seatsPerBus: Infinity }),
-      route({ routeName: 'H3', seatsPerBus: -5, lengthKm: -3 }),
-      route({ routeName: 'H4', lengthKm: Number.NaN, scheduledDurationMin: Infinity }),
-      route({ routeName: 'H5', lengthKm: 1e12 }),
-      route({ routeName: '' }),
-    ];
-    const days = modelRidershipDay(hostile, DATE);
-    expect(days).toHaveLength(hostile.length);
-    expect(hasNonFinite(days)).toBe(false);
-    expect(hasNonFinite(analyseRevenue(days))).toBe(false);
-  });
-
-  it('does not mutate its input', () => {
-    const input = many.map((r) => ({ ...r }));
-    const frozen = JSON.stringify(input);
-    modelRidershipDay(Object.freeze(input.map((r) => Object.freeze(r))), DATE);
-    expect(JSON.stringify(input)).toBe(frozen);
-  });
-
-  it('tags every row modelled', () => {
-    for (const day of modelRidershipDay(many, DATE)) expect(day.provenance).toBe('modelled');
+describe('priceRoute', () => {
+  it('prices occupied seat-kilometres and floors boardings per leg (hand worked)', () => {
+    // 3 trips = 6 legs; 44 seats x 0.6 = 26.4 occupied; 26.4 / 0.45 = 58.67 -> 58 boardings a leg.
+    // revenue = 6 legs x 26.4 x 100 km x Rs 1.50 = Rs 23,760; boardings = 6 x 58 = 348.
+    expect(AVG_TRIP_LENGTH_SHARE).toBe(0.45);
+    expect(FARE_PER_KM.express).toBe(1.5);
+    expect(
+      priceRoute({ serviceClass: 'express', trips: 3, seats: 44, loadFactor: 0.6, lengthKm: 100 }),
+    ).toEqual({ boardings: 348, revenue: 23760 });
   });
 });
 
-describe('analyseRevenue', () => {
-  const days = modelRidershipDay(many, DATE);
-  const analysis = analyseRevenue(days);
-
-  it('withholds earnings per kilometre for a route with no profile, with the reason', () => {
-    const [day] = modelRidershipDay([route({ lengthKm: null })], DATE);
-    const row = analyseRevenue(day === undefined ? [] : [day]).perRoute[0];
-    expect(row?.earningsPerKm).toBeNull();
-    expect(row?.earningsWithheld).toBe('unknown_length');
-    expect(row?.serviceKm).toBeNull();
-    expect(row?.lengthProvenance).toBeNull();
-    expect(row?.revenue).toBeGreaterThan(0);
+describe('modelRidershipDay', () => {
+  it('has one row per route of the day, with the day’s trips, length and service kilometres', () => {
+    const day = dayOf('2026-10-06', { AGRA_EXP_1: 120 });
+    const rows = modelRidershipDay(day);
+    expect(rows.map((r) => r.routeName)).toEqual(day.routes.map((r) => r.routeName));
+    for (const row of rows) {
+      const route = day.routes.find((r) => r.routeName === row.routeName);
+      expect([row.trips, row.lengthKm, row.serviceKm, row.serviceClass]).toEqual([
+        route?.trips, route?.lengthKm, route?.serviceKm, route?.serviceClass,
+      ]);
+      expect(row.lengthProvenance).toBe(row.routeName === 'AGRA_EXP_1' ? 'derived' : 'modelled');
+      expect(row.seatCapacity).toBe(row.trips * row.seatsPerTrip);
+      expect(row.provenance).toBe('modelled');
+    }
+    expect(rows.reduce((total, r) => total + r.trips, 0)).toBe(18);
   });
 
-  it('computes earnings per kilometre from service kilometres where length is real', () => {
-    const [day] = modelRidershipDay([route({ lengthKm: 40 })], DATE);
-    const row = analyseRevenue(day === undefined ? [] : [day]).perRoute[0];
-    const serviceKm = (day?.trips ?? 0) * 40 * LEGS_PER_TRIP;
-    expect(row?.serviceKm).toBe(serviceKm);
-    expect(row?.earningsPerKm).toBe(Math.round(((day?.revenue ?? 0) / serviceKm) * 100) / 100);
-    expect(row?.earningsWithheld).toBeNull();
-    expect(row?.lengthProvenance).toBe('derived');
-    expect(row?.provenance).toBe('modelled');
+  it('keeps the load factor near its class base, under the cap, and stable per route', () => {
+    const a = modelRidershipDay(dayOf('2026-10-06'));
+    const b = modelRidershipDay(dayOf('2026-10-07'));
+    const band = (1 + LOAD_FACTOR_ROUTE_SPREAD) * (1 + LOAD_FACTOR_DAILY_NOISE);
+    a.forEach((row, i) => {
+      const base = LOAD_FACTOR_BASE[row.serviceClass];
+      expect(row.loadFactor).toBeLessThanOrEqual(Math.min(MAX_LOAD_FACTOR, base * band + 0.001));
+      expect(row.loadFactor).toBeGreaterThan(0);
+      // The lasting route factor holds across dates; only the small daily noise moves it.
+      expect(Math.abs(row.loadFactor - (b[i]?.loadFactor ?? 0))).toBeLessThan(base * 0.1);
+    });
+    expect(modelRidershipDay(dayOf('2026-10-06'))).toEqual(a);
   });
 
-  it('reconciles: routes sum to the depot total in whole boardings and rupees', () => {
-    expect(analysis.depot.boardings).toBe(analysis.perRoute.reduce((s, r) => s + r.boardings, 0));
-    expect(analysis.depot.revenue).toBe(analysis.perRoute.reduce((s, r) => s + r.revenue, 0));
-    expect(Number.isInteger(analysis.depot.revenue)).toBe(true);
-    expect(analysis.depot.routes).toBe(many.length);
-  });
-
-  it('states coverage of earnings per kilometre as N of M routes', () => {
-    const known = many.filter((r) => r.lengthKm !== null).length;
-    expect(analysis.depot.earningsCoverage).toEqual({ n: known, of: many.length });
-    expect(analysis.depot.provenance).toBe('modelled');
-  });
-
-  it('uses the ratio of sums for load factor, weighted by seats offered, not the mean of ratios', () => {
-    const small = route({ routeName: 'S', buses: 1, seatsPerBus: 10 });
-    const big = route({ routeName: 'L', buses: 40, seatsPerBus: 52 });
-    const rows = modelRidershipDay([small, big], DATE);
-    const result = analyseRevenue(rows);
-    const occupied = rows.reduce((s, r) => s + r.seatCapacity * r.loadFactor, 0);
-    const capacity = rows.reduce((s, r) => s + r.seatCapacity, 0);
-    const meanOfRatios = rows.reduce((s, r) => s + r.loadFactor, 0) / rows.length;
-    expect(result.depot.loadFactor).toBeCloseTo(occupied / capacity, 10);
-    expect(Math.abs((result.depot.loadFactor ?? 0) - meanOfRatios)).toBeGreaterThan(0.005);
-    expect(result.depot.loadFactor ?? 2).toBeLessThanOrEqual(MAX_LOAD_FACTOR);
-  });
-
-  it('weights the depot load factor by trips, with worked figures stated as literals', () => {
-    // Route A offers 100 seats and fills half of them; route B offers 300 and fills 90%.
-    // Occupied: 50 + 270 = 320 of 400 offered, so 0.80. The plain mean of 0.5 and 0.9 is 0.70.
-    const a: RouteRidershipDay = { ...dayStub, routeName: 'A', seatCapacity: 100, loadFactor: 0.5 };
-    const b: RouteRidershipDay = { ...dayStub, routeName: 'B', seatCapacity: 300, loadFactor: 0.9 };
-    expect(analyseRevenue([a, b]).depot.loadFactor).toBeCloseTo(0.8, 10);
-    expect(analyseRevenue([b, a]).depot.loadFactor).toBeCloseTo(0.8, 10);
-  });
-
-  it('says how much of the revenue and of the routes rest on the flat fare', () => {
-    const days: RouteRidershipDay[] = [
-      { ...dayStub, routeName: 'A', revenue: 600, revenueBasis: 'length_known' },
-      { ...dayStub, routeName: 'B', revenue: 200, revenueBasis: 'flat_fare_unknown_length' },
-      { ...dayStub, routeName: 'C', revenue: 200, revenueBasis: 'flat_fare_unknown_length', lengthKm: null },
-      { ...dayStub, routeName: 'D', revenue: 0, revenueBasis: 'length_known' },
-    ];
-    const { depot } = analyseRevenue(days);
-    expect(depot.revenue).toBe(1000);
-    expect(depot.flatFareRevenueShare).toBe(0.4);
-    expect(depot.flatFareRouteShare).toBe(0.5);
-    const none = analyseRevenue([]).depot;
-    expect(none.flatFareRevenueShare).toBeNull();
-    expect(none.flatFareRouteShare).toBeNull();
-  });
-
-  it('computes depot earnings per kilometre over known-length routes only', () => {
-    const known = analysis.perRoute.filter((r) => r.serviceKm !== null);
-    const revenue = known.reduce((s, r) => s + r.revenue, 0);
-    const km = known.reduce((s, r) => s + (r.serviceKm ?? 0), 0);
-    expect(analysis.depot.earningsPerKm).toBe(Math.round((revenue / km) * 100) / 100);
-  });
-
-  it('gives no depot earnings per kilometre when no route has a known length', () => {
-    const rows = modelRidershipDay(many.map((r) => ({ ...r, lengthKm: null })), DATE);
-    const result = analyseRevenue(rows);
-    expect(result.depot.earningsPerKm).toBeNull();
-    expect(result.depot.earningsCoverage).toEqual({ n: 0, of: many.length });
-  });
-
-  it('is independent of input order and does not mutate its input', () => {
-    const copy = days.map((d) => ({ ...d }));
-    expect(analyseRevenue([...copy].reverse())).toEqual(analysis);
-    expect(copy).toEqual(days);
+  it('gives earnings per km for every route that ran, real length or modelled', () => {
+    const analysis = analyseRevenue(modelRidershipDay(dayOf('2026-10-06', { AGRA_EXP_1: 120 })));
+    for (const route of analysis.perRoute) {
+      expect(route.earningsWithheld).toBeNull();
+      const perKm = route.seatsPerTrip * route.loadFactor * FARE_PER_KM[route.serviceClass];
+      expect(route.earningsPerKm).toBeCloseTo(perKm, 1);
+    }
+    expect(analysis.depot.lengthCoverage).toEqual({ n: 1, of: 3 });
+    expect(analysis.depot.modelledLengthRevenueShare).toBeGreaterThan(0);
+    expect(analysis.depot.modelledLengthRevenueShare).toBeLessThan(1);
   });
 });

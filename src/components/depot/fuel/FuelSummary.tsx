@@ -33,7 +33,7 @@ export function FuelSummary({ data }: { readonly data: FuelResponse }) {
         <ProvenanceBadge provenance="modelled" />
       </div>
       <p className="depot-prose mb-3" role="status">
-        {summarySentence(totals, { price: data.pricePerLitre, defaulted: data.priceDefaulted })}
+        {summarySentence(totals, { price: data.pricePerLitre, defaulted: data.priceDefaulted }, data.day)}
       </p>
       <p className="depot-prose mb-3">{COST_NOTE}</p>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 xl:grid-cols-6">

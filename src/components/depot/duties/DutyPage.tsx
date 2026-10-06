@@ -15,6 +15,7 @@ import {
   COST_SENTENCE,
   MODEL_NOTICE,
   buildBoardRows,
+  crossReferenceSentence,
   emptyDutiesSentence,
   routesWithoutDutySentence,
   spareSentence,
@@ -75,6 +76,13 @@ export function DutyPage({ depotId }: { readonly depotId: string }) {
       {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
       <p className="depot-prose" data-testid="duties-notice">
         {MODEL_NOTICE}
+      </p>
+      <p className="depot-prose" data-testid="duties-modelled-day">
+        {crossReferenceSentence({
+          scheduled: null,
+          duties: data.duties.length,
+          routes: new Set(data.duties.map((duty) => duty.routeName)).size,
+        })}
       </p>
       {rows.length === 0 ? (
         <EmptyState>{emptyDutiesSentence(data)}</EmptyState>

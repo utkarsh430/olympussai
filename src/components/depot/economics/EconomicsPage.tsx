@@ -20,6 +20,7 @@ import {
   economicsStatement,
   economicsStatusLine,
   filterEconomicsRows,
+  lengthCoverageLine,
   rankingShortfallNotice,
   type EconomicsFilters,
   type EconomicsRow,
@@ -56,6 +57,7 @@ export function EconomicsPage() {
   const shortfall = useMemo(() => (data ? rankingShortfallNotice(data.depots) : null), [data]);
   const statement = useMemo(() => economicsStatement(), []);
   const statusLine = useMemo(() => (data ? economicsStatusLine(data.depots) : ''), [data]);
+  const lengthLine = useMemo(() => (data ? lengthCoverageLine(data.depots) : null), [data]);
   const select = useCallback((row: EconomicsRow): void => {
     setSelectedId(row.depotId);
     setFocusPending(true);
@@ -138,6 +140,11 @@ export function EconomicsPage() {
             : 'Select Score on a row to see how its modelled index is made up.'}
       </p>
       <p className="depot-prose mb-2 max-w-3xl text-xs">{INDEX_LIMITS_NOTE}</p>
+      {lengthLine ? (
+        <p className="depot-prose mb-2 max-w-3xl text-xs" data-testid="depot-economics-lengths">
+          {lengthLine}
+        </p>
+      ) : null}
       <div className={selected ? 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_26rem]' : ''}>
         <div className="min-w-0">
           <EconomicsGrid

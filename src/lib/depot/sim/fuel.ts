@@ -1,19 +1,14 @@
 import { SeededRandom } from '../../simulation/seededRandom';
-import type { DepotBusView } from '../api';
 import { compareText } from '../fuel/compare';
 import type { BusFuelDay } from '../fuel/types';
 import { STATIC_SEED_DATE } from './config';
-import { modelBus } from './fleetMaster';
 import {
-  FUEL_CLASS_DAILY_KM,
   FUEL_CLASS_KM_PER_LITRE,
   FUEL_DAILY_NOISE,
-  FUEL_DISTANCE_SPREAD,
   FUEL_EFFICIENCY_SPREAD,
-  FUEL_STANDING_DISTANCE_SHARE,
 } from './fuelConfig';
+import type { DayRun, OperatingDay } from './operatingDayTypes';
 import { seedFor } from './seed';
-import type { ModelledBus } from './types';
 
 const TENTH = 10;
 
@@ -21,56 +16,37 @@ function toTenths(value: number): number {
   return Math.round(value * TENTH) / TENTH;
 }
 
-/** Share of a full day's distance a bus in this state runs. */
-function distanceShare(state: DepotBusView['state']): number {
-  if (state === 'off_road' || state === 'dark') return 0;
-  return state === 'standing' ? FUEL_STANDING_DISTANCE_SHARE : 1;
-}
-
-function fuelRowFor(
-  view: DepotBusView,
-  modelled: ModelledBus,
-  operatingDate: string,
-): BusFuelDay {
-  const { registrationNumber, routeName } = view;
-  const { serviceClass } = modelled;
-  const share = distanceShare(view.state);
-  const identity = { registrationNumber, serviceClass, routeName };
-  if (share === 0) return { ...identity, distanceKm: 0, fuelLitres: 0 };
-
-  // The lasting factor is seeded by registration alone so it holds across dates.
-  const lasting = new SeededRandom(seedFor(registrationNumber, STATIC_SEED_DATE, 'fuel-efficiency'));
-  const factor = 1 + lasting.float(-FUEL_EFFICIENCY_SPREAD, FUEL_EFFICIENCY_SPREAD);
-  const daily = new SeededRandom(seedFor(registrationNumber, operatingDate, 'fuel-day'));
-  const distanceKm = toTenths(
-    FUEL_CLASS_DAILY_KM[serviceClass] *
-      share *
-      (1 + daily.float(-FUEL_DISTANCE_SPREAD, FUEL_DISTANCE_SPREAD)),
+/**
+ * The bus's modelled economy for the day: its class figure, moved by a lasting
+ * factor seeded by registration alone (so one bus is consistently better or
+ * worse on every date) and by a small daily noise.
+ */
+function kmPerLitreOf(run: DayRun, operatingDate: string): number {
+  const lasting = new SeededRandom(seedFor(run.registrationNumber, STATIC_SEED_DATE, 'fuel-efficiency'));
+  const daily = new SeededRandom(seedFor(run.registrationNumber, operatingDate, 'fuel-day'));
+  return (
+    FUEL_CLASS_KM_PER_LITRE[run.busClass] *
+    (1 + lasting.float(-FUEL_EFFICIENCY_SPREAD, FUEL_EFFICIENCY_SPREAD)) *
+    (1 + daily.float(-FUEL_DAILY_NOISE, FUEL_DAILY_NOISE))
   );
-  const kmPerLitre =
-    FUEL_CLASS_KM_PER_LITRE[serviceClass] *
-    factor *
-    (1 + daily.float(-FUEL_DAILY_NOISE, FUEL_DAILY_NOISE));
-  return { ...identity, distanceKm, fuelLitres: toTenths(distanceKm / kmPerLitre) };
 }
 
 /**
- * One MODELLED day of distance and fuel issue per bus. Deterministic per
- * registration and operating date; off-road and dark buses run nothing.
- * Output is sorted by registration so input order never matters.
+ * One MODELLED day of distance and fuel issue for each bus that ran. The
+ * distance is not drawn here: it is the bus's duty in the operating day (its
+ * route out and back), so the fuel page and the revenue page add up to the same
+ * kilometres. Fuel issued is that distance over the bus's modelled economy. A
+ * bus that did not run has no row: it has no distance, not a distance of zero.
+ * Sorted by registration.
  */
-export function modelFuelDay(
-  buses: readonly DepotBusView[],
-  fleet: ReadonlyMap<string, ModelledBus>,
-  operatingDate: string,
-): BusFuelDay[] {
-  return buses
-    .map((view) =>
-      fuelRowFor(
-        view,
-        fleet.get(view.registrationNumber) ?? modelBus(view.registrationNumber, view.routeName),
-        operatingDate,
-      ),
-    )
+export function modelFuelDay(day: OperatingDay): BusFuelDay[] {
+  return day.runs
+    .map((run): BusFuelDay => ({
+      registrationNumber: run.registrationNumber,
+      serviceClass: run.busClass,
+      routeName: run.routeName,
+      distanceKm: run.distanceKm,
+      fuelLitres: toTenths(run.distanceKm / kmPerLitreOf(run, day.operatingDate)),
+    }))
     .sort((a, b) => compareText(a.registrationNumber, b.registrationNumber));
 }

@@ -38,7 +38,7 @@ const DATA = {
       name: 'Alambagh',
       kind: 'depot',
       fleet: 40,
-      earningsCoverage: { n: 2, of: 2 },
+      lengthCoverage: { n: 2, of: 2 },
       score: {
         depotId: '1',
         peerGroup: 'all',
@@ -69,13 +69,13 @@ function route(name: string, revenue: number): RouteRevenueFigure {
     loadFactor: 0.5,
     boardings: 80,
     revenue,
-    lengthKm: null,
-    revenueBasis: 'flat_fare_unknown_length',
+    // No real profile: a MODELLED 60 km; 4 trips out and back run 4 * 60 * 2 = 480 km.
+    lengthKm: 60,
     provenance: 'modelled',
-    serviceKm: null,
-    earningsPerKm: null,
-    earningsWithheld: 'unknown_length',
-    lengthProvenance: null,
+    serviceKm: 480,
+    earningsPerKm: Math.round((revenue / 480) * 100) / 100,
+    earningsWithheld: null,
+    lengthProvenance: 'modelled',
   };
 }
 
@@ -138,19 +138,18 @@ function sparseData(): EconomicsResponse {
     ...base,
     depotId: id,
     name: `Depot ${id}`,
-    earningsCoverage: { n: 0, of: 9 },
+    lengthCoverage: { n: 0, of: 9 },
     score: {
       ...base.score,
       depotId: id,
+      // S39: no real length is no reason; what leaves these unranked is the peer-group guard.
       ranked: false,
-      reason: 'missing_component',
-      missing: ['earningsPerKm'],
+      reason: 'peer_group_too_small',
+      missing: [],
       economicsIndex: null,
       rank: null,
       peerCount: null,
-      components: base.score.components.map((c) =>
-        c.key === 'earningsPerKm' ? { ...c, value: null, peerMedian: null, z: null } : c,
-      ),
+      components: base.score.components.map((c) => ({ ...c, peerMedian: null, z: null })),
     },
   });
   return { ...DATA, depots: [unranked('2'), unranked('3'), unranked('4')] } as EconomicsResponse;
@@ -188,7 +187,12 @@ describe('EconomicsPage truthfulness', () => {
     expect(text).toContain('is not a finding about any depot');
     expect(text).toContain('planning assumptions');
     expect(text).toMatch(/fuel issue records/i);
-    expect(text).toContain('A trip is a run out and back');
+    expect(text).toContain('each duty that a bus ran is one trip, a run out and back');
+    expect(text).toContain("This index is driven by the model's class mix and load-factor assumptions");
+    expect(text).toContain('Fuel cost per km (MODELLED)');
+    expect(text).toContain(
+      'Route lengths: 2 of 2 routes run in the modelled day rest on a real route profile',
+    );
     expect(host.querySelector('a[href="/project/depots/sources"]')).not.toBeNull();
   });
 
@@ -202,13 +206,16 @@ describe('EconomicsPage truthfulness', () => {
     useData(sparseData());
     await render(<EconomicsPage />);
     const text = host.textContent ?? '';
-    expect(text).toContain('Only 0 of 3 operating depots can be ranked.');
+    expect(text).toContain('Only 0 of 3 operating depots are ranked.');
+    expect(text).toContain('so no depot waits for route profiles');
+    expect(text).not.toMatch(/known length|length not known|can be ranked/);
+    expect(text).toContain('Route lengths: 0 of 27 routes run in the modelled day rest on a real route profile');
     expect(host.querySelector('a[href="/project/depots/routes"]')).not.toBeNull();
     expect(host.querySelectorAll('tbody tr')).toHaveLength(3);
     const first = host.querySelector('tbody tr')?.textContent ?? '';
     expect(first).toContain('not ranked');
-    expect(first).toContain('length not known');
-    expect(first).toContain('0 of 9 routes');
+    expect(first).toContain('peer group too small');
+    expect(first).toContain('lengths: 0 of 9 routes from real route profiles, the rest modelled');
   });
 
   it('says nothing is ranked yet when the filter is turned off, and filters when searching', async () => {
@@ -242,23 +249,24 @@ describe('revenue components', () => {
           boardings: 160,
           revenue: 12345,
           loadFactor: 0.5,
-          flatFareRevenueShare: 0.4,
-          flatFareRouteShare: 0.5,
+          serviceKm: 0,
+          modelledLengthRevenueShare: 0.4,
           earningsPerKm: null,
-          earningsCoverage: { n: 0, of: 2 },
+          lengthCoverage: { n: 0, of: 2 },
           provenance: 'modelled',
         }}
       />,
     );
     expect(host.querySelectorAll('[data-provenance="modelled"]')).toHaveLength(5);
     expect(host.textContent).toContain('₹12,345');
-    expect(host.textContent).toContain('Based on 0 of 2 routes with kilometres run and a known length');
-    expect(host.textContent).toContain('Flat fare, length not known: 40.0% of revenue, 50.0% of routes');
+    expect(host.textContent).toContain('Lengths: 0 of 2 routes from real route profiles, the rest modelled');
+    expect(host.textContent).toContain('40.0% of revenue is on routes of modelled length (no real profile yet)');
+    expect(host.textContent).toContain('no kilometres run');
   });
 
   it('prints the response notes and the definitions in the MODELLED statement', async () => {
     await render(<ModelledStatement params={REVENUE_MODEL_PARAMS} notes={[MIXED_CLASS_NOTE]} />);
-    expect(host.textContent).toContain('most numerous class');
+    expect(host.textContent).toContain('the class its name states (ordinary when it states none)');
     expect(host.textContent).toContain('occupied seats over seats offered, weighted by trips');
   });
 
@@ -287,13 +295,17 @@ describe('revenue components', () => {
     expect(toggle?.getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('tags every modelled route-table header and the derived length', async () => {
-    await render(<RevenueRoutesTable routes={[route('R0', 100)]} />);
+  it('tags every modelled route-table header and each length cell with its provenance', async () => {
+    const derived = { ...route('R1', 50), lengthKm: 80, lengthProvenance: 'derived' } as RouteRevenueFigure;
+    await render(<RevenueRoutesTable routes={[route('R0', 100), derived]} />);
     const headers = [...host.querySelectorAll('th')].map((th) => th.textContent ?? '');
     for (const label of ['Trips', 'Boardings', 'Load factor', 'Revenue', 'Earnings per km']) {
       expect(headers.some((h) => h.includes(`${label} (MODELLED)`))).toBe(true);
     }
-    expect(headers.some((h) => h.includes('Route length (DERIVED)'))).toBe(true);
+    // The column mixes real and typical lengths, so each cell carries the tag, not the header.
+    expect(headers.some((h) => h.includes('Route length'))).toBe(true);
+    expect(host.textContent).toContain('60 km (modelled)');
+    expect(host.textContent).toContain('80 km (derived)');
   });
 
   it('sorts the route length column by the length itself', async () => {
@@ -308,9 +320,14 @@ describe('revenue components', () => {
     expect(names).toEqual(['Short', 'Long']);
   });
 
-  it('says why earnings are withheld in the route table', async () => {
-    await render(<RevenueRoutesTable routes={[route('R0', 100)]} />);
-    expect(host.textContent).toContain('length not known');
+  it('gives earnings on a modelled length, and says why only when nothing ran', async () => {
+    const idle = { ...route('R1', 0), trips: 0, serviceKm: 0, earningsPerKm: null, earningsWithheld: 'no_service_km' } as RouteRevenueFigure;
+    await render(<RevenueRoutesTable routes={[route('R0', 120), idle]} />);
+    // 120 rupees over 480 km = 0.25 a km.
+    expect(host.textContent).toContain('₹0.25 per km');
+    expect(host.textContent).toContain('no kilometres run');
+    expect(host.textContent).toContain('ran no kilometres and has no earnings per kilometre');
+    expect(host.textContent).not.toContain('undefined');
     expect(host.textContent).toContain('Earnings per km');
   });
 });

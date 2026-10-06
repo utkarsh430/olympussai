@@ -5,6 +5,8 @@ import {
   HERO_CAP,
   buildRouteRows,
   coverageSentence,
+  modelledLengthSentence,
+  NO_KM_RUN,
   formatLoadFactor,
   formatRupeesPerKm,
   DERIVED_LENGTH_HEADER,
@@ -24,13 +26,14 @@ function route(over: Partial<RouteRevenueFigure> & { routeName: string }): Route
     loadFactor: 0.5,
     boardings: 200,
     revenue: 1000,
-    lengthKm: null,
-    revenueBasis: 'flat_fare_unknown_length',
+    // A route with no real profile: a MODELLED typical length of 100 km; 10 trips out and
+    // back run 10 * 100 * 2 = 2,000 km, and 1,000 rupees / 2,000 km = 0.50 a km.
+    lengthKm: 100,
+    lengthProvenance: 'modelled',
     provenance: 'modelled',
-    serviceKm: null,
-    earningsPerKm: null,
-    earningsWithheld: 'unknown_length',
-    lengthProvenance: null,
+    serviceKm: 2000,
+    earningsPerKm: 0.5,
+    earningsWithheld: null,
     ...over,
   };
 }
@@ -41,10 +44,10 @@ const TOTALS: DepotRevenueTotals = {
   boardings: 1234567,
   revenue: 1234567,
   loadFactor: 0.6123,
-  flatFareRevenueShare: 0.25,
-  flatFareRouteShare: 0.5,
+  serviceKm: 100006.2,
+  modelledLengthRevenueShare: 0.25,
   earningsPerKm: 12.345,
-  earningsCoverage: { n: 1, of: 2 },
+  lengthCoverage: { n: 1, of: 2 },
   provenance: 'modelled',
 };
 
@@ -58,14 +61,18 @@ describe('formatting', () => {
     expect(formatLoadFactor(null)).toBe('—');
   });
   it('words the earnings coverage in singular and plural', () => {
-    expect(coverageSentence({ n: 1, of: 2 })).toBe('Based on 1 of 2 routes with kilometres run and a known length');
-    expect(coverageSentence({ n: 1, of: 1 })).toBe('Based on 1 of 1 route with kilometres run and a known length');
-    expect(coverageSentence({ n: 0, of: 0 })).toBe('No routes to base it on');
+    // Ruling S39: a coverage figure of real lengths, never a reason to hide a number.
+    expect(coverageSentence({ n: 1, of: 2 })).toBe(
+      'Lengths: 1 of 2 routes from real route profiles, the rest modelled',
+    );
+    expect(coverageSentence({ n: 1, of: 1 })).toBe('Lengths: 1 of 1 route from real route profiles');
+    expect(coverageSentence({ n: 0, of: 0 })).toBe('No routes ran in the modelled day');
   });
-  it('says why earnings are withheld', () => {
-    expect(withheldSentence('unknown_length')).toMatch(/length is not known/i);
-    expect(withheldSentence('unknown_length')).toMatch(/opened on the Routes page/i);
-    expect(withheldSentence('no_service_km')).toMatch(/no kilometres/i);
+  it('withholds earnings only when nothing ran, and says so', () => {
+    // The unknown-length reason is gone (S39); the one left is a route with no kilometres.
+    expect(withheldSentence('no_service_km')).toBe(
+      'No duty on this route had a bus in the modelled day, so it ran no kilometres and has no earnings per kilometre.',
+    );
   });
 });
 
@@ -85,30 +92,35 @@ describe('summaryTiles', () => {
     expect(value('loadFactor')).toBe('61.2%');
     expect(value('earningsPerKm')).toBe('₹12.35 per km');
     expect(tiles.find((t) => t.key === 'earningsPerKm')?.note).toBe(
-      'Based on 1 of 2 routes with kilometres run and a known length',
+      'Lengths: 1 of 2 routes from real route profiles, the rest modelled',
+    );
+    expect(tiles.find((t) => t.key === 'trips')?.note).toBe(
+      'Duties that ran in the modelled day, one trip out and back each',
     );
   });
-  it('states the share of revenue and of routes that rests on the flat fare, on the revenue tile', () => {
+  it('states the share of revenue that rests on a modelled length, on the revenue tile', () => {
     const tiles = summaryTiles(TOTALS);
+    // modelledLengthRevenueShare 0.25 -> 25.0%.
     expect(tiles.find((t) => t.key === 'revenue')?.note).toBe(
-      'Flat fare, length not known: 25.0% of revenue, 50.0% of routes',
+      '25.0% of revenue is on routes of modelled length (no real profile yet)',
     );
     expect(tiles.find((t) => t.key === 'loadFactor')?.note).toBe('Occupied seats over seats offered, weighted by trips');
-    const none = summaryTiles({ ...TOTALS, flatFareRevenueShare: null, flatFareRouteShare: null });
+    const none = summaryTiles({ ...TOTALS, modelledLengthRevenueShare: 0 });
     expect(none.find((t) => t.key === 'revenue')?.note).toBeNull();
+    expect(modelledLengthSentence({ ...TOTALS, modelledLengthRevenueShare: null })).toBeNull();
   });
-  it('shows a withheld earnings tile as length not known, with its coverage', () => {
-    const tile = summaryTiles({ ...TOTALS, earningsPerKm: null, earningsCoverage: { n: 0, of: 2 } }).find(
+  it('shows earnings as no kilometres run only when nothing ran, with its coverage', () => {
+    const tile = summaryTiles({ ...TOTALS, earningsPerKm: null, lengthCoverage: { n: 0, of: 2 } }).find(
       (t) => t.key === 'earningsPerKm',
     );
-    expect(tile?.value).toBe('length not known');
-    expect(tile?.note).toBe('Based on 0 of 2 routes with kilometres run and a known length');
+    expect(tile?.value).toBe(NO_KM_RUN);
+    expect(tile?.note).toBe('Lengths: 0 of 2 routes from real route profiles, the rest modelled');
   });
 });
 
 describe('buildRouteRows', () => {
   const rows = buildRouteRows([
-    route({ routeName: 'A', revenue: 5000 }),
+    route({ routeName: 'A', revenue: 5000, trips: 0, serviceKm: 0, earningsPerKm: null, earningsWithheld: 'no_service_km' }),
     route({
       routeName: 'B',
       lengthKm: 80,
@@ -118,15 +130,15 @@ describe('buildRouteRows', () => {
       serviceClass: 'ac',
     }),
   ]);
-  it('words a withheld figure and a known one', () => {
+  it('words a withheld figure and a known one, each length with its provenance', () => {
     expect(rows[0]).toMatchObject({
       routeName: 'A',
-      earningsText: 'length not known',
-      lengthText: 'not known',
+      earningsText: 'no kilometres run',
+      lengthText: '100 km (modelled)',
       revenueText: '₹5,000',
       classLabel: 'Ordinary',
     });
-    expect(rows[0]?.withheldText).toMatch(/length is not known/i);
+    expect(rows[0]?.withheldText).toMatch(/ran no kilometres/i);
     expect(rows[1]).toMatchObject({
       earningsText: '₹7.50 per km',
       lengthText: '80 km (derived)',
@@ -152,11 +164,11 @@ describe('heroBars', () => {
     expect(hero.bars).toHaveLength(HERO_CAP + 3);
     expect(hero.toggleLabel).toBe(`Show all ${HERO_CAP + 3}`);
   });
-  it('says in a flat-fare bar that the length is not known', () => {
+  it('says in a bar when the route length is modelled', () => {
     const flat = heroBars([route({ routeName: 'F', revenue: 100 })], false).bars[0];
-    expect(flat?.description).toBe('F: ₹100 modelled revenue (flat fare, length not known)');
+    expect(flat?.description).toBe('F: ₹100 modelled revenue (modelled route length)');
     const known = heroBars(
-      [route({ routeName: 'K', revenue: 100, revenueBasis: 'length_known', lengthKm: 40 })],
+      [route({ routeName: 'K', revenue: 100, lengthProvenance: 'derived', lengthKm: 40 })],
       false,
     ).bars[0];
     expect(known?.description).toBe('K: ₹100 modelled revenue');
@@ -172,7 +184,7 @@ describe('heroBars', () => {
   });
   it('gives each bar a text equivalent', () => {
     expect(heroBars(routes, false).bars[0]?.description).toBe(
-      'R0: ₹13,000 modelled revenue (flat fare, length not known)',
+      'R0: ₹13,000 modelled revenue (modelled route length)',
     );
   });
 });
@@ -180,14 +192,17 @@ describe('heroBars', () => {
 describe('route rows and headers', () => {
   it('carries the numeric length so the column can sort by it', () => {
     const [row] = buildRouteRows([
-      route({ routeName: 'L', lengthKm: 41.6, lengthProvenance: 'derived', revenueBasis: 'length_known' }),
+      route({ routeName: 'L', lengthKm: 41.6, lengthProvenance: 'derived' }),
     ]);
     expect(row?.lengthKm).toBe(41.6);
-    expect(buildRouteRows([route({ routeName: 'N' })])[0]?.lengthKm).toBeNull();
+    expect(row?.lengthText).toBe('42 km (derived)');
+    expect(buildRouteRows([route({ routeName: 'N' })])[0]?.lengthKm).toBe(100);
   });
   it('tags a modelled column header and a derived one', () => {
     expect(modelledHeader('Earnings per km')).toBe('Earnings per km (MODELLED)');
-    expect(DERIVED_LENGTH_HEADER).toBe('Route length (DERIVED)');
+    // The length column now mixes real (DERIVED) and typical (MODELLED) lengths, so the
+    // header carries no single tag and every cell says which it is (see buildRouteRows).
+    expect(DERIVED_LENGTH_HEADER).toBe('Route length');
   });
 });
 
@@ -196,7 +211,7 @@ describe('modelledStatement', () => {
   it('says what is modelled, what a trip is and that these are planning assumptions', () => {
     expect(text).toContain('MODELLED');
     expect(text).toMatch(/no ticketing/i);
-    expect(text).toMatch(/a trip is a run out and back/i);
+    expect(text).toMatch(/each duty that a bus ran is one trip, a run out and back, so two legs/i);
     expect(text).toMatch(/for a route, load factor is the share of seats filled/i);
     expect(text).toMatch(/for a depot, occupied seats over seats offered, weighted by trips/i);
     expect(text).not.toMatch(/seat-kilometres over seat-kilometres/i);
@@ -208,8 +223,11 @@ describe('modelledStatement', () => {
   it('states the parameters from the model, not from a copy', () => {
     expect(text).toContain('ordinary 62%');
     expect(text).toContain('₹1.10');
-    expect(text).toContain('₹45');
+    expect(text).toContain('premium ₹2.80');
     expect(text).toContain('25%');
+    // The flat fare is gone (S39): a route without a profile runs on a typical class length.
+    expect(text).not.toMatch(/flat fare/i);
+    expect(text).toMatch(/typical length for its class \(MODELLED\)/);
   });
   it('names what replaces it and never says simulated', () => {
     expect(text).toMatch(/ticketing feed and a route master/i);

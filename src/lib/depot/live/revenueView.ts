@@ -1,46 +1,28 @@
-import type { DepotBusView } from '../api';
 import { compareText } from '../exceptions/depotExceptions';
 import type { FleetSnapshotView, DepotRepositories } from '../repositories/types';
 import type { RevenueResponse } from '../revenue/api';
 import { analyseRevenue } from '../revenue/analysis';
-import type { RevenueAnalysis, RouteFacts } from '../revenue/types';
+import type { RevenueAnalysis } from '../revenue/types';
 import { cachedRouteProfiles, routeCatalogueRevision } from '../routes/routeCatalogue';
 import type { RouteProfile } from '../routes/types';
 import { MIXED_CLASS_NOTE, REVENUE_MODEL_PARAMS } from '../sim/revenueConfig';
+import { summariseDay } from '../sim/operatingDay';
+import type { OperatingDay } from '../sim/operatingDayTypes';
 import { operatingDateOf } from '../sim/seed';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
 import { buildDepotDetail } from './depotView';
+import { operatingDayFor } from './operatingDayView';
 
 type RevenueBody = Omit<RevenueResponse, keyof ReturnType<typeof feedEnvelope>>;
 
 export type RevenueSource = Pick<DepotRepositories, 'revenue'>;
 
-/** Route facts for the routes these buses run; a route with no cached profile has no length. */
-export function routeFactsFor(
-  buses: readonly DepotBusView[],
-  profiles: ReadonlyMap<string, RouteProfile>,
-): RouteFacts[] {
-  const names = new Set(buses.flatMap((b) => (b.routeName === null ? [] : [b.routeName])));
-  return [...names].map((routeName) => ({
-    routeName,
-    scheduledDurationMin: profiles.get(routeName)?.scheduledDurationMin ?? null,
-    lengthKm: profiles.get(routeName)?.lengthKm ?? null,
-  }));
-}
-
-/** The modelled day for one depot's buses, analysed. Used by the depot page and the network ranking. */
+/** The depot's modelled day, analysed. Used by the depot page and the network ranking. */
 export async function analyseDepotRevenue(
   repositories: RevenueSource,
-  buses: readonly DepotBusView[],
-  profiles: ReadonlyMap<string, RouteProfile>,
-  operatingDate: string,
+  day: OperatingDay,
 ): Promise<RevenueAnalysis> {
-  const days = await repositories.revenue.ridershipDay(
-    buses,
-    routeFactsFor(buses, profiles),
-    operatingDate,
-  );
-  return analyseRevenue(days);
+  return analyseRevenue(await repositories.revenue.ridershipDay(day));
 }
 
 interface Held<T> {
@@ -96,19 +78,16 @@ function byRevenueThenName(
 }
 
 const heldBody = holdPerSnapshot<RevenueBody, RevenueSource>(
-  async (view, _analysis, profiles, operatingDate, depotId, source): Promise<RevenueBody> => {
+  async (view, snapshot, profiles, operatingDate, depotId, source): Promise<RevenueBody> => {
     // The caller has already confirmed the depot exists.
     const detail = buildDepotDetail(view, depotId);
-    const buses = detail?.buses ?? [];
-    const analysis = await analyseDepotRevenue(
-      source,
-      buses,
-      profiles,
-      operatingDate,
-    );
+    const day = operatingDayFor(snapshot, depotId, detail?.buses ?? [], profiles, operatingDate);
+    if (!day) throw new Error(`No depot ${depotId} in the snapshot`);
+    const analysis = await analyseDepotRevenue(source, day);
     return {
       depot: { id: depotId, name: detail?.depot.name ?? depotId },
       operatingDate,
+      day: summariseDay(day),
       summary: analysis.depot,
       routes: [...analysis.perRoute].sort(byRevenueThenName),
       notes: [MIXED_CLASS_NOTE],
@@ -120,8 +99,8 @@ const heldBody = holdPerSnapshot<RevenueBody, RevenueSource>(
 /**
  * One depot's revenue and ridership for the feed's operating date, or null when
  * the snapshot has no such depot. Every figure is MODELLED (the feed carries no
- * ticketing); a route length from a real profile is DERIVED. Earnings per
- * kilometre are withheld for a route whose length is not known. The envelope is
+ * ticketing) and built on the depot's one modelled operating day; a route
+ * length from a real profile is DERIVED, otherwise MODELLED. The envelope is
  * built from this request's view on every call, never held with the body.
  */
 export async function buildRevenueResponse(

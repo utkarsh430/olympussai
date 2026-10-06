@@ -1,4 +1,5 @@
 import type { DepotFeedEnvelope } from '../api';
+import type { ModelledDaySummary } from '../sim/operatingDayTypes';
 import type { ServiceClass } from '../sim/types';
 import type { FuelComparisonScope, FuelGroupRow, FuelTotals } from './types';
 
@@ -37,6 +38,11 @@ export interface FuelResponse extends DepotFeedEnvelope {
   readonly pricePerLitre: number;
   /** True when no price was supplied and the planning price stands in; the view supplies none. */
   readonly priceDefaulted: boolean;
+  /** The modelled day these figures are built on: its duties, routes and the buses that ran. */
+  readonly day: ModelledDaySummary;
+  /** Buses that did not run that day: they have no distance and are in no total or row. */
+  readonly notRunCount: number;
+  /** Totals over the buses that ran; `busCount` is their number. */
   readonly totals: FuelTotals;
   readonly perClass: readonly FuelGroupRow[];
   /** The FUEL_ROUTE_CAP routes with the highest cost, dearest first. */

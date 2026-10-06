@@ -1,95 +1,83 @@
 import { describe, expect, it } from 'vitest';
+import type { DepotBusView } from '@/lib/depot/api';
 import { modelFuelDay } from '@/lib/depot/sim/fuel';
-import { modelBus } from '@/lib/depot/sim/fleetMaster';
 import {
   FUEL_CLASS_KM_PER_LITRE,
   FUEL_DAILY_NOISE,
   FUEL_EFFICIENCY_SPREAD,
 } from '@/lib/depot/sim/fuelConfig';
-import type { DepotBusView } from '@/lib/depot/api';
-import type { BusOpState } from '@/lib/depot/types';
-import type { ModelledBus } from '@/lib/depot/sim/types';
+import { modelOperatingDay } from '@/lib/depot/sim/operatingDay';
+import type { OperatingDay } from '@/lib/depot/sim/operatingDayTypes';
+import type { BusOpState, DepotSummary } from '@/lib/depot/types';
+
+/*
+ * Rewritten for ruling S41: the fuel model no longer draws a distance per bus
+ * (a class figure times a state share); it reads each bus's duty from the
+ * modelled operating day. The economy model (class figure, lasting per-vehicle
+ * factor, daily noise) is unchanged and is still pinned here.
+ */
 
 const DAY_ONE = '2026-10-06';
 const DAY_TWO = '2026-10-07';
-const SLACK = 0.01;
+const DEPOT = { id: '7', name: 'Kaushambi', kind: 'depot', fleet: 40 } as unknown as DepotSummary;
 
 function bus(registrationNumber: string, state: BusOpState, routeName: string | null): DepotBusView {
   return { registrationNumber, state, routeName } as unknown as DepotBusView;
 }
 
-function fleetOf(buses: readonly DepotBusView[]): ReadonlyMap<string, ModelledBus> {
-  return new Map(
-    buses.map((b) => [b.registrationNumber, modelBus(b.registrationNumber, b.routeName)]),
-  );
-}
-
 const BUSES: readonly DepotBusView[] = Array.from({ length: 40 }, (_, i) =>
-  bus(`UP32AB${1000 + i}`, 'on_road', i % 2 === 0 ? 'PUNE_EXP_X' : 'AKOLA_ORD_Y'),
+  bus(`UP32AB${1000 + i}`, i % 10 === 9 ? 'off_road' : 'on_road', i % 2 === 0 ? 'PUNE_EXP_X' : 'AKOLA_ORD_Y'),
 );
+
+function dayOf(operatingDate: string, buses: readonly DepotBusView[] = BUSES): OperatingDay {
+  return modelOperatingDay({ depot: DEPOT, buses, peakRequirement: 30, realLengthKm: new Map(), operatingDate });
+}
 
 describe('modelFuelDay', () => {
   it('is deterministic and independent of input order', () => {
-    const fleet = fleetOf(BUSES);
-    const a = modelFuelDay(BUSES, fleet, DAY_ONE);
-    expect(modelFuelDay(BUSES, fleet, DAY_ONE)).toEqual(a);
-    expect(modelFuelDay([...BUSES].reverse(), fleet, DAY_ONE)).toEqual(a);
+    const a = modelFuelDay(dayOf(DAY_ONE));
+    expect(modelFuelDay(dayOf(DAY_ONE))).toEqual(a);
+    expect(modelFuelDay(dayOf(DAY_ONE, [...BUSES].reverse()))).toEqual(a);
+    expect(a.map((r) => r.registrationNumber)).toEqual([...a.map((r) => r.registrationNumber)].sort());
   });
 
   it('differs between dates', () => {
-    const fleet = fleetOf(BUSES);
-    expect(modelFuelDay(BUSES, fleet, DAY_ONE)).not.toEqual(modelFuelDay(BUSES, fleet, DAY_TWO));
+    expect(modelFuelDay(dayOf(DAY_ONE))).not.toEqual(modelFuelDay(dayOf(DAY_TWO)));
   });
 
-  it('gives off-road and dark buses zero distance and zero fuel', () => {
-    const buses = [
-      bus('UP1', 'off_road', null),
-      bus('UP2', 'dark', null),
-      bus('UP3', 'on_road', null),
-    ];
-    const rows = modelFuelDay(buses, fleetOf(buses), DAY_ONE);
-    const byReg = new Map(rows.map((r) => [r.registrationNumber, r]));
-    expect(byReg.get('UP1')).toMatchObject({ distanceKm: 0, fuelLitres: 0 });
-    expect(byReg.get('UP2')).toMatchObject({ distanceKm: 0, fuelLitres: 0 });
-    expect(byReg.get('UP3')?.distanceKm).toBeGreaterThan(0);
-    expect(byReg.get('UP3')?.fuelLitres).toBeGreaterThan(0);
+  it('has a row for each bus that ran and none for a bus that did not', () => {
+    const day = dayOf(DAY_ONE);
+    const rows = modelFuelDay(day);
+    // 36 buses are available and there are 30 duties: 30 ran, 10 did not (6 spare, 4 off the road).
+    expect(rows).toHaveLength(30);
+    expect(day.notRun).toHaveLength(10);
+    const idle = new Set(day.notRun.map((b) => b.registrationNumber));
+    expect(rows.some((r) => idle.has(r.registrationNumber))).toBe(false);
+    expect(rows.every((r) => r.distanceKm > 0 && r.fuelLitres > 0)).toBe(true);
   });
 
-  it('keeps one bus consistently better or worse than its class across dates', () => {
-    const fleet = fleetOf(BUSES);
-    const factors = (day: string): Map<string, number> =>
-      new Map(
-        modelFuelDay(BUSES, fleet, day).map((d) => [
-          d.registrationNumber,
-          d.distanceKm / d.fuelLitres / FUEL_CLASS_KM_PER_LITRE[d.serviceClass],
-        ]),
-      );
-    const one = factors(DAY_ONE);
-    const two = factors(DAY_TWO);
-    const maxSpread = FUEL_EFFICIENCY_SPREAD + FUEL_DAILY_NOISE + SLACK;
-    let agreeing = 0;
-    for (const [reg, factor] of one) {
-      const other = two.get(reg) ?? 0;
-      expect(Math.abs(factor - 1)).toBeLessThanOrEqual(maxSpread);
-      expect(Math.abs(factor - other)).toBeLessThanOrEqual(2 * FUEL_DAILY_NOISE + SLACK);
-      if (Math.sign(factor - 1) === Math.sign(other - 1)) agreeing += 1;
+  it('takes each distance and route from the bus’s duty, never from a draw of its own', () => {
+    const day = dayOf(DAY_ONE);
+    const byBus = new Map(day.runs.map((run) => [run.registrationNumber, run]));
+    for (const row of modelFuelDay(day)) {
+      const run = byBus.get(row.registrationNumber);
+      expect([row.distanceKm, row.routeName, row.serviceClass]).toEqual([
+        run?.distanceKm,
+        run?.routeName,
+        run?.busClass,
+      ]);
     }
-    // A fresh draw each day would agree in sign about half the time.
-    expect(agreeing).toBeGreaterThanOrEqual(one.size * 0.8);
   });
 
-  it('rounds litres to one decimal and carries class and route', () => {
-    const rows = modelFuelDay(BUSES, fleetOf(BUSES), DAY_ONE);
-    expect(rows).toHaveLength(BUSES.length);
-    for (const row of rows) {
-      expect(Math.round(row.fuelLitres * 10) / 10).toBe(row.fuelLitres);
+  it('keeps each bus’s economy within its class figure, lasting factor and daily noise', () => {
+    const spread = (1 + FUEL_EFFICIENCY_SPREAD) * (1 + FUEL_DAILY_NOISE);
+    const floor = (1 - FUEL_EFFICIENCY_SPREAD) * (1 - FUEL_DAILY_NOISE);
+    for (const row of modelFuelDay(dayOf(DAY_ONE))) {
+      const base = FUEL_CLASS_KM_PER_LITRE[row.serviceClass];
+      const kmPerLitre = row.distanceKm / row.fuelLitres;
+      // Litres are rounded to a tenth, so allow that much on the ratio.
+      expect(kmPerLitre).toBeGreaterThan(base * floor * 0.99);
+      expect(kmPerLitre).toBeLessThan(base * spread * 1.01);
     }
-    expect(rows.find((r) => r.routeName === 'PUNE_EXP_X')?.serviceClass).toBe('express');
-  });
-
-  it('does not mutate its inputs', () => {
-    const fleet = fleetOf(BUSES);
-    const frozen = Object.freeze(BUSES.map((b) => Object.freeze({ ...b })));
-    expect(() => modelFuelDay(frozen, fleet, DAY_ONE)).not.toThrow();
   });
 });

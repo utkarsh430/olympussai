@@ -1,4 +1,5 @@
 import { formatCount, formatFeedTime } from '../format';
+import { modelledDaySentence, type ModelledDayReference } from '../sim/operatingDayWording';
 import type { BoardDuty, DutyBlockers, DutyBoardCounts, DutyState } from './api';
 
 /** The timeline axis: 04:00 to 24:00 in the feed's local time. */
@@ -278,4 +279,9 @@ export function largeBoardSentence(dutyCount: number): string {
 
 export function viewAnnouncement(view: BoardView, dutyCount: number): string {
   return `Showing the ${view}, ${dutyCount} ${plural(dutyCount, 'duty', 'duties')}`;
+}
+
+/** The shared cross-reference to the modelled day; the words are built in one place for every page. */
+export function crossReferenceSentence(reference: ModelledDayReference): string {
+  return modelledDaySentence(reference);
 }

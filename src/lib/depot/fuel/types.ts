@@ -1,4 +1,4 @@
-import type { DepotBusView } from '../api';
+import type { OperatingDay } from '../sim/operatingDayTypes';
 import type { ServiceClass } from '../sim/types';
 
 /** Flagged when a bus uses more than this share more fuel per km than the median of its peers. */
@@ -13,7 +13,7 @@ export const MIN_PEERS = 2;
  */
 export const DEFAULT_PRICE_PER_LITRE = 92;
 
-/** One bus's modelled distance and fuel issue for one operating date. */
+/** One bus's modelled distance (its duty's route out and back) and fuel issue for one operating date. */
 export interface BusFuelDay {
   readonly registrationNumber: string;
   readonly distanceKm: number;
@@ -102,7 +102,11 @@ export interface FuelAnalysis {
   readonly flagged: readonly FlaggedBus[];
 }
 
-/** The seam to where fuel data comes from; modelled today, a feed later. */
+/**
+ * The seam to where fuel data comes from; modelled today, a feed later. It is
+ * given the depot's modelled operating day and returns a row for each bus that
+ * ran; a bus that did not run has no row.
+ */
 export interface FuelRepository {
-  fuelDay(buses: readonly DepotBusView[], operatingDate: string): Promise<readonly BusFuelDay[]>;
+  fuelDay(day: OperatingDay): Promise<readonly BusFuelDay[]>;
 }

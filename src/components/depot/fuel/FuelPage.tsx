@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
+import { modelledDaySentence } from '@/lib/depot/sim/operatingDayWording';
 import {
   EmptyState,
   ErrorPanel,
@@ -23,7 +24,7 @@ const DATA_SOURCES_HREF = '/project/depots/sources';
 
 /** The fuel and cost page body for one depot; the id comes from the scope's provider. */
 export function FuelPage() {
-  const { depotId } = useDepotDetailContext();
+  const { depotId, data: detail } = useDepotDetailContext();
   const { data, error, loading, refresh } = useDepotFuel(depotId);
 
   if (loading) return <LoadingBlock rows={LOADING_ROWS} label="Loading the fuel and cost view" />;
@@ -40,9 +41,16 @@ export function FuelPage() {
   return (
     <div className="flex flex-col gap-8">
       {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
+      <p className="depot-prose max-w-3xl">
+        {modelledDaySentence({
+          scheduled: detail?.outshed.coverage ?? null,
+          duties: data.day.duties,
+          routes: data.day.routes,
+        })}
+      </p>
       <FuelSummary data={data} />
       {empty ? (
-        <EmptyState>{emptyText()}</EmptyState>
+        <EmptyState>{emptyText(data.day)}</EmptyState>
       ) : (
         <>
           <ClassBars rows={data.perClass} />

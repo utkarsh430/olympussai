@@ -31,7 +31,7 @@ function input(i: number, overrides: Partial<EconomicsInput> = {}): EconomicsInp
     earningsPerKm: 20 + i * 1.5,
     costPerKm: 30 + ((i * 7) % COUNT),
     loadFactor: 0.4 + i * 0.02,
-    earningsCoverage: { n: 4, of: 4 },
+    lengthCoverage: { n: 4, of: 4 },
     ...overrides,
   };
 }
@@ -57,7 +57,7 @@ function fleetInput(id: string, fleet: number, overrides: Partial<EconomicsInput
     earningsPerKm: 30 + 2 * i,
     costPerKm: 22 - i,
     loadFactor: 0.4 + 0.05 * i,
-    earningsCoverage: { n: 4, of: 4 },
+    lengthCoverage: { n: 4, of: 4 },
     ...overrides,
   };
 }
