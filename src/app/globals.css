@@ -215,6 +215,8 @@
                          fleet distribution strip) sticks: below the bar and the strip
        --depot-subnav-h  the depot tabs' height; --depot-intro-h the fleet distribution strip's
        --depot-scroll-mt   scroll margin for a field that must not land under the stack
+       --depot-anchor-mt   scroll margin for a heading on a network page (below bar and strip);
+                         --depot-anchor-mt-depot the same on a depot page (also below the tabs)
        --depot-panel-top   top of a side panel that sticks from 1280px (bar plus 1.5rem)
        --depot-footer-h  the prototype disclaimer's collapsed height, reserved under <main> */
   .depot-shell {
@@ -226,6 +228,8 @@
     --depot-footer-h: 2.25rem;
     --depot-sticky-top: calc(var(--depot-bar-h) + var(--depot-strip-h));
     --depot-scroll-mt: calc(var(--depot-sticky-top) + var(--depot-intro-h) + 1rem);
+    --depot-anchor-mt: calc(var(--depot-sticky-top) + 0.5rem);
+    --depot-anchor-mt-depot: calc(var(--depot-sticky-top) + var(--depot-subnav-h) + 0.5rem);
     --depot-panel-top: calc(var(--depot-sticky-top) + 1.5rem);
   }
 

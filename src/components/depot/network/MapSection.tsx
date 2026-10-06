@@ -35,7 +35,7 @@ export function MapSection({ rows, selected, onSelect, vanished }: MapSectionPro
   return (
     <section aria-labelledby="depot-map-heading" className={SECTION}>
       <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 id="depot-map-heading" className="depot-section-label !mb-0">
+        <h2 id="depot-map-heading" className="depot-section-label scroll-mt-[var(--depot-anchor-mt)] !mb-0">
           Units map
         </h2>
         <ProvenanceBadge provenance="derived" />
