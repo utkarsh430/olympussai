@@ -369,7 +369,7 @@ describe('provenance tags on the visible page (ruling S51)', () => {
     const tagged = headers
       .filter((th) => th.querySelector('[data-provenance="modelled"]'))
       .map((th) => th.textContent?.replace(/modelled/i, '').trim());
-    expect(tagged).toEqual(['Peak need', 'Spare target', 'Required', 'Balance']);
+    expect(tagged).toEqual(['Peak need', 'Spare', 'Required', 'Balance']);
     const plain = headers.filter((th) => !th.querySelector('[data-provenance]'));
     expect(plain.map((th) => th.textContent)).toEqual(['Depot', 'Fleet', 'Off road', 'Available']);
     expect(table?.querySelector('tbody [data-provenance]')).toBeNull();

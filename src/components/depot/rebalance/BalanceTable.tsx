@@ -64,7 +64,7 @@ function columnsFor(maxMagnitude: number, withPart: boolean): readonly Column<Ba
     {
       key: 'spare',
       tag: 'modelled',
-      header: 'Spare target',
+      header: 'Spare',
       align: 'right',
       sortValue: (r) => r.spareTarget,
       render: (r) => count(r.spareTarget),
