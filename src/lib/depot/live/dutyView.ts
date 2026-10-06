@@ -6,7 +6,7 @@ import type {
   DutyBoardResponse,
   DutyState,
 } from '../duties/api';
-import type { Duty } from '../duties/types';
+import type { AssignmentPlan, Duty } from '../duties/types';
 import type { FleetSnapshotView } from '../repositories/types';
 import { assignDuties } from '../optimise/assignDuties';
 import { DEFAULT_REQUIREMENT_PARAMS } from '../sim/config';
@@ -70,13 +70,27 @@ function toBoardDuty(
   };
 }
 
-function buildBody(
+/** The modelled duties for one operating date and the matching of the depot's buses to them. */
+export interface DutyPlan {
+  readonly duties: readonly Duty[];
+  readonly routesWithoutDuty: readonly string[];
+  readonly routeCount: number;
+  readonly peakRequirement: number;
+  readonly fleet: ReadonlyMap<string, ModelledBus>;
+  readonly plan: AssignmentPlan;
+}
+
+/**
+ * Builds the day's modelled duties and assigns the depot's buses to them, or
+ * null for an unknown depot. Exported so another view (the night parking
+ * order) can read each bus's duty for a date without a second assignment.
+ */
+export function planDutiesFor(
   analysis: SnapshotAnalysis,
   depotId: string,
-  depotName: string,
   buses: readonly DepotBusView[],
   operatingDate: string,
-): DutyBoardBody | null {
+): DutyPlan | null {
   const depot = analysis.depotsById.get(depotId);
   if (!depot) return null;
   const balance = modelBalances(
@@ -98,6 +112,26 @@ function buildBody(
     buses.map((b) => [b.registrationNumber, modelBus(b.registrationNumber, b.routeName)]),
   );
   const plan = assignDuties(duties, buses, fleet);
+  return {
+    duties,
+    routesWithoutDuty,
+    routeCount: routeNames.length,
+    peakRequirement,
+    fleet,
+    plan,
+  };
+}
+
+function buildBody(
+  analysis: SnapshotAnalysis,
+  depotId: string,
+  depotName: string,
+  buses: readonly DepotBusView[],
+  operatingDate: string,
+): DutyBoardBody | null {
+  const planned = planDutiesFor(analysis, depotId, buses, operatingDate);
+  if (!planned) return null;
+  const { duties, plan, fleet } = planned;
   const byDuty = new Map(plan.assignments.map((a) => [a.dutyId, a.registrationNumber]));
   const board = duties.map((d) => toBoardDuty(d, byDuty.get(d.id) ?? null, plan.excluded, fleet));
   const counts: DutyBoardCounts = {
@@ -111,11 +145,11 @@ function buildBody(
     depotId,
     depotName,
     operatingDate,
-    peakRequirement,
-    routeCount: routeNames.length,
+    peakRequirement: planned.peakRequirement,
+    routeCount: planned.routeCount,
     duties: board,
     spareBuses: plan.spareBuses,
-    routesWithoutDuty,
+    routesWithoutDuty: planned.routesWithoutDuty,
     counts,
   };
 }
