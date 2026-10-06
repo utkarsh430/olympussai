@@ -16,7 +16,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const { snapshot, source, stale } = await getLiveSnapshot(Date.now());
 
   const body: LiveFeedResponse = {
-    buses: snapshot.buses,
+    buses: [...snapshot.buses],
     // A fixture response is stamped with the current time, not the time the
     // sample was normalised; live and cached responses keep the build time.
     fetchedAt: source === 'fixture' ? new Date().toISOString() : snapshot.fetchedAt,

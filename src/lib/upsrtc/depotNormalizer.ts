@@ -27,7 +27,7 @@ import type { DepotBusRow, DepotVehicleStatus } from '@/models/depotLive';
 type Rec = Record<string, unknown>;
 
 export interface NormalizeDepotResult {
-  rows: DepotBusRow[];
+  readonly rows: readonly DepotBusRow[];
   recordCount: number;
   /** Non-records and rows without a registration. */
   rejectedRecordCount: number;

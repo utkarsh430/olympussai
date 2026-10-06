@@ -16,8 +16,8 @@ import type { DepotBusRow } from '@/models/depotLive';
  */
 
 export interface LiveSnapshot {
-  readonly buses: CanonicalLiveBus[];
-  readonly depotRows: DepotBusRow[];
+  readonly buses: readonly CanonicalLiveBus[];
+  readonly depotRows: readonly DepotBusRow[];
   readonly recordCount: number;
   readonly rejectedRecordCount: number;
   /** Server ISO time the snapshot was built. */
