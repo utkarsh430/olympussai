@@ -26,6 +26,7 @@ let errorSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   resetAnalysisForTests();
+  vi.mocked(getRepositories).mockReset();
   snapshot.mockReset();
   series.mockReset();
   vi.mocked(requireUpsrtcAccess).mockResolvedValue(SESSION);
