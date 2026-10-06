@@ -244,6 +244,7 @@ function makeNetwork(
       }),
     ],
     exceptionCounts: { ...NO_EXCEPTIONS, ...o.counts },
+    exceptionSeverityCounts: { critical: 0, warning: 0, info: 0 },
   };
 }
 

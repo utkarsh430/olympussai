@@ -4,7 +4,13 @@ import type { DepotScore } from '../score/types';
 import { BUS_EXCEPTION_CAP, EXCEPTION_KINDS } from './config';
 import { detectBusExceptions } from './busExceptions';
 import { detectDepotExceptions } from './depotExceptions';
-import type { BusException, DepotException, ExceptionKind, ExceptionReport } from './types';
+import type {
+  BusException,
+  DepotException,
+  ExceptionKind,
+  ExceptionReport,
+  ExceptionSeverity,
+} from './types';
 
 export {
   BUS_EXCEPTION_CAP,
@@ -16,6 +22,21 @@ export {
 } from './config';
 export { detectBusExceptions } from './busExceptions';
 export { detectDepotExceptions } from './depotExceptions';
+
+/**
+ * Depot and bus exceptions together, by severity, from the full (uncapped)
+ * lists. Counts by kind cannot give this: a depot-rate kind can be critical
+ * or warning.
+ */
+export function countBySeverity(
+  depot: readonly DepotException[],
+  bus: readonly BusException[],
+): Record<ExceptionSeverity, number> {
+  const counts: Record<ExceptionSeverity, number> = { critical: 0, warning: 0, info: 0 };
+  for (const e of depot) counts[e.severity] += 1;
+  for (const e of bus) counts[e.severity] += 1;
+  return counts;
+}
 
 /**
  * The network report from already-detected, already-sorted lists. Counts and

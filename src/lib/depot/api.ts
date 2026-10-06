@@ -15,6 +15,7 @@ import type {
   DepotException,
   ExceptionKind,
   ExceptionReport,
+  ExceptionSeverity,
 } from './exceptions/types';
 import type { DepotBalance, RebalanceParams, TransferPlan } from './optimise/types';
 import type { RequirementParams, SeriesAnchor, SeriesPoint } from './sim/types';
@@ -40,6 +41,8 @@ export interface DepotNetworkResponse extends DepotFeedEnvelope {
   readonly coverage: readonly FieldCoverage[];
   readonly scores: readonly DepotScore[];
   readonly exceptionCounts: Readonly<Record<ExceptionKind, number>>;
+  /** Depot and bus exceptions together, counted before the bus cap. */
+  readonly exceptionSeverityCounts: Readonly<Record<ExceptionSeverity, number>>;
   readonly recordCount: number;
 }
 

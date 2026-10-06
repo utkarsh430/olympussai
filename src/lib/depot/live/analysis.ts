@@ -4,12 +4,22 @@ import type { FleetSnapshotView } from '../repositories/types';
 import { UNASSIGNED_DEPOT_ID, type BusOpState, type DepotSummary } from '../types';
 import type { LocatedBus, Yard } from '../infer/types';
 import type { DepotScore } from '../score/types';
-import type { BusException, DepotException, ExceptionReport } from '../exceptions/types';
+import type {
+  BusException,
+  DepotException,
+  ExceptionReport,
+  ExceptionSeverity,
+} from '../exceptions/types';
 import { classifyBusState } from '../infer/busState';
 import { inferYards } from '../infer/yard';
 import { locateBus } from '../infer/location';
 import { scoreDepots } from '../score/dei';
-import { assembleReport, detectBusExceptions, detectDepotExceptions } from '../exceptions';
+import {
+  assembleReport,
+  countBySeverity,
+  detectBusExceptions,
+  detectDepotExceptions,
+} from '../exceptions';
 import { summariseDepots } from './aggregate';
 
 export interface DepotExceptions {
@@ -38,6 +48,8 @@ export interface SnapshotAnalysis {
   /** Buses of other depots (or none) standing inside each host depot's yard. */
   readonly visitorsByDepot: ReadonlyMap<string, readonly DepotBusRow[]>;
   readonly report: ExceptionReport;
+  /** Depot and bus exceptions together, counted before the bus cap. */
+  readonly exceptionSeverityCounts: Readonly<Record<ExceptionSeverity, number>>;
   readonly exceptionsByDepot: ReadonlyMap<string, DepotExceptions>;
 }
 
@@ -102,6 +114,7 @@ function analyse(view: FleetSnapshotView): SnapshotAnalysis {
     locations,
     visitorsByDepot: visitors,
     report: assembleReport(depotExceptions, busExceptions),
+    exceptionSeverityCounts: countBySeverity(depotExceptions, busExceptions),
     exceptionsByDepot: exceptionsByDepot(depotExceptions, busExceptions),
   };
 }

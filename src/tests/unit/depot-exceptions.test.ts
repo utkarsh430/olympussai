@@ -9,6 +9,7 @@ import {
   EXCEPTION_Z,
   MIN_RATE_GAP,
   buildExceptionReport,
+  countBySeverity,
   detectBusExceptions,
   detectDepotExceptions,
 } from '@/lib/depot/exceptions';
@@ -308,6 +309,29 @@ describe('bus exceptions', () => {
       'tamper_code:B1',
       'tamper_code:Z1',
     ]);
+  });
+});
+
+describe('countBySeverity', () => {
+  it('counts depot and bus exceptions together, every one of them', () => {
+    const n = BUS_EXCEPTION_CAP + 100;
+    const rows = Array.from({ length: n }, (_, i) =>
+      row({ registrationNumber: `R${String(i).padStart(4, '0')}`, mainPowerOn: false }),
+    );
+    rows.push(row({ registrationNumber: 'ZZZ', emergency: true, tamperCode: 'W' }));
+    const depots = [depot({ fleet: n + 1 })];
+    const scores = [score('1', { dark: { value: 0.6, peerMedian: 0.2, z: -3 } })];
+    const depotList = detectDepotExceptions(depots, scores, rows, stateOf(FEED_NOW));
+    const busList = detectBusExceptions(rows, depots, FEED_NOW, stateOf(FEED_NOW));
+    expect(countBySeverity(depotList, busList)).toEqual({
+      critical: 2, // dark_share_high at z = -3, emergency
+      warning: 1, // power_cut_cluster
+      info: n + 1, // n power cuts, one tamper code
+    });
+  });
+
+  it('reports every severity, zero when absent', () => {
+    expect(countBySeverity([], [])).toEqual({ critical: 0, warning: 0, info: 0 });
   });
 });
 

@@ -116,12 +116,17 @@ describe('buildNetworkResponse', () => {
     expect(res.depots).toBe(analysis.depots);
     expect(res.scores).toBe(analysis.scores);
     expect(res.exceptionCounts).toBe(analysis.report.counts);
+    expect(res.exceptionSeverityCounts).toBe(analysis.exceptionSeverityCounts);
+    const { critical, warning, info } = res.exceptionSeverityCounts;
+    expect(critical + warning + info).toBe(analysis.report.depot.length + analysis.report.busTotal);
+    expect(critical + warning + info).toBeGreaterThan(0);
     expect(res.kpis.fleet.value).toBe(fixtureRows.length);
     expect(res.coverage.every((c) => c.of === fixtureRows.length)).toBe(true);
     expect(Object.keys(res).sort()).toEqual([
       'coverage',
       'depots',
       'exceptionCounts',
+      'exceptionSeverityCounts',
       'feedNow',
       'fetchedAt',
       'kpis',
