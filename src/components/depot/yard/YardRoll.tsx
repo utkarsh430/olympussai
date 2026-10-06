@@ -99,9 +99,9 @@ function Roll({ model, depotId, outOfLane }: Omit<YardRollProps, 'depotNames'>) 
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[11px] text-depot-muted">{NEEDS_ACTION_RULE}</p>
+      <p className="depot-note mt-3">{NEEDS_ACTION_RULE}</p>
       {roll.needsAction.length === 0 ? (
-        <p className="mt-1 text-[13px] text-depot-ink" data-testid="yard-roll-none">
+        <p className="depot-prose mt-1 text-depot-ink" data-testid="yard-roll-none">
           No bus in the yard needs action.
         </p>
       ) : (

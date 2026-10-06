@@ -229,7 +229,7 @@ export function YardMap({ model }: YardMapProps) {
           role="status"
           className="absolute inset-0 z-20 flex items-center justify-center bg-depot-surface"
         >
-          <p className="depot-label">Loading the basemap</p>
+          <p className="depot-note">Loading the basemap</p>
         </div>
       ) : null}
       {status === 'error' ? (
@@ -241,11 +241,11 @@ export function YardMap({ model }: YardMapProps) {
           data-testid="yard-map-hover"
           className="pointer-events-none absolute left-3 top-3 z-20 rounded-[3px] border border-depot-line bg-depot-surface px-3 py-2"
         >
-          <p className="font-mono text-[13px] text-depot-ink">{hovered.registration}</p>
-          <p className="mt-0.5 text-[11px] text-depot-muted">
+          <span className="block font-mono text-[13px] text-depot-ink">{hovered.registration}</span>
+          <span className="mt-0.5 block font-mono text-[11px] text-depot-muted">
             {BUS_STATE_LABEL[hovered.state]}
             {hovered.relation === 'visiting' ? ' · visiting' : ''}
-          </p>
+          </span>
         </div>
       ) : null}
     </div>

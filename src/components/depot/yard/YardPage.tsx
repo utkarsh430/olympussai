@@ -38,16 +38,16 @@ function HowProduced({
 }) {
   return (
     <ClosingDisclosure testId="yard-how">
-        <p>{model.basis}</p>
-        <p>
+        <p className="depot-prose">{model.basis}</p>
+        <p className="depot-prose">
           The yard circle is inferred from where this depot&apos;s buses park; it is not a surveyed
           boundary. Buses further than {DISPLAY_RADIUS_FACTOR} radii from its centre are not drawn.
           A filled dot is one of this depot&apos;s buses; a ring is a bus from another depot.
         </p>
-        <p>
+        <p className="depot-prose">
           {capacityTitle} Bays come from the depot master, not a survey, so capacity is MODELLED.
         </p>
-        <p>{PLAN_NOTICE}</p>
+        <p className="depot-prose">{PLAN_NOTICE}</p>
     </ClosingDisclosure>
   );
 }

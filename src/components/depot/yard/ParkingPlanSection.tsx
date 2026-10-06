@@ -57,7 +57,7 @@ function PlanArea({ depotId, data }: { readonly depotId: string; readonly data: 
           />
         </section>
       )}
-      {dropped ? <p className="text-[11px] text-depot-muted">{dropped}</p> : null}
+      {dropped ? <p className="depot-note">{dropped}</p> : null}
     </>
   );
 }

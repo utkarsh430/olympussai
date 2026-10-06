@@ -114,7 +114,7 @@ export function ParkingPlan({ depotId, order, operatingDate }: ParkingPlanProps)
       <p
         role={diagram.status.warning ? 'alert' : 'status'}
         data-testid="parking-blocked"
-        className={`mb-2 text-[13px] ${diagram.status.warning ? 'text-alert-amber' : 'text-alert-green'}`}
+        className={`depot-prose mb-2 ${diagram.status.warning ? 'text-alert-amber' : 'text-alert-green'}`}
       >
         {diagram.status.text}
       </p>
@@ -139,7 +139,7 @@ export function ParkingPlan({ depotId, order, operatingDate }: ParkingPlanProps)
       </figure>
       {diagram.overflow.length > 0 ? (
         <div className="mt-3" data-testid="parking-overflow">
-          <p className="text-[13px] text-depot-ink">{overflowSentence(diagram.overflow.length)}</p>
+          <p className="depot-prose text-depot-ink">{overflowSentence(diagram.overflow.length)}</p>
           <ul className="mt-1 space-y-0.5">
             {diagram.overflow.map((bus) => (
               <li key={bus.registration} className="min-w-0 break-words text-[13px]">
