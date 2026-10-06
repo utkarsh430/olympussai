@@ -9,22 +9,18 @@ import {
   LoadingBlock,
   StaleStrip,
 } from '@/components/depot/shell/DataStates';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { formatClockTime } from '@/lib/depot/format';
 import { LOAD_ERROR_TITLE, loadErrorBody } from '@/lib/depot/loadError';
-import { unpositionedSentence } from '@/lib/depot/network/mapWords';
-import { joinScores, unpositionedCount, type DepotRow } from '@/lib/depot/network/overviewModel';
+import { joinScores } from '@/lib/depot/network/overviewModel';
 import type { DepotNetworkResponse } from '@/lib/depot/api';
 import { BriefingCard } from '@/components/depot/copilot/BriefingCard';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
-import { DepotMap } from './DepotMap';
-import { DepotMapLegend } from './DepotMapLegend';
-import { DepotMapPanel } from './DepotMapPanel';
 import { DepotTable } from './DepotTable';
+import { MapSection } from './MapSection';
 import { ExceptionSummary } from './ExceptionSummary';
 import { KpiBand } from './KpiBand';
 import { RankedStrip } from './RankedStrip';
-import { SelectionBar, SelectionLine } from './SelectionBar';
+import { SelectionBar } from './SelectionBar';
 
 const SECTION = 'animate-rise';
 const OPERATIONS_HREF = '/project/upsrtc';
@@ -43,66 +39,6 @@ function OverviewLoading() {
       <LoadingBlock rows={4} label="Loading exceptions" />
       <LoadingBlock rows={8} label="Loading the units table" />
     </div>
-  );
-}
-
-interface MapSectionProps {
-  readonly rows: readonly DepotRow[];
-  readonly selected: DepotRow | null;
-  /** Null clears the selection. */
-  readonly onSelect: (depotId: string | null) => void;
-  readonly vanished: boolean;
-}
-
-function MapSection({ rows, selected, onSelect, vanished }: MapSectionProps) {
-  const depots = rows.map((row) => row.depot);
-  const maxFleet = depots.reduce(
-    (max, depot) => (depot.centroid ? Math.max(max, depot.fleet) : max),
-    0,
-  );
-  const clear = (): void => onSelect(null);
-
-  return (
-    <section aria-labelledby="depot-map-heading" className={SECTION}>
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 id="depot-map-heading" className="depot-section-label !mb-0">
-          Units map
-        </h2>
-        <ProvenanceBadge provenance="derived" />
-        <p className="font-sans text-[13px] leading-snug text-depot-muted">
-          Each unit is drawn at the median position of its buses, not at a surveyed yard, and it
-          moves with them: a unit whose fleet is mostly out on routes can appear tens of kilometres
-          from its yard.
-        </p>
-      </div>
-      <SelectionLine row={selected} onClear={clear} />
-      <div className="depot-map-layout">
-        <div className="min-w-0">
-          <DepotMap
-            rows={rows}
-            maxFleet={maxFleet}
-            selectedId={selected?.depot.id ?? null}
-            onSelect={onSelect}
-          />
-          <p
-            className="mt-2 font-sans text-[13px] text-depot-muted"
-            data-testid="depot-map-unpositioned"
-          >
-            {unpositionedSentence(unpositionedCount(depots))}
-          </p>
-        </div>
-        <div className="flex min-w-0 flex-col gap-4 self-start">
-          <DepotMapPanel
-            row={selected}
-            rows={rows}
-            onSelect={onSelect}
-            vanished={vanished}
-            onClear={clear}
-          />
-          <DepotMapLegend maxFleet={maxFleet} />
-        </div>
-      </div>
-    </section>
   );
 }
 
