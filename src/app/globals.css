@@ -403,6 +403,18 @@
     @apply relative h-[460px] overflow-hidden rounded-md border border-depot-line bg-depot-page;
   }
 
+  /* Overview table in the page flow: the frame still scrolls sideways, but it
+     grows to its rows instead of opening a second vertical scroll. */
+  .depot-table-flow .depot-table-frame {
+    max-height: none;
+  }
+
+  /* Row cap after the table has sorted: rows past the 25th (TABLE_ROW_CAP in
+     overviewWords.ts; keep the two in step) are hidden until "Show all". */
+  .depot-table-capped .depot-table tbody tr:nth-child(n + 26) {
+    display: none;
+  }
+
   .depot-pick-button {
     @apply flex w-full min-w-0 items-baseline justify-between gap-3 border-l-2 border-transparent
       px-2 py-1.5 text-left hover:bg-depot-raised;
