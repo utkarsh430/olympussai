@@ -26,7 +26,7 @@ export function FigureBand({ label, children }: FigureBandProps) {
       <ul
         aria-label={label}
         data-testid="depot-figure-band"
-        className="-ml-[17px] grid w-[calc(100%+17px)] grid-cols-2 gap-y-3 py-2 lg:flex lg:flex-wrap"
+        className="-ml-[17px] grid w-[calc(100%+17px)] grid-cols-2 gap-y-3 py-2 sm:grid-cols-3 lg:flex lg:flex-wrap"
       >
         {children}
       </ul>
