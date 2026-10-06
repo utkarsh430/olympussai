@@ -7,7 +7,15 @@ import { Pager } from '@/components/depot/shell/LongLists';
 import { PAGE_ROWS, pageRange } from '@/lib/depot/listPaging';
 import { rosterBusHref } from '@/lib/depot/depotNav';
 import { formatMinute, type BoardRow } from '@/lib/depot/duties/dutyBoardModel';
+import {
+  DUTY_COLUMN_WIDTH_PX,
+  dutyColumnKeys,
+  dutyTableTier,
+  type DutyColumnKey,
+} from '@/lib/depot/duties/dutyTableLayout';
+import { useBelowDesktop } from '@/components/depot/maintenance/useBelowDesktop';
 import { DutyDetail } from './DutyDetail';
+import { useTableFirst } from './useTableFirst';
 
 export interface DutyTableProps {
   readonly depotId: string;
@@ -68,7 +76,13 @@ const rowDetail = (row: BoardRow): React.ReactNode => <DutyDetail row={row} />;
  * expander opens the duty in full beneath it.
  */
 export function DutyTable({ depotId, rows }: DutyTableProps) {
-  const columns = useMemo(() => buildColumns(depotId), [depotId]);
+  const tier = dutyTableTier(useBelowDesktop(), useTableFirst());
+  const columns = useMemo(() => {
+    const keys = new Set<string>(dutyColumnKeys(tier));
+    return buildColumns(depotId)
+      .filter((column) => keys.has(column.key))
+      .map((column) => ({ ...column, width: DUTY_COLUMN_WIDTH_PX[column.key as DutyColumnKey] }));
+  }, [depotId, tier]);
   const [requested, setRequested] = useState(0);
   const range = pageRange(requested, rows.length, PAGE_ROWS);
   return (
