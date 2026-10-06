@@ -1,9 +1,15 @@
+import { COST_GRID_M, MAX_MOVES, METRES_PER_KM } from './allocateConfig';
 import {
-  COST_GRID_M,
-  MAX_MOVES,
-  METRES_PER_KM,
-  MIN_SAVING_KM_PER_DAY,
-} from './allocateConfig';
+  compareText,
+  dailyCost,
+  fits,
+  localSearch,
+  MIN_SAVING_M,
+  movable,
+  routesWithMove,
+  shiftTo,
+  type Work,
+} from './allocateSearch';
 import type {
   AllocDepot,
   AllocRoute,
@@ -15,39 +21,8 @@ import type {
 
 export { MAX_MOVES, MIN_SAVING_KM_PER_DAY } from './allocateConfig';
 
-const MIN_SAVING_M = MIN_SAVING_KM_PER_DAY * METRES_PER_KM;
-
-/** One route's working state. Mutated only here, never the caller's input. */
-interface Work {
-  readonly index: number;
-  readonly name: string;
-  readonly origin: string;
-  current: string;
-  readonly buses: number;
-  /** Daily metres at each depot the route has a valid figure for. */
-  readonly cost: ReadonlyMap<string, number>;
-  readonly costed: boolean;
-  /** Eligible depots (figure present and listed), sorted by id, own depot included. */
-  readonly options: readonly string[];
-  readonly optionSet: ReadonlySet<string>;
-  /** Routes at a depot that starts over capacity stay where they are. */
-  readonly frozen: boolean;
-}
-
-interface Candidate {
-  readonly saving: number;
-  readonly primary: Work;
-  readonly toDepot: string;
-  readonly partner: Work | null;
-}
-
-const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 const isCount = (n: number): boolean => Number.isFinite(n) && n >= 0;
-
-function dailyCost(km: number, tripsPerDay: number): number {
-  const perTripM = Math.round(km * METRES_PER_KM);
-  return Math.round((tripsPerDay * perTripM) / COST_GRID_M) * COST_GRID_M;
-}
+const isWholeCount = (n: number): boolean => Number.isInteger(n) && n >= 0;
 
 function capacities(depots: readonly AllocDepot[]): Map<string, number> {
   const cap = new Map<string, number>();
@@ -69,7 +44,7 @@ function buildWork(routes: readonly AllocRoute[], cap: ReadonlyMap<string, numbe
     loads.set(r.currentDepotId, (loads.get(r.currentDepotId) ?? 0) + buses);
   }
   return sorted.map((r, index) => {
-    const usable = isCount(r.busesNeeded) && isCount(r.tripsPerDay);
+    const usable = isCount(r.busesNeeded) && isWholeCount(r.tripsPerDay);
     const cost = new Map<string, number>();
     if (usable) {
       for (const [id, km] of Object.entries(r.deadKmByDepot)) {
@@ -92,38 +67,6 @@ function buildWork(routes: readonly AllocRoute[], cap: ReadonlyMap<string, numbe
       frozen: limit !== undefined && (loads.get(r.currentDepotId) ?? 0) > limit,
     };
   });
-}
-
-/** Strictly better first: saving, then route name, then target depot, shift before swap. */
-function better(a: Candidate, b: Candidate | null): boolean {
-  if (b === null) return true;
-  if (a.saving !== b.saving) return a.saving > b.saving;
-  return (
-    (compareText(a.primary.name, b.primary.name) ||
-      compareText(a.toDepot, b.toDepot) ||
-      (a.partner === null ? 0 : 1) - (b.partner === null ? 0 : 1) ||
-      compareText(a.partner?.name ?? '', b.partner?.name ?? '')) < 0
-  );
-}
-
-function fits(
-  loads: ReadonlyMap<string, number>,
-  cap: ReadonlyMap<string, number>,
-  depot: string,
-  delta: number,
-): boolean {
-  const limit = cap.get(depot);
-  return limit !== undefined && (loads.get(depot) ?? 0) + delta <= limit;
-}
-
-function shiftTo(loads: Map<string, number>, work: Work, depot: string): void {
-  loads.set(work.current, (loads.get(work.current) ?? 0) - work.buses);
-  loads.set(depot, (loads.get(depot) ?? 0) + work.buses);
-  work.current = depot;
-}
-
-function movable(works: readonly Work[]): Work[] {
-  return works.filter((w) => w.costed && !w.frozen);
 }
 
 /** Phase 1: routes in regret order each take their best depot that still has room. */
@@ -158,87 +101,52 @@ function construct(
   return applied;
 }
 
-function bestMove(
-  works: readonly Work[],
-  cap: ReadonlyMap<string, number>,
-  loads: ReadonlyMap<string, number>,
-  remaining: number,
-): Candidate | null {
-  const live = movable(works);
-  const byDepot = new Map<string, Work[]>();
-  for (const w of live) byDepot.set(w.current, [...(byDepot.get(w.current) ?? []), w]);
-  let best: Candidate | null = null;
-  for (const w of live) {
-    const here = w.cost.get(w.current)!;
-    for (const id of w.options) {
-      if (id === w.current) continue;
-      const gain = here - w.cost.get(id)!;
-      if (gain < MIN_SAVING_M) continue;
-      if (fits(loads, cap, id, w.buses)) {
-        const shift = { saving: gain, primary: w, toDepot: id, partner: null };
-        if (better(shift, best)) best = shift;
-      }
-      for (const other of remaining >= 2 ? (byDepot.get(id) ?? []) : []) {
-        if (other.index <= w.index || !other.optionSet.has(w.current)) continue;
-        const otherGain = other.cost.get(id)! - other.cost.get(w.current)!;
-        if (otherGain < MIN_SAVING_M) continue;
-        if (!fits(loads, cap, w.current, other.buses - w.buses)) continue;
-        if (!fits(loads, cap, id, w.buses - other.buses)) continue;
-        const swap = { saving: gain + otherGain, primary: w, toDepot: id, partner: other };
-        if (better(swap, best)) best = swap;
-      }
-    }
-  }
-  return best;
-}
-
-/** Phase 2: apply the single best improving shift or swap until none is left. */
-function localSearch(
-  works: readonly Work[],
-  cap: ReadonlyMap<string, number>,
-  loads: Map<string, number>,
-  budget: number,
-): void {
-  // A swap relocates two routes, so it spends two of the budget.
-  let remaining = budget;
-  while (remaining > 0) {
-    const move = bestMove(works, cap, loads, remaining);
-    if (move === null) return;
-    const from = move.primary.current;
-    shiftTo(loads, move.primary, move.toDepot);
-    if (move.partner !== null) shiftTo(loads, move.partner, from);
-    remaining -= move.partner === null ? 1 : 2;
-  }
-}
-
-function reasonFor(w: Work): UnchangedReason {
+function reasonFor(w: Work, limited: ReadonlySet<string>): UnchangedReason {
   const others = w.options.filter((id) => id !== w.origin);
   if (!w.costed || others.length === 0) return 'no_candidate';
-  const cheapest = Math.min(...others.map((id) => w.cost.get(id)!));
-  const saving = w.cost.get(w.origin)! - cheapest;
+  const saving = w.cost.get(w.origin)! - Math.min(...others.map((id) => w.cost.get(id)!));
   if (saving <= 0) return 'already_best';
-  return saving < MIN_SAVING_M ? 'below_threshold' : 'no_capacity';
+  if (saving < MIN_SAVING_M) return 'below_threshold';
+  if (w.frozen) return 'over_capacity';
+  return limited.has(w.name) ? 'move_limit' : 'no_capacity';
 }
 
 const toKm = (metres: number): number => Math.round(metres / COST_GRID_M) / (METRES_PER_KM / COST_GRID_M);
 
+export interface AllocationRun {
+  readonly plan: AllocationPlan;
+  /** Applied single-route shifts (both phases) and swaps; diagnostics for tests. */
+  readonly shifts: number;
+  readonly swaps: number;
+}
+
 /**
  * Recommends which depot should run each route to cut dead kilometres within
- * capacity. Starts from the current allocation and only ever makes moves that
- * save at least the minimum, so the result is feasible and never worse.
- * Output depends only on input values, not their order.
+ * capacity. Starts from the current allocation and only applies shifts and
+ * swaps that save at least the minimum in total, so the result is feasible and
+ * never worse. Output depends only on input values, not their order.
  */
 export function planAllocation(
   routes: readonly AllocRoute[],
   depots: readonly AllocDepot[],
 ): AllocationPlan {
+  return runAllocation(routes, depots).plan;
+}
+
+export function runAllocation(
+  routes: readonly AllocRoute[],
+  depots: readonly AllocDepot[],
+): AllocationRun {
   const cap = capacities(depots);
   const works = buildWork(routes, cap);
   const loads = new Map<string, number>();
   for (const w of works) loads.set(w.origin, (loads.get(w.origin) ?? 0) + w.buses);
 
   const constructed = construct(works, cap, loads, MAX_MOVES);
-  localSearch(works, cap, loads, MAX_MOVES - constructed);
+  const searched = localSearch(works, cap, loads, MAX_MOVES - constructed);
+  const spent = constructed + searched.shifts + searched.swaps * 2;
+  // With room for at most one more relocation a swap is no longer possible: name what that cost.
+  const limited = spent >= MAX_MOVES - 1 ? routesWithMove(works, cap, loads) : new Set<string>();
 
   const moves: RouteMove[] = [];
   const unchanged: UnchangedRoute[] = [];
@@ -250,7 +158,7 @@ export function planAllocation(
       after += w.cost.get(w.current)!;
     }
     if (w.current === w.origin) {
-      unchanged.push({ routeName: w.name, reason: reasonFor(w) });
+      unchanged.push({ routeName: w.name, reason: reasonFor(w, limited) });
       continue;
     }
     const saved = w.cost.get(w.origin)! - w.cost.get(w.current)!;
@@ -260,13 +168,15 @@ export function planAllocation(
       toDepotId: w.current,
       busesNeeded: w.buses,
       savedKmPerDay: toKm(saved),
+      madeRoom: saved < MIN_SAVING_M,
     });
   }
-  return {
+  const plan = {
     moves,
     beforeKmPerDay: toKm(before),
     afterKmPerDay: toKm(after),
     savedKmPerDay: toKm(before - after),
     unchanged,
   };
+  return { plan, shifts: constructed + searched.shifts, swaps: searched.swaps };
 }
