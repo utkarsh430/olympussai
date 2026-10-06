@@ -1,12 +1,15 @@
 import { PROVENANCE_LABEL } from '@/lib/depot/labels';
 import type { Coverage, Provenance } from '@/lib/depot/types';
 
-/** Text and hairline colour per provenance; the word carries the meaning, not the colour. */
+/**
+ * Hairline, wash and text per provenance, the command centre's badge colours (LIVE green,
+ * MODELLED amber, DERIVED cyan, REFERENCE slate); the word carries the meaning.
+ */
 const TONE: Readonly<Record<Provenance, string>> = {
-  live: 'border-alert-green/50 text-alert-green',
-  derived: 'border-holo-glow/50 text-holo-glow',
-  modelled: 'border-alert-amber/50 text-alert-amber',
-  reference: 'border-depot-muted/50 text-depot-muted',
+  live: 'border-alert-green/45 bg-alert-green/10 text-alert-green',
+  derived: 'border-holo-glow/40 bg-holo-glow/10 text-holo-glow',
+  modelled: 'border-alert-amber/50 bg-alert-amber/10 text-alert-amber',
+  reference: 'border-slate-400/40 bg-slate-400/10 text-slate-400',
 };
 
 export interface ProvenanceBadgeProps {

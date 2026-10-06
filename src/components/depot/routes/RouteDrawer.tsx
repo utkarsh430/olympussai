@@ -187,7 +187,7 @@ export function RouteDrawer({ route, move, onClose, onProfiled, restoreFocusTo }
         role="dialog"
         aria-modal="true"
         aria-labelledby="route-drawer-title"
-        className="relative flex h-full w-full min-w-0 flex-col overflow-y-auto border-l border-depot-line bg-depot-surface p-4 sm:max-w-lg"
+        className="relative flex h-full w-full min-w-0 flex-col depot-lit overflow-y-auto border-l border-depot-line bg-depot-surface p-4 sm:max-w-lg"
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <h2

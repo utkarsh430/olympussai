@@ -121,7 +121,7 @@ export function TransferMap({ geometry, selectedId, onSelect }: TransferMapProps
       ) : null}
       {status === 'ready' && hover ? <MapHoverCard hover={hover} geometry={geometry} /> : null}
       {status === 'ready' && chosenArc ? (
-        <p className="absolute bottom-3 left-3 z-20 max-w-[calc(100%-24px)] truncate rounded-[3px] border border-depot-line bg-depot-surface px-3 py-1.5 font-sans text-xs text-depot-ink">
+        <p className="absolute bottom-3 left-3 z-20 max-w-[calc(100%-24px)] depot-lit truncate rounded-[3px] border border-depot-line bg-depot-surface px-3 py-1.5 font-sans text-xs text-depot-ink">
           Selected: {busesWord(chosenArc.buses)},{' '}
           {names.get(chosenArc.fromDepotId) ?? chosenArc.fromDepotId} →{' '}
           {names.get(chosenArc.toDepotId) ?? chosenArc.toDepotId}

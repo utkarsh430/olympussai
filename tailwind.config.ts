@@ -39,16 +39,25 @@ export default {
           crimson: '#b3172f',
           green: '#0b6b40',
         },
-        // Depot Management surface: the command centre's palette with the
-        // lights turned down. Ink tiers all clear 4.5:1 on `page`.
+        // Depot Management surface: the command centre's palette at the command
+        // centre's strength. Every value is a dashboard colour: `page` is void, `surface`
+        // the hud-panel fill, `bar` the command bar's fill, `ink` the dashboard's body
+        // ink. The cyan tiers are holo-glow composited over `page` so they stay opaque
+        // (frozen table cells need an opaque wash): `raised` 6% (hover), `selected` 10%,
+        // `muted` 70% (the hud-label colour), `faint` 60%. `prose` is the light ink for
+        // sentences. depot-contrast.test.ts holds every text tier to 4.5:1 on every surface.
         depot: {
           page: '#02040a',
           surface: '#070f1d',
-          raised: '#0a1626',
-          line: 'rgba(63, 240, 255, 0.12)',
-          ink: '#dbe7f3',
-          muted: '#9bb0c7',
-          faint: '#6b84a0',
+          bar: '#050b17',
+          raised: '#061219',
+          selected: '#081c23',
+          line: 'rgba(63, 240, 255, 0.2)',
+          'line-strong': 'rgba(63, 240, 255, 0.35)',
+          ink: '#d6ecf7',
+          prose: '#a6c0cc',
+          muted: '#2da9b6',
+          faint: '#27929d',
         },
         // Olympuss landing palette (Section 18). Namespaced so it cannot
         // collide with the dashboard's cyan HUD tokens above.

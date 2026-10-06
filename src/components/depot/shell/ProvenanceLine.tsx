@@ -10,13 +10,13 @@ import {
 } from '@/lib/depot/provenanceLine';
 import { usePageRefresh } from './PageRefreshNotice';
 
-/** Hairline and text colour per tone; the word carries the meaning, not the colour. */
+/** Hairline, wash and text per tone (the badge colours); the word carries the meaning. */
 export const PROVENANCE_TONE_CLASS: Readonly<Record<ProvenanceTone, string>> = {
-  live: 'border-alert-green/50 text-alert-green',
-  derived: 'border-holo-glow/50 text-holo-glow',
-  modelled: 'border-alert-amber/50 text-alert-amber',
-  mixed: 'border-alert-amber/50 text-alert-amber',
-  reference: 'border-depot-muted/50 text-depot-muted',
+  live: 'border-alert-green/45 bg-alert-green/10 text-alert-green',
+  derived: 'border-holo-glow/40 bg-holo-glow/10 text-holo-glow',
+  modelled: 'border-alert-amber/50 bg-alert-amber/10 text-alert-amber',
+  mixed: 'border-alert-amber/50 bg-alert-amber/10 text-alert-amber',
+  reference: 'border-slate-400/40 bg-slate-400/10 text-slate-400',
 };
 
 /**

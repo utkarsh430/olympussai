@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
+import { isDepotNavItemActive } from '@/lib/depot/depotNav';
 import { railGroups, shellNav } from '@/lib/depot/shellModel';
 import { DepotNavStrip } from './DepotNavStrip';
 import { NavLinks } from './NavLinks';
@@ -15,6 +16,8 @@ import { NavLinks } from './NavLinks';
  *   capped at the viewport below the bar, which scrolls inside itself when a short
  *   viewport cannot hold them. In depot scope it leads with the depot's name as a group
  *   heading and that depot's pages, then the network groups. There are no depot tabs.
+ *   Each group's heading is drawn as a category tab, and the one whose group holds the
+ *   current page is lit.
  * - Below 1280px, ONE strip under the top bar (`DepotNavStrip`), so at 1024 the content
  *   column is the full width less the page gutters (976px) rather than losing 200px to
  *   a rail.
@@ -38,22 +41,29 @@ export function DepotNav() {
           data-testid="depot-nav-column"
           className="sticky top-[var(--depot-bar-h)] z-30 flex max-h-[calc(100dvh-var(--depot-bar-h))] flex-col gap-5 overflow-y-auto py-5"
         >
-          {railGroups(nav).map((group, position) => (
-            <div
-              key={`${position}-${group.heading}`}
-              data-testid={position === 0 && nav.depotGroup ? 'depot-nav-depot-group' : undefined}
-            >
-              {/* A label, not a sentence: a div keeps it out of the prose rule. */}
+          {railGroups(nav).map((group, position) => {
+            // The group that holds the page being shown is the lit category.
+            const current = group.items.some((item) => isDepotNavItemActive(pathname, item));
+            return (
               <div
-                className={`depot-label mb-1.5 truncate px-4 ${
-                  position === 0 && nav.depotGroup ? 'text-depot-ink' : ''
-                }`}
+                key={`${position}-${group.heading}`}
+                data-testid={position === 0 && nav.depotGroup ? 'depot-nav-depot-group' : undefined}
               >
-                {group.heading}
+                {/* A label, not a sentence: a div keeps it out of the prose rule. */}
+                <div
+                  data-testid="depot-nav-category"
+                  data-current={current ? 'true' : undefined}
+                  title={group.heading}
+                  className={`depot-nav-category block truncate ${
+                    current ? 'depot-nav-category-current' : ''
+                  }`}
+                >
+                  {group.heading}
+                </div>
+                <NavLinks items={group.items} pathname={pathname} />
               </div>
-              <NavLinks items={group.items} pathname={pathname} />
-            </div>
-          ))}
+            );
+          })}
         </div>
       </nav>
       <DepotNavStrip nav={nav} pathname={pathname} />

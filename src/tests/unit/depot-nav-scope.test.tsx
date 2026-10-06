@@ -62,6 +62,37 @@ describe('the rail from 1280px', () => {
     expect(within(rail).getByRole('link', { name: 'Overview' }).getAttribute('aria-current')).toBeNull();
   });
 
+  it('draws every group heading as a category tab and lights the one that holds the current page', () => {
+    route.path = '/project/depots/d/49/yard';
+    render(<DepotNav />);
+    const tabs = within(screen.getByTestId('depot-nav')).getAllByTestId('depot-nav-category');
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['KAUSHAMBI', 'Network', 'Intelligence', 'System']);
+    for (const tab of tabs) expect(tab.className.split(/\s+/)).toContain('depot-nav-category');
+    const lit = tabs.filter((tab) => tab.className.split(/\s+/).includes('depot-nav-category-current'));
+    expect(lit.map((tab) => tab.textContent)).toEqual(['KAUSHAMBI']);
+    expect(lit[0]?.getAttribute('data-current')).toBe('true');
+  });
+
+  it('lights the network category on a network page, and never two at once', () => {
+    route.path = '/project/depots/league';
+    render(<DepotNav />);
+    const tabs = within(screen.getByTestId('depot-nav')).getAllByTestId('depot-nav-category');
+    const lit = tabs.filter((tab) => tab.getAttribute('data-current') === 'true');
+    expect(lit).toHaveLength(1);
+    const group = lit[0]?.parentElement;
+    expect(group && within(group).getByRole('link', { name: 'League table' }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+  });
+
+  it('keeps a long depot name on one line inside its tab', () => {
+    route.path = '/project/depots/d/49';
+    render(<DepotNav />);
+    const tab = within(screen.getByTestId('depot-nav-depot-group')).getByTestId('depot-nav-category');
+    expect(tab.className.split(/\s+/)).toEqual(expect.arrayContaining(['truncate', 'block']));
+    expect(tab.getAttribute('title')).toBe('KAUSHAMBI');
+  });
+
   it('shows no depot group for a depot the feed does not know', () => {
     route.path = '/project/depots/d/999999/yard';
     render(<DepotNav />);

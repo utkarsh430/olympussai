@@ -17,6 +17,7 @@ import type { MetricUnit } from '@/lib/depot/forecast/api';
 import type { ChartPoint, PlotRow, TrendChartModel } from '@/lib/depot/forecast/chartModel';
 import { formatDate, formatTick, formatValue } from '@/lib/depot/forecast/chartScale';
 import { AXIS_FONT_SIZE, BAND_OPACITY, FORECAST_DASH, TREND_COLOUR } from './trendStyle';
+import { DEPOT_PALETTE } from '@/lib/depot/palette';
 
 export interface TrendPlotProps {
   readonly model: TrendChartModel;
@@ -41,7 +42,7 @@ interface TooltipBodyProps {
 function TooltipBody({ point, unit }: TooltipBodyProps) {
   if (!point) return null;
   return (
-    <div className="rounded-[3px] border border-depot-line bg-depot-surface px-2.5 py-1.5 font-mono text-[11px] text-depot-muted">
+    <div className="depot-lit rounded-[3px] border border-depot-line bg-depot-surface px-2.5 py-1.5 font-mono text-[11px] text-depot-muted">
       <div>{formatDate(point.date, true)}</div>
       <div className="text-[13px] tabular-nums text-depot-ink">
         {formatValue(point.value, unit)}
@@ -58,7 +59,7 @@ function TooltipBody({ point, unit }: TooltipBodyProps) {
  * Recharts measures its container, so this part is only seen in a browser.
  */
 /** alert-amber, the duty chart's "Now" colour. */
-const NOW_FLAG_AMBER = '#ffb020';
+const NOW_FLAG_AMBER = DEPOT_PALETTE.amber;
 const FLAG_WIDTH = 30;
 const FLAG_HEIGHT = 16;
 
@@ -82,7 +83,7 @@ function NowFlag({ viewBox }: { readonly viewBox?: { x?: number; y?: number; hei
         textAnchor="middle"
         fontSize={AXIS_FONT_SIZE}
         fontFamily="var(--font-mono, monospace)"
-        fill="#06101c"
+        fill={DEPOT_PALETTE.page}
       >
         Now
       </text>

@@ -30,11 +30,49 @@ closed disclosure at the end, "How these figures are produced".
 - Filters: one `FilterRow` (inline labels, 32px controls), never a stacked label.
 - No hand-picked margins between sections: put the sections in one `depot-stack`.
 
+## Colour
+
+The depot pages use the command centre's palette at the command centre's strength, so they
+read as the same product as the dashboard: cyan labels and hairlines, cyan figures, lit
+panels, the dashboard's grid and ambient glow behind the page. Only colour is shared; the
+depot layout, type and spacing are its own.
+
+Where it is defined:
+
+- `tailwind.config.ts`, the `depot` tokens. Every value is a dashboard colour: `depot-page`
+  is `void`, `depot-surface` the dashboard panel's fill, `depot-bar` the command bar's fill,
+  `depot-ink` the dashboard's body ink. The cyan tiers are `holo-glow` laid over the page so
+  they stay opaque: `depot-muted` (70%, the label colour), `depot-faint` (60%, the dimmest
+  text), `depot-raised` (6%, the hover wash) and `depot-selected` (10%, a selected or
+  expanded row, the current page). `depot-line` is `holo-glow` at 20%, `depot-line-strong`
+  at 35%. `depot-prose` is the light ink for sentences, so prose never turns cyan.
+- `src/app/globals.css`, the `.depot-*` classes: the panel's shadow stack and corner ticks
+  (`depot-panel`; `depot-lit` gives the shadow alone to a drawer, a map card, a chart
+  tooltip or the notice), the backdrop (`.depot-shell::before`), table washes, and the
+  dashboard's button and input colours on `depot-bar-button`, `depot-filter-button`,
+  `depot-field` and `depot-control`.
+- `src/lib/depot/palette.ts`, `DEPOT_PALETTE` and `DEPOT_CYAN_RAMP`: the same colours as
+  values, for chart SVG and map overlays, which cannot take a class. No other depot file
+  writes a colour literal (`depot-palette.test.ts` enforces it and holds each value to its
+  token).
+
+Which colour says what: labels, table headers and section labels in `depot-muted`; figures
+and page titles in `holo-glow`; table text and notices in `depot-ink`; sentences in
+`depot-prose`. Tags use the dashboard's badge colours with a 10% wash: LIVE green, MODELLED
+amber, DERIVED and FIXTURE cyan, REFERENCE slate; the feed chip's STALE, FEED QUIET and CHECK
+CLOCK amber. Bus states: green in service, cyan on the road, amber standing, slate dark,
+crimson off the road. Every one is also a word.
+
+Glow is `box-shadow` or `text-shadow` only, never a filter or a size change, and nothing
+moves. `depot-contrast.test.ts` holds every text colour to 4.5:1 on every depot surface,
+the brightest point of the backdrop included; check it when a token changes.
+
 ## Prose and notes
 
 The shell's inherited face is mono (right for data). Sentences use one of these classes:
-`depot-prose` (sans 14/20, body sentences), `depot-note` (sans 13/18, muted: notes, section
-notes, state-panel second lines, legends), `depot-caption` (sans 12/16, muted: a band caption).
+`depot-prose` (sans 14/20, body sentences), `depot-note` (sans 13/18: notes, section
+notes, state-panel second lines, legends), `depot-caption` (sans 12/16: a band caption), all
+three in the `depot-prose` ink.
 
 ```tsx
 <p className="depot-note">Ranked within peer groups of similar fleet size.</p>
@@ -404,7 +442,9 @@ Pages do nothing here; for reference.
   mark is a 20px glyph with the name read to screen readers (the 13px wordmark leaves no room
   for the scope at 360px); from 640px it is the "DEPOT MANAGEMENT" wordmark. Never initials.
 - **Navigation.** From 1280px (Tailwind `xl`) the 232px rail leads with the depot's name and its pages in depot
-  scope, then the network groups. The rail's surface and right hairline run the full height
+  scope, then the network groups. Each group's heading (the depot's name, Network, Intelligence,
+  System) is a category tab (`depot-nav-category`: a cyan-washed strip with a lit left edge), and
+  the tab of the group that holds the current page is lit (`depot-nav-category-current`). The rail's surface and right hairline run the full height
   of the page (the `<nav>` is stretched by the row); its links sit in a sticky column under
   the bar that scrolls inside itself on a short viewport. Below 1280px one strip shows the
   depot's pages only (the network links in network scope): no fixed item, so its end caps sit

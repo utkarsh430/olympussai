@@ -2,17 +2,16 @@ import { BUS_STATE_LABEL } from '@/lib/depot/labels';
 import type { BusOpState } from '@/lib/depot/types';
 
 /**
- * Square colour per bus state. Status colours, checked with the dataviz validator on
- * the dark surface (#070f1d): every pair stays apart for deutan, protan and normal
- * vision (worst all-pairs CVD ΔE 8.9, amber against green), all clear 3:1 against the
- * surface. Standing is deliberately neutral (it is the resting state), so it reads
- * grey. The word always follows the square, so the colour only reinforces it.
+ * Square colour per bus state: the command centre's status colours, the same five the
+ * yard map draws (`BUS_STATE_COLOUR`): green in service, cyan on the road, amber
+ * standing, slate dark, crimson off the road. All clear 3:1 on the panel surface. The
+ * word always follows the square, so the colour only reinforces it.
  */
 export const BUS_STATE_SQUARE: Readonly<Record<BusOpState, string>> = {
   in_service: 'bg-alert-green',
   on_road: 'bg-holo-glow',
-  standing: 'bg-depot-muted',
-  dark: 'bg-alert-amber',
+  standing: 'bg-alert-amber',
+  dark: 'bg-slate-400',
   off_road: 'bg-alert-crimson',
 };
 

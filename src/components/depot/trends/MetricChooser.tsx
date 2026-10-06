@@ -7,7 +7,7 @@ import { metricOptions, trendsHref } from '@/lib/depot/forecast/trendsPageModel'
 import type { MetricKey } from '@/lib/depot/sim/types';
 
 const SELECTED =
-  'aria-[current=page]:border-holo-glow/60 aria-[current=page]:bg-depot-raised ' +
+  'aria-[current=page]:border-holo-glow/60 aria-[current=page]:bg-depot-selected ' +
   'aria-[current=page]:text-holo-glow';
 
 export interface MetricChooserProps {

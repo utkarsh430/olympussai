@@ -82,7 +82,7 @@ function List({
                 </span>
               ) : null}
               {item.note ? (
-                <span className="block font-sans text-xs text-depot-muted">Note: {item.note}</span>
+                <span className="block font-sans text-xs text-depot-prose">Note: {item.note}</span>
               ) : null}
             </span>
             {item.undoable ? (
