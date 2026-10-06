@@ -488,13 +488,14 @@
   .depot-nav-category {
     @apply mx-2 mb-1.5 rounded-[3px] border py-1.5 pl-[9px] pr-2
       font-mono text-[11px] font-semibold uppercase tracking-[0.16em];
-    border-color: rgb(var(--depot-tone) / 0.25);
-    background-image: linear-gradient(90deg, rgb(var(--depot-tone) / 0.1), rgb(var(--depot-tone) / 0.03));
+    border-color: rgb(var(--depot-tone) / 0.15);
+    background-image: linear-gradient(90deg, rgb(var(--depot-tone) / 0.06), rgb(var(--depot-tone) / 0.02));
     color: rgb(var(--depot-tone) / 0.85);
-    box-shadow: inset 2px 0 0 0 rgb(var(--depot-tone) / 0.55);
+    box-shadow: inset 2px 0 0 0 rgb(var(--depot-tone) / 0.4);
   }
 
-  /* The category that holds the current page is the lit tab. */
+  /* The category that holds the current page is the lit tab; the others stay quiet (a
+     fainter edge and wash, the same legible text), so the brand gold is not lit at rest. */
   .depot-nav-category-current {
     border-color: rgb(var(--depot-tone) / 0.6);
     background-image: linear-gradient(90deg, rgb(var(--depot-tone) / 0.2), rgb(var(--depot-tone) / 0.07));
