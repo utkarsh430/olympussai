@@ -14,6 +14,27 @@ export interface Duty {
   readonly provenance: Provenance;
 }
 
+/** The generator's result: the duties, and routes the requirement was too small to cover. */
+export interface ModelledDuties {
+  readonly duties: readonly Duty[];
+  readonly routesWithoutDuty: readonly string[];
+}
+
+export interface HungarianResult {
+  /** Column chosen for each row, or -1 when the row is unassigned. */
+  readonly rowToCol: readonly number[];
+  /** Sum of the chosen finite costs. */
+  readonly total: number;
+}
+
+export interface ParkingPlan {
+  readonly slots: readonly ParkingSlot[];
+  /** Buses that a bus nearer the lane mouth would trap. Zero for any input that fits. */
+  readonly blocked: number;
+  /** Registrations that do not fit, sorted. */
+  readonly overflow: readonly string[];
+}
+
 export interface TimetableRepository {
   dutiesFor(depotId: string, operatingDate: string): Promise<readonly Duty[]>;
 }

@@ -15,7 +15,7 @@ import type { ModelledBus, ServiceClass } from './types';
  * route name (see SERVICE_CLASS_PRIORITY), so the result does not depend on
  * token position.
  */
-function classFromRoute(routeName: string | null): ServiceClass | null {
+export function classFromRoute(routeName: string | null): ServiceClass | null {
   if (routeName === null) return null;
   const named = new Set<ServiceClass>();
   for (const token of routeName.toUpperCase().split('_')) {
