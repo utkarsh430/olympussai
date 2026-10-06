@@ -1,0 +1,179 @@
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DepotTrends } from '@/components/depot/trends/DepotTrends';
+import { NetworkTrends } from '@/components/depot/trends/NetworkTrends';
+import { TREND_ROW_CAP } from '@/lib/depot/forecast/trendsTableModel';
+import {
+  distributionResponse,
+  forecastResponse,
+  polled,
+  trendRow,
+  trendsResponse,
+} from './depot-trends-fixtures';
+
+const hooks = vi.hoisted(() => ({
+  forecast: vi.fn(),
+  trends: vi.fn(),
+  distribution: vi.fn(),
+  detail: { depotId: '20', error: null as string | null },
+}));
+
+vi.mock('@/components/depot/shared/TrendPlot', () => ({ TrendPlot: () => null }));
+vi.mock('@/hooks/useDepotForecast', () => ({ useDepotForecast: hooks.forecast }));
+vi.mock('@/hooks/useDepotTrends', () => ({ useDepotTrends: hooks.trends }));
+vi.mock('@/hooks/useDepotDistribution', () => ({ useDepotDistribution: hooks.distribution }));
+vi.mock('@/components/depot/data/DepotDetailProvider', () => ({
+  useDepotDetailContext: () => hooks.detail,
+}));
+
+const text = (markup: string): string => markup.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+
+beforeEach(() => {
+  hooks.forecast.mockReset();
+  hooks.trends.mockReset();
+  hooks.distribution.mockReset();
+  hooks.detail = { depotId: '20', error: null };
+  hooks.forecast.mockImplementation((request: { metric: 'onRoadShare' } | null) =>
+    polled(request === null ? null : forecastResponse(request.metric, 70)),
+  );
+  hooks.trends.mockReturnValue(polled(trendsResponse([trendRow('1', 2.1), trendRow('2', -3)])));
+  hooks.distribution.mockReturnValue(polled(distributionResponse('20', 40)));
+});
+
+describe('network Trends page', () => {
+  it('asks for one forecast and one batch of trends, never a request per row', () => {
+    renderToStaticMarkup(<NetworkTrends metric="index" />);
+    expect(hooks.forecast).toHaveBeenCalledWith({ metric: 'index', scope: { kind: 'network' } });
+    expect(hooks.trends).toHaveBeenCalledWith({ metric: 'index' });
+    expect(hooks.forecast).toHaveBeenCalledTimes(1);
+    expect(hooks.trends).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks the chosen measure and links every other one', () => {
+    const markup = renderToStaticMarkup(<NetworkTrends metric="darkRate" />);
+    expect(markup).toMatch(/aria-current="page"[^>]*href="\/project\/depots\/trends\?metric=darkRate"/);
+    expect(markup).toContain('href="/project/depots/trends?metric=index"');
+    expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
+  });
+
+  it('says once that the history is generated, and tags every trend line MODELLED', () => {
+    const page = text(renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />));
+    expect(page.match(/generated until a database of real history exists/g)).toHaveLength(1);
+    expect(page).toContain('On-road share: trend and forecast, MODELLED');
+    expect(page.match(/MODELLED trend: [a-z0-9. ]+ over 7 days/g)).toHaveLength(1);
+    expect(page.match(/MODELLED trend: [a-z0-9. ]+ over 4 weeks/g)).toHaveLength(1);
+    expect(page).toContain('judged on the last four weeks');
+    expect(page).toContain('Every unit, MODELLED');
+    expect(page).toContain('MODELLED trends of on-road share: all 2 units');
+    expect(page.toLowerCase()).not.toContain('simulated');
+  });
+
+  it('links each unit to its own Trends page with a text equivalent for its sparkline', () => {
+    const markup = renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />);
+    expect(markup).toContain('href="/project/depots/d/2/trends?metric=onRoadShare"');
+    expect(markup).toContain('aria-label="On-road share at Depot 2, MODELLED trend:');
+  });
+
+  it('shows the history and says why when there is too little for a forecast', () => {
+    hooks.forecast.mockReturnValue(polled(forecastResponse('onRoadShare', 20)));
+    const page = text(renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />));
+    expect(page).toContain('No forecast: it needs at least 28 days of history and this series has 20.');
+  });
+
+  it('holds the footprint while loading, and offers Retry with a title on failure', () => {
+    hooks.forecast.mockReturnValue(polled(null, { loading: true }));
+    hooks.trends.mockReturnValue(polled(null, { loading: true }));
+    expect(renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />)).toContain(
+      'data-testid="depot-loading"',
+    );
+    hooks.forecast.mockReturnValue(polled(null, { error: 'Depot data unavailable' }));
+    hooks.trends.mockReturnValue(polled(null, { error: 'Depot data unavailable' }));
+    const page = text(renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />));
+    expect(page).toContain('Could not load the network trend');
+    expect(page).toContain('Could not load the unit trends');
+    expect(page).toContain('Retry');
+  });
+
+  it('shows the stale strip when a poll fails after a good response', () => {
+    hooks.trends.mockReturnValue(
+      polled(trendsResponse([trendRow('1', 1)]), { error: 'Could not reach the server' }),
+    );
+    expect(renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />)).toContain(
+      'data-testid="depot-stale"',
+    );
+  });
+});
+
+describe('the unit table', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+
+  beforeEach(() => {
+    actGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  const names = (): string[] =>
+    Array.from(container.querySelectorAll('tbody tr td:first-child')).map((td) => td.textContent ?? '');
+
+  it('starts worst first, re-sorts on the header button, and pages the rows', () => {
+    const units = Array.from({ length: TREND_ROW_CAP + 2 }, (_, i) => trendRow(String(i), i - 5));
+    hooks.trends.mockReturnValue(polled(trendsResponse(units)));
+    act(() => root.render(<NetworkTrends metric="onRoadShare" />));
+    expect(names()).toHaveLength(TREND_ROW_CAP);
+    expect(names()[0]).toBe('Depot 0');
+    const fourWeeks = Array.from(container.querySelectorAll('thead button')).find((b) =>
+      b.textContent?.startsWith('Over 4 weeks'),
+    );
+    act(() => (fourWeeks as HTMLButtonElement).click());
+    expect(names()[0]).toBe('Depot 26');
+    const more = container.querySelector('button[aria-expanded="false"]') as HTMLButtonElement;
+    expect(more.textContent).toBe(`Show all ${TREND_ROW_CAP + 2} units`);
+    act(() => more.click());
+    expect(names()).toHaveLength(TREND_ROW_CAP + 2);
+  });
+});
+
+describe('depot Trends page', () => {
+  it('draws the chosen measure and the availability forecast, sharing it when chosen', () => {
+    renderToStaticMarkup(<DepotTrends metric="index" />);
+    const scope = { kind: 'depot', depotId: '20' };
+    expect(hooks.forecast).toHaveBeenCalledWith({ metric: 'index', scope });
+    expect(hooks.forecast).toHaveBeenCalledWith({ metric: 'available', scope });
+    hooks.forecast.mockClear();
+    renderToStaticMarkup(<DepotTrends metric="available" />);
+    expect(hooks.forecast).toHaveBeenCalledWith({ metric: 'available', scope });
+    expect(hooks.forecast).toHaveBeenCalledWith(null);
+  });
+
+  it('sets available buses beside the modelled requirement and says both are modelled', () => {
+    const page = text(renderToStaticMarkup(<DepotTrends metric="onRoadShare" />));
+    expect(page).toContain('Available buses against the requirement, MODELLED');
+    expect(page).toContain('modelled requirement of 40 (36 at peak plus 4 spare)');
+    expect(page).toContain('Both sides are MODELLED');
+    expect(page).toContain('Modelled requirement');
+    expect(page).toContain('Days below the requirement');
+  });
+
+  it('links the measures to this depot', () => {
+    const markup = renderToStaticMarkup(<DepotTrends metric="onRoadShare" />);
+    expect(markup).toContain('href="/project/depots/d/20/trends?metric=index"');
+  });
+
+  it('says a well-formed id is not in the feed, with a way back', () => {
+    hooks.detail = { depotId: '20', error: 'Depot not found' };
+    const markup = renderToStaticMarkup(<DepotTrends metric="onRoadShare" />);
+    expect(text(markup)).toContain('No depot has the id 20 in the current feed.');
+    expect(markup).toContain('href="/project/depots"');
+  });
+});

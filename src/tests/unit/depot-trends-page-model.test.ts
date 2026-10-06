@@ -8,6 +8,7 @@ import {
   NETWORK_TRENDS_PATH,
   parseTrendMetric,
   trendLines,
+  trendLinesBesideChart,
   trendsHref,
 } from '@/lib/depot/forecast/trendsPageModel';
 import {
@@ -98,15 +99,26 @@ describe('page wording', () => {
       change(28, 2.1, 'up 2.1 percentage points over 4 weeks'),
     );
     expect(trendLines(result)).toEqual([
-      'MODELLED trend over 7 days: steady over 7 days',
-      'MODELLED trend over 4 weeks: up 2.1 percentage points over 4 weeks',
+      'MODELLED trend: steady over 7 days',
+      'MODELLED trend: up 2.1 percentage points over 4 weeks',
     ]);
+  });
+
+  it('leaves out the line the chart already prints, so each sentence appears once', () => {
+    const result = okTrend(
+      change(7, 0.3, 'steady over 7 days'),
+      change(28, 2.1, 'up 2.1 percentage points over 4 weeks'),
+    );
+    expect(
+      trendLinesBesideChart(result, 'MODELLED trend: up 2.1 percentage points over 4 weeks'),
+    ).toEqual(['MODELLED trend: steady over 7 days']);
+    expect(trendLinesBesideChart(result, null)).toHaveLength(2);
   });
 
   it('says why there is no four-week trend when the history is under 29 days', () => {
     const result = okTrend(change(7, -1, 'down 1.0 percentage points over 7 days'), null);
     expect(trendLines(result)).toEqual([
-      'MODELLED trend over 7 days: down 1.0 percentage points over 7 days',
+      'MODELLED trend: down 1.0 percentage points over 7 days',
       'No MODELLED trend over 4 weeks yet: it needs 29 days of history and this series has 90.',
     ]);
   });

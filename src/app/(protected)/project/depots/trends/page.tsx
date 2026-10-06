@@ -1,0 +1,33 @@
+import { requireProjectSession } from '@/lib/auth/server';
+import { NetworkTrends } from '@/components/depot/trends/NetworkTrends';
+import { PageHeader } from '@/components/depot/shell/PageHeader';
+import {
+  NETWORK_TRENDS_PATH,
+  parseTrendMetric,
+  TREND_METRIC_PARAM,
+} from '@/lib/depot/forecast/trendsPageModel';
+
+type SearchParams = Promise<Readonly<Record<string, string | string[] | undefined>>>;
+
+/** The network's trend and forecast for one measure, and every unit's trend beside it. */
+export default async function DepotTrendsPage({
+  searchParams,
+}: {
+  readonly searchParams: SearchParams;
+}) {
+  // Layouts do not re-run on client navigation, so the page gates itself too.
+  await requireProjectSession(NETWORK_TRENDS_PATH);
+  // An unknown measure falls back to the default rather than failing the page.
+  const metric = parseTrendMetric((await searchParams)[TREND_METRIC_PARAM]);
+
+  return (
+    <>
+      <PageHeader
+        title="Trends"
+        description="Where each network measure has been and where it is heading: a trend ending on the live value, a short forecast with its range, and every unit's trend for the same measure."
+        provenance="modelled"
+      />
+      <NetworkTrends metric={metric} />
+    </>
+  );
+}

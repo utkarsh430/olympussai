@@ -7,7 +7,7 @@
 import { depotHref } from '../depotNav';
 import type { MetricKey } from '../sim/types';
 import { formatDate } from './chartScale';
-import { FOUR_WEEK_DAYS, WEEK_DAYS, type TrendResult } from './trend';
+import { FOUR_WEEK_DAYS, type TrendResult } from './trend';
 import { METRIC_LABEL, metricInfo } from './wording';
 
 export const TREND_METRIC_PARAM = 'metric';
@@ -79,7 +79,7 @@ function noTrendSentence(result: Exclude<TrendResult, { status: 'ok' }>): string
 export function trendLines(result: TrendResult): readonly string[] {
   if (result.status !== 'ok') return [noTrendSentence(result)];
   const { week, fourWeeks, historyDays } = result.summary;
-  const weekLine = `MODELLED trend over ${WEEK_DAYS} days: ${week.sentence}`;
+  const weekLine = `MODELLED trend: ${week.sentence}`;
   if (fourWeeks === null) {
     return [
       weekLine,
@@ -87,5 +87,16 @@ export function trendLines(result: TrendResult): readonly string[] {
         `this series has ${historyDays}.`,
     ];
   }
-  return [weekLine, `MODELLED trend over 4 weeks: ${fourWeeks.sentence}`];
+  return [weekLine, `MODELLED trend: ${fourWeeks.sentence}`];
+}
+
+/**
+ * The trend lines a page prints under the shared chart, which already prints
+ * the headline one (`chartLine`); each sentence then appears exactly once.
+ */
+export function trendLinesBesideChart(
+  result: TrendResult,
+  chartLine: string | null,
+): readonly string[] {
+  return trendLines(result).filter((line) => line !== chartLine);
 }
