@@ -240,7 +240,9 @@ describe('renderDraft', () => {
       const long = fact('a', 'y'.repeat(MAX_FACT_TEXT_CHARS));
       const body = Array.from({ length: 30 }, () => '{{fact:a}}').join(' ');
       expect(body.length).toBeLessThanOrEqual(600);
-      expect(rejected(draft('Head', body)).toLowerCase()).toContain('rendered');
+      const result = renderDraft(draft('Head', body), [long]);
+      expect(result).toMatchObject({ ok: false });
+      expect(!result.ok && result.reason.toLowerCase()).toContain('rendered');
       expect(long.text.length).toBe(MAX_FACT_TEXT_CHARS);
     });
 

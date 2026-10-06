@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import {
+  MAX_FACT_TEXT_CHARS,
+  MAX_RENDERED_HEADLINE_CHARS,
+  MAX_RENDERED_PARAGRAPH_CHARS,
   MAX_HEADLINE_CHARS,
   MAX_PARAGRAPHS,
   MAX_PARAGRAPH_CHARS,
@@ -45,6 +48,19 @@ const ROMAN_NUMERAL = /\b[IVXLCDM]{2,}\b/;
 const LINK = /www\.|:\/\/|mailto|javascript|[A-Za-z]\.[A-Za-z]/i;
 
 const fail = (reason: string): RenderResult => ({ ok: false, reason });
+
+const UNSAFE_CHARS = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}]/gu;
+
+/**
+ * Makes feed-derived text safe to show or prompt with: NFKC, whitespace
+ * collapsed first (so a newline becomes a space), then control, format
+ * (bidi, zero-width, tag block), private-use, unassigned and surrogate
+ * characters removed, then capped by code point.
+ */
+export function sanitizeFactText(text: string, maxChars: number = MAX_FACT_TEXT_CHARS): string {
+  const cleaned = text.normalize('NFKC').replace(/\s+/g, ' ').replace(UNSAFE_CHARS, '').trim();
+  return Array.from(cleaned).slice(0, maxChars).join('').trim();
+}
 
 function adjacentToSomething(text: string): boolean {
   for (const match of text.matchAll(PLACEHOLDER)) {
@@ -114,12 +130,16 @@ export function renderDraft(draft: CopilotDraft, facts: readonly CopilotFact[]):
     if (problem) return fail(problem);
   }
 
+  const clean = new Map(facts.map((f) => [f.id, sanitizeFactText(f.text)] as const));
   const fill = (text: string): string =>
-    text.replace(PLACEHOLDER, (_m, id: string) => byId.get(id)?.text ?? '');
-  return {
-    ok: true,
-    headline: fill(headline),
-    paragraphs: paragraphs.map(fill),
-    usedFactIds: used,
-  };
+    text.replace(PLACEHOLDER, (_m, id: string) => clean.get(id) ?? '');
+  const filledHeadline = fill(headline);
+  const filledParagraphs = paragraphs.map(fill);
+  if (filledHeadline.length > MAX_RENDERED_HEADLINE_CHARS) {
+    return fail('Rendered headline is too long');
+  }
+  if (filledParagraphs.some((p) => p.length > MAX_RENDERED_PARAGRAPH_CHARS)) {
+    return fail('Rendered paragraph is too long');
+  }
+  return { ok: true, headline: filledHeadline, paragraphs: filledParagraphs, usedFactIds: used };
 }
