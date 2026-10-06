@@ -26,7 +26,7 @@ interface DepotMarker {
 const SELECTED_STROKE = '#3ff0ff';
 const SELECTED_STROKE_WEIGHT = 2.5;
 const SELECTED_Z = 5000;
-const FIT_PADDING_PX = 32;
+const FIT_PADDING_PX = 24;
 const SINGLE_NODE_ZOOM = 9;
 
 function iconFor(style: NodeStyle, selected: boolean): google.maps.Symbol {
@@ -178,7 +178,9 @@ export function DepotMap({ rows, maxFleet, selectedId, onSelect, onStatusChange 
     // Unavailable, the frame shrinks from the map's 460px to a short panel, so the
     // page does not keep a tall blank box for a picture that is not there.
     <div
-      className={`depot-map-frame ${status === 'error' ? '!h-48' : ''}`}
+      // From `xl` the frame grows with its column, so the map and the panel beside it
+      // end on the same line; 460px stays the floor.
+      className={`depot-map-frame ${status === 'error' ? '!h-48' : 'xl:h-auto xl:min-h-[460px] xl:flex-1'}`}
       data-testid="depot-map"
     >
       <div
@@ -193,7 +195,7 @@ export function DepotMap({ rows, maxFleet, selectedId, onSelect, onStatusChange 
           role="status"
           className="absolute inset-0 z-20 flex items-center justify-center bg-depot-surface"
         >
-          <p className="depot-label">Loading the basemap</p>
+          <div className="depot-label">Loading the basemap</div>
         </div>
       ) : null}
       {status === 'error' ? (
@@ -206,13 +208,13 @@ export function DepotMap({ rows, maxFleet, selectedId, onSelect, onStatusChange 
           data-testid="depot-map-hover"
           className="pointer-events-none absolute left-3 top-3 z-20 max-w-[calc(100%-24px)] rounded-[3px] border border-depot-line bg-depot-surface px-3 py-2"
         >
-          <p className="truncate text-[13px] text-depot-ink">{hovered.depot.name}</p>
-          <p className="mt-0.5 text-[11px] text-depot-muted">
+          <div className="truncate text-[13px] text-depot-ink">{hovered.depot.name}</div>
+          <div className="mt-0.5 text-[11px] text-depot-muted">
             Fleet {formatCount(hovered.depot.fleet)} ·{' '}
             {hoveredIndex === null
               ? `Not ranked: ${unrankedReason(hovered)}`
               : `Index ${formatIndex(hoveredIndex)}`}
-          </p>
+          </div>
         </div>
       ) : null}
     </div>

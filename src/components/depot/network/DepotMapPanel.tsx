@@ -38,7 +38,7 @@ function Ranking({ row }: { readonly row: DepotRow }) {
   if (index === null || !score) {
     const reason = score ? RANK_REASON_LABEL[score.reason] : 'No score for this depot';
     return (
-      <p className="text-[13px] text-depot-muted">
+      <p className="depot-note">
         Not ranked <span className="text-depot-muted">· {reason}</span>
       </p>
     );
@@ -52,7 +52,7 @@ function Ranking({ row }: { readonly row: DepotRow }) {
         <span className="text-[11px] text-depot-muted">{indexBand(index)?.label}</span>
       </p>
       {score.rank !== null && score.peerCount !== null && score.peerGroup ? (
-        <p className="mt-1 text-[13px] text-depot-muted">
+        <p className="depot-note mt-1">
           {peerRankLine(score.rank, score.peerCount, score.peerGroup)}
         </p>
       ) : null}
@@ -89,14 +89,14 @@ function Suggestion({
       <p className="depot-label flex items-center gap-2">
         {SUGGESTION_LABEL} <ProvenanceBadge provenance="derived" />
       </p>
-      <p className="mt-1 text-[13px] text-depot-muted">{LOWEST_OPERATING_LABEL}</p>
+      <p className="depot-note mt-1">{LOWEST_OPERATING_LABEL}</p>
       <p className="mt-1 flex min-w-0 items-baseline justify-between gap-3">
         <span className="min-w-0 break-words text-[13px] text-depot-ink">{lowest.depot.name}</span>
         <span className="shrink-0 text-[13px] tabular-nums text-depot-ink">
           {formatIndex(rankedIndex(lowest))}
         </span>
       </p>
-      <p className="mt-1 text-[11px] text-depot-muted">{SUGGESTION_NOTE}</p>
+      <p className="depot-note mt-1">{SUGGESTION_NOTE}</p>
       <p className="mt-2 flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -180,7 +180,21 @@ export function DepotMapPanel({
           <dd className="mt-1 text-[13px] tabular-nums text-depot-ink">
             {formatCount(depot.fleet)} buses
           </dd>
-          <dd className="mt-1 text-[11px] text-depot-muted">{positionNote(depot)}</dd>
+          <dd className="depot-caption mt-1">{positionNote(depot)}</dd>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <dt className="depot-label">Reporting</dt>
+            <dd className="mt-1 text-[13px] tabular-nums text-depot-ink">
+              {formatShare(depot.reporting, depot.fleet)}
+            </dd>
+          </div>
+          <div>
+            <dt className="depot-label">Route assigned</dt>
+            <dd className="mt-1 text-[13px] tabular-nums text-depot-ink">
+              {formatShare(depot.assigned, depot.fleet)}
+            </dd>
+          </div>
         </div>
         <div>
           <dt className="depot-label flex items-center gap-2">

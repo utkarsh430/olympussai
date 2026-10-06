@@ -71,6 +71,8 @@ export function useDepotMap(containerRef: RefObject<HTMLDivElement | null>): Dep
           styles: MAP_DARK_STYLE,
           disableDefaultUI: true,
           zoomControl: true,
+          // fitBounds may then stop between whole zoom levels, so the units fill the frame.
+          isFractionalZoomEnabled: true,
           gestureHandling: 'cooperative',
           backgroundColor: '#02040a',
           clickableIcons: false,

@@ -2,13 +2,12 @@
 
 import { useState } from 'react';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
-import { unpositionedSentence } from '@/lib/depot/network/mapWords';
+import { mapPositionNote } from '@/lib/depot/network/mapWords';
 import { unpositionedCount, type DepotRow } from '@/lib/depot/network/overviewModel';
 import { DepotMap } from './DepotMap';
 import { DepotMapLegend } from './DepotMapLegend';
 import { DepotMapPanel } from './DepotMapPanel';
 import type { DepotMapStatus } from './useDepotMap';
-import { SelectionLine } from './SelectionBar';
 
 const SECTION = 'animate-rise';
 
@@ -18,11 +17,15 @@ interface MapSectionProps {
   /** Null clears the selection. */
   readonly onSelect: (depotId: string | null) => void;
   readonly vanished: boolean;
-  /** A short note on the right of the label. The index window is in the provenance line. */
-  readonly windowNote?: string;
 }
 
-export function MapSection({ rows, selected, onSelect, vanished, windowNote }: MapSectionProps) {
+/**
+ * The units map and, beside it from `xl`, the selected-unit panel with the legend and the
+ * map's caption as one compact block under it. The map stretches to the row's height, so
+ * both columns end on the same line whatever the panel holds. The selection is said once,
+ * in the panel.
+ */
+export function MapSection({ rows, selected, onSelect, vanished }: MapSectionProps) {
   const depots = rows.map((row) => row.depot);
   const maxFleet = depots.reduce(
     (max, depot) => (depot.centroid ? Math.max(max, depot.fleet) : max),
@@ -36,10 +39,9 @@ export function MapSection({ rows, selected, onSelect, vanished, windowNote }: M
 
   return (
     <section aria-labelledby="depot-map-heading" className={SECTION}>
-      <SectionLabel id="depot-map-heading" label="Units map" note={windowNote} />
-      <SelectionLine row={selected} onClear={clear} />
+      <SectionLabel id="depot-map-heading" label="Units map" />
       <div className="depot-map-layout">
-        <div className="min-w-0">
+        <div className="flex min-w-0 flex-col">
           <DepotMap
             rows={rows}
             maxFleet={maxFleet}
@@ -47,16 +49,8 @@ export function MapSection({ rows, selected, onSelect, vanished, windowNote }: M
             onSelect={onSelect}
             onStatusChange={setMapStatus}
           />
-          {mapAvailable ? (
-            <p
-              className="mt-2 font-sans text-[13px] text-depot-muted"
-              data-testid="depot-map-unpositioned"
-            >
-              {`Each unit is drawn at the median position of its buses, not at a surveyed yard. ${unpositionedSentence(unpositionedCount(depots))}`}
-            </p>
-          ) : null}
         </div>
-        <div className="flex min-w-0 flex-col gap-4 self-start">
+        <div className="flex min-w-0 flex-col gap-3">
           <DepotMapPanel
             row={selected}
             rows={rows}
@@ -64,10 +58,16 @@ export function MapSection({ rows, selected, onSelect, vanished, windowNote }: M
             vanished={vanished}
             onClear={clear}
           />
-          {mapAvailable ? <DepotMapLegend maxFleet={maxFleet} /> : null}
+          {mapAvailable ? (
+            <>
+              <DepotMapLegend maxFleet={maxFleet} />
+              <p className="depot-caption" data-testid="depot-map-unpositioned">
+                {mapPositionNote(unpositionedCount(depots))}
+              </p>
+            </>
+          ) : null}
         </div>
       </div>
     </section>
   );
 }
-

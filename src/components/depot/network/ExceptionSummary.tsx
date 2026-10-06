@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { SeverityMark } from '@/components/depot/shell/SeverityMark';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { formatCount } from '@/lib/depot/format';
-import { SEVERITY_LABEL } from '@/lib/depot/labels';
 import { DEPOTS_ROOT } from '@/lib/depot/nav';
 import {
   busScopeLine,
@@ -9,50 +11,28 @@ import {
   exceptionKindHref,
   exceptionScope,
 } from '@/lib/depot/network/exceptionScope';
-import type { ExceptionKindRow, KindSeverity } from '@/lib/depot/network/overviewModel';
+import type { ExceptionKindRow } from '@/lib/depot/network/overviewModel';
 import type { ExceptionKind, ExceptionSeverity } from '@/lib/depot/exceptions/types';
 
 export const EXCEPTIONS_HREF = `${DEPOTS_ROOT}/exceptions`;
 
-/** Severity is always a word; the colour only repeats it. */
-const SEVERITY: Readonly<Record<KindSeverity, { readonly word: string; readonly tone: string }>> = {
-  critical: { word: SEVERITY_LABEL.critical, tone: 'text-alert-crimson' },
-  warning: { word: SEVERITY_LABEL.warning, tone: 'text-alert-amber' },
-  info: { word: SEVERITY_LABEL.info, tone: 'text-depot-muted' },
-  // A depot-rate kind is critical or warning by how far the depot sits from its peers.
-  variable: {
-    word: `${SEVERITY_LABEL.critical} or ${SEVERITY_LABEL.warning.toLowerCase()}`,
-    tone: 'text-alert-amber',
-  },
-};
-
-function KindList({
-  heading,
-  rows,
-}: {
-  readonly heading: string;
-  readonly rows: readonly ExceptionKindRow[];
-}) {
+/**
+ * One small band of linked counts: the scope's total on the left, then each kind as a
+ * link with its count. A kind with one fixed severity carries the shared `SeverityMark`;
+ * a depot-rate kind is critical or warning depot by depot, so it names none here.
+ */
+function KindBand({ heading, rows }: { readonly heading: string; readonly rows: readonly ExceptionKindRow[] }) {
   return (
-    <div className="min-w-0">
-      <h3 className="mb-1 text-[13px] tabular-nums text-depot-ink">{heading}</h3>
-      <ul className="border-t border-depot-line">
+    <div className="flex min-w-0 flex-col gap-x-6 gap-y-1.5 border-b border-depot-line py-2.5 lg:flex-row lg:items-baseline">
+      <h3 className="depot-label shrink-0 lg:w-72">{heading}</h3>
+      <ul className="flex min-w-0 flex-wrap gap-x-6 gap-y-1.5">
         {rows.map((row) => (
-          <li
-            key={row.kind}
-            className="flex min-w-0 flex-wrap items-baseline gap-x-3 border-b border-depot-line py-1.5"
-          >
-            <Link
-              href={exceptionKindHref(row.kind)}
-              className="depot-link flex min-w-0 items-baseline gap-2 text-[13px]"
-            >
+          <li key={row.kind} className="flex min-w-0 items-baseline gap-2">
+            <Link href={exceptionKindHref(row.kind)} className="depot-link flex min-w-0 items-baseline gap-2 font-sans text-[13px]">
               <span className="truncate">{row.label}</span>
-              <span className="tabular-nums text-depot-ink">{formatCount(row.count)}</span>
-              <span aria-hidden>→</span>
+              <span className="font-mono tabular-nums text-depot-ink">{formatCount(row.count)}</span>
             </Link>
-            <span className={`text-[11px] ${SEVERITY[row.severity].tone}`}>
-              {SEVERITY[row.severity].word}
-            </span>
+            {row.severity === 'variable' ? null : <SeverityMark severity={row.severity} />}
           </li>
         ))}
       </ul>
@@ -63,13 +43,13 @@ function KindList({
 export interface ExceptionSummaryProps {
   readonly counts: Readonly<Record<ExceptionKind, number>>;
   readonly severities: Readonly<Record<ExceptionSeverity, number>>;
-  /** Depot exceptions are windowed, bus counts are not: the sentence that says so. */
+  /** Which figures are compared over the window and which are as of the feed time. */
   readonly windowNote?: string;
 }
 
 /**
- * Exceptions, split by scope (depots, buses), each kind a
- * link into the exceptions page filtered to it. Rules, not a box.
+ * Exceptions as two small bands, depots then buses, each kind a link into the exceptions
+ * page filtered to it. No arrows, no boxes; the window words are the section's note.
  */
 export function ExceptionSummary({ counts, severities, windowNote }: ExceptionSummaryProps) {
   const scope = exceptionScope(counts, severities);
@@ -78,27 +58,23 @@ export function ExceptionSummary({ counts, severities, windowNote }: ExceptionSu
 
   return (
     <section aria-labelledby="depot-exceptions-heading" data-testid="depot-exception-summary">
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3">
-        <h2 id="depot-exceptions-heading" className="depot-section-label !mb-0 flex gap-2">
-          Exceptions
-        </h2>
-        <Link href={EXCEPTIONS_HREF} className="depot-link text-[13px]">
-          Open the exceptions page
-        </Link>
-      </div>
+      <SectionLabel id="depot-exceptions-heading" label="Exceptions" />
       {windowNote ? (
-        <p className="mb-2 text-[11px] text-depot-muted" data-testid="depot-exception-window">
+        <p className="depot-note -mt-1 mb-2" data-testid="depot-exception-window">
           {windowNote}
         </p>
       ) : null}
       {none ? (
-        <p className="depot-prose">No depot or bus meets an exception rule on this snapshot.</p>
+        <StatePanel kind="empty" compact tone="ok" sentence="No depot or bus meets an exception rule on this snapshot" />
       ) : (
-        <div className="grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-2">
-          <KindList heading={depotScopeLine(scope)} rows={groups.depot} />
-          <KindList heading={busScopeLine(scope)} rows={groups.bus} />
+        <div className="border-t border-depot-line">
+          <KindBand heading={depotScopeLine(scope)} rows={groups.depot} />
+          <KindBand heading={busScopeLine(scope)} rows={groups.bus} />
         </div>
       )}
+      <Link href={EXCEPTIONS_HREF} className="depot-link mt-2 inline-block font-sans text-[13px]">
+        Open the exceptions page
+      </Link>
     </section>
   );
 }

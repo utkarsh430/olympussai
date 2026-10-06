@@ -1,115 +1,105 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import {
-  DataTable,
-  useTableSort,
-  type Column,
-  type TableSort,
-} from '@/components/depot/shell/DataTable';
-import { formatCount, formatShare } from '@/lib/depot/format';
+import { DataTable, useTableSort, type Column, type TableSort } from '@/components/depot/shell/DataTable';
+import { ShowAllButton } from '@/components/depot/shell/LongLists';
+import { formatCount } from '@/lib/depot/format';
 import { DEPOT_KIND_LABEL, PEER_GROUP_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
 import { formatIndex, rankedIndex, type DepotRow } from '@/lib/depot/network/overviewModel';
 import {
   KIND_FILTER_OPTIONS,
   TABLE_ROW_CAP,
   tableCap,
-  tableCapLine,
-  tableColumnKeys,
   tableHeading,
-  tableToggleLabel,
+} from '@/lib/depot/network/overviewWords';
+import {
+  DARK_HEADER_TITLE,
+  MIX_BAR_PX,
+  NARROW_TABLE_NOTE,
+  TABLE_COLUMN_SPEC,
+  tableColumnKeys,
+  unitStateCounts,
   type KindFilter,
   type TableColumnKey,
-} from '@/lib/depot/network/overviewWords';
-import { StatusMixBar, statusSegments } from './StatusMixBar';
+} from '@/lib/depot/network/unitsTable';
+import { StatusMixBar, stateSegments } from './StatusMixBar';
 import { useNarrow } from './useNarrow';
 
 function ratio(n: number, of: number): number | null {
   return of > 0 ? n / of : null;
 }
 
-function count(pick: (row: DepotRow) => number) {
-  return {
-    align: 'right' as const,
-    sortValue: pick,
-    render: (row: DepotRow) => formatCount(pick(row)),
-  };
+/** A bare percentage: the header carries the unit. */
+function percent(n: number, of: number): string {
+  const share = ratio(n, of);
+  return share === null ? '—' : String(Math.round(share * 100));
 }
 
-/** Module-level so the table does not re-sort on every render. */
+function count(pick: (row: DepotRow) => number) {
+  return { align: 'right' as const, sortValue: pick, render: (row: DepotRow) => formatCount(pick(row)) };
+}
+
+const spec = (key: TableColumnKey) => ({ key, ...TABLE_COLUMN_SPEC[key] });
+const states = (row: DepotRow) => unitStateCounts(row.depot);
+
+function IndexCell({ row }: { readonly row: DepotRow }) {
+  const index = rankedIndex(row);
+  if (index !== null) return <>{formatIndex(index)}</>;
+  const reason = row.score ? RANK_REASON_LABEL[row.score.reason] : 'Not scored';
+  // `relative` gives the visually-hidden text a containing block inside the table's
+  // scroll frame; without it the absolutely positioned span escapes the frame's clipping.
+  return (
+    <span className="relative text-depot-muted" title={reason}>
+      —<span className="sr-only">{`, ${reason}`}</span>
+    </span>
+  );
+}
+
+/**
+ * Module-level so the table does not re-sort on every render. The four state counts are
+ * the classified states, in the cockpit's words; headers and widths come from
+ * `unitsTable.ts`, where their sum is held against the frame.
+ */
 const COLUMNS: readonly (Column<DepotRow> & { readonly key: TableColumnKey })[] = [
+  { ...spec('name'), sortValue: (row) => row.depot.name, render: (row) => row.depot.name },
   {
-    key: 'name',
-    header: 'Unit',
-    sortValue: (row) => row.depot.name,
-    render: (row) => row.depot.name,
-  },
-  {
-    key: 'kind',
-    header: 'Kind',
+    ...spec('kind'),
     sortValue: (row) => DEPOT_KIND_LABEL[row.depot.kind],
-    render: (row) => (
-      <span className="whitespace-nowrap text-depot-muted">{DEPOT_KIND_LABEL[row.depot.kind]}</span>
-    ),
+    render: (row) => <span className="text-depot-muted">{DEPOT_KIND_LABEL[row.depot.kind]}</span>,
   },
-  { key: 'fleet', header: 'Fleet (buses)', ...count((row) => row.depot.fleet) },
-  { key: 'onRoad', header: 'On road', ...count((row) => row.depot.status.live) },
-  { key: 'stationary', header: 'Stationary', ...count((row) => row.depot.status.stationary) },
-  { key: 'noSignal', header: 'No signal', ...count((row) => row.depot.status.noSignal) },
+  { ...spec('fleet'), ...count((row) => row.depot.fleet) },
   {
-    key: 'maintenance',
-    header: 'Maintenance',
-    ...count((row) => row.depot.status.underMaintenance),
+    ...spec('reporting'),
+    align: 'right',
+    sortValue: (row) => ratio(row.depot.reporting, row.depot.fleet),
+    render: (row) => percent(row.depot.reporting, row.depot.fleet),
   },
   {
-    key: 'mix',
-    header: 'Status mix',
+    ...spec('assigned'),
+    align: 'right',
+    sortValue: (row) => ratio(row.depot.assigned, row.depot.fleet),
+    render: (row) => percent(row.depot.assigned, row.depot.fleet),
+  },
+  { ...spec('onRoad'), ...count((row) => states(row).onRoad) },
+  { ...spec('standing'), ...count((row) => states(row).standing) },
+  { ...spec('dark'), ...count((row) => states(row).dark), title: () => DARK_HEADER_TITLE },
+  { ...spec('offRoad'), ...count((row) => states(row).offRoad) },
+  {
+    ...spec('mix'),
     render: (row) => (
       <StatusMixBar
-        segments={statusSegments(row.depot.status)}
-        caption={`Status of ${row.depot.fleet} buses`}
+        segments={stateSegments(row.depot.states)}
+        caption={`State of ${row.depot.fleet} buses`}
+        width={MIX_BAR_PX}
       />
     ),
   },
+  { ...spec('index'), align: 'right', sortValue: rankedIndex, render: (row) => <IndexCell row={row} /> },
   {
-    key: 'reporting',
-    header: 'Reporting',
-    align: 'right',
-    sortValue: (row) => ratio(row.depot.reporting, row.depot.fleet),
-    render: (row) => formatShare(row.depot.reporting, row.depot.fleet),
-  },
-  {
-    key: 'assigned',
-    header: 'Assigned',
-    align: 'right',
-    sortValue: (row) => ratio(row.depot.assigned, row.depot.fleet),
-    render: (row) => formatShare(row.depot.assigned, row.depot.fleet),
-  },
-  {
-    key: 'index',
-    header: 'Index',
-    align: 'right',
-    sortValue: rankedIndex,
-    render: (row) => {
-      const index = rankedIndex(row);
-      if (index !== null) return formatIndex(index);
-      const reason = row.score ? RANK_REASON_LABEL[row.score.reason] : 'Not scored';
-      // `relative` gives the visually-hidden text a containing block inside the
-      // table's scroll frame; without it the absolutely positioned span escapes
-      // the frame's clipping and widens the page.
-      return (
-        <span className="relative text-depot-muted" title={reason}>
-          —<span className="sr-only">{`, ${reason}`}</span>
-        </span>
-      );
-    },
-  },
-  {
-    key: 'peerGroup',
-    header: 'Peer group',
+    ...spec('peerGroup'),
     sortValue: (row) => (row.score?.peerGroup ? PEER_GROUP_LABEL[row.score.peerGroup] : null),
     render: (row) => (
-      <span className="whitespace-nowrap text-depot-muted">
+      <span className="text-depot-muted">
         {row.score?.peerGroup ? PEER_GROUP_LABEL[row.score.peerGroup] : '—'}
       </span>
     ),
@@ -132,18 +122,17 @@ export interface DepotTableProps {
   readonly rows: readonly DepotRow[];
   readonly selectedId: string | null;
   readonly onSelect: (depotId: string) => void;
+  /** The selection line, drawn under the table's label so it never sits above it. */
+  readonly selection?: React.ReactNode;
 }
 
 /**
- * Every unit in the feed, largest fleet first, in the page flow: no second
- * scroll axis. The first 25 rows show until the toggle; the table applies the
- * cap after its own sort, so sorting always ranks every row, and a selected row
- * beyond the cap is kept. The sort lives here so the line under the table says
- * the order truly in force: it returns to the default when its column drops out
- * (a filter, or a width under 900px). Selecting a row selects the same unit as
- * the map and the ranked lists.
+ * Every unit in the feed, largest fleet first, in the page flow: no second scroll axis.
+ * The first 25 rows show until "Show all N"; the table applies the cap after its own
+ * sort, so sorting ranks every row, and a selected row beyond the cap is kept. Below
+ * 900px a reduced set of columns shows and the rest are in the selected-unit panel.
  */
-export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
+export function DepotTable({ rows, selectedId, onSelect, selection }: DepotTableProps) {
   const [filter, setFilter] = useState<KindFilter>('all');
   const [expanded, setExpanded] = useState(false);
   const narrow = useNarrow();
@@ -158,18 +147,18 @@ export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
   );
   const cap = tableCap(visible.length, expanded);
   const tableSort = useTableSort(columns, DEFAULT_SORT);
-  const sortedColumn = columns.find((column) => column.key === tableSort.sort?.key);
-  const sortDescription =
-    tableSort.sort && sortedColumn
-      ? { label: sortedColumn.header, direction: tableSort.sort.direction }
-      : null;
 
   return (
     <section aria-labelledby="depot-table-heading" data-testid="depot-table-section">
-      <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
-        <h2 id="depot-table-heading" className="depot-section-label !mb-0">
+      <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-depot-line pt-4">
+        <h2 id="depot-table-heading" className="depot-label">
           {tableHeading(filter, visible.length)}
         </h2>
+        {narrow ? (
+          <p className="depot-note min-w-0 flex-1" data-testid="depot-table-note">
+            {NARROW_TABLE_NOTE}
+          </p>
+        ) : null}
         <div role="group" aria-label="Filter by kind" className="flex flex-wrap gap-1.5">
           {KIND_FILTER_OPTIONS.map((option) => (
             <button
@@ -184,12 +173,7 @@ export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
           ))}
         </div>
       </div>
-      {narrow ? (
-        <p className="mb-2 text-[11px] text-depot-muted" data-testid="depot-table-narrow-note">
-          Kind, stationary, maintenance, status mix and peer group are in the selected-unit panel
-          beside the map: select a row to see them.
-        </p>
-      ) : null}
+      {selection}
       <div className="depot-table-flow">
         <DataTable
           id={TABLE_ID}
@@ -198,7 +182,7 @@ export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
           columns={columns}
           rows={visible}
           rowKey={(row) => row.depot.id}
-          caption="Units with fleet, reporting, assignment, status, index and peer group"
+          caption="Units with fleet, reporting, assignment, state, index and peer group"
           initialSort={DEFAULT_SORT}
           onRowSelect={(row) => onSelect(row.depot.id)}
           selectedKey={selectedId ?? undefined}
@@ -209,22 +193,14 @@ export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
         />
       </div>
       {cap.toggle ? (
-        <p className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-depot-muted">
-          {cap.capped ? (
-            <span>
-              {tableCapLine(TABLE_ROW_CAP, visible.length, sortDescription, tableSort.isDefault)}
-            </span>
-          ) : null}
-          <button
-            type="button"
-            aria-expanded={!cap.capped}
-            aria-controls={TABLE_ID}
-            onClick={() => setExpanded((open) => !open)}
-            className="depot-filter-button"
-          >
-            {tableToggleLabel(visible.length)}
-          </button>
-        </p>
+        <div className="mt-2">
+          <ShowAllButton
+            total={visible.length}
+            expanded={!cap.capped}
+            onToggle={() => setExpanded((open) => !open)}
+            controls={TABLE_ID}
+          />
+        </div>
       ) : null}
     </section>
   );
