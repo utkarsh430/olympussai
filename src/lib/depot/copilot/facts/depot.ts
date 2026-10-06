@@ -15,10 +15,13 @@ import {
   share,
 } from '@/lib/depot/copilot/facts/format';
 import type { CopilotDraft, CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
+import { formatFeedTime } from '@/lib/depot/format';
+import type { Yard } from '@/lib/depot/infer/types';
 import { DEPOT_KIND_LABEL } from '@/lib/depot/labels';
 import { DEI_COMPONENTS } from '@/lib/depot/score/config';
 import { strongestAndWeakest } from '@/lib/depot/score/explain';
 import type { DeiComponentKey, PeerGroupId } from '@/lib/depot/score/types';
+import { indexWindowFacts, indexWindowSentence } from '@/lib/depot/copilot/facts/window';
 
 const GUIDANCE =
   'Write a short briefing for one depot: where it stands against its peers, the state of its ' +
@@ -42,6 +45,23 @@ const componentLabel = (key: DeiComponentKey): string =>
   DEI_COMPONENTS.find((c) => c.key === key)?.label ?? key;
 
 const exceptionCount = (n: number): string => `${n} ${n === 1 ? 'exception' : 'exceptions'}`;
+
+/**
+ * Review I7. A yard the single-snapshot rule gives is evidenced by the buses
+ * parked inside it now; a held yard (`heldSince`) is not, so its fact is the
+ * time since which it has been held, never this snapshot's parked count.
+ */
+function yardEvidenceFact(yard: Yard): CopilotFact {
+  if (yard.heldSince !== undefined) {
+    return makeFact('depot.yard_held_since', 'Yard held since', formatFeedTime(yard.heldSince), 'derived');
+  }
+  return makeFact(
+    'depot.yard_support',
+    'Parked buses inside the yard',
+    `${count(yard.inCluster)} of ${count(yard.parked)} parked buses`,
+    'derived',
+  );
+}
 
 export function depotFacts(detail: DepotDetailResponse): CopilotFact[] {
   const { depot, score, yard, locationMix, outshed, exceptions } = detail;
@@ -73,6 +93,7 @@ export function depotFacts(detail: DepotDetailResponse): CopilotFact[] {
       makeFact('depot.index', 'Efficiency index', index1(score.index), 'derived'),
       makeFact('depot.rank', 'Rank', `rank ${count(score.rank)} of ${depotCount(score.peerCount)}`, 'derived'),
       makeFact('depot.peer_group', 'Peer group', PEER_LABEL[score.peerGroup ?? 'all'], 'derived'),
+      ...indexWindowFacts('depot.index_window', detail.scoreWindow),
     );
     const { strongest, weakest } = strongestAndWeakest(score);
     if (strongest && weakest) {
@@ -94,12 +115,7 @@ export function depotFacts(detail: DepotDetailResponse): CopilotFact[] {
   }
   if (yard.value) {
     facts.push(
-      makeFact(
-        'depot.yard_support',
-        'Parked buses inside the yard',
-        `${count(yard.value.inCluster)} of ${count(yard.value.parked)} parked buses`,
-        'derived',
-      ),
+      yardEvidenceFact(yard.value),
       makeFact('depot.in_yard', 'In the yard', busCount(locationMix.in_yard), 'derived'),
       makeFact('depot.away', 'Away from the yard', busCount(locationMix.away), 'derived'),
     );
@@ -154,7 +170,12 @@ function standingParagraph(detail: DepotDetailResponse): string {
         : position > LOWER_SHARE
           ? 'in the lower part of its peer group'
           : 'in the middle of its peer group';
-    const base = `${name} sits ${where}, at efficiency ${ph('depot.index')} and ${ph('depot.rank')} among ${ph('depot.peer_group')}.`;
+    const window = indexWindowSentence(
+      detail.scoreWindow,
+      'depot.index_window',
+      'The rank and index cover',
+    );
+    const base = `${name} sits ${where}, at efficiency ${ph('depot.index')} and ${ph('depot.rank')} among ${ph('depot.peer_group')}.${window}`;
     const { strongest, weakest } = strongestAndWeakest(score);
     if (!strongest || !weakest) return base;
     const s = ph('depot.strongest_component');
@@ -196,8 +217,12 @@ function yardParagraph(detail: DepotDetailResponse): string {
     detail.visitors.length > 0
       ? ` Visitors from other depots in the yard: ${ph('depot.visitors')}.`
       : '';
+  const evidence =
+    detail.yard.value.heldSince !== undefined
+      ? `The yard is kept from earlier snapshots rather than placed by this snapshot. It has been held since ${ph('depot.yard_held_since')}. `
+      : `The yard is inferred from where buses park; ${ph('depot.yard_support')} ${countPhrase(detail.yard.value.inCluster, 'falls', 'fall')} inside it. `;
   return (
-    `The yard is inferred from where buses park; ${ph('depot.yard_support')} ${countPhrase(detail.yard.value.inCluster, 'falls', 'fall')} inside it. ` +
+    evidence +
     `It currently holds ${ph('depot.in_yard')}; ${ph('depot.away')} ${countPhrase(detail.locationMix.away, 'is', 'are')} away from it.${visitors}`
   );
 }

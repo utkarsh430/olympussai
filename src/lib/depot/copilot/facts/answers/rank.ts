@@ -4,6 +4,7 @@ import { cleanName, index1, makeFact, nameFact, ph } from '@/lib/depot/copilot/f
 import type { CopilotRequest } from '@/lib/depot/copilot/types';
 import { MAX_LIST_ROWS, answer } from '@/lib/depot/copilot/facts/answers/shared';
 import type { AnswerData } from '@/lib/depot/copilot/facts/answers';
+import { indexWindowFacts, indexWindowSentence } from '@/lib/depot/copilot/facts/window';
 
 const METRIC_LABEL: Readonly<Record<RankMetric, string>> = {
   index: 'efficiency index',
@@ -49,11 +50,12 @@ export function rankAnswer(
   const sense = metricHigherIsBetter(metric)
     ? 'A higher figure is better on this measure.'
     : 'A higher figure is worse on this measure.';
-  return answer('a depot ranking', facts, {
+  const window = indexWindowFacts('rank.window', data.network.scoreWindow);
+  return answer('a depot ranking', [...facts, ...window], {
     headline: `${direction} ${label} among ranked depots`,
     paragraphs: [
       `Leading entries by ${label}, from the ${direction === 'Highest' ? 'highest down' : 'lowest up'}: ${entries.join('; ')}.`,
-      `${sense} Only the leading entries are listed, and units that are not operating depots, such as hired or electric fleets, are left out.`,
+      `${sense}${indexWindowSentence(data.network.scoreWindow, 'rank.window', 'The figures here cover')} Only the leading entries are listed, and units that are not operating depots, such as hired or electric fleets, are left out.`,
     ],
   });
 }
