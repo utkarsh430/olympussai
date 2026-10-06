@@ -80,7 +80,12 @@ describe('needInputsFor', () => {
       journey({ journeyId: 'a', scheduledStart: '06:00', scheduledEnd: '07:30' }),
       journey({ journeyId: 'b', scheduledStart: '09:00', scheduledEnd: '10:40' }),
       journey({ journeyId: 'c', scheduledStart: '12:00', scheduledEnd: '14:00' }),
-      journey({ journeyId: 'd', routeName: 'OTHER', scheduledStart: '06:00', scheduledEnd: '12:00' }),
+      journey({
+        journeyId: 'd',
+        routeName: 'OTHER',
+        scheduledStart: '06:00',
+        scheduledEnd: '12:00',
+      }),
       journey({ journeyId: 'e', scheduledEnd: null }),
     ];
     expect(journeyMinutesFromLedger('R1', ledger)).toBe(100);

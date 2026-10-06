@@ -1,11 +1,7 @@
 import { median } from '../stats/robust';
 import { SEATS_BY_CLASS } from '../sim/config';
 import { classFromRoute } from '../sim/fleetMaster';
-import {
-  BUSIEST_STRETCH_SHARE,
-  LAYOVER_MIN,
-  TARGET_LOAD,
-} from '../sim/hourlyDemandConfig';
+import { BUSIEST_STRETCH_SHARE, LAYOVER_MIN, TARGET_LOAD } from '../sim/hourlyDemandConfig';
 import {
   LONG_ROUTE_MIN,
   MAX_PLAUSIBLE_DURATION_MIN,
@@ -26,7 +22,8 @@ import type { LedgerJourney, NeedInputs } from './types';
  */
 export const TRIP_MODEL_DURATION_MIN =
   SHORT_ROUTE_MIN +
-  ((TRIP_FACTOR_RANGE.max - UNKNOWN_DURATION_FACTOR) / (TRIP_FACTOR_RANGE.max - TRIP_FACTOR_RANGE.min)) *
+  ((TRIP_FACTOR_RANGE.max - UNKNOWN_DURATION_FACTOR) /
+    (TRIP_FACTOR_RANGE.max - TRIP_FACTOR_RANGE.min)) *
     (LONG_ROUTE_MIN - SHORT_ROUTE_MIN);
 
 /** Absorbs floating-point dust before rounding up, so 16.000000001 buses is 16. */

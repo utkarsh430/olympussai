@@ -1,13 +1,7 @@
 import { COST_PER_BUS_KM, IMPACT_RANGE_SHARE } from '../sim/hourlyDemandConfig';
 import { AVG_TRIP_LENGTH_SHARE, FARE_PER_KM } from '../sim/revenueConfig';
 import { boardingsPerTrip, tripsPerBusHour } from './need';
-import type {
-  HourBand,
-  ImpactRange,
-  NeedInputs,
-  ProposalImpact,
-  RouteHourFigures,
-} from './types';
+import type { HourBand, ImpactRange, NeedInputs, ProposalImpact, RouteHourFigures } from './types';
 
 export interface ImpactInput {
   /** Buses added (positive) or held (negative) through the band. */
@@ -49,10 +43,14 @@ export function proposalImpact(input: Readonly<ImpactInput>): ProposalImpact {
   const { band, change, need } = input;
   const inBand = input.hours.filter((h) => h.hour >= band.fromHour && h.hour <= band.toHour);
   const passengers = inBand.reduce(
-    (sum, h) => sum + leftBehind(h.demand, h.deployed, need) - leftBehind(h.demand, h.deployed + change, need),
+    (sum, h) =>
+      sum +
+      leftBehind(h.demand, h.deployed, need) -
+      leftBehind(h.demand, h.deployed + change, need),
     0,
   );
-  const revenuePerBoarding = AVG_TRIP_LENGTH_SHARE * input.lengthKm * FARE_PER_KM[need.serviceClass];
+  const revenuePerBoarding =
+    AVG_TRIP_LENGTH_SHARE * input.lengthKm * FARE_PER_KM[need.serviceClass];
   const bandHours = band.toHour - band.fromHour + 1;
   const serviceKm = change * bandHours * tripsPerBusHour(need) * input.lengthKm;
   const deadKm = change * (input.deadKmPerTrip ?? 0);

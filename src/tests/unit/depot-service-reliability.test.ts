@@ -51,7 +51,12 @@ describe('reliabilityByHour', () => {
   });
 
   it('leaves an hour without journeys empty', () => {
-    expect(hours[3]).toEqual({ hour: 3, delayMedianMin: null, lateShare: null, coverage: { n: 0, of: 0 } });
+    expect(hours[3]).toEqual({
+      hour: 3,
+      delayMedianMin: null,
+      lateShare: null,
+      coverage: { n: 0, of: 0 },
+    });
   });
 
   it('states that the delay unit is unconfirmed', () => {

@@ -102,7 +102,13 @@ describe('routeHourFigures', () => {
   });
 
   it('uses the live figure for the feed clock hour', () => {
-    const current = { hour: 7, deployed: 9, delayMedianMin: 3, lateShare: 0, delayCoverage: { n: 2, of: 9 } };
+    const current = {
+      hour: 7,
+      deployed: 9,
+      delayMedianMin: 3,
+      lateShare: 0,
+      delayCoverage: { n: 2, of: 9 },
+    };
     const live = routeHourFigures({ ...base, current });
     expect(live[7]).toMatchObject({ deployed: 9, deployedBasis: 'current', delayMedianMin: 3 });
     expect(live[7]?.slotsObserved).toBe(12);
@@ -122,11 +128,13 @@ describe('routeHourFigures', () => {
 
 describe('activeHoursOf', () => {
   it('marks every hour any layer deployed a bus in', () => {
-    const active = activeHoursOf(
-      [observed(4, 1)],
-      [modelled(6, 2), modelled(7, 0)],
-      { hour: 23, deployed: 1, delayMedianMin: null, lateShare: null, delayCoverage: { n: 0, of: 0 } },
-    );
+    const active = activeHoursOf([observed(4, 1)], [modelled(6, 2), modelled(7, 0)], {
+      hour: 23,
+      deployed: 1,
+      delayMedianMin: null,
+      lateShare: null,
+      delayCoverage: { n: 0, of: 0 },
+    });
     expect(active).toEqual([4, 6, 23]);
   });
 });

@@ -78,7 +78,9 @@ describe('modelHourlyDemand', () => {
   it('is repeatable for the same route and date, and jitters differently on another date', () => {
     expect(modelHourlyDemand(base)).toEqual(modelHourlyDemand(base));
     const other = modelHourlyDemand({ ...base, operatingDate: '2026-10-07' });
-    expect(other.map((h) => h.boardings)).not.toEqual(modelHourlyDemand(base).map((h) => h.boardings));
+    expect(other.map((h) => h.boardings)).not.toEqual(
+      modelHourlyDemand(base).map((h) => h.boardings),
+    );
     expect(sum(other.map((h) => h.boardings))).toBe(2400);
   });
 

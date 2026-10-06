@@ -34,7 +34,10 @@ function hourFigures(hour: number, journeys: readonly LedgerJourney[]): HourReli
   return {
     hour,
     delayMedianMin: median(delays),
-    lateShare: delays.length === 0 ? null : Math.round((late / delays.length) * SHARE_DECIMALS) / SHARE_DECIMALS,
+    lateShare:
+      delays.length === 0
+        ? null
+        : Math.round((late / delays.length) * SHARE_DECIMALS) / SHARE_DECIMALS,
     coverage: { n: delays.length, of: journeys.length },
   };
 }
@@ -55,5 +58,7 @@ export function reliabilityByHour(
     if (hour === null) continue;
     byHour.set(hour, [...(byHour.get(hour) ?? []), j]);
   }
-  return Array.from({ length: HOURS_PER_DAY }, (_, hour) => hourFigures(hour, byHour.get(hour) ?? []));
+  return Array.from({ length: HOURS_PER_DAY }, (_, hour) =>
+    hourFigures(hour, byHour.get(hour) ?? []),
+  );
 }

@@ -50,7 +50,9 @@ export function hourShapeFor(
 function activeSet(marked: readonly number[]): ReadonlySet<number> {
   const valid = new Set(marked.filter((h) => Number.isInteger(h) && h >= 0 && h < HOURS_PER_DAY));
   if (valid.size >= MIN_SERVICE_HOURS) return valid;
-  return new Set(HOURS.filter((h) => h >= DEFAULT_ACTIVE_HOURS.from && h <= DEFAULT_ACTIVE_HOURS.to));
+  return new Set(
+    HOURS.filter((h) => h >= DEFAULT_ACTIVE_HOURS.from && h <= DEFAULT_ACTIVE_HOURS.to),
+  );
 }
 
 /**
@@ -81,7 +83,9 @@ function allocate(total: number, weights: readonly number[]): number[] {
  * date: the same input always answers the same 24 hours.
  */
 export function modelHourlyDemand(input: Readonly<HourlyDemandInput>): RouteHourDemand[] {
-  const total = Number.isFinite(input.dayBoardings) ? Math.max(0, Math.round(input.dayBoardings)) : 0;
+  const total = Number.isFinite(input.dayBoardings)
+    ? Math.max(0, Math.round(input.dayBoardings))
+    : 0;
   const shape = hourShapeFor(input.serviceClass, input.journeyMinutes);
   const active = activeSet(input.activeHours);
   // Draw for every hour in a fixed order, so the active hours never shift the stream.
