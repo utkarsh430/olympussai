@@ -16,15 +16,6 @@ const MIN_DAYS = 7;
 const MAX_DAYS = 180;
 const WHOLE_NUMBER = /^[0-9]{1,4}$/;
 
-/** Decimals the modelled series keeps per metric, so the anchor survives it unchanged. */
-const DECIMALS: Readonly<Record<MetricKey, number>> = {
-  onRoadShare: 4,
-  offRoadRate: 4,
-  darkRate: 4,
-  index: 1,
-  available: 0,
-};
-
 export interface HistoryQuery {
   readonly metric: MetricKey;
   readonly scope: HistoryScope;
@@ -120,15 +111,10 @@ function liveValue(
   return value[metric] ?? NO_VALUE;
 }
 
-function roundTo(value: number, decimals: number): number {
-  const factor = 10 ** decimals;
-  return Math.round(value * factor) / factor;
-}
-
 /**
  * The modelled trend for one metric, ending on today's live value. The anchor
- * is read from the live analysis, so the series can never contradict a figure
- * shown beside it.
+ * is read from the live analysis on every call (nothing is cached across
+ * snapshots), so the series can never contradict a figure shown beside it.
  */
 export async function buildHistoryResponse(
   view: FleetSnapshotView,
@@ -138,15 +124,14 @@ export async function buildHistoryResponse(
   const live = liveValue(query.metric, query.scope, analysis);
   if (typeof live !== 'number') return live;
   if (!Number.isFinite(live)) return NO_VALUE;
-  const anchor = {
-    date: operatingDateOf(view.feedNow, view.fetchedAt),
-    value: roundTo(live, DECIMALS[query.metric]),
-  };
-  const series = await getRepositories().history.series(
-    query.metric,
-    query.scope,
-    query.days,
-    anchor,
-  );
-  return { status: 200, body: { series, provenance: 'modelled', anchor } };
+  const date = operatingDateOf(view.feedNow, view.fetchedAt);
+  const series = await getRepositories().history.series(query.metric, query.scope, query.days, {
+    date,
+    value: live,
+  });
+  // The generator clamps and rounds the anchor to the metric's precision; the
+  // response reports what it actually ended on, so the two cannot diverge.
+  const last = series.at(-1);
+  if (last === undefined) throw new RangeError('History series is empty');
+  return { status: 200, body: { series, provenance: 'modelled', anchor: { date: last.date, value: last.value } } };
 }
