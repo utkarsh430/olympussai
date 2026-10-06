@@ -22,19 +22,16 @@ function Dot({ colour, hollow }: { readonly colour: string; readonly hollow: boo
 const MARK_COLOUR = '#c7d2e0';
 
 /**
- * The map's one caption row: what is drawn (the model's caption, which reconciles
- * with the figures), the state colours by name, the two marker shapes and what the
- * circle is. Colour never carries a state alone: each swatch has its word.
+ * The map's key, on a 90% surface chip inside the map's bottom-left from 640px (above the
+ * basemap's own logo line); below that it sits under the map so it never hides the yard.
+ * Every swatch has its word, so colour never carries a state alone.
  */
-export function YardMapLegend({ caption }: { readonly caption: string }) {
+export function YardMapKey() {
   return (
     <div
-      data-testid="yard-map-legend"
-      className="mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-depot-muted"
+      data-testid="yard-map-key"
+      className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-depot-muted sm:absolute sm:bottom-8 sm:left-2 sm:z-10 sm:mt-0 sm:max-w-[calc(100%-1rem)] sm:rounded-[3px] sm:border sm:border-depot-line sm:bg-depot-surface/90 sm:px-2 sm:py-1"
     >
-      <span className="min-w-0 text-depot-ink" data-testid="yard-map-note">
-        {caption}
-      </span>
       <ul className="flex flex-wrap items-center gap-x-3 gap-y-1" aria-label="Bus state colours">
         {YARD_STATE_ORDER.map((state) => (
           <li key={state} className="flex items-center gap-1">
@@ -49,5 +46,14 @@ export function YardMapLegend({ caption }: { readonly caption: string }) {
       </span>
       <span>Circle: the yard inferred from where buses park, not surveyed.</span>
     </div>
+  );
+}
+
+/** The one line under the map: what is drawn, in the model's words, which reconcile with the band. */
+export function YardMapNote({ caption }: { readonly caption: string }) {
+  return (
+    <p className="depot-note mt-2 min-w-0" data-testid="yard-map-note">
+      {caption}
+    </p>
   );
 }

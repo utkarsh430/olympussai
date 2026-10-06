@@ -13,7 +13,7 @@ import { buildYardModel, DISPLAY_RADIUS_FACTOR, type YardModel } from '@/lib/dep
 import { capacityFigure, heldSinceLine, mapCaption } from '@/lib/depot/yard/yardPageModel';
 import { YardMap } from './YardMap';
 import { ParkingPlanSection } from './ParkingPlanSection';
-import { YardMapLegend } from './YardMapLegend';
+import { YardMapKey, YardMapNote } from './YardMapLegend';
 import { YardRoll } from './YardRoll';
 import { HOW_ID, YardFigures, YardNotEstablished } from './YardSummary';
 
@@ -22,8 +22,12 @@ function MapSection({ model }: { readonly model: YardModel }) {
   return (
     <section aria-labelledby="yard-map-heading" className="min-w-0">
       <SectionLabel id="yard-map-heading" label="Yard map" note={held ?? undefined} />
-      <YardMap model={model} />
-      <YardMapLegend caption={mapCaption(model)} />
+      {/* relative: the key is placed inside the map's bottom-left from 640px. */}
+      <div className="relative min-w-0" data-testid="yard-map-wrap">
+        <YardMap model={model} />
+        <YardMapKey />
+      </div>
+      <YardMapNote caption={mapCaption(model)} />
     </section>
   );
 }
