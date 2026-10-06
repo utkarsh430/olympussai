@@ -109,7 +109,7 @@ describe('buildYardModel', () => {
     const capped = buildYardModel(many).away;
     expect(capped.buses).toHaveLength(AWAY_LIST_CAP);
     expect(capped.total).toBe(AWAY_LIST_CAP + 5);
-    expect(capped.buses[0].registrationNumber).toBe('M0');
+    expect(capped.buses[0]?.registrationNumber).toBe('M0');
   });
 
   it('draws buses inside the display distance and counts those beyond', () => {

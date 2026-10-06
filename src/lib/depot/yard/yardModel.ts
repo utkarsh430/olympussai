@@ -111,7 +111,7 @@ function groupVisitors(visitors: readonly VisitorBus[]): VisitorGroup[] {
   }
   return [...byHome.entries()]
     .map(([name, buses]) => ({
-      homeDepotId: buses[0].homeDepotId,
+      homeDepotId: buses[0]?.homeDepotId ?? null,
       homeDepotName: name === '' ? UNKNOWN_HOME_LABEL : name,
       buses: [...buses].sort((a, b) => compareText(a.registrationNumber, b.registrationNumber)),
     }))
