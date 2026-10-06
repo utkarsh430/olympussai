@@ -112,6 +112,14 @@ describe('the yard page', () => {
     expect(text(line)).toContain(MIXED_SENTENCE);
   });
 
+  it.each(STATES)('never says "simulated" anywhere in the %s state, attributes included', async (_n, state) => {
+    hooks.detail = state;
+    const markup = await renderPage();
+    // The raw markup holds every title and aria-label as well as the visible text.
+    expect(markup).not.toMatch(/simulat/i);
+    expect(markup).not.toMatch(/not in a lane/i);
+  });
+
   it('tags the capacity figure and the night parking order where they are seen', async () => {
     hooks.detail = STATES[3][1];
     const markup = await renderPage();

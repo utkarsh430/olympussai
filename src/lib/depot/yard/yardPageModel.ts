@@ -82,7 +82,7 @@ export function mapCaption(model: YardModel): string {
   const visiting = model.points.length - own.length;
   const parts = [`${formatCount(drawnInYard)} in the yard`];
   if (nearby > 0) parts.push(`${formatCount(nearby)} of this depot's just outside it`);
-  parts.push(`${formatCount(visiting)} visiting`);
+  if (visiting > 0) parts.push(`${formatCount(visiting)} visiting`);
   const total = model.points.length;
   const head = `${formatCount(total)} ${plural(total, 'bus', 'buses')} drawn: ${parts.join(', ')}.`;
   const unplaced = model.counts.inYard - drawnInYard;
