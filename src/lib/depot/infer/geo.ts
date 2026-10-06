@@ -1,3 +1,4 @@
+import type { DepotBusRow } from '@/models/depotLive';
 import { haversineKm } from '@/lib/simulation/seededRandom';
 
 /**
@@ -10,6 +11,25 @@ export { haversineKm };
 const METRES_PER_KM = 1000;
 /** Metres per degree of latitude on the mean-radius sphere haversineKm uses. */
 const METRES_PER_DEGREE = (Math.PI / 180) * 6371 * METRES_PER_KM;
+
+/** A row whose position can be trusted as a place. */
+export type PositionedRow = DepotBusRow & {
+  readonly latitude: number;
+  readonly longitude: number;
+};
+
+/**
+ * True when the row carries a real position: both coordinates present and
+ * finite, and not (0, 0). Devices report (0, 0) when they have no fix, so it
+ * is a default, not a place; treating it as one would put a bus thousands of
+ * km "away" and fabricate a departure.
+ */
+export function hasUsablePosition(row: DepotBusRow): row is PositionedRow {
+  const { latitude, longitude } = row;
+  if (latitude === null || longitude === null) return false;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false;
+  return !(latitude === 0 && longitude === 0);
+}
 
 export interface PointM {
   readonly x: number;

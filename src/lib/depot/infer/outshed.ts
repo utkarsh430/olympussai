@@ -146,6 +146,8 @@ export function summariseOutshed(
 
   const classified: OutshedRow[] = [];
   for (const row of rows) {
+    // Rows off the feed date are discarded before any state or location work.
+    if (!isScheduledForFeedDate(row, feedNow)) continue;
     const outshed = classifyOutshed(row, stateOf(row), locateBus(row, yards), feedNow);
     if (outshed) classified.push(outshed);
   }

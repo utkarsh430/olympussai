@@ -1,5 +1,5 @@
 import type { DepotBusRow } from '@/models/depotLive';
-import { distanceM } from './geo';
+import { distanceM, hasUsablePosition } from './geo';
 import type { LocatedBus, Yard } from './types';
 
 const METRES_PER_KM = 1000;
@@ -19,7 +19,7 @@ function oneDecimalKm(metres: number): number {
  * id, so the result never depends on map insertion order.
  */
 export function locateBus(row: DepotBusRow, yards: ReadonlyMap<string, Yard>): LocatedBus {
-  if (row.latitude === null || row.longitude === null) return UNKNOWN;
+  if (!hasUsablePosition(row)) return UNKNOWN;
   const { latitude, longitude } = row;
 
   const homeYard = row.depotId === null ? undefined : yards.get(row.depotId);

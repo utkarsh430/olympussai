@@ -267,13 +267,36 @@ describe('summariseOutshed', () => {
     expect(summariseOutshed(rows, yards, FEED_NOW, standing).coverage).toEqual({ n: 3, of: 5 });
   });
 
-  it('uses the injected stateOf for every row', () => {
-    const seen: string[] = [];
+  it('calls stateOf exactly once per row scheduled for the feed date, and never for others', () => {
+    const calls = new Map<string, number>();
     summariseOutshed(rows, yards, FEED_NOW, (r) => {
-      seen.push(r.registrationNumber);
+      calls.set(r.registrationNumber, (calls.get(r.registrationNumber) ?? 0) + 1);
       return 'dark';
     });
-    expect(seen.length).toBeGreaterThan(0);
+    expect([...calls.entries()].sort()).toEqual([
+      ['A', 1],
+      ['B', 1],
+      ['C', 1],
+    ]);
+  });
+
+  it('does not call stateOf at all when feedNow is null', () => {
+    let calls = 0;
+    summariseOutshed(rows, yards, null, () => {
+      calls += 1;
+      return 'dark';
+    });
+    expect(calls).toBe(0);
+  });
+
+  it('treats a bus at the (0, 0) device default as unknown, not departed', () => {
+    const lost = row({ registrationNumber: 'G', latitude: 0, longitude: 0, scheduledStart: at(-60) });
+    const summary = summariseOutshed([lost], yards, FEED_NOW, standing);
+    expect(summary.rows[0]).toMatchObject({ state: 'unknown', evidence: 'none' });
+    expect(summary.counts.departed).toBe(0);
+  });
+
+  it('uses the injected stateOf result', () => {
     const dark = summariseOutshed(rows, yards, FEED_NOW, () => 'dark');
     expect(dark.counts.unknown).toBe(2);
     expect(dark.counts.upcoming).toBe(1);

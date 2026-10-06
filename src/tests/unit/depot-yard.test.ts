@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { DepotBusRow } from '@/models/depotLive';
 import { distanceM, fromMetres } from '@/lib/depot/infer/geo';
+import { locateBus } from '@/lib/depot/infer/location';
+import type { Yard } from '@/lib/depot/infer/types';
 import {
   inferYard,
   inferYards,
@@ -57,6 +59,40 @@ function at(
   });
 }
 
+/** Centre of the middle cell of a row laid out by `cellRow`. */
+const MID_CELL = fromMetres({ x: 75, y: 75 }, ORIGIN.lat, ORIGIN.lng);
+
+/** n adjacent 150 m cells in a row, six buses each, groups mid-cell on the grid anchored at ORIGIN. */
+function cellRow(n: number): DepotBusRow[] {
+  const first = -Math.floor(n / 2);
+  return Array.from({ length: n }, (_, k) => first + k).flatMap((j) =>
+    at(`W${j}`, 6, fromMetres({ x: 75 + 150 * j, y: 75 }, ORIGIN.lat, ORIGIN.lng), 8),
+  );
+}
+
+function countInYard(rows: readonly DepotBusRow[], yard: Yard): number {
+  const yards = new Map([['1', yard]]);
+  return rows.filter((r) => locateBus(r, yards).location === 'in_yard').length;
+}
+
+/** Deterministic Fisher-Yates using mulberry32. */
+function seededShuffle<T>(items: readonly T[], seed: number): T[] {
+  let state = seed >>> 0;
+  const next = (): number => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(next() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
 const far = (km: number) => fromMetres({ x: km * 1000, y: 0 }, ORIGIN.lat, ORIGIN.lng);
 
 describe('inferYard', () => {
@@ -85,12 +121,72 @@ describe('inferYard', () => {
     expect(inferYard([...at('A', 5, ORIGIN), ...at('B', 5, far(30))])).toBeNull();
   });
 
-  it('takes the denser of two stands when it clearly leads (7 vs 6)', () => {
-    const yard = inferYard([...at('A', 6, ORIGIN), ...at('B', 7, far(30))]);
+  it('claims no yard for two stands 30 km apart at 7 and 6 (below the dominance ratio)', () => {
+    expect(inferYard([...at('A', 6, ORIGIN), ...at('B', 7, far(30))])).toBeNull();
+  });
+
+  it('takes the denser of two stands when it holds twice the rival (12 vs 6)', () => {
+    const yard = inferYard([...at('A', 6, ORIGIN), ...at('B', 12, far(30))]);
     expect(yard).not.toBeNull();
     expect(distanceM(yard!.lat, yard!.lng, far(30).lat, far(30).lng)).toBeLessThan(30);
-    expect(yard!.inCluster).toBe(7);
-    expect(yard!.parked).toBe(13);
+    expect(yard!.inCluster).toBe(12);
+    expect(yard!.parked).toBe(18);
+  });
+
+  it('claims no yard when a 7-bus cell is matched by a 6-bus cell whose neighbour levels its block', () => {
+    const b = far(30);
+    const lone = fromMetres({ x: 120, y: 0 }, b.lat, b.lng);
+    const rows = [
+      ...at('A', 7, ORIGIN, 5),
+      ...at('B', 6, b, 5),
+      row({ registrationNumber: 'L', latitude: lone.lat, longitude: lone.lng }),
+    ];
+    expect(inferYard(rows)).toBeNull();
+  });
+
+  it('infers one wide yard from five adjacent cells, centred, with every bus in it', () => {
+    const rows = cellRow(5);
+    const yard = inferYard(rows);
+    expect(yard).not.toBeNull();
+    expect(distanceM(yard!.lat, yard!.lng, MID_CELL.lat, MID_CELL.lng)).toBeLessThan(30);
+    expect(yard!.parked).toBe(30);
+    expect(yard!.inCluster).toBe(30);
+    expect(countInYard(rows, yard!)).toBe(30);
+  });
+
+  it('infers a yard from six adjacent cells, near the middle, with most buses in it', () => {
+    const rows = cellRow(6);
+    const yard = inferYard(rows);
+    expect(yard).not.toBeNull();
+    const trueMiddle = fromMetres({ x: 75 + 150 * 0.5, y: 75 }, ORIGIN.lat, ORIGIN.lng);
+    expect(distanceM(yard!.lat, yard!.lng, trueMiddle.lat, trueMiddle.lng)).toBeLessThan(100);
+    expect(countInYard(rows, yard!)).toBeGreaterThanOrEqual(30);
+  });
+
+  it('gives identical wide-yard and two-stand results for reversed and shuffled input', () => {
+    const scenarios = [
+      cellRow(5),
+      cellRow(6),
+      [...at('A', 6, ORIGIN), ...at('B', 7, far(30))],
+      [...at('A', 6, ORIGIN), ...at('B', 12, far(30))],
+    ];
+    for (const rows of scenarios) {
+      const baseline = inferYard(rows);
+      expect(inferYard([...rows].reverse())).toEqual(baseline);
+      expect(inferYard(seededShuffle(rows, 7))).toEqual(baseline);
+      expect(inferYard(seededShuffle(rows, 1234))).toEqual(baseline);
+    }
+  });
+
+  it('keeps the centre and radius of a tight single-cell cluster as the mean and p90 plus pad', () => {
+    const rows = at('A', 10, ORIGIN, 30);
+    const lat = rows.reduce((sum, r) => sum + r.latitude!, 0) / rows.length;
+    const lng = rows.reduce((sum, r) => sum + r.longitude!, 0) / rows.length;
+    const dists = rows.map((r) => distanceM(lat, lng, r.latitude!, r.longitude!)).sort((a, b) => a - b);
+    const expectedRadius = Math.max(YARD_MIN_RADIUS_M, Math.round(dists[8]! + YARD_RADIUS_PAD_M));
+    const yard = inferYard(rows)!;
+    expect(distanceM(yard.lat, yard.lng, lat, lng)).toBeLessThan(3);
+    expect(Math.abs(yard.radiusM - expectedRadius)).toBeLessThanOrEqual(3);
   });
 
   it('rejects a cluster holding under half the candidates', () => {
@@ -129,8 +225,8 @@ describe('inferYard', () => {
     expect(inferYard(at('A', 10, ORIGIN, 2))!.radiusM).toBe(YARD_MIN_RADIUS_M);
   });
 
-  it('sizes a wide cluster from its spread, within what the 3x3 cell block allows', () => {
-    const blockDiagonalM = 3 * Math.SQRT2 * YARD_CELL_M;
+  it('sizes a wide cluster from its spread, within what the 5x5 cell block allows', () => {
+    const blockDiagonalM = 5 * Math.SQRT2 * YARD_CELL_M;
     const yard = inferYard(at('A', 40, ORIGIN, 220));
     expect(yard).not.toBeNull();
     expect(yard!.radiusM).toBeGreaterThan(YARD_MIN_RADIUS_M);
