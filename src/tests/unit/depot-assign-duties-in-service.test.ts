@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DepotBusView } from '@/lib/depot/api';
 import type { Duty, PlanNow } from '@/lib/depot/duties/types';
-import { assignDuties, MAX_BASE_COST, tierWeights } from '@/lib/depot/optimise/assignDuties';
+import { assignDuties, MAX_BASE_COST } from '@/lib/depot/optimise/assignDuties';
 import type { ModelledBus, ServiceClass } from '@/lib/depot/sim/types';
 import type { BusOpState } from '@/lib/depot/types';
 import { SeededRandom } from '@/lib/simulation/seededRandom';
@@ -10,7 +10,7 @@ import { SeededRandom } from '@/lib/simulation/seededRandom';
  * Ruling S55, review N5 (I2-rest): a bus in service ranks above a bus that is
  * only moving, directly below "keep on-the-road buses in the day". The tiers
  * stay exactly lexicographic: checked here by exhaustive search on small
- * depots, and by the weight bound at 400 duties x 400 buses.
+ * depots; the bound at 400 x 400 is in `depot-tier-weights-exact.test.ts`.
  */
 
 const CLASSES: readonly ServiceClass[] = ['ordinary', 'express', 'ac'];
@@ -115,15 +115,5 @@ describe('the tiers are exactly lexicographic (exhaustive search)', () => {
       }, [0, 0, 0, 0, 0, 0]);
       expect(got).toEqual(bruteForce(costs, busCount));
     }
-  });
-});
-
-describe('the weight bound (S55)', () => {
-  it('keeps every matching total exact at 400 duties x 400 buses with the capped base', () => {
-    const weights = tierWeights(400, MAX_BASE_COST);
-    const top = weights[0] ?? Infinity;
-    // A matching's total is under pairs x (the largest cell), and the largest cell is under 2 x top.
-    expect(top * 2 * (400 + 1)).toBeLessThan(Number.MAX_SAFE_INTEGER);
-    expect(weights[weights.length - 1]).toBe(1);
   });
 });
