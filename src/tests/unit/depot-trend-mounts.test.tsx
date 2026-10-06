@@ -66,13 +66,19 @@ describe('overview KPI band', () => {
     ]);
   });
 
-  it('names the metric and tags the week MODELLED, leaving the live tag as it was', () => {
+  it('names the metric and tags the week MODELLED on its own line, with no LIVE tag on a figure', () => {
     const markup = renderToStaticMarkup(<KpiBand kpis={KPIS} depots={[]} />);
     const page = text(markup);
     expect(page).toMatch(/On-road share, MODELLED: (steady|up|down)[^]*over 7 days/);
     expect(page).toMatch(/Dark rate, MODELLED: (steady|up|down)[^]*over 7 days/);
     expect(markup.match(/data-testid="trend-week-line"/g)).toHaveLength(2);
-    expect(markup.match(/data-provenance="live"/g)?.length).toBeGreaterThanOrEqual(4);
+    // Design wave: the page's DERIVED provenance line says live once; the trend line,
+    // which differs from it, carries its own MODELLED tag, outside the figure band.
+    expect(markup).not.toContain('data-provenance="live"');
+    const trends = markup.slice(markup.indexOf('data-testid="depot-kpi-trends"'));
+    expect(trends).toContain('data-provenance="modelled"');
+    const band = markup.slice(0, markup.indexOf('data-testid="depot-kpi-trends"'));
+    expect(band).not.toContain('trend-week-line');
   });
 
   it('prints nothing while the trend is loading', () => {

@@ -33,10 +33,10 @@ const PRIMARY: readonly KpiSpec[] = [
   { key: 'onRoad', label: 'On road' },
   { key: 'stationary', label: 'Stationary' },
   { key: 'noSignal', label: 'No signal' },
+  { key: 'depots', label: 'Operating depots' },
 ];
 
 const SECONDARY: readonly KpiSpec[] = [
-  { key: 'depots', label: 'Operating depots' },
   { key: 'reporting', label: 'Reporting' },
   { key: 'underMaintenance', label: 'Under maintenance' },
   { key: 'assigned', label: 'Route assigned' },
@@ -71,7 +71,7 @@ function figureFor(spec: KpiSpec, kpis: NetworkKpis, units: number): KpiFigure {
   };
 }
 
-/** Four bus figures in the primary row; operating depots and the rest beneath. */
+/** Four bus figures and operating depots in the band (five at most); the rest as one quiet line. */
 export function kpiLayout(
   kpis: NetworkKpis,
   depots: readonly Pick<DepotSummary, 'kind'>[],
@@ -207,4 +207,17 @@ export function unrankedSentence(summary: UnrankedSummary): string {
   ].filter((part): part is string => part !== null);
   const verb = summary.total === 1 ? 'is' : 'are';
   return `${counted(summary.total, 'unit', 'units')} ${verb} not ranked: ${parts.join(', ')}.`;
+}
+
+/** "Reporting 2,853 (29% of fleet)": a secondary figure as one reading of the quiet line. */
+export function secondaryReading(figure: KpiFigure): string {
+  return `${figure.label} ${formatCount(figure.value)}${figure.note ? ` (${figure.note})` : ''}`;
+}
+
+/**
+ * A figure's own tag only when its provenance differs from the page's DERIVED default:
+ * live and derived figures are said once by the provenance line and the feed chip.
+ */
+export function figureTag(provenance: Provenance): Provenance | undefined {
+  return provenance === 'live' || provenance === 'derived' ? undefined : provenance;
 }

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   KIND_FILTER_OPTIONS,
   TABLE_ROW_CAP,
+  figureTag,
   kpiLayout,
+  secondaryReading,
   tableCap,
   tableColumnKeys,
   tableHeading,
@@ -42,18 +44,18 @@ const KPIS: NetworkKpis = {
 describe('kpiLayout', () => {
   const layout = kpiLayout(KPIS, UNITS);
 
-  it('puts four bus figures in the primary row, in order', () => {
+  it('puts four bus figures and operating depots in the band, five at most, in order', () => {
     expect(layout.primary.map((f) => f.label)).toEqual([
       'Fleet',
       'On road',
       'Stationary',
       'No signal',
+      'Operating depots',
     ]);
   });
 
-  it('puts operating depots and three more figures in the secondary row', () => {
+  it('puts the three remaining figures on the quiet line', () => {
     expect(layout.secondary.map((f) => f.label)).toEqual([
-      'Operating depots',
       'Reporting',
       'Under maintenance',
       'Route assigned',
@@ -61,7 +63,7 @@ describe('kpiLayout', () => {
   });
 
   it('counts operating depots against units in the feed, never against buses', () => {
-    const depots = layout.secondary[0]!;
+    const depots = layout.primary[4]!;
     expect(depots.value).toBe(119);
     expect(depots.provenance).toBe('derived');
     expect(depots.note).toBe('of 143 units in the feed');
@@ -72,16 +74,28 @@ describe('kpiLayout', () => {
   it('gives bus counts their share of the fleet and no repeated figure', () => {
     expect(layout.primary[0]?.note).toBe('100% of fleet');
     expect(layout.primary[1]?.note).toBe('41% of fleet');
-    expect(layout.secondary[1]?.note).toBe('27% of fleet');
+    expect(layout.secondary[0]?.note).toBe('27% of fleet');
     expect(layout.primary[1]?.note).not.toContain('4122');
   });
 
   it('states "x of N" only when the denominator is not the whole fleet', () => {
-    expect(layout.secondary[3]?.note).toBe('22% of fleet · 2,204 of 9,000');
+    expect(layout.secondary[2]?.note).toBe('22% of fleet · 2,204 of 9,000');
   });
 
   it('says "1 unit" for a single unit', () => {
-    expect(kpiLayout(KPIS, [unit('a', 'depot')]).secondary[0]?.note).toBe('of 1 unit in the feed');
+    expect(kpiLayout(KPIS, [unit('a', 'depot')]).primary[4]?.note).toBe('of 1 unit in the feed');
+  });
+});
+
+describe('figure tags and the quiet line', () => {
+  it('tags only a figure whose provenance differs from the page default', () => {
+    expect(figureTag('live')).toBeUndefined();
+    expect(figureTag('derived')).toBeUndefined();
+    expect(figureTag('modelled')).toBe('modelled');
+  });
+
+  it('reads a secondary figure as label, count and its note', () => {
+    expect(secondaryReading(kpiLayout(KPIS, UNITS).secondary[0]!)).toMatch(/^Reporting [\d,]+ \(27% of fleet\)$/);
   });
 });
 
