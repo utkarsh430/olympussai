@@ -9,7 +9,7 @@ import { fuelHeader } from '@/lib/depot/fuel/fuelHeader';
 /** The page default: every figure is MODELLED. */
 const PROVENANCE: ProvenanceDescription = {
   default: 'modelled',
-  replacedBy: 'fuel issue records and odometer readings',
+  replacedBy: 'the fuel issue and odometer feed',
   feedId: 'fuel',
 };
 

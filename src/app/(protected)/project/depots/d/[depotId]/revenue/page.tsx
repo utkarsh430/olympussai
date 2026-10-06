@@ -9,7 +9,7 @@ import { revenueHeader } from '@/lib/depot/revenue/revenueHeader';
 /** The page default: every figure is MODELLED. */
 const PROVENANCE: ProvenanceDescription = {
   default: 'modelled',
-  replacedBy: 'a ticketing feed and a route master',
+  replacedBy: 'the ticketing and route master feed',
   feedId: 'ticketing-ridership',
 };
 

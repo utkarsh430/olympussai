@@ -146,7 +146,7 @@ const PAGES = [
     set: (v: unknown) => (hooks.fuel = v),
     data: () => fuel(DAY, 25588),
     empty: () => fuel(EMPTY_DAY, 0),
-    replacedBy: 'Replaced when fuel issue records and odometer readings is connected.',
+    replacedBy: 'Replaced when the fuel issue and odometer feed is connected.',
   },
   {
     name: 'revenue',
@@ -154,7 +154,7 @@ const PAGES = [
     set: (v: unknown) => (hooks.revenue = v),
     data: () => revenue(DAY),
     empty: () => revenue(EMPTY_DAY),
-    replacedBy: 'Replaced when a ticketing feed and a route master is connected.',
+    replacedBy: 'Replaced when the ticketing and route master feed is connected.',
   },
 ];
 
@@ -185,11 +185,11 @@ describe.each(PAGES)('the $name page provenance line', ({ page, set, data, empty
     expect(host.textContent).not.toMatch(/\btoday\b|\bran\b|did not run/i);
   });
 
-  it('is MODELLED and dated when the modelled day is empty', async () => {
+  it('is MODELLED and dated (in the line or the panel) when the modelled day is empty', async () => {
     set(ok(empty()));
     const line = await renderPage(page);
     expect(line.getAttribute('data-tone')).toBe('modelled');
-    expect(line.textContent).toContain('6 Oct 2026');
+    expect(host.textContent).toContain('6 Oct 2026');
   });
 });
 
@@ -199,5 +199,15 @@ describe('the empty modelled day on fuel (critique section 9, fuel C)', () => {
     await renderPage(DepotFuelPage as PageFn);
     expect(host.querySelector('[data-testid="depot-figure-band"]')).toBeNull();
     expect(host.querySelector('[data-state="empty"]')).not.toBeNull();
+  });
+
+  it('prints no zeros in the provenance line; the panel names the day and links to the fuel feed', async () => {
+    hooks.fuel = ok(fuel(EMPTY_DAY, 0));
+    const line = await renderPage(DepotFuelPage as PageFn);
+    expect(line.textContent).not.toMatch(/\b0 duties|\b0 routes|Built on the modelled day/);
+    const panel = host.querySelector('[data-state="empty"]');
+    expect(panel?.textContent).toContain('6 Oct 2026');
+    const link = panel?.querySelector('a[href="/project/depots/sources#feed-fuel"]');
+    expect(link?.textContent).toBe('Data sources');
   });
 });

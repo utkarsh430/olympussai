@@ -185,11 +185,9 @@ function flagFor(row: BusFuelFigure): FlaggedBus | null {
  * A price that is missing, or not finite and positive, is replaced by
  * DEFAULT_PRICE_PER_LITRE and `priceDefaulted` is true, so a page can say so.
  */
-export function analyseFuel(
-  days: readonly BusFuelDay[],
-  pricePerLitre?: number,
-): FuelAnalysis {
-  const supplied = pricePerLitre !== undefined && Number.isFinite(pricePerLitre) && pricePerLitre > 0;
+export function analyseFuel(days: readonly BusFuelDay[], pricePerLitre?: number): FuelAnalysis {
+  const supplied =
+    pricePerLitre !== undefined && Number.isFinite(pricePerLitre) && pricePerLitre > 0;
   const priceDefaulted = !supplied;
   const price = supplied ? pricePerLitre : DEFAULT_PRICE_PER_LITRE;
   const base = days

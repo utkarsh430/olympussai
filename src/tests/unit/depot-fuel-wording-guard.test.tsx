@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 import { FuelPage } from '@/components/depot/fuel/FuelPage';
 import type { FuelResponse } from '@/lib/depot/fuel/api';
+import * as fuelColumns from '@/lib/depot/fuel/fuelColumns';
 import * as fuelHeader from '@/lib/depot/fuel/fuelHeader';
 import * as fuelPageModel from '@/lib/depot/fuel/fuelPageModel';
 import * as fuelPageTables from '@/lib/depot/fuel/fuelPageTables';
@@ -138,10 +139,20 @@ const PROBES: readonly unknown[][] = [
   ['Built on the modelled day.'],
   [{ operatingDate: '2026-10-06', duties: 4, routes: 2, scheduled: { n: 5, of: 9 } }],
   [{ operatingDate: '2026-10-06', duties: 4, routes: 2, scheduled: null }],
+  ['narrow', true],
+  ['medium', false],
+  [bus('R1')],
+  [bus(null), 'narrow'],
+  [bus('R1'), 'medium'],
 ];
 
 /** Exports that return no text (a number, a flag or a group of numbers). */
-const NO_TEXT: ReadonlySet<string> = new Set(['classFloor', 'showRouteColumn']);
+const NO_TEXT: ReadonlySet<string> = new Set([
+  'classFloor',
+  'showRouteColumn',
+  'STAND_OUT_WIDTHS',
+  'ROUTE_WIDTHS',
+]);
 
 function stringsOf(value: unknown): string[] {
   if (typeof value === 'string') return [value];
@@ -151,6 +162,7 @@ function stringsOf(value: unknown): string[] {
 }
 
 const MODULES: Record<string, Record<string, unknown>> = {
+  fuelColumns,
   fuelHeader,
   fuelPageModel,
   fuelPageTables,
@@ -221,6 +233,26 @@ describe('the rendered fuel page, with its titles and labels', () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     await act(async () => root.render(<FuelPage provenance={{ default: 'modelled' }} />));
     checkRendered(host);
+    await act(async () => root.unmount());
+  });
+});
+
+describe('the rendered fuel page states the shortfall and prints no raw date', () => {
+  it('in the band caption (R2-m8), and with no YYYY-MM-DD in text, titles or labels', async () => {
+    hooks.fuel = { data: response(true, true), error: null, loading: false, refresh: vi.fn() };
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    await act(async () => root.render(<FuelPage provenance={{ default: 'modelled' }} />));
+    const band = host.querySelector('[data-testid="depot-figure-band"]');
+    expect(band?.textContent).toContain('6 with no duty · 2 duties without a bus');
+    expect(host.querySelector('[data-testid="depot-fuel-standout-foot"]')?.textContent).not.toContain(
+      'without a bus',
+    );
+    const attrs = [...host.querySelectorAll('*')].flatMap((el) =>
+      [...el.attributes].filter((a) => a.name !== 'href').map((a) => a.value),
+    );
+    for (const text of [host.textContent ?? '', ...attrs]) expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}/);
     await act(async () => root.unmount());
   });
 });

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
 import { HowProduced } from '@/components/depot/revenue/HowProduced';
 import { ErrorPanel, StaleStrip } from '@/components/depot/shell/DataStates';
@@ -22,6 +23,12 @@ import { RouteTable } from './RouteTable';
 
 /** Placeholder footprint: the band, then the stand-out table, the class table and the routes. */
 const LOADING_ROWS = 14;
+const FUEL_SOURCES_HREF = '/project/depots/sources#feed-fuel';
+
+/** A modelled day with no distance run: no band and no modelled-day line, one panel. */
+function isEmptyDay(data: FuelResponse): boolean {
+  return data.totals.distanceKm <= 0;
+}
 
 /**
  * The fuel and cost page for one depot: the header (its provenance line carries the
@@ -32,14 +39,16 @@ const LOADING_ROWS = 14;
 export function FuelPage({ provenance }: { readonly provenance: ProvenanceDescription }) {
   const { depotId, data: detail } = useDepotDetailContext();
   const { data, error, loading, refresh } = useDepotFuel(depotId);
-  const modelledDay = data
-    ? modelledDayLine({
-        operatingDate: data.operatingDate,
-        duties: data.day.duties,
-        routes: data.day.routes,
-        scheduled: detail?.outshed.coverage ?? null,
-      })
-    : undefined;
+  // Fuel C: an empty day prints no "0 duties on 0 routes"; the panel says it once.
+  const modelledDay =
+    data && !isEmptyDay(data)
+      ? modelledDayLine({
+          operatingDate: data.operatingDate,
+          duties: data.day.duties,
+          routes: data.day.routes,
+          scheduled: detail?.outshed.coverage ?? null,
+        })
+      : undefined;
   return (
     <>
       <PageHeader {...fuelHeader(provenance, modelledDay)} />
@@ -61,12 +70,20 @@ export function FuelPage({ provenance }: { readonly provenance: ProvenanceDescri
 }
 
 function FuelBody({ data, stale }: { readonly data: FuelResponse; readonly stale: boolean }) {
-  const empty = data.totals.distanceKm <= 0;
   return (
     <div className="flex flex-col gap-6">
       {stale ? <StaleStrip since={data.feedNow} /> : null}
-      {empty ? (
-        <StatePanel kind="empty" sentence={emptyText(data.day)} remedy={emptyRemedy(data.day)} />
+      {isEmptyDay(data) ? (
+        <StatePanel
+          kind="empty"
+          sentence={emptyText(data.day, formatPlainDate(data.operatingDate))}
+          remedy={emptyRemedy(data.day)}
+          action={
+            <Link href={FUEL_SOURCES_HREF} className="depot-link">
+              Data sources
+            </Link>
+          }
+        />
       ) : (
         <>
           <FigureBand label={`Fuel and fuel cost for ${formatPlainDate(data.operatingDate)}`}>
