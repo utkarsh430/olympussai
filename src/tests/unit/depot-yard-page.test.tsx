@@ -188,6 +188,19 @@ describe('the yard page', () => {
     expect(t).not.toContain('inside the yard circle, any state');
   });
 
+  it('never cuts a yard figure: the value wraps and is one step smaller on a phone', async () => {
+    hooks.detail = { ...base, data: DATA, error: null, loading: false };
+    const doc = new DOMParser().parseFromString(await renderPage(), 'text/html');
+    const figures = Array.from(doc.querySelectorAll('[data-testid="yard-figure"]'));
+    expect(figures.length).toBeGreaterThan(0);
+    for (const figure of figures) {
+      const value = figure.querySelector('.tabular-nums');
+      const classes = (value?.className ?? '').split(/\s+/);
+      expect(classes).not.toContain('truncate');
+      expect(classes).toEqual(expect.arrayContaining(['break-words', 'text-xl', 'sm:text-2xl']));
+    }
+  });
+
   it('sets the capacity tag inside the label line and the bar at the head of the caption', async () => {
     hooks.detail = { ...base, data: DATA, error: null, loading: false };
     const doc = new DOMParser().parseFromString(await renderPage(), 'text/html');

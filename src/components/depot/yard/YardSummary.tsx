@@ -41,7 +41,9 @@ function YardFigure({ label, value, caption, tag, share, title }: YardFigureProp
         </div>
         {tag ? <ProvenanceBadge provenance={tag} /> : null}
       </div>
-      <div className="mt-1.5 truncate font-mono text-2xl leading-7 tabular-nums text-depot-ink">{value}</div>
+      <div className="mt-1.5 break-words font-mono text-xl leading-7 tabular-nums text-depot-ink sm:text-2xl">
+        {value}
+      </div>
       <p className="depot-caption mt-1.5 flex min-w-0 items-center gap-2">
         {share !== undefined ? (
           <span aria-hidden className="depot-bar-track block w-[120px] shrink-0 lg:w-[80px] xl:w-[120px]">
