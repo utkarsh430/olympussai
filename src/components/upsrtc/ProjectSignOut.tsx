@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import { LogOut } from 'lucide-react';
+import { SIGN_OUT_FAILED, useProjectSignOut } from '@/hooks/useProjectSignOut';
 
 /**
  * Restrained Olympuss project context + Sign Out, mounted into the dashboard's
@@ -9,23 +9,11 @@ import { LogOut } from 'lucide-react';
  * as "you are inside an Olympuss project environment" without overwhelming the
  * command centre's cyan HUD identity.
  *
- * Sign Out calls the server logout endpoint (clears the HttpOnly cookie) then
- * hard-navigates to /login, so the now-unauthenticated client cannot keep
- * rendering protected state.
+ * Sign-out behaviour lives in `useProjectSignOut`. A refused sign-out keeps the
+ * user on the page, so the button says it failed and can be pressed again.
  */
 export function ProjectSignOut() {
-  const [busy, setBusy] = useState(false);
-
-  async function handleSignOut() {
-    setBusy(true);
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } catch {
-      // Even if the request fails, fall through to the login page; the
-      // protected route + APIs re-verify server-side regardless.
-    }
-    window.location.assign('/login');
-  }
+  const { signOut, pending, failed } = useProjectSignOut();
 
   return (
     <div className="flex items-center gap-2.5">
@@ -59,13 +47,17 @@ export function ProjectSignOut() {
 
       <button
         type="button"
-        onClick={handleSignOut}
-        disabled={busy}
+        onClick={signOut}
+        disabled={pending}
         data-testid="project-sign-out"
+        title={failed ? SIGN_OUT_FAILED : undefined}
         className="inline-flex items-center gap-1.5 rounded border border-[#d6a13a]/40 bg-[#d6a13a]/[0.06] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#e8c477] transition-colors hover:border-[#d6a13a]/80 hover:bg-[#d6a13a]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6a13a] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <LogOut className="h-3.5 w-3.5" aria-hidden />
-        {busy ? 'Signing out…' : 'Sign Out'}
+        {pending ? 'Signing out…' : failed ? 'Sign-out failed: retry' : 'Sign Out'}
+        <span role="status" className="sr-only">
+          {failed ? SIGN_OUT_FAILED : ''}
+        </span>
       </button>
     </div>
   );

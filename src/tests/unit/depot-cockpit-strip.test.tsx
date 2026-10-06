@@ -1,0 +1,103 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import { AttentionStrip } from '@/components/depot/cockpit/AttentionStrip';
+import { BriefingRow } from '@/components/depot/cockpit/BriefingRow';
+import { BriefingCard } from '@/components/depot/copilot/BriefingCard';
+import type { CopilotScope } from '@/lib/depot/copilot/wire';
+import type { AttentionLine } from '@/lib/depot/cockpit/attention';
+
+function line(key: string, count: number, text: string): AttentionLine {
+  return { key, count, text: `${count} ${text}`, href: '/roster', destination: 'Roster' };
+}
+
+function render(lines: readonly AttentionLine[]): Document {
+  const markup = renderToStaticMarkup(<AttentionStrip attention={{ lines, calm: null }} />);
+  return new DOMParser().parseFromString(markup, 'text/html');
+}
+
+const FIVE = [
+  line('power', 31, 'buses report main power off'),
+  line('off', 10, 'buses are off the road'),
+  line('tamper', 4, 'buses report a tamper code'),
+  line('dark', 35, 'buses are dark: no signal for 6 h or more'),
+  line('heard', 22, 'buses have not been heard for over 30 min'),
+];
+
+describe('the attention strip', () => {
+  it('closes the strip with one rule of its own, across the empty fifth cell of a 3+2 strip', () => {
+    const strip = render(FIVE);
+    const list = strip.querySelector('ul');
+    // One closing rule on the list (S3 rhythm cause); rows draw only the rules between them.
+    expect(list?.className).toContain('border-y');
+    const items = [...(list?.querySelectorAll('li') ?? [])];
+    for (const item of items) expect(item.className).not.toContain('border-b');
+    const filler = strip.querySelector('[data-testid="depot-attention-filler"]');
+    expect(filler?.className).toContain('border-t');
+    expect(filler?.getAttribute('aria-hidden')).not.toBeNull();
+  });
+
+  it('sets five lines 3 + 2 from 640px and on one row from 1280px, each a stacked cell that wraps', () => {
+    const strip = render(FIVE);
+    const list = strip.querySelector('ul')?.className.split(/\s+/) ?? [];
+    expect(list).toEqual(expect.arrayContaining(['sm:grid-cols-3', 'xl:grid-cols-5']));
+    expect(list).not.toContain('lg:grid-cols-2');
+    const filler = strip.querySelector('[data-testid="depot-attention-filler"]')?.className ?? '';
+    expect(filler).toContain('sm:block');
+    expect(filler).toContain('xl:hidden');
+    const link = strip.querySelector('[data-testid="depot-attention-dark"]');
+    expect(link?.className).toContain('sm:flex-col');
+    expect(link?.querySelector('[title]')?.className).not.toContain('truncate');
+  });
+
+  it('sets six lines three across in two rows, with no filler', () => {
+    const six = [...FIVE, line('late', 3, 'departures are overdue')];
+    const doc = render(six);
+    const list = doc.querySelector('ul')?.className.split(/\s+/) ?? [];
+    expect(list).toContain('sm:grid-cols-3');
+    expect(list).not.toContain('xl:grid-cols-5');
+    expect(doc.querySelector('[data-testid="depot-attention-filler"]')).toBeNull();
+    expect(render(FIVE.slice(0, 4)).querySelector('ul')?.className).not.toContain('xl:grid-cols-5');
+  });
+
+  it('has no filler when the strip is even', () => {
+    expect(
+      render(FIVE.slice(0, 4)).querySelector('[data-testid="depot-attention-filler"]'),
+    ).toBeNull();
+  });
+
+  it('keeps one heading on the opened briefing: the card label and headline are not drawn', () => {
+    const markup = renderToStaticMarkup(
+      <BriefingRow scope={{ kind: 'depot', depotId: '20' } as CopilotScope} feedNow={null} />,
+    );
+    const doc = new DOMParser().parseFromString(markup, 'text/html');
+    // The card is embedded (it draws no label and no headline), not hidden with CSS: a
+    // hidden headline could still take focus and be read.
+    const body = doc.querySelector('[data-testid="depot-briefing-row"] > div[hidden]');
+    expect(body?.className).not.toContain('[&_h');
+    expect(doc.querySelectorAll('h2')).toHaveLength(1);
+  });
+
+  it('explains what a briefing is once, in the row, and keeps the advisory sentence there', () => {
+    const markup = renderToStaticMarkup(
+      <BriefingRow scope={{ kind: 'depot', depotId: '20' } as CopilotScope} feedNow={null} />,
+    );
+    const text = new DOMParser().parseFromString(markup, 'text/html').body.textContent ?? '';
+    expect(text.match(/short written summary/g)).toHaveLength(1);
+    expect(text).toContain('Advisory: it describes, it does not instruct.');
+    // Opened, the embedded card offers Write and does not explain itself again.
+    const card = renderToStaticMarkup(
+      <BriefingCard scope={{ kind: 'depot', depotId: '20' } as CopilotScope} title="Depot briefing" currentFeedTime={null} embedded />,
+    );
+    const cardText = new DOMParser().parseFromString(card, 'text/html').body.textContent ?? '';
+    expect(cardText).toContain('Write briefing');
+    expect(cardText).not.toContain('short written summary');
+  });
+
+  it('wraps a line on a phone instead of cutting it; a line of two across truncates only from 640px', () => {
+    const doc = render(FIVE.slice(0, 4));
+    const words = doc.querySelector('[data-testid="depot-attention-dark"] [title]');
+    const classes = (words?.className ?? '').split(/\s+/);
+    expect(classes).not.toContain('truncate');
+    expect(classes).toContain('sm:truncate');
+  });
+});

@@ -39,6 +39,17 @@ export default {
           crimson: '#b3172f',
           green: '#0b6b40',
         },
+        // Depot Management surface: the command centre's palette with the
+        // lights turned down. Ink tiers all clear 4.5:1 on `page`.
+        depot: {
+          page: '#02040a',
+          surface: '#070f1d',
+          raised: '#0a1626',
+          line: 'rgba(63, 240, 255, 0.12)',
+          ink: '#dbe7f3',
+          muted: '#9bb0c7',
+          faint: '#6b84a0',
+        },
         // Olympuss landing palette (Section 18). Namespaced so it cannot
         // collide with the dashboard's cyan HUD tokens above.
         ol: {

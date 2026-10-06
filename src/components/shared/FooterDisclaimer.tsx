@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Info, ChevronUp, ChevronDown } from 'lucide-react';
 import { FOOTER_DISCLAIMER } from '@/lib/constants';
+import { depotDisclaimerText } from '@/lib/depot/shellModel';
 
 /**
  * Permanent, always-accessible prototype disclaimer.
@@ -10,11 +11,20 @@ import { FOOTER_DISCLAIMER } from '@/lib/constants';
  *
  * `variant` exists so the light bunching-simulator surface can carry exactly the
  * same disclosure copy without a dark strip across the foot of a white page. The
- * dark default is unchanged for the command centre, which passes nothing.
+ * dark default is unchanged for the command centre, which passes nothing. `depot` is
+ * the dark strip under the depot shell's 11px type floor: the sentence wraps instead of
+ * being cut off mid-word, in sans 11/16 at most 90 characters wide; it drops the leading
+ * "Prototype." that the pill beside it already says, and the open panel does not print
+ * it a second time.
  */
-export function FooterDisclaimer({ variant = 'dark' }: { variant?: 'dark' | 'light' } = {}) {
+export function FooterDisclaimer({
+  variant = 'dark',
+}: { variant?: 'dark' | 'light' | 'depot' } = {}) {
   const [expanded, setExpanded] = useState(false);
   const light = variant === 'light';
+  const depot = variant === 'depot';
+  const text = depot ? 'text-[11px]' : 'text-[10px]';
+  const small = depot ? 'text-[11px]' : 'text-[9px]';
 
   return (
     <div
@@ -38,7 +48,7 @@ export function FooterDisclaimer({ variant = 'dark' }: { variant?: 'dark' | 'lig
           aria-hidden
         />
         <span
-          className={`shrink-0 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] ${
+          className={`shrink-0 rounded border px-2 py-0.5 font-mono ${text} font-semibold uppercase tracking-[0.14em] ${
             light
               ? 'border-sim-teal/45 bg-sim-teal/10 text-sim-teal'
               : 'border-holo-teal/45 bg-holo-teal/10 text-holo-teal'
@@ -47,11 +57,11 @@ export function FooterDisclaimer({ variant = 'dark' }: { variant?: 'dark' | 'lig
           Prototype
         </span>
         <span
-          className={`min-w-0 flex-1 truncate font-mono text-[10px] leading-relaxed ${
-            light ? 'text-sim-muted' : 'text-holo-glow/50'
-          }`}
+          className={`min-w-0 flex-1 ${
+            depot ? 'max-w-[90ch] font-sans leading-4' : 'truncate font-mono leading-relaxed'
+          } ${text} ${light ? 'text-sim-muted' : 'text-holo-glow/50'}`}
         >
-          {FOOTER_DISCLAIMER}
+          {depot ? depotDisclaimerText(FOOTER_DISCLAIMER) : FOOTER_DISCLAIMER}
         </span>
         {expanded ? (
           <ChevronDown
@@ -70,29 +80,31 @@ export function FooterDisclaimer({ variant = 'dark' }: { variant?: 'dark' | 'lig
         <div
           className={`border-t px-4 py-2.5 ${light ? 'border-sim-line' : 'border-holo-glow/10'}`}
         >
-          <p
-            className={`mb-2 font-mono text-[10px] leading-relaxed ${
-              light ? 'text-sim-ink' : 'text-holo-glow/65'
-            }`}
-          >
-            {FOOTER_DISCLAIMER}
-          </p>
+          {depot ? null : (
+            <p
+              className={`mb-2 font-mono text-[10px] leading-relaxed ${
+                light ? 'text-sim-ink' : 'text-holo-glow/65'
+              }`}
+            >
+              {FOOTER_DISCLAIMER}
+            </p>
+          )}
           <ul className="grid grid-cols-2 gap-x-6 gap-y-1">
-            <li className={`font-mono text-[9px] ${light ? 'text-sim-green' : 'text-alert-green/70'}`}>
+            <li className={`font-mono ${small} ${light ? 'text-sim-green' : 'text-alert-green/70'}`}>
               ● LIVE — UPSRTC GPS vehicle positions, speed, heading, depot and route identifiers
             </li>
-            <li className={`font-mono text-[9px] ${light ? 'text-sim-green' : 'text-alert-green/70'}`}>
+            <li className={`font-mono ${small} ${light ? 'text-sim-green' : 'text-alert-green/70'}`}>
               ● LIVE — UPSRTC schedule, stop sequence and scheduled times for the selected vehicle
             </li>
-            <li className={`font-mono text-[9px] ${light ? 'text-sim-teal' : 'text-holo-teal/70'}`}>
+            <li className={`font-mono ${small} ${light ? 'text-sim-teal' : 'text-holo-teal/70'}`}>
               ● PREDICTIVE — bunching, traffic, breakdown, demand, redistribution and impact figures
             </li>
-            <li className={`font-mono text-[9px] ${light ? 'text-sim-teal' : 'text-holo-teal/70'}`}>
+            <li className={`font-mono ${small} ${light ? 'text-sim-teal' : 'text-holo-teal/70'}`}>
               ● PREDICTIVE — confidence scores, recommendations, driver messages and call workflow
             </li>
           </ul>
           <p
-            className={`mt-2 border-t pt-2 font-mono text-[9px] ${
+            className={`mt-2 border-t pt-2 ${depot ? 'font-sans' : 'font-mono'} ${small} ${
               light ? 'border-sim-line text-sim-faint' : 'border-holo-glow/10 text-holo-glow/45'
             }`}
           >

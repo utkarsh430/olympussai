@@ -101,3 +101,85 @@ guards).
 - The inspector redacts device identifiers and personal fields before writing
   fixtures.
 - No raw upstream payload is persisted client-side.
+
+## Depot Management module
+
+The depot module (`/project/depots`, `src/lib/depot/`) is a second consumer of
+the same upstream fetch as the command centre. Full reference:
+[`DEPOT_MANAGEMENT.md`](DEPOT_MANAGEMENT.md).
+
+```
+UPSRTC getGpsLiveData.php
+   │  single-flight fetch, 15s TTL, last-known-good, saved full-fleet sample
+   ▼
+src/lib/upsrtc/liveSnapshot.ts ── map projection ──► /api/upsrtc/live
+   │
+   └── depot projection (depotNormalizer.ts, models/depotLive.ts)
+          ▼
+   repositories/ (fleet: live; history, crew, fuel, revenue: modelled)
+          ▼
+   live/analysis.ts — states, locations, yards, scores, exceptions,
+                      once per snapshot rows array
+          ▼
+   live/operatingDayView.ts — one duty plan and modelled day per depot
+                      and date, shared by duties, crew, parking, fuel,
+                      revenue and economics
+          ▼
+   live/*View.ts — one body per route, memoised per snapshot;
+                   feed envelope built per request
+          ▼
+   /api/upsrtc/depot/* (17 GET + copilot POST)  ◄── browser polls every 60s
+```
+
+| Layer | Location | Responsibility |
+| --- | --- | --- |
+| Shared snapshot | `src/lib/upsrtc/liveSnapshot.ts` | One upstream fetch, two projections; fallback ladder as above |
+| Depot schema | `src/models/depotLive.ts`, `src/lib/upsrtc/depotNormalizer.ts` | The depot projection of each feed row |
+| Repositories | `src/lib/depot/repositories/` | The seam to data; composition root in `index.ts` |
+| Analysis and views | `src/lib/depot/live/` | Per-snapshot analysis; one view builder per route |
+| Inference, scoring, optimisers, models | `infer/`, `score/`, `exceptions/`, `optimise/`, `sim/`, `forecast/` | Pure TypeScript, no clock but the feed's |
+| Routes | `src/app/api/upsrtc/depot/` | Session check, validation, fixed errors, `no-store` |
+| Pages | `src/app/(protected)/project/depots/`, `src/components/depot/` | Network and depot scopes |
+| Copilot | `src/lib/depot/copilot/` | Facts, closed-vocabulary checks, providers |
+
+**Feed clock.** Every age, window and operating date is measured against the
+snapshot's own `feedNow`, so a stale or sample snapshot is internally
+consistent. `feedNow` is the newest receive time not later than the snapshot's
+fetch time read in Indian time plus `FEED_CLOCK_MAX_LEAD_MIN` (5 minutes,
+`src/lib/upsrtc/depotNormalizer.ts`); rows beyond it are counted, and enough of
+them turn the feed chip to `CHECK CLOCK`. The depot pages call the feed stale
+only when last good data is older than `LAST_GOOD_FRESH_MS` (90 s,
+`src/lib/depot/repositories/liveFleetRepository.ts`).
+
+**State that outlives a snapshot.** Two holders keep history between
+snapshots: the rolling score window (`src/lib/depot/score/windowStore.ts`) and
+the yard memory (`src/lib/depot/infer/yardMemory.ts`). Both apply one rule
+(`src/lib/depot/score/epoch.ts`) to late and out-of-order samples: an older
+sample within one window is inserted in order; one more than a window behind is
+used alone and never stored; only a coherent run of such samples (three,
+each later than the last, spanning three minutes of feed time) starts a new
+epoch. The saved sample never touches either.
+
+**In-process state.** The rolling 20-minute score window, the yard memory
+(holds of up to 12 hours), memoised analyses and modelled days, the
+route-profile cache, the allocation plan, rate limiters and the copilot's
+caches, allowances and breaker all live in server memory. A restart or cold start clears them; with
+several instances each has its own copy, so scores can be summed over
+different windows and every limit and budget multiplies. A shared store is
+not built.
+
+**Copilot provider seam.** Questions are routed by a closed, deterministic
+keyword router (`src/lib/depot/copilot/router/scriptedRouter.ts`); free text
+never reaches a model. `CopilotProvider` (`src/lib/depot/copilot/types.ts`)
+has two implementations: `scripted`, the default, and `claude-cli` (the local
+`claude` command, created only when `CLAUDE_BIN` is set, for the owner's own
+machine). An API-key provider for a
+staff-facing deployment would be a third implementation behind the same
+interface; it is not built. See
+[`DEPOT_COPILOT_OPERATIONS.md`](DEPOT_COPILOT_OPERATIONS.md).
+
+**Next step: the database phase (not built).** A history store of daily
+per-depot snapshots, filled by an ingestion worker, behind the existing
+`HistoryRepository` interface; real feeds for crew, fuel and revenue as new
+adapters in the composition root; and a shared store for the state listed
+above. Pages and algorithms stay as they are.

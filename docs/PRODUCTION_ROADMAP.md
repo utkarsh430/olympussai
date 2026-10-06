@@ -54,6 +54,43 @@ with measured ones.
 | Resilience | Multi-region failover; graceful degradation drills |
 | Compliance | Data retention policy; driver privacy protections |
 
+## Depot Management — road to production
+
+The depot module (`/project/depots`) is built on the live GPS feed, with every
+missing data set modelled behind a repository interface
+(`src/lib/depot/repositories/`). Its reference is
+[`DEPOT_MANAGEMENT.md`](DEPOT_MANAGEMENT.md); the schema each feed must provide
+is on the module's Data sources page (`src/lib/depot/sources/registry.ts`).
+None of the work below is done.
+
+### Data the corporation must supply
+
+| Data | Replaces | Minimum content |
+| --- | --- | --- |
+| Depot master | Inferred yards; modelled parking capacity, bays and lanes | Depot id matching the feed, name, kind, region, coordinates, parking capacity, bays |
+| Timetable or vehicle blocks | Modelled requirement, duties and trip frequency | Route, trip, operating depot, block, direction, departure and arrival times, days of operation |
+| Route and stop master | Per-route lookups through one running bus | Stops with ids, sequence and coordinates; route length |
+| Fleet master | Modelled bus class, seats and age | Registration, home depot, bus type, seats, year of manufacture, status |
+| Maintenance | Modelled odometer and service schedule | Work orders: bus, category, opened, expected return, closed |
+| Crew | Modelled anonymous slots and availability | Per depot and date: anonymous slot, role, availability, hours this week |
+| Fuel | Modelled consumption | Per bus and day: distance, litres issued, class, route |
+| Ticketing | Modelled load, boardings, revenue and economics | Per route and day: trips, seat-kilometres, boardings, revenue, route length |
+| Field meanings | — | The unit of the feed's `distance` field, what `delayMinutes` measures, and the meaning of tamper codes other than `C` |
+
+### Platform work
+
+| Area | Requirement |
+| --- | --- |
+| Accounts | Real user accounts in place of the shared PIN, and per-depot permissions (a depot manager sees their depot); today any PIN holder opens every depot |
+| History | A database of daily per-depot snapshots and an ingestion worker that writes them, behind the existing `HistoryRepository`; trends and forecasts then stop being modelled |
+| Copilot | An API-key provider behind `CopilotProvider` (`src/lib/depot/copilot/types.ts`); the current Claude provider is the local `claude` command, for the owner's own machine only. Before any staff-facing provider is switched on, the wording rules recorded as open for the owner-only path must be enforced on every draft: a later sentence denying an earlier one, obligation words, and a true figure given a false meaning, scope or window (rulings S59, S61; see [`DEPOT_COPILOT_OPERATIONS.md`](DEPOT_COPILOT_OPERATIONS.md#what-a-claude-draft-can-still-say)) |
+| Shared state | A shared store for the rolling score window, yard memory, route-profile cache, rate limiters and copilot caches and budget, so several instances agree and a restart does not reset them |
+| Route details | An agreed policy with the owner of the schedule API on lookup volume, or the route and stop master above, before any bulk fetching. Today details are fetched one route at a time on a person's action, at most 40 routes a press of the Routes page's loader |
+| Timetable-fixed day | With a real timetable the modelled day becomes fixed; today it is recomputed from each snapshot and worded "as of the feed time" |
+| Decision trail | Transfer approvals and rejections stored server-side with the user's identity (today they are kept in the browser) |
+
+---
+
 ## Explicit non-goals for any near-term phase
 
 - Autonomous execution of operational instructions. The dispatcher-authorization

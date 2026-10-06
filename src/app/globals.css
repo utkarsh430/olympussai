@@ -196,6 +196,426 @@
     background-color: #ffffff;
   }
 
+  /* ── Depot Management surface ───────────────────────────────────────────
+     Shares the command centre's palette and typefaces but is a scrolling
+     working ledger: flat panels and hairlines, no glow, no CSS zoom. */
+  .depot-shell {
+    @apply min-h-dvh bg-depot-page font-mono text-[13px] text-depot-ink antialiased;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  /* Sticky layers, defined once. Every sticky element, scroll margin and max-height
+     in the depot module reads these instead of a literal height. One navigation strip
+     below 1280px (Tailwind xl), the rail beside the
+     page from 1280px. The breakpoint matches the shell's `xl:` classes.
+       --depot-bar-h     the top bar's sticky height: 0 below 640px (it scrolls away),
+                         3.25rem (one row, as on a phone) from 640 to 1279px, 3.5rem (one
+                         row) from 1280px
+       --depot-nav-h     the strip's own height: 2.5rem; auto from 1280px (the rail)
+       --depot-strip-h   how much the strip adds to the sticky stack: 2.5rem from 640 to
+                         1279px only (below 640 it scrolls away; from 1280 it is the rail)
+       --depot-sticky-top  where the first sticky layer inside <main> sticks (the fleet
+                         distribution strip): below the bar and the strip
+       --depot-intro-h   the fleet distribution strip's height
+       --depot-scroll-mt   scroll margin for a field that must not land under the stack
+       --depot-anchor-mt   scroll margin for a heading (below bar and strip)
+     The disclaimer is in the page flow, so no space is reserved for it. */
+  .depot-shell {
+    --depot-bar-h: 0px;
+    --depot-nav-h: 2.5rem;
+    --depot-strip-h: 0px;
+    --depot-intro-h: 2.25rem;
+    --depot-sticky-top: calc(var(--depot-bar-h) + var(--depot-strip-h));
+    --depot-scroll-mt: calc(var(--depot-sticky-top) + var(--depot-intro-h) + 1rem);
+    --depot-anchor-mt: calc(var(--depot-sticky-top) + 0.5rem);
+  }
+
+  @media (min-width: 640px) {
+    .depot-shell {
+      --depot-bar-h: 3.25rem;
+      --depot-strip-h: 2.5rem;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .depot-shell {
+      --depot-bar-h: 3.5rem;
+      --depot-nav-h: auto;
+      --depot-strip-h: 0px;
+    }
+  }
+
+  /* The navigation strip's fade (ScrollStrip `data-fade`): at an end with more links, the
+     links fade out over 24px just inside that end's 28px cap; no fade while they fit. */
+  .depot-strip-scroller {
+    --depot-strip-cap: 1.75rem;
+    --depot-strip-fade: calc(var(--depot-strip-cap) + 24px);
+  }
+
+  .depot-strip-scroller[data-fade='before'] {
+    -webkit-mask-image: linear-gradient(to right, transparent var(--depot-strip-cap), #000 var(--depot-strip-fade));
+    mask-image: linear-gradient(to right, transparent var(--depot-strip-cap), #000 var(--depot-strip-fade));
+  }
+
+  .depot-strip-scroller[data-fade='after'] {
+    -webkit-mask-image: linear-gradient(to left, transparent var(--depot-strip-cap), #000 var(--depot-strip-fade));
+    mask-image: linear-gradient(to left, transparent var(--depot-strip-cap), #000 var(--depot-strip-fade));
+  }
+
+  .depot-strip-scroller[data-fade='both'] {
+    -webkit-mask-image: linear-gradient(to right, transparent var(--depot-strip-cap), #000 var(--depot-strip-fade), #000 calc(100% - var(--depot-strip-fade)), transparent calc(100% - var(--depot-strip-cap)));
+    mask-image: linear-gradient(to right, transparent var(--depot-strip-cap), #000 var(--depot-strip-fade), #000 calc(100% - var(--depot-strip-fade)), transparent calc(100% - var(--depot-strip-cap)));
+  }
+
+  /* Repaint the body so overscroll and short pages never show the neutral
+     base colour (same reason as `body:has(.sim-light)` above). */
+  body:has(.depot-shell) {
+    background-color: #02040a;
+  }
+
+  .depot-panel {
+    @apply rounded-md border border-depot-line bg-depot-surface;
+  }
+
+  /* Sub-labels: 11px text that must be read, so depot-muted (#9bb0c7, about 9:1)
+     rather than depot-faint (#6b84a0: 5.3:1 on the page, 5.0:1 on a panel; AA,
+     but too dim for labels people read). Tighter tracking than section labels. */
+  .depot-label {
+    @apply font-mono text-[11px] uppercase tracking-[0.12em] text-depot-muted;
+  }
+
+  .depot-title {
+    @apply font-display text-xl font-semibold uppercase tracking-[0.12em] text-depot-ink;
+  }
+
+  /* The mono label above a page title (the depot's name on a depot page). */
+  .depot-eyebrow {
+    @apply mb-1 truncate font-mono text-[11px] uppercase leading-4 tracking-[0.16em] text-depot-muted;
+  }
+
+  /* Prose is never in the mono face (the shell inherits mono, right for data). Every
+     sentence carries one of these three; a source-scan test holds every <p> to it. */
+  .depot-prose {
+    @apply font-sans text-sm leading-5 text-depot-muted;
+  }
+
+  /* Between a page's sections: 40px above each section's hairline, 28px under 640px.
+     A page puts its hero and sections in one depot-stack instead of picking margins. */
+  .depot-stack {
+    @apply flex min-w-0 flex-col;
+  }
+
+  .depot-stack > * + * {
+    @apply mt-7 sm:mt-10;
+  }
+
+  /* A child's own bottom margin (a band's mb-6) is dropped: the stack spaces it. */
+  .depot-stack > * {
+    @apply !mb-0;
+  }
+
+  /* A band that ends a wrapped stack child (`<div><FigureBand/></div>`) is not a direct
+     child, so the rule above misses it and its 24px would add to the stack's 40px. */
+  .depot-stack .depot-band:last-child {
+    @apply !mb-0;
+  }
+
+  .depot-note {
+    @apply font-sans text-[13px] leading-[18px] text-depot-muted;
+  }
+
+  .depot-caption {
+    @apply font-sans text-xs leading-4 text-depot-muted;
+  }
+
+  .depot-nav-link {
+    @apply block border-l-2 border-transparent px-4 py-2 font-mono text-xs uppercase tracking-[0.1em]
+      text-depot-muted transition-colors hover:bg-depot-raised hover:text-depot-ink;
+  }
+
+  .depot-nav-link-active {
+    @apply border-holo-glow bg-depot-raised text-holo-glow;
+  }
+
+  /* Top-bar actions: a flat hairline button, no tint, glow or transition on anything
+     but colour. The command centre's HUD button stays for the main app. */
+  .depot-bar-button {
+    @apply inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[3px]
+      border border-depot-line px-2 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em]
+      sm:px-3
+      text-depot-muted transition-colors hover:border-depot-muted hover:text-depot-ink
+      disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  /* The bar's in-row actions from 1280px: 32px and no outline at rest, so they never
+     weigh more than the feed chip beside them; the hairline appears on hover. The text is
+     the faint tone at rest (5.3:1, still AA) and full ink on hover or keyboard focus, so
+     the LIVE chip stays the heaviest thing in the bar. */
+  .depot-bar-button-quiet {
+    @apply h-8 border-transparent py-0 text-depot-faint hover:border-depot-line hover:bg-depot-raised
+      hover:text-depot-ink focus-visible:text-depot-ink;
+  }
+
+  /* Provenance and feed tags: flat, 3px radius, always carry a word. */
+  .depot-tag {
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-[3px] border px-1.5 py-0.5
+      font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.12em];
+  }
+
+  /* The tag's two ruled places (the provenance line, a section label or a column header)
+     draw it as a pill, so it reads as a tag and never as a column or a button. */
+  .depot-tag-pill {
+    @apply rounded-full px-2;
+  }
+
+  /* A tag on a label's line (a figure's label, a band's head, a header cell, a section
+     label) never changes that line's box: the row is 16px and the tag is drawn 16px tall
+     (11px type on a 14px line inside 1px borders) instead of 22px. */
+  .depot-tag-row {
+    @apply flex h-4 min-w-0 items-center;
+  }
+
+  .depot-tag-row .depot-tag,
+  .depot-tag-fit .depot-tag {
+    @apply py-0 leading-[14px];
+  }
+
+  /* Data states. The placeholder is static: no shimmer, no pulse. */
+  .depot-skeleton {
+    @apply rounded-[3px] bg-depot-surface;
+  }
+
+  .depot-error-panel {
+    @apply rounded-md border border-alert-crimson/50 bg-depot-surface p-4;
+  }
+
+  /* Data table: scrolls sideways inside its own frame, never the page. */
+  .depot-table-frame {
+    /* relative: the frame must be the containing block for absolutely positioned
+       children (screen-reader-only text in rows), or they escape its clipping
+       and make the whole page scroll sideways. */
+    @apply relative max-h-[70vh] overflow-auto rounded-md border border-depot-line bg-depot-page;
+  }
+
+  .depot-table {
+    @apply w-full border-separate border-spacing-0 text-left font-mono text-[13px] tabular-nums
+      text-depot-ink;
+  }
+
+  .depot-table th {
+    @apply sticky top-0 z-10 h-8 whitespace-nowrap border-b border-depot-line bg-depot-surface px-3
+      py-1.5 font-mono text-[11px] font-normal uppercase leading-4 tracking-[0.12em]
+      text-depot-muted;
+  }
+
+  /* Rows a constant 36px at the least (a cell's height is its row's minimum). */
+  .depot-table td {
+    @apply h-9 border-b border-depot-line px-3 py-1.5 align-middle leading-5;
+  }
+
+  .depot-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .depot-table .depot-align-right {
+    @apply text-right;
+  }
+
+  /* A group row (DataTable `group`): the repeated value printed once. Not sticky, unlike
+     the column header it shares the th styling with. */
+  .depot-table .depot-table-group {
+    @apply static h-8 bg-depot-page pt-3 text-left tracking-[0.16em];
+  }
+
+  .depot-sort-button {
+    @apply inline-flex items-center gap-1 uppercase tracking-[0.12em] text-inherit
+      hover:text-depot-ink;
+  }
+
+  .depot-row-selectable {
+    @apply cursor-pointer hover:bg-depot-raised;
+  }
+
+  .depot-row-selected {
+    @apply bg-depot-raised;
+  }
+
+  /* Selected row is marked like the active nav item: a 2px cyan bar, plus the
+     raised surface. Every first cell, header included, carries a transparent 2px
+     left border so the bar never shifts a column and header labels line up. */
+  .depot-table th:first-child,
+  .depot-table td:first-child {
+    @apply border-l-2 border-l-transparent;
+  }
+
+  .depot-row-selected td:first-child {
+    @apply border-l-holo-glow;
+  }
+
+  /* Fixed rows (DataTable `fixedRows`): a constant 36px, never wrapping; a long cell
+     truncates and DataTable puts its full text in `title`. */
+  .depot-table-fixed td {
+    @apply h-9 max-w-[18rem] overflow-hidden text-ellipsis whitespace-nowrap py-0;
+  }
+
+  /* Frozen columns (DataTable `freezeFirstColumn`): the first column, and with an expander
+     the 24px chevron column before it. DataTable marks each frozen cell and gives a later
+     one its `left` offset (tableLayout.ts); each keeps an opaque background so the columns
+     scrolling under it never show through, and the last frozen cell draws the hairline.
+     The header corner sits above both. */
+  .depot-table-frozen .depot-cell-frozen {
+    @apply sticky left-0;
+  }
+
+  .depot-table-frozen td.depot-cell-frozen {
+    @apply z-[5] bg-depot-page;
+  }
+
+  .depot-table-frozen th.depot-cell-frozen {
+    @apply z-20;
+  }
+
+  .depot-table-frozen .depot-cell-frozen-edge {
+    @apply border-r border-r-depot-line;
+  }
+
+  .depot-table-frozen .depot-row-selectable:hover td.depot-cell-frozen,
+  .depot-table-frozen .depot-row-selected td.depot-cell-frozen {
+    @apply bg-depot-raised;
+  }
+
+  /* The expander's chevron column: exactly 24px, border included, no padding, so the
+     frozen first data column after it sticks at left 24px. */
+  .depot-table .depot-cell-expander {
+    @apply box-border w-6 min-w-[1.5rem] max-w-[1.5rem] px-0 text-center;
+  }
+
+  /* A row that opens something ends in one muted chevron, shown on hover and keyboard
+     focus only. It sits in the last cell's right padding, so it never adds a column. */
+  .depot-row-selectable > td:last-child:not(.depot-cell-frozen) {
+    @apply relative;
+  }
+
+  .depot-row-chevron {
+    @apply pointer-events-none absolute right-0 top-1/2 h-3 w-3 -translate-y-1/2 text-depot-muted
+      opacity-0;
+  }
+
+  .depot-row-selectable:hover .depot-row-chevron,
+  .depot-row-selectable:focus-visible .depot-row-chevron {
+    @apply opacity-100;
+  }
+
+  /* An entity link in a table cell: cyan, no underline at rest (a column of underlines is
+     noise), underlined on hover and keyboard focus. Links in sentences stay underlined. */
+  .depot-table-link {
+    @apply text-holo-glow no-underline underline-offset-2;
+  }
+
+  .depot-table-link:hover,
+  .depot-table-link:focus-visible {
+    @apply underline decoration-holo-glow;
+  }
+
+  /* Zero specificity beyond the element, so a class on the link still decides. */
+  :where(.depot-prose, .depot-note) a {
+    @apply underline decoration-holo-glow/40 underline-offset-2;
+  }
+
+  /* Filter controls: 3px radius, hairline border, the global focus ring. */
+  .depot-field {
+    @apply rounded-[3px] border border-depot-line bg-depot-surface px-2 py-1.5 font-mono text-[13px]
+      text-depot-ink;
+  }
+
+  /* A filter-row control (Controls.tsx): 32px high, mono 12px, the field's surface. */
+  .depot-control {
+    @apply h-8 rounded-[3px] border border-depot-line bg-depot-surface px-2 font-mono text-xs
+      text-depot-ink;
+  }
+
+  /* Themed native controls (Controls.tsx): the dark colour scheme and the cyan accent,
+     so neither the box nor an open option list is browser-default white. */
+  .depot-checkbox {
+    @apply h-3.5 w-3.5 shrink-0 cursor-pointer rounded-[3px] accent-holo-glow;
+    color-scheme: dark;
+  }
+
+  .depot-select {
+    @apply cursor-pointer appearance-none truncate pr-7;
+    color-scheme: dark;
+  }
+
+  /* Index bar: a thin fill on a 0-100 track, with a tick at 50 (the peer median).
+     One hue; the value is always also written beside it. */
+  .depot-bar-track {
+    @apply relative h-1.5 w-full min-w-[64px] rounded-[2px] bg-depot-raised;
+  }
+
+  .depot-bar-fill {
+    @apply absolute inset-y-0 left-0 rounded-[2px] bg-holo-glow;
+  }
+
+  .depot-bar-tick {
+    @apply absolute -inset-y-0.5 w-px bg-depot-muted;
+  }
+
+  /* Details disclosure: summary reads as a control, content stays in the page flow. */
+  .depot-details > summary {
+    @apply cursor-pointer list-none font-mono text-xs uppercase tracking-[0.1em] text-depot-muted
+      hover:text-depot-ink;
+  }
+
+  .depot-details > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .depot-hero-numeral {
+    @apply font-display text-[32px] font-semibold leading-none tabular-nums text-depot-ink;
+  }
+
+  .depot-section-label {
+    @apply mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-depot-muted;
+  }
+
+  /* Segmented filter: flat buttons, the pressed one marked like the active nav item. */
+  .depot-filter-button {
+    @apply rounded-[3px] border border-depot-line px-2.5 py-1 font-mono text-[11px] uppercase
+      tracking-[0.12em] text-depot-muted transition-colors hover:text-depot-ink;
+  }
+
+  .depot-filter-button[aria-pressed='true'] {
+    @apply border-holo-glow/60 bg-depot-raised text-holo-glow;
+  }
+
+  /* The one "Show all N": a quiet text button with the disclosure chevron. */
+  .depot-show-all {
+    @apply mt-2 inline-flex items-baseline gap-1.5 py-1 font-mono text-[11px] uppercase
+      tracking-[0.12em] text-depot-muted hover:text-depot-ink;
+  }
+
+  .depot-link {
+    @apply text-holo-glow underline decoration-holo-glow/40 underline-offset-2
+      hover:decoration-holo-glow;
+  }
+
+  /* Map and its side panel: side by side only from 1280px, where the content
+     column (viewport less the 232px rail and gutters) is about 1000px; below
+     that they stack. */
+  .depot-map-layout {
+    @apply grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px];
+  }
+
+  .depot-map-frame {
+    @apply relative isolate h-[460px] overflow-hidden rounded-md border border-depot-line bg-depot-page;
+  }
+
+  /* Overview table in the page flow: the frame still scrolls sideways, but it
+     grows to its rows instead of opening a second vertical scroll. */
+  .depot-table-flow .depot-table-frame {
+    max-height: none;
+  }
+
   .scanline-overlay {
     background-image: repeating-linear-gradient(
       0deg,

@@ -1,0 +1,40 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import { RebalanceMethod } from '@/components/depot/rebalance/RebalanceMethod';
+import { SCORE_WINDOW_MIN } from '@/lib/depot/score/window';
+
+/*
+ * The distribution page's closing disclosure says what the requirement rests on:
+ * each depot's busiest windowed on-road share so far today, a peak requirement
+ * that does not fall during the day unless fewer buses are available than it
+ * needs, and that both are per server.
+ */
+
+function text(): string {
+  return renderToStaticMarkup(<RebalanceMethod spareRatio={0.1} />)
+    .replace(/<!-- -->/g, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x27;|&apos;/g, "'")
+    .replace(/\s+/g, ' ');
+}
+
+describe('how the requirement is produced', () => {
+  it('says the requirement reads the busiest window so far today and then holds', () => {
+    const body = text();
+    expect(body).toContain(`busiest ${SCORE_WINDOW_MIN}-minute on-road share so far today`);
+    expect(body).toContain('can still rise until the morning peak has passed and then holds');
+    expect(body).toContain('a bus taken off the road still lowers what is available');
+  });
+
+  it('says the peak requirement does not fall during the day while the buses are there', () => {
+    expect(text()).toContain(
+      'The peak requirement does not fall during the day unless fewer buses are available than it needs',
+    );
+  });
+
+  it('says two servers can differ until each has seen the peak', () => {
+    const body = text();
+    expect(body).toContain('two servers can differ until each has seen the peak');
+    expect(body).toContain('one restarted later in the day starts again from what it then sees');
+  });
+});

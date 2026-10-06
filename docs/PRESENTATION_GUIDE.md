@@ -38,7 +38,10 @@ Run through this five minutes before presenting.
 - [ ] Click one bus — the detail drawer opens with coordinates.
 - [ ] The schedule section fills in (or says "no schedule assigned" — both fine).
 - [ ] The Alert Centre shows five alerts; click one — the analysis panel opens.
-- [ ] Click **Fleet Distribution** in the command bar — the demand view opens.
+- [ ] Click **Depot Management** in the command bar — the depot module opens on its network overview; the feed chip reads `LIVE` (not `STALE`, `CHECK CLOCK` or `FIXTURE`). Use **Back to Operations** to return.
+- [ ] If you will show route allocation, load one depot's route details beforehand with **Load route details** on the **Routes** page (one lookup at a time, at most 40 routes a press): the plan stays empty until details are loaded, and only covers routes fetched since the server started.
+- [ ] Open the depot module a few minutes before you present: the efficiency index is computed over the snapshots this server has seen in the last 20 minutes, so just after a restart the pages say "from one snapshot" or a shorter "over the last N minutes" instead.
+- [ ] Open the demand view from a bus's analysis menu (**Demand - Supply Analysis**) or from Scenario Lab.
 - [ ] Open **Audit**, click **Clear** to start with an empty trail.
 - [ ] Open **Scenario Lab**, click **Reset Demonstration**.
 - [ ] Browser at 100% zoom, full screen ready.
@@ -113,6 +116,31 @@ the same baseline figures.
 
 ---
 
+## Depot Management walk-through
+
+Optional, about four minutes, after the command centre. Every depot page states
+its provenance once, under its title: `LIVE` (from the feed), `DERIVED`
+(computed from it), `MODELLED` (generated from planning assumptions) or
+`REFERENCE`. Read that line aloud on each page; it is the honest answer to
+"is this real?". Full detail: [`DEPOT_MANAGEMENT.md`](DEPOT_MANAGEMENT.md).
+
+| Order | Page | What it shows | What to say about provenance |
+| --- | --- | --- | --- |
+| 1 | **Overview** (`/project/depots`) | Fleet strength and state mix for every unit in the feed | Derived from the live feed: states are the module's own reading of each bus (on road, standing, dark, off road), the same on every page. The line under the title says the index window. |
+| 2 | **League table** | Operating depots ranked within peers of similar fleet size | Derived. The index is computed over the last 20 minutes of feed snapshots the server has seen, so it does not jump with each poll; the page states the window it covers, shorter just after a server restart. |
+| 3 | **Exceptions** | Depots and buses that stand out, with the figures behind each | Derived. Each exception says whether it is compared over the window or is as of the feed time. Tamper codes are flagged, but their meaning is not asserted. |
+| 4 | A depot's **Cockpit**, then **Yard** | What is on the road, standing, late out; who is in the yard now | States are live. The yard is inferred from where buses park, not surveyed; the yard page states the rule. A yard kept from earlier snapshots says "held since"; some depots show no yard because the rule refuses to guess. |
+| 5 | **Fleet distribution** | Buses each depot has against what it needs; recommended transfers | Supply is live; the requirement is modelled, so surplus, deficit and every transfer rest on a model. Nothing is dispatched. |
+| 6 | **Routes** | Which depot should run each route to cut empty kilometres | Stops and terminals are real, fetched one route at a time on a person's press; trip frequency is modelled. A route whose details are not loaded is not in the plan. |
+| 7 | A depot's **Duties**, then **Economics**, **Revenue**, **Fuel**, **Crew** | The modelled day: duties and the bus a matching would put on each; earnings, costs, crew coverage | Bus states are live; duties, the matching and everything after are modelled from one modelled day per depot, dated in the line under the title. The feed carries no timetable, ticketing, fuel or crew data. Say so before showing a figure. |
+| 8 | **Data sources** | Each feed: live, modelled or awaiting, and the schema a real feed must supply | Reference. Close here: "this is the list of what we need from you." |
+
+Do not present the trends pages as history: every point before today's is
+modelled, and so is every forecast drawn from them. Do not name or point at an
+individual: crew appear only as anonymous slots.
+
+---
+
 ## Speaking points that land well
 
 - **"Every marker is a real bus."** Say this early. It is the single most
@@ -164,6 +192,17 @@ the same baseline figures.
 **"Are you contacting real drivers?"**
 > No. No message, SMS or call leaves the browser. The banner on every
 > communication screen says so explicitly.
+
+**"Are the depot revenue, fuel and crew figures real?"**
+> No. The feed carries positions and device status only, so those pages are
+> modelled from one modelled operating day per depot and say so under their
+> titles. Bus counts, states and positions on the depot pages are live. The Data sources
+> page lists exactly what the corporation would need to supply to replace
+> each model.
+
+**"Does the depot module move buses or assign duties?"**
+> No. Transfers, route allocations, duty matches and the parking order are
+> recommendations. A recorded approve or reject stays in this browser.
 
 **"What would a pilot cost and how long?"**
 > The proposal is one depot, one corridor, ninety days, advisory mode only.

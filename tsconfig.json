@@ -42,6 +42,7 @@
   "exclude": [
     "node_modules",
     "tests/e2e",
-    ".next"
+    ".next",
+    "control-service"
   ]
 }

@@ -1,0 +1,98 @@
+import { formatRupeesPerKm } from './revenuePageModel';
+import type { EconomicsComponentKey } from './types';
+import { roundToDecimals } from '@/lib/depot/stats/rounding';
+import { MINUS } from '@/lib/depot/format';
+
+/** The shared minus, kept here for the explanations that import it with this file's figures. */
+export { MINUS };
+
+/*
+ * How the economics page writes a component: its label, its value, and the
+ * difference from the peer median with the word that says whether it is better.
+ */
+
+export const DASH = '—';
+export const PERCENT = 100;
+
+export interface ComponentSpec {
+  readonly key: EconomicsComponentKey;
+  readonly label: string;
+  readonly higherIsBetter: boolean;
+  readonly unit: 'rupees' | 'share';
+  /** The table's short header and its unit ("EARNINGS ₹/KM"), so cells carry bare numbers. */
+  readonly header: string;
+  readonly headerUnit: string;
+}
+
+export const ECONOMICS_COMPONENT_SPECS: readonly ComponentSpec[] = [
+  { key: 'earningsPerKm', label: 'Earnings per km', higherIsBetter: true, unit: 'rupees', header: 'Earnings', headerUnit: '₹/km' },
+  { key: 'costPerKm', label: 'Fuel cost per km', higherIsBetter: false, unit: 'rupees', header: 'Fuel', headerUnit: '₹/km' },
+  { key: 'loadFactor', label: 'Load factor', higherIsBetter: true, unit: 'share', header: 'Load', headerUnit: '%' },
+];
+
+export const specOf = (key: EconomicsComponentKey): ComponentSpec =>
+  ECONOMICS_COMPONENT_SPECS.find((s) => s.key === key) as ComponentSpec;
+
+/** One formatter for rupees per kilometre, shared with the revenue page. */
+const rupees = formatRupeesPerKm;
+
+function pointsText(ratio: number): string {
+  return roundToDecimals(ratio * PERCENT, 1).toFixed(1);
+}
+
+export function formatComponentValue(key: EconomicsComponentKey, value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return DASH;
+  return specOf(key).unit === 'rupees' ? rupees(value) : `${pointsText(value)}%`;
+}
+
+/** The raw sign of value minus peer median, in the component's own unit. */
+export function formatComponentDifference(key: EconomicsComponentKey, delta: number | null): string {
+  if (delta === null || !Number.isFinite(delta)) return DASH;
+  if (specOf(key).unit === 'rupees') {
+    const rounded = roundToDecimals(delta, 2);
+    return rounded === 0 ? rupees(0) : `${rounded > 0 ? '+' : MINUS}${rupees(Math.abs(rounded))}`;
+  }
+  const rounded = roundToDecimals(delta * PERCENT, 1);
+  return rounded === 0 ? '0.0 pp' : `${rounded > 0 ? '+' : MINUS}${Math.abs(rounded).toFixed(1)} pp`;
+}
+
+/** A table cell's bare number: the unit is in the header ("40.81", "74.2"). */
+export function bareComponentValue(key: EconomicsComponentKey, value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return DASH;
+  return specOf(key).unit === 'rupees' ? roundToDecimals(value, 2).toFixed(2) : pointsText(value);
+}
+
+/** The muted suffix: the signed change against the peer median, bare ("+6.04", "−0.42", "+3.1"). */
+export function bareComponentDifference(key: EconomicsComponentKey, delta: number | null): string {
+  if (delta === null || !Number.isFinite(delta)) return '';
+  const rupeeUnit = specOf(key).unit === 'rupees';
+  const rounded = rupeeUnit ? roundToDecimals(delta, 2) : roundToDecimals(delta * PERCENT, 1);
+  const digits = rupeeUnit ? 2 : 1;
+  if (rounded === 0) return (0).toFixed(digits);
+  return `${rounded > 0 ? '+' : MINUS}${Math.abs(rounded).toFixed(digits)}`;
+}
+
+export type DifferenceDirection = 'better' | 'worse' | 'level' | 'unknown';
+
+export interface DifferenceWording {
+  readonly text: string;
+  readonly direction: DifferenceDirection;
+}
+
+/** The word comes from whether higher is better; the sign alone never carries the meaning. */
+export function describeDifference(
+  key: EconomicsComponentKey,
+  delta: number | null,
+  higherIsBetter: boolean,
+): DifferenceWording {
+  if (delta === null || !Number.isFinite(delta)) return { text: 'no peer median', direction: 'unknown' };
+  const rupeeUnit = specOf(key).unit === 'rupees';
+  const rounded = rupeeUnit ? roundToDecimals(delta, 2) : roundToDecimals(delta * PERCENT, 1);
+  if (rounded === 0) return { text: 'level with peers', direction: 'level' };
+  const good = rounded > 0 === higherIsBetter;
+  const size = rupeeUnit ? rupees(Math.abs(rounded)) : `${Math.abs(rounded).toFixed(1)} pp`;
+  return {
+    text: `${size} ${good ? 'better' : 'worse'} than peers`,
+    direction: good ? 'better' : 'worse',
+  };
+}

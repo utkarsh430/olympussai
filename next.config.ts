@@ -64,6 +64,12 @@ const nextConfig: NextConfig = {
   // A stray lockfile in the parent directory makes Next infer the wrong
   // workspace root; pin it to this project.
   outputFileTracingRoot: path.resolve(__dirname),
+  // The offline fallback reads this gzip file with fs at run time, using a path
+  // built from process.cwd(), which the file tracer cannot follow. List it for
+  // every route that reaches the live snapshot (all under /api/upsrtc).
+  outputFileTracingIncludes: {
+    '/api/upsrtc/**/*': ['./src/fixtures/upsrtc-fleet-sample.json.gz'],
+  },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

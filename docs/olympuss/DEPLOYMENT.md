@@ -60,7 +60,81 @@ to per-request nonces when practical.
 The failed-login limiter is in-memory / per-instance — best-effort on serverless.
 For a hard control, back it with Redis/Upstash. See [`AUTH.md`](./AUTH.md).
 
-## 8. Future: `project.olympuss.us`
+## 8. Depot module state note
+
+Several parts of the app keep state in the memory of the server process. All of it is
+per instance and none of it survives a restart: it assumes one long-lived Node process.
+On Vercel serverless functions (section 4) every instance has its own copy, a cold start
+begins empty, and a request may land on any instance. What each piece holds, and what
+differs between instances or after a restart:
+
+- **The live snapshot** (`src/lib/upsrtc/liveSnapshot.ts`): the short-lived snapshot
+  cache, the last good copy of the feed, the back-off after a failed refresh, the count of
+  short replies (a reply with far fewer buses than the last good one is treated as a failed
+  refresh, and the third such reply in a row is accepted as the fleet's new size), and which
+  of live, last-good or the saved sample is being served (each change of it is logged once
+  per instance). Each instance polls the corporation's feed on
+  its own, so the upstream load grows with the number of instances. A fresh instance
+  during an outage has no last good copy and serves the saved sample (`FIXTURE`) while a
+  warm one serves its last good data. The depot pages are served a snapshot up to 90
+  seconds old at once while a refresh runs in the background, so they usually show data
+  about one poll old, under its own feed time; a serverless platform may freeze an instance
+  before that refresh finishes, so the next request on it waits instead.
+- **The score window and the yard memory.** The efficiency index, ranks and
+  peer-comparison exceptions are summed over a rolling window of feed time, and an
+  established yard is held while its buses still stand in it. Each instance has its own,
+  so the same feed can give a 1-sample index on one instance and a full-window one on
+  another, or a held yard on one and no yard on another. The responses say so
+  (`scoreWindow.samples` and `coveredMin`, `yard.heldSince`), but they do not agree across
+  instances.
+- **The held peak shares and peak requirements** (`src/lib/depot/live/peakShareHold.ts`,
+  `src/lib/depot/live/peakRequirementHold.ts`). The modelled requirement reads each
+  depot's busiest on-road share over that window so far in the operating date, so the
+  modelled operating day (duties, crew, fuel, revenue, economics) and the
+  fleet-distribution plan built on it can still rise until the morning peak has passed and
+  then hold. The peak requirement does not fall during the day unless fewer buses are
+  available than it needs: each depot's peak is held at its highest so far in the date, so
+  a row the feed drops or a peer's rising share does not move the day's duty count. Each
+  instance holds its own maxima from the snapshots it has seen, so two
+  instances give a different modelled day and plan until each has seen the peak, the
+  first snapshots after a restart can set the day's high values, and an instance started
+  in the evening models a smaller day than one that saw the morning.
+- **The view memos.** Response bodies are memoised on the snapshot and, for pages that
+  take query parameters, on those parameters, in maps bounded in size (oldest out). They
+  change cost, not figures: each cold instance pays again for the analysis, the modelled
+  day and the plan on its first request.
+- **The route-details cache.** Route profiles fetched with the routes page's Load action,
+  and the answers that found nothing, are kept in bounded, time-limited maps, with the
+  lookups in progress. A route profiled on one instance reads "not profiled" on another,
+  so the loader's promise that the plan will include new profiles shortly holds only when
+  the next request reaches the same instance; a user who presses Load again spends more
+  lookups. The schedule cache behind those lookups (and behind the command centre's
+  schedule route) is per instance too.
+- **The route-lookup limiter.** It counts calls to the corporation's schedule server per
+  user, per address and per process, one slot per call taken just before the call is made
+  (a lookup makes one to four calls). Every count is per instance, so the stated ceiling on calls to the corporation's
+  schedule server is a ceiling per instance: with several instances the real ceiling is
+  that figure times the number of instances, and a restart starts every count again.
+- **The allocation plan.** The Routes page's route-to-depot plan is held for five minutes
+  of feed time rather than re-planned on every snapshot, and the response gives the feed
+  time it was planned at (`plannedAt`). Each instance holds its own plan, so two instances can show plans made at
+  different feed times.
+- **The copilot.** Its request limiters (per user, per address, per process), its answer
+  cache and its joining of identical requests in progress are per instance: the process
+  ceiling is per instance, and an answer cached on one instance is worked out again on
+  another.
+- **The failed-login limiter** (section 7).
+
+After a restart, all of the above is empty: the score window starts at one sample, no
+yard is held, the held peak shares and peak requirements start again from the next snapshot, there is no last good copy (an outage at that moment shows the saved
+sample), every route reads "not profiled" until it is loaded again, the plan is made
+afresh, and every limiter's allowance is full again.
+
+For stable depot figures and for the upstream limits as stated, serve the app from one
+long-lived Node process (`next start`) until this state is shared (for example in
+Redis/Upstash).
+
+## 9. Future: `project.olympuss.us`
 
 The protected area is already isolated under `/project/upsrtc` with its own
 layout, auth guard, and API namespace. Moving it to a `project.` subdomain later

@@ -20,7 +20,7 @@ export type AlertKind = Exclude<ScenarioKind, 'communication'>;
  * Vehicle faults are deliberately rare: exactly one is seeded at startup and
  * none are raised afterwards, so a critical incident stays exceptional rather
  * than becoming background noise. Demand is not streamed — it is reviewed
- * network-wide from the Fleet Distribution view.
+ * network-wide from the bus drawer, Scenario Lab and Pitch Mode.
  */
 export const ALERT_ROTATION: AlertKind[] = ['bunching', 'traffic'];
 

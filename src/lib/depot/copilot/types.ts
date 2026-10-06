@@ -1,0 +1,91 @@
+import type { Provenance } from '@/lib/depot/types';
+
+export type CopilotProviderId = 'claude-cli' | 'scripted';
+export type CopilotTask = 'briefing' | 'rationale' | 'answer';
+
+/** A figure the server computed. The model may refer to it, never restate it. */
+export interface CopilotFact {
+  /** Matches `^[a-z0-9][a-z0-9_.-]{0,63}$`. */
+  readonly id: string;
+  readonly label: string;
+  /** Pre-formatted by the server, for example "1,204", "31%" or "BAREILLY(R)". */
+  readonly text: string;
+  readonly provenance: Provenance;
+  /**
+   * Set by the server for a depot or place name. A name may hold digits from the feed and is
+   * still not a figure, so the renderer's figure rules do not apply to it.
+   */
+  readonly kind?: 'name';
+  /**
+   * The depot this fact describes, set by the server where a request holds more than one
+   * depot. Absent for a network-wide figure or one that belongs to a pair (a transfer's
+   * count). Never sent to the model or the browser; the renderer uses it so that a figure
+   * cannot stand under another depot's name.
+   */
+  readonly depotId?: string;
+}
+
+/** Prose with `{{fact:id}}` placeholders; it never carries a figure itself. */
+export interface CopilotDraft {
+  readonly headline: string;
+  readonly paragraphs: readonly string[];
+}
+
+export interface CopilotRequest {
+  readonly task: CopilotTask;
+  readonly scopeLabel: string;
+  readonly facts: readonly CopilotFact[];
+  readonly guidance: string;
+  /** Authored beside the facts; always valid, used on any failure. */
+  readonly scriptedDraft: CopilotDraft;
+}
+
+export type FallbackReason =
+  | 'not_selected'
+  | 'not_installed'
+  | 'not_authenticated'
+  | 'usage_limit'
+  | 'timeout'
+  | 'busy'
+  | 'cooling_down'
+  | 'invalid_output'
+  | 'rejected_draft'
+  | 'budget_exhausted'
+  | 'request_rejected'
+  /** The caller went away (deadline or disconnect): says nothing about the CLI's health. */
+  | 'aborted'
+  | 'scripted_unavailable'
+  | 'error';
+
+export interface CopilotText {
+  readonly headline: string;
+  readonly paragraphs: readonly string[];
+  /** Who actually wrote the text. */
+  readonly provider: CopilotProviderId;
+  readonly usedFactIds: readonly string[];
+  readonly generatedAt: string;
+  readonly fellBack: boolean;
+  readonly fallbackReason: FallbackReason | null;
+}
+
+export interface CopilotProvider {
+  readonly id: CopilotProviderId;
+  /** `signal` ends the work early: a caller's deadline or a client disconnect. */
+  /** `canStart` is asked just before a call slot is taken; false means too little time is left. */
+  draft(
+    request: CopilotRequest,
+    signal?: AbortSignal,
+    canStart?: () => boolean,
+  ): Promise<CopilotDraft>;
+}
+
+/** A provider could not produce a draft; `reason` says why, for the fallback. */
+export class CopilotFailure extends Error {
+  constructor(
+    readonly reason: FallbackReason,
+    detail?: string,
+  ) {
+    super(detail ? `${reason}: ${detail}` : reason);
+    this.name = 'CopilotFailure';
+  }
+}

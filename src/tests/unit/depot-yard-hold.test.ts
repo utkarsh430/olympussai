@@ -1,0 +1,123 @@
+import { describe, expect, it } from 'vitest';
+import type { DepotBusRow } from '@/models/depotLive';
+import type { Yard } from '@/lib/depot/infer/types';
+import { inferYard, inferYards } from '@/lib/depot/infer/yard';
+import { YARD_HOLD_MAX_HOURS } from '@/lib/depot/infer/yardContinuity';
+import { applyYardContinuity, createYardMemoryStore } from '@/lib/depot/infer/yardMemory';
+import { REPORTING_WINDOW_MIN } from '@/lib/depot/infer/thresholds';
+import { blob, busAt, type XY } from './depot-yard.fixtures';
+
+/*
+ * During a hold the established circle stays fixed; a repeat
+ * returns the remembered yard; an entry older than the hold cap is
+ * nothing remembered; and only buses heard recently are hold evidence.
+ */
+
+const T0 = Date.parse('2026-10-06T06:00:00.000Z');
+const atMin = (minutes: number): string => new Date(T0 + minutes * 60_000).toISOString();
+const atHours = (hours: number): string => atMin(hours * 60);
+
+const A: XY = { x: 0, y: 0 };
+const RIVAL: XY = { x: 2000, y: 0 };
+
+function heardAt(rows: readonly DepotBusRow[], gpsTimestamp: string): DepotBusRow[] {
+  return rows.map((r) => ({ ...r, gpsTimestamp }));
+}
+
+function step(
+  store: ReturnType<typeof createYardMemoryStore>,
+  rows: DepotBusRow[],
+  feedNow: string,
+) {
+  return applyYardContinuity(store, rows, inferYards(rows), feedNow).get('1');
+}
+
+/** A core of ten at A and an equal rival stand 2 km away: the rule refuses to choose. */
+const tied = (extra: readonly DepotBusRow[] = []): DepotBusRow[] => [
+  ...blob('A', 10, A, 20, { depotId: '1' }),
+  ...blob('R', 10, RIVAL, 20, { depotId: '1' }),
+  ...extra,
+];
+
+describe('yard hold', () => {
+  it('never grows or moves a held yard, with a bus at its edge on every poll', () => {
+    const store = createYardMemoryStore();
+    const first = step(store, heardAt(blob('A', 10, A, 20, { depotId: '1' }), atMin(0)), atMin(0));
+    expect(first).toBeDefined();
+    const established = first as Yard;
+    expect(inferYard(tied())).toBeNull();
+    for (let poll = 1; poll <= 60; poll += 1) {
+      const feedNow = atMin(poll * 0.67);
+      // One bus just inside the circle, in a new direction each poll.
+      const angle = poll * 0.7;
+      const r = established.radiusM - 2;
+      const edge = busAt(
+        `E${poll}`,
+        { x: r * Math.cos(angle), y: r * Math.sin(angle) },
+        { depotId: '1' },
+      );
+      const yard = step(store, heardAt(tied([edge]), feedNow), feedNow);
+      expect(yard?.heldSince).toBe(atMin(0.67));
+      expect([yard?.lat, yard?.lng, yard?.radiusM]).toEqual([
+        established.lat,
+        established.lng,
+        established.radiusM,
+      ]);
+      expect(yard?.inCluster).toBe(11);
+    }
+  });
+
+  it('keeps the circle on a repeated feed time and recounts it from this snapshot', () => {
+    const store = createYardMemoryStore();
+    step(store, heardAt(blob('A', 10, A, 20, { depotId: '1' }), atMin(0)), atMin(0));
+    const held = step(store, heardAt(tied(), atMin(1)), atMin(1)) as Yard;
+    const entry = store.byDepot.get('1');
+    const near = busAt('N', { x: 5, y: 5 }, { depotId: '1' });
+    const repeat = step(store, heardAt(tied([near]), atMin(1)), atMin(1));
+    expect(repeat).toEqual({ ...held, parked: held.parked + 1, inCluster: held.inCluster + 1 });
+    expect(store.byDepot.get('1')).toBe(entry);
+  });
+
+  // A bus inside the circle but outside the rule's cluster must not join on a re-fetch.
+  it('gives an established yard the same counts on a repeat with identical rows', () => {
+    const rows = (): DepotBusRow[] =>
+      heardAt(
+        [
+          ...blob('A', 12, A, 20, { depotId: '1' }),
+          ...blob('B', 12, { x: 250, y: 0 }, 20, { depotId: '1' }),
+          busAt('L', { x: 125, y: 160 }, { depotId: '1' }),
+        ],
+        atMin(0),
+      );
+    const store = createYardMemoryStore();
+    const first = step(store, rows(), atMin(0)) as Yard;
+    expect(first.inCluster).toBeLessThan(first.parked);
+    expect(step(store, rows(), atMin(0))).toEqual(first);
+  });
+
+  it('lets the rule decide a repeat of a feed time decided as no yard, without writing', () => {
+    const store = createYardMemoryStore();
+    expect(step(store, heardAt(tied(), atMin(0)), atMin(0))).toBeUndefined();
+    const single = heardAt(blob('A', 10, A, 20, { depotId: '1' }), atMin(0));
+    expect(step(store, single, atMin(0))).toEqual(inferYards(single).get('1'));
+    expect(store.byDepot.has('1')).toBe(false);
+  });
+
+  it('treats an entry older than the hold cap as nothing remembered', () => {
+    const store = createYardMemoryStore();
+    step(store, heardAt(blob('A', 10, A, 20, { depotId: '1' }), atHours(0)), atHours(0));
+    const later = atHours(YARD_HOLD_MAX_HOURS + 1);
+    expect(step(store, heardAt(tied(), later), later)).toBeUndefined();
+    expect(store.byDepot.has('1')).toBe(false);
+  });
+
+  it('counts only buses heard recently as hold evidence', () => {
+    const store = createYardMemoryStore();
+    step(store, heardAt(blob('A', 10, A, 20, { depotId: '1' }), atMin(0)), atMin(0));
+    const now = atMin(REPORTING_WINDOW_MIN + 60);
+    const dead = heardAt(blob('A', 10, A, 20, { depotId: '1' }), atMin(0));
+    const rival = heardAt(blob('R', 10, RIVAL, 20, { depotId: '1' }), now);
+    // Ten dead devices still parked in the old yard: the buses have gone.
+    expect(step(store, [...dead, ...rival], now)).toBeUndefined();
+  });
+});

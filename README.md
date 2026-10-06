@@ -9,8 +9,10 @@ single auth system on one domain (**olympuss.us**):
 | `/login` | Public | Project authentication (project name + PIN) |
 | `/project/upsrtc` | **Protected** | The UPSRTC AI Copilot — a predictive fleet command centre over live UPSRTC telemetry |
 | `/project/bunching` | **Protected** | Bus Bunching Control Simulator — a coordinated headway controller compared against an uncontrolled corridor |
+| `/project/depots` | **Protected** | Depot Management — network pages (overview, league table, fleet distribution, routes, exceptions, economics, trends, ask, data sources) and per-depot pages under `/project/depots/d/[depotId]`; see [`docs/DEPOT_MANAGEMENT.md`](docs/DEPOT_MANAGEMENT.md) |
 | `/api/auth/{login,logout,session}` | Mixed | Authentication endpoints |
 | `/api/upsrtc/{live,schedule}` | **Protected** | Server-side proxies to the UPSRTC upstream |
+| `/api/upsrtc/depot/*` | **Protected** | Depot Management APIs: 17 `GET` views over the shared live snapshot and `POST /api/upsrtc/depot/copilot` |
 | `/robots.txt`, `/sitemap.xml` | Public | Crawler policy — homepage only |
 
 This repository is independent of the original prototype repository and uses its
@@ -141,7 +143,24 @@ exposed to the browser and no key is ever printed.
 | `SITE_URL` | no | server | Canonical origin for metadata, canonical URL, sitemap. Defaults to `https://olympuss.us`. |
 | `UPSRTC_LIVE_URL` | no | server | Overrides the live GPS endpoint. |
 | `UPSRTC_SCHEDULE_URL` | no | server | Overrides the schedule endpoint. |
-| `NEXT_PUBLIC_DEMO_MODE` | no | browser/server | Set to `1` to force offline fixture mode for presentations without connectivity. |
+| `NEXT_PUBLIC_DEMO_MODE` | no | browser/server | Set to `1` to force offline fixture mode for presentations without connectivity. The command centre's map and the depot pages then both run on the saved full-fleet (national) sample, `src/fixtures/upsrtc-fleet-sample.json.gz`; the command centre's offline fallback serves that same sample too, with the small `upsrtc-live-sample.json` only if it cannot be read. Depot pages say "sample data" in each page's provenance line. |
+| `DEPOT_COPILOT_PROVIDER` | no | server | Depot copilot writer: `auto` (default), `claude-cli` or `scripted`. Anything else means `auto`. |
+| `CLAUDE_BIN` | no | server | Absolute path to the `claude` binary for the depot copilot; ownership and permission checks apply. Unset, the copilot uses its scripted writer only. For the owner's own machine: a staff-facing deployment needs an API-key provider, which does not exist. |
+| `CLAUDE_CODE_OAUTH_TOKEN` | no | server | Claude Code sign-in token; the only secret passed to the `claude` process. |
+| `DEPOT_COPILOT_MODEL` | no | server | Model name for the depot copilot's Claude calls. |
+| `DEPOT_TRUSTED_IP_HEADER` | no | server | Name of a header carrying the client address, which turns on per-address limits for the copilot and route-profile lookups. Set it only behind a proxy that overwrites that header. |
+
+The depot copilot settings are described in
+[`docs/DEPOT_COPILOT_OPERATIONS.md`](docs/DEPOT_COPILOT_OPERATIONS.md). The depot
+end-to-end suites read `E2E_PROJECT_PIN` (required, else skipped),
+`E2E_PROJECT_NAME`, `E2E_HOST`, `E2E_PORT` and `E2E_ORIGIN`, and the Playwright
+config reads `E2E_SUITE` (`sample` runs the sample suite) and `E2E_REUSE_SERVER`
+(`1` reuses a server already on the port); the suites read `CI` to fail, rather than
+skip, when the PIN is missing. These are every
+`process.env` name read under the depot code (`src/lib/depot`, the depot API
+routes and pages, `src/lib/upsrtc`), the e2e specs and `playwright.config.ts`,
+plus `CLAUDE_CODE_OAUTH_TOKEN`, which the copilot reads from the environment it
+is given.
 
 Present in some environments but **intentionally unused**:
 `GOOGLE_ROUTES_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`.
@@ -173,16 +192,23 @@ src/
 │   │       ├── upsrtc/
 │   │       │   ├── layout.tsx        # server session gate + scoped dashboard shell
 │   │       │   └── page.tsx          # <CommandCenter/>
-│   │       └── bunching/page.tsx     # server session gate + <BunchingSimulator/>
+│   │       ├── bunching/page.tsx     # server session gate + <BunchingSimulator/>
+│   │       └── depots/               # Depot Management: layout gate, network pages,
+│   │                                 #   d/[depotId]/ depot pages (see docs/DEPOT_MANAGEMENT.md)
 │   └── api/
 │       ├── auth/{login,logout,session}/route.ts
-│       └── upsrtc/{live,schedule}/route.ts
+│       ├── upsrtc/{live,schedule}/route.ts
+│       └── upsrtc/depot/             # 18 depot route handlers (17 GET + copilot POST)
 ├── middleware.ts                     # edge auth: redirect pages / 401 APIs
 ├── models/canonical.ts               # Zod schemas + types for LIVE data only
 ├── lib/
 │   ├── auth/                         # config, session, server, authorize, password,
 │   │                                 #   origin, rate-limit, redirect
-│   ├── upsrtc/                       # client, normalizer, cache, respond
+│   ├── upsrtc/                       # client, normalizer, depotNormalizer, cache,
+│   │                                 #   liveSnapshot (shared fetch), scheduleService, respond,
+│   │                                 #   fleetFixture (lazy full-fleet sample loader)
+│   ├── depot/                        # Depot Management engine: live views, inference,
+│   │                                 #   scoring, optimisers, models, copilot, repositories
 │   ├── simulation/                   # scenarioEngine, seededRandom
 │   ├── demo-scenarios/               # bunching, traffic, breakdown, demand,
 │   │                                 #   communication, impact, types
@@ -194,8 +220,9 @@ src/
 │   ├── constants/, formatters/, utils.ts
 ├── stores/copilotStore.ts            # single Zustand store for the dashboard
 ├── hooks/                            # useLiveFleet, useSchedule, useAlertStream,
-│                                     #   useFleetDistribution, useIndiaClock,
-│                                     #   useDebounced, useReducedMotion
+│                                     #   useIndiaClock, useDebounced, useReducedMotion;
+│                                     #   usePolledJson / useFetchedJson and one useDepot*
+│                                     #   hook per depot API
 ├── components/
 │   ├── landing/                      # public landing sections + backdrop + reveal
 │   ├── auth/, upsrtc/                # login form, authenticated actions, sign out
@@ -206,16 +233,20 @@ src/
 │   ├── communication/                # driver message modal, VoIP overlay
 │   ├── bunching/                     # simulator shell, two panes, maps, decision +
 │   │                                 #   observation + calculation panels, playback
+│   ├── depot/                        # Depot Management: shell plus one folder per page
 │   ├── audit/, diagnostics/, impact-dashboard/, pitch-mode/
 │   └── shared/                       # hud.tsx primitives, footer disclaimer, brand marks
 ├── three/                            # WebGL: ExperienceCanvas, Scene, quality, sceneState
 │   └── globe/                        # Globe, geo, arcs, orbits, landData, data/land-110m.json
-├── fixtures/                         # sanitized captured upstream payloads
+├── fixtures/                         # sanitized captured upstream payloads, and the
+│                                     #   full-fleet depot sample (upsrtc-fleet-sample.json.gz)
 └── tests/unit/                       # Vitest suites
 
-tests/e2e/                            # Playwright command-centre spec
-scripts/                              # generate-pin-hash, process-logo, inspect-upsrtc-api
-docs/                                 # architecture, API discovery, demo, roadmap, olympuss/
+tests/e2e/                            # Playwright specs: command centre, Depot Management
+scripts/                              # generate-pin-hash, process-logo, inspect-upsrtc-api,
+                                      #   calibrate-odometer, build-depot-fixture
+docs/                                 # architecture, API discovery, demo, roadmap, depot docs,
+                                      #   olympuss/, superpowers/ (depot spec and plans)
 ```
 
 ---
@@ -344,16 +375,19 @@ throwing on misconfiguration.
 ### Open-redirect protection
 
 `sanitizeNext()` accepts a `next` parameter only when it is a root-relative
-path under `/project/upsrtc`. Protocol-relative (`//evil.com`), backslash
-tricks (`/\evil.com`) and any other target fall back to `/project/upsrtc`.
+path that, resolved the way a browser resolves it, lands on or under one of
+the allowlisted protected roots: `/project/upsrtc`, `/project/bunching` and
+`/project/depots`. Protocol-relative (`//evil.com`), backslash tricks
+(`/\evil.com`), dot-segment traversal (`/project/upsrtc/../x`) and lookalike
+prefixes (`/project/upsrtc-evil`) fall back to `/project/upsrtc`. The list
+lives in `PROTECTED_ROOTS` in `src/lib/auth/redirect.ts`; a new protected
+surface must be added there, or its deep link will fall back to the dashboard.
 
-> **Known gap.** The allowlist was not widened when `/project/bunching` was
-> added. An unauthenticated request to the simulator is redirected to
-> `/login?next=/project/bunching`, but `sanitizeNext` does not recognise that
-> path and falls back, so after signing in the user lands on the dashboard
-> rather than the simulator. It fails *safe* — the fallback is a valid internal
-> path, so this is a broken deep link rather than an open-redirect — but the
-> allowlist should be extended to cover every protected surface.
+The Depot Management route is gated server-side as well:
+`requireProjectSession(nextPath)` in
+[`src/lib/auth/server.ts`](src/lib/auth/server.ts) redirects to
+`/login?next=<nextPath>` when there is no valid session; the route's layout and
+page both call it.
 
 ### Session status and sign-out
 
@@ -428,7 +462,7 @@ Observed (full report in [`docs/API_DISCOVERY.md`](docs/API_DISCOVERY.md)):
 Node runtime, `force-dynamic`.
 
 1. `requireUpsrtcAccess()` — independent authorization check.
-2. If `NEXT_PUBLIC_DEMO_MODE=1`, serve the normalized fixture immediately.
+2. If `NEXT_PUBLIC_DEMO_MODE=1`, serve the saved full-fleet sample immediately.
 3. Module-scoped `TtlCache` with a **15-second TTL** — a warm server process
    serves many clients from one upstream fetch.
 4. On miss: `fetchUpstream()` with a **10-second timeout** (`AbortController`),
@@ -436,7 +470,8 @@ Node runtime, `force-dynamic`.
 5. `normalizeLivePayload()` (below).
 6. Cache and return `{ buses, fetchedAt, source, stale, recordCount, rejectedRecordCount }`.
 7. **Degrade gracefully, never blank:** last-known-good (flagged `stale`) →
-   sanitized fixture. A `liveDiagnostics` object tracks last attempt, last
+   the saved full-fleet sample (the small sanitized fixture only if that cannot be read).
+   After a failed refresh no upstream call is made for 20 s. A `liveDiagnostics` object tracks last attempt, last
    success, last error, last status and consecutive failures for the
    Diagnostics drawer.
 
@@ -565,11 +600,19 @@ Olympuss project context and Sign Out · connection state (`CONNECTED` /
 `STALE CACHE` / `FIXTURE` / `DEGRADED`) with an animated pulse · India time ·
 last GPS update age · live bus count · visible count · the `LIVE UPSRTC GPS`
 badge and `PREDICTIVE ENGINE ACTIVE` marker side by side · a **Bunching** link to
-the control simulator · and buttons for Scenario Lab, Fleet Distribution and
+the control simulator · and buttons for Scenario Lab, Depot Management and
 fullscreen.
 
-Bunching is a `<Link>` rather than a drawer toggle because it opens a full
-analysis surface, not an overlay on the map.
+Bunching and Depot Management are `<Link>`s rather than drawer toggles because
+each opens a full surface, not an overlay on the map. Depot Management
+(`data-testid="open-depot-management"`) goes to `/project/depots`, the depot
+module's network overview; it replaced the former Fleet Distribution button.
+The module's own Fleet distribution page (`/project/depots/rebalance`) is a
+different surface from the command centre's demand view: it compares each
+depot's live supply with a modelled requirement. See
+[`docs/DEPOT_MANAGEMENT.md`](docs/DEPOT_MANAGEMENT.md). The demand view ("Demand and Fleet
+Redistribution") is unchanged and is opened from a bus's analysis menu
+(**Demand - Supply Analysis**), from Scenario Lab and from Pitch Mode.
 
 > **Known gap.** The Bunching link took the slot previously occupied by the
 > **Audit** and **Diagnostics** buttons. Both drawers are still mounted in
@@ -636,7 +679,7 @@ Opens on selection with live readouts (position, speed, heading, ignition, GPS
 age, depot, route, data quality) and the retrieved schedule (origin,
 destination, departure, arrival, stop sequence, trip count). Five actions
 launch analyses: **Bunching**, **Traffic**, **Incident Response**,
-**Demand–Supply**, and **Contact Driver**. Escape closes it.
+**Demand - Supply Analysis**, and **Contact Driver**. Escape closes it.
 
 ### Copilot panel (right, 344 px)
 
@@ -763,7 +806,7 @@ UPSRTC pilot.*
   incident slot is counted separately from the rotation index, otherwise it
   would eat a turn and the remaining kinds would stop alternating evenly.
 - **Demand is not streamed** — it is a corridor-level question, reviewed from
-  the **Fleet Distribution** view in the command bar.
+  the demand view, opened from a bus's analysis menu or from Scenario Lab.
 - Pitch Mode suppresses new alerts; it drives its own narrative.
 
 **Candidate selection** prefers vehicles that make an information-rich alert — a
@@ -1314,6 +1357,33 @@ value. Auth error messages never reveal which field was wrong or which variable
 is missing. The session token lives only in an `HttpOnly` cookie and is never
 handed to client JavaScript.
 
+**Depot Management APIs** (`/api/upsrtc/depot/*`). Every handler checks the
+session itself (`requireUpsrtcAccess()`, 401 otherwise) instead of relying on
+middleware, validates the depot id, route name or query string before any
+lookup (strict parsers refuse unknown and repeated parameters), answers with
+fixed error bodies and logs the cause server-side only, and sends
+`Cache-Control: no-store`. No depot view calls the upstream; only a cache miss
+on `GET /api/upsrtc/depot/route/[routeName]` does, and those misses are limited
+per session identity, per trusted address and per process
+(`ROUTE_PROFILE_FETCH_LIMITS` in `src/lib/depot/rateLimit.ts`).
+
+**Depot copilot** (`POST /api/upsrtc/depot/copilot`). Origin, body size, a
+request deadline and per-identity, per-address and per-process limits are
+enforced in `src/lib/depot/copilot/service/`. Every figure in an answer comes
+from server facts; a typed question is routed by a closed, deterministic
+keyword router and never reaches a model. Writer wording passes a
+closed-vocabulary check and the wording rules, or the scripted text is used.
+The scripted writer answers unless `CLAUDE_BIN` is set; the `claude` process
+runs with no shell, no tools and a private home folder, and is for the owner's
+own machine only. Details and the residual risks:
+[`docs/DEPOT_COPILOT_OPERATIONS.md`](docs/DEPOT_COPILOT_OPERATIONS.md).
+
+**Not enforced.** There is one shared PIN and no per-depot permission: any
+signed-in user can open every depot. All depot limits are held in process
+memory, so a restart clears them and each instance has its own. No
+recommendation (transfer, route allocation, duty match, parking order) is
+dispatched or assigned, and no individual is scored or named.
+
 Run a review of pending changes on the current branch with `/security-review`.
 
 ---
@@ -1340,6 +1410,12 @@ Each of these was made against a measured problem, not on principle:
 | Mutable scene singleton for scroll/pointer | The 60 fps loop never triggers a React re-render |
 | `frameloop: 'never'` when the tab is hidden | No GPU work in a background tab |
 | Abort in-flight requests before the next poll / on re-selection | No pile-up, no out-of-order writes |
+| Depot module reads the command centre's snapshot (`src/lib/upsrtc/liveSnapshot.ts`) | One upstream fetch serves the map and every depot page; counts and pins never disagree |
+| Depot analysis memoised on the snapshot's rows array, view bodies memoised per analysis | Polling clients share one computation per snapshot; only the feed envelope is built per request |
+| Depot pages receive summaries, not the ~9.6k fleet rows | Per-bus rows are sent only for one depot |
+| Route-to-depot plan re-run at most every 30 s (`REPLAN_MIN_INTERVAL_MS`) | A full re-plan measured about 0.33 s on the event loop |
+| One modelled day and duty plan per snapshot, depot and date (`live/operatingDayView.ts`) | The duty board, crew, parking order, fuel, revenue and economics read one plan instead of matching buses six times |
+| Full-fleet sample gzip-compressed and read lazily on first fallback (`src/lib/upsrtc/fleetFixture.ts`) | Nothing is bundled, read or parsed on the live path |
 
 ---
 
@@ -1348,13 +1424,25 @@ Each of these was made against a measured problem, not on principle:
 ```bash
 npm run lint         # ESLint (next lint)
 npm run typecheck    # tsc --noEmit, strict
-npm run test         # Vitest — 224 unit tests, no network required
+npm run test         # Vitest — 421 unit test files, no network required
 npm run test:watch   # Vitest in watch mode
-npm run test:e2e     # Playwright — 25 specs (starts the app via npm run start)
+npm run test:e2e     # Playwright — command centre and depot live specs, 35 tests (starts the app via npm run start; E2E_HOST / E2E_PORT override localhost:3000)
+npm run test:e2e:sample  # Playwright — the depot sample suite (E2E_SUITE=sample; the server runs on the saved sample)
 npm run format       # Prettier over src/**/*.{ts,tsx,css} and docs/**/*.md
 ```
 
-### Unit tests (Vitest, jsdom) — 224 tests across 7 files
+### Unit tests (Vitest, jsdom) — 371 files
+
+Vitest collects `src/tests/**/*.test.ts(x)`. Listing `src/tests/unit` on
+6 Oct 2026 gave 371 files, 352 of them named `depot-<subject>.test.ts(x)`
+(file counts only; tests per file were not counted). The depot suites are not
+listed here (see [`docs/DEPOT_MANAGEMENT.md`](docs/DEPOT_MANAGEMENT.md#10-testing)).
+The table below lists the suites outside the depot module that it was first
+written for; its per-file counts date from then and were not re-counted for
+this revision. Suites added since and not in the table include `live-snapshot`,
+`schedule-service`, `mapListenerCleanup`, `polled-json-hook`,
+`auth-session-sid` and the full-fleet sample's `fleet-fixture-shape`,
+`fleet-fixture-file` and `fleet-fixture-loader`.
 
 | File | Tests | Covers |
 | --- | --- | --- |
@@ -1365,13 +1453,22 @@ npm run format       # Prettier over src/**/*.{ts,tsx,css} and docs/**/*.md
 | `audit.test.ts` | 21 | Audit append/cap/round-trip/clear/export, TTL cache semantics, upstream client helpers, formatters |
 | `alerts.test.ts` | 19 | Alert anchoring to real vehicles, seeding (exactly five, exactly one fault), even rotation, candidate selection tiers, graceful degradation |
 | `globeExtras.test.ts` | 9 | Orbit radii and inclination, great-circle arc packing and lift, deterministic route picking |
+| `redirect.test.ts` | 11 | The post-login redirect allowlist: accepted roots, traversal, lookalike prefixes and protocol-relative tricks |
+| `requireProjectSession.test.ts` | 4 | The server-component session gate and its login redirect |
+| `depot-nav.test.ts` | — | The Depot Management navigation rail definition (now one of the depot suites) |
 
 The bunching suite is the reason the simulator's arithmetic can be trusted: it
 asserts the control equations against hand-computed values, that the overtaking
 floor prevents inversion, that the controller never breaches the safety floor,
 and that each scenario's two runs diverge in the documented direction.
 
-### End-to-end (Playwright) — 25 specs
+### End-to-end (Playwright) — 32 specs across 2 files
+
+The suite serves the production build at `http://localhost:3000` by default;
+`localhost` is the origin the Google Maps key authorises. Set `E2E_PORT` to use
+another port when 3000 is taken, for example
+`E2E_PORT=3210 npm run test:e2e` (the build must exist first: `npm run build`),
+and `E2E_HOST` to use another host (Maps refuses the key on unauthorised origins).
 
 Run at **2259×1271**, which is the effective CSS viewport of a 1920-wide
 display at the ~85% browser zoom the dashboard is actually used at.
@@ -1387,9 +1484,21 @@ the scenario-lab drawer and the presence of the Bunching trigger · impact
 dashboard figures · audit trail recording the walkthrough (asserted against
 `localStorage`, since the drawer no longer has a trigger) · alert seeding with
 real vehicles · alert click-through · the 30 s stream interval · **exactly one
-vehicle-fault alert** · fleet distribution opening without a prior selection ·
+vehicle-fault alert** · the Depot Management link opening the depot module ·
 Escape closing the detail drawer · and an assertion that the words
-**"simulated"** and **"demonstrate"** appear nowhere in the interface.
+**"simulated"** and **"demonstrate"** appear nowhere in the interface (its
+Diagnostics and Audit drawer steps are omitted because nothing opens those
+drawers; see the known gap under the top command bar).
+
+The Depot Management spec (`tests/e2e/depot-management.spec.ts`, 8 specs, one of them the PIN guard;
+skipped unless `E2E_PROJECT_PIN` is set, and `E2E_PROJECT_NAME` /
+`E2E_ORIGIN` override the defaults) covers the login deep link surviving sign-in, the shell's top bar, navigation
+and footer, the Back to Operations link, the banned-wording check, no sideways
+scroll (one spec run at three widths: 1440, 1024 and 800 px), the skip link and a
+console-error-free load, all on the network overview. A full run reports 35
+results (25 `test(` calls in `command-centre.spec.ts` and 8 in
+`depot-management.spec.ts`, counted on 6 Oct 2026), because the width spec runs
+three times.
 
 Spec 25 covers the simulator end to end: navigating from the command bar,
 both panes rendering, stepping advancing the two runs in lockstep, the
@@ -1417,7 +1526,13 @@ proxy). Requirements:
 the parent directory makes Next infer the wrong workspace root.
 
 **Before any operational use**, note that the response cache is in-memory
-(per-process) and the audit trail is browser-local. Both need replacing — see
+(per-process) and the audit trail is browser-local. Depot Management adds more
+per-process state (the efficiency index's rolling window, yard memory, the
+route-profile cache, the modelled day, rate limiters and the copilot's caches
+and budget), and its copilot's Claude provider works only where Claude Code is
+signed in. History and trends are a generated series behind a repository
+interface: there is no database. See
+[`docs/olympuss/DEPLOYMENT.md`](docs/olympuss/DEPLOYMENT.md). Both need replacing — see
 [`docs/PRODUCTION_ROADMAP.md`](docs/PRODUCTION_ROADMAP.md). The same applies to
 the login rate limiter.
 
@@ -1438,11 +1553,14 @@ affect the build toolchain only, and do not reach runtime.
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit`, strict |
 | `npm run test` / `test:watch` | Vitest |
-| `npm run test:e2e` | Playwright |
+| `npm run test:e2e` | Playwright (`E2E_HOST` / `E2E_PORT` override the default `localhost:3000`) |
+| `npm run test:e2e:sample` | Playwright, the depot sample suite on the saved sample (see `docs/DEPOT_MANAGEMENT.md` section 10) |
 | `npm run format` | Prettier over source and docs |
 | `npm run inspect:api` | Probe both UPSRTC endpoints and print an empirical report |
 | `npm run generate-pin-hash -- <pin>` | bcrypt hash (cost 12) for `PROJECT_PIN_HASH`; hash to stdout, guidance to stderr |
 | `npm run process-logo` | Regenerate every brand asset from the source logo |
+| `npm run build:depot-fixture` | Depot Management: rebuild `src/fixtures/upsrtc-fleet-sample.json.gz` from one request to the live feed, keeping only allowlisted keys (`scripts/build-depot-fixture.ts`) |
+| `npx tsx scripts/calibrate-odometer.ts --live [--wait-min 5] [--out report.json] [--force]` | Depot Management: read-only evidence on the unit of the feed's `distance` field from two snapshots at least a minute apart (or two saved files). Prints aggregates only; never confirms a unit by itself. No `npm` alias. |
 
 ---
 
@@ -1487,6 +1605,23 @@ These are enforced in code, not left to discipline:
 7. Playwright asserts the live and predictive markers stay visible together
    while an analysis is open, and that no "simulated" / "demonstrate" wording
    remains in the interface.
+8. Depot Management uses four provenance words, defined in
+   `src/lib/depot/labels.ts`: `LIVE` (from the feed), `DERIVED` (computed from
+   live data), `MODELLED` (generated from planning assumptions) and
+   `REFERENCE` (curated static data). The word "simulated" is never used for
+   depot data; the depot e2e suite checks for banned wording.
+9. A depot page declares its default provenance **once**, in one line under its
+   header (`provenanceLine` on `PageHeader`, worded by
+   `src/lib/depot/provenanceLine.ts`), pinned for every
+   page by a test. Only a figure, column or section whose provenance differs
+   from that default carries its own tag; no tag sits in a table cell. A
+   section or column where a generated figure sits beside a real bus, depot or
+   route carries one tag on every page. See
+   [`docs/DEPOT_UI_PATTERNS.md`](docs/DEPOT_UI_PATTERNS.md).
+10. Depot pages use one state vocabulary, the module's classified states (On
+    road, Standing, Dark, Off road), never the feed's own status field.
+    The efficiency index and depot exceptions state the rolling
+    window they were computed over; bus exceptions are as of the feed time.
 
 ---
 
@@ -1520,4 +1655,7 @@ backend integration.
 | [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) | Full 8–10 minute presentation script |
 | [`docs/PRESENTATION_GUIDE.md`](docs/PRESENTATION_GUIDE.md) | Setup, fallbacks, expected questions |
 | [`docs/PRODUCTION_ROADMAP.md`](docs/PRODUCTION_ROADMAP.md) | Path from prototype to production |
+| [`docs/DEPOT_MANAGEMENT.md`](docs/DEPOT_MANAGEMENT.md) | Depot Management reference: pages, APIs, inferences, models, constants, limits |
+| [`docs/DEPOT_UI_PATTERNS.md`](docs/DEPOT_UI_PATTERNS.md) | Shared depot page components and the provenance line |
+| [`docs/DEPOT_COPILOT_OPERATIONS.md`](docs/DEPOT_COPILOT_OPERATIONS.md) | Depot copilot settings, limits and residual risks |
 | [`src/three/globe/data/README.md`](src/three/globe/data/README.md) | Globe land-data source, licence and preprocessing |

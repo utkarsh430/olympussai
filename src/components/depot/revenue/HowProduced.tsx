@@ -1,0 +1,23 @@
+import Link from 'next/link';
+import { HowProduced as ClosingDisclosure } from '@/components/depot/shell/HowProduced';
+import { SOURCES_PATH } from '@/lib/depot/nav';
+
+/**
+ * The closing disclosure of the fuel and revenue pages: what the page
+ * used to say in its closing panel (what is modelled, the definitions, the assumptions,
+ * the price used and the feeds that would replace the model), then where each feed's
+ * fields are listed. The disclosure itself is the shared one.
+ */
+export function HowProduced({ paragraphs }: { readonly paragraphs: readonly string[] }) {
+  return (
+    <ClosingDisclosure paragraphs={paragraphs}>
+      <p className="depot-prose">
+        The fields each feed must provide are listed on the{' '}
+        <Link href={SOURCES_PATH} className="depot-link">
+          Data sources page
+        </Link>
+        .
+      </p>
+    </ClosingDisclosure>
+  );
+}

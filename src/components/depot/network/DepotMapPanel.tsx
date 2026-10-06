@@ -1,0 +1,196 @@
+import Link from 'next/link';
+import { formatCount, formatShare } from '@/lib/depot/format';
+import { DEPOT_KIND_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
+import { indexBand } from '@/lib/depot/map/nodeStyle';
+import {
+  depotLink,
+  peerRankLine,
+  positionNote,
+} from '@/lib/depot/network/mapWords';
+import {
+  formatIndex,
+  rankedIndex,
+  selectionStatus,
+  type DepotRow,
+} from '@/lib/depot/network/overviewModel';
+import { clearSelection, PANEL_HEADING_ID } from './clearSelection';
+import { StatusMixBar, stateSegments } from './StatusMixBar';
+
+export interface DepotMapPanelProps {
+  /** The selected depot, or null when nothing is selected. */
+  readonly row: DepotRow | null;
+  /** Unused since the suggestion went (its row is the lowest list's first); kept for callers. */
+  readonly rows?: readonly DepotRow[];
+  readonly onSelect?: (depotId: string) => void;
+  readonly onClear: () => void;
+  /** True when the depot selected earlier has dropped out of the feed. */
+  readonly vanished?: boolean;
+}
+
+function Ranking({ row }: { readonly row: DepotRow }) {
+  const index = rankedIndex(row);
+  const score = row.score;
+  if (index === null || !score) {
+    const reason = score ? RANK_REASON_LABEL[score.reason] : 'No score for this depot';
+    return (
+      <p className="depot-note">
+        Not ranked <span className="text-depot-muted">· {reason}</span>
+      </p>
+    );
+  }
+  return (
+    <>
+      <div className="flex items-baseline gap-2">
+        <span className="font-display text-2xl font-semibold tabular-nums text-depot-ink">
+          {formatIndex(index)}
+        </span>
+        <span className="text-[11px] text-depot-muted">{indexBand(index)?.label}</span>
+      </div>
+      {score.rank !== null && score.peerCount !== null && score.peerGroup ? (
+        <p className="depot-note mt-1">
+          {peerRankLine(score.rank, score.peerCount, score.peerGroup)}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The link to the selected depot's own pages; nothing for the unassigned group,
+ * which has none.
+ */
+function OpenDepot({ row }: { readonly row: DepotRow }) {
+  const href = depotLink(row.depot);
+  if (!href) return null;
+  return (
+    <Link href={href} className="depot-link text-[13px]">
+      Open depot<span className="sr-only">{` ${row.depot.name}`}</span>
+    </Link>
+  );
+}
+
+/**
+ * Shorter state words for the panel's narrow list, so a label and its value stay on one
+ * line each; the bar above keeps the full names in its accessible name.
+ */
+const PANEL_STATE_WORDS: Readonly<Record<string, string>> = {
+  onRoad: 'On road, no schedule',
+};
+
+/**
+ * Summary of the selected depot beside the map. It is fed by the shared
+ * selection, so the ranked lists and the table fill it as well as the map.
+ * It is as tall as its content, never stretched to the map's height.
+ */
+export function DepotMapPanel({
+  row,
+  onClear,
+  vanished = false,
+}: DepotMapPanelProps) {
+  const status = (
+    <p role="status" className="sr-only">
+      {selectionStatus(row)}
+    </p>
+  );
+  if (!row) {
+    return (
+      <aside className="depot-panel relative min-w-0 p-4" data-testid="depot-map-panel">
+        {status}
+        <h3 id={PANEL_HEADING_ID} tabIndex={-1} className="depot-label">
+          Selected unit
+        </h3>
+        <p className="depot-prose mt-1">
+          {vanished ? 'The selected unit is no longer in the feed. ' : null}
+          Nothing selected. Pick a unit on the map, in the lists or in the table.
+        </p>
+      </aside>
+    );
+  }
+
+  const { depot } = row;
+  const segments = stateSegments(depot.states);
+
+  return (
+    <aside className="depot-panel relative min-w-0 p-4" data-testid="depot-map-panel">
+      {status}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="depot-label">Selected unit</div>
+          <h3
+            id={PANEL_HEADING_ID}
+            tabIndex={-1}
+            className="mt-1 break-normal text-[15px] text-depot-ink"
+          >
+            {depot.name}
+          </h3>
+          <div className="text-[11px] text-depot-muted">{DEPOT_KIND_LABEL[depot.kind]}</div>
+        </div>
+        <span className="flex shrink-0 items-center gap-3">
+          <OpenDepot row={row} />
+          <button
+            type="button"
+            onClick={() => clearSelection(onClear)}
+            className="depot-filter-button"
+          >
+            Clear
+          </button>
+        </span>
+      </div>
+
+      <dl className="mt-3 space-y-3">
+        <div>
+          <dt className="depot-label">Fleet</dt>
+          <dd className="mt-1 text-[13px] tabular-nums text-depot-ink">
+            {formatCount(depot.fleet)} buses
+          </dd>
+          <dd className="depot-caption mt-1">{positionNote(depot)}</dd>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <dt className="depot-label">Reporting</dt>
+            <dd className="mt-1 text-[13px] tabular-nums text-depot-ink">
+              {formatShare(depot.reporting, depot.fleet)}
+            </dd>
+          </div>
+          <div>
+            <dt className="depot-label">Route assigned</dt>
+            <dd className="mt-1 text-[13px] tabular-nums text-depot-ink">
+              {formatShare(depot.assigned, depot.fleet)}
+            </dd>
+          </div>
+        </div>
+        <div>
+          <dt className="depot-label flex items-center gap-2">
+            State
+          </dt>
+          <dd className="mt-2">
+            <StatusMixBar segments={segments} caption="State" width={240} />
+            <ul className="mt-2 space-y-0.5 text-[13px] tabular-nums">
+              {segments.map((segment) => (
+                <li key={segment.key} className="flex justify-between gap-3">
+                  <span className="whitespace-nowrap text-depot-muted">
+                    {PANEL_STATE_WORDS[segment.key] ?? segment.label}
+                  </span>
+                  <span className="whitespace-nowrap text-depot-ink">
+                    {formatCount(segment.count)}{' '}
+                    <span className="text-depot-muted">
+                      {formatShare(segment.count, depot.fleet)}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </dd>
+        </div>
+        <div>
+          <dt className="depot-label flex items-center gap-2">
+            Efficiency index
+          </dt>
+          <dd className="mt-1">
+            <Ranking row={row} />
+          </dd>
+        </div>
+      </dl>
+    </aside>
+  );
+}

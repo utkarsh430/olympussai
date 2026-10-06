@@ -13,7 +13,7 @@ import type {
  * not black out the control room.
  */
 
-const REG_ALIASES = [
+export const REG_ALIASES = [
   'regNum',
   'reg_num',
   'registration_no',
@@ -28,8 +28,8 @@ const REG_ALIASES = [
   'busNumber',
 ] as const;
 
-const LAT_ALIASES = ['latitude', 'lat', 'Latitude', 'gps_lat', 'gpsLatitude', 'Lat'] as const;
-const LNG_ALIASES = [
+export const LAT_ALIASES = ['latitude', 'lat', 'Latitude', 'gps_lat', 'gpsLatitude', 'Lat'] as const;
+export const LNG_ALIASES = [
   'longitude',
   'lng',
   'lon',
@@ -39,13 +39,13 @@ const LNG_ALIASES = [
   'gpsLongitude',
   'Lng',
 ] as const;
-const SPEED_ALIASES = ['speed', 'Speed', 'speed_kmph', 'speedKmph', 'gps_speed'] as const;
+export const SPEED_ALIASES = ['speed', 'Speed', 'speed_kmph', 'speedKmph', 'gps_speed'] as const;
 const HEADING_ALIASES = ['heading', 'Heading', 'bearing', 'course', 'direction_deg'] as const;
 const DEPOT_ALIASES = ['depot_name', 'depotName', 'depot', 'home_depot_name'] as const;
-const ROUTE_ID_ALIASES = ['route', 'route_id', 'routeId', 'line_id'] as const;
-const ROUTE_NAME_ALIASES = ['routename', 'route_name', 'routeName', 'RouteName'] as const;
+export const ROUTE_ID_ALIASES = ['route', 'route_id', 'routeId', 'line_id'] as const;
+export const ROUTE_NAME_ALIASES = ['routename', 'route_name', 'routeName', 'RouteName'] as const;
 const SERVICE_ALIASES = ['vehicle_journey_code', 'service_number', 'serviceNumber', 'line_name'] as const;
-const TRIP_ALIASES = ['vehicle_journey_id', 'trip_id', 'tripId', 'vj_id'] as const;
+export const TRIP_ALIASES = ['vehicle_journey_id', 'trip_id', 'tripId', 'vj_id'] as const;
 const TIMESTAMP_ALIASES = ['timestamp', 'receivedTime', 'gps_timestamp', 'gpsTimestamp', 'time'] as const;
 const STATUS_ALIASES = ['status', 'vehicle_status', 'vehicleStatus', 'packetStatus'] as const;
 const VEHICLE_TYPE_ALIASES = ['vehicle_type', 'vehicleType', 'service_type', 'bus_type'] as const;
@@ -62,7 +62,7 @@ export function isRecord(value: unknown): value is Rec {
 }
 
 /** Pick the first alias present with a meaningful (non-empty, non-"None") value. */
-function pick(rec: Rec, aliases: readonly string[]): unknown {
+export function pick(rec: Rec, aliases: readonly string[]): unknown {
   for (const key of aliases) {
     if (!(key in rec)) continue;
     const value = rec[key];
@@ -88,7 +88,7 @@ export function toNumber(value: unknown): number | null {
   return null;
 }
 
-function toStringOrNull(value: unknown): string | null {
+export function toStringOrNull(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value === 'string') return value.trim() === '' ? null : value.trim();
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
@@ -106,7 +106,7 @@ export function isValidCoordinate(lat: number | null, lng: number | null): boole
   return true;
 }
 
-function parseTimestamp(value: unknown): string | null {
+export function parseTimestamp(value: unknown): string | null {
   const raw = toStringOrNull(value);
   if (!raw) return null;
   const parsed = new Date(raw);
@@ -138,7 +138,7 @@ export function extractTripDate(value: unknown): string | null {
   return /^(\d{4}-\d{2}-\d{2})/.exec(raw)?.[1] ?? null;
 }
 
-function toBooleanOrNull(value: unknown): boolean | null {
+export function toBooleanOrNull(value: unknown): boolean | null {
   if (value === null || value === undefined) return null;
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value !== 0;

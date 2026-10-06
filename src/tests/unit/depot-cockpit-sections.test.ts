@@ -1,0 +1,311 @@
+import { describe, expect, it } from 'vitest';
+import type { DepotBusView, DepotDetailResponse } from '@/lib/depot/api';
+import { buildAttention } from '@/lib/depot/cockpit/attention';
+import { REPORTING_WINDOW_MIN } from '@/lib/depot/infer/thresholds';
+import {
+  availabilitySegments,
+  availabilityText,
+  legendWord,
+  availabilityWeekTrendNote,
+  yardLine,
+} from '@/lib/depot/cockpit/availability';
+import { depotExceptionLines, groupBusExceptions } from '@/lib/depot/cockpit/exceptionGroups';
+import { indexMeta } from '@/lib/depot/cockpit/indexMeta';
+import { endedSummary } from '@/lib/depot/cockpit/outshedTracker';
+import type { CockpitHeader, StatusBoard, TrackerRow } from '@/lib/depot/cockpit/cockpitTypes';
+import type { BusException, DepotException } from '@/lib/depot/exceptions/types';
+import type { OutshedRow } from '@/lib/depot/infer/types';
+
+const FEED_NOW = '2026-10-05T14:20:00.000Z';
+
+function bus(registrationNumber: string, overrides: Partial<DepotBusView> = {}): DepotBusView {
+  return {
+    registrationNumber,
+    state: 'standing',
+    location: 'in_yard',
+    mainPowerOn: true,
+    tamperCode: null,
+    notHeardMin: null,
+    ...overrides,
+  } as DepotBusView;
+}
+
+function busException(registrationNumber: string, kind: BusException['kind'], severity: BusException['severity']): BusException {
+  return { id: `${kind}:${registrationNumber}`, registrationNumber, depotId: '49', depotName: 'K', kind, severity, lastSeen: null, detail: null };
+}
+
+function detail(overrides: Partial<DepotDetailResponse> = {}): DepotDetailResponse {
+  return {
+    feedNow: FEED_NOW,
+    buses: [],
+    outshed: { rows: [], coverage: { n: 0, of: 0 } },
+    exceptions: { depot: [], bus: [] },
+    visitors: [],
+    ...overrides,
+  } as unknown as DepotDetailResponse;
+}
+
+describe('buildAttention', () => {
+  it('says so in one calm line when nothing needs attention', () => {
+    const attention = buildAttention(detail({ buses: [bus('A')] }), '49');
+    expect(attention.lines).toEqual([]);
+    expect(attention.calm).toMatch(/^Nothing needs attention on this snapshot/);
+  });
+
+  it('counts each concern, most pressing first, each a link', () => {
+    const attention = buildAttention(
+      detail({
+        buses: [
+          bus('A', { mainPowerOn: false }),
+          bus('B', { mainPowerOn: false, state: 'dark' }),
+          bus('C', { state: 'off_road' }),
+          bus('D', { notHeardMin: 87 }),
+          bus('E', { tamperCode: '7' }),
+        ],
+        outshed: { rows: [{ state: 'overdue' } as OutshedRow], coverage: { n: 1, of: 5 } } as unknown as DepotDetailResponse['outshed'],
+        exceptions: { depot: [], bus: [busException('F', 'emergency', 'critical')] },
+      }),
+      '49',
+    );
+    expect(attention.calm).toBeNull();
+    expect(attention.lines.map((l) => l.text)).toEqual([
+      '1 bus raises the emergency flag',
+      '2 buses report main power off',
+      '1 departure is overdue',
+      '1 bus is dark: no signal for 6 h or more',
+      '1 bus is off the road',
+      `1 bus has not been heard for over ${REPORTING_WINDOW_MIN} min`,
+    ]);
+    expect(attention.lines[1]?.href).toBe('/project/depots/d/49/roster?flag=power_off');
+    expect(attention.lines[3]?.href).toBe('/project/depots/d/49/roster?state=dark');
+    expect(attention.lines[2]?.href).toBe('/project/depots/d/49#depot-outshed');
+    expect(attention.lines.map((l) => l.destination)).toEqual([
+      'Exceptions', 'Roster', 'Departures', 'Roster', 'Roster', 'Roster',
+    ]);
+  });
+
+  it('sends the emergency line to the exception centre narrowed to this depot', () => {
+    const attention = buildAttention(
+      detail({ exceptions: { depot: [], bus: [busException('F', 'emergency', 'critical')] } }),
+      '49',
+    );
+    expect(attention.lines[0]?.href).toBe('/project/depots/exceptions?kind=emergency&depot=49');
+  });
+
+  it('never shows more than six lines', () => {
+    const attention = buildAttention(
+      detail({
+        buses: [bus('A', { mainPowerOn: false, state: 'dark', tamperCode: '7' }), bus('B', { state: 'off_road' }), bus('C', { notHeardMin: 50 })],
+        outshed: { rows: [{ state: 'overdue' } as OutshedRow], coverage: { n: 1, of: 1 } } as unknown as DepotDetailResponse['outshed'],
+        exceptions: { depot: [], bus: [busException('F', 'emergency', 'critical')] },
+      }),
+      '49',
+    );
+    expect(attention.lines).toHaveLength(6);
+  });
+});
+
+const BOARD: StatusBoard = {
+  fleet: 200,
+  states: [
+    { state: 'in_service', label: 'In service', count: 5, share: 0.025 },
+    { state: 'on_road', label: 'On road, no schedule in feed', count: 55, share: 0.275 },
+    { state: 'standing', label: 'Standing', count: 86, share: 0.43 },
+    { state: 'dark', label: 'Dark', count: 44, share: 0.22 },
+    { state: 'off_road', label: 'Off road', count: 10, share: 0.05 },
+  ],
+  standing: 86,
+  locations: [
+    { location: 'in_yard', label: 'In yard', count: 59 },
+    { location: 'at_other_yard', label: 'At another depot', count: 2 },
+    { location: 'away', label: 'Away', count: 25 },
+    { location: 'unknown', label: 'Location unknown', count: 0 },
+  ],
+  yard: { established: true, sample: { n: 59, of: 86 }, sentence: 'Yard learned from 59 of 86 parked buses.' },
+};
+
+describe('availability bar', () => {
+  it('gives every state its word, count and share, summing to the fleet', () => {
+    const segments = availabilitySegments(BOARD);
+    expect(segments.map((s) => s.count).reduce((a, b) => a + b, 0)).toBe(200);
+    expect(segments[0]).toMatchObject({ state: 'in_service', label: 'In service', count: 5, shareText: '3%' });
+  });
+
+  it('has a text equivalent', () => {
+    expect(availabilityText(BOARD)).toBe(
+      'Of 200 buses: 5 in service (3%), 55 on road, no schedule in feed (28%), 86 standing (43%), 44 dark (22%), 10 off road (5%).',
+    );
+  });
+
+  it('shows every share at one precision, and a small one as under 1%', () => {
+    const tiny = { ...BOARD, fleet: 400, states: BOARD.states.map((c, i) => (i === 0 ? { ...c, count: 2 } : c)) };
+    expect(availabilitySegments(tiny)[0]?.shareText).toBe('<1%');
+    expect(availabilitySegments({ ...BOARD, states: BOARD.states.map((c) => ({ ...c, count: 0 })) })[0]?.shareText).toBe('0%');
+  });
+
+  const SEEN = { inYard: 77, visitors: 68, heldSince: null, feedNow: '2026-10-05T19:16:00Z', snapshotsSeen: 40 };
+
+  it('says the yard and the standing split as two sentences', () => {
+    expect(yardLine(BOARD, SEEN)).toEqual({
+      kind: 'split',
+      text: 'In the yard: 77 of ours, 68 visiting. Standing 86: 59 in the yard, 2 at another yard, 25 away.',
+      held: null,
+    });
+    const line = yardLine(BOARD, { ...SEEN, visitors: 0 });
+    expect(line.kind === 'split' && line.text).toMatch(/^In the yard: 77 of ours, none visiting\. /);
+  });
+
+  it('names the standing subset before its "in the yard", so the two figures cannot be confused', () => {
+    const line = yardLine(BOARD, SEEN);
+    const text = line.kind === 'split' ? line.text : '';
+    expect(text).toMatch(/Standing 86: 59 in the yard/);
+    expect(text.split('. ')).toHaveLength(2);
+  });
+
+  it('gives the legend a word that is never cut at 1440, with the full label kept', () => {
+    expect(legendWord('on_road', 'On road, no schedule in feed')).toBe('On road');
+    expect(legendWord('standing', 'Standing')).toBe('Standing');
+  });
+
+  it('writes the modelled week trend as an ordinary sentence, the word in lower case', () => {
+    const note = availabilityWeekTrendNote('On-road share', 'steady over 7 days');
+    expect(note).toBe('Modelled week trend: on-road share steady over 7 days');
+    expect(note).not.toMatch(/MODELLED/);
+  });
+
+  it('says when the yard is held', () => {
+    const line = yardLine(BOARD, { ...SEEN, heldSince: '2026-10-05T14:02:00.000Z' });
+    expect(line.kind === 'split' && line.held).toBe('Yard held since 14:02: this snapshot alone would not place it.');
+  });
+
+  it("gives the day of a yard held since an earlier day than the feed's", () => {
+    const line = yardLine(BOARD, { ...SEEN, heldSince: '2026-10-05T21:50:00Z', feedNow: '2026-10-06T07:00:00Z' });
+    expect(line.kind === 'split' && line.held).toBe(
+      'Yard held since 5 Oct, 21:50: this snapshot alone would not place it.',
+    );
+  });
+
+  it('gives one line when no yard is established, the rule left to the closing disclosure', () => {
+    const noYard = { ...BOARD, locations: null, yard: { established: false, sentence: 'Rule.' } } as StatusBoard;
+    expect(yardLine(noYard, SEEN)).toEqual({
+      kind: 'no-yard',
+      sentence: 'No yard is established yet: no place where these buses park meets the yard rule.',
+    });
+  });
+
+  // The count restarts after an epoch, so the sentence claims only what it knows.
+  it('says how many snapshots it has decided the yard on when that is at most one', () => {
+    const noYard = { ...BOARD, locations: null, yard: { established: false, sentence: 'Rule.' } } as StatusBoard;
+    for (const [snapshotsSeen, words] of [[0, '0 snapshots'], [1, '1 snapshot']] as const) {
+      expect(yardLine(noYard, { ...SEEN, snapshotsSeen })).toEqual({
+        kind: 'starting',
+        sentence: `This server has decided this depot's yard on ${words} so far; a yard may be found as more arrive.`,
+      });
+    }
+    expect(yardLine(noYard, { ...SEEN, snapshotsSeen: undefined }).kind).toBe('no-yard');
+  });
+});
+
+describe('index meta in the header', () => {
+  const header: CockpitHeader = {
+    name: 'K', kindLabel: 'Depot', fleet: 200, ranked: true, index: 31.64, rank: 34, peerCount: 38,
+    peerGroupLabel: 'Large fleets', unrankedReason: null,
+  };
+  const full = { lengthMin: 20, since: '2026-10-05T14:00:00.000Z', samples: 30 };
+
+  // The window words come from the shared module (its short form, for a meta line).
+  it('words the window with the shared short words', () => {
+    const label = (w: Parameters<typeof indexMeta>[1], samples?: number): string =>
+      indexMeta(header, w, FEED_NOW, samples).label;
+    expect(label(full)).toBe('Index 31.6 · rank 34/38 Large fleets · last 20 min');
+    expect(label({ lengthMin: 20, since: '2026-10-05T14:02:00.000Z', samples: 3 })).toMatch(/ · since 14:02$/);
+    expect(label({ lengthMin: 20, since: FEED_NOW, samples: 1 })).toMatch(/ · one snapshot at 14:20$/);
+  });
+
+  it('never claims a span from one sample: no window, or this depot summed once', () => {
+    expect(indexMeta(header, undefined, FEED_NOW).label).toMatch(/ · one snapshot at 14:20$/);
+    const once = indexMeta(header, full, FEED_NOW, 1).label;
+    expect(once).not.toMatch(/last 20 min|over the last/);
+    expect(once).toMatch(/one snapshot/);
+  });
+
+  it('links to the league table', () => {
+    expect(indexMeta(header, full, FEED_NOW).href).toBe('/project/depots/league');
+  });
+
+  it('has a phone form with the index and rank only, so it never wraps mid-phrase', () => {
+    expect(indexMeta(header, full, FEED_NOW).shortLabel).toBe('Index 31.6 · rank 34/38');
+    const unranked = { ...header, ranked: false, index: null, unrankedReason: 'Not an operating depot.' };
+    expect(indexMeta(unranked, full, FEED_NOW).shortLabel).toBe('Index not ranked');
+  });
+
+  it('gives an unranked depot its reason as a separate sentence', () => {
+    const meta = indexMeta({ ...header, ranked: false, index: null, unrankedReason: 'Not an operating depot.' }, full, FEED_NOW);
+    expect(meta.label).toBe('Index not ranked');
+    expect(meta.reason).toBe('Not an operating depot.');
+  });
+});
+
+describe('exception groups', () => {
+  it('merges each bus into one row under its most severe kind, with its kinds as words', () => {
+    const groups = groupBusExceptions(
+      [
+        busException('UP1', 'power_cut', 'info'),
+        busException('UP1', 'long_dark', 'warning'),
+        busException('UP2', 'power_cut', 'info'),
+      ],
+    );
+    expect(groups.map((g) => [g.kind, g.rows.length])).toEqual([['long_dark', 1], ['power_cut', 1]]);
+    // The group names its kind and severity once; a row
+    // shows only the kinds beyond the group's own.
+    expect(groups[0]?.rows[0]).toMatchObject({ registrationNumber: 'UP1', extra: '+ Power off' });
+    expect(groups[1]?.rows[0]).toMatchObject({ registrationNumber: 'UP2', extra: null });
+    expect(groups.map((g) => g.severityLabel)).toEqual(['Warning', 'Info']);
+  });
+
+  it('names each group for what it lists: a bus sits under its most severe kind only', () => {
+    const kinds = ['emergency', 'long_dark', 'power_cut', 'tamper_code'] as const;
+    const severities = { emergency: 'critical', long_dark: 'warning', power_cut: 'info', tamper_code: 'info' } as const;
+    const groups = groupBusExceptions(kinds.map((k, i) => busException(`UP${i}`, k, severities[k])));
+    expect(groups.map((g) => g.heading)).toEqual([
+      'Emergency flag',
+      'Long dark, no emergency flag',
+      'Power off, not long dark, no emergency flag',
+      'Tamper code only',
+    ]);
+  });
+
+  it('names the power-off cluster for what it counts: buses not off the road', () => {
+    const e: DepotException = {
+      id: 'power_cut_cluster:49', depotId: '49', depotName: 'K', kind: 'power_cut_cluster', severity: 'warning',
+      value: 25, peerMedian: null, z: null, affected: 25, fleet: 200,
+    };
+    const [line] = depotExceptionLines([e], undefined, FEED_NOW);
+    expect(line?.sentence).toBe('25 of 200 buses that are not off the road report main power off.');
+  });
+
+  it('says a windowed depot exception is over the window while its count is now', () => {
+    const e: DepotException = {
+      id: 'dark_share_high:49', depotId: '49', depotName: 'K', kind: 'dark_share_high', severity: 'warning',
+      value: 0.22, peerMedian: 0.1, z: 2, affected: 44, fleet: 200,
+    };
+    const [line] = depotExceptionLines([e], { lengthMin: 20, since: '2026-10-05T14:00:00.000Z', samples: 30 }, FEED_NOW);
+    expect(line?.windowNote).toBe('Rate over the last 20 minutes; 44 buses affected now.');
+    const [cluster] = depotExceptionLines([{ ...e, kind: 'power_cut_cluster' }], undefined, FEED_NOW);
+    expect(cluster?.windowNote).toBeNull();
+  });
+});
+
+describe('outshedding summary', () => {
+  const row = (state: TrackerRow['state']): Pick<TrackerRow, 'state'> => ({ state });
+
+  it('says in one line when every tracked departure is past its window', () => {
+    expect(endedSummary([row('ended'), row('ended')])).toBe('All 2 tracked departures are past their window.');
+    expect(endedSummary([row('ended')])).toBe('The one tracked departure is past its window.');
+  });
+
+  it('says nothing when any departure still needs a look, or there is none', () => {
+    expect(endedSummary([row('ended'), row('overdue')])).toBeNull();
+    expect(endedSummary([])).toBeNull();
+  });
+});
