@@ -27,6 +27,7 @@ export function ProvenanceBadge({ provenance, coverage }: ProvenanceBadgeProps) 
       className={`depot-tag ${TONE[provenance]}`}
     >
       {PROVENANCE_LABEL[provenance]}
+      {coverage ? ' ' : null}
       {coverage ? (
         <span className="font-normal normal-case tracking-normal tabular-nums">
           {coverage.n} of {coverage.of}
