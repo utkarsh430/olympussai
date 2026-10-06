@@ -310,9 +310,10 @@ describe('DutyBoard by width (round 3, Duties Must 1)', () => {
     phone(true);
     render();
     expect(container.querySelector('table')).not.toBeNull();
-    // The phone column set: route, its expander, start and bus; the rest is in the expander.
+    // The phone column set: the expander's chevron column first (the shared table puts it
+    // there), then route, start and bus; the rest is in the expander.
     const headers = [...container.querySelectorAll('th')].map((th) => th.textContent?.trim());
-    expect(headers).toEqual(['Route', 'Details', 'Start', 'Bus']);
+    expect(headers).toEqual(['Details', 'Route', 'Start', 'Bus']);
     expect(button('Table').getAttribute('aria-pressed')).toBe('true');
     act(() => button('Chart').click());
     expect(container.querySelector('table')).toBeNull();
