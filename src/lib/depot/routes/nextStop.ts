@@ -36,7 +36,9 @@ function isLocated(stop: CanonicalStop): stop is LocatedStop {
 }
 
 function isUsablePosition(position: BusPosition | null): position is BusPosition {
-  return position !== null && Number.isFinite(position.latitude) && Number.isFinite(position.longitude);
+  return (
+    position !== null && Number.isFinite(position.latitude) && Number.isFinite(position.longitude)
+  );
 }
 
 function seconds(time: string | null): number | null {
@@ -62,9 +64,12 @@ const distance = (a: BusPosition, b: BusPosition): number =>
  *   approaching, otherwise it has finished the route and there is no next stop;
  * - otherwise the bus is at or before the nearest stop, which is the next one.
  */
-function byPosition(located: readonly LocatedStop[], position: BusPosition): CanonicalStop | null {
-  let nearest = 0;
-  let nearestKm = distance(position, located[0]);
+function byPosition(
+  located: readonly LocatedStop[],
+  position: BusPosition,
+): CanonicalStop | null {
+  let nearest = -1;
+  let nearestKm = Number.POSITIVE_INFINITY;
   located.forEach((stop, index) => {
     const km = distance(position, stop);
     if (km < nearestKm) {
@@ -73,6 +78,7 @@ function byPosition(located: readonly LocatedStop[], position: BusPosition): Can
     }
   });
   const stop = located[nearest];
+  if (!stop) return null;
   const following = located[nearest + 1];
   if (following) {
     return distance(position, following) < distance(stop, following) ? following : stop;
@@ -82,7 +88,10 @@ function byPosition(located: readonly LocatedStop[], position: BusPosition): Can
 }
 
 /** By schedule: the first stop whose scheduled time is later than the feed's time of day. */
-function bySchedule(stops: readonly CanonicalStop[], timeOfDay: string | null): CanonicalStop | null {
+function bySchedule(
+  stops: readonly CanonicalStop[],
+  timeOfDay: string | null,
+): CanonicalStop | null {
   const now = seconds(timeOfDay);
   if (now === null) return null;
   return (
