@@ -2,7 +2,11 @@
  * Responses for the Trends page render tests, built with the real forecast
  * and wording functions so the pages are tested against true shapes.
  */
-import type { DepotForecastResponse, DepotTrendsResponse, TrendRow } from '@/lib/depot/forecast/api';
+import type {
+  DepotForecastResponse,
+  DepotTrendsResponse,
+  TrendRow,
+} from '@/lib/depot/forecast/api';
 import { forecastSeries } from '@/lib/depot/forecast/forecast';
 import { summariseTrend } from '@/lib/depot/forecast/trend';
 import { forecastSentences, metricInfo } from '@/lib/depot/forecast/wording';
@@ -82,9 +86,7 @@ export function trendsResponse(units: readonly TrendRow[]): DepotTrendsResponse 
 export function distributionResponse(depotId: string, required: number): DepotDistributionResponse {
   return {
     ...ENVELOPE,
-    balances: [
-      { depotId, required, peakRequirement: required - 4, spareTarget: 4 },
-    ],
+    balances: [{ depotId, required, peakRequirement: required - 4, spareTarget: 4 }],
   } as unknown as DepotDistributionResponse;
 }
 

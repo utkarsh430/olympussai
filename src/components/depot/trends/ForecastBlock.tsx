@@ -27,7 +27,11 @@ export function ForecastBlock({ state, errorTitle }: ForecastBlockProps) {
       return (
         <div className="flex flex-col gap-2">
           <LoadingBlock rows={1} rowHeight={TREND_CHART_MIN_HEIGHT} label="Loading the trend" />
-          <LoadingBlock rows={SENTENCE_ROWS} rowHeight={SENTENCE_ROW_PX} label="Loading the forecast" />
+          <LoadingBlock
+            rows={SENTENCE_ROWS}
+            rowHeight={SENTENCE_ROW_PX}
+            label="Loading the forecast"
+          />
         </div>
       );
     }

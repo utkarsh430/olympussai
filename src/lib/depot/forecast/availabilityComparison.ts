@@ -56,7 +56,8 @@ export function compareAvailability(
   requirement: RequirementInput | null,
   unavailable: string | null,
 ): AvailabilityComparison {
-  if (result.status !== 'ok') return { status: 'no_forecast', sentence: unavailable ?? NO_FORECAST };
+  if (result.status !== 'ok')
+    return { status: 'no_forecast', sentence: unavailable ?? NO_FORECAST };
   if (requirement === null) return { status: 'no_requirement', sentence: NO_REQUIREMENT };
   const { points, horizonDays } = result.forecast;
   const { required, peakRequirement, spareTarget } = requirement;
@@ -70,5 +71,14 @@ export function compareAvailability(
     `MODELLED: available buses are forecast at ${lowest} to ${highest} over the next ` +
     `${horizonDays} days, ` +
     meaning(daysBelow, daysBandBelow, horizonDays).replace('{R}', requirementWords);
-  return { status: 'ok', required, lowest, highest, daysBelow, daysBandBelow, horizonDays, sentence };
+  return {
+    status: 'ok',
+    required,
+    lowest,
+    highest,
+    daysBelow,
+    daysBandBelow,
+    horizonDays,
+    sentence,
+  };
 }

@@ -1,10 +1,7 @@
 'use client';
 
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
-import {
-  MODELLED_HISTORY_NOTE,
-  NETWORK_TRENDS_PATH,
-} from '@/lib/depot/forecast/trendsPageModel';
+import { MODELLED_HISTORY_NOTE, NETWORK_TRENDS_PATH } from '@/lib/depot/forecast/trendsPageModel';
 import type { MetricKey } from '@/lib/depot/sim/types';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { useDepotForecast } from '@/hooks/useDepotForecast';

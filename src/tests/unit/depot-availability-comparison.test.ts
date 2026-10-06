@@ -22,7 +22,12 @@ function ok(drawn: readonly (readonly [number, number, number])[]): ForecastResu
     reason: 'short_history',
     horizonDays: drawn.length,
     points: points(drawn),
-    error: { overHorizon: 1, byDaysAhead: drawn.map(() => 1), unit: 'buses', statedAsFraction: false },
+    error: {
+      overHorizon: 1,
+      byDaysAhead: drawn.map(() => 1),
+      unit: 'buses',
+      statedAsFraction: false,
+    },
     backtestDays: 28,
     seasonalNaiveError: 1,
     holtWintersError: null,
@@ -33,7 +38,15 @@ function ok(drawn: readonly (readonly [number, number, number])[]): ForecastResu
 
 describe('available buses against the modelled requirement', () => {
   it('says the requirement is covered on every day', () => {
-    const result = compareAvailability(ok([[44, 42, 46], [41, 40, 43], [47, 45, 49]]), REQUIREMENT, null);
+    const result = compareAvailability(
+      ok([
+        [44, 42, 46],
+        [41, 40, 43],
+        [47, 45, 49],
+      ]),
+      REQUIREMENT,
+      null,
+    );
     expect(result).toMatchObject({
       status: 'ok',
       lowest: 41,
@@ -50,7 +63,14 @@ describe('available buses against the modelled requirement', () => {
   });
 
   it('says when the band, but not the forecast, reaches below the requirement', () => {
-    const result = compareAvailability(ok([[42, 38, 45], [41, 39, 43]]), REQUIREMENT, null);
+    const result = compareAvailability(
+      ok([
+        [42, 38, 45],
+        [41, 39, 43],
+      ]),
+      REQUIREMENT,
+      null,
+    );
     expect(result).toMatchObject({ daysBelow: 0, daysBandBelow: 2 });
     expect(result.sentence).toContain(
       'on every day, though the band reaches below it on 2 of 2 days, so a shortfall is possible.',
@@ -58,7 +78,15 @@ describe('available buses against the modelled requirement', () => {
   });
 
   it('counts the days below the requirement and says what that means', () => {
-    const result = compareAvailability(ok([[38, 36, 40], [41, 39, 43], [39, 37, 41]]), REQUIREMENT, null);
+    const result = compareAvailability(
+      ok([
+        [38, 36, 40],
+        [41, 39, 43],
+        [39, 37, 41],
+      ]),
+      REQUIREMENT,
+      null,
+    );
     expect(result).toMatchObject({ daysBelow: 2 });
     expect(result.sentence).toBe(
       'MODELLED: available buses are forecast at 38 to 41 over the next 3 days, below the ' +
@@ -77,7 +105,13 @@ describe('available buses against the modelled requirement', () => {
   it('passes on why there is no forecast', () => {
     const why = 'No forecast: it needs at least 28 days of history and this series has 20.';
     const result = compareAvailability(
-      { status: 'insufficient_history', historyDays: 20, required: 28, cause: 'short_record', missingDate: null },
+      {
+        status: 'insufficient_history',
+        historyDays: 20,
+        required: 28,
+        cause: 'short_record',
+        missingDate: null,
+      },
       REQUIREMENT,
       why,
     );

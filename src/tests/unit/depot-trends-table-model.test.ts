@@ -122,7 +122,9 @@ describe('sorting and capping', () => {
   it('captions the table with the metric, the count shown and the order, tagged MODELLED', () => {
     expect(
       trendTableCaption('On-road share', 113, 25, { key: 'fourWeeks', direction: 'asc' }),
-    ).toBe('MODELLED trends of on-road share: 25 of 113 units, by change over 4 weeks, lowest first');
+    ).toBe(
+      'MODELLED trends of on-road share: 25 of 113 units, by change over 4 weeks, lowest first',
+    );
     expect(trendTableCaption('Dark rate', 3, 3, { key: 'name', direction: 'asc' })).toBe(
       'MODELLED trends of dark rate: all 3 units, by name, A to Z',
     );

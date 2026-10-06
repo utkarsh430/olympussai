@@ -53,7 +53,8 @@ function Figures({ comparison }: { readonly comparison: AvailabilityComparison }
  * means and one saying both sides are modelled.
  */
 export function AvailabilityPanel({ depotId, available, distribution }: AvailabilityPanelProps) {
-  const failed = available.data === null ? available : distribution.data === null ? distribution : null;
+  const failed =
+    available.data === null ? available : distribution.data === null ? distribution : null;
   let body: React.ReactNode;
   if (available.data === null || distribution.data === null) {
     body =

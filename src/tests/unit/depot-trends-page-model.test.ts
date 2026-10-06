@@ -78,7 +78,9 @@ describe('the metric in the URL', () => {
   it('builds a linkable path for the network and for one depot', () => {
     expect(NETWORK_TRENDS_PATH).toBe('/project/depots/trends');
     expect(depotTrendsPath('20')).toBe('/project/depots/d/20/trends');
-    expect(trendsHref(NETWORK_TRENDS_PATH, 'darkRate')).toBe('/project/depots/trends?metric=darkRate');
+    expect(trendsHref(NETWORK_TRENDS_PATH, 'darkRate')).toBe(
+      '/project/depots/trends?metric=darkRate',
+    );
     expect(trendsHref(depotTrendsPath('20'), 'index')).toBe(
       '/project/depots/d/20/trends?metric=index',
     );

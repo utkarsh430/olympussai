@@ -53,7 +53,9 @@ describe('network Trends page', () => {
 
   it('marks the chosen measure and links every other one', () => {
     const markup = renderToStaticMarkup(<NetworkTrends metric="darkRate" />);
-    expect(markup).toMatch(/aria-current="page"[^>]*href="\/project\/depots\/trends\?metric=darkRate"/);
+    expect(markup).toMatch(
+      /aria-current="page"[^>]*href="\/project\/depots\/trends\?metric=darkRate"/,
+    );
     expect(markup).toContain('href="/project/depots/trends?metric=index"');
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
   });
@@ -79,7 +81,9 @@ describe('network Trends page', () => {
   it('shows the history and says why when there is too little for a forecast', () => {
     hooks.forecast.mockReturnValue(polled(forecastResponse('onRoadShare', 20)));
     const page = text(renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />));
-    expect(page).toContain('No forecast: it needs at least 28 days of history and this series has 20.');
+    expect(page).toContain(
+      'No forecast: it needs at least 28 days of history and this series has 20.',
+    );
   });
 
   it('holds the footprint while loading, and offers Retry with a title on failure', () => {
@@ -124,7 +128,9 @@ describe('the unit table', () => {
   });
 
   const names = (): string[] =>
-    Array.from(container.querySelectorAll('tbody tr td:first-child')).map((td) => td.textContent ?? '');
+    Array.from(container.querySelectorAll('tbody tr td:first-child')).map(
+      (td) => td.textContent ?? '',
+    );
 
   it('starts worst first, re-sorts on the header button, and pages the rows', () => {
     const units = Array.from({ length: TREND_ROW_CAP + 2 }, (_, i) => trendRow(String(i), i - 5));
