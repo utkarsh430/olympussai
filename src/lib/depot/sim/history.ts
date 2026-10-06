@@ -46,6 +46,24 @@ function round(value: number, decimals: number): number {
   return Math.round(value * factor) / factor;
 }
 
+const RATE_METRICS: ReadonlySet<MetricKey> = new Set(['onRoadShare', 'offRoadRate', 'darkRate']);
+/** Keeps a rate anchored at exactly 0 or 1 from drawing a flat line. */
+const MIN_RATE_SCALE = 0.05;
+
+/**
+ * The size that day-to-day variation is measured against. A rate's natural
+ * spread is binomial, sqrt(p(1-p)): a 3% dark rate wobbles by fractions of a
+ * point, a 50% share by several, and nothing moves much near 0 or 1. Scaling
+ * by the full 0-1 range instead made a 3% rate swing from 0 to 9%.
+ */
+function variationScale(metric: MetricKey, anchorValue: number): number {
+  if (RATE_METRICS.has(metric)) {
+    return Math.max(Math.sqrt(anchorValue * (1 - anchorValue)), MIN_RATE_SCALE);
+  }
+  if (metric === 'available') return Math.max(anchorValue, MIN_AVAILABLE_SPAN);
+  return RANGES[metric].max - RANGES[metric].min;
+}
+
 function parseDay(date: string): number {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   const time = match ? Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : NaN;
@@ -98,7 +116,7 @@ export function modelSeries(
   const count = clamp(Math.trunc(Number.isFinite(days) ? days : MIN_DAYS), MIN_DAYS, MAX_DAYS);
   const anchorValue = round(clamp(anchor.value, min, max), decimals);
 
-  const span = metric === 'available' ? Math.max(anchorValue, MIN_AVAILABLE_SPAN) : max - min;
+  const span = variationScale(metric, anchorValue);
   const scopeKey = scopeKeyOf(scope);
   const weekly = weeklyOffsets(scopeKey, metric, span);
   const weeklyAt = (time: number): number => weekly[new Date(time).getUTCDay()] as number;
