@@ -46,13 +46,16 @@ describe('rosterCrew review focus', () => {
     const covered = summary.assignments.filter((a) => a.uncoveredReason === null);
     expect(covered).toHaveLength(1);
     const uncovered = summary.assignments.filter((a) => a.uncoveredReason !== null);
-    expect(uncovered.map((a) => a.uncoveredReason)).toEqual(['no_available_crew', 'no_available_crew']);
+    expect(uncovered.map((a) => a.uncoveredReason)).toEqual([
+      'no_available_crew',
+      'no_available_crew',
+    ]);
     expect(uncovered.every((a) => a.driverSlot === null && a.conductorSlot === null)).toBe(true);
   });
 
   it('refuses a slot that would exceed the weekly limit and says why', () => {
     const crew = [...pair(1, MAX_HOURS_PER_WEEK - 5)];
-    const summary = rosterCrew([duty('001', 360, 660)], crew); // 5h20 shift, 5h left
+    const summary = rosterCrew([duty('001', 360, 670)], crew); // 5h10 shift, 5h left
     expect(summary.assignments[0]).toMatchObject({
       driverSlot: null,
       conductorSlot: null,
@@ -142,7 +145,7 @@ describe('rosterCrew boundaries and rules', () => {
     expect(JSON.stringify(duties)).toBe(dutiesCopy);
     expect(JSON.stringify(crew)).toBe(crewCopy);
     const rng = new SeededRandom('shuffle');
-    const shuffle = <T,>(items: readonly T[]): T[] =>
+    const shuffle = <T>(items: readonly T[]): T[] =>
       items
         .map((item) => ({ item, key: rng.float(0, 1) }))
         .sort((a, b) => a.key - b.key)
@@ -151,8 +154,12 @@ describe('rosterCrew boundaries and rules', () => {
   });
 
   it('is deterministic and reconciles on the modelled depot', () => {
-    const duties = modelDuties(depot, [{ routeName: 'A_ORD', scheduledDurationMin: 200 }], 40, DATE)
-      .duties;
+    const duties = modelDuties(
+      depot,
+      [{ routeName: 'A_ORD', scheduledDurationMin: 200 }],
+      40,
+      DATE,
+    ).duties;
     const crew = modelCrew(depot, duties.length, DATE);
     const a = rosterCrew(duties, crew);
     expect(rosterCrew(duties, crew)).toEqual(a);
@@ -169,7 +176,11 @@ describe('rosterCrew over many seeded duty sets', () => {
         const start = rng.int(240, 1300);
         return duty(String(i).padStart(3, '0'), start, start + rng.int(60, 720));
       });
-      const crew = modelCrew(depot, rng.int(0, 30), `2026-10-${String(1 + (seed % 28)).padStart(2, '0')}`);
+      const crew = modelCrew(
+        depot,
+        rng.int(0, 30),
+        `2026-10-${String(1 + (seed % 28)).padStart(2, '0')}`,
+      );
       const summary = rosterCrew(duties, crew);
       expect(summary.assignedDuties + summary.uncoveredDuties).toBe(duties.length);
       expect(summary.required.driver).toBe(duties.length);
@@ -197,8 +208,12 @@ describe('rosterCrew over many seeded duty sets', () => {
   });
 
   it('serialises without a name, score, rank, rating, performance, speed or violation', () => {
-    const duties = modelDuties(depot, [{ routeName: 'A_ORD', scheduledDurationMin: 200 }], 25, DATE)
-      .duties;
+    const duties = modelDuties(
+      depot,
+      [{ routeName: 'A_ORD', scheduledDurationMin: 200 }],
+      25,
+      DATE,
+    ).duties;
     const text = JSON.stringify([
       modelCrew(depot, 25, DATE),
       rosterCrew(duties, modelCrew(depot, 25, DATE)),
