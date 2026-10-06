@@ -480,7 +480,8 @@
 
   /* Details disclosure: summary reads as a control, content stays in the page flow. */
   .depot-details > summary {
-    @apply cursor-pointer list-none font-mono text-xs uppercase tracking-[0.1em] text-holo-glow;
+    @apply cursor-pointer list-none font-mono text-xs uppercase tracking-[0.1em] text-depot-muted
+      hover:text-depot-ink;
   }
 
   .depot-details > summary::-webkit-details-marker {

@@ -2,6 +2,7 @@
 
 import { useId, useState, type ReactNode, type Ref } from 'react';
 import { formatCount } from '@/lib/depot/format';
+import { DisclosureChevron } from './DisclosureChevron';
 
 export interface CollapsedSectionProps {
   readonly label: string;
@@ -50,9 +51,7 @@ function Toggle(props: {
       onClick={onClick}
       className={`inline-flex min-w-0 items-baseline gap-2 text-left hover:text-depot-ink ${look}`}
     >
-      <span aria-hidden className={`inline-block w-3 text-depot-faint ${open ? 'rotate-90' : ''}`}>
-        ›
-      </span>
+      <DisclosureChevron open={open} />
       <span className="min-w-0">
         {label}
         {count !== undefined ? <span className="tabular-nums"> · {formatCount(count)}</span> : null}
