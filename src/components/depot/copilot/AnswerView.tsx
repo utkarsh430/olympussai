@@ -65,7 +65,7 @@ export function AnswerView({ entry }: { readonly entry: AnswerEntry }) {
 export function AnswerPlaceholder({ question }: { readonly question: string }) {
   return (
     <li aria-hidden className="flex min-w-0 flex-col gap-2 border-t border-depot-line pt-3">
-      <p className="truncate font-mono text-[13px] text-depot-muted">{question}</p>
+      <div className="truncate font-mono text-[13px] text-depot-muted">{question}</div>
       {PLACEHOLDER_ROWS_PX.map((height, index) => (
         <div key={index} className="depot-skeleton" style={{ height }} />
       ))}

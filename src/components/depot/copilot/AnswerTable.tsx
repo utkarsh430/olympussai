@@ -5,7 +5,7 @@ import type { CopilotAnswerTable, CopilotFactView } from '@/lib/depot/copilot/wi
 export interface AnswerTableProps {
   readonly table: CopilotAnswerTable;
   /** The facts behind the answer: a column resting on a generated fact is tagged MODELLED. */
-  readonly facts: readonly CopilotFactView[];
+  readonly facts?: readonly CopilotFactView[];
   /** Names the table for assistive technology; not drawn, because the answer's heading already says it. */
   readonly caption: string;
 }
@@ -15,7 +15,7 @@ export interface AnswerTableProps {
  * header ("SHORT BY BUSES"), numbers are bare and right-aligned, and a column whose
  * figures are generated carries the MODELLED pill in its header cell (S51, guard X8).
  */
-export function AnswerTable({ table, facts, caption }: AnswerTableProps) {
+export function AnswerTable({ table, facts = [], caption }: AnswerTableProps) {
   if (table.columns.length === 0 || table.rows.length === 0) {
     return (
       <p className="depot-prose" data-testid="copilot-table-empty">

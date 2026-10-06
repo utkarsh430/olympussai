@@ -101,107 +101,112 @@ export function AskPanel() {
       : '';
 
   return (
-    <div className="flex min-w-0 max-w-[62ch] flex-col gap-6">
-      <section aria-labelledby={`${ids.text}-h`} className="flex min-w-0 flex-col gap-3">
-        <h2 id={`${ids.text}-h`} className="sr-only">
-          Ask a question
-        </h2>
-        <form
-          className="flex min-w-0 flex-col gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
-          }}
-        >
-          <Select
-            label="About"
-            value={chosen ? chosen.id : NETWORK_VALUE}
-            onChange={(event) => setScopeValue(event.target.value)}
+    <div className="grid min-w-0 gap-8 xl:grid-cols-[minmax(0,62ch)_320px] xl:items-start">
+      <div className="flex min-w-0 flex-col gap-6">
+        <section aria-labelledby={`${ids.text}-h`} className="flex min-w-0 flex-col gap-3">
+          <h2 id={`${ids.text}-h`} className="sr-only">
+            Ask a question
+          </h2>
+          <form
+            className="flex min-w-0 flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submit();
+            }}
           >
-            <option value={NETWORK_VALUE}>Whole network</option>
-            {depots.map((depot) => (
-              <option key={depot.id} value={depot.id}>
-                {depot.name}
-              </option>
-            ))}
-          </Select>
-
-          <div className="flex min-w-0 flex-col gap-1">
-            <label htmlFor={ids.text} className="depot-label">
-              Your question
-            </label>
-            <textarea
-              ref={textRef}
-              id={ids.text}
-              rows={3}
-              value={text}
-              aria-describedby={ids.help}
-              onChange={(event) => {
-                setText(event.target.value);
-                setMessage('');
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                  event.preventDefault();
-                  submit();
-                }
-              }}
-              className="depot-field w-full resize-y font-sans text-sm"
-            />
-            <p id={ids.help} className="font-mono text-[12px] text-depot-faint">
-              <span className={remaining < 0 ? 'text-alert-crimson' : undefined}>
-                {limitSentence(remaining)}
-              </span>
-              {' · Enter to send, Shift+Enter for a new line.'}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="submit"
-              disabled={loading || cooling}
-              className="hud-button disabled:cursor-not-allowed disabled:opacity-40"
+            <Select
+              label="About"
+              value={chosen ? chosen.id : NETWORK_VALUE}
+              onChange={(event) => setScopeValue(event.target.value)}
             >
-              Submit
-            </button>
-            <p role="status" className="min-w-0 font-mono text-[13px] text-depot-muted">
-              {status}
-            </p>
-            {countdown ? (
-              <p data-testid="ask-countdown" className="min-w-0 font-mono text-[13px] text-depot-muted">
-                {countdown}
-              </p>
-            ) : null}
-          </div>
-        </form>
-      </section>
+              <option value={NETWORK_VALUE}>Whole network</option>
+              {depots.map((depot) => (
+                <option key={depot.id} value={depot.id}>
+                  {depot.name}
+                </option>
+              ))}
+            </Select>
 
-      <section aria-labelledby={`${ids.text}-a`} className="flex min-w-0 flex-col gap-3">
-        <SectionLabel
-          id={`${ids.text}-a`}
-          label={history.length === 0 && !(loading && pending) ? 'Try asking' : 'Answers'}
-          count={history.length === 0 ? undefined : history.length}
-        />
+            <div className="flex min-w-0 flex-col gap-1">
+              <label htmlFor={ids.text} className="depot-label">
+                Your question
+              </label>
+              <textarea
+                ref={textRef}
+                id={ids.text}
+                rows={3}
+                value={text}
+                aria-describedby={ids.help}
+                onChange={(event) => {
+                  setText(event.target.value);
+                  setMessage('');
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                    event.preventDefault();
+                    submit();
+                  }
+                }}
+                className="depot-field w-full resize-y font-sans text-sm"
+              />
+              <p id={ids.help} className="depot-note">
+                <span className={remaining < 0 ? 'text-alert-crimson' : undefined}>
+                  {limitSentence(remaining)}
+                </span>
+                {' · Enter to send, Shift+Enter for a new line.'}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="submit"
+                disabled={loading || cooling}
+                className="hud-button disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Submit
+              </button>
+              <p role="status" className="depot-note min-w-0">
+                {status}
+              </p>
+              {countdown ? (
+                <p data-testid="ask-countdown" className="depot-note min-w-0">
+                  {countdown}
+                </p>
+              ) : null}
+            </div>
+          </form>
+        </section>
+
         {history.length === 0 && !(loading && pending) ? (
-          <>
-            <ExampleQuestions depotName={chosen ? chosen.name : null} onPick={fillExample} />
-            <p className="sr-only" data-testid="ask-empty">
-              No questions asked yet.
-            </p>
-          </>
+          <p className="sr-only" data-testid="ask-empty">
+            No questions asked yet.
+          </p>
         ) : (
-          <>
+          <section aria-labelledby={`${ids.text}-a`} className="flex min-w-0 flex-col gap-3">
+            <SectionLabel
+              id={`${ids.text}-a`}
+              label="Answers"
+              count={history.length || undefined}
+            />
             <ol className="flex min-w-0 flex-col gap-5">
               {loading && pending ? <AnswerPlaceholder question={pending.question} /> : null}
               {history.map((entry) => (
                 <AnswerView key={entry.id} entry={entry} />
               ))}
             </ol>
-            <p className="font-mono text-[11px] text-depot-faint">{sessionNote(MAX_HISTORY)}</p>
-            <ExampleQuestions depotName={chosen ? chosen.name : null} onPick={fillExample} />
-          </>
+            <p className="depot-note">{sessionNote(MAX_HISTORY)}</p>
+          </section>
         )}
-      </section>
+      </div>
+      {/* At 1280px and wider a 320px right column beside the form; it keeps its label after an answer. */}
+      <aside
+        aria-labelledby={`${ids.text}-t`}
+        className="flex min-w-0 flex-col gap-3"
+        data-testid="ask-try"
+      >
+        <SectionLabel id={`${ids.text}-t`} label="Try asking" />
+        <ExampleQuestions depotName={chosen ? chosen.name : null} onPick={fillExample} />
+      </aside>
     </div>
   );
 }
