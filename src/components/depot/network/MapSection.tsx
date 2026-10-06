@@ -17,6 +17,8 @@ interface MapSectionProps {
   /** Null clears the selection. */
   readonly onSelect: (depotId: string | null) => void;
   readonly vanished: boolean;
+  /** The units count on the map's label: "143 units, 119 of them operating depots". */
+  readonly unitsNote?: string;
 }
 
 /**
@@ -25,7 +27,7 @@ interface MapSectionProps {
  * both columns end on the same line whatever the panel holds. The selection is said once,
  * in the panel.
  */
-export function MapSection({ rows, selected, onSelect, vanished }: MapSectionProps) {
+export function MapSection({ rows, selected, onSelect, vanished, unitsNote }: MapSectionProps) {
   const depots = rows.map((row) => row.depot);
   const maxFleet = depots.reduce(
     (max, depot) => (depot.centroid ? Math.max(max, depot.fleet) : max),
@@ -39,7 +41,7 @@ export function MapSection({ rows, selected, onSelect, vanished }: MapSectionPro
 
   return (
     <section aria-labelledby="depot-map-heading" className={SECTION}>
-      <SectionLabel id="depot-map-heading" label="Units map" />
+      <SectionLabel id="depot-map-heading" label="Units map" note={unitsNote} />
       <div className="depot-map-layout">
         <div className="flex min-w-0 flex-col">
           <DepotMap

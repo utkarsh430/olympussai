@@ -27,22 +27,17 @@ const KPIS: NetworkKpis = {
 
 describe('overview band, in the classified state words', () => {
   it('labels the four state figures On road, Standing, Dark, Off road and never the feed field', () => {
-    const { primary, secondary } = kpiLayout(KPIS, []);
-    expect(primary.map((f) => f.label)).toEqual([
-      'Fleet',
-      'On road',
-      'Standing',
-      'Dark',
-      'Operating depots',
-    ]);
-    expect(secondary.map((f) => f.label)).toEqual(['Reporting', 'Off road', 'Route assigned']);
-    const words = [...primary, ...secondary].map((f) => f.label).join(' ');
+    const { figures } = kpiLayout(KPIS, []);
+    expect(figures.map((f) => f.label)).toEqual(['Fleet', 'On road', 'Standing', 'Dark', 'Off road']);
+    const words = figures.map((f) => `${f.label} ${f.note ?? ''}`).join(' ');
     expect(words).not.toMatch(/No signal|Stationary|Maint/);
   });
 
-  it('gives every second-row figure a caption of its own, so no free line is needed', () => {
-    const { secondary } = kpiLayout(KPIS, []);
-    secondary.forEach((figure) => expect(figure.note).toMatch(/of fleet/));
+  it('is five figures, never a second row with empty cells; every figure has its caption', () => {
+    const { figures } = kpiLayout(KPIS, []);
+    expect(figures).toHaveLength(5);
+    figures.slice(1).forEach((figure) => expect(figure.note).toMatch(/of fleet/));
+    expect(figures[0]?.note).toBe('90% reporting · 60% assigned');
   });
 });
 

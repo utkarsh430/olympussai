@@ -40,60 +40,56 @@ const KPIS: NetworkKpis = {
 describe('kpiLayout', () => {
   const layout = kpiLayout(KPIS, UNITS);
 
-  it('puts four bus figures and operating depots in the band, five at most, in order', () => {
-    expect(layout.primary.map((f) => f.label)).toEqual([
+  it('makes one band of five: the fleet and the four states that partition it, in order', () => {
+    expect(layout.figures.map((f) => f.label)).toEqual([
       'Fleet',
       'On road',
       'Standing',
       'Dark',
-      'Operating depots',
-    ]);
-  });
-
-  it('puts the three remaining figures in the second row of the band', () => {
-    expect(layout.secondary.map((f) => f.label)).toEqual([
-      'Reporting',
       'Off road',
-      'Route assigned',
     ]);
+    const states = layout.figures.slice(1).reduce((sum, f) => sum + f.value, 0);
+    // The captured snapshot's four states sum to 9,989 exactly; this fixture's to 9,989 too.
+    expect(states).toBe(layout.figures[0]!.value);
   });
 
-  it('counts operating depots against units in the feed, never against buses', () => {
-    const depots = layout.primary[4]!;
-    expect(depots.value).toBe(119);
-    expect(depots.provenance).toBe('derived');
-    expect(depots.note).toBe('of 143 units in the feed');
-    const all = [...layout.primary, ...layout.secondary].map((f) => f.note ?? '').join(' ');
-    expect(all).not.toMatch(/119 of 9,?989/);
+  it('carries reporting and route assigned as the fleet\'s caption, both shares of it', () => {
+    const fleet = layout.figures[0]!;
+    expect(fleet.note).toBe('27% reporting · 22% assigned');
+    expect(fleet.detail).toBe('2,662 reporting; 2,204 route assigned · 2,204 of 9,000');
   });
 
-  it('gives bus counts their share of the fleet and no repeated figure', () => {
-    expect(layout.primary[0]?.note).toBe('100% of fleet');
-    expect(layout.primary[1]?.note).toBe('41% of fleet');
-    expect(layout.secondary[0]?.note).toBe('27% of fleet');
-    expect(layout.primary[1]?.note).not.toContain('4122');
+  it('counts operating depots against units in the feed, never against buses, on the map label', () => {
+    expect(layout.unitsLine).toBe('143 units, 119 of them operating depots');
+    const all = layout.figures.map((f) => `${f.note ?? ''} ${f.detail ?? ''}`).join(' ');
+    expect(all).not.toMatch(/119/);
   });
 
-  it('states "x of N" only when the denominator is not the whole fleet', () => {
-    expect(layout.secondary[2]?.note).toBe('22% of fleet · 2,204 of 9,000');
+  it('gives each state its share of the fleet and no repeated figure', () => {
+    expect(layout.figures[1]?.note).toBe('41% of fleet');
+    expect(layout.figures[4]?.note).toBe('3% of fleet');
+    expect(layout.figures[1]?.note).not.toContain('4122');
   });
 
-  it('says "1 unit" for a single unit', () => {
-    expect(kpiLayout(KPIS, [unit('a', 'depot')]).primary[4]?.note).toBe('of 1 unit in the feed');
+  it('says "1 unit" for a single unit, and "all" when every unit is a depot', () => {
+    const one = { ...KPIS, depots: { ...KPIS.depots, value: 1 } };
+    expect(kpiLayout(one, [unit('a', 'depot')]).unitsLine).toBe('1 unit, an operating depot');
+    const none = { ...KPIS, depots: { ...KPIS.depots, value: 0 } };
+    expect(kpiLayout(none, [unit('a', 'hired'), unit('b', 'hired')]).unitsLine).toBe(
+      '2 units, none of them an operating depot',
+    );
+    const all = { ...KPIS, depots: { ...KPIS.depots, value: 2 } };
+    expect(kpiLayout(all, [unit('a', 'depot'), unit('b', 'depot')]).unitsLine).toBe(
+      '2 units, all operating depots',
+    );
   });
 });
 
-describe('figure tags and the quiet line', () => {
+describe('figure tags', () => {
   it('tags only a figure whose provenance differs from the page default', () => {
     expect(figureTag('live')).toBeUndefined();
     expect(figureTag('derived')).toBeUndefined();
     expect(figureTag('modelled')).toBe('modelled');
-  });
-
-  it('gives a second-row figure its share as the caption, not a free line', () => {
-    const reporting = kpiLayout(KPIS, UNITS).secondary[0]!;
-    expect(reporting.label).toBe('Reporting');
-    expect(reporting.note).toBe('27% of fleet');
   });
 });
 

@@ -13,6 +13,7 @@ import { formatClockTime } from '@/lib/depot/format';
 import { LOAD_ERROR_TITLE, loadErrorBody } from '@/lib/depot/loadError';
 import { OVERVIEW_HOW_PRODUCED } from '@/lib/depot/network/howProduced';
 import { joinScores } from '@/lib/depot/network/overviewModel';
+import { kpiLayout } from '@/lib/depot/network/overviewWords';
 import { exceptionWindowNote } from '@/lib/depot/score/windowWords';
 import type { DepotNetworkResponse } from '@/lib/depot/api';
 import { BriefingCard } from '@/components/depot/copilot/BriefingCard';
@@ -82,6 +83,7 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
           selected={selected}
           onSelect={select}
           vanished={vanished}
+          unitsNote={kpiLayout(data.kpis, data.depots).unitsLine}
         />
       )}
       <div className={SECTION}>

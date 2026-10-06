@@ -26,64 +26,84 @@ export interface KpiFigure {
 }
 
 export interface KpiLayout {
-  readonly primary: readonly KpiFigure[];
-  readonly secondary: readonly KpiFigure[];
+  /**
+   * One band of five: the fleet and the four classified states that partition it, so the
+   * four add up to the first. Five fill the band's row at 1440, 1280 and 1024 with no
+   * empty cell; reporting and route assigned are shares of the fleet and ride as its
+   * caption.
+   */
+  readonly figures: readonly KpiFigure[];
+  /** The units count, said on the units map's label: "143 units, 119 of them operating depots". */
+  readonly unitsLine: string;
 }
 
 type KpiSpec = { readonly key: keyof NetworkKpis; readonly label: string };
 
-const PRIMARY: readonly KpiSpec[] = [
+const BAND: readonly KpiSpec[] = [
   { key: 'fleet', label: 'Fleet' },
   { key: 'onRoad', label: 'On road' },
   { key: 'stationary', label: 'Standing' },
   { key: 'noSignal', label: 'Dark' },
-  { key: 'depots', label: 'Operating depots' },
-];
-
-const SECONDARY: readonly KpiSpec[] = [
-  { key: 'reporting', label: 'Reporting' },
   { key: 'underMaintenance', label: 'Off road' },
-  { key: 'assigned', label: 'Route assigned' },
 ];
 
-function unitsNote(units: number): string {
-  return `of ${formatCount(units)} ${units === 1 ? 'unit' : 'units'} in the feed`;
+/** "x of N" only when N is not the whole fleet; otherwise it repeats the figure. */
+function partialCoverage(figure: NetworkKpis[keyof NetworkKpis], fleet: number): string {
+  const coverage = figure.coverage;
+  return coverage && coverage.of !== fleet
+    ? ` · ${formatCount(coverage.n)} of ${formatCount(coverage.of)}`
+    : '';
 }
 
-function figureFor(spec: KpiSpec, kpis: NetworkKpis, units: number): KpiFigure {
+function stateFigure(spec: KpiSpec, kpis: NetworkKpis): KpiFigure {
   const figure = kpis[spec.key];
   const fleet = kpis.fleet.value;
-  let note: string | null;
-  if (spec.key === 'depots') {
-    note = unitsNote(units);
-  } else {
-    const coverage = figure.coverage;
-    // "x of N" only when N is not the whole fleet; otherwise it repeats the figure.
-    const partial =
-      coverage && coverage.of !== fleet
-        ? ` · ${formatCount(coverage.n)} of ${formatCount(coverage.of)}`
-        : '';
-    note = `${formatShare(figure.value, fleet)} of fleet${partial}`;
-  }
   return {
     key: spec.key,
     label: spec.label,
     value: figure.value,
     provenance: figure.provenance,
-    note,
+    note: `${formatShare(figure.value, fleet)} of fleet${partialCoverage(figure, fleet)}`,
     detail: figure.note ?? null,
   };
 }
 
-/** Four bus figures and operating depots in the band (five at most); the rest as one quiet line. */
+/** The fleet, captioned with the two shares of it that are not states. */
+function fleetFigure(kpis: NetworkKpis): KpiFigure {
+  const { fleet, reporting, assigned } = kpis;
+  const counts =
+    `${formatCount(reporting.value)} reporting${partialCoverage(reporting, fleet.value)}; ` +
+    `${formatCount(assigned.value)} route assigned${partialCoverage(assigned, fleet.value)}`;
+  const notes = [fleet.note, reporting.note, assigned.note].filter(
+    (note): note is string => typeof note === 'string' && note.length > 0,
+  );
+  return {
+    key: 'fleet',
+    label: 'Fleet',
+    value: fleet.value,
+    provenance: fleet.provenance,
+    note:
+      `${formatShare(reporting.value, fleet.value)} reporting · ` +
+      `${formatShare(assigned.value, fleet.value)} assigned`,
+    detail: [counts, ...notes].join('. '),
+  };
+}
+
+function unitsLine(units: number, depots: number): string {
+  const head = `${formatCount(units)} ${units === 1 ? 'unit' : 'units'}`;
+  if (units === 1) return depots === 1 ? `${head}, an operating depot` : `${head}, not an operating depot`;
+  if (depots === 0) return `${head}, none of them an operating depot`;
+  if (depots >= units) return `${head}, all operating depots`;
+  return `${head}, ${formatCount(depots)} of them operating depots`;
+}
+
 export function kpiLayout(
   kpis: NetworkKpis,
   depots: readonly Pick<DepotSummary, 'kind'>[],
 ): KpiLayout {
-  const units = depots.length;
   return {
-    primary: PRIMARY.map((spec) => figureFor(spec, kpis, units)),
-    secondary: SECONDARY.map((spec) => figureFor(spec, kpis, units)),
+    figures: BAND.map((spec) => (spec.key === 'fleet' ? fleetFigure(kpis) : stateFigure(spec, kpis))),
+    unitsLine: unitsLine(depots.length, kpis.depots.value),
   };
 }
 
