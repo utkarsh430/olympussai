@@ -22,7 +22,7 @@ export function drawerRowFacts(
     `minutes late, ${words.basis}.`
   );
 }
-import type { RouteProfileResponse, RouteProfileResult } from './types';
+import type { RouteProfile, RouteProfileResponse, RouteProfileResult } from './types';
 
 /**
  * Everything the route drawer says, built from one route's profile (the
@@ -52,6 +52,7 @@ export type DrawerView =
       readonly firstStop: string | null;
       readonly lastStop: string | null;
       readonly durationLine: string;
+      /** Stops whose position is not used: none given, or one that does not fit the timetable. */
       readonly unlocatedLine: string;
       readonly operatorsLine: string;
       readonly busesLine: string;
@@ -85,11 +86,26 @@ function durationLine(minutes: number | null): string {
   return `Scheduled trip duration: ${formatDurationMinutes(Math.round(minutes))}.`;
 }
 
-function unlocatedLine(unlocated: number, total: number): string {
-  if (unlocated === 0) return 'Every stop has a usable position.';
+function unlocatedSentence(unlocated: number, total: number): string {
   const verb = unlocated === 1 ? 'has' : 'have';
   const pronoun = unlocated === 1 ? 'it is' : 'they are';
   return `${formatCount(unlocated)} of ${countPhrase(total, 'stop', 'stops')} ${verb} no usable position, so ${pronoun} left out of distances.`;
+}
+
+/** Stops placed at a same-named place elsewhere: listed, but their position is not used. */
+function mislocatedSentence(mislocated: number): string {
+  const [verb, be] = mislocated === 1 ? ['has', 'is'] : ['have', 'are'];
+  return `${countPhrase(mislocated, 'stop', 'stops')} ${verb} a position that does not fit the timetable and ${be} left out of distances.`;
+}
+
+/** Every stop whose position is not used, for either reason, in one or two sentences. */
+function unlocatedLine(profile: RouteProfile): string {
+  const { unlocatedStops, mislocatedStops } = profile;
+  if (unlocatedStops === 0 && mislocatedStops === 0) return 'Every stop has a usable position.';
+  return [
+    ...(unlocatedStops > 0 ? [unlocatedSentence(unlocatedStops, profile.stops.length)] : []),
+    ...(mislocatedStops > 0 ? [mislocatedSentence(mislocatedStops)] : []),
+  ].join(' ');
 }
 
 function operatorsLine(operators: DrawerRoute['operators']): string {
@@ -127,7 +143,7 @@ export function drawerView(
     firstStop: profile.origin?.name ?? null,
     lastStop: profile.destination?.name ?? null,
     durationLine: durationLine(profile.scheduledDurationMin),
-    unlocatedLine: unlocatedLine(profile.unlocatedStops, profile.stops.length),
+    unlocatedLine: unlocatedLine(profile),
     operatorsLine: operatorsLine(route.operators),
     busesLine: `${countPhrase(route.buses, 'bus', 'buses')} on this route now.`,
     deadKmLines: deadKmLines(route, move),

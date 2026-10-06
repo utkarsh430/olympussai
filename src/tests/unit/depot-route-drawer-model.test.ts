@@ -69,6 +69,23 @@ describe('drawerView', () => {
     ]);
   });
 
+  it('says how many stops have a position that does not fit the timetable', () => {
+    const both = drawerView({ status: 'ok', profile: { ...PROFILE, mislocatedStops: 4 } }, ROUTE, null);
+    if (both.status !== 'ok') throw new Error('expected a profile');
+    expect(both.unlocatedLine).toBe(
+      '1 of 3 stops has no usable position, so it is left out of distances. ' +
+        '4 stops have a position that does not fit the timetable and are left out of distances.',
+    );
+    const one = { ...PROFILE, unlocatedStops: 0, mislocatedStops: 1 };
+    const only = drawerView({ status: 'ok', profile: one }, ROUTE, null);
+    if (only.status !== 'ok') throw new Error('expected a profile');
+    expect(only.unlocatedLine).toBe(
+      '1 stop has a position that does not fit the timetable and is left out of distances.',
+    );
+    // A stop left out is still listed with its name and time.
+    expect(only.stops).toHaveLength(3);
+  });
+
   it('says when no stop lacks a position, and when the duration or dead km is unknown', () => {
     const profile = { ...PROFILE, unlocatedStops: 0, scheduledDurationMin: null };
     const view = drawerView({ status: 'ok', profile }, { ...ROUTE, deadKm: null }, null);
