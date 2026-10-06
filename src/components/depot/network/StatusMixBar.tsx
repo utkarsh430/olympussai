@@ -1,5 +1,6 @@
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
-import type { StateMix, StatusMix } from '@/lib/depot/types';
+import type { BusOpState, StateMix, StatusMix } from '@/lib/depot/types';
+import { BUS_STATE_SQUARE } from '@/components/depot/shell/BusStateMark';
 
 export interface MixSegment {
   readonly key: string;
@@ -25,29 +26,24 @@ export function statusSegments(status: StatusMix): MixSegment[] {
   ];
 }
 
-/** Inferred operational state; sums to the depot's fleet. */
+/**
+ * Inferred operational state; sums to the depot's fleet. Each segment takes its state's
+ * square colour (`BUS_STATE_SQUARE`), so a state is the same colour in this bar as in the
+ * figure band, the legend and the yard map on every page.
+ */
 export function stateSegments(states: StateMix): MixSegment[] {
+  const segment = (key: keyof StateMix, state: BusOpState): MixSegment => ({
+    key,
+    label: BUS_STATE_LABEL[state],
+    count: states[key],
+    tone: BUS_STATE_SQUARE[state],
+  });
   return [
-    {
-      key: 'inService',
-      label: BUS_STATE_LABEL.in_service,
-      count: states.inService,
-      tone: 'bg-alert-green',
-    },
-    { key: 'onRoad', label: BUS_STATE_LABEL.on_road, count: states.onRoad, tone: 'bg-holo-core' },
-    {
-      key: 'standing',
-      label: BUS_STATE_LABEL.standing,
-      count: states.standing,
-      tone: 'bg-depot-muted',
-    },
-    { key: 'dark', label: BUS_STATE_LABEL.dark, count: states.dark, tone: 'bg-alert-crimson' },
-    {
-      key: 'offRoad',
-      label: BUS_STATE_LABEL.off_road,
-      count: states.offRoad,
-      tone: 'bg-alert-amber',
-    },
+    segment('inService', 'in_service'),
+    segment('onRoad', 'on_road'),
+    segment('standing', 'standing'),
+    segment('dark', 'dark'),
+    segment('offRoad', 'off_road'),
   ];
 }
 
