@@ -218,7 +218,9 @@ describe('the crew page', () => {
     setHook({ data: BASE });
     const markup = await renderPage();
     expect(markup).toContain('crew-shortfall-explanation');
-    expect(text(markup)).toContain('This page is built on the modelled day: 2 duties on 1 route.');
+    expect(text(markup)).toContain(
+      'This page is built on the modelled day, rebuilt from the live fleet as of the feed time: 2 duties on 1 route.',
+    );
   });
 
   it('has no tiles, no tags in cells and no "About this page" panel; the roster is behind a closed disclosure', async () => {
