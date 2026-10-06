@@ -94,9 +94,13 @@ describe('MaintenancePage', () => {
     expect(overdue).toBeGreaterThan(live);
     expect(dueSoon).toBeGreaterThan(overdue);
     // the live figure carries no tag; each modelled figure carries one
-    expect(band.slice(live, overdue)).not.toMatch(/Modelled|MODELLED/i);
-    expect(band.slice(overdue, dueSoon)).toMatch(/modelled/i);
-    expect(band.slice(dueSoon, dueSoon + 400)).toMatch(/modelled/i);
+    // queried per figure on the visible band, not by character offsets (guard M19)
+    const page = document.createElement('div');
+    page.innerHTML = markup;
+    const tagsOf = [...page.querySelectorAll('[data-testid="depot-figure-band"] li')].map((li) =>
+      li.querySelectorAll('[data-provenance="modelled"]').length,
+    );
+    expect(tagsOf).toEqual([0, 1, 1]);
   });
 
   it('guards the generated status beside a real registration on every surface that shows it', () => {
