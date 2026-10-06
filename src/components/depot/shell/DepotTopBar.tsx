@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { DepotSignOut } from './DepotSignOut';
 import { FeedStatus } from './FeedStatus';
+import { ScopeSwitcher } from './ScopeSwitcher';
 
 /** Sticky 56px bar: product title and scope on the left, exits on the right. */
 export function DepotTopBar() {
@@ -10,11 +11,13 @@ export function DepotTopBar() {
       data-testid="depot-top-bar"
       className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-depot-line bg-depot-page px-6"
     >
-      <div className="flex min-w-0 items-baseline gap-4">
+      <div className="flex min-w-0 items-center gap-4">
         <span className="whitespace-nowrap font-display text-sm uppercase tracking-[0.14em] text-depot-ink">
           Depot Management
         </span>
-        <span className="depot-label hidden whitespace-nowrap sm:inline">UPSRTC / Network</span>
+        <div className="hidden min-w-0 sm:block">
+          <ScopeSwitcher />
+        </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <FeedStatus />
