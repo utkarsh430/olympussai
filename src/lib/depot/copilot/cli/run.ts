@@ -7,6 +7,7 @@ import {
   killProcessGroup,
   type KillGroup,
 } from '@/lib/depot/copilot/cli/kill';
+import { liveCalls, type LiveCalls } from '@/lib/depot/copilot/cli/liveCalls';
 import type { FallbackReason } from '@/lib/depot/copilot/types';
 
 /** Minimal structural views of Node's `child_process.spawn`, so tests can fake it. */
@@ -37,6 +38,7 @@ export interface ChildLike {
   readonly stderr: DataStream;
   on(event: 'error', listener: (error: Error) => void): unknown;
   on(event: 'close', listener: (code: number | null) => void): unknown;
+  on(event: 'exit', listener: () => void): unknown;
   kill(signal?: 'SIGKILL'): unknown;
 }
 
@@ -86,6 +88,7 @@ export function runCli(
   input: RunCliInput,
   spawn: SpawnLike,
   killGroup: KillGroup = killProcessGroup,
+  calls: LiveCalls = liveCalls(),
 ): Promise<RunCliResult> {
   // The child runs detached in its own process group; the whole group is killed
   // on every exit path (see `settle`), so no grandchild outlives the slot.
@@ -113,6 +116,15 @@ export function runCli(
           : failure('error', 'spawn failed'),
       );
       return;
+    }
+
+    // Review L4: known to the shutdown handler until Node reports the child exited.
+    const pid = child.pid;
+    if (pid !== undefined) {
+      calls.addPid(pid);
+      const forget = (): void => calls.dropPid(pid);
+      child.on('exit', forget);
+      child.on('close', forget);
     }
 
     const out: Buffer[] = [];

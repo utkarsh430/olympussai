@@ -243,6 +243,50 @@ describe('prepareCopilotRequest on the sample fixture', () => {
     expect(result.interpretedAs).toContain(name.slice(0, 20));
   });
 
+  it('says which scope the answer used, whatever the form selected (round 8 A)', () => {
+    const unique = network.depots.find(
+      (d) =>
+        d.name.length > 3 &&
+        network.depots.filter((o) => o.name.toLowerCase().includes(d.name.toLowerCase()))
+          .length === 1,
+    )!;
+    const other = network.depots.find((d) => d.id !== unique.id)!;
+    const clean = (name: string): string => name.replace(/\s+/g, ' ').trim();
+    const named = prepared({
+      task: 'ask',
+      question: `How many buses are dark at ${unique.name} right now?`,
+      scope: { kind: 'network' },
+    });
+    expect(named.interpretedAs).toBe(`Buses that are dark at ${clean(unique.name)}`);
+    expect(named.answerScope).toEqual({
+      kind: 'depot',
+      depotId: unique.id,
+      depotName: clean(unique.name),
+    });
+    const ranking = prepared({
+      task: 'ask',
+      question: 'Which five depots rank highest?',
+      scope: { kind: 'depot', depotId: other.id },
+    });
+    expect(ranking.answerScope).toEqual({ kind: 'network' });
+    const asked = prepared({
+      task: 'ask',
+      question: 'What exceptions does this depot have?',
+      scope: { kind: 'depot', depotId: other.id },
+    });
+    expect(asked.answerScope).toEqual({
+      kind: 'depot',
+      depotId: other.id,
+      depotName: clean(other.name),
+    });
+    const refused = prepared({
+      task: 'ask',
+      question: 'What is the weather like?',
+      scope: { kind: 'network' },
+    });
+    expect(refused.answerScope).toBeUndefined();
+  });
+
   it('answers an unsupported question, and any question about people, in words', () => {
     for (const question of ['What is the weather like?', 'Which drivers are late most often?']) {
       const result = prepared({ task: 'ask', question, scope: { kind: 'network' } });

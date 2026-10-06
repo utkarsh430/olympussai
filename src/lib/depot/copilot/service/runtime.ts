@@ -19,6 +19,7 @@ import { createSemaphore } from '@/lib/depot/copilot/semaphore';
 import type { CopilotProvider } from '@/lib/depot/copilot/types';
 import { createResponseCache, type ResponseCache } from '@/lib/depot/copilot/service/cache';
 import { createCliProvider } from '@/lib/depot/copilot/service/cliFactory';
+import { installDefaultShutdownCleanup } from '@/lib/depot/copilot/service/shutdown';
 import {
   CLAUDE_ALLOWANCE_WINDOW_MS,
   IDENTITY_CLAUDE_CALLS_PER_HOUR,
@@ -136,6 +137,8 @@ function createProcessRuntime(): CopilotRuntime {
       perDay: CLI_MAX_CALLS_PER_DAY,
     }),
   });
+  // Review L4: only a set-up Claude writer starts children, so only then is the hook needed.
+  if (cli !== null) installDefaultShutdownCleanup();
   return buildCopilotRuntime({ setting: readProviderSetting(env), cli, env });
 }
 

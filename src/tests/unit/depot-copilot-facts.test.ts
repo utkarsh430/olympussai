@@ -9,7 +9,8 @@ import { buildDepotBriefing, depotFacts } from '@/lib/depot/copilot/facts/depot'
 import { buildNetworkBriefing } from '@/lib/depot/copilot/facts/network';
 import { buildRequest } from '@/lib/depot/copilot/facts/format';
 import { buildTransferRationale } from '@/lib/depot/copilot/facts/transfer';
-import type { CopilotQuery } from '@/lib/depot/copilot/queries';
+import { DEPOT_MEASURES, type CopilotQuery, type DepotMeasure } from '@/lib/depot/copilot/queries';
+import { interpretQuery } from '@/lib/depot/copilot/service/interpret';
 import { factEdges } from '@/lib/depot/copilot/factText';
 import { renderDraft } from '@/lib/depot/copilot/render';
 import { tokenize } from '@/lib/depot/copilot/grammar';
@@ -342,6 +343,8 @@ const QUERIES: readonly CopilotQuery[] = [
   { kind: 'outshedStatus', depotId: '101' },
   { kind: 'outshedStatus', depotId: '102' },
   { kind: 'unsupported' },
+  ...DEPOT_MEASURES.map((measure): CopilotQuery => ({ kind: 'depotMeasure', depotId: '101', measure })),
+  ...DEPOT_MEASURES.map((measure): CopilotQuery => ({ kind: 'depotMeasure', depotId: '102', measure })),
 ];
 
 const ALL_ONE: Partial<StateMix> = { inService: 0, onRoad: 1, standing: 0, dark: 1, offRoad: 1 };
@@ -467,6 +470,20 @@ function allRequests(data: AnswerData = makeData()): [string, CopilotRequest][] 
       buildAnswer(q, data),
     ]),
     ['answer without data', buildAnswer({ kind: 'depotsInDeficit' }, { network: data.network })],
+    ...DEPOT_MEASURES.map((measure): [string, CopilotRequest] => [
+      `measure ${measure}, no yard and no score`,
+      buildAnswer(
+        { kind: 'depotMeasure', depotId: '101', measure },
+        { ...data, details: { '101': makeDetail({ yard: false, score: null }) } },
+      ),
+    ]),
+    ...DEPOT_MEASURES.map((measure): [string, CopilotRequest] => [
+      `measure ${measure}, every count one`,
+      buildAnswer(
+        { kind: 'depotMeasure', depotId: '101', measure },
+        { ...data, details: { '101': oneEachDetail() } },
+      ),
+    ]),
     [
       'detail without data',
       buildAnswer({ kind: 'outshedStatus', depotId: '101' }, { network: data.network }),
@@ -503,6 +520,68 @@ describe('round 7 sentence rules: the reviewed sentence lists', () => {
       expect(pattern).toMatch(/dispatch/);
     }
   });
+});
+
+/** The fact each one-measure answer leads with (round 8 A). */
+const MEASURE_FACT: Readonly<Record<DepotMeasure, string>> = {
+  dark: 'depot.dark',
+  offRoad: 'depot.off_road',
+  powerCut: 'depot.power_cut',
+  inYard: 'depot.in_yard',
+  onRoad: 'depot.on_road',
+  standing: 'depot.standing',
+  fleet: 'depot.fleet',
+  index: 'depot.index',
+  rank: 'depot.rank',
+  visitors: 'depot.visitors',
+};
+
+describe('round 8 A: one measure at a depot', () => {
+  it.each(DEPOT_MEASURES)('%s leads with its own figure', (measure) => {
+    const request = buildAnswer({ kind: 'depotMeasure', depotId: '101', measure }, makeData());
+    expect(request.scriptedDraft.paragraphs[0]).toContain(`{{fact:${MEASURE_FACT[measure]}}}`);
+    const rendered = renderDraft(request.scriptedDraft, request.facts);
+    expect(rendered.ok).toBe(true);
+  });
+
+  it.each(DEPOT_MEASURES)('%s with no yard and no score says so before any guess', (measure) => {
+    const request = buildAnswer(
+      { kind: 'depotMeasure', depotId: '101', measure },
+      { ...makeData(), details: { '101': makeDetail({ yard: false, score: null }) } },
+    );
+    const first = request.scriptedDraft.paragraphs[0] ?? '';
+    if (['inYard', 'visitors'].includes(measure)) expect(first).toMatch(/^No yard is established/);
+    else if (['index', 'rank'].includes(measure)) expect(first).toMatch(/No efficiency index/);
+    else expect(first).toContain(`{{fact:${MEASURE_FACT[measure]}}}`);
+  });
+
+  it('an unknown depot is the calm unavailable answer', () => {
+    const request = buildAnswer({ kind: 'depotMeasure', depotId: '999', measure: 'dark' }, makeData());
+    expect(request.scriptedDraft.headline).toBe('That answer is not available');
+  });
+});
+
+describe('round 8 A: no title repeats a name', () => {
+  const data = makeData();
+  const nameOf = (id: string): string =>
+    data.network.depots.find((d) => d.id === id)?.name ?? id;
+
+  it.each(QUERIES.map((q) => [JSON.stringify(q), q] as const))(
+    '%s: the headline holds each name once, and does not repeat the line above it',
+    (_label, query) => {
+      const request = buildAnswer(query, data);
+      const rendered = renderDraft(request.scriptedDraft, request.facts);
+      if (!rendered.ok) throw new Error(rendered.reason);
+      const names = request.facts.filter((f) => f.kind === 'name').map((f) => f.text);
+      for (const name of names) {
+        expect(rendered.headline.split(name).length - 1).toBeLessThanOrEqual(1);
+      }
+      // The page shows "Understood as: ..." directly above the headline (browser capture:
+      // "A summary of KAUSHAMBI" then "KAUSHAMBI: depot briefing" read as a doubled name).
+      const joined = `${interpretQuery(query, nameOf)} ${rendered.headline}`;
+      for (const name of names) expect(joined).not.toContain(`${name} ${name}`);
+    },
+  );
 });
 
 describe('scripted drafts', () => {

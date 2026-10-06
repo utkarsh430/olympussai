@@ -1,4 +1,4 @@
-import type { CopilotQuery, RankMetric } from '@/lib/depot/copilot/queries';
+import type { CopilotQuery, DepotMeasure, RankMetric } from '@/lib/depot/copilot/queries';
 import { cleanName } from '@/lib/depot/copilot/facts/format';
 import type { CopilotFact } from '@/lib/depot/copilot/types';
 import type { CopilotAnswerTable } from '@/lib/depot/copilot/wire';
@@ -17,6 +17,20 @@ const METRIC_LABEL: Readonly<Record<RankMetric, string>> = {
   scheduled: 'Schedule coverage',
 };
 
+/** Round 8: what a one-measure question was understood to ask, before the depot's name. */
+const MEASURE_LABEL: Readonly<Record<DepotMeasure, (name: string) => string>> = {
+  dark: (name) => `Buses that are dark at ${name}`,
+  offRoad: (name) => `Buses that are off the road at ${name}`,
+  powerCut: (name) => `Buses with main power off at ${name}`,
+  inYard: (name) => `Buses in the yard at ${name}`,
+  onRoad: (name) => `Buses on the road at ${name}`,
+  standing: (name) => `Buses standing at ${name}`,
+  fleet: (name) => `The fleet size of ${name}`,
+  index: (name) => `The efficiency index of ${name}`,
+  rank: (name) => `The rank of ${name} among its peers`,
+  visitors: (name) => `Visiting buses in the yard at ${name}`,
+};
+
 export function interpretQuery(query: CopilotQuery, nameOf: (depotId: string) => string): string {
   const name = (id: string): string => cleanName(nameOf(id));
   switch (query.kind) {
@@ -24,6 +38,8 @@ export function interpretQuery(query: CopilotQuery, nameOf: (depotId: string) =>
       return 'A summary of the whole network';
     case 'depotSummary':
       return `A summary of ${name(query.depotId)}`;
+    case 'depotMeasure':
+      return MEASURE_LABEL[query.measure](name(query.depotId));
     case 'rankDepots':
       return `Depots by ${METRIC_LABEL[query.metric].toLowerCase()}, ${
         query.order === 'top' ? 'highest' : 'lowest'

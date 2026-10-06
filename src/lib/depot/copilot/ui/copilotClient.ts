@@ -100,6 +100,28 @@ function isTable(value: unknown): boolean {
   );
 }
 
+function isScopeDepot(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isText(value.depotId, MAX_TABLE_CELL_CHARS) &&
+    isText(value.depotName, MAX_TABLE_CELL_CHARS)
+  );
+}
+
+/** Round 8 A: the scope the answer used, one of the three wire shapes. */
+function isAnswerScope(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (value.kind === 'network') return true;
+  if (value.kind === 'depot') return isScopeDepot(value);
+  return (
+    value.kind === 'depots' &&
+    Array.isArray(value.depots) &&
+    value.depots.length >= 2 &&
+    value.depots.length <= MAX_TABLE_ROWS &&
+    value.depots.every(isScopeDepot)
+  );
+}
+
 function isParagraphs(value: unknown): value is readonly string[] {
   return (
     isStringArray(value) &&
@@ -126,7 +148,8 @@ function isCopilotResponse(value: unknown): value is CopilotApiResponse {
     (value.interpretedAs === undefined ||
       (typeof value.interpretedAs === 'string' &&
         value.interpretedAs.length <= MAX_RENDERED_PARAGRAPH_CHARS)) &&
-    (value.table === undefined || isTable(value.table))
+    (value.table === undefined || isTable(value.table)) &&
+    (value.answerScope === undefined || isAnswerScope(value.answerScope))
   );
 }
 

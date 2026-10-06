@@ -253,7 +253,7 @@ export function depotDraft(detail: DepotDetailResponse): CopilotDraft {
   const outshed = outshedParagraph(detail);
   if (outshed) paragraphs.push(outshed);
   paragraphs.push(exceptionParagraph(detail));
-  return { headline: `${ph('depot.name')}: depot briefing`, paragraphs };
+  return { headline: `Depot briefing: ${ph('depot.name')}`, paragraphs };
 }
 
 export function buildDepotBriefing(detail: DepotDetailResponse): CopilotRequest {

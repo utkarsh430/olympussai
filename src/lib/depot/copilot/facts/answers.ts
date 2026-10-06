@@ -6,6 +6,7 @@ import type {
 import type { CopilotQuery } from '@/lib/depot/copilot/queries';
 import { balanceList } from '@/lib/depot/copilot/facts/answers/balance';
 import { compareAnswer } from '@/lib/depot/copilot/facts/answers/compare';
+import { measureAnswer } from '@/lib/depot/copilot/facts/answers/measure';
 import { exceptionsAnswer } from '@/lib/depot/copilot/facts/answers/exceptions';
 import { outshedAnswer } from '@/lib/depot/copilot/facts/answers/outshed';
 import { rankAnswer } from '@/lib/depot/copilot/facts/answers/rank';
@@ -54,6 +55,8 @@ export function buildAnswer(query: CopilotQuery, data: AnswerData): CopilotReque
       const detail = data.details?.[query.depotId];
       return detail ? { ...buildDepotBriefing(detail), task: 'answer' } : unavailable('that depot');
     }
+    case 'depotMeasure':
+      return measureAnswer(data, query.depotId, query.measure);
     case 'rankDepots':
       return rankAnswer(data, query.metric, query.order, query.limit);
     case 'depotsInDeficit':
