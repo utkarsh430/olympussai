@@ -10,8 +10,11 @@ import type { RouteProfile, RouteProfileResult, RouteStop } from './types';
 
 /**
  * On-demand route catalogue. A route is read through one bus that is running
- * it, one upstream request per route per operating day, and never crawled: the
- * upstream is a government server and the fleet has thousands of routes.
+ * it, one lookup per route per operating day, and never crawled: the upstream
+ * is a government server and the fleet has thousands of routes. One lookup is
+ * up to `SCHEDULE_MAX_UPSTREAM_CALLS` calls to that server (the bus's date,
+ * then the fallback dates), and the route's limiter charges every lookup that
+ * many.
  */
 
 export const ROUTE_CACHE_MAX = 2000;

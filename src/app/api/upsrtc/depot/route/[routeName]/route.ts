@@ -15,6 +15,7 @@ import {
 import { getRouteProfile, routeProfileNeedsFetch } from '@/lib/depot/routes/routeCatalogue';
 import type { RouteProfileResponse } from '@/lib/depot/routes/types';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
+import { SCHEDULE_MAX_UPSTREAM_CALLS } from '@/lib/upsrtc/scheduleService';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,10 +55,13 @@ function fetchLimiters(): FetchLimiters {
 function throttleMiss(request: NextRequest, claims: Readonly<IdentityClaims>): Response | null {
   const limiters = fetchLimiters();
   const address = requestAddress(request.headers, process.env);
+  // The limits count calls to the schedule server, so a miss is charged the most a lookup can make.
+  const cost = SCHEDULE_MAX_UPSTREAM_CALLS;
+  const identity = requestIdentity(claims, request.headers, process.env);
   const decision = takeAll([
-    { limiter: limiters.identity, key: requestIdentity(claims, request.headers, process.env) },
-    ...(address === null ? [] : [{ limiter: limiters.address, key: address }]),
-    { limiter: limiters.process, key: 'all' },
+    { limiter: limiters.identity, key: identity, cost },
+    ...(address === null ? [] : [{ limiter: limiters.address, key: address, cost }]),
+    { limiter: limiters.process, key: 'all', cost },
   ]);
   if (!decision.limited) return null;
   const { retryAfterSeconds } = decision;

@@ -209,6 +209,11 @@ export function requestIdentity(
  * `GET /api/upsrtc/depot/route/[routeName]`: a cache miss calls the
  * government's schedule server, so misses (never hits) are limited per
  * identity and for the whole process, which protects that server.
+ *
+ * The limits count calls to that server, not lookups. One lookup can make up
+ * to four calls (the requested date, then three fallback dates), and the route
+ * charges every miss all four, so these are the real ceilings on calls: 20, 40
+ * and 120 a minute, which is 5, 10 and 30 lookups a minute.
  */
 export const ROUTE_PROFILE_FETCH_LIMITS = {
   perIdentityPerMinute: 20,
