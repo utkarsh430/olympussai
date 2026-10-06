@@ -113,7 +113,7 @@ function EconomicsBody({
   );
   const rows = useMemo(() => filterEconomicsRows(allRows, filters), [allRows, filters]);
   const panel = useMemo(() => notRankedPanel(data.depots), [data.depots]);
-  const band = useMemo(() => economicsBand(data.depots), [data.depots, data.operatingDate]);
+  const band = useMemo(() => economicsBand(data.depots), [data.depots]);
   const disclosure = useMemo(
     () =>
       economicsDisclosure(modelledStatement(REVENUE_MODEL_PARAMS), lengthCoverageLine(data.depots)),
