@@ -13,7 +13,7 @@ import { frozenStyles, type FrozenKey } from '@/lib/depot/league/leagueColumns';
 import { LEAGUE_COLUMNS, type LeagueColumn } from '@/lib/depot/league/leagueGridColumns';
 import { PEER_GROUP_LABEL, type LeagueRow } from '@/lib/depot/league/leagueModel';
 import type { DeiComponentKey } from '@/lib/depot/score/types';
-import { useIndexTrends, type IndexTrends } from '@/components/depot/trends/LeagueTrend';
+import { useIndexTrends, type IndexTrends } from '@/components/depot/league/useIndexTrends';
 import { DepotCell, IndexButton, MetricCell, OpenChevron, TrendCell } from './LeagueCells';
 
 /*
