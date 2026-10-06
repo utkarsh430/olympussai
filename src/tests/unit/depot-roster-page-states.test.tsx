@@ -193,6 +193,23 @@ describe('the roster page, as the reader meets it', () => {
     expect(doc.querySelector('[data-testid="depot-pager"]')?.textContent).toContain('Rows 1 to 25 of 26');
   });
 
+  it('says what is absent, what would change it and offers one action, in both empty states', async () => {
+    setDetail(dataState([]));
+    const none = await render();
+    expect(none.body.textContent).toContain('The live feed lists no buses homed at this depot.');
+    expect(none.body.textContent).toContain('Buses appear here as soon as the feed homes one');
+    expect(none.querySelector('a[href$="/sources"]')?.textContent).toBe('Data sources');
+
+    setDetail(dataState([bus()]));
+    hooks.params = new URLSearchParams('state=dark');
+    const unmatched = await render();
+    expect(unmatched.body.textContent).toContain('No bus matches these filters.');
+    expect(unmatched.body.textContent).toContain('Remove a state, a location or the search');
+    expect(
+      Array.from(unmatched.querySelectorAll('button')).some((b) => b.textContent === 'Clear the filters'),
+    ).toBe(true);
+  });
+
   it('keeps the filters in the URL as other pages link to them', async () => {
     hooks.params = new URLSearchParams('state=on_road');
     const doc = await render();

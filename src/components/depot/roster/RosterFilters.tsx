@@ -25,9 +25,9 @@ function isLocation(value: string): value is BusLocation {
 }
 
 /**
- * One row: state toggles with counts, location, search, "Has a route", and nothing
- * else: the count is the section label's and the pager's. A flag set by a link (main power off, not heard, tamper)
- * shows as one more pressed toggle that clears it.
+ * One row: state toggles with counts, location, search and "Has a route". The count of
+ * matches is the section label's and the pager's, never this row's. A flag set by a link
+ * (main power off, not heard, tamper) shows as one more pressed toggle that clears it.
  */
 export function RosterFilters({ filters, counts, onChange }: RosterFiltersProps) {
   const toggleState = (state: BusOpState): void => {

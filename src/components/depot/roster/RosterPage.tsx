@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
@@ -7,6 +8,7 @@ import { ErrorPanel, StaleStrip } from '@/components/depot/shell/DataStates';
 import { Pager } from '@/components/depot/shell/LongLists';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
+import { DEPOTS_ROOT } from '@/lib/depot/nav';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotNetwork';
 import { formatCount } from '@/lib/depot/format';
 import { PAGE_ROWS, pageRange } from '@/lib/depot/listPaging';
@@ -88,7 +90,18 @@ export function RosterPage() {
       />
     );
   if (allRows.length === 0 && openBus === null) {
-    return <StatePanel kind="empty" sentence="The live feed lists no buses homed at this depot." />;
+    return (
+      <StatePanel
+        kind="empty"
+        sentence="The live feed lists no buses homed at this depot."
+        remedy="Buses appear here as soon as the feed homes one at this depot."
+        action={
+          <Link className="depot-link" href={`${DEPOTS_ROOT}/sources`}>
+            Data sources
+          </Link>
+        }
+      />
+    );
   }
 
   const range = pageRange(page, rows.length);
@@ -106,6 +119,7 @@ export function RosterPage() {
           <StatePanel
             kind="empty"
             sentence={`No bus matches these filters. This depot has ${formatCount(allRows.length)} buses in all.`}
+            remedy="Remove a state, a location or the search to see more of them."
             action={
               <button type="button" className="depot-filter-button" onClick={() => setFilters(DEFAULT_FILTERS)}>
                 Clear the filters
