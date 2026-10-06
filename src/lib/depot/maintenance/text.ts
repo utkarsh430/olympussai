@@ -71,6 +71,9 @@ export function groupRowLabel(group: ServiceGroup, count: number): string {
 
 export const NEXT_SERVICE_HEADER = 'To next service, km';
 
+/** The same column's header on a phone, where the longer one does not fit beside the registration. */
+export const NEXT_SERVICE_PHONE_HEADER = 'Km to service';
+
 /** The preventive table's caption (screen readers): modelled, not workshop records. */
 export function preventiveCaption(): string {
   return (

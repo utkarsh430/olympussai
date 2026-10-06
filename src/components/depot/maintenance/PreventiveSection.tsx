@@ -22,9 +22,10 @@ import {
   serviceClassLabel,
 } from '@/lib/depot/maintenance/text';
 import {
-  PREVENTIVE_COLUMN_WIDTH_PX,
   preventiveColumnKeys,
+  preventiveColumnWidth,
   preventiveExpanderKeys,
+  preventiveHeader,
   preventiveTier,
   type PreventiveColumnKey,
 } from '@/lib/depot/maintenance/preventiveLayout';
@@ -133,10 +134,12 @@ export function PreventiveSection({ depotId, preventive }: PreventiveSectionProp
     const shown = new Set<string>(preventiveColumnKeys(tier));
     return buildColumns(depotId, preventive.dueSoonWithinKm)
       .filter((column) => shown.has(column.key))
-      .map((column) => ({
-        ...column,
-        width: PREVENTIVE_COLUMN_WIDTH_PX[column.key as PreventiveColumnKey],
-      }));
+      .map((column) => {
+        // On a phone the distance takes a shorter header and both columns their phone
+        // widths, so the registration and its distance fit the frame at 360 whole.
+        const key = column.key as PreventiveColumnKey;
+        return { ...column, header: preventiveHeader(key, tier), width: preventiveColumnWidth(key, tier) };
+      });
   }, [depotId, preventive.dueSoonWithinKm, tier]);
   const toggle = (group: ServiceGroup): void =>
     setOpened((current) =>
