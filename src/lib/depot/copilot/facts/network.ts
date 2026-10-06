@@ -1,0 +1,182 @@
+import type { DepotNetworkResponse } from '@/lib/depot/api';
+import {
+  buildRequest,
+  busCount,
+  cleanName,
+  depotCount,
+  index1,
+  makeFact,
+  ph,
+  share,
+} from '@/lib/depot/copilot/facts/format';
+import type { CopilotDraft, CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
+import { formatFeedTime } from '@/lib/depot/format';
+import type { BusExceptionKind, DepotExceptionKind } from '@/lib/depot/exceptions/types';
+
+const DEPOT_KINDS: readonly DepotExceptionKind[] = [
+  'dark_share_high',
+  'off_road_high',
+  'on_road_low',
+  'power_cut_cluster',
+];
+const BUS_KINDS: readonly BusExceptionKind[] = [
+  'long_dark',
+  'power_cut',
+  'tamper_code',
+  'emergency',
+];
+
+const GUIDANCE =
+  'Write a short briefing for the whole network: its scale, how much of the fleet is running, ' +
+  'how much has no signal or is in maintenance, the strongest and weakest ranked depots, and ' +
+  'any exceptions. Use only the supplied facts and describe rather than instruct.';
+
+const exceptionCount = (n: number): string => `${n} ${n === 1 ? 'exception' : 'exceptions'}`;
+
+interface RankedDepot {
+  readonly name: string;
+  readonly index: number;
+}
+
+function rankedDepots(network: DepotNetworkResponse): RankedDepot[] {
+  const names = new Map(network.depots.map((d) => [d.id, d.name] as const));
+  return network.scores
+    .flatMap((s) =>
+      s.ranked && s.index !== null
+        ? [{ name: names.get(s.depotId) ?? s.depotId, index: s.index }]
+        : [],
+    )
+    .sort((a, b) => b.index - a.index);
+}
+
+function networkFacts(network: DepotNetworkResponse): CopilotFact[] {
+  const { kpis } = network;
+  const fleet = kpis.fleet.value;
+  const sum = (kinds: readonly (DepotExceptionKind | BusExceptionKind)[]): number =>
+    kinds.reduce((total, kind) => total + (network.exceptionCounts[kind] ?? 0), 0);
+  const facts: CopilotFact[] = [
+    makeFact('network.fleet', 'Fleet', busCount(fleet), kpis.fleet.provenance),
+    makeFact(
+      'network.depots',
+      'Depots and units',
+      depotCount(kpis.depots.value),
+      kpis.depots.provenance,
+    ),
+    makeFact(
+      'network.reporting',
+      'Reporting',
+      busCount(kpis.reporting.value),
+      kpis.reporting.provenance,
+    ),
+    makeFact('network.on_road', 'On the road', busCount(kpis.onRoad.value), kpis.onRoad.provenance),
+    makeFact('network.on_road_share', 'On-road share', share(kpis.onRoad.value, fleet), 'derived'),
+    makeFact(
+      'network.no_signal',
+      'No signal',
+      busCount(kpis.noSignal.value),
+      kpis.noSignal.provenance,
+    ),
+    makeFact(
+      'network.no_signal_share',
+      'No-signal share',
+      share(kpis.noSignal.value, fleet),
+      'derived',
+    ),
+    makeFact(
+      'network.under_maintenance',
+      'Under maintenance',
+      busCount(kpis.underMaintenance.value),
+      kpis.underMaintenance.provenance,
+    ),
+    makeFact(
+      'network.maintenance_share',
+      'Maintenance share',
+      share(kpis.underMaintenance.value, fleet),
+      'derived',
+    ),
+    makeFact(
+      'network.depot_exceptions',
+      'Depot exceptions',
+      exceptionCount(sum(DEPOT_KINDS)),
+      'derived',
+    ),
+    makeFact(
+      'network.bus_exceptions',
+      'Vehicle exceptions',
+      exceptionCount(sum(BUS_KINDS)),
+      'derived',
+    ),
+  ];
+  const feedTime = formatFeedTime(network.feedNow);
+  if (network.feedNow !== null && feedTime !== '—') {
+    facts.push(makeFact('network.feed_time', 'Feed time', feedTime, 'live'));
+  }
+  const ranked = rankedDepots(network);
+  const best = ranked[0];
+  const weakest = ranked[ranked.length - 1];
+  if (best && weakest && ranked.length >= 2) {
+    facts.push(
+      makeFact('network.best_depot', 'Highest-ranked depot', cleanName(best.name), 'derived'),
+      makeFact('network.best_index', 'Highest index', index1(best.index), 'derived'),
+      makeFact('network.weakest_depot', 'Lowest-ranked depot', cleanName(weakest.name), 'derived'),
+      makeFact('network.weakest_index', 'Lowest index', index1(weakest.index), 'derived'),
+    );
+  }
+  return facts;
+}
+
+function exceptionParagraph(depotCountN: number, busCountN: number): string {
+  if (depotCountN === 0 && busCountN === 0) {
+    return 'No exceptions are flagged on this snapshot, either for depots or for vehicles.';
+  }
+  if (depotCountN === 0) {
+    return `No depot-level exceptions are flagged, though ${ph('network.bus_exceptions')} are flagged on vehicles.`;
+  }
+  const vehicles =
+    busCountN === 0 ? 'and none on vehicles' : `and ${ph('network.bus_exceptions')} on vehicles`;
+  return (
+    `The snapshot flags ${ph('network.depot_exceptions')} at depot level ${vehicles}. ` +
+    'Looking at the depot-level ones first would be a sensible order.'
+  );
+}
+
+function networkDraft(network: DepotNetworkResponse): CopilotDraft {
+  const fleet = network.kpis.fleet.value;
+  if (fleet === 0) {
+    return {
+      headline: 'Network briefing: no buses in the feed',
+      paragraphs: ['The feed lists no buses at the moment, so there is nothing to brief on yet.'],
+    };
+  }
+  const hasTime = network.feedNow !== null && formatFeedTime(network.feedNow) !== '—';
+  const lead = hasTime ? `At ${ph('network.feed_time')} on the feed clock, the` : 'The';
+  const stale = network.stale
+    ? ' The data is marked stale, so the picture may lag what is happening on the road.'
+    : '';
+  const ranked = rankedDepots(network);
+  const paragraphs = [
+    `${lead} feed shows ${ph('network.reporting')} reporting a recent position and ${ph('network.on_road')} running on the road, ${ph('network.on_road_share')} of the fleet.${stale}`,
+    `The feed shows ${ph('network.no_signal')} with no signal, ${ph('network.no_signal_share')} of the fleet, and ${ph('network.under_maintenance')} under maintenance, ${ph('network.maintenance_share')} of the fleet.`,
+    ranked.length >= 2
+      ? `Among ranked depots, ${ph('network.best_depot')} leads with an efficiency index of ${ph('network.best_index')}, while ${ph('network.weakest_depot')} sits lowest at ${ph('network.weakest_index')}. That gap suggests where support could usefully go first.`
+      : 'Too few depots have enough buses to be ranked against each other on this snapshot.',
+    exceptionParagraph(
+      DEPOT_KINDS.reduce((n, k) => n + (network.exceptionCounts[k] ?? 0), 0),
+      BUS_KINDS.reduce((n, k) => n + (network.exceptionCounts[k] ?? 0), 0),
+    ),
+  ];
+  return {
+    headline: `Network briefing: ${ph('network.fleet')} across ${ph('network.depots')}`,
+    paragraphs,
+  };
+}
+
+export function buildNetworkBriefing(network: DepotNetworkResponse): CopilotRequest {
+  return buildRequest({
+    task: 'briefing',
+    scopeLabel: 'the whole network',
+    facts: networkFacts(network),
+    guidance: GUIDANCE,
+    scriptedDraft: networkDraft(network),
+  });
+}
