@@ -21,9 +21,10 @@ export interface CollapsedSectionProps {
   readonly headingRef?: Ref<HTMLHeadingElement>;
   readonly testId?: string;
   /**
-   * Keep the content mounted while closed (hidden by the `hidden` attribute on a wrapper
-   * with no display class, which would otherwise override it), for content whose state
-   * must survive closing, such as typed fields. Otherwise closed content is not rendered.
+   * Keep the content mounted while closed, for content whose state must survive closing
+   * (typed fields) or that a closed `<details>` used to keep in the markup. The closed
+   * wrapper carries only the `hidden` display class, never the `hidden` attribute, so no
+   * display class can override it. Otherwise closed content is not rendered.
    */
   readonly keepMounted?: boolean;
   readonly children: ReactNode;
@@ -84,7 +85,7 @@ export function CollapsedSection(props: CollapsedSectionProps) {
   );
   const content =
     keepMounted || open ? (
-      <div id={panelId} hidden={!open}>
+      <div id={panelId} className={open ? undefined : 'hidden'}>
         {children}
       </div>
     ) : null;

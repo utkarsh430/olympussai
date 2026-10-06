@@ -69,8 +69,11 @@ describe('CollapsedSection', () => {
       </CollapsedSection>,
     );
     const region = document.getElementById(toggle().getAttribute('aria-controls') ?? '');
-    expect(region?.hasAttribute('hidden')).toBe(true);
-    expect(region?.getAttribute('class') ?? '').toBe('');
+    // Hidden by the display class alone: no `hidden` attribute for a display class to beat.
+    expect(region?.hasAttribute('hidden')).toBe(false);
+    expect(region?.getAttribute('class')).toBe('hidden');
+    await act(async () => toggle().click());
+    expect(region?.getAttribute('class')).toBeNull();
   });
 
   it('follows a controlled open state', async () => {
