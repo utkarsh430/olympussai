@@ -74,6 +74,8 @@ export interface RuntimeOptions {
   readonly deadlineMs?: number;
   readonly minClaudeMs?: number;
   readonly env?: Readonly<Record<string, string | undefined>>;
+  /** Tests only: a lower process ceiling than `PROCESS_REQUESTS_PER_MINUTE`, so they stay cheap. */
+  readonly processRequestsPerMinute?: number;
 }
 
 export function buildCopilotRuntime(options: RuntimeOptions): CopilotRuntime {
@@ -89,7 +91,10 @@ export function buildCopilotRuntime(options: RuntimeOptions): CopilotRuntime {
     claudeExpected: options.setting === 'claude-cli' && options.cli === null,
     usesClaude: options.setting !== 'scripted' && options.cli !== null,
     identityLimiter: limiter(IDENTITY_REQUESTS_PER_MINUTE, MAX_TRACKED_IDENTITIES),
-    processLimiter: limiter(PROCESS_REQUESTS_PER_MINUTE, 1),
+    processLimiter: limiter(
+      options.processRequestsPerMinute ?? PROCESS_REQUESTS_PER_MINUTE,
+      1,
+    ),
     addressLimiter: limiter(ADDRESS_REQUESTS_PER_MINUTE, MAX_TRACKED_IDENTITIES),
     addressClaudeAllowance: limiter(
       ADDRESS_CLAUDE_CALLS_PER_HOUR,

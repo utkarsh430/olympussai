@@ -207,10 +207,13 @@ describe('POST /api/upsrtc/depot/copilot', () => {
   });
 
   it('limits all sessions together, scripted answers included', async () => {
+    // A lowered ceiling, so the test sends a handful of requests rather than 5,555;
+    // the default ceiling is pinned below on the limiter itself.
+    const ceiling = 4;
     vi.mocked(getCopilotRuntime).mockReturnValue(
-      buildCopilotRuntime({ setting: 'scripted', cli: null }),
+      buildCopilotRuntime({ setting: 'scripted', cli: null, processRequestsPerMinute: ceiling }),
     );
-    for (let i = 0; i < PROCESS_REQUESTS_PER_MINUTE; i += 1) {
+    for (let i = 0; i < ceiling; i += 1) {
       signedInAs(`s${i}`);
       expect((await POST(post(NETWORK_BRIEFING))).status).toBe(200);
     }
@@ -218,6 +221,14 @@ describe('POST /api/upsrtc/depot/copilot', () => {
     const limited = await POST(post(NETWORK_BRIEFING));
     expect(limited.status).toBe(429);
     expect(Number(limited.headers.get('retry-after'))).toBeGreaterThan(0);
+  });
+
+  it('holds every session to PROCESS_REQUESTS_PER_MINUTE by default', () => {
+    const { processLimiter } = buildCopilotRuntime({ setting: 'scripted', cli: null, now: () => 0 });
+    for (let i = 0; i < PROCESS_REQUESTS_PER_MINUTE; i += 1) {
+      expect(processLimiter.take('all').limited).toBe(false);
+    }
+    expect(processLimiter.take('all').limited).toBe(true);
   });
 
   it('answers a depot briefing and a rationale for a transfer in the current plan', async () => {
