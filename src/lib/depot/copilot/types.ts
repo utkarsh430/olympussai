@@ -40,6 +40,8 @@ export type FallbackReason =
   | 'rejected_draft'
   | 'budget_exhausted'
   | 'request_rejected'
+  /** The caller went away (deadline or disconnect): says nothing about the CLI's health. */
+  | 'aborted'
   | 'scripted_unavailable'
   | 'error';
 

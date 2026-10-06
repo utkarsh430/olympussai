@@ -34,7 +34,12 @@ export const UNAVAILABLE_DRAFT: CopilotDraft = {
 };
 
 /** The CLI was never called, or says nothing about its health: not an attempt. */
-const NOT_AN_ATTEMPT: readonly FallbackReason[] = ['busy', 'budget_exhausted', 'request_rejected'];
+const NOT_AN_ATTEMPT: readonly FallbackReason[] = [
+  'busy',
+  'budget_exhausted',
+  'request_rejected',
+  'aborted',
+];
 /** Count in the rolling window rather than cooling down on their own. */
 const SOFT_FAILURES: readonly FallbackReason[] = [
   'timeout',
@@ -123,7 +128,8 @@ export function createCopilotEngine(deps: CopilotEngineDeps): CopilotEngine {
         draft = await cli.draft(request, signal);
       } catch (error: unknown) {
         const reason: FallbackReason = error instanceof CopilotFailure ? error.reason : 'error';
-        logDepotError('copilot', `claude-cli fell back: ${reason}`); // reason only
+        // An abort is logged by whoever aborted, once; logging it here would double it.
+        if (reason !== 'aborted') logDepotError('copilot', `claude-cli fell back: ${reason}`);
         recordFailure(reason);
         return scripted(request, reason, true);
       }

@@ -110,6 +110,8 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
       const cwd = deps.cwd();
       if (!isPrivateDir(cwd)) throw new CopilotFailure('error', 'working directory rejected');
       const result = await semaphore.run(() => {
+        // A caller gone by the time its slot comes up starts nothing and spends nothing.
+        if (signal?.aborted) throw new CopilotFailure('aborted', 'caller gone');
         // Counted where an attempt really starts, so queued or refused work costs nothing.
         if (!limiter.tryAcquire()) throw new CopilotFailure('budget_exhausted', 'call budget used');
         return runCli(
@@ -125,7 +127,9 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
           },
           deps.spawn,
         );
-      });
+      }, signal);
+      // runCli reports an abort as `request_rejected`; here it becomes its own reason.
+      if (!result.ok && signal?.aborted) throw new CopilotFailure('aborted', result.detail);
       if (!result.ok) throw new CopilotFailure(result.reason, result.detail);
 
       const parsed = parseCliOutput(result.stdout);
