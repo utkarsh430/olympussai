@@ -21,7 +21,7 @@ import {
 } from '@/lib/depot/revenue/revenueTablePageModel';
 import { HowProduced } from './HowProduced';
 import { RevenueRoutesTable } from './RevenueRoutesTable';
-import { DEPOT_FIGURE_MEANING } from '@/lib/depot/figureTones';
+import { DEPOT_FIGURE_MEANING, isLeadFigure } from '@/lib/depot/figureTones';
 
 /** Placeholder footprint: the band, then the table. */
 const LOADING_ROWS = 8;
@@ -81,6 +81,7 @@ function RevenueBody({ data, stale }: { readonly data: RevenueResponse; readonly
                 value={f.value}
                 caption={f.caption}
                 tone={DEPOT_FIGURE_MEANING[f.key]}
+                lead={isLeadFigure(f.key)}
               />
             ))}
           </FigureBand>

@@ -68,6 +68,7 @@ export function AllocationPanel({ allocation, groups }: AllocationPanelProps) {
           value={h.saving}
           caption={ROUTES_TEXT.kmADay}
           tone="better"
+          lead
         />
         <Figure label={ROUTES_TEXT.nowLabel} value={h.now} caption={ROUTES_TEXT.kmADay} />
         <Figure label={ROUTES_TEXT.afterLabel} value={h.after} caption={ROUTES_TEXT.kmADay} />

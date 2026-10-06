@@ -46,11 +46,12 @@ export function exceptionKindMeaning(kind: ExceptionKind): DepotMeaning {
 }
 
 /**
- * The fleet distribution plan's figures: the empty running is modelled distance (teal),
- * the deficit met is the plan's outcome, where more is better (green).
+ * The fleet distribution plan's figures: the empty running is a distance, a plain count
+ * (cyan; teal is kept for money and energy), the deficit met is the plan's outcome, where
+ * more is better (green).
  */
 export const PLAN_FIGURE_MEANING: Readonly<Record<string, DepotMeaning>> = {
-  empty: 'modelled',
+  empty: 'count',
   covered: 'better',
 };
 
@@ -75,3 +76,14 @@ export const DEPOT_FIGURE_MEANING: Readonly<Record<string, DepotMeaning>> = {
   not_heard: 'warning',
   tamper: 'info',
 };
+
+/**
+ * Each depot page's headline figure, which leads its band with the hero glow (one per
+ * page): the fuel burnt on the fuel page, the fare revenue on the revenue page, the buses
+ * off the road on the maintenance page, the deficit met on the fleet distribution plan.
+ */
+const LEAD_FIGURE_KEYS: ReadonlySet<string> = new Set(['fuel', 'revenue', 'off_road', 'covered']);
+
+export function isLeadFigure(key: string): boolean {
+  return LEAD_FIGURE_KEYS.has(key);
+}

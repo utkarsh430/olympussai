@@ -5,6 +5,9 @@ import { EXCEPTION_KIND_LABEL } from '@/lib/depot/exceptions/describe';
 import type { ExceptionKind } from '@/lib/depot/exceptions/types';
 import { exceptionKindMeaning } from '@/lib/depot/figureTones';
 
+/** The page's headline figure: buses raising the emergency flag, the one critical bus kind. */
+const LEAD_KIND = 'emergency';
+
 
 /** While a depot's own bus counts have not arrived the figure is a dash, never the network's. */
 const PENDING_TITLE = "This depot's bus count is still loading";
@@ -40,6 +43,7 @@ export function ExceptionCounts({
           onPress={() => onToggle(kind)}
           pressed={selected === kind}
           tone={exceptionKindMeaning(kind)}
+          lead={kind === LEAD_KIND}
         />
       );
     });

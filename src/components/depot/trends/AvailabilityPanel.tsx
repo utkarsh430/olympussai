@@ -41,11 +41,14 @@ function Figures({ comparison, requirement }: FiguresProps) {
         label={`Next ${comparison.horizonDays} days`}
         value={`${formatCount(comparison.lowest)} to ${formatCount(comparison.highest)}`}
         caption="available buses, forecast"
+        tone="forecast"
+        lead
       />
       <Figure
         label="Days short"
         caption="below the requirement"
         value={`${comparison.daysBelow} of ${comparison.horizonDays}`}
+        tone={comparison.daysBelow > 0 ? 'warning' : undefined}
       />
     </FigureBand>
   );

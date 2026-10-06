@@ -22,7 +22,7 @@ import { FlaggedList } from './FlaggedList';
 import { RouteTable } from './RouteTable';
 import { SOURCES_PATH } from '@/lib/depot/nav';
 import { feedAnchor } from '@/lib/depot/sources/sourcesModel';
-import { DEPOT_FIGURE_MEANING } from '@/lib/depot/figureTones';
+import { DEPOT_FIGURE_MEANING, isLeadFigure } from '@/lib/depot/figureTones';
 
 /** Placeholder footprint: the band, then the stand-out table, the class table and the routes. */
 const LOADING_ROWS = 14;
@@ -97,6 +97,7 @@ function FuelBody({ data, stale }: { readonly data: FuelResponse; readonly stale
                 value={f.value}
                 caption={f.caption}
                 tone={DEPOT_FIGURE_MEANING[f.key]}
+                lead={isLeadFigure(f.key)}
               />
             ))}
           </FigureBand>

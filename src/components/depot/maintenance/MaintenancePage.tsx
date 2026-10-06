@@ -23,7 +23,7 @@ import { PreventiveSection } from './PreventiveSection';
 import { offRoadBusesFrom } from '@/lib/depot/maintenance/offRoad';
 import { workshopLoad } from '@/lib/depot/maintenance/workshop';
 import { WorkshopSection } from './WorkshopSection';
-import { DEPOT_FIGURE_MEANING } from '@/lib/depot/figureTones';
+import { DEPOT_FIGURE_MEANING, isLeadFigure } from '@/lib/depot/figureTones';
 
 /** Placeholder footprint: the hero list, then the two quieter sections. */
 const LOADING_ROWS = 12;
@@ -90,6 +90,7 @@ export function MaintenancePage() {
             caption={figure.caption}
             tag={figure.tag}
             tone={DEPOT_FIGURE_MEANING[figure.key]}
+            lead={isLeadFigure(figure.key)}
           />
         ))}
       </FigureBand>
