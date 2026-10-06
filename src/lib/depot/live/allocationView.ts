@@ -89,7 +89,10 @@ function inputOf(
 const positionsOf = (analysis: SnapshotAnalysis): ReadonlyMap<string, DepotPosition> =>
   depotPositions(analysis.depots, analysis.yards);
 
-/** The allocator's inputs for this snapshot and the profiles cached now; for reconciliation. */
+/**
+ * The allocator's inputs for this snapshot and the profiles cached now. Test helper: no
+ * product code calls it; tests rebuild the allocator's input with it to reconcile the plan.
+ */
 export function allocationInputFor(
   view: FleetSnapshotView,
   analysis: SnapshotAnalysis,

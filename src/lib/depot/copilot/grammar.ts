@@ -47,7 +47,11 @@ function parseToken(raw: string): Token | null {
     : null;
 }
 
-/** The draft text as tokens, or null when any part is outside the token grammar. */
+/**
+ * The draft text as tokens, or null when any part is outside the token grammar.
+ * Test helper: no product code calls it; tests use it to split drafts the same way the
+ * grammar reads them.
+ */
 export function tokenize(text: string): Token[] | null {
   const parsed = text.split(' ').map(parseToken);
   return parsed.every((t): t is Token => t !== null) ? parsed : null;
