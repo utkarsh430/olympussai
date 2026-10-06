@@ -199,34 +199,36 @@ export type ProposalColumnKey =
   | 'restsOn'
   | 'reason';
 
-/** Every column from 1440; the reason from 1280 lives in the expanded row only. */
-export type ProposalTableTier = 'full' | 'wide' | 'medium' | 'narrow';
+/** Every column from 1440; below it the reason and the scheduled figure live in the expanded row. */
+export type ProposalTableTier = 'full' | 'wide' | 'narrow';
 
-/** Widths in px; each fits its header (with a tag's pill) and its longest cell word. */
+/**
+ * Widths in px: each fits its header (a MODELLED pill included) and its longest cell
+ * word; a depot name longer than the source column truncates, with the full text in
+ * its title. The reason is a sentence, so its column only previews it.
+ */
 export const PROPOSAL_COLUMN_WIDTHS: Readonly<Record<ProposalColumnKey, number>> = {
   band: 104,
   change: 120,
   deployed: 88,
   scheduled: 96,
-  needed: 128,
+  needed: 136,
   source: 160,
-  impact: 144,
-  restsOn: 128,
-  reason: 160,
+  impact: 168,
+  restsOn: 120,
+  reason: 136,
 };
 
 const COLUMN_SETS: Readonly<Record<ProposalTableTier, readonly ProposalColumnKey[]>> = {
   full: ['band', 'change', 'deployed', 'scheduled', 'needed', 'source', 'impact', 'restsOn', 'reason'],
-  wide: ['band', 'change', 'deployed', 'scheduled', 'needed', 'source', 'impact', 'restsOn'],
-  medium: ['band', 'change', 'deployed', 'needed', 'source', 'impact', 'restsOn'],
-  narrow: ['band', 'change', 'deployed', 'needed', 'impact', 'restsOn'],
+  wide: ['band', 'change', 'deployed', 'needed', 'source', 'impact', 'restsOn'],
+  narrow: ['band', 'change', 'needed', 'impact', 'restsOn'],
 };
 
 /** The tiers from the widest, for `useWidthTier`. */
 export const PROPOSAL_TIERS: readonly (readonly [ProposalTableTier, number])[] = [
   ['full', WIDE_VIEWPORT_PX],
-  ['wide', BREAKPOINT_PX.xl],
-  ['medium', BREAKPOINT_PX.lg],
+  ['wide', BREAKPOINT_PX.lg],
   ['narrow', 0],
 ];
 

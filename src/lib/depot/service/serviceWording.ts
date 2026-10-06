@@ -1,5 +1,11 @@
-import { MINUS, formatCount, formatDurationMinutes, formatOneDecimal } from '../format';
-import type { HourBand, ProposalKind, ProposalTier } from './types';
+import {
+  MINUS,
+  formatCount,
+  formatDurationMinutes,
+  formatOneDecimal,
+  formatPercent,
+} from '../format';
+import type { HourBand, NeedInputs, ProposalKind, ProposalTier } from './types';
 
 /*
  * Every label and sentence of the route's hour-by-hour page, in one place, so the page,
@@ -69,7 +75,7 @@ export function changeCell(kind: ProposalKind, change: number): string {
 
 export const TIER_CELL: Readonly<Record<ProposalTier, string>> = {
   A: 'A · Measured',
-  B: 'B · Partly modelled',
+  B: 'B · Mixed',
   C: 'C · Modelled',
 };
 
@@ -82,7 +88,6 @@ export const TIER_SENTENCE: Readonly<Record<ProposalTier, string>> = {
 export const SERVICE_TEXT = {
   chartTitle: 'Buses by hour',
   showTable: 'Show as table',
-  showChart: 'Show as chart',
   tableCaption: 'Buses deployed, scheduled and needed for each hour of the day',
   bandLabel: 'This hour',
   proposalsTitle: 'Proposals',
@@ -124,6 +129,21 @@ export const LEGEND_TEXT = {
   now: 'Now',
   gap: 'Gap row: + short, − over',
 } as const;
+
+/** Where the journey time came from, in words. */
+const JOURNEY_SOURCE: Readonly<Record<NeedInputs['journeyMinutesProvenance'], string>> = {
+  live: 'from the feed',
+  derived: 'from the feed’s scheduled times',
+  reference: 'from the route profile',
+  modelled: 'from the trip model',
+};
+
+/** What the need formula was given for this route, in words. */
+export function needInputsSentence(need: NeedInputs): string {
+  const journey = formatDurationMinutes(need.journeyMinutes);
+  const layover = formatDurationMinutes(need.layoverMinutes);
+  return `This route’s need rests on ${formatCount(need.seatsPerBus)} seats per bus, a journey of ${journey} ${JOURNEY_SOURCE[need.journeyMinutesProvenance]} plus ${layover} of layover, a target load of ${formatPercent(need.targetLoad)} and ${formatPercent(need.busiestStretchShare)} of boardings on the busiest stretch.`;
+}
 
 /** The closing disclosure: definitions, formulas in words, assumptions and replacements. */
 export const SERVICE_HOW_PRODUCED: readonly string[] = [

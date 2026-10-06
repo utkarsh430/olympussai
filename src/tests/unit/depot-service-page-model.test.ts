@@ -78,7 +78,7 @@ describe('proposal rows', () => {
       change: 'Add 3',
       source: 'Alambagh · 6 standing',
       impact: '180–320',
-      restsOn: 'B · Partly modelled',
+      restsOn: 'B · Mixed',
       reason: FIXTURE_PROPOSALS[0]?.reason,
     });
     expect(hold).toMatchObject({ change: 'Hold 2', source: 'Alambagh · day plan', impact: '−20–0' });
@@ -101,7 +101,7 @@ describe('proposals table width per tier', () => {
   it.each<[number, string]>([
     [1440, 'full'],
     [1280, 'wide'],
-    [1024, 'medium'],
+    [1024, 'wide'],
     [800, 'narrow'],
   ])('at %ipx the %s column set fits the frame', (viewport, tier) => {
     expect(proposalTierFor(viewport)).toBe(tier);
@@ -114,9 +114,9 @@ describe('proposals table width per tier', () => {
 
   it('keeps every column from 1440 and always the band, change and rests-on', () => {
     expect(proposalColumnKeys('full')).toHaveLength(9);
-    for (const tier of ['full', 'wide', 'medium', 'narrow'] as const) {
+    for (const tier of ['full', 'wide', 'narrow'] as const) {
       expect(proposalColumnKeys(tier)).toEqual(
-        expect.arrayContaining(['band', 'change', 'needed', 'restsOn']),
+        expect.arrayContaining(['band', 'change', 'needed', 'impact', 'restsOn']),
       );
     }
   });
