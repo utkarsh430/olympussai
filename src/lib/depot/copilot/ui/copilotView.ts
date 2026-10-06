@@ -121,3 +121,15 @@ export function groupFactsByProvenance(facts: readonly CopilotFactView[]): reado
     facts: facts.filter((fact) => fact.provenance === provenance),
   })).filter((group) => group.facts.length > 0);
 }
+
+/** The question box's limit, always visible: "212 of 300 characters left" or "12 over the 300 character limit". */
+export function limitSentence(remaining: number, max: number = MAX_QUESTION_CHARS): string {
+  return remaining < 0
+    ? `${-remaining} over the ${max} character limit`
+    : `${remaining} of ${max} characters left`;
+}
+
+/** Said once, after the first answer, in place of a section paragraph. */
+export function sessionNote(maxKept: number): string {
+  return `The last ${maxKept} answers stay on this page, newest first. Nothing is stored: they are gone when you leave or reload.`;
+}

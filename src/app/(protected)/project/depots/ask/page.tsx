@@ -1,5 +1,6 @@
 import { requireProjectSession } from '@/lib/auth/server';
 import { AskPanel } from '@/components/depot/copilot/AskPanel';
+import { ProducedDisclosure } from '@/components/depot/sources/ProducedDisclosure';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 
 const ASK_PATH = '/project/depots/ask';
@@ -13,9 +14,22 @@ export default async function DepotAskPage() {
     <>
       <PageHeader
         title="Ask"
-        description="Ask about the network or a depot in plain words. Answers are advisory, and every figure in them comes from the latest data."
+        description="Ask about the network or one depot; questions about staff are not answered."
+        provenanceLine={{ default: 'derived' }}
       />
       <AskPanel />
+      <ProducedDisclosure>
+        <p>
+          You can ask about rankings, a depot&apos;s summary, depots short of buses or with spare
+          buses, transfers and exceptions. Choose a depot under About for questions about one depot.
+        </p>
+        <p>
+          Answers are advisory, and every figure in them comes from the latest data. The footer
+          under each answer names who wrote it, a scripted template or the Claude model, and how
+          many figures it used.
+        </p>
+        <p>The last five answers stay on this page and nothing is stored.</p>
+      </ProducedDisclosure>
     </>
   );
 }

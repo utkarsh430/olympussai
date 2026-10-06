@@ -6,16 +6,16 @@ export interface ExampleQuestionsProps {
   readonly onPick: (question: string) => void;
 }
 
-/** Buttons that fill the question box; they never submit. */
+/** A vertical list of text rows that fill the question box; they never submit. */
 export function ExampleQuestions({ depotName, onPick }: ExampleQuestionsProps) {
   return (
-    <ul className="flex flex-wrap gap-2" aria-label="Example questions">
+    <ul className="flex min-w-0 flex-col" aria-label="Example questions">
       {exampleQuestions(depotName).map((example) => (
-        <li key={example} className="min-w-0">
+        <li key={example} className="min-w-0 border-b border-depot-line last:border-b-0">
           <button
             type="button"
             onClick={() => onPick(example)}
-            className="hud-button max-w-full whitespace-normal text-left normal-case tracking-normal"
+            className="w-full min-w-0 py-1.5 text-left font-sans text-[13px] text-depot-muted hover:text-holo-glow focus-visible:text-holo-glow"
           >
             {example}
           </button>
