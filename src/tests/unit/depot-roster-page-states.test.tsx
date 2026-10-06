@@ -319,7 +319,10 @@ describe('every string the roster can produce', () => {
     const cells = Array.from(doc.querySelectorAll('td, th, h2, p, button, option')).map(
       (el) => el.textContent ?? '',
     );
-    return [...cells, ...attrs, ...facts];
+    const walker = doc.createTreeWalker(doc.body, 4);
+    const nodes: string[] = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) nodes.push(node.textContent ?? '');
+    return [...cells, ...attrs, ...facts, ...nodes];
   }
 
   it('has no ISO stamp, no raw minutes above an hour, no "simulated" and no tag in a cell', async () => {
@@ -330,7 +333,7 @@ describe('every string the roster can produce', () => {
     const doc = await render();
     for (const text of allStrings(doc, rows)) {
       expect(text).not.toMatch(/simulated/i);
-      expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+      expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}/);
       expect(text.match(/\b(?:6[1-9]|[7-9]\d|\d{3,}) min\b/)?.[0] ?? null).toBeNull();
       expect(text).not.toMatch(/MODELLED/);
     }
