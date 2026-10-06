@@ -2,7 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { formatCount } from '@/lib/depot/format';
-import { GROUP_PREVIEW_ROWS, pageRange, visibleRows } from '@/lib/depot/listPaging';
+import { GROUP_PREVIEW_ROWS, pageRange, visibleRows, type PageRange } from '@/lib/depot/listPaging';
+import { DisclosureChevron } from './DisclosureChevron';
 
 export interface ShowMoreProps<T> {
   readonly items: readonly T[];
@@ -14,9 +15,38 @@ export interface ShowMoreProps<T> {
   readonly label: string;
 }
 
+export interface ShowAllButtonProps {
+  /** Every row the capped group holds. */
+  readonly total: number;
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+  /** Id of the list or table it opens. */
+  readonly controls?: string;
+}
+
 /**
- * A capped list: the first five rows, then "Show all N" as a real button with
- * `aria-expanded` (and "Show fewer" once open). Use for a secondary list inside a page.
+ * The one "Show all N" (design critique round 4, F): a quiet text button with the
+ * disclosure chevron, for any capped group. `ShowMore` uses it; a page that caps a table
+ * or list itself (the overview's segments, the yard's lists) uses it directly.
+ */
+export function ShowAllButton({ total, expanded, onToggle, controls }: ShowAllButtonProps) {
+  return (
+    <button
+      type="button"
+      aria-expanded={expanded}
+      aria-controls={controls}
+      onClick={onToggle}
+      className="depot-show-all"
+    >
+      {expanded ? 'Show fewer' : `Show all ${formatCount(total)}`}
+      <DisclosureChevron open={expanded} />
+    </button>
+  );
+}
+
+/**
+ * A capped list: the first five rows, then "Show all N" (`ShowAllButton`), a real
+ * button with `aria-expanded`. Use for a secondary list inside a page.
  */
 export function ShowMore<T>({ items, renderItem, itemKey, limit = GROUP_PREVIEW_ROWS, label }: ShowMoreProps<T>) {
   const [expanded, setExpanded] = useState(false);
@@ -32,15 +62,12 @@ export function ShowMore<T>({ items, renderItem, itemKey, limit = GROUP_PREVIEW_
         ))}
       </ul>
       {items.length > limit ? (
-        <button
-          type="button"
-          aria-expanded={expanded}
-          aria-controls={listId}
-          onClick={() => setExpanded((open) => !open)}
-          className="depot-filter-button mt-2"
-        >
-          {expanded ? 'Show fewer' : `Show all ${formatCount(items.length)}`}
-        </button>
+        <ShowAllButton
+          total={items.length}
+          expanded={expanded}
+          onToggle={() => setExpanded((open) => !open)}
+          controls={listId}
+        />
       ) : null}
     </div>
   );
@@ -82,9 +109,17 @@ export interface PagerProps {
   readonly onPage: (page: number) => void;
 }
 
+/** "Rows 1 to 25 of 1,936": the range in words, with thousands separators. */
+function rangeWords(range: PageRange, total: number): string {
+  if (range.end === 0) return 'No rows';
+  return `Rows ${formatCount(range.start + 1)} to ${formatCount(range.end)} of ${formatCount(total)}`;
+}
+
 /**
- * Previous and Next for a list that pages at 25, with the range in words as a status
- * line. When a press disables the button that had focus (the first or last page),
+ * Previous and Next for a list that pages at 25, under the table, mono, with the range
+ * in words as a status line. It is the ONLY place a list's "x of y" count appears: a
+ * page prints no "Showing 1-25 of N" sentence above the table.
+ * When a press disables the button that had focus (the first or last page),
  * focus moves to the status line so it is never lost to the document body.
  */
 export function Pager({ page, total, pageSize, onPage }: PagerProps) {
@@ -104,7 +139,11 @@ export function Pager({ page, total, pageSize, onPage }: PagerProps) {
   };
 
   return (
-    <nav aria-label="Pages" className="mt-3 flex flex-wrap items-center gap-3" data-testid="depot-pager">
+    <nav
+      aria-label="Pages"
+      className="mt-3 flex flex-wrap items-center gap-3 font-mono"
+      data-testid="depot-pager"
+    >
       <button
         type="button"
         disabled={!range.hasPrevious}
@@ -114,7 +153,7 @@ export function Pager({ page, total, pageSize, onPage }: PagerProps) {
         Previous
       </button>
       <span ref={status} tabIndex={-1} role="status" className="font-mono text-[13px] tabular-nums text-depot-muted">
-        {range.words}
+        {rangeWords(range, Math.max(0, Math.floor(total)))}
       </span>
       <button
         type="button"

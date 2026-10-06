@@ -523,6 +523,12 @@
     @apply border-holo-glow/60 bg-depot-raised text-holo-glow;
   }
 
+  /* The one "Show all N": a quiet text button with the disclosure chevron. */
+  .depot-show-all {
+    @apply mt-2 inline-flex items-baseline gap-1.5 py-1 font-mono text-[11px] uppercase
+      tracking-[0.12em] text-depot-muted hover:text-depot-ink;
+  }
+
   .depot-link {
     @apply text-holo-glow underline decoration-holo-glow/40 underline-offset-2
       hover:decoration-holo-glow;
