@@ -2,9 +2,11 @@ import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DepotMapPanel } from '@/components/depot/network/DepotMapPanel';
+import { ExceptionSummary } from '@/components/depot/network/ExceptionSummary';
 import { SelectionBar, SelectionLine } from '@/components/depot/network/SelectionBar';
 import type { DepotRow } from '@/lib/depot/network/overviewModel';
 import type { DepotSummary } from '@/lib/depot/types';
+import type { ExceptionKind, ExceptionSeverity } from '@/lib/depot/exceptions/types';
 import type { DepotScore } from '@/lib/depot/score/types';
 
 const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
@@ -148,5 +150,36 @@ describe('unit terminology and the empty panel', () => {
     expect(panel?.textContent).toContain('Lowest index among operating depots');
     expect(panel?.textContent).toContain('within its own peer group ranking');
     expect(panel?.textContent).toContain('Depot b');
+  });
+});
+
+describe('ExceptionSummary', () => {
+  const COUNTS: Record<ExceptionKind, number> = {
+    emergency: 2,
+    dark_share_high: 3,
+    off_road_high: 0,
+    on_road_low: 1,
+    power_cut_cluster: 4,
+    long_dark: 698,
+    power_cut: 10,
+    tamper_code: 5,
+  };
+  const SEVERITIES: Record<ExceptionSeverity, number> = { critical: 5, warning: 20, info: 15 };
+
+  it('links every kind to the exceptions page filtered to it', () => {
+    act(() => root.render(<ExceptionSummary counts={COUNTS} severities={SEVERITIES} />));
+    const hrefs = Array.from(container.querySelectorAll('a')).map((a) => a.getAttribute('href'));
+    expect(hrefs).toContain('/project/depots/exceptions');
+    expect(hrefs).toContain('/project/depots/exceptions?kind=long_dark');
+    expect(hrefs).toContain('/project/depots/exceptions?kind=emergency');
+    expect(hrefs.filter((href) => href?.includes('?kind='))).toHaveLength(8);
+  });
+
+  it('names the scope of every total and links nothing but the exceptions page', () => {
+    act(() => root.render(<ExceptionSummary counts={COUNTS} severities={SEVERITIES} />));
+    expect(container.textContent).toMatch(/depot exceptions/);
+    expect(container.textContent).toMatch(/bus exceptions/);
+    const hrefs = Array.from(container.querySelectorAll('a')).map((a) => a.getAttribute('href'));
+    expect(hrefs.every((href) => href?.startsWith('/project/depots/exceptions'))).toBe(true);
   });
 });
