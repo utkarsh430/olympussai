@@ -85,7 +85,7 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
         />
       )}
       <div className={SECTION}>
-        <NetworkBriefingRow />
+        <NetworkBriefingRow feedNow={data.feedNow} />
       </div>
       {rows.length === 0 ? null : (
         <>
@@ -111,15 +111,15 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
 }
 
 /**
- * The briefing as one collapsed row that opens in place. The shared card cannot yet
- * take the page's feed time, so its footer cannot say when the page has moved on.
+ * The briefing as one collapsed row that opens in place. The card is given the page's
+ * feed time, so its footer says when the page has moved on since the text was written.
  */
-function NetworkBriefingRow() {
+function NetworkBriefingRow({ feedNow }: { readonly feedNow: string | null }) {
   return (
     <details className="depot-details border-y border-depot-line py-2.5" data-testid="depot-briefing-row">
       <summary>Network briefing · a written summary of these figures, on request</summary>
       <div className="mt-3">
-        <BriefingCard scope={NETWORK_SCOPE} title="Network briefing" />
+        <BriefingCard scope={NETWORK_SCOPE} title="Network briefing" currentFeedTime={feedNow} />
       </div>
     </details>
   );
