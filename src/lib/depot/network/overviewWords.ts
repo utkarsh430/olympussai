@@ -1,10 +1,14 @@
 import { formatCount, formatShare } from '@/lib/depot/format';
+import { METRIC_LABEL } from '@/lib/depot/forecast/wording';
 import { MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
 import type { DepotSummary, NetworkKpis, Provenance } from '@/lib/depot/types';
 import type { UnrankedSummary } from './overviewModel';
+import type { KindFilter } from './unitsTable';
 
 /**
- * Words and layout for the overview's figures and table. A **unit** is any
+ * Words and layout for the overview's figures and table. The four state figures are
+ * the classified states (`On road`, `Standing`, `Dark`, `Off road`), read from the
+ * kpis by their field names; the server sums them from `classifyBusState`. A **unit** is any
  * home-depot value in the feed; an **operating depot** is a unit of kind
  * `depot`; everything else is an **other unit**. Operating depots are counted
  * against units, never against buses.
@@ -31,14 +35,14 @@ type KpiSpec = { readonly key: keyof NetworkKpis; readonly label: string };
 const PRIMARY: readonly KpiSpec[] = [
   { key: 'fleet', label: 'Fleet' },
   { key: 'onRoad', label: 'On road' },
-  { key: 'stationary', label: 'Stationary' },
-  { key: 'noSignal', label: 'No signal' },
+  { key: 'stationary', label: 'Standing' },
+  { key: 'noSignal', label: 'Dark' },
   { key: 'depots', label: 'Operating depots' },
 ];
 
 const SECONDARY: readonly KpiSpec[] = [
   { key: 'reporting', label: 'Reporting' },
-  { key: 'underMaintenance', label: 'Under maintenance' },
+  { key: 'underMaintenance', label: 'Off road' },
   { key: 'assigned', label: 'Route assigned' },
 ];
 
@@ -83,8 +87,11 @@ export function kpiLayout(
   };
 }
 
-export type KindFilter = 'all' | 'depot' | 'other';
-
+export {
+  tableColumnKeys,
+  type KindFilter,
+  type TableColumnKey,
+} from './unitsTable';
 export const KIND_FILTER_OPTIONS: ReadonlyArray<{
   readonly id: KindFilter;
   readonly label: string;
@@ -103,54 +110,6 @@ const HEADING: Readonly<Record<KindFilter, string>> = {
 /** "All units · 143": the kind filter names the table and the count is what it shows. */
 export function tableHeading(filter: KindFilter, count: number): string {
   return `${HEADING[filter]} · ${formatCount(count)}`;
-}
-
-export type TableColumnKey =
-  | 'name'
-  | 'kind'
-  | 'fleet'
-  | 'reporting'
-  | 'assigned'
-  | 'onRoad'
-  | 'stationary'
-  | 'noSignal'
-  | 'maintenance'
-  | 'mix'
-  | 'index'
-  | 'peerGroup';
-
-const WIDE: readonly TableColumnKey[] = [
-  'name',
-  'kind',
-  'fleet',
-  'reporting',
-  'assigned',
-  'onRoad',
-  'stationary',
-  'noSignal',
-  'maintenance',
-  'mix',
-  'index',
-  'peerGroup',
-];
-
-/** Below 900px: the figures a planner compares first; the rest is in the depot's own pages. */
-const NARROW: ReadonlySet<TableColumnKey> = new Set([
-  'name',
-  'fleet',
-  'reporting',
-  'assigned',
-  'onRoad',
-  'noSignal',
-  'index',
-]);
-
-/** Kind is dropped when the filter already says every row is an operating depot. */
-export function tableColumnKeys(filter: KindFilter, narrow: boolean): TableColumnKey[] {
-  return WIDE.filter((key) => {
-    if (narrow && !NARROW.has(key)) return false;
-    return !(key === 'kind' && filter === 'depot');
-  });
 }
 
 export const TABLE_ROW_CAP = 25;
@@ -225,4 +184,22 @@ export function secondaryReading(figure: KpiFigure): string {
  */
 export function figureTag(provenance: Provenance): Provenance | undefined {
   return provenance === 'live' || provenance === 'derived' ? undefined : provenance;
+}
+
+const lowerFirst = (text: string): string => text.charAt(0).toLowerCase() + text.slice(1);
+
+/**
+ * The band's right-hand note: the week's MODELLED trends of two shares, each named,
+ * because neither is a count in the band. The tag is drawn once beside it, never in
+ * the words. "On-road share steady over 7 days; dark rate up 1.2 percentage points
+ * over 7 days."
+ */
+export function weekTrendNote(onRoadWeek: string | null, darkWeek: string | null): string | null {
+  const parts = [
+    onRoadWeek === null ? null : `${METRIC_LABEL.onRoadShare} ${onRoadWeek}`,
+    darkWeek === null ? null : `${METRIC_LABEL.darkRate} ${darkWeek}`,
+  ].filter((part): part is string => part !== null);
+  if (parts.length === 0) return null;
+  const [first, ...rest] = parts;
+  return `${[first, ...rest.map(lowerFirst)].join('; ')}.`;
 }

@@ -46,7 +46,6 @@ const EXEMPT: readonly string[] = [
   'src/components/depot/network/DepotMap.tsx',
   'src/components/depot/network/DepotMapLegend.tsx',
   'src/components/depot/network/DepotMapPanel.tsx',
-  'src/components/depot/network/DepotTable.tsx',
   'src/components/depot/network/ExceptionSummary.tsx',
   'src/components/depot/network/KpiBand.tsx',
   'src/components/depot/rebalance/DepotValueField.tsx',

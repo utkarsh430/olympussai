@@ -17,6 +17,7 @@ function unitRow(i: number): DepotRow {
     assigned: 20,
     centroid: null,
     status: { live: 10, stationary: 20, noSignal: 5, underMaintenance: 1 },
+    states: { inService: 4, onRoad: 6, standing: 20, dark: 5, offRoad: 1 },
   } as unknown as DepotSummary;
   return { depot, score: null } as unknown as DepotRow;
 }
@@ -57,7 +58,7 @@ describe('units table', () => {
     act(() => root.render(<DepotTable rows={rows} selectedId={null} onSelect={() => undefined} />));
     expect(container.querySelectorAll('tbody tr')).toHaveLength(25);
     const toggle = Array.from(container.querySelectorAll('button')).find(
-      (b) => b.textContent === 'Show all 30',
+      (b) => b.textContent?.startsWith('Show all 30'),
     );
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     act(() => toggle?.click());

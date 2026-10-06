@@ -1,5 +1,6 @@
 import { DEI_COMPONENTS, MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
 import { SCORE_WINDOW_MIN } from '@/lib/depot/score/window';
+import { DARK_HEADER_TITLE } from './unitsTable';
 
 /*
  * The text of each network page's closing disclosure, "How these figures are produced".
@@ -41,9 +42,12 @@ export const OVERVIEW_HOW_PRODUCED: readonly string[] = [
   'Each unit is drawn at the median position of its buses, not at a surveyed yard, and it ' +
     'moves with them: a unit whose fleet is mostly out on routes can appear tens of ' +
     'kilometres from its yard.',
+  'Every bus is in one state, from its last report, in the same words as each depot\'s ' +
+    'cockpit: on road (in service or not), standing, dark and off road. ' +
+    `${DARK_HEADER_TITLE}. Off road is what the feed flags as under maintenance.`,
   indexDefinition(),
   WINDOW,
-  'The week trend under the figures is MODELLED and measures shares, not the counts above ' +
+  'The week trend beside the figures is MODELLED and measures shares, not the counts above ' +
     'it: on-road share is buses in service or on road out of buses not off the road; dark ' +
     'share is the inferred share of buses that have stopped reporting.',
 ];

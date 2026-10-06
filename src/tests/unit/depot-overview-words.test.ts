@@ -48,16 +48,16 @@ describe('kpiLayout', () => {
     expect(layout.primary.map((f) => f.label)).toEqual([
       'Fleet',
       'On road',
-      'Stationary',
-      'No signal',
+      'Standing',
+      'Dark',
       'Operating depots',
     ]);
   });
 
-  it('puts the three remaining figures on the quiet line', () => {
+  it('puts the three remaining figures in the second row of the band', () => {
     expect(layout.secondary.map((f) => f.label)).toEqual([
       'Reporting',
-      'Under maintenance',
+      'Off road',
       'Route assigned',
     ]);
   });
@@ -123,14 +123,13 @@ describe('table wording', () => {
     expect(tableColumnKeys('other', false)).toContain('kind');
   });
 
-  it('keeps depot, fleet, reporting, assigned, on road, no signal and index when narrow', () => {
+  it('keeps unit, fleet, the classified states and index when narrow', () => {
     expect(tableColumnKeys('all', true)).toEqual([
       'name',
       'fleet',
-      'reporting',
-      'assigned',
       'onRoad',
-      'noSignal',
+      'standing',
+      'dark',
       'index',
     ]);
   });
@@ -156,8 +155,8 @@ describe('table wording', () => {
     expect(tableCapLine(25, 143, null, true)).toBe(
       'Showing the first 25 of 143 in the default order',
     );
-    expect(tableCapLine(25, 119, { label: 'Stationary', direction: 'desc' }, false)).toBe(
-      'Showing the first 25 of 119, sorted by Stationary (descending)',
+    expect(tableCapLine(25, 119, { label: 'Standing', direction: 'desc' }, false)).toBe(
+      'Showing the first 25 of 119, sorted by Standing (descending)',
     );
     expect(tableCapLine(25, 1430, { label: 'Depot', direction: 'asc' }, false)).toBe(
       'Showing the first 25 of 1,430, sorted by Depot (ascending)',
