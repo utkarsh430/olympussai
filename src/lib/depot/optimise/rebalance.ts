@@ -17,13 +17,14 @@ export function roadDistanceKm(a: LatLng, b: LatLng, detourFactor: number): numb
   return haversineKm(a.lat, a.lng, b.lat, b.lng) * detourFactor;
 }
 
-/** Counts and sums of surplus and deficit across the given balances. */
+/** Counts and sums of surplus and deficit across the operating depots among the balances. */
 export function summariseBalances(balances: readonly DepotBalance[]): NetworkBalanceTotals {
   let depotsInDeficit = 0;
   let depotsInSurplus = 0;
   let totalDeficit = 0;
   let totalSurplus = 0;
   for (const b of balances) {
+    if (b.kind !== 'depot') continue;
     if (b.balance < 0) {
       depotsInDeficit += 1;
       totalDeficit -= b.balance;
@@ -39,7 +40,7 @@ function compareIds(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** Moves buses between depots, returning new balances; the inputs are untouched. */
+/** Moves buses between depots, returning new balances; non-depot rows and inputs are untouched. */
 export function applyTransfers(
   balances: readonly DepotBalance[],
   transfers: readonly Transfer[],
@@ -50,7 +51,7 @@ export function applyTransfers(
     delta.set(t.toDepotId, (delta.get(t.toDepotId) ?? 0) + t.buses);
   }
   return balances.map((b) => {
-    const change = delta.get(b.depotId) ?? 0;
+    const change = b.kind === 'depot' ? (delta.get(b.depotId) ?? 0) : 0;
     if (change === 0) return { ...b };
     const available = b.available + change;
     return { ...b, fleet: b.fleet + change, available, balance: available - b.required };
@@ -70,10 +71,18 @@ function withPosition(balance: DepotBalance): Candidate | null {
  * Plans the cheapest set of bus transfers that covers as much deficit as
  * possible: maximum buses moved first, then minimum bus-kilometres.
  *
- * Excluded depots are ignored entirely. Locked depots may receive but never
- * give. A depot without a position cannot be routed to or from, so its
- * deficit is reported as `no_position`. Balances are processed in id order so
- * the plan does not depend on the order of the input.
+ * Only rows with kind `depot` take part; hired, electric and enforcement
+ * units never give or receive and appear nowhere in the totals or the report.
+ * Every participating depot is counted in `before` and `after`. Excluded
+ * depots neither give nor receive, locked depots may receive but never give,
+ * and a depot without a position cannot be routed to or from.
+ *
+ * Each deficit left uncovered gets one entry carrying its remaining buses and
+ * the first reason that applies, in this order: `excluded` (the depot itself
+ * is excluded), `no_position`, `no_surplus_in_range` (no eligible surplus
+ * depot within the maximum distance), `insufficient_surplus` (reachable
+ * surplus existed but ran out). Balances are processed in id order so the
+ * plan does not depend on the order of the input.
  */
 export function planTransfers(
   balances: readonly DepotBalance[],
@@ -82,15 +91,15 @@ export function planTransfers(
   const excluded = new Set(params.excludedDepotIds);
   const locked = new Set(params.lockedDepotIds);
   const active = balances
-    .filter((b) => !excluded.has(b.depotId))
+    .filter((b) => b.kind === 'depot')
     .sort((a, b) => compareIds(a.depotId, b.depotId));
 
   const givers = active
-    .filter((b) => b.balance > 0 && !locked.has(b.depotId))
+    .filter((b) => b.balance > 0 && !locked.has(b.depotId) && !excluded.has(b.depotId))
     .map(withPosition)
     .filter((c): c is Candidate => c !== null);
   const receivers = active
-    .filter((b) => b.balance < 0)
+    .filter((b) => b.balance < 0 && !excluded.has(b.depotId))
     .map(withPosition)
     .filter((c): c is Candidate => c !== null);
 
@@ -155,6 +164,10 @@ export function planTransfers(
   const uncovered: UncoveredDeficit[] = [];
   for (const b of active) {
     if (b.balance >= 0) continue;
+    if (excluded.has(b.depotId)) {
+      uncovered.push({ depotId: b.depotId, buses: -b.balance, reason: 'excluded' });
+      continue;
+    }
     const j = receivers.findIndex((r) => r.balance.depotId === b.depotId);
     if (j === -1) {
       uncovered.push({ depotId: b.depotId, buses: -b.balance, reason: 'no_position' });

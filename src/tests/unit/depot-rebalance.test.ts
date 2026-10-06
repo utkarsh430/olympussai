@@ -238,8 +238,7 @@ describe('planTransfers', () => {
           rand() < 0.15 ? 'hired' : 'depot',
         ),
       );
-      const pick = (): string[] =>
-        balances.filter(() => rand() < 0.2).map((b) => b.depotId);
+      const pick = (): string[] => balances.filter(() => rand() < 0.2).map((b) => b.depotId);
       const plan = planTransfers(balances, {
         ...PARAMS,
         lockedDepotIds: pick(),
