@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { modelDuties } from '@/lib/depot/sim/duties';
+import { modelDuties as model } from '@/lib/depot/sim/duties';
+import { modelBus } from '@/lib/depot/sim/fleetMaster';
+import { ROUTE_TOKEN_CLASS } from '@/lib/depot/sim/config';
 import type { Duty } from '@/lib/depot/duties/types';
 import type { DepotSummary } from '@/lib/depot/types';
 
@@ -10,6 +12,8 @@ const ROUTES = [
   { routeName: 'MUM_VOLVO_AC', scheduledDurationMin: 600 },
 ];
 const DATE = '2026-10-06';
+
+const modelDuties = (...args: Parameters<typeof model>): Duty[] => [...model(...args).duties];
 
 describe('modelDuties', () => {
   it('produces exactly peakRequirement duties', () => {
@@ -113,5 +117,31 @@ describe('modelDuties', () => {
     expect(() => modelDuties(Object.freeze({ ...depot }), frozen, 4, DATE)).not.toThrow();
     expect(() => modelDuties(depot, ROUTES, -1, DATE)).toThrow(RangeError);
     expect(() => modelDuties(depot, ROUTES, 1.5, DATE)).toThrow(RangeError);
+  });
+
+  it('names the routes left without a duty when the requirement is below the route count', () => {
+    const result = model(depot, ROUTES, 2, DATE);
+    expect(result.duties.map((d) => d.routeName).sort()).toEqual(['AKOLA_ORD_Y', 'MUM_VOLVO_AC']);
+    expect(result.routesWithoutDuty).toEqual(['PUNE_EXP_X']);
+    expect(model(depot, ROUTES, 3, DATE).routesWithoutDuty).toEqual([]);
+    expect(model(depot, ROUTES, 0, DATE).routesWithoutDuty).toEqual([
+      'AKOLA_ORD_Y',
+      'MUM_VOLVO_AC',
+      'PUNE_EXP_X',
+    ]);
+    expect(model(depot, [], 4, DATE).routesWithoutDuty).toEqual([]);
+  });
+
+  it('agrees with the bus class for every route name built from the token table', () => {
+    const tokens = Object.keys(ROUTE_TOKEN_CLASS);
+    const names = ['PLAIN_ROUTE'];
+    for (const a of tokens) {
+      names.push(`X_${a}_out`, `${a.toLowerCase()}_Y`);
+      for (const b of tokens) names.push(`X_${a}_${b}_out`);
+    }
+    for (const routeName of names) {
+      const [duty] = modelDuties(depot, [{ routeName, scheduledDurationMin: 60 }], 1, DATE);
+      expect(duty?.serviceClass).toBe(modelBus('MH-00-AB-0001', routeName).serviceClass);
+    }
   });
 });

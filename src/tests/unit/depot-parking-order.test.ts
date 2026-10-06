@@ -124,6 +124,14 @@ describe('planParking', () => {
     expect(b).toEqual(a);
   });
 
+  it('rejects a non-finite first duty time', () => {
+    for (const bad of [Number.NaN, Infinity, -Infinity]) {
+      expect(() =>
+        planParking([{ id: 'L01', depth: 2 }], [{ registrationNumber: 'A', firstDutyStartMin: bad }]),
+      ).toThrow(RangeError);
+    }
+  });
+
   it('rejects bad lane depths and duplicate registrations', () => {
     expect(() => planParking([{ id: 'L01', depth: 0 }], [])).toThrow(RangeError);
     expect(() => planParking([{ id: 'L01', depth: 2.5 }], [])).toThrow(RangeError);

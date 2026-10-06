@@ -144,6 +144,26 @@ describe('assignDuties', () => {
     );
   });
 
+  it('throws when a registration appears twice', () => {
+    expect(() => assignDuties([duty(0)], [bus('A'), bus('A')], fleetOf([]))).toThrow(RangeError);
+  });
+
+  it('costs a bus missing from the fleet master at the median age, not zero', () => {
+    const fleet = fleetOf([
+      ['K02', 'ordinary', 2],
+      ['K10', 'ordinary', 10],
+      ['K30', 'ordinary', 30],
+    ]);
+    const buses = [bus('K02'), bus('K10'), bus('K30'), bus('AAA')];
+    expect(assignDuties([duty(0, 'ordinary', 10)], buses, fleet).assignments[0]?.registrationNumber).toBe('K02');
+  });
+
+  it('copes with an empty fleet master by costing every bus alike', () => {
+    const plan = assignDuties([duty(0)], [bus('B'), bus('A')], fleetOf([]));
+    expect(plan.assignments[0]?.registrationNumber).toBe('A');
+    expect(plan.spareBuses).toEqual(['B']);
+  });
+
   it('is identical for shuffled buses and does not mutate frozen inputs', () => {
     const buses = Array.from({ length: 12 }, (_, i) => bus(`Q${i}`));
     const fleet = fleetOf(buses.map((b, i) => [b.registrationNumber, 'ordinary', i % 4]));
