@@ -1,75 +1,85 @@
 import type { DepotBusRow } from '@/models/depotLive';
 import {
-  fromMetres,
+  distanceM,
   hasUsablePosition,
   median,
-  toMetres,
-  type PointM,
+  nearDistanceM,
+  nearPoint,
+  type NearPoint,
   type PositionedRow,
 } from './geo';
 import type { Yard } from './types';
 import { MOVING_SPEED_KMPH } from './thresholds';
+import { densityClusters } from './yardClusters';
 
 /*
- * A yard is learned, not surveyed. Parked buses are counted in grid cells
- * YARD_CELL_M wide. A cell holding at least YARD_LINK_MIN_BUSES buses is a
- * linking cell, and linking cells that touch (diagonals included) form one
- * group, so a yard of any contiguous shape is measured whole. A cell holding a
- * single bus joins the group of a linking cell it touches as a leaf: it is part
- * of that group but never connects it to anything further. So a queue, or buses
- * parked one per cell along the approach road, cannot join the yard to a stand
- * beyond it, while a continuous line of buses parked two or more per cell is
- * still one place. A leaf touching two groups joins the one with more buses in
- * its linking cells, ties to the one whose lowest linking cell (by x, then y)
- * is lower, so the result never depends on input order. A single bus touching
- * no linking cell belongs to no group. That has two costs. A depot so thinly
- * parked that every cell holds one bus has no linking cell and so no yard; its
- * buses read as location unknown, never as departed. And in a thinly parked
- * part of a yard, a lone bus two cells from any linking cell is not a member,
- * so it can lie outside the radius below and read as away.
+ * A yard is learned, not surveyed: it is where the depot's parked buses stand
+ * closest together. The values below were set from a midday snapshot of the
+ * whole fleet (119 operating depots, about 10,000 buses), not chosen by feel.
  *
- * The yard is the largest group. A stand separated from it by an empty cell or
- * by single buses is a different place: its buses are not in the yard, and it
- * is the rival. No yard is claimed unless the group is big enough, holds at
- * least half the depot's parked buses, is YARD_DOMINANCE_RATIO times the
- * second-largest group, and spans at most YARD_MAX_SPAN_CELLS, because guessing
- * between comparable stands would put every departure judged against the yard
- * in the wrong place. All of these count the group with its leaves.
+ * Parked buses are clustered by distance (see yardClusters.ts). A bus with at
+ * least YARD_CORE_MIN_NEIGHBOURS parked buses within YARD_LINK_M, itself
+ * included, is a core bus; core buses within that distance of each other are
+ * one place; any other bus within that distance of a core bus borders that
+ * place and belongs to it, but links nothing further. Real yards are compact:
+ * the largest place spans 150 m at the median and 376 m at most.
  *
- * The radius is the distance from the centre to the group's farthest bus plus
- * YARD_RADIUS_PAD_M (never below YARD_MIN_RADIUS_M), so every bus of the group,
- * leaves included, lies inside it and none of them is reported as away. The
- * centre is the members' mean, so it lies within the group's bounding box, at
- * most YARD_MAX_SPAN_CELLS cells square: the radius is at most that square's
- * diagonal plus the padding, 10 * sqrt(2) * 150 + 40 = about 2162 m.
+ * The yard is the largest place, provided it holds at least YARD_MIN_CLUSTER
+ * buses, at least YARD_MIN_SHARE of the depot's parked buses, at least
+ * YARD_DOMINANCE_RATIO times the second-largest place, and no two of its buses
+ * are more than YARD_MAX_SPAN_M apart. Otherwise no yard is claimed, because a
+ * guess between comparable stands would put every departure judged against the
+ * yard in the wrong place. Two largest places of equal size fail the dominance
+ * rule, so there is never a choice to make between them. The share is a
+ * quarter, not a half: at midday most of a depot's standing buses are at
+ * terminals far away, and a half left 65 of 119 depots without a yard.
+ *
+ * The centre is the median latitude and longitude of the yard's buses. The
+ * radius reaches the farthest of them plus YARD_RADIUS_PAD_M (never below
+ * YARD_MIN_RADIUS_M), so every bus that forms the yard reads as inside it.
+ *
+ * What this does not do, on purpose:
+ *  - A single file parked thinly (a bus every 100 m) has no core bus, so it is
+ *    not a place at all: neither a yard nor a rival to one.
+ *  - A chain of single buses does not join two places, but its first bus, if it
+ *    stands within the link distance of three yard buses, is itself a core bus
+ *    and the next one borders it: up to two buses of an approach queue count as
+ *    in the yard and widen the radius. Two places with only two such buses
+ *    between them are therefore one place. A queue with a bus every 75 m or
+ *    closer joins whatever it reaches; the span limit then decides.
+ *  - A bus standing just outside the circle reads as away. No margin is added:
+ *    under this rule the snapshot gives 95 of 119 depots a yard, with 2,444
+ *    parked buses inside their own yard and 50 within 450 m outside it, 23 of
+ *    those at three depots.
  */
 
-/** Grid cell for counting parked buses; about a bus-park's width. */
-export const YARD_CELL_M = 150;
+/** Two parked buses this close stand in the same place. */
+export const YARD_LINK_M = 150;
+/** A core bus has this many parked buses within the link distance, itself included. */
+export const YARD_CORE_MIN_NEIGHBOURS = 4;
 /** Fewer parked buses than this is a coincidence of stops, not a yard. */
 export const YARD_MIN_CLUSTER = 6;
 /** The yard must hold at least this share of the depot's parked buses. */
-export const YARD_MIN_SHARE = 0.5;
+export const YARD_MIN_SHARE = 0.25;
+/**
+ * The yard must beat the second-largest place by this factor: one bus moving
+ * must not relocate the yard by tens of kilometres.
+ */
+export const YARD_DOMINANCE_RATIO = 1.5;
+/** Buses further apart than this are a road, not a yard. */
+export const YARD_MAX_SPAN_M = 1500;
 /** A yard is never claimed smaller than a few bays. */
 export const YARD_MIN_RADIUS_M = 120;
 /** Margin beyond the farthest bus of the yard so its edge bays count as inside. */
 export const YARD_RADIUS_PAD_M = 40;
 /**
- * The yard must beat the second-largest group by this factor: one bus moving
- * must not relocate the yard by tens of kilometres.
+ * There is no grid any more. These two remain only because screens word the
+ * span limit as their product; together they still say YARD_MAX_SPAN_M.
  */
-export const YARD_DOMINANCE_RATIO = 1.5;
-/** A group longer than this many cells (1.5 km) on either axis is a road, not a yard. */
-export const YARD_MAX_SPAN_CELLS = 10;
-/** Only cells holding this many buses connect a group; a lone bus is a leaf. */
-export const YARD_LINK_MIN_BUSES = 2;
-/**
- * Grid origin is the median position snapped to this many degrees (about 1 km),
- * so cell boundaries do not shift when a single bus moves the median.
- */
-const ORIGIN_SNAP_DEG = 0.01;
+export const YARD_CELL_M = YARD_LINK_M;
+export const YARD_MAX_SPAN_CELLS = YARD_MAX_SPAN_M / YARD_CELL_M;
 
-/** The inferred yard and the registration numbers of the buses that form it. */
+/** The inferred yard and the registration numbers of the buses that form it, sorted. */
 export interface YardGroup {
   readonly yard: Yard;
   readonly members: readonly string[];
@@ -77,20 +87,7 @@ export interface YardGroup {
 
 interface Candidate {
   readonly registrationNumber: string;
-  readonly point: PointM;
-}
-
-interface CellKey {
-  readonly cx: number;
-  readonly cy: number;
-}
-
-interface Group {
-  /** Linking cells, then leaves. */
-  readonly cells: readonly CellKey[];
-  readonly members: readonly Candidate[];
-  /** Lowest linking cell by (cx, cy): the deterministic tie-break. */
-  readonly lowest: CellKey;
+  readonly point: NearPoint;
 }
 
 function isParkedWithFix(row: DepotBusRow): row is PositionedRow {
@@ -98,150 +95,66 @@ function isParkedWithFix(row: DepotBusRow): row is PositionedRow {
   return row.speedKmph <= MOVING_SPEED_KMPH;
 }
 
-function byPointThenId(a: Candidate, b: Candidate): number {
-  const ids =
-    a.registrationNumber < b.registrationNumber
-      ? -1
-      : a.registrationNumber > b.registrationNumber
-        ? 1
-        : 0;
-  return a.point.x - b.point.x || a.point.y - b.point.y || ids;
+/** Registration order (by code unit, not locale), then position: a total, stable order. */
+function byRegistration(a: Candidate, b: Candidate): number {
+  if (a.registrationNumber !== b.registrationNumber) {
+    return a.registrationNumber < b.registrationNumber ? -1 : 1;
+  }
+  return a.point.lat - b.point.lat || a.point.lng - b.point.lng;
 }
 
-const snap = (degrees: number): number => Math.round(degrees / ORIGIN_SNAP_DEG) * ORIGIN_SNAP_DEG;
-const cellOf = (p: PointM): CellKey => ({
-  cx: Math.floor(p.x / YARD_CELL_M),
-  cy: Math.floor(p.y / YARD_CELL_M),
-});
-const keyOf = ({ cx, cy }: CellKey): string => `${cx}:${cy}`;
-const compareCells = (a: CellKey, b: CellKey): number => a.cx - b.cx || a.cy - b.cy;
-const OFFSETS = [-1, 0, 1].flatMap((dx) => [-1, 0, 1].map((dy) => ({ dx, dy })));
-const touching = (c: CellKey): CellKey[] =>
-  OFFSETS.map(({ dx, dy }) => ({ cx: c.cx + dx, cy: c.cy + dy }));
-
-/** Connected groups of linking cells (8-neighbourhood), each sorted, lowest cell first. */
-function linkedCells(linking: ReadonlyMap<string, CellKey>): readonly (readonly CellKey[])[] {
-  const seen = new Set<string>();
-  const groups: CellKey[][] = [];
-  for (const start of [...linking.values()].sort(compareCells)) {
-    if (seen.has(keyOf(start))) continue;
-    seen.add(keyOf(start));
-    const cells: CellKey[] = [];
-    const stack: CellKey[] = [start];
-    while (stack.length > 0) {
-      const cell = stack.pop() as CellKey;
-      cells.push(cell);
-      for (const next of touching(cell).filter(
-        (n) => linking.has(keyOf(n)) && !seen.has(keyOf(n)),
-      )) {
-        seen.add(keyOf(next));
-        stack.push(next);
-      }
+/** The greatest distance between any two of the points. */
+function spanM(points: readonly NearPoint[]): number {
+  let widest = 0;
+  for (let i = 0; i < points.length; i += 1) {
+    for (let j = i + 1; j < points.length; j += 1) {
+      widest = Math.max(widest, nearDistanceM(points[i]!, points[j]!));
     }
-    groups.push(cells.sort(compareCells));
   }
-  return groups;
+  return widest;
 }
 
-/** Groups of linking cells with their single-bus leaves attached, largest first. */
-function yardGroups(candidates: readonly Candidate[]): readonly Group[] {
-  const occupied = new Map<string, { readonly cell: CellKey; readonly buses: number }>();
-  for (const { point } of candidates) {
-    const cell = cellOf(point);
-    occupied.set(keyOf(cell), { cell, buses: (occupied.get(keyOf(cell))?.buses ?? 0) + 1 });
-  }
-  const busesIn = (key: string): number => occupied.get(key)?.buses ?? 0;
-  const isLinking = (key: string): boolean => busesIn(key) >= YARD_LINK_MIN_BUSES;
-  const linking = new Map(
-    [...occupied].filter(([key]) => isLinking(key)).map(([key, { cell }]) => [key, cell]),
-  );
-
-  const cores = linkedCells(linking).map((cells) => ({
-    cells,
-    buses: cells.reduce((sum, cell) => sum + busesIn(keyOf(cell)), 0),
-    lowest: cells[0] as CellKey,
-  }));
-  const coreOf = new Map<string, number>();
-  cores.forEach((core, id) => core.cells.forEach((cell) => coreOf.set(keyOf(cell), id)));
-
-  // Leaves look up hosts in coreOf only, so a leaf never makes a host for another leaf.
-  const groupOf = new Map(coreOf);
-  const leavesOf = new Map<number, CellKey[]>();
-  for (const [key, { cell }] of occupied) {
-    if (isLinking(key)) continue;
-    const hosts = [...new Set(touching(cell).flatMap((n) => coreOf.get(keyOf(n)) ?? []))];
-    const [host] = hosts.sort(
-      (a, b) =>
-        cores[b]!.buses - cores[a]!.buses || compareCells(cores[a]!.lowest, cores[b]!.lowest),
-    );
-    if (host === undefined) continue;
-    groupOf.set(key, host);
-    leavesOf.set(host, [...(leavesOf.get(host) ?? []), cell]);
-  }
-
-  return cores
-    .map((core, id) => ({
-      cells: [...core.cells, ...(leavesOf.get(id) ?? [])],
-      members: candidates.filter((c) => groupOf.get(keyOf(cellOf(c.point))) === id),
-      lowest: core.lowest,
-    }))
-    .sort((a, b) => b.members.length - a.members.length || compareCells(a.lowest, b.lowest));
-}
-
-function spanCells(cells: readonly CellKey[], axis: 'cx' | 'cy'): number {
-  const values = cells.map((cell) => cell[axis]);
-  return Math.max(...values) - Math.min(...values) + 1;
-}
-
-function isConfident(
-  largest: Group | undefined,
-  rival: Group | undefined,
-  total: number,
-): largest is Group {
-  if (!largest) return false;
-  const size = largest.members.length;
-  if (size < YARD_MIN_CLUSTER || size / total < YARD_MIN_SHARE) return false;
-  if (rival && size < YARD_DOMINANCE_RATIO * rival.members.length) return false;
-  return (
-    spanCells(largest.cells, 'cx') <= YARD_MAX_SPAN_CELLS &&
-    spanCells(largest.cells, 'cy') <= YARD_MAX_SPAN_CELLS
-  );
+function isConfident(largest: readonly NearPoint[], rivalSize: number, parked: number): boolean {
+  const size = largest.length;
+  if (size < YARD_MIN_CLUSTER) return false;
+  if (size / parked < YARD_MIN_SHARE) return false;
+  if (size < YARD_DOMINANCE_RATIO * rivalSize) return false;
+  return spanM(largest) <= YARD_MAX_SPAN_M;
 }
 
 /**
  * Infer one depot's yard and the buses forming it; null unless the evidence is
- * strong (see the rule above) rather than a guess or a midpoint.
+ * strong (see the rule above) rather than a guess or a midpoint. Buses are put
+ * in registration order first, so the answer does not depend on input order.
  */
 export function inferYardGroup(rows: readonly DepotBusRow[]): YardGroup | null {
-  const parked = rows.filter(isParkedWithFix);
-  if (parked.length < YARD_MIN_CLUSTER) return null;
-
-  const originLat = snap(median(parked.map((row) => row.latitude)));
-  const originLng = snap(median(parked.map((row) => row.longitude)));
-  const candidates = parked
+  const candidates: readonly Candidate[] = rows
+    .filter(isParkedWithFix)
     .map((row) => ({
       registrationNumber: row.registrationNumber,
-      point: toMetres(row.latitude, row.longitude, originLat, originLng),
+      point: nearPoint(row.latitude, row.longitude),
     }))
-    .sort(byPointThenId);
+    .sort(byRegistration);
 
-  const [largest, rival] = yardGroups(candidates);
-  if (!isConfident(largest, rival, candidates.length)) return null;
-
-  const { members } = largest;
-  const centre: PointM = {
-    x: members.reduce((sum, c) => sum + c.point.x, 0) / members.length,
-    y: members.reduce((sum, c) => sum + c.point.y, 0) / members.length,
-  };
-  const farthest = Math.max(
-    ...members.map((c) => Math.hypot(c.point.x - centre.x, c.point.y - centre.y)),
+  const [largest, rival] = densityClusters(
+    candidates.map((candidate) => candidate.point),
+    YARD_LINK_M,
+    YARD_CORE_MIN_NEIGHBOURS,
   );
+  if (!largest) return null;
+  const members = largest.map((index) => candidates[index]!);
+  const points = members.map((member) => member.point);
+  if (!isConfident(points, rival?.length ?? 0, candidates.length)) return null;
+
+  const lat = median(points.map((point) => point.lat));
+  const lng = median(points.map((point) => point.lng));
+  // Measured as locateBus measures it, so no member can fall outside by rounding.
+  const farthest = Math.max(...points.map((point) => distanceM(point.lat, point.lng, lat, lng)));
   const radiusM = Math.max(YARD_MIN_RADIUS_M, Math.ceil(farthest + YARD_RADIUS_PAD_M));
 
-  const { lat, lng } = fromMetres(centre, originLat, originLng);
   return {
     yard: { lat, lng, radiusM, parked: candidates.length, inCluster: members.length },
-    members: members.map((c) => c.registrationNumber).sort(),
+    members: members.map((member) => member.registrationNumber),
   };
 }
 
