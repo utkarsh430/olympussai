@@ -80,7 +80,13 @@ The checks accept each of these, so read Claude text for them:
   "Contact the depot at Agra now." (review L2).
 - **A true figure with a false predicate** (M-A): "141 buses are dark." where 141 is the on-road
   count; "The efficiency is 71%." where 71% is the on-road share. Any figure can take any state
-  word that is allowed beside a figure.
+  word that is allowed beside a figure. Closing this (review M-A item 1, not done in round 9)
+  means every count fact carrying its own state in its text ("141 buses on the road", "3 dark
+  buses"), so that a recast contradicts itself on its face. That changes the text of each count
+  fact in `facts/` (depot, network, measure, outshed, transfers, balance), every scripted
+  template that now adds the state word after the placeholder ("{{fact:depot.dark}} have gone
+  dark" would read "3 dark buses have gone dark"), the window lists (a state word after a figure
+  would no longer be needed), and the pinned phrasings in `depot-copilot-facts.test.ts`.
 - **A true figure with a false scope, rate or period built from words that are not on the
   clause list** (M-A): "Across the network the depots have 3 buses dark.", "The network has 3
   buses dark in a depot.", "At night the yard at Agra has 3 buses dark." (The listed quantifier

@@ -78,9 +78,10 @@ const fail = (reason: string): RenderResult => ({ ok: false, reason });
  * vocabulary holds no number, magnitude, unit or currency word, so a model can
  * neither write a figure nor scale one of the server's.
  *
- * Residuals, accepted by ruling: vague quantifiers (most, few, all), ranking
- * by order, and a true value attached to a false statement. "Describe, never
- * instruct" is enforced by the system prompt and the interface, not here.
+ * Residuals, accepted by ruling: vague quantifiers outside a figure's clause,
+ * ranking by order, and a true value attached to a false statement (the
+ * operator's note lists each class). "Describe, never instruct" is enforced
+ * by the system prompt and the interface, not here.
  */
 export function renderDraft(draft: CopilotDraft, facts: readonly CopilotFact[]): RenderResult {
   const parsed = draftSchema.safeParse(draft);
