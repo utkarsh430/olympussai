@@ -110,7 +110,7 @@ the same upstream fetch as the command centre. Full reference:
 
 ```
 UPSRTC getGpsLiveData.php
-   │  single-flight fetch, 15s TTL, last-known-good, fixture
+   │  single-flight fetch, 15s TTL, last-known-good, saved full-fleet sample
    ▼
 src/lib/upsrtc/liveSnapshot.ts ── map projection ──► /api/upsrtc/live
    │
@@ -120,6 +120,10 @@ src/lib/upsrtc/liveSnapshot.ts ── map projection ──► /api/upsrtc/live
           ▼
    live/analysis.ts — states, locations, yards, scores, exceptions,
                       once per snapshot rows array
+          ▼
+   live/operatingDayView.ts — one duty plan and modelled day per depot
+                      and date, shared by duties, crew, parking, fuel,
+                      revenue and economics
           ▼
    live/*View.ts — one body per route, memoised per snapshot;
                    feed envelope built per request
@@ -139,20 +143,37 @@ src/lib/upsrtc/liveSnapshot.ts ── map projection ──► /api/upsrtc/live
 | Copilot | `src/lib/depot/copilot/` | Facts, closed-vocabulary checks, providers |
 
 **Feed clock.** Every age, window and operating date is measured against the
-snapshot's own `feedNow`, so a stale or fixture snapshot is internally
-consistent.
+snapshot's own `feedNow`, so a stale or sample snapshot is internally
+consistent. `feedNow` is the newest receive time not later than the snapshot's
+fetch time read in Indian time plus `FEED_CLOCK_MAX_LEAD_MIN` (5 minutes,
+`src/lib/upsrtc/depotNormalizer.ts`); rows beyond it are counted, and enough of
+them turn the feed chip to `CHECK CLOCK`. The depot pages call the feed stale
+only when last good data is older than `LAST_GOOD_FRESH_MS` (90 s,
+`src/lib/depot/repositories/liveFleetRepository.ts`).
+
+**State that outlives a snapshot.** Two holders keep history between
+snapshots: the rolling score window (`src/lib/depot/score/windowStore.ts`) and
+the yard memory (`src/lib/depot/infer/yardMemory.ts`). Both apply one rule
+(`src/lib/depot/score/epoch.ts`) to late and out-of-order samples: an older
+sample within one window is inserted in order; one more than a window behind is
+used alone and never stored; only a coherent run of such samples (three,
+each later than the last, spanning three minutes of feed time) starts a new
+epoch. The saved sample never touches either.
 
 **In-process state.** The rolling 20-minute score window, the yard memory
-(holds of up to 12 hours), memoised analyses, the route-profile cache, the
-allocation plan, rate limiters and the copilot's caches, allowances and
-breaker all live in server memory. A restart or cold start clears them; with
+(holds of up to 12 hours), memoised analyses and modelled days, the
+route-profile cache, the allocation plan, rate limiters and the copilot's
+caches, allowances and breaker all live in server memory. A restart or cold start clears them; with
 several instances each has its own copy, so scores can be summed over
 different windows and every limit and budget multiplies. A shared store is
 not built.
 
-**Copilot provider seam.** `CopilotProvider` (`src/lib/depot/copilot/types.ts`)
-has two implementations: `scripted` and `claude-cli` (the local `claude`
-command, usable only where Claude Code is signed in). An API-key provider for a
+**Copilot provider seam.** Questions are routed by a closed, deterministic
+keyword router (`src/lib/depot/copilot/router/scriptedRouter.ts`); free text
+never reaches a model. `CopilotProvider` (`src/lib/depot/copilot/types.ts`)
+has two implementations: `scripted`, the default, and `claude-cli` (the local
+`claude` command, created only when `CLAUDE_BIN` is set, for the owner's own
+machine). An API-key provider for a
 staff-facing deployment would be a third implementation behind the same
 interface; it is not built. See
 [`DEPOT_COPILOT_OPERATIONS.md`](DEPOT_COPILOT_OPERATIONS.md).
