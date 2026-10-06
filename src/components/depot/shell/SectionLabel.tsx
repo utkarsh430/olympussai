@@ -14,6 +14,11 @@ export interface SectionLabelProps {
   readonly level?: 2 | 3 | 4;
   /** For `aria-labelledby` on the section and for in-page anchors. */
   readonly id?: string;
+  /**
+   * The section's own controls (a view toggle, a filter), held at the right end of the
+   * label row after the note. They wrap under the label when the row is too narrow.
+   */
+  readonly controls?: React.ReactNode;
 }
 
 /**
@@ -21,7 +26,15 @@ export interface SectionLabelProps {
  * tracking 0.16em, a hairline above, an optional count and an optional note on the
  * right. No paragraph under it: an explanation goes in the page's closing disclosure.
  */
-export function SectionLabel({ label, count, note, tag, level = 2, id }: SectionLabelProps) {
+export function SectionLabel({
+  label,
+  count,
+  note,
+  tag,
+  level = 2,
+  id,
+  controls,
+}: SectionLabelProps) {
   const Heading = `h${level}` as const;
   return (
     <div
@@ -39,6 +52,11 @@ export function SectionLabel({ label, count, note, tag, level = 2, id }: Section
         {tag ? <ProvenanceBadge provenance={tag} pill /> : null}
       </div>
       {note ? <p className="depot-note min-w-0">{note}</p> : null}
+      {controls ? (
+        <div data-testid="depot-section-controls" className="flex shrink-0 items-center gap-1">
+          {controls}
+        </div>
+      ) : null}
     </div>
   );
 }
