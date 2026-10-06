@@ -13,7 +13,7 @@ import { formatClockTime } from '@/lib/depot/format';
 import { LOAD_ERROR_TITLE, loadErrorBody } from '@/lib/depot/loadError';
 import { OVERVIEW_HOW_PRODUCED } from '@/lib/depot/network/howProduced';
 import { joinScores } from '@/lib/depot/network/overviewModel';
-import { exceptionWindowNote, scoreWindowSentence } from '@/lib/depot/score/windowWords';
+import { exceptionWindowNote } from '@/lib/depot/score/windowWords';
 import type { DepotNetworkResponse } from '@/lib/depot/api';
 import { BriefingCard } from '@/components/depot/copilot/BriefingCard';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
@@ -62,7 +62,6 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
     setVanished(true);
   }, [selectedId, selected]);
 
-  const windowSentence = scoreWindowSentence(data.scoreWindow, data.feedNow);
   return (
     <div className="space-y-8">
       <div className={SECTION}>
@@ -81,7 +80,6 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
           selected={selected}
           onSelect={select}
           vanished={vanished}
-          windowNote={windowSentence}
         />
       )}
       <div className={SECTION}>
