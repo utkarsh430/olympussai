@@ -15,6 +15,10 @@ export const PEOPLE_SENTENCE = 'Availability and rostering only. No individual i
 export const ROSTER_NOTE =
   'The roster is a simple first-fit suggestion, not an optimised one: earliest shift first, lowest slot number first. Nothing is assigned or instructed.';
 
+/** Under the roster: slot numbers must not read as a ranking or a workload. */
+export const SLOT_NOTE =
+  'Slot numbers only reflect the order in which the roster picked them and say nothing about a person.';
+
 export const SOURCES_HREF = '/project/depots/sources';
 
 export const AVAILABILITY_ORDER: readonly CrewAvailability[] = [

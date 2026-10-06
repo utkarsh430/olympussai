@@ -3,6 +3,7 @@ import {
   AVAILABILITY_ORDER,
   PEOPLE_SENTENCE,
   ROSTER_NOTE,
+  SLOT_NOTE,
   availabilitySegments,
   availabilityText,
   dutiesSentence,
@@ -29,6 +30,12 @@ describe('crew page wording', () => {
     expect(ROSTER_NOTE).toMatch(/first-fit/);
     expect(ROSTER_NOTE).toMatch(/not an optimised/);
     expect(ROSTER_NOTE).toMatch(/Nothing is assigned or instructed/);
+  });
+
+  it('says slot numbers reflect pick order only', () => {
+    expect(SLOT_NOTE).toBe(
+      'Slot numbers only reflect the order in which the roster picked them and say nothing about a person.',
+    );
   });
 
   it('orders the segments and gives each a word, a count and a share', () => {

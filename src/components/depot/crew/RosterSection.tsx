@@ -6,6 +6,7 @@ import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import type { RosterShiftRow } from '@/lib/depot/crew/api';
 import {
   ROSTER_NOTE,
+  SLOT_NOTE,
   pageOf,
   rosterCountSentence,
   shiftLabel,
@@ -51,6 +52,7 @@ export function RosterSection({ roster, total }: RosterSectionProps) {
         caption="Covered shifts and the crew slots suggested for them"
         emptyMessage="No shift is covered on the modelled crew."
       />
+      <p className="depot-prose mt-2">{SLOT_NOTE}</p>
       <Pager
         page={page}
         pageCount={pageCount}
