@@ -21,6 +21,10 @@ import {
   MAX_FACT_TEXT_CHARS,
   MAX_FACTS,
   MAX_PROMPT_BYTES,
+  PROSE_PUNCTUATION,
+  QUANTITY_SUFFIXES,
+  QUANTITY_WORDS,
+  ROMAN_NUMERAL_LETTERS,
 } from '@/lib/depot/copilot/limits';
 import type { CopilotRequest, CopilotTask } from '@/lib/depot/copilot/types';
 
@@ -465,11 +469,81 @@ describe('classifyCliFailure', () => {
     [
       1,
       '',
-      '{"is_error":true,"subtype":"error_during_execution","result":"rate limit hit"}',
+      '{"is_error":true,"subtype":"error_during_execution","result":"Claude AI usage limit reached"}',
       'usage_limit',
     ],
   ] as const)('exit %s with %j / %j is %s', (code, stderr, stdout, expected) => {
     expect(classifyCliFailure(code, stderr, stdout)).toBe(expected);
+  });
+
+  it.each([
+    ['Not logged in · Please run /login', 'not_authenticated'],
+    ['Invalid API key · Please run /login', 'not_authenticated'],
+    ['API Error: 401 {"type":"error","error":{"type":"authentication_error"}}', 'not_authenticated'],
+    ['Claude AI usage limit reached|1760000000', 'usage_limit'],
+    ["You've hit your limit · resets 5pm", 'usage_limit'],
+    ['5-hour limit reached · resets 3pm', 'usage_limit'],
+    ['API Error: 429 {"type":"error","error":{"type":"rate_limit_error"}}', 'usage_limit'],
+  ] as const)('reads the CLI phrase %j as %s', (stderr, expected) => {
+    expect(classifyCliFailure(1, stderr, '')).toBe(expected);
+  });
+
+  it.each([
+    'warning: no git credentials helper is configured',
+    'Loaded credentials cache from disk in 4ms',
+    'Hint: sign in to sync your settings across devices',
+    'Tip: you can sign in later from the menu',
+    'Error: request body exceeds the size limit',
+    'MCP server rate limits are not configured',
+    'Error: EDQUOT: disk quota exceeded, write',
+    'Proxy authentication header ignored by the gateway',
+    'Could not log in to the telemetry endpoint; continuing',
+    'note: the 401 page template was not found',
+  ])('treats unrelated stderr %j on a non-zero exit as error', (stderr) => {
+    expect(classifyCliFailure(1, stderr, '')).toBe('error');
+  });
+});
+
+describe('buildChildEnv node directory', () => {
+  it.each(['', 'relative/bin', './bin', '/opt/node:/evil', '/a/b:', '/a\0b'])(
+    'rejects %j as the node directory',
+    (dir) => {
+      expect(() => buildChildEnv({}, '/h', dir)).toThrow(RangeError);
+    },
+  );
+});
+
+describe('system prompt rule text', () => {
+  const prompt = buildSystemPrompt('briefing');
+
+  it('names every quantity word, and says their endings are rejected too', () => {
+    for (const word of QUANTITY_WORDS) expect(prompt, word).toContain(word);
+    expect(prompt).toContain(QUANTITY_WORDS.join(', '));
+    for (const suffix of QUANTITY_SUFFIXES) expect(prompt).toContain(`"${suffix}"`);
+  });
+
+  it('states the exact character set', () => {
+    expect(PROSE_PUNCTUATION.join(' ')).toBe(`. , ; : ' " ( ) -`);
+    expect(prompt).toContain(`letters A to Z, the space, and ${PROSE_PUNCTUATION.join(' ')}`);
+  });
+
+  it('states the placeholder, numeral, full-stop and spelling rules', () => {
+    expect(prompt).toMatch(/separate placeholders from one another by at least one word/i);
+    expect(prompt).toMatch(
+      /never put a minus sign, full stop or comma directly before a placeholder/i,
+    );
+    expect(prompt).toContain(ROMAN_NUMERAL_LETTERS.split('').join(' '));
+    expect(prompt).toMatch(/all-capitals word/i);
+    expect(prompt).toMatch(/full stop must be followed by a space/i);
+    expect(prompt).toMatch(/never run number words together/i);
+    expect(prompt).toMatch(/never spell out letters separated by spaces or hyphens/i);
+  });
+
+  it('gives every task the same rule text', () => {
+    const rules = (t: CopilotTask): string => buildSystemPrompt(t).split('Rules: ')[1] ?? '';
+    expect(rules('briefing').length).toBeGreaterThan(0);
+    expect(rules('rationale')).toBe(rules('briefing'));
+    expect(rules('answer')).toBe(rules('briefing'));
   });
 });
 
