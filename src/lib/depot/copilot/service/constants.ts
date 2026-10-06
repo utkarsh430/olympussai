@@ -16,16 +16,27 @@
 export const IDENTITY_REQUESTS_PER_MINUTE = 10;
 export const RATE_WINDOW_MS = 60_000;
 /**
- * Budgeted cost of one scripted answer on one core. NOT YET MEASURED: an
- * assumption to be replaced by a measurement on the sample feed.
+ * Measured CPU time (user + system) of one scripted answer end to end through
+ * the service on the sample feed: 0.27 ms, the minimum of 21 runs of 600
+ * requests on an Apple M4 (`depot-copilot-bench.test.ts`, round 5; a heavily
+ * loaded run gave 0.64 ms). A request that must rebuild the snapshot's analysis
+ * (once per feed refresh) measured 1.06 ms.
  */
-export const SCRIPTED_ANSWER_BUDGET_MS = 2;
+export const SCRIPTED_ANSWER_MEASURED_MS = 0.27;
+/**
+ * ×8: about ×3 for a server core slower than the laptop core measured, times
+ * about ×2.5 for the spread seen under load and for requests that rebuild the
+ * analysis. Budget 0.27 × 8 = 2.16 ms a request.
+ */
+export const SCRIPTED_ANSWER_SAFETY_FACTOR = 8;
+export const SCRIPTED_ANSWER_BUDGET_MS =
+  SCRIPTED_ANSWER_MEASURED_MS * SCRIPTED_ANSWER_SAFETY_FACTOR;
 /** The share of one core the copilot may use before it refuses work. */
 export const PROCESS_CORE_SHARE = 0.2;
 /**
- * All requests together in one `RATE_WINDOW_MS`: 6,000. It only protects the
- * process; scripted answers are limited per identity (and per address).
- * Filling it takes 600 identities each at their full rate.
+ * All requests together in one `RATE_WINDOW_MS`: 60,000 × 0.2 / 2.16 = 5,555.
+ * It only protects the process; scripted answers are limited per identity (and
+ * per address). Filling it takes 556 identities each at their full rate.
  */
 export const PROCESS_REQUESTS_PER_MINUTE = Math.floor(
   (RATE_WINDOW_MS * PROCESS_CORE_SHARE) / SCRIPTED_ANSWER_BUDGET_MS,
