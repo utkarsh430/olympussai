@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import type { DepotBusRow } from '@/models/depotLive';
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';
@@ -265,6 +265,11 @@ describe('buildDepotDetail', () => {
 });
 
 describe('GET /api/upsrtc/depot/[depotId]', () => {
+  // Back to the real composition root, even when a test fails midway.
+  afterEach(() => {
+    vi.mocked(getRepositories).mockReset();
+  });
+
   const call = (depotId: string) =>
     GET(new NextRequest(`http://localhost/api/upsrtc/depot/${encodeURIComponent(depotId)}`), {
       params: Promise.resolve({ depotId }),
@@ -324,6 +329,5 @@ describe('GET /api/upsrtc/depot/[depotId]', () => {
     expect(res.status).toBe(200);
     expect(((await res.json()) as { depot: { id: string } }).depot.id).toBe('1');
     expect((await call('unassigned')).status).toBe(200);
-    vi.mocked(getRepositories).mockReset();
   });
 });
