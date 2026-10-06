@@ -343,8 +343,9 @@ not in this build. Cache misses are limited (`ROUTE_PROFILE_FETCH_LIMITS` in
 
 The allocation (`optimise/allocate.ts`) recommends which depot should run each route to cut
 dead kilometres (inferred yard to the route's real first and last stop) within capacity. It
-starts from the current allocation and applies single-route shifts and swaps that save at
-least `MIN_SAVING_KM_PER_DAY = 5` in total (a swap as a whole, ruling S20), up to
+starts from the current allocation; in a first phase routes, taken in regret order, move to
+their best depot that still has room, and a local search then tries swaps. A shift or swap is
+applied only when it saves at least `MIN_SAVING_KM_PER_DAY = 5` in total (a swap as a whole, ruling S20), up to
 `MAX_MOVES = 200` (`optimise/allocateConfig.ts`). Trips per day are modelled
 (`sim/tripFrequency.ts`, 1–2 depot-anchored runs per bus). Only routes whose profiles are
 already cached are planned. Unchanged routes carry one reason (ruling S21).

@@ -433,4 +433,3 @@ dispatch rulings of P0 and P1) are left out. The module as built is described in
 **Differences from the text above with no ruling found in the ledger**
 
 - Depot Efficiency Index components: the code uses on-road share, off-road rate, dark rate, schedule coverage and device integrity (`src/lib/depot/score/config.ts`), not "reporting rate, utilisation, assigned share, off-road rate, device health".
-- Route-to-depot allocation starts from the current allocation and applies single-route shifts and swaps (`src/lib/depot/optimise/allocate.ts`); the code does not describe a regret-greedy construction.
