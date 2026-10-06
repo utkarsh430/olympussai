@@ -1180,7 +1180,7 @@ describe('every figure carries its own noun (S38 items 8 to 11)', () => {
     const one = depotFacts(oneEachDetail());
     expect(one.find((f) => f.id === 'depot.dark')?.text).toMatch(/^1 bus$/);
     const index = depotFacts(makeDetail()).find((f) => f.id === 'depot.index');
-    if (index) expect(index.text).toMatch(/^index \d+\.\d$/);
+    expect(index?.text).toMatch(/^index \d+\.\d$/);
   });
 });
 

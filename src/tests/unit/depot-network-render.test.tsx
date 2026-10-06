@@ -9,6 +9,7 @@ import type { DepotRow } from '@/lib/depot/network/overviewModel';
 import type { DepotSummary } from '@/lib/depot/types';
 import type { ExceptionKind, ExceptionSeverity } from '@/lib/depot/exceptions/types';
 import type { DepotScore } from '@/lib/depot/score/types';
+import { bannedOnScreen } from './depot-guard-rendered';
 
 const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 
@@ -84,6 +85,16 @@ function Host({ initial }: { readonly initial: DepotRow | null }) {
     />
   );
 }
+
+describe('the network panel wording', () => {
+  it.each([['a selected unit', A], ['no selection', null]] as const)(
+    'shows no "simulated" and no raw date with %s',
+    (_name, initial) => {
+      act(() => root.render(<Host initial={initial} />));
+      expect(bannedOnScreen(container)).toEqual([]);
+    },
+  );
+});
 
 describe('clearing the selection keeps keyboard focus on the page', () => {
   // Round 2: the line above the map ("No unit selected." / "Clear selection") is gone;

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DepotLeaguePage from '@/app/(protected)/project/depots/league/page';
 import { EMPTY_FEED_SENTENCE } from '@/components/depot/league/LeagueTable';
 import type { DepotScore } from '@/lib/depot/score/types';
+import { bannedOnScreen } from './depot-guard-rendered';
 
 /*
  * The real league page, gate mocked, in every state: the provenance line's tone and
@@ -20,8 +21,9 @@ vi.mock('@/hooks/useDepotTrends', () => ({
   useDepotTrends: () => ({ data: null, error: null, loading: true, refresh: () => undefined }),
 }));
 
-const FEED_NOW = '2026-10-06T15:21:00+05:30';
-const SINCE = '2026-10-06T15:01:00+05:30';
+// The feed's own shape: Indian digits with a `Z`, never an offset.
+const FEED_NOW = '2026-10-06T15:21:00Z';
+const SINCE = '2026-10-06T15:01:00Z';
 
 function score(depotId: string, rank: number, samples: number): DepotScore {
   return {
@@ -81,6 +83,13 @@ const SENTENCE: Readonly<Record<(typeof STATES)[number][0], string>> = {
   empty: 'Computed from the live feed at 15:21. Efficiency index over the last 20 minutes.',
   data: 'Computed from the live feed at 15:21. Efficiency index over the last 20 minutes.',
 };
+
+describe('league page wording', () => {
+  it.each(STATES)('shows no "simulated" and no raw date in the %s state', async (_name, state) => {
+    feed.value = state;
+    expect(bannedOnScreen(await renderPage())).toEqual([]);
+  });
+});
 
 describe('league page provenance line', () => {
   it.each(STATES)('declares DERIVED and its sentence in the %s state', async (name, state) => {

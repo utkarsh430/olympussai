@@ -186,6 +186,7 @@ describe('properties over seeded cases', () => {
       costPerKm: 30,
       loadFactor: 0.4,
     };
+    const strictMoves = new Map<EconomicsComponentKey, number>();
     for (const seed of seeds) {
       const rng = new SeededRandom(seed);
       const peers = Array.from({ length: rng.int(MIN_PEER_GROUP, 12) }, (_, i) =>
@@ -206,8 +207,12 @@ describe('properties over seeded cases', () => {
       expect(a).not.toBeNull();
       expect(b).not.toBeNull();
       // Higher is better for earnings and load; lower is better for cost.
-      expect(((b ?? 0) - (a ?? 0)) * direction[key]).toBeGreaterThanOrEqual(0);
+      const move = ((b ?? 0) - (a ?? 0)) * direction[key];
+      expect(move).toBeGreaterThanOrEqual(0);
+      if (move > 0) strictMoves.set(key, (strictMoves.get(key) ?? 0) + 1);
     }
+    // A component whose weight is zero never moves the score; every one must, at least once.
+    expect(keys.filter((key) => (strictMoves.get(key) ?? 0) === 0)).toEqual([]);
   });
 
   it('writes no NaN or Infinity anywhere for hostile inputs', () => {

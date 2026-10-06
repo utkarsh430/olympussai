@@ -35,8 +35,18 @@ function collectConsoleErrors(page: Page): string[] {
   return errors;
 }
 
-// The raw PIN is never committed; without it the suite is skipped, not failed.
+// The raw PIN is never committed. Without it nothing here can sign in: outside CI
+// the suite is skipped and says so loudly; in CI the PIN guard below fails the run,
+// so a missing secret can never be reported as a passing browser suite.
 const E2E_PIN = process.env.E2E_PROJECT_PIN;
+const IN_CI = Boolean(process.env.CI);
+const PIN_MISSING = 'E2E_PROJECT_PIN is not set, so the depot browser suite cannot sign in';
+if (!E2E_PIN) {
+  console.warn(
+    `[depot e2e] SKIPPED: ${PIN_MISSING}. Every depot browser test is skipped` +
+      (IN_CI ? ' and the PIN guard fails this CI run.' : '; set it to run them.'),
+  );
+}
 const E2E_ORIGIN =
   process.env.E2E_ORIGIN ??
   `http://${process.env.E2E_HOST ?? 'localhost'}:${process.env.E2E_PORT ?? '3000'}`;
@@ -46,10 +56,15 @@ const NETWORK_OVERVIEW = /Network overview/i;
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
+test('the depot browser suite has its PIN (it fails in CI when the PIN is missing)', () => {
+  test.skip(!E2E_PIN && !IN_CI, `SKIPPED: ${PIN_MISSING}`);
+  expect(E2E_PIN, `${PIN_MISSING}; a CI run without it must fail, not pass`).toBeTruthy();
+});
+
 // Deliberately outside the authenticated block: this test needs a cookie-less
 // context, and the API-login beforeEach below would defeat it.
 test.describe('Depot Management deep link', () => {
-  test.skip(!E2E_PIN, 'Set E2E_PROJECT_PIN to run the depot e2e suite');
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
 
   test('1. an unauthenticated deep link survives login', async ({ page }) => {
     await page.goto('/project/depots');
@@ -68,7 +83,7 @@ test.describe('Depot Management deep link', () => {
 });
 
 test.describe('Depot Management shell', () => {
-  test.skip(!E2E_PIN, 'Set E2E_PROJECT_PIN to run the depot e2e suite');
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
 
   test.beforeEach(async ({ context }) => {
     const res = await context.request.post('/api/auth/login', {

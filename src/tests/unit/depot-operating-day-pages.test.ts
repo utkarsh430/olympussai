@@ -21,7 +21,7 @@ vi.mock('@/lib/depot/routes/routeCatalogue', () => ({
 }));
 
 /*
- * Review I4, through the REAL response builders: on one fixture with repeated
+ * Through the REAL response builders: on one fixture with repeated
  * registrations, every live state and one cached route profile, the duty
  * board, crew, fuel, revenue and economics describe one day, down to the bus
  * that runs each duty. Then a newly cached profile (a catalogue revision)
@@ -86,13 +86,13 @@ beforeEach(() => {
   vi.mocked(cachedRouteProfiles).mockReturnValue(new Map([['AGRA_EXP_11', profile(61.4)]]));
 });
 
-async function pages() {
-  const board = buildDutyBoard(VIEW, '1');
-  const crew = await buildCrewResponse(VIEW, '1', modelledCrewRepository);
-  const fuel = await buildFuelResponse(VIEW, '1', modelledFuelRepository);
-  const revenue = await buildRevenueResponse(VIEW, '1', SOURCES);
-  const economics = await buildEconomicsResponse(VIEW, SOURCES);
-  const day = operatingDayFor(VIEW, '1');
+async function pages(view: FleetSnapshotView = VIEW) {
+  const board = buildDutyBoard(view, '1');
+  const crew = await buildCrewResponse(view, '1', modelledCrewRepository);
+  const fuel = await buildFuelResponse(view, '1', modelledFuelRepository);
+  const revenue = await buildRevenueResponse(view, '1', SOURCES);
+  const economics = await buildEconomicsResponse(view, SOURCES);
+  const day = operatingDayFor(view, '1');
   if (!board || !crew || !fuel || !revenue || !day) throw new Error('depot 1 is missing');
   return { board, crew, fuel, revenue, economics, day };
 }
@@ -100,8 +100,8 @@ async function pages() {
 const countBy = (names: readonly string[]): Record<string, number> =>
   names.reduce<Record<string, number>>((acc, n) => ({ ...acc, [n]: (acc[n] ?? 0) + 1 }), {});
 
-describe('every page reads the one shared day (review I4)', () => {
-  it('carries the operating date the day is for on every response, so pages can date it (M2)', async () => {
+describe('every page reads the one shared day', () => {
+  it('carries the operating date the day is for on every response, so pages can date it', async () => {
     const { board, crew, fuel, revenue, economics, day } = await pages();
     const dates = [board, crew, fuel, revenue, economics].map((r) => r.operatingDate);
     expect(new Set(dates)).toEqual(new Set([day.operatingDate]));
@@ -151,7 +151,13 @@ describe('every page reads the one shared day (review I4)', () => {
     vi.mocked(cachedRouteProfiles).mockReturnValue(
       new Map([['AGRA_EXP_11', profile(61.4)], ['KANPUR_ORD_21', profile(12.5)]]),
     );
-    const after = await pages();
+    // The board and the day are memoised per analysis, so the after-set must be a
+    // fresh build on a new rows array: otherwise it is the before-set's own body
+    // and "unchanged" could never fail.
+    resetAnalysisForTests();
+    const after = await pages({ ...VIEW, rows: [...VIEW.rows] });
+    expect(after.board.duties).not.toBe(before.board.duties);
+    expect(after.day.runs).not.toBe(before.day.runs);
     expect(tenths(after.fuel.totals.distanceKm)).toBe(tenths(after.revenue.summary.serviceKm));
     expect(after.fuel.totals.distanceKm).not.toBe(before.fuel.totals.distanceKm);
     expect(after.board.duties).toEqual(before.board.duties);

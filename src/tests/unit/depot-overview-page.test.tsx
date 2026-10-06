@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DepotsOverviewPage from '@/app/(protected)/project/depots/page';
 import type { DepotSummary, Figure, NetworkKpis } from '@/lib/depot/types';
+import { bannedOnScreen } from './depot-guard-rendered';
 
 /*
  * Guard review X1 and X11: the overview's real page in every state. The provenance line
@@ -78,6 +79,11 @@ async function visible(): Promise<string> {
 describe('the network overview page', () => {
   beforeEach(() => {
     ctx.network = base;
+  });
+
+  it.each(STATES)('shows no "simulated" and no raw date in the %s state', async (_name, network) => {
+    ctx.network = network;
+    expect(bannedOnScreen(renderToStaticMarkup(await DepotsOverviewPage()))).toEqual([]);
   });
 
   it.each(STATES)('declares DERIVED in its provenance line in the %s state', async (_name, network) => {

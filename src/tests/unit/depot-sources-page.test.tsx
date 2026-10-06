@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SourcesPage from '@/app/(protected)/project/depots/sources/page';
 import { SourcesRegistry } from '@/components/depot/sources/SourcesRegistry';
+import { bannedOnScreen } from './depot-guard-rendered';
 
 /*
  * Round 2: the sources page declares REFERENCE in every state (guard X1) with the coverage
@@ -133,12 +134,9 @@ describe('the data sources page', () => {
     );
   });
 
-  it('never prints a raw ISO date in its text or attributes', () => {
+  it('never prints a raw ISO date or "simulated" in its text or attributes', () => {
     act(() => root.render(<SourcesRegistry />));
-    const attrs = Array.from(container.querySelectorAll('*')).flatMap((el) =>
-      Array.from(el.attributes).map((a) => a.value),
-    );
-    expect([container.textContent ?? '', ...attrs].join(' ')).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(bannedOnScreen(container)).toEqual([]);
   });
 
   it('says on the GPS row, in one line, when rows ran ahead of the server clock', () => {

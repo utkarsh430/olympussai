@@ -405,10 +405,13 @@ describe('networkKpis', () => {
 
   it('yields zeros and no NaN for empty input', () => {
     const empty = networkKpis([]);
-    for (const figure of Object.values(empty)) {
-      expect(figure.value).toBe(0);
-      expect(figure.coverage?.of ?? 0).toBe(0);
-    }
+    for (const figure of Object.values(empty)) expect(figure.value).toBe(0);
+    // Every figure that carries coverage on a real fleet still carries it, at zero.
+    const covered = (Object.keys(kpis) as (keyof typeof kpis)[]).filter(
+      (key) => kpis[key].coverage !== undefined,
+    );
+    expect(covered.length).toBeGreaterThan(0);
+    for (const key of covered) expect(empty[key].coverage?.of).toBe(0);
     expectAllNumbersFinite(empty);
   });
 
