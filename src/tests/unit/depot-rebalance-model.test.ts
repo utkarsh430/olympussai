@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import {
-  MAX_ARC_PX,
-  MIN_ARC_PX,
-  arcWidthPx,
-  balanceRows,
-  mapGeometry,
-  planSummary,
-  transferRows,
-  uncoveredRows,
-} from '@/lib/depot/rebalance/rebalanceModel';
+import { MAX_ARC_PX, MIN_ARC_PX, arcWidthPx, mapGeometry } from '@/lib/depot/rebalance/mapGeometry';
+import { balanceRows, planSummary } from '@/lib/depot/rebalance/rebalanceModel';
+import { transferRows, uncoveredRows } from '@/lib/depot/rebalance/transferModel';
 import type { DepotBalance, TransferPlan } from '@/lib/depot/optimise/types';
 
 function balance(
@@ -125,7 +118,7 @@ describe('balanceRows', () => {
 
 describe('transferRows', () => {
   it('joins names, the giver surplus and receiver deficit before the move, and decisions', () => {
-    const rows = transferRows(PLAN, BALANCES, new Map([['agra>kanpur', 'approved' as const]]));
+    const rows = transferRows(PLAN, BALANCES, new Map([['agra>kanpur', { kind: 'approved', buses: 5 } as const]]));
     expect(rows[0]).toEqual({
       id: 'agra>kanpur',
       fromDepotId: 'agra',
@@ -137,7 +130,7 @@ describe('transferRows', () => {
       busKm: 2481.6,
       giverSurplusBefore: 10,
       receiverDeficitBefore: 8,
-      decision: 'approved',
+      decision: { kind: 'approved', buses: 5 },
     });
     expect(rows[1]?.decision).toBeNull();
   });

@@ -1,4 +1,4 @@
-import { MAX_ARC_PX, MIN_ARC_PX, arcWidthPx } from '@/lib/depot/rebalance/rebalanceModel';
+import { MAX_ARC_PX, MIN_ARC_PX, arcWidthPx } from '@/lib/depot/rebalance/mapGeometry';
 import { BALANCED_COLOUR, DEFICIT_COLOUR, SURPLUS_COLOUR } from './BalanceBar';
 
 /** Same arc colour the map draws with. */
@@ -47,20 +47,20 @@ export function TransferMapLegend({ maxBuses }: TransferMapLegendProps) {
         <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
           <li className="flex items-center gap-1.5">
             <Mark shape="square" />
-            Square: spare buses
+            Square: spare buses · modelled
           </li>
           <li className="flex items-center gap-1.5">
             <Mark shape="triangle" />
-            Downward triangle: short of buses
+            Downward triangle: short of buses · modelled
           </li>
           <li className="flex items-center gap-1.5">
             <Mark shape="circle" />
-            Circle: balanced
+            Circle: balanced · modelled
           </li>
         </ul>
       </div>
       <div>
-        <p className="depot-label mb-1.5">Transfers</p>
+        <p className="depot-label mb-1.5">Transfers · modelled</p>
         <p className="mb-2 font-sans text-xs leading-snug">
           A line runs from the giving depot to the receiving one, arrow at the receiver. Its width
           grows with the square root of the buses moved, from {MIN_ARC_PX} to {MAX_ARC_PX} px.

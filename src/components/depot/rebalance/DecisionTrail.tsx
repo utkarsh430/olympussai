@@ -1,42 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import {
-  appendAuditEvent,
-  readAuditLog,
-  writeAuditLog,
-  type AuditEvent,
-} from '@/lib/audit/auditLog';
-import type { DecisionTrail as Trail, NewAuditEvent, TrailItem } from '@/lib/depot/decisions';
-
-const DECISION_WORD = { approved: 'Approved', rejected: 'Rejected', deferred: 'Deferred' } as const;
-
-export interface DecisionLog {
-  readonly events: readonly AuditEvent[];
-  readonly record: (event: NewAuditEvent) => void;
-}
-
-/**
- * The local audit log, read after mount (it lives in this browser's storage)
- * and appended to exactly as the log's other events are.
- */
-export function useDecisionLog(): DecisionLog {
-  const [events, setEvents] = useState<readonly AuditEvent[]>([]);
-  useEffect(() => {
-    setEvents(readAuditLog());
-  }, []);
-  const record = useCallback((event: NewAuditEvent): void => {
-    const next = appendAuditEvent(readAuditLog(), event);
-    writeAuditLog(next);
-    setEvents(next);
-  }, []);
-  return { events, record };
-}
+import type { DecisionTrail as Trail, TrailItem } from '@/lib/depot/rebalance/decisionEvents';
+import { describeTrailItem } from '@/lib/depot/rebalance/decisionWording';
 
 export interface DecisionTrailProps {
   readonly trail: Trail;
   readonly operatingDate: string;
   readonly onUndo: (item: TrailItem) => void;
+  /** Said once the storage cap has dropped older decisions; null until then. */
+  readonly capacityNote: string | null;
 }
 
 function timeOf(iso: string): string {
@@ -44,12 +16,6 @@ function timeOf(iso: string): string {
   return Number.isNaN(date.getTime())
     ? '—'
     : date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-}
-
-function describe(item: TrailItem): string {
-  const route = `${item.buses} ${item.buses === 1 ? 'bus' : 'buses'}, ${item.fromDepotName} → ${item.toDepotName}`;
-  if (item.undoes !== null) return `Undid ${DECISION_WORD[item.decision].toLowerCase()}: ${route}`;
-  return `${DECISION_WORD[item.decision]}: ${route}${item.undone ? ' (later undone)' : ''}`;
 }
 
 function List({
@@ -68,9 +34,11 @@ function List({
         <li key={item.eventId} className="flex min-w-0 flex-wrap items-baseline gap-x-3 px-3 py-2">
           <span className="text-[11px] text-depot-faint">{timeOf(item.at)}</span>
           <span className="min-w-0 flex-1 text-[13px] text-depot-ink">
-            {describe(item)}
+            {describeTrailItem(item)}
             {item.scenario ? (
-              <span className="block text-[11px] text-depot-muted">What-if: {item.scenario}</span>
+              <span className="block text-[11px] text-depot-muted">
+                What-if: {item.scenarioLabel ?? 'a what-if scenario'}
+              </span>
             ) : null}
             {item.note ? (
               <span className="block font-sans text-xs text-depot-muted">Note: {item.note}</span>
@@ -91,7 +59,7 @@ function List({
  * Every decision for the operating date, newest first, with decisions on the
  * baseline plan listed apart from decisions on a what-if scenario.
  */
-export function DecisionTrail({ trail, operatingDate, onUndo }: DecisionTrailProps) {
+export function DecisionTrail({ trail, operatingDate, onUndo, capacityNote }: DecisionTrailProps) {
   return (
     <section aria-labelledby="rebalance-trail-heading" data-testid="rebalance-trail">
       <h2 id="rebalance-trail-heading" className="depot-section-label">
@@ -102,6 +70,9 @@ export function DecisionTrail({ trail, operatingDate, onUndo }: DecisionTrailPro
         Undo records a further entry and deletes nothing. A decision changes nothing but this
         record; no transfer order is issued.
       </p>
+      {capacityNote ? (
+        <p className="depot-prose mb-3 text-xs text-alert-amber">{capacityNote}</p>
+      ) : null}
       <h3 className="depot-label mb-1.5">On the modelled plan</h3>
       <List
         items={trail.baseline}
