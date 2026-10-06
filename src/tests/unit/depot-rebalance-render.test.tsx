@@ -323,6 +323,21 @@ describe('provenance tags on the visible page (ruling S51)', () => {
     }
   });
 
+  it('tags the generated columns of the every-depot table in their header cells only', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const toggle = container.querySelector<HTMLButtonElement>('#rebalance-balance-heading button');
+    await act(async () => toggle?.click());
+    const table = container.querySelector('[data-testid="rebalance-balances"] table');
+    const headers = [...(table?.querySelectorAll('thead th') ?? [])];
+    const tagged = headers
+      .filter((th) => th.querySelector('[data-provenance="modelled"]'))
+      .map((th) => th.textContent?.replace(/modelled/i, '').trim());
+    expect(tagged).toEqual(['Peak need', 'Spare target', 'Required', 'Balance']);
+    const plain = headers.filter((th) => !th.querySelector('[data-provenance]'));
+    expect(plain.map((th) => th.textContent)).toEqual(['Depot', 'Fleet', 'Off road', 'Available']);
+    expect(table?.querySelector('tbody [data-provenance]')).toBeNull();
+  });
+
   it('tags the recommended transfers section label MODELLED', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     const heading = container.querySelector('#rebalance-map-heading');

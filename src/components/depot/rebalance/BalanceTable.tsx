@@ -54,6 +54,7 @@ function columnsFor(maxMagnitude: number, withPart: boolean): readonly Column<Ba
     },
     {
       key: 'peak',
+      tag: 'modelled',
       header: 'Peak need',
       align: 'right',
       sortValue: (r) => r.peakRequirement,
@@ -61,13 +62,15 @@ function columnsFor(maxMagnitude: number, withPart: boolean): readonly Column<Ba
     },
     {
       key: 'spare',
-      header: 'Spare',
+      tag: 'modelled',
+      header: 'Spare target',
       align: 'right',
       sortValue: (r) => r.spareTarget,
       render: (r) => count(r.spareTarget),
     },
     {
       key: 'required',
+      tag: 'modelled',
       header: 'Required',
       align: 'right',
       sortValue: (r) => r.required,
@@ -75,6 +78,7 @@ function columnsFor(maxMagnitude: number, withPart: boolean): readonly Column<Ba
     },
     {
       key: 'balance',
+      tag: 'modelled',
       header: 'Balance',
       sortValue: (r) => r.balance,
       render: (r) => <BalanceBar balance={r.balance} maxMagnitude={maxMagnitude} />,
@@ -84,6 +88,10 @@ function columnsFor(maxMagnitude: number, withPart: boolean): readonly Column<Ba
 }
 
 /**
+ * Generated columns (peak need, spare target, required, balance) carry the MODELLED tag in
+ * their header cells, because each sits beside a real depot (ruling S51); the fleet, off
+ * road and available columns match the page's line and carry nothing.
+ *
  * Every depot's live availability against its modelled requirement, collapsed under its
  * heading: the fifteen deepest shortfalls, then "Show all N". The "Part of plan" column
  * shows only when some unit takes no part (it is constant otherwise).
