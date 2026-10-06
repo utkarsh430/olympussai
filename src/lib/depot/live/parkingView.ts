@@ -15,7 +15,7 @@ import type {
 } from '../yard/parkingApi';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
 import { buildDepotDetail } from './depotView';
-import { laterDayPlanFor } from './operatingDayView';
+import { dutyPlanFor, laterDayPlanFor } from './operatingDayView';
 import type { DutyPlan } from '../sim/dayPlan';
 
 type ParkingBody = Omit<ParkingResponse, keyof ReturnType<typeof feedEnvelope>>;
@@ -156,13 +156,30 @@ function capacityOf(detail: DepotDetailResponse, bays: number): ParkingCapacity 
   };
 }
 
+interface PlannedDate {
+  readonly operatingDate: string;
+  readonly planned: DutyPlan | null;
+}
+
+/**
+ * The date the night order plans and the plan it reads (rulings S55, S62).
+ * Before the first duty of the feed's date that day has not begun: its yard
+ * buses leave for it, so the order reads that day's one shared plan. From the
+ * first duty on, it plans the next date with the later-day plan, which covers
+ * only the buses in the yard.
+ */
+function plannedDate(analysis: SnapshotAnalysis, depotId: string, feedDate: string): PlannedDate {
+  const today = dutyPlanFor(analysis, depotId, feedDate);
+  if (today?.mode === 'before_first_duty') return { operatingDate: feedDate, planned: today };
+  const operatingDate = nextOperatingDate(feedDate);
+  return { operatingDate, planned: laterDayPlanFor(analysis, depotId, operatingDate) };
+}
+
 function buildBody(
-  analysis: SnapshotAnalysis,
   detail: DepotDetailResponse,
   operatingDate: string,
+  planned: DutyPlan | null,
 ): ParkingBody | null {
-  // The depot's plan for that later date: its yard buses are the ones that will leave (S55).
-  const planned = laterDayPlanFor(analysis, detail.depot.id, operatingDate);
   if (!planned) return null;
   const bays = modelDepotMaster(detail.depot).parkingCapacity;
   const capacity = capacityOf(detail, bays);
@@ -201,8 +218,10 @@ function buildBody(
 const bodies = new WeakMap<SnapshotAnalysis, Map<string, ParkingBody>>();
 
 /**
- * One depot's night parking order for the day after the feed date, or null
- * when the feed has no such depot. The order rests on modelled duties and a
+ * One depot's night parking order, or null when the feed has no such depot.
+ * It is for the day after the feed date, except before the first duty of the
+ * feed date, when it is for that date itself (ruling S62); `operatingDate`
+ * says which. The order rests on modelled duties and a
  * modelled yard layout, so it is tagged MODELLED; it is a suggestion only and
  * nothing is dispatched. The clock is the feed's, never the wall clock.
  */
@@ -213,13 +232,18 @@ export function buildParkingResponse(
   const detail = buildDepotDetail(view, depotId);
   if (!detail) return null;
   const analysis = analyseSnapshot(view);
-  const operatingDate = nextOperatingDate(operatingDateOf(view.feedNow, view.fetchedAt));
+  // The plan's mode rests on the feed clock, which is the analysis's, so the date is too.
+  const { operatingDate, planned } = plannedDate(
+    analysis,
+    depotId,
+    operatingDateOf(view.feedNow, view.fetchedAt),
+  );
   const held = bodies.get(analysis) ?? new Map<string, ParkingBody>();
   bodies.set(analysis, held);
   const key = `${depotId}|${operatingDate}`;
   let body = held.get(key);
   if (!body) {
-    const built = buildBody(analysis, detail, operatingDate);
+    const built = buildBody(detail, operatingDate, planned);
     if (!built) return null;
     body = built;
     held.set(key, body);

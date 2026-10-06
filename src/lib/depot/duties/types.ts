@@ -48,15 +48,17 @@ export interface TimetableRepository {
 export type Ineligibility = 'off_road' | 'dark' | 'not_in_yard' | 'not_heard' | 'class_mismatch';
 
 /**
- * The moment a plan is made "as of" (ruling S55). A plan for the feed's own
- * operating date is as of the feed clock (`feedMinute`, minutes past midnight),
- * or of no clock when the feed has none. A plan for a later date (the night
- * parking order plans tomorrow) is not as of any moment of that day: how the
- * buses stand now cannot rank them for it.
+ * The moment a plan is made "as of" (rulings S55, S62). A plan for the feed's
+ * own operating date is as of the feed clock (`feedMinute`, minutes past
+ * midnight), or of no clock when the feed has none. A plan for a later date,
+ * and the feed's own date before its first duty starts (`before_first_duty`),
+ * is not as of any moment of that day: how the buses stand now cannot rank
+ * them for it.
  */
 export type PlanNow =
   | { readonly kind: 'feed_time'; readonly feedMinute: number }
   | { readonly kind: 'no_feed_clock' }
+  | { readonly kind: 'before_first_duty' }
   | { readonly kind: 'later_day' };
 
 /**

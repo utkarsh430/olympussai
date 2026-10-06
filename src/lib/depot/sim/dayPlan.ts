@@ -40,7 +40,11 @@ export interface DayPlanInput {
   readonly operatingDate: string;
   /** False when the depot has no yard: location then cannot decide eligibility. */
   readonly yardEstablished: boolean;
-  /** As of when the plan is made: the feed clock, no clock, or a later day (ruling S55). */
+  /**
+   * As of when the plan is made: the feed clock, no clock, or a later day
+   * (ruling S55). On the feed clock before the first duty, the plan is made as
+   * `before_first_duty` (ruling S62).
+   */
   readonly now: PlanNow;
 }
 
@@ -96,6 +100,18 @@ function routeNamesOf(buses: readonly DepotBusView[]): string[] {
   return [...new Set(buses.flatMap((b) => (b.routeName ? [b.routeName] : [])))];
 }
 
+/**
+ * Which way the plan is made (ruling S62). On the feed clock, before the first
+ * duty starts the day has not begun. A depot with no duties waits for none, and
+ * a feed with no clock cannot be placed before a duty: both are as of the feed.
+ */
+function modeOf(now: PlanNow, duties: readonly Duty[]): PlanMode {
+  if (now.kind === 'later_day') return 'later_day';
+  if (now.kind !== 'feed_time' || duties.length === 0) return 'as_of_feed_time';
+  const firstStart = Math.min(...duties.map((d) => d.startMin));
+  return now.feedMinute < firstStart ? 'before_first_duty' : 'as_of_feed_time';
+}
+
 /** Generates the day's duties and matches the depot's buses to them, once. Pure. */
 export function planDay(input: DayPlanInput): DutyPlan {
   const { buses, dropped } = firstPerRegistration(input.buses);
@@ -110,9 +126,10 @@ export function planDay(input: DayPlanInput): DutyPlan {
   const fleet = new Map(
     buses.map((b) => [b.registrationNumber, modelBus(b.registrationNumber, b.routeName)]),
   );
+  const mode = modeOf(input.now, duties);
   const plan = assignDuties(duties, buses, fleet, {
     yardEstablished: input.yardEstablished,
-    now: input.now,
+    now: mode === 'before_first_duty' ? { kind: 'before_first_duty' } : input.now,
   });
   return {
     duties,
@@ -122,7 +139,7 @@ export function planDay(input: DayPlanInput): DutyPlan {
     buses,
     fleet,
     plan,
-    mode: input.now.kind === 'later_day' ? 'later_day' : 'as_of_feed_time',
+    mode,
     locationIgnored: !input.yardEstablished,
     recencyNotJudged: input.now.kind === 'no_feed_clock',
     duplicateRowsDropped: dropped,
