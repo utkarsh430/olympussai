@@ -224,9 +224,13 @@ export function assignDuties(
       : { dutyId: duty.id, registrationNumber: null, reason: 'no_eligible_bus', busStanding: null };
   });
   const used = new Set(rowToCol.filter((c) => c >= 0));
+  const spare = eligible.filter((_, col) => !used.has(col));
+  const count = (standing: BusStandingNow): number =>
+    spare.filter((c) => c.standing === standing).length;
   return {
     assignments,
-    spareBuses: eligible.filter((_, col) => !used.has(col)).map((c) => c.bus.registrationNumber),
+    spareBuses: spare.map((c) => c.bus.registrationNumber),
+    spareByStanding: { inYard: count('in_yard'), standing: count('standing'), onRoad: count('on_road') },
     excluded,
     unassignedDuties: rowToCol.filter((c) => c < 0).length,
   };

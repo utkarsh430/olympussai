@@ -272,11 +272,25 @@ describe('sentences', () => {
     expect(spareSentence([], { assigned: 3, locationIgnored: false })).toBe(
       'No bus is spare: every eligible bus has a duty.',
     );
-    expect(spareSentence(['A', 'B'], { assigned: 3, locationIgnored: true })).toBe(
-      '2 buses are standing with no duty.',
-    );
-    expect(spareSentence(['A', 'B'])).toBe('2 buses are in the yard with no duty.');
-    expect(spareSentence(['A'])).toBe('1 bus is in the yard with no duty.');
+    expect(spareSentence(['A', 'B'])).toBe('2 buses have no duty.');
+    expect(spareSentence(['A'])).toBe('1 bus has no duty.');
+  });
+
+  it('says where the spare buses stand, never calling them all in the yard (S55, N2)', () => {
+    const fifteen = Array.from({ length: 15 }, (_, i) => `B${i}`);
+    const ctx = { assigned: 40, locationIgnored: false };
+    expect(
+      spareSentence(fifteen, { ...ctx, byStanding: { inYard: 5, standing: 0, onRoad: 10 } }),
+    ).toBe('15 buses have no duty: 5 in the yard, 10 on the road.');
+    expect(
+      spareSentence(['A', 'B'], { ...ctx, byStanding: { inYard: 2, standing: 0, onRoad: 0 } }),
+    ).toBe('2 buses are in the yard with no duty.');
+    expect(
+      spareSentence(['A', 'B'], { ...ctx, byStanding: { inYard: 0, standing: 2, onRoad: 0 } }),
+    ).toBe('2 buses are standing with no duty.');
+    expect(
+      spareSentence(['A'], { ...ctx, byStanding: { inYard: 0, standing: 0, onRoad: 1 } }),
+    ).toBe('1 bus is on the road with no duty.');
   });
 });
 

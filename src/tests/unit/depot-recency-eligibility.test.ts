@@ -110,3 +110,24 @@ describe('the duty board and recency (S55, N3)', () => {
     expect(b?.counts.excluded.notInYard).toBe(0);
   });
 });
+
+describe('the spare buses are counted by where they stand (S55, N2)', () => {
+  it('splits 50 in service and 5 in the yard over 40 duties into 10 on the road and 5 in the yard', () => {
+    const buses = [
+      ...Array.from({ length: 50 }, (_, i) => bus(`S${String(i).padStart(2, '0')}`, 'in_service', 'away', 1)),
+      ...Array.from({ length: 5 }, (_, i) => bus(`Y${i}`, 'standing', 'in_yard', 1)),
+    ];
+    const duties = Array.from({ length: 40 }, (_, i) => ({ ...duty, id: `D${i}` }));
+    const plan = assignDuties(duties, buses, new Map(), { now: AT_TEN });
+    expect(plan.spareBuses).toHaveLength(15);
+    expect(plan.spareByStanding).toEqual({ inYard: 5, standing: 0, onRoad: 10 });
+  });
+
+  it('sends the split on the board', () => {
+    const rows = Array.from({ length: 8 }, (_, i) => row(i));
+    const b = buildDutyBoard(view(FEED_NOW, rows), '1');
+    const split = b?.counts.spareByStanding;
+    expect(split).toBeDefined();
+    expect((split?.inYard ?? 0) + (split?.standing ?? 0) + (split?.onRoad ?? 0)).toBe(b?.counts.spare);
+  });
+});

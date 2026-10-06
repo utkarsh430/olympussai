@@ -1,6 +1,7 @@
 import { formatCount, formatFeedTime } from '../format';
 import { modelledDaySentence, type ModelledDayReference } from '../sim/operatingDayWording';
 import type { BoardDuty, DutyBlockers, DutyBoardCounts, DutyState } from './api';
+import type { SpareByStanding } from './types';
 
 /** The timeline axis: 04:00 to 24:00 in the feed's local time. */
 export const AXIS_START_MIN = 240;
@@ -178,15 +179,34 @@ export interface SpareContext {
   readonly assigned: number;
   /** `eligibilityIgnoredLocation`: no yard, so "in the yard" cannot be said. */
   readonly locationIgnored: boolean;
+  /** `counts.spareByStanding`: where the spare buses stand. Without it, no place is said. */
+  readonly byStanding?: SpareByStanding;
 }
 
+/**
+ * How many buses have no duty and, when the response says, where they stand
+ * (ruling S55): a spare bus may be out on the road, so they are never all
+ * called "in the yard". Without the split no place is claimed.
+ */
 export function spareSentence(spare: readonly string[], context?: SpareContext): string {
   if (spare.length === 0) {
     const reason = noSpareReason(context?.assigned ?? null);
     return reason === null ? 'No bus is spare.' : `No bus is spare: ${reason}.`;
   }
-  const where = context?.locationIgnored ? 'standing' : 'in the yard';
-  return `${formatCount(spare.length)} ${plural(spare.length, 'bus is', 'buses are')} ${where} with no duty.`;
+  const n = spare.length;
+  const split = context?.byStanding;
+  const parts = split === undefined ? [] : [
+    split.inYard > 0 ? { n: split.inYard, where: 'in the yard' } : null,
+    split.standing > 0 ? { n: split.standing, where: 'standing' } : null,
+    split.onRoad > 0 ? { n: split.onRoad, where: 'on the road' } : null,
+  ].filter((p): p is { n: number; where: string } => p !== null);
+  const only = parts.length === 1 ? parts[0] : undefined;
+  if (only !== undefined && only.n === n) {
+    return `${formatCount(n)} ${plural(n, 'bus is', 'buses are')} ${only.where} with no duty.`;
+  }
+  const head = `${formatCount(n)} ${plural(n, 'bus has', 'buses have')} no duty`;
+  if (parts.length === 0) return `${head}.`;
+  return `${head}: ${parts.map((p) => `${formatCount(p.n)} ${p.where}`).join(', ')}.`;
 }
 
 /**

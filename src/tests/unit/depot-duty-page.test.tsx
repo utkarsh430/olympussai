@@ -104,7 +104,7 @@ describe('DutyPage states', () => {
     expect(body).toContain('Spare buses');
     expect(body).toContain('How these figures are produced');
     expect(body).toContain(COST_SENTENCE);
-    expect(body).toContain('1 bus is in the yard with no duty.');
+    expect(body).toContain('1 bus has no duty.');
     expect(body).toContain('1 route has no duty: ORD_2.');
     expect(body).not.toMatch(/simulated/i);
     expect(markup).not.toContain('data-testid="depot-stale"');

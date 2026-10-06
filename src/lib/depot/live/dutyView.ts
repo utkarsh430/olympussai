@@ -77,6 +77,7 @@ function buildBody(
     assigned: board.length - plan.unassignedDuties,
     unassigned: plan.unassignedDuties,
     spare: plan.spareBuses.length,
+    spareByStanding: plan.spareByStanding,
     excluded: heldOut,
   };
   return {

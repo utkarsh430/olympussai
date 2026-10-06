@@ -74,10 +74,20 @@ export interface DutyAssignment {
   readonly busStanding: BusStandingNow | null;
 }
 
+/** Spare buses by how they stand now (ruling S55): a spare bus may be out on the road. */
+export interface SpareByStanding {
+  readonly inYard: number;
+  /** Standing where the depot has no yard established, so location is not judged. */
+  readonly standing: number;
+  readonly onRoad: number;
+}
+
 export interface AssignmentPlan {
   readonly assignments: readonly DutyAssignment[];
   /** Eligible buses left without a duty, sorted by registration. */
   readonly spareBuses: readonly string[];
+  /** The spare buses counted by how they stand now. */
+  readonly spareByStanding: SpareByStanding;
   /** Sorted by registration. */
   readonly excluded: readonly {
     readonly registrationNumber: string;

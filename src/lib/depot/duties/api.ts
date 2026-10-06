@@ -1,6 +1,6 @@
 import type { DepotFeedEnvelope } from '../api';
 import type { ServiceClass } from '../sim/types';
-import type { BusStandingNow } from './types';
+import type { BusStandingNow, SpareByStanding } from './types';
 
 /**
  * What a duty is doing on the board. `assigned` means the matching proposed a
@@ -56,6 +56,8 @@ export interface DutyBoardCounts {
   readonly unassigned: number;
   /** Eligible buses with no duty. */
   readonly spare: number;
+  /** The spare buses by where they stand now; they sum to `spare` (ruling S55). Always sent. */
+  readonly spareByStanding?: SpareByStanding;
   /** Buses held out of the matching, by reason, whatever their class. */
   readonly excluded: DutyBlockers;
 }
