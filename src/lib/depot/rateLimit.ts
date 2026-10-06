@@ -211,9 +211,10 @@ export function requestIdentity(
  * identity and for the whole process, which protects that server.
  *
  * The limits count calls to that server, not lookups. One lookup can make up
- * to four calls (the requested date, then three fallback dates), and the route
- * charges every miss all four, so these are the real ceilings on calls: 20, 40
- * and 120 a minute, which is 5, 10 and 30 lookups a minute.
+ * to four calls (the requested date, then three fallback dates), and each call
+ * takes one slot from every limit immediately before it is made, as the
+ * condition of making it. These are the real ceilings on calls: 20, 40 and 120
+ * a minute. A lookup whose first date answers costs one slot.
  */
 export const ROUTE_PROFILE_FETCH_LIMITS = {
   perIdentityPerMinute: 20,

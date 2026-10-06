@@ -14,12 +14,11 @@ import {
 import {
   getRouteProfile,
   ROUTE_LOOKUP_DEADLINE_MS,
-  routeProfileNeedsFetch,
+  type UpstreamPermit,
 } from '@/lib/depot/routes/routeCatalogue';
 import type { RouteProfileResponse } from '@/lib/depot/routes/types';
 import { getRepositories } from '@/lib/depot/repositories';
 import { feedEnvelope } from '@/lib/depot/live/analysis';
-import { SCHEDULE_MAX_UPSTREAM_CALLS } from '@/lib/upsrtc/scheduleService';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -55,20 +54,25 @@ function fetchLimiters(): FetchLimiters {
   return holder[LIMITERS_KEY];
 }
 
-/** Null when the request may go on; a 429 when this cache miss would pass a limit. */
-function throttleMiss(request: NextRequest, claims: Readonly<IdentityClaims>): Response | null {
+/**
+ * One slot from every limit, taken immediately before each call to the schedule
+ * server and as the condition of making it. `takeAll` decides and takes in one
+ * synchronous step, so lookups in flight together cannot pass a limit between them.
+ */
+function upstreamPermit(request: NextRequest, claims: Readonly<IdentityClaims>): UpstreamPermit {
   const limiters = fetchLimiters();
   const address = requestAddress(request.headers, process.env);
-  // The limits count calls to the schedule server, so a miss is charged the most a lookup can make.
-  const cost = SCHEDULE_MAX_UPSTREAM_CALLS;
   const identity = requestIdentity(claims, request.headers, process.env);
-  const decision = takeAll([
-    { limiter: limiters.identity, key: identity, cost },
-    ...(address === null ? [] : [{ limiter: limiters.address, key: address, cost }]),
-    { limiter: limiters.process, key: 'all', cost },
-  ]);
-  if (!decision.limited) return null;
-  const { retryAfterSeconds } = decision;
+  const checks = [
+    { limiter: limiters.identity, key: identity },
+    ...(address === null ? [] : [{ limiter: limiters.address, key: address }]),
+    { limiter: limiters.process, key: 'all' },
+  ];
+  return () => takeAll(checks);
+}
+
+/** The fixed 429: a call the lookup needed would have passed a limit. */
+function tooManyRequests(retryAfterSeconds: number): Response {
   return Response.json(
     { error: 'Too many requests', retryAfterSeconds },
     {
@@ -93,7 +97,7 @@ async function withinDeadline<T>(work: Promise<T>, ms: number): Promise<T | type
   }
 }
 
-/** The 429 when this miss would pass a limit, else the profile body. */
+/** The 429 when a call the lookup needed would pass a limit, else the profile body. */
 async function answer(
   request: NextRequest,
   session: Readonly<IdentityClaims>,
@@ -102,12 +106,10 @@ async function answer(
   const acceptEncoding = request.headers.get('accept-encoding');
   const now = Date.now();
   const view = await getRepositories().fleet.snapshot();
-  // Only a cache miss reaches the government's server, so only a miss is limited.
-  if (routeProfileNeedsFetch(routeName, view, now)) {
-    const refused = throttleMiss(request, session);
-    if (refused) return refused;
-  }
-  const result = await getRouteProfile(routeName, view, now);
+  // Only a call to the government's server is limited, each one as it is made: a
+  // cache hit costs nothing, a lookup the calls it makes.
+  const result = await getRouteProfile(routeName, view, now, upstreamPermit(request, session));
+  if (result.status === 'limited') return tooManyRequests(result.retryAfterSeconds);
   // The envelope is the snapshot's own, so a stale or sample fleet says so here too.
   const body: RouteProfileResponse = { ...result, ...feedEnvelope(view) };
   return jsonResponse(body, { acceptEncoding });
