@@ -67,3 +67,82 @@ export function formatPlainDate(date: string): string {
   if (monthName === undefined || dayNumber < 1 || dayNumber > 31) return DASH;
   return `${dayNumber} ${monthName} ${year}`;
 }
+
+const FEED_STAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/;
+const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+interface FeedStamp {
+  /** The wall-clock digits placed on the UTC axis: only for arithmetic and the weekday. */
+  readonly ms: number;
+  readonly day: string;
+  readonly month: string;
+  readonly time: string;
+  readonly weekday: string;
+}
+
+/**
+ * The feed's timestamp read from its digits alone (the upstream quirk `formatFeedTime`
+ * documents: a trailing `Z` on a wall-clock IST time is ignored). The digits sit on the
+ * UTC axis only so two feed stamps can be subtracted and a weekday found; no zone
+ * conversion ever happens. Null for anything that is not a real date and time.
+ */
+function readFeedStamp(iso: string | null): FeedStamp | null {
+  const match = iso ? FEED_STAMP_PATTERN.exec(iso) : null;
+  if (!match) return null;
+  const [, y = '', mo = '', d = '', h = '', mi = '', s = '0'] = match;
+  const [year, month, day, hour, minute, second] = [y, mo, d, h, mi, s].map(Number) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  if (hour > MAX_HOUR || minute > MAX_MINUTE) return null;
+  const ms = Date.UTC(year, month - 1, day, hour, minute, second);
+  const check = new Date(ms);
+  if (check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return null;
+  const monthName = MONTH_NAMES[month - 1];
+  const weekday = WEEKDAY_NAMES[check.getUTCDay()];
+  if (monthName === undefined || weekday === undefined) return null;
+  return { ms, day: d, month: monthName, time: `${h}:${mi}`, weekday };
+}
+
+/** A feed timestamp as "Mon 05 Oct, 08:51" (Indian wall-clock time); a dash if it does not parse. */
+export function formatFeedDateTime(iso: string | null): string {
+  const stamp = readFeedStamp(iso);
+  return stamp ? `${stamp.weekday} ${stamp.day} ${stamp.month}, ${stamp.time}` : DASH;
+}
+
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+function spanWords(ms: number): string {
+  if (ms < HOUR_MS) return `${Math.floor(ms / MINUTE_MS)} min`;
+  if (ms < DAY_MS) return `${Math.floor(ms / HOUR_MS)} h`;
+  const days = Math.floor(ms / DAY_MS);
+  return `${days} ${days === 1 ? 'day' : 'days'}`;
+}
+
+/**
+ * How far a feed timestamp lies from the feed's own clock: "12 min ago", "3 h ago",
+ * "2 days ago", "in 25 min", and "just now" within a minute either way. Both stamps are
+ * read as wall-clock digits, so the browser's clock and zone never enter it. Put the
+ * full time (`formatFeedDateTime`) in `title` beside it.
+ */
+export function formatRelative(iso: string | null, feedNow: string | null): string {
+  const stamp = readFeedStamp(iso);
+  const now = readFeedStamp(feedNow);
+  if (!stamp || !now) return DASH;
+  const delta = now.ms - stamp.ms;
+  if (Math.abs(delta) < MINUTE_MS) return 'just now';
+  return delta > 0 ? `${spanWords(delta)} ago` : `in ${spanWords(-delta)}`;
+}
+
+/** True when feed stamp `a` is strictly later than feed stamp `b`; false if either does not parse. */
+export function isLaterFeedTime(a: string | null, b: string | null): boolean {
+  const left = readFeedStamp(a);
+  const right = readFeedStamp(b);
+  return left !== null && right !== null && left.ms > right.ms;
+}
