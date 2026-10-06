@@ -196,6 +196,45 @@
     background-color: #ffffff;
   }
 
+  /* ── Depot Management surface ───────────────────────────────────────────
+     Shares the command centre's palette and typefaces but is a scrolling
+     working ledger: flat panels and hairlines, no glow, no CSS zoom. */
+  .depot-shell {
+    @apply min-h-dvh bg-depot-page font-mono text-[13px] text-depot-ink antialiased;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  /* Repaint the body so overscroll and short pages never show the neutral
+     base colour (same reason as `body:has(.sim-light)` above). */
+  body:has(.depot-shell) {
+    background-color: #02040a;
+  }
+
+  .depot-panel {
+    @apply rounded-md border border-depot-line bg-depot-surface;
+  }
+
+  .depot-label {
+    @apply font-mono text-[11px] uppercase tracking-[0.16em] text-depot-faint;
+  }
+
+  .depot-title {
+    @apply font-display text-xl font-semibold uppercase tracking-[0.12em] text-depot-ink;
+  }
+
+  .depot-prose {
+    @apply font-sans text-sm leading-[1.55] text-depot-muted;
+  }
+
+  .depot-nav-link {
+    @apply block border-l-2 border-transparent px-4 py-2 font-mono text-xs uppercase tracking-[0.1em]
+      text-depot-muted transition-colors hover:bg-depot-raised hover:text-depot-ink;
+  }
+
+  .depot-nav-link-active {
+    @apply border-holo-glow bg-depot-raised text-holo-glow;
+  }
+
   .scanline-overlay {
     background-image: repeating-linear-gradient(
       0deg,
