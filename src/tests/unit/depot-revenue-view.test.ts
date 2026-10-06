@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { MIXED_CLASS_NOTE } from '@/lib/depot/sim/revenueConfig';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import type { DepotBusRow } from '@/models/depotLive';
@@ -121,9 +122,16 @@ describe('buildRevenueResponse', () => {
     expect(summary.boardings).toBe(routes.reduce((n, r) => n + r.boardings, 0));
     expect(summary.revenue).toBe(routes.reduce((n, r) => n + r.revenue, 0));
     const capacity = routes.reduce((n, r) => n + r.seatCapacity, 0);
+    const occupied = routes.reduce((n, r) => n + r.seatCapacity * r.loadFactor, 0);
     expect(Math.round((summary.loadFactor ?? -1) * 1000)).toBe(
-      Math.round((summary.boardings / capacity) * 1000),
+      Math.round((occupied / capacity) * 1000),
     );
+  });
+
+  it('carries the mixed-class pricing rule as a note a page can print', async () => {
+    const { notes } = await build(world());
+    expect(notes).toContain(MIXED_CLASS_NOTE);
+    expect(MIXED_CLASS_NOTE).toMatch(/most numerous class/);
   });
 
   it('withholds earnings per kilometre with the reason when no length is known', async () => {

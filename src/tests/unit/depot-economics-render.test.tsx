@@ -4,10 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EconomicsPage } from '@/components/depot/economics/EconomicsPage';
 import { RevenueHero } from '@/components/depot/revenue/RevenueHero';
 import { RevenueRoutesTable } from '@/components/depot/revenue/RevenueRoutesTable';
+import { ModelledStatement } from '@/components/depot/revenue/ModelledStatement';
 import { RevenueSummary } from '@/components/depot/revenue/RevenueSummary';
 import type { EconomicsResponse } from '@/lib/depot/revenue/api';
 import type { RouteRevenueFigure } from '@/lib/depot/revenue/types';
-import { ECONOMICS_WEIGHTS } from '@/lib/depot/sim/revenueConfig';
+import { ECONOMICS_WEIGHTS, MIXED_CLASS_NOTE, REVENUE_MODEL_PARAMS } from '@/lib/depot/sim/revenueConfig';
 import { useDepotEconomics } from '@/hooks/useDepotEconomics';
 
 vi.mock('@/hooks/useDepotEconomics', () => ({ useDepotEconomics: vi.fn() }));
@@ -47,7 +48,11 @@ const DATA = {
         economicsIndex: 61.5,
         rank: 1,
         peerCount: 6,
-        components: COMPONENTS.map((c) => ({ ...c, provenance: 'modelled' })),
+        components: COMPONENTS.map((c) => ({
+          ...c,
+          coverage: c.key === 'earningsPerKm' ? { n: 2, of: 2 } : null,
+          provenance: 'modelled',
+        })),
         provenance: 'modelled',
       },
     },
@@ -123,6 +128,7 @@ describe('EconomicsPage', () => {
     expect(panel?.textContent).toContain('Economics breakdown (modelled)');
     expect(panel?.textContent).toContain('rank 1 of 6 in its peer group');
     expect(panel?.textContent).toContain('₹30.00 per km');
+    expect(panel?.textContent).toContain('on 2 of 2 routes');
   });
 });
 
@@ -137,6 +143,8 @@ describe('revenue components', () => {
           boardings: 160,
           revenue: 12345,
           loadFactor: 0.5,
+          flatFareRevenueShare: 0.4,
+          flatFareRouteShare: 0.5,
           earningsPerKm: null,
           earningsCoverage: { n: 0, of: 2 },
           provenance: 'modelled',
@@ -146,6 +154,13 @@ describe('revenue components', () => {
     expect(host.querySelectorAll('[data-provenance="modelled"]')).toHaveLength(5);
     expect(host.textContent).toContain('₹12,345');
     expect(host.textContent).toContain('Based on 0 of 2 routes whose length is known');
+    expect(host.textContent).toContain('Flat fare, length not known: 40.0% of revenue, 50.0% of routes');
+  });
+
+  it('prints the response notes and the definitions in the MODELLED statement', async () => {
+    await render(<ModelledStatement params={REVENUE_MODEL_PARAMS} notes={[MIXED_CLASS_NOTE]} />);
+    expect(host.textContent).toContain('most numerous class');
+    expect(host.textContent).toContain('occupied seat-kilometres over seat-kilometres');
   });
 
   it('caps the hero and offers Show all', async () => {

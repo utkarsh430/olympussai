@@ -9,7 +9,11 @@ import { modelBus } from '../sim/fleetMaster';
 import { modelRidershipDay } from '../sim/ridership';
 import type { ServiceClass } from '../sim/types';
 
-/** Buses in these states run nothing, as in the fuel model, so they carry no riders. */
+/**
+ * Buses in these states run nothing, as in the fuel model, so they carry no
+ * riders. A standing bus that still carries a route name counts as running in
+ * this model, exactly as the fuel model treats it, so the two stay comparable.
+ */
 const IDLE_STATES: ReadonlySet<DepotBusView['state']> = new Set(['off_road', 'dark']);
 
 /** Most specific first, so a tie in bus counts goes to the more specific class. */

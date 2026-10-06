@@ -1,7 +1,12 @@
 import { compareText } from '../fuel/compare';
-import { Z_CLAMP } from '../score/config';
+import { MIN_PEER_GROUP, Z_CLAMP } from '../score/config';
 import { assignPeerGroups } from '../score/peerGroups';
-import { ECONOMICS_WEIGHTS } from '../sim/revenueConfig';
+import {
+  ECONOMICS_MIN_ROUTE_COVERAGE,
+  ECONOMICS_MIN_ROUTES,
+  ECONOMICS_WEIGHTS,
+} from '../sim/revenueConfig';
+import type { Coverage } from '../types';
 import { clamp, median, robustZ } from '../stats/robust';
 import type {
   DepotEconomicsScore,
@@ -41,6 +46,13 @@ function finiteOrNull(value: number | null): number | null {
   return value !== null && Number.isFinite(value) ? value : null;
 }
 
+/** A coverage that is not a pair of finite counts is no coverage: 0 of 0. */
+function safeCoverage(coverage: Coverage): Coverage {
+  return Number.isFinite(coverage.n) && Number.isFinite(coverage.of)
+    ? { n: coverage.n, of: coverage.of }
+    : { n: 0, of: 0 };
+}
+
 function valuesOf(input: Readonly<EconomicsInput>): Values {
   return {
     earningsPerKm: finiteOrNull(input.earningsPerKm),
@@ -57,11 +69,16 @@ function medianOf(key: EconomicsComponentKey, sample: readonly Values[]): number
   return median(sample.flatMap((v) => (v[key] === null ? [] : [v[key] as number])));
 }
 
-function scoreComponents(values: Values, sample: readonly Values[]): EconomicsComponent[] {
+function scoreComponents(
+  values: Values,
+  sample: readonly Values[],
+  earningsCoverage: Coverage,
+): EconomicsComponent[] {
   return COMPONENTS.map((config): EconomicsComponent => {
     const value = values[config.key];
     const peerMedian = medianOf(config.key, sample);
-    const base = { key: config.key, value, peerMedian, provenance: 'modelled' } as const;
+    const coverage = config.key === 'earningsPerKm' ? earningsCoverage : null;
+    const base = { key: config.key, value, peerMedian, coverage, provenance: 'modelled' } as const;
     if (value === null) return { ...base, z: null, contribution: 0 };
     const peers = sample.flatMap((v) => (v[config.key] === null ? [] : [v[config.key] as number]));
     const raw = robustZ(value, peers);
@@ -78,43 +95,65 @@ function indexFrom(components: readonly EconomicsComponent[]): number {
   return Math.round(clamp(scaled, 0, 100) * TENTH) / TENTH;
 }
 
-function unrankedReason(input: Readonly<EconomicsInput>, grouped: boolean): EconomicsRankReason {
+type Standing = 'eligible' | 'missing_component' | 'thin_route_coverage';
+
+/** Earnings per km on too few of a depot's routes is a guess about the depot, not a figure. */
+function isThinCoverage(coverage: Coverage): boolean {
+  const { n, of } = safeCoverage(coverage);
+  return n < ECONOMICS_MIN_ROUTES || n < of * ECONOMICS_MIN_ROUTE_COVERAGE;
+}
+
+function standingOf(input: Readonly<EconomicsInput>, values: Values): Standing {
+  if (missingOf(values).length > 0) return 'missing_component';
+  return isThinCoverage(input.earningsCoverage) ? 'thin_route_coverage' : 'eligible';
+}
+
+function unrankedReason(
+  input: Readonly<EconomicsInput>,
+  grouped: boolean,
+  standing: Standing,
+): EconomicsRankReason {
   if (input.depot.kind !== 'depot') return 'not_a_depot';
-  return grouped ? 'missing_component' : 'fleet_too_small';
+  if (!grouped) return 'fleet_too_small';
+  return standing === 'eligible' ? 'peer_group_too_small' : standing;
 }
 
 /**
  * Scores depots (kind depot only) against peers of similar fleet size, the
- * same groups the efficiency index uses. A depot missing any component is not
- * ranked and says which; the others are scored against peers that have all
- * three. Output follows the input order; a depot's result never depends on it.
+ * same groups the efficiency index uses. A depot missing a component, or whose
+ * earnings per km cover too few of its routes, is set aside and says why. The
+ * rest are ranked only if at least MIN_PEER_GROUP of their group remain, else
+ * they are unranked as peer_group_too_small: a rank among two or three depots
+ * is not a rank. Output follows the input order; a result never depends on it.
  */
 export function scoreEconomics(inputs: readonly EconomicsInput[]): DepotEconomicsScore[] {
   const groups = assignPeerGroups(inputs.map((i) => i.depot));
   const values = new Map(inputs.map((i) => [i.depot.id, valuesOf(i)] as const));
-  const complete = new Map<string, Values[]>();
-  const memberIds = new Map<string, string[]>();
+  const standings = new Map(
+    inputs.map((i) => [i.depot.id, standingOf(i, values.get(i.depot.id) as Values)] as const),
+  );
+  const eligible = new Map<string, string[]>();
   for (const [id, group] of groups) {
-    const v = values.get(id) as Values;
-    if (missingOf(v).length > 0) continue;
-    complete.set(group, [...(complete.get(group) ?? []), v]);
-    memberIds.set(group, [...(memberIds.get(group) ?? []), id]);
+    if (standings.get(id) === 'eligible') eligible.set(group, [...(eligible.get(group) ?? []), id]);
   }
+  const sampleOf = (group: string | null): Values[] =>
+    group === null ? [] : (eligible.get(group) ?? []).map((id) => values.get(id) as Values);
+  const coverageOf = new Map(inputs.map((i) => [i.depot.id, safeCoverage(i.earningsCoverage)] as const));
 
   const scored = new Map<string, { components: EconomicsComponent[]; index: number }>();
-  for (const [group, ids] of memberIds) {
+  const rankOf = new Map<string, number>();
+  for (const [group, ids] of eligible) {
+    if (ids.length < MIN_PEER_GROUP) continue;
     for (const id of ids) {
-      const components = scoreComponents(values.get(id) as Values, complete.get(group) ?? []);
+      const components = scoreComponents(
+        values.get(id) as Values,
+        sampleOf(group),
+        coverageOf.get(id) as Coverage,
+      );
       scored.set(id, { components, index: indexFrom(components) });
     }
-  }
-  const rankOf = new Map<string, number>();
-  for (const ids of memberIds.values()) {
     [...ids]
-      .sort(
-        (a, b) =>
-          (scored.get(b)?.index ?? 0) - (scored.get(a)?.index ?? 0) || compareText(a, b),
-      )
+      .sort((a, b) => (scored.get(b)?.index ?? 0) - (scored.get(a)?.index ?? 0) || compareText(a, b))
       .forEach((id, i) => rankOf.set(id, i + 1));
   }
 
@@ -124,12 +163,12 @@ export function scoreEconomics(inputs: readonly EconomicsInput[]): DepotEconomic
     const group = groups.get(id) ?? null;
     const result = scored.get(id);
     if (result === undefined) {
-      const sample = group === null ? [] : (complete.get(group) ?? []);
+      const sample = sampleOf(group);
       return {
         depotId: id,
         peerGroup: group,
         ranked: false,
-        reason: unrankedReason(input, group !== null),
+        reason: unrankedReason(input, group !== null, standings.get(id) as Standing),
         missing: missingOf(own),
         economicsIndex: null,
         rank: null,
@@ -138,6 +177,7 @@ export function scoreEconomics(inputs: readonly EconomicsInput[]): DepotEconomic
           key: c.key,
           value: own[c.key],
           peerMedian: medianOf(c.key, sample),
+          coverage: c.key === 'earningsPerKm' ? safeCoverage(input.earningsCoverage) : null,
           z: null,
           contribution: 0,
           provenance: 'modelled',
@@ -153,7 +193,7 @@ export function scoreEconomics(inputs: readonly EconomicsInput[]): DepotEconomic
       missing: [],
       economicsIndex: result.index,
       rank: rankOf.get(id) ?? null,
-      peerCount: (complete.get(group as string) ?? []).length,
+      peerCount: sampleOf(group).length,
       components: result.components,
       provenance: 'modelled',
     };

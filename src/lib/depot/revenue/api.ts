@@ -20,6 +20,8 @@ export interface RevenueResponse extends DepotFeedEnvelope {
   readonly summary: DepotRevenueTotals;
   /** Highest revenue first, then by name. One row per route the depot runs. */
   readonly routes: readonly RouteRevenueFigure[];
+  /** Plain sentences a page can print about how the figures were built. */
+  readonly notes: readonly string[];
   /** The planning assumptions behind every figure, so a page can state them. */
   readonly model: {
     readonly provenance: 'modelled';
