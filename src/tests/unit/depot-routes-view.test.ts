@@ -23,19 +23,44 @@ const BETA = { id: '102', name: 'Beta', lat: 27.8 };
 
 function row(reg: string, depot: typeof ALPHA, over: Partial<DepotBusRow> = {}): DepotBusRow {
   return {
-    registrationNumber: reg, latitude: depot.lat, longitude: 80.9, speedKmph: 0, ignitionOn: false,
-    gpsTimestamp: '2026-10-06T09:59:00.000Z', receivedAt: FEED_NOW, depotId: depot.id,
-    depotName: depot.name, vehicleStatus: 'stationary', tripStatus: 'Stationary', routeId: null,
-    routeName: null, routeDescription: null, journeyId: null, journeyCode: null,
-    scheduledStart: null, scheduledEnd: null, actualStart: null, delayMinutes: null,
-    odometerRaw: null, mainPowerOn: true, mainVoltage: 24, tamperCode: null, emergency: false,
+    registrationNumber: reg,
+    latitude: depot.lat,
+    longitude: 80.9,
+    speedKmph: 0,
+    ignitionOn: false,
+    gpsTimestamp: '2026-10-06T09:59:00.000Z',
+    receivedAt: FEED_NOW,
+    depotId: depot.id,
+    depotName: depot.name,
+    vehicleStatus: 'stationary',
+    tripStatus: 'Stationary',
+    routeId: null,
+    routeName: null,
+    routeDescription: null,
+    journeyId: null,
+    journeyCode: null,
+    scheduledStart: null,
+    scheduledEnd: null,
+    actualStart: null,
+    delayMinutes: null,
+    odometerRaw: null,
+    mainPowerOn: true,
+    mainVoltage: 24,
+    tamperCode: null,
+    emergency: false,
     ...over,
   };
 }
 
 const onRoute = (routeName: string, lat: number): Partial<DepotBusRow> => ({
-  routeName, latitude: lat, speedKmph: 40, ignitionOn: true, vehicleStatus: 'live',
-  tripStatus: 'Live', routeId: '4562', journeyId: '30396',
+  routeName,
+  latitude: lat,
+  speedKmph: 40,
+  ignitionOn: true,
+  vehicleStatus: 'live',
+  tripStatus: 'Live',
+  routeId: '4562',
+  journeyId: '30396',
   scheduledStart: '2026-10-06T08:00:00.000Z',
 });
 
@@ -50,25 +75,48 @@ const ROWS: readonly DepotBusRow[] = [
 ];
 
 function view(over: Partial<FleetSnapshotView> = {}): FleetSnapshotView {
-  return { rows: ROWS, feedNow: FEED_NOW, fetchedAt: FEED_NOW, source: 'live', stale: false,
-    recordCount: ROWS.length, ...over };
+  return {
+    rows: ROWS,
+    feedNow: FEED_NOW,
+    fetchedAt: FEED_NOW,
+    source: 'live',
+    stale: false,
+    recordCount: ROWS.length,
+    ...over,
+  };
 }
 
 function schedule(routeName: string): CanonicalSchedule {
   const stop = (sequence: number, lat: number, time: string) => ({
-    id: `s${sequence}`, name: `Stop ${sequence}`, sequence, latitude: lat, longitude: 80.9,
-    scheduledArrival: time, scheduledDeparture: time,
+    id: `s${sequence}`,
+    name: `Stop ${sequence}`,
+    sequence,
+    latitude: lat,
+    longitude: 80.9,
+    scheduledArrival: time,
+    scheduledDeparture: time,
   });
   return {
-    registrationNumber: 'UP32R1', date: '2026-10-06', routeId: '4562', routeName,
-    originName: null, destinationName: null, tripId: '30396', scheduledDeparture: null,
-    scheduledArrival: null, direction: 'OUT', tripCount: 1,
+    registrationNumber: 'UP32R1',
+    date: '2026-10-06',
+    routeId: '4562',
+    routeName,
+    originName: null,
+    destinationName: null,
+    tripId: '30396',
+    scheduledDeparture: null,
+    scheduledArrival: null,
+    direction: 'OUT',
+    tripCount: 1,
     stops: [stop(1, 27.81, '08:00:00'), stop(2, 27.85, '09:30:00')],
   };
 }
 
 const live = (value: CanonicalSchedule): ScheduleResponse => ({
-  schedule: value, fetchedAt: FEED_NOW, source: 'live', stale: false,
+  schedule: value,
+  fetchedAt: FEED_NOW,
+  source: 'live',
+  stale: false,
 });
 
 const mockService = vi.mocked(fetchBusSchedule);
@@ -89,7 +137,7 @@ afterEach(() => errorSpy.mockRestore());
 const ALL = { depotId: null } as const;
 
 describe('routes view', () => {
-  it('memoises the body on the rows while the envelope is this request\'s own', () => {
+  it("memoises the body on the rows while the envelope is this request's own", () => {
     const stale = buildRoutesResponse(view({ stale: true, source: 'cache' }), ALL);
     const fresh = buildRoutesResponse(view(), ALL);
     expect(stale.stale).toBe(true);
@@ -111,7 +159,9 @@ describe('routes view', () => {
   it('never fetches a profile and reports profiled coverage', () => {
     const response = buildRoutesResponse(view(), ALL);
     expect(mockService).not.toHaveBeenCalled();
-    expect(response.routes.map((r) => r.routeName).sort()).toEqual([NEAR_B, TIED, UNPROFILED].sort());
+    expect(response.routes.map((r) => r.routeName).sort()).toEqual(
+      [NEAR_B, TIED, UNPROFILED].sort(),
+    );
     expect(response.coverage.profiled).toEqual({ n: 1, of: 3 });
     expect(response.coverage.tripsOnDuration).toEqual({ n: 1, of: 3 });
     const near = response.routes.find((r) => r.routeName === NEAR_B)!;
@@ -147,7 +197,7 @@ describe('routes view', () => {
 });
 
 describe('allocation view', () => {
-  it('memoises the body on the rows while the envelope is this request\'s own', () => {
+  it("memoises the body on the rows while the envelope is this request's own", () => {
     const stale = buildAllocationResponse(view({ stale: true, source: 'cache' }), ALL);
     const fresh = buildAllocationResponse(view(), ALL);
     expect([stale.stale, fresh.stale]).toEqual([true, false]);
@@ -163,8 +213,18 @@ describe('allocation view', () => {
     expect(response.coverage.planned).toEqual({ n: 1, of: 3 });
     const reasons = Object.fromEntries(response.excluded.map((e) => [e.routeName, e.reason]));
     expect(reasons).toEqual({ [UNPROFILED]: 'not_profiled', [TIED]: 'no_primary_depot' });
-    const planned = [...response.moves.map((m) => m.routeName), ...response.unchanged.map((u) => u.routeName)];
+    const planned = [
+      ...response.moves.map((m) => m.routeName),
+      ...response.unchanged.map((u) => u.routeName),
+    ];
     expect(planned).toEqual([NEAR_B]);
+    // Its terminals sit by Beta's yard and Beta has modelled room: a full move, not a make-room one.
+    expect(
+      response.moves.map((m) => [m.routeName, m.fromDepotId, m.toDepotId, m.madeRoom]),
+    ).toEqual([[NEAR_B, ALPHA.id, BETA.id, false]]);
+    expect(response.moves[0]!.fromDeadKmPerTrip).toBeGreaterThan(
+      response.moves[0]!.toDeadKmPerTrip,
+    );
   });
 
   it('reports totals that reconcile with the allocator and are tagged modelled', () => {
@@ -204,7 +264,7 @@ describe('allocation view', () => {
     expect(response.depotPositions.provenance).toBe('derived');
   });
 
-  it('keeps network totals under a depot filter and lists only that depot\'s routes', () => {
+  it("keeps network totals under a depot filter and lists only that depot's routes", () => {
     const all = buildAllocationResponse(view(), ALL);
     const beta = buildAllocationResponse(view(), { depotId: BETA.id });
     expect(beta.savedKmPerDay).toEqual(all.savedKmPerDay);
@@ -212,6 +272,6 @@ describe('allocation view', () => {
     // The tied route is run partly by Beta; the profiled route is Alpha's alone.
     expect(beta.excluded.map((e) => e.routeName)).toEqual([TIED]);
     expect(beta.unchanged.map((u) => u.routeName)).toEqual([]);
-    expect(beta.moves.every((m) => m.toDepotId === BETA.id)).toBe(true);
+    expect(beta.moves.map((m) => m.toDepotId)).toEqual([BETA.id]);
   });
 });

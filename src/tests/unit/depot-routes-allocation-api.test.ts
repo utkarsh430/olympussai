@@ -37,7 +37,9 @@ beforeEach(() => {
   vi.mocked(getRepositories).mockReset();
   snapshot.mockReset();
   vi.mocked(requireUpsrtcAccess).mockResolvedValue(SESSION);
-  vi.mocked(getRepositories).mockReturnValue({ fleet: { snapshot } } as unknown as DepotRepositories);
+  vi.mocked(getRepositories).mockReturnValue({
+    fleet: { snapshot },
+  } as unknown as DepotRepositories);
   errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
@@ -107,7 +109,10 @@ describe('happy path shapes', () => {
 
   it('allocation: an empty network has an empty, recommendation-only plan', async () => {
     snapshot.mockResolvedValue(EMPTY_VIEW);
-    const body = (await (await getAllocation(request('allocation'))).json()) as Record<string, unknown>;
+    const body = (await (await getAllocation(request('allocation'))).json()) as Record<
+      string,
+      unknown
+    >;
     expect(body).toMatchObject({
       recommendationOnly: true,
       moves: [],

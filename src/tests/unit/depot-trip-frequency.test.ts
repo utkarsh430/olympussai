@@ -19,8 +19,9 @@ describe('modelTripsPerDay', () => {
 
   it('varies with the route name and the operating date', () => {
     const counts = (date: string): number[] =>
-      names.map((routeName) =>
-        modelTripsPerDay({ routeName, buses: 40, scheduledDurationMin: null }, date).tripsPerDay,
+      names.map(
+        (routeName) =>
+          modelTripsPerDay({ routeName, buses: 40, scheduledDurationMin: null }, date).tripsPerDay,
       );
     expect(new Set(counts(DATE)).size).toBeGreaterThan(1);
     expect(counts('2026-10-07')).not.toEqual(counts(DATE));
@@ -46,7 +47,10 @@ describe('modelTripsPerDay', () => {
     for (const routeName of names.slice(0, 50)) {
       let previous = 0;
       for (let buses = 1; buses <= 30; buses += 1) {
-        const { tripsPerDay } = modelTripsPerDay({ routeName, buses, scheduledDurationMin: 200 }, DATE);
+        const { tripsPerDay } = modelTripsPerDay(
+          { routeName, buses, scheduledDurationMin: 200 },
+          DATE,
+        );
         expect(tripsPerDay).toBeGreaterThanOrEqual(previous);
         previous = tripsPerDay;
       }
@@ -57,18 +61,26 @@ describe('modelTripsPerDay', () => {
     const total = (duration: number): number =>
       names.reduce(
         (sum, routeName) =>
-          sum + modelTripsPerDay({ routeName, buses: 10, scheduledDurationMin: duration }, DATE).tripsPerDay,
+          sum +
+          modelTripsPerDay({ routeName, buses: 10, scheduledDurationMin: duration }, DATE)
+            .tripsPerDay,
         0,
       );
     expect(total(SHORT_ROUTE_MIN)).toBeGreaterThan(total(LONG_ROUTE_MIN));
-    const long = modelTripsPerDay({ routeName: names[0]!, buses: 10, scheduledDurationMin: 900 }, DATE);
+    const long = modelTripsPerDay(
+      { routeName: names[0]!, buses: 10, scheduledDurationMin: 900 },
+      DATE,
+    );
     expect(long.basis).toBe('buses_and_duration');
     expect(long.tripsPerDay).toBeLessThanOrEqual(Math.round(10 * (1 + TRIP_MODEL_PARAMS.noise)));
   });
 
   it('says which anchors it used', () => {
     const known = modelTripsPerDay({ routeName: 'A', buses: 3, scheduledDurationMin: 120 }, DATE);
-    const unknown = modelTripsPerDay({ routeName: 'A', buses: 3, scheduledDurationMin: null }, DATE);
+    const unknown = modelTripsPerDay(
+      { routeName: 'A', buses: 3, scheduledDurationMin: null },
+      DATE,
+    );
     expect(known.basis).toBe('buses_and_duration');
     expect(unknown.basis).toBe('buses_only');
   });
@@ -95,9 +107,15 @@ describe('modelTripsPerDay', () => {
     }
     const huge = modelTripsPerDay({ routeName: 'A', buses: 1e12, scheduledDurationMin: 60 }, DATE);
     expect(huge.tripsPerDay).toBeLessThanOrEqual(MAX_BUSES_PER_ROUTE * TRIP_FACTOR_RANGE.max);
-    const fractional = modelTripsPerDay({ routeName: 'A', buses: 2.7, scheduledDurationMin: null }, DATE);
+    const fractional = modelTripsPerDay(
+      { routeName: 'A', buses: 2.7, scheduledDurationMin: null },
+      DATE,
+    );
     expect(fractional.tripsPerDay).toBeGreaterThanOrEqual(2);
-    const badDuration = modelTripsPerDay({ routeName: 'A', buses: 3, scheduledDurationMin: -60 }, DATE);
+    const badDuration = modelTripsPerDay(
+      { routeName: 'A', buses: 3, scheduledDurationMin: -60 },
+      DATE,
+    );
     expect(badDuration.basis).toBe('buses_only');
   });
 });
