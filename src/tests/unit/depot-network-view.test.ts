@@ -14,6 +14,7 @@ import { createLiveFleetRepository } from '@/lib/depot/repositories/liveFleetRep
 import { modelledHistoryRepository } from '@/lib/depot/repositories/modelledHistoryRepository';
 import { modelledCrewRepository } from '@/lib/depot/repositories/modelledCrewRepository';
 import { modelledFuelRepository } from '@/lib/depot/repositories/modelledFuelRepository';
+import { modelledRevenueRepository } from '@/lib/depot/repositories/modelledRevenueRepository';
 import { getRepositories } from '@/lib/depot/repositories';
 
 vi.mock('@/lib/auth/authorize', async (importOriginal) => {
@@ -101,6 +102,7 @@ describe('depot repositories', () => {
     expect(repos.history).toBe(modelledHistoryRepository);
     expect(repos.crew).toBe(modelledCrewRepository);
     expect(repos.fuel).toBe(modelledFuelRepository);
+    expect(repos.revenue).toBe(modelledRevenueRepository);
     expect(typeof repos.fleet.snapshot).toBe('function');
   });
 });
