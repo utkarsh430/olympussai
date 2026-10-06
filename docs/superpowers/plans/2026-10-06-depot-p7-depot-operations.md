@@ -37,7 +37,9 @@ export interface Duty { readonly id: string; readonly depotId: string; readonly 
   readonly startMin: number; readonly endMin: number;      // minutes from midnight; endMin may exceed 1440
   readonly serviceClass: ServiceClass; readonly provenance: Provenance }
 export interface TimetableRepository { dutiesFor(depotId: string, operatingDate: string): Promise<readonly Duty[]> }
-export function modelDuties(depot: DepotSummary, routes: readonly string[], peakRequirement: number, operatingDate: string): Duty[];
+export function modelDuties(depot: DepotSummary,
+  routes: readonly { readonly routeName: string; readonly scheduledDurationMin: number | null }[],
+  peakRequirement: number, operatingDate: string): { duties: Duty[]; routesWithoutDuty: string[] };
 ```
 
 Duty count equals the depot's modelled `peakRequirement`. Start times follow a morning-peaked spread; durations come from the route's real scheduled duration when its profile is cached, otherwise from a seeded range; routes are drawn from the routes the depot is seen operating.
