@@ -1123,3 +1123,48 @@ describe('every figure carries its own noun (S38 items 8 to 11)', () => {
     if (index) expect(index.text).toMatch(/^index \d+\.\d$/);
   });
 });
+
+/** Round 9, item 4 (closing review M-A): a figure never stands under another depot's name. */
+describe('M-A: a figure beside another depot name', () => {
+  const DEPOT_REASON = "Draft puts a figure beside another depot's name";
+  const comparison = buildAnswer(
+    { kind: 'compareDepots', depotA: '101', depotB: '102' },
+    makeData(),
+  );
+  const names = comparison.facts.filter((f) => f.kind === 'name');
+  const figures = comparison.facts.filter(
+    (f) => factEdges(f.text, f.kind).figure && f.depotId !== undefined,
+  );
+  const pairs = figures.flatMap((figure) =>
+    names
+      .filter((name) => name.depotId !== figure.depotId)
+      .map((name): [string, string] => [figure.id, name.id]),
+  );
+  const draft = (paragraph: string): ReturnType<typeof renderDraft> =>
+    renderDraft({ headline: 'Depot comparison', paragraphs: [paragraph] }, comparison.facts);
+
+  it('tags every name and per-depot figure of a comparison with its depot', () => {
+    expect(names.map((f) => f.depotId)).toEqual(['101', '102']);
+    expect(figures.length).toBeGreaterThanOrEqual(8);
+    expect(pairs.length).toBe(figures.length);
+  });
+
+  it.each(pairs)('refuses %s under %s', (figureId, nameId) => {
+    for (const paragraph of [
+      `{{fact:${figureId}}} are dark at {{fact:${nameId}}}.`,
+      `At {{fact:${nameId}}}, {{fact:${figureId}}} are dark.`,
+      `{{fact:${nameId}}} has {{fact:${figureId}}} dark.`,
+    ]) {
+      expect(draft(paragraph)).toEqual({ ok: false, reason: DEPOT_REASON });
+    }
+  });
+
+  it.each(figures.map((f) => [f.id, f.depotId] as const))(
+    'lets %s stand beside its own depot',
+    (id, depotId) => {
+      const own = names.find((n) => n.depotId === depotId)?.id ?? 'missing';
+      const result = draft(`{{fact:${own}}} has {{fact:${id}}} dark.`);
+      expect(result).not.toEqual({ ok: false, reason: DEPOT_REASON });
+    },
+  );
+});
