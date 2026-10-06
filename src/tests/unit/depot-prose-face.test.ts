@@ -64,10 +64,6 @@ const EXEMPT: readonly string[] = [
   'src/components/depot/roster/RosterFilters.tsx',
   'src/components/depot/routes/ProfileLoader.tsx',
   'src/components/depot/routes/RoutesMethod.tsx',
-  'src/components/depot/shell/DataStates.tsx',
-  'src/components/depot/shell/DepotNav.tsx',
-  'src/components/depot/shell/DepotNavStrip.tsx',
-  'src/components/depot/shell/ScopeSwitcher.tsx',
   'src/components/depot/sources/SourcesRegistry.tsx',
   'src/components/depot/trends/DepotTrends.tsx',
   'src/components/depot/trends/NetworkTrends.tsx',
@@ -78,13 +74,8 @@ const EXEMPT: readonly string[] = [
   'src/components/depot/yard/YardRoll.tsx',
 ];
 
-/** Chrome files in the shell that may sit on the list until the chrome is converted. */
-const CHROME = new Set([
-  'src/components/depot/shell/DataStates.tsx',
-  'src/components/depot/shell/DepotNav.tsx',
-  'src/components/depot/shell/DepotNavStrip.tsx',
-  'src/components/depot/shell/ScopeSwitcher.tsx',
-]);
+/** Chrome files in the shell that may sit on the list: none since the chrome was converted. */
+const CHROME = new Set<string>();
 
 const ROOT = join(process.cwd(), 'src', 'components', 'depot');
 const ALLOWED_PATTERN = new RegExp(`(^|[\\s'"\`{])(${ALLOWED.join('|')})(?=[\\s'"\`}]|$)`);
