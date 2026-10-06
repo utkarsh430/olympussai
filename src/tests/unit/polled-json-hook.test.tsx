@@ -1,4 +1,7 @@
 import { act } from 'react';
+
+const signIn = vi.hoisted(() => ({ redirect: vi.fn() }));
+vi.mock('@/lib/depot/signInRedirect', () => ({ redirectToSignIn: signIn.redirect }));
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -7,9 +10,15 @@ import {
   NETWORK_UNREACHABLE_MESSAGE,
   SESSION_EXPIRED_MESSAGE,
   usePolledJson,
+  type PolledJsonOptions,
   type PolledState,
 } from '@/hooks/usePolledJson';
 import { useFetchedJson } from '@/hooks/useFetchedJson';
+import {
+  pageRefreshState,
+  refreshFailuresSnapshot,
+  reportRefreshFailure,
+} from '@/lib/depot/pageRefresh';
 
 interface Doc {
   readonly marker: string;
@@ -24,10 +33,7 @@ interface PendingCall {
   readonly fail: (error: unknown) => void;
 }
 
-interface Options {
-  readonly intervalMs?: number;
-  readonly statusMessages?: Readonly<Record<number, string>>;
-}
+type Options = PolledJsonOptions;
 
 const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 const originalFetch = globalThis.fetch;
@@ -154,8 +160,38 @@ describe('usePolledJson', () => {
 
   it('polls on a custom interval', async () => {
     await mount(<PolledProbe url="/api/a" options={{ intervalMs: 1000 }} />);
-    await tick(3000);
+    for (let i = 0; i < 3; i += 1) {
+      await settle(calls[i], 200, doc(String(i)));
+      await tick(1000);
+    }
     expect(calls).toHaveLength(4);
+  });
+
+  it('never aborts a slow request on a tick, and skips ticks until it answers', async () => {
+    await mount(<PolledProbe url="/api/a" options={{ intervalMs: 1000 }} />);
+    await tick(5000);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.signal.aborted).toBe(false);
+    await settle(calls[0], 200, doc('slow'));
+    expect(state()).toMatchObject({ data: doc('slow'), loading: false });
+    await tick(1000);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('pauses while the tab is hidden and refreshes when it is shown again', async () => {
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    await mount(<PolledProbe url="/api/a" options={{ intervalMs: 1000 }} />);
+    await settle(calls[0], 200, doc('one'));
+    hidden.mockReturnValue(true);
+    await tick(5000);
+    expect(calls).toHaveLength(1);
+    hidden.mockReturnValue(false);
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(calls).toHaveLength(2);
+    hidden.mockRestore();
   });
 
   it('stops loading when the first request fails', async () => {
@@ -192,13 +228,25 @@ describe('usePolledJson', () => {
   });
 
   it('prefers a custom status message but still lets 401 through', async () => {
-    const statusMessages = { 404: 'Gone' } as const;
+    const statusMessages = { 503: 'Gone' } as const;
     await mount(<PolledProbe url="/api/a" options={{ statusMessages }} />);
-    await settle(calls[0], 404);
+    await settle(calls[0], 503);
     expect(state().error).toBe('Gone');
     await tick(DEFAULT_POLL_INTERVAL_MS);
     await settle(calls[1], 401);
     expect(state().error).toBe(SESSION_EXPIRED_MESSAGE);
+  });
+
+  it('on 401 drops the figures, sends the browser to sign in and stops polling', async () => {
+    signIn.redirect.mockClear();
+    await mount(<PolledProbe url="/api/a" />);
+    await settle(calls[0], 200, doc('good'));
+    await tick(DEFAULT_POLL_INTERVAL_MS);
+    await settle(calls[1], 401);
+    expect(state()).toMatchObject({ data: null, error: SESSION_EXPIRED_MESSAGE });
+    expect(signIn.redirect).toHaveBeenCalledTimes(1);
+    await tick(DEFAULT_POLL_INTERVAL_MS * 3);
+    expect(calls).toHaveLength(2);
   });
 
   it('refresh aborts the in-flight request and applies only the second response', async () => {
@@ -238,11 +286,12 @@ describe('usePolledJson', () => {
     await settle(calls[0], 200, doc('a'));
     await rerender(<PolledProbe url="/api/b" />);
     expect(state()).toMatchObject({ data: null, loading: true, error: null });
-    expect(calls[0]?.signal.aborted).toBe(true);
     expect(calls[1]?.url).toBe('/api/b');
 
-    // b is still in flight when the url moves on; its late answer must change nothing.
+    // b is still in flight when the url moves on: it is aborted, and its late answer
+    // must change nothing.
     await rerender(<PolledProbe url="/api/c" />);
+    expect(calls[1]?.signal.aborted).toBe(true);
     await settle(calls[1], 200, doc('b-late'));
     expect(state()).toMatchObject({ data: null, loading: true });
     await settle(calls[2], 200, doc('c'));
@@ -290,7 +339,6 @@ describe('useFetchedJson', () => {
     await settle(calls[0], 200, doc('a'));
     await rerender(<FetchedProbe url="/api/b" />);
     expect(calls).toHaveLength(2);
-    expect(calls[0]?.signal.aborted).toBe(true);
     expect(latest).toMatchObject({ data: null, loading: true });
     await settle(calls[1], 200, doc('b'));
     expect(latest?.data).toEqual(doc('b'));
@@ -303,5 +351,89 @@ describe('useFetchedJson', () => {
     await rerender(<FetchedProbe url={null} />);
     expect(calls).toHaveLength(1);
     expect(latest).toMatchObject({ data: null, error: null, loading: false });
+  });
+});
+
+describe('usePolledJson keeping the previous answer across a query change', () => {
+  const keep = { keepPreviousOnQueryChange: true } as const;
+
+  it('keeps the previous rows, marked previous and loading, until the new query answers', async () => {
+    await mount(<PolledProbe url="/api/routes?q=a" options={keep} />);
+    await settle(calls[0], 200, doc('a'));
+    await rerender(<PolledProbe url="/api/routes?q=ag" options={keep} />);
+    expect(state()).toMatchObject({ data: doc('a'), loading: true, previous: true, error: null });
+    await settle(calls[1], 200, doc('ag'));
+    expect(state()).toMatchObject({ data: doc('ag'), loading: false, previous: false });
+  });
+
+  it('never carries an answer to another path, such as another depot', async () => {
+    await mount(<PolledProbe url="/api/depot/A/fuel" options={keep} />);
+    await settle(calls[0], 200, doc('A'));
+    await rerender(<PolledProbe url="/api/depot/B/fuel" options={keep} />);
+    expect(state()).toMatchObject({ data: null, loading: true, previous: false });
+  });
+
+  it('never carries an answer when the caller did not ask for it', async () => {
+    await mount(<PolledProbe url="/api/routes?q=a" />);
+    await settle(calls[0], 200, doc('a'));
+    await rerender(<PolledProbe url="/api/routes?q=ag" />);
+    expect(state()).toMatchObject({ data: null, loading: true, previous: false });
+  });
+
+  it('drops the previous rows when the new query fails', async () => {
+    await mount(<PolledProbe url="/api/routes?q=a" options={keep} />);
+    await settle(calls[0], 200, doc('a'));
+    await rerender(<PolledProbe url="/api/routes?q=ag" options={keep} />);
+    await settle(calls[1], 500);
+    expect(state()).toMatchObject({ data: null, error: DEPOT_UNAVAILABLE_MESSAGE, previous: false });
+  });
+});
+
+describe('usePolledJson when a request fails after a success', () => {
+  const failures = () => pageRefreshState(refreshFailuresSnapshot());
+  afterEach(() => {
+    [...refreshFailuresSnapshot().keys()].forEach((key) => reportRefreshFailure(key, null));
+  });
+
+  it('tells the shell at once, with the feed time of the figures kept, and clears on success', async () => {
+    await mount(<PolledProbe url="/api/depot/1/fuel" />);
+    await settle(calls[0], 200, { marker: 'good', feedNow: '2026-10-06T13:40:00Z' });
+    expect(failures().failed).toBe(false);
+    await tick(DEFAULT_POLL_INTERVAL_MS);
+    await settle(calls[1], 503);
+    expect(failures()).toEqual({ failed: true, since: '2026-10-06T13:40:00Z' });
+    await tick(DEFAULT_POLL_INTERVAL_MS);
+    await settle(calls[2], 200, doc('newer'));
+    expect(failures().failed).toBe(false);
+  });
+
+  it('clears its report when the page goes away', async () => {
+    await mount(<PolledProbe url="/api/depot/1/fuel" />);
+    await settle(calls[0], 200, doc('good'));
+    await tick(DEFAULT_POLL_INTERVAL_MS);
+    await settle(calls[1], 503);
+    expect(failures().failed).toBe(true);
+    await unmount();
+    expect(failures().failed).toBe(false);
+  });
+
+  it("leaves the shell's own network feed to the chip", async () => {
+    await mount(<PolledProbe url="/api/upsrtc/depot/network" />);
+    await settle(calls[0], 200, doc('good'));
+    await tick(DEFAULT_POLL_INTERVAL_MS);
+    await settle(calls[1], 503);
+    expect(state().error).toBe(DEPOT_UNAVAILABLE_MESSAGE);
+    expect(failures().failed).toBe(false);
+  });
+
+  it('drops the figures of a resource that answers 404 and stops polling it', async () => {
+    await mount(<PolledProbe url="/api/depot/1" options={{ statusMessages: { 404: 'Gone' } }} />);
+    await settle(calls[0], 200, doc('good'));
+    await tick(DEFAULT_POLL_INTERVAL_MS);
+    await settle(calls[1], 404);
+    expect(state()).toMatchObject({ data: null, error: 'Gone' });
+    expect(failures().failed).toBe(false);
+    await tick(DEFAULT_POLL_INTERVAL_MS * 3);
+    expect(calls).toHaveLength(2);
   });
 });

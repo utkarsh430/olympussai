@@ -434,6 +434,33 @@ Pages do nothing here; for reference.
   HH:MM"). Its slot holds the notice's height from the moment it mounts, so nothing moves
   when the notice appears. The age defaults to the shell feed's fetch time (every depot
   endpoint reads the same snapshot); a page may pass `fetchedAt` to use its own.
+- **A page's own request failing, said at once.** When a page's own data request fails
+  after a success, `usePolledJson` keeps the last figures and reports the failure to a small
+  store (`lib/depot/pageRefresh.ts`), with the feed time those figures carry. The shell's
+  `PageRefreshNotice`, above every page, shows at once a WARNING-tone `Notice` ("Not
+  refreshed": "This page's figures could not be refreshed. The figures on screen are the
+  last ones received, feed time HH:MM."), in fixed words, never the server's text. While it
+  shows, the feed chip reads STALE at that time and the provenance line says "the last good
+  data", and a page's `StaleStrip` stands down (one notice per page). It clears when the
+  request succeeds again or the page unmounts. Pages do nothing: every `useDepot*` hook
+  reports through the shared hook. The shell's own network feed does not report; it keeps
+  the chip, the provenance line and the timed strip above.
+- **Feed quiet.** When the feed's newest report (its clock, Indian time digits) trails the
+  fetch time, moved to Indian time, by more than `FEED_QUIET_AFTER_MIN` (10), the chip reads
+  FEED QUIET · HH:MM in the stale tone, its title says by how much, and the provenance line
+  says the figures come "from a quiet feed". Order: stale or sample, a page request failing,
+  quiet, check clock, live.
+- **What the shared hook does on its own.** A tick never aborts a request in flight and
+  skips while one is running or the tab is hidden; showing the tab refreshes at once. A 404
+  drops the figures and stops polling (the page shows its not-found state, never frozen
+  figures). A 401 drops them, stops polling and calls `redirectToSignIn`
+  (`lib/depot/signInRedirect.ts`): `/login?next=<this page>`, once, never from the sign-in
+  page. `keepPreviousOnQueryChange` (route table, unmoved-routes lists) keeps the previous
+  answer, with `previous: true` and `loading: true`, while a new query of the same path loads;
+  draw it dimmed with `aria-busy` and keep the controls mounted. A new path (another depot,
+  another endpoint) never carries data.
+- **Sign out.** A failed or refused logout request keeps the user on the page; the button
+  reads "Sign-out failed: retry" and says why to screen readers.
 - **Skip link and footer.** "Skip to depot content" is the first focusable element on every
   depot page and moves focus to `<main>`. The prototype disclaimer is in the page flow after
   the content, in the footer's `depot` variant: after the PROTOTYPE pill the sentence starts at

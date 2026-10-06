@@ -4,6 +4,7 @@ import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProv
 import { headerProvenanceNote } from '@/lib/depot/feedChip';
 import type { Provenance } from '@/lib/depot/types';
 import { ProvenanceBadge } from './ProvenanceBadge';
+import { usePageRefresh } from './PageRefreshNotice';
 
 /**
  * A page header's provenance: the tag, then what it applies to and the feed
@@ -12,6 +13,7 @@ import { ProvenanceBadge } from './ProvenanceBadge';
  */
 export function HeaderProvenance({ provenance }: { readonly provenance: Provenance }) {
   const { data, error } = useDepotNetworkContext();
+  const page = usePageRefresh();
   return (
     <div
       className="mt-2 flex flex-wrap items-center gap-2 font-sans text-xs leading-5"
@@ -19,7 +21,7 @@ export function HeaderProvenance({ provenance }: { readonly provenance: Provenan
     >
       <ProvenanceBadge provenance={provenance} pill />
       <span className="text-depot-muted">
-        {headerProvenanceNote(data, error, provenance)}
+        {headerProvenanceNote(data, error, provenance, page)}
       </span>
     </div>
   );

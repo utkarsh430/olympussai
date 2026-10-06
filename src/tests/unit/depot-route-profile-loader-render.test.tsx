@@ -142,5 +142,40 @@ describe('route profile loader', () => {
     expect(status()).toBe('Cancelled: 1 of 3 loaded.');
     expect(calls).toEqual(['R1', 'R2']);
     expect(button('Cancel')).toBeUndefined();
+    // Only the route whose lookup answered is done: the other two are offered again.
+    expect(button('Load route details')?.textContent).toBe('Load route details: 2 lookups');
+    expect(note()).toBe('2 listed routes of Bhaisali still to load; press Load to continue.');
+  });
+
+  it('offers a route again when its lookup failed, and never claims it has details', async () => {
+    const calls: string[] = [];
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/depot/routes')) return json(LIST);
+      const name = decodeURIComponent(url.split('/').pop() ?? '');
+      calls.push(name);
+      return name === 'R2' ? json({ error: 'upstream' }, 503) : json(OK);
+    }) as typeof fetch;
+    await render(async () => {});
+    await act(async () => button('Load route details')?.click());
+    await flush();
+    expect(status()).toMatch(/^Done: 3 of 3 loaded, 1 could not be read\./);
+    expect(note()).toBe('1 listed route of Bhaisali still to load; press Load to continue.');
+    await act(async () => button('Load route details')?.click());
+    await flush();
+    expect(calls).toEqual(['R1', 'R2', 'R3', 'R2']);
+  });
+
+  it('says every route was looked up only once every lookup answered', async () => {
+    stubFetch(false);
+    await render(async () => {});
+    await act(async () => button('Load route details')?.click());
+    await flush();
+    expect(button('Load route details')).toBeUndefined();
+    expect(note()).toBe('Every listed route of Bhaisali has been looked up.');
   });
 });
+
+function note(): string | undefined {
+  return document.querySelector('[data-testid="route-profile-loader"] .depot-note')?.textContent ?? undefined;
+}

@@ -1,4 +1,5 @@
 import type { UpstreamSource } from '@/models/canonical';
+import { isFeedQuiet } from './feedChip';
 import { formatCount, formatFeedTime } from './format';
 import { PROVENANCE_LABEL } from './labels';
 import { DEPOTS_ROOT } from './nav';
@@ -51,9 +52,16 @@ export interface ProvenanceFeed {
     readonly source: UpstreamSource;
     readonly stale: boolean;
     readonly feedNow: string | null;
+    /** When the server fetched the feed (a true instant): with `feedNow`, says a quiet feed. */
+    readonly fetchedAt?: string;
     readonly scoreWindow?: WindowWordsInput;
   } | null;
   readonly error: string | null;
+  /**
+   * The open page's own data request is failing: its figures are the last ones received,
+   * from `since` (a feed time), whatever the network feed says.
+   */
+  readonly page?: { readonly failed: boolean; readonly since: string | null };
 }
 
 export interface ProvenanceLink {
@@ -124,7 +132,7 @@ export function sentenceSegments(
 }
 
 type FeedState =
-  | { readonly kind: 'fresh' | 'stale' | 'sample'; readonly time: string }
+  | { readonly kind: 'fresh' | 'stale' | 'sample' | 'quiet'; readonly time: string }
   | { readonly kind: 'unavailable' | 'waiting' };
 
 const SOURCES_PATH = `${DEPOTS_ROOT}/sources`;
@@ -137,11 +145,16 @@ const UNAVAILABLE = 'The feed is unavailable.';
 const WAITING = 'Waiting for the feed.';
 
 /** Same freshness rule as the feed chip: a cached answer is the live feed; stale is the last good data. */
-function feedState({ data, error }: ProvenanceFeed): FeedState {
+function feedState({ data, error, page }: ProvenanceFeed): FeedState {
   if (!data) return error !== null ? { kind: 'unavailable' } : { kind: 'waiting' };
   const time = formatFeedTime(data.feedNow);
   if (data.source === 'fixture') return { kind: 'sample', time };
   if (data.stale || error !== null) return { kind: 'stale', time };
+  if (page?.failed) return { kind: 'stale', time: formatFeedTime(page.since) };
+  // Same order as the chip: stale or sample, then a quiet feed, then live.
+  if (data.fetchedAt !== undefined && isFeedQuiet({ feedNow: data.feedNow, fetchedAt: data.fetchedAt })) {
+    return { kind: 'quiet', time };
+  }
   return { kind: 'fresh', time };
 }
 
@@ -154,6 +167,8 @@ function feedSentence(state: FeedState, fresh: string, lead: string): string {
       return `${lead} the last good data, feed time ${state.time}.`;
     case 'sample':
       return `${lead} sample data, feed time ${state.time}.`;
+    case 'quiet':
+      return `${lead} a quiet feed: its newest report is from ${state.time}.`;
     case 'unavailable':
       return UNAVAILABLE;
     case 'waiting':
@@ -170,6 +185,8 @@ function livePart(state: FeedState): string {
       return `from the last good data, feed time ${state.time}`;
     case 'sample':
       return `sample data, feed time ${state.time}`;
+    case 'quiet':
+      return `from a quiet feed, newest report ${state.time}`;
     case 'unavailable':
       return 'unavailable: the feed is unavailable';
     case 'waiting':
@@ -184,6 +201,8 @@ function derivedPart(state: FeedState): string {
       return 'DERIVED from the last good data';
     case 'sample':
       return 'DERIVED from sample data';
+    case 'quiet':
+      return 'DERIVED from a quiet feed';
     case 'unavailable':
       return 'DERIVED from no data while the feed is unavailable';
     case 'fresh':

@@ -94,6 +94,9 @@ describe('DataTable maxRows', () => {
     expect(texts[3]).toBe('Selected row, outside the first 3');
     expect(texts[4]).toBe('n1L30');
     expect(container.querySelector('tr[aria-selected="true"]')?.textContent).toBe('n1L30');
+    // Announced outside a grid too: only the selected row is the current one.
+    expect(container.querySelector('tr[aria-current="true"]')?.textContent).toBe('n1L30');
+    expect(container.querySelectorAll('tr[aria-current]')).toHaveLength(1);
   });
 
   it('adds no extra row when the selected row is inside the cap', () => {

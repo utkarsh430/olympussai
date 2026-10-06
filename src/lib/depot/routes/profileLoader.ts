@@ -51,6 +51,11 @@ export interface LoaderDeps {
   /** Resolves after `ms`, or early when the signal aborts. */
   readonly wait: (ms: number, signal: AbortSignal) => Promise<void>;
   readonly onProgress: (progress: LoaderProgress) => void;
+  /**
+   * A route whose lookup answered (details loaded, or the feed has no stops for it). Only
+   * these are done; a failed, refused or cancelled route is still to load.
+   */
+  readonly onAnswered?: (routeName: string) => void;
 }
 
 function counted(p: LoaderProgress, outcome: LookupOutcome): LoaderProgress {
@@ -101,6 +106,7 @@ export async function runProfileLoader(
         continue;
       }
       progress = counted(progress, outcome);
+      if (outcome.kind === 'loaded' || outcome.kind === 'empty') deps.onAnswered?.(name);
       deps.onProgress(progress);
       break;
     }

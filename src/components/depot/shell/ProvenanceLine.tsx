@@ -8,6 +8,7 @@ import {
   type ProvenanceDescription,
   type ProvenanceTone,
 } from '@/lib/depot/provenanceLine';
+import { usePageRefresh } from './PageRefreshNotice';
 
 /** Hairline and text colour per tone; the word carries the meaning, not the colour. */
 export const PROVENANCE_TONE_CLASS: Readonly<Record<ProvenanceTone, string>> = {
@@ -30,7 +31,8 @@ export const PROVENANCE_TONE_CLASS: Readonly<Record<ProvenanceTone, string>> = {
  */
 export function ProvenanceLine({ description }: { readonly description: ProvenanceDescription }) {
   const { data, error } = useDepotNetworkContext();
-  const line = provenanceLine(description, { data, error });
+  const page = usePageRefresh();
+  const line = provenanceLine(description, { data, error, page });
   return (
     <div
       className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 font-sans text-xs leading-5"

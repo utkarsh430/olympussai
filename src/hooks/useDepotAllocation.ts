@@ -27,9 +27,15 @@ export function useDepotAllocation(
   return usePolledJson<DepotAllocationResponse>(depotAllocationUrl(query));
 }
 
+// A page change keeps the rows on screen (marked busy) until the new page arrives.
+const KEEP_PREVIOUS = { keepPreviousOnQueryChange: true } as const;
+
 /** One page of one reason's routes; a null query fetches nothing (the group is closed). */
 export function useAllocationList(
   query: AllocationQuery | null,
 ): FetchedState<DepotAllocationResponse> {
-  return useFetchedJson<DepotAllocationResponse>(query === null ? null : depotAllocationUrl(query));
+  return useFetchedJson<DepotAllocationResponse>(
+    query === null ? null : depotAllocationUrl(query),
+    KEEP_PREVIOUS,
+  );
 }

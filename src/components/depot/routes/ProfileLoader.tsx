@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Select } from '@/components/depot/shell/Controls';
 import { depotRoutesUrl } from '@/hooks/useDepotRoutes';
 import { useFetchedJson } from '@/hooks/useFetchedJson';
@@ -11,7 +11,12 @@ import {
   loaderDepotLabel,
   type LoaderDepot,
 } from '@/lib/depot/routes/loaderRow';
-import { loadButtonLabel, progressSentence, routesToLoad } from '@/lib/depot/routes/profileLoader';
+import {
+  loadButtonLabel,
+  progressSentence,
+  routesToLoad,
+  type LoaderPhase,
+} from '@/lib/depot/routes/profileLoader';
 import { DEFAULT_ROUTES_QUERY, ROUTE_LIST_MAX_LIMIT } from '@/lib/depot/routes/routeQuery';
 
 export interface ProfileLoaderProps {
@@ -25,6 +30,22 @@ export interface ProfileLoaderProps {
   readonly onFinished: () => void;
   /** The timer, injected for tests. */
   readonly wait?: (ms: number, signal: AbortSignal) => Promise<void>;
+}
+
+/**
+ * The note under the row once the list is read: what is left after a run that stopped
+ * short (cancelled, or lookups that failed), or that nothing is left. It never claims a
+ * route has details unless its lookup answered.
+ */
+function remainingLine(depotName: string, left: number, phase: LoaderPhase, looked: boolean): string | null {
+  if (left === 0) {
+    return looked
+      ? `Every listed route of ${depotName} has been looked up.`
+      : `Every listed route of ${depotName} already has its details.`;
+  }
+  if (phase !== 'cancelled' && phase !== 'done') return null;
+  const routes = left === 1 ? '1 listed route' : `${left} listed routes`;
+  return `${routes} of ${depotName} still to load; press Load to continue.`;
 }
 
 /** One depot's routes, those without a profile first (the server sorts on the profile). */
@@ -48,24 +69,34 @@ export function ProfileLoader({ depots, defaultDepotId, lead, onFinished, wait =
   const [done, setDone] = useState<ReadonlySet<string>>(new Set());
   const depotId = picked ?? defaultDepotId;
   const list = useFetchedJson<DepotRoutesResponse>(depotId ? depotListUrl(depotId) : null);
-  const loader = useRouteProfileLoader(onFinished, wait);
+  // A route is done only once its lookup answered, so a cancelled or failed route is
+  // offered again by the next press.
+  const markAnswered = useCallback((name: string): void => {
+    setDone((prev) => new Set([...prev, name]));
+  }, []);
+  const loader = useRouteProfileLoader(onFinished, wait, markAnswered);
   const names = useMemo(
     () => routesToLoad((list.data?.routes ?? []).filter((r) => !done.has(r.routeName))),
     [list.data, done],
   );
   const depotName = depots.find((d) => d.value === depotId)?.label ?? '';
   const progress = progressSentence(loader.progress);
+  const listed = list.data?.routes ?? [];
   const listLine =
     depotId && list.loading
       ? `Reading ${depotName}'s routes…`
       : depotId && list.error
         ? `${depotName}'s routes could not be read.`
-        : depotId && list.data && names.length === 0 && !loader.running
-          ? `Every listed route of ${depotName} already has its details.`
+        : depotId && list.data && !loader.running
+          ? remainingLine(
+              depotName,
+              names.length,
+              loader.progress.phase,
+              listed.some((r) => done.has(r.routeName)),
+            )
           : null;
 
   function start(): void {
-    setDone((prev) => new Set([...prev, ...names]));
     loader.start(names);
   }
 

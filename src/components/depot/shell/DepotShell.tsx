@@ -3,6 +3,7 @@ import { DepotNetworkProvider } from '@/components/depot/data/DepotNetworkProvid
 import { DEPOT_PORTAL_ROOT_ID } from '@/lib/depot/portalRoot';
 import { DepotNav } from './DepotNav';
 import { DepotTopBar } from './DepotTopBar';
+import { PageRefreshNotice } from './PageRefreshNotice';
 
 /**
  * Frame for every depot page: top bar, the navigation (a left rail from 1280px, one
@@ -14,7 +15,8 @@ import { DepotTopBar } from './DepotTopBar';
  * `<main>` is focusable (tabIndex -1) so the skip link can move focus into it;
  * its focus ring is drawn inside the box so nothing clips it. The shell stays a
  * server component; the client provider polls the network feed once for the
- * top bar's feed chip and every page below it.
+ * top bar's feed chip and every page below it. `PageRefreshNotice` sits above every
+ * page and speaks when a page's own data request fails after a success.
  */
 export function DepotShell({ children }: { readonly children: React.ReactNode }) {
   return (
@@ -34,6 +36,7 @@ export function DepotShell({ children }: { readonly children: React.ReactNode })
             tabIndex={-1}
             className="min-w-0 flex-1 scroll-mt-[var(--depot-sticky-top)] px-4 pb-8 pt-6 focus-visible:outline-offset-[-2px] sm:px-6"
           >
+            <PageRefreshNotice />
             {children}
           </main>
         </div>

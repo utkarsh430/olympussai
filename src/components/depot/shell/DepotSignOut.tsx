@@ -3,6 +3,9 @@
 import { LogOut } from 'lucide-react';
 import { useProjectSignOut } from '@/hooks/useProjectSignOut';
 
+/** Said when the logout request failed: the session may still be open. */
+export const SIGN_OUT_FAILED = 'Sign-out failed; you may still be signed in. Try again or close the browser.';
+
 /**
  * Sign-out for the depot top bar. Depot pages run without CSS zoom and with an
  * 11px type floor, so this is its own control rather than the command centre's
@@ -10,7 +13,7 @@ import { useProjectSignOut } from '@/hooks/useProjectSignOut';
  * in-row form from 1280px; inside the Menu panel it keeps its outline.
  */
 export function DepotSignOut({ quiet = false }: { readonly quiet?: boolean }) {
-  const { signOut, pending } = useProjectSignOut();
+  const { signOut, pending, failed } = useProjectSignOut();
 
   return (
     <button
@@ -18,10 +21,14 @@ export function DepotSignOut({ quiet = false }: { readonly quiet?: boolean }) {
       onClick={signOut}
       disabled={pending}
       data-testid="depot-sign-out"
+      title={failed ? SIGN_OUT_FAILED : undefined}
       className={quiet ? 'depot-bar-button depot-bar-button-quiet' : 'depot-bar-button'}
     >
       <LogOut className="h-3.5 w-3.5" aria-hidden />
-      {pending ? 'Signing out…' : 'Sign out'}
+      {pending ? 'Signing out…' : failed ? 'Sign-out failed: retry' : 'Sign out'}
+      <span role="status" className="sr-only">
+        {failed ? SIGN_OUT_FAILED : ''}
+      </span>
     </button>
   );
 }

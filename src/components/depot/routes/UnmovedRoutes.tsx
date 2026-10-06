@@ -49,7 +49,8 @@ function GroupPage({
   const current = serverPage(total, list.data.offset, list.data.limit);
   return (
     <>
-      <GroupTable group={group} items={items} />
+      {/* The previous page stays, dimmed and busy, so focus on the pager is never dropped. */}
+      <GroupTable group={group} items={items} busy={list.previous === true} />
       {current.pageCount > 1 ? (
         <Pager page={current.page} total={total} pageSize={list.data.limit} onPage={setPage} />
       ) : null}
@@ -60,13 +61,21 @@ function GroupPage({
 function GroupTable({
   group,
   items,
+  busy,
 }: {
   readonly group: UnmovedGroup;
   readonly items: readonly UnmovedItem[];
+  readonly busy: boolean;
 }) {
   const figures = group.kind === 'stay';
   return (
-    <div role="region" aria-label={group.heading} tabIndex={0} className="depot-table-frame mt-2 max-h-[50vh]">
+    <div
+      role="region"
+      aria-label={group.heading}
+      aria-busy={busy || undefined}
+      tabIndex={0}
+      className={`depot-table-frame mt-2 max-h-[50vh] ${busy ? 'opacity-60' : ''}`}
+    >
       <table className="depot-table">
         <caption className="sr-only">{`${group.countLabel}: ${group.heading}`}</caption>
         <thead>
