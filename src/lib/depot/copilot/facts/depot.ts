@@ -5,6 +5,7 @@ import {
   busCount,
   cleanName,
   count,
+  countPhrase,
   index1,
   makeFact,
   onRoadCount,
@@ -172,11 +173,16 @@ function standingParagraph(detail: DepotDetailResponse): string {
 
 function fleetParagraph(detail: DepotDetailResponse): string {
   if (detail.depot.fleet === 0) return 'No buses are homed here in the feed.';
+  const states = {
+    onRoad: onRoadCount(detail.depot.states),
+    dark: detail.depot.states.dark,
+    offRoad: detail.depot.states.offRoad,
+  };
   const power =
     detail.depot.powerCut > 0 ? ` Main power reads off on ${ph('depot.power_cut')}.` : '';
   return (
-    `Of ${ph('depot.fleet')} homed here, ${ph('depot.on_road')} are on the road (${ph('depot.on_road_share')}), ` +
-    `${ph('depot.dark')} are dark (${ph('depot.dark_share')}) and ${ph('depot.off_road')} are off the road (${ph('depot.off_road_share')}).${power}`
+    `Of ${ph('depot.fleet')} homed here, ${ph('depot.on_road')} ${countPhrase(states.onRoad, 'is on the road', 'are on the road')} (${ph('depot.on_road_share')}), ` +
+    `${ph('depot.dark')} ${countPhrase(states.dark, 'is dark', 'are dark')} (${ph('depot.dark_share')}) and ${ph('depot.off_road')} ${countPhrase(states.offRoad, 'is off the road', 'are off the road')} (${ph('depot.off_road_share')}).${power}`
   );
 }
 
@@ -189,7 +195,7 @@ function yardParagraph(detail: DepotDetailResponse): string {
       ? ` Visitors from other depots in the yard: ${ph('depot.visitors')}.`
       : '';
   return (
-    `The yard is inferred from where buses park; ${ph('depot.yard_support')} fall inside it. ` +
+    `The yard is inferred from where buses park; ${ph('depot.yard_support')} ${countPhrase(detail.yard.value.inCluster, 'falls', 'fall')} inside it. ` +
     `It currently holds ${ph('depot.in_yard')}, with ${ph('depot.away')} away from it.${visitors}`
   );
 }
