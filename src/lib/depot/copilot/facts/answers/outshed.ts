@@ -1,4 +1,11 @@
-import { busCount, cleanName, makeFact, nameFact, ph } from '@/lib/depot/copilot/facts/format';
+import {
+  busCount,
+  cleanName,
+  countPhrase,
+  makeFact,
+  nameFact,
+  ph,
+} from '@/lib/depot/copilot/facts/format';
 import type { CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
 import { answer, unavailable } from '@/lib/depot/copilot/facts/answers/shared';
 import type { AnswerData } from '@/lib/depot/copilot/facts/answers';
@@ -36,16 +43,16 @@ export function outshedAnswer(data: AnswerData, depotId: string): CopilotRequest
   const parts = [
     `${ph('outshed.departed')} already away`,
     counts.due > 0 ? `${ph('outshed.due')} due to leave now` : null,
-    counts.upcoming > 0 ? `${ph('outshed.upcoming')} not yet due` : null,
+    counts.upcoming > 0 ? `${ph('outshed.upcoming')} yet to reach their departure` : null,
     counts.ended > 0 ? `${ph('outshed.ended')} whose scheduled window is already over` : null,
     counts.overdue > 0
       ? `${ph('outshed.overdue')} overdue to leave the yard`
-      : 'no bus is overdue to leave the yard',
+      : 'nothing overdue to leave the yard',
     counts.unknown > 0
-      ? `${ph('outshed.unknown')} that cannot be located well enough to say`
+      ? `${ph('outshed.unknown')} that ${countPhrase(counts.unknown, 'is', 'are')} too uncertain to place`
       : null,
   ].filter((p): p is string => p !== null);
-  const body = `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  const body = `${parts.slice(0, -1).join('; ')} and ${parts[parts.length - 1]}`;
   const paragraphs = [
     `Schedules are known for ${ph('outshed.coverage')} at ${ph('depot.name')}.`,
     `Of those, ${body}.`,

@@ -207,7 +207,7 @@ function outshedParagraph(detail: DepotDetailResponse): string | null {
   const overdue =
     detail.outshed.counts.overdue > 0
       ? `${ph('depot.outshed_overdue')} overdue to leave the yard`
-      : 'no bus is overdue to leave the yard';
+      : 'nothing overdue to leave the yard';
   return `Departure schedules are known for ${ph('depot.outshed_coverage')}. Of those, ${ph('depot.outshed_departed')} already away and ${overdue}.`;
 }
 
@@ -217,7 +217,7 @@ function exceptionParagraph(detail: DepotDetailResponse): string {
   const kinds = [...new Set(depot.map((e) => DEPOT_EXCEPTION_PHRASE[e.kind]))];
   const atDepot =
     depot.length > 0
-      ? `Flagged at depot level: ${ph('depot.exceptions_depot')}, for ${kinds.join(' and ')}.`
+      ? `Flagged at depot level, for ${kinds.join(' and ')}: ${ph('depot.exceptions_depot')}.`
       : 'Nothing is flagged at depot level.';
   const onVehicles = bus.length > 0 ? ` Flagged on vehicles: ${ph('depot.exceptions_bus')}.` : '';
   return `${atDepot}${onVehicles} A closer look at ${countPhrase(depot.length + bus.length, 'this item', 'these items')} could be worthwhile.`;

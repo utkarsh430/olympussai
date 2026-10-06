@@ -51,7 +51,7 @@ export function compareAnswer(data: AnswerData, idA: string, idB: string): Copil
     verdict =
       'A unit among these is not ranked, so their efficiency indices are not compared.';
   } else if (indexA === indexB) {
-    verdict = `Their efficiency indices are level, each at ${ph('a.index')}.`;
+    verdict = `Their efficiency indices are level at ${ph('a.index')}.`;
   } else {
     const [lead, trail] = indexA > indexB ? (['a', 'b'] as const) : (['b', 'a'] as const);
     verdict = `${ph(`${lead}.name`)} has the higher efficiency index, at ${ph(`${lead}.index`)}; the other stands at ${ph(`${trail}.index`)}.`;

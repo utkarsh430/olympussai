@@ -40,7 +40,7 @@ export function exceptionsAnswer(data: AnswerData, depotId: string): CopilotRequ
   const paragraphs: string[] = [];
   paragraphs.push(
     depot.length > 0
-      ? `Flagged at depot level: ${ph('ex.depot')}, for ${kinds.join(' and ')}.${critical > 0 ? ` Rated critical: ${ph('ex.critical')}.` : ''}`
+      ? `Flagged at depot level, for ${kinds.join(' and ')}: ${ph('ex.depot')}.${critical > 0 ? ` Rated critical: ${ph('ex.critical')}.` : ''}`
       : `Nothing is flagged at depot level for ${ph('depot.name')}.`,
   );
   if (bus.length > 0) paragraphs.push(`Flagged on vehicles: ${ph('ex.bus')}.`);
