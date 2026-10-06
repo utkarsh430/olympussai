@@ -49,6 +49,12 @@ import {
   resetPeakRequirementStore,
   type PeakRequirementStore,
 } from './peakRequirementHold';
+import {
+  defaultServiceHoldStore,
+  offerServiceSnapshot,
+  resetServiceHoldStore,
+  type ServiceHoldStore,
+} from './serviceHold';
 
 export interface DepotExceptions {
   readonly depot: readonly DepotException[];
@@ -72,6 +78,8 @@ export interface DepotExceptions {
  * when the snapshot is first analysed, and then held with the rest; everything
  * else is this snapshot alone. The tops of those modules say exactly what
  * depends on history and what a repeated, stale, older or first snapshot does.
+ * Each analysis also offers its snapshot to the hour-by-hour observation
+ * (live/serviceHold.ts), which nothing in the analysis reads back.
  */
 export interface SnapshotAnalysis {
   readonly feedNow: string | null;
@@ -157,6 +165,8 @@ export interface AnalysisStores {
   readonly peakShares?: PeakShareStore;
   /** Absent: the requirement's peak is this snapshot's alone, with no floor. */
   readonly peakRequirements?: PeakRequirementStore;
+  /** Absent: the snapshot is not recorded in the date's hour-by-hour observation. */
+  readonly serviceHold?: ServiceHoldStore;
 }
 
 function defaultStores(): AnalysisStores {
@@ -165,6 +175,7 @@ function defaultStores(): AnalysisStores {
     yardMemory: defaultYardMemoryStore(),
     peakShares: defaultPeakShareStore(),
     peakRequirements: defaultPeakRequirementStore(),
+    serviceHold: defaultServiceHoldStore(),
   };
 }
 
@@ -241,7 +252,7 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
     // The recorded fixture never reads or writes a store, as with the others.
     store: fixture ? undefined : stores.peakRequirements,
   });
-  return {
+  const analysis: SnapshotAnalysis = {
     feedNow,
     states,
     stateOf,
@@ -263,6 +274,9 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
     exceptionSeverityCounts: countBySeverity(depotExceptions, busExceptions),
     exceptionsByDepot: exceptionsByDepot(depotExceptions, busExceptions),
   };
+  // Written only, never read here: the hourly view reads the hold through its repository.
+  if (stores.serviceHold !== undefined) offerServiceSnapshot(stores.serviceHold, view, analysis);
+  return analysis;
 }
 
 /*
@@ -296,8 +310,8 @@ export function forgetWithAnalyses(forget: () => void): void {
 /**
  * Test seam: a process that has just started. Forgets every memoised analysis
  * (and with them every memoised view body), every memo registered through
- * `forgetWithAnalyses`, the score window, the yards, the held shares and the
- * held peaks.
+ * `forgetWithAnalyses`, the score window, the yards, the held shares, the
+ * held peaks and the hour-by-hour observation.
  */
 export function resetAnalysisForTests(): void {
   analyses = new WeakMap();
@@ -306,6 +320,7 @@ export function resetAnalysisForTests(): void {
   resetYardMemoryStore();
   resetPeakShareStore();
   resetPeakRequirementStore();
+  resetServiceHoldStore();
 }
 
 /**
