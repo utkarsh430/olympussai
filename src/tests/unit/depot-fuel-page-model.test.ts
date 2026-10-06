@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { FuelGroupRow, FuelTotals } from '@/lib/depot/fuel/types';
 import {
+  COST_NOTE,
   classBars,
   emptyText,
   flaggedHeadline,
@@ -140,6 +141,12 @@ describe('sentences', () => {
   });
   it('explains an empty day', () => {
     expect(emptyText()).toContain('no bus has modelled distance');
+  });
+});
+
+describe('cost note', () => {
+  it('says the cost is summed from each bus to the nearest rupee', () => {
+    expect(COST_NOTE).toBe('Cost is summed from each bus’s cost, each to the nearest rupee.');
   });
 });
 

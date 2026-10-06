@@ -2,6 +2,7 @@ import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import type { FuelResponse } from '@/lib/depot/fuel/api';
 import { formatRupees } from '@/lib/depot/fuel/format';
 import {
+  COST_NOTE,
   formatCostPerKm,
   formatKm,
   formatKmPerLitre,
@@ -34,6 +35,7 @@ export function FuelSummary({ data }: { readonly data: FuelResponse }) {
       <p className="depot-prose mb-3" role="status">
         {summarySentence(totals, { price: data.pricePerLitre, defaulted: data.priceDefaulted })}
       </p>
+      <p className="depot-prose mb-3">{COST_NOTE}</p>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 xl:grid-cols-6">
         <Figure label="Distance" value={formatKm(totals.distanceKm)} />
         <Figure label="Fuel issued" value={formatLitres(totals.fuelLitres)} />

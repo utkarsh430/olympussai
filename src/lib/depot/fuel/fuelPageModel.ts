@@ -150,6 +150,9 @@ export function summarySentence(totals: FuelTotals, price?: SummaryPrice): strin
     : `${base} Cost uses ${unit}.`;
 }
 
+/** Cost is a sum of per-bus rounded rupees, so it need not equal litres times the price. */
+export const COST_NOTE = 'Cost is summed from each bus’s cost, each to the nearest rupee.';
+
 /** The flagging rule in one sentence, from the module's own constants. */
 export function ruleSentence(thresholdPct: number, minPeers: number): string {
   return (
