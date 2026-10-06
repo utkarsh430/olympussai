@@ -28,7 +28,7 @@ import {
   RESPONSE_CACHE_MS,
   SESSION_REQUESTS_PER_MINUTE,
 } from '@/lib/depot/copilot/service/constants';
-import { createWindowLimiter, type WindowLimiter } from '@/lib/depot/copilot/service/rateLimit';
+import { createWindowLimiter, type WindowLimiter } from '@/lib/depot/rateLimit';
 
 /** Everything the route shares between requests. Built once per process. */
 export interface CopilotRuntime {

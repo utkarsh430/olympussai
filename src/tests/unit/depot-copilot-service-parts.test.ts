@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { createWindowLimiter } from '@/lib/depot/copilot/service/rateLimit';
+import { createWindowLimiter } from '@/lib/depot/rateLimit';
 import { cacheKey, createResponseCache } from '@/lib/depot/copilot/service/cache';
 import { readCappedBody } from '@/lib/depot/copilot/service/body';
 import { parseCopilotBody } from '@/lib/depot/copilot/service/schema';
