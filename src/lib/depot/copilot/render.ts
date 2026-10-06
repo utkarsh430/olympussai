@@ -78,7 +78,8 @@ function checkProse(text: string): string | null {
   if (!ALLOWED_PROSE.test(bare)) {
     return 'Draft contains a character outside the allowed set (digit, symbol, markup, control or invisible character)';
   }
-  if (adjacentToSomething(text)) return 'Draft has a placeholder adjacent to a letter or another placeholder';
+  if (adjacentToSomething(text))
+    return 'Draft has a placeholder adjacent to a letter or another placeholder';
   return null;
 }
 

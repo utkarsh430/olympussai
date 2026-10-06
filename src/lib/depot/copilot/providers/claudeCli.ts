@@ -1,4 +1,6 @@
-import { buildCliArgs } from '@/lib/depot/copilot/cli/args';
+import { accessSync, constants, statSync } from 'node:fs';
+import { dirname, isAbsolute } from 'node:path';
+import { buildCliArgs, isValidModelName } from '@/lib/depot/copilot/cli/args';
 import { classifyCliFailure, parseCliOutput } from '@/lib/depot/copilot/cli/classify';
 import { buildChildEnv } from '@/lib/depot/copilot/cli/env';
 import {
@@ -21,10 +23,13 @@ import {
   type CopilotRequest,
 } from '@/lib/depot/copilot/types';
 
+// Defined in types.ts (the semaphore needs it and imports from there too, so
+// defining it here would create an import cycle); re-exported for callers.
 export { CopilotFailure };
 
 export interface ClaudeCliDeps {
   readonly spawn: SpawnLike;
+  /** Absolute path to the CLI; a bare name would be resolved through PATH. */
   readonly bin: string;
   readonly model: string;
   /** Throwaway HOME for the child, so it cannot read the server user's config. */
@@ -33,31 +38,55 @@ export interface ClaudeCliDeps {
   readonly cwd: () => string;
   /** The server's environment; only an allowlist of it reaches the child. */
   readonly env: Readonly<Record<string, string | undefined>>;
+  /** Directory of the running node executable; defaults to this process's. */
+  readonly nodeDir?: string;
   /** Shared across providers when more than one is built; defaults to a private one. */
   readonly semaphore?: Semaphore;
 }
 
 const SCHEMA_JSON = JSON.stringify(DRAFT_JSON_SCHEMA);
 
+/** Pure check: an absolute path with no NUL byte. */
+export function isAbsoluteBinary(path: string): boolean {
+  return path.length > 0 && !path.includes('\0') && isAbsolute(path);
+}
+
+/** Startup check for wiring code: absolute, an existing regular file, executable. */
+export function assertUsableBinary(path: string): void {
+  if (!isAbsoluteBinary(path)) throw new Error('The Claude binary path must be absolute');
+  if (!statSync(path).isFile()) throw new Error('The Claude binary path is not a file');
+  accessSync(path, constants.X_OK);
+}
+
 /** Writes drafts through `claude -p`. Every failure is a `CopilotFailure`. */
 export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
+  if (!isAbsoluteBinary(deps.bin)) throw new Error('The Claude binary path must be absolute');
+  if (!isValidModelName(deps.model)) throw new RangeError('Invalid model name');
   const semaphore = deps.semaphore ?? createSemaphore(CLI_CONCURRENCY, CLI_QUEUE);
+  const nodeDir = deps.nodeDir ?? dirname(process.execPath);
 
   return {
     id: 'claude-cli',
     async draft(request: CopilotRequest): Promise<CopilotDraft> {
+      let stdin: string;
+      try {
+        stdin = buildUserPrompt(request);
+      } catch {
+        throw new CopilotFailure('error', 'request too large for the CLI');
+      }
+      const args = buildCliArgs({
+        schemaJson: SCHEMA_JSON,
+        systemPrompt: buildSystemPrompt(request.task),
+        model: deps.model,
+      });
       const result = await semaphore.run(() =>
         runCli(
           {
             bin: deps.bin,
-            args: buildCliArgs({
-              schemaJson: SCHEMA_JSON,
-              systemPrompt: buildSystemPrompt(request.task),
-              model: deps.model,
-            }),
-            env: buildChildEnv(deps.env, deps.home),
+            args,
+            env: buildChildEnv(deps.env, deps.home, nodeDir),
             cwd: deps.cwd(),
-            stdin: buildUserPrompt(request),
+            stdin,
             timeoutMs: CLI_TIMEOUT_MS,
             maxOutputBytes: CLI_MAX_OUTPUT_BYTES,
           },
@@ -68,7 +97,8 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
 
       const parsed = parseCliOutput(result.stdout);
       if (parsed.ok) return parsed.draft;
-      // The CLI can report auth or limit errors in its envelope on a clean exit.
+      // The CLI can report auth or limit errors in its own error envelope on a
+      // clean exit; model-written text is never consulted (see classify.ts).
       const reason = classifyCliFailure(1, '', result.stdout);
       throw new CopilotFailure(reason === 'error' ? 'invalid_output' : reason, 'unusable output');
     },
