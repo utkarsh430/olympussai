@@ -453,7 +453,7 @@ describe('transfer table preview', () => {
   it('shows ten transfers and a "Show all" control that reveals the rest', async () => {
     await render(<TransferTable rows={many} {...props} serverPlan={false} />);
     expect(container.querySelectorAll('tbody tr')).toHaveLength(10);
-    await act(async () => button('Show all 12 transfers').click());
+    await act(async () => button('Show all 12›').click());
     expect(container.querySelectorAll('tbody tr')).toHaveLength(12);
   });
 

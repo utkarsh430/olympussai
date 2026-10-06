@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { TableOverflowCue, useColumnsToTheRight } from '@/components/depot/shell/TableOverflowCue';
-import { formatCount } from '@/lib/depot/format';
+import { ShowAllButton } from '@/components/depot/shell/LongLists';
 import { transferPreview } from '@/lib/depot/rebalance/pageLayout';
 import type { TransferDecisionKind } from '@/lib/depot/rebalance/rebalanceModel';
 import type { TransferRow } from '@/lib/depot/rebalance/transferModel';
@@ -46,6 +46,7 @@ export function TransferTable({
       <div className="relative min-w-0">
         <div
           ref={frame}
+          id="rebalance-transfers"
           role="region"
           aria-label="Recommended transfers"
           tabIndex={0}
@@ -92,14 +93,14 @@ export function TransferTable({
         {moreColumns ? <TableOverflowCue /> : null}
       </div>
       {preview.hidden > 0 || showAll ? (
-        <button
-          type="button"
-          className="depot-link mt-2 text-[13px]"
-          aria-expanded={showAll}
-          onClick={() => setShowAll((v) => !v)}
-        >
-          {showAll ? 'Show the first ten' : `Show all ${formatCount(rows.length)} transfers`}
-        </button>
+        <div className="mt-2">
+          <ShowAllButton
+            total={rows.length}
+            expanded={showAll}
+            onToggle={() => setShowAll((v) => !v)}
+            controls="rebalance-transfers"
+          />
+        </div>
       ) : null}
     </div>
   );

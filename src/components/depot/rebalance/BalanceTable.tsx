@@ -8,6 +8,7 @@ import { balancePreview, partOfPlanVaries } from '@/lib/depot/rebalance/pageLayo
 import type { BalanceRow } from '@/lib/depot/rebalance/rebalanceModel';
 import { BalanceBar } from './BalanceBar';
 import { CollapsedSection } from '@/components/depot/shell/CollapsedSection';
+import { ShowAllButton } from '@/components/depot/shell/LongLists';
 
 export interface BalanceTableProps {
   /** In model order: operating depots by balance, deepest deficit first; other kinds after. */
@@ -115,7 +116,7 @@ export function BalanceTable({ rows }: BalanceTableProps) {
       testId="rebalance-balances"
     >
       {withPart ? (
-        <p className="depot-prose mb-2 text-xs">
+        <p className="depot-note mb-2">
           Hired, electric and enforcement units are listed after the depots and take no part in
           the plan.
         </p>
@@ -131,14 +132,13 @@ export function BalanceTable({ rows }: BalanceTableProps) {
         overflowCue
       />
       {rows.length > shown.length || showAll ? (
-        <button
-          type="button"
-          className="depot-link mt-2 text-[13px]"
-          aria-expanded={showAll}
-          onClick={() => setShowAll((v) => !v)}
-        >
-          {showAll ? 'Show the fifteen deepest' : `Show all ${formatCount(rows.length)} depots`}
-        </button>
+        <div className="mt-2">
+          <ShowAllButton
+            total={rows.length}
+            expanded={showAll}
+            onToggle={() => setShowAll((v) => !v)}
+          />
+        </div>
       ) : null}
     </CollapsedSection>
   );
