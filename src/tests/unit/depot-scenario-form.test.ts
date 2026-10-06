@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { formatOneDecimal } from '@/lib/depot/format';
 import {
   parseBusDelta,
   parseDistanceKm,
@@ -218,5 +219,12 @@ describe('describeDelta', () => {
     expect(describeDelta(1, 'transfer', 'transfers', '')).toBe('1 more transfer');
     expect(describeDelta(0, 'bus', 'buses', 'moved')).toBe('No change in buses moved');
     expect(describeDelta(120.5, 'bus-km', 'bus-km', '')).toBe('120.5 more bus-km');
+  });
+
+  it('groups the digits of a large difference as the page groups its figures', () => {
+    expect(describeDelta(4674.3, 'bus-km', 'bus-km', 'of empty running', formatOneDecimal)).toBe(
+      '4,674.3 more bus-km of empty running',
+    );
+    expect(describeDelta(-1200, 'bus', 'buses', 'moved')).toBe('1,200 fewer buses moved');
   });
 });

@@ -6,7 +6,7 @@ import {
   useRationale,
 } from '@/components/depot/copilot/RationaleButton';
 import { DisclosureChevron } from '@/components/depot/shell/DisclosureChevron';
-import { formatCount } from '@/lib/depot/format';
+import { formatCount, formatOneDecimal } from '@/lib/depot/format';
 import { samePlaceNote } from '@/lib/depot/rebalance/pageLayout';
 import { decisionRowWord, decisionStatusText } from '@/lib/depot/rebalance/decisionWording';
 import type { TransferDecisionKind } from '@/lib/depot/rebalance/rebalanceModel';
@@ -94,9 +94,9 @@ function Rows(props: TransferRowViewProps & { readonly rationale: ReactNode }) {
         </td>
         <td className="depot-align-right">{formatCount(row.buses)}</td>
         <td className="depot-align-right" title={samePlace ?? undefined}>
-          {row.distanceKm.toFixed(1)}
+          {formatOneDecimal(row.distanceKm)}
         </td>
-        <td className="depot-align-right">{row.busKm.toFixed(1)}</td>
+        <td className="depot-align-right">{formatOneDecimal(row.busKm)}</td>
         <td title={status} data-testid="transfer-decision-word">
           {decisionRowWord(row.decision, row.buses)}
         </td>

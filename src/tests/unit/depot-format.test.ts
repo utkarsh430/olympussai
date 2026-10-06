@@ -1,10 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { formatCount, formatFeedTime, formatPlainDate, formatShare } from '@/lib/depot/format';
+import {
+  formatCount,
+  formatFeedTime,
+  formatOneDecimal,
+  formatPlainDate,
+  formatShare,
+} from '@/lib/depot/format';
 
 describe('formatCount', () => {
   it('uses Indian digit grouping', () => {
     expect(formatCount(1234567)).toBe('12,34,567');
     expect(formatCount(0)).toBe('0');
+  });
+});
+
+describe('formatOneDecimal', () => {
+  it('groups the whole part as formatCount does and always shows one decimal', () => {
+    expect(formatOneDecimal(5503.5)).toBe('5,503.5');
+    expect(formatOneDecimal(123456.78)).toBe('1,23,456.8');
+    expect(formatOneDecimal(1000)).toBe('1,000.0');
+    expect(formatOneDecimal(0)).toBe('0.0');
+  });
+
+  it('never prints a negative zero, and a negative with the true minus', () => {
+    expect(formatOneDecimal(-0.04)).toBe('0.0');
+    expect(formatOneDecimal(-1234.56)).toBe('−1,234.6');
   });
 });
 

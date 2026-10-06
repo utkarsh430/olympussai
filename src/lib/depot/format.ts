@@ -15,6 +15,20 @@ export function formatCount(n: number): string {
   return formatNumber(n);
 }
 
+const TENTHS = 10;
+
+/**
+ * A figure to one decimal, always shown, its whole part grouped as `formatCount` groups
+ * it: 5503.5 is "5,503.5", 123456.78 is "1,23,456.8". A value that rounds to zero is
+ * "0.0", never "−0.0"; a negative takes the true minus.
+ */
+export function formatOneDecimal(n: number): string {
+  const tenths = Math.round(Math.abs(n) * TENTHS);
+  if (!Number.isFinite(tenths)) return DASH;
+  const text = `${formatNumber(Math.trunc(tenths / TENTHS))}.${tenths % TENTHS}`;
+  return n < 0 && tenths !== 0 ? `${MINUS}${text}` : text;
+}
+
 /** A ratio as a whole-number percentage: 0.456 is "46%". */
 export function formatPercent(ratio: number): string {
   return `${Math.round(ratio * PERCENT)}%`;

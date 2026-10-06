@@ -1,4 +1,4 @@
-import { formatCount } from '@/lib/depot/format';
+import { formatCount, formatOneDecimal } from '@/lib/depot/format';
 import type { ScenarioDelta } from '@/lib/depot/optimise/types';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import type { PlanSummary } from '@/lib/depot/rebalance/rebalanceModel';
@@ -59,9 +59,9 @@ function linesOf(d: ScenarioDelta, a: PlanSummary, b: PlanSummary): readonly Lin
     {
       key: 'bus-km',
       label: 'Empty running, bus-km',
-      baseline: a.busKm.toFixed(1),
-      scenario: b.busKm.toFixed(1),
-      words: describeDelta(d.totalBusKm, 'bus-km', 'bus-km', 'of empty running'),
+      baseline: formatOneDecimal(a.busKm),
+      scenario: formatOneDecimal(b.busKm),
+      words: describeDelta(d.totalBusKm, 'bus-km', 'bus-km', 'of empty running', formatOneDecimal),
     },
   ];
 }
