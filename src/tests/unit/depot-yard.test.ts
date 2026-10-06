@@ -5,11 +5,9 @@ import {
   inferYard,
   inferYardGroup,
   inferYards,
-  YARD_CELL_M,
   YARD_CORE_MIN_NEIGHBOURS,
   YARD_DOMINANCE_RATIO,
   YARD_LINK_M,
-  YARD_MAX_SPAN_CELLS,
   YARD_MAX_SPAN_M,
   YARD_MIN_CLUSTER,
   YARD_MIN_RADIUS_M,
@@ -32,11 +30,10 @@ const HERE = { x: 0, y: 0 };
 
 describe('the yard rule (Ruling S25)', () => {
   // Screens build their sentences from these, so the ruled values are pinned by name.
-  it('exports the ruled values, and the span limit still reads as cells times cell width', () => {
+  it('exports the ruled values', () => {
     expect([YARD_LINK_M, YARD_CORE_MIN_NEIGHBOURS, YARD_MIN_CLUSTER]).toEqual([150, 4, 6]);
     expect([YARD_MIN_SHARE, YARD_DOMINANCE_RATIO, YARD_MAX_SPAN_M]).toEqual([0.25, 1.5, 1500]);
     expect([YARD_MIN_RADIUS_M, YARD_RADIUS_PAD_M]).toEqual([120, 40]);
-    expect(YARD_MAX_SPAN_CELLS * YARD_CELL_M).toBe(1500);
   });
 
   it('learns a compact yard where the buses stand, and names every bus in it', () => {

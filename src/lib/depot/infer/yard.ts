@@ -72,12 +72,6 @@ export const YARD_MAX_SPAN_M = 1500;
 export const YARD_MIN_RADIUS_M = 120;
 /** Margin beyond the farthest bus of the yard so its edge bays count as inside. */
 export const YARD_RADIUS_PAD_M = 40;
-/**
- * There is no grid any more. These two remain only because screens word the
- * span limit as their product; together they still say YARD_MAX_SPAN_M.
- */
-export const YARD_CELL_M = YARD_LINK_M;
-export const YARD_MAX_SPAN_CELLS = YARD_MAX_SPAN_M / YARD_CELL_M;
 
 /** The inferred yard and the registration numbers of the buses that form it, sorted. */
 export interface YardGroup {
