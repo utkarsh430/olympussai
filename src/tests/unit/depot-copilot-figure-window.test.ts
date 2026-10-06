@@ -121,22 +121,48 @@ function admitted(slot: number, word: string, previous: string | undefined): boo
 const FORMS = (word: string): readonly string[] =>
   [word, `${word}s`, `${word}es`, `${word}ed`, `${word}ing`, `${word}ly`].filter(isVocabularyWord);
 
+/**
+ * `ok` with only the facts the draft names. The others are never referenced and the
+ * inserted words are vocabulary words, never a name fact's text, so acceptance is the same;
+ * rendering against one fact instead of eleven halves the cost of the sweep.
+ */
+function okOwnFacts(text: string): boolean {
+  const named = FACTS.filter((f) => text.includes(`{{fact:${f.id}}}`));
+  return renderDraft({ headline: 'Depot briefing', paragraphs: [text] }, named).ok;
+}
+
+/** Every vocabulary word and inflected form, once each (a form can also be a listed word). */
+const EVERY_FORM: readonly string[] = [...new Set(VOCABULARY_WORDS.flatMap(FORMS))];
+
+/*
+ * One test per sentence and slot, so no single test renders tens of thousands of drafts
+ * (the whole sweep once ran past the default timeout on a loaded machine). The cases are
+ * the same as before: every word at every slot, and every form in the first sentence. A
+ * word the reviewed lists admit is not rendered, since it cannot be a hole.
+ */
+const CASES = BASES.flatMap((base, b) =>
+  SLOTS.filter((slot) => base.at + slot >= -1) // nothing stands before a sentence's first token
+    .map((slot) => [`sentence ${b + 1}, slot ${slot}`, base, slot, b === 0] as const),
+);
+
 describe('ruling S49 M1: any word within two words of a figure', () => {
-  it('is accepted only when the reviewed lists admit it', () => {
-    const holes: string[] = [];
-    for (const base of BASES) {
-      expect(ok(base.text)).toBe(true);
-      const tokens = base.text.split(' ');
-      for (const slot of SLOTS) {
-        if (base.at + slot < -1) continue; // nothing stands before a sentence's first token
-        const previous = slot === 2 ? tokens[base.at + 1]?.toLowerCase() : undefined;
-        const words = base === BASES[0] ? VOCABULARY_WORDS.flatMap(FORMS) : VOCABULARY_WORDS;
-        for (const word of words) {
-          const draft = insert(base.text, base.at, slot, word);
-          if (ok(draft) && !admitted(slot, word, previous)) holes.push(draft);
-        }
-      }
-    }
+  it.each(BASES)('has a valid base sentence %j', (base) => {
+    expect(ok(base.text)).toBe(true);
+    expect(okOwnFacts(base.text)).toBe(true);
+  });
+
+  it('inserts no word that is a name fact, so leaving the unnamed facts out changes nothing', () => {
+    const names = new Set(FACTS.filter((f) => f.kind === 'name').map((f) => f.text.toLowerCase()));
+    expect(EVERY_FORM.filter((word) => names.has(word.toLowerCase()))).toEqual([]);
+  });
+
+  it.each(CASES)('%s: a word is accepted only when the reviewed lists admit it', (...c) => {
+    const [, base, slot, everyForm] = c;
+    const previous = slot === 2 ? base.text.split(' ')[base.at + 1]?.toLowerCase() : undefined;
+    const holes = (everyForm ? EVERY_FORM : VOCABULARY_WORDS)
+      .filter((word) => !admitted(slot, word, previous))
+      .map((word) => insert(base.text, base.at, slot, word))
+      .filter(okOwnFacts);
     expect(holes).toEqual([]);
   });
 
