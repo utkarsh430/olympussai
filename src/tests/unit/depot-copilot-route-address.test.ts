@@ -85,7 +85,9 @@ describe('route profile address limiter', () => {
   it('never limits cache hits, even from an address that is out of misses', async () => {
     vi.stubEnv('DEPOT_TRUSTED_IP_HEADER', HEADER);
     vi.mocked(routeProfileNeedsFetch).mockReturnValue(true);
-    for (let i = 0; i <= perAddressPerMinute; i += 1) await callFrom(ADDRESS);
+    for (let i = 0; i < perAddressPerMinute; i += 1) await callFrom(ADDRESS);
+    // The address is out of misses: its next miss is refused.
+    expect((await callFrom(ADDRESS)).status).toBe(429);
     vi.mocked(routeProfileNeedsFetch).mockReturnValue(false);
     for (let i = 0; i < perAddressPerMinute; i += 1) {
       expect((await callFrom(ADDRESS)).status).toBe(200);
