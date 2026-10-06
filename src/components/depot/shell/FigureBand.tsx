@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Provenance } from '@/lib/depot/types';
 import { ProvenanceBadge } from './ProvenanceBadge';
 
@@ -6,6 +7,12 @@ export interface FigureBandProps {
   readonly label: string;
   /** Up to five `Figure`s. */
   readonly children: React.ReactNode;
+  /**
+   * ONE tag for the whole band, when every figure in it is generated and the page's default
+   * is not (a MIXED or DERIVED page). The band's name and the tag then sit on a line above
+   * the figures; no figure in the band carries its own tag.
+   */
+  readonly tag?: Provenance;
 }
 
 /**
@@ -20,9 +27,15 @@ export interface FigureBandProps {
  * padding plus the 1px hairline) inside a clipping wrapper, so the first figure of every
  * row, wrapped rows included, starts flush with the column and shows no hairline.
  */
-export function FigureBand({ label, children }: FigureBandProps) {
+export function FigureBand({ label, children, tag }: FigureBandProps) {
   return (
     <div className="mb-6 min-w-0 overflow-hidden border-y border-depot-line">
+      {tag ? (
+        <div data-testid="depot-figure-band-head" className="flex min-w-0 items-center gap-2 pt-2">
+          <span className="depot-label truncate leading-4">{label}</span>
+          <ProvenanceBadge provenance={tag} pill />
+        </div>
+      ) : null}
       <ul
         aria-label={label}
         data-testid="depot-figure-band"
@@ -51,7 +64,17 @@ export interface FigureProps {
    * assistive technology. The closing disclosure keeps the explanation too.
    */
   readonly title?: string;
+  /** Makes the whole figure a link (a count that leads to its list). */
+  readonly href?: string;
+  /** Makes the whole figure a toggle button (a count that filters the page); see `pressed`. */
+  readonly onPress?: () => void;
+  /** With `onPress`: whether the toggle is on. Said to assistive technology, never colour alone. */
+  readonly pressed?: boolean;
 }
+
+const INTERACTIVE =
+  '-mx-2 block min-w-0 rounded-[3px] px-2 text-left hover:bg-depot-raised ' +
+  'focus-visible:outline focus-visible:outline-1 focus-visible:outline-holo-glow';
 
 const clampShare = (share: number): number =>
   Number.isFinite(share) ? Math.min(1, Math.max(0, share)) : 0;
@@ -62,39 +85,63 @@ const clampShare = (share: number): number =>
  * hero number.
  */
 export function Figure(props: FigureProps) {
-  const { label, value, caption, tag, share, hero = false, title } = props;
+  const { label, value, caption, tag, share, hero = false, title, href, onPress, pressed } = props;
+  // Inside a link or a button only phrasing content is valid, so the parts are spans there.
+  const interactive = href !== undefined || onPress !== undefined;
+  const Row = interactive ? 'span' : 'div';
+  const Caption = interactive ? 'span' : 'p';
+  const body = (
+    <>
+      <Row className="flex min-w-0 items-center gap-2">
+        <Row className="depot-label block truncate leading-4" title={label}>
+          {label}
+        </Row>
+        {tag ? <ProvenanceBadge provenance={tag} /> : null}
+      </Row>
+      <Row
+        className={`mt-1.5 block truncate ${
+          hero ? 'depot-hero-numeral' : 'font-mono text-2xl tabular-nums leading-7 text-depot-ink'
+        }`}
+      >
+        {value}
+      </Row>
+      {share !== undefined ? (
+        <Row className="depot-bar-track mt-2 block min-w-0" aria-hidden>
+          <Row
+            className="depot-bar-fill block"
+            data-testid="depot-figure-share"
+            style={{ width: `${Math.round(clampShare(share) * 100)}%` }}
+          />
+        </Row>
+      ) : null}
+      {caption ? (
+        <Caption className="depot-caption mt-1.5 block truncate" title={caption}>
+          {caption}
+        </Caption>
+      ) : null}
+    </>
+  );
   return (
     <li
       title={title}
       className="min-w-0 list-none border-l border-depot-line px-4 lg:w-[200px] lg:flex-none xl:w-[232px]"
     >
-      <div className="flex min-w-0 items-center gap-2">
-        <div className="depot-label truncate leading-4" title={label}>
-          {label}
-        </div>
-        {tag ? <ProvenanceBadge provenance={tag} /> : null}
-      </div>
-      <div
-        className={`mt-1.5 truncate ${
-          hero ? 'depot-hero-numeral' : 'font-mono text-2xl tabular-nums leading-7 text-depot-ink'
-        }`}
-      >
-        {value}
-      </div>
-      {share !== undefined ? (
-        <div className="depot-bar-track mt-2 min-w-0" aria-hidden>
-          <div
-            className="depot-bar-fill"
-            data-testid="depot-figure-share"
-            style={{ width: `${Math.round(clampShare(share) * 100)}%` }}
-          />
-        </div>
-      ) : null}
-      {caption ? (
-        <p className="depot-caption mt-1.5 truncate" title={caption}>
-          {caption}
-        </p>
-      ) : null}
+      {href !== undefined ? (
+        <Link href={href} className={INTERACTIVE}>
+          {body}
+        </Link>
+      ) : onPress !== undefined ? (
+        <button
+          type="button"
+          aria-pressed={pressed ?? false}
+          onClick={onPress}
+          className={`${INTERACTIVE} w-[calc(100%+1rem)] ${pressed ? 'bg-depot-raised' : ''}`}
+        >
+          {body}
+        </button>
+      ) : (
+        body
+      )}
       {title ? <p className="sr-only">{title}</p> : null}
     </li>
   );
