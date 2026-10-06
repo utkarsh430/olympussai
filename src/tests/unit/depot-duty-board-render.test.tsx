@@ -113,9 +113,10 @@ describe('DutyBoard', () => {
     expect(table).not.toBeNull();
     expect(container.querySelector('[data-testid="duty-row"]')).toBeNull();
     const headers = [...(table?.querySelectorAll('th') ?? [])].map((th) => th.textContent);
-    expect(headers).toEqual(
-      expect.arrayContaining(['Route (MODELLED)', 'Start (MODELLED)', 'End (MODELLED)']),
-    );
+    // A sorted header carries an arrow after its name, so match on the name.
+    for (const name of ['Route (MODELLED)', 'Start (MODELLED)', 'End (MODELLED)']) {
+      expect(headers.some((h) => h?.startsWith(name))).toBe(true);
+    }
     const body = [...(table?.querySelectorAll('tbody tr') ?? [])].map((tr) => tr.textContent);
     expect(body).toHaveLength(3);
     expect(body[0]).toContain('Assigned');

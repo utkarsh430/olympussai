@@ -50,7 +50,16 @@ describe('axis', () => {
   it('has a tick every two hours with labels', () => {
     const ticks = axisTicks();
     expect(ticks.map((t) => t.label)).toEqual([
-      '04:00', '06:00', '08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00',
+      '04:00',
+      '06:00',
+      '08:00',
+      '10:00',
+      '12:00',
+      '14:00',
+      '16:00',
+      '18:00',
+      '20:00',
+      '22:00',
       '24:00',
     ]);
     expect(ticks[0]?.leftPct).toBe(0);
@@ -98,7 +107,7 @@ describe('barGeometry', () => {
 
 describe('now line', () => {
   it('reads the wall-clock digits of the feed time, with no time zone shift', () => {
-    expect(nowLinePct('2026-10-06T10:00:00Z')).toBe(((600 - 240) / 1200) * 100);
+    expect(nowLinePct('2026-10-06T10:00:00Z')).toBe(30);
     expect(nowLinePct('2026-10-06 04:00:00')).toBe(0);
   });
 
@@ -179,7 +188,7 @@ describe('sentences', () => {
     );
   });
 
-  it('states the cost in the assignment module\'s own terms', () => {
+  it("states the cost in the assignment module's own terms", () => {
     expect(COST_SENTENCE).toBe(
       'The matching minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses. A bus is never matched to a duty of another service class.',
     );
@@ -226,9 +235,7 @@ describe('sentences', () => {
   it('describes why an unassigned duty has no bus', () => {
     const base = duty({ registrationNumber: null, state: 'no_bus' });
     expect(reasonSentence(duty())).toBeNull();
-    expect(
-      reasonSentence({ ...base, blockers: { notInYard: 2, offRoad: 1, dark: 0 } }),
-    ).toBe(
+    expect(reasonSentence({ ...base, blockers: { notInYard: 2, offRoad: 1, dark: 0 } })).toBe(
       'No free ordinary bus. Held out of the matching: 2 not in the yard, 1 off road. Every other ordinary bus is on another duty.',
     );
     expect(reasonSentence({ ...base, blockers: { notInYard: 0, offRoad: 0, dark: 0 } })).toBe(
