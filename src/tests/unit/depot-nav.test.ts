@@ -33,11 +33,17 @@ describe('NETWORK_NAV', () => {
   });
 
   it('links every network page that exists, each once', () => {
-    expect(NETWORK_NAV.map((group) => group.heading)).toEqual(['Network', 'System']);
+    expect(NETWORK_NAV.map((group) => group.heading)).toEqual([
+      'Network',
+      'Intelligence',
+      'System',
+    ]);
     expect(items.map((item) => [item.label, item.href])).toEqual([
       ['Overview', '/project/depots'],
       ['League table', '/project/depots/league'],
+      ['Fleet distribution', '/project/depots/rebalance'],
       ['Exceptions', '/project/depots/exceptions'],
+      ['Ask', '/project/depots/ask'],
       ['Data sources', '/project/depots/sources'],
     ]);
     expect(new Set(items.map((item) => item.href)).size).toBe(items.length);
