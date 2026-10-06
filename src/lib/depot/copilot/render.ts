@@ -13,6 +13,7 @@ import {
   SIGN_MARKS,
 } from '@/lib/depot/copilot/limits';
 import type { CopilotDraft, CopilotFact } from '@/lib/depot/copilot/types';
+import { INVISIBLE_CHARACTERS } from '@/lib/depot/copilot/unsafeText';
 
 export type RenderResult =
   | {
@@ -58,11 +59,8 @@ const LINK = /www\.|:\/\/|mailto|javascript|[A-Za-z]\.[A-Za-z]/i;
 
 const fail = (reason: string): RenderResult => ({ ok: false, reason });
 
-const UNSAFE_CHARS = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}]/gu;
 /** No figure or depot name needs these; full-width forms normalise into them under NFKC. */
 const MARKUP_CHARS = /[<>`{}[\]]/g;
-/** Invisible fillers the category strip misses: Hangul fillers, braille blank, CGJ, Khmer, variation selectors. */
-const INVISIBLE_FILLERS = /[ㅤᅠ⠀͏឴឵︀-️]/g;
 
 const FUSED_PLACEHOLDERS = /\}\}[^A-Za-z\s]*\{\{/;
 const SIGNED_PLACEHOLDER = new RegExp(`(?:^|[\\s(])[${inClass(SIGN_MARKS)}]\\{\\{`);
@@ -83,17 +81,17 @@ function isConcatenatedNumber(token: string): boolean {
 
 /**
  * Makes feed-derived text safe to show or prompt with: NFKC, whitespace
- * collapsed first (so a newline becomes a space), then control, format
- * (bidi, zero-width, tag block), private-use, unassigned and surrogate
- * characters removed, then capped by code point.
+ * collapsed first (so a newline becomes a space), then every character in the
+ * shared INVISIBLE_CHARACTERS list and the markup characters removed, then
+ * capped by code point at a word boundary with an ellipsis inside the cap,
+ * never splitting a surrogate pair or a base character from its marks.
  */
 export function sanitizeFactText(text: string, maxChars: number = MAX_FACT_TEXT_CHARS): string {
   const cleaned = text
     .normalize('NFKC')
     .replace(/\s+/g, ' ')
-    .replace(UNSAFE_CHARS, '')
+    .replace(INVISIBLE_CHARACTERS, '')
     .replace(MARKUP_CHARS, '')
-    .replace(INVISIBLE_FILLERS, '')
     .replace(/\s+/g, ' ')
     .trim();
   const chars = Array.from(cleaned);

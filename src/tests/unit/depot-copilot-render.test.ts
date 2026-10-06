@@ -10,6 +10,11 @@ import {
   QUANTITY_WORDS,
 } from '@/lib/depot/copilot/limits';
 import { renderDraft, sanitizeFactText } from '@/lib/depot/copilot/render';
+import {
+  INVISIBLE_CHARACTERS as ROUTER_INVISIBLE,
+  sanitizeQuestion,
+} from '@/lib/depot/copilot/router/sanitize';
+import { INVISIBLE_CHARACTERS } from '@/lib/depot/copilot/unsafeText';
 
 const fact = (id: string, text: string): CopilotFact => ({
   id,
@@ -346,6 +351,13 @@ describe('renderDraft', () => {
   describe('fact sanitiser gaps', () => {
     it('removes markup characters and full-width forms of them', () => {
       expect(sanitizeFactText('a<b>`c`{d}[e]＜f＞')).toBe('abcdef');
+    });
+
+    it('uses the one unsafe-character pattern the router uses', () => {
+      expect(ROUTER_INVISIBLE).toBe(INVISIBLE_CHARACTERS);
+      // U+180E was on the router's list only; one list means both strip it.
+      expect(sanitizeFactText('a᠎b')).toBe('ab');
+      expect(sanitizeQuestion('a᠎b')).toBe('ab');
     });
 
     it('removes invisible fillers and variation selectors', () => {
