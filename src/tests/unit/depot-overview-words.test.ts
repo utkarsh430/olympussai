@@ -94,9 +94,9 @@ describe('kpiLayout', () => {
 
 describe('table wording', () => {
   it('names the table after the kind filter, with the count it shows', () => {
-    expect(tableHeading('all')).toBe('All units');
-    expect(tableHeading('depot')).toBe('Operating depots');
-    expect(tableHeading('other')).toBe('Other units');
+    expect(tableHeading('all', 143)).toBe('All units · 143');
+    expect(tableHeading('depot', 119)).toBe('Operating depots · 119');
+    expect(tableHeading('other', 1024)).toBe('Other units · 1,024');
     expect(KIND_FILTER_OPTIONS.map((o) => o.label)).toEqual(['All', 'Operating depots', 'Other units']);
   });
 

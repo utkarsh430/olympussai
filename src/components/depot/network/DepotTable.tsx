@@ -149,7 +149,7 @@ export function DepotTable({ rows, selectedId, onSelect }: DepotTableProps) {
     <section aria-labelledby="depot-table-heading" data-testid="depot-table-section">
       <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
         <h2 id="depot-table-heading" className="depot-section-label !mb-0">
-          {tableHeading(filter)} <span className="text-depot-muted">· {visible.length}</span>
+          {tableHeading(filter, visible.length)}
         </h2>
         <div role="group" aria-label="Filter by kind" className="flex flex-wrap gap-1.5">
           {KIND_FILTER_OPTIONS.map((option) => (

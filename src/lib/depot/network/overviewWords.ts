@@ -109,8 +109,9 @@ const HEADING: Readonly<Record<KindFilter, string>> = {
   other: 'Other units',
 };
 
-export function tableHeading(filter: KindFilter): string {
-  return HEADING[filter];
+/** "All units · 143": the kind filter names the table and the count is what it shows. */
+export function tableHeading(filter: KindFilter, count: number): string {
+  return `${HEADING[filter]} · ${formatCount(count)}`;
 }
 
 export type TableColumnKey =
