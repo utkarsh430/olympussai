@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import type { Ref } from 'react';
 import { DEFAULT_REBALANCE_PARAMS, DEFAULT_SPARE_RATIO } from '@/lib/depot/optimise/config';
+import { FIELD_LABELS } from '@/lib/depot/rebalance/scenarioFields';
 import {
   parseBusDelta,
   parseDistanceKm,
   parseSparePercent,
   parseSurgePercent,
-  type ParseResult,
 } from '@/lib/depot/rebalance/scenarioParsers';
 import {
   withExcluded,
@@ -20,248 +20,135 @@ import {
   withoutSurge,
   type ScenarioFormState,
 } from '@/lib/depot/rebalance/scenarioForm';
+import { ActiveList } from './ActiveList';
+import { DepotValueField } from './DepotValueField';
+import { NumberField } from './NumberField';
+import type { DepotOption } from './useDistributionView';
 
-export interface DepotOption {
-  readonly id: string;
-  readonly name: string;
-}
+type Update = (form: ScenarioFormState) => ScenarioFormState;
 
 export interface ScenarioPanelProps {
   readonly form: ScenarioFormState;
-  readonly onChange: (next: ScenarioFormState) => void;
+  /** Receives a function so a late commit always builds on the latest form. */
+  readonly onChange: (update: Update) => void;
   readonly onReset: () => void;
-  /** Operating depots, by name. */
   readonly depots: readonly DepotOption[];
-  /** `runScenario`'s notes on inputs it had to clamp, shown verbatim. */
-  readonly clamped: readonly string[];
+  /** The optimiser's clamp notes, already in the planner's units and depot names. */
+  readonly clampNotes: readonly string[];
+  /** Focus lands here after a reset, so keyboard users keep their place. */
+  readonly headingRef: Ref<HTMLHeadingElement>;
 }
 
-function NumberField(props: {
-  readonly id: string;
-  readonly label: string;
-  readonly placeholder: string;
-  readonly parse: (raw: string) => ParseResult;
-  readonly onValue: (value: number | null) => void;
-}) {
-  const [text, setText] = useState('');
-  const [error, setError] = useState('');
-  return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <label htmlFor={props.id} className="depot-label">
-        {props.label}
-      </label>
-      <input
-        id={props.id}
-        type="text"
-        inputMode="decimal"
-        placeholder={props.placeholder}
-        value={text}
-        aria-invalid={error !== ''}
-        aria-describedby={error ? `${props.id}-error` : undefined}
-        onChange={(e) => {
-          setText(e.target.value);
-          if (e.target.value.trim() === '') {
-            setError('');
-            props.onValue(null);
-            return;
-          }
-          const result = props.parse(e.target.value);
-          setError(result.ok ? '' : result.error);
-          if (result.ok) props.onValue(result.value);
-        }}
-        className="depot-field w-32"
-      />
-      {error ? (
-        <p id={`${props.id}-error`} className="text-[11px] text-alert-amber">
-          {error}
-        </p>
-      ) : null}
-    </div>
-  );
-}
+const PERCENT = 100;
 
-function DepotValue(props: {
-  readonly id: string;
-  readonly legend: string;
-  readonly valueLabel: string;
-  readonly placeholder: string;
-  readonly depots: readonly DepotOption[];
-  readonly parse?: (raw: string) => ParseResult;
-  readonly action: string;
-  readonly onApply: (depotId: string, value: number) => void;
-}) {
-  const [depotId, setDepotId] = useState('');
-  const [text, setText] = useState('');
-  const [error, setError] = useState('');
-  function apply(): void {
-    if (!depotId) return setError('Choose a depot.');
-    const result = props.parse ? props.parse(text) : ({ ok: true, value: 0 } as const);
-    if (!result.ok) return setError(result.error);
-    setError('');
-    setText('');
-    props.onApply(depotId, result.value);
-  }
-  return (
-    <fieldset className="flex min-w-0 flex-wrap items-end gap-2">
-      <legend className="depot-label mb-1">{props.legend}</legend>
-      <label className="flex min-w-0 flex-col gap-1">
-        <span className="sr-only">Depot for {props.legend.toLowerCase()}</span>
-        <select
-          className="depot-field max-w-[220px]"
-          value={depotId}
-          onChange={(e) => setDepotId(e.target.value)}
-        >
-          <option value="">Choose a depot</option>
-          {props.depots.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      {props.parse ? (
-        <label className="flex flex-col gap-1">
-          <span className="sr-only">{props.valueLabel}</span>
-          <input
-            id={props.id}
-            type="text"
-            placeholder={props.placeholder}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            className="depot-field w-24"
-          />
-        </label>
-      ) : null}
-      <button type="button" className="depot-filter-button" onClick={apply}>
-        {props.action}
-      </button>
-      {error ? <p className="w-full text-[11px] text-alert-amber">{error}</p> : null}
-    </fieldset>
-  );
-}
-
-function ActiveList(props: {
-  readonly items: readonly { readonly key: string; readonly text: string }[];
-  readonly onRemove: (key: string) => void;
-}) {
-  if (props.items.length === 0) return null;
-  return (
-    <ul className="mt-1 flex flex-col gap-1">
-      {props.items.map((item) => (
-        <li key={item.key} className="flex min-w-0 items-center gap-2 text-[13px] text-depot-ink">
-          <span className="min-w-0 truncate">{item.text}</span>
-          <button
-            type="button"
-            className="depot-link text-[11px]"
-            onClick={() => props.onRemove(item.key)}
-          >
-            Remove
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
+function signed(n: number): string {
+  return n > 0 ? `+${n}` : `−${Math.abs(n)}`;
 }
 
 /**
- * The what-if form. Every change re-plans in this browser; nothing is sent.
- * Values are passed on as typed: the engine clamps, and says so below.
+ * The what-if form. A committed change re-plans in this browser; nothing is
+ * sent. Values pass on as typed: the optimiser clamps, and says so below.
  */
-export function ScenarioPanel({ form, onChange, onReset, depots, clamped }: ScenarioPanelProps) {
+export function ScenarioPanel(props: ScenarioPanelProps) {
+  const { form, onChange, onReset, depots, clampNotes, headingRef } = props;
   const nameOf = (id: string): string => depots.find((d) => d.id === id)?.name ?? id;
-  const signed = (n: number): string => (n > 0 ? `+${n}` : `−${Math.abs(n)}`);
+  const list = (
+    items: readonly { key: string; text: string }[],
+    remove: (id: string) => Update,
+  ) => <ActiveList items={items} onRemove={(id) => onChange(remove(id))} />;
   return (
     <section aria-labelledby="rebalance-sandbox-heading" data-testid="rebalance-sandbox">
-      <h2 id="rebalance-sandbox-heading" className="depot-section-label">
+      <h2
+        id="rebalance-sandbox-heading"
+        ref={headingRef}
+        tabIndex={-1}
+        className="depot-section-label scroll-mt-40"
+      >
         What-if sandbox
       </h2>
       <p className="depot-prose mb-3 text-xs">
-        Change an assumption and the plan is recomputed here in your browser. Nothing is sent and
-        nothing is dispatched.
+        Change an assumption and the plan is recomputed here in your browser once you pause, leave
+        the field or press Enter. Nothing is sent and nothing is dispatched.
       </p>
       <form className="depot-panel flex flex-col gap-4 p-4" onSubmit={(e) => e.preventDefault()}>
         <div className="flex flex-wrap gap-4">
           <NumberField
             id="scenario-spare"
-            label="Spare ratio, %"
-            placeholder={`${DEFAULT_SPARE_RATIO * 100} (default)`}
+            label={FIELD_LABELS.spare}
+            placeholder={`${DEFAULT_SPARE_RATIO * PERCENT} (default)`}
             parse={parseSparePercent}
-            onValue={(v) => onChange(withSparePercent(form, v))}
+            onCommit={(v) => onChange((f) => withSparePercent(f, v))}
           />
           <NumberField
             id="scenario-distance"
-            label="Maximum transfer distance, km"
+            label={FIELD_LABELS.distance}
             placeholder={`${DEFAULT_REBALANCE_PARAMS.maxTransferKm} (default)`}
             parse={parseDistanceKm}
-            onValue={(v) => onChange(withMaxTransferKm(form, v))}
+            onCommit={(v) => onChange((f) => withMaxTransferKm(f, v))}
           />
         </div>
-        <DepotValue
+        <DepotValueField
           id="scenario-lock"
           legend="Lock a depot (it may receive but never give)"
-          valueLabel=""
-          placeholder=""
           depots={depots}
-          action="Lock"
-          onApply={(id) => onChange(withLocked(form, id, true))}
+          action={{ label: 'Lock', onApply: (id) => onChange((f) => withLocked(f, id, true)) }}
         />
-        <ActiveList
-          items={form.lockedDepotIds.map((id) => ({ key: id, text: `${nameOf(id)} locked` }))}
-          onRemove={(id) => onChange(withLocked(form, id, false))}
-        />
-        <DepotValue
+        {list(
+          form.lockedDepotIds.map((id) => ({ key: id, text: `${nameOf(id)} locked` })),
+          (id) => (f) => withLocked(f, id, false),
+        )}
+        <DepotValueField
           id="scenario-exclude"
           legend="Exclude a depot (it neither gives nor receives)"
-          valueLabel=""
-          placeholder=""
           depots={depots}
-          action="Exclude"
-          onApply={(id) => onChange(withExcluded(form, id, true))}
+          action={{ label: 'Exclude', onApply: (id) => onChange((f) => withExcluded(f, id, true)) }}
         />
-        <ActiveList
-          items={form.excludedDepotIds.map((id) => ({ key: id, text: `${nameOf(id)} excluded` }))}
-          onRemove={(id) => onChange(withExcluded(form, id, false))}
-        />
-        <DepotValue
+        {list(
+          form.excludedDepotIds.map((id) => ({ key: id, text: `${nameOf(id)} excluded` })),
+          (id) => (f) => withExcluded(f, id, false),
+        )}
+        <DepotValueField
           id="scenario-fleet"
           legend="Add or remove buses at a depot"
-          valueLabel="Change in buses, such as +12 or -5"
-          placeholder="+12 or -5"
           depots={depots}
-          parse={parseBusDelta}
-          action="Apply"
-          onApply={(id, v) => onChange(withFleetAdjustment(form, id, v))}
+          value={{
+            label: FIELD_LABELS.fleet,
+            placeholder: '+12 or -5',
+            parse: parseBusDelta,
+            onCommit: (id, v) => onChange((f) => withFleetAdjustment(f, id, v)),
+          }}
         />
-        <ActiveList
-          items={form.fleetAdjustments.map((a) => ({
+        {list(
+          form.fleetAdjustments.map((a) => ({
             key: a.depotId,
             text: `${nameOf(a.depotId)} ${signed(a.deltaBuses)} buses`,
-          }))}
-          onRemove={(id) => onChange(withoutFleetAdjustment(form, id))}
-        />
-        <DepotValue
+          })),
+          (id) => (f) => withoutFleetAdjustment(f, id),
+        )}
+        <DepotValueField
           id="scenario-surge"
-          legend="Demand surge at a depot, %"
-          valueLabel="Change in peak demand, percent"
-          placeholder="+15 or -10"
+          legend="Demand change at a depot"
           depots={depots}
-          parse={parseSurgePercent}
-          action="Apply"
-          onApply={(id, v) => onChange(withSurge(form, id, v))}
+          value={{
+            label: FIELD_LABELS.surge,
+            placeholder: '+15 or -10',
+            parse: parseSurgePercent,
+            onCommit: (id, v) => onChange((f) => withSurge(f, id, v)),
+          }}
         />
-        <ActiveList
-          items={form.demandSurges.map((s) => ({
+        {list(
+          form.demandSurges.map((s) => ({
             key: s.depotId,
             text: `${nameOf(s.depotId)} demand ${signed(s.percent)}%`,
-          }))}
-          onRemove={(id) => onChange(withoutSurge(form, id))}
-        />
+          })),
+          (id) => (f) => withoutSurge(f, id),
+        )}
         <div role="status" aria-live="polite">
-          {clamped.length ? (
+          {clampNotes.length ? (
             <div className="border-l-2 border-alert-amber pl-3">
-              <p className="depot-label text-alert-amber">Inputs the planner adjusted</p>
+              <p className="depot-label text-alert-amber">Inputs the optimiser adjusted</p>
               <ul className="mt-1 list-none text-[13px] text-depot-ink">
-                {clamped.map((note) => (
+                {clampNotes.map((note) => (
                   <li key={note}>{note}</li>
                 ))}
               </ul>
@@ -270,7 +157,7 @@ export function ScenarioPanel({ form, onChange, onReset, depots, clamped }: Scen
         </div>
         <div>
           <button type="button" className="hud-button" onClick={onReset}>
-            Reset to baseline
+            Reset to the server plan
           </button>
         </div>
       </form>

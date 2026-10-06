@@ -79,7 +79,7 @@ export function ScenarioCompare({ delta, baseline, scenario }: ScenarioComparePr
       <div className="depot-table-frame max-h-none">
         <table className="depot-table">
           <caption className="sr-only">
-            The server's modelled plan compared with the what-if plan, also modelled
+            The server&apos;s modelled plan compared with the what-if plan, also modelled
           </caption>
           <thead>
             <tr>
