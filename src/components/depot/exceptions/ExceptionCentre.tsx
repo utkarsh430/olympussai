@@ -7,6 +7,7 @@ import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/D
 import { EXCEPTION_KIND_LABEL, describeEmptyBusList } from '@/lib/depot/exceptions/describe';
 import type { BusExceptionKind } from '@/lib/depot/exceptions/types';
 import { formatCount } from '@/lib/depot/format';
+import { UNASSIGNED_DEPOT_ID } from '@/lib/depot/types';
 import { BusExceptionTable } from './BusExceptionTable';
 import { DepotExceptionList } from './DepotExceptionList';
 import { ExceptionCounts } from './ExceptionCounts';
@@ -18,7 +19,6 @@ const BUS_KINDS: readonly BusExceptionKind[] = [
   'emergency',
 ];
 const ANY = 'any';
-const NO_DEPOT = 'none';
 
 function isBusKind(value: string): value is BusExceptionKind {
   return BUS_KINDS.some((kind) => kind === value);
@@ -38,7 +38,7 @@ export function ExceptionCentre() {
     const byId = new Map<string, string>();
     for (const d of network.data?.depots ?? []) byId.set(d.id, d.name);
     for (const row of bus) {
-      const id = row.depotId ?? NO_DEPOT;
+      const id = row.depotId ?? UNASSIGNED_DEPOT_ID;
       if (!byId.has(id)) byId.set(id, row.depotName ?? 'No home depot');
     }
     return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1], 'en'));
@@ -51,7 +51,7 @@ export function ExceptionCentre() {
     () =>
       bus.filter(
         (row) =>
-          (kind === ANY || row.kind === kind) && (depot === ANY || (row.depotId ?? NO_DEPOT) === depot),
+          (kind === ANY || row.kind === kind) && (depot === ANY || (row.depotId ?? UNASSIGNED_DEPOT_ID) === depot),
       ),
     [bus, kind, depot],
   );
