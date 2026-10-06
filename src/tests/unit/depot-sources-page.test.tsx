@@ -87,6 +87,60 @@ describe('the data sources page', () => {
     Element.prototype.scrollIntoView = original;
   });
 
+  it('opens the hash row on first render and scrolls its anchor only once the coverage above has loaded', () => {
+    const scrolled = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrolled;
+    window.history.replaceState({}, '', '/project/depots/sources#feed-fuel');
+    net.value = { data: null, error: null, loading: true };
+    act(() => root.render(<SourcesRegistry />));
+    // Open without any toggle being clicked, but not scrolled while the block above still loads.
+    expect(container.querySelector('#feed-fuel')?.closest('tr')?.querySelector('button[aria-expanded="true"]')).not.toBeNull();
+    expect(scrolled).not.toHaveBeenCalled();
+    net.value = { data: DATA, error: null, loading: false };
+    act(() => root.render(<SourcesRegistry />));
+    expect(scrolled).toHaveBeenCalledTimes(1);
+    expect(scrolled.mock.contexts[0]).toBe(container.querySelector('#feed-fuel'));
+    // The anchor lands below the sticky layers through the shell's custom property.
+    expect(container.querySelector('#feed-fuel')?.className).toContain('scroll-mt-[var(--depot-anchor-mt)]');
+    Element.prototype.scrollIntoView = original;
+    window.history.replaceState({}, '', '/project/depots/sources');
+  });
+
+  it('keeps each coverage figure on one line, its share in its own column, and the exclusion definition as a note', () => {
+    net.value = {
+      data: {
+        ...DATA,
+        recordCount: 10012,
+        depots: [{ id: 'a', name: 'A', kind: 'depot', fleet: 10007 }],
+        coverage: [{ field: 'gps', label: 'Position', populated: 10007, of: 10007 }],
+      },
+      error: null,
+      loading: false,
+    };
+    act(() => root.render(<SourcesRegistry />));
+    const row = container.querySelector('[data-testid="depot-coverage-bars"] li');
+    const cells = Array.from(row?.children ?? []).map((c) => c.textContent);
+    expect(cells).toContain('10,007 of 10,007');
+    expect(cells).toContain('100%');
+    const figure = Array.from(row?.children ?? []).find((c) => c.textContent === '10,007 of 10,007');
+    expect(figure?.className).toContain('whitespace-nowrap');
+    expect(container.querySelector('[data-testid="depot-records-sentence"]')?.textContent).toBe(
+      '10,012 records received · 5 excluded · 10,007 buses counted.',
+    );
+    expect(container.querySelector('[data-testid="depot-exclusion-note"]')?.textContent).toMatch(
+      /^Excluded: an entry that is not a record at all/,
+    );
+  });
+
+  it('never prints a raw ISO date in its text or attributes', () => {
+    act(() => root.render(<SourcesRegistry />));
+    const attrs = Array.from(container.querySelectorAll('*')).flatMap((el) =>
+      Array.from(el.attributes).map((a) => a.value),
+    );
+    expect([container.textContent ?? '', ...attrs].join(' ')).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
   it('says on the GPS row, in one line, when rows ran ahead of the server clock', () => {
     net.value = { data: { ...DATA, feedClockAheadRows: 3 }, error: null, loading: false };
     act(() => root.render(<SourcesRegistry />));

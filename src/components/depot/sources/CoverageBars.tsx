@@ -14,7 +14,8 @@ const WORD_TONE: Readonly<Record<CoverageWord, string>> = {
  * a clipped track with no margin, so 100% ends exactly where the track does.
  */
 const ROW_GRID =
-  'grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 sm:grid-cols-[9rem_minmax(0,1fr)_14rem_4.5rem] sm:items-center';
+  'grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 ' +
+  'sm:grid-cols-[9rem_minmax(0,1fr)_200px_56px_4.5rem] sm:items-center';
 
 /**
  * How many buses populate each field, most complete first. The exact count is
@@ -39,8 +40,12 @@ export function CoverageBars({ coverage }: { readonly coverage: readonly FieldCo
           <span aria-hidden className="depot-bar-track col-span-2 overflow-hidden sm:col-span-1">
             <span className="depot-bar-fill" style={{ width: `${row.share * 100}%` }} />
           </span>
-          <span className="col-span-2 font-mono text-[13px] tabular-nums text-depot-muted sm:col-span-1 sm:text-right">
-            {row.text}
+          {/* Count and share in fixed nowrap columns, so every row is one 20px line. */}
+          <span className="whitespace-nowrap font-mono text-[13px] tabular-nums text-depot-muted sm:text-right">
+            {row.count}
+          </span>
+          <span className="whitespace-nowrap text-right font-mono text-[13px] tabular-nums text-depot-muted">
+            {row.percentText}
           </span>
         </li>
       ))}

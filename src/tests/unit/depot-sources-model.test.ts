@@ -6,6 +6,7 @@ import {
   clockAheadSentence,
   coverageRows,
   fieldsExpandLabel,
+  exclusionNote,
   recordsSentence,
   schemaSummary,
 } from '@/lib/depot/sources/sourcesModel';
@@ -39,15 +40,18 @@ describe('feed row words (round 2)', () => {
 
 describe('recordsSentence', () => {
   it('reconciles records received with buses counted, giving the reason from the normaliser', () => {
-    expect(recordsSentence(9993, 9989)).toBe(
-      '9,993 records received · 4 excluded (an entry that is not a record at all, a record ' +
-        'with no registration number, or a repeat of a registration already received, where ' +
-        'the newest GPS time is kept) · 9,989 buses counted',
+    // The definition is a note under the line (moved, not removed): the lead stays one line.
+    expect(recordsSentence(9993, 9989)).toBe('9,993 records received · 4 excluded · 9,989 buses counted');
+    expect(exclusionNote(9993, 9989)).toBe(
+      'Excluded: an entry that is not a record at all, a record with no registration number, ' +
+        'or a repeat of a registration already received, where the newest GPS time is kept.',
     );
+    expect(exclusionNote(9989, 9989)).toBeNull();
+    expect(exclusionNote(10, 12)).toBeNull();
   });
 
   it('says one record in the singular', () => {
-    expect(recordsSentence(11, 10)).toMatch(/^11 records received · 1 excluded \(/);
+    expect(recordsSentence(11, 10)).toBe('11 records received · 1 excluded · 10 buses counted');
   });
 
   it('says every record is a bus when nothing is excluded', () => {
@@ -71,7 +75,7 @@ describe('recordsSentence', () => {
     const result = normalizeDepotRows(payload);
     expect(result.recordCount - result.rows.length).toBe(3);
     expect(recordsSentence(result.recordCount, result.rows.length)).toMatch(
-      /^5 records received · 3 excluded \(an entry that is not a record at all/,
+      /^5 records received · 3 excluded · /,
     );
   });
 
@@ -104,7 +108,8 @@ describe('coverageRows', () => {
       ['Route', 'Sparse', 22],
       ['Delay', 'Sparse', 19],
     ]);
-    expect(rows[2]?.text).toBe('50 of 100 buses (50%)');
+    // The count and the share sit in their own fixed columns, so neither wraps.
+    expect(rows[2]).toMatchObject({ count: '50 of 100', share: 0.5, percentText: '50%' });
   });
 
   it('never calls a nearly complete field complete', () => {
