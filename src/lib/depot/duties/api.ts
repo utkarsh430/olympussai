@@ -18,6 +18,11 @@ export interface DutyBlockers {
    * is no yard: this then counts buses that are not standing on a recent report.
    */
   readonly notInYard: number;
+  /**
+   * Not heard within the reporting window, moving or standing (ruling S55).
+   * Always sent; zero when the feed has no clock (`recencyNotJudged`).
+   */
+  readonly notHeard?: number;
   readonly offRoad: number;
   readonly dark: number;
 }
@@ -77,6 +82,11 @@ export interface DutyBoardResponse extends DepotFeedEnvelope {
    * eligibility: every standing bus heard recently was eligible. Always sent.
    */
   readonly eligibilityIgnoredLocation?: boolean;
+  /**
+   * True when the feed has no clock, so no bus's last report could be aged and
+   * recency did not decide eligibility (ruling S55). Always sent.
+   */
+  readonly recencyNotJudged?: boolean;
   /** Feed rows left out because their registration repeated an earlier row's. Always sent. */
   readonly duplicateRowsDropped?: number;
 }
