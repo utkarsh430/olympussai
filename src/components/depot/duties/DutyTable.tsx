@@ -1,10 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
+import { Pager } from '@/components/depot/shell/LongLists';
+import { PAGE_ROWS, pageRange } from '@/lib/depot/listPaging';
 import { rosterBusHref } from '@/lib/depot/depotNav';
 import { formatMinute, type BoardRow } from '@/lib/depot/duties/dutyBoardModel';
+import { DutyDetail } from './DutyDetail';
 
 export interface DutyTableProps {
   readonly depotId: string;
@@ -13,34 +16,36 @@ export interface DutyTableProps {
 
 const DASH = '—';
 
+/**
+ * State and Bus are the matching, a model beside a real registration on a MIXED page,
+ * so their headers carry the MODELLED tag (ruling S51). Bus now is the bus's live state.
+ * The class cell names the bus's class only where it differs ("Ordinary · Express bus").
+ */
 function buildColumns(depotId: string): readonly Column<BoardRow>[] {
   return [
-    { key: 'route', header: 'Route', sortValue: (r) => r.routeName, render: (r) => r.routeName },
+    { key: 'route', header: 'Route', render: (r) => r.routeName },
     {
       key: 'class',
       header: 'Class',
-      sortValue: (r) => r.serviceClass,
-      render: (r) => r.serviceClass,
+      render: (r) => (r.busClassWord === null ? r.classWord : `${r.classWord} · ${r.busClassWord} bus`),
     },
     {
       key: 'start',
       header: 'Start',
-      sortValue: (r) => r.startMin,
       render: (r) => formatMinute(r.startMin),
     },
+    { key: 'end', header: 'End', render: (r) => formatMinute(r.endMin) },
     {
-      key: 'end',
-      header: 'End',
-      sortValue: (r) => r.endMin,
-      render: (r) => formatMinute(r.endMin),
+      key: 'state',
+      header: 'State',
+      tag: 'modelled',
+      render: (r) => r.stateWord,
     },
-    { key: 'state', header: 'State', sortValue: (r) => r.stateWord, render: (r) => r.stateWord },
     {
       key: 'bus',
       header: 'Bus',
-      sortValue: (r) => r.registrationNumber,
-      title: (r) =>
-        r.registrationNumber === null ? 'No bus is proposed for this duty' : undefined,
+      tag: 'modelled',
+      title: (r) => (r.registrationNumber === null ? 'No bus is matched to this duty' : undefined),
       render: (r) =>
         r.registrationNumber === null ? (
           DASH
@@ -53,34 +58,42 @@ function buildColumns(depotId: string): readonly Column<BoardRow>[] {
           </Link>
         ),
     },
+    {
+      key: 'now',
+      header: 'Bus now',
+      title: (r) => (r.standingWord === null ? 'No bus is matched to this duty' : undefined),
+      render: (r) => r.standingWord ?? DASH,
+    },
   ];
 }
 
-/**
- * The same rows as the chart. No sentence sits in a cell: a row's expander opens its
- * full text, with the reason an unmatched duty has no bus, in a full-width row beneath.
- */
-function rowDetail(row: BoardRow): React.ReactNode {
-  const text = `${row.ariaLabel}${row.reason === null ? '' : ` ${row.reason}`}`;
-  return <p data-testid="duty-row-detail">{text}</p>;
-}
+const rowDetail = (row: BoardRow): React.ReactNode => <DutyDetail row={row} />;
 
+/**
+ * The same rows as the chart, in its order (by start), 25 to a page with the shared
+ * pager; not sortable, since a sort within one page would misstate the order. A row's
+ * expander opens the duty in full beneath it.
+ */
 export function DutyTable({ depotId, rows }: DutyTableProps) {
   const columns = useMemo(() => buildColumns(depotId), [depotId]);
+  const [requested, setRequested] = useState(0);
+  const range = pageRange(requested, rows.length, PAGE_ROWS);
   return (
     <div className="min-w-0">
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={rows.slice(range.start, range.end)}
         rowKey={(r) => r.id}
-        caption="Modelled duties and the buses proposed for them"
-        initialSort={{ key: 'start', direction: 'asc' }}
+        caption="Modelled duties and the buses matched to them"
         fixedRows
         freezeFirstColumn
         overflowCue
         renderExpanded={rowDetail}
         expandLabel={() => 'Show this duty in full'}
       />
+      {rows.length > PAGE_ROWS ? (
+        <Pager page={range.page} total={rows.length} onPage={setRequested} />
+      ) : null}
     </div>
   );
 }
