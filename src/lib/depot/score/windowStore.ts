@@ -44,13 +44,16 @@ import {
  *    is neither read nor written, nor is the straggler run; the snapshot is
  *    scored on its own counts.
  *
- * Order. Within an epoch the store's content depends only on WHICH current
- * samples arrived, not on their order: a sample is kept exactly when it is
- * within one window of the newest feed time held. What is NOT order-free: a
- * sample counts as a straggler (and is then scored alone and never stored) by
- * the newest feed time seen when it arrives; a repeated feed time keeps the
- * last rows to arrive; and an epoch starts on the order of arrivals (three
- * stragglers in a row), after which everything before it is forgotten.
+ * Order. Within an epoch the store's stored samples depend only on WHICH
+ * current samples arrived, not on their order: a sample is kept exactly when
+ * it is within one window of the newest feed time held. What is NOT
+ * order-free: a sample counts as a straggler (and is then scored alone and
+ * never stored) by the newest feed time seen when it arrives; a repeated feed
+ * time keeps the last rows to arrive; the straggler run itself depends on
+ * order (A at T, B at T+15 min, then C at T-6 min leaves a run of one; A, C,
+ * B leaves none, with the same samples stored); so whether and when an epoch
+ * starts depends on the order of arrivals, and everything before it is then
+ * forgotten.
  *  - A process that has just started: the first snapshot is a window of one
  *    sample, so its scores equal the single-snapshot scores; `samples` says so.
  * The fixture and a stale last-good snapshot reuse one rows array, so the
