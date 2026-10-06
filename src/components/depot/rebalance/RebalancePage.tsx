@@ -26,9 +26,11 @@ import { useDecisionLog } from './useDecisionLog';
 import { useDistributionView } from './useDistributionView';
 
 export const RESET_ANNOUNCEMENT = 'Reset to the server plan';
-const STORAGE_REFUSED = 'The decision could not be recorded: this browser refused to store it.';
+const STORAGE_REFUSED =
+  'The decision could not be recorded: this browser refused to store it, and no audit event exists.';
 
-const UNDO_REFUSED = 'The undo could not be recorded: this browser refused to store it.';
+const UNDO_REFUSED =
+  'The undo could not be recorded: this browser refused to store it, and no audit event exists.';
 
 /** The fleet distribution page: live supply, modelled need, and the plan between them. */
 export function RebalancePage() {

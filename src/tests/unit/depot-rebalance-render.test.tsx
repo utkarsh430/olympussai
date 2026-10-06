@@ -123,6 +123,29 @@ describe('fleet distribution page', () => {
   });
 });
 
+describe('write order', () => {
+  it('writes no audit event and says so when storage refuses the decision slice', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota');
+    });
+    await act(async () => button('Approve').click());
+    spy.mockRestore();
+    expect(window.localStorage.getItem('upsrtc-copilot-audit-v1')).toBeNull();
+    expect(window.localStorage.getItem('depot-transfer-decisions-v1')).toBeNull();
+    const status = container.querySelector('[data-testid="rebalance-notice"] [role="status"]');
+    expect(status?.textContent).toContain('could not be recorded');
+    expect(status?.textContent).toContain('no audit event exists');
+  });
+
+  it('writes the slice and the audit event together when storage accepts', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await act(async () => button('Approve').click());
+    expect(window.localStorage.getItem('upsrtc-copilot-audit-v1')).not.toBeNull();
+    expect(window.localStorage.getItem('depot-transfer-decisions-v1')).not.toBeNull();
+  });
+});
+
 describe('decision trail keys', () => {
   it('renders entries that share an id without a duplicate-key warning', async () => {
     const item: TrailItem = {
