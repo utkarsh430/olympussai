@@ -11,11 +11,12 @@ import {
 } from '@/lib/depot/copilot/facts/answers/shared';
 import type { AnswerData } from '@/lib/depot/copilot/facts/answers';
 
-const UNCOVERED_PHRASE: Readonly<Record<UncoveredReason, string>> = {
-  no_surplus_in_range: 'no surplus lies within range',
-  insufficient_surplus: 'the surplus within range is not enough',
-  no_position: 'the depot has no known position',
-  excluded: 'the depot is excluded from the plan',
+/** A sentence of its own: "because" is not in the vocabulary (closing review M-B). */
+const UNCOVERED_SENTENCE: Readonly<Record<UncoveredReason, string>> = {
+  no_surplus_in_range: 'No surplus lies within range.',
+  insufficient_surplus: 'The surplus within range is not enough.',
+  no_position: 'The depot has no known position.',
+  excluded: 'The depot is excluded from the plan.',
 };
 
 export function transfersAnswer(data: AnswerData, depotId: string): CopilotRequest {
@@ -91,7 +92,7 @@ export function transfersAnswer(data: AnswerData, depotId: string): CopilotReque
   ];
   if (uncovered) {
     paragraphs.push(
-      `Left uncovered in the current plan: ${ph('t.uncovered')}, because ${UNCOVERED_PHRASE[uncovered.reason]}.`,
+      `Left uncovered in the current plan: ${ph('t.uncovered')}. ${UNCOVERED_SENTENCE[uncovered.reason]}`,
     );
   }
   paragraphs.push(MODELLED_NOTE);

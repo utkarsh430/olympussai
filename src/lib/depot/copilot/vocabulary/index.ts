@@ -6,6 +6,7 @@ import {
   isRomanNumeral,
 } from '@/lib/depot/copilot/vocabulary/excluded';
 import { FUNCTION_WORDS } from '@/lib/depot/copilot/vocabulary/function';
+import { JUDGEMENT_WORDS } from '@/lib/depot/copilot/vocabulary/judgement';
 import { VERBS } from '@/lib/depot/copilot/vocabulary/verbs';
 
 /**
@@ -24,11 +25,16 @@ export const MIN_STEM_LETTERS = 3;
 
 const LISTED: ReadonlySet<string> = new Set(VOCABULARY_WORDS);
 const EXCLUDED: ReadonlySet<string> = new Set(EXCLUDED_WORDS);
+const JUDGEMENT: ReadonlySet<string> = new Set(JUDGEMENT_WORDS);
 const PLAIN = /^[a-z]+$/;
 
-/** Excluded outright: a listed quantity, unit or link word, a Roman numeral, a lone letter. */
+/**
+ * Excluded outright: a listed quantity, unit or link word, a cause, blame,
+ * person or alarm word (judgement.ts), a Roman numeral, a lone letter.
+ */
 export function isExcludedWord(lower: string): boolean {
-  return EXCLUDED.has(lower) || isRomanNumeral(lower) || (lower.length === 1 && lower !== 'a');
+  if (EXCLUDED.has(lower) || JUDGEMENT.has(lower)) return true;
+  return isRomanNumeral(lower) || (lower.length === 1 && lower !== 'a');
 }
 
 const isStem = (stem: string): boolean =>

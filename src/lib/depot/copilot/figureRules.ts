@@ -25,6 +25,8 @@ export interface FactEdges {
   readonly startsWithLetter: boolean;
   /** A figure (it holds a digit, or no letter at all) and not a server-marked name. */
   readonly figure: boolean;
+  /** The depot the fact describes, where the request holds more than one (depotRule.ts). */
+  readonly depot?: string;
 }
 
 export type FigureProblem =

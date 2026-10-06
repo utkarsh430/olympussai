@@ -19,19 +19,26 @@ function sideFacts(data: AnswerData, side: 'a' | 'b', id: string): CopilotFact[]
   const score = data.network.scores.find((s) => s.depotId === id);
   const onRoad = onRoadCount(depot.states);
   const facts = [
-    nameFact(`${side}.name`, 'Depot', cleanName(depot.name), 'live'),
-    makeFact(`${side}.fleet`, 'Fleet', busCount(depot.fleet), 'live'),
-    makeFact(`${side}.on_road_share`, 'On-road share', share(onRoad, depot.fleet), 'derived'),
-    makeFact(`${side}.dark_share`, 'Dark share', share(depot.states.dark, depot.fleet), 'derived'),
+    nameFact(`${side}.name`, 'Depot', cleanName(depot.name), 'live', id),
+    makeFact(`${side}.fleet`, 'Fleet', busCount(depot.fleet), 'live', id),
+    makeFact(`${side}.on_road_share`, 'On-road share', share(onRoad, depot.fleet), 'derived', id),
+    makeFact(
+      `${side}.dark_share`,
+      'Dark share',
+      share(depot.states.dark, depot.fleet),
+      'derived',
+      id,
+    ),
     makeFact(
       `${side}.off_road_share`,
       'Off-road share',
       share(depot.states.offRoad, depot.fleet),
       'derived',
+      id,
     ),
   ];
   if (score?.ranked && score.index !== null) {
-    facts.push(makeFact(`${side}.index`, 'Efficiency index', index1(score.index), 'derived'));
+    facts.push(makeFact(`${side}.index`, 'Efficiency index', index1(score.index), 'derived', id));
   }
   return facts;
 }

@@ -61,6 +61,7 @@ const GRAMMAR_REASONS: Readonly<Record<GrammarProblem, string>> = {
   figure_window: 'Draft puts a word near a figure that is not allowed there',
   figure_clause:
     'Draft puts a negation, rate, total, limiter or other-day word in the clause of a figure',
+  figure_depot: "Draft puts a figure beside another depot's name",
   sentence_address: 'Draft addresses the reader',
   sentence_imperative: 'Draft opens a sentence with an instruction',
 };
@@ -77,9 +78,10 @@ const fail = (reason: string): RenderResult => ({ ok: false, reason });
  * vocabulary holds no number, magnitude, unit or currency word, so a model can
  * neither write a figure nor scale one of the server's.
  *
- * Residuals, accepted by ruling: vague quantifiers (most, few, all), ranking
- * by order, and a true value attached to a false statement. "Describe, never
- * instruct" is enforced by the system prompt and the interface, not here.
+ * Residuals, accepted by ruling: vague quantifiers outside a figure's clause,
+ * ranking by order, and a true value attached to a false statement (the
+ * operator's note lists each class). "Describe, never instruct" is enforced
+ * by the system prompt and the interface, not here.
  */
 export function renderDraft(draft: CopilotDraft, facts: readonly CopilotFact[]): RenderResult {
   const parsed = draftSchema.safeParse(draft);
@@ -103,7 +105,12 @@ export function renderDraft(draft: CopilotDraft, facts: readonly CopilotFact[]):
   ];
   if (!used.every((id) => clean.has(id))) return fail('Draft names an unknown fact');
 
-  const edges = new Map(facts.map((f) => [f.id, factEdges(f.text, f.kind)] as const));
+  const edges = new Map(
+    facts.map((f) => {
+      const depot = f.depotId === undefined ? {} : { depot: f.depotId };
+      return [f.id, { ...factEdges(f.text, f.kind), ...depot }] as const;
+    }),
+  );
   const UNKNOWN = { endsBare: true, startsWithLetter: false, figure: true };
   for (const text of texts) {
     const problem = checkGrammar(text, (id) => edges.get(id) ?? UNKNOWN);

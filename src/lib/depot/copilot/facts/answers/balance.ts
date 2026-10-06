@@ -36,8 +36,14 @@ export function balanceList(data: AnswerData, kind: 'deficit' | 'surplus'): Copi
     makeFact('list.count', 'Depots', depotCount(rows.length), 'modelled'),
     makeFact('list.total', 'Buses in total', busCount(total), 'modelled'),
     ...shown.flatMap((b, i) => [
-      nameFact(`list.${i + 1}.name`, `Depot ${i + 1}`, cleanName(b.depotName), 'live'),
-      makeFact(`list.${i + 1}.size`, `Size ${i + 1}`, busCount(Math.abs(b.balance)), 'modelled'),
+      nameFact(`list.${i + 1}.name`, `Depot ${i + 1}`, cleanName(b.depotName), 'live', b.depotId),
+      makeFact(
+        `list.${i + 1}.size`,
+        `Size ${i + 1}`,
+        busCount(Math.abs(b.balance)),
+        'modelled',
+        b.depotId,
+      ),
     ]),
   ];
   const lead =

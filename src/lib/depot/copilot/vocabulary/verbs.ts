@@ -7,12 +7,12 @@ import { words } from '@/lib/depot/copilot/vocabulary/function';
 export const BASE_VERBS: readonly string[] = words(`
 accept account achieve act add address adjust advise affect agree aim allow amount answer
 appear apply approach arise arrive ask assess assign assume attend avoid await
-balance base bear become begin behave belong bring build call carry catch cause change
+balance base bear become begin behave belong bring build call carry catch change
 check choose clear climb close collect come compare complete concern confirm connect
 consider consist contain continue contribute control cover create cross cut
 deal decide decline deliver depart depend deploy describe deserve detect determine differ
 direct drop drive ease emerge enable end ensure enter establish estimate exceed exclude
-exist expect explain extend face fail fall feed fill find finish fit fix flag follow form
+exist expect explain extend face fall feed fill find finish fit fix flag follow form
 gain gather get give go grow handle happen head help hide hold home identify improve include
 increase indicate inform involve join keep know lack lag lead lean learn leave lend let lie
 lift limit link list locate log look lose lower make manage mark match matter mean measure

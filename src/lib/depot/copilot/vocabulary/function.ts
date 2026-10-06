@@ -8,12 +8,12 @@ export const words = (block: string): readonly string[] => block.trim().split(/\
  */
 export const FUNCTION_WORDS: readonly string[] = words(`
 a an the this that these those it its itself they them their theirs themselves we us our ours
-he she his her him you your who whom whose which what whatever whichever
+you your whose which what whatever whichever
 of to in on at by for from with without within into onto upon over under above below between
 among amid across along around about against after before behind beside besides beyond during
 through throughout toward towards until till since via per than as like unlike despite except
 near off out outside inside up down away back ahead apart aside together forward onward
-and or but nor so yet if then else though although while whereas because unless whether
+and or but nor so yet if then else though although while whereas unless whether
 is are was were be been being am has have had having do does did done doing
 will would shall should can could may might must ought need cannot
 not no never ever always often usually sometimes seldom rarely already still just

@@ -27,8 +27,9 @@ export function makeFact(
   label: string,
   text: string,
   provenance: Provenance,
+  depotId?: string,
 ): CopilotFact {
-  return { id, label, text, provenance };
+  return { id, label, text, provenance, ...(depotId === undefined ? {} : { depotId }) };
 }
 
 /** A depot name as data: verbatim apart from control characters and whitespace. */
@@ -41,8 +42,10 @@ export function nameFact(
   label: string,
   text: string,
   provenance: Provenance,
+  depotId?: string,
 ): CopilotFact {
-  return { id, label, text, provenance, kind: 'name' };
+  const depot = depotId === undefined ? {} : { depotId };
+  return { id, label, text, provenance, kind: 'name', ...depot };
 }
 
 /** Only for use inside a longer fact text: a fact must never be a bare number (ruling S38). */

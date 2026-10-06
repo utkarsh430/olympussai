@@ -37,6 +37,7 @@ const GUIDANCE =
 const exceptionCount = (n: number): string => `${n} ${n === 1 ? 'exception' : 'exceptions'}`;
 
 interface RankedDepot {
+  readonly id: string;
   readonly name: string;
   readonly index: number;
 }
@@ -46,7 +47,7 @@ function rankedDepots(network: DepotNetworkResponse): RankedDepot[] {
   return network.scores
     .flatMap((s) =>
       s.ranked && s.index !== null
-        ? [{ name: names.get(s.depotId) ?? s.depotId, index: s.index }]
+        ? [{ id: s.depotId, name: names.get(s.depotId) ?? s.depotId, index: s.index }]
         : [],
     )
     .sort((a, b) => b.index - a.index);
@@ -119,10 +120,18 @@ function networkFacts(network: DepotNetworkResponse): CopilotFact[] {
   const weakest = ranked[ranked.length - 1];
   if (best && weakest && ranked.length >= 2) {
     facts.push(
-      nameFact('network.best_depot', 'Highest-ranked depot', cleanName(best.name), 'derived'),
-      makeFact('network.best_index', 'Highest index', index1(best.index), 'derived'),
-      nameFact('network.weakest_depot', 'Lowest-ranked depot', cleanName(weakest.name), 'derived'),
-      makeFact('network.weakest_index', 'Lowest index', index1(weakest.index), 'derived'),
+      nameFact('network.best_depot', 'Highest-ranked depot', cleanName(best.name), 'derived',
+        best.id),
+      makeFact('network.best_index', 'Highest index', index1(best.index), 'derived', best.id),
+      nameFact(
+        'network.weakest_depot',
+        'Lowest-ranked depot',
+        cleanName(weakest.name),
+        'derived',
+        weakest.id,
+      ),
+      makeFact('network.weakest_index', 'Lowest index', index1(weakest.index), 'derived',
+        weakest.id),
       ...indexWindowFacts('network.index_window', network.scoreWindow),
     );
   }

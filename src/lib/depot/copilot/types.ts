@@ -16,6 +16,13 @@ export interface CopilotFact {
    * still not a figure, so the renderer's figure rules do not apply to it.
    */
   readonly kind?: 'name';
+  /**
+   * The depot this fact describes, set by the server where a request holds more than one
+   * depot. Absent for a network-wide figure or one that belongs to a pair (a transfer's
+   * count). Never sent to the model or the browser; the renderer uses it so that a figure
+   * cannot stand under another depot's name (closing review M-A).
+   */
+  readonly depotId?: string;
 }
 
 /** Prose with `{{fact:id}}` placeholders; it never carries a figure itself. */

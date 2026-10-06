@@ -28,7 +28,8 @@ export interface CliArgsInput {
  *   can be asked to approve something in print mode.
  * - `--max-budget-usd` ("only works with --print") caps spend per call.
  * Deliberately absent: `--bare` (cannot read the subscription token) and
- * `--max-turns` (not in this CLI).
+ * `--max-turns` (the 2.1.291 binary lists it for --print; with no tools a call
+ * is one turn, so it is not passed: see the operator's note).
  */
 export function buildCliArgs(input: CliArgsInput): string[] {
   if (!isValidModelName(input.model)) throw new RangeError('Invalid model name');
