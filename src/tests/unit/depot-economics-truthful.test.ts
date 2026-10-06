@@ -4,7 +4,13 @@ import type { DepotEconomicsScore, EconomicsComponent } from '@/lib/depot/revenu
 import {
   BREAKDOWN_NOTE,
   ECONOMICS_COMPONENT_SPECS,
+  ECONOMICS_SIGN_NOTE,
+  ECONOMICS_TABLE_NOTE,
   FUEL_ONLY_NOTE,
+  breakdownButtonName,
+  economicsBand,
+  economicsDaySentence,
+  notRankedPanel,
   INDEX_LIMITS_NOTE,
   INDEX_SEPARATION,
   breakdownRows,
@@ -330,9 +336,15 @@ describe('no wording reads as profit, loss or margin', () => {
       withheldSentence('no_service_km'),
       lengthCoverageLine(entries),
       coverageSentence({ n: 0, of: 3 }),
+      ECONOMICS_TABLE_NOTE,
+      ECONOMICS_SIGN_NOTE,
+      economicsBand(entries, '2026-10-06'),
+      economicsDaySentence('2026-10-06'),
+      notRankedPanel(operating(1, 6)),
+      rows.map((r) => breakdownButtonName(r.name)),
     ]).join('\n');
-    // The one required sentence says "not profit"; every other string must avoid the words.
-    const rest = collected.replace(FUEL_ONLY_NOTE, '');
+    // The required sentences say "not profit"; every other string must avoid the words.
+    const rest = collected.replace(FUEL_ONLY_NOTE, '').replace(ECONOMICS_TABLE_NOTE, '');
     expect(rest).not.toMatch(/\b(profit|profits|profitable|loss|losses|margin|margins)\b/i);
     expect(collected).not.toMatch(/simulated/i);
   });

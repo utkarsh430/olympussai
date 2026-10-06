@@ -1,22 +1,25 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
-import { TableOverflowCue, useColumnsToTheRight } from '@/components/depot/shell/TableOverflowCue';
+import { useEffect, useMemo, useState } from 'react';
+import { DataTable, useTableSort } from '@/components/depot/shell/DataTable';
+import { Pager } from '@/components/depot/shell/LongLists';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
+import { groupCounts, groupLabel } from '@/components/depot/shell/tableGroups';
+import { PAGE_ROWS, pageRange } from '@/lib/depot/listPaging';
 import {
+  economicsGroupKey,
   emptyRowText,
   type EconomicsFilters,
   type EconomicsRow,
 } from '@/lib/depot/revenue/economicsPageModel';
-import { sortRows, type SortDirection } from '@/lib/depot/tableSort';
-import { COLUMNS, content } from './EconomicsCells';
+import { sortRows } from '@/lib/depot/tableSort';
+import { economicsColumns } from './EconomicsCells';
 
-/* The economics table, on the shared `depot-table` classes; its cells are in EconomicsCells. */
-
-interface Sort {
-  readonly key: string;
-  readonly direction: SortDirection;
-}
+/*
+ * The economics table on the shared DataTable: grouped by peer group ("SMALL
+ * FLEETS · 35", counted over every page), 25 rows a page with the shared pager
+ * under it (hidden at 25 rows or fewer), the page scrolling rather than the frame.
+ */
 
 export interface EconomicsGridProps {
   readonly rows: readonly EconomicsRow[];
@@ -27,92 +30,47 @@ export interface EconomicsGridProps {
   readonly onSelect: (row: EconomicsRow) => void;
 }
 
-export function EconomicsGrid({
-  rows,
-  allRows,
-  filters,
-  selectedId,
-  onSelect,
-}: EconomicsGridProps) {
-  const [sort, setSort] = useState<Sort | null>(null);
-  const frame = useRef<HTMLDivElement>(null);
-  const moreColumns = useColumnsToTheRight(frame, true);
-  const visible = useMemo(() => {
-    const column = sort ? COLUMNS.find((c) => c.key === sort.key) : undefined;
-    return sort && column ? sortRows(rows, column.sortValue, sort.direction) : rows;
-  }, [rows, sort]);
-  const toggle = (key: string): void =>
-    setSort((s) => ({ key, direction: s?.key === key && s.direction === 'asc' ? 'desc' : 'asc' }));
+export function EconomicsGrid({ rows, allRows, filters, selectedId, onSelect }: EconomicsGridProps) {
+  const columns = useMemo(() => economicsColumns(selectedId, onSelect), [selectedId, onSelect]);
+  const tableSort = useTableSort(columns);
+  const [page, setPage] = useState(0);
+  // A new filter or order starts again at the first page.
+  useEffect(() => setPage(0), [filters, tableSort.sort]);
 
-  if (visible.length === 0) {
+  const sorted = useMemo(() => {
+    const column = tableSort.sort ? columns.find((c) => c.key === tableSort.sort?.key) : undefined;
+    return tableSort.sort && column?.sortValue
+      ? sortRows(rows, column.sortValue, tableSort.sort.direction)
+      : rows;
+  }, [rows, columns, tableSort.sort]);
+  const counts = useMemo(() => groupCounts(sorted, economicsGroupKey), [sorted]);
+  const group = useMemo(
+    () => ({
+      key: economicsGroupKey,
+      label: (key: string, shown: number) => groupLabel(key, counts.get(key) ?? shown),
+    }),
+    [counts],
+  );
+
+  if (sorted.length === 0) {
     return <StatePanel kind="empty" sentence={emptyRowText(allRows, filters)} />;
   }
+  const range = pageRange(page, sorted.length);
   return (
-    <div className="relative min-w-0">
-      <div
-        ref={frame}
-        role="region"
-        aria-label="Depot economics ranking"
-        tabIndex={0}
-        className="depot-table-frame"
-      >
-        <table className="depot-table depot-table-fixed">
-          <caption className="sr-only">Depot Economics Index ranking within peer groups</caption>
-          <thead>
-            <tr>
-              {COLUMNS.map((c) => {
-                const active = sort?.key === c.key ? sort.direction : null;
-                return (
-                  <th
-                    key={c.key}
-                    scope="col"
-                    aria-sort={
-                      active === null ? 'none' : active === 'asc' ? 'ascending' : 'descending'
-                    }
-                    className={`${c.className} ${c.className.includes('sticky') ? '!z-20' : ''} ${c.right ? 'depot-align-right' : ''}`}
-                  >
-                    <button
-                      type="button"
-                      className="depot-sort-button"
-                      onClick={() => toggle(c.key)}
-                    >
-                      {c.header}
-                      <span aria-hidden className="inline-block w-3 text-holo-glow">
-                        {active === null ? '' : active === 'asc' ? '↑' : '↓'}
-                      </span>
-                    </button>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((row) => {
-              const selected = row.depotId === selectedId;
-              return (
-                <tr
-                  key={row.depotId}
-                  className={`depot-row-selectable group ${selected ? 'depot-row-selected' : ''}`}
-                >
-                  {COLUMNS.map((c) => (
-                    <td
-                      key={c.key}
-                      className={`whitespace-nowrap ${c.className} ${c.right ? 'depot-align-right' : ''} ${
-                        c.className.includes('sticky')
-                          ? `${selected ? 'bg-depot-raised' : 'bg-depot-page'} group-hover:bg-depot-raised`
-                          : ''
-                      }`}
-                    >
-                      {content(c, row, selected, onSelect)}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      {moreColumns ? <TableOverflowCue /> : null}
+    <div className="flex min-w-0 flex-col gap-3">
+      <DataTable
+        columns={columns}
+        rows={sorted.slice(range.start, range.end)}
+        rowKey={(r) => r.depotId}
+        caption="Depot Economics Index ranking within peer groups"
+        tableSort={tableSort}
+        group={group}
+        fixedRows
+        overflowCue
+      />
+      {sorted.length > PAGE_ROWS ? (
+        <Pager page={range.page} total={sorted.length} onPage={setPage} />
+      ) : null}
     </div>
   );
 }
