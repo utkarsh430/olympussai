@@ -28,7 +28,12 @@ const TEXT: CopilotText = {
 describe('createWindowLimiter', () => {
   it('allows the limit per window, then refuses with the seconds until a slot frees', () => {
     let now = 0;
-    const limiter = createWindowLimiter({ now: () => now, limit: 2, windowMs: 60_000, maxKeys: 10 });
+    const limiter = createWindowLimiter({
+      now: () => now,
+      limit: 2,
+      windowMs: 60_000,
+      maxKeys: 10,
+    });
     expect(limiter.take('s').limited).toBe(false);
     now = 10_000;
     expect(limiter.take('s').limited).toBe(false);
@@ -143,7 +148,10 @@ describe('parseCopilotBody', () => {
       'an over-long question',
       { task: 'ask', question: 'x'.repeat(MAX_QUESTION_CHARS + 1), scope: { kind: 'network' } },
     ],
-    ['a question of invisible characters', { task: 'ask', question: '​\u0007', scope: { kind: 'network' } }],
+    [
+      'a question of invisible characters',
+      { task: 'ask', question: '​\u0007', scope: { kind: 'network' } },
+    ],
     ['a fact list', { task: 'ask', question: 'q', scope: { kind: 'network' }, facts: [] }],
   ])('rejects %s', (_name, value) => {
     expect(parseCopilotBody(value === null ? '{not json' : JSON.stringify(value))).toBeNull();
@@ -153,6 +161,10 @@ describe('parseCopilotBody', () => {
     const parsed = parseCopilotBody(
       JSON.stringify({ task: 'ask', question: ' Any​\nexceptions? ', scope: { kind: 'network' } }),
     );
-    expect(parsed).toEqual({ task: 'ask', question: 'Any exceptions?', scope: { kind: 'network' } });
+    expect(parsed).toEqual({
+      task: 'ask',
+      question: 'Any exceptions?',
+      scope: { kind: 'network' },
+    });
   });
 });

@@ -55,7 +55,10 @@ function deps(over: Partial<CliFactoryDeps> = {}): CliFactoryDeps {
 describe('createCliProvider', () => {
   it('is null for the scripted setting, without touching the file system', () => {
     const fs = { realpath: vi.fn(), stat: vi.fn() };
-    const made = deps({ env: { CLAUDE_BIN: '/usr/local/bin/claude', DEPOT_COPILOT_PROVIDER: 'scripted' }, fs });
+    const made = deps({
+      env: { CLAUDE_BIN: '/usr/local/bin/claude', DEPOT_COPILOT_PROVIDER: 'scripted' },
+      fs,
+    });
     expect(createCliProvider(made)).toBeNull();
     expect(fs.realpath).not.toHaveBeenCalled();
     expect(made.makeDir).not.toHaveBeenCalled();

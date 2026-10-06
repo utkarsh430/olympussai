@@ -7,6 +7,8 @@ import { requireUpsrtcAccess } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
+import { buildDistributionResponse } from '@/lib/depot/live/distributionView';
+import { buildNetworkResponse } from '@/lib/depot/live/networkView';
 import { buildCopilotRuntime, getCopilotRuntime } from '@/lib/depot/copilot/service/runtime';
 import {
   GLOBAL_REQUESTS_PER_MINUTE,
@@ -90,22 +92,28 @@ describe('POST /api/upsrtc/depot/copilot', () => {
 
   it('refuses a cross-origin POST with 403 before reading the body', async () => {
     let pulls = 0;
-    const body = new ReadableStream<Uint8Array>({
-      pull(controller) {
-        pulls += 1;
-        controller.enqueue(new TextEncoder().encode(JSON.stringify(NETWORK_BRIEFING)));
-        controller.close();
+    const body = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          pulls += 1;
+          controller.enqueue(new TextEncoder().encode(JSON.stringify(NETWORK_BRIEFING)));
+          controller.close();
+        },
       },
-    });
+      { highWaterMark: 0 },
+    ); // pulled only when someone reads
     const request = new NextRequest('http://localhost:3000/api/upsrtc/depot/copilot', {
       method: 'POST',
-      headers: { host: 'localhost:3000', origin: 'https://evil.example', 'content-type': 'application/json' },
+      headers: {
+        host: 'localhost:3000',
+        origin: 'https://evil.example',
+        'content-type': 'application/json',
+      },
       body,
       duplex: 'half',
     } as ConstructorParameters<typeof NextRequest>[1]);
-    const pullsBefore = pulls;
     await expectError(await POST(request), 403, 'Invalid request origin');
-    expect(pulls).toBe(pullsBefore);
+    expect(pulls).toBe(0);
     expect(snapshot).not.toHaveBeenCalled();
   });
 
@@ -185,13 +193,18 @@ describe('POST /api/upsrtc/depot/copilot', () => {
     expect(limited.headers.get('cache-control')).toBe('no-store');
     const seconds = Number(limited.headers.get('retry-after'));
     expect(seconds).toBeGreaterThan(0);
-    expect(await limited.json()).toEqual({ error: 'Too many requests', retryAfterSeconds: seconds });
+    expect(await limited.json()).toEqual({
+      error: 'Too many requests',
+      retryAfterSeconds: seconds,
+    });
     // Another session is unaffected.
     expect((await POST(post(NETWORK_BRIEFING))).status).toBe(200);
   });
 
   it('limits all sessions together, scripted answers included', async () => {
-    vi.mocked(getCopilotRuntime).mockReturnValue(buildCopilotRuntime({ setting: 'scripted', cli: null }));
+    vi.mocked(getCopilotRuntime).mockReturnValue(
+      buildCopilotRuntime({ setting: 'scripted', cli: null }),
+    );
     for (let i = 0; i < GLOBAL_REQUESTS_PER_MINUTE; i += 1) {
       const response = await POST(post(NETWORK_BRIEFING, { cookie: `olympuss_session=s${i}` }));
       expect(response.status).toBe(200);
@@ -199,5 +212,37 @@ describe('POST /api/upsrtc/depot/copilot', () => {
     const limited = await POST(post(NETWORK_BRIEFING, { cookie: 'olympuss_session=fresh' }));
     expect(limited.status).toBe(429);
     expect(Number(limited.headers.get('retry-after'))).toBeGreaterThan(0);
+  });
+
+  it('answers a depot briefing and a rationale for a transfer in the current plan', async () => {
+    const depotId = buildNetworkResponse(VIEW).depots.find((d) => d.id !== 'unassigned')!.id;
+    const depot = await POST(post({ task: 'briefing', scope: { kind: 'depot', depotId } }));
+    expect(depot.status).toBe(200);
+    const transfer = buildDistributionResponse(VIEW).plan.transfers[0]!;
+    const rationale = await POST(post({ task: 'rationale', transferId: transfer.id }));
+    expect(rationale.status).toBe(200);
+    expect(((await rationale.json()) as { provider: string }).provider).toBe('claude');
+  });
+
+  it('answers 503 rather than hang when the snapshot outlasts the deadline', async () => {
+    snapshot.mockReturnValue(new Promise(() => undefined));
+    vi.mocked(getCopilotRuntime).mockReturnValue(
+      buildCopilotRuntime({ setting: 'scripted', cli: null, deadlineMs: 20 }),
+    );
+    await expectError(await POST(post(NETWORK_BRIEFING)), 503, 'Depot data unavailable');
+    expect(String(errorSpy.mock.calls[0]?.[0])).toBe('[depot:copilot-api] snapshot_deadline');
+  });
+
+  it('answers scripted with the coarse notice when Claude outlasts the deadline', async () => {
+    draft.mockReturnValue(new Promise(() => undefined));
+    vi.mocked(getCopilotRuntime).mockReturnValue(
+      buildCopilotRuntime({ setting: 'auto', cli: { id: 'claude-cli', draft }, deadlineMs: 50 }),
+    );
+    const response = await POST(post(NETWORK_BRIEFING));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      provider: 'scripted',
+      notice: 'claude_unavailable',
+    });
   });
 });
