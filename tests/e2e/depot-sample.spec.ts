@@ -36,3 +36,158 @@ test('the depot sample suite has its PIN (it fails in CI when the PIN is missing
   test.skip(!E2E_PIN && !IN_CI, `SKIPPED: ${PIN_MISSING}`);
   expect(E2E_PIN, `${PIN_MISSING}; a CI run without it must fail, not pass`).toBeTruthy();
 });
+
+const REPO_ROOT = path.resolve(__dirname, '../..');
+const API_DIR = path.join(REPO_ROOT, 'src/app/api/upsrtc/depot');
+
+/** Every file named `name` under `dir`, as a path relative to `dir` with `/` separators. */
+function discover(dir: string, name: string): string[] {
+  return fs
+    .readdirSync(dir, { recursive: true, encoding: 'utf8' })
+    .filter((entry) => path.basename(entry) === name)
+    .map((entry) => entry.split(path.sep).join('/'))
+    .sort();
+}
+
+interface ApiRoute {
+  /** The URL template, e.g. `/api/upsrtc/depot/[depotId]/crew`. */
+  readonly template: string;
+  readonly method: 'GET' | 'POST';
+}
+
+/** The depot API as the file system declares it: each `route.ts` and the method it exports. */
+const API_ROUTES: readonly ApiRoute[] = discover(API_DIR, 'route.ts').map((file) => {
+  const source = fs.readFileSync(path.join(API_DIR, file), 'utf8');
+  const dir = path.posix.dirname(file);
+  return {
+    template: `/api/upsrtc/depot${dir === '.' ? '' : `/${dir}`}`,
+    method: /export\s+(async\s+)?function\s+GET\b/.test(source) ? 'GET' : 'POST',
+  };
+});
+
+const DEPOT_SEGMENT = '[depotId]';
+const ROUTE_SEGMENT = '[routeName]';
+/** A well-formed route name; on the sample the lookup is refused without an outside call. */
+const SAMPLE_ROUTE_NAME = 'ABC';
+
+/** Query strings the routes that require one need for a valid request. */
+const VALID_QUERY: Readonly<Record<string, string>> = {
+  '/api/upsrtc/depot/trends': '?metric=onRoadShare',
+  '/api/upsrtc/depot/forecast': '?metric=onRoadShare&scope=network',
+  '/api/upsrtc/depot/history': '?metric=onRoadShare&scope=network',
+};
+
+function fill(template: string, depotId: string): string {
+  return (
+    template.replace(DEPOT_SEGMENT, depotId).replace(ROUTE_SEGMENT, SAMPLE_ROUTE_NAME) +
+    (VALID_QUERY[template] ?? '')
+  );
+}
+
+const INVALID_DEPOT = { error: 'Invalid depot id' };
+const DEPOT_NOT_FOUND = { error: 'Depot not found' };
+const INVALID_QUERY = { error: 'Invalid query' };
+
+test.describe('1. the depot API contract', () => {
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
+
+  test('the file system declares the depot routes this suite expects', () => {
+    expect(API_ROUTES.length).toBeGreaterThanOrEqual(18);
+    expect(API_ROUTES.some((r) => r.template.includes(DEPOT_SEGMENT))).toBe(true);
+    expect(API_ROUTES.some((r) => r.template.includes(ROUTE_SEGMENT))).toBe(true);
+  });
+
+  test.describe('signed out', () => {
+    test.use({ storageState: SIGNED_OUT });
+
+    for (const route of API_ROUTES) {
+      test(`${route.method} ${route.template} answers 401 without a session`, async ({
+        request,
+        sample,
+        baseURL,
+      }) => {
+        const url = fill(route.template, sample.depotId);
+        const res =
+          route.method === 'GET'
+            ? await request.get(url)
+            : await request.post(url, {
+                headers: { Origin: String(baseURL) },
+                data: { question: 'How many buses are on the road?' },
+              });
+
+        expect(res.status()).toBe(401);
+        expect(res.headers()['cache-control']).toContain('no-store');
+        expect(await res.json()).toEqual({ error: 'Unauthorized' });
+      });
+    }
+  });
+
+  test.describe('signed in', () => {
+    for (const route of API_ROUTES.filter((r) => r.method === 'GET')) {
+      test(`GET ${route.template} answers 200, no-store, on the sample`, async ({
+        request,
+        sample,
+      }) => {
+        const res = await request.get(fill(route.template, sample.depotId));
+
+        expect(res.status()).toBe(200);
+        expect(res.headers()['cache-control']).toContain('no-store');
+        expect(res.headers()['content-type']).toContain('application/json');
+      });
+    }
+
+    for (const route of API_ROUTES.filter((r) => r.template.includes(DEPOT_SEGMENT))) {
+      for (const [label, id, status, body] of [
+        ['a word', 'abc', 400, INVALID_DEPOT],
+        ['a path escape', '..%2Fx', 400, INVALID_DEPOT],
+        ['a 65-character id', '1'.repeat(65), 400, INVALID_DEPOT],
+        ['a well-formed unknown id', '999999', 404, DEPOT_NOT_FOUND],
+      ] as const) {
+        test(`${route.template} refuses ${label} with a fixed body`, async ({
+          request,
+          sample,
+        }) => {
+          expect(sample.depotId).not.toBe(id);
+          const res = await request.get(route.template.replace(DEPOT_SEGMENT, id));
+
+          expect(res.status()).toBe(status);
+          expect(res.headers()['cache-control']).toContain('no-store');
+          expect(await res.json()).toEqual(body);
+        });
+      }
+    }
+
+    for (const [route, query] of [
+      ['trends', 'metric=bogus'],
+      ['trends', 'metric=onRoadShare&days=999'],
+      ['forecast', 'metric=onRoadShare&scope=network&horizon=999'],
+      ['forecast', 'metric=bogus&scope=network'],
+      ['history', 'metric=onRoadShare&scope=bogus'],
+      ['history', 'metric=onRoadShare&scope=network&days=abc'],
+    ] as const) {
+      test(`${route} refuses ?${query} with a fixed 400`, async ({ request, sample }) => {
+        expect(sample.depotId).toBeTruthy();
+        const res = await request.get(`/api/upsrtc/depot/${route}?${query}`);
+
+        expect(res.status()).toBe(400);
+        expect(res.headers()['cache-control']).toContain('no-store');
+        expect(await res.json()).toEqual(INVALID_QUERY);
+      });
+    }
+
+    test('the route lookup refuses a path escape in the name', async ({ request, sample }) => {
+      expect(sample.depotId).toBeTruthy();
+      // The URL standard resolves a literal `%2e%2e` segment to `..` before the request is
+      // sent, so it never names a route: the router answers not found, never the handler.
+      const dotted = await request.get('/api/upsrtc/depot/route/%2e%2e');
+      expect(dotted.status()).toBe(404);
+
+      for (const name of ['..%2Fx', '%252e%252e']) {
+        const res = await request.get(`/api/upsrtc/depot/route/${name}`);
+        expect(res.status()).toBe(400);
+        expect(res.headers()['cache-control']).toContain('no-store');
+        expect(await res.json()).toEqual({ error: 'Invalid route name' });
+      }
+    });
+  });
+});
