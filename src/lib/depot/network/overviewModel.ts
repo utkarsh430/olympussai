@@ -1,8 +1,7 @@
 import { formatShare } from '@/lib/depot/format';
-import { LONG_DARK_AFTER_MIN } from '@/lib/depot/infer/thresholds';
+import { EXCEPTION_KIND_LABEL, RANK_REASON_LABEL } from '@/lib/depot/labels';
 import type { DepotSummary, Figure, NetworkKpis } from '@/lib/depot/types';
-import { MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
-import type { DepotScore, PeerGroupId, RankReason } from '@/lib/depot/score/types';
+import type { DepotScore } from '@/lib/depot/score/types';
 import type { ExceptionKind, ExceptionSeverity } from '@/lib/depot/exceptions/types';
 
 /**
@@ -31,23 +30,23 @@ export function rankedIndex(row: DepotRow): number | null {
   return index;
 }
 
-export const PEER_GROUP_LABEL: Readonly<Record<PeerGroupId, string>> = {
-  small: 'Small depots',
-  medium: 'Medium depots',
-  large: 'Large depots',
-  all: 'All depots',
-};
-
-/** Why a depot carries no index, in words. */
-export const RANK_REASON_LABEL: Readonly<Record<RankReason, string>> = {
-  ok: 'Ranked',
-  not_a_depot: 'Not an operating depot',
-  fleet_too_small: `Fewer than ${MIN_FLEET_FOR_RANK} buses`,
-};
-
 /** The index to one decimal, or a dash when there is none. */
 export function formatIndex(index: number | null): string {
   return index === null || !Number.isFinite(index) ? '—' : index.toFixed(1);
+}
+
+/** Why a row has no index, in words. */
+export function unrankedReason(row: DepotRow): string {
+  return row.score ? RANK_REASON_LABEL[row.score.reason] : 'No score for this depot';
+}
+
+/** One line for the screen-reader status when the selection changes. */
+export function selectionStatus(row: DepotRow | null): string {
+  if (!row) return '';
+  const index = rankedIndex(row);
+  const detail =
+    index === null ? `not ranked: ${unrankedReason(row)}` : `index ${formatIndex(index)}`;
+  return `Selected ${row.depot.name}, ${detail}`;
 }
 
 export const RANKED_STRIP_SIZE = 5;
@@ -140,29 +139,22 @@ export function kpiRows(kpis: NetworkKpis): KpiRow[] {
 /**
  * Severity per exception kind, as the exception rules assign it. The three
  * depot-rate kinds are `critical` or `warning` depending on how far the depot
- * sits from its peers, which a count by kind cannot tell apart: `variable`.
+ * sits from its peers, which a count by kind cannot tell apart: `variable` (worded "Critical or warning").
  */
-const MINUTES_PER_HOUR = 60;
-
 export type KindSeverity = ExceptionSeverity | 'variable';
 
-export const EXCEPTION_KINDS: ReadonlyArray<{
+const KIND_SEVERITY: ReadonlyArray<{
   readonly kind: ExceptionKind;
-  readonly label: string;
   readonly severity: KindSeverity;
 }> = [
-  { kind: 'emergency', label: 'Emergency signal', severity: 'critical' },
-  { kind: 'dark_share_high', label: 'High dark share', severity: 'variable' },
-  { kind: 'off_road_high', label: 'High off-road rate', severity: 'variable' },
-  { kind: 'on_road_low', label: 'Low on-road share', severity: 'variable' },
-  { kind: 'power_cut_cluster', label: 'Power-cut cluster', severity: 'warning' },
-  {
-    kind: 'long_dark',
-    label: `Dark for over ${LONG_DARK_AFTER_MIN / MINUTES_PER_HOUR} hours`,
-    severity: 'warning',
-  },
-  { kind: 'power_cut', label: 'Main power off', severity: 'info' },
-  { kind: 'tamper_code', label: 'Tamper code', severity: 'info' },
+  { kind: 'emergency', severity: 'critical' },
+  { kind: 'dark_share_high', severity: 'variable' },
+  { kind: 'off_road_high', severity: 'variable' },
+  { kind: 'on_road_low', severity: 'variable' },
+  { kind: 'power_cut_cluster', severity: 'warning' },
+  { kind: 'long_dark', severity: 'warning' },
+  { kind: 'power_cut', severity: 'info' },
+  { kind: 'tamper_code', severity: 'info' },
 ];
 
 export interface ExceptionKindRow {
@@ -177,18 +169,21 @@ function safeCount(value: number | undefined): number {
 }
 
 export function exceptionRows(counts: Readonly<Record<ExceptionKind, number>>): ExceptionKindRow[] {
-  return EXCEPTION_KINDS.map((entry) => ({ ...entry, count: safeCount(counts[entry.kind]) }));
+  return KIND_SEVERITY.map((entry) => ({
+    ...entry,
+    label: EXCEPTION_KIND_LABEL[entry.kind],
+    count: safeCount(counts[entry.kind]),
+  }));
 }
 
-export type SeverityTotals = Readonly<Record<KindSeverity | 'total', number>>;
+export type SeverityTotals = Readonly<Record<ExceptionSeverity | 'total', number>>;
 
-export function exceptionTotals(counts: Readonly<Record<ExceptionKind, number>>): SeverityTotals {
-  const rows = exceptionRows(counts);
-  const sum = (severity: KindSeverity): number =>
-    rows.filter((row) => row.severity === severity).reduce((acc, row) => acc + row.count, 0);
-  const critical = sum('critical');
-  const warning = sum('warning');
-  const info = sum('info');
-  const variable = sum('variable');
-  return { critical, warning, info, variable, total: critical + warning + info + variable };
+/** Totals by severity, from the server's own severity counts (exact, unlike counts by kind). */
+export function severityTotals(
+  severities: Readonly<Record<ExceptionSeverity, number>>,
+): SeverityTotals {
+  const critical = safeCount(severities.critical);
+  const warning = safeCount(severities.warning);
+  const info = safeCount(severities.info);
+  return { critical, warning, info, total: critical + warning + info };
 }

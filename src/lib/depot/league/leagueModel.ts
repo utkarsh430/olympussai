@@ -46,12 +46,7 @@ export const DEFAULT_LEAGUE_FILTERS: LeagueFilters = {
   showUnranked: false,
 };
 
-export const PEER_GROUP_LABEL: Readonly<Record<PeerGroupId, string>> = {
-  small: 'Small fleets',
-  medium: 'Medium fleets',
-  large: 'Large fleets',
-  all: 'All depots',
-};
+export { PEER_GROUP_LABEL } from '@/lib/depot/labels';
 
 const PEER_GROUP_ORDER: readonly PeerGroupId[] = ['small', 'medium', 'large', 'all'];
 const PERCENT = 100;
@@ -116,10 +111,7 @@ export function buildLeagueRows(
 }
 
 /** Keeps the incoming (default) order. */
-export function filterLeagueRows(
-  rows: readonly LeagueRow[],
-  filters: LeagueFilters,
-): LeagueRow[] {
+export function filterLeagueRows(rows: readonly LeagueRow[], filters: LeagueFilters): LeagueRow[] {
   const needle = filters.search.trim().toLowerCase();
   return rows.filter((row) => {
     if (!filters.showUnranked && !row.ranked) return false;

@@ -1,35 +1,41 @@
 import Link from 'next/link';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { formatCount } from '@/lib/depot/format';
+import { SEVERITY_LABEL } from '@/lib/depot/labels';
 import { DEPOTS_ROOT } from '@/lib/depot/nav';
 import {
   exceptionRows,
-  exceptionTotals,
+  severityTotals,
   type KindSeverity,
 } from '@/lib/depot/network/overviewModel';
-import type { ExceptionKind } from '@/lib/depot/exceptions/types';
+import type { ExceptionKind, ExceptionSeverity } from '@/lib/depot/exceptions/types';
 
 export const EXCEPTIONS_HREF = `${DEPOTS_ROOT}/exceptions`;
 
 /** Severity is always a word; the colour only repeats it. */
 const SEVERITY: Readonly<Record<KindSeverity, { readonly word: string; readonly tone: string }>> = {
-  critical: { word: 'Critical', tone: 'text-alert-crimson' },
-  warning: { word: 'Warning', tone: 'text-alert-amber' },
-  info: { word: 'Info', tone: 'text-depot-muted' },
-  variable: { word: 'Critical or warning', tone: 'text-alert-amber' },
+  critical: { word: SEVERITY_LABEL.critical, tone: 'text-alert-crimson' },
+  warning: { word: SEVERITY_LABEL.warning, tone: 'text-alert-amber' },
+  info: { word: SEVERITY_LABEL.info, tone: 'text-depot-muted' },
+  // The per-kind split is not in the response for the three depot-rate kinds.
+  variable: {
+    word: `${SEVERITY_LABEL.critical} or ${SEVERITY_LABEL.warning.toLowerCase()}`,
+    tone: 'text-alert-amber',
+  },
 };
 
 export interface ExceptionSummaryProps {
   readonly counts: Readonly<Record<ExceptionKind, number>>;
+  readonly severities: Readonly<Record<ExceptionSeverity, number>>;
 }
 
 /**
  * Exceptions on this snapshot, counted by kind, with a way into the exception
  * centre for the depots and buses behind each count.
  */
-export function ExceptionSummary({ counts }: ExceptionSummaryProps) {
+export function ExceptionSummary({ counts, severities }: ExceptionSummaryProps) {
   const rows = exceptionRows(counts);
-  const totals = exceptionTotals(counts);
+  const totals = severityTotals(severities);
 
   return (
     <section aria-labelledby="depot-exceptions-heading" data-testid="depot-exception-summary">
@@ -48,8 +54,7 @@ export function ExceptionSummary({ counts }: ExceptionSummaryProps) {
           <p className="mb-2 text-[13px] tabular-nums text-depot-muted">
             <span className="text-depot-ink">{formatCount(totals.total)}</span> in all:{' '}
             {formatCount(totals.critical)} critical, {formatCount(totals.warning)} warning,{' '}
-            {formatCount(totals.info)} info, and {formatCount(totals.variable)} depot-rate
-            exceptions that are critical or warning by how far the depot sits from its peers.
+            {formatCount(totals.info)} info.
           </p>
           <ul className="grid grid-cols-1 border-t border-depot-line sm:grid-cols-2 xl:grid-cols-4">
             {rows.map((row) => (

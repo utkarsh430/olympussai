@@ -27,13 +27,19 @@ export interface IndexBand {
  * step at least 0.06 lighter than the last, and the darkest still 2.4:1 on
  * the map. Blue, not the cyan accent, because cyan marks the selected depot.
  */
-const TOP_BAND: IndexBand = { level: 4, min: 80, max: 100, fill: '#b7d3f6', label: 'Index 80–100' };
+const TOP_BAND: IndexBand = {
+  level: 4,
+  min: 80,
+  max: 100,
+  fill: '#b7d3f6',
+  label: 'Index 80 to 100',
+};
 
 export const INDEX_BANDS: readonly IndexBand[] = [
-  { level: 0, min: 0, max: 20, fill: '#184f95', label: 'Index 0–20' },
-  { level: 1, min: 20, max: 40, fill: '#256abf', label: 'Index 20–40' },
-  { level: 2, min: 40, max: 60, fill: '#3987e5', label: 'Index 40–60' },
-  { level: 3, min: 60, max: 80, fill: '#6da7ec', label: 'Index 60–80' },
+  { level: 0, min: 0, max: 20, fill: '#184f95', label: 'Index 0 to under 20' },
+  { level: 1, min: 20, max: 40, fill: '#256abf', label: 'Index 20 to under 40' },
+  { level: 2, min: 40, max: 60, fill: '#3987e5', label: 'Index 40 to under 60' },
+  { level: 3, min: 60, max: 80, fill: '#6da7ec', label: 'Index 60 to under 80' },
   TOP_BAND,
 ];
 

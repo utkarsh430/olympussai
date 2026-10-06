@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import {
   EmptyState,
@@ -9,7 +9,14 @@ import {
   StaleStrip,
 } from '@/components/depot/shell/DataStates';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
-import { joinScores, unpositionedCount, type DepotRow } from '@/lib/depot/network/overviewModel';
+import {
+  formatIndex,
+  joinScores,
+  rankedIndex,
+  unpositionedCount,
+  unrankedReason,
+  type DepotRow,
+} from '@/lib/depot/network/overviewModel';
 import type { DepotNetworkResponse } from '@/lib/depot/api';
 import { DepotMap } from './DepotMap';
 import { DepotMapLegend } from './DepotMapLegend';
@@ -41,9 +48,10 @@ interface MapSectionProps {
   readonly selectedId: string | null;
   /** Null clears the selection. */
   readonly onSelect: (depotId: string | null) => void;
+  readonly vanished: boolean;
 }
 
-function MapSection({ rows, selectedId, onSelect }: MapSectionProps) {
+function MapSection({ rows, selectedId, onSelect, vanished }: MapSectionProps) {
   const depots = rows.map((row) => row.depot);
   const missing = unpositionedCount(depots);
   const maxFleet = depots.reduce(
@@ -60,12 +68,14 @@ function MapSection({ rows, selectedId, onSelect }: MapSectionProps) {
         </h2>
         <ProvenanceBadge provenance="derived" />
         <p className="font-sans text-xs text-depot-muted">
-          Each depot is drawn at the median position of its buses, not at a surveyed yard.
+          Each depot is drawn at the median position of its buses, not at a surveyed yard, and it
+          moves with them: a depot whose fleet is mostly out on routes can appear tens of kilometres
+          from its yard.
         </p>
       </div>
       <div className="depot-map-layout">
         <div className="min-w-0">
-          <DepotMap rows={rows} selectedId={selectedId} onSelect={onSelect} />
+          <DepotMap rows={rows} maxFleet={maxFleet} selectedId={selectedId} onSelect={onSelect} />
           <p className="mt-2 text-[11px] text-depot-faint" data-testid="depot-map-unpositioned">
             {missing === 0
               ? 'Every depot has at least one positioned bus.'
@@ -75,16 +85,53 @@ function MapSection({ rows, selectedId, onSelect }: MapSectionProps) {
             <DepotMapLegend maxFleet={maxFleet} />
           </div>
         </div>
-        <DepotMapPanel row={selected} onClear={() => onSelect(null)} />
+        <DepotMapPanel row={selected} vanished={vanished} onClear={() => onSelect(null)} />
       </div>
     </section>
+  );
+}
+
+function showOnMap(): void {
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document
+    .getElementById('depot-map-heading')
+    ?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+  document.getElementById('depot-panel-heading')?.focus({ preventScroll: true });
+}
+
+/** Says what a click in the table or strip did, right where the click happened. */
+function SelectionBar({ row }: { readonly row: DepotRow }) {
+  const index = rankedIndex(row);
+  return (
+    <div className="mb-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-y border-depot-line py-1.5">
+      <span className="depot-label">Selected</span>
+      <span className="min-w-0 truncate text-[13px] text-depot-ink">{row.depot.name}</span>
+      <span className="text-[11px] text-depot-muted">
+        {index === null ? `Not ranked: ${unrankedReason(row)}` : `Index ${formatIndex(index)}`}
+      </span>
+      <button type="button" onClick={showOnMap} className="depot-filter-button ml-auto">
+        Show on map
+      </button>
+    </div>
   );
 }
 
 function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const rows = useMemo(() => joinScores(data.depots, data.scores), [data.depots, data.scores]);
-  const select = useCallback((depotId: string | null) => setSelectedId(depotId), []);
+  const [vanished, setVanished] = useState(false);
+  const select = useCallback((depotId: string | null) => {
+    setSelectedId(depotId);
+    setVanished(false);
+  }, []);
+  const selected = rows.find((row) => row.depot.id === selectedId) ?? null;
+
+  // A poll can drop the selected depot; say so instead of showing nothing.
+  useEffect(() => {
+    if (selectedId === null || selected) return;
+    setSelectedId(null);
+    setVanished(true);
+  }, [selectedId, selected]);
 
   return (
     <div className="space-y-8">
@@ -97,14 +144,18 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
         </EmptyState>
       ) : (
         <>
-          <MapSection rows={rows} selectedId={selectedId} onSelect={select} />
+          <MapSection rows={rows} selectedId={selectedId} onSelect={select} vanished={vanished} />
           <div className={SECTION}>
             <RankedStrip rows={rows} selectedId={selectedId} onSelect={select} />
           </div>
           <div className={SECTION}>
-            <ExceptionSummary counts={data.exceptionCounts} />
+            <ExceptionSummary
+              counts={data.exceptionCounts}
+              severities={data.exceptionSeverityCounts}
+            />
           </div>
           <div className={SECTION}>
+            {selected ? <SelectionBar row={selected} /> : null}
             <DepotTable rows={rows} selectedId={selectedId} onSelect={select} />
           </div>
         </>

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   exceptionRows,
-  exceptionTotals,
+  selectionStatus,
+  severityTotals,
   formatIndex,
   joinScores,
   kpiRows,
@@ -222,22 +223,43 @@ describe('exception summaries', () => {
     const dark = rows.find((row) => row.kind === 'dark_share_high');
     expect(dark?.severity).toBe('variable');
   });
+});
 
-  it('totals by severity, keeping depot-rate exceptions apart', () => {
-    expect(exceptionTotals(counts)).toEqual({
-      critical: 1,
-      warning: 43,
+describe('severityTotals', () => {
+  it('totals the severity counts the server sends', () => {
+    expect(severityTotals({ critical: 2, warning: 41, info: 12 })).toEqual({
+      critical: 2,
+      warning: 41,
       info: 12,
-      variable: 3,
-      total: 59,
+      total: 55,
     });
   });
 
-  it('treats a missing or invalid count as zero', () => {
-    const partial = { ...counts, emergency: Number.NaN, long_dark: -2 };
-    const totals = exceptionTotals(partial);
-    expect(totals.critical).toBe(0);
-    expect(totals.warning).toBe(3);
+  it('can differ from the sum of the kind counts, because depot-rate kinds split by z', () => {
+    const counts: Record<ExceptionKind, number> = {
+      dark_share_high: 2,
+      off_road_high: 1,
+      on_road_low: 0,
+      power_cut_cluster: 3,
+      long_dark: 40,
+      power_cut: 7,
+      tamper_code: 5,
+      emergency: 1,
+    };
+    const kindSum = exceptionRows(counts).reduce((sum, row) => sum + row.count, 0);
+    const totals = severityTotals({ critical: 3, warning: 44, info: 12 });
+    expect(kindSum).toBe(59);
+    expect(totals.total).toBe(59);
+    expect(totals.critical).not.toBe(1);
+  });
+
+  it('treats an invalid count as zero', () => {
+    expect(severityTotals({ critical: Number.NaN, warning: -2, info: 4.4 })).toEqual({
+      critical: 0,
+      warning: 0,
+      info: 4,
+      total: 4,
+    });
   });
 });
 
@@ -246,5 +268,19 @@ describe('formatIndex', () => {
     expect(formatIndex(72)).toBe('72.0');
     expect(formatIndex(null)).toBe('—');
     expect(formatIndex(Number.NaN)).toBe('—');
+  });
+});
+
+describe('selectionStatus', () => {
+  it('names the depot and its index, or why it is unranked', () => {
+    const [ranked, small] = rowsFor([
+      ['a', 62.4],
+      ['b', null, 'fleet_too_small'],
+    ]);
+    expect(selectionStatus(ranked ?? null)).toBe('Selected Depot a, index 62.4');
+    expect(selectionStatus(small ?? null)).toBe(
+      'Selected Depot b, not ranked: Fewer than 10 buses',
+    );
+    expect(selectionStatus(null)).toBe('');
   });
 });

@@ -383,9 +383,11 @@
       hover:decoration-holo-glow;
   }
 
-  /* Map and its side panel: side by side from 1024px, stacked below. */
+  /* Map and its side panel: side by side only from 1280px, where the content
+     column (viewport less the 232px rail and gutters) is about 1000px; below
+     that they stack. */
   .depot-map-layout {
-    @apply grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px];
+    @apply grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px];
   }
 
   .depot-map-frame {

@@ -1,29 +1,7 @@
 import { formatCount, formatFeedTime } from '@/lib/depot/format';
-import type {
-  BusException,
-  DepotException,
-  ExceptionKind,
-  ExceptionSeverity,
-} from './types';
+import type { BusException, DepotException } from './types';
 
-/** Short names for the counts strip and the kind filter. */
-export const EXCEPTION_KIND_LABEL: Readonly<Record<ExceptionKind, string>> = {
-  dark_share_high: 'High dark rate',
-  off_road_high: 'High off-road rate',
-  on_road_low: 'Low on-road share',
-  power_cut_cluster: 'Power-off cluster',
-  long_dark: 'Long dark',
-  power_cut: 'Power off',
-  tamper_code: 'Tamper code',
-  emergency: 'Emergency flag',
-};
-
-/** Severity is always shown as a word; colour only reinforces it. */
-export const SEVERITY_LABEL: Readonly<Record<ExceptionSeverity, string>> = {
-  critical: 'Critical',
-  warning: 'Warning',
-  info: 'Info',
-};
+export { EXCEPTION_KIND_LABEL, SEVERITY_LABEL } from '@/lib/depot/labels';
 
 const PERCENT = 100;
 

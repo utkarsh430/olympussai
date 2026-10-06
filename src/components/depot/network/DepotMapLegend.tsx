@@ -4,6 +4,8 @@ import { MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
 
 const SIZE_SAMPLES = [1, 0.25, 0.04] as const;
 const SWATCH_PX = 12;
+/** Size samples use the middle band, so they read as ordinary filled nodes. */
+const SAMPLE_FILL = INDEX_BANDS[2]?.fill ?? UNRANKED_NODE.stroke;
 
 export interface DepotMapLegendProps {
   /** Fleet of the largest depot on the map; the largest circle stands for it. */
@@ -48,7 +50,7 @@ export function DepotMapLegend({ maxFleet }: DepotMapLegendProps) {
         <ul className="flex flex-wrap items-end gap-4">
           {samples.map((fleet) => (
             <li key={fleet} className="flex items-center gap-1.5">
-              <Circle radius={nodeRadius(fleet, maxFleet)} hollow={false} fill="#3987e5" />
+              <Circle radius={nodeRadius(fleet, maxFleet)} hollow={false} fill={SAMPLE_FILL} />
               <span className="tabular-nums">{formatCount(fleet)} buses</span>
             </li>
           ))}
