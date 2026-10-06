@@ -181,7 +181,7 @@ describe('buildChildEnv', () => {
 
   it('drops secrets and any unlisted variable', () => {
     const env = buildChildEnv(parent, '/tmp/home', '/opt/node/bin');
-    
+
     for (const name of [
       'ANTHROPIC_API_KEY',
       'ANTHROPIC_AUTH_TOKEN',
@@ -420,13 +420,15 @@ describe('runCli', () => {
     await expect(promise).resolves.toMatchObject({ ok: false, reason: 'not_authenticated' });
   });
 
-  it('does not spawn when the prompt exceeds the byte cap', async () => {
+  // The provider rejects an oversized request before any attempt; runCli keeps
+  // the same cap as a backstop and reports it the same way, never spawning.
+  it('reports request_rejected without spawning when the prompt exceeds the byte cap', async () => {
     const child = fakeChild();
     const { spawn, promise } = run(child, {
       ...INPUT,
       stdin: 'x'.repeat(MAX_PROMPT_BYTES + 1),
     });
-    await expect(promise).resolves.toMatchObject({ ok: false, reason: 'error' });
+    await expect(promise).resolves.toMatchObject({ ok: false, reason: 'request_rejected' });
     expect(spawn).not.toHaveBeenCalled();
   });
 
@@ -436,8 +438,13 @@ describe('runCli', () => {
       ...INPUT,
       stdin: 'é'.repeat(MAX_PROMPT_BYTES / 2 + 1),
     });
-    await expect(promise).resolves.toMatchObject({ ok: false, reason: 'error' });
+    await expect(promise).resolves.toMatchObject({ ok: false, reason: 'request_rejected' });
     expect(spawn).not.toHaveBeenCalled();
+    const exact = fakeChild();
+    const atCap = run(exact, { ...INPUT, stdin: 'é'.repeat(MAX_PROMPT_BYTES / 2) });
+    expect(atCap.spawn).toHaveBeenCalledTimes(1);
+    exact.emitter.emit('close', 0);
+    await expect(atCap.promise).resolves.toMatchObject({ ok: true });
   });
 
   it('survives pipe errors on stdout and stderr', async () => {
@@ -500,7 +507,10 @@ describe('classifyCliFailure', () => {
   it.each([
     ['Not logged in · Please run /login', 'not_authenticated'],
     ['Invalid API key · Please run /login', 'not_authenticated'],
-    ['API Error: 401 {"type":"error","error":{"type":"authentication_error"}}', 'not_authenticated'],
+    [
+      'API Error: 401 {"type":"error","error":{"type":"authentication_error"}}',
+      'not_authenticated',
+    ],
     ['Claude AI usage limit reached|1760000000', 'usage_limit'],
     ["You've hit your limit · resets 5pm", 'usage_limit'],
     ['5-hour limit reached · resets 3pm', 'usage_limit'],
