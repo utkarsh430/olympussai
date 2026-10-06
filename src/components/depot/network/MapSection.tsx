@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { unpositionedSentence } from '@/lib/depot/network/mapWords';
 import { unpositionedCount, type DepotRow } from '@/lib/depot/network/overviewModel';
 import { DepotMap } from './DepotMap';
@@ -18,9 +18,11 @@ interface MapSectionProps {
   /** Null clears the selection. */
   readonly onSelect: (depotId: string | null) => void;
   readonly vanished: boolean;
+  /** "Efficiency index over the last 20 minutes.": said once, here, where the index first appears. */
+  readonly windowNote?: string;
 }
 
-export function MapSection({ rows, selected, onSelect, vanished }: MapSectionProps) {
+export function MapSection({ rows, selected, onSelect, vanished, windowNote }: MapSectionProps) {
   const depots = rows.map((row) => row.depot);
   const maxFleet = depots.reduce(
     (max, depot) => (depot.centroid ? Math.max(max, depot.fleet) : max),
@@ -34,19 +36,7 @@ export function MapSection({ rows, selected, onSelect, vanished }: MapSectionPro
 
   return (
     <section aria-labelledby="depot-map-heading" className={SECTION}>
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 id="depot-map-heading" className="depot-section-label scroll-mt-[var(--depot-anchor-mt)] !mb-0">
-          Units map
-        </h2>
-        <ProvenanceBadge provenance="derived" />
-        {mapAvailable ? (
-          <p className="font-sans text-[13px] leading-snug text-depot-muted">
-            Each unit is drawn at the median position of its buses, not at a surveyed yard, and it
-            moves with them: a unit whose fleet is mostly out on routes can appear tens of
-            kilometres from its yard.
-          </p>
-        ) : null}
-      </div>
+      <SectionLabel id="depot-map-heading" label="Units map" note={windowNote} />
       <SelectionLine row={selected} onClear={clear} />
       <div className="depot-map-layout">
         <div className="min-w-0">
@@ -62,7 +52,7 @@ export function MapSection({ rows, selected, onSelect, vanished }: MapSectionPro
               className="mt-2 font-sans text-[13px] text-depot-muted"
               data-testid="depot-map-unpositioned"
             >
-              {unpositionedSentence(unpositionedCount(depots))}
+              {`Each unit is drawn at the median position of its buses, not at a surveyed yard. ${unpositionedSentence(unpositionedCount(depots))}`}
             </p>
           ) : null}
         </div>

@@ -84,6 +84,68 @@ describe('LeagueGrid', () => {
   });
 });
 
+describe('LeagueGrid frozen block, window and pages', () => {
+  const many = Array.from({ length: 30 }, (_, i) => row(`r${i}`, { rank: i + 1 }));
+
+  it('gives Rank, Depot and Index one width each from the shared arithmetic, header and body alike', () => {
+    act(() =>
+      root.render(
+        <LeagueGrid rows={[RANKED]} showPeerGroup={false} selectedId={null} onSelect={() => undefined} />,
+      ),
+    );
+    const head = Array.from(container.querySelectorAll<HTMLElement>('thead th')).slice(0, 3);
+    const body = Array.from(container.querySelectorAll<HTMLElement>('tbody td')).slice(0, 3);
+    const lefts = head.map((th) => th.style.getPropertyValue('--frozen-left-wide'));
+    expect(lefts).toEqual(['0rem', '4.75rem', '17.75rem']);
+    expect(body.map((td) => td.style.getPropertyValue('--frozen-left-wide'))).toEqual(lefts);
+    for (const cell of [...head, ...body]) expect(cell.className).toContain('sticky');
+    for (const td of body) expect(td.className).toContain('bg-depot-page');
+  });
+
+  it('orders schedule coverage and device integrity straight after the frozen block', () => {
+    act(() =>
+      root.render(
+        <LeagueGrid rows={[RANKED]} showPeerGroup={false} selectedId={null} onSelect={() => undefined} />,
+      ),
+    );
+    const headers = Array.from(container.querySelectorAll('thead th button')).map((b) => b.textContent);
+    expect(headers.slice(0, 5)).toEqual(['Rank', 'Depot', 'Index', 'Schedule coverage', 'Device integrity']);
+  });
+
+  it('names the window under the Index header', () => {
+    act(() =>
+      root.render(
+        <LeagueGrid
+          rows={[RANKED]}
+          showPeerGroup={false}
+          selectedId={null}
+          onSelect={() => undefined}
+          indexWindow="last 20 min"
+        />,
+      ),
+    );
+    expect(container.querySelectorAll('thead th')[2]?.textContent).toContain('Index· last 20 min');
+  });
+
+  it('pages at 25 rows in the page flow and says the range', () => {
+    act(() =>
+      root.render(
+        <LeagueGrid rows={many} showPeerGroup={false} selectedId={null} onSelect={() => undefined} />,
+      ),
+    );
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(25);
+    expect(container.textContent).toContain('Rows 1 to 25 of 30');
+  });
+
+  it('shows a state panel, not an empty table, when no depot matches', () => {
+    act(() =>
+      root.render(<LeagueGrid rows={[]} showPeerGroup={false} selectedId={null} onSelect={() => undefined} />),
+    );
+    expect(container.querySelector('table')).toBeNull();
+    expect(container.textContent).toContain('No depots match these filters.');
+  });
+});
+
 describe('ScoreBreakdown', () => {
   it("shows the unit's fleet for a ranked and for an unranked unit", () => {
     act(() => root.render(<ScoreBreakdown row={RANKED} feedNow={null} />));

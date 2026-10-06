@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { KpiWeekTrend } from '@/components/depot/trends/WeekTrend';
 import { formatCount } from '@/lib/depot/format';
-import { kpiLayout, type KpiFigure } from '@/lib/depot/network/overviewWords';
+import { figureTag, kpiLayout, secondaryReading } from '@/lib/depot/network/overviewWords';
 import type { DepotSummary, NetworkKpis } from '@/lib/depot/types';
 
 const COUNT_UP_MS = 700;
@@ -41,67 +42,58 @@ function useFirstMountProgress(): number {
   return progress;
 }
 
-/** The provenance word, then the quiet coverage note in prose-sized mono. */
-function Provenance({ figure }: { readonly figure: KpiFigure }) {
-  return (
-    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <ProvenanceBadge provenance={figure.provenance} />
-      {figure.note ? <span className="text-[11px] text-depot-muted">{figure.note}</span> : null}
-    </span>
-  );
-}
-
 export interface KpiBandProps {
   readonly kpis: NetworkKpis;
   readonly depots: readonly Pick<DepotSummary, 'kind'>[];
 }
 
 /**
- * Four primary bus figures in one row at hero size, then the secondary figures
- * as small inline readings beneath, so the map (the page's hero) rises into
- * the first screen. Hairlines separate the cells; there is no card per figure.
+ * One FigureBand of five figures (four bus counts and operating depots), the three
+ * remaining figures as one quiet line, then the week's MODELLED trends on a line of
+ * their own. The trends are shares with their own definitions (on-road share, dark
+ * rate), not the counts in the band, so they are not placed under a count where they
+ * could be read as its trend; each names its measure, and the line carries the tag.
+ * No LIVE tag on a figure: the page's provenance line and the feed chip say it.
  */
 export function KpiBand({ kpis, depots }: KpiBandProps) {
   const progress = useFirstMountProgress();
   const { primary, secondary } = kpiLayout(kpis, depots);
 
   return (
-    <section aria-labelledby="depot-kpi-heading" data-testid="depot-kpi-band">
-      <h2 id="depot-kpi-heading" className="sr-only">
-        Network figures
-      </h2>
-      <dl className="depot-kpi-grid">
+    <section aria-label="Network figures" data-testid="depot-kpi-band">
+      <FigureBand label="Network figures">
         {primary.map((figure) => {
           const shown = progress === DONE ? figure.value : Math.round(figure.value * progress);
           return (
-            <div key={figure.key} className="depot-kpi-cell" data-testid={`depot-kpi-${figure.key}`}>
-              <dt className="depot-label">{figure.label}</dt>
-              <dd className="depot-hero-numeral mt-1.5">{formatCount(shown)}</dd>
-              <dd className="mt-1.5">
-                <Provenance figure={figure} />
-              </dd>
-              <KpiWeekTrend figure={figure.key} />
-            </div>
+            <Figure
+              key={figure.key}
+              label={figure.label}
+              value={formatCount(shown)}
+              caption={figure.note ?? undefined}
+              tag={figureTag(figure.provenance)}
+            />
           );
         })}
-      </dl>
-      <dl className="depot-kpi-secondary">
+      </FigureBand>
+      <p className="-mt-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] tabular-nums text-depot-muted">
         {secondary.map((figure) => (
-          <div key={figure.key} className="min-w-0" data-testid={`depot-kpi-${figure.key}`}>
-            <dt className="depot-label">{figure.label}</dt>
-            <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span className="text-[15px] tabular-nums text-depot-ink">
-                {formatCount(figure.value)}
+          <span key={figure.key} data-testid={`depot-kpi-${figure.key}`} title={figure.detail ?? undefined}>
+            {secondaryReading(figure)}
+            {figureTag(figure.provenance) ? (
+              <span className="ml-1.5">
+                <ProvenanceBadge provenance={figure.provenance} />
               </span>
-              <Provenance figure={figure} />
-            </dd>
-            {figure.detail ? (
-              <dd className="mt-0.5 font-sans text-xs leading-snug text-depot-muted">
-                {figure.detail}
-              </dd>
             ) : null}
-          </div>
+          </span>
         ))}
+      </p>
+      <dl className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 [&:not(:has(dd))]:hidden" data-testid="depot-kpi-trends">
+        <dt className="flex items-center gap-2">
+          <ProvenanceBadge provenance="modelled" />
+          <span className="depot-label">Week trend</span>
+        </dt>
+        <KpiWeekTrend figure="onRoad" />
+        <KpiWeekTrend figure="noSignal" />
       </dl>
     </section>
   );

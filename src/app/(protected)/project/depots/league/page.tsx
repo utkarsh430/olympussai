@@ -13,8 +13,8 @@ export default async function DepotLeaguePage() {
     <>
       <PageHeader
         title="League table"
-        description="One snapshot of the live feed, compared within peer groups of similar fleet size."
-        provenance="derived"
+        description="Depots ranked by efficiency index within peer groups of similar fleet size."
+        provenanceLine={{ default: 'derived' }}
       />
       <LeagueTable />
     </>

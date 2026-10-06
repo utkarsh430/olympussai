@@ -3,21 +3,24 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import {
-  EmptyState,
   ErrorPanel,
   LoadingBlock,
   StaleStrip,
 } from '@/components/depot/shell/DataStates';
 import { formatClockTime } from '@/lib/depot/format';
 import { LOAD_ERROR_TITLE, loadErrorBody } from '@/lib/depot/loadError';
+import { OVERVIEW_HOW_PRODUCED } from '@/lib/depot/network/howProduced';
 import { joinScores } from '@/lib/depot/network/overviewModel';
+import { exceptionWindowNote, scoreWindowSentence } from '@/lib/depot/network/scoreWindowWords';
 import type { DepotNetworkResponse } from '@/lib/depot/api';
 import { BriefingCard } from '@/components/depot/copilot/BriefingCard';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import { DepotTable } from './DepotTable';
 import { MapSection } from './MapSection';
 import { ExceptionSummary } from './ExceptionSummary';
+import { HowProduced } from './HowProduced';
 import { KpiBand } from './KpiBand';
 import { RankedStrip } from './RankedStrip';
 import { SelectionBar } from './SelectionBar';
@@ -59,21 +62,33 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
     setVanished(true);
   }, [selectedId, selected]);
 
+  const windowSentence = scoreWindowSentence(data.scoreWindow, data.feedNow);
   return (
     <div className="space-y-8">
       <div className={SECTION}>
         <KpiBand kpis={data.kpis} depots={data.depots} />
       </div>
-      <div className={SECTION}>
-        <BriefingCard scope={NETWORK_SCOPE} title="Network briefing" />
-      </div>
       {rows.length === 0 ? (
-        <EmptyState>
-          The feed returned no units on this snapshot, so there is nothing to map, rank or list.
-        </EmptyState>
+        <StatePanel
+          kind="no-data"
+          rows={6}
+          sentence="The feed returned no units on this snapshot, so there is nothing to map, rank or list."
+          remedy="The page fills in on the next poll that carries units."
+        />
       ) : (
+        <MapSection
+          rows={rows}
+          selected={selected}
+          onSelect={select}
+          vanished={vanished}
+          windowNote={windowSentence}
+        />
+      )}
+      <div className={SECTION}>
+        <NetworkBriefingRow />
+      </div>
+      {rows.length === 0 ? null : (
         <>
-          <MapSection rows={rows} selected={selected} onSelect={select} vanished={vanished} />
           <div className={SECTION}>
             <RankedStrip rows={rows} selectedId={selectedId} onSelect={select} />
           </div>
@@ -81,6 +96,7 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
             <ExceptionSummary
               counts={data.exceptionCounts}
               severities={data.exceptionSeverityCounts}
+              windowNote={exceptionWindowNote(data.scoreWindow, data.feedNow)}
             />
           </div>
           <div className={SECTION}>
@@ -89,7 +105,23 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
           </div>
         </>
       )}
+      <HowProduced paragraphs={OVERVIEW_HOW_PRODUCED} />
     </div>
+  );
+}
+
+/**
+ * The briefing as one collapsed row that opens in place. The shared card cannot yet
+ * take the page's feed time, so its footer cannot say when the page has moved on.
+ */
+function NetworkBriefingRow() {
+  return (
+    <details className="depot-details border-y border-depot-line py-2.5" data-testid="depot-briefing-row">
+      <summary>Network briefing · a written summary of these figures, on request</summary>
+      <div className="mt-3">
+        <BriefingCard scope={NETWORK_SCOPE} title="Network briefing" />
+      </div>
+    </details>
   );
 }
 

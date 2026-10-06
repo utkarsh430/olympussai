@@ -175,6 +175,14 @@ describe('ExceptionSummary', () => {
     expect(hrefs.filter((href) => href?.includes('?kind='))).toHaveLength(8);
   });
 
+  it('says once that depot exceptions are windowed and bus counts are as of the feed time', () => {
+    const note = 'Depot exceptions compare rates over the last 20 minutes; bus counts are as of 14:20.';
+    act(() =>
+      root.render(<ExceptionSummary counts={COUNTS} severities={SEVERITIES} windowNote={note} />),
+    );
+    expect(container.querySelector('[data-testid="depot-exception-window"]')?.textContent).toBe(note);
+  });
+
   it('names the scope of every total and links nothing but the exceptions page', () => {
     act(() => root.render(<ExceptionSummary counts={COUNTS} severities={SEVERITIES} />));
     expect(container.textContent).toMatch(/depot exceptions/);

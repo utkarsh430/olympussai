@@ -184,7 +184,7 @@ export function DepotMapPanel({
         </div>
         <div>
           <dt className="depot-label flex items-center gap-2">
-            State <ProvenanceBadge provenance="derived" />
+            State
           </dt>
           <dd className="mt-2">
             <StatusMixBar segments={segments} caption="State" width={240} />
@@ -205,7 +205,7 @@ export function DepotMapPanel({
         </div>
         <div>
           <dt className="depot-label flex items-center gap-2">
-            Efficiency index <ProvenanceBadge provenance="derived" />
+            Efficiency index
           </dt>
           <dd className="mt-1">
             <Ranking row={row} />

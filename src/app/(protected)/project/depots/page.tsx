@@ -13,6 +13,7 @@ export default async function DepotsOverviewPage() {
       <PageHeader
         title="Network overview"
         description="Fleet strength, status and efficiency across every UPSRTC depot."
+        provenanceLine={{ default: 'derived' }}
       />
       <NetworkOverview />
     </>
