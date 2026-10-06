@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   FEED_CLOCK_MAX_LEAD_MIN,
   deriveFeedClock,
@@ -105,6 +105,19 @@ describe('deriveFeedClock (S56a)', () => {
 
   it('never depends on the wall clock, and deriveFeedNow is its feedNow', () => {
     const rows = rowsAt([...heardAgo(10, 0), iso(FETCH_IST_MS + 60 * MIN)]);
-    expect(deriveFeedNow(rows, FETCH_MS)).toBe(deriveFeedClock(rows, FETCH_MS).feedNow);
+    const at = (wallMs: number) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(wallMs);
+      try {
+        return deriveFeedClock(rows, FETCH_MS);
+      } finally {
+        vi.useRealTimers();
+      }
+    };
+    // A wall clock a year before the fetch and a day after it give the same clock.
+    const early = at(FETCH_MS - 365 * 24 * 60 * MIN);
+    expect(at(FETCH_MS + 24 * 60 * MIN)).toEqual(early);
+    expect(early.aheadRows).toBe(1);
+    expect(deriveFeedNow(rows, FETCH_MS)).toBe(early.feedNow);
   });
 });
