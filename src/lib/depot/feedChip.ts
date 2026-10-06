@@ -112,6 +112,9 @@ const NOTE_LEADS: Readonly<Record<Exclude<Provenance, 'reference'>, NoteLead>> =
   },
 };
 
+/** The note when the network poll has failed and there is no feed time to name. */
+export const FEED_UNAVAILABLE_NOTE = 'The feed is unavailable';
+
 /**
  * The words after a page header's provenance tag, so the tag says what it
  * applies to and when: live ("Live from the feed at 12:37"), derived, modelled
@@ -125,7 +128,7 @@ export function headerProvenanceNote(
   provenance: Provenance = 'derived',
 ): string {
   if (provenance === 'reference') return 'Reference data, curated';
-  if (!data) return 'Waiting for the feed';
+  if (!data) return error !== null ? FEED_UNAVAILABLE_NOTE : 'Waiting for the feed';
   const lead = NOTE_LEADS[provenance];
   const time = formatFeedTime(data.feedNow);
   if (data.source === 'fixture') return `${lead.other} sample data, feed time ${time}`;

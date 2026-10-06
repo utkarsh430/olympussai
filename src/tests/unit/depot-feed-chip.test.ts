@@ -175,6 +175,11 @@ describe('headerProvenanceNote', () => {
       'Modelled: generated figures, anchored on sample data, feed time 12:36',
     );
     expect(headerProvenanceNote(null, null, 'derived')).toBe('Waiting for the feed');
+    // The network poll failed, so there is nothing to wait for.
+    expect(headerProvenanceNote(null, 'Depot data unavailable', 'derived')).toBe(
+      'The feed is unavailable',
+    );
+    expect(headerProvenanceNote(null, 'Session expired', 'modelled')).toBe('The feed is unavailable');
   });
 
   it('keeps an omitted tag working as the derived wording', () => {
