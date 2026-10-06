@@ -36,6 +36,7 @@ export function RosterPage() {
   const openBus = useSearchParams().get(BUS_PARAM);
   const [filters, setFilters] = useState<Filters>(DEFAULT_ROSTER_FILTERS);
   const openerRef = useRef<HTMLElement | null>(null);
+  const regionRef = useRef<HTMLDivElement>(null);
 
   const allRows = useMemo(() => (data ? buildRosterRows(data.buses) : []), [data]);
   const counts = useMemo(() => countByState(data?.buses ?? []), [data]);
@@ -52,11 +53,14 @@ export function RosterPage() {
   );
   const close = useCallback((): void => {
     router.replace(pathname, { scroll: false });
-    // The sheet unmounts first; hand focus back to the button that opened it.
+  }, [router, pathname]);
+  // The button that opened the sheet; for a `?bus=` deep link there is none, so
+  // focus goes to the table region rather than falling to the body.
+  const restoreFocusTo = useCallback((): HTMLElement | null => {
     const opener = openerRef.current;
     openerRef.current = null;
-    if (opener?.isConnected) requestAnimationFrame(() => opener.focus());
-  }, [router, pathname]);
+    return opener?.isConnected ? opener : regionRef.current;
+  }, []);
 
   if (loading) return <LoadingBlock rows={10} label="Loading the roster" />;
   if (!data) return <ErrorPanel message={error ?? DEPOT_UNAVAILABLE_MESSAGE} onRetry={refresh} />;
@@ -72,15 +76,23 @@ export function RosterPage() {
       <p className="depot-prose mb-2 text-xs" role="status">
         {`Showing ${formatCount(rows.length)} of ${formatCount(allRows.length)} buses.`}
       </p>
-      {rows.length === 0 ? (
-        <EmptyState>
-          {`No bus matches these filters. This depot has ${formatCount(allRows.length)} buses in all.`}
-        </EmptyState>
-      ) : (
-        <RosterTable rows={rows} selectedRegistration={openBus} onOpen={open} />
-      )}
+      <div ref={regionRef} tabIndex={-1} aria-label="Roster results" className="outline-none">
+        {rows.length === 0 ? (
+          <EmptyState>
+            {`No bus matches these filters. This depot has ${formatCount(allRows.length)} buses in all.`}
+          </EmptyState>
+        ) : (
+          <RosterTable rows={rows} selectedRegistration={openBus} onOpen={open} />
+        )}
+      </div>
       {openBus !== null ? (
-        <BusDrawer registration={openBus} row={openRow} feedNow={data.feedNow} onClose={close} />
+        <BusDrawer
+          registration={openBus}
+          row={openRow}
+          feedNow={data.feedNow}
+          onClose={close}
+          restoreFocusTo={restoreFocusTo}
+        />
       ) : null}
     </>
   );
