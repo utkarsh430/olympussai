@@ -1,5 +1,6 @@
 import { formatCount } from '@/lib/depot/format';
 import type { ScenarioDelta } from '@/lib/depot/optimise/types';
+import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import type { PlanSummary } from '@/lib/depot/rebalance/rebalanceModel';
 import { describeDelta } from '@/lib/depot/rebalance/scenarioSummary';
 
@@ -69,20 +70,25 @@ function linesOf(d: ScenarioDelta, a: PlanSummary, b: PlanSummary): readonly Lin
 export function ScenarioCompare({ delta, baseline, scenario }: ScenarioCompareProps) {
   return (
     <section aria-labelledby="rebalance-compare-heading" data-testid="rebalance-compare">
-      <h2 id="rebalance-compare-heading" className="depot-section-label">
-        Baseline against what-if
-      </h2>
+      <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
+        <h2 id="rebalance-compare-heading" className="depot-section-label mb-0">
+          Server plan against what-if
+        </h2>
+        <ProvenanceBadge provenance="modelled" />
+      </div>
       <div className="depot-table-frame max-h-none">
         <table className="depot-table">
-          <caption className="sr-only">The baseline plan compared with the what-if plan</caption>
+          <caption className="sr-only">
+            The server's modelled plan compared with the what-if plan, also modelled
+          </caption>
           <thead>
             <tr>
               <th scope="col">Figure</th>
               <th scope="col" className="depot-align-right">
-                Baseline
+                Server plan, modelled
               </th>
               <th scope="col" className="depot-align-right">
-                What-if
+                What-if, modelled
               </th>
               <th scope="col">Difference</th>
             </tr>
