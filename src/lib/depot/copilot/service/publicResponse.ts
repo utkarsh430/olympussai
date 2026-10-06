@@ -3,6 +3,7 @@ import type {
   CopilotAnswerScope,
   CopilotAnswerTable,
   CopilotApiResponse,
+  CopilotDataSource,
   CopilotPublicNotice,
 } from '@/lib/depot/copilot/wire';
 
@@ -15,6 +16,8 @@ export interface PublicExtras {
   readonly answerScope?: CopilotAnswerScope;
   /** Server-written, for a stale snapshot: appended here, outside the cache. */
   readonly staleSentence?: string;
+  /** Where the figures come from when not the live feed, for the footer. */
+  readonly dataSource?: CopilotDataSource;
 }
 
 function noticeFor(text: CopilotText, claudeMissed: boolean): CopilotPublicNotice {
@@ -50,5 +53,6 @@ export function toPublicResponse(
     ...(extras.interpretedAs !== undefined ? { interpretedAs: extras.interpretedAs } : {}),
     ...(extras.table !== undefined ? { table: extras.table } : {}),
     ...(extras.answerScope !== undefined ? { answerScope: extras.answerScope } : {}),
+    ...(extras.dataSource !== undefined ? { dataSource: extras.dataSource } : {}),
   };
 }

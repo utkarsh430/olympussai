@@ -64,6 +64,12 @@ export type CopilotAnswerScope =
   | ({ readonly kind: 'depot' } & CopilotScopeDepot)
   | { readonly kind: 'depots'; readonly depots: readonly CopilotScopeDepot[] };
 
+/**
+ * Where the figures come from when it is not the live feed: the last good data during an
+ * outage, or the saved sample. Absent on the live feed.
+ */
+export type CopilotDataSource = 'last_good' | 'sample';
+
 export interface CopilotApiResponse {
   readonly headline: string;
   readonly paragraphs: readonly string[];
@@ -80,6 +86,8 @@ export interface CopilotApiResponse {
   readonly table?: CopilotAnswerTable;
   /** `ask` only: what the answer is about. Absent when the question was declined. */
   readonly answerScope?: CopilotAnswerScope;
+  /** Set when the figures are not from the live feed; the footer says which. */
+  readonly dataSource?: CopilotDataSource;
 }
 
 /** Error body. 400 invalid request, 401, 403 cross-origin, 404 unknown depot or transfer, 429, 503. */

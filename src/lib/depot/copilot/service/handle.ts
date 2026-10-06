@@ -11,11 +11,16 @@ import { prepareCopilotRequest, type Prepared } from '@/lib/depot/copilot/servic
 import { fail, isJsonMediaType, reply, tooMany } from '@/lib/depot/copilot/service/respond';
 import type { CopilotRuntime } from '@/lib/depot/copilot/service/runtime';
 import { parseCopilotBody, type ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
-import { staleSentence } from '@/lib/depot/copilot/service/stale';
+import { dataSourceOf, staleSentence } from '@/lib/depot/copilot/service/stale';
+import type { CopilotDataSource } from '@/lib/depot/copilot/wire';
 
 const SNAPSHOT_DEADLINE = Symbol('snapshot-deadline');
 
-type Loaded = { readonly prepared: Prepared; readonly staleSentence?: string };
+type Loaded = {
+  readonly prepared: Prepared;
+  readonly staleSentence?: string;
+  readonly dataSource?: CopilotDataSource;
+};
 
 async function loadWithin(
   load: () => Promise<FleetSnapshotView>,
@@ -48,7 +53,11 @@ async function loadAndPrepare(
     return null;
   }
   try {
-    return { prepared: prepareCopilotRequest(body, view), staleSentence: staleSentence(view) };
+    return {
+      prepared: prepareCopilotRequest(body, view),
+      staleSentence: staleSentence(view),
+      dataSource: dataSourceOf(view),
+    };
   } catch {
     logDepotError(LOG_SCOPE, 'prepare_failed');
     return null;
@@ -92,6 +101,7 @@ async function handleChecked(
       identity,
       address,
       staleSentence: loaded.staleSentence,
+      dataSource: loaded.dataSource,
     }),
   );
 }

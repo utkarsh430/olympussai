@@ -1,6 +1,6 @@
 import { UNAVAILABLE_DRAFT } from '@/lib/depot/copilot/resolve';
 import type { CopilotRequest, CopilotText } from '@/lib/depot/copilot/types';
-import type { CopilotApiResponse } from '@/lib/depot/copilot/wire';
+import type { CopilotApiResponse, CopilotDataSource } from '@/lib/depot/copilot/wire';
 import { logDepotError } from '@/lib/depot/log';
 import {
   NO_CALL_REASONS,
@@ -27,6 +27,8 @@ export interface AnswerCall {
   readonly address?: string | null;
   /** Server-written sentence for a stale snapshot; added outside the cache. */
   readonly staleSentence?: string;
+  /** Where the figures come from when not the live feed; added outside the cache. */
+  readonly dataSource?: CopilotDataSource;
 }
 
 /** The scripted answer; it cannot throw (the last resort is the fixed text). */
@@ -122,6 +124,7 @@ export async function answerCopilot(
     table: prepared.table,
     answerScope: prepared.answerScope,
     staleSentence: call.staleSentence,
+    dataSource: call.dataSource,
   };
   const missed = runtime.usesClaude || runtime.claudeExpected;
   const respond = (text: CopilotText, cached: boolean, claudeMissed: boolean) =>
