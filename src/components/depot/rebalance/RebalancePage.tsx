@@ -161,6 +161,7 @@ export function Distribution({
           onToggle={setSandboxOpen}
           headingId="rebalance-sandbox-heading"
           headingRef={headingRef}
+          keepMounted
         >
           <ScenarioPanel
             key={resetCount}

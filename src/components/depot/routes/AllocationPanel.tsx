@@ -1,119 +1,118 @@
 'use client';
 
-import { useMemo } from 'react';
-import { EmptyState, ErrorPanel, LoadingBlock } from '@/components/depot/shell/DataStates';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { useMemo, type ReactNode } from 'react';
+import { ErrorPanel, LoadingBlock } from '@/components/depot/shell/DataStates';
+import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import type { DepotAllocationState } from '@/hooks/useDepotAllocation';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
-import { moveRows } from '@/lib/depot/routes/allocationGroups';
+import { moveRows, type UnmovedGroup } from '@/lib/depot/routes/allocationGroups';
 import {
-  DEAD_KM_MEANING,
   RECOMMENDATION_ONLY,
-  TRIPS_MODELLED_NOTE,
   allocationHeadline,
   paramsSentence,
+  planHeadline,
 } from '@/lib/depot/routes/allocationWording';
 import type { DepotAllocationResponse } from '@/lib/depot/routes/api';
 import { ROUTES_TEXT } from '@/lib/depot/routes/routesPageText';
-import type { Coverage } from '@/lib/depot/types';
 import { MovesTable } from './MovesTable';
+import { ProfileCoverage } from './ProfileCoverage';
+import { UnmovedRoutes } from './UnmovedRoutes';
 
 const TITLE_ID = 'allocation-title';
 
-function KmFigure({
-  label,
-  value,
-  coverage,
-  hero = false,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly coverage: Coverage | undefined;
-  readonly hero?: boolean;
-}) {
+export interface AllocationPanelProps {
+  readonly allocation: DepotAllocationResponse;
+  readonly groups: readonly UnmovedGroup[];
+  /** The route-details loader, shown with the plan in both states. */
+  readonly loader: ReactNode;
+}
+
+/** The trip definition and the pending-profiles sentence, beside the plan's figures. */
+function PlanBasis({ allocation }: { readonly allocation: DepotAllocationResponse }) {
   return (
-    <div className={`depot-kpi-cell ${hero ? 'col-span-2' : ''}`}>
-      <dt className="flex flex-wrap items-center gap-2">
-        <span className="depot-label">{label}</span>
-        <ProvenanceBadge provenance="modelled" coverage={coverage} />
-      </dt>
-      <dd
-        className={`mt-2 min-w-0 [overflow-wrap:anywhere] ${
-          hero ? 'depot-hero-numeral' : 'font-mono text-[20px] tabular-nums text-depot-ink'
-        }`}
-      >
-        {value}
-      </dd>
-      <dd className="depot-prose text-xs">{ROUTES_TEXT.kmADay}</dd>
+    <div className="mb-3 max-w-3xl space-y-1">
+      <p className="depot-prose text-[13px]">{allocation.tripDefinition}</p>
+      {allocation.profilesPendingNote !== null ? (
+        <p className="depot-prose text-[13px]" role="status">
+          {allocation.profilesPendingNote}
+        </p>
+      ) : null}
     </div>
   );
 }
 
-/** The hero: totals before and after, what would move and why the rest would not. */
-export function AllocationPanel({ allocation }: { readonly allocation: DepotAllocationResponse }) {
+/**
+ * The plan as one panel: a headline sentence (the thresholds in its `title`), the figure
+ * band and the recommended moves when something is planned, the unmoved, outside-the-plan
+ * and unprofiled routes as collapsed rows with counts, and the route-details loader. When
+ * nothing can be planned it is one state panel with the loader as its action.
+ */
+export function AllocationPanel({ allocation, groups, loader }: AllocationPanelProps) {
   const h = useMemo(() => allocationHeadline(allocation), [allocation]);
   const rows = useMemo(() => moveRows(allocation.moves), [allocation.moves]);
+  if (!h.planned) {
+    return (
+      <>
+        <StatePanel
+          kind="not-established"
+          sentence={h.emptyLine}
+          remedy="Load a depot's route details below; the plan measures each route once its stops are known."
+          action={loader}
+        />
+        <div className="mt-3">
+          <PlanBasis allocation={allocation} />
+        </div>
+      </>
+    );
+  }
   return (
     <>
-      {h.planned ? (
-        <dl className="depot-kpi-grid">
-          <KmFigure
-            label={ROUTES_TEXT.savedLabel}
-            value={h.saving}
-            coverage={allocation.savedKmPerDay.coverage}
-            hero
-          />
-          <KmFigure label={ROUTES_TEXT.nowLabel} value={h.now} coverage={allocation.beforeKmPerDay.coverage} />
-          <KmFigure
-            label={ROUTES_TEXT.afterLabel}
-            value={h.after}
-            coverage={allocation.afterKmPerDay.coverage}
-          />
-        </dl>
-      ) : (
-        <EmptyState>{h.emptyLine}</EmptyState>
-      )}
-      <div className="mt-3 max-w-3xl space-y-1.5">
-        <p className="font-sans text-sm leading-[1.55] text-depot-ink">{h.movesLine}</p>
-        {h.stayLine ? <p className="depot-prose">{h.stayLine}</p> : null}
-        {h.excludedLine ? <p className="depot-prose">{h.excludedLine}</p> : null}
-        <p className="depot-prose">{h.coverageLine}</p>
-        <p className="depot-prose">
-          <ProvenanceBadge provenance="derived" /> {h.positionsLine} {DEAD_KM_MEANING}
-        </p>
-        <p className="depot-prose">
-          <ProvenanceBadge provenance="modelled" /> {allocation.tripDefinition} {TRIPS_MODELLED_NOTE}
-        </p>
-        <p className="depot-prose">{paramsSentence(allocation.params)}</p>
-        {allocation.profilesPendingNote !== null ? (
-          <p className="depot-prose" role="status">
-            {allocation.profilesPendingNote}
-          </p>
-        ) : null}
-      </div>
+      <p
+        className="mb-3 max-w-3xl font-sans text-sm leading-[1.55] text-depot-ink"
+        title={paramsSentence(allocation.params)}
+        data-testid="allocation-headline"
+      >
+        {planHeadline(allocation)}
+      </p>
+      <FigureBand label="Dead kilometres a day, modelled">
+        <Figure label={ROUTES_TEXT.savedLabel} value={h.saving} caption={ROUTES_TEXT.kmADay} />
+        <Figure label={ROUTES_TEXT.nowLabel} value={h.now} caption={ROUTES_TEXT.kmADay} />
+        <Figure label={ROUTES_TEXT.afterLabel} value={h.after} caption={ROUTES_TEXT.kmADay} />
+      </FigureBand>
+      <PlanBasis allocation={allocation} />
       {rows.length > 0 ? (
         <>
           <h3 className="depot-label mb-2 mt-5">{ROUTES_TEXT.movesTitle}</h3>
           <MovesTable rows={rows} />
         </>
       ) : null}
+      <UnmovedRoutes groups={groups} />
+      <div className="mt-3 border-t border-depot-line">
+        <ProfileCoverage profiled={allocation.coverage.profiled} />
+      </div>
+      <div className="mt-4">{loader}</div>
     </>
   );
 }
 
-/** The allocation block with its loading, error and recommendation-only states. */
-export function AllocationSection({ state }: { readonly state: DepotAllocationState }) {
+export interface AllocationSectionProps {
+  readonly state: DepotAllocationState;
+  readonly groups: readonly UnmovedGroup[];
+  readonly loader: ReactNode;
+}
+
+/** The plan panel with its loading and error states; the plan is a recommendation only. */
+export function AllocationSection({ state, groups, loader }: AllocationSectionProps) {
   const { data, error, loading, refresh } = state;
   return (
-    <section aria-labelledby={TITLE_ID} className="mb-10">
-      <h2 id={TITLE_ID} className="depot-section-label">
-        {ROUTES_TEXT.allocationTitle}
-      </h2>
-      <p className="mb-3 font-sans text-sm leading-[1.55] text-depot-ink">{RECOMMENDATION_ONLY}</p>
+    <section aria-labelledby={TITLE_ID} className="mb-8 min-w-0">
+      <SectionLabel id={TITLE_ID} label={ROUTES_TEXT.allocationTitle} tag="modelled" note={RECOMMENDATION_ONLY} />
       {loading ? (
-        <LoadingBlock rows={4} rowHeight={48} label="Loading the allocation plan" />
+        <LoadingBlock rows={3} rowHeight={48} label="Loading the allocation plan" />
       ) : data ? (
-        <AllocationPanel allocation={data} />
+        <AllocationPanel allocation={data} groups={groups} loader={loader} />
       ) : (
         <ErrorPanel
           title="Allocation plan unavailable"

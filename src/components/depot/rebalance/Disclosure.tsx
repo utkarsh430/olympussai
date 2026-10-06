@@ -15,17 +15,22 @@ export interface DisclosureProps {
   readonly headingId?: string;
   readonly headingRef?: Ref<HTMLHeadingElement>;
   readonly testId?: string;
+  /**
+   * Keep the content mounted while closed (hidden by the `hidden` attribute on a wrapper
+   * with no display class), for content whose state must survive closing, such as typed
+   * fields. Otherwise closed content is not rendered.
+   */
+  readonly keepMounted?: boolean;
   readonly children: ReactNode;
 }
 
 /**
  * A section that opens from its heading: a real button with `aria-expanded` inside the
- * section's `h2`, styled as a section label. The content stays mounted while closed (the
- * sandbox's fields keep their typed text) and is hidden with the `hidden` attribute on a
- * wrapper that has no display class of its own.
+ * section's `h2`, styled as a section label. Closed content is not rendered unless
+ * `keepMounted` asks for it to stay (hidden) so its state survives.
  */
 export function Disclosure(props: DisclosureProps) {
-  const { label, count, note, headingId, headingRef, testId, children } = props;
+  const { label, count, note, headingId, headingRef, testId, keepMounted = false, children } = props;
   const [ownOpen, setOwnOpen] = useState(false);
   const open = props.open ?? ownOpen;
   const panelId = useId();
@@ -65,9 +70,11 @@ export function Disclosure(props: DisclosureProps) {
         </h2>
         {note ? <p className="min-w-0 font-sans text-[13px] text-depot-muted">{note}</p> : null}
       </div>
-      <div id={panelId} hidden={!open}>
-        {children}
-      </div>
+      {keepMounted || open ? (
+        <div id={panelId} hidden={!open}>
+          {children}
+        </div>
+      ) : null}
     </section>
   );
 }

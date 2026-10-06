@@ -173,20 +173,11 @@ export interface UnmovedRoutesProps {
 
 /** Routes the plan does not move, by reason, collapsed until a reason is opened. */
 export function UnmovedRoutes({ groups }: UnmovedRoutesProps) {
+  if (groups.length === 0) return null;
   return (
-    <section aria-labelledby="unmoved-title" className="mb-10">
-      <h2 id="unmoved-title" className="depot-section-label">
-        {ROUTES_TEXT.unmovedTitle}
-      </h2>
-      {groups.length === 0 ? (
-        <p className="depot-prose">{ROUTES_TEXT.unmovedNone}</p>
-      ) : (
-        <>
-          <p className="depot-prose">{ROUTES_TEXT.unmovedHint}</p>
-          <GroupList title={ROUTES_TEXT.stayTitle} groups={groups.filter((g) => g.kind === 'stay')} />
-          <GroupList title={ROUTES_TEXT.outsideTitle} groups={groups.filter((g) => g.kind === 'outside')} />
-        </>
-      )}
-    </section>
+    <div data-testid="unmoved-routes" className="min-w-0">
+      <GroupList title={ROUTES_TEXT.stayTitle} groups={groups.filter((g) => g.kind === 'stay')} />
+      <GroupList title={ROUTES_TEXT.outsideTitle} groups={groups.filter((g) => g.kind === 'outside')} />
+    </div>
   );
 }

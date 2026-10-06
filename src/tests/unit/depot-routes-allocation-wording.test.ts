@@ -8,6 +8,7 @@ import {
   moveNote,
   notProfiledSentence,
   paramsSentence,
+  planHeadline,
   toTenths,
   unchangedReasonText,
   DEAD_KM_MEANING,
@@ -136,6 +137,14 @@ describe('reasons in words', () => {
   });
 });
 
+describe('planHeadline', () => {
+  it('is one sentence: what would move and on how many routes', () => {
+    expect(planHeadline(response())).toMatch(
+      /^(No route would move\.|[\d,]+ routes? would move to another depot.*\.) Based on 412 of 1,204 routes with a known profile\.$/,
+    );
+  });
+});
+
 describe('allocationHeadline', () => {
   it('states the three totals, the coverage and the depot positions', () => {
     const h = allocationHeadline(response());
@@ -226,7 +235,8 @@ describe('fixed sentences', () => {
     expect(TRIPS_MODELLED_NOTE).toContain('modelled from the buses');
     expect(DEAD_KM_MEANING).toContain('first and last stops');
     expect(PROFILES_GROW_WITH_USE).toContain('one route at a time');
-    expect(PROFILES_GROW_WITH_USE).toContain('never in bulk');
+    expect(PROFILES_GROW_WITH_USE).toContain('never by itself');
+    expect(PROFILES_GROW_WITH_USE).toContain('at most 40 a press');
     expect(RECOMMENDATION_ONLY).toContain('no route is reassigned');
   });
 });
