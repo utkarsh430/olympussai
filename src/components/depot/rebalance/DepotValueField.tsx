@@ -30,7 +30,7 @@ export function DepotValueField({ id, legend, depots, value, action }: DepotValu
       <label className="flex min-w-0 flex-col gap-1">
         <span className="sr-only">Depot for {legend.toLowerCase()}</span>
         <select
-          className="depot-field max-w-[220px] scroll-mt-40"
+          className="depot-field max-w-[220px] scroll-mt-[var(--depot-scroll-mt)]"
           value={depotId}
           onChange={(e) => {
             setDepotId(e.target.value);

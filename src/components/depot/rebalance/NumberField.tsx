@@ -73,7 +73,7 @@ export function NumberField({
         onKeyDown={(e) => {
           if (e.key === 'Enter') schedulerRef.current?.flush();
         }}
-        className="depot-field w-32 scroll-mt-40"
+        className="depot-field w-32 scroll-mt-[var(--depot-scroll-mt)]"
       />
       {evaluation.kind === 'invalid' ? (
         <p id={errorId} className="text-[11px] text-alert-amber">
