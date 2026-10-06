@@ -297,6 +297,46 @@ describe('depot Trends page', () => {
     expect(page).toContain('below the requirement');
   });
 
+  it('says in the comparison, not with older figures, when the fleet distribution did not refresh', () => {
+    hooks.distribution.mockReturnValue(
+      polled(distributionResponse('20', 40), { error: 'Depot data unavailable' }),
+    );
+    const page = text(renderToStaticMarkup(<DepotTrends metric="onRoadShare" />)).replace(/&#x27;/g, "'");
+    expect(page).toContain(
+      'The fleet distribution did not load, so the requirement and the days short are not shown.',
+    );
+    expect(page).not.toContain('Days short');
+    expect(page).not.toContain('Depot data unavailable');
+  });
+
+  it("says so when this depot's forecast of available buses did not refresh", () => {
+    hooks.forecast.mockImplementation((request: { metric: string } | null) =>
+      request === null
+        ? polled(null)
+        : polled(forecastResponse(request.metric as 'onRoadShare', 70), {
+            error: request.metric === 'available' ? 'Depot data unavailable' : null,
+          }),
+    );
+    const page = text(renderToStaticMarkup(<DepotTrends metric="onRoadShare" />));
+    expect(page).toContain(
+      'The forecast of available buses did not load, so it is not set against the requirement.',
+    );
+    expect(page).not.toContain('Days short');
+  });
+
+  it('names both missing parts when neither second request loaded', () => {
+    hooks.distribution.mockReturnValue(polled(null, { error: 'Depot data unavailable' }));
+    hooks.forecast.mockImplementation((request: { metric: string } | null) =>
+      request === null || request.metric === 'available'
+        ? polled(null, { error: 'Depot data unavailable' })
+        : polled(forecastResponse(request.metric as 'onRoadShare', 70)),
+    );
+    const page = text(renderToStaticMarkup(<DepotTrends metric="onRoadShare" />));
+    expect(page).toContain(
+      'Neither the forecast of available buses nor the fleet distribution loaded, so the comparison is not shown.',
+    );
+  });
+
   it('links the measures to this depot', () => {
     const markup = renderToStaticMarkup(<DepotTrends metric="onRoadShare" />);
     expect(markup).toContain('href="/project/depots/d/20/trends?metric=index"');

@@ -21,6 +21,30 @@ vi.mock('@/hooks/useDepotExceptions', () => ({
   },
 }));
 
+// The router's search parameters, as Next.js keeps them: in step with pushState, and, on a
+// client navigation, already the new page's before the address bar changes (`nav.next`).
+const nav = vi.hoisted(() => ({ next: null as string | null, listeners: new Set<() => void>() }));
+vi.mock('next/navigation', async () => {
+  const { useSyncExternalStore } = await import('react');
+  const subscribe = (listener: () => void): (() => void) => {
+    nav.listeners.add(listener);
+    return () => nav.listeners.delete(listener);
+  };
+  const read = (): string => nav.next ?? window.location.search;
+  return {
+    useSearchParams: () => new URLSearchParams(useSyncExternalStore(subscribe, read, read)),
+  };
+});
+
+function navigate(next: string | null): void {
+  act(() => {
+    nav.next = next;
+    nav.listeners.forEach((listener) => listener());
+  });
+}
+
+const realPushState = window.history.pushState.bind(window.history);
+
 vi.mock('@/components/depot/data/DepotNetworkProvider', () => ({
   useDepotNetworkContext: () => ({ data: null, error: null, loading: false }),
 }));
@@ -65,13 +89,19 @@ let root: Root;
 beforeEach(() => {
   actGlobal.IS_REACT_ACT_ENVIRONMENT = true;
   hook.queries = [];
+  nav.next = null;
   window.history.replaceState({}, '', '/project/depots/exceptions');
+  window.history.pushState = (...args: Parameters<History['pushState']>): void => {
+    realPushState(...args);
+    nav.listeners.forEach((listener) => listener());
+  };
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
 });
 
 afterEach(() => {
+  window.history.pushState = realPushState;
   act(() => root.unmount());
   container.remove();
 });
@@ -235,6 +265,39 @@ describe('exceptions page filters and paging', () => {
     // Kind and severity are said by the group row, not by a column on every row.
     const headers = Array.from(container.querySelectorAll('th')).map((th) => th.textContent);
     expect(headers.some((h) => h?.startsWith('Kind') || h?.startsWith('Severity'))).toBe(false);
+  });
+
+  it('lands filtered when a link navigates here before the address bar has changed', () => {
+    nav.next = '?kind=emergency&depot=42';
+    hook.result = (q) => ({
+      data: response(q as BusPageQuery, 1, 1),
+      error: null,
+      loading: false,
+      refresh: () => undefined,
+    });
+    act(() => root.render(<ExceptionCentre />));
+    expect(window.location.search).toBe('');
+    expect(hook.queries[0]).toMatchObject({ kind: 'emergency', depotId: '42' });
+    expect(hook.queries.every((q) => (q as BusPageQuery).kind === 'emergency')).toBe(true);
+    expect(container.querySelector('[data-testid="bus-depot-chip"]')?.textContent).toContain('Depot 42');
+  });
+
+  it('follows a client navigation to another filter, and to none, without a remount', () => {
+    window.history.replaceState({}, '', '/project/depots/exceptions?kind=long_dark');
+    hook.result = (q) => ({
+      data: response(q as BusPageQuery, 60, 25),
+      error: null,
+      loading: false,
+      refresh: () => undefined,
+    });
+    act(() => root.render(<ExceptionCentre />));
+    expect(hook.queries[0]).toMatchObject({ kind: 'long_dark' });
+    navigate('?kind=emergency&depot=42');
+    expect(hook.queries[hook.queries.length - 1]).toMatchObject({ kind: 'emergency', depotId: '42' });
+    navigate('');
+    expect(hook.queries[hook.queries.length - 1]).toMatchObject({ kind: null, depotId: null, offset: 0 });
+    const pressed = container.querySelectorAll('button[aria-pressed="true"]');
+    expect(pressed).toHaveLength(0);
   });
 
   it('ignores an unknown kind and a malformed depot id on entry', () => {

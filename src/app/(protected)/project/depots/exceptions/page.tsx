@@ -1,5 +1,7 @@
+import { Suspense } from 'react';
 import { requireProjectSession } from '@/lib/auth/server';
 import { ExceptionCentre } from '@/components/depot/exceptions/ExceptionCentre';
+import { LoadingBlock } from '@/components/depot/shell/DataStates';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 
 const EXCEPTIONS_PATH = '/project/depots/exceptions';
@@ -16,7 +18,10 @@ export default async function DepotExceptionsPage() {
         description="Depots and buses that stand out now, each with the figures behind it."
         provenanceLine={{ default: 'derived' }}
       />
-      <ExceptionCentre />
+      {/* The centre reads its filters from the search parameters, which needs a boundary. */}
+      <Suspense fallback={<LoadingBlock rows={8} label="Loading exceptions" />}>
+        <ExceptionCentre />
+      </Suspense>
     </>
   );
 }

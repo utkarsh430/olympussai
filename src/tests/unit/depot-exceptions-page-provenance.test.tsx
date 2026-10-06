@@ -18,6 +18,7 @@ const FRESH = {
 const hooks = vi.hoisted(() => ({ exceptions: null as unknown, network: null as unknown }));
 
 vi.mock('@/lib/auth/server', () => ({ requireProjectSession: async (): Promise<void> => {} }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
 vi.mock('@/components/depot/data/DepotNetworkProvider', () => ({
   useDepotNetworkContext: (): unknown => hooks.network ?? FRESH,
 }));

@@ -1,7 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import type { DecisionTrail as Trail, TrailItem } from '@/lib/depot/rebalance/decisionEvents';
-import { TRAIL_NOTE, describeTrailItem, trailHeading } from '@/lib/depot/rebalance/decisionWording';
+import {
+  TRAIL_CLEAR_CONFIRM,
+  TRAIL_NOTE,
+  describeTrailItem,
+  trailHeading,
+} from '@/lib/depot/rebalance/decisionWording';
 
 export interface DecisionTrailProps {
   readonly trail: Trail;
@@ -9,6 +15,41 @@ export interface DecisionTrailProps {
   readonly onUndo: (item: TrailItem) => void;
   /** Said once the storage cap has dropped older decisions; null until then. */
   readonly capacityNote: string | null;
+  /** What of the stored record is not listed (damaged or skipped entries); null when all is. */
+  readonly stateNote: string | null;
+  /** Something is stored in this browser that clearing would remove. */
+  readonly canClear: boolean;
+  readonly onClear: () => void;
+}
+
+/** "Clear trail", then a confirm step: clearing removes every entry and cannot be undone. */
+function ClearControl({ onClear }: { readonly onClear: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  if (!confirming) {
+    return (
+      <button type="button" className="depot-link mt-2 text-[11px]" onClick={() => setConfirming(true)}>
+        Clear trail
+      </button>
+    );
+  }
+  return (
+    <div role="group" aria-label="Clear the decision trail" className="mt-2 flex flex-wrap items-center gap-3">
+      <span className="depot-prose text-[13px]">{TRAIL_CLEAR_CONFIRM}</span>
+      <button
+        type="button"
+        className="depot-filter-button"
+        onClick={() => {
+          setConfirming(false);
+          onClear();
+        }}
+      >
+        Clear the trail
+      </button>
+      <button type="button" className="depot-filter-button" onClick={() => setConfirming(false)}>
+        Keep it
+      </button>
+    </div>
+  );
 }
 
 function timeOf(iso: string): string {
@@ -68,7 +109,8 @@ function List({
  * none is recorded; the note that the trail is a local, append-only record and that
  * nothing is dispatched stays visible in every state.
  */
-export function DecisionTrail({ trail, operatingDate, onUndo, capacityNote }: DecisionTrailProps) {
+export function DecisionTrail(props: DecisionTrailProps) {
+  const { trail, operatingDate, onUndo, capacityNote, stateNote, canClear, onClear } = props;
   const entries = trail.baseline.length + trail.scenario.length;
   return (
     <section aria-labelledby="rebalance-trail-heading" data-testid="rebalance-trail">
@@ -79,6 +121,12 @@ export function DecisionTrail({ trail, operatingDate, onUndo, capacityNote }: De
         {TRAIL_NOTE}
       </p>
       {capacityNote ? <p className="depot-note mt-2 text-alert-amber">{capacityNote}</p> : null}
+      {stateNote ? (
+        <p className="depot-note mt-2 text-alert-amber" data-testid="rebalance-trail-state">
+          {stateNote}
+        </p>
+      ) : null}
+      {canClear ? <ClearControl onClear={onClear} /> : null}
       <List label="On the modelled plan" items={trail.baseline} onUndo={onUndo} />
       <List label="On what-if scenarios" items={trail.scenario} onUndo={onUndo} />
     </section>

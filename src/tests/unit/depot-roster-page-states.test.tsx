@@ -212,6 +212,22 @@ describe('the roster page, as the reader meets it', () => {
     ).toBe(true);
   });
 
+  it('names the copy of the feed that lists no buses: never "live feed" on a sample or old data', async () => {
+    setDetail({ data: { buses: [], feedNow: FEED_NOW, stale: false, source: 'fixture' } });
+    const sample = await render();
+    expect(sample.body.textContent).toContain('The saved sample of the feed lists no buses homed at this depot.');
+    expect(sample.querySelector('[data-state="empty"]')?.textContent).not.toContain('live feed');
+
+    setDetail({ data: { buses: [], feedNow: FEED_NOW, stale: true, source: 'cache' } });
+    const old = await render();
+    expect(old.body.textContent).toContain('The last good copy of the feed lists no buses homed at this depot.');
+    expect(old.querySelector('[data-state="empty"]')?.textContent).not.toContain('live feed');
+
+    setDetail({ data: { buses: [], feedNow: FEED_NOW, stale: false, source: 'live' }, error: 'Depot data unavailable' });
+    const failing = await render();
+    expect(failing.body.textContent).toContain('The last good copy of the feed lists no buses homed at this depot.');
+  });
+
   it('keeps the filters in the URL as other pages link to them', async () => {
     hooks.params = new URLSearchParams('state=on_road');
     const doc = await render();
@@ -227,7 +243,6 @@ describe('the roster table at a phone', () => {
       <RosterTable
         rows={rows}
         feedNow={FEED_NOW}
-        selectedRegistration={null}
         onOpen={() => {}}
         tier={tier}
       />,
@@ -276,7 +291,7 @@ describe('the roster table at a phone', () => {
   it('writes FLAGS in its short words, with the full words in the title', () => {
     const rows = buildRosterRows([bus({ mainPowerOn: false, tamperCode: '7' })]);
     const markup = renderToStaticMarkup(
-      <RosterTable rows={rows} feedNow={FEED_NOW} selectedRegistration={null} onOpen={() => {}} tier="wide" />,
+      <RosterTable rows={rows} feedNow={FEED_NOW} onOpen={() => {}} tier="wide" />,
     );
     const doc = new DOMParser().parseFromString(markup, 'text/html');
     const flags = doc.querySelector('tbody tr:nth-child(1) td:last-child');

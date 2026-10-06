@@ -212,6 +212,12 @@ describe('fuel page models', () => {
     expect(classNote(rows)).toBe('Bars start at 1.8 km per litre, not zero');
   });
 
+  it('says in the disclosure that a route distance may rest on a modelled length, and that the table does not mark which', () => {
+    expect(fuelDisclosure(fuelData())).toContain(
+      "A route's distance rests on its one-way length: the real length where the route's stop profile has been looked up, otherwise a modelled length typical of its service class. The route table does not mark which routes use a modelled length.",
+    );
+  });
+
   it('keeps the old closing statement and the price in the disclosure, and names no cause or person anywhere', () => {
     const data = fuelData();
     const disclosure = fuelDisclosure(data).join(' ');

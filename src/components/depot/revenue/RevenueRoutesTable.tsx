@@ -14,6 +14,7 @@ import {
   revenueColumnKeys,
   revenueRowDetail,
   revenueTableShape,
+  type RevenueKey,
 } from '@/lib/depot/revenue/revenueColumns';
 import { useTableTier } from './useTableTier';
 import {
@@ -46,24 +47,26 @@ const BASIS_COLUMN: Column<RevenueTableRow> = {
   render: (r) => <span className="text-depot-muted">{lengthBasisWord(r)}</span>,
 };
 
-const COLUMNS: readonly Column<RevenueTableRow>[] = [
-  { key: 'route', header: 'Route', sortValue: (r) => r.routeName, render: (r) => r.routeName },
-  { key: 'class', header: 'Class', sortValue: (r) => r.classLabel, render: (r) => r.classLabel },
-  {
+/** The fixed columns by key; the length column depends on the rows. */
+type FixedKey = Exclude<RevenueKey, 'length' | 'basis'>;
+const COLUMNS: Readonly<Record<FixedKey, Column<RevenueTableRow>>> = {
+  route: { key: 'route', header: 'Route', sortValue: (r) => r.routeName, render: (r) => r.routeName },
+  class: { key: 'class', header: 'Class', sortValue: (r) => r.classLabel, render: (r) => r.classLabel },
+  trips: {
     key: 'trips',
     header: 'Trips',
     align: 'right',
     sortValue: (r) => r.trips,
     render: (r) => formatCount(r.trips),
   },
-  {
+  boardings: {
     key: 'boardings',
     header: 'Boardings',
     align: 'right',
     sortValue: (r) => r.boardings,
     render: (r) => formatCount(r.boardings),
   },
-  {
+  load: {
     key: 'load',
     header: 'Load factor',
     align: 'right',
@@ -79,7 +82,7 @@ const COLUMNS: readonly Column<RevenueTableRow>[] = [
       </span>
     ),
   },
-  {
+  revenue: {
     key: 'revenue',
     header: 'Revenue',
     unit: '₹',
@@ -87,7 +90,7 @@ const COLUMNS: readonly Column<RevenueTableRow>[] = [
     sortValue: (r) => r.revenue,
     render: (r) => r.revenuePlain,
   },
-  {
+  earnings: {
     key: 'earnings',
     header: '₹ / km',
     align: 'right',
@@ -100,7 +103,7 @@ const COLUMNS: readonly Column<RevenueTableRow>[] = [
       </>
     ),
   },
-];
+};
 
 /** Every route's modelled day in one table, the load factor with its bar; paged above 25 rows. */
 export function RevenueRoutesTable({ routes }: { readonly routes: readonly RouteRevenueFigure[] }) {
@@ -111,9 +114,14 @@ export function RevenueRoutesTable({ routes }: { readonly routes: readonly Route
   const tier = useTableTier();
   const shape = useMemo(() => revenueTableShape(rows), [rows]);
   const columns = useMemo(() => {
-    const all = [...COLUMNS, lengthColumn(allDerived), BASIS_COLUMN];
+    // Every key has its column, so a key without one fails the typecheck, not the page.
+    const all: Readonly<Record<RevenueKey, Column<RevenueTableRow>>> = {
+      ...COLUMNS,
+      length: lengthColumn(allDerived),
+      basis: BASIS_COLUMN,
+    };
     return revenueColumnKeys(tier, shape).map((key) => ({
-      ...(all.find((c) => c.key === key) as Column<RevenueTableRow>),
+      ...all[key],
       width: REVENUE_WIDTHS[key],
     }));
   }, [allDerived, tier, shape]);

@@ -4,23 +4,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RosterPage } from '@/components/depot/roster/RosterPage';
 import type { DepotBusView } from '@/lib/depot/api';
 
-// A tiny in-memory router so `?bus=` changes re-render the page like the real one.
-let search = '';
+// The router's search parameters, as Next.js keeps them: in step with the history API, so
+// a `replaceState` re-renders the page with the new query and no navigation is made.
 const listeners = new Set<() => void>();
 const subscribe = (listener: () => void): (() => void) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
 };
+const router = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }));
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    replace: (url: string): void => {
-      search = url.includes('?') ? (url.split('?')[1] ?? '') : '';
-      listeners.forEach((listener) => listener());
-    },
-  }),
+  useRouter: () => router,
   usePathname: () => '/roster',
-  useSearchParams: () => new URLSearchParams(useSyncExternalStore(subscribe, () => search)),
+  useSearchParams: () =>
+    new URLSearchParams(useSyncExternalStore(subscribe, () => window.location.search)),
 }));
+const realReplaceState = window.history.replaceState.bind(window.history);
+const search = (): string => window.location.search.replace(/^\?/, '');
 
 function bus(registrationNumber: string): DepotBusView {
   return {
@@ -80,10 +79,7 @@ const click = async (element: Element): Promise<void> => {
   });
 };
 
-beforeEach(async () => {
-  actGlobal.IS_REACT_ACT_ENVIRONMENT = true;
-  search = '';
-  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+const mount = async (): Promise<void> => {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -94,9 +90,23 @@ beforeEach(async () => {
       </StrictMode>,
     );
   });
+};
+
+beforeEach(async () => {
+  actGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+  router.replace.mockClear();
+  router.push.mockClear();
+  realReplaceState(null, '', '/roster');
+  window.history.replaceState = (...args: Parameters<History['replaceState']>): void => {
+    realReplaceState(...args);
+    listeners.forEach((listener) => listener());
+  };
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+  await mount();
 });
 
 afterEach(async () => {
+  window.history.replaceState = realReplaceState;
   await act(async () => root.unmount());
   container.remove();
   vi.unstubAllGlobals();
@@ -127,6 +137,35 @@ describe('RosterPage drawer focus under StrictMode', () => {
   });
 });
 
+describe('RosterPage ?bus= in the URL', () => {
+  it('opens and closes a bus by replacing the history entry, never by a navigation', async () => {
+    const entries = window.history.length;
+    await click(openerFor('MH12AB1000'));
+    expect(search()).toBe('bus=MH12AB1000');
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    await click(document.querySelector('[role="dialog"] button') as HTMLElement);
+    expect(search()).toBe('');
+    expect(window.history.length).toBe(entries);
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it('opens no drawer for a value that is not a registration, and removes it from the URL', async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    const spoof = 'UP32 — your session needs re-verification, call 05xx-xxxxxxx';
+    realReplaceState(null, '', `/roster?state=in_service&bus=${encodeURIComponent(spoof)}`);
+    await mount();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.textContent).not.toContain('re-verification');
+    expect(search()).toBe('state=in_service');
+  });
+
+  it('marks no registration as pressed: the button opens a dialog, it is not a toggle', () => {
+    expect(openerFor('MH12AB1000').hasAttribute('aria-pressed')).toBe(false);
+  });
+});
+
 describe('RosterPage filters in the URL', () => {
   const toggle = (word: string): HTMLButtonElement => {
     const found = Array.from(container.querySelectorAll('[role="group"] button')).find((b) =>
@@ -138,14 +177,14 @@ describe('RosterPage filters in the URL', () => {
 
   it('writes a state toggle into the query and keeps it when a bus opens and closes', async () => {
     await click(toggle('In service'));
-    expect(search).toBe('state=in_service');
+    expect(search()).toBe('state=in_service');
     expect(toggle('In service').getAttribute('aria-pressed')).toBe('true');
     expect(container.textContent).toContain('Roster · 2');
     expect(container.textContent).not.toContain('Showing');
     await click(openerFor('MH12AB1000'));
-    expect(new URLSearchParams(search).get('state')).toBe('in_service');
+    expect(new URLSearchParams(search()).get('state')).toBe('in_service');
     await click(document.querySelector('[role="dialog"] button') as HTMLElement);
-    expect(search).toBe('state=in_service');
+    expect(search()).toBe('state=in_service');
   });
 
   it('says when nothing matches and offers to clear the filters', async () => {
@@ -153,7 +192,7 @@ describe('RosterPage filters in the URL', () => {
     expect(container.textContent).toContain('No bus matches these filters');
     const clear = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Clear the filters');
     await click(clear as HTMLElement);
-    expect(search).toBe('');
+    expect(search()).toBe('');
     expect(container.textContent).toContain('Roster · 2');
     expect(container.textContent).not.toContain('Showing');
   });

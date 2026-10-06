@@ -17,16 +17,17 @@ import { routeCell, routeRows, type RouteRow } from '@/lib/depot/fuel/fuelPageMo
 import type { FuelGroupRow } from '@/lib/depot/fuel/types';
 import type { TableTier } from '@/lib/depot/revenue/tableTier';
 
-const ALL_COLUMNS: readonly Column<RouteRow>[] = [
-  { key: 'route', header: 'Route', sortValue: (r) => r.label, render: (r) => r.label },
-  {
+/** Every column by its key, so a key without a column fails the typecheck. */
+const ALL_COLUMNS: Readonly<Record<RouteKey, Column<RouteRow>>> = {
+  route: { key: 'route', header: 'Route', sortValue: (r) => r.label, render: (r) => r.label },
+  buses: {
     key: 'buses',
     header: 'Buses',
     align: 'right',
     sortValue: (r) => r.busCount,
     render: (r) => formatCount(r.busCount),
   },
-  {
+  distance: {
     key: 'distance',
     header: 'Distance',
     unit: 'km',
@@ -34,7 +35,7 @@ const ALL_COLUMNS: readonly Column<RouteRow>[] = [
     sortValue: (r) => r.distanceKm,
     render: (r) => routeCell(r, 'distance'),
   },
-  {
+  cost: {
     key: 'cost',
     header: 'Fuel cost',
     unit: '₹',
@@ -42,14 +43,14 @@ const ALL_COLUMNS: readonly Column<RouteRow>[] = [
     sortValue: (r) => r.cost,
     render: (r) => routeCell(r, 'cost'),
   },
-  {
+  kmpl: {
     key: 'kmpl',
     header: 'Km per litre',
     align: 'right',
     sortValue: (r) => r.kmPerLitre,
     render: (r) => routeCell(r, 'kmpl'),
   },
-  {
+  cpk: {
     key: 'cpk',
     header: 'Fuel cost',
     unit: '₹/km',
@@ -57,13 +58,13 @@ const ALL_COLUMNS: readonly Column<RouteRow>[] = [
     sortValue: (r) => r.costPerKm,
     render: (r) => routeCell(r, 'cpk'),
   },
-];
+};
 
 /** The tier's column set, with its widths and (at 800) the short rate headers. */
 function columnsFor(tier: TableTier): readonly Column<RouteRow>[] {
   const rates = routeRateHeaders(tier);
   return routeColumnKeys(tier).map((key: RouteKey) => {
-    const column = ALL_COLUMNS.find((c) => c.key === key) as Column<RouteRow>;
+    const column = ALL_COLUMNS[key];
     const header = key === 'kmpl' || key === 'cpk' ? { unit: undefined, ...rates[key] } : {};
     return { ...column, ...header, width: ROUTE_WIDTHS[key] };
   });

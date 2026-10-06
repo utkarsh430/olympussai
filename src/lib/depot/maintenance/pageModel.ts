@@ -32,6 +32,15 @@ export interface PreventiveCounts {
   readonly dueSoonWithinKm: number;
 }
 
+/**
+ * Said in place of the modelled parts when the page's own request failed. Figures kept
+ * from an earlier answer are not shown then: beside the live list they would read as
+ * current.
+ */
+export const MODELLED_PARTS_FAILED =
+  'The modelled maintenance figures did not load, so the overdue and due-soon counts and the preventive table are not shown.';
+export const WORKSHOP_LOAD_FAILED = "The workshop's bay count did not load, so its load is not shown.";
+
 const fleetOf = (counts: Readonly<Record<ServiceGroup, number>>): number =>
   counts.overdue + counts.due_soon + counts.not_due;
 

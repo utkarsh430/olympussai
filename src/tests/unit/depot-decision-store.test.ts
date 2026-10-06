@@ -2,14 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { appendAuditEvent, type AuditEvent } from '@/lib/audit/auditLog';
 import { decisionEvent, type DecisionInput } from '@/lib/depot/rebalance/decisionEvents';
 import {
+  DECISION_STORAGE_KEY,
   EMPTY_SLICE,
   MAX_STORED_DECISIONS,
+  UNREADABLE_TRAIL_KEY,
+  clearStoredTrail,
+  readDecisionTrail,
+  setAsideUnreadable,
+  trailStateNote,
   appendToSlice,
   parseDecisionSlice,
   readStoredSlice,
   serialiseSlice,
   trailCapacityNote,
   writeStoredSlice,
+  type ClearableStorage,
   type StorageLike,
 } from '@/lib/depot/rebalance/decisionStore';
 
@@ -33,12 +40,13 @@ function stored(): AuditEvent {
   return event;
 }
 
-function memoryStorage(): StorageLike & { readonly data: Map<string, string> } {
+function memoryStorage(): ClearableStorage & { readonly data: Map<string, string> } {
   const data = new Map<string, string>();
   return {
     data,
     getItem: (key) => data.get(key) ?? null,
     setItem: (key, value) => void data.set(key, value),
+    removeItem: (key) => void data.delete(key),
   };
 }
 
@@ -100,5 +108,77 @@ describe('decision slice', () => {
     expect(readStoredSlice(throwing)).toBeNull();
     expect(writeStoredSlice(throwing, EMPTY_SLICE)).toBe(false);
     expect(writeStoredSlice(null, EMPTY_SLICE)).toBe(false);
+  });
+});
+
+describe('a damaged stored trail', () => {
+  it('is reported as unreadable, not as an empty trail', () => {
+    for (const raw of ['not json', '[]', '{"events":"x"}', '{"v":9,"events":[]}']) {
+      expect(readDecisionTrail(raw)).toEqual({ slice: EMPTY_SLICE, unreadable: true, skipped: 0 });
+    }
+    for (const raw of [null, '']) {
+      expect(readDecisionTrail(raw)).toEqual({ slice: EMPTY_SLICE, unreadable: false, skipped: 0 });
+    }
+  });
+
+  it('counts the entries that fail their checks', () => {
+    const good = stored();
+    const raw = JSON.stringify({ v: 1, dropped: 0, events: [good, { id: 3 }, null] });
+    expect(readDecisionTrail(raw)).toEqual({
+      slice: { events: [good], dropped: 0 },
+      unreadable: false,
+      skipped: 2,
+    });
+  });
+
+  it('is kept aside, unchanged, under its own key; false when storage refuses', () => {
+    const storage = memoryStorage();
+    expect(setAsideUnreadable(storage, 'not json')).toBe(true);
+    expect(storage.data.get(UNREADABLE_TRAIL_KEY)).toBe('not json');
+    const refusing: StorageLike = {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('quota');
+      },
+    };
+    expect(setAsideUnreadable(refusing, 'not json')).toBe(false);
+    expect(setAsideUnreadable(null, 'not json')).toBe(false);
+  });
+
+  it('says in fixed words what is not listed and why', () => {
+    const plain = { slice: EMPTY_SLICE, unreadable: false, skipped: 0 };
+    expect(trailStateNote(plain, false)).toBeNull();
+    expect(trailStateNote({ ...plain, unreadable: true }, false)).toBe(
+      'The decision trail stored in this browser could not be read, so none is listed. It is not written over: the next decision keeps it aside, unchanged, and starts a new trail.',
+    );
+    expect(trailStateNote(plain, true)).toBe(
+      'An earlier decision trail in this browser could not be read; it is kept aside, unchanged, and is not listed.',
+    );
+    expect(trailStateNote({ ...plain, skipped: 1 }, false)).toBe(
+      '1 stored entry could not be read and is not listed.',
+    );
+    expect(trailStateNote({ ...plain, skipped: 3 }, true)).toBe(
+      'An earlier decision trail in this browser could not be read; it is kept aside, unchanged, and is not listed. 3 stored entries could not be read and are not listed.',
+    );
+  });
+});
+
+describe('clearing the trail', () => {
+  it('removes the trail and any trail kept aside; false when storage refuses', () => {
+    const storage = memoryStorage();
+    storage.data.set(DECISION_STORAGE_KEY, serialiseSlice(appendToSlice(EMPTY_SLICE, stored())));
+    storage.data.set(UNREADABLE_TRAIL_KEY, 'not json');
+    storage.data.set('olympuss-other', 'kept');
+    expect(clearStoredTrail(storage)).toBe(true);
+    expect([...storage.data.keys()]).toEqual(['olympuss-other']);
+    const refusing: ClearableStorage = {
+      getItem: () => null,
+      setItem: () => undefined,
+      removeItem: () => {
+        throw new Error('denied');
+      },
+    };
+    expect(clearStoredTrail(refusing)).toBe(false);
+    expect(clearStoredTrail(null)).toBe(false);
   });
 });

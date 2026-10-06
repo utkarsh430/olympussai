@@ -9,6 +9,8 @@ import {
 import { busLocationText } from '@/lib/depot/infer/locationText';
 import { drawerFacts } from '@/lib/depot/roster/drawerFacts';
 import {
+  MAX_BUS_PARAM_LENGTH,
+  parseBusParam,
   parseRosterQuery,
   rosterFilterHref,
   rosterQueryString,
@@ -135,5 +137,25 @@ describe('roster times and words', () => {
     expect(notHeardText(bus({ notHeardMin: 200 }))).toBe('not heard 3 h 20 min');
     expect(notHeardText(bus({ notHeardMin: null }))).toBeNull();
     expect(notHeardText(bus({ notHeardMin: undefined }))).toBeNull();
+  });
+});
+
+describe('the ?bus= parameter', () => {
+  it('accepts a registration, in either case, with an inner space or hyphen', () => {
+    expect(parseBusParam('UP32AB1234')).toBe('UP32AB1234');
+    expect(parseBusParam('up32ab1234')).toBe('up32ab1234');
+    expect(parseBusParam('UP32 AB 1234')).toBe('UP32 AB 1234');
+    expect(parseBusParam('UP-32-1234')).toBe('UP-32-1234');
+  });
+
+  it('refuses a sentence, punctuation, an over-long value and nothing at all', () => {
+    expect(parseBusParam('UP32 — your session needs re-verification, call 05xx-xxxxxxx')).toBeNull();
+    expect(parseBusParam('UP32<b>')).toBeNull();
+    expect(parseBusParam('A'.repeat(MAX_BUS_PARAM_LENGTH + 1))).toBeNull();
+    expect(parseBusParam(' UP32')).toBeNull();
+    expect(parseBusParam('UP32  AB')).toBeNull();
+    expect(parseBusParam('')).toBeNull();
+    expect(parseBusParam(null)).toBeNull();
+    expect(parseBusParam('A'.repeat(MAX_BUS_PARAM_LENGTH))).toBe('A'.repeat(MAX_BUS_PARAM_LENGTH));
   });
 });

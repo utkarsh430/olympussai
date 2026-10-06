@@ -81,11 +81,33 @@ export function describeTrailItem(item: TrailItem): string {
   return [`${word}: ${route}`, ...marks].join(' ');
 }
 
-/** Said under the trail's heading in every state: the trail is a local record only. */
+/**
+ * Said under the trail's heading in every state: the trail is a local record only, and
+ * anyone at this browser can read it (one shared sign-in, no server copy).
+ */
 export const TRAIL_NOTE =
-  'Decisions are kept in this browser only and are not sent anywhere. The trail is ' +
-  'append-only: Undo records a further entry and deletes nothing. A decision changes ' +
-  'nothing but this record; no transfer order is issued.';
+  'Decisions are kept in this browser only, are not sent anywhere, and are visible to ' +
+  'anyone who uses this browser, notes included. The trail is append-only: Undo records ' +
+  'a further entry and deletes nothing; Clear trail removes the whole trail at once. A ' +
+  'decision changes nothing but this record; no transfer order is issued.';
+
+/** Said with a recorded decision when the shared audit log refused its copy. */
+export const AUDIT_LOG_REFUSED =
+  'The shared audit log in this browser refused it (storage full or blocked), so only the decision trail holds it.';
+export const TRAIL_CLEAR_CONFIRM =
+  'Clear every decision kept in this browser, notes included? This cannot be undone.';
+export const TRAIL_CLEARED = 'The decision trail kept in this browser is cleared.';
+export const TRAIL_CLEAR_REFUSED =
+  'The decision trail could not be cleared: this browser refused to change its storage.';
+
+/** How far a write reached: both records, the trail alone, or neither. */
+export type RecordOutcome = 'recorded' | 'trail_only' | 'refused';
+
+/** The status line for a write: what was done, or why it was not. */
+export function recordStatus(outcome: RecordOutcome, said: string, refused: string): string {
+  if (outcome === 'refused') return refused;
+  return outcome === 'trail_only' ? `${said} ${AUDIT_LOG_REFUSED}` : said;
+}
 
 /** The trail's heading: one line that also says when nothing is recorded yet. */
 export function trailHeading(operatingDate: string, entries: number): string {

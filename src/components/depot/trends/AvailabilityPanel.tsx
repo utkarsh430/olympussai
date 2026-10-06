@@ -1,4 +1,4 @@
-import { ErrorPanel, LoadingBlock } from '@/components/depot/shell/DataStates';
+import { LoadingBlock } from '@/components/depot/shell/DataStates';
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
@@ -8,10 +8,10 @@ import {
   type AvailabilityComparison,
   type RequirementInput,
 } from '@/lib/depot/forecast/availabilityComparison';
+import { availabilityFailureSentence } from '@/lib/depot/forecast/trendsPageModel';
 import { formatCount } from '@/lib/depot/format';
 import type { DepotDistributionState } from '@/hooks/useDepotDistribution';
 import type { DepotForecastState } from '@/hooks/useDepotForecast';
-import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 
 const LOADING_ROWS = 3;
 
@@ -54,22 +54,27 @@ function Figures({ comparison, requirement }: FiguresProps) {
  * this depot: one short figure band and one sentence saying both sides are modelled.
  * When the comparison cannot be made, a state panel says why in the comparison's own
  * sentence. The longer sentence on what the comparison means is the band's `title`.
+ * When a request behind it fails, the section says which part is missing in fixed words
+ * and shows no figure kept from an earlier answer.
  */
 export function AvailabilityPanel({ depotId, available, distribution }: AvailabilityPanelProps) {
-  const failed =
-    available.data === null ? available : distribution.data === null ? distribution : null;
+  const failure = availabilityFailureSentence(available.error !== null, distribution.error !== null);
+  const retry = (): void => {
+    if (available.error !== null) available.refresh();
+    if (distribution.error !== null) distribution.refresh();
+  };
   let body: React.ReactNode;
-  if (available.data === null || distribution.data === null) {
-    body =
-      failed !== null && !failed.loading && failed.error !== null ? (
-        <ErrorPanel
-          title="Could not load the availability comparison"
-          message={failed.error || DEPOT_UNAVAILABLE_MESSAGE}
-          onRetry={failed.refresh}
-        />
-      ) : (
-        <LoadingBlock rows={LOADING_ROWS} label="Loading the availability comparison" />
-      );
+  if (failure !== null) {
+    body = (
+      <div role="alert" className="flex min-w-0 flex-wrap items-center gap-3">
+        <StatePanel kind="error" compact sentence={failure} />
+        <button type="button" className="depot-filter-button" onClick={retry}>
+          Retry
+        </button>
+      </div>
+    );
+  } else if (available.data === null || distribution.data === null) {
+    body = <LoadingBlock rows={LOADING_ROWS} label="Loading the availability comparison" />;
   } else {
     const balance = distribution.data.balances.find((b) => b.depotId === depotId) ?? null;
     const comparison = compareAvailability(
