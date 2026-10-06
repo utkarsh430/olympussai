@@ -1,11 +1,13 @@
 import type { DepotFeedEnvelope } from '../api';
 import type { ServiceClass } from '../sim/types';
+import type { BusStandingNow } from './types';
 
 /**
  * What a duty is doing on the board. `assigned` means the matching proposed a
- * bus; the other two are duties left without one. `bus_not_in_yard` is used when
- * at least one bus of the duty's class is held out of the matching because it is
- * not in the yard; `no_bus` is every other shortfall.
+ * bus (standing, or already out on the road: see `busStanding`); the other two
+ * are duties left without one. `bus_not_in_yard` is used when at least one
+ * standing bus of the duty's class is held out because it is away from the
+ * yard or not heard recently; `no_bus` is every other shortfall.
  */
 export type DutyState = 'assigned' | 'no_bus' | 'bus_not_in_yard';
 
@@ -30,6 +32,13 @@ export interface BoardDuty {
   readonly endMin: number;
   readonly serviceClass: ServiceClass;
   readonly registrationNumber: string | null;
+  /**
+   * How the duty's bus stands now (ruling S47): `on_road` (in service or on
+   * the road, already out working), `in_yard`, or `standing` where the depot
+   * has no yard to judge by. Null when the duty has no bus. Always sent; a
+   * duty with a bus is `assigned` whatever this says.
+   */
+  readonly busStanding?: BusStandingNow | null;
   readonly state: DutyState;
   /** For an unassigned duty: the buses of its own class held out of the matching. Null when assigned. */
   readonly blockers: DutyBlockers | null;

@@ -24,6 +24,20 @@ describe('operatingDateOf', () => {
   });
 });
 
+describe('operatingDateOf at midnight in India (review M1)', () => {
+  it('on the feed clock, reads the digits as written: they are already Indian time', () => {
+    expect(operatingDateOf('2026-10-05T23:59:59Z', '2026-10-05T18:29:59.000Z')).toBe('2026-10-05');
+    expect(operatingDateOf('2026-10-06T00:00:01Z', '2026-10-05T18:30:01.000Z')).toBe('2026-10-06');
+  });
+
+  it('on the fetch time, a real UTC instant, reads the date in Indian time (UTC+05:30)', () => {
+    expect(operatingDateOf(null, '2026-10-05T18:29:00.000Z')).toBe('2026-10-05');
+    expect(operatingDateOf(null, '2026-10-05T18:31:00.000Z')).toBe('2026-10-06');
+    expect(operatingDateOf(null, '2026-10-05T20:00:00.000Z')).toBe('2026-10-06');
+    expect(operatingDateOf('not a time', '2026-12-31T18:30:00.000Z')).toBe('2027-01-01');
+  });
+});
+
 describe('seedFor', () => {
   it('is stable for the same inputs', () => {
     expect(seedFor('depot:A', '2026-10-06', 'x')).toBe(seedFor('depot:A', '2026-10-06', 'x'));

@@ -57,12 +57,12 @@ export interface DayIdleBus {
 export interface OperatingDay {
   readonly depotId: string;
   readonly operatingDate: string;
-  /** Exactly `modelDuties`' result for the depot and date, in its order. */
+  /** Exactly the duty plan's duties for the depot and date, in its order. */
   readonly duties: readonly Duty[];
   readonly routesWithoutDuty: readonly string[];
   /** Routes with at least one duty, by name. */
   readonly routes: readonly DayRoute[];
-  /** One per duty that had a bus, in duty order. */
+  /** Exactly the duty plan's assignments with a bus, in duty order. */
   readonly runs: readonly DayRun[];
   /** Sorted by registration. A bus that did not run has no distance. */
   readonly notRun: readonly DayIdleBus[];
@@ -82,6 +82,10 @@ export interface OperatingDayInput {
   /** Real one-way lengths of the routes whose profile is cached, by route name. */
   readonly realLengthKm: ReadonlyMap<string, number | null>;
   readonly operatingDate: string;
+  /** False when the depot has no yard established; defaults to true, as the matcher's does. */
+  readonly yardEstablished?: boolean;
+  /** Minutes past midnight on the feed clock, for the matcher's time-fit tier; none by default. */
+  readonly feedMinute?: number | null;
 }
 
 /** The few counts every modelled page states about the day it is built on. */

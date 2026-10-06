@@ -22,7 +22,10 @@ const DAY_TWO = '2026-10-07';
 const DEPOT = { id: '7', name: 'Kaushambi', kind: 'depot', fleet: 40 } as unknown as DepotSummary;
 
 function bus(registrationNumber: string, state: BusOpState, routeName: string | null): DepotBusView {
-  return { registrationNumber, state, routeName } as unknown as DepotBusView;
+  // Heard a minute ago, in the yard: a standing bus is then eligible for a duty (ruling S47).
+  return {
+    registrationNumber, state, routeName, location: 'in_yard', gpsAgeMin: 1, notHeardMin: null,
+  } as unknown as DepotBusView;
 }
 
 const BUSES: readonly DepotBusView[] = Array.from({ length: 40 }, (_, i) =>

@@ -41,8 +41,9 @@ export function rankingShortfallNotice(
 /**
  * How many of the routes run across the operating depots rest on a real length
  * (ruling S39: a coverage figure, never a reason to hide a number); null when
- * no route ran. Neither earnings nor fuel cost per kilometre depends on the
- * length in this model, so the ranking does not wait for route profiles.
+ * no route ran. A route's own earnings per kilometre do not depend on its
+ * length, but a depot's figures are means weighted by the distance each route
+ * runs, so a real length can move them and the depot's rank (review I3).
  */
 export function lengthCoverageLine(depots: readonly EconomicsDepotRow[]): string | null {
   const operating = depots.filter((d) => d.kind === 'depot');
@@ -50,7 +51,7 @@ export function lengthCoverageLine(depots: readonly EconomicsDepotRow[]): string
   const run = operating.reduce((total, d) => total + d.lengthCoverage.of, 0);
   if (run <= 0) return null;
   const noun = run === 1 ? 'route' : 'routes';
-  return `Route lengths: ${formatCount(real)} of ${formatCount(run)} ${noun} run in the modelled day rest on a real route profile; the rest use a modelled typical length for their class. Earnings and fuel cost per kilometre do not depend on the length, so it moves the revenue totals, not the ranking.`;
+  return `Route lengths: ${formatCount(real)} of ${formatCount(run)} ${noun} run in the modelled day rest on a real route profile; the rest use a modelled typical length for their class. Earnings per kilometre on a route do not depend on its length, but a depot's figures weight its routes by the distance they run, so a real length can move a depot's figures and its rank.`;
 }
 
 export interface EconomicsStatement {

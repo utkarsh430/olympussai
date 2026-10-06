@@ -17,13 +17,11 @@ import {
   type FlaggedBus,
   type FuelRepository,
 } from '../fuel/types';
-import { cachedRouteProfiles, routeCatalogueRevision } from '../routes/routeCatalogue';
 import { summariseDay } from '../sim/operatingDay';
 import type { OperatingDay } from '../sim/operatingDayTypes';
-import { operatingDateOf } from '../sim/seed';
-import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
-import { buildDepotDetail } from './depotView';
+import { analyseSnapshot, feedEnvelope } from './analysis';
 import { operatingDayFor } from './operatingDayView';
+import { holdPerSnapshot } from './revenueView';
 
 type FuelBody = Omit<FuelResponse, keyof ReturnType<typeof feedEnvelope>>;
 
@@ -92,49 +90,24 @@ function shape(
   };
 }
 
-async function buildBody(
-  view: FleetSnapshotView,
-  depotId: string,
-  fuel: FuelRepository,
-): Promise<FuelBody | null> {
-  const detail = buildDepotDetail(view, depotId);
-  if (!detail) return null;
-  const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
-  const day = operatingDayFor(
-    analyseSnapshot(view),
-    depotId,
-    detail.buses,
-    cachedRouteProfiles(view, operatingDate),
-    operatingDate,
-  );
-  if (!day) return null;
-  const days = await fuel.fuelDay(day);
-  return shape(analyseFuel(days), { id: detail.depot.id, name: detail.depot.name }, day);
-}
-
 /*
  * The body depends on the rows (through the analysis), the depot, the operating
  * date, the route-catalogue revision (a newly cached profile changes a route's
- * length, so the day's distances) and the fuel source, so it is held under all five, as a promise so
- * concurrent polls share one read. `memoiseBody` is not used: it is synchronous
- * and keyed on the snapshot alone, while this body awaits a repository and
- * varies by depot, date and source. A failed read is dropped so the next
- * request retries; a null body (unknown depot) is not held.
+ * length, so the day's distances) and the fuel source. `holdPerSnapshot` holds
+ * it under all five in one slot per analysis that a new date or revision
+ * resets, as a promise so concurrent polls share one read; a failed read is
+ * dropped so the next request retries.
  */
-const bodies = new WeakMap<
-  SnapshotAnalysis,
-  WeakMap<FuelRepository, Map<string, Promise<FuelBody | null>>>
->();
-
-function heldFor(analysis: SnapshotAnalysis, fuel: FuelRepository) {
-  const byRepository =
-    bodies.get(analysis) ??
-    new WeakMap<FuelRepository, Map<string, Promise<FuelBody | null>>>();
-  bodies.set(analysis, byRepository);
-  const held = byRepository.get(fuel) ?? new Map<string, Promise<FuelBody | null>>();
-  byRepository.set(fuel, held);
-  return held;
-}
+const heldBody = holdPerSnapshot<FuelBody, FuelRepository>(
+  async (view, analysis, _operatingDate, depotId, fuel): Promise<FuelBody> => {
+    // The caller has already confirmed the depot exists. The day is the shared one.
+    const day = operatingDayFor(view, depotId);
+    if (!day) throw new Error(`No depot ${depotId} in the snapshot`);
+    const days = await fuel.fuelDay(day);
+    const name = analysis.depotsById.get(depotId)?.name ?? depotId;
+    return shape(analyseFuel(days), { id: depotId, name }, day);
+  },
+);
 
 /**
  * One depot's fuel page payload, or null when the snapshot has no such depot.
@@ -146,21 +119,7 @@ export async function buildFuelResponse(
   depotId: string,
   fuel: FuelRepository,
 ): Promise<FuelResponse | null> {
-  const analysis = analyseSnapshot(view);
-  const perKey = heldFor(analysis, fuel);
-  const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
-  const key = `${depotId}|${operatingDate}|${routeCatalogueRevision()}`;
-  const held = perKey.get(key);
-  const pending = held ?? buildBody(view, depotId, fuel);
-  if (held === undefined) {
-    perKey.set(key, pending);
-    pending.then(
-      (body) => {
-        if (body === null) perKey.delete(key);
-      },
-      () => perKey.delete(key),
-    );
-  }
-  const body = await pending;
-  return body === null ? null : { ...feedEnvelope(view), ...body };
+  if (!analyseSnapshot(view).depotsById.has(depotId)) return null;
+  const body = await heldBody(view, depotId, fuel);
+  return { ...feedEnvelope(view), ...body };
 }

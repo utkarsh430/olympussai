@@ -59,7 +59,8 @@ describe('the duty board names the modelled day', () => {
     const body = render(
       board([duty('a', 'AGRA_EXP_1'), duty('b', 'DELHI_EXP_2'), duty('c', 'AGRA_EXP_1')]),
     );
-    const sentence = 'This page is built on the modelled day: 3 duties on 2 routes.';
+    const sentence =
+      'This page is built on the modelled day, rebuilt from the live fleet as of the feed time: 3 duties on 2 routes.';
     expect(body).toContain(sentence);
     expect(body.split(sentence)).toHaveLength(2);
   });

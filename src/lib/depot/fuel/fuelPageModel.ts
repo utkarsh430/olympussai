@@ -140,10 +140,10 @@ export interface SummaryPrice {
   readonly defaulted: boolean;
 }
 
-/** '158 of 200 buses ran (modelled)': the buses that ran, out of the depot's buses. */
+/** '158 of 200 buses run a duty (modelled)': the buses with a duty, out of the depot's buses. */
 function ranText(ran: number, day: ModelledDaySummary | undefined): string {
-  if (!day) return `${buses(ran)} ran`;
-  return `${formatCount(ran)} of ${buses(day.buses)} ran (modelled)`;
+  if (!day) return `${buses(ran)} run a duty`;
+  return `${formatCount(ran)} of ${buses(day.buses)} run a duty (modelled)`;
 }
 
 /** The depot's day in one sentence. The page tags it MODELLED beside the sentence. */
@@ -246,7 +246,7 @@ export function shortfallNote(dutiesWithoutBus: number): string | null {
 
 export function emptyText(day?: ModelledDaySummary): string {
   if (!day || day.duties === 0) {
-    return `${NO_DUTIES_REASON}, so no bus ran and there is no distance or fuel to show.`;
+    return `${NO_DUTIES_REASON}, so no bus runs a duty and there is no distance or fuel to show.`;
   }
   return 'No fuel figures to show: no bus was available to run a duty in the modelled day.';
 }
@@ -254,7 +254,7 @@ export function emptyText(day?: ModelledDaySummary): string {
 /** What is modelled, that it is not the corporation's figures, and what replaces it. */
 export function modelledStatement(): string {
   return (
-    'Every figure on this page is MODELLED. Each bus that ran covered the route of its duty out and back in the modelled day; that distance, a lasting per-vehicle ' +
+    'Every figure on this page is MODELLED. Each bus that runs a duty covers its route out and back in the modelled day; that distance, a lasting per-vehicle ' +
     'factor, the daily variation and the price per litre are planning assumptions, not the ' +
     'corporation’s figures. Real fuel issue records and odometer readings from the ' +
     'transport department will replace them when those feeds are connected.'

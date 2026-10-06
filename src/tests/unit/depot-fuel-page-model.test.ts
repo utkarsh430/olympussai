@@ -141,7 +141,8 @@ describe('sentences', () => {
   });
   it('explains an empty day', () => {
     // S41: an empty fuel page is a depot with no modelled duties, or one with no bus to run them.
-    expect(emptyText()).toContain('No duties are modelled for this depot today');
+    expect(emptyText()).toContain('No duties are modelled for this depot (no route');
+    expect(emptyText()).not.toMatch(/today|\bran\b/);
     expect(
       emptyText({ duties: 3, routes: 1, busesRan: 0, buses: 2, dutiesWithoutBus: 3 }),
     ).toContain('no bus was available');

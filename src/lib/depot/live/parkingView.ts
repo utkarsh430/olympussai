@@ -15,7 +15,8 @@ import type {
 } from '../yard/parkingApi';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
 import { buildDepotDetail } from './depotView';
-import { planDutiesFor } from './dutyView';
+import { dutyPlanFor } from './operatingDayView';
+import type { DutyPlan } from '../sim/dayPlan';
 
 type ParkingBody = Omit<ParkingResponse, keyof ReturnType<typeof feedEnvelope>>;
 
@@ -41,7 +42,7 @@ const cleanRegistration = (registration: string): string => registration.trim();
 
 /** The earliest start among the duties each bus was assigned; no entry means no duty. */
 function firstDutyByBus(
-  planned: NonNullable<ReturnType<typeof planDutiesFor>>,
+  planned: DutyPlan,
 ): ReadonlyMap<string, number> {
   const startOf = new Map(planned.duties.map((d) => [d.id, d.startMin]));
   const first = new Map<string, number>();
@@ -53,16 +54,6 @@ function firstDutyByBus(
     if (known === undefined || start < known) first.set(key, start);
   }
   return first;
-}
-
-/** The duty assignment rejects a repeated registration, so a live feed's repeat never reaches it. */
-function withoutRepeats(buses: readonly DepotBusView[]): readonly DepotBusView[] {
-  const seen = new Set<string>();
-  return buses.filter((bus) => {
-    if (seen.has(bus.registrationNumber)) return false;
-    seen.add(bus.registrationNumber);
-    return true;
-  });
 }
 
 interface ParkedSet {
@@ -170,12 +161,8 @@ function buildBody(
   detail: DepotDetailResponse,
   operatingDate: string,
 ): ParkingBody | null {
-  const planned = planDutiesFor(
-    analysis,
-    detail.depot.id,
-    withoutRepeats(detail.buses),
-    operatingDate,
-  );
+  // The depot's one shared plan for that date (ruling S47), as the duty board reads it.
+  const planned = dutyPlanFor(analysis, detail.depot.id, operatingDate);
   if (!planned) return null;
   const bays = modelDepotMaster(detail.depot).parkingCapacity;
   const capacity = capacityOf(detail, bays);

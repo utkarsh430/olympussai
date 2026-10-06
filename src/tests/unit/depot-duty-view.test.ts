@@ -174,7 +174,9 @@ describe('buildDutyBoard', () => {
   });
 
   it('builds the depot bus list only on a memo miss, never for a repeat or unknown depot', () => {
-    const spy = vi.spyOn(depotView, 'buildDepotDetail');
+    // No full depot detail is built for the board: only the bus list, once (review M4).
+    const detail = vi.spyOn(depotView, 'buildDepotDetail');
+    const spy = vi.spyOn(depotView, 'depotBusViews');
     const rows = parked();
     board(rows);
     expect(spy).toHaveBeenCalledTimes(1);
@@ -183,7 +185,9 @@ describe('buildDutyBoard', () => {
     expect(spy).toHaveBeenCalledTimes(1);
     expect(buildDutyBoard(view(rows), '999')).toBeNull();
     expect(spy).toHaveBeenCalledTimes(1);
+    expect(detail).not.toHaveBeenCalled();
     spy.mockRestore();
+    detail.mockRestore();
   });
 });
 
