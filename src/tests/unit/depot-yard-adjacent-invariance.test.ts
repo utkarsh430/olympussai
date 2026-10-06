@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { DepotBusRow } from '@/models/depotLive';
 import { inferYardGroup, type YardGroup } from '@/lib/depot/infer/yard';
-import { busAt, lot, seededRandom, seededShuffle } from './depot-yard.fixtures';
+import { blob, busAt, lot, scattered, seededRandom, seededShuffle } from './depot-yard.fixtures';
 
 /** Metres: depots are drawn in a square this wide, so many of their groups stand near. */
 const SITE_M = 1600;
@@ -77,5 +77,22 @@ describe('the merged yard does not depend on how the feed lists its buses', () =
         expect(inferYardGroup(seededShuffle(rows, seed * 10 + shuffle))).toEqual(base);
       }
     }
+  });
+  it('gives the same answer when a row is repeated', () => {
+    for (const seed of SEEDS.slice(0, 80)) {
+      const rows = randomDepot(seed);
+      const base = inferYardGroup(rows);
+      const repeated = rows[Math.floor(seededRandom(seed)() * rows.length)]!;
+      expect(inferYardGroup([...rows, repeated]), `seed ${seed}`).toEqual(base);
+      expect(inferYardGroup([repeated, ...rows, repeated])).toEqual(base);
+    }
+  });
+
+  it('does not count a repeated bus twice towards the share', () => {
+    // 6 of 24 is exactly a quarter; one stray repeated would make it 6 of 25.
+    const rows = [...blob('A', 6, { x: 0, y: 0 }), ...scattered('N', 18)];
+    const repeated = [...rows, rows[rows.length - 1]!];
+    expect(inferYardGroup(repeated)).toEqual(inferYardGroup(rows));
+    expect(inferYardGroup(repeated)).toMatchObject({ yard: { parked: 24, inCluster: 6 } });
   });
 });
