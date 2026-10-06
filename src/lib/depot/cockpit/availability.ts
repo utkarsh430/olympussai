@@ -1,4 +1,4 @@
-import { formatCount, formatFeedTime } from '@/lib/depot/format';
+import { formatCount, formatFeedTimeOn } from '@/lib/depot/format';
 import type { BusLocation } from '@/lib/depot/infer/types';
 import type { BusOpState } from '@/lib/depot/types';
 import type { StatusBoard } from './cockpitTypes';
@@ -79,6 +79,8 @@ export interface YardFacts {
   readonly inYard: number;
   readonly visitors: number;
   readonly heldSince: string | null;
+  /** The feed's clock: a yard held since an earlier day says that day. */
+  readonly feedNow: string | null;
   /** Snapshots the server has decided this yard on; absent on an older response. */
   readonly snapshotsSeen: number | undefined;
 }
@@ -104,7 +106,7 @@ export function yardLine(board: StatusBoard, facts: YardFacts): YardLine {
   const held =
     facts.heldSince === null
       ? null
-      : `Yard held since ${formatFeedTime(facts.heldSince)}: this snapshot alone would not place it.`;
+      : `Yard held since ${formatFeedTimeOn(facts.heldSince, facts.feedNow)}: this snapshot alone would not place it.`;
   return {
     kind: 'split',
     text: `In the yard: ${formatCount(facts.inYard)} of ours, ${visiting}. Standing ${formatCount(board.standing)}: ${places.join(', ')}.`,

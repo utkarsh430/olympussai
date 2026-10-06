@@ -4,6 +4,8 @@ import type { DepotDetailContextValue } from '@/components/depot/data/DepotDetai
 import { DepotCockpit } from '@/components/depot/cockpit/DepotCockpit';
 import { OutshedTracker } from '@/components/depot/cockpit/OutshedTracker';
 import { AvailabilityBar } from '@/components/depot/cockpit/AvailabilityBar';
+import { DepotExceptions } from '@/components/depot/cockpit/DepotExceptions';
+import type { ExceptionGroup } from '@/lib/depot/cockpit/exceptionGroups';
 import type { TrackerRow } from '@/lib/depot/cockpit/cockpitTypes';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
 
@@ -211,5 +213,30 @@ describe('cockpit page with data', () => {
       "In the yard: 7 of ours, 2 visiting. Standing 5: 5 in the yard. Open yard ›",
     );
     expect(markup).toContain('href="/project/depots/d/20/yard"');
+  });
+});
+
+describe('cockpit exception times', () => {
+  const group: ExceptionGroup = {
+    kind: 'long_dark',
+    heading: 'Dark for a long time',
+    severity: 'warning',
+    severityLabel: 'Warning',
+    rows: [
+      { registrationNumber: 'UP13CT7020', severity: 'warning', extra: '+ Power off', lastSeen: '2026-10-05T19:45:00Z' },
+      { registrationNumber: 'UP13T7118', severity: 'warning', extra: null, lastSeen: '2026-10-06T08:05:00Z' },
+    ],
+  };
+
+  it('gives a bus last heard on the previous day its day, and a bus heard today its bare time', () => {
+    const text = textOf(
+      renderToStaticMarkup(
+        <DepotExceptions depotId="20" groups={[group]} depotLines={[]} feedNow="2026-10-06T19:16:00Z" />,
+      ),
+    );
+    expect(text).toContain('5 Oct, 19:45');
+    expect(text).toContain('08:05');
+    // A bare clock time later than the feed's clock never appears.
+    expect(text).not.toMatch(/(?<!, )19:45/);
   });
 });

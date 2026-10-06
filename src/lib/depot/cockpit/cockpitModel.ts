@@ -120,6 +120,7 @@ export function buildCockpit(detail: DepotDetailResponse): CockpitModel {
       inYard: detail.locationMix.in_yard,
       visitors: detail.visitors.length,
       heldSince: detail.yard.value?.heldSince ?? null,
+      feedNow: detail.feedNow,
       snapshotsSeen: detail.yardSnapshotsSeen,
     }),
     exceptionGroups: groupBusExceptions(detail.exceptions.bus),

@@ -142,7 +142,7 @@ describe('availability bar', () => {
     expect(availabilitySegments({ ...BOARD, states: BOARD.states.map((c) => ({ ...c, count: 0 })) })[0]?.shareText).toBe('0%');
   });
 
-  const SEEN = { inYard: 77, visitors: 68, heldSince: null, snapshotsSeen: 40 };
+  const SEEN = { inYard: 77, visitors: 68, heldSince: null, feedNow: '2026-10-05T19:16:00Z', snapshotsSeen: 40 };
 
   it('says the yard and the standing split as two sentences', () => {
     expect(yardLine(BOARD, SEEN)).toEqual({
@@ -175,6 +175,13 @@ describe('availability bar', () => {
   it('says when the yard is held', () => {
     const line = yardLine(BOARD, { ...SEEN, heldSince: '2026-10-05T14:02:00.000Z' });
     expect(line.kind === 'split' && line.held).toBe('Yard held since 14:02: this snapshot alone would not place it.');
+  });
+
+  it("gives the day of a yard held since an earlier day than the feed's", () => {
+    const line = yardLine(BOARD, { ...SEEN, heldSince: '2026-10-05T21:50:00Z', feedNow: '2026-10-06T07:00:00Z' });
+    expect(line.kind === 'split' && line.held).toBe(
+      'Yard held since 5 Oct, 21:50: this snapshot alone would not place it.',
+    );
   });
 
   it('gives one line when no yard is established, the rule left to the closing disclosure', () => {

@@ -8,13 +8,15 @@ import { ShowAllButton } from '@/components/depot/shell/LongLists';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import type { DepotExceptionLine, ExceptionGroup } from '@/lib/depot/cockpit/exceptionGroups';
 import { rosterBusHref } from '@/lib/depot/depotNav';
-import { formatFeedDateTime, formatFeedTime } from '@/lib/depot/format';
+import { formatFeedDateTime, formatFeedTimeOn } from '@/lib/depot/format';
 import { GROUP_PREVIEW_ROWS } from '@/lib/depot/listPaging';
 
 export interface DepotExceptionsProps {
   readonly depotId: string;
   readonly groups: readonly ExceptionGroup[];
   readonly depotLines: readonly DepotExceptionLine[];
+  /** The feed's clock: a bus last heard on an earlier day shows that day with its time. */
+  readonly feedNow: string | null;
 }
 
 export const NO_EXCEPTION_SENTENCE = 'No exception is raised for this depot on this snapshot.';
@@ -40,7 +42,11 @@ function DepotLines({ lines }: { readonly lines: readonly DepotExceptionLine[] }
   );
 }
 
-function BusGroup({ depotId, group }: { readonly depotId: string; readonly group: ExceptionGroup }) {
+function BusGroup({ depotId, group, feedNow }: {
+  readonly depotId: string;
+  readonly group: ExceptionGroup;
+  readonly feedNow: string | null;
+}) {
   const [all, setAll] = useState(false);
   const listId = `depot-exception-list-${group.kind}`;
   const rows = all ? group.rows : group.rows.slice(0, GROUP_PREVIEW_ROWS);
@@ -55,7 +61,7 @@ function BusGroup({ depotId, group }: { readonly depotId: string; readonly group
             </Link>
             <span className="min-w-0 flex-1 truncate text-depot-muted" title={row.extra ?? undefined}>{row.extra ?? ''}</span>
             <span className="shrink-0 tabular-nums text-depot-faint" title={row.lastSeen === null ? 'No last-seen time in the feed' : formatFeedDateTime(row.lastSeen)}>
-              {row.lastSeen === null ? '—' : formatFeedTime(row.lastSeen)}
+              {row.lastSeen === null ? '—' : formatFeedTimeOn(row.lastSeen, feedNow)}
             </span>
           </li>
         ))}
@@ -74,7 +80,7 @@ function BusGroup({ depotId, group }: { readonly depotId: string; readonly group
  * under its most severe kind; the group heading names the buses it lists and its
  * severity, and a row adds only the bus's other kinds. Five per group, then "Show all".
  */
-export function DepotExceptions({ depotId, groups, depotLines }: DepotExceptionsProps) {
+export function DepotExceptions({ depotId, groups, depotLines, feedNow }: DepotExceptionsProps) {
   const total = busCount(groups) + depotLines.length;
   return (
     <section aria-labelledby="depot-exceptions" data-testid="depot-exceptions" className="min-w-0">
@@ -83,7 +89,7 @@ export function DepotExceptions({ depotId, groups, depotLines }: DepotExceptions
       {depotLines.length > 0 ? <DepotLines lines={depotLines} /> : null}
       <div className="grid min-w-0 gap-x-8 gap-y-4 xl:grid-cols-2">
         {groups.map((group) => (
-          <BusGroup key={group.kind} depotId={depotId} group={group} />
+          <BusGroup key={group.kind} depotId={depotId} group={group} feedNow={feedNow} />
         ))}
       </div>
     </section>
