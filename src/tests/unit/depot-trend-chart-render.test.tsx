@@ -62,6 +62,13 @@ describe('Sparkline', () => {
     expect(container.querySelectorAll('button, a, [tabindex]')).toHaveLength(0);
     expect(container.querySelector('[data-mark="live"]')).not.toBeNull();
     expect(container.querySelector('[data-mark="history"]')).not.toBeNull();
+    expect(container.textContent).toBe('MODELLED');
+  });
+
+  it('leaves the tag to the column header when told to', () => {
+    render(<Sparkline values={[1, 2]} label="Dark rate, MODELLED trend" tagged={false} />);
+    expect(container.textContent).toBe('');
+    expect(container.firstElementChild?.tagName.toLowerCase()).toBe('svg');
   });
 
   it('renders the placeholder for an empty series', () => {
@@ -74,7 +81,10 @@ describe('Sparkline', () => {
 
 describe('TrendChart', () => {
   const sample = (): TrendChartInput =>
-    inputFor('onRoadShare', dailySeries(90, (i) => 0.6 + 0.05 * Math.sin(i)));
+    inputFor(
+      'onRoadShare',
+      dailySeries(90, (i) => 0.6 + 0.05 * Math.sin(i)),
+    );
 
   it('titles the chart and words its legend with MODELLED and LIVE', () => {
     render(<TrendChart data={sample()} />);
@@ -119,7 +129,14 @@ describe('TrendChart', () => {
   });
 
   it('draws the history and says why when there is no forecast', () => {
-    render(<TrendChart data={inputFor('darkRate', dailySeries(20, () => 0.1))} />);
+    render(
+      <TrendChart
+        data={inputFor(
+          'darkRate',
+          dailySeries(20, () => 0.1),
+        )}
+      />,
+    );
     expect(text()).toContain(
       'No forecast: it needs at least 28 days of history and this series has 20.',
     );
