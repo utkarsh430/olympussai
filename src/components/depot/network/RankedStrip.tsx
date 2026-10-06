@@ -26,7 +26,9 @@ function unrankedSentence(summary: UnrankedSummary): string {
     summary.fleetTooSmall > 0
       ? `${summary.fleetTooSmall} with fewer than ${MIN_FLEET_FOR_RANK} buses`
       : null,
-    summary.notADepot > 0 ? `${summary.notADepot} not operating depots` : null,
+    summary.notADepot > 0
+      ? `${summary.notADepot} not ${summary.notADepot === 1 ? 'an operating depot' : 'operating depots'}`
+      : null,
     summary.unscored > 0 ? `${summary.unscored} without a score` : null,
   ].filter((part): part is string => part !== null);
   const verb = summary.total === 1 ? 'is' : 'are';
