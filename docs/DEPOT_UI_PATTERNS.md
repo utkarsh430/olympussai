@@ -274,10 +274,39 @@ since; write again." and offers the one "Write again".
 
 ## Shell, navigation and the footer
 
-Pages do nothing here; for reference. From 900px the rail leads with the depot's name and its
-pages in depot scope; below 900px one strip shows the depot's pages with a "Network"
-disclosure (network links in network scope); under 640px the bar is the mark, the scope
-switcher, the feed chip and one Menu. Sticky layers use the `--depot-*` properties in
-`globals.css` (`--depot-sticky-top` is where a page's first sticky layer sticks;
-`--depot-anchor-mt` the scroll margin for a heading). The prototype disclaimer is in the page
-flow after the content. Rule: Rulings §4 and §3 (footer).
+Pages do nothing here; for reference.
+
+- **Top bar.** One row at every width: the mark, the scope switcher (it takes the free width
+  and truncates), the feed chip, then the actions. Below 900px Operations and Sign out sit
+  behind one Menu button; from 900px they are in the row as quiet 32px buttons
+  (`depot-bar-button-quiet`: no outline at rest, never heavier than the chip). Below 640px the
+  mark is a 20px glyph with the name read to screen readers (the 13px wordmark leaves no room
+  for the scope at 360px); from 640px it is the "DEPOT MANAGEMENT" wordmark. Never initials.
+- **Navigation.** From 900px the rail leads with the depot's name and its pages in depot
+  scope, then the network groups. The rail's surface and right hairline run the full height
+  of the page (the `<nav>` is stretched by the row); its links sit in a sticky column under
+  the bar that scrolls inside itself on a short viewport. Below 900px one strip shows the
+  depot's pages with a "Network" disclosure (network links in network scope).
+- **Sticky layers.** Read the `--depot-*` properties in `globals.css`, never a literal height
+  (`--depot-sticky-top` is where a page's first sticky layer sticks; `--depot-anchor-mt` the
+  scroll margin for a heading).
+
+  | Width | `--depot-bar-h` | `--depot-strip-h` | `--depot-sticky-top` |
+  | --- | --- | --- | --- |
+  | below 640px (bar and strip scroll away) | 0 | 0 | 0 |
+  | 640 to 899px (bar row, then the strip) | 3.25rem | 2.5rem | 5.75rem |
+  | from 900px (bar row, rail beside) | 3.5rem | 0 | 3.5rem |
+
+- **Stale feed, said once.** While a response is stale, a page renders
+  `<StaleStrip since={data.feedNow} />` as before. For the first `STALE_NOTICE_AFTER_MS`
+  (5 minutes) of the data's age, from its fetch time against the browser clock, the chip and
+  the provenance line carry it alone and the strip shows nothing; after that, or when the age
+  cannot be known, it shows the one shared `Notice` (STALE, "Showing last good data from
+  HH:MM"). Its slot holds the notice's height from the moment it mounts, so nothing moves
+  when the notice appears. The age defaults to the shell feed's fetch time (every depot
+  endpoint reads the same snapshot); a page may pass `fetchedAt` to use its own.
+- **Skip link and footer.** "Skip to depot content" is the first focusable element on every
+  depot page and moves focus to `<main>`. The prototype disclaimer is in the page flow after
+  the content, in the footer's `depot` variant: the sentence wraps at 11px, never cut off.
+
+Rule: Rulings §4 and §3 (footer).

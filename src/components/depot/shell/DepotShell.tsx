@@ -37,7 +37,7 @@ export function DepotShell({ children }: { readonly children: React.ReactNode })
             {children}
           </main>
         </div>
-        <FooterDisclaimer variant="dark" />
+        <FooterDisclaimer variant="depot" />
         {/* Dialogs and drawers are portalled here, inside the shell's type and typeface. */}
         <div id={DEPOT_PORTAL_ROOT_ID} />
       </div>

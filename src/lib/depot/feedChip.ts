@@ -95,6 +95,36 @@ export function feedChip({ data, error, loading, nowMs }: FeedChipInput): FeedCh
   };
 }
 
+/**
+ * How long a stale feed is carried by the chip and the provenance line alone. A feed
+ * that blips stale for a poll or two must not put a notice on every page; data older
+ * than this is worth one.
+ */
+export const STALE_NOTICE_AFTER_MS = 5 * MINUTE_MS;
+
+export interface StaleNoticeTiming {
+  /** Whether the page's stale notice shows now. */
+  readonly show: boolean;
+  /** While held back, how long until it is due; null once it shows. */
+  readonly showInMs: number | null;
+}
+
+const SHOW_NOTICE: StaleNoticeTiming = { show: true, showInMs: null };
+
+/**
+ * Whether the stale notice shows, from the response's fetch time (a real instant) and
+ * the browser clock. When the age cannot be known it shows: an outage of unknown length
+ * is said out loud. A fetch time slightly ahead of the browser clock is ordinary clock
+ * drift and reads as new data; one ahead by more than the limit is not trusted.
+ */
+export function staleNoticeTiming(fetchedAt: string | null, nowMs: number): StaleNoticeTiming {
+  const fetchedMs = fetchedAt === null ? Number.NaN : Date.parse(fetchedAt);
+  const age = nowMs - fetchedMs;
+  if (!Number.isFinite(age) || age < -STALE_NOTICE_AFTER_MS) return SHOW_NOTICE;
+  const showInMs = STALE_NOTICE_AFTER_MS - Math.max(0, age);
+  return showInMs > 0 ? { show: false, showInMs } : SHOW_NOTICE;
+}
+
 interface NoteLead {
   /** Start of the fresh sentence; the feed time follows it. */
   readonly fresh: string;
