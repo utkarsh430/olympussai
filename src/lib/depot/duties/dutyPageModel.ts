@@ -33,18 +33,22 @@ export function dutyFigures(
  * Why duties have no bus, said once above the chart, as counts by reason of the buses
  * held out of the matching, of every class (ruling S55): "No bus for 116 duties: every
  * eligible bus has another duty. Held out of the matching: 12 not heard recently · …".
- * Class is a preference, not a bar, so no class is named. Null when every duty has a bus.
+ * A duty is left without a bus only once every eligible bus has one, so when no duty has
+ * a bus no bus was eligible, and the line says so (review m-e). Class is a preference,
+ * not a bar, so no class is named. Null when every duty has a bus.
  */
 export function unmatchedLine(
   response: Pick<DutyBoardResponse, 'counts' | 'eligibilityIgnoredLocation'>,
 ): string | null {
-  const { unassigned, excluded } = response.counts;
+  const { unassigned, assigned, excluded } = response.counts;
   if (unassigned <= 0) return null;
-  const head =
-    `No bus for ${formatCount(unassigned)} ${plural(unassigned, 'duty', 'duties')}: ` +
-    'every eligible bus has another duty.';
   const parts = heldOutParts(excluded, response.eligibilityIgnoredLocation === true);
-  return parts.length === 0 ? head : `${head} Held out of the matching: ${parts.join(' · ')}.`;
+  const lead = `No bus for ${formatCount(unassigned)} ${plural(unassigned, 'duty', 'duties')}:`;
+  const held = parts.length === 0 ? '' : ` Held out of the matching: ${parts.join(' · ')}.`;
+  if (assigned > 0) return `${lead} every eligible bus has another duty.${held}`;
+  return parts.length === 0
+    ? `${lead} the feed shows no bus for this depot.`
+    : `${lead} no bus is eligible.${held}`;
 }
 
 /**
@@ -63,18 +67,44 @@ export function locationIgnoredSentence(
   return `No yard is established for this depot, so location is not used: ${who} is eligible.`;
 }
 
+const BEFORE_FIRST_DUTY_YARD =
+  'Before the first departure: buses are matched as they stand in the yard. No duty has started, so only a bus standing in the yard is eligible, and being out on the road or the feed time does not count.';
+const BEFORE_FIRST_DUTY_NO_YARD =
+  'Before the first departure: no duty has started, so how buses stand now does not count. No yard is established for this depot, so every bus that is not off the road or dark is eligible.';
+const RECENCY_AND_YARD =
+  `A bus not heard in the last ${REPORTING_WINDOW_MIN} minutes is held out of the matching, ` +
+  'moving or standing; a standing bus must also be in the yard.';
+const YARD_ONLY = 'A standing bus must be in the yard to be eligible.';
+
+type EligibilityContext = Pick<
+  DutyBoardResponse,
+  'eligibilityIgnoredLocation' | 'recencyNotJudged' | 'planMode'
+>;
+
+/**
+ * How eligibility was judged, true for the plan's mode, the feed clock and the yard
+ * (rulings S55, S62). Before the first duty only the yard counts; with no clock no
+ * recency window is claimed (review m-d); with no yard location is not claimed.
+ */
+export function eligibilityNotes(response: EligibilityContext): readonly string[] {
+  const noYard = response.eligibilityIgnoredLocation === true;
+  if (response.planMode === 'before_first_duty') {
+    return [noYard ? BEFORE_FIRST_DUTY_NO_YARD : BEFORE_FIRST_DUTY_YARD];
+  }
+  const noClock = response.recencyNotJudged === true;
+  const location = noYard ? locationIgnoredSentence(true, noClock) : null;
+  if (!noClock) return [location ?? RECENCY_AND_YARD];
+  return [recencySentence(true), location ?? YARD_ONLY].filter(
+    (note): note is string => note !== null,
+  );
+}
+
 /** The notes said once above the chart: why duties have no bus, and how eligibility was judged. */
 export function matchingNotes(
-  response: Pick<
-    DutyBoardResponse,
-    'counts' | 'eligibilityIgnoredLocation' | 'recencyNotJudged'
-  >,
+  response: Pick<DutyBoardResponse, 'counts'> & EligibilityContext,
 ): readonly string[] {
-  return [
-    unmatchedLine(response),
-    locationIgnoredSentence(response.eligibilityIgnoredLocation, response.recencyNotJudged),
-    recencySentence(response.recencyNotJudged),
-  ].filter((note): note is string => note !== null);
+  const unmatched = unmatchedLine(response);
+  return [...(unmatched === null ? [] : [unmatched]), ...eligibilityNotes(response)];
 }
 
 export function duplicateRowsSentence(dropped: number | undefined): string | null {

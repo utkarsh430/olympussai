@@ -88,15 +88,18 @@ describe('server context sentences', () => {
     expect(locationIgnoredSentence(undefined, undefined)).toBeNull();
   });
 
-  it('gathers the reason, the location and the recency notes said above the chart', () => {
+  // Rewritten for S62 / m-d: every eligibility note is reached in
+  // depot-duty-wording-branches.test.ts; here only the order of the notes.
+  it('says why duties have no bus first, then how eligibility was judged', () => {
     const notes = matchingNotes({
       counts: counts(),
       eligibilityIgnoredLocation: true,
       recencyNotJudged: true,
     });
     expect(notes).toHaveLength(3);
-    expect(notes[2]).toContain('The feed has no clock');
-    expect(matchingNotes({ counts: counts({ unassigned: 0 }) })).toEqual([]);
+    expect(notes[0]).toMatch(/^No bus for 116 duties/);
+    expect(notes[1]).toContain('The feed has no clock');
+    expect(matchingNotes({ counts: counts({ unassigned: 0 }) })).toHaveLength(1);
   });
 
   it('counts repeated registrations left out', () => {

@@ -199,16 +199,15 @@ describe('sentences', () => {
     );
   });
 
-  // Rewritten for round 2: the tiers said in their order, and who is held out (S55).
-  // The summary sentence it sat beside is gone: the four-figure band says the counts.
+  // Rewritten for S62 / m-d: the exact sentences are pinned in
+  // depot-duty-wording-branches.test.ts with the notes they sit beside.
   it("states the cost in the assignment module's own terms, in its tier order (S47, S55)", () => {
-    expect(COST_SENTENCE).toBe(
-      'The matching gives duties first to buses already out on the road, buses in service before buses merely moving, then to standing buses; then it gives a route’s duties to buses running that route, prefers a bus of the duty’s service class, and fits buses to the feed time. Among what is left it minimises total wear: a bus costs its age in years times the duty length in whole hours, so longer duties go to younger buses.',
-    );
-    expect(ELIGIBILITY_SENTENCE).toBe(
-      'A bus off the road, dark, or not heard in the last 30 minutes is held out of the matching; a standing bus must also be in the yard when the depot has one established.',
-    );
-    expect(COST_SENTENCE).not.toMatch(/never matched|optimal/i);
+    const order = ['out on the road', 'in service before', 'route’s duties', 'service class', 'feed time', 'wear'];
+    const at = order.map((phrase) => COST_SENTENCE.indexOf(phrase));
+    expect(at.every((i) => i >= 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    expect(ELIGIBILITY_SENTENCE).not.toMatch(/heard in the last/);
+    expect(COST_SENTENCE).not.toMatch(/optimal/i);
   });
 
   // Rewritten: the shared modelled-day sentence says there are no duties; this gives
