@@ -121,7 +121,7 @@ available, so this is a scripted response." Users never see an error because of 
 
 | Variable | Meaning |
 |---|---|
-| `DEPOT_COPILOT_PROVIDER` | `auto` (default: Claude when it works, scripted otherwise), `claude-cli` (as auto, but the notice is shown if Claude is not set up), or `scripted` (Claude never runs). |
+| `DEPOT_COPILOT_PROVIDER` | `auto` (default: Claude when it works, scripted otherwise), `claude-cli` (as auto, but the notice is shown if Claude is not set up), or `scripted` (Claude never runs). Unset or empty means `auto`. Any other value, such as the typo `Scripted`, selects `scripted` and is logged once, when the server first builds the copilot: `provider_setting_unrecognised: "<value>"; the scripted writer is used`. The value is shown cut to 24 characters, with anything other than letters, digits, `.`, `_` and `-` shown as `?`. |
 | `CLAUDE_BIN` | Absolute path to the `claude` binary. The binary and its folder must belong to root or the server's user, and they and every folder above them up to `/` must be writable only by their owner, or Claude is switched off. |
 | `CLAUDE_CODE_OAUTH_TOKEN` | The Claude sign-in token. It is the only secret passed to the `claude` process. Keep it in the server's secret store, never in the repository. |
 | `DEPOT_COPILOT_MODEL` | Optional model name; defaults to `sonnet`. |
