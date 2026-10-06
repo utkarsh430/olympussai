@@ -2,13 +2,12 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
-import { Maximize2, Minimize2, Scale, FlaskConical, GitMerge } from 'lucide-react';
+import { Maximize2, Minimize2, Warehouse, FlaskConical, GitMerge } from 'lucide-react';
 import { useCopilotStore } from '@/stores/copilotStore';
 import { useIndiaClock } from '@/hooks/useIndiaClock';
 import { Badge, CountUp } from '@/components/shared/hud';
 import { LIVE_LABELS } from '@/lib/constants';
 import { formatRelativeAge } from '@/lib/formatters';
-import { useFleetDistribution } from '@/hooks/useFleetDistribution';
 import { ProjectSignOut } from '@/components/upsrtc/ProjectSignOut';
 
 export function TopCommandBar({
@@ -23,7 +22,6 @@ export function TopCommandBar({
   const buses = useCopilotStore((state) => state.buses);
   const feedMeta = useCopilotStore((state) => state.feedMeta);
   const toggleScenarioLab = useCopilotStore((state) => state.toggleScenarioLab);
-  const openFleetDistribution = useFleetDistribution();
   const clock = useIndiaClock();
 
   const connectionState = useMemo(() => {
@@ -103,15 +101,16 @@ export function TopCommandBar({
           <FlaskConical className="h-3.5 w-3.5" aria-hidden />
           Scenario Lab
         </button>
-        <button
-          type="button"
+        {/* Opens the Depot Management module. A route, like Bunching beside it:
+            it is a full multi-page surface, not an overlay on the map. */}
+        <Link
+          href="/project/depots"
           className="hud-button-primary whitespace-nowrap"
-          onClick={openFleetDistribution}
-          data-testid="open-fleet-distribution"
+          data-testid="open-depot-management"
         >
-          <Scale className="h-3.5 w-3.5" aria-hidden />
-          Fleet Distribution
-        </button>
+          <Warehouse className="h-3.5 w-3.5" aria-hidden />
+          Depot Management
+        </Link>
         <button
           type="button"
           className="hud-button whitespace-nowrap"
