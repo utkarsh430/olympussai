@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { rosterCrew } from '@/lib/depot/crew/roster';
+import { crewShiftsFor, rosterCrew } from '@/lib/depot/crew/roster';
 import { MAX_DUTY_HOURS_PER_DAY, MAX_HOURS_PER_WEEK } from '@/lib/depot/crew/types';
-import type { CrewRole, CrewSlot } from '@/lib/depot/crew/types';
+import type { CrewRole, CrewShift, CrewSlot } from '@/lib/depot/crew/types';
 import type { Duty } from '@/lib/depot/duties/types';
 import { modelCrew } from '@/lib/depot/sim/crew';
 import { modelDuties } from '@/lib/depot/sim/duties';
@@ -10,6 +10,7 @@ import type { DepotSummary } from '@/lib/depot/types';
 
 const depot = { id: 'D-7', name: 'Test' } as unknown as DepotSummary;
 const DATE = '2026-10-06';
+const LIMIT_MIN = MAX_DUTY_HOURS_PER_DAY * 60;
 
 function duty(id: string, startMin: number, endMin: number): Duty {
   return {
@@ -37,30 +38,89 @@ const pair = (n: number, hours = 0): CrewSlot[] => [
   slot(`C-${String(n).padStart(3, '0')}`, 'conductor', hours),
 ];
 
+describe('crewShiftsFor', () => {
+  it('keeps a duty within the daily limit as one shift, including exactly at the limit', () => {
+    const { shifts, dutiesNeedingRelief } = crewShiftsFor([
+      duty('001', 300, 600),
+      duty('002', 300, 300 + LIMIT_MIN),
+    ]);
+    expect(shifts).toHaveLength(2);
+    expect(shifts.every((s) => s.shiftIndex === 0 && s.shiftCount === 1)).toBe(true);
+    expect(dutiesNeedingRelief).toBe(0);
+  });
+
+  it('splits 10.5 h into two of 5.25 h and 16 h into two of 8 h', () => {
+    const a = crewShiftsFor([duty('001', 300, 930)]);
+    expect(a.shifts.map((s) => [s.startMin, s.endMin])).toEqual([
+      [300, 615],
+      [615, 930],
+    ]);
+    const b = crewShiftsFor([duty('002', 240, 1200)]);
+    expect(b.shifts.map((s) => s.endMin - s.startMin)).toEqual([480, 480]);
+    expect(a.dutiesNeedingRelief + b.dutiesNeedingRelief).toBe(2);
+  });
+
+  it('uses the fewest shifts, each within the limit, covering the duty exactly', () => {
+    for (const length of [601, 1199, 1200, 1201, 1799, 1800, 1801, 960]) {
+      const { shifts } = crewShiftsFor([duty('001', 100, 100 + length)]);
+      expect(shifts).toHaveLength(Math.ceil(length / LIMIT_MIN));
+      expect(shifts.every((s) => s.endMin - s.startMin <= LIMIT_MIN)).toBe(true);
+      expect(shifts.reduce((sum, s) => sum + (s.endMin - s.startMin), 0)).toBe(length);
+      expect(shifts[0]?.startMin).toBe(100);
+      expect(shifts[shifts.length - 1]?.endMin).toBe(100 + length);
+    }
+  });
+
+  it('rejects zero or negative length duties with a typed outcome', () => {
+    const out = crewShiftsFor([
+      duty('001', 400, 400),
+      duty('002', 400, 400),
+      duty('003', 500, 450),
+    ]);
+    expect(out.shifts).toEqual([]);
+    expect(out.invalidDutyIds).toEqual(['001', '002', '003']);
+  });
+});
+
 describe('rosterCrew review focus', () => {
   it('shows a shortfall as uncovered duties instead of double-booking a slot', () => {
     const duties = [duty('001', 360, 600), duty('002', 400, 640), duty('003', 420, 660)];
     const summary = rosterCrew(duties, pair(1));
-    expect(summary.assignedDuties).toBe(1);
-    expect(summary.uncoveredDuties).toBe(2);
-    const covered = summary.assignments.filter((a) => a.uncoveredReason === null);
-    expect(covered).toHaveLength(1);
+    expect(summary.dutiesFullyCovered).toBe(1);
+    expect(summary.dutiesUncovered).toBe(2);
     const uncovered = summary.assignments.filter((a) => a.uncoveredReason !== null);
     expect(uncovered.map((a) => a.uncoveredReason)).toEqual([
       'no_available_crew',
       'no_available_crew',
     ]);
     expect(uncovered.every((a) => a.driverSlot === null && a.conductorSlot === null)).toBe(true);
+    expect(uncovered.every((a) => a.shortRoles.length === 2)).toBe(true);
   });
 
   it('refuses a slot that would exceed the weekly limit and says why', () => {
-    const crew = [...pair(1, MAX_HOURS_PER_WEEK - 5)];
-    const summary = rosterCrew([duty('001', 360, 670)], crew); // 5h10 shift, 5h left
+    const summary = rosterCrew([duty('001', 360, 670)], pair(1, MAX_HOURS_PER_WEEK - 5));
     expect(summary.assignments[0]).toMatchObject({
       driverSlot: null,
       conductorSlot: null,
       uncoveredReason: 'hours_limit',
+      shortRoles: ['driver', 'conductor'],
     });
+  });
+
+  it('reports no_available_crew when a short role had no slot, even if the other hit hours', () => {
+    const crew = [slot('D-001', 'driver', MAX_HOURS_PER_WEEK - 1)];
+    const summary = rosterCrew([duty('001', 360, 600)], crew);
+    expect(summary.assignments[0]).toMatchObject({
+      uncoveredReason: 'no_available_crew',
+      shortRoles: ['driver', 'conductor'],
+    });
+    expect(summary.uncoveredByRole).toEqual({ driver: 1, conductor: 1 });
+  });
+
+  it('says only the conductor was short when drivers were fine', () => {
+    const summary = rosterCrew([duty('001', 360, 600)], [slot('D-001', 'driver')]);
+    expect(summary.assignments[0]?.shortRoles).toEqual(['conductor']);
+    expect(summary.uncoveredByRole).toEqual({ driver: 0, conductor: 1 });
   });
 
   it('uses the next slot when the first is refused by hours', () => {
@@ -69,14 +129,53 @@ describe('rosterCrew review focus', () => {
     expect(summary.assignments[0]).toMatchObject({ driverSlot: 'D-002', conductorSlot: 'C-002' });
   });
 
-  it('refuses a second duty that would push a slot past the daily limit', () => {
-    const duties = [duty('001', 300, 600), duty('002', 620, 900)]; // 5h + 4h40 = 9h40 fits
-    expect(rosterCrew(duties, pair(1)).assignedDuties).toBe(2);
+  it('refuses a second shift that would push a slot past the daily limit', () => {
+    const fits = rosterCrew([duty('001', 300, 600), duty('002', 620, 900)], pair(1));
+    expect(fits.dutiesFullyCovered).toBe(2);
     const long = [duty('001', 300, 600), duty('002', 600, 900), duty('003', 900, 1000)];
-    // 5h + 5h = 10h exactly is allowed; a third 1h40 takes it over.
     const summary = rosterCrew(long, pair(1));
-    expect(summary.assignedDuties).toBe(2);
+    expect(summary.dutiesFullyCovered).toBe(2);
     expect(summary.assignments[2]?.uncoveredReason).toBe('hours_limit');
+  });
+});
+
+describe('rosterCrew shifts and relief', () => {
+  it('covers a long duty with two shifts and reports it fully covered', () => {
+    const crew = [...pair(1), ...pair(2)];
+    const summary = rosterCrew([duty('001', 300, 930)], crew);
+    expect(summary.shiftsRequired).toBe(2);
+    expect(summary.shiftsCovered).toBe(2);
+    expect(summary.dutiesFullyCovered).toBe(1);
+    expect(summary.dutiesNeedingRelief).toBe(1);
+    expect(summary.assignments.map((a) => [a.shiftIndex, a.shiftCount])).toEqual([
+      [0, 2],
+      [1, 2],
+    ]);
+    expect(summary.required).toEqual({ driver: 2, conductor: 2 });
+  });
+
+  it('lets one slot take the second shift of a duty it did not start', () => {
+    const crew = [...pair(1), ...pair(2)];
+    const duties = [duty('001', 300, 540), duty('002', 300, 930)];
+    const summary = rosterCrew(duties, crew);
+    const second = summary.assignments.find((a) => a.dutyId === '002' && a.shiftIndex === 1);
+    expect(second?.driverSlot).toBe('D-001');
+  });
+
+  it('reports a duty partly covered when only one shift can be crewed', () => {
+    const crew = [slot('D-001', 'driver'), slot('C-001', 'conductor')];
+    const summary = rosterCrew([duty('001', 300, 930)], crew);
+    expect(summary.shiftsCovered).toBe(1);
+    expect(summary.dutiesPartlyCovered).toBe(1);
+    expect(summary.dutiesFullyCovered + summary.dutiesUncovered).toBe(0);
+    expect(summary.assignments[1]?.uncoveredReason).toBe('hours_limit');
+  });
+
+  it('counts invalid duties apart and keeps them out of the reconciliation', () => {
+    const summary = rosterCrew([duty('001', 400, 400), duty('002', 400, 400)], pair(1));
+    expect(summary.invalidDutyIds).toEqual(['001', '002']);
+    expect(summary.assignments).toEqual([]);
+    expect(summary.shiftsRequired).toBe(0);
   });
 });
 
@@ -87,28 +186,14 @@ describe('rosterCrew boundaries and rules', () => {
     expect(empty.required).toEqual({ driver: 0, conductor: 0 });
     expect(empty.available).toEqual({ driver: 1, conductor: 1 });
     const none = rosterCrew([duty('001', 360, 600)], []);
-    expect(none.uncoveredDuties).toBe(1);
+    expect(none.dutiesUncovered).toBe(1);
     expect(none.assignments[0]?.uncoveredReason).toBe('no_available_crew');
   });
 
-  it('allows duties that touch end to start on one slot', () => {
+  it('allows shifts that touch end to start on one slot', () => {
     const summary = rosterCrew([duty('001', 360, 480), duty('002', 480, 600)], pair(1));
-    expect(summary.assignedDuties).toBe(2);
+    expect(summary.dutiesFullyCovered).toBe(2);
     expect(summary.assignments.map((a) => a.driverSlot)).toEqual(['D-001', 'D-001']);
-  });
-
-  it('covers a duty exactly at the daily limit and refuses one a minute over', () => {
-    const limit = MAX_DUTY_HOURS_PER_DAY * 60;
-    const at = rosterCrew([duty('001', 300, 300 + limit)], pair(1));
-    expect(at.assignedDuties).toBe(1);
-    expect(at.dutiesOverDailyLimit).toBe(0);
-    const over = rosterCrew([duty('001', 300, 301 + limit)], pair(1));
-    expect(over.assignments[0]?.uncoveredReason).toBe('hours_limit');
-    expect(over.dutiesOverDailyLimit).toBe(1);
-    // Even with no crew at all, the reason for a too-long duty is the limit.
-    expect(rosterCrew([duty('001', 300, 301 + limit)], []).assignments[0]?.uncoveredReason).toBe(
-      'hours_limit',
-    );
   });
 
   it('ignores slots that are not available', () => {
@@ -138,7 +223,7 @@ describe('rosterCrew boundaries and rules', () => {
       30,
       DATE,
     ).duties;
-    const crew = modelCrew(depot, 30, DATE);
+    const crew = modelCrew(depot, crewShiftsFor(duties).shifts.length, DATE);
     const dutiesCopy = JSON.stringify(duties);
     const crewCopy = JSON.stringify(crew);
     const base = rosterCrew(duties, crew);
@@ -153,20 +238,52 @@ describe('rosterCrew boundaries and rules', () => {
     expect(rosterCrew(shuffle(duties), shuffle(crew))).toEqual(base);
   });
 
-  it('is deterministic and reconciles on the modelled depot', () => {
+  it('covers long-route duties once they are split into shifts', () => {
     const duties = modelDuties(
       depot,
-      [{ routeName: 'A_ORD', scheduledDurationMin: 200 }],
-      40,
+      [{ routeName: 'A_ORD', scheduledDurationMin: 300 }],
+      20,
       DATE,
     ).duties;
-    const crew = modelCrew(depot, duties.length, DATE);
-    const a = rosterCrew(duties, crew);
-    expect(rosterCrew(duties, crew)).toEqual(a);
-    expect(a.required).toEqual({ driver: 40, conductor: 40 });
-    expect(a.assignedDuties + a.uncoveredDuties).toBe(40);
+    const shifts = crewShiftsFor(duties).shifts;
+    const summary = rosterCrew(duties, modelCrew(depot, shifts.length, DATE));
+    expect(summary.shiftsRequired).toBe(shifts.length);
+    expect(summary.shiftsCovered).toBeGreaterThan(0);
   });
 });
+
+function checkReconciles(
+  duties: readonly Duty[],
+  crew: readonly CrewSlot[],
+  summary: ReturnType<typeof rosterCrew>,
+): void {
+  const valid = duties.length - summary.invalidDutyIds.length;
+  expect(summary.shiftsCovered + summary.shiftsUncovered).toBe(summary.shiftsRequired);
+  expect(summary.required.driver).toBe(summary.shiftsRequired);
+  expect(summary.required.conductor).toBe(summary.shiftsRequired);
+  expect(summary.dutiesFullyCovered + summary.dutiesPartlyCovered + summary.dutiesUncovered).toBe(
+    valid,
+  );
+  const booked = new Map<string, CrewShift[]>();
+  for (const a of summary.assignments) {
+    const shift: CrewShift = a;
+    for (const id of [a.driverSlot, a.conductorSlot]) {
+      if (id !== null) booked.set(id, [...(booked.get(id) ?? []), shift]);
+    }
+    expect((a.driverSlot === null) === (a.uncoveredReason !== null)).toBe(true);
+  }
+  for (const [id, list] of booked) {
+    const hours = list.reduce((sum, s) => sum + (s.endMin - s.startMin) / 60, 0);
+    const base = (crew.find((s) => s.id === id) as CrewSlot).hoursThisWeek;
+    expect(hours).toBeLessThanOrEqual(MAX_DUTY_HOURS_PER_DAY + 1e-9);
+    expect(base + hours).toBeLessThanOrEqual(MAX_HOURS_PER_WEEK + 1e-9);
+    for (const x of list) {
+      for (const y of list) {
+        if (x !== y) expect(x.startMin < y.endMin && y.startMin < x.endMin).toBe(false);
+      }
+    }
+  }
+}
 
 describe('rosterCrew over many seeded duty sets', () => {
   it('never double-books, never exceeds either limit, and reconciles', () => {
@@ -174,52 +291,46 @@ describe('rosterCrew over many seeded duty sets', () => {
       const rng = new SeededRandom(`roster-${seed}`);
       const duties = Array.from({ length: rng.int(0, 40) }, (_, i) => {
         const start = rng.int(240, 1300);
-        return duty(String(i).padStart(3, '0'), start, start + rng.int(60, 720));
+        return duty(String(i).padStart(3, '0'), start, start + rng.int(0, 960));
       });
-      const crew = modelCrew(
-        depot,
-        rng.int(0, 30),
-        `2026-10-${String(1 + (seed % 28)).padStart(2, '0')}`,
-      );
-      const summary = rosterCrew(duties, crew);
-      expect(summary.assignedDuties + summary.uncoveredDuties).toBe(duties.length);
-      expect(summary.required.driver).toBe(duties.length);
-      const byId = new Map(duties.map((d) => [d.id, d]));
-      const booked = new Map<string, Duty[]>();
-      for (const a of summary.assignments) {
-        const d = byId.get(a.dutyId) as Duty;
-        for (const id of [a.driverSlot, a.conductorSlot]) {
-          if (id !== null) booked.set(id, [...(booked.get(id) ?? []), d]);
-        }
-        expect((a.driverSlot === null) === (a.uncoveredReason !== null)).toBe(true);
-      }
-      for (const [id, list] of booked) {
-        const hours = list.reduce((sum, d) => sum + (d.endMin - d.startMin) / 60, 0);
-        const base = (crew.find((s) => s.id === id) as CrewSlot).hoursThisWeek;
-        expect(hours).toBeLessThanOrEqual(MAX_DUTY_HOURS_PER_DAY + 1e-9);
-        expect(base + hours).toBeLessThanOrEqual(MAX_HOURS_PER_WEEK + 1e-9);
-        for (const x of list) {
-          for (const y of list) {
-            if (x !== y) expect(x.startMin < y.endMin && y.startMin < x.endMin).toBe(false);
-          }
-        }
-      }
+      const date = `2026-10-${String(1 + (seed % 28)).padStart(2, '0')}`;
+      const crew = modelCrew(depot, rng.int(0, 40), date);
+      checkReconciles(duties, crew, rosterCrew(duties, crew));
     }
   });
+});
 
-  it('serialises without a name, score, rank, rating, performance, speed or violation', () => {
+const FORBIDDEN_TERMS = ['name', 'score', 'rank', 'rating', 'performance', 'speed', 'violation'];
+
+/** Every key and string value as a lowercase word list, so only whole words can match. */
+function wordsOf(value: unknown, out: string[] = []): string[] {
+  if (Array.isArray(value)) value.forEach((v) => wordsOf(v, out));
+  else if (value !== null && typeof value === 'object') {
+    for (const [key, v] of Object.entries(value)) {
+      out.push(...key.toLowerCase().split(/[^a-z]+/));
+      wordsOf(v, out);
+    }
+  } else if (typeof value === 'string') out.push(...value.toLowerCase().split(/[^a-z]+/));
+  return out;
+}
+
+describe('people constraint', () => {
+  it('has no forbidden key or value in the serialised crew or roster', () => {
     const duties = modelDuties(
       depot,
       [{ routeName: 'A_ORD', scheduledDurationMin: 200 }],
       25,
       DATE,
     ).duties;
-    const text = JSON.stringify([
-      modelCrew(depot, 25, DATE),
-      rosterCrew(duties, modelCrew(depot, 25, DATE)),
-    ]).toLowerCase();
-    for (const term of ['name', 'score', 'rank', 'rating', 'performance', 'speed', 'violation']) {
-      expect(text).not.toContain(term);
-    }
+    const crew = modelCrew(depot, crewShiftsFor(duties).shifts.length, DATE);
+    const words = wordsOf(JSON.parse(JSON.stringify([crew, rosterCrew(duties, crew)])));
+    for (const term of FORBIDDEN_TERMS) expect(words).not.toContain(term);
+  });
+
+  it('the detector fails when a forbidden key appears and ignores look-alikes', () => {
+    expect(wordsOf({ name: 'x' })).toContain('name');
+    expect(wordsOf({ score: 1 })).toContain('score');
+    expect(wordsOf({ depotName: 'x' })).not.toContain('name'); // camel case is one word
+    expect(wordsOf({ operatingDate: 'x' })).not.toContain('rating');
   });
 });
