@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { modelDuties } from '@/lib/depot/sim/duties';
+import type { Duty } from '@/lib/depot/duties/types';
 import type { DepotSummary } from '@/lib/depot/types';
 
 const depot = { id: 'D-7', name: 'Test' } as unknown as DepotSummary;
@@ -92,8 +93,8 @@ describe('modelDuties', () => {
   it('sorts by start then id', () => {
     const d = modelDuties(depot, ROUTES, 60, DATE);
     for (let i = 1; i < d.length; i += 1) {
-      const p = d[i - 1];
-      const c = d[i];
+      const p = d[i - 1] as Duty;
+      const c = d[i] as Duty;
       expect(p.startMin < c.startMin || (p.startMin === c.startMin && p.id < c.id)).toBe(true);
     }
   });

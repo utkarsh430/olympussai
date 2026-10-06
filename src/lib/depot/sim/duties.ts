@@ -82,7 +82,7 @@ export function modelDuties(
   const rng = new SeededRandom(seedFor(depot.id, operatingDate, 'duties'));
   const duties: Duty[] = [];
   for (let index = 0; index < peakRequirement; index += 1) {
-    const routeName = names[index % names.length];
+    const routeName = names[index % names.length] as string;
     const scheduled = byName.get(routeName) ?? null;
     const startMin = drawStart(rng);
     const unknown = roundToFive(rng.float(UNKNOWN_DURATION_MIN.from, UNKNOWN_DURATION_MIN.to));

@@ -7,7 +7,7 @@ type Matrix = readonly (readonly number[])[];
 /** Best (assigned count, then cost) over every partial assignment of rows to columns. */
 function brute(cost: Matrix): { count: number; total: number } {
   const rows = cost.length;
-  const cols = rows === 0 ? 0 : cost[0].length;
+  const cols = rows === 0 ? 0 : (cost[0]?.length ?? 0);
   let best = { count: -1, total: Infinity };
   const used = new Array<boolean>(cols).fill(false);
   const go = (row: number, count: number, total: number): void => {
@@ -19,9 +19,9 @@ function brute(cost: Matrix): { count: number; total: number } {
     }
     go(row + 1, count, total);
     for (let c = 0; c < cols; c += 1) {
-      if (used[c] || !Number.isFinite(cost[row][c])) continue;
+      if (used[c] || !Number.isFinite(cost[row]?.[c])) continue;
       used[c] = true;
-      go(row + 1, count + 1, total + cost[row][c]);
+      go(row + 1, count + 1, total + (cost[row]?.[c] ?? 0));
       used[c] = false;
     }
   };
@@ -51,8 +51,9 @@ describe('hungarian', () => {
       let sum = 0;
       rowToCol.forEach((c, r) => {
         if (c >= 0) {
-          expect(Number.isFinite(cost[r][c])).toBe(true);
-          sum += cost[r][c];
+          const value = cost[r]?.[c] ?? Infinity;
+          expect(Number.isFinite(value)).toBe(true);
+          sum += value;
         }
       });
       expect(sum).toBe(total);

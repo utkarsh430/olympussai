@@ -70,10 +70,14 @@ describe('assignDuties', () => {
 
   it('never assigns a class mismatch and treats a bus missing from the fleet as ordinary', () => {
     const fleet = fleetOf([['X1', 'express', 3]]);
-    const plan = assignDuties([duty(0, 'ordinary'), duty(1, 'express')], [bus('X1'), bus('Y')], fleet);
+    const plan = assignDuties(
+      [duty(0, 'ordinary'), duty(1, 'express')],
+      [bus('X1'), bus('Y')],
+      fleet,
+    );
     expect(plan.assignments.map((a) => a.registrationNumber)).toEqual(['Y', 'X1']);
     const lone = assignDuties([duty(0, 'premium')], [bus('Y'), bus('X1')], fleet);
-    expect(lone.assignments[0].reason).toBe('no_eligible_bus');
+    expect(lone.assignments[0]?.reason).toBe('no_eligible_bus');
     expect(lone.spareBuses).toEqual(['X1', 'Y']);
     expect(lone.excluded).toEqual([]);
   });
@@ -83,7 +87,11 @@ describe('assignDuties', () => {
       ['OLD', 'ordinary', 12],
       ['NEW', 'ordinary', 1],
     ]);
-    const plan = assignDuties([duty(0, 'ordinary', 14), duty(1, 'ordinary', 4)], [bus('OLD'), bus('NEW')], fleet);
+    const plan = assignDuties(
+      [duty(0, 'ordinary', 14), duty(1, 'ordinary', 4)],
+      [bus('OLD'), bus('NEW')],
+      fleet,
+    );
     expect(plan.assignments.map((a) => a.registrationNumber)).toEqual(['NEW', 'OLD']);
   });
 
@@ -112,14 +120,18 @@ describe('assignDuties', () => {
     const buses: DepotBusView[] = [];
     for (let i = 0; i < 40; i += 1) {
       const reg = `B${String(i).padStart(2, '0')}`;
-      entries.push([reg, classes[i % 4], (i * 7) % 15]);
+      entries.push([reg, classes[i % 4] ?? 'ordinary', (i * 7) % 15]);
       buses.push(bus(reg, states[(i * 3) % 4], locs[(i * 5) % 4]));
     }
     const fleet = fleetOf(entries);
-    const duties = Array.from({ length: 30 }, (_, i) => duty(i, classes[(i * 2) % 4], 4 + (i % 9)));
+    const duties = Array.from({ length: 30 }, (_, i) =>
+      duty(i, classes[(i * 2) % 4] ?? 'ordinary', 4 + (i % 9)),
+    );
     const plan = assignDuties(duties, buses, fleet);
     const excluded = new Set(plan.excluded.map((e) => e.registrationNumber));
-    const taken = plan.assignments.flatMap((a) => (a.registrationNumber ? [a.registrationNumber] : []));
+    const taken = plan.assignments.flatMap((a) =>
+      a.registrationNumber ? [a.registrationNumber] : [],
+    );
     expect(new Set(taken).size).toBe(taken.length);
     for (const a of plan.assignments) {
       if (a.registrationNumber === null) continue;
@@ -127,7 +139,9 @@ describe('assignDuties', () => {
       const d = duties.find((x) => x.id === a.dutyId);
       expect(fleet.get(a.registrationNumber)?.serviceClass).toBe(d?.serviceClass);
     }
-    expect(plan.unassignedDuties).toBe(plan.assignments.filter((a) => a.registrationNumber === null).length);
+    expect(plan.unassignedDuties).toBe(
+      plan.assignments.filter((a) => a.registrationNumber === null).length,
+    );
   });
 
   it('is identical for shuffled buses and does not mutate frozen inputs', () => {

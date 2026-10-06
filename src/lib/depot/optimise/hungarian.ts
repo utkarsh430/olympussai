@@ -28,8 +28,13 @@ export interface HungarianResult {
   readonly total: number;
 }
 
+/** Indexed read that is known to be in range (the matrix is validated and rectangular). */
+function at(values: readonly number[], index: number): number {
+  return values[index] as number;
+}
+
 function validate(cost: readonly (readonly number[])[]): void {
-  const width = cost.length === 0 ? 0 : cost[0].length;
+  const width = cost.length === 0 ? 0 : (cost[0] as readonly number[]).length;
   cost.forEach((row, r) => {
     if (row.length !== width) {
       throw new RangeError(`Cost matrix is ragged: row ${r} has ${row.length}, expected ${width}`);
@@ -62,46 +67,48 @@ function solveSquare(a: readonly (readonly number[])[], n: number): number[] {
     const used = new Array<boolean>(n + 1).fill(false);
     do {
       used[col0] = true;
-      const row0 = matchOfCol[col0];
+      const row0 = at(matchOfCol, col0);
+      const costRow = a[row0 - 1] as readonly number[];
       let delta = Infinity;
       let col1 = 0;
       for (let col = 1; col <= n; col += 1) {
         if (used[col]) continue;
-        const reduced = a[row0 - 1][col - 1] - u[row0] - v[col];
-        if (reduced < minv[col]) {
+        const reduced = at(costRow, col - 1) - at(u, row0) - at(v, col);
+        if (reduced < at(minv, col)) {
           minv[col] = reduced;
           way[col] = col0;
         }
-        if (minv[col] < delta) {
-          delta = minv[col];
+        if (at(minv, col) < delta) {
+          delta = at(minv, col);
           col1 = col;
         }
       }
       for (let col = 0; col <= n; col += 1) {
         if (used[col]) {
-          u[matchOfCol[col]] += delta;
-          v[col] -= delta;
+          const owner = at(matchOfCol, col);
+          u[owner] = at(u, owner) + delta;
+          v[col] = at(v, col) - delta;
         } else {
-          minv[col] -= delta;
+          minv[col] = at(minv, col) - delta;
         }
       }
       col0 = col1;
-    } while (matchOfCol[col0] !== 0);
+    } while (at(matchOfCol, col0) !== 0);
     do {
-      const col1 = way[col0];
-      matchOfCol[col0] = matchOfCol[col1];
+      const col1 = at(way, col0);
+      matchOfCol[col0] = at(matchOfCol, col1);
       col0 = col1;
     } while (col0 !== 0);
   }
   const rowToCol = new Array<number>(n).fill(-1);
-  for (let col = 1; col <= n; col += 1) rowToCol[matchOfCol[col] - 1] = col - 1;
+  for (let col = 1; col <= n; col += 1) rowToCol[at(matchOfCol, col) - 1] = col - 1;
   return rowToCol;
 }
 
 export function hungarian(cost: readonly (readonly number[])[]): HungarianResult {
   validate(cost);
   const rows = cost.length;
-  const cols = rows === 0 ? 0 : cost[0].length;
+  const cols = rows === 0 ? 0 : (cost[0] as readonly number[]).length;
   if (rows === 0 || cols === 0) return { rowToCol: new Array<number>(rows).fill(-1), total: 0 };
 
   const size = Math.max(rows, cols);
@@ -109,16 +116,18 @@ export function hungarian(cost: readonly (readonly number[])[]): HungarianResult
   const square = Array.from({ length: size }, (_, r) =>
     Array.from({ length: size }, (_, c) => {
       if (r >= rows || c >= cols) return 0;
-      return Number.isFinite(cost[r][c]) ? cost[r][c] : penalty;
+      const value = at(cost[r] as readonly number[], c);
+      return Number.isFinite(value) ? value : penalty;
     }),
   );
   const solved = solveSquare(square, size);
 
   let total = 0;
   const rowToCol = Array.from({ length: rows }, (_, r) => {
-    const c = solved[r];
-    if (c >= cols || !Number.isFinite(cost[r][c])) return -1;
-    total += cost[r][c];
+    const c = at(solved, r);
+    const value = c >= cols ? Infinity : at(cost[r] as readonly number[], c);
+    if (!Number.isFinite(value)) return -1;
+    total += value;
     return c;
   });
   return { rowToCol, total };

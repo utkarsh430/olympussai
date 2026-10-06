@@ -17,8 +17,8 @@ function expectNoneBlocked(slots: readonly ParkingSlot[]): void {
   for (const lane of byLane.values()) {
     const fromMouth = [...lane].sort((a, b) => b.position - a.position);
     for (let i = 1; i < fromMouth.length; i += 1) {
-      expect(key(fromMouth[i].firstDutyStartMin)).toBeGreaterThanOrEqual(
-        key(fromMouth[i - 1].firstDutyStartMin),
+      expect(key(fromMouth[i]?.firstDutyStartMin ?? null)).toBeGreaterThanOrEqual(
+        key(fromMouth[i - 1]?.firstDutyStartMin ?? null),
       );
     }
   }
@@ -109,9 +109,9 @@ describe('planParking', () => {
 
   it('handles empty input and empty lanes', () => {
     expect(planParking([], [])).toEqual({ slots: [], blocked: 0, overflow: [] });
-    expect(planParking([], [{ registrationNumber: 'A', firstDutyStartMin: 300 }]).overflow).toEqual([
-      'A',
-    ]);
+    expect(planParking([], [{ registrationNumber: 'A', firstDutyStartMin: 300 }]).overflow).toEqual(
+      ['A'],
+    );
     expect(planParking([{ id: 'L01', depth: 2 }], []).slots).toEqual([]);
   });
 

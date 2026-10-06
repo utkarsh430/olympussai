@@ -61,9 +61,9 @@ export function assignDuties(
   const { rowToCol } = hungarian(cost);
 
   const assignments: DutyAssignment[] = duties.map((duty, row) => {
-    const col = rowToCol[row];
-    return col >= 0
-      ? { dutyId: duty.id, registrationNumber: eligible[col].registrationNumber, reason: 'assigned' }
+    const matched = eligible[rowToCol[row] ?? -1];
+    return matched !== undefined
+      ? { dutyId: duty.id, registrationNumber: matched.registrationNumber, reason: 'assigned' }
       : { dutyId: duty.id, registrationNumber: null, reason: 'no_eligible_bus' };
   });
   const used = new Set(rowToCol.filter((c) => c >= 0));
