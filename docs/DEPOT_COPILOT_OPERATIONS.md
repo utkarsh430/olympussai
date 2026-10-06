@@ -86,8 +86,13 @@ The checks accept each of these, so read Claude text for them:
   buses dark in a depot.", "At night the yard at Agra has 3 buses dark." (The listed quantifier
   and period words, as in "All depots have 3 buses dark." or "3 buses were dark in the last
   week.", are refused since round 9.)
-- **A figure under another depot's name** (M-A), wherever two depots' facts are in one request:
-  "3 buses are dark at Kaushambi." using Agra's count.
+- **A figure under another depot's name, where the rule cannot see it** (M-A). Since round 9 a
+  per-depot figure in a comparison, ranking, list or the network's strongest/weakest pair is
+  refused when another depot's name stands in its list entry or is the name it reads as
+  belonging to ("3 buses are dark at Kaushambi." with Agra's count). Still accepted: a
+  restatement in a later clause ("Agra has 3 buses dark, and so does Kaushambi."); a figure
+  with no depot (a network-wide count, a transfer's count) under any depot's name; and the
+  transfers answer and transfer rationale, whose facts are not yet tagged with their depot.
 - **A figure reused with another noun, or given a second noun** (M-A): "3 buses are dark. 3 buses
   are in the yard.", "71% of the depots are dark."
 - **A missing or contradicted window or held yard** (M-C): "Agra stands at index 68.1 and rank 2

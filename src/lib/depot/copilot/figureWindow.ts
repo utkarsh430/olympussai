@@ -36,7 +36,7 @@ function endsClause(tokens: readonly Token[], index: number): boolean {
 }
 
 /** The first and last token index of the clause that holds `index`. */
-function clauseOf(tokens: readonly Token[], index: number): readonly [number, number] {
+export function clauseOf(tokens: readonly Token[], index: number): readonly [number, number] {
   let start = index;
   while (start > 0 && !endsClause(tokens, start - 1)) start -= 1;
   let end = index;

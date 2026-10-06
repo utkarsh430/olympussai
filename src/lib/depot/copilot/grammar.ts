@@ -13,9 +13,16 @@ import {
 import { isVocabularyWord } from '@/lib/depot/copilot/vocabulary';
 import { BOUND_PHRASES } from '@/lib/depot/copilot/vocabulary/judgement';
 import { sentenceProblem, type SentenceProblem } from '@/lib/depot/copilot/sentenceRules';
+import { depotProblem, type DepotProblem } from '@/lib/depot/copilot/depotRule';
 
 export type { FactEdges };
-export type GrammarProblem = 'spacing' | 'token' | 'vocabulary' | FigureProblem | SentenceProblem;
+export type GrammarProblem =
+  | 'spacing'
+  | 'token'
+  | 'vocabulary'
+  | FigureProblem
+  | DepotProblem
+  | SentenceProblem;
 
 const inClass = (chars: readonly string[]): string =>
   chars.map((c) => c.replace(/[\\\]^-]/g, '\\$&')).join('');
@@ -92,6 +99,8 @@ export function checkGrammar(
     return 'vocabulary';
   }
   return (
-    figureProblem(tokens, edgesOf) ?? sentenceProblem(tokens, (id) => edgesOf(id).figure)
+    figureProblem(tokens, edgesOf) ??
+    depotProblem(tokens, edgesOf) ??
+    sentenceProblem(tokens, (id) => edgesOf(id).figure)
   );
 }
