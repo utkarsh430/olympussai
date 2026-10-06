@@ -66,7 +66,7 @@ function phraseAt(tokens: readonly Token[], phrase: readonly string[], start: nu
   });
 }
 
-/** Ruling M-B: a judgement word the scripted writer needs, inside its one fixed phrase. */
+/** A judgement word the scripted writer needs, inside its one fixed phrase. */
 function inBoundPhrase(tokens: readonly Token[], index: number, core: string): boolean {
   return BOUND_PHRASES.some((phrase) =>
     phrase.some((word, at) => word === core && phraseAt(tokens, phrase, index - at)),
