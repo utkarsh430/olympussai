@@ -29,7 +29,7 @@ import {
 
 const HERE = { x: 0, y: 0 };
 
-describe('the yard rule (Ruling S25)', () => {
+describe('the yard rule', () => {
   // Screens build their sentences from these, so the ruled values are pinned by name.
   it('exports the ruled values', () => {
     expect([YARD_LINK_M, YARD_CORE_MIN_NEIGHBOURS, YARD_MIN_CLUSTER]).toEqual([150, 4, 6]);

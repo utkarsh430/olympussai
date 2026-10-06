@@ -8,7 +8,7 @@ import {
 import type { DepotBusRow } from '@/models/depotLive';
 
 /*
- * Ruling S56a: the feed's receive times are Indian-time digits carrying a `Z`;
+ * The feed's receive times are Indian-time digits carrying a `Z`;
  * the snapshot's fetch time is a real UTC instant. The feed clock is the newest
  * receive time not later than the fetch time read in Indian time plus
  * FEED_CLOCK_MAX_LEAD_MIN. Later rows are ignored for the clock and counted.
@@ -35,7 +35,7 @@ function heardAgo(n: number, newestAgoMin: number, spreadMin = 1): string[] {
   );
 }
 
-describe('deriveFeedClock (S56a)', () => {
+describe('deriveFeedClock', () => {
   it('ignores one row stamped 5 h 30 ahead, and counts it', () => {
     const rows = rowsAt([...heardAgo(50, 0), iso(FETCH_IST_MS + IST_OFFSET_MIN * MIN)]);
     expect(deriveFeedClock(rows, FETCH_MS)).toEqual({ feedNow: iso(FETCH_IST_MS), aheadRows: 1 });
@@ -55,7 +55,7 @@ describe('deriveFeedClock (S56a)', () => {
     expect(deriveFeedClock(rows, FETCH_MS)).toEqual({ feedNow: iso(FETCH_IST_MS), aheadRows: 200 });
   });
 
-  it('follows the 60 buses still reporting at night when the other 9,940 went quiet hours ago (N1)', () => {
+  it('follows the 60 buses still reporting at night when the other 9,940 went quiet hours ago', () => {
     const quiet = heardAgo(9_940, 180, 600);
     for (const at of [0, 40, 120, 180]) {
       const fetchMs = FETCH_MS + at * MIN;

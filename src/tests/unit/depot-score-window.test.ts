@@ -90,12 +90,12 @@ describe('score window, holder', () => {
     observeDepots(store, snapshotOf(net, random), feedTime(40));
     const other = snapshotOf(net, random);
 
-    // A re-fetch with new rows at the same feed time replaces that sample (S50b).
+    // A re-fetch with new rows at the same feed time replaces that sample.
     const repeated = observeDepots(store, other, feedTime(40));
     expect(repeated.window.samples).toBe(2);
     expect(scoreDepots(other, repeated.values)).not.toEqual(scoreDepots(other));
     // A late snapshot inside the window is inserted in feed-time order, not dropped, and
-    // scored on the samples up to its own feed time (N7).
+    // scored on the samples up to its own feed time.
     const older = observeDepots(store, other, feedTime(10));
     expect(older.window).toMatchObject({ since: feedTime(0), samples: 2 });
     expect(store.byDepot.get('1')).toHaveLength(3);

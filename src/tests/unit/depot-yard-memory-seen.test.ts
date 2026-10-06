@@ -15,7 +15,7 @@ import { buildDepotDetail } from '@/lib/depot/live/depotView';
 import { blob, type XY } from './depot-yard.fixtures';
 
 /*
- * N10: a yard missing because this process has just started must be told
+ * A yard missing because this process has just started must be told
  * apart from a yard the evidence refuses. The yard memory counts, per depot,
  * the feed times it has decided the depot's yard on (since the process started,
  * the memory's last epoch, or the depot's last absence longer than the hold
@@ -37,7 +37,7 @@ function step(store: Store, feedNow: string, fixture = false): number {
   return yardSnapshotsSeen(store, '1');
 }
 
-describe('yard memory: snapshots seen per depot (N10)', () => {
+describe('yard memory: snapshots seen per depot', () => {
   it('counts each newer feed time once, and nothing else', () => {
     const store = createYardMemoryStore();
     expect(yardSnapshotsSeen(store, '1')).toBe(0);
@@ -62,7 +62,7 @@ describe('yard memory: snapshots seen per depot (N10)', () => {
   });
 });
 
-describe('network response: yardSnapshotsSeen (N10)', () => {
+describe('network response: yardSnapshotsSeen', () => {
   beforeEach(() => resetAnalysisForTests());
 
   const viewAt = (minute: number, source: FleetSnapshotView['source'] = 'live') => ({
@@ -79,7 +79,7 @@ describe('network response: yardSnapshotsSeen (N10)', () => {
     expect(buildNetworkResponse(viewAt(1)).yardSnapshotsSeen).toEqual({ '1': 2, '2': 2 });
   });
 
-  // P2: 0 there would not mean "just started", so the count is not sent at all.
+  // 0 there would not mean "just started", so the count is not sent at all.
   it('omits the count for the fixture, which never uses the memory', () => {
     expect('yardSnapshotsSeen' in buildNetworkResponse(viewAt(0, 'fixture'))).toBe(false);
     const detail = buildDepotDetail(viewAt(0, 'fixture'), '1');

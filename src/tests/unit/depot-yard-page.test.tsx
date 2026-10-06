@@ -171,14 +171,14 @@ describe('the yard page', () => {
     expect(markup.indexOf('id="yard-roll-in"')).toBeGreaterThan(start);
   });
 
-  it('keeps the yard rule sentence in the closing disclosure (R2-m14)', async () => {
+  it('keeps the yard rule sentence in the closing disclosure', async () => {
     hooks.detail = { ...base, data: detail([bus('UP32AA0001')], false), error: null, loading: false };
     const markup = await renderPage();
     const how = markup.slice(markup.indexOf('data-testid="yard-how"'));
     expect(text(how)).toMatch(/at least 6 parked buses/);
   });
 
-  it('captions "In the yard" as this depot\'s buses, visitors counted apart (R2-m13)', async () => {
+  it('captions "In the yard" as this depot\'s buses, visitors counted apart', async () => {
     hooks.detail = { ...base, data: DATA, error: null, loading: false };
     const t = text(await renderPage());
     // Short enough for a 200px figure at 1024; the full sentence is the figure's title.

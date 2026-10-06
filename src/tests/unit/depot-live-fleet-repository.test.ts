@@ -52,7 +52,7 @@ describe('live fleet repository: when the depot pages call the feed stale', () =
     expect(await staleAt('cache', true, 10 * 60_000)).toBe(true);
   });
 
-  // P7: a machine clock stepped back below the fetch time must not keep old data fresh.
+  // A machine clock stepped back below the fetch time must not keep old data fresh.
   it('is stale for last-good data whose age is negative (the machine clock stepped back)', async () => {
     expect(await staleAt('cache', true, -1)).toBe(true);
     expect(await staleAt('cache', true, -10 * 60_000)).toBe(true);

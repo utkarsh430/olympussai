@@ -7,7 +7,7 @@ import {
 } from '@/lib/depot/feedChip';
 
 /*
- * P4: a lagging feed clock must be noticeable. When at least
+ * A lagging feed clock must be noticeable. When at least
  * FEED_CLOCK_AHEAD_WARN_SHARE of a response's rows (and never fewer than
  * FEED_CLOCK_AHEAD_WARN_MIN_ROWS) carry a time later than the server's own
  * clock allows, the feed clock may lag: the chip says CHECK CLOCK in words, not
@@ -33,7 +33,7 @@ const CLOCK = (n: number): string =>
   `${n} reports carry a time later than the server's own clock allows, so the feed clock ` +
   "may lag and the server's clock should be checked";
 
-describe('feed chip: a lagging clock (P4)', () => {
+describe('feed chip: a lagging clock', () => {
   it('names the share and its floor', () => {
     expect(FEED_CLOCK_AHEAD_WARN_SHARE).toBe(0.01);
     expect(FEED_CLOCK_AHEAD_WARN_MIN_ROWS).toBe(20);

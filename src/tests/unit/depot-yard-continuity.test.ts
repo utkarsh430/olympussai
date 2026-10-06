@@ -30,7 +30,7 @@ function stands(a: number, b: number, depotId = '1'): DepotBusRow[] {
 
 /**
  * One snapshot. Every bus in these layouts was heard at the snapshot's own feed
- * time unless the row says otherwise: hold evidence needs a recent report (M9).
+ * time unless the row says otherwise: hold evidence needs a recent report.
  */
 function step(
   store: YardMemoryStore,
@@ -111,11 +111,11 @@ describe('yard continuity', () => {
     const held = step(store, stands(12, 12), at(2)).get('1');
     expect(held?.heldSince).toBe(at(2));
     const before = JSON.stringify([store.lastFeedMs, [...store.byDepot]]);
-    // A re-fetch with new rows at the same feed time keeps the remembered circle (I4), counted
-    // on these rows so it agrees with the bus locations on the same response (N5).
+    // A re-fetch with new rows at the same feed time keeps the remembered circle, counted
+    // on these rows so it agrees with the bus locations on the same response.
     expect(step(store, stands(14, 12), at(2)).get('1')).toEqual({ ...held, parked: 26, inCluster: 14 });
     expect(step(store, stands(12, 13), at(2)).get('1')).toEqual({ ...held, parked: 25, inCluster: 12 });
-    // An older snapshot is decided against the memory, which it does not write (I1).
+    // An older snapshot is decided against the memory, which it does not write.
     expect(isAt(step(store, stands(12, 12), at(1.5)).get('1'), yardA)).toBe(true);
     expect(isAt(step(store, stands(0, 12), at(0)).get('1'), yardB)).toBe(true);
     expect(step(store, stands(12, 12), null).has('1')).toBe(false);
@@ -158,7 +158,7 @@ describe('yard continuity', () => {
             const heldMs = Date.parse(feedNow) - Date.parse(yard.heldSince);
             expect(heldMs).toBeGreaterThanOrEqual(0);
             expect(heldMs).toBeLessThanOrEqual(YARD_HOLD_MAX_HOURS * 3_600_000);
-            // A held yard does not move or grow: the circle it continues, exactly (I3).
+            // A held yard does not move or grow: the circle it continues, exactly.
             const from = previous as Yard;
             expect([yard.lat, yard.lng, yard.radiusM]).toEqual([from.lat, from.lng, from.radiusM]);
           }

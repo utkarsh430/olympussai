@@ -4,7 +4,7 @@ import { inferYard, inferYardGroup, YARD_ADJACENT_M, YARD_LINK_M } from '@/lib/d
 import { busAt, file, lot, membersOf, regs, seededShuffle } from './depot-yard.fixtures';
 
 /*
- * Ruling S46: groups of parked buses whose nearest buses stand within 300 m of each other
+ * Groups of parked buses whose nearest buses stand within 300 m of each other
  * are one place, as long as the place stays within the span limit. Kaushambi is one
  * compound with two parking areas about 126 m apart; the 150 m link joins them or not
  * depending on which buses stand at the edges, and the dominance rule then refused 42
@@ -19,7 +19,7 @@ function compound(gapM: number): { readonly west: DepotBusRow[]; readonly east: 
   return { west, east };
 }
 
-describe('the adjacency distance (Ruling S46)', () => {
+describe('the adjacency distance', () => {
   it('is twice the link distance: 300 m', () => {
     expect(YARD_ADJACENT_M).toBe(2 * YARD_LINK_M);
     expect(YARD_ADJACENT_M).toBe(300);
