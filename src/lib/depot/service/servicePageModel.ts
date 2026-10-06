@@ -92,15 +92,18 @@ export function coverageSentences(body: Body): readonly string[] {
   ];
 }
 
-/** The page's MIXED line: what is live, derived and modelled, then the coverage. */
-export function routeHourlyProvenance(body: Body): ProvenanceDescription {
-  return {
+/**
+ * The page's MIXED line: what is live, derived and modelled, then the coverage. Before the
+ * day has loaded (or when it cannot) the line names the classes alone.
+ */
+export function routeHourlyProvenance(body: Body | null): ProvenanceDescription {
+  const classes: ProvenanceDescription = {
     default: 'mixed',
     live: 'Buses on the route now',
     derived: 'deployed and scheduled buses by hour',
     modelled: 'passenger demand, buses needed and the proposals',
-    second: coverageSentences(body).join(' '),
   };
+  return body === null ? classes : { ...classes, second: coverageSentences(body).join(' ') };
 }
 
 /** The chart section's note: the operating date in words. */
