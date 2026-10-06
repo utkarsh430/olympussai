@@ -32,7 +32,15 @@ function viewOf(
   feedNow: string,
   over: Partial<FleetSnapshotView> = {},
 ): FleetSnapshotView {
-  return { rows, feedNow, fetchedAt: feedNow, source: 'live', stale: false, recordCount: rows.length, ...over };
+  return {
+    rows,
+    feedNow,
+    fetchedAt: feedNow,
+    source: 'live',
+    stale: false,
+    recordCount: rows.length,
+    ...over,
+  };
 }
 
 const samplesHeld = (): number => defaultScoreWindowStore().byDepot.get('1')?.length ?? 0;
@@ -47,27 +55,46 @@ describe('analysis across snapshots', () => {
     expect(buildDepotDetail(first, '1')?.score).toBe(body.scores[0]);
     expect(samplesHeld()).toBe(1);
     // The same rows served later as stale last-good: no second sample, and it says stale.
-    const stale = buildNetworkResponse({ ...first, fetchedAt: at(9), source: 'cache', stale: true });
+    const stale = buildNetworkResponse({
+      ...first,
+      fetchedAt: at(9),
+      source: 'cache',
+      stale: true,
+    });
     expect(stale.stale).toBe(true);
     expect(stale.scores).toBe(body.scores);
     expect(samplesHeld()).toBe(1);
 
     const second = buildNetworkResponse(viewOf(rowsAt(at(1), 12, 6), at(1)));
     expect(samplesHeld()).toBe(2);
-    expect(second.scoreWindow).toEqual({ lengthMin: SCORE_WINDOW_MIN, since: at(0), samples: 2 });
-    // New rows with a feed time already seen (a re-fetch, the fixture rebuilt): nothing added.
+    expect(second.scoreWindow).toEqual({
+      lengthMin: SCORE_WINDOW_MIN,
+      since: at(0),
+      samples: 2,
+      coveredMin: 1,
+    });
+    expect(second.scores[0]?.samples).toBe(2);
+    // New rows with a feed time already seen (a re-fetch): that sample is replaced, not added.
     buildNetworkResponse(viewOf(rowsAt(at(1), 12, 6), at(1)));
-    // An older snapshot is analysed on its own and does not rewind the window.
-    const older = buildNetworkResponse(viewOf(rowsAt(at(0.5), 12, 6), at(0.5)));
-    expect(older.scoreWindow).toEqual({ lengthMin: SCORE_WINDOW_MIN, since: at(0.5), samples: 1 });
     expect(samplesHeld()).toBe(2);
+    // An older snapshot inside the window is inserted in feed-time order (S50b).
+    const older = buildNetworkResponse(viewOf(rowsAt(at(0.5), 12, 6), at(0.5)));
+    expect(older.scoreWindow).toMatchObject({ since: at(0), samples: 3 });
+    expect(samplesHeld()).toBe(3);
+    // The recorded fixture never touches the window.
+    const fixture = buildNetworkResponse(
+      viewOf(rowsAt(at(0.75), 12, 6), at(0.75), { source: 'fixture' }),
+    );
+    expect(fixture.scoreWindow).toMatchObject({ since: at(0.75), samples: 1 });
+    expect(samplesHeld()).toBe(3);
   });
 
   it('states the window on every response that carries an index or a depot exception', () => {
     const view = viewOf(rowsAt(at(0), 12, 6), at(0));
-    const window = { lengthMin: SCORE_WINDOW_MIN, since: at(0), samples: 1 };
+    const window = { lengthMin: SCORE_WINDOW_MIN, since: at(0), samples: 1, coveredMin: 0 };
     expect(buildNetworkResponse(view).scoreWindow).toEqual(window);
     expect(buildNetworkResponse(view).scores[0]?.window).toEqual(window);
+    expect(buildNetworkResponse(view).scores[0]?.samples).toBe(1);
     expect(buildExceptionsResponse(view).scoreWindow).toEqual(window);
     expect(buildDepotDetail(view, '1')?.scoreWindow).toEqual(window);
   });
