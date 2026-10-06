@@ -39,7 +39,9 @@ describe('CopilotFooter', () => {
   it('is one line naming the writer in words, and opens the figures from it', () => {
     render(<CopilotFooter {...BASE} />);
     const footer = screen.getByTestId('copilot-footer');
-    expect(footer.querySelector('p')?.textContent).toBe('SCRIPTED · written 14:00 · 2 figures');
+    expect(footer.querySelector('[data-testid="copilot-footer-line"]')?.textContent).toBe(
+      'SCRIPTED · written 14:00 · 2 figures',
+    );
     const button = screen.getByRole('button', { name: '2 figures' });
     expect(button.getAttribute('aria-expanded')).toBe('false');
     expect(footer.querySelector('ul')).toBeNull();

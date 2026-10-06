@@ -2,7 +2,11 @@
 
 import { useId, useState } from 'react';
 import { noticeSentence } from '@/lib/depot/copilot/ui/copilotView';
-import type { CopilotFactView, CopilotPublicNotice, CopilotPublicProvider } from '@/lib/depot/copilot/wire';
+import type {
+  CopilotFactView,
+  CopilotPublicNotice,
+  CopilotPublicProvider,
+} from '@/lib/depot/copilot/wire';
 import {
   OUTDATED_SENTENCE,
   figureWords,
@@ -41,7 +45,10 @@ export function CopilotFooter(props: CopilotFooterProps) {
   return (
     <div className="min-w-0" data-testid="copilot-footer">
       {sentence ? <p className="depot-prose mb-1">{sentence}</p> : null}
-      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-depot-muted">
+      <div
+        data-testid="copilot-footer-line"
+        className="font-mono text-[11px] uppercase tracking-[0.12em] text-depot-muted"
+      >
         <span data-provider={provider} data-testid="copilot-provider">
           {writerWord(provider)}
         </span>
@@ -61,10 +68,13 @@ export function CopilotFooter(props: CopilotFooterProps) {
             {figureWords(facts.length)}
           </button>
         )}
-      </p>
+      </div>
       {open ? <FactList id={listId} facts={facts} /> : null}
       {outdated ? (
-        <p role="status" className="mt-2 flex flex-wrap items-center gap-3 font-sans text-[13px] text-alert-amber">
+        <p
+          role="status"
+          className="mt-2 flex flex-wrap items-center gap-3 font-sans text-[13px] text-alert-amber"
+        >
           {OUTDATED_SENTENCE}
           {onWriteAgain ? (
             <button type="button" onClick={onWriteAgain} className="depot-filter-button">

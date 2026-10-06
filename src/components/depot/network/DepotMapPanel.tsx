@@ -45,12 +45,12 @@ function Ranking({ row }: { readonly row: DepotRow }) {
   }
   return (
     <>
-      <p className="flex items-baseline gap-2">
+      <div className="flex items-baseline gap-2">
         <span className="font-display text-2xl font-semibold tabular-nums text-depot-ink">
           {formatIndex(index)}
         </span>
         <span className="text-[11px] text-depot-muted">{indexBand(index)?.label}</span>
-      </p>
+      </div>
       {score.rank !== null && score.peerCount !== null && score.peerGroup ? (
         <p className="depot-note mt-1">
           {peerRankLine(score.rank, score.peerCount, score.peerGroup)}
@@ -86,18 +86,18 @@ function Suggestion({
   if (!lowest) return null;
   return (
     <div className="mt-3 border-t border-depot-line pt-3">
-      <p className="depot-label flex items-center gap-2">
+      <div className="depot-label flex items-center gap-2">
         {SUGGESTION_LABEL} <ProvenanceBadge provenance="derived" />
-      </p>
+      </div>
       <p className="depot-note mt-1">{LOWEST_OPERATING_LABEL}</p>
-      <p className="mt-1 flex min-w-0 items-baseline justify-between gap-3">
+      <div className="mt-1 flex min-w-0 items-baseline justify-between gap-3">
         <span className="min-w-0 break-words text-[13px] text-depot-ink">{lowest.depot.name}</span>
         <span className="shrink-0 text-[13px] tabular-nums text-depot-ink">
           {formatIndex(rankedIndex(lowest))}
         </span>
-      </p>
+      </div>
       <p className="depot-note mt-1">{SUGGESTION_NOTE}</p>
-      <p className="mt-2 flex flex-wrap items-center gap-3">
+      <div className="mt-2 flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => onSelect(lowest.depot.id)}
@@ -106,7 +106,7 @@ function Suggestion({
           Select it
         </button>
         <OpenDepot row={lowest} />
-      </p>
+      </div>
     </div>
   );
 }
@@ -152,7 +152,7 @@ export function DepotMapPanel({
       {status}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="depot-label">Selected unit</p>
+          <div className="depot-label">Selected unit</div>
           <h3
             id={PANEL_HEADING_ID}
             tabIndex={-1}
@@ -160,7 +160,7 @@ export function DepotMapPanel({
           >
             {depot.name}
           </h3>
-          <p className="text-[11px] text-depot-muted">{DEPOT_KIND_LABEL[depot.kind]}</p>
+          <div className="text-[11px] text-depot-muted">{DEPOT_KIND_LABEL[depot.kind]}</div>
         </div>
         <span className="flex shrink-0 items-center gap-3">
           <OpenDepot row={row} />

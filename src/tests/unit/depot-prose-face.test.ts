@@ -27,12 +27,8 @@ const ALLOWED = ['depot-prose', 'depot-note', 'depot-caption', 'sr-only', 'font-
 const EXEMPT: readonly string[] = [
   'src/components/depot/copilot/AnswerView.tsx',
   'src/components/depot/copilot/AskPanel.tsx',
-  'src/components/depot/copilot/BriefingCard.tsx',
-  'src/components/depot/copilot/CopilotFooter.tsx',
-  'src/components/depot/copilot/RationaleButton.tsx',
   'src/components/depot/exceptions/BusExceptionSection.tsx',
   'src/components/depot/exceptions/ExceptionCentre.tsx',
-  'src/components/depot/network/DepotMapPanel.tsx',
   'src/components/depot/sources/SourcesRegistry.tsx',
 ];
 

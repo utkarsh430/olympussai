@@ -77,7 +77,7 @@ function BriefingBody({ scope, title, currentFeedTime = null }: BriefingCardProp
 
       {state.status === 'loading' ? (
         <div aria-hidden className="mt-3 flex flex-col gap-2">
-          <p className="font-mono text-[13px] text-depot-muted">Writing…</p>
+          <p className="depot-note">Writing…</p>
           {PLACEHOLDER_ROWS_PX.map((height, index) => (
             <div key={index} className="depot-skeleton" style={{ height }} />
           ))}

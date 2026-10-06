@@ -132,7 +132,7 @@ export function RationalePanel({
         </button>
       ) : null}
       {state.status === 'loading' ? (
-        <p className="font-mono text-[13px] text-depot-muted">Writing…</p>
+        <p className="depot-note">Writing…</p>
       ) : null}
       {state.status === 'done' ? (
         <div className="flex flex-col gap-2">
