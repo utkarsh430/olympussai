@@ -44,11 +44,11 @@ export function isDepotNavItemActive(path: string, item: DepotNavItem): boolean 
 
 /** The depot a depot-scope path belongs to; null outside the scope or for a malformed id. */
 export function depotIdFromPath(pathname: string): string | null {
-  const match = DEPOT_SCOPE_PATH.exec(pathname);
-  if (!match) return null;
+  const raw = DEPOT_SCOPE_PATH.exec(pathname)?.[1];
+  if (raw === undefined) return null;
   let segment: string;
   try {
-    segment = decodeURIComponent(match[1]);
+    segment = decodeURIComponent(raw);
   } catch {
     return null;
   }

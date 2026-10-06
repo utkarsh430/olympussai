@@ -16,8 +16,17 @@ import {
 const ID = '1234';
 const ROOT = `/project/depots/d/${ID}`;
 
+function at<T>(list: readonly T[], index: number): T {
+  const value = list[index];
+  if (value === undefined) throw new Error(`no item at ${index}`);
+  return value;
+}
+
 describe('depotNav', () => {
-  const [cockpit, roster, yard] = depotNav(ID);
+  const items = depotNav(ID);
+  const cockpit = at(items, 0);
+  const roster = at(items, 1);
+  const yard = at(items, 2);
 
   it('lists Cockpit, Roster and Yard for one depot, cockpit matched exactly', () => {
     expect(depotNav(ID).map((item) => item.label)).toEqual(['Cockpit', 'Roster', 'Yard']);
@@ -84,7 +93,7 @@ describe('scopeOptions', () => {
     ]);
     expect(options[0]).toMatchObject({ key: NETWORK_SCOPE_KEY, href: '/project/depots' });
     expect(options[1]).toMatchObject({ href: '/project/depots/d/7', detail: 'Depot · 88 buses' });
-    expect(options[2].detail).toBe('Electric fleet · 1 bus');
+    expect(options[2]?.detail).toBe('Electric fleet · 1 bus');
   });
 
   it('does not reorder the input', () => {
@@ -104,10 +113,7 @@ describe('filterScopeOptions', () => {
 
   it('matches name and id case-insensitively, keeping the order', () => {
     expect(filterScopeOptions(options, 'LUCK').map((o) => o.label)).toEqual(['Lucknow Electric']);
-    expect(filterScopeOptions(options, 'a').map((o) => o.label)).toEqual([
-      'Agra Fort',
-      'Varanasi',
-    ]);
+    expect(filterScopeOptions(options, 'a').map((o) => o.label)).toEqual(['Agra Fort', 'Varanasi']);
     expect(filterScopeOptions(options, '31').map((o) => o.label)).toEqual(['Lucknow Electric']);
     expect(filterScopeOptions(options, 'net').map((o) => o.label)).toEqual(['Network']);
   });
