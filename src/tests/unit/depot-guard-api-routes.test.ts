@@ -6,7 +6,7 @@ import { NextRequest } from 'next/server';
 import { requireUpsrtcAccess } from '@/lib/auth/authorize';
 import type { SessionClaims } from '@/lib/auth/session';
 import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
-import { getRepositories } from '@/lib/depot/repositories';
+import { getRepositories, getServiceRepositories } from '@/lib/depot/repositories';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { getLiveSnapshot, type LiveSnapshotResult } from '@/lib/upsrtc/liveSnapshot';
 import { getCopilotRuntime } from '@/lib/depot/copilot/service/runtime';
@@ -18,7 +18,7 @@ import { getRouteProfile } from '@/lib/depot/routes/routeCatalogue';
 import { fetchUpstream } from '@/lib/upsrtc/client';
 import { fetchBusSchedule } from '@/lib/upsrtc/scheduleService';
 import { filesUnder, ROOT } from './depot-guard-source';
-import { guardView } from './depot-guard-fixtures';
+import { GUARD_FEED_NOW, guardServiceRepositories, guardView } from './depot-guard-fixtures';
 
 /*
  * Every depot API route, found by walking the folder, so a route added later
@@ -33,7 +33,10 @@ vi.mock('@/lib/auth/authorize', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/auth/authorize')>()),
   requireUpsrtcAccess: vi.fn(),
 }));
-vi.mock('@/lib/depot/repositories', () => ({ getRepositories: vi.fn() }));
+vi.mock('@/lib/depot/repositories', () => ({
+  getRepositories: vi.fn(),
+  getServiceRepositories: vi.fn(),
+}));
 vi.mock('@/lib/upsrtc/liveSnapshot', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/upsrtc/liveSnapshot')>()),
   getLiveSnapshot: vi.fn(),
@@ -76,7 +79,7 @@ const HOSTILE_RAW = 'REFLECTED';
  */
 const PARAM_NAMES = [
   'depotId', 'bus', 'metric', 'scope', 'days', 'horizon', 'kind', 'q', 'offset', 'limit',
-  'sort', 'dir', 'reason', 'serviceClass',
+  'sort', 'dir', 'reason', 'serviceClass', 'date',
 ];
 const HOSTILE_QUERY = [...PARAM_NAMES, HOSTILE]
   .map((name) => `${name}=${encodeURIComponent(`-1${HOSTILE}`)}`)
@@ -93,6 +96,7 @@ const ACCEPTED_QUERY: Readonly<Record<string, string>> = {
   'trends/route.ts': 'metric=index',
   'history/route.ts': 'metric=index&scope=network',
   'forecast/route.ts': 'metric=index&scope=network',
+  'service/route/[routeName]/route.ts': `date=${GUARD_FEED_NOW.slice(0, 10)}`,
 };
 
 /*
@@ -179,6 +183,7 @@ function useRepositories(snapshot: () => Promise<FleetSnapshotView>): void {
     revenue: modelledRevenueRepository,
   };
   vi.mocked(getRepositories).mockReturnValue(repositories);
+  vi.mocked(getServiceRepositories).mockReturnValue(guardServiceRepositories());
 }
 
 function useGoodData(): void {
@@ -219,6 +224,7 @@ describe('the depot API routes', () => {
       expect(res.headers.get('cache-control')).toBe('no-store');
       expect(await res.json()).toEqual({ error: 'Unauthorized' });
       expect(getRepositories).not.toHaveBeenCalled();
+      expect(getServiceRepositories).not.toHaveBeenCalled();
       expect(getLiveSnapshot).not.toHaveBeenCalled();
       expect(getCopilotRuntime).not.toHaveBeenCalled();
       expect(fetchStub).not.toHaveBeenCalled();
@@ -270,6 +276,7 @@ describe('the depot API routes', () => {
     const again = await call(c, { segment: `${'9'.repeat(70)}${HOSTILE}` });
     expect(await again.text()).toBe(first);
     expect(getRepositories).not.toHaveBeenCalled();
+    expect(getServiceRepositories).not.toHaveBeenCalled();
     expect(getLiveSnapshot).not.toHaveBeenCalled();
   });
 
@@ -283,5 +290,6 @@ describe('the depot API routes', () => {
     const again = await call(c, { query: `days=-1${HOSTILE}` });
     expect(await again.text()).toBe(first);
     expect(getRepositories).not.toHaveBeenCalled();
+    expect(getServiceRepositories).not.toHaveBeenCalled();
   });
 });
