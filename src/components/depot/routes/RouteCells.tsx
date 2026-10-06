@@ -14,7 +14,11 @@ export function DepotLink({
 }) {
   if (!linked) return <span title={name}>{name}</span>;
   return (
-    <Link href={depotHref(depotId)} title={`Open ${name}`} className="depot-link">
+    <Link
+      href={depotHref(depotId)}
+      title={`Open ${name}`}
+      className="depot-table-link text-holo-glow decoration-holo-glow/40 underline-offset-2 hover:underline focus-visible:underline"
+    >
       {name}
     </Link>
   );
