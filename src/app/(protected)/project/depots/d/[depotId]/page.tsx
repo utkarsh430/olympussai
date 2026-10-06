@@ -1,9 +1,6 @@
-import { notFound } from 'next/navigation';
-import { requireProjectSession } from '@/lib/auth/server';
 import { DepotCockpit } from '@/components/depot/cockpit/DepotCockpit';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
-import { depotHref } from '@/lib/depot/depotNav';
-import { isValidDepotId } from '@/lib/depot/ids';
+import { requireDepotPage } from '@/lib/depot/depotGate';
 
 /** The depot cockpit: what is on the road, standing, late out, and needs attention. */
 export default async function DepotCockpitPage({
@@ -12,9 +9,9 @@ export default async function DepotCockpitPage({
   readonly params: Promise<{ depotId: string }>;
 }) {
   const { depotId } = await params;
-  if (!isValidDepotId(depotId)) notFound();
-  // Layouts do not re-run on client navigation, so the page gates itself too.
-  await requireProjectSession(depotHref(depotId));
+  // Layouts do not re-run on client navigation, so the page gates itself too;
+  // the id is checked before the session gate sees it.
+  await requireDepotPage(depotId);
 
   return (
     <>

@@ -1,9 +1,9 @@
 import { Suspense } from 'react';
-import { requireProjectSession } from '@/lib/auth/server';
 import { DutyPage } from '@/components/depot/duties/DutyPage';
 import { LoadingBlock } from '@/components/depot/shell/DataStates';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { requireDepotPage } from '@/lib/depot/depotGate';
 
 /** The day's modelled duties for one depot and the buses proposed for them. */
 export default async function DepotDutiesPage({
@@ -12,8 +12,9 @@ export default async function DepotDutiesPage({
   readonly params: Promise<{ readonly depotId: string }>;
 }) {
   const { depotId } = await params;
-  // Layouts do not re-run on client navigation, so the page gates itself too.
-  await requireProjectSession(`/project/depots/d/${depotId}/duties`);
+  // Layouts do not re-run on client navigation, so the page gates itself too;
+  // the id is checked before the session gate sees it.
+  await requireDepotPage(depotId, '/duties');
 
   return (
     <>

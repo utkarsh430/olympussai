@@ -1,6 +1,6 @@
 import { YardPage } from '@/components/depot/yard/YardPage';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
-import { requireProjectSession } from '@/lib/auth/server';
+import { requireDepotPage } from '@/lib/depot/depotGate';
 
 /** Who is in this depot's yard right now, on a yard learned from where its buses park. */
 export default async function DepotYardPage({
@@ -9,8 +9,9 @@ export default async function DepotYardPage({
   readonly params: Promise<{ depotId: string }>;
 }) {
   const { depotId } = await params;
-  // Layouts do not re-run on client navigation, so the page gates itself too.
-  await requireProjectSession(`/project/depots/d/${depotId}/yard`);
+  // Layouts do not re-run on client navigation, so the page gates itself too;
+  // the id is checked before the session gate sees it.
+  await requireDepotPage(depotId, '/yard');
 
   return (
     <>

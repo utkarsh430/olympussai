@@ -1,8 +1,8 @@
 import { Suspense } from 'react';
-import { requireProjectSession } from '@/lib/auth/server';
 import { MaintenancePage } from '@/components/depot/maintenance/MaintenancePage';
 import { LoadingBlock } from '@/components/depot/shell/DataStates';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
+import { requireDepotPage } from '@/lib/depot/depotGate';
 
 /** What is off the road now, what is coming due for service, and the workshop's load. */
 export default async function DepotMaintenancePage({
@@ -11,8 +11,9 @@ export default async function DepotMaintenancePage({
   readonly params: Promise<{ readonly depotId: string }>;
 }) {
   const { depotId } = await params;
-  // Layouts do not re-run on client navigation, so the page gates itself too.
-  await requireProjectSession(`/project/depots/d/${depotId}/maintenance`);
+  // Layouts do not re-run on client navigation, so the page gates itself too;
+  // the id is checked before the session gate sees it.
+  await requireDepotPage(depotId, '/maintenance');
 
   return (
     <>

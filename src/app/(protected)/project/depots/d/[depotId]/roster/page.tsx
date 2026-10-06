@@ -1,9 +1,9 @@
 import { Suspense } from 'react';
-import { requireProjectSession } from '@/lib/auth/server';
 import { RosterPage } from '@/components/depot/roster/RosterPage';
 import { LoadingBlock } from '@/components/depot/shell/DataStates';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { requireDepotPage } from '@/lib/depot/depotGate';
 
 /** Every bus homed at one depot, with its state, place, route and device flags. */
 export default async function DepotRosterPage({
@@ -12,8 +12,9 @@ export default async function DepotRosterPage({
   readonly params: Promise<{ readonly depotId: string }>;
 }) {
   const { depotId } = await params;
-  // Layouts do not re-run on client navigation, so the page gates itself too.
-  await requireProjectSession(`/project/depots/d/${depotId}/roster`);
+  // Layouts do not re-run on client navigation, so the page gates itself too;
+  // the id is checked before the session gate sees it.
+  await requireDepotPage(depotId, '/roster');
 
   return (
     <>
