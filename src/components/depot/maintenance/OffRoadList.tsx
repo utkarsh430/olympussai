@@ -84,7 +84,7 @@ export function OffRoadList({ depotId, buses, feedNow }: OffRoadListProps) {
         id="depot-offroad-heading"
         label="Off the road now"
         count={buses.length}
-        note="Longest silent first"
+        note={buses.length === 0 ? undefined : (shared.statement ?? undefined)}
       />
       <p className="sr-only" role="status">
         {offRoadHeadline(buses.length)}
@@ -92,19 +92,16 @@ export function OffRoadList({ depotId, buses, feedNow }: OffRoadListProps) {
       {buses.length === 0 ? (
         <StatePanel kind="empty" sentence={offRoadEmptyText()} />
       ) : (
-        <>
-          {shared.statement ? <p className="depot-prose mb-2">{shared.statement}</p> : null}
-          <DataTable
-            columns={columns}
-            rows={buses}
-            rowKey={(bus) => bus.registrationNumber}
-            caption="Buses off the road now"
-            fixedRows
-            freezeFirstColumn
-            overflowCue
-            maxRows={TABLE_CAP}
-          />
-        </>
+        <DataTable
+          columns={columns}
+          rows={buses}
+          rowKey={(bus) => bus.registrationNumber}
+          caption="Buses off the road now, longest silent first"
+          fixedRows
+          freezeFirstColumn
+          overflowCue
+          maxRows={TABLE_CAP}
+        />
       )}
     </section>
   );

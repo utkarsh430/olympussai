@@ -24,7 +24,7 @@ export function FiguresDisclosure({ sections }: FiguresDisclosureProps) {
               {section.heading}
             </h3>
             {section.lines.map((line) => (
-              <p key={line} className="mt-1.5">
+              <p key={line} className="depot-prose mt-1.5">
                 {line}
               </p>
             ))}

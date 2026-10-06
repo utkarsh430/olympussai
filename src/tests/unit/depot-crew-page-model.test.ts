@@ -38,7 +38,7 @@ describe('coverageLine', () => {
         rows,
       ),
     ).toBe(
-      '37 of 40 shifts covered; 3 uncovered; drivers: 1 none available today, 1 hours limit; ' +
+      '37 of 40 shifts covered; 3 uncovered; drivers: 1 none available, 1 hours limit; ' +
         'conductors: 2 all already rostered at the time.',
     );
   });
@@ -96,7 +96,7 @@ describe('crewDisclosure', () => {
     expect(all).toContain(modelledStatement(limits));
     expect(all).toContain(SHORTFALL_EXPLANATION);
     expect(all).toContain('some of which overlap.');
-    expect(all).toContain('160 shifts are required today');
+    expect(all).toContain('160 shifts are required in the modelled day');
     expect(all).toContain('Nothing here is written back to any system.');
   });
 });

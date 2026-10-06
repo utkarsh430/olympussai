@@ -48,7 +48,7 @@ describe('sharedOffRoad', () => {
   it('states once what every row shares and drops those columns', () => {
     const shared = sharedOffRoad([bus(), bus({ registrationNumber: 'UP2' })]);
     expect(shared.statement).toBe(
-      'Every bus here has feed status Under maintenance and trip status unknown. ' +
+      'Every bus here has feed status: Under maintenance, and trip status: unknown. ' +
         'None reports a device flag.',
     );
     expect(shared.showTripStatus).toBe(false);
@@ -62,7 +62,7 @@ describe('sharedOffRoad', () => {
     ]);
     expect(shared.showTripStatus).toBe(true);
     expect(shared.showFlags).toBe(true);
-    expect(shared.statement).toBe('Every bus here has feed status Under maintenance.');
+    expect(shared.statement).toBe('Every bus here has feed status: Under maintenance.');
   });
 
   it('says nothing for an empty list', () => {
@@ -82,12 +82,12 @@ describe('lastHeardIso', () => {
 });
 
 describe('workshopRows', () => {
-  it('uses the live off-road count and tags only the modelled rows', () => {
+  it('uses the live off-road count and tags no row (the section label carries the tag)', () => {
     const rows = workshopRows(workshopLoad(7, 4));
-    expect(rows.map((r) => [r.label, r.value, r.tag])).toEqual([
-      ['Bays', '4', 'modelled'],
-      ['Off the road', '7', undefined],
-      ['Would wait for a bay', '3', 'modelled'],
+    expect(rows).toEqual([
+      { label: 'Bays', value: '4' },
+      { label: 'Off the road', value: '7' },
+      { label: 'Would wait for a bay', value: '3' },
     ]);
   });
 });

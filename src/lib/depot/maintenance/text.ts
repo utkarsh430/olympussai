@@ -55,22 +55,31 @@ export function distanceNotice(coverage: Coverage): string {
 }
 
 /*
- * "Overdue" and "due soon" are modelled statements about a named bus, so they
- * are never written without the word "modelled" in the same string.
+ * "Overdue" and "due soon" are modelled statements about a named bus, so no string
+ * this module produces says them without the word "modelled" (ruling S51). The
+ * preventive table has no status column: its group rows carry the status, in these
+ * words, and the section label carries the one MODELLED tag.
  */
-const GROUP_LABEL: Readonly<Record<ServiceGroup, string>> = {
-  overdue: 'Overdue',
-  due_soon: 'Due soon',
-  not_due: 'Not due',
+const GROUP_ROW_STATUS: Readonly<Record<ServiceGroup, string>> = {
+  overdue: 'Modelled overdue',
+  due_soon: 'Modelled due soon',
+  not_due: 'Modelled not due',
 };
 
-/*
- * The status word in a cell stands alone ("Overdue"); the guard that it is a
- * modelled statement is the tag in the column header, the tag on the section
- * and the one sentence above the table (`preventiveGuard`).
- */
-export const SERVICE_HEADER = 'Status (MODELLED)';
-export const NEXT_SERVICE_HEADER = 'To next service, km (MODELLED)';
+/** The group row of the preventive table: "Modelled overdue · 18". */
+export function groupRowLabel(group: ServiceGroup, count: number): string {
+  return `${GROUP_ROW_STATUS[group]} · ${formatCount(count)}`;
+}
+
+export const NEXT_SERVICE_HEADER = 'To next service, km';
+
+/** The preventive table's caption (screen readers): modelled, not workshop records. */
+export function preventiveCaption(): string {
+  return (
+    'Buses a model puts as overdue or due soon for a preventive service; modelled, ' +
+    'not workshop records'
+  );
+}
 
 /** The one sentence above the preventive table: generated status beside a real registration. */
 export function preventiveGuard(): string {
@@ -85,10 +94,6 @@ export function kmToNextCell(kmToNextService: number): string {
   return kmToNextService < 0
     ? `\u2212${formatCount(-kmToNextService)}`
     : formatCount(kmToNextService);
-}
-
-export function serviceGroupLabel(group: ServiceGroup): string {
-  return GROUP_LABEL[group];
 }
 
 /** The cell's full wording, for its `title`: the cell itself holds only the number. */

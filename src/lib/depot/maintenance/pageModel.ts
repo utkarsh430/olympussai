@@ -90,9 +90,9 @@ export function sharedOffRoad(buses: readonly OffRoadBus[]): OffRoadShared {
   const tripShared = sameAll(trips);
   const noFlags = buses.every((bus) => bus.flags.length === 0);
   const parts: string[] = [];
-  if (statusShared) parts.push(`feed status ${statusWordLabel(statuses[0] ?? 'unknown')}`);
-  if (tripShared) parts.push(`trip status ${trips[0] ?? 'unknown'}`);
-  const lead = parts.length > 0 ? `Every bus here has ${parts.join(' and ')}.` : '';
+  if (statusShared) parts.push(`feed status: ${statusWordLabel(statuses[0] ?? 'unknown')}`);
+  if (tripShared) parts.push(`trip status: ${trips[0] ?? 'unknown'}`);
+  const lead = parts.length > 0 ? `Every bus here has ${parts.join(', and ')}.` : '';
   const flags = noFlags ? 'None reports a device flag.' : '';
   const statement = [lead, flags].filter((part) => part !== '').join(' ');
   return {
@@ -118,15 +118,17 @@ export function lastHeardIso(feedNow: string | null, gpsAgeMin: number | null): 
 export interface WorkshopRow {
   readonly label: string;
   readonly value: string;
-  readonly tag?: Provenance;
 }
 
-/** The workshop block's rows; the off-road row is the live count, the same as the band's. */
+/**
+ * The workshop block's rows. The section label carries the one MODELLED tag, so no row
+ * does; the off-road row is the live count, the same as the band's.
+ */
 export function workshopRows(load: WorkshopLoad): readonly WorkshopRow[] {
   return [
-    { label: 'Bays', value: formatCount(load.bays), tag: 'modelled' },
+    { label: 'Bays', value: formatCount(load.bays) },
     { label: 'Off the road', value: formatCount(load.offRoad) },
-    { label: 'Would wait for a bay', value: formatCount(load.queue), tag: 'modelled' },
+    { label: 'Would wait for a bay', value: formatCount(load.queue) },
   ];
 }
 

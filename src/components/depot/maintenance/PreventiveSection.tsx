@@ -1,33 +1,34 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
+import { ShowAllButton } from '@/components/depot/shell/LongLists';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { rosterBusHref } from '@/lib/depot/depotNav';
 import { formatCount } from '@/lib/depot/format';
 import type { MaintenanceResponse } from '@/lib/depot/maintenance/api';
+import { preventiveView } from '@/lib/depot/maintenance/preventiveView';
 import type { ModelledService, ServiceGroup } from '@/lib/depot/maintenance/serviceModel';
 import {
+  groupRowLabel,
   kmToNextCell,
   kmToNextText,
   NEXT_SERVICE_HEADER,
   noAttentionText,
+  preventiveCaption,
   preventiveGuard,
-  SERVICE_HEADER,
   serviceClassLabel,
-  serviceGroupLabel,
 } from '@/lib/depot/maintenance/text';
-
-const GROUP_ORDER: Readonly<Record<ServiceGroup, number>> = { overdue: 0, due_soon: 1, not_due: 2 };
-const TABLE_CAP = 25;
+import { useBelowDesktop } from './useBelowDesktop';
 
 function buildColumns(
   depotId: string,
   dueSoonWithinKm: number,
+  odometerColumn: boolean,
 ): readonly Column<ModelledService>[] {
-  return [
+  const columns: Column<ModelledService>[] = [
     {
       key: 'registration',
       header: 'Registration',
@@ -42,17 +43,15 @@ function buildColumns(
       ),
     },
     {
-      key: 'group',
-      header: SERVICE_HEADER,
-      sortValue: (bus) => GROUP_ORDER[bus.group],
-      render: (bus) => serviceGroupLabel(bus.group),
-    },
-    {
       key: 'next',
       header: NEXT_SERVICE_HEADER,
       align: 'right',
       sortValue: (bus) => bus.kmToNextService,
-      render: (bus) => <span title={kmToNextText(bus.kmToNextService, dueSoonWithinKm)}>{kmToNextCell(bus.kmToNextService)}</span>,
+      render: (bus) => (
+        <span title={kmToNextText(bus.kmToNextService, dueSoonWithinKm)}>
+          {kmToNextCell(bus.kmToNextService)}
+        </span>
+      ),
     },
     {
       key: 'class',
@@ -60,21 +59,24 @@ function buildColumns(
       sortValue: (bus) => bus.serviceClass,
       render: (bus) => serviceClassLabel(bus.serviceClass),
     },
-    {
+  ];
+  if (odometerColumn) {
+    columns.push({
       key: 'odometer',
-      header: 'Odometer, km (MODELLED)',
+      header: 'Odometer, km',
       align: 'right',
       sortValue: (bus) => bus.odometerKm,
       render: (bus) => formatCount(bus.odometerKm),
-    },
-    {
-      key: 'age',
-      header: 'Age, years (MODELLED)',
-      align: 'right',
-      sortValue: (bus) => bus.ageYears,
-      render: (bus) => String(bus.ageYears),
-    },
-  ];
+    });
+  }
+  columns.push({
+    key: 'age',
+    header: 'Age, years',
+    align: 'right',
+    sortValue: (bus) => bus.ageYears,
+    render: (bus) => String(bus.ageYears),
+  });
+  return columns;
 }
 
 export interface PreventiveSectionProps {
@@ -84,14 +86,24 @@ export interface PreventiveSectionProps {
 
 /**
  * Buses a model says are overdue or due soon, beside their real registrations. The
- * section label and the modelled columns carry the MODELLED tag, and one sentence
- * above the table says these are not workshop records (rulings, section 2).
+ * section label carries the one MODELLED tag (ruling S51), the group rows say
+ * "Modelled overdue" in their own words, and one sentence above the table says these
+ * are not workshop records. Below 1024px the odometer moves into the row expander.
  */
 export function PreventiveSection({ depotId, preventive }: PreventiveSectionProps) {
+  const [opened, setOpened] = useState<ReadonlySet<ServiceGroup>>(() => new Set());
+  const below = useBelowDesktop();
+  const view = useMemo(() => preventiveView(preventive.buses, opened), [preventive.buses, opened]);
   const columns = useMemo(
-    () => buildColumns(depotId, preventive.dueSoonWithinKm),
-    [depotId, preventive.dueSoonWithinKm],
+    () => buildColumns(depotId, preventive.dueSoonWithinKm, !below),
+    [depotId, preventive.dueSoonWithinKm, below],
   );
+  const toggle = (group: ServiceGroup): void =>
+    setOpened((current) =>
+      current.has(group)
+        ? new Set([...current].filter((open) => open !== group))
+        : new Set([...current, group]),
+    );
   return (
     <section aria-labelledby="depot-preventive-heading" className="min-w-0 animate-rise">
       <SectionLabel
@@ -105,16 +117,42 @@ export function PreventiveSection({ depotId, preventive }: PreventiveSectionProp
       {preventive.buses.length === 0 ? (
         <StatePanel kind="empty" sentence={noAttentionText()} />
       ) : (
-        <DataTable
-          columns={columns}
-          rows={preventive.buses}
-          rowKey={(bus) => bus.registrationNumber}
-          caption="Buses a model puts as overdue or due soon for a preventive service"
-          fixedRows
-          freezeFirstColumn
-          overflowCue
-          maxRows={TABLE_CAP}
-        />
+        <>
+          <DataTable
+            columns={columns}
+            rows={view.rows}
+            rowKey={(bus) => bus.registrationNumber}
+            caption={preventiveCaption()}
+            fixedRows
+            freezeFirstColumn
+            overflowCue
+            group={{
+              key: (bus) => bus.group,
+              label: (key) =>
+                groupRowLabel(key as ServiceGroup, view.totals[key as ServiceGroup] ?? 0),
+            }}
+            renderExpanded={
+              below
+                ? (bus) => <p className="depot-note">Odometer: {formatCount(bus.odometerKm)} km</p>
+                : undefined
+            }
+            expandLabel={(bus) => `Show the odometer of ${bus.registrationNumber}`}
+          />
+          {view.cappable.length > 0 ? (
+            <div className="mt-1 flex flex-wrap items-center gap-x-6">
+              {view.cappable.map((group) => (
+                <span key={group} className="flex items-center gap-2">
+                  <span className="depot-note">{groupRowLabel(group, view.totals[group])}</span>
+                  <ShowAllButton
+                    total={view.totals[group]}
+                    expanded={opened.has(group)}
+                    onToggle={() => toggle(group)}
+                  />
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </>
       )}
     </section>
   );

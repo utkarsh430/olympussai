@@ -219,7 +219,7 @@ describe('the crew page', () => {
     const markup = await renderPage();
     expect(markup).toContain('crew-shortfall-explanation');
     expect(text(markup)).toContain(
-      'This page is built on the modelled day, rebuilt from the live fleet as of the feed time: 2 duties on 1 route.',
+      'This page is built on the modelled day for 2026-10-06, rebuilt from the live fleet as of the feed time: 2 duties on 1 route.',
     );
   });
 

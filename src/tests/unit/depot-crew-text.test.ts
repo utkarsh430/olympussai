@@ -72,7 +72,7 @@ describe('crew page wording', () => {
 
   it('words each short role separately with its own cause', () => {
     expect(shortfallText([{ role: 'driver', cause: 'no_slot_available' }])).toBe(
-      'Driver: no driver is available today.',
+      'Driver: no driver is available in the modelled day.',
     );
     expect(
       shortfallText([
@@ -95,10 +95,10 @@ describe('crew page wording', () => {
 
   it('words shifts, singular and plural, and says MODELLED', () => {
     expect(shiftsSentence(1, 1, 0)).toMatch(
-      /^1 shift is required today; 1 is covered and 0 are uncovered/,
+      /^1 shift is required in the modelled day; 1 is covered and 0 are uncovered/,
     );
     expect(shiftsSentence(40, 38, 2)).toMatch(
-      /^40 shifts are required today; 38 are covered and 2 are uncovered/,
+      /^40 shifts are required in the modelled day; 38 are covered and 2 are uncovered/,
     );
     expect(shiftsSentence(40, 39, 1)).toMatch(/39 are covered and 1 is uncovered/);
     expect(shiftsSentence(40, 39, 1)).toMatch(/MODELLED/);
