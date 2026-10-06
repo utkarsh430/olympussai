@@ -11,13 +11,13 @@ import { formatCount } from '@/lib/depot/format';
 /*
  * One segment style per availability word. The word and the count are always
  * written beside the bar, so the fill only reinforces them; the fills are one
- * accent for "available" and four quiet steps of the page's grey for the rest.
+ * accent for "available", a paler accent for training, two greys and an outline.
  */
 const FILL: Readonly<Record<CrewAvailability, string>> = {
   available: 'bg-holo-glow',
   weekly_off: 'bg-depot-muted',
   leave: 'bg-depot-faint',
-  training: 'bg-depot-line',
+  training: 'bg-holo-glow/40',
   absent: 'border border-depot-muted bg-depot-raised',
 };
 
