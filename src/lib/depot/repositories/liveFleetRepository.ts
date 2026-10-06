@@ -2,6 +2,23 @@ import { getLiveSnapshot, type LiveSnapshotResult } from '@/lib/upsrtc/liveSnaps
 import type { FleetRepository, FleetSnapshotView } from './types';
 
 /**
+ * How old last-good data may be before the depot pages call the feed stale. The shared
+ * snapshot marks every answer served after a failed refresh as stale, however young the
+ * data; for the depot pages one failed refresh is not an outage. The feed itself changes
+ * about every 40 seconds, so data up to 90 seconds old (two of its periods) is as good as
+ * the feed. Freshness, not the path that served the answer, decides the flag here; the
+ * answer still carries the time it was fetched, and the saved sample is always stale.
+ */
+export const LAST_GOOD_FRESH_MS = 90_000;
+
+function staleForDepots(result: LiveSnapshotResult, nowMs: number): boolean {
+  if (result.source === 'fixture') return true;
+  if (!result.stale) return false;
+  const fetchedMs = Date.parse(result.snapshot.fetchedAt);
+  return !Number.isFinite(fetchedMs) || nowMs - fetchedMs > LAST_GOOD_FRESH_MS;
+}
+
+/**
  * The fleet as the shared live snapshot sees it. The map route reads the same
  * snapshot, so a depot count and a map pin always describe one upstream fetch.
  *
@@ -11,16 +28,18 @@ import type { FleetRepository, FleetSnapshotView } from './types';
  */
 export function createLiveFleetRepository(
   load: () => Promise<LiveSnapshotResult> = () => getLiveSnapshot(),
+  now: () => number = () => Date.now(),
 ): FleetRepository {
   return {
     async snapshot(): Promise<FleetSnapshotView> {
-      const { snapshot, source, stale } = await load();
+      const result = await load();
+      const { snapshot, source } = result;
       return {
         rows: snapshot.depotRows,
         feedNow: snapshot.feedNow,
         fetchedAt: snapshot.fetchedAt,
         source,
-        stale,
+        stale: staleForDepots(result, now()),
         recordCount: snapshot.recordCount,
       };
     },
