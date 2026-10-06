@@ -1,5 +1,16 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/depot/live/depotView', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/depot/live/depotView')>();
+  return { ...actual, buildDepotDetail: vi.fn(actual.buildDepotDetail) };
+});
+vi.mock('@/lib/depot/sim/yardLayout', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/depot/sim/yardLayout')>();
+  return { ...actual, modelYardLayout: vi.fn(actual.modelYardLayout) };
+});
+
+import { modelYardLayout } from '@/lib/depot/sim/yardLayout';
 import type { DepotBusRow } from '@/models/depotLive';
 import { fromMetres } from '@/lib/depot/infer/geo';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
@@ -357,5 +368,33 @@ describe('buildParkingResponse', () => {
     expect(again.source).toBe('cache');
     expect(again.order).toBe(fresh.order);
     expect(again.capacity).toBe(fresh.capacity);
+  });
+
+  it('answers a repeat request on the same rows from its memo without rebuilding the depot', () => {
+    const rows = parked();
+    parking(rows, view(rows));
+    vi.mocked(buildDepotDetail).mockClear();
+    parking(rows, { ...view(rows), stale: true });
+    expect(buildDepotDetail).not.toHaveBeenCalled();
+  });
+});
+
+describe('a parking plan the planner cannot make', () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+  afterEach(() => errorSpy.mockRestore());
+
+  it('logs why and keeps the count of rows it left out', () => {
+    vi.mocked(modelYardLayout).mockImplementationOnce(() => {
+      throw new RangeError('lane depth below one');
+    });
+    const p = parking([...parked(), row({ registrationNumber: '   ' })]);
+    expect(p.state).toBe('not_plannable');
+    expect(p.order).toBeNull();
+    expect(p.droppedRows).toBe(1);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith('[depot:parking] lane depth below one');
   });
 });

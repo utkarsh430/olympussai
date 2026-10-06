@@ -1,5 +1,6 @@
 import type { DepotBusView, DepotDetailResponse } from '../api';
 import type { Lane } from '../duties/types';
+import { logDepotError } from '../log';
 import type { FleetSnapshotView } from '../repositories/types';
 import { planParking } from '../optimise/parkingOrder';
 import { modelDepotMaster } from '../sim/depotMaster';
@@ -205,9 +206,11 @@ function buildBody(
     const order = orderFor(modelYardLayout(detail.depot, places), parked, bays);
     return withDropped('planned', order);
   } catch (error) {
-    // The planner and the layout reject only malformed input; that is an empty state, not a 500.
-    if (error instanceof RangeError) return empty('not_plannable');
-    throw error;
+    // The planner and the layout reject only malformed input; that is an empty state, not a
+    // 500. It is logged, so a planner fault does not pass for rows that cannot be planned.
+    if (!(error instanceof RangeError)) throw error;
+    logDepotError('parking', error);
+    return withDropped('not_plannable', null);
   }
 }
 
@@ -232,24 +235,21 @@ export function buildParkingResponse(
   view: FleetSnapshotView,
   depotId: string,
 ): ParkingResponse | null {
-  const detail = buildDepotDetail(view, depotId);
-  if (!detail) return null;
   const analysis = analyseSnapshot(view);
-  // The plan's mode rests on the feed clock, which is the analysis's, so the date is too.
-  const { operatingDate, planned } = plannedDate(
-    analysis,
-    depotId,
-    operatingDateOf(view.feedNow, view.fetchedAt),
-  );
+  if (!analysis.depotsById.has(depotId)) return null;
+  const feedDate = operatingDateOf(view.feedNow, view.fetchedAt);
   const held = bodies.get(analysis) ?? new Map<string, ParkingBody>();
   bodies.set(analysis, held);
-  const key = `${depotId}|${operatingDate}`;
-  let body = held.get(key);
-  if (!body) {
-    const built = buildBody(detail, operatingDate, planned);
-    if (!built) return null;
-    body = built;
-    held.set(key, body);
-  }
+  // The planned date follows from the analysis, the depot and the feed date, so those key it.
+  const key = `${depotId}|${feedDate}`;
+  const cached = held.get(key);
+  if (cached) return { ...feedEnvelope(view), ...cached };
+  const detail = buildDepotDetail(view, depotId);
+  if (!detail) return null;
+  // The plan's mode rests on the feed clock, which is the analysis's, so the date is too.
+  const { operatingDate, planned } = plannedDate(analysis, depotId, feedDate);
+  const body = buildBody(detail, operatingDate, planned);
+  if (!body) return null;
+  held.set(key, body);
   return { ...feedEnvelope(view), ...body };
 }
