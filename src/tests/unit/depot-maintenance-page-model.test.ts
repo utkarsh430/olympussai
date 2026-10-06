@@ -82,11 +82,12 @@ describe('lastHeardIso', () => {
 });
 
 describe('workshopRows', () => {
-  it('uses the live off-road count and tags no row (the section label carries the tag)', () => {
+  // Round 3 (M17): the one live row under the MODELLED label says it is the feed's count.
+  it('uses the live off-road count, says so in its label, and tags no row', () => {
     const rows = workshopRows(workshopLoad(7, 4));
     expect(rows).toEqual([
       { label: 'Bays', value: '4' },
-      { label: 'Off the road', value: '7' },
+      { label: 'Off the road now (feed)', value: '7' },
       { label: 'Would wait for a bay', value: '3' },
     ]);
   });

@@ -96,11 +96,21 @@ export function kmToNextCell(kmToNextService: number): string {
     : formatCount(kmToNextService);
 }
 
-/** The cell's full wording, for its `title`: the cell itself holds only the number. */
+const NOT_A_RECORD = '; not a workshop record';
+
+/**
+ * The cell's full wording, for its `title`: the cell itself holds only the number. A
+ * title read on its own (a hover, a copied cell) still says it is modelled and not a
+ * workshop record (guard M16).
+ */
 export function kmToNextText(
   kmToNextService: number,
   dueSoonWithinKm: number = DUE_SOON_WITHIN_KM,
 ): string {
+  return `${kmToNextStatus(kmToNextService, dueSoonWithinKm)}${NOT_A_RECORD}`;
+}
+
+function kmToNextStatus(kmToNextService: number, dueSoonWithinKm: number): string {
   if (kmToNextService < 0) return `Modelled: overdue by ${formatCount(-kmToNextService)} km`;
   if (kmToNextService === 0) return 'Modelled: due now';
   const km = `${formatCount(kmToNextService)} km to next service`;
