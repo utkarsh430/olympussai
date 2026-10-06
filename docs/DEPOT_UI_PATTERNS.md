@@ -457,7 +457,7 @@ Pages do nothing here; for reference.
 - **Stale feed, said once.** While a response is stale, a page renders
   `<StaleNotice since={data.feedNow} />` as before. For the first `STALE_NOTICE_AFTER_MS`
   (5 minutes) of the data's age, from its fetch time against the browser clock, the chip and
-  the provenance line carry it alone and the strip shows nothing; after that, or when the age
+  the provenance line carry it alone and the notice shows nothing; after that, or when the age
   cannot be known, it shows the one shared `Notice` (STALE, "Showing last good data from
   HH:MM"). Its slot holds the notice's height from the moment it mounts, so nothing moves
   when the notice appears. The age defaults to the shell feed's fetch time (every depot
@@ -472,7 +472,7 @@ Pages do nothing here; for reference.
   data", and a page's `StaleNotice` stands down (one notice per page). It clears when the
   request succeeds again or the page unmounts. Pages do nothing: every `useDepot*` hook
   reports through the shared hook. The shell's own network feed does not report; it keeps
-  the chip, the provenance line and the timed strip above.
+  the chip, the provenance line and the timed stale notice above.
 - **Feed quiet.** When the feed's newest report (its clock, Indian time digits) trails the
   fetch time, moved to Indian time, by more than `FEED_QUIET_AFTER_MIN` (10), the chip reads
   FEED QUIET · HH:MM in the stale tone, its title says by how much, and the provenance line
