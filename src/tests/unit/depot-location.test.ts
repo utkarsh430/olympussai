@@ -59,6 +59,26 @@ describe('locateBus', () => {
     expect(result).toEqual({ location: 'unknown', otherDepotId: null, distanceFromYardKm: null });
   });
 
+  it('is unknown at the (0, 0) device default, not away by thousands of km', () => {
+    const yards = new Map([['1', homeYard]]);
+    const expected = { location: 'unknown', otherDepotId: null, distanceFromYardKm: null };
+    expect(locateBus(row({ latitude: 0, longitude: 0 }), yards)).toEqual(expected);
+  });
+
+  it('is unknown at (0, 0) even when another depot has a yard to be "at"', () => {
+    const yards = new Map([
+      ['1', homeYard],
+      ['2', yardAt(0, 0)],
+    ]);
+    expect(locateBus(row({ latitude: 0, longitude: 0 }), yards).location).toBe('unknown');
+  });
+
+  it('is unknown for a non-finite position', () => {
+    expect(locateBus(row({ latitude: Number.NaN, longitude: 80 }), new Map([['1', homeYard]])).location).toBe(
+      'unknown',
+    );
+  });
+
   it('is in_yard inside its own yard', () => {
     const result = locateBus(row(place(east(80))), new Map([['1', homeYard]]));
     expect(result.location).toBe('in_yard');

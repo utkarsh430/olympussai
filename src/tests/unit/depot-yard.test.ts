@@ -85,12 +85,38 @@ describe('inferYard', () => {
     expect(inferYard([...at('A', 5, ORIGIN), ...at('B', 5, far(30))])).toBeNull();
   });
 
-  it('takes the denser of two stands when it clearly leads (7 vs 6)', () => {
-    const yard = inferYard([...at('A', 6, ORIGIN), ...at('B', 7, far(30))]);
+  it('claims no yard for two stands 30 km apart at 7 and 6 (below the dominance ratio)', () => {
+    expect(inferYard([...at('A', 6, ORIGIN), ...at('B', 7, far(30))])).toBeNull();
+  });
+
+  it('takes the denser of two stands when it holds twice the rival (12 vs 6)', () => {
+    const yard = inferYard([...at('A', 6, ORIGIN), ...at('B', 12, far(30))]);
     expect(yard).not.toBeNull();
     expect(distanceM(yard!.lat, yard!.lng, far(30).lat, far(30).lng)).toBeLessThan(30);
-    expect(yard!.inCluster).toBe(7);
-    expect(yard!.parked).toBe(13);
+    expect(yard!.inCluster).toBe(12);
+    expect(yard!.parked).toBe(18);
+  });
+
+  it('claims no yard when a 7-bus cell is matched by a 6-bus cell whose neighbour levels its block', () => {
+    const b = far(30);
+    const lone = fromMetres({ x: 120, y: 0 }, b.lat, b.lng);
+    const rows = [
+      ...at('A', 7, ORIGIN, 5),
+      ...at('B', 6, b, 5),
+      row({ registrationNumber: 'L', latitude: lone.lat, longitude: lone.lng }),
+    ];
+    expect(inferYard(rows)).toBeNull();
+  });
+
+  it('infers one wide yard from five adjacent cells of six buses each', () => {
+    // Group centres sit mid-cell on the 150 m grid anchored at ORIGIN.
+    const groups = [-2, -1, 0, 1, 2].flatMap((j) =>
+      at(`W${j}`, 6, fromMetres({ x: 75 + 150 * j, y: 75 }, ORIGIN.lat, ORIGIN.lng), 8),
+    );
+    const yard = inferYard(groups);
+    expect(yard).not.toBeNull();
+    expect(yard!.parked).toBe(30);
+    expect(yard!.inCluster).toBeGreaterThanOrEqual(18);
   });
 
   it('rejects a cluster holding under half the candidates', () => {
