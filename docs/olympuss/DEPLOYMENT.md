@@ -83,9 +83,14 @@ differs between instances or after a restart:
   so the same feed can give a 1-sample index on one instance and a full-window one on
   another, or a held yard on one and no yard on another. The responses say so
   (`scoreWindow.samples` and `coveredMin`, `yard.heldSince`), but they do not agree across
-  instances. The modelled requirement reads the on-road share over that same window, so
-  the modelled operating day (duties, crew, fuel, revenue, economics) and the
-  fleet-distribution plan built on it can also differ between instances.
+  instances.
+- **The held peak shares** (`src/lib/depot/live/peakShareHold.ts`). The modelled
+  requirement reads each depot's busiest on-road share over that window so far in the
+  operating date, so the modelled operating day (duties, crew, fuel, revenue, economics)
+  and the fleet-distribution plan built on it can grow until the morning peak has passed
+  and then hold. Each instance holds its own maxima from the snapshots it has seen, so two
+  instances give a different modelled day and plan until each has seen the peak, and an
+  instance started in the evening models a smaller day than one that saw the morning.
 - **The view memos.** Response bodies are memoised on the snapshot and, for pages that
   take query parameters, on those parameters, in maps bounded in size (oldest out). They
   change cost, not figures: each cold instance pays again for the analysis, the modelled
@@ -112,7 +117,7 @@ differs between instances or after a restart:
 - **The failed-login limiter** (section 7).
 
 After a restart, all of the above is empty: the score window starts at one sample, no
-yard is held, there is no last good copy (an outage at that moment shows the saved
+yard is held, the held peak shares start again from the next snapshot, there is no last good copy (an outage at that moment shows the saved
 sample), every route reads "not profiled" until it is loaded again, the plan is made
 afresh, and every limiter's allowance is full again.
 
