@@ -11,7 +11,10 @@ import { sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
 
 const PEOPLE =
   /\b(crew|crews|drivers?|driving|driven|drives|conductors?|operators?|workers?|staff|employees?|personnel|manpower|people|persons?|individuals?|duty|duties|shifts?|rosters?|managers?|supervisors?|technicians?|mechanics?|attendance|salary|salaries)\b/;
-/** No catalogue query answers "who", so a question that opens with it is declined. */
+/**
+ * No catalogue query answers "who" about people, so a question that opens with it is
+ * declined, unless it carries a ranking cue ("who has the most dark buses" ranks depots).
+ */
 const LEADING_WHO = /^(who|whom|whose)\b/;
 const COMPARE = /\b(compare\w*|versus|vs|against|differ\w*)\b/;
 const TRANSFER =
@@ -161,6 +164,17 @@ function wantsOtherThanNetwork(text: string): boolean {
   return [...text.matchAll(NAMED_AFTER_PREPOSITION)].some((m) => !SCOPE_WORDS.has(m[1] ?? ''));
 }
 
+/** A word or word pair that begins the names of several depots: a name, but not a clear one. */
+function namesAmbiguousDepot(text: string, depots: readonly DepotRef[]): boolean {
+  const words = text.match(/[a-z0-9]+/g) ?? [];
+  const phrases = words.flatMap((w, i) => [w, words[i + 1] ? `${w} ${words[i + 1]}` : '']);
+  return phrases.some(
+    (p) =>
+      p.length >= MIN_NAME_CHARS &&
+      depots.filter((d) => d.name.toLowerCase().startsWith(p)).length > 1,
+  );
+}
+
 function limitFrom(text: string): number {
   const digits = /\b(\d{1,3})\b/.exec(text);
   const word = /\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/.exec(text);
@@ -183,7 +197,8 @@ function rankQuery(text: string): CopilotQuery {
 export function scriptedRoute(question: string, depots: readonly DepotRef[]): CopilotQuery {
   const clean = sanitizeQuestion(question);
   const text = clean.toLowerCase();
-  if (text === '' || PEOPLE.test(text) || LEADING_WHO.test(text)) return UNSUPPORTED_QUERY;
+  if (text === '' || PEOPLE.test(text)) return UNSUPPORTED_QUERY;
+  if (LEADING_WHO.test(text) && !RANKING.test(text)) return UNSUPPORTED_QUERY;
 
   const [first, second] = findDepots(text, depots);
   const needsDepot = (build: (id: string) => CopilotQuery): CopilotQuery =>
@@ -196,7 +211,12 @@ export function scriptedRoute(question: string, depots: readonly DepotRef[]): Co
   if (TRANSFER.test(text)) return needsDepot((depotId) => ({ kind: 'transfersFor', depotId }));
   if (OUTSHED.test(text)) return needsDepot((depotId) => ({ kind: 'outshedStatus', depotId }));
   if (EXCEPTION.test(text)) {
-    if (first === undefined && NETWORK.test(text) && !wantsOtherThanNetwork(text)) {
+    if (
+      first === undefined &&
+      NETWORK.test(text) &&
+      !wantsOtherThanNetwork(text) &&
+      !namesAmbiguousDepot(text, depots)
+    ) {
       return { kind: 'networkSummary' };
     }
     return needsDepot((depotId) => ({ kind: 'exceptionsFor', depotId }));
@@ -208,6 +228,8 @@ export function scriptedRoute(question: string, depots: readonly DepotRef[]): Co
   }
   if (first !== undefined) return { kind: 'depotSummary', depotId: first };
   if (RANKING.test(text)) return rankQuery(text);
-  if (NETWORK.test(text) && !wantsOtherThanNetwork(text)) return { kind: 'networkSummary' };
+  if (NETWORK.test(text) && !wantsOtherThanNetwork(text) && !namesAmbiguousDepot(text, depots)) {
+    return { kind: 'networkSummary' };
+  }
   return UNSUPPORTED_QUERY;
 }

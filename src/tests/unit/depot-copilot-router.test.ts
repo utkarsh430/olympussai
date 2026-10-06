@@ -264,6 +264,25 @@ describe('scriptedRoute with suffixed and partial names', () => {
   });
 });
 
+describe('ambiguous partial depot name with a network word', () => {
+  it.each([
+    'Meerut fleet status',
+    'Meerut overall',
+    'Any exceptions across the Meerut network',
+    'Agra summary',
+  ])('is unsupported for %j, not the network summary', (question) => {
+    expect(scriptedRoute(question, SUFFIXED)).toEqual({ kind: 'unsupported' });
+  });
+
+  it('keeps the network summary when no depot name is half-given', () => {
+    expect(scriptedRoute('fleet status', SUFFIXED)).toEqual({ kind: 'networkSummary' });
+    expect(scriptedRoute('Bareilly fleet status', SUFFIXED)).toEqual({
+      kind: 'depotSummary',
+      depotId: '201',
+    });
+  });
+});
+
 describe('people guard', () => {
   it.each([
     'who is driving bus 55 at Agra',
@@ -289,6 +308,25 @@ describe('people guard', () => {
     'Whose depot is Kanpur',
   ])('declines %j', (question) => {
     expect(scriptedRoute(question, DEPOTS)).toEqual({ kind: 'unsupported' });
+  });
+
+  it('routes a leading who with a ranking cue to the depot ranking', () => {
+    expect(scriptedRoute('Who has the most dark buses?', DEPOTS)).toMatchObject({
+      kind: 'rankDepots',
+      metric: 'dark',
+      order: 'top',
+    });
+    expect(scriptedRoute('Who is the best depot?', DEPOTS)).toMatchObject({ kind: 'rankDepots' });
+  });
+
+  it('still declines a leading who without a ranking cue', () => {
+    for (const q of [
+      'Who is the driver of bus 55?',
+      'Who is on duty at Kanpur?',
+      'Who is Kanpur?',
+    ]) {
+      expect(scriptedRoute(q, DEPOTS)).toEqual({ kind: 'unsupported' });
+    }
   });
 
   it('still routes a ranking question', () => {
