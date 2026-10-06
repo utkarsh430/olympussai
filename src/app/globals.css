@@ -307,6 +307,58 @@
     @apply border-l-holo-glow;
   }
 
+  /* Network overview. KPI cells are separated by the grid's 1px gap showing
+     the hairline colour behind them: rules without a card per figure. */
+  .depot-kpi-grid {
+    @apply grid grid-cols-2 gap-px overflow-hidden rounded-md border border-depot-line
+      bg-depot-line md:grid-cols-4;
+  }
+
+  .depot-kpi-cell {
+    @apply min-w-0 bg-depot-page px-4 py-3;
+  }
+
+  .depot-hero-numeral {
+    @apply font-display text-[32px] font-semibold leading-none tabular-nums text-depot-ink;
+  }
+
+  .depot-section-label {
+    @apply mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-depot-muted;
+  }
+
+  /* Segmented filter: flat buttons, the pressed one marked like the active nav item. */
+  .depot-filter-button {
+    @apply rounded-[3px] border border-depot-line px-2.5 py-1 font-mono text-[11px] uppercase
+      tracking-[0.12em] text-depot-muted transition-colors hover:text-depot-ink;
+  }
+
+  .depot-filter-button[aria-pressed='true'] {
+    @apply border-holo-glow/60 bg-depot-raised text-holo-glow;
+  }
+
+  .depot-link {
+    @apply text-holo-glow underline decoration-holo-glow/40 underline-offset-2
+      hover:decoration-holo-glow;
+  }
+
+  /* Map and its side panel: side by side from 1024px, stacked below. */
+  .depot-map-layout {
+    @apply grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px];
+  }
+
+  .depot-map-frame {
+    @apply relative h-[460px] overflow-hidden rounded-md border border-depot-line bg-depot-page;
+  }
+
+  .depot-pick-button {
+    @apply flex w-full min-w-0 items-baseline justify-between gap-3 border-l-2 border-transparent
+      px-2 py-1.5 text-left hover:bg-depot-raised;
+  }
+
+  .depot-pick-button[aria-pressed='true'] {
+    @apply border-holo-glow bg-depot-raised;
+  }
+
   .scanline-overlay {
     background-image: repeating-linear-gradient(
       0deg,
