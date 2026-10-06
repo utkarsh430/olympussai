@@ -284,6 +284,19 @@ describe('buildDepotDetail', () => {
     expect(detail(world(cuts), '2').exceptions.bus).toEqual([]);
   });
 
+  it("builds a depot's body once per snapshot rows while the envelope is each request's own", () => {
+    const rows = world();
+    const first = buildDepotDetail(view(rows), '1');
+    const poll = buildDepotDetail(view(rows, { stale: true, source: 'cache' }), '1');
+    expect(poll?.buses).toBe(first?.buses);
+    expect(poll?.outshed).toBe(first?.outshed);
+    expect([first?.stale, poll?.stale]).toEqual([false, true]);
+    expect(poll?.source).toBe('cache');
+    const newRows = buildDepotDetail(view([...rows]), '1');
+    expect(newRows?.buses).not.toBe(first?.buses);
+    expect(newRows?.buses).toEqual(first?.buses);
+  });
+
   it('runs the analysis once for all three views of one snapshot', () => {
     const v = view();
     buildNetworkResponse(v);
