@@ -811,7 +811,7 @@ describe('answers', () => {
     const receiver = buildAnswer({ kind: 'transfersFor', depotId: '102' }, data);
     expect(proseOf(receiver)).toContain('Receiving');
     const uncovered = buildAnswer({ kind: 'transfersFor', depotId: '103' }, data);
-    expect(proseOf(uncovered)).toContain('no surplus lies within range');
+    expect(proseOf(uncovered)).toContain('No surplus lies within range.');
     expect(proseOf(uncovered)).toContain('No transfer involving this depot');
   });
 
@@ -910,7 +910,7 @@ describe('pinned scripted phrasing', () => {
       'The modelled requirement shows spare buses at 1 depot, 9 buses between them.',
     );
     expect(paragraphsOf(buildAnswer({ kind: 'transfersFor', depotId: '103' }, data))).toContain(
-      'Left uncovered in the current plan: 3 buses, because no surplus lies within range.',
+      'Left uncovered in the current plan: 3 buses. No surplus lies within range.',
     );
     expect(paragraphsOf(buildAnswer({ kind: 'outshedStatus', depotId: '101' }, data))[1]).toContain(
       '5 buses whose scheduled window is already over',
