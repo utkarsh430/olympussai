@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { DataTable, useTableSort, type Column, type TableSort } from '@/components/depot/shell/DataTable';
 import { Pager } from '@/components/depot/shell/LongLists';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { formatCount } from '@/lib/depot/format';
 import { pageRange } from '@/lib/depot/listPaging';
 import { sortRows } from '@/lib/depot/tableSort';
@@ -192,29 +193,27 @@ export function DepotTable({ rows, selectedId, onSelect, selection }: DepotTable
 
   return (
     <section aria-labelledby="depot-table-heading" data-testid="depot-table-section">
-      <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-depot-line pt-4">
-        <h2 id="depot-table-heading" className="depot-label">
-          {tableHeading(filter)}
-        </h2>
-        {narrow ? (
-          <p className="depot-note min-w-0 flex-1" data-testid="depot-table-note">
-            {NARROW_TABLE_NOTE}
-          </p>
-        ) : null}
-        <div role="group" aria-label="Filter by kind" className="flex flex-wrap gap-1.5">
-          {KIND_FILTER_OPTIONS.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              aria-pressed={filter === option.id}
-              onClick={() => chooseFilter(option.id)}
-              className="depot-filter-button"
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* The shared label: one rule, above the label, like every other section. */}
+      <SectionLabel
+        id="depot-table-heading"
+        label={tableHeading(filter)}
+        note={narrow ? NARROW_TABLE_NOTE : undefined}
+        controls={
+          <div role="group" aria-label="Filter by kind" className="flex flex-wrap gap-1.5">
+            {KIND_FILTER_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={filter === option.id}
+                onClick={() => chooseFilter(option.id)}
+                className="depot-filter-button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        }
+      />
       {selection}
       <div className="depot-table-flow">
         <DataTable

@@ -21,13 +21,15 @@ const BAND = 'border-t border-depot-line pt-2 [&>div]:border-t-0';
 
 /**
  * One band of kind figures, each the shared `Figure` as a link into the exceptions page
- * filtered to that kind; the band's mono label links to the page itself.
+ * filtered to that kind (the figure is the link; its kind label stays a plain mono label);
+ * the band's mono label links to the page itself, in the label's own colour.
  */
 function KindBand({ label, rows }: { readonly label: string; readonly rows: readonly ExceptionKindRow[] }) {
   return (
     <div className={BAND} data-testid="depot-exception-band">
       <h3 className="depot-label">
-        <Link href={EXCEPTIONS_HREF} className="depot-table-link">
+        {/* A plain mono label that leads to the page: underlined on hover and focus only. */}
+        <Link href={EXCEPTIONS_HREF} className="hover:underline focus-visible:underline">
           {label}
         </Link>
       </h3>

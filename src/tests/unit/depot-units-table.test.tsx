@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DepotTable } from '@/components/depot/network/DepotTable';
+import { SelectionBar } from '@/components/depot/network/SelectionBar';
 import type { DepotRow } from '@/lib/depot/network/overviewModel';
 import type { DepotSummary } from '@/lib/depot/types';
 
@@ -62,6 +63,22 @@ describe('units table', () => {
     container.querySelector('[data-testid="depot-pager"] [role="status"]')?.textContent ?? null;
   const button = (name: string): HTMLButtonElement | undefined =>
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === name);
+
+  it('has one rule, above its label, like every other section', () => {
+    act(() =>
+      root.render(
+        <DepotTable rows={rows} selectedId={null} onSelect={() => undefined} selection={<SelectionBar row={null} />} />,
+      ),
+    );
+    const section = container.querySelector('[data-testid="depot-table-section"]') as HTMLElement;
+    const ruled = Array.from(section.querySelectorAll('*')).filter(
+      (el) => !el.closest('.depot-table-frame, table, [data-testid="depot-pager"]') &&
+        /(^|\s)border-(t|y|b)(\s|$)/.test(el.getAttribute('class') ?? ''),
+    );
+    expect(ruled).toHaveLength(1);
+    expect(ruled[0]?.getAttribute('data-testid')).toBe('depot-section-label');
+    expect(ruled[0]?.textContent).toContain('All units');
+  });
 
   it('pages at 25 with the shared pager as the only count, and no "Show all"', () => {
     act(() => root.render(<DepotTable rows={rows} selectedId={null} onSelect={() => undefined} />));
