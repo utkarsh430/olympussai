@@ -1,18 +1,18 @@
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { formatCount } from '@/lib/depot/format';
-import type { MaintenanceResponse } from '@/lib/depot/maintenance/api';
 import { workshopSentence } from '@/lib/depot/maintenance/text';
+import type { WorkshopLoad } from '@/lib/depot/maintenance/workshop';
 
 export interface WorkshopSectionProps {
-  readonly workshop: MaintenanceResponse['workshop'];
+  /** Modelled bays against the live off-road count taken from the depot detail. */
+  readonly load: WorkshopLoad;
 }
 
 /**
  * Off-road buses against the modelled bays, in numbers and one sentence. Plain
  * figures rather than a bar: three counts and a sentence carry it.
  */
-export function WorkshopSection({ workshop }: WorkshopSectionProps) {
-  const { load } = workshop;
+export function WorkshopSection({ load }: WorkshopSectionProps) {
   return (
     <section aria-labelledby="depot-workshop-heading" className="min-w-0 animate-rise">
       <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">

@@ -1,4 +1,4 @@
-import { formatCount } from '../format';
+import { formatCount, formatFeedTime } from '../format';
 import type { BoardDuty, DutyBlockers, DutyBoardCounts, DutyState } from './api';
 
 /** The timeline axis: 04:00 to 24:00 in the feed's local time. */
@@ -10,12 +10,9 @@ const MIN_BAR_WIDTH_PCT = 0.8;
 const MINUTES_PER_HOUR = 60;
 const MINUTES_PER_DAY = 1440;
 const PERCENT = 100;
-const FEED_CLOCK = /^\d{4}-\d{2}-\d{2}[T ](\d{2}):(\d{2})/;
-const MAX_HOUR = 23;
-const MAX_MINUTE = 59;
 
 export const MODEL_NOTICE =
-  'Duties are a model until a timetable is supplied. The matching of buses to duties is a recommendation: nothing is assigned or dispatched.';
+  'Duties are a model until a timetable is supplied, and their lengths are generated, not timetabled. The matching of buses to duties is a recommendation: nothing is assigned or dispatched.';
 
 /** Wording follows `assignDuties`: cost is age in years x duty hours; classes never mix. */
 export const COST_SENTENCE =
@@ -102,13 +99,15 @@ export function barGeometry(startMin: number, endMin: number): BarGeometry {
   return { leftPct, widthPct, startsBeforeAxis, endsAfterAxis };
 }
 
-/** Minutes from midnight read off the feed's own clock digits, with no zone shift. */
+/**
+ * Minutes from midnight read off the feed's clock digits. The digits are Indian
+ * time (upstream stamps IST with a misleading `Z`), so there is no zone shift;
+ * `formatFeedTime` owns that rule and its pattern, and is reused here.
+ */
 function feedMinutes(feedNow: string | null): number | null {
-  const match = feedNow === null ? null : FEED_CLOCK.exec(feedNow);
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour > MAX_HOUR || minute > MAX_MINUTE) return null;
+  const text = formatFeedTime(feedNow);
+  const [hour, minute] = text.split(':').map(Number);
+  if (hour === undefined || minute === undefined || Number.isNaN(hour)) return null;
   return hour * MINUTES_PER_HOUR + minute;
 }
 
@@ -122,7 +121,7 @@ export function nowLinePct(feedNow: string | null): number | null {
 export function nowSentence(feedNow: string | null): string {
   const minutes = feedMinutes(feedNow);
   if (minutes === null) return 'The feed has no clock, so there is no now line.';
-  const base = `Now ${formatMinute(minutes)}, from the feed clock`;
+  const base = `Now ${formatMinute(minutes)}, the feed clock in Indian time`;
   return minutes < AXIS_START_MIN
     ? `${base}; it is before the 04:00 start of the axis.`
     : `${base}.`;
@@ -212,4 +211,47 @@ export function buildBoardRows(duties: readonly BoardDuty[]): readonly BoardRow[
       ariaLabel: describe(duty, timeText, stateWord),
     };
   });
+}
+
+/** Space one character of the bar text needs, and the padding around it, in pixels. */
+const TEXT_CHAR_PX = 7;
+const TEXT_PAD_PX = 12;
+/** The track is never narrower than this (the chart's minimum width less its label column). */
+const MIN_TRACK_PX = 700;
+
+export type TextPlacement = 'inside' | 'right' | 'left';
+
+/**
+ * Where a bar's text goes. It stays inside when the bar is wide enough for the
+ * text, otherwise beside the bar: to the right while it fits before the axis
+ * end, else to the left.
+ */
+export function barTextPlacement(input: {
+  readonly leftPct: number;
+  readonly widthPct: number;
+  readonly textLength: number;
+}): TextPlacement {
+  const neededPct = ((input.textLength * TEXT_CHAR_PX + TEXT_PAD_PX) * PERCENT) / MIN_TRACK_PX;
+  if (input.widthPct >= neededPct) return 'inside';
+  return input.leftPct + input.widthPct + neededPct <= PERCENT ? 'right' : 'left';
+}
+
+/** Above this many duties the chart is several screens tall, so the table opens first. */
+export const CHART_DUTY_LIMIT = 60;
+
+export type BoardView = 'chart' | 'table';
+
+export function defaultView(dutyCount: number): BoardView {
+  return dutyCount > CHART_DUTY_LIMIT ? 'table' : 'chart';
+}
+
+export function largeBoardSentence(dutyCount: number): string {
+  return (
+    `This depot has ${dutyCount} duties, more than ${CHART_DUTY_LIMIT}, so the table is shown ` +
+    'first because the chart would be very tall. The chart is one button away.'
+  );
+}
+
+export function viewAnnouncement(view: BoardView, dutyCount: number): string {
+  return `Showing the ${view}, ${dutyCount} ${plural(dutyCount, 'duty', 'duties')}`;
 }

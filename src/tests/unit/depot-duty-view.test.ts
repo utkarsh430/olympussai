@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as depotView from '@/lib/depot/live/depotView';
 import type { DepotBusRow } from '@/models/depotLive';
 import { fromMetres } from '@/lib/depot/infer/geo';
 import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
@@ -166,5 +167,18 @@ describe('buildDutyBoard', () => {
     expect(again.source).toBe('cache');
     expect(again.duties).toBe(fresh.duties);
     expect(again.counts).toBe(fresh.counts);
+  });
+
+  it('builds the depot bus list only on a memo miss, never for a repeat or unknown depot', () => {
+    const spy = vi.spyOn(depotView, 'buildDepotDetail');
+    const rows = parked();
+    board(rows);
+    expect(spy).toHaveBeenCalledTimes(1);
+    board(rows, { ...view(rows), stale: true });
+    board(rows, view(rows));
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(buildDutyBoard(view(rows), '999')).toBeNull();
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
   });
 });

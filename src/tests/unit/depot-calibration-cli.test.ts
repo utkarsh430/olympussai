@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
+  CalibrationError,
   DEFAULT_WAIT_MIN,
+  MIN_WAIT_MIN,
+  describeFailure,
+  outputPathProblem,
   parseCalibrationArgs,
+  snapshotSourceProblem,
   parseSnapshotText,
 } from '@/lib/depot/maintenance/calibrationCli';
 
@@ -11,6 +16,7 @@ describe('parseCalibrationArgs', () => {
       ok: true,
       mode: { kind: 'files', first: 'a.json', second: 'b.json' },
       outPath: null,
+      force: false,
     });
   });
 
@@ -19,6 +25,7 @@ describe('parseCalibrationArgs', () => {
       ok: true,
       mode: { kind: 'live', waitMin: DEFAULT_WAIT_MIN },
       outPath: null,
+      force: false,
     });
   });
 
@@ -28,7 +35,26 @@ describe('parseCalibrationArgs', () => {
       ok: true,
       mode: { kind: 'live', waitMin: 7 },
       outPath: 'r.json',
+      force: false,
     });
+  });
+
+  it('accepts --force anywhere and records it', () => {
+    const parsed = parseCalibrationArgs(['--force', 'a.json', 'b.json', '--out', 'r.json']);
+    expect(parsed).toMatchObject({ ok: true, outPath: 'r.json', force: true });
+  });
+
+  it('allows exactly the minimum wait and refuses anything shorter', () => {
+    expect(MIN_WAIT_MIN).toBe(1);
+    expect(parseCalibrationArgs(['--live', '--wait-min', '1'])).toMatchObject({
+      ok: true,
+      mode: { kind: 'live', waitMin: 1 },
+    });
+    for (const short of ['0.99', '0.01']) {
+      const parsed = parseCalibrationArgs(['--live', '--wait-min', short]);
+      expect(parsed.ok).toBe(false);
+      if (!parsed.ok) expect(parsed.message).toContain('at least 1 minute');
+    }
   });
 
   it.each([
@@ -44,6 +70,55 @@ describe('parseCalibrationArgs', () => {
     const parsed = parseCalibrationArgs(argv);
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) expect(parsed.message).toContain('Usage');
+  });
+});
+
+describe('outputPathProblem', () => {
+  const exists = (path: string): boolean => path === 'taken.json';
+
+  it('has no problem without an output path, or with a free one', () => {
+    expect(outputPathProblem(null, false, exists)).toBeNull();
+    expect(outputPathProblem('free.json', false, exists)).toBeNull();
+  });
+
+  it('refuses an existing file unless --force is given', () => {
+    expect(outputPathProblem('taken.json', false, exists)).toBe(
+      'The output file already exists. Choose another path, or add --force to replace it.',
+    );
+    expect(outputPathProblem('taken.json', true, exists)).toBeNull();
+  });
+});
+
+describe('snapshotSourceProblem', () => {
+  it('stops with a sentence when the app is serving its sample data', () => {
+    expect(snapshotSourceProblem('fixture')).toBe(
+      'The app is serving its built-in sample data, which says nothing about the unit. ' +
+        'Connect it to the live feed and run this again.',
+    );
+  });
+
+  it('accepts live and cached snapshots', () => {
+    expect(snapshotSourceProblem('live')).toBeNull();
+    expect(snapshotSourceProblem('cache')).toBeNull();
+  });
+});
+
+describe('describeFailure', () => {
+  it('prints a message the script raised itself', () => {
+    expect(describeFailure(new CalibrationError('Both snapshots are the same.'))).toBe(
+      'Both snapshots are the same.',
+    );
+  });
+
+  it('never prints an upstream message: a fixed sentence and the error name only', () => {
+    const upstream = new TypeError('fetch failed: https://10.0.0.7/feed?token=abc');
+    const text = describeFailure(upstream);
+    expect(text).toBe('Calibration failed (TypeError). The error message is not shown.');
+    expect(text).not.toContain('token');
+    expect(text).not.toContain('10.0.0.7');
+    expect(describeFailure('plain string with token=abc')).toBe(
+      'Calibration failed (unknown error). The error message is not shown.',
+    );
   });
 });
 

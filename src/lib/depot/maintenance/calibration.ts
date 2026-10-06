@@ -191,6 +191,15 @@ export function calibrateOdometer(
   };
 }
 
+/** The most pairs that may go backwards before an inconclusive reading says so. */
+export const BACKWARDS_NOTE_SHARE = 0.1;
+
+/** Pairs whose distance fell, as a share of the pairs that reached the comparison. */
+export function backwardsShare(report: CalibrationReport): number {
+  const compared = report.usable + report.backwards;
+  return compared === 0 ? 0 : report.backwards / compared;
+}
+
 const fixed = (value: number): string =>
   Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(2);
 
@@ -226,6 +235,13 @@ export function describeCalibration(report: CalibrationReport): string[] {
   if (report.reading === 'too_few') {
     lines.push(
       `Too few usable pairs (need ${MIN_USABLE_PAIRS}); take the snapshots further apart or at a busier hour.`,
+    );
+  }
+  if (report.reading === 'inconclusive' && backwardsShare(report) > BACKWARDS_NOTE_SHARE) {
+    lines.push(
+      `${report.backwards} of ${report.usable + report.backwards} compared pairs went backwards, ` +
+        'more than a tenth: some buses may report a trip distance that resets rather than a ' +
+        'running odometer, which would explain the mixed ratio.',
     );
   }
   lines.push(

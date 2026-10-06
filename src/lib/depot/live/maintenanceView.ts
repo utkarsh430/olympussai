@@ -1,35 +1,16 @@
 import type { DepotBusRow } from '@/models/depotLive';
-import type { DepotBusView } from '../api';
 import type { FleetSnapshotView } from '../repositories/types';
-import { compareText } from '../exceptions/depotExceptions';
 import { DUE_SOON_WITHIN_KM } from '../maintenance/config';
-import type { MaintenanceResponse, OffRoadBus } from '../maintenance/api';
+import type { MaintenanceResponse } from '../maintenance/api';
+import { offRoadBusesFrom } from '../maintenance/offRoad';
 import { countByGroup, modelService, sortByUrgency } from '../maintenance/serviceModel';
 import { workshopLoad } from '../maintenance/workshop';
-import { deviceFlags } from '../roster/rosterModel';
 import { modelBus } from '../sim/fleetMaster';
 import { modelDepotMaster } from '../sim/depotMaster';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
 import { buildDepotDetail } from './depotView';
 
 type MaintenanceBody = Omit<MaintenanceResponse, keyof ReturnType<typeof feedEnvelope>>;
-
-function toOffRoadBus(bus: DepotBusView): OffRoadBus {
-  return {
-    registrationNumber: bus.registrationNumber,
-    vehicleStatus: bus.vehicleStatus,
-    tripStatus: bus.tripStatus,
-    gpsAgeMin: bus.gpsAgeMin,
-    flags: deviceFlags(bus),
-  };
-}
-
-/** Longest silent first; a bus with no known age goes last. */
-function bySilence(a: OffRoadBus, b: OffRoadBus): number {
-  const ageA = a.gpsAgeMin ?? -1;
-  const ageB = b.gpsAgeMin ?? -1;
-  return ageB - ageA || compareText(a.registrationNumber, b.registrationNumber);
-}
 
 function buildBody(
   view: FleetSnapshotView,
@@ -39,16 +20,12 @@ function buildBody(
   const detail = buildDepotDetail(view, depotId);
   if (!detail) return null;
   const rows: readonly DepotBusRow[] = analysis.rowsByDepot.get(depotId) ?? [];
-  const offRoad = detail.buses
-    .filter((bus) => bus.state === 'off_road')
-    .map(toOffRoadBus)
-    .sort(bySilence);
+  const offRoad = offRoadBusesFrom(detail.buses);
   const services = sortByUrgency(
     rows.map((row) => modelService(modelBus(row.registrationNumber, row.routeName))),
   );
   return {
     depot: { id: detail.depot.id, name: detail.depot.name },
-    offRoad: { provenance: 'live', buses: offRoad },
     distanceCoverage: {
       provenance: 'live',
       coverage: { n: rows.filter((row) => row.odometerRaw !== null).length, of: rows.length },
@@ -57,7 +34,7 @@ function buildBody(
       provenance: 'modelled',
       dueSoonWithinKm: DUE_SOON_WITHIN_KM,
       counts: countByGroup(services),
-      buses: services,
+      buses: services.filter((service) => service.group !== 'not_due'),
     },
     workshop: {
       provenance: 'modelled',

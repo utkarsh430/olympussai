@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { rosterBusHref } from '@/lib/depot/depotNav';
 import {
   axisTicks,
+  barTextPlacement,
   nowLinePct,
   nowSentence,
   type BoardRow,
@@ -15,10 +16,6 @@ export interface DutyTimelineProps {
 
 /** Fixed width of the duty label column; it stays put while the axis scrolls. */
 const LABEL_COLUMN = 'w-[200px] shrink-0';
-/** A bar at least this wide (percent of the axis) carries its own text. */
-const TEXT_INSIDE_MIN_WIDTH_PCT = 16;
-/** Past this point there is no room to the right of a bar for its text. */
-const NO_ROOM_RIGHT_PCT = 80;
 const PERCENT = 100;
 
 /**
@@ -34,7 +31,7 @@ const BAR_STYLE: Readonly<Record<BoardRow['state'], string>> = {
 function BarText({ depotId, row }: { readonly depotId: string; readonly row: BoardRow }) {
   return (
     <>
-      {row.stateWord}
+      <span aria-hidden>{row.stateWord}</span>
       {row.registrationNumber === null ? null : (
         <>
           {' '}
@@ -50,15 +47,21 @@ function BarText({ depotId, row }: { readonly depotId: string; readonly row: Boa
   );
 }
 
+function textLengthOf(row: BoardRow): number {
+  const reg = row.registrationNumber === null ? 0 : row.registrationNumber.length + 1;
+  return row.stateWord.length + reg;
+}
+
 function DutyBar({ depotId, row }: { readonly depotId: string; readonly row: BoardRow }) {
   const { leftPct, widthPct, startsBeforeAxis, endsAfterAxis } = row.geometry;
-  const inside = widthPct >= TEXT_INSIDE_MIN_WIDTH_PCT;
+  const placement = barTextPlacement({ leftPct, widthPct, textLength: textLengthOf(row) });
   const rightEdge = leftPct + widthPct;
-  const textStyle = inside
-    ? { left: `${leftPct}%`, width: `${widthPct}%` }
-    : rightEdge <= NO_ROOM_RIGHT_PCT
-      ? { left: `${rightEdge}%` }
-      : { right: `${PERCENT - leftPct}%` };
+  const textStyle =
+    placement === 'inside'
+      ? { left: `${leftPct}%`, width: `${widthPct}%` }
+      : placement === 'right'
+        ? { left: `${rightEdge}%` }
+        : { right: `${PERCENT - leftPct}%` };
   const clip = `${startsBeforeAxis ? 'rounded-l-none border-l-0 ' : ''}${
     endsAfterAxis ? 'rounded-r-none border-r-0 ' : ''
   }`;
@@ -66,13 +69,14 @@ function DutyBar({ depotId, row }: { readonly depotId: string; readonly row: Boa
     <>
       <div
         aria-hidden
-        title={row.ariaLabel}
         className={`absolute top-2 h-[28px] rounded-[3px] ${clip}${BAR_STYLE[row.state]}`}
         style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
       />
       <span
+        data-testid="duty-bar-text"
+        data-placement={placement}
         className={`absolute top-2 flex h-[28px] items-center whitespace-nowrap font-mono text-[11px] text-depot-ink ${
-          inside ? 'justify-center overflow-hidden px-1' : 'px-1.5'
+          placement === 'inside' ? 'justify-center overflow-hidden px-1' : 'px-1.5'
         }`}
         style={textStyle}
       >
@@ -85,8 +89,9 @@ function DutyBar({ depotId, row }: { readonly depotId: string; readonly row: Boa
 /**
  * The hero: one row per duty, ordered by start, a bar from start to end on a
  * 04:00 to 24:00 axis. The frame scrolls sideways on its own with the duty
- * column pinned; the page never does. Each row is a text equivalent of its bar
- * (route, times, state word, registration); the table view repeats the rows.
+ * column pinned; the page never does. Each row carries its full text equivalent
+ * (the model's label and the unassigned reason) as visually hidden text, since
+ * the bar itself is hidden from assistive technology; the table repeats the rows.
  */
 export function DutyTimeline({ depotId, rows, feedNow }: DutyTimelineProps) {
   const ticks = axisTicks();
@@ -150,10 +155,15 @@ export function DutyTimeline({ depotId, rows, feedNow }: DutyTimelineProps) {
                 data-testid="duty-row"
                 className="relative flex h-12 border-b border-depot-line last:border-b-0"
               >
+                <span className="sr-only">
+                  {row.ariaLabel}
+                  {row.reason === null ? '' : ` ${row.reason}`}
+                </span>
                 <div
+                  aria-hidden
                   className={`${LABEL_COLUMN} sticky left-0 z-10 flex min-w-0 flex-col justify-center bg-depot-page px-3 font-mono text-[11px] leading-4`}
                 >
-                  <span className="truncate text-[13px] text-depot-ink" title={row.routeName}>
+                  <span className="truncate text-[13px] text-depot-ink">
                     {row.routeName}
                   </span>
                   <span className="truncate text-depot-muted">{row.timeText}</span>

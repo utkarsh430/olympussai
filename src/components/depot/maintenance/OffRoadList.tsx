@@ -79,7 +79,7 @@ export function OffRoadList({ depotId, buses }: OffRoadListProps) {
         <>
           <p
             aria-hidden
-            className="mb-1 font-display text-[32px] font-semibold leading-none tabular-nums text-depot-ink"
+            className="mb-1 font-display text-[32px] font-semibold tabular-nums leading-none text-depot-ink"
           >
             {buses.length}
           </p>

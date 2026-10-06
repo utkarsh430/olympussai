@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DutyBoard } from '@/components/depot/duties/DutyBoard';
 import type { BoardDuty } from '@/lib/depot/duties/api';
-import { buildBoardRows } from '@/lib/depot/duties/dutyBoardModel';
+import { CHART_DUTY_LIMIT, buildBoardRows } from '@/lib/depot/duties/dutyBoardModel';
 
 const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 const originalActFlag = actGlobal.IS_REACT_ACT_ENVIRONMENT;
@@ -137,5 +137,52 @@ describe('DutyBoard', () => {
     const frame = container.querySelector('[data-testid="duty-scroll-frame"]');
     expect(frame?.className).toContain('relative');
     expect(frame?.className).toContain('overflow-x-auto');
+  });
+
+  it('gives every chart row its full text equivalent, with the reason and the word modelled', () => {
+    render();
+    const rows = [...container.querySelectorAll('[data-testid="duty-row"]')];
+    const unassigned = rows[1]?.textContent ?? '';
+    expect(unassigned).toContain('modelled');
+    expect(unassigned).toContain('No free express bus');
+    expect(rows[0]?.textContent).toContain('(modelled). Assigned: UP32A0001');
+    expect(container.querySelector('[title^="Route"]')).toBeNull();
+  });
+
+  it('announces the view it is showing in a status line', () => {
+    render();
+    const status = (): string | null =>
+      container.querySelector('[data-testid="duty-view-status"]')?.textContent ?? null;
+    expect(container.querySelector('[data-testid="duty-view-status"]')?.getAttribute('role')).toBe(
+      'status',
+    );
+    expect(status()).toBe('Showing the chart, 3 duties');
+    act(() => button('Table').click());
+    expect(status()).toBe('Showing the table, 3 duties');
+  });
+
+  it('opens on the table past the limit and says why, with the chart one click away', () => {
+    const many: BoardDuty[] = Array.from({ length: CHART_DUTY_LIMIT + 1 }, (_, i) => ({
+      ...DUTIES[0]!,
+      id: `D-${i}`,
+      registrationNumber: `UP32A${i}`,
+    }));
+    act(() => root.render(<DutyBoard depotId="20" rows={buildBoardRows(many)} feedNow={null} />));
+    expect(container.querySelector('table')).not.toBeNull();
+    expect(container.querySelector('[data-testid="duty-large-note"]')?.textContent).toContain(
+      `more than ${CHART_DUTY_LIMIT}`,
+    );
+    act(() => button('Chart').click());
+    expect(container.querySelector('table')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="duty-row"]')).toHaveLength(many.length);
+  });
+
+  it('places text that does not fit inside a short bar beside it', () => {
+    render();
+    const rows = [...container.querySelectorAll('[data-testid="duty-row"]')];
+    const text = rows[0]?.querySelector<HTMLElement>('[data-testid="duty-bar-text"]');
+    expect(text?.dataset.placement).toBe('inside');
+    const short = rows[2]?.querySelector<HTMLElement>('[data-testid="duty-bar-text"]');
+    expect(short?.dataset.placement).not.toBe('inside');
   });
 });

@@ -7,7 +7,9 @@ import { getRepositories } from '@/lib/depot/repositories';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
 import { buildMaintenanceResponse } from '@/lib/depot/live/maintenanceView';
+import { buildDepotDetail } from '@/lib/depot/live/depotView';
 import { DUE_SOON_WITHIN_KM } from '@/lib/depot/maintenance/config';
+import { offRoadBusesFrom } from '@/lib/depot/maintenance/offRoad';
 import { GET } from '@/app/api/upsrtc/depot/[depotId]/maintenance/route';
 
 vi.mock('@/lib/auth/authorize', async (importOriginal) => {
@@ -83,6 +85,13 @@ function view(rows: readonly DepotBusRow[], over: Partial<FleetSnapshotView> = {
   } satisfies FleetSnapshotView;
 }
 
+/** The live list the page reads from the depot detail the scope layout already polls. */
+const liveOffRoad = (rows: readonly DepotBusRow[], id = '1') => {
+  const detail = buildDepotDetail(view(rows), id);
+  if (!detail) throw new Error(`no depot ${id}`);
+  return offRoadBusesFrom(detail.buses);
+};
+
 const build = (rows: readonly DepotBusRow[], id = '1') => {
   const response = buildMaintenanceResponse(view(rows), id);
   if (!response) throw new Error(`no depot ${id}`);
@@ -102,17 +111,15 @@ describe('buildMaintenanceResponse', () => {
     const rows = world();
     const summary = analyseSnapshot(view(rows)).depotsById.get('1');
     const response = build(rows);
-    expect(response.offRoad.buses).toHaveLength(summary?.states.offRoad ?? -1);
-    expect(response.offRoad.buses.map((b) => b.registrationNumber).sort()).toEqual([
-      'M1',
-      'M2',
-      'M3',
-    ]);
-    expect(response.workshop.load.offRoad).toBe(response.offRoad.buses.length);
+    const buses = liveOffRoad(rows);
+    expect(buses).toHaveLength(summary?.states.offRoad ?? -1);
+    expect(buses.map((b) => b.registrationNumber).sort()).toEqual(['M1', 'M2', 'M3']);
+    expect(response.workshop.load.offRoad).toBe(buses.length);
+    expect('offRoad' in response).toBe(false);
   });
 
   it('carries the feed words, the silence and the device flags of each off-road bus', () => {
-    const buses = build(world()).offRoad.buses;
+    const buses = liveOffRoad(world());
     const m1 = buses.find((b) => b.registrationNumber === 'M1');
     expect(m1).toMatchObject({ vehicleStatus: 'under_maintenance', tripStatus: 'Stationary' });
     expect(m1?.gpsAgeMin).toBe(30);
@@ -130,24 +137,26 @@ describe('buildMaintenanceResponse', () => {
 
   it('tags the preventive view and the workshop MODELLED and the off-road list LIVE', () => {
     const response = build(world());
-    expect(response.offRoad.provenance).toBe('live');
     expect(response.preventive.provenance).toBe('modelled');
     expect(response.workshop.provenance).toBe('modelled');
     expect(response.workshop.offRoadProvenance).toBe('live');
     expect(response.preventive.dueSoonWithinKm).toBe(DUE_SOON_WITHIN_KM);
   });
 
-  it('models every bus of the depot, most urgent first, never from the feed distance', () => {
+  it('sends only the buses that need attention, most urgent first, and counts for all', () => {
     const response = build(world());
-    expect(response.preventive.buses).toHaveLength(10);
-    const kms = response.preventive.buses.map((b) => b.kmToNextService);
+    const { counts, buses } = response.preventive;
+    expect(counts.overdue + counts.due_soon + counts.not_due).toBe(10);
+    expect(buses).toHaveLength(counts.overdue + counts.due_soon);
+    expect(buses.every((b) => b.group === 'overdue' || b.group === 'due_soon')).toBe(true);
+    expect(buses.filter((b) => b.group === 'overdue')).toHaveLength(counts.overdue);
+    const kms = buses.map((b) => b.kmToNextService);
     expect(kms).toEqual([...kms].sort((a, b) => a - b));
-    const total = Object.values(response.preventive.counts).reduce((a, b) => a + b, 0);
-    expect(total).toBe(10);
-    const withDistance = response.preventive.buses.find((b) => b.registrationNumber === 'M2');
-    const without = build(
-      world().map((r) => ({ ...r, odometerRaw: null })),
-    ).preventive.buses.find((b) => b.registrationNumber === 'M2');
+  });
+
+  it('never models from the feed distance', () => {
+    const withDistance = build(world()).preventive;
+    const without = build(world().map((r) => ({ ...r, odometerRaw: null }))).preventive;
     expect(withDistance).toEqual(without);
   });
 
@@ -159,13 +168,15 @@ describe('buildMaintenanceResponse', () => {
     expect(stale?.stale).toBe(true);
     expect(stale?.source).toBe('cache');
     expect(stale?.preventive).toBe(fresh?.preventive);
-    expect(stale?.offRoad).toBe(fresh?.offRoad);
+    expect(stale?.workshop).toBe(fresh?.workshop);
   });
 
   it('keeps depots apart and reports a depot with nothing off the road as an empty list', () => {
     const other = build(world(), '2');
-    expect(other.offRoad.buses).toEqual([]);
-    expect(other.preventive.buses).toHaveLength(1);
+    expect(liveOffRoad(world(), '2')).toEqual([]);
+    expect(other.preventive.counts.overdue + other.preventive.counts.due_soon).toBe(
+      other.preventive.buses.length,
+    );
     expect(other.workshop.load.queue).toBe(0);
   });
 });
@@ -215,8 +226,8 @@ describe('maintenance route', () => {
     const response = await GET(request, context('1'));
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toContain('no-store');
-    const body = (await response.json()) as { offRoad: { buses: unknown[] } };
-    expect(body.offRoad.buses).toHaveLength(3);
+    const body = (await response.json()) as { workshop: { load: { offRoad: number } } };
+    expect(body.workshop.load.offRoad).toBe(3);
   });
 
   it('answers 503 with the fixed body and logs once when the fleet read throws', async () => {

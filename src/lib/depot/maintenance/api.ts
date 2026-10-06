@@ -20,8 +20,11 @@ export interface OffRoadBus {
 /** GET /api/upsrtc/depot/[depotId]/maintenance */
 export interface MaintenanceResponse extends DepotFeedEnvelope {
   readonly depot: { readonly id: string; readonly name: string };
-  /** Every bus whose state is off the road now. Straight from the feed. */
-  readonly offRoad: { readonly provenance: 'live'; readonly buses: readonly OffRoadBus[] };
+  /*
+   * The live off-road list is not in this response: the page reads it from the
+   * depot detail it already polls (see `offRoadBusesFrom`), so it cannot
+   * disagree with the page header.
+   */
   /** How many of the depot's buses carry the feed's `distance` field at all. */
   readonly distanceCoverage: { readonly provenance: 'live'; readonly coverage: Coverage };
   /**
@@ -32,7 +35,10 @@ export interface MaintenanceResponse extends DepotFeedEnvelope {
     readonly provenance: 'modelled';
     readonly dueSoonWithinKm: number;
     readonly counts: Readonly<Record<ServiceGroup, number>>;
-    /** Most urgent first. */
+    /**
+     * Only the buses that need attention (overdue and due soon), most urgent
+     * first. The rest are in `counts`.
+     */
     readonly buses: readonly ModelledService[];
   };
   /** Modelled bays against the live off-road count. */
