@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { formatInstantIst } from '@/lib/depot/format';
 import type { DecisionTrail as Trail, TrailItem } from '@/lib/depot/rebalance/decisionEvents';
 import {
   TRAIL_CLEAR_CONFIRM,
@@ -52,13 +53,6 @@ function ClearControl({ onClear }: { readonly onClear: () => void }) {
   );
 }
 
-function timeOf(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? '—'
-    : date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-}
-
 function List({
   label,
   items,
@@ -79,7 +73,7 @@ function List({
             key={`${index}-${item.eventId}`}
             className="flex min-w-0 flex-wrap items-baseline gap-x-3 px-3 py-2"
           >
-            <span className="text-[11px] text-depot-faint">{timeOf(item.at)}</span>
+            <span className="text-[11px] text-depot-faint">{formatInstantIst(item.at)}</span>
             <span className="min-w-0 flex-1 text-[13px] text-depot-ink">
               {describeTrailItem(item)}
               {item.scenario ? (

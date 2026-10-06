@@ -37,6 +37,23 @@ export function formatClockTime(date: Date): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+const IST_CLOCK = new Intl.DateTimeFormat('en-GB', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZone: 'Asia/Kolkata',
+});
+
+/**
+ * A true instant (an ISO time this browser or the server stamped, not a feed stamp) as
+ * HH:MM in Indian time on a 24-hour clock, whatever the browser's own zone and locale,
+ * so it reads beside the feed's clock. A dash if it does not parse.
+ */
+export function formatInstantIst(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? DASH : IST_CLOCK.format(date);
+}
+
 const PLAIN_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MONTH_NAMES = [
   'Jan',

@@ -4,8 +4,21 @@ import {
   formatFeedDateTime,
   formatFeedTime,
   formatFeedTimeOn,
+  formatInstantIst,
   formatRelative,
 } from '@/lib/depot/format';
+
+describe('formatInstantIst', () => {
+  it('writes a true instant as Indian time on a 24-hour clock, never "am" or "pm"', () => {
+    expect(formatInstantIst('2026-10-06T13:34:00.000Z')).toBe('19:04');
+    expect(formatInstantIst('2026-10-06T04:04:00.000Z')).toBe('09:34');
+    expect(formatInstantIst('2026-10-06T19:00:00.000Z')).toBe('00:30');
+  });
+
+  it('gives a dash for anything that does not parse', () => {
+    expect(formatInstantIst('not a time')).toBe('—');
+  });
+});
 
 describe('formatFeedDateTime', () => {
   it('writes weekday, day, month and time from the feed digits', () => {
