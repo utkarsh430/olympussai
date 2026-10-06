@@ -4,7 +4,7 @@ import { HowProduced as ClosingDisclosure } from '@/components/depot/shell/HowPr
 const SOURCES_PATH = '/project/depots/sources';
 
 /**
- * The closing disclosure of the fuel page: what the page
+ * The closing disclosure of the fuel and revenue pages: what the page
  * used to say in its closing panel (what is modelled, the definitions, the assumptions,
  * the price used and the feeds that would replace the model), then where each feed's
  * fields are listed. The disclosure itself is the shared one.
