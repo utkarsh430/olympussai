@@ -469,6 +469,8 @@ function fakeFs(file: StatLike = SAFE_FILE, dir: StatLike = SAFE_DIR) {
       calls.push(`stat ${path}`);
       if (path === '/opt/claude/2.1/claude') return file;
       if (path === '/opt/claude/2.1') return dir;
+      // Every ancestor above the binary's own directory, up to the root.
+      if (['/opt/claude', '/opt', '/'].includes(path)) return SAFE_DIR;
       throw Object.assign(new Error(`ENOENT: ${path}`), { code: 'ENOENT' });
     },
   };
@@ -520,6 +522,9 @@ describe('assertUsableBinary', () => {
       'realpath /usr/local/bin/claude',
       'stat /opt/claude/2.1/claude',
       'stat /opt/claude/2.1',
+      'stat /opt/claude',
+      'stat /opt',
+      'stat /',
     ]);
   });
 

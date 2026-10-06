@@ -1,5 +1,12 @@
 import { classifyCliFailure } from '@/lib/depot/copilot/cli/classify';
 import { MAX_PROMPT_BYTES } from '@/lib/depot/copilot/limits';
+import {
+  CLI_CLOSE_GRACE_MS,
+  errorCode,
+  killChildGroup,
+  killProcessGroup,
+  type KillGroup,
+} from '@/lib/depot/copilot/cli/kill';
 import type { FallbackReason } from '@/lib/depot/copilot/types';
 
 /** Minimal structural views of Node's `child_process.spawn`, so tests can fake it. */
@@ -49,12 +56,9 @@ export interface RunCliInput {
   readonly signal?: AbortSignal;
 }
 
-export type KillGroup = (pid: number) => void;
+export { CLI_CLOSE_GRACE_MS, killProcessGroup, type KillGroup };
 
-/** SIGKILL to the child's whole process group (the child is spawned detached). */
-export const killProcessGroup: KillGroup = (pid) => {
-  process.kill(-pid, 'SIGKILL');
-};
+const GRACE_NOTE = '; not closed within the grace period';
 
 export type RunCliResult =
   | { readonly ok: true; readonly stdout: string }
@@ -62,8 +66,10 @@ export type RunCliResult =
 
 const DETAIL_CHARS = 200;
 
-const isMissingBinary = (error: unknown): boolean =>
-  typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'ENOENT';
+const isMissingBinary = (error: unknown): boolean => errorCode(error) === 'ENOENT';
+
+const withGraceNote = (result: RunCliResult): RunCliResult =>
+  result.ok ? result : { ...result, detail: `${result.detail}${GRACE_NOTE}` };
 
 const failure = (reason: FallbackReason, detail: string): RunCliResult => ({
   ok: false,
@@ -82,7 +88,7 @@ export function runCli(
   killGroup: KillGroup = killProcessGroup,
 ): Promise<RunCliResult> {
   // The child runs detached in its own process group; the whole group is killed
-  // on timeout, on the output cap and on abort, so no grandchild outlives the slot.
+  // on every exit path (see `settle`), so no grandchild outlives the slot.
   // The provider rejects an oversized request before it takes a slot or a call
   // from the budget; this is the backstop, reported the same way and never spawned.
   if (Buffer.byteLength(input.stdin, 'utf8') > MAX_PROMPT_BYTES) {
@@ -113,25 +119,36 @@ export function runCli(
     const err: Buffer[] = [];
     let captured = 0;
     let settled = false;
+    let closed = false;
+    let pending: RunCliResult | null = null;
+    let grace: ReturnType<typeof setTimeout> | undefined;
 
-    const killAll = (): void => {
-      try {
-        if (child.pid === undefined) child.kill('SIGKILL');
-        else killGroup(child.pid);
-      } catch {
-        child.kill('SIGKILL'); // the group is already gone or cannot be signalled
-      }
+    const finish = (result: RunCliResult): void => {
+      clearTimeout(grace);
+      pending = null;
+      resolve(result);
     };
-    const onAbort = (): void => settle(failure('request_rejected', 'aborted'), true);
-    const settle = (result: RunCliResult, kill: boolean): void => {
+    const killAll = (): void => killChildGroup(child, killGroup, closed);
+    const onAbort = (): void => settle(failure('request_rejected', 'aborted'));
+    /**
+     * Every exit path kills the whole group, so no grandchild outlives the call,
+     * and the call resolves only once the child has closed, so its directories
+     * are removed after the process is gone, never while it is still dying.
+     */
+    const settle = (result: RunCliResult): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       input.signal?.removeEventListener('abort', onAbort);
-      if (kill) killAll();
-      resolve(result);
+      killAll();
+      if (closed || child.pid === undefined) {
+        finish(result);
+        return;
+      }
+      pending = result;
+      grace = setTimeout(() => finish(withGraceNote(result)), CLI_CLOSE_GRACE_MS);
     };
-    const timer = setTimeout(() => settle(failure('timeout', 'timed out'), true), input.timeoutMs);
+    const timer = setTimeout(() => settle(failure('timeout', 'timed out')), input.timeoutMs);
 
     input.signal?.addEventListener('abort', onAbort, { once: true });
 
@@ -140,7 +157,7 @@ export function runCli(
       const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
       captured += buffer.length;
       if (captured > input.maxOutputBytes) {
-        settle(failure('invalid_output', 'output exceeded the cap'), true);
+        settle(failure('invalid_output', 'output exceeded the cap'));
         return;
       }
       sink.push(buffer);
@@ -158,17 +175,22 @@ export function runCli(
         isMissingBinary(error)
           ? failure('not_installed', 'binary not found')
           : failure('error', 'process error'),
-        false,
       ),
     );
     child.on('close', (code: number | null) => {
+      if (closed) return;
+      closed = true;
+      if (settled) {
+        if (pending !== null) finish(pending);
+        return;
+      }
       const stdout = Buffer.concat(out).toString('utf8');
       if (code === 0) {
-        settle({ ok: true, stdout }, false);
+        settle({ ok: true, stdout });
         return;
       }
       const stderr = Buffer.concat(err).toString('utf8');
-      settle(failure(classifyCliFailure(code, stderr, stdout), `exit ${code ?? 'signal'}`), false);
+      settle(failure(classifyCliFailure(code, stderr, stdout), `exit ${code ?? 'signal'}`));
     });
 
     // An early exit surfaces as EPIPE here; the close event reports the real outcome.
