@@ -204,6 +204,46 @@
     font-feature-settings: 'tnum' 1;
   }
 
+  /* Sticky layers, defined once. Every sticky element, scroll margin and max-height
+     in the depot module reads these instead of a literal 56px.
+       --depot-bar-h     the top bar's sticky height (0: it scrolls away below 640px;
+                         two rows from 640 to 899px; one row from 900px)
+       --depot-nav-h     the navigation strip's own height (auto in the rail form)
+       --depot-strip-h   how much of the stack the navigation strip adds when it sticks
+                         (640 to 899px only; the rail is beside the page from 900px)
+       --depot-sticky-top  where the first sticky layer inside <main> (the depot tabs, the
+                         fleet distribution strip) sticks: below the bar and the strip
+       --depot-subnav-h  the depot tabs' height; --depot-intro-h the fleet distribution strip's
+       --depot-scroll-mt   scroll margin for a field that must not land under the stack
+       --depot-panel-top   top of a side panel that sticks from 1280px (bar plus 1.5rem)
+       --depot-footer-h  the prototype disclaimer's collapsed height, reserved under <main> */
+  .depot-shell {
+    --depot-bar-h: 0px;
+    --depot-nav-h: 2.5rem;
+    --depot-strip-h: 0px;
+    --depot-subnav-h: 2.5rem;
+    --depot-intro-h: 2.25rem;
+    --depot-footer-h: 2.25rem;
+    --depot-sticky-top: calc(var(--depot-bar-h) + var(--depot-strip-h));
+    --depot-scroll-mt: calc(var(--depot-sticky-top) + var(--depot-intro-h) + 1rem);
+    --depot-panel-top: calc(var(--depot-sticky-top) + 1.5rem);
+  }
+
+  @media (min-width: 640px) {
+    .depot-shell {
+      --depot-bar-h: 5rem;
+      --depot-strip-h: 2.5rem;
+    }
+  }
+
+  @media (min-width: 900px) {
+    .depot-shell {
+      --depot-bar-h: 3.5rem;
+      --depot-nav-h: auto;
+      --depot-strip-h: 0px;
+    }
+  }
+
   /* Repaint the body so overscroll and short pages never show the neutral
      base colour (same reason as `body:has(.sim-light)` above). */
   body:has(.depot-shell) {
@@ -403,7 +443,7 @@
   }
 
   .depot-map-frame {
-    @apply relative h-[460px] overflow-hidden rounded-md border border-depot-line bg-depot-page;
+    @apply relative isolate h-[460px] overflow-hidden rounded-md border border-depot-line bg-depot-page;
   }
 
   /* Overview table in the page flow: the frame still scrolls sideways, but it
