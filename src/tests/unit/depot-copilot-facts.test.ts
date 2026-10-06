@@ -12,6 +12,13 @@ import { buildTransferRationale } from '@/lib/depot/copilot/facts/transfer';
 import type { CopilotQuery } from '@/lib/depot/copilot/queries';
 import { factEdges } from '@/lib/depot/copilot/factText';
 import { renderDraft } from '@/lib/depot/copilot/render';
+import { tokenize } from '@/lib/depot/copilot/grammar';
+import {
+  sentenceOpensBare,
+  sentencePattern,
+  splitSentences,
+} from '@/lib/depot/copilot/sentenceRules';
+import { RECOMMENDATION_SENTENCES } from '@/lib/depot/copilot/vocabulary/sentences';
 import type { CopilotRequest } from '@/lib/depot/copilot/types';
 import type { ExceptionKind } from '@/lib/depot/exceptions/types';
 import type { OutshedSummary } from '@/lib/depot/infer/types';
@@ -470,6 +477,34 @@ function allRequests(data: AnswerData = makeData()): [string, CopilotRequest][] 
 const proseOf = (r: CopilotRequest): string =>
   [r.scriptedDraft.headline, ...r.scriptedDraft.paragraphs].join('\n');
 
+/** The scripted writer's sentences the round 7 sentence rules except, by pattern. */
+function verbLedPatterns(): string[] {
+  const recommendations = new Set<string>();
+  for (const [, request] of allRequests()) {
+    const figure = new Map(request.facts.map((f) => [f.id, factEdges(f.text, f.kind).figure]));
+    const isFigure = (id: string): boolean => figure.get(id) ?? true;
+    for (const text of [request.scriptedDraft.headline, ...request.scriptedDraft.paragraphs]) {
+      for (const sentence of splitSentences(tokenize(text) ?? [])) {
+        const pattern = sentencePattern(sentence, isFigure);
+        if (sentenceOpensBare(sentence)) recommendations.add(pattern);
+      }
+    }
+  }
+  return [...recommendations].sort();
+}
+
+describe('round 7 sentence rules: the reviewed sentence lists', () => {
+  it('list every sentence the writer opens with a bare verb, and nothing else', () => {
+    expect(verbLedPatterns()).toEqual([...RECOMMENDATION_SENTENCES].sort());
+  });
+
+  it('lists only recommendations that say nothing is dispatched', () => {
+    for (const pattern of RECOMMENDATION_SENTENCES) {
+      expect(pattern).toMatch(/dispatch/);
+    }
+  });
+});
+
 describe('scripted drafts', () => {
   it.each(allRequests())(
     '%s renders through renderDraft, the one source of the draft rules',
@@ -736,7 +771,7 @@ describe('answers', () => {
         ),
       );
     expect(prose('ambiguous_depot')).toContain(
-      "That name matches several depots. Use the depot's full name.",
+      "That name matches several depots. The depot's full name would settle which depot is meant.",
     );
     expect(prose('ambiguous_depot')).not.toMatch(/people/i);
     expect(prose('people')).toContain('Questions about people are outside that scope.');

@@ -127,7 +127,7 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
           {
             bin,
             args,
-            env: buildChildEnv(deps.env, deps.home, nodeDir),
+            env: buildChildEnv(deps.env, deps.home, nodeDir, cwd),
             cwd,
             stdin,
             timeoutMs: CLI_TIMEOUT_MS,

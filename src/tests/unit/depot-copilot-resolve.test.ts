@@ -254,10 +254,10 @@ describe('createCopilotEngine', () => {
   });
 
   it.each([
-    ['a digit', { headline: 'Head', paragraphs: ['About 5 buses.'] }],
-    ['a quantity word', { headline: 'Head', paragraphs: ['About a third late.'] }],
-    ['an unknown fact', { headline: 'Head', paragraphs: ['{{fact:nope}}'] }],
-    ['markup', { headline: 'Head', paragraphs: ['<b>x</b>'] }],
+    ['a digit', { headline: 'Heading', paragraphs: ['About 5 buses.'] }],
+    ['a quantity word', { headline: 'Heading', paragraphs: ['About a third late.'] }],
+    ['an unknown fact', { headline: 'Heading', paragraphs: ['{{fact:nope}}'] }],
+    ['markup', { headline: 'Heading', paragraphs: ['<b>x</b>'] }],
   ])('rejects a CLI draft with %s, uses scripted, and does not cool down', async (_n, draft) => {
     const cli = cliThatReturns(draft);
     const { instance } = engine(cli);
@@ -274,7 +274,7 @@ describe('createCopilotEngine', () => {
 });
 
 describe('rolling breaker, budget and fixed fallback', () => {
-  const rejectedDraft: CopilotDraft = { headline: 'Head', paragraphs: ['About 5 buses.'] };
+  const rejectedDraft: CopilotDraft = { headline: 'Heading', paragraphs: ['About 5 buses.'] };
 
   it('counts rejected drafts as failures and cools down at the window threshold', async () => {
     const cli = cliThatReturns(rejectedDraft);
@@ -355,7 +355,7 @@ describe('rolling breaker, budget and fixed fallback', () => {
     const bad: CopilotRequest = {
       ...REQUEST,
       task: 'rationale',
-      scriptedDraft: { headline: 'Head', paragraphs: ['Has 7 digits'] },
+      scriptedDraft: { headline: 'Heading', paragraphs: ['Has 7 digits'] },
     };
     const out = await engine(null).instance.generate(bad);
     expect(out).toMatchObject({
@@ -610,11 +610,20 @@ describe('createClaudeCliProvider', () => {
         child.emit('close', 0);
       }),
     );
-    await providerWith(spawn, { PATH: '/bin', ANTHROPIC_API_KEY: 'sk', SESSION_SECRET: 's' }).draft(
+    await providerWith(spawn, { PATH: '/bin', ANTHROPIC_API_KEY: 'sk', SESSION_SECRET: 's', PROJECT_PIN_HASH: 'h' }).draft(
       REQUEST,
     );
     const options = spawn.mock.calls[0]?.[2];
-    expect(options?.env).toEqual({ PATH: '/usr/bin:/bin:/opt/node/bin', HOME: '/tmp/home' });
+    expect(options?.env).toEqual({
+      PATH: '/usr/bin:/bin:/opt/node/bin',
+      HOME: '/tmp/home',
+      TMPDIR: '/tmp/empty',
+      DISABLE_AUTOUPDATER: '1',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    });
+    for (const secret of ['ANTHROPIC_API_KEY', 'SESSION_SECRET', 'PROJECT_PIN_HASH']) {
+      expect(options?.env).not.toHaveProperty(secret);
+    }
     expect(options?.cwd).toBe('/tmp/empty');
   });
 

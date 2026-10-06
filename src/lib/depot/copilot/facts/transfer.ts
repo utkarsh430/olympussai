@@ -167,7 +167,7 @@ export function buildTransferRationale(
     facts,
     guidance: GUIDANCE,
     scriptedDraft: {
-      headline: `Transfer: ${ph('transfer.buses')} from ${ph('transfer.from_name')} to ${ph('transfer.to_name')}`,
+      headline: `Proposed transfer: ${ph('transfer.buses')} from ${ph('transfer.from_name')} to ${ph('transfer.to_name')}`,
       paragraphs,
     },
   });

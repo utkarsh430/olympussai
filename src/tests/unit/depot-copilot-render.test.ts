@@ -61,58 +61,58 @@ describe('renderDraft', () => {
   });
 
   it('accepts fact text that itself contains digits', () => {
-    expect(renderDraft(draft('Fleet', 'Count {{fact:buses}}.'), FACTS).ok).toBe(true);
+    expect(renderDraft(draft('Fleet', 'The count is {{fact:buses}}.'), FACTS).ok).toBe(true);
   });
 
   it('does not expand a placeholder that appears inside fact text', () => {
     const facts = [fact('a', 'see {{fact:b}}'), fact('b', 'BOOM')];
-    const result = renderDraft(draft('Head', 'Value {{fact:a}}.'), facts);
+    const result = renderDraft(draft('Heading', 'Value {{fact:a}}.'), facts);
     expect(result).toMatchObject({ ok: true, paragraphs: ['Value see fact:b.'] });
   });
 
   it('rejects an unknown fact id', () => {
-    expect(rejected(draft('Head', 'Value {{fact:missing}}.'))).toMatch(/unknown fact/i);
+    expect(rejected(draft('Heading', 'Value {{fact:missing}}.'))).toMatch(/unknown fact/i);
   });
 
   it('rejects a stray digit outside a placeholder', () => {
-    expect(rejected(draft('Head', 'About 5 buses.'))).toMatch(/digit/i);
+    expect(rejected(draft('Heading', 'About 5 buses.'))).toMatch(/digit/i);
     expect(rejected(draft('Head 2', 'Fine.'))).toMatch(/digit/i);
   });
 
   it.each(QUANTITY_WORDS)('rejects the quantity word %s', (word) => {
-    expect(rejected(draft('Head', `There are ${word} of them.`))).toMatch(/quantity|vocabulary/i);
-    expect(rejected(draft('Head', `THERE ARE ${word.toUpperCase()}.`))).toMatch(/quantity|vocabulary/i);
+    expect(rejected(draft('Heading', `There are ${word} of them.`))).toMatch(/quantity|vocabulary/i);
+    expect(rejected(draft('Heading', `THERE ARE ${word.toUpperCase()}.`))).toMatch(/quantity|vocabulary/i);
   });
 
   it('refuses the word one, with no server-authored phrase excepted', () => {
-    expect(renderDraft(draft('Head', 'One depot stands out.'), FACTS).ok).toBe(false);
-    expect(renderDraft(draft('Head', 'At least one depot stands out.'), FACTS).ok).toBe(false);
+    expect(renderDraft(draft('Heading', 'One depot stands out.'), FACTS).ok).toBe(false);
+    expect(renderDraft(draft('Heading', 'At least one depot stands out.'), FACTS).ok).toBe(false);
     expect(
-      renderDraft(draft('Head', 'At least one of these units is not ranked.'), FACTS).ok,
+      renderDraft(draft('Heading', 'At least one of these units is not ranked.'), FACTS).ok,
     ).toBe(false);
   });
 
   it.each(['a <b> tag', 'use `code`', 'see http://x.example', 'HTTPS://x', 'a > b'])(
     'rejects markup in %s',
     (text) => {
-      expect(rejected(draft('Head', text))).toMatch(/markup/i);
+      expect(rejected(draft('Heading', text))).toMatch(/markup/i);
     },
   );
 
   it.each(['{{fact:}}', '{{ fact:buses }}', '{{fact:buses', 'oops }} here', '{{fact:BUSES}}'])(
     'rejects the malformed placeholder %s',
     (text) => {
-      expect(renderDraft(draft('Head', text), FACTS).ok).toBe(false);
+      expect(renderDraft(draft('Heading', text), FACTS).ok).toBe(false);
     },
   );
 
   it('rejects oversize headline, paragraph and paragraph count', () => {
     expect(rejected(draft('x'.repeat(MAX_HEADLINE_CHARS + 1), 'Fine.'))).toMatch(/shape|headline/i);
-    expect(rejected(draft('Head', 'x'.repeat(MAX_PARAGRAPH_CHARS + 1)))).toMatch(
+    expect(rejected(draft('Heading', 'x'.repeat(MAX_PARAGRAPH_CHARS + 1)))).toMatch(
       /shape|paragraph/i,
     );
     const many = Array.from({ length: MAX_PARAGRAPHS + 1 }, () => 'ok');
-    expect(rejected(draft('Head', ...many))).toMatch(/shape|paragraph/i);
+    expect(rejected(draft('Heading', ...many))).toMatch(/shape|paragraph/i);
   });
 
   it('accepts drafts exactly at the limits', () => {
@@ -123,15 +123,15 @@ describe('renderDraft', () => {
   });
 
   it('rejects control characters', () => {
-    expect(rejected(draft('Head', 'line\u0000break'))).toMatch(/control/i);
-    expect(rejected(draft('Head', 'line\nbreak'))).toMatch(/control/i);
+    expect(rejected(draft('Heading', 'line\u0000break'))).toMatch(/control/i);
+    expect(rejected(draft('Heading', 'line\nbreak'))).toMatch(/control/i);
     expect(rejected(draft('He\tad', 'Fine.'))).toMatch(/control/i);
   });
 
   it('rejects an empty paragraph list, empty headline and empty paragraph', () => {
-    expect(renderDraft(draft('Head'), FACTS).ok).toBe(false);
+    expect(renderDraft(draft('Heading'), FACTS).ok).toBe(false);
     expect(renderDraft(draft('', 'Fine.'), FACTS).ok).toBe(false);
-    expect(renderDraft(draft('Head', ''), FACTS).ok).toBe(false);
+    expect(renderDraft(draft('Heading', ''), FACTS).ok).toBe(false);
   });
 
   it('rejects input of the wrong shape', () => {
@@ -160,12 +160,12 @@ describe('renderDraft', () => {
       ['at sign', 'Mail me @ home.'],
       ['curly quote', 'Fleet’s late.'],
     ])('rejects %s', (_name, text) => {
-      expect(renderDraft(draft('Head', text), FACTS).ok).toBe(false);
+      expect(renderDraft(draft('Heading', text), FACTS).ok).toBe(false);
       expect(renderDraft(draft(text, 'Fine.'), FACTS).ok).toBe(false);
     });
 
     it('rejects a percent sign after a placeholder', () => {
-      expect(rejected(draft('Head', 'Share {{fact:share}}% late.'))).toBeTruthy();
+      expect(rejected(draft('Heading', 'Share {{fact:share}}% late.'))).toBeTruthy();
     });
 
     it.each([
@@ -173,7 +173,7 @@ describe('renderDraft', () => {
       'Touching{{fact:buses}} a letter.',
       'Touching {{fact:buses}}s a letter.',
     ])('rejects placeholder adjacency in %s', (text) => {
-      expect(rejected(draft('Head', text))).toMatch(/adjacen|placeholder/i);
+      expect(rejected(draft('Heading', text))).toMatch(/adjacen|placeholder/i);
     });
 
     it.each([
@@ -197,11 +197,11 @@ describe('renderDraft', () => {
       'Per cent of buses.',
       'The percentage is high.',
     ])('rejects the widened quantity word in %s', (text) => {
-      expect(rejected(draft('Head', text))).toMatch(/quantity|vocabulary/i);
+      expect(rejected(draft('Heading', text))).toMatch(/quantity|vocabulary/i);
     });
 
     it.each(['It is XII buses.', 'Section MCM here.'])('rejects roman numerals in %s', (text) => {
-      expect(rejected(draft('Head', text))).toMatch(/roman|vocabulary/i);
+      expect(rejected(draft('Heading', text))).toMatch(/roman|vocabulary/i);
     });
 
     it.each([
@@ -211,7 +211,7 @@ describe('renderDraft', () => {
       'Use javascript for it.',
       'It ends.Next starts.',
     ])('rejects a link or bare domain in %s', (text) => {
-      expect(renderDraft(draft('Head', text), FACTS).ok).toBe(false);
+      expect(renderDraft(draft('Heading', text), FACTS).ok).toBe(false);
     });
 
     it.each([
@@ -222,19 +222,19 @@ describe('renderDraft', () => {
       'A well-placed yard is full.',
       "It's the larger yard.",
     ])('still accepts ordinary prose: %s', (text) => {
-      expect(renderDraft(draft('Head', text), FACTS).ok).toBe(true);
+      expect(renderDraft(draft('Heading', text), FACTS).ok).toBe(true);
     });
 
     it('rejects duplicate fact ids', () => {
       const dup = [fact('a', 'x'), fact('a', 'y')];
-      expect(renderDraft(draft('Head', 'Value {{fact:a}}.'), dup).ok).toBe(false);
+      expect(renderDraft(draft('Heading', 'Value {{fact:a}}.'), dup).ok).toBe(false);
     });
   });
 
   describe('fact text and rendered size', () => {
     it('sanitises and caps fact text on insertion', () => {
       const messy = fact('a', `‮evil\nline ${'x'.repeat(500)}`);
-      const result = renderDraft(draft('Head', 'Value {{fact:a}}.'), [messy]);
+      const result = renderDraft(draft('Heading', 'Value {{fact:a}}.'), [messy]);
       expect(result.ok).toBe(true);
       const text = result.ok ? (result.paragraphs[0] ?? '') : '';
       expect(text).not.toMatch(/[‮\n]/);
@@ -246,7 +246,7 @@ describe('renderDraft', () => {
       const long = fact('a', 'y'.repeat(MAX_FACT_TEXT_CHARS));
       const body = Array.from({ length: 30 }, () => '{{fact:a}}').join(' and ');
       expect(body.length).toBeLessThanOrEqual(600);
-      const result = renderDraft(draft('Head', body), [long]);
+      const result = renderDraft(draft('Heading', body), [long]);
       expect(result).toMatchObject({ ok: false });
       expect(!result.ok && result.reason.toLowerCase()).toContain('rendered');
       expect(long.text.length).toBe(MAX_FACT_TEXT_CHARS);
@@ -278,7 +278,7 @@ describe('renderDraft', () => {
 
   describe('fused or re-signed figures and number-word tricks', () => {
     const two = [fact('a', '5'), fact('b', '2'), fact('depot', 'BAREILLY(R)')];
-    const bad = (text: string): boolean => !renderDraft(draft('Head', text), two).ok;
+    const bad = (text: string): boolean => !renderDraft(draft('Heading', text), two).ok;
 
     it.each([
       '{{fact:a}}.{{fact:b}}',

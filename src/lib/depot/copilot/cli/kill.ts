@@ -41,6 +41,14 @@ const killQuietly = (child: KillableChild): void => {
  * Kills the child's whole group. A group that is already gone (ESRCH) is the
  * normal case after a clean exit and is ignored; any other failure falls back to
  * the child itself. A child with no pid never started, so it has no group.
+ *
+ * Accepted residual (review L2): on a clean exit this runs after `close`, so
+ * after Node reaped the leader. If no group member survives, the pgid is free,
+ * and in theory a new process could take that pid and lead a group of its own
+ * in the few event-loop turns before this kill. While any grandchild survives,
+ * POSIX keeps the pgid reserved and the kill is correct. Pids are allocated in
+ * order on macOS, so the window is negligible; no kill is ever sent after the
+ * grace period has resolved the call, and none without a pid.
  */
 export function killChildGroup(
   child: KillableChild,

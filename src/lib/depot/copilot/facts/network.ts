@@ -13,6 +13,7 @@ import {
 } from '@/lib/depot/copilot/facts/format';
 import type { CopilotDraft, CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
 import { formatFeedTime } from '@/lib/depot/format';
+import { indexWindowFacts, indexWindowSentence } from '@/lib/depot/copilot/facts/window';
 import type { BusExceptionKind, DepotExceptionKind } from '@/lib/depot/exceptions/types';
 
 const DEPOT_KINDS: readonly DepotExceptionKind[] = [
@@ -122,6 +123,7 @@ function networkFacts(network: DepotNetworkResponse): CopilotFact[] {
       makeFact('network.best_index', 'Highest index', index1(best.index), 'derived'),
       nameFact('network.weakest_depot', 'Lowest-ranked depot', cleanName(weakest.name), 'derived'),
       makeFact('network.weakest_index', 'Lowest index', index1(weakest.index), 'derived'),
+      ...indexWindowFacts('network.index_window', network.scoreWindow),
     );
   }
   return facts;
@@ -172,7 +174,7 @@ function networkDraft(network: DepotNetworkResponse): CopilotDraft {
     `${lead}${ph('network.reporting')} ${countPhrase(kpis.reporting.value, 'is', 'are')} reporting a position and ${ph('network.on_road')} ${countPhrase(kpis.onRoad.value, 'is', 'are')} running, ${ph('network.on_road_share')} of the fleet.`,
     `${ph('network.no_signal')} ${countPhrase(kpis.noSignal.value, 'has', 'have')} lost signal (${ph('network.no_signal_share')}) and ${ph('network.under_maintenance')} ${countPhrase(kpis.underMaintenance.value, 'is', 'are')} in maintenance (${ph('network.maintenance_share')}).`,
     ranked.length >= 2
-      ? `Among ranked depots, ${ph('network.best_depot')} leads at efficiency ${ph('network.best_index')}, while ${ph('network.weakest_depot')} sits lowest at efficiency ${ph('network.weakest_index')}.${rankSentence(ranked)}`
+      ? `Among ranked depots, ${ph('network.best_depot')} leads at efficiency ${ph('network.best_index')}, while ${ph('network.weakest_depot')} sits lowest at efficiency ${ph('network.weakest_index')}.${indexWindowSentence(network.scoreWindow, 'network.index_window', 'The index here covers')}${rankSentence(ranked)}`
       : 'Too few depots have enough buses to be ranked against each other on this snapshot.',
     exceptionParagraph(
       DEPOT_KINDS.reduce((n, k) => n + (network.exceptionCounts[k] ?? 0), 0),

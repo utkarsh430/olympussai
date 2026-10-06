@@ -10,6 +10,7 @@ import {
 } from '@/lib/depot/copilot/facts/format';
 import type { CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
 import { answer, unavailable } from '@/lib/depot/copilot/facts/answers/shared';
+import { indexWindowFacts, indexWindowSentence } from '@/lib/depot/copilot/facts/window';
 import type { AnswerData } from '@/lib/depot/copilot/facts/answers';
 
 function sideFacts(data: AnswerData, side: 'a' | 'b', id: string): CopilotFact[] | null {
@@ -35,6 +36,9 @@ function sideFacts(data: AnswerData, side: 'a' | 'b', id: string): CopilotFact[]
   return facts;
 }
 
+/** Both indices come from one network response, so one window covers both. */
+const WINDOW_ID = 'index_window';
+
 export function compareAnswer(data: AnswerData, idA: string, idB: string): CopilotRequest {
   const a = sideFacts(data, 'a', idA);
   const b = sideFacts(data, 'b', idB);
@@ -52,14 +56,18 @@ export function compareAnswer(data: AnswerData, idA: string, idB: string): Copil
       'A unit among these is not ranked, so their efficiency indices are not compared.';
   } else if (indexA === indexB) {
     verdict = `Their efficiency indices are level at ${ph('a.index')}.`;
+    verdict += indexWindowSentence(data.network.scoreWindow, WINDOW_ID, 'The index here covers');
   } else {
     const [lead, trail] = indexA > indexB ? (['a', 'b'] as const) : (['b', 'a'] as const);
     verdict = `${ph(`${lead}.name`)} has the higher efficiency index, at ${ph(`${lead}.index`)}; the other stands at ${ph(`${trail}.index`)}.`;
+    verdict += indexWindowSentence(data.network.scoreWindow, WINDOW_ID, 'The index here covers');
     if (sa?.peerGroup !== sb?.peerGroup) {
       verdict += ' They sit in different peer groups, so the comparison is indicative.';
     }
   }
-  return answer('a comparison of depots', [...a, ...b], {
+  const compared = indexA !== null && indexB !== null;
+  const window = compared ? indexWindowFacts(WINDOW_ID, data.network.scoreWindow) : [];
+  return answer('a comparison of depots', [...a, ...b, ...window], {
     headline: `${ph('a.name')} compared with ${ph('b.name')}`,
     paragraphs: [line('a'), line('b'), verdict],
   });

@@ -9,6 +9,8 @@ export default defineConfig({
     globals: true,
     include: ['src/tests/**/*.test.ts', 'src/tests/**/*.test.tsx'],
     exclude: ['tests/e2e/**', 'node_modules/**'],
+    // No test may send a real signal: process.kill only reaches pids a test created.
+    setupFiles: ['src/tests/setup/signalGuard.ts'],
     // Exhaustive and national-scale tests take a fraction of a second on an idle
     // machine but many times longer when it is busy; the default of five seconds
     // then fails tests that are not wrong.

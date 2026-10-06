@@ -164,19 +164,29 @@ describe('buildChildEnv', () => {
     PROJECT_PIN_HASH: 'hash',
     SOME_RANDOM_VAR: 'x',
     CLAUDE_CODE_OAUTH_TOKEN: 'oauth-token',
+    TMPDIR: '/var/folders/real',
+    DISABLE_AUTOUPDATER: '0',
   };
 
-  it('keeps only PATH, HOME and the OAuth token, with PATH built from the node directory', () => {
-    const env = buildChildEnv(parent, '/tmp/home', '/opt/node/bin');
+  it('keeps PATH, HOME, the call folder as TMPDIR, two fixed switches and the OAuth token', () => {
+    const env = buildChildEnv(parent, '/tmp/home', '/opt/node/bin', '/tmp/cwd');
     expect(env).toEqual({
       PATH: '/usr/bin:/bin:/opt/node/bin',
       HOME: '/tmp/home',
+      TMPDIR: '/tmp/cwd',
+      DISABLE_AUTOUPDATER: '1',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
       CLAUDE_CODE_OAUTH_TOKEN: 'oauth-token',
     });
   });
 
+  it('refuses a temporary folder that is relative or holds a NUL', () => {
+    expect(() => buildChildEnv(parent, '/tmp/home', '/n', 'tmp')).toThrow(RangeError);
+    expect(() => buildChildEnv(parent, '/tmp/home', '/n', '/tmp/\0x')).toThrow(RangeError);
+  });
+
   it('drops secrets and any unlisted variable', () => {
-    const env = buildChildEnv(parent, '/tmp/home', '/opt/node/bin');
+    const env = buildChildEnv(parent, '/tmp/home', '/opt/node/bin', '/tmp/cwd');
 
     for (const name of [
       'ANTHROPIC_API_KEY',
@@ -190,21 +200,21 @@ describe('buildChildEnv', () => {
   });
 
   it('passes the OAuth token only when set and non-empty', () => {
-    expect(buildChildEnv({}, '/h', '/n')).not.toHaveProperty('CLAUDE_CODE_OAUTH_TOKEN');
-    expect(buildChildEnv({ CLAUDE_CODE_OAUTH_TOKEN: '' }, '/h', '/n')).not.toHaveProperty(
+    expect(buildChildEnv({}, '/h', '/n', '/t')).not.toHaveProperty('CLAUDE_CODE_OAUTH_TOKEN');
+    expect(buildChildEnv({ CLAUDE_CODE_OAUTH_TOKEN: '' }, '/h', '/n', '/t')).not.toHaveProperty(
       'CLAUDE_CODE_OAUTH_TOKEN',
     );
   });
 
   it('returns a fresh object and does not touch the parent', () => {
     const frozen = Object.freeze({ ...parent });
-    const env = buildChildEnv(frozen, '/tmp/home', '/n');
+    const env = buildChildEnv(frozen, '/tmp/home', '/n', '/t');
     expect(env).not.toBe(frozen);
     expect(frozen.HOME).toBe('/Users/real');
   });
 
   it('ignores the parent PATH entirely', () => {
-    expect(buildChildEnv({ PATH: '/evil/bin' }, '/h', '/n').PATH).toBe('/usr/bin:/bin:/n');
+    expect(buildChildEnv({ PATH: '/evil/bin' }, '/h', '/n', '/t').PATH).toBe('/usr/bin:/bin:/n');
   });
 });
 
@@ -535,7 +545,7 @@ describe('buildChildEnv node directory', () => {
   it.each(['', 'relative/bin', './bin', '/opt/node:/evil', '/a/b:', '/a\0b'])(
     'rejects %j as the node directory',
     (dir) => {
-      expect(() => buildChildEnv({}, '/h', dir)).toThrow(RangeError);
+      expect(() => buildChildEnv({}, '/h', dir, '/t')).toThrow(RangeError);
     },
   );
 });
@@ -545,7 +555,7 @@ describe('parseCliOutput', () => {
     JSON.stringify({ type: 'result', is_error: false, ...extra });
 
   it('extracts and validates structured_output', () => {
-    const draft = { headline: 'Head', paragraphs: ['One {{fact:buses}}'] };
+    const draft = { headline: 'Heading', paragraphs: ['One {{fact:buses}}'] };
     expect(parseCliOutput(envelope({ structured_output: draft }))).toEqual({ ok: true, draft });
   });
 

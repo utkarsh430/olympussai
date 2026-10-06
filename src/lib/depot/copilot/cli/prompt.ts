@@ -110,6 +110,8 @@ const RULES = [
   'A clause ends at . ; or : or at a comma followed by one of',
   `${spaced(CLAUSE_OPENERS)}. Never put one of these words, in any form, in a figure's clause:`,
   `${spaced(CLAUSE_SCOPE_WORDS)}. Every figure is as of the feed time.`,
+  'Never address the reader (you, your) and never open a sentence or the headline with a verb',
+  'in its base form (Check, Move, Call, Please): describe, never instruct.',
   `Accepted examples: ${PROMPT_EXAMPLES.join(' | ')}`,
   `Rejected examples: ${PROMPT_REJECTED_EXAMPLES.join(' | ')}`,
   'Use only the allowed words listed at the end, in any letter case; any other word, however',

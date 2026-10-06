@@ -159,11 +159,11 @@ describe('ruling S49 M1: any word within two words of a figure', () => {
 describe('ruling S49 M1: the reviewed window lists', () => {
   it('match the reviewed copy', () => {
     expect([...BEFORE_FIGURE_WORDS].sort().join(' ')).toBe(
-      'account against already although and are as at away buses by count coverage currently ' +
-        'dark deficit depot depots distance efficiency feed figure flagged flags fleet for gone ' +
-        'had has have here holds homed in index is it its known latest leave level lost ' +
+      'account against already although and are as at away buses by count cover coverage covers ' +
+        'currently dark deficit depot depots distance efficiency feed figure flagged flags fleet ' +
+        'for gone had has have held here holds homed in index is it its known latest leave level lost ' +
         'maintenance maximum moving network now of off on plan position proposes rate receiving ' +
-        'reporting reports road running schedule sending share short signal snapshot stand ' +
+        'reporting reports road running schedule sending share short signal since snapshot stand ' +
         'stands surplus that the this those though time to updated was were which while with yard',
     );
     expect([...AFTER_FIGURE_WORDS].sort().join(' ')).toBe(
