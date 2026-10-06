@@ -15,6 +15,7 @@ import { ExampleQuestions } from './ExampleQuestions';
 
 const NETWORK_VALUE = 'network';
 const MAX_HISTORY = 5;
+const RATE_LIMIT_SENTENCE = 'Too many requests. Please wait.';
 
 interface PendingQuestion {
   readonly question: string;
@@ -83,11 +84,17 @@ export function AskPanel() {
     textRef.current?.focus();
   };
 
-  // One message at a time; the rate-limit countdown is on screen, not announced each second.
+  // One message at a time. The live region holds only constant sentences; the rate-limit
+  // countdown changes every second, so it sits in its own element that is not live.
   const status =
     message ||
     (loading ? 'Writing…' : '') ||
-    (state.status === 'failed' ? failureSentence(state.kind, state.secondsRemaining) : '');
+    (cooling ? RATE_LIMIT_SENTENCE : '') ||
+    (state.status === 'failed' ? failureSentence(state.kind) : '');
+  const countdown =
+    cooling && state.status === 'failed'
+      ? `Try again in ${state.secondsRemaining} ${state.secondsRemaining === 1 ? 'second' : 'seconds'}.`
+      : '';
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -169,6 +176,11 @@ export function AskPanel() {
             <p role="status" className="min-w-0 font-mono text-[13px] text-depot-muted">
               {status}
             </p>
+            {countdown ? (
+              <p data-testid="ask-countdown" className="min-w-0 font-mono text-[13px] text-depot-muted">
+                {countdown}
+              </p>
+            ) : null}
           </div>
         </form>
       </section>
