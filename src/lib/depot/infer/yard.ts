@@ -21,10 +21,12 @@ import { MOVING_SPEED_KMPH } from './thresholds';
  * beyond it, while a continuous line of buses parked two or more per cell is
  * still one place. A leaf touching two groups joins the one with more buses in
  * its linking cells, ties to the one whose lowest linking cell (by x, then y)
- * is lower; a single bus touching no linking cell belongs to no group, so the
- * result never depends on input order. The cost: a depot so thinly
- * parked that every cell holds one bus has no linking cell and so no yard, and
- * its buses read as location unknown, never as departed.
+ * is lower, so the result never depends on input order. A single bus touching
+ * no linking cell belongs to no group. That has two costs. A depot so thinly
+ * parked that every cell holds one bus has no linking cell and so no yard; its
+ * buses read as location unknown, never as departed. And in a thinly parked
+ * part of a yard, a lone bus two cells from any linking cell is not a member,
+ * so it can lie outside the radius below and read as away.
  *
  * The yard is the largest group. A stand separated from it by an empty cell or
  * by single buses is a different place: its buses are not in the yard, and it
@@ -35,8 +37,8 @@ import { MOVING_SPEED_KMPH } from './thresholds';
  * in the wrong place. All of these count the group with its leaves.
  *
  * The radius is the distance from the centre to the group's farthest bus plus
- * YARD_RADIUS_PAD_M (never below YARD_MIN_RADIUS_M), so every bus of the group
- * lies inside it and no bus standing in the yard is reported as away. The
+ * YARD_RADIUS_PAD_M (never below YARD_MIN_RADIUS_M), so every bus of the group,
+ * leaves included, lies inside it and none of them is reported as away. The
  * centre is the members' mean, so it lies within the group's bounding box, at
  * most YARD_MAX_SPAN_CELLS cells square: the radius is at most that square's
  * diagonal plus the padding, 10 * sqrt(2) * 150 + 40 = about 2162 m.
