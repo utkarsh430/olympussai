@@ -5,6 +5,7 @@ import {
   capGroups,
   exceptionTotalsLine,
   groupDepotExceptions,
+  failedQuerySentence,
   pageMoves,
   parseKindParam,
   severitySections,
@@ -146,7 +147,19 @@ describe('pageMoves', () => {
     expect(pageMoves({ offset: 0, limit: 25, total: 0 })).toEqual({ previous: null, next: null });
   });
 
+  it('offers no earlier page when the list is empty, whatever offset a poll left', () => {
+    expect(pageMoves({ offset: 50, limit: 25, total: 0 })).toEqual({ previous: null, next: null });
+  });
+
   it('steps back to the last page when a poll shrinks the list below the offset', () => {
     expect(pageMoves({ offset: 100, limit: 25, total: 60 }).previous).toBe(50);
+  });
+});
+
+describe('failedQuerySentence', () => {
+  it('says the page could not load and that the last answer stays', () => {
+    expect(failedQuerySentence('Session expired')).toBe(
+      'Could not load that page: Session expired. Showing the last answer that loaded.',
+    );
   });
 });

@@ -159,8 +159,19 @@ export function pageMoves(page: {
   readonly total: number;
 }): { readonly previous: number | null; readonly next: number | null } {
   const lastStart = page.total === 0 ? 0 : Math.floor((page.total - 1) / page.limit) * page.limit;
+  // An empty list has no earlier page, whatever offset a poll left behind.
   const previous =
-    page.offset === 0 ? null : Math.min(Math.max(0, page.offset - page.limit), lastStart);
+    page.offset === 0 || page.total === 0
+      ? null
+      : Math.min(Math.max(0, page.offset - page.limit), lastStart);
   const next = page.offset + page.limit < page.total ? page.offset + page.limit : null;
   return { previous, next };
+}
+
+/**
+ * Said above the page that stays on screen when a newer query failed. The
+ * reason is the hook's fixed wording, never server text.
+ */
+export function failedQuerySentence(reason: string): string {
+  return `Could not load that page: ${reason}. Showing the last answer that loaded.`;
 }

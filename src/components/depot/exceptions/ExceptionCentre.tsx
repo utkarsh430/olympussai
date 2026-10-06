@@ -9,6 +9,7 @@ import { BUS_EXCEPTION_KINDS, BUS_PAGE_DEFAULT_LIMIT } from '@/lib/depot/excepti
 import { EXCEPTION_KIND_LABEL } from '@/lib/depot/exceptions/describe';
 import {
   exceptionTotalsLine,
+  failedQuerySentence,
   groupDepotExceptions,
   parseKindParam,
   severitySections,
@@ -26,9 +27,17 @@ function isBusKind(kind: ExceptionKind | null): kind is BusExceptionKind {
   return BUS_EXCEPTION_KINDS.some((k) => k === kind);
 }
 
+function initialKind(): ExceptionKind | null {
+  if (typeof window === 'undefined') return null;
+  return parseKindParam(new URLSearchParams(window.location.search).get('kind'));
+}
+
 /** Depots and buses that need attention on this snapshot, in plain sentences. */
 export function ExceptionCentre() {
-  const [kind, setKind] = useState<ExceptionKind | null>(null);
+  // `?kind=` (the overview links here) sets the first filter. Read before the
+  // first fetch, so no unfiltered request goes out. On the server there is no
+  // URL; the loading markup is the same either way, so hydration agrees.
+  const [kind, setKind] = useState<ExceptionKind | null>(initialKind);
   const [depotId, setDepotId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const busKind = isBusKind(kind) ? kind : null;
@@ -40,19 +49,15 @@ export function ExceptionCentre() {
   const { data, error, loading, refresh } = useDepotExceptions(query);
   const network = useDepotNetworkContext();
 
-  // `?kind=` (the overview links here) sets the first filter. Read once after
-  // mount so the server and first client render agree.
-  useEffect(() => {
-    setKind(parseKindParam(new URLSearchParams(window.location.search).get('kind')));
-  }, []);
-
   // A new query is a new URL, which reports loading with no data: keep the
-  // last answer on screen meanwhile so paging does not blank the page.
+  // last answer on screen meanwhile so paging does not blank the page, and keep
+  // it when that query fails, with the reason beside it.
   const lastGood = useRef<DepotExceptionsResponse | null>(null);
   useEffect(() => {
     if (data) lastGood.current = data;
   }, [data]);
-  const shown = data ?? (loading ? lastGood.current : null);
+  const shown = data ?? lastGood.current;
+  const failure = data === null && !loading ? error : null;
 
   const sections = useMemo(
     () => (shown ? severitySections(groupDepotExceptions(shown.report.depot, depotKind)) : []),
@@ -66,17 +71,27 @@ export function ExceptionCentre() {
 
   if (!shown) {
     if (loading) return <LoadingBlock rows={8} label="Loading exceptions" />;
-    return <ErrorPanel
+    return (
+      <ErrorPanel
         title="Could not load exceptions"
         message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
         onRetry={refresh}
-      />;
+      />
+    );
   }
 
   const { report } = shown;
   return (
     <>
       {shown.stale || error ? <StaleStrip since={shown.feedNow} /> : null}
+      {failure !== null ? (
+        <p role="alert" className="depot-prose mb-3 flex flex-wrap items-center gap-3">
+          {failedQuerySentence(failure)}
+          <button type="button" onClick={refresh} className="depot-filter-button">
+            Retry
+          </button>
+        </p>
+      ) : null}
       <ExceptionCounts
         counts={report.counts}
         selected={kind}
