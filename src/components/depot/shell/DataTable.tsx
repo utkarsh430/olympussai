@@ -19,6 +19,7 @@ export interface TableSort {
 }
 
 export interface DataTableProps<T> {
+  /** Define at module level or memoise: a new array each render re-sorts every render. */
   readonly columns: readonly Column<T>[];
   readonly rows: readonly T[];
   readonly rowKey: (row: T) => string;

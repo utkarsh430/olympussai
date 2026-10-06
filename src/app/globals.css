@@ -296,7 +296,9 @@
   }
 
   /* Selected row is marked like the active nav item: a 2px cyan bar, plus the
-     raised surface. The transparent border keeps column x-positions identical. */
+     raised surface. Every first cell, header included, carries a transparent 2px
+     left border so the bar never shifts a column and header labels line up. */
+  .depot-table th:first-child,
   .depot-table td:first-child {
     @apply border-l-2 border-l-transparent;
   }
