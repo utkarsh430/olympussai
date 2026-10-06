@@ -154,7 +154,7 @@ export function DataTableRow<T>(props: DataTableRowProps<T>) {
             colSpan={columns.length}
             className="!h-auto !max-w-none !whitespace-normal !py-3"
           >
-            <div className="depot-prose max-w-[62ch]">{content}</div>
+            <div className="depot-prose [&>p]:max-w-[62ch]">{content}</div>
           </td>
         </tr>
       ) : null}
