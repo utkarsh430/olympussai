@@ -445,6 +445,12 @@
       text-depot-ink;
   }
 
+  /* A filter-row control (Controls.tsx): 32px high, mono 12px, the field's surface. */
+  .depot-control {
+    @apply h-8 rounded-[3px] border border-depot-line bg-depot-surface px-2 font-mono text-xs
+      text-depot-ink;
+  }
+
   /* Themed native controls (Controls.tsx): the dark colour scheme and the cyan accent,
      so neither the box nor an open option list is browser-default white. */
   .depot-checkbox {
