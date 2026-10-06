@@ -148,6 +148,21 @@ factor of 8, kept to a fifth of one core.
 **All limits are held in memory, per server process.** A restart clears them, and if the app runs
 as several processes each has its own limits and its own Claude budget.
 
+## When the figures are not from the live feed
+
+The server adds one sentence of its own to every briefing, rationale and answer built from a
+snapshot that is not the live feed, outside the response cache, and the response's `dataSource`
+tells the footer which words to show beside the writer:
+
+| Snapshot | Last sentence | Footer |
+|---|---|---|
+| Live feed | none | none |
+| Last good data (an outage) | "These figures are from the last good data, at the feed time of HH:MM." | `last good data` |
+| Saved sample | "These figures are from sample data, not the live feed (feed time HH:MM)." | `sample data` |
+
+On the saved sample the feed-time figure is tagged REFERENCE, never LIVE: it is the time the
+sample was captured.
+
 ## Server log
 
 Each failure writes one line under `[depot:copilot-api]` (or `[depot:copilot]` for the writers
@@ -162,6 +177,7 @@ body; a failure while writing it is a scripted answer.
 | `engine_failed writer=<w>: <Class>: <message>` | The writer threw outside its own fallbacks |
 | `scripted_failed writer=scripted: <Class>: <message>` | The scripted last resort threw |
 | `unexpected writer=<w>: <Class>: <message>` | Anything else in the handler |
+| `runtime_failed: <Class>: <message>` | Building the copilot itself (the route answers its fixed 503) |
 | `scripted <task> draft failed: <reason>` (with `: <Class>: <message>` when it threw) | The scripted draft did not render |
 | `claude-cli fell back: <reason>` | Claude was not used for this answer |
 | `no_time`, `allowance_used`, `deadline`, `aborted` | A Claude call was not started, or the request stopped waiting for it |
