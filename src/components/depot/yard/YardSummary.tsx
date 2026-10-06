@@ -53,6 +53,7 @@ export function YardFigures({ model, capacity, baysPending }: YardFiguresProps) 
           caption={cap.caption}
           share={cap.share}
           tag="modelled"
+          title={cap.title}
         />
       </FigureBand>
     </div>
