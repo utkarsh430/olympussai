@@ -67,9 +67,9 @@ export function MaintenancePage() {
   const preventive = modelled.data?.preventive ?? null;
   const figures = bandFigures(offRoad.length, preventive);
   return (
-    <div className="flex flex-col">
+    <div className="depot-stack">
       {stale || detail.error ? <StaleStrip since={detail.data.feedNow} /> : null}
-      {/* The band's own 24px margin plus the lists' 16px: 40px from band to section rule. */}
+      {/* The shared stack: 40px from the band's rule to each section's rule. */}
       <FigureBand label="Maintenance figures">
         {figures.map((figure) => (
           <Figure
@@ -81,8 +81,8 @@ export function MaintenancePage() {
           />
         ))}
       </FigureBand>
-      <div data-testid="maintenance-lists" className="flex flex-col gap-8 pt-4">
-        <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
+      <div data-testid="maintenance-lists" className="depot-stack">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-7 sm:gap-y-10 xl:grid-cols-3">
           <div className="min-w-0 xl:col-span-2">
             <OffRoadList depotId={detail.depotId} buses={offRoad} feedNow={detail.data.feedNow} />
           </div>

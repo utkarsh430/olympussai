@@ -50,7 +50,7 @@ export function DepotTrends({ metric }: DepotTrendsProps) {
   }
   const stale = chosen.data?.stale === true || (chosen.data !== null && chosen.error !== null);
   return (
-    <div className="flex flex-col gap-8">
+    <div className="depot-stack">
       <div className="flex min-w-0 flex-col gap-3">
         <MetricChooser path={depotTrendsPath(depotId)} metric={metric} />
         {stale ? <StaleStrip since={chosen.data?.feedNow ?? null} /> : null}
@@ -59,7 +59,6 @@ export function DepotTrends({ metric }: DepotTrendsProps) {
       <AvailabilityPanel depotId={depotId} available={available} distribution={distribution} />
       <HowProduced
         testId="depot-produced"
-        className="mt-8"
         paragraphs={[...chartDisclosureParagraphs(chosen.data?.sentences ?? null), REQUIREMENT_NOTE]}
       />
     </div>

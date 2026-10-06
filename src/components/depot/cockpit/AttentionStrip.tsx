@@ -18,18 +18,24 @@ export function AttentionStrip({ attention }: { readonly attention: Attention })
       {attention.calm !== null ? (
         <StatePanel kind="empty" compact tone="ok" sentence={attention.calm} />
       ) : (
-        <ul className="grid min-w-0 border-t border-depot-line lg:grid-cols-2 lg:gap-x-8">
+        <ul className="grid min-w-0 border-y border-depot-line lg:grid-cols-2 lg:gap-x-8">
           {attention.lines.map((line) => (
-            <li key={line.key} className="min-w-0 border-b border-depot-line">
+            <li
+              key={line.key}
+              className="min-w-0 border-t border-depot-line first:border-t-0 lg:[&:nth-child(2)]:border-t-0"
+            >
               <Link
                 href={line.href}
                 data-testid={`depot-attention-${line.key}`}
                 className="group flex min-w-0 items-baseline gap-4 py-2 hover:bg-depot-surface focus-visible:bg-depot-surface"
               >
-                <span className="w-14 shrink-0 text-right font-display text-[24px] leading-none tabular-nums text-depot-ink">
+                <span className="w-14 shrink-0 text-right font-display text-[24px] tabular-nums leading-none text-depot-ink">
                   {formatCount(line.count)}
                 </span>
-                <span className="min-w-0 flex-1 font-sans text-sm text-depot-ink group-hover:underline sm:truncate" title={line.text}>
+                <span
+                  className="min-w-0 flex-1 font-sans text-sm text-depot-ink group-hover:underline sm:truncate"
+                  title={line.text}
+                >
                   {line.text.replace(/^[\d,]+ /, '')}
                 </span>
                 <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-depot-muted">
@@ -41,7 +47,11 @@ export function AttentionStrip({ attention }: { readonly attention: Attention })
           ))}
           {attention.lines.length % 2 === 1 ? (
             // The empty last cell of an odd strip keeps its bottom rule, so 3+2 ends on one line.
-            <li aria-hidden data-testid="depot-attention-filler" className="hidden border-b border-depot-line lg:block" />
+            <li
+              aria-hidden
+              data-testid="depot-attention-filler"
+              className="hidden border-t border-depot-line lg:block"
+            />
           ) : null}
         </ul>
       )}

@@ -66,7 +66,7 @@ export function RevenuePage({ provenance }: { readonly provenance: ProvenanceDes
 function RevenueBody({ data, stale }: { readonly data: RevenueResponse; readonly stale: boolean }) {
   const empty = data.summary.trips <= 0;
   return (
-    <div className="flex flex-col gap-6">
+    <div className="depot-stack">
       {stale ? <StaleStrip since={data.feedNow} /> : null}
       {empty ? (
         <StatePanel kind="empty" sentence={noTripsSentence(data.day)} remedy={NO_TRIPS_REMEDY} />
