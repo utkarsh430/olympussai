@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Children } from 'react';
-import { figureBandGridClasses } from '@/lib/depot/shell/figureBandLayout';
+import { FIGURE_ROWS_CLASSES, figureBandGridClasses } from '@/lib/depot/shell/figureBandLayout';
 import type { Provenance } from '@/lib/depot/types';
 import { ProvenanceBadge } from './ProvenanceBadge';
 
@@ -125,27 +125,32 @@ export function Figure(props: FigureProps) {
       >
         {value}
       </Row>
-      {share !== undefined ? (
-        <Row className="depot-bar-track mt-2 block min-w-0" aria-hidden>
-          <Row
-            className="depot-bar-fill block"
-            data-testid="depot-figure-share"
-            style={{ width: `${Math.round(clampShare(share) * 100)}%` }}
-          />
+      {share !== undefined || caption ? (
+        // The figure's third row of the band: the share bar and the caption together.
+        <Row className="block min-w-0">
+          {share !== undefined ? (
+            <Row className="depot-bar-track mt-2 block min-w-0" aria-hidden>
+              <Row
+                className="depot-bar-fill block"
+                data-testid="depot-figure-share"
+                style={{ width: `${Math.round(clampShare(share) * 100)}%` }}
+              />
+            </Row>
+          ) : null}
+          {caption ? (
+            <Caption className="depot-caption mt-1.5 block break-words">{caption}</Caption>
+          ) : null}
         </Row>
-      ) : null}
-      {caption ? (
-        <Caption className="depot-caption mt-1.5 block break-words">{caption}</Caption>
       ) : null}
     </>
   );
   return (
     <li
       title={title}
-      className="min-w-0 list-none border-l border-depot-line px-4 lg:w-[192px] lg:flex-none xl:w-[200px] min-[1440px]:w-[232px]"
+      className={`min-w-0 list-none border-l border-depot-line px-4 lg:w-[192px] lg:flex-none xl:w-[200px] min-[1440px]:w-[232px] ${FIGURE_ROWS_CLASSES}`}
     >
       {href !== undefined ? (
-        <Link href={href} className={INTERACTIVE}>
+        <Link href={href} className={`${INTERACTIVE} ${FIGURE_ROWS_CLASSES}`}>
           {body}
         </Link>
       ) : onPress !== undefined ? (
@@ -153,7 +158,7 @@ export function Figure(props: FigureProps) {
           type="button"
           aria-pressed={pressed ?? false}
           onClick={onPress}
-          className={`${INTERACTIVE} w-[calc(100%+1rem)] ${pressed ? 'bg-depot-raised' : ''}`}
+          className={`${INTERACTIVE} ${FIGURE_ROWS_CLASSES} w-[calc(100%+1rem)] ${pressed ? 'bg-depot-raised' : ''}`}
         >
           {body}
         </button>

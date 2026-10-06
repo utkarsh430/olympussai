@@ -120,6 +120,17 @@ const TABLET_GRID: Readonly<Record<number, string>> = {
   4: 'md:grid-cols-4',
 };
 
+/**
+ * Below 1024 px a figure spans three rows of the band's grid (label, value, caption) and
+ * takes them as its own through a subgrid, so the tallest label in a row sets that row's
+ * label height for every figure in it: when one label wraps to two lines, the values in
+ * the row still sit level. The band's 12 px row gap stays between rows of figures; inside
+ * a figure the gap is 0 and the value and caption keep their own 6 px margins. A figure
+ * that is a link or a toggle passes the rows on to its control with the same classes.
+ * From 1024 the band is one flex row and a figure is an ordinary block.
+ */
+export const FIGURE_ROWS_CLASSES = 'max-lg:row-span-3 max-lg:grid max-lg:grid-rows-subgrid max-lg:gap-y-0';
+
 /** The last figure spans both phone columns; from 640 it takes one column again. */
 export const LAST_SPANS_CLASSES = '[&>li:last-child]:col-span-2 sm:[&>li:last-child]:col-span-1';
 
