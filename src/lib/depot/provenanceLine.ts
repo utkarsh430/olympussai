@@ -2,6 +2,7 @@ import type { UpstreamSource } from '@/models/canonical';
 import { formatFeedTime } from './format';
 import { PROVENANCE_LABEL } from './labels';
 import { DEPOTS_ROOT } from './nav';
+import { scoreWindowSentence, type WindowWordsInput } from './score/windowWords';
 
 /**
  * The page's provenance line: one tag and one fixed-formula sentence, declared once
@@ -12,6 +13,8 @@ import { DEPOTS_ROOT } from './nav';
 /** Said after the formula sentence, when the line must carry one more fact. */
 interface SecondSentence {
   readonly second?: string;
+  /** Says the efficiency index's window, worded from the response, as the second sentence. */
+  readonly indexWindow?: boolean;
 }
 
 /**
@@ -43,6 +46,7 @@ export interface ProvenanceFeed {
     readonly source: UpstreamSource;
     readonly stale: boolean;
     readonly feedNow: string | null;
+    readonly scoreWindow?: WindowWordsInput;
   } | null;
   readonly error: string | null;
 }
@@ -148,7 +152,14 @@ function modelledSentence(replacedBy: string | undefined, state: FeedState): str
 
 export function provenanceLine(desc: ProvenanceDescription, feed: ProvenanceFeed): ProvenanceLine {
   const line = formulaLine(desc, feedState(feed));
-  return desc.second ? { ...line, sentence: `${line.sentence} ${desc.second}` } : line;
+  const second = desc.second ?? windowSecond(desc, feed);
+  return second ? { ...line, sentence: `${line.sentence} ${second}` } : line;
+}
+
+/** The index window, once the feed has answered: never a window the reader cannot see. */
+function windowSecond(desc: ProvenanceDescription, feed: ProvenanceFeed): string | undefined {
+  if (!desc.indexWindow || !feed.data) return undefined;
+  return scoreWindowSentence(feed.data.scoreWindow, feed.data.feedNow);
 }
 
 function formulaLine(desc: ProvenanceDescription, state: FeedState): ProvenanceLine {

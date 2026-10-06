@@ -58,3 +58,36 @@ describe('provenanceLine: the Data sources link names the replacing feed', () =>
     expect(line.link?.href).toBe('/project/depots/sources');
   });
 });
+
+describe('provenanceLine: the index window as the second sentence', () => {
+  const windowed: ProvenanceFeed = {
+    data: {
+      ...fresh.data!,
+      scoreWindow: { lengthMin: 20, since: '2026-10-06T12:16:00Z', samples: 30 },
+    },
+    error: null,
+  };
+
+  it('words the response window after the formula sentence', () => {
+    expect(provenanceLine({ default: 'derived', indexWindow: true }, windowed).sentence).toBe(
+      'Computed from the live feed at 12:36. Efficiency index over the last 20 minutes.',
+    );
+  });
+
+  it('says one snapshot when the window holds one sample', () => {
+    const one: ProvenanceFeed = {
+      ...windowed,
+      data: { ...windowed.data!, scoreWindow: { lengthMin: 20, since: '2026-10-06T12:36:00Z', samples: 1 } },
+    };
+    expect(provenanceLine({ default: 'derived', indexWindow: true }, one).sentence).toMatch(
+      / Efficiency index from one snapshot at 12:36\.$/,
+    );
+  });
+
+  it('says nothing about a window before the feed has answered', () => {
+    const none: ProvenanceFeed = { data: null, error: null };
+    expect(provenanceLine({ default: 'derived', indexWindow: true }, none).sentence).toBe(
+      'Waiting for the feed.',
+    );
+  });
+});
