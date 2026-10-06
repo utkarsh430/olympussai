@@ -1,6 +1,6 @@
 import 'server-only';
 import { spawn } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -109,7 +109,10 @@ function createProcessRuntime(): CopilotRuntime {
   const cli = createCliProvider({
     env,
     spawn,
-    makeDir: (prefix) => mkdtempSync(join(tmpdir(), prefix)),
+    // Under the system temp directory, outside the repository; mkdtemp makes it 0700.
+    tempRoot: tmpdir(),
+    makeDir: (prefix) => mkdtemp(join(tmpdir(), prefix)),
+    removeDir: (path) => rm(path, { recursive: true, force: true }),
     semaphore: createSemaphore(CLI_CONCURRENCY, CLI_QUEUE),
     limiter: createCallLimiter({
       now: Date.now,
