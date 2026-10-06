@@ -141,6 +141,24 @@ describe('unit terminology and the empty panel', () => {
   });
 });
 
+describe('ExceptionSummary bands (critique MUST 2)', () => {
+  it('draws two bands of linked figures with one caption, no severity words and no extra link line', () => {
+    const counts = {
+      emergency: 2, dark_share_high: 3, off_road_high: 0, on_road_low: 1,
+      power_cut_cluster: 4, long_dark: 698, power_cut: 10, tamper_code: 5,
+    };
+    act(() =>
+      root.render(<ExceptionSummary counts={counts} severities={{ critical: 5, warning: 20, info: 15 }} />),
+    );
+    expect(container.querySelectorAll('[data-testid="depot-figure-band"]')).toHaveLength(2);
+    const links = Array.from(container.querySelectorAll('[data-testid="depot-figure-band"] a'));
+    expect(links.length).toBe(8);
+    expect(links.every((a) => a.getAttribute('href')?.includes('kind='))).toBe(true);
+    expect(container.textContent).not.toContain('Open the exceptions page');
+    expect(container.querySelectorAll('[data-testid="depot-exception-caption"]')).toHaveLength(1);
+  });
+});
+
 describe('RankedStrip (critique MUST 1, R2-m24)', () => {
   it('selects by row click or Enter, with no boxed Select, and marks the selected row in words', () => {
     const picked: string[] = [];
