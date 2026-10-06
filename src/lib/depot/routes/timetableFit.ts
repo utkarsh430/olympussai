@@ -107,7 +107,7 @@ export function positionsFitTimetable(stops: readonly PlacedStop[]): readonly bo
     for (let i = 0; i < j; i += 1) {
       const from = stops[i]!;
       const km = haversineKm(from.lat, from.lng, to.lat, to.lng);
-      if (!(km <= plausibleLegKm(elapsedMin(times[i]!, times[j]!)))) continue;
+      if (!(km <= plausibleLegKm(elapsedMin(times[i] ?? null, times[j] ?? null)))) continue;
       const candidate = { count: ends[i]!.count + 1, km: ends[i]!.km + km, previous: i };
       if (better(candidate, best)) best = candidate;
     }
