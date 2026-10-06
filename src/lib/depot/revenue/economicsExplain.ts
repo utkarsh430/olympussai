@@ -1,4 +1,5 @@
 import { formatCount, signedTwoDecimals } from '../format';
+import { peerRankPhrase as rankInPeerGroup } from '../league/leagueWording';
 import { ECONOMICS_Z_CLAMP, type ECONOMICS_WEIGHTS } from '../sim/revenueConfig';
 import { DASH, MINUS, PERCENT, formatComponentValue } from './economicsFormat';
 import type { EconomicsRow, EconomicsCell } from './economicsRows';
@@ -12,7 +13,7 @@ export function peerRankPhrase(row: EconomicsRow): string {
   if (!row.ranked || row.rank === null || row.peerCount === null || row.peerGroupLabel === null) {
     return 'not ranked';
   }
-  return `rank ${row.rank} of ${row.peerCount} in its peer group (${row.peerGroupLabel})`;
+  return rankInPeerGroup(row.rank, row.peerCount, row.peerGroupLabel);
 }
 
 /** One sentence on what moved a depot's economics index most. */

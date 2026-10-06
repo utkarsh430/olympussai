@@ -53,7 +53,10 @@ export function windowMark(
   };
 }
 
-/** "rank 1 of 41 in its peer group (Small fleets)". */
+/**
+ * "rank 1 of 41 in its peer group (Small fleets)": the one wording of a depot's rank,
+ * used by the league, the map and the economics page. 41 is the peer group, not every depot.
+ */
 export function peerRankPhrase(rank: number, peerCount: number, groupLabel: string): string {
   return `rank ${rank} of ${peerCount} in its peer group (${groupLabel})`;
 }

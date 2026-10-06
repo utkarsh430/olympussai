@@ -1,5 +1,6 @@
 import { depotHref } from '@/lib/depot/depotNav';
-import { formatCount } from '@/lib/depot/format';
+import { capitalise, formatCount } from '@/lib/depot/format';
+import { peerRankPhrase } from '@/lib/depot/league/leagueWording';
 import { PEER_GROUP_LABEL } from '@/lib/depot/labels';
 import type { PeerGroupId } from '@/lib/depot/score/types';
 import { UNASSIGNED_DEPOT_ID, type DepotSummary } from '@/lib/depot/types';
@@ -56,7 +57,7 @@ export function mapPositionNote(missing: number): string {
   return `Each unit is drawn at the median position of its buses, not at a surveyed yard. ${unpositionedSentence(missing)}`;
 }
 
-/** "Rank 1 of 41 in its peer group (Small fleets)": 41 is the peer group, not every depot. */
+/** The rank wording opening a line: "Rank 1 of 41 in its peer group (Small fleets)". */
 export function peerRankLine(rank: number, peerCount: number, group: PeerGroupId): string {
-  return `Rank ${rank} of ${peerCount} in its peer group (${PEER_GROUP_LABEL[group]})`;
+  return capitalise(peerRankPhrase(rank, peerCount, PEER_GROUP_LABEL[group]));
 }
