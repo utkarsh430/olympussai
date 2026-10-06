@@ -85,10 +85,10 @@ export function ScenarioCompare({ delta, baseline, scenario }: ScenarioComparePr
             <tr>
               <th scope="col">Figure</th>
               <th scope="col" className="depot-align-right">
-                Server plan, modelled
+                Server plan
               </th>
               <th scope="col" className="depot-align-right">
-                What-if, modelled
+                What-if
               </th>
               <th scope="col">Difference</th>
             </tr>

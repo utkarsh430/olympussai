@@ -120,11 +120,13 @@ describe('MODELLED wording', () => {
     for (const header of figures) expect(header).not.toMatch(/modelled/i);
   });
 
-  it('is on both comparison column headings', async () => {
+  it('is on the comparison section heading once, not repeated in its columns', async () => {
     await render(<ScenarioCompare delta={DELTA} baseline={SUMMARY} scenario={SUMMARY} />);
+    const heading = container.querySelector('#rebalance-compare-heading')?.parentElement;
+    expect(heading?.querySelector('[data-provenance="modelled"]')).not.toBeNull();
     const headers = texts('thead th');
-    expect(headers[1]).toMatch(/modelled/i);
-    expect(headers[2]).toMatch(/modelled/i);
+    expect(headers.slice(1, 3)).toEqual(['Server plan', 'What-if']);
+    expect(container.querySelector('caption')?.textContent).toMatch(/modelled/i);
   });
 
   it('is on no legend entry and no legend label: the transfers section carries the tag', async () => {
