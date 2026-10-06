@@ -4,8 +4,9 @@ export interface AllocRoute {
   /** Buses the route needs at whichever depot runs it. */
   readonly busesNeeded: number;
   /**
-   * Modelled trips per day, a whole number: the feed does not carry frequency.
-   * A fractional or negative value makes the route uncostable (`no_candidate`)
+   * Modelled trips per day: the feed does not carry frequency. Expected to be a
+   * whole number no larger than `MAX_TRIPS_PER_DAY`. A fractional, non-finite,
+   * negative or too-large value makes the route uncostable (`no_candidate`)
    * rather than being rounded, so a figure just under the saving threshold can
    * never be promoted across it.
    */
@@ -40,7 +41,12 @@ export interface RouteMove {
  * no_candidate > already_best > below_threshold > over_capacity > move_limit > no_capacity.
  */
 export type UnchangedReason =
-  /** No figure for its own depot, or for any other listed depot. */
+  /**
+   * No figure for its own depot, or for any other listed depot. Also covers a
+   * route whose trips or buses are fractional, non-finite, negative or above
+   * `MAX_TRIPS_PER_DAY` / `MAX_BUSES`: such a route is uncostable and is left
+   * out of the before and after totals.
+   */
   | 'no_candidate'
   /** Its current depot is its cheapest candidate. */
   | 'already_best'
@@ -48,7 +54,12 @@ export type UnchangedReason =
   | 'below_threshold'
   /** Frozen: its own depot starts over capacity, and the plan does not repair that. */
   | 'over_capacity'
-  /** A worthwhile move that fits still exists, but the move cap was reached. */
+  /**
+   * A worthwhile move that fits still exists, but the move cap was reached. It
+   * means the cap stopped a move that involves this route, possibly a swap in
+   * which this route's own leg costs kilometres; it does not mean this route
+   * alone would save.
+   */
   | 'move_limit'
   /** A worthwhile depot exists and none has room. */
   | 'no_capacity';
