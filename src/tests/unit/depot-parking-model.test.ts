@@ -11,6 +11,7 @@ import {
   laneHeading,
   overflowReasonText,
   overflowSentence,
+  planDateSentence,
   PLAN_NOTICE,
   visitingSentence,
 } from '@/lib/depot/yard/parkingModel';
@@ -147,7 +148,8 @@ describe('blockedSentence', () => {
 
 describe('notices', () => {
   it('states that the order is a modelled suggestion and dispatches nothing', () => {
-    expect(PLAN_NOTICE).toMatch(/suggested order for tonight/);
+    expect(PLAN_NOTICE).toMatch(/suggested order/);
+    expect(PLAN_NOTICE).not.toMatch(/tonight/);
     expect(PLAN_NOTICE).toMatch(/modelled duties/);
     expect(PLAN_NOTICE).toMatch(/modelled yard layout/);
     expect(PLAN_NOTICE).toMatch(/surveyed yard/);
@@ -198,5 +200,11 @@ describe('capacity from the depot detail', () => {
     expect(baysMissingSentence(capacityViewOf(detail(null, 0, 0), null), false)).toMatch(
       /^No yard is established; 70 buses in the fleet\./,
     );
+  });
+});
+
+describe('planDateSentence', () => {
+  it('names the date of the departures, not a time of day', () => {
+    expect(planDateSentence('2026-10-07')).toBe('For departures on 7 Oct 2026.');
   });
 });

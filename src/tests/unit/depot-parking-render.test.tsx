@@ -149,6 +149,12 @@ describe('ParkingPlan', () => {
     expect(warn).not.toContain('parking-overflow');
   });
 
+  it('prints the date with the shared formatter and says departures, not tonight', () => {
+    expect(text(html)).toContain('For departures on 7 Oct 2026.');
+    expect(text(html)).not.toContain('2026-10-07');
+    expect(text(html).toLowerCase()).not.toContain('tonight');
+  });
+
   it('goes to two lane columns only at xl, never at md or lg', () => {
     expect(html).toContain('xl:grid-cols-2');
     expect(html).not.toMatch(/(?:^|[\s"])(?:sm|md|lg):grid-cols-/);

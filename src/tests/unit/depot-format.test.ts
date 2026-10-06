@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCount, formatFeedTime, formatShare } from '@/lib/depot/format';
+import { formatCount, formatFeedTime, formatPlainDate, formatShare } from '@/lib/depot/format';
 
 describe('formatCount', () => {
   it('uses Indian digit grouping', () => {
@@ -35,5 +35,19 @@ describe('formatFeedTime', () => {
     expect(formatFeedTime('not a time')).toBe('—');
     expect(formatFeedTime('2026-10-06')).toBe('—');
     expect(formatFeedTime('2026-10-06T25:99:00Z')).toBe('—');
+  });
+});
+
+describe('formatPlainDate', () => {
+  it('writes a calendar date as day, month name and year', () => {
+    expect(formatPlainDate('2026-10-07')).toBe('7 Oct 2026');
+    expect(formatPlainDate('2027-01-31')).toBe('31 Jan 2027');
+  });
+
+  it('gives a dash for anything that is not a plain date', () => {
+    expect(formatPlainDate('')).toBe('—');
+    expect(formatPlainDate('2026-13-01')).toBe('—');
+    expect(formatPlainDate('2026-10-00')).toBe('—');
+    expect(formatPlainDate('2026-10-07T08:00:00Z')).toBe('—');
   });
 });

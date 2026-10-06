@@ -9,6 +9,7 @@ import {
   overflowReasonText,
   overflowSentence,
   PLAN_NOTICE,
+  planDateSentence,
 } from '@/lib/depot/yard/parkingModel';
 
 export interface ParkingPlanProps {
@@ -95,7 +96,7 @@ export function ParkingPlan({ depotId, order, operatingDate }: ParkingPlanProps)
       </div>
       <p className="depot-prose mt-2">{PLAN_NOTICE}</p>
       <p className="depot-prose mt-2 text-xs" data-testid="parking-date">
-        For the day starting {operatingDate}.
+        {planDateSentence(operatingDate)}
       </p>
       <p
         role={blocked.warning ? 'alert' : 'status'}

@@ -1,13 +1,18 @@
 import { formatMinute } from '../duties/dutyBoardModel';
 import type { DepotDetailResponse } from '../api';
-import { formatCount } from '../format';
+import { formatCount, formatPlainDate } from '../format';
 import type { ParkingLane, ParkingOverflowReason, ParkingState } from './parkingApi';
 
 /** Shown with the order wherever it appears; the order is a proposal and nothing is dispatched. */
 export const PLAN_NOTICE =
-  'A suggested order for tonight, based on modelled duties and a modelled yard layout. It will be replaced when the timetable and a surveyed yard are supplied. Nothing is instructed or dispatched.';
+  'A suggested order, based on modelled duties and a modelled yard layout. It will be replaced when the timetable and a surveyed yard are supplied. Nothing is instructed or dispatched.';
 
 const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
+
+/** The plan is for the day after the feed date, so it names the date and never a time of day. */
+export function planDateSentence(operatingDate: string): string {
+  return `For departures on ${formatPlainDate(operatingDate)}.`;
+}
 
 export interface CapacityInput {
   readonly bays: number;
