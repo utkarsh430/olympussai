@@ -20,6 +20,15 @@ import type { RouteProfile, RouteProfileResult, RouteStop } from './types';
 export const ROUTE_CACHE_MAX = 2000;
 export const ROUTE_NEGATIVE_TTL_MS = 600_000;
 
+/**
+ * How long the route-details route waits for the snapshot and the lookup together
+ * before it answers its own fixed error. The snapshot can take 10 s and the
+ * lookup's two rounds of schedule calls 15 s each, which is longer than the 30 s
+ * the platform allows the route; past that limit the platform answers with its own
+ * error body and caching. A lookup cut off here still finishes and is cached.
+ */
+export const ROUTE_LOOKUP_DEADLINE_MS = 25_000;
+
 type Unavailable = Extract<RouteProfileResult, { status: 'unavailable' }>;
 
 interface NegativeEntry {

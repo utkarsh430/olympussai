@@ -6,6 +6,7 @@ vi.mock('@/lib/auth/authorize', () => ({
 }));
 vi.mock('@/lib/upsrtc/liveSnapshot', () => ({ getLiveSnapshot: vi.fn() }));
 vi.mock('@/lib/depot/routes/routeCatalogue', () => ({
+  ROUTE_LOOKUP_DEADLINE_MS: 25_000,
   getRouteProfile: vi.fn(),
   routeProfileNeedsFetch: vi.fn(),
 }));
