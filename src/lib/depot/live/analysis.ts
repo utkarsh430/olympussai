@@ -136,16 +136,18 @@ export function feedEnvelope(view: FleetSnapshotView): DepotFeedEnvelope {
 }
 
 /**
- * Wraps a view builder so it runs once per snapshot: a single entry keyed like
- * the analysis, so polling clients share one built response per fetch.
+ * Wraps a view builder so it runs once per snapshot, so polling clients share
+ * one built response per fetch. A single entry tied to the analysis object
+ * itself: a new snapshot (or a test reset) replaces the analysis and with it
+ * every view built on the old one.
  */
 export function memoiseBySnapshot<T>(
-  build: (view: FleetSnapshotView) => T,
+  build: (view: FleetSnapshotView, analysis: SnapshotAnalysis) => T,
 ): (view: FleetSnapshotView) => T {
-  let entry: { readonly key: string; readonly value: T } | null = null;
+  let entry: { readonly analysis: SnapshotAnalysis; readonly value: T } | null = null;
   return (view: FleetSnapshotView): T => {
-    const key = snapshotKey(view);
-    if (entry?.key !== key) entry = { key, value: build(view) };
+    const analysis = analyseSnapshot(view);
+    if (entry?.analysis !== analysis) entry = { analysis, value: build(view, analysis) };
     return entry.value;
   };
 }
