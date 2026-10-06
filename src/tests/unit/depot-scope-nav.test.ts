@@ -30,7 +30,13 @@ describe('depotNav', () => {
   const yard = at(items, 2);
 
   it('lists Cockpit, Roster and Yard for one depot, cockpit matched exactly', () => {
-    expect(depotNav(ID).map((item) => item.label)).toEqual(['Cockpit', 'Roster', 'Yard']);
+    expect(depotNav(ID).map((item) => item.label)).toEqual([
+      'Cockpit',
+      'Roster',
+      'Yard',
+      'Duties',
+      'Maintenance',
+    ]);
     expect(cockpit).toEqual({ href: ROOT, label: 'Cockpit', exact: true });
     expect(roster.href).toBe(`${ROOT}/roster`);
     expect(yard.href).toBe(`${ROOT}/yard`);
@@ -44,6 +50,8 @@ describe('depotNav', () => {
     expect(activeOn(ROOT)).toEqual(['Cockpit']);
     expect(activeOn(`${ROOT}/roster`)).toEqual(['Roster']);
     expect(activeOn(`${ROOT}/yard`)).toEqual(['Yard']);
+    expect(activeOn(`${ROOT}/duties`)).toEqual(['Duties']);
+    expect(activeOn(`${ROOT}/maintenance`)).toEqual(['Maintenance']);
   });
 
   it('ignores a trailing slash, a query string and a hash', () => {
