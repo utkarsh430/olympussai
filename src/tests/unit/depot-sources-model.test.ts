@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import liveFixture from '@/fixtures/upsrtc-live-sample.json';
 import { normalizeDepotRows } from '@/lib/upsrtc/depotNormalizer';
-import { coverageRows, recordsSentence } from '@/lib/depot/sources/sourcesModel';
+import { coverageRows, recordsSentence, schemaSummary } from '@/lib/depot/sources/sourcesModel';
 
 describe('recordsSentence', () => {
   it('reconciles records received with buses counted, giving the reason from the normaliser', () => {
@@ -82,5 +82,19 @@ describe('coverageRows', () => {
 
   it('treats an empty snapshot as sparse, not complete', () => {
     expect(coverageRows([field('Depot', 0, 0)])[0]?.word).toBe('Sparse');
+  });
+});
+
+describe('schemaSummary', () => {
+  const fields = (n: number): { name: string; type: string }[] =>
+    Array.from({ length: n }, (_, i) => ({ name: `f${i}`, type: 'string' }));
+
+  it('is a sentence-case count of the fields', () => {
+    expect(schemaSummary({ status: 'live', fields: fields(25) })).toBe(
+      '25 fields read from this feed',
+    );
+    expect(schemaSummary({ status: 'awaiting', fields: fields(1) })).toBe(
+      '1 field expected from this feed',
+    );
   });
 });

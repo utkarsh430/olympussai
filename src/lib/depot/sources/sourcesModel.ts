@@ -1,5 +1,6 @@
 import { formatCount } from '../format';
 import type { FieldCoverage } from '../types';
+import type { FeedEntry } from './registry';
 
 /**
  * The Data Sources page's sentences and coverage ordering.
@@ -68,4 +69,10 @@ export function coverageRows(coverage: readonly FieldCoverage[]): CoverageRow[] 
       };
     })
     .sort((a, b) => b.share - a.share);
+}
+
+/** "25 fields read from this feed", or "expected from" for a feed not connected yet. */
+export function schemaSummary(feed: Pick<FeedEntry, 'status' | 'fields'>): string {
+  const verb = feed.status === 'awaiting' ? 'expected from' : 'read from';
+  return `${feed.fields.length} ${feed.fields.length === 1 ? 'field' : 'fields'} ${verb} this feed`;
 }
