@@ -71,7 +71,8 @@ function messageForStatus(status: number, custom: Readonly<Record<number, string
 
 /**
  * The single fetch loop behind every depot data hook. `intervalMs` null fetches once
- * per URL. A new request aborts the one in flight; an aborted or unmounted request
+ * per URL. A tick skips while a request is in flight or the tab is hidden, and the tab
+ * coming back refreshes at once. An explicit refresh aborts the one in flight; an aborted or unmounted request
  * sets no state; a URL change discards the previous URL's data in the same render,
  * unless the caller asked to keep it across a query change of the same resource.
  * A 404 drops the data and stops the ticks; a 401 does the same and sends the browser
@@ -137,16 +138,31 @@ export function useJsonResource<T>(
       } catch (caught) {
         if (isAbort(caught)) return;
         fail(NETWORK_UNREACHABLE_MESSAGE);
+      } finally {
+        if (inFlight === controller) inFlight = null;
       }
+    };
+
+    // A tick never aborts a request still in flight (a slow endpoint would then never
+    // answer), skips while the tab is hidden, and does nothing once the resource is gone.
+    const tick = (): void => {
+      if (stopped || inFlight !== null || document.hidden) return;
+      void fetchNow();
+    };
+    const onVisibility = (): void => {
+      if (!document.hidden) tick();
     };
 
     fetchNowRef.current = () => void fetchNow();
     void fetchNow();
-    const timer = intervalMs === null ? null : setInterval(() => {
-      if (!stopped) void fetchNow();
-    }, intervalMs);
+    const timer = intervalMs === null ? null : setInterval(tick, intervalMs);
+    // Back on a hidden tab: refresh at once rather than wait for the next tick.
+    if (timer !== null) document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      if (timer !== null) clearInterval(timer);
+      if (timer !== null) {
+        clearInterval(timer);
+        document.removeEventListener('visibilitychange', onVisibility);
+      }
       inFlight?.abort();
       fetchNowRef.current = () => undefined;
     };

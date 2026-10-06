@@ -160,8 +160,38 @@ describe('usePolledJson', () => {
 
   it('polls on a custom interval', async () => {
     await mount(<PolledProbe url="/api/a" options={{ intervalMs: 1000 }} />);
-    await tick(3000);
+    for (let i = 0; i < 3; i += 1) {
+      await settle(calls[i], 200, doc(String(i)));
+      await tick(1000);
+    }
     expect(calls).toHaveLength(4);
+  });
+
+  it('never aborts a slow request on a tick, and skips ticks until it answers', async () => {
+    await mount(<PolledProbe url="/api/a" options={{ intervalMs: 1000 }} />);
+    await tick(5000);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.signal.aborted).toBe(false);
+    await settle(calls[0], 200, doc('slow'));
+    expect(state()).toMatchObject({ data: doc('slow'), loading: false });
+    await tick(1000);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('pauses while the tab is hidden and refreshes when it is shown again', async () => {
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    await mount(<PolledProbe url="/api/a" options={{ intervalMs: 1000 }} />);
+    await settle(calls[0], 200, doc('one'));
+    hidden.mockReturnValue(true);
+    await tick(5000);
+    expect(calls).toHaveLength(1);
+    hidden.mockReturnValue(false);
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(calls).toHaveLength(2);
+    hidden.mockRestore();
   });
 
   it('stops loading when the first request fails', async () => {
@@ -256,11 +286,12 @@ describe('usePolledJson', () => {
     await settle(calls[0], 200, doc('a'));
     await rerender(<PolledProbe url="/api/b" />);
     expect(state()).toMatchObject({ data: null, loading: true, error: null });
-    expect(calls[0]?.signal.aborted).toBe(true);
     expect(calls[1]?.url).toBe('/api/b');
 
-    // b is still in flight when the url moves on; its late answer must change nothing.
+    // b is still in flight when the url moves on: it is aborted, and its late answer
+    // must change nothing.
     await rerender(<PolledProbe url="/api/c" />);
+    expect(calls[1]?.signal.aborted).toBe(true);
     await settle(calls[1], 200, doc('b-late'));
     expect(state()).toMatchObject({ data: null, loading: true });
     await settle(calls[2], 200, doc('c'));
@@ -308,7 +339,6 @@ describe('useFetchedJson', () => {
     await settle(calls[0], 200, doc('a'));
     await rerender(<FetchedProbe url="/api/b" />);
     expect(calls).toHaveLength(2);
-    expect(calls[0]?.signal.aborted).toBe(true);
     expect(latest).toMatchObject({ data: null, loading: true });
     await settle(calls[1], 200, doc('b'));
     expect(latest?.data).toEqual(doc('b'));
