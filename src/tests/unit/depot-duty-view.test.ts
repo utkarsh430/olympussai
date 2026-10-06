@@ -120,6 +120,18 @@ describe('buildDutyBoard', () => {
     expect(b.duties.map((d) => d.id)).toEqual(sorted.map((d) => d.id));
   });
 
+  it('counts the held-out buses of every class on each unassigned duty (S55, N6)', () => {
+    const quietSince = new Date(Date.parse(FEED_NOW) - 90 * 60_000).toISOString();
+    const rows = [
+      ...scattered(),
+      row({ registrationNumber: 'E1', routeName: 'EXP_1', latitude: 27.5 }),
+      row({ registrationNumber: 'E2', routeName: 'EXP_1', latitude: 27.6 }),
+    ].map((r) => ({ ...r, gpsTimestamp: quietSince }));
+    const b = board(rows);
+    expect(b.counts.excluded.notHeard).toBe(8);
+    for (const d of b.duties) expect(d.blockers).toEqual(b.counts.excluded);
+  });
+
   it('carries the reason through: a depot with no usable bus leaves every duty without one', () => {
     // No yard, and none of the buses was heard inside the reporting window: every bus is
     // held out as not heard recently (S55), and no duty blames the yard.

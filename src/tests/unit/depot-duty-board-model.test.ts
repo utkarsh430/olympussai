@@ -241,15 +241,17 @@ describe('sentences', () => {
     expect(nowSentence('2026-10-06T23:59:00Z')).toBe('Now 23:59, the feed clock in Indian time.');
   });
 
-  it('describes why an unassigned duty has no bus', () => {
-    const base = duty({ registrationNumber: null, state: 'no_bus' });
+  it('describes why an unassigned duty has no bus, whatever its class (S55, N6)', () => {
+    const base = duty({ registrationNumber: null, state: 'no_bus', serviceClass: 'express' });
     expect(reasonSentence(duty())).toBeNull();
-    expect(reasonSentence({ ...base, blockers: { notInYard: 2, offRoad: 1, dark: 0 } })).toBe(
-      'No free ordinary bus. Held out of the matching: 2 not in the yard, 1 off the road. Every other ordinary bus is on another duty.',
+    const held = { notInYard: 2, notHeard: 1, offRoad: 1, dark: 0 };
+    expect(reasonSentence({ ...base, blockers: held })).toBe(
+      'No eligible bus is left: every eligible bus has another duty. Held out of the matching: 1 not heard recently, 2 not in the yard, 1 off the road.',
     );
     expect(reasonSentence({ ...base, blockers: { notInYard: 0, offRoad: 0, dark: 0 } })).toBe(
-      'No free ordinary bus. Every ordinary bus the depot has is on another duty, or it has none.',
+      'No eligible bus is left: every eligible bus has another duty, or the depot has none.',
     );
+    expect(reasonSentence({ ...base, blockers: held })).not.toMatch(/express/);
   });
 
   it('never says every eligible bus has a duty beside a matching that proposed none', () => {
