@@ -21,7 +21,7 @@ vi.mock('@/lib/depot/routes/routeCatalogue', () => ({
 }));
 
 /*
- * Review I4, through the REAL response builders: on one fixture with repeated
+ * Through the REAL response builders: on one fixture with repeated
  * registrations, every live state and one cached route profile, the duty
  * board, crew, fuel, revenue and economics describe one day, down to the bus
  * that runs each duty. Then a newly cached profile (a catalogue revision)
@@ -100,8 +100,8 @@ async function pages(view: FleetSnapshotView = VIEW) {
 const countBy = (names: readonly string[]): Record<string, number> =>
   names.reduce<Record<string, number>>((acc, n) => ({ ...acc, [n]: (acc[n] ?? 0) + 1 }), {});
 
-describe('every page reads the one shared day (review I4)', () => {
-  it('carries the operating date the day is for on every response, so pages can date it (M2)', async () => {
+describe('every page reads the one shared day', () => {
+  it('carries the operating date the day is for on every response, so pages can date it', async () => {
     const { board, crew, fuel, revenue, economics, day } = await pages();
     const dates = [board, crew, fuel, revenue, economics].map((r) => r.operatingDate);
     expect(new Set(dates)).toEqual(new Set([day.operatingDate]));
