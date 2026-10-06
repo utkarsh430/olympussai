@@ -5,7 +5,7 @@ import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProv
 import { useDepotExceptions, DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/useDepotExceptions';
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
-import { ProducedDisclosure } from '@/components/depot/sources/ProducedDisclosure';
+import { HowProduced } from '@/components/depot/shell/HowProduced';
 import type { DepotExceptionsResponse } from '@/lib/depot/api';
 import { BUS_EXCEPTION_KINDS, BUS_PAGE_DEFAULT_LIMIT } from '@/lib/depot/exceptions/busPage';
 import { EXCEPTION_KIND_LABEL } from '@/lib/depot/exceptions/describe';
@@ -143,7 +143,7 @@ export function ExceptionCentre() {
         onOffsetChange={setOffset}
       />
 
-      <ProducedDisclosure>
+      <HowProduced testId="depot-produced" className="mt-8">
         <p>
           A depot is flagged when its dark, off-road or on-road rate is both statistically unusual
           against its peers and at least 10 points from the peer median; critical at the
@@ -155,7 +155,7 @@ export function ExceptionCentre() {
           snapshot only, paged 25 at a time by the server.
         </p>
         <p>Exceptions name depots and vehicles, never a person.</p>
-      </ProducedDisclosure>
+      </HowProduced>
     </>
   );
 }

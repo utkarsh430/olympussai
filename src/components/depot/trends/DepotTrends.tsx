@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
 import { EmptyState, StaleStrip } from '@/components/depot/shell/DataStates';
-import { ProducedDisclosure } from '@/components/depot/sources/ProducedDisclosure';
+import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { depotTrendsPath, MODELLED_HISTORY_NOTE } from '@/lib/depot/forecast/trendsPageModel';
 import type { MetricKey } from '@/lib/depot/sim/types';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
@@ -54,13 +54,13 @@ export function DepotTrends({ metric }: DepotTrendsProps) {
         <ForecastBlock state={chosen} errorTitle="Could not load this depot's trend" />
       </div>
       <AvailabilityPanel depotId={depotId} available={available} distribution={distribution} />
-      <ProducedDisclosure>
+      <HowProduced testId="depot-produced" className="mt-8">
         <p>{MODELLED_HISTORY_NOTE}</p>
         <p>
           The requirement is the fleet distribution&apos;s modelled number of buses the depot needs;
           the forecast is of buses available. Neither side is measured today.
         </p>
-      </ProducedDisclosure>
+      </HowProduced>
     </div>
   );
 }

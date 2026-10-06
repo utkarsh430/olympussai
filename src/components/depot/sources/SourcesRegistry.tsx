@@ -15,7 +15,7 @@ import {
 import { feedAnchor, recordsSentence } from '@/lib/depot/sources/sourcesModel';
 import { CoverageBars } from './CoverageBars';
 import { FeedSchema } from './FeedSchema';
-import { ProducedDisclosure } from './ProducedDisclosure';
+import { HowProduced } from '@/components/depot/shell/HowProduced';
 
 const STATUS_TONE: Readonly<Record<FeedStatus, string>> = {
   live: 'border-alert-green/50 text-alert-green',
@@ -121,7 +121,7 @@ export function SourcesRegistry() {
           ))}
         </div>
       </div>
-      <ProducedDisclosure>
+      <HowProduced testId="depot-produced" className="mt-8">
         <p>
           A coverage bar shows how many of the buses counted carry each field, most complete
           first; a field a bus lacks is not guessed. A field is Complete when every bus carries it,
@@ -132,7 +132,7 @@ export function SourcesRegistry() {
           planning assumptions; AWAITING FEED is not connected yet and its expected schema is
           listed so a real feed can replace the model.
         </p>
-      </ProducedDisclosure>
+      </HowProduced>
     </>
   );
 }

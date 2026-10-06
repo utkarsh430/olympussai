@@ -2,7 +2,7 @@
 
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
-import { ProducedDisclosure } from '@/components/depot/sources/ProducedDisclosure';
+import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { MODELLED_HISTORY_NOTE, NETWORK_TRENDS_PATH } from '@/lib/depot/forecast/trendsPageModel';
 import type { MetricKey } from '@/lib/depot/sim/types';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
@@ -59,13 +59,13 @@ export function NetworkTrends({ metric }: NetworkTrendsProps) {
           />
         )}
       </section>
-      <ProducedDisclosure>
+      <HowProduced testId="depot-produced" className="mt-8">
         <p>{MODELLED_HISTORY_NOTE}</p>
         <p>
           A change smaller than the series&apos; own usual movement at that lag reads as steady, so
           noise is never reported as a direction. The week and the four-week words use the same rule.
         </p>
-      </ProducedDisclosure>
+      </HowProduced>
     </div>
   );
 }
