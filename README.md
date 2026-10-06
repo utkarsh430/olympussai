@@ -9,6 +9,7 @@ single auth system on one domain (**olympuss.us**):
 | `/login` | Public | Project authentication (project name + PIN) |
 | `/project/upsrtc` | **Protected** | The UPSRTC AI Copilot — a predictive fleet command centre over live UPSRTC telemetry |
 | `/project/bunching` | **Protected** | Bus Bunching Control Simulator — a coordinated headway controller compared against an uncontrolled corridor |
+| `/project/depots` | **Protected** | Depot Management — a gated shell (top bar, navigation rail, footer disclaimer) with a "Network overview" page; no depot figures are shown until the live depot feed is connected |
 | `/api/auth/{login,logout,session}` | Mixed | Authentication endpoints |
 | `/api/upsrtc/{live,schedule}` | **Protected** | Server-side proxies to the UPSRTC upstream |
 | `/robots.txt`, `/sitemap.xml` | Public | Crawler policy — homepage only |
@@ -194,8 +195,7 @@ src/
 │   ├── constants/, formatters/, utils.ts
 ├── stores/copilotStore.ts            # single Zustand store for the dashboard
 ├── hooks/                            # useLiveFleet, useSchedule, useAlertStream,
-│                                     #   useFleetDistribution, useIndiaClock,
-│                                     #   useDebounced, useReducedMotion
+│                                     #   useIndiaClock, useDebounced, useReducedMotion
 ├── components/
 │   ├── landing/                      # public landing sections + backdrop + reveal
 │   ├── auth/, upsrtc/                # login form, authenticated actions, sign out
@@ -206,6 +206,7 @@ src/
 │   ├── communication/                # driver message modal, VoIP overlay
 │   ├── bunching/                     # simulator shell, two panes, maps, decision +
 │   │                                 #   observation + calculation panels, playback
+│   ├── depot/                        # Depot Management shell: top bar, nav rail, page
 │   ├── audit/, diagnostics/, impact-dashboard/, pitch-mode/
 │   └── shared/                       # hud.tsx primitives, footer disclaimer, brand marks
 ├── three/                            # WebGL: ExperienceCanvas, Scene, quality, sceneState
@@ -213,7 +214,7 @@ src/
 ├── fixtures/                         # sanitized captured upstream payloads
 └── tests/unit/                       # Vitest suites
 
-tests/e2e/                            # Playwright command-centre spec
+tests/e2e/                            # Playwright specs: command centre, Depot Management
 scripts/                              # generate-pin-hash, process-logo, inspect-upsrtc-api
 docs/                                 # architecture, API discovery, demo, roadmap, olympuss/
 ```
@@ -344,16 +345,19 @@ throwing on misconfiguration.
 ### Open-redirect protection
 
 `sanitizeNext()` accepts a `next` parameter only when it is a root-relative
-path under `/project/upsrtc`. Protocol-relative (`//evil.com`), backslash
-tricks (`/\evil.com`) and any other target fall back to `/project/upsrtc`.
+path that, resolved the way a browser resolves it, lands on or under one of
+the allowlisted protected roots: `/project/upsrtc`, `/project/bunching` and
+`/project/depots`. Protocol-relative (`//evil.com`), backslash tricks
+(`/\evil.com`), dot-segment traversal (`/project/upsrtc/../x`) and lookalike
+prefixes (`/project/upsrtc-evil`) fall back to `/project/upsrtc`. The list
+lives in `PROTECTED_ROOTS` in `src/lib/auth/redirect.ts`; a new protected
+surface must be added there, or its deep link will fall back to the dashboard.
 
-> **Known gap.** The allowlist was not widened when `/project/bunching` was
-> added. An unauthenticated request to the simulator is redirected to
-> `/login?next=/project/bunching`, but `sanitizeNext` does not recognise that
-> path and falls back, so after signing in the user lands on the dashboard
-> rather than the simulator. It fails *safe* — the fallback is a valid internal
-> path, so this is a broken deep link rather than an open-redirect — but the
-> allowlist should be extended to cover every protected surface.
+The Depot Management route is gated server-side as well:
+`requireProjectSession(nextPath)` in
+[`src/lib/auth/server.ts`](src/lib/auth/server.ts) redirects to
+`/login?next=<nextPath>` when there is no valid session; the route's layout and
+page both call it.
 
 ### Session status and sign-out
 
@@ -565,11 +569,15 @@ Olympuss project context and Sign Out · connection state (`CONNECTED` /
 `STALE CACHE` / `FIXTURE` / `DEGRADED`) with an animated pulse · India time ·
 last GPS update age · live bus count · visible count · the `LIVE UPSRTC GPS`
 badge and `PREDICTIVE ENGINE ACTIVE` marker side by side · a **Bunching** link to
-the control simulator · and buttons for Scenario Lab, Fleet Distribution and
+the control simulator · and buttons for Scenario Lab, Depot Management and
 fullscreen.
 
-Bunching is a `<Link>` rather than a drawer toggle because it opens a full
-analysis surface, not an overlay on the map.
+Bunching and Depot Management are `<Link>`s rather than drawer toggles because
+each opens a full surface, not an overlay on the map. Depot Management
+(`data-testid="open-depot-management"`) goes to `/project/depots`; it replaced
+the former Fleet Distribution button. The demand view ("Demand and Fleet
+Redistribution") is unchanged and is opened from a bus's analysis menu
+(**Demand–Supply**), from Scenario Lab and from Pitch Mode.
 
 > **Known gap.** The Bunching link took the slot previously occupied by the
 > **Audit** and **Diagnostics** buttons. Both drawers are still mounted in
@@ -763,7 +771,7 @@ UPSRTC pilot.*
   incident slot is counted separately from the rotation index, otherwise it
   would eat a turn and the remaining kinds would stop alternating evenly.
 - **Demand is not streamed** — it is a corridor-level question, reviewed from
-  the **Fleet Distribution** view in the command bar.
+  the demand view, opened from a bus's analysis menu or from Scenario Lab.
 - Pitch Mode suppresses new alerts; it drives its own narrative.
 
 **Candidate selection** prefers vehicles that make an information-rich alert — a
@@ -1350,7 +1358,7 @@ npm run lint         # ESLint (next lint)
 npm run typecheck    # tsc --noEmit, strict
 npm run test         # Vitest — 224 unit tests, no network required
 npm run test:watch   # Vitest in watch mode
-npm run test:e2e     # Playwright — 25 specs (starts the app via npm run start)
+npm run test:e2e     # Playwright — 31 specs (starts the app via npm run start; E2E_PORT overrides port 3000)
 npm run format       # Prettier over src/**/*.{ts,tsx,css} and docs/**/*.md
 ```
 
@@ -1371,7 +1379,11 @@ asserts the control equations against hand-computed values, that the overtaking
 floor prevents inversion, that the controller never breaches the safety floor,
 and that each scenario's two runs diverge in the documented direction.
 
-### End-to-end (Playwright) — 25 specs
+### End-to-end (Playwright) — 31 specs across 2 files
+
+The suite serves the production build on port 3000 by default. Set `E2E_PORT`
+to use another port when 3000 is taken, for example
+`E2E_PORT=3210 npm run test:e2e` (the build must exist first: `npm run build`).
 
 Run at **2259×1271**, which is the effective CSS viewport of a 1920-wide
 display at the ~85% browser zoom the dashboard is actually used at.
@@ -1387,9 +1399,16 @@ the scenario-lab drawer and the presence of the Bunching trigger · impact
 dashboard figures · audit trail recording the walkthrough (asserted against
 `localStorage`, since the drawer no longer has a trigger) · alert seeding with
 real vehicles · alert click-through · the 30 s stream interval · **exactly one
-vehicle-fault alert** · fleet distribution opening without a prior selection ·
+vehicle-fault alert** · the Depot Management link opening the depot module ·
 Escape closing the detail drawer · and an assertion that the words
-**"simulated"** and **"demonstrate"** appear nowhere in the interface.
+**"simulated"** and **"demonstrate"** appear nowhere in the interface (its
+Diagnostics and Audit drawer steps are omitted because nothing opens those
+drawers; see the known gap under the top command bar).
+
+The Depot Management spec (`tests/e2e/depot-management.spec.ts`, 6 specs)
+covers the login deep link surviving sign-in, the shell's top bar, navigation
+and footer, the Back to Operations link, the banned-wording check, the skip
+link and a console-error-free load.
 
 Spec 25 covers the simulator end to end: navigating from the command bar,
 both panes rendering, stepping advancing the two runs in lockstep, the
@@ -1438,7 +1457,7 @@ affect the build toolchain only, and do not reach runtime.
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit`, strict |
 | `npm run test` / `test:watch` | Vitest |
-| `npm run test:e2e` | Playwright |
+| `npm run test:e2e` | Playwright (`E2E_PORT` overrides the default port 3000) |
 | `npm run format` | Prettier over source and docs |
 | `npm run inspect:api` | Probe both UPSRTC endpoints and print an empirical report |
 | `npm run generate-pin-hash -- <pin>` | bcrypt hash (cost 12) for `PROJECT_PIN_HASH`; hash to stdout, guidance to stderr |
