@@ -42,9 +42,10 @@ function statusFor(expanded: boolean, state: CopilotState): string {
  * State for one transfer's explanation, shared by the toggle and the panel so
  * a host table can place them in different cells and rows. One request per
  * expansion: collapsing keeps the text, so re-opening does not request again.
- * Switching to another transfer starts closed and empty.
+ * Switching to another transfer, or the same transfer with a different
+ * recommended bus count, starts closed and empty: the text describes a plan.
  */
-export function useRationale(transferId: string): RationaleControl {
+export function useRationale(transferId: string, planBuses?: number): RationaleControl {
   const { state, request, reset } = useCopilot();
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
@@ -52,7 +53,7 @@ export function useRationale(transferId: string): RationaleControl {
   useEffect(() => {
     reset();
     setExpanded(false);
-  }, [transferId, reset]);
+  }, [transferId, planBuses, reset]);
 
   const ask = useCallback((): void => request({ task: 'rationale', transferId }), [request, transferId]);
   const toggle = useCallback((): void => {
@@ -169,13 +170,20 @@ export function RationalePanel({
 
 export interface RationaleButtonProps {
   readonly transferId: string;
+  /** The recommended bus count; a change resets the explanation. */
+  readonly planBuses?: number;
   readonly label: string;
   readonly headingLevel?: 2 | 3 | 4;
 }
 
 /** Toggle and panel stacked, for hosts that are not tables. */
-export function RationaleButton({ transferId, label, headingLevel }: RationaleButtonProps) {
-  const rationale = useRationale(transferId);
+export function RationaleButton({
+  transferId,
+  planBuses,
+  label,
+  headingLevel,
+}: RationaleButtonProps) {
+  const rationale = useRationale(transferId, planBuses);
   return (
     <div className="min-w-0">
       <RationaleToggle
