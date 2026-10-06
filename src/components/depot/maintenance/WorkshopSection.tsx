@@ -1,5 +1,6 @@
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
-import { formatCount } from '@/lib/depot/format';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { workshopRows } from '@/lib/depot/maintenance/pageModel';
 import { workshopSentence } from '@/lib/depot/maintenance/text';
 import type { WorkshopLoad } from '@/lib/depot/maintenance/workshop';
 
@@ -9,41 +10,28 @@ export interface WorkshopSectionProps {
 }
 
 /**
- * Off-road buses against the modelled bays, in numbers and one sentence. Plain
- * figures rather than a bar: three counts and a sentence carry it.
+ * Off-road buses against the modelled bays: the actionable sentence first ("N would
+ * wait for a bay"), then three small rows. The off-road row is the live count, the
+ * same number as the band's.
  */
 export function WorkshopSection({ load }: WorkshopSectionProps) {
   return (
     <section aria-labelledby="depot-workshop-heading" className="min-w-0 animate-rise">
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 id="depot-workshop-heading" className="depot-section-label !mb-0">
-          Workshop load
-        </h2>
-        <ProvenanceBadge provenance="modelled" />
-      </div>
-      <dl className="depot-panel grid grid-cols-3 gap-px overflow-hidden font-mono text-[13px] text-depot-ink">
-        <div className="min-w-0 p-3">
-          <dt className="depot-label">Bays</dt>
-          <dd className="mt-1 tabular-nums">
-            {formatCount(load.bays)} <ProvenanceBadge provenance="modelled" />
-          </dd>
-        </div>
-        <div className="min-w-0 p-3">
-          <dt className="depot-label">Off the road</dt>
-          <dd className="mt-1 tabular-nums">
-            {formatCount(load.offRoad)} <ProvenanceBadge provenance="live" />
-          </dd>
-        </div>
-        <div className="min-w-0 p-3">
-          <dt className="depot-label">Waiting</dt>
-          <dd className="mt-1 tabular-nums">
-            {formatCount(load.queue)} <ProvenanceBadge provenance="modelled" />
-          </dd>
-        </div>
-      </dl>
-      <p className="depot-prose mt-3" role="status">
+      <SectionLabel id="depot-workshop-heading" label="Workshop load" tag="modelled" />
+      <p className="depot-prose mb-3 text-depot-ink" role="status">
         {workshopSentence(load)}
       </p>
+      <dl className="divide-y divide-depot-line border-y border-depot-line font-mono text-[13px]">
+        {workshopRows(load).map((row) => (
+          <div key={row.label} className="flex items-center justify-between gap-3 py-2">
+            <dt className="flex min-w-0 items-center gap-2 text-depot-muted">
+              <span className="truncate">{row.label}</span>
+              {row.tag ? <ProvenanceBadge provenance={row.tag} /> : null}
+            </dt>
+            <dd className="tabular-nums text-depot-ink">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }

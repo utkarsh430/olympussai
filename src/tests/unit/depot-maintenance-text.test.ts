@@ -5,7 +5,9 @@ import {
   distanceNotice,
   groupSummary,
   intervalText,
+  kmToNextCell,
   kmToNextText,
+  preventiveGuard,
   noAttentionText,
   offRoadEmptyText,
   offRoadHeadline,
@@ -15,6 +17,8 @@ import {
   statusWordLabel,
   workshopSentence,
 } from '@/lib/depot/maintenance/text';
+import * as pageModelModule from '@/lib/depot/maintenance/pageModel';
+import * as textModule from '@/lib/depot/maintenance/text';
 import { workshopLoad } from '@/lib/depot/maintenance/workshop';
 
 describe('off-road sentences', () => {
@@ -57,12 +61,23 @@ describe('distance notice', () => {
 
 describe('preventive sentences', () => {
   it('names the groups in words', () => {
-    expect(serviceGroupLabel('overdue')).toBe('Modelled: overdue');
-    expect(serviceGroupLabel('due_soon')).toBe('Modelled: due soon');
-    expect(serviceGroupLabel('not_due')).toBe('Modelled: not due');
+    expect(serviceGroupLabel('overdue')).toBe('Overdue');
+    expect(serviceGroupLabel('due_soon')).toBe('Due soon');
+    expect(serviceGroupLabel('not_due')).toBe('Not due');
   });
 
-  it('words the distance to the next service, overdue or not', () => {
+  it('puts only the number in the distance cell, with a minus sign past the service', () => {
+    expect(kmToNextCell(-3400)).toBe('\u22123,400');
+    expect(kmToNextCell(0)).toBe('0');
+    expect(kmToNextCell(9000)).toBe('9,000');
+  });
+
+  it('says in one sentence that the statuses are generated, not workshop records', () => {
+    expect(preventiveGuard()).toContain('generated from a model of service history');
+    expect(preventiveGuard()).toContain('not workshop records');
+  });
+
+  it('words the distance to the next service for the cell title, overdue or not', () => {
     expect(kmToNextText(-3400)).toBe('Modelled: overdue by 3,400 km');
     expect(kmToNextText(0)).toBe('Modelled: due now');
     expect(kmToNextText(800, 1500)).toBe('Modelled: due soon, 800 km to next service');
@@ -103,26 +118,109 @@ describe('preventive sentences', () => {
 
 describe('column headers', () => {
   it('tag the modelled columns', () => {
-    expect(SERVICE_HEADER).toBe('Service (MODELLED)');
-    expect(NEXT_SERVICE_HEADER).toBe('To next service (MODELLED)');
+    expect(SERVICE_HEADER).toBe('Status (MODELLED)');
+    expect(NEXT_SERVICE_HEADER).toBe('To next service, km (MODELLED)');
   });
 });
 
 describe('no sentence reads as a fact about a real bus', () => {
-  it('never lets overdue or due soon stand without modelled in the same string', () => {
-    const produced: string[] = [
-      ...(['overdue', 'due_soon', 'not_due'] as const).map(serviceGroupLabel),
-      ...[-3400, -1, 0, 1, 800, 1500, 1501, 9000].map((km) => kmToNextText(km, 1500)),
-      groupSummary({ overdue: 22, due_soon: 10, not_due: 208 }),
-      groupSummary({ overdue: 1, due_soon: 0, not_due: 0 }),
-      groupSummary({ overdue: 0, due_soon: 0, not_due: 0 }),
-      noAttentionText(),
-      preventiveNote(1500),
-      SERVICE_HEADER,
-      NEXT_SERVICE_HEADER,
-    ];
-    for (const text of produced) {
-      if (/overdue|due soon/i.test(text)) expect(text.toLowerCase()).toContain('modelled');
+  /*
+   * The guard, in two parts. (1) Every SENTENCE the module produces that says
+   * overdue or due soon also says modelled: found by calling every export of the
+   * wording and page-model modules, so a new export is covered without being listed.
+   * (2) The status WORD in a cell ("Overdue") is not a sentence; the surfaces that show
+   * it carry the tag instead (headers, section, band figures), asserted in
+   * depot-maintenance-page.test.tsx and the band test below.
+   */
+  const CELL_WORDS: ReadonlySet<string> = new Set(['serviceGroupLabel']);
+  const PROBES: readonly unknown[][] = [
+    [-3400, 1500],
+    [0, 1500],
+    [800, 1500],
+    [9000, 1500],
+    [1500],
+    [{ n: 31, of: 70 }],
+    [{ overdue: 22, due_soon: 10, not_due: 208 }],
+    [{ overdue: 1, due_soon: 0, not_due: 0 }],
+    [{ overdue: 0, due_soon: 0, not_due: 0 }],
+    [workshopLoad(7, 4)],
+    [workshopLoad(0, 4)],
+    ['overdue'],
+    ['due_soon'],
+    ['under_maintenance'],
+    [30],
+    [3, { counts: { overdue: 22, due_soon: 10, not_due: 208 }, dueSoonWithinKm: 1500 }],
+    [[]],
+    [
+      [
+        { registrationNumber: 'A', vehicleStatus: 'under_maintenance', tripStatus: null, gpsAgeMin: 5, flags: [] },
+        { registrationNumber: 'B', vehicleStatus: 'under_maintenance', tripStatus: 'Stationary', gpsAgeMin: 5, flags: ['x'] },
+      ],
+    ],
+    ['2026-10-06T10:00:00Z', 30],
+    [
+      { counts: { overdue: 22, due_soon: 10, not_due: 208 }, dueSoonWithinKm: 1500, intervals: ['Ordinary: every 10,000 km'] },
+      { n: 31, of: 70 },
+    ],
+    ['ordinary', 10000],
+    [],
+  ];
+
+  function stringsOf(value: unknown): string[] {
+    if (typeof value === 'string') return [value];
+    if (Array.isArray(value)) return value.flatMap(stringsOf);
+    if (value !== null && typeof value === 'object') {
+      // A figure or row that carries the MODELLED tag is tagged where it is shown.
+      if ((value as { tag?: unknown }).tag === 'modelled') return [];
+      return Object.values(value).flatMap(stringsOf);
+    }
+    return [];
+  }
+
+  const modules: Record<string, Record<string, unknown>> = {
+    text: textModule,
+    pageModel: pageModelModule,
+  };
+
+  it('never lets a sentence say overdue or due soon without saying modelled', () => {
+    let sentences = 0;
+    for (const [name, mod] of Object.entries(modules)) {
+      for (const [key, value] of Object.entries(mod)) {
+        if (CELL_WORDS.has(key)) continue;
+        const produced: string[] = [];
+        if (typeof value === 'function') {
+          for (const args of PROBES) {
+            try {
+              produced.push(...stringsOf((value as (...a: unknown[]) => unknown)(...args)));
+            } catch {
+              /* wrong shape of argument for this function: another probe fits it */
+            }
+          }
+        } else produced.push(...stringsOf(value));
+        for (const text of produced) {
+          sentences += 1;
+          if (/overdue|due soon/i.test(text)) {
+            expect(text.toLowerCase(), `${name}.${key}: ${text}`).toContain('modelled');
+          }
+        }
+      }
+    }
+    expect(sentences).toBeGreaterThan(40);
+  });
+
+  it('reaches every exported function with at least one probe', () => {
+    for (const [name, mod] of Object.entries(modules)) {
+      for (const [key, value] of Object.entries(mod)) {
+        if (typeof value !== 'function') continue;
+        const reached = PROBES.some((args) => {
+          try {
+            return stringsOf((value as (...a: unknown[]) => unknown)(...args)).length > 0;
+          } catch {
+            return false;
+          }
+        });
+        expect(reached, `${name}.${key} is not reached by any probe; add one`).toBe(true);
+      }
     }
   });
 });

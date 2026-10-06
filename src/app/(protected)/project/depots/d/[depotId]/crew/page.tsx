@@ -20,9 +20,12 @@ export default async function DepotCrewPage({
     <>
       <PageHeader
         title="Crew"
-        description={`${PEOPLE_SENTENCE} Drivers and conductors available against the day's crew shifts, and the shifts that have no crew. Nothing here is written back to any system.`}
-        provenance="modelled"
+        description="Drivers and conductors available against the day's crew shifts."
+        provenanceLine={{ default: 'modelled', replacedBy: 'a crew roster and leave feed' }}
       />
+      <p className="depot-prose -mt-3 mb-6" data-testid="crew-people-sentence">
+        {PEOPLE_SENTENCE}
+      </p>
       <Suspense fallback={<LoadingBlock rows={14} label="Loading the crew view" />}>
         <CrewPage />
       </Suspense>

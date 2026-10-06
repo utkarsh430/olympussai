@@ -3,8 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DepotCrewPage from '@/app/(protected)/project/depots/d/[depotId]/crew/page';
 import type { CrewResponse } from '@/lib/depot/crew/api';
 import {
+  NO_UNCOVERED_SENTENCE,
   PEOPLE_SENTENCE,
   ROSTER_NOTE,
+  SHORTFALL_EXPLANATION,
+  coverageLine,
+  crewDisclosure,
+  crossReferenceSentence,
   SLOT_NOTE,
   availabilityText,
   dutiesSentence,
@@ -58,6 +63,17 @@ describe('every sentence the crew page model can produce', () => {
       PEOPLE_SENTENCE,
       ROSTER_NOTE,
       SLOT_NOTE,
+      SHORTFALL_EXPLANATION,
+      NO_UNCOVERED_SENTENCE,
+      crossReferenceSentence({ scheduled: { n: 5, of: 200 }, duties: 158, routes: 14 }),
+      crossReferenceSentence({ scheduled: null, duties: 0, routes: 0 }),
+      coverageLine({ shiftsRequired: 160, shiftsCovered: 160, shiftsUncovered: 0, dutiesNeedingRelief: 0 }, []),
+      coverageLine({ shiftsRequired: 160, shiftsCovered: 160, shiftsUncovered: 0, dutiesNeedingRelief: 3 }, []),
+      coverageLine(
+        { shiftsRequired: 40, shiftsCovered: 30, shiftsUncovered: 10, dutiesNeedingRelief: 0 },
+        ROLES.flatMap((role) => CAUSES.map((cause) => ({ shortfalls: [{ role, cause }] }))),
+      ),
+      ...crewDisclosure(BASE.summary, BASE.limits).flatMap((section) => section.lines),
       emptyCrewSentence(),
       modelledStatement({ dailyHours: 10, weeklyHours: 48 }),
       reliefSentence(0),
@@ -106,6 +122,7 @@ const BASE: CrewResponse = {
     dutiesUncovered: 1,
     dutiesNeedingRelief: 0,
   },
+  day: { duties: 2, routes: 1 },
   availability: {
     driver: { available: 3, weekly_off: 1, leave: 1, training: 0, absent: 0 },
     conductor: { available: 1, weekly_off: 0, leave: 0, training: 0, absent: 0 },
@@ -175,6 +192,46 @@ describe('the crew page', () => {
   it.each(STATES)('holds no forbidden word in the %s state', async (_name, partial) => {
     setHook(partial);
     expectClean(text(await renderPage()));
+  });
+
+  it('puts the coverage line in a mono callout and the people sentence under the provenance line', async () => {
+    setHook({ data: { ...BASE, summary: { ...BASE.summary, shiftsUncovered: 1 } } });
+    const markup = await renderPage();
+    const page = text(markup);
+    expect(markup).toContain('data-testid="crew-coverage-line"');
+    expect(page).toContain('1 of 2 shifts covered; 1 uncovered; conductors: 1 all already rostered at the time.');
+    expect(markup.indexOf('crew-people-sentence')).toBeLessThan(markup.indexOf('crew-coverage-line'));
+    expect(markup.indexOf('MODELLED')).toBeLessThan(markup.indexOf('crew-people-sentence'));
+  });
+
+  it('says "no relief needed" in one line when every shift is covered and shows no shortfall explanation', async () => {
+    const covered = { ...BASE.summary, shiftsRequired: 160, shiftsCovered: 160, shiftsUncovered: 0 };
+    setHook({ data: { ...BASE, summary: covered, uncovered: [], uncoveredTotal: 0 } });
+    const markup = await renderPage();
+    expect(text(markup)).toContain('160 of 160 shifts covered; no relief needed.');
+    expect(markup).not.toContain('crew-shortfall-explanation');
+    expect(text(markup)).toContain(NO_UNCOVERED_SENTENCE);
+    expect(markup).not.toContain('Short</th>');
+  });
+
+  it('keeps the shortfall explanation visible beside a shortfall, and prints the modelled-day sentence', async () => {
+    setHook({ data: BASE });
+    const markup = await renderPage();
+    expect(markup).toContain('crew-shortfall-explanation');
+    expect(text(markup)).toContain('This page is built on the modelled day: 2 duties on 1 route.');
+  });
+
+  it('has no tiles, no tags in cells and no "About this page" panel; the roster is behind a closed disclosure', async () => {
+    setHook({ data: BASE });
+    const markup = await renderPage();
+    expect(markup).not.toContain('About this page');
+    expect(markup).not.toContain('Shifts required');
+    // the provenance line is the only tag before the closing disclosure
+    const beforeDisclosure = markup.slice(0, markup.indexOf('data-testid="depot-disclosure"'));
+    expect(beforeDisclosure.match(/MODELLED/g)).toHaveLength(1);
+    expect(text(markup)).toContain('Show the suggested roster');
+    expect(markup).not.toContain('<details open');
+    expect(text(markup)).toContain('How these figures are produced');
   });
 
   it('words the uncovered shift per role, the shortfall explanation and the slot note', async () => {

@@ -121,6 +121,7 @@ async function buildBody(
       dutiesUncovered: summary.dutiesUncovered,
       dutiesNeedingRelief: summary.dutiesNeedingRelief,
     },
+    day: { duties: duties.length, routes: new Set(duties.map((d) => d.routeName)).size },
     availability: { driver: countsFor(crew, 'driver'), conductor: countsFor(crew, 'conductor') },
     uncovered: uncovered.slice(0, UNCOVERED_CAP),
     uncoveredTotal: uncovered.length,

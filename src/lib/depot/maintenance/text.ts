@@ -59,18 +59,39 @@ export function distanceNotice(coverage: Coverage): string {
  * are never written without the word "modelled" in the same string.
  */
 const GROUP_LABEL: Readonly<Record<ServiceGroup, string>> = {
-  overdue: 'Modelled: overdue',
-  due_soon: 'Modelled: due soon',
-  not_due: 'Modelled: not due',
+  overdue: 'Overdue',
+  due_soon: 'Due soon',
+  not_due: 'Not due',
 };
 
-export const SERVICE_HEADER = 'Service (MODELLED)';
-export const NEXT_SERVICE_HEADER = 'To next service (MODELLED)';
+/*
+ * The status word in a cell stands alone ("Overdue"); the guard that it is a
+ * modelled statement is the tag in the column header, the tag on the section
+ * and the one sentence above the table (`preventiveGuard`).
+ */
+export const SERVICE_HEADER = 'Status (MODELLED)';
+export const NEXT_SERVICE_HEADER = 'To next service, km (MODELLED)';
+
+/** The one sentence above the preventive table: generated status beside a real registration. */
+export function preventiveGuard(): string {
+  return (
+    'Statuses here are generated from a model of service history, shown beside real ' +
+    'registration numbers; they are not workshop records.'
+  );
+}
+
+/** The distance cell: kilometres to the next service, a minus sign when past it. */
+export function kmToNextCell(kmToNextService: number): string {
+  return kmToNextService < 0
+    ? `\u2212${formatCount(-kmToNextService)}`
+    : formatCount(kmToNextService);
+}
 
 export function serviceGroupLabel(group: ServiceGroup): string {
   return GROUP_LABEL[group];
 }
 
+/** The cell's full wording, for its `title`: the cell itself holds only the number. */
 export function kmToNextText(
   kmToNextService: number,
   dueSoonWithinKm: number = DUE_SOON_WITHIN_KM,
@@ -135,4 +156,12 @@ export function workshopSentence(load: WorkshopLoad): string {
     return `${buses} fit in ${formatCount(bays)} modelled bays; ${formatCount(freeBays)} ${plural(freeBays, 'bay is', 'bays are')} free.`;
   }
   return `${buses} against ${formatCount(bays)} modelled bays: ${formatCount(queue)} would wait for a bay.`;
+}
+
+/** Where the bay count comes from, and which of its neighbours is live. */
+export function workshopBaysNote(): string {
+  return (
+    'The number of workshop bays is modelled, not read from any record. Buses off the road ' +
+    'are the live count above; those beyond the modelled bays are the ones that would wait.'
+  );
 }
