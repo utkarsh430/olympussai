@@ -1,7 +1,8 @@
 import { formatShare } from '@/lib/depot/format';
 import { LONG_DARK_AFTER_MIN } from '@/lib/depot/infer/thresholds';
 import type { DepotSummary, Figure, NetworkKpis } from '@/lib/depot/types';
-import type { DepotScore } from '@/lib/depot/score/types';
+import { MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
+import type { DepotScore, PeerGroupId, RankReason } from '@/lib/depot/score/types';
 import type { ExceptionKind, ExceptionSeverity } from '@/lib/depot/exceptions/types';
 
 /**
@@ -28,6 +29,25 @@ export function rankedIndex(row: DepotRow): number | null {
   const index = row.score?.index ?? null;
   if (!row.score?.ranked || index === null || !Number.isFinite(index)) return null;
   return index;
+}
+
+export const PEER_GROUP_LABEL: Readonly<Record<PeerGroupId, string>> = {
+  small: 'Small depots',
+  medium: 'Medium depots',
+  large: 'Large depots',
+  all: 'All depots',
+};
+
+/** Why a depot carries no index, in words. */
+export const RANK_REASON_LABEL: Readonly<Record<RankReason, string>> = {
+  ok: 'Ranked',
+  not_a_depot: 'Not an operating depot',
+  fleet_too_small: `Fewer than ${MIN_FLEET_FOR_RANK} buses`,
+};
+
+/** The index to one decimal, or a dash when there is none. */
+export function formatIndex(index: number | null): string {
+  return index === null || !Number.isFinite(index) ? '—' : index.toFixed(1);
 }
 
 export const RANKED_STRIP_SIZE = 5;
@@ -136,7 +156,11 @@ export const EXCEPTION_KINDS: ReadonlyArray<{
   { kind: 'off_road_high', label: 'High off-road rate', severity: 'variable' },
   { kind: 'on_road_low', label: 'Low on-road share', severity: 'variable' },
   { kind: 'power_cut_cluster', label: 'Power-cut cluster', severity: 'warning' },
-  { kind: 'long_dark', label: `Dark for over ${LONG_DARK_AFTER_MIN / MINUTES_PER_HOUR} hours`, severity: 'warning' },
+  {
+    kind: 'long_dark',
+    label: `Dark for over ${LONG_DARK_AFTER_MIN / MINUTES_PER_HOUR} hours`,
+    severity: 'warning',
+  },
   { kind: 'power_cut', label: 'Main power off', severity: 'info' },
   { kind: 'tamper_code', label: 'Tamper code', severity: 'info' },
 ];
@@ -152,9 +176,7 @@ function safeCount(value: number | undefined): number {
   return value !== undefined && Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
 }
 
-export function exceptionRows(
-  counts: Readonly<Record<ExceptionKind, number>>,
-): ExceptionKindRow[] {
+export function exceptionRows(counts: Readonly<Record<ExceptionKind, number>>): ExceptionKindRow[] {
   return EXCEPTION_KINDS.map((entry) => ({ ...entry, count: safeCount(counts[entry.kind]) }));
 }
 

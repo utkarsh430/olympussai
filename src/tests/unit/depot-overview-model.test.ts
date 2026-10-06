@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   exceptionRows,
   exceptionTotals,
+  formatIndex,
   joinScores,
   kpiRows,
   rankedExtremes,
@@ -72,7 +73,10 @@ describe('joinScores', () => {
 describe('rankedExtremes', () => {
   it('returns the top five by index descending and the bottom five ascending', () => {
     const rows = rowsFor(
-      Array.from({ length: 12 }, (_, i): [string, number] => [`d${String(i).padStart(2, '0')}`, i * 8]),
+      Array.from({ length: 12 }, (_, i): [string, number] => [
+        `d${String(i).padStart(2, '0')}`,
+        i * 8,
+      ]),
     );
     const { top, bottom } = rankedExtremes(rows);
     expect(top.map((row) => row.score?.index)).toEqual([88, 80, 72, 64, 56]);
@@ -124,9 +128,7 @@ describe('rankedExtremes', () => {
     ];
     const forward = rankedExtremes(rowsFor(entries));
     const reversed = rankedExtremes(rowsFor([...entries].reverse()));
-    expect(forward.top.map((row) => row.depot.id)).toEqual(
-      reversed.top.map((row) => row.depot.id),
-    );
+    expect(forward.top.map((row) => row.depot.id)).toEqual(reversed.top.map((row) => row.depot.id));
   });
 });
 
@@ -236,5 +238,13 @@ describe('exception summaries', () => {
     const totals = exceptionTotals(partial);
     expect(totals.critical).toBe(0);
     expect(totals.warning).toBe(3);
+  });
+});
+
+describe('formatIndex', () => {
+  it('shows one decimal, and a dash for a missing or invalid index', () => {
+    expect(formatIndex(72)).toBe('72.0');
+    expect(formatIndex(null)).toBe('—');
+    expect(formatIndex(Number.NaN)).toBe('—');
   });
 });
