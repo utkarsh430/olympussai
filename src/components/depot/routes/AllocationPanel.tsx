@@ -25,8 +25,6 @@ const TITLE_ID = 'allocation-title';
 export interface AllocationPanelProps {
   readonly allocation: DepotAllocationResponse;
   readonly groups: readonly UnmovedGroup[];
-  /** The route-details loader, shown with the plan in both states. */
-  readonly loader: ReactNode;
 }
 
 /** The trip definition and the pending-profiles sentence, beside the plan's figures. */
@@ -46,10 +44,10 @@ function PlanBasis({ allocation }: { readonly allocation: DepotAllocationRespons
 /**
  * The plan as one panel: a headline sentence (the thresholds in its `title`), the figure
  * band and the recommended moves when something is planned, the unmoved, outside-the-plan
- * and unprofiled routes as collapsed rows with counts, and the route-details loader. When
- * nothing can be planned it is one state panel with the loader as its action.
+ * and unprofiled routes as collapsed rows with counts. When nothing can be planned it is
+ * one state panel; the route-details loader follows it either way (see the section).
  */
-export function AllocationPanel({ allocation, groups, loader }: AllocationPanelProps) {
+export function AllocationPanel({ allocation, groups }: AllocationPanelProps) {
   const h = useMemo(() => allocationHeadline(allocation), [allocation]);
   const rows = useMemo(() => moveRows(allocation.moves), [allocation.moves]);
   if (!h.planned) {
@@ -58,8 +56,7 @@ export function AllocationPanel({ allocation, groups, loader }: AllocationPanelP
         <StatePanel
           kind="not-established"
           sentence={h.emptyLine}
-          remedy="Load a depot's route details below; the plan measures each route once its stops are known."
-          action={loader}
+          remedy="Choose a depot below and load its route details; the plan measures each route once its stops are known."
         />
         <div className="mt-3">
           <PlanBasis allocation={allocation} />
@@ -92,7 +89,6 @@ export function AllocationPanel({ allocation, groups, loader }: AllocationPanelP
       <div className="mt-3 border-t border-depot-line">
         <ProfileCoverage profiled={allocation.coverage.profiled} />
       </div>
-      <div className="mt-4">{loader}</div>
     </>
   );
 }
@@ -112,7 +108,7 @@ export function AllocationSection({ state, groups, loader }: AllocationSectionPr
       {loading ? (
         <LoadingBlock rows={3} rowHeight={48} label="Loading the allocation plan" />
       ) : data ? (
-        <AllocationPanel allocation={data} groups={groups} loader={loader} />
+        <AllocationPanel allocation={data} groups={groups} />
       ) : (
         <ErrorPanel
           title="Allocation plan unavailable"
@@ -120,6 +116,9 @@ export function AllocationSection({ state, groups, loader }: AllocationSectionPr
           onRetry={refresh}
         />
       )}
+      {/* One stable position: a plan that becomes planned mid-run must not unmount (and so
+          cancel) the loader. */}
+      <div className="mt-4">{loader}</div>
     </section>
   );
 }
