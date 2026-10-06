@@ -93,7 +93,7 @@ export function YardNotEstablished({ model, snapshotsSeen }: YardNotEstablishedP
         howLink={{ label: 'How a yard is found', targetId: HOW_ID }}
         action={
           <a className="depot-link" href={`#${ROLL_SECTION_ID}`}>
-            See every bus by state ↓
+            See the buses by state ↓
           </a>
         }
       />

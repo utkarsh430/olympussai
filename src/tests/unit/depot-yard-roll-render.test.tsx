@@ -168,7 +168,7 @@ describe('YardNotEstablished', () => {
     expect(panel?.textContent).toContain('4 parked buses with a position');
     expect(panel?.textContent).not.toContain('A yard is placed where');
     expect(panel?.querySelector('a[href="#yard-roll-in"]')?.textContent).toContain(
-      'See every bus by state',
+      'See the buses by state',
     );
     expect(panel?.textContent).toContain('How a yard is found');
   });

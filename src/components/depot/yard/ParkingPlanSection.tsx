@@ -52,6 +52,7 @@ function PlanArea({ depotId, data }: { readonly depotId: string; readonly data: 
           <SectionLabel id="parking-empty-heading" label="Night parking order" tag="modelled" />
           <StatePanel
             kind={data.state === 'no_yard' ? 'not-established' : 'empty'}
+            compact
             sentence={emptyOrderSentence(data.state)}
             testId="depot-empty"
           />
