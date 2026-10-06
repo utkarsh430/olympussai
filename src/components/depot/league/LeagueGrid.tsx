@@ -7,6 +7,7 @@ import { DEI_COMPONENTS } from '@/lib/depot/score/config';
 import type { DeiComponentKey, PeerGroupId } from '@/lib/depot/score/types';
 import { sortRows, type SortDirection, type SortValue } from '@/lib/depot/tableSort';
 import { DepotCell, IndexCell, MetricCell } from './LeagueCells';
+import * as trend from '@/components/depot/trends/LeagueTrend';
 
 /*
  * The league's own table markup, on the shared `depot-table` classes: the
@@ -42,7 +43,7 @@ function componentOf(row: LeagueRow, key: DeiComponentKey) {
   return row.components.find((c) => c.key === key);
 }
 
-function columnsFor(showPeerGroup: boolean): readonly LeagueColumn[] {
+function columnsFor(showPeerGroup: boolean, trends: trend.IndexTrends): readonly LeagueColumn[] {
   return [
     { key: 'rank', header: 'Rank', className: FROZEN.rank, right: true, sortValue: (r) => r.rank },
     { key: 'depot', header: 'Depot', className: FROZEN.depot, sortValue: (r) => r.name },
@@ -53,6 +54,8 @@ function columnsFor(showPeerGroup: boolean): readonly LeagueColumn[] {
       className: FROZEN.index,
       sortValue: (r) => r.index,
     },
+    { key: 'trend', header: trend.INDEX_TREND_HEADER, title: trend.INDEX_TREND_TITLE,
+      className: WIDE_ONLY, sortValue: (r) => trends.get(r.depotId)?.fourWeeks ?? null },
     ...(showPeerGroup
       ? [{
           key: 'peerGroup',
@@ -75,8 +78,10 @@ function columnsFor(showPeerGroup: boolean): readonly LeagueColumn[] {
   ];
 }
 
-function cellContent(column: LeagueColumn, row: LeagueRow, selected: boolean, onSelect: (row: LeagueRow) => void) {
+function cellContent(column: LeagueColumn, row: LeagueRow, selected: boolean, onSelect: (row: LeagueRow) => void, trends: trend.IndexTrends) {
   switch (column.key) {
+    case 'trend':
+      return <trend.IndexTrendCell name={row.name} row={trends.get(row.depotId)} />;
     case 'rank':
       return row.rank ?? '—';
     case 'depot':
@@ -106,7 +111,8 @@ export interface LeagueGridProps {
 
 export function LeagueGrid({ rows, showPeerGroup, selectedId, onSelect }: LeagueGridProps) {
   const [sort, setSort] = useState<Sort | null>(null);
-  const columns = useMemo(() => columnsFor(showPeerGroup), [showPeerGroup]);
+  const trends = trend.useIndexTrends();
+  const columns = useMemo(() => columnsFor(showPeerGroup, trends), [showPeerGroup, trends]);
   const sortColumn = sort ? columns.find((c) => c.key === sort.key) : undefined;
   const visible = useMemo(
     () => (sort && sortColumn ? sortRows(rows, sortColumn.sortValue, sort.direction) : rows),
@@ -167,7 +173,7 @@ export function LeagueGrid({ rows, showPeerGroup, selectedId, onSelect }: League
                         : ''
                     }`}
                   >
-                    {cellContent(c, row, selected, onSelect)}
+                    {cellContent(c, row, selected, onSelect, trends)}
                   </td>
                 ))}
               </tr>

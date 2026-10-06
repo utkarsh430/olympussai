@@ -1,9 +1,14 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LeagueGrid } from '@/components/depot/league/LeagueGrid';
 import { ScoreBreakdown } from '@/components/depot/league/ScoreBreakdown';
 import type { LeagueRow } from '@/lib/depot/league/leagueModel';
+
+// The grid's index-trend column polls one batch endpoint; these tests are about the grid.
+vi.mock('@/hooks/useDepotTrends', () => ({
+  useDepotTrends: () => ({ data: null, error: null, loading: true, refresh: () => undefined }),
+}));
 
 const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 
