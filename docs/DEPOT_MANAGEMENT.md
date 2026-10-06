@@ -264,8 +264,8 @@ first.
 | Copilot runtime: response cache, in-flight sharing, allowances, limiters, CLI semaphore and breaker | `copilot/service/` | see the copilot document |
 
 Consequences: a restart or cold start empties all of it. The score window then starts
-with one sample and screens say "from one snapshot at HH:MM", then "since HH:MM, N
-snapshots" until the window fills; yards are decided again from single snapshots, and the
+with one sample and screens say "from one snapshot at HH:MM", then "over the last N
+minutes" with N the minutes the samples actually span, until the window is full; yards are decided again from single snapshots, and the
 cockpit says "This server has decided this depot's yard on N snapshots so far"; the route
 catalogue is empty until users load details again; the copilot's limits and budget reset.
 With several instances, each holds its own copy: two requests can be scored over different
@@ -340,8 +340,9 @@ feed time. What each arrival does (`score/windowStore.ts`, `score/epoch.ts`):
 The `network`, `exceptions` and `[depotId]` responses carry `scoreWindow`: the window's
 length, `since`, `samples`, and `coveredMin` (the whole minutes of feed time the samples
 actually span); each depot's score carries its own `samples`. Pages word the window only
-through `score/windowWords.ts`: "over the last N minutes" (from `coveredMin`), "since
-HH:MM, N snapshots" while it fills, or "from one snapshot at HH:MM" (see
+through `score/windowWords.ts`: "over the last N minutes" (from `coveredMin`, so
+shorter than 20 while the window fills), "from one snapshot at HH:MM" for a single sample,
+or "since HH:MM, N snapshots" when the span cannot be read in whole minutes (see
 [`DEPOT_UI_PATTERNS.md`](DEPOT_UI_PATTERNS.md#index-window-words)). Peer-group membership
 follows present fleet size. The window is process memory (section 6).
 

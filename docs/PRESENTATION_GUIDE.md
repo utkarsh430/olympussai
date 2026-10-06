@@ -40,7 +40,7 @@ Run through this five minutes before presenting.
 - [ ] The Alert Centre shows five alerts; click one — the analysis panel opens.
 - [ ] Click **Depot Management** in the command bar — the depot module opens on its network overview; the feed chip reads `LIVE` (not `STALE`, `CHECK CLOCK` or `FIXTURE`). Use **Back to Operations** to return.
 - [ ] If you will show route allocation, load one depot's route details beforehand with **Load route details** on the **Routes** page (one lookup at a time, at most 40 routes a press): the plan stays empty until details are loaded, and only covers routes fetched since the server started.
-- [ ] Open the depot module a few minutes before you present: the efficiency index is computed over the snapshots this server has seen in the last 20 minutes, so just after a restart the pages say "from one snapshot" or "since HH:MM" instead.
+- [ ] Open the depot module a few minutes before you present: the efficiency index is computed over the snapshots this server has seen in the last 20 minutes, so just after a restart the pages say "from one snapshot" or a shorter "over the last N minutes" instead.
 - [ ] Open the demand view from a bus's analysis menu (**Demand - Supply Analysis**) or from Scenario Lab.
 - [ ] Open **Audit**, click **Clear** to start with an empty trail.
 - [ ] Open **Scenario Lab**, click **Reset Demonstration**.
