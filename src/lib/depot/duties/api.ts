@@ -44,6 +44,12 @@ export interface BoardDuty {
    * duty with a bus is `assigned` whatever this says.
    */
   readonly busStanding?: BusStandingNow | null;
+  /**
+   * The service class of the duty's bus, so a page can show a bus of another
+   * class on the duty (class is a preference, ruling S47). Null when the duty
+   * has no bus. Always sent.
+   */
+  readonly busClass?: ServiceClass | null;
   readonly state: DutyState;
   /** For an unassigned duty: the buses of every class held out of the matching. Null when assigned. */
   readonly blockers: DutyBlockers | null;

@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as depotView from '@/lib/depot/live/depotView';
 import type { DepotBusRow } from '@/models/depotLive';
 import { fromMetres } from '@/lib/depot/infer/geo';
-import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
+import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
+import { dutyPlanFor } from '@/lib/depot/live/operatingDayView';
 import { buildDutyBoard } from '@/lib/depot/live/dutyView';
 import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
 
@@ -130,6 +131,26 @@ describe('buildDutyBoard', () => {
     const b = board(rows);
     expect(b.counts.excluded.notHeard).toBe(8);
     for (const d of b.duties) expect(d.blockers).toEqual(b.counts.excluded);
+  });
+
+  it('carries the class of the bus on each assigned duty, so a mismatch can be shown (m6)', () => {
+    const rows = [...parked(), row({ registrationNumber: 'E1', routeName: 'EXP_1' })];
+    const b = board(rows);
+    const plan = dutyPlanFor(analyseSnapshot(view(rows)), '1', b.operatingDate);
+    for (const d of b.duties) {
+      const expected = d.registrationNumber === null ? null : plan?.fleet.get(d.registrationNumber)?.serviceClass;
+      expect(d.busClass).toBe(expected);
+    }
+  });
+
+  it('hands out frozen copies of the shared plan’s lists, never the lists themselves (m4)', () => {
+    const rows = parked(12);
+    const b = board(rows);
+    const plan = dutyPlanFor(analyseSnapshot(view(rows)), '1', b.operatingDate);
+    expect(b.spareBuses).not.toBe(plan?.plan.spareBuses);
+    expect(b.routesWithoutDuty).not.toBe(plan?.routesWithoutDuty);
+    expect(Object.isFrozen(b.spareBuses)).toBe(true);
+    expect(Object.isFrozen(b.routesWithoutDuty)).toBe(true);
   });
 
   it('carries the reason through: a depot with no usable bus leaves every duty without one', () => {
