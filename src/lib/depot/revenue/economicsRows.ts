@@ -3,12 +3,15 @@ import { MIN_FLEET_FOR_RANK } from '../score/config';
 import type { Coverage, DepotKind } from '../types';
 import type { EconomicsDepotRow } from './api';
 import {
+  bareComponentDifference,
+  bareComponentValue,
   describeDifference,
   formatComponentDifference,
   formatComponentValue,
   specOf,
   type DifferenceDirection,
 } from './economicsFormat';
+import { noDutyPhrase } from './economicsLayout';
 import { coverageSentence, NO_KM_RUN } from './revenuePageModel';
 import type { DepotEconomicsScore, EconomicsComponentKey } from './types';
 
@@ -25,6 +28,9 @@ export interface EconomicsCell {
   readonly peerMedian: number | null;
   readonly valueText: string;
   readonly differenceText: string;
+  /** The table cell: a bare number (unit in the header) and the signed change as a muted suffix. */
+  readonly bareValue: string;
+  readonly bareDifference: string;
   readonly direction: DifferenceDirection;
   /** Value, difference and the word, for a title and screen-reader text. */
   readonly description: string;
@@ -64,7 +70,7 @@ function unrankedShort(entry: EconomicsDepotRow): string | null {
   return 'a component could not be worked out';
 }
 
-function unrankedText(entry: EconomicsDepotRow): string | null {
+function unrankedText(entry: EconomicsDepotRow, operatingDate?: string): string | null {
   const { score } = entry;
   if (score.ranked) return null;
   if (score.reason === 'not_a_depot') return 'Not an operating depot, so it is not ranked.';
@@ -75,10 +81,11 @@ function unrankedText(entry: EconomicsDepotRow): string | null {
     return 'Not ranked: its peer group has too few depots with complete figures to compare.';
   }
   if (score.missing.includes('earningsPerKm')) {
-    return 'No duty ran in its modelled day (none of its buses reports a route, or none was available), so it has no earnings per kilometre.';
+    const phrase = noDutyPhrase(operatingDate);
+    return `${phrase.charAt(0).toUpperCase()}${phrase.slice(1)} (none of its buses reports a route, or none is available), so it has no earnings per kilometre.`;
   }
   if (score.missing.includes('costPerKm')) {
-    return 'No bus ran in its modelled day, so fuel cost per kilometre cannot be worked out.';
+    return `No bus runs a duty in the modelled day${operatingDate === undefined ? '' : ` for ${operatingDate}`}, so fuel cost per kilometre cannot be worked out.`;
   }
   return 'No seats are offered in the model, so its load factor cannot be worked out.';
 }
@@ -115,6 +122,8 @@ function toCells(entry: EconomicsDepotRow): EconomicsCell[] {
       peerMedian,
       valueText,
       differenceText: delta === null ? '' : formatComponentDifference(component.key, delta),
+      bareValue: component.value === null ? valueText : bareComponentValue(component.key, component.value),
+      bareDifference: bareComponentDifference(component.key, delta),
       direction: wording.direction,
       description: `${spec.label} ${valueText}${noteText === null ? '' : ` (${noteText})`}${compared}`,
       noteText,
@@ -139,7 +148,10 @@ function compareDefault(a: EconomicsRow, b: EconomicsRow): number {
   return b.fleet - a.fleet || a.name.localeCompare(b.name, 'en');
 }
 
-export function buildEconomicsRows(depots: readonly EconomicsDepotRow[]): EconomicsRow[] {
+export function buildEconomicsRows(
+  depots: readonly EconomicsDepotRow[],
+  operatingDate?: string,
+): EconomicsRow[] {
   return depots
     .map((entry): EconomicsRow => ({
       depotId: entry.depotId,
@@ -152,7 +164,7 @@ export function buildEconomicsRows(depots: readonly EconomicsDepotRow[]): Econom
       rank: entry.score.rank,
       economicsIndex: entry.score.economicsIndex,
       peerCount: entry.score.peerCount,
-      reasonText: unrankedText(entry),
+      reasonText: unrankedText(entry, operatingDate),
       reasonShort: unrankedShort(entry),
       cells: toCells(entry),
       lengthCoverage: entry.lengthCoverage,

@@ -9,3 +9,4 @@ export * from './economicsRows';
 export * from './economicsExplain';
 export * from './economicsStatement';
 export * from './economicsPanelPageModel';
+export * from './economicsLayout';

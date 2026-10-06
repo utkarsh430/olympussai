@@ -17,12 +17,15 @@ export interface ComponentSpec {
   readonly label: string;
   readonly higherIsBetter: boolean;
   readonly unit: 'rupees' | 'share';
+  /** The table's short header and its unit ("EARNINGS ₹/KM"), so cells carry bare numbers. */
+  readonly header: string;
+  readonly headerUnit: string;
 }
 
 export const ECONOMICS_COMPONENT_SPECS: readonly ComponentSpec[] = [
-  { key: 'earningsPerKm', label: 'Earnings per km', higherIsBetter: true, unit: 'rupees' },
-  { key: 'costPerKm', label: 'Fuel cost per km', higherIsBetter: false, unit: 'rupees' },
-  { key: 'loadFactor', label: 'Load factor', higherIsBetter: true, unit: 'share' },
+  { key: 'earningsPerKm', label: 'Earnings per km', higherIsBetter: true, unit: 'rupees', header: 'Earnings', headerUnit: '₹/km' },
+  { key: 'costPerKm', label: 'Fuel cost per km', higherIsBetter: false, unit: 'rupees', header: 'Fuel', headerUnit: '₹/km' },
+  { key: 'loadFactor', label: 'Load factor', higherIsBetter: true, unit: 'share', header: 'Load', headerUnit: '%' },
 ];
 
 export const specOf = (key: EconomicsComponentKey): ComponentSpec =>
@@ -51,6 +54,22 @@ export function formatComponentDifference(key: EconomicsComponentKey, delta: num
   }
   const rounded = roundTo(delta * PERCENT, TENTH);
   return rounded === 0 ? '0.0 pp' : `${rounded > 0 ? '+' : MINUS}${Math.abs(rounded).toFixed(1)} pp`;
+}
+
+/** A table cell's bare number: the unit is in the header ("40.81", "74.2"). */
+export function bareComponentValue(key: EconomicsComponentKey, value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return DASH;
+  return specOf(key).unit === 'rupees' ? roundTo(value, HUNDREDTH).toFixed(2) : pointsText(value);
+}
+
+/** The muted suffix: the signed change against the peer median, bare ("+6.04", "−0.42", "+3.1"). */
+export function bareComponentDifference(key: EconomicsComponentKey, delta: number | null): string {
+  if (delta === null || !Number.isFinite(delta)) return '';
+  const rupeeUnit = specOf(key).unit === 'rupees';
+  const rounded = rupeeUnit ? roundTo(delta, HUNDREDTH) : roundTo(delta * PERCENT, TENTH);
+  const digits = rupeeUnit ? 2 : 1;
+  if (rounded === 0) return (0).toFixed(digits);
+  return `${rounded > 0 ? '+' : MINUS}${Math.abs(rounded).toFixed(digits)}`;
 }
 
 export type DifferenceDirection = 'better' | 'worse' | 'level' | 'unknown';

@@ -1,3 +1,4 @@
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import {
   BREAKDOWN_NOTE,
   breakdownRows,
@@ -21,25 +22,21 @@ export function EconomicsBreakdown({
   readonly row: EconomicsRow;
   readonly weights: EconomicsResponse['weights'];
   /** Lets the page move focus here after a selection. */
-  readonly headingRef?: React.Ref<HTMLHeadingElement>;
+  readonly headingRef?: React.Ref<HTMLElement>;
 }) {
   return (
     <section
+      id="economics-breakdown"
+      ref={headingRef}
+      tabIndex={-1}
       aria-labelledby="economics-breakdown-title"
       data-testid="depot-economics-breakdown"
-      className="depot-panel min-w-0 p-4 2xl:sticky 2xl:top-[var(--depot-panel-top)] 2xl:self-start"
+      className="depot-panel min-w-0 p-4 focus:outline-none 2xl:sticky 2xl:top-[var(--depot-panel-top)] 2xl:self-start"
     >
-      <p className="depot-label">Economics breakdown</p>
-      <h2
-        id="economics-breakdown-title"
-        ref={headingRef}
-        tabIndex={-1}
-        className="mt-1 scroll-mt-[var(--depot-anchor-mt)] font-mono text-sm text-depot-ink focus:outline-none"
-      >
-        {`${row.name} · ${peerRankPhrase(row)}`}
-      </h2>
+      <SectionLabel id="economics-breakdown-title" label="Score breakdown" tag="modelled" />
+      <h3 className="font-mono text-sm text-depot-ink">{`${row.name} · ${peerRankPhrase(row)}`}</h3>
       <p className="depot-prose mt-1">{explainEconomics(row)}</p>
-      <p className="mt-1 text-[11px] text-depot-muted">
+      <p className="depot-note mt-1">
         {`Earnings per km: ${coverageSentence(row.lengthCoverage).toLowerCase()}.`}
       </p>
       <div className="depot-table-frame mt-3">

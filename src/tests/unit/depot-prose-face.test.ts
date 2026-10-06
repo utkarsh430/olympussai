@@ -38,7 +38,6 @@ const EXEMPT: readonly string[] = [
   'src/components/depot/duties/DutyBoard.tsx',
   'src/components/depot/duties/DutyPage.tsx',
   'src/components/depot/duties/DutyTable.tsx',
-  'src/components/depot/economics/EconomicsBreakdown.tsx',
   'src/components/depot/exceptions/BusExceptionSection.tsx',
   'src/components/depot/exceptions/ExceptionCentre.tsx',
   'src/components/depot/league/ScoreBreakdown.tsx',

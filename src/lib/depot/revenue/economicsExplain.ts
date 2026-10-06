@@ -14,7 +14,7 @@ function count(depots: readonly EconomicsDepotRow[], reason: EconomicsRankReason
   return depots.filter((d) => d.score.reason === reason).length;
 }
 
-/** "4 ranked of 6 operating depots · 1 not ranked: no duty ran in the modelled day". */
+/** "4 ranked of 6 operating depots · 1 not ranked: no duty in the modelled day". */
 export function economicsStatusLine(depots: readonly EconomicsDepotRow[]): string {
   const operating = depots.filter((d) => d.kind === 'depot');
   const ranked = operating.filter((d) => d.score.ranked).length;
@@ -28,7 +28,7 @@ export function economicsStatusLine(depots: readonly EconomicsDepotRow[]): strin
   const noun = operating.length === 1 ? 'operating depot' : 'operating depots';
   const parts = [
     `${formatCount(ranked)} ranked of ${formatCount(operating.length)} ${noun}`,
-    noLength > 0 ? `${formatCount(noLength)} not ranked: no duty ran in the modelled day` : null,
+    noLength > 0 ? `${formatCount(noLength)} not ranked: no duty in the modelled day` : null,
     smallGroup > 0
       ? `${formatCount(smallGroup)} not ranked: its peer group has too few depots with complete figures`
       : null,
