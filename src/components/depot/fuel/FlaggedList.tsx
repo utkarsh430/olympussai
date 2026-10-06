@@ -40,7 +40,12 @@ function buildColumns(depotId: string, withRoute: boolean): readonly Column<Fuel
         </Link>
       ),
     },
-    { key: 'class', header: 'Class', sortValue: (b) => b.serviceClass, render: (b) => groupLabel(b.serviceClass) },
+    {
+      key: 'class',
+      header: 'Class',
+      sortValue: (b) => b.serviceClass,
+      render: (b) => groupLabel(b.serviceClass),
+    },
     ...(withRoute ? [route] : []),
     {
       key: 'kmpl',
@@ -63,7 +68,12 @@ function buildColumns(depotId: string, withRoute: boolean): readonly Column<Fuel
       sortValue: (b) => b.variancePct,
       render: (b) => formatVariance(b.variancePct),
     },
-    { key: 'basis', header: 'Basis', sortValue: (b) => b.comparison, render: (b) => BASIS_LABEL[b.comparison] },
+    {
+      key: 'basis',
+      header: 'Basis',
+      sortValue: (b) => b.comparison,
+      render: (b) => BASIS_LABEL[b.comparison],
+    },
   ];
 }
 

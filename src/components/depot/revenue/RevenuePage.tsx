@@ -24,11 +24,16 @@ export function RevenuePage() {
   const { depotId, data: detail } = useDepotDetailContext();
   const { data, error, loading, refresh } = useDepotRevenue(depotId);
 
-  if (loading) return <StatePanel kind="loading" rows={LOADING_ROWS} sentence="Loading the revenue view" />;
+  if (loading)
+    return <StatePanel kind="loading" rows={LOADING_ROWS} sentence="Loading the revenue view" />;
   if (!data) {
     return (
       <ErrorPanel
-        title={error === DEPOT_NOT_FOUND_MESSAGE ? DEPOT_NOT_FOUND_MESSAGE : 'Could not load revenue figures'}
+        title={
+          error === DEPOT_NOT_FOUND_MESSAGE
+            ? DEPOT_NOT_FOUND_MESSAGE
+            : 'Could not load revenue figures'
+        }
         message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
         onRetry={refresh}
       />

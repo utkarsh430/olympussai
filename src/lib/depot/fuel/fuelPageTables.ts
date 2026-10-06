@@ -41,7 +41,8 @@ export interface BandFigure {
 /** The depot's day as five figures; "N of M buses ran" is the first. */
 export function fuelBand(data: FuelResponse): readonly BandFigure[] {
   const { totals, day } = data;
-  const notRun = data.notRunCount > 0 ? `${formatCount(data.notRunCount)} did not run` : 'every bus ran';
+  const notRun =
+    data.notRunCount > 0 ? `${formatCount(data.notRunCount)} did not run` : 'every bus ran';
   return [
     {
       key: 'ran',
@@ -49,8 +50,18 @@ export function fuelBand(data: FuelResponse): readonly BandFigure[] {
       value: `${formatCount(totals.busCount)} of ${formatCount(day.buses)}`,
       caption: notRun,
     },
-    { key: 'distance', label: 'Distance', value: formatKm(totals.distanceKm), caption: 'run in the day' },
-    { key: 'fuel', label: 'Fuel issued', value: formatLitres(totals.fuelLitres), caption: 'for the day' },
+    {
+      key: 'distance',
+      label: 'Distance',
+      value: formatKm(totals.distanceKm),
+      caption: 'run in the day',
+    },
+    {
+      key: 'fuel',
+      label: 'Fuel issued',
+      value: formatLitres(totals.fuelLitres),
+      caption: 'for the day',
+    },
     {
       key: 'cost',
       label: 'Cost',
@@ -126,7 +137,9 @@ export interface ClassTableRow {
 
 /** Where the class bars start: half the lowest rate, to the tenth. */
 export function classFloor(rows: readonly FuelGroupRow[]): number {
-  const values = rows.filter((r) => r.kmPerLitre !== null && r.distanceKm > 0).map((r) => r.kmPerLitre ?? 0);
+  const values = rows
+    .filter((r) => r.kmPerLitre !== null && r.distanceKm > 0)
+    .map((r) => r.kmPerLitre ?? 0);
   if (values.length === 0) return 0;
   return Math.floor(Math.min(...values) * FLOOR_SHARE * TENTH) / TENTH;
 }
@@ -136,7 +149,9 @@ export function classTableRows(
   labelOf: (key: string | null) => string,
 ): readonly ClassTableRow[] {
   const floor = classFloor(rows);
-  const values = rows.filter((r) => r.kmPerLitre !== null && r.distanceKm > 0).map((r) => r.kmPerLitre ?? 0);
+  const values = rows
+    .filter((r) => r.kmPerLitre !== null && r.distanceKm > 0)
+    .map((r) => r.kmPerLitre ?? 0);
   const top = Math.max(0, ...values);
   return rows.map((row) => {
     const has = row.kmPerLitre !== null && row.distanceKm > 0;

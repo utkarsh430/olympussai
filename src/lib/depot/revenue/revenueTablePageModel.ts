@@ -41,8 +41,18 @@ export function revenueBand(totals: DepotRevenueTotals): readonly RevenueBandFig
   const modelledShare = totals.modelledLengthRevenueShare;
   return [
     { key: 'trips', label: 'Trips', value: formatCount(totals.trips), caption: 'duties that ran' },
-    { key: 'boardings', label: 'Boardings', value: formatCount(totals.boardings), caption: 'passengers boarding' },
-    { key: 'loadFactor', label: 'Load factor', value: formatLoadFactor(totals.loadFactor), caption: 'seats filled, by trips' },
+    {
+      key: 'boardings',
+      label: 'Boardings',
+      value: formatCount(totals.boardings),
+      caption: 'passengers boarding',
+    },
+    {
+      key: 'loadFactor',
+      label: 'Load factor',
+      value: formatLoadFactor(totals.loadFactor),
+      caption: 'seats filled, by trips',
+    },
     {
       key: 'revenue',
       label: 'Revenue',
@@ -70,7 +80,9 @@ export interface RevenueTableRow extends RevenueRow {
 }
 
 /** Every route's row with the bar geometry and the plain cells. Order is the input's. */
-export function revenueTableRows(routes: readonly RouteRevenueFigure[]): readonly RevenueTableRow[] {
+export function revenueTableRows(
+  routes: readonly RouteRevenueFigure[],
+): readonly RevenueTableRow[] {
   const rows = buildRouteRows(routes);
   const top = Math.max(0, ...rows.map((r) => r.revenue));
   return rows.map((row, index) => ({
@@ -82,7 +94,8 @@ export function revenueTableRows(routes: readonly RouteRevenueFigure[]): readonl
   }));
 }
 
-export const NO_ROUTES_RAN = 'No route has a bus running in the feed now, so there is no revenue to show.';
+export const NO_ROUTES_RAN =
+  'No route has a bus running in the feed now, so there is no revenue to show.';
 
 /** The closing disclosure: the modelled statement, the trip definition, the load-factor definition and the notes. */
 export function revenueDisclosure(

@@ -10,7 +10,10 @@ const SOURCES_PATH = '/project/depots/sources';
  */
 export function HowProduced({ paragraphs }: { readonly paragraphs: readonly string[] }) {
   return (
-    <details className="group min-w-0 border-t border-depot-line pt-3" data-testid="depot-how-produced">
+    <details
+      className="group min-w-0 border-t border-depot-line pt-3"
+      data-testid="depot-how-produced"
+    >
       <summary className="flex cursor-pointer list-none items-baseline gap-2 py-1 font-mono text-[11px] uppercase tracking-[0.16em] text-depot-muted hover:text-depot-ink [&::-webkit-details-marker]:hidden">
         <span aria-hidden className="inline-block w-3 text-depot-faint group-open:rotate-90">
           ›

@@ -27,11 +27,16 @@ export function FuelPage() {
   const { depotId, data: detail } = useDepotDetailContext();
   const { data, error, loading, refresh } = useDepotFuel(depotId);
 
-  if (loading) return <StatePanel kind="loading" rows={LOADING_ROWS} sentence="Loading the fuel and cost view" />;
+  if (loading)
+    return (
+      <StatePanel kind="loading" rows={LOADING_ROWS} sentence="Loading the fuel and cost view" />
+    );
   if (!data) {
     return (
       <ErrorPanel
-        title={error === DEPOT_NOT_FOUND_MESSAGE ? DEPOT_NOT_FOUND_MESSAGE : 'Could not load fuel data'}
+        title={
+          error === DEPOT_NOT_FOUND_MESSAGE ? DEPOT_NOT_FOUND_MESSAGE : 'Could not load fuel data'
+        }
         message={error ?? DEPOT_UNAVAILABLE_MESSAGE}
         onRetry={refresh}
       />

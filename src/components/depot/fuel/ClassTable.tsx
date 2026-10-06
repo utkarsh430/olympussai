@@ -17,7 +17,7 @@ const COLUMNS: readonly Column<ClassTableRow>[] = [
     title: (r) => r.valueText,
     render: (r) => (
       <span className="flex min-w-0 items-center gap-2">
-        <span aria-hidden className="depot-bar-track !min-w-0 w-28 shrink-0">
+        <span aria-hidden className="depot-bar-track w-28 !min-w-0 shrink-0">
           <span className="depot-bar-fill" style={{ width: `${r.widthPct}%` }} />
         </span>
         <span>{r.valueText}</span>

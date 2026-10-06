@@ -48,17 +48,30 @@ export function EconomicsBreakdown({
           <thead>
             <tr>
               <th scope="col">Component</th>
-              <th scope="col" className="depot-align-right">Depot</th>
-              <th scope="col" className="depot-align-right">Peer median</th>
-              <th scope="col" className="depot-align-right">Z (higher is better)</th>
-              <th scope="col" className="depot-align-right">Weight</th>
-              <th scope="col" className="depot-align-right">Contribution</th>
+              <th scope="col" className="depot-align-right">
+                Depot
+              </th>
+              <th scope="col" className="depot-align-right">
+                Peer median
+              </th>
+              <th scope="col" className="depot-align-right">
+                Z (higher is better)
+              </th>
+              <th scope="col" className="depot-align-right">
+                Weight
+              </th>
+              <th scope="col" className="depot-align-right">
+                Contribution
+              </th>
             </tr>
           </thead>
           <tbody>
             {breakdownRows(row, weights).map((c) => (
               <tr key={c.key}>
-                <th scope="row" className="!static !bg-transparent !text-left !normal-case !tracking-normal !text-depot-ink">
+                <th
+                  scope="row"
+                  className="!static !bg-transparent !text-left !normal-case !tracking-normal !text-depot-ink"
+                >
                   {c.label}
                 </th>
                 <td className="depot-align-right">

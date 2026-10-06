@@ -20,7 +20,13 @@ import type { RouteRevenueFigure } from '@/lib/depot/revenue/types';
 const COLUMNS: readonly Column<RevenueTableRow>[] = [
   { key: 'route', header: 'Route', sortValue: (r) => r.routeName, render: (r) => r.routeName },
   { key: 'class', header: 'Class', sortValue: (r) => r.classLabel, render: (r) => r.classLabel },
-  { key: 'trips', header: 'Trips', align: 'right', sortValue: (r) => r.trips, render: (r) => formatCount(r.trips) },
+  {
+    key: 'trips',
+    header: 'Trips',
+    align: 'right',
+    sortValue: (r) => r.trips,
+    render: (r) => formatCount(r.trips),
+  },
   {
     key: 'boardings',
     header: 'Boardings',
@@ -43,7 +49,7 @@ const COLUMNS: readonly Column<RevenueTableRow>[] = [
     title: (r) => r.revenueText,
     render: (r) => (
       <span className="flex min-w-0 items-center justify-end gap-2">
-        <span aria-hidden className="depot-bar-track !min-w-0 w-20 shrink-0">
+        <span aria-hidden className="depot-bar-track w-20 !min-w-0 shrink-0">
           <span className="depot-bar-fill" style={{ width: `${r.barPct}%` }} />
         </span>
         <span className="w-24 text-right">{r.revenueText}</span>

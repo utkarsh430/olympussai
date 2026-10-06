@@ -58,7 +58,11 @@ export function EconomicsPage() {
   const disclosure = useMemo(
     () =>
       data
-        ? economicsDisclosure(data.depots, modelledStatement(REVENUE_MODEL_PARAMS), lengthCoverageLine(data.depots))
+        ? economicsDisclosure(
+            data.depots,
+            modelledStatement(REVENUE_MODEL_PARAMS),
+            lengthCoverageLine(data.depots),
+          )
         : [],
     [data],
   );
@@ -67,7 +71,8 @@ export function EconomicsPage() {
     setFocusPending(true);
   }, []);
   // The selection outlives a filter that hides it, so relaxing the filter reopens it.
-  const selected = selectedId === null ? null : (rows.find((r) => r.depotId === selectedId) ?? null);
+  const selected =
+    selectedId === null ? null : (rows.find((r) => r.depotId === selectedId) ?? null);
   const selectedHidden = selectedId !== null && selected === null;
   const selectedName = allRows.find((r) => r.depotId === selectedId)?.name ?? 'the depot';
 
@@ -76,11 +81,15 @@ export function EconomicsPage() {
     if (!focusPending || selected === null || headingRef.current === null) return;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     headingRef.current.focus({ preventScroll: true });
-    headingRef.current.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+    headingRef.current.scrollIntoView({
+      block: 'nearest',
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    });
     setFocusPending(false);
   }, [focusPending, selected]);
 
-  if (loading) return <StatePanel kind="loading" rows={10} sentence="Loading the economics ranking" />;
+  if (loading)
+    return <StatePanel kind="loading" rows={10} sentence="Loading the economics ranking" />;
   if (!data) {
     return (
       <ErrorPanel
@@ -91,13 +100,19 @@ export function EconomicsPage() {
     );
   }
   if (allRows.length === 0) {
-    return <EmptyState>The live feed returned no depots, so there is nothing to rank yet.</EmptyState>;
+    return (
+      <EmptyState>The live feed returned no depots, so there is nothing to rank yet.</EmptyState>
+    );
   }
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
       {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
-      <ul aria-label={statusLine} className="flex flex-col gap-1" data-testid="depot-economics-status">
+      <ul
+        aria-label={statusLine}
+        className="flex flex-col gap-1"
+        data-testid="depot-economics-status"
+      >
         {statusRows.map((row) => (
           <li key={row.text} className="flex min-w-0 items-baseline gap-3">
             <span className="w-12 shrink-0 text-right font-mono text-lg tabular-nums text-depot-ink">
@@ -119,7 +134,12 @@ export function EconomicsPage() {
         <p className="depot-prose">{FUEL_ONLY_NOTE}</p>
       </div>
       {panel ? (
-        <StatePanel kind="not-ranked" sentence={panel.sentence} remedy={panel.remedy} testId="depot-economics-shortfall" />
+        <StatePanel
+          kind="not-ranked"
+          sentence={panel.sentence}
+          remedy={panel.remedy}
+          testId="depot-economics-shortfall"
+        />
       ) : null}
       <section aria-labelledby="economics-ranking-title" className="min-w-0">
         <SectionLabel

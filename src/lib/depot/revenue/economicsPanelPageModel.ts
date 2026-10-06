@@ -29,7 +29,9 @@ export function economicsStatusRows(depots: readonly EconomicsDepotRow[]): reado
   const noun = operating.length === 1 ? 'operating depot' : 'operating depots';
   const reasons: Reason[] = [
     {
-      count: operating.filter((d) => d.score.reason === 'missing_component' && d.score.missing.includes('earningsPerKm')).length,
+      count: operating.filter(
+        (d) => d.score.reason === 'missing_component' && d.score.missing.includes('earningsPerKm'),
+      ).length,
       text: 'no duty ran in the modelled day',
     },
     {
@@ -49,12 +51,17 @@ export function economicsStatusRows(depots: readonly EconomicsDepotRow[]): reado
   ]
     .filter((r) => r.count > 0)
     .sort((a, b) => b.count - a.count);
-  const asRow = (r: Reason): StatusRow => ({ figure: formatCount(r.count), text: `not ranked: ${r.text}` });
+  const asRow = (r: Reason): StatusRow => ({
+    figure: formatCount(r.count),
+    text: `not ranked: ${r.text}`,
+  });
   const head: StatusRow = {
     figure: formatCount(ranked),
     text:
       `ranked of ${formatCount(operating.length)} ${noun}` +
-      (others > 0 ? `; ${formatCount(others)} other ${others === 1 ? 'unit is' : 'units are'} not operating depots` : ''),
+      (others > 0
+        ? `; ${formatCount(others)} other ${others === 1 ? 'unit is' : 'units are'} not operating depots`
+        : ''),
   };
   const room = MAX_STATUS_ROWS - 1;
   if (reasons.length <= room) return [head, ...reasons.map(asRow)];

@@ -27,7 +27,13 @@ export interface EconomicsGridProps {
   readonly onSelect: (row: EconomicsRow) => void;
 }
 
-export function EconomicsGrid({ rows, allRows, filters, selectedId, onSelect }: EconomicsGridProps) {
+export function EconomicsGrid({
+  rows,
+  allRows,
+  filters,
+  selectedId,
+  onSelect,
+}: EconomicsGridProps) {
   const [sort, setSort] = useState<Sort | null>(null);
   const frame = useRef<HTMLDivElement>(null);
   const moreColumns = useColumnsToTheRight(frame, true);
@@ -43,64 +49,70 @@ export function EconomicsGrid({ rows, allRows, filters, selectedId, onSelect }: 
   }
   return (
     <div className="relative min-w-0">
-    <div
-      ref={frame}
-      role="region"
-      aria-label="Depot economics ranking"
-      tabIndex={0}
-      className="depot-table-frame"
-    >
-      <table className="depot-table depot-table-fixed">
-        <caption className="sr-only">Depot Economics Index ranking within peer groups</caption>
-        <thead>
-          <tr>
-            {COLUMNS.map((c) => {
-              const active = sort?.key === c.key ? sort.direction : null;
+      <div
+        ref={frame}
+        role="region"
+        aria-label="Depot economics ranking"
+        tabIndex={0}
+        className="depot-table-frame"
+      >
+        <table className="depot-table depot-table-fixed">
+          <caption className="sr-only">Depot Economics Index ranking within peer groups</caption>
+          <thead>
+            <tr>
+              {COLUMNS.map((c) => {
+                const active = sort?.key === c.key ? sort.direction : null;
+                return (
+                  <th
+                    key={c.key}
+                    scope="col"
+                    aria-sort={
+                      active === null ? 'none' : active === 'asc' ? 'ascending' : 'descending'
+                    }
+                    className={`${c.className} ${c.className.includes('sticky') ? '!z-20' : ''} ${c.right ? 'depot-align-right' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      className="depot-sort-button"
+                      onClick={() => toggle(c.key)}
+                    >
+                      {c.header}
+                      <span aria-hidden className="inline-block w-3 text-holo-glow">
+                        {active === null ? '' : active === 'asc' ? '↑' : '↓'}
+                      </span>
+                    </button>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((row) => {
+              const selected = row.depotId === selectedId;
               return (
-                <th
-                  key={c.key}
-                  scope="col"
-                  aria-sort={active === null ? 'none' : active === 'asc' ? 'ascending' : 'descending'}
-                  className={`${c.className} ${c.className.includes('sticky') ? '!z-20' : ''} ${c.right ? 'depot-align-right' : ''}`}
+                <tr
+                  key={row.depotId}
+                  className={`depot-row-selectable group ${selected ? 'depot-row-selected' : ''}`}
                 >
-                  <button type="button" className="depot-sort-button" onClick={() => toggle(c.key)}>
-                    {c.header}
-                    <span aria-hidden className="inline-block w-3 text-holo-glow">
-                      {active === null ? '' : active === 'asc' ? '↑' : '↓'}
-                    </span>
-                  </button>
-                </th>
+                  {COLUMNS.map((c) => (
+                    <td
+                      key={c.key}
+                      className={`whitespace-nowrap ${c.className} ${c.right ? 'depot-align-right' : ''} ${
+                        c.className.includes('sticky')
+                          ? `${selected ? 'bg-depot-raised' : 'bg-depot-page'} group-hover:bg-depot-raised`
+                          : ''
+                      }`}
+                    >
+                      {content(c, row, selected, onSelect)}
+                    </td>
+                  ))}
+                </tr>
               );
             })}
-          </tr>
-        </thead>
-        <tbody>
-          {visible.map((row) => {
-            const selected = row.depotId === selectedId;
-            return (
-              <tr
-                key={row.depotId}
-                className={`group depot-row-selectable ${selected ? 'depot-row-selected' : ''}`}
-              >
-                {COLUMNS.map((c) => (
-                  <td
-                    key={c.key}
-                    className={`whitespace-nowrap ${c.className} ${c.right ? 'depot-align-right' : ''} ${
-                      c.className.includes('sticky')
-                        ? `${selected ? 'bg-depot-raised' : 'bg-depot-page'} group-hover:bg-depot-raised`
-                        : ''
-                    }`}
-                  >
-                    {content(c, row, selected, onSelect)}
-                  </td>
-                ))}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-    {moreColumns ? <TableOverflowCue /> : null}
+          </tbody>
+        </table>
+      </div>
+      {moreColumns ? <TableOverflowCue /> : null}
     </div>
   );
 }

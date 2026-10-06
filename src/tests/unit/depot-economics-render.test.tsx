@@ -7,7 +7,11 @@ import { HowProduced } from '@/components/depot/revenue/HowProduced';
 import type { EconomicsResponse } from '@/lib/depot/revenue/api';
 import type { RouteRevenueFigure } from '@/lib/depot/revenue/types';
 import { revenueBand, revenueDisclosure } from '@/lib/depot/revenue/revenueTablePageModel';
-import { ECONOMICS_WEIGHTS, MIXED_CLASS_NOTE, REVENUE_MODEL_PARAMS } from '@/lib/depot/sim/revenueConfig';
+import {
+  ECONOMICS_WEIGHTS,
+  MIXED_CLASS_NOTE,
+  REVENUE_MODEL_PARAMS,
+} from '@/lib/depot/sim/revenueConfig';
 import { useDepotEconomics } from '@/hooks/useDepotEconomics';
 
 vi.mock('@/hooks/useDepotEconomics', () => ({ useDepotEconomics: vi.fn() }));
@@ -95,7 +99,9 @@ beforeEach(() => {
     loading: false,
     refresh: vi.fn(),
   } as unknown as ReturnType<typeof useDepotEconomics>);
-  window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as unknown as typeof window.matchMedia;
+  window.matchMedia = vi
+    .fn()
+    .mockReturnValue({ matches: true }) as unknown as typeof window.matchMedia;
   Element.prototype.scrollIntoView = vi.fn();
 });
 
@@ -117,7 +123,9 @@ describe('EconomicsPage', () => {
     await render(<EconomicsPage />);
     const text = host.textContent ?? '';
     expect(text).toContain('Depot Economics Index ranking within peer groups');
-    expect(text).toContain('separate from the Depot Efficiency Index, which is built from live data');
+    expect(text).toContain(
+      'separate from the Depot Efficiency Index, which is built from live data',
+    );
     expect(host.querySelector('a[href="/project/depots/league"]')).not.toBeNull();
     expect(host.querySelector('a[href="/project/depots/d/1"]')).not.toBeNull();
     expect(host.querySelector('[data-testid="depot-economics-status"]')?.textContent).toContain(
@@ -131,7 +139,9 @@ describe('EconomicsPage', () => {
 
   it('opens a breakdown for the selected depot, below the table under 2xl, with the shell offsets', async () => {
     await render(<EconomicsPage />);
-    const button = host.querySelector<HTMLButtonElement>('button[aria-label^="Economics breakdown"]');
+    const button = host.querySelector<HTMLButtonElement>(
+      'button[aria-label^="Economics breakdown"]',
+    );
     await act(async () => button?.click());
     const panel = host.querySelector('[data-testid="depot-economics-breakdown"]');
     expect(panel?.textContent).toContain('Economics breakdown');
@@ -190,7 +200,9 @@ describe('EconomicsPage truthfulness', () => {
     expect(headers.some((h) => /MODELLED/i.test(h))).toBe(false);
     expect(headers.slice(0, 3).map((h) => h.trim())).toEqual(['Rank', 'Depot', 'Economics index']);
     expect(host.querySelector('table.depot-table-fixed')).not.toBeNull();
-    const button = host.querySelector<HTMLButtonElement>('button[aria-label^="Economics breakdown"]');
+    const button = host.querySelector<HTMLButtonElement>(
+      'button[aria-label^="Economics breakdown"]',
+    );
     await act(async () => button?.click());
     const panel = host.querySelector('[data-testid="depot-economics-breakdown"]');
     const inner = [...(panel?.querySelectorAll('th') ?? [])].map((th) => th.textContent ?? '');
@@ -205,7 +217,9 @@ describe('EconomicsPage truthfulness', () => {
     expect(visible).toContain(
       'Fuel is only one cost. The difference between earnings and fuel cost per kilometre is not profit.',
     );
-    expect(visible).toContain("This index is driven by the model's class mix and load-factor assumptions");
+    expect(visible).toContain(
+      "This index is driven by the model's class mix and load-factor assumptions",
+    );
     expect(visible).toContain('is not a finding about any depot');
     const details = host.querySelector('details[data-testid="depot-how-produced"]');
     expect(details?.hasAttribute('open')).toBe(false);
@@ -213,8 +227,12 @@ describe('EconomicsPage truthfulness', () => {
     expect(text).toContain('planning assumptions');
     expect(text).toMatch(/fuel issue records/i);
     expect(text).toContain('each duty that a bus ran is one trip, a run out and back');
-    expect(text).toContain('The Depot Economics Index ranks operating depots on three MODELLED figures');
-    expect(text).toContain('Route lengths: 2 of 2 routes run in the modelled day rest on a real route profile');
+    expect(text).toContain(
+      'The Depot Economics Index ranks operating depots on three MODELLED figures',
+    );
+    expect(text).toContain(
+      'Route lengths: 2 of 2 routes run in the modelled day rest on a real route profile',
+    );
     expect(details?.querySelector('a[href="/project/depots/sources"]')).not.toBeNull();
   });
 
@@ -235,7 +253,9 @@ describe('EconomicsPage truthfulness', () => {
     expect(text).toContain('Only 0 of 3 operating depots are ranked.');
     expect(text).toContain('so no depot waits for route profiles');
     expect(text).not.toMatch(/known length|length not known|can be ranked/);
-    expect(text).toContain('Route lengths: 0 of 27 routes run in the modelled day rest on a real route profile');
+    expect(text).toContain(
+      'Route lengths: 0 of 27 routes run in the modelled day rest on a real route profile',
+    );
     expect(host.querySelectorAll('tbody tr')).toHaveLength(3);
     const first = host.querySelector('tbody tr')?.textContent ?? '';
     expect(first).toContain('not ranked');
@@ -259,7 +279,9 @@ describe('EconomicsPage truthfulness', () => {
   it('announces a selected depot that the filters hide', async () => {
     useData(sparseData());
     await render(<EconomicsPage />);
-    const button = host.querySelector<HTMLButtonElement>('button[aria-label^="Economics breakdown"]');
+    const button = host.querySelector<HTMLButtonElement>(
+      'button[aria-label^="Economics breakdown"]',
+    );
     await act(async () => button?.click());
     const box = host.querySelector<HTMLInputElement>('input[type="checkbox"]');
     await act(async () => box?.click());
@@ -281,7 +303,13 @@ describe('revenue components', () => {
       lengthCoverage: { n: 0, of: 2 },
       provenance: 'modelled',
     });
-    expect(band.map((f) => f.label)).toEqual(['Trips', 'Boardings', 'Load factor', 'Revenue', 'Earnings per km']);
+    expect(band.map((f) => f.label)).toEqual([
+      'Trips',
+      'Boardings',
+      'Load factor',
+      'Revenue',
+      'Earnings per km',
+    ]);
     expect(band[3]?.value).toBe('₹12,345');
     expect(band[3]?.caption).toBe('40.0% on modelled lengths');
     expect(band[4]?.caption).toBe('no kilometres run');
@@ -290,14 +318,24 @@ describe('revenue components', () => {
 
   it('prints the response notes and the definitions in the closed disclosure', async () => {
     const totals = { modelledLengthRevenueShare: 0.4 } as Parameters<typeof revenueDisclosure>[1];
-    await render(<HowProduced paragraphs={revenueDisclosure(REVENUE_MODEL_PARAMS, totals, [MIXED_CLASS_NOTE])} />);
+    await render(
+      <HowProduced
+        paragraphs={revenueDisclosure(REVENUE_MODEL_PARAMS, totals, [MIXED_CLASS_NOTE])}
+      />,
+    );
     expect(host.querySelector('details')?.hasAttribute('open')).toBe(false);
     expect(host.textContent).toContain('How these figures are produced');
     expect(host.textContent).toContain('the class its name states (ordinary when it states none)');
     expect(host.textContent).toContain('occupied seats over seats offered, weighted by trips');
-    expect(host.textContent).toContain('Duties that ran in the modelled day, one trip out and back each');
-    expect(host.textContent).toContain('40.0% of revenue is on routes of modelled length (no real profile yet)');
-    expect(host.textContent).toContain("These are planning assumptions, not the corporation's figures.");
+    expect(host.textContent).toContain(
+      'Duties that ran in the modelled day, one trip out and back each',
+    );
+    expect(host.textContent).toContain(
+      '40.0% of revenue is on routes of modelled length (no real profile yet)',
+    );
+    expect(host.textContent).toContain(
+      "These are planning assumptions, not the corporation's figures.",
+    );
     expect(host.querySelector('a[href="/project/depots/sources"]')).not.toBeNull();
   });
 
@@ -307,25 +345,50 @@ describe('revenue components', () => {
     expect(host.querySelectorAll('tbody tr')).toHaveLength(25);
     expect(host.textContent).toContain('Rows 1 to 25 of 30');
     expect(host.querySelectorAll('tbody .depot-bar-fill').length).toBe(25);
-    expect(host.textContent).toContain('Lengths: 0 of 30 routes from real route profiles, the rest modelled');
+    expect(host.textContent).toContain(
+      'Lengths: 0 of 30 routes from real route profiles, the rest modelled',
+    );
   });
 
   it('tags nothing MODELLED in the table; only a length from a real profile is DERIVED', async () => {
-    const derived = { ...route('R1', 50), lengthKm: 80, lengthProvenance: 'derived' } as RouteRevenueFigure;
-    await render(<RevenueRoutesTable routes={[route('R0', 100), derived]} coverage={{ n: 1, of: 2 }} />);
+    const derived = {
+      ...route('R1', 50),
+      lengthKm: 80,
+      lengthProvenance: 'derived',
+    } as RouteRevenueFigure;
+    await render(
+      <RevenueRoutesTable routes={[route('R0', 100), derived]} coverage={{ n: 1, of: 2 }} />,
+    );
     const headers = [...host.querySelectorAll('th')].map((th) => th.textContent ?? '');
     expect(headers.some((h) => /MODELLED/i.test(h))).toBe(false);
-    for (const label of ['Trips', 'Boardings', 'Load factor', 'Revenue', 'Earnings per km', 'Route length']) {
+    for (const label of [
+      'Trips',
+      'Boardings',
+      'Load factor',
+      'Revenue',
+      'Earnings per km',
+      'Route length',
+    ]) {
       expect(headers.some((h) => h.includes(label))).toBe(true);
     }
-    const tags = [...host.querySelectorAll('[data-provenance]')].map((t) => t.getAttribute('data-provenance'));
+    const tags = [...host.querySelectorAll('[data-provenance]')].map((t) =>
+      t.getAttribute('data-provenance'),
+    );
     expect(tags).toEqual(['derived']);
     expect(host.textContent).not.toMatch(/\(modelled\)|\(derived\)/);
   });
 
   it('sorts the route length column by the length itself', async () => {
-    const long = { ...route('Long', 100), lengthKm: 90, lengthProvenance: 'derived' } as RouteRevenueFigure;
-    const short = { ...route('Short', 200), lengthKm: 10, lengthProvenance: 'derived' } as RouteRevenueFigure;
+    const long = {
+      ...route('Long', 100),
+      lengthKm: 90,
+      lengthProvenance: 'derived',
+    } as RouteRevenueFigure;
+    const short = {
+      ...route('Short', 200),
+      lengthKm: 10,
+      lengthProvenance: 'derived',
+    } as RouteRevenueFigure;
     await render(<RevenueRoutesTable routes={[long, short]} coverage={{ n: 2, of: 2 }} />);
     const button = [...host.querySelectorAll<HTMLButtonElement>('th button')].find((b) =>
       b.textContent?.includes('Route length'),
@@ -343,11 +406,15 @@ describe('revenue components', () => {
       earningsPerKm: null,
       earningsWithheld: 'no_service_km',
     } as RouteRevenueFigure;
-    await render(<RevenueRoutesTable routes={[route('R0', 120), idle]} coverage={{ n: 0, of: 2 }} />);
+    await render(
+      <RevenueRoutesTable routes={[route('R0', 120), idle]} coverage={{ n: 0, of: 2 }} />,
+    );
     // 120 rupees over 480 km = 0.25 a km.
     expect(host.textContent).toContain('₹0.25');
     // The reason is in the cell's title, not a sentence in the cell.
-    expect(host.querySelector('td[title*="ran no kilometres and has no earnings per kilometre"]')).not.toBeNull();
+    expect(
+      host.querySelector('td[title*="ran no kilometres and has no earnings per kilometre"]'),
+    ).not.toBeNull();
     expect(host.textContent).not.toContain('undefined');
     expect(host.textContent).toContain('Earnings per km');
   });

@@ -74,7 +74,9 @@ function MetricCell({ cell }: { readonly cell: EconomicsCell | undefined }) {
   if (cell.value === null) {
     return (
       <span title={cell.description}>
-        <span aria-hidden className="text-depot-muted">{cell.valueText}</span>
+        <span aria-hidden className="text-depot-muted">
+          {cell.valueText}
+        </span>
         <span className="sr-only">{cell.description}</span>
       </span>
     );
@@ -126,7 +128,9 @@ function DepotCell({
   return (
     <span className="flex min-w-0 items-center gap-2">
       {row.kind === 'unassigned' ? (
-        <span className="min-w-0 truncate" title={row.name}>{row.name}</span>
+        <span className="min-w-0 truncate" title={row.name}>
+          {row.name}
+        </span>
       ) : (
         <Link
           href={depotHref(row.depotId)}
@@ -149,7 +153,12 @@ function DepotCell({
   );
 }
 
-export function content(column: Column, row: EconomicsRow, selected: boolean, onSelect: (r: EconomicsRow) => void) {
+export function content(
+  column: Column,
+  row: EconomicsRow,
+  selected: boolean,
+  onSelect: (r: EconomicsRow) => void,
+) {
   switch (column.key) {
     case 'rank':
       return row.rank ?? '—';
