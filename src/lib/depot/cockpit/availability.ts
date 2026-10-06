@@ -127,6 +127,6 @@ export function legendWord(state: BusOpState, label: string): string {
  * The Availability label's note when the modelled week trend exists: an ordinary sentence,
  * the word in lower case ("Modelled week trend: on-road share steady over 7 days").
  */
-export function weekTrendNote(metricLabel: string, weekSentence: string): string {
+export function availabilityWeekTrendNote(metricLabel: string, weekSentence: string): string {
   return `Modelled week trend: ${metricLabel.toLowerCase()} ${weekSentence}`;
 }

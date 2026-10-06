@@ -6,7 +6,7 @@ import {
   availabilitySegments,
   availabilityText,
   legendWord,
-  weekTrendNote,
+  availabilityWeekTrendNote,
   yardLine,
 } from '@/lib/depot/cockpit/availability';
 import { depotExceptionLines, groupBusExceptions } from '@/lib/depot/cockpit/exceptionGroups';
@@ -168,7 +168,7 @@ describe('availability bar', () => {
   });
 
   it('writes the modelled week trend as an ordinary sentence, the word in lower case', () => {
-    const note = weekTrendNote('On-road share', 'steady over 7 days');
+    const note = availabilityWeekTrendNote('On-road share', 'steady over 7 days');
     expect(note).toBe('Modelled week trend: on-road share steady over 7 days');
     expect(note).not.toMatch(/MODELLED/);
   });
