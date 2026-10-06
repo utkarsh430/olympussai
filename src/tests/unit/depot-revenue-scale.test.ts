@@ -5,6 +5,8 @@ import { DEFAULT_PRICE_PER_LITRE } from '@/lib/depot/fuel/types';
 import { SEATS_BY_CLASS } from '@/lib/depot/sim/config';
 import { LOAD_FACTOR_BASE, FARE_PER_KM } from '@/lib/depot/sim/revenueConfig';
 import { priceRoute } from '@/lib/depot/sim/ridershipFigures';
+import { modelRouteLength } from '@/lib/depot/sim/operatingDay';
+import type { RouteLengthProvenance } from '@/lib/depot/sim/operatingDayTypes';
 import { modelTripsPerDay } from '@/lib/depot/sim/tripFrequency';
 import type { RouteRidershipDay } from '@/lib/depot/revenue/types';
 import type { ServiceClass } from '@/lib/depot/sim/types';
@@ -16,7 +18,8 @@ function dayOf(
   trips: number,
   seats: number,
   loadFactor: number,
-  lengthKm: number | null,
+  lengthKm: number,
+  lengthProvenance: RouteLengthProvenance = 'derived',
 ): RouteRidershipDay {
   const priced = priceRoute({ serviceClass, trips, seats, loadFactor, lengthKm });
   return {
@@ -28,6 +31,9 @@ function dayOf(
     loadFactor,
     ...priced,
     lengthKm,
+    lengthProvenance,
+    // The operating day's service km: every trip runs the route out and back.
+    serviceKm: trips * lengthKm * 2,
     provenance: 'modelled',
   };
 }
@@ -63,16 +69,35 @@ describe('S32 scale of revenue, worked by hand', () => {
     expect(analyseRevenue([day]).perRoute[0]?.earningsPerKm).toBe(33);
   });
 
-  it('unknown length: boardings times the flat fare, earnings per km withheld', () => {
+  it('a route with no real profile is priced on its modelled length, earnings still given', () => {
+    // Ruling S39 removed the flat fare and the withholding: a route without a real profile
+    // runs on the MODELLED typical length of its class; earnings per km do not depend on it.
+    const length = modelRouteLength('HAND_UNKNOWN', 'ordinary', null);
+    expect(length.lengthProvenance).toBe('modelled');
+    expect(length.lengthKm).toBeGreaterThanOrEqual(70);
+    expect(length.lengthKm).toBeLessThanOrEqual(160);
     // 4 trips are 8 legs; per leg floor(52 * 0.62 / 0.45) = floor(71.64) = 71; day 568
-    // boardings; 568 * 45 = 25,560 rupees.
-    const day = dayOf('ordinary', 4, 52, 0.62, null);
+    // boardings. Revenue per leg 52 * 0.62 * L * 1.1 = 35.464 L; day 8 * 35.464 L = 283.712 L.
+    const day = dayOf('ordinary', 4, 52, 0.62, length.lengthKm, 'modelled');
     expect(day.boardings).toBe(568);
-    expect(day.revenue).toBe(25560);
-    expect(day.revenueBasis).toBe('flat_fare_unknown_length');
+    expect(day.revenue).toBe(Math.round(283.712 * length.lengthKm));
     const row = analyseRevenue([day]).perRoute[0];
-    expect(row?.earningsPerKm).toBeNull();
-    expect(row?.earningsWithheld).toBe('unknown_length');
+    // Service km 4 * 2 * L = 8 L; earnings 283.712 L / 8 L = 35.464, to two decimals 35.46.
+    expect(row?.earningsPerKm).toBe(35.46);
+    expect(row?.earningsWithheld).toBeNull();
+    expect(row?.lengthProvenance).toBe('modelled');
+  });
+
+  it('a modelled length of 100 km gives the literal figures, and is counted, not hidden', () => {
+    // Revenue 283.712 * 100 = 28,371.2 -> 28,371 rupees; service km 4 * 2 * 100 = 800;
+    // earnings 28,371 / 800 = 35.46375 -> 35.46.
+    const day = dayOf('ordinary', 4, 52, 0.62, 100, 'modelled');
+    expect(day.revenue).toBe(28371);
+    const analysis = analyseRevenue([day]);
+    expect(analysis.perRoute[0]?.earningsPerKm).toBe(35.46);
+    expect(analysis.depot.lengthCoverage).toEqual({ n: 0, of: 1 });
+    expect(analysis.depot.modelledLengthRevenueShare).toBe(1);
+    expect(analysis.depot.earningsPerKm).toBe(35.46);
   });
 
   it('earnings per kilometre do not depend on the route length', () => {
