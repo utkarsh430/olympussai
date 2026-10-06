@@ -1,4 +1,5 @@
 import { formatCount } from '@/lib/depot/format';
+import type { DepotMeaning } from '@/lib/depot/palette';
 
 /**
  * A repeated column (peer group, status, severity) printed once as a group row instead
@@ -15,6 +16,12 @@ export interface TableGrouping<T> {
    * mono capitals; null for a group with nothing to add.
    */
   readonly aside?: (key: string, count: number) => string | null;
+  /**
+   * What the group row's words say, when they name a severity or a state: the row is
+   * printed in that meaning's colour (a "CRITICAL" group in crimson), so the colour never
+   * contradicts the word. Without it the row keeps the label colour.
+   */
+  readonly tone?: (key: string) => DepotMeaning;
 }
 
 export interface RowGroup<T> {
