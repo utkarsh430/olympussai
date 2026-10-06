@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { DepotSignOut } from './DepotSignOut';
+import { FeedStatus } from './FeedStatus';
 
 /** Sticky 56px bar: product title and scope on the left, exits on the right. */
 export function DepotTopBar() {
@@ -16,6 +17,7 @@ export function DepotTopBar() {
         <span className="depot-label hidden whitespace-nowrap sm:inline">UPSRTC / Network</span>
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        <FeedStatus />
         <Link
           href="/project/upsrtc"
           data-testid="depot-back-to-operations"

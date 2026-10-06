@@ -235,6 +235,78 @@
     @apply border-holo-glow bg-depot-raised text-holo-glow;
   }
 
+  /* Provenance and feed tags: flat, 3px radius, always carry a word. */
+  .depot-tag {
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-[3px] border px-1.5 py-0.5
+      font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.12em];
+  }
+
+  /* Data states. The placeholder is static: no shimmer, no pulse. */
+  .depot-skeleton {
+    @apply rounded-[3px] bg-depot-surface;
+  }
+
+  .depot-stale-strip {
+    @apply mb-4 border-y border-alert-amber/50 px-1 py-1.5 font-mono text-[11px] uppercase
+      tracking-[0.12em] text-alert-amber;
+  }
+
+  .depot-error-panel {
+    @apply rounded-md border border-alert-crimson/50 bg-depot-surface p-4;
+  }
+
+  /* Data table: scrolls sideways inside its own frame, never the page. */
+  .depot-table-frame {
+    @apply max-h-[70vh] overflow-auto rounded-md border border-depot-line bg-depot-page;
+  }
+
+  .depot-table {
+    @apply w-full border-separate border-spacing-0 text-left font-mono text-[13px] tabular-nums
+      text-depot-ink;
+  }
+
+  .depot-table th {
+    @apply sticky top-0 z-10 whitespace-nowrap border-b border-depot-line bg-depot-surface px-3
+      py-2 font-mono text-[11px] font-normal uppercase tracking-[0.12em] text-depot-muted;
+  }
+
+  .depot-table td {
+    @apply border-b border-depot-line px-3 py-2 align-middle;
+  }
+
+  .depot-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .depot-table .depot-align-right {
+    @apply text-right;
+  }
+
+  .depot-sort-button {
+    @apply inline-flex items-center gap-1 uppercase tracking-[0.12em] text-inherit
+      hover:text-depot-ink;
+  }
+
+  .depot-row-selectable {
+    @apply cursor-pointer hover:bg-depot-raised;
+  }
+
+  .depot-row-selected {
+    @apply bg-depot-raised;
+  }
+
+  /* Selected row is marked like the active nav item: a 2px cyan bar, plus the
+     raised surface. Every first cell, header included, carries a transparent 2px
+     left border so the bar never shifts a column and header labels line up. */
+  .depot-table th:first-child,
+  .depot-table td:first-child {
+    @apply border-l-2 border-l-transparent;
+  }
+
+  .depot-row-selected td:first-child {
+    @apply border-l-holo-glow;
+  }
+
   .scanline-overlay {
     background-image: repeating-linear-gradient(
       0deg,
