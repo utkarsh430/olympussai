@@ -147,18 +147,16 @@ export function YardRoll({ model, depotId, depotNames, outOfLane }: YardRollProp
             id="yard-roll-away"
             label="Away from the yard"
             count={model.away.total}
-            note={`Nearest ${formatCount(model.away.buses.length)} shown`}
+            note={`Nearest ${formatCount(model.away.buses.length)} listed, nearest first`}
           />
-          <ul>
-            {model.away.buses.map((bus) => (
-              <li
-                key={bus.registrationNumber}
-                className="border-b border-depot-line last:border-b-0"
-              >
-                <BusLine depotId={depotId} bus={bus} detail={awayDetail(bus, depotNames)} />
-              </li>
-            ))}
-          </ul>
+          <ShowMore
+            items={model.away.buses}
+            label="Nearest buses away from the yard"
+            itemKey={(b) => b.registrationNumber}
+            renderItem={(b) => (
+              <BusLine depotId={depotId} bus={b} detail={awayDetail(b, depotNames)} />
+            )}
+          />
         </section>
       ) : null}
       {model.unknown.length > 0 ? (
