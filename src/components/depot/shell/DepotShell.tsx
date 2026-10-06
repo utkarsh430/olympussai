@@ -5,8 +5,11 @@ import { DepotNav } from './DepotNav';
 import { DepotTopBar } from './DepotTopBar';
 
 /**
- * Frame for every depot page: sticky top bar, sticky left rail, a scrolling
- * main region, and the prototype disclaimer at the foot of the column.
+ * Frame for every depot page: top bar, left rail (a strip under the bar below 900px),
+ * a scrolling main region, and the prototype disclaimer at the foot of the column.
+ * What sticks where is defined once, as the `--depot-*` custom properties on
+ * `.depot-shell` in globals.css; the main region reserves `--depot-footer-h` under
+ * the page so nothing is ever hidden behind the disclaimer.
  * `<main>` is focusable (tabIndex -1) so the skip link can move focus into it;
  * its focus ring is drawn inside the box so nothing clips it. The shell stays a
  * server component; the client provider polls the network feed once for the

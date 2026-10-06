@@ -41,7 +41,7 @@ export function DepotTopBar() {
       </div>
       <div
         data-testid="depot-top-bar-actions"
-        className="flex flex-wrap items-center gap-2 sm:h-10 sm:flex-nowrap min-[900px]:h-auto min-[900px]:shrink-0"
+        className="flex flex-wrap items-center gap-1.5 sm:h-10 sm:gap-2 sm:flex-nowrap min-[900px]:h-auto min-[900px]:shrink-0"
       >
         <FeedStatus />
         <Link

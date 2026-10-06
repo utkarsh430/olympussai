@@ -282,7 +282,8 @@
      but colour. The command centre's HUD button stays for the main app. */
   .depot-bar-button {
     @apply inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[3px]
-      border border-depot-line px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em]
+      border border-depot-line px-2 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em]
+      sm:px-3
       text-depot-muted transition-colors hover:border-depot-muted hover:text-depot-ink
       disabled:cursor-not-allowed disabled:opacity-40;
   }
