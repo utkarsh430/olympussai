@@ -1,3 +1,4 @@
+import { CockpitIndexMeta } from '@/components/depot/cockpit/CockpitIndexMeta';
 import { DepotCockpit } from '@/components/depot/cockpit/DepotCockpit';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
 import { requireDepotPage } from '@/lib/depot/depotGate';
@@ -19,6 +20,7 @@ export default async function DepotCockpitPage({
         title="Depot cockpit"
         description="What needs attention now, what is available, and what leaves the yard next."
         provenanceLine={{ default: 'derived' }}
+        controls={<CockpitIndexMeta />}
       />
       <DepotCockpit />
     </>

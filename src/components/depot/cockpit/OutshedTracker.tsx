@@ -3,11 +3,13 @@
 import { useId, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
+import { ShowAllButton } from '@/components/depot/shell/LongLists';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import type { TrackerRow } from '@/lib/depot/cockpit/cockpitModel';
+import { endedSummary } from '@/lib/depot/cockpit/outshedTracker';
 import { rosterBusHref } from '@/lib/depot/depotNav';
-import { formatCount, formatFeedTime } from '@/lib/depot/format';
+import { formatFeedTime } from '@/lib/depot/format';
 import { GROUP_PREVIEW_ROWS, visibleRows } from '@/lib/depot/listPaging';
 import type { OutshedState } from '@/lib/depot/infer/types';
 
@@ -81,10 +83,15 @@ function trackerColumns(depotId: string): readonly Column<TrackerRow>[] {
   ];
 }
 
+
+/** Five short columns read best together: the table is capped instead of spread across 1,160 px. */
+const TABLE_MAX_W = 'max-w-[760px]';
+
 /**
- * Scheduled departures for the feed date against the feed clock, most urgent first. The coverage line
- * is always shown because a short list can mean few schedules in the feed rather
- * than few departures.
+ * Scheduled departures for the feed date against the feed clock, most urgent first. The
+ * coverage line is shown whenever schedules exist, because a short list can mean few
+ * schedules in the feed rather than few departures. With none, the label's "· 0" and one
+ * muted line; when every window has ended, one line and the table behind "Show all".
  */
 export function OutshedTracker({
   depotId,
@@ -96,37 +103,47 @@ export function OutshedTracker({
   const columns = useMemo(() => trackerColumns(depotId), [depotId]);
   const [expanded, setExpanded] = useState(false);
   const tableId = useId();
-  const shown = visibleRows(rows, expanded, GROUP_PREVIEW_ROWS);
+  const ended = endedSummary(rows);
+  const limit = ended === null ? GROUP_PREVIEW_ROWS : 0;
+  const shown = visibleRows(rows, expanded, limit);
 
   return (
     <section aria-labelledby="depot-outshed" data-testid="depot-outshed-tracker" className="min-w-0">
       <SectionLabel id="depot-outshed" label="Outshedding" count={rows.length} note="Most urgent first" />
-      <p className="mb-2 font-sans text-xs text-depot-muted" data-testid="depot-outshed-coverage">
-        {coverageSentence}
-      </p>
       {!hasSchedules ? (
-        <StatePanel kind="no-data" sentence={noSchedulesSentence} />
+        <StatePanel kind="no-data" compact sentence={noSchedulesSentence} />
       ) : (
-        <div id={tableId} className="min-w-0">
-          <DataTable
-            columns={columns}
-            rows={shown}
-            rowKey={(row) => row.key}
-            caption="Scheduled departures for the feed date, most urgent first"
-            fixedRows
-          />
-          {rows.length > GROUP_PREVIEW_ROWS ? (
-            <button
-              type="button"
-              aria-expanded={expanded}
-              aria-controls={tableId}
-              onClick={() => setExpanded((open) => !open)}
-              className="depot-filter-button mt-2"
-            >
-              {expanded ? 'Show fewer' : `Show all ${formatCount(rows.length)} departures`}
-            </button>
+        <>
+          <p className="depot-note mb-2" data-testid="depot-outshed-coverage">
+            {coverageSentence}
+          </p>
+          {ended !== null ? (
+            <p className="depot-prose mb-2" data-testid="depot-outshed-ended">
+              {ended}
+            </p>
           ) : null}
-        </div>
+          <div id={tableId} className={`min-w-0 ${TABLE_MAX_W}`}>
+            {shown.length > 0 ? (
+              <DataTable
+                columns={columns}
+                rows={shown}
+                rowKey={(row) => row.key}
+                caption="Scheduled departures for the feed date, most urgent first"
+                fixedRows
+              />
+            ) : null}
+          </div>
+          {rows.length > limit ? (
+            <div className="mt-2">
+              <ShowAllButton
+                total={rows.length}
+                expanded={expanded}
+                onToggle={() => setExpanded((open) => !open)}
+                controls={tableId}
+              />
+            </div>
+          ) : null}
+        </>
       )}
     </section>
   );

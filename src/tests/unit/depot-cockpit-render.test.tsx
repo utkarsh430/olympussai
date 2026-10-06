@@ -55,7 +55,7 @@ describe('DepotCockpit branches', () => {
 describe('cockpit empty states', () => {
   it('gives a depot with no buses one sentence, not five zeros', () => {
     const markup = renderToStaticMarkup(
-      <AvailabilityBar fleet={0} segments={[]} text="" standing={{ kind: 'no-yard', sentence: 'No yard.' }} />,
+      <AvailabilityBar fleet={0} segments={[]} text="" yard={{ kind: 'no-yard', sentence: 'No yard.' }} yardHref="/y" howId="how" />,
     );
     expect(textOf(markup)).toBe(
       'No bus is homed at this depot on this snapshot, so there is no status to show.',
@@ -75,6 +75,22 @@ describe('cockpit empty states', () => {
     expect(textOf(markup)).toContain('No bus carries a schedule for the feed date, 2026-10-06');
     expect(textOf(markup)).not.toContain('today');
     expect(markup).not.toContain('depot-table');
+    // Critique §9, cockpit C: the label's "· 0" and one muted line, no coverage sentence, no box.
+    expect(markup).not.toContain('depot-outshed-coverage');
+    expect(textOf(markup)).not.toContain('0 of 10 buses');
+  });
+
+  it('says in one line when every departure window has ended, the table behind "Show all"', () => {
+    const ended = (key: string): TrackerRow => ({
+      key, registrationNumber: key, routeName: null, journeyCode: null, scheduledStart: '06:30',
+      state: 'ended', label: 'Window ended', minutes: null, minutesText: '—',
+    });
+    const markup = renderToStaticMarkup(
+      <OutshedTracker depotId="20" rows={[ended('A'), ended('B')]} coverageSentence="2 of 2." hasSchedules noSchedulesSentence="none" />,
+    );
+    expect(textOf(markup)).toContain('All 2 tracked departures are past their window.');
+    expect(markup).not.toContain('<table');
+    expect(textOf(markup)).toContain('Show all 2');
   });
 
   it('captions the tracker for the feed date, not for today', () => {
@@ -132,22 +148,47 @@ describe('cockpit page with data', () => {
       })),
     },
     visitors: [{ registrationNumber: 'X1' }, { registrationNumber: 'X2' }],
+    locationMix: { in_yard: 7, at_other_yard: 0, away: 0, unknown: 0 },
+    yardSnapshotsSeen: 12,
   };
 
-  it('leads with counted attention links, keeps visitors to one line and the briefing collapsed', () => {
+  it('leads with counted attention links, gives no yard one line and keeps the briefing collapsed', () => {
     setContext({ data: data as unknown as DepotDetailContextValue['data'] });
     const markup = renderToStaticMarkup(<DepotCockpit />);
     const text = textOf(markup);
     expect(markup.indexOf('depot-attention')).toBeLessThan(markup.indexOf('depot-status-board'));
     expect(markup).toContain('href="/project/depots/d/20/roster?flag=power_off"');
     expect(markup).toContain('href="/project/depots/d/20/roster?state=off_road"');
-    expect(text).toContain('2 visiting buses in the yard');
-    expect(markup).toContain('href="/project/depots/d/20/yard"');
+    // Round 2: with no yard there is no visitor or standing split, only one line and the rule's link.
+    expect(text).toContain('No yard is established yet: no place where these buses park meets the yard rule.');
+    expect(markup).toContain('href="#how-produced"');
+    expect(markup).not.toContain('A yard is claimed only when</p>');
     expect(markup).not.toContain('data-testid="briefing-card"');
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).toMatch(/<details[^>]*data-testid="depot-cockpit-method"/);
     expect(markup).not.toMatch(/<details[^>]* open/);
     expect(text).toContain('Show all 6');
     expect(markup).toContain('data-testid="depot-no-yard"');
+  });
+
+  it('says the server has only just started instead of "no yard" after at most one yard decision', () => {
+    setContext({ data: { ...data, yardSnapshotsSeen: 1 } as unknown as DepotDetailContextValue['data'] });
+    const text = textOf(renderToStaticMarkup(<DepotCockpit />));
+    expect(text).toContain('The server has only just started, so no yard is placed yet');
+    expect(text).not.toContain('No yard is established yet');
+  });
+
+  it('merges every bus in the yard, the visitors and the standing split into one line linked to the yard', () => {
+    const yard = {
+      value: { inCluster: 6, parked: 7, heldSince: null },
+      provenance: 'derived',
+    };
+    setContext({ data: { ...data, yard } as unknown as DepotDetailContextValue['data'] });
+    const markup = renderToStaticMarkup(<DepotCockpit />);
+    const split = markup.slice(markup.indexOf('depot-standing-split'));
+    expect(textOf(split).replace(/&#x27;/g, "'")).toContain(
+      "7 of this depot's buses in the yard, with 2 visiting · 5 standing: 5 standing in the yard · Open yard ›",
+    );
+    expect(markup).toContain('href="/project/depots/d/20/yard"');
   });
 });

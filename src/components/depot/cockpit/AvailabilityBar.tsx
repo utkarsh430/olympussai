@@ -1,30 +1,73 @@
 'use client';
 
+import Link from 'next/link';
+import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
 import { BUS_STATE_SQUARE } from '@/components/depot/shell/BusStateMark';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
-import { CockpitWeekTrend } from '@/components/depot/trends/WeekTrend';
-import type { AvailabilitySegment, StandingLine } from '@/lib/depot/cockpit/availability';
+import { useDepotForecast } from '@/hooks/useDepotForecast';
+import type { AvailabilitySegment, YardLine } from '@/lib/depot/cockpit/availability';
 import { formatCount } from '@/lib/depot/format';
+import { COCKPIT_TREND_METRIC, weekTrendLine } from '@/lib/depot/forecast/trendMounts';
 
 export interface AvailabilityBarProps {
   readonly fleet: number;
   readonly segments: readonly AvailabilitySegment[];
   /** The bar in words: its text equivalent. */
   readonly text: string;
-  readonly standing: StandingLine;
+  readonly yard: YardLine;
+  /** The yard page, linked from the yard line. */
+  readonly yardHref: string;
+  /** The closing disclosure's id: the no-yard line links to the rule there. */
+  readonly howId: string;
 }
 
 export const NO_BUS_SENTENCE =
   'No bus is homed at this depot on this snapshot, so there is no status to show.';
 
+/** The section's note: the on-road share's MODELLED week (its tag in words, once), when there is one. */
+const DEFAULT_NOTE = 'Each bus in one state, from its last report';
+
+function useWeekNote(): string {
+  const { depotId } = useDepotDetailContext();
+  const state = useDepotForecast({ metric: COCKPIT_TREND_METRIC, scope: { kind: 'depot', depotId } });
+  const line = state.data ? weekTrendLine(COCKPIT_TREND_METRIC, state.data.trend.result) : null;
+  return line ?? DEFAULT_NOTE;
+}
+
+function YardRow({ yard, yardHref, howId }: Pick<AvailabilityBarProps, 'yard' | 'yardHref' | 'howId'>) {
+  if (yard.kind !== 'split') {
+    return (
+      <StatePanel
+        kind="not-established"
+        compact
+        tone="neutral"
+        sentence={yard.sentence}
+        testId="depot-no-yard"
+        howLink={yard.kind === 'no-yard' ? { label: 'How a yard is found', targetId: howId } : undefined}
+      />
+    );
+  }
+  return (
+    <p className="depot-prose min-w-0 tabular-nums">
+      {yard.text}
+      {' · '}
+      <Link href={yardHref} className="depot-link whitespace-nowrap">
+        Open yard ›
+      </Link>
+      {yard.held ? <span className="depot-note block">{yard.held}</span> : null}
+    </p>
+  );
+}
+
 /**
  * Every bus of the depot in one of five states, as one stacked bar (the colours from
- * the bus-state squares, a 1px gap between segments) with a legend that gives each
- * state its word, count and share, so nothing rests on colour. The standing buses'
- * places follow on one line, or the yard rule when no yard is established.
+ * the bus-state squares, a 1px gap between segments) with a five-column legend that
+ * gives each state its word, count and share, so nothing rests on colour. Then one
+ * line for the yard: every bus in it, the visitors and the standing split.
  */
-export function AvailabilityBar({ fleet, segments, text, standing }: AvailabilityBarProps) {
+export function AvailabilityBar({ fleet, segments, text, yard, yardHref, howId }: AvailabilityBarProps) {
+  const note = useWeekNote();
   if (fleet === 0) {
     return (
       <section aria-label="Availability" data-testid="depot-status-board">
@@ -34,7 +77,7 @@ export function AvailabilityBar({ fleet, segments, text, standing }: Availabilit
   }
   return (
     <section aria-labelledby="depot-availability" data-testid="depot-status-board" className="min-w-0">
-      <SectionLabel id="depot-availability" label="Availability" count={fleet} note="Each bus in one state, from its last report" />
+      <SectionLabel id="depot-availability" label="Availability" count={fleet} note={note} />
       <div role="img" aria-label={text} className="flex h-3 w-full min-w-0 gap-px overflow-hidden" data-testid="depot-availability-bar">
         {segments
           .filter((s) => s.count > 0)
@@ -42,26 +85,18 @@ export function AvailabilityBar({ fleet, segments, text, standing }: Availabilit
             <span key={s.state} className={`h-full ${BUS_STATE_SQUARE[s.state]}`} style={{ flexGrow: s.count, flexBasis: 0 }} />
           ))}
       </div>
-      <ul className="mt-3 flex min-w-0 flex-wrap gap-x-6 gap-y-2" aria-label="Availability legend">
+      <ul className="mt-3 grid min-w-0 grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-5" aria-label="Availability legend">
         {segments.map((s) => (
-          <li key={s.state} data-testid={`depot-state-${s.state}`} className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+          <li key={s.state} data-testid={`depot-state-${s.state}`} className="flex min-w-0 items-baseline gap-2">
             <span aria-hidden className={`inline-block h-1.5 w-1.5 shrink-0 self-center ${BUS_STATE_SQUARE[s.state]}`} />
-            <span className="text-[13px] text-depot-muted">{s.label}</span>
-            <span className="font-mono text-[15px] tabular-nums text-depot-ink">{formatCount(s.count)}</span>
-            <span className="font-mono text-[11px] tabular-nums text-depot-faint">{s.shareText}</span>
-            {s.state === 'on_road' ? <CockpitWeekTrend /> : null}
+            <span className="min-w-0 truncate text-[13px] text-depot-muted" title={s.label}>{s.label}</span>
+            <span className="ml-auto shrink-0 font-mono text-[15px] tabular-nums text-depot-ink">{formatCount(s.count)}</span>
+            <span className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums text-depot-faint">{s.shareText}</span>
           </li>
         ))}
       </ul>
       <div className="mt-3" data-testid="depot-standing-split">
-        {standing.kind === 'no-yard' ? (
-          <StatePanel kind="not-established" sentence={standing.sentence} testId="depot-no-yard" />
-        ) : (
-          <p className="min-w-0 font-mono text-[13px] tabular-nums text-depot-ink">
-            {standing.text}
-            {standing.held ? <span className="block font-sans text-xs text-depot-muted">{standing.held}</span> : null}
-          </p>
-        )}
+        <YardRow yard={yard} yardHref={yardHref} howId={howId} />
       </div>
     </section>
   );

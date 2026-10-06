@@ -15,9 +15,9 @@ import type { DepotScore } from '@/lib/depot/score/types';
 import type { DepotSummary } from '@/lib/depot/types';
 import type { CockpitHeader, CockpitModel, ExceptionLine, VisitorRow } from './cockpitTypes';
 import { buildAttention } from './attention';
-import { availabilitySegments, availabilityText, standingLine } from './availability';
+import { availabilitySegments, availabilityText, yardLine } from './availability';
 import { depotExceptionLines, groupBusExceptions } from './exceptionGroups';
-import { indexLine } from './indexLine';
+import { indexMeta, type IndexMeta } from './indexMeta';
 import { buildBoard, describeYard } from './statusBoard';
 import { buildTracker, coverageSentence, feedDateOf, noSchedulesSentence } from './outshedTracker';
 
@@ -99,6 +99,12 @@ function buildVisitors(visitors: readonly VisitorBus[]): VisitorRow[] {
     );
 }
 
+/** The header's index meta line alone, for the page header (outside the cockpit body). */
+export function cockpitIndexMeta(detail: DepotDetailResponse): IndexMeta {
+  const header = buildHeader(detail.depot, detail.score);
+  return indexMeta(header, detail.scoreWindow, detail.feedNow, detail.score?.samples);
+}
+
 export function buildCockpit(detail: DepotDetailResponse): CockpitModel {
   const yard = describeYard(detail.yard);
   const feedDate = feedDateOf(detail.feedNow);
@@ -106,12 +112,17 @@ export function buildCockpit(detail: DepotDetailResponse): CockpitModel {
   const board = buildBoard(detail.depot, detail.buses, yard);
   return {
     header,
-    indexLine: indexLine(header, detail.scoreWindow, detail.feedNow),
+    indexMeta: indexMeta(header, detail.scoreWindow, detail.feedNow, detail.score?.samples),
     attention: buildAttention(detail, detail.depot.id),
     availability: availabilitySegments(board),
     availabilityText: availabilityText(board),
-    standing: standingLine(board, detail.yard.value?.heldSince ?? null),
-    exceptionGroups: groupBusExceptions(detail.exceptions.bus, detail.depot.id),
+    yardLine: yardLine(board, {
+      inYard: detail.locationMix.in_yard,
+      visitors: detail.visitors.length,
+      heldSince: detail.yard.value?.heldSince ?? null,
+      snapshotsSeen: detail.yardSnapshotsSeen,
+    }),
+    exceptionGroups: groupBusExceptions(detail.exceptions.bus),
     depotExceptions: depotExceptionLines(detail.exceptions.depot, detail.scoreWindow, detail.feedNow),
     visitorCount: detail.visitors.length,
     board,

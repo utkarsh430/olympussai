@@ -21,6 +21,8 @@ export interface AttentionLine {
   readonly count: number;
   readonly text: string;
   readonly href: string;
+  /** Where the link lands, shown muted at the line's end so the line reads as a link. */
+  readonly destination: string;
 }
 
 export interface Attention {
@@ -58,43 +60,51 @@ export function buildAttention(detail: DepotDetailResponse, depotId: string): At
       key: 'emergency',
       count: emergency,
       text: `${buses(emergency)} ${verb(emergency, 'raises', 'raise')} the emergency flag`,
-      href: `${DEPOTS_ROOT}/exceptions?kind=emergency`,
+      // The exception centre owns the emergency list; narrowed to this depot.
+      href: `${DEPOTS_ROOT}/exceptions?kind=emergency&depot=${encodeURIComponent(depotId)}`,
+      destination: 'Exceptions',
     },
     {
       key: 'power_off',
       count: powerOff,
       text: `${buses(powerOff)} ${verb(powerOff, 'reports', 'report')} main power off`,
       href: rosterFilterHref(depotId, { flag: 'power_off' }),
+      destination: 'Roster',
     },
     {
       key: 'overdue',
       count: overdue,
       text: `${formatCount(overdue)} ${verb(overdue, 'departure is', 'departures are')} overdue`,
       href: `${depotHref(depotId)}#depot-outshed`,
+      destination: 'Departures',
     },
     {
       key: 'dark',
       count: dark,
       text: `${buses(dark)} ${verb(dark, 'is', 'are')} dark: no signal for ${DARK_AFTER_MIN / MINUTES_PER_HOUR} h or more`,
       href: rosterFilterHref(depotId, { states: ['dark'] }),
+      destination: 'Roster',
     },
     {
       key: 'off_road',
       count: offRoad,
       text: `${buses(offRoad)} ${verb(offRoad, 'is', 'are')} off the road`,
       href: rosterFilterHref(depotId, { states: ['off_road'] }),
+      destination: 'Roster',
     },
     {
       key: 'not_heard',
       count: notHeard,
       text: `${buses(notHeard)} ${verb(notHeard, 'has', 'have')} not been heard for over ${NOT_HEARD_AFTER_MIN} min`,
       href: rosterFilterHref(depotId, { flag: 'not_heard' }),
+      destination: 'Roster',
     },
     {
       key: 'tamper',
       count: tamper,
       text: `${buses(tamper)} ${verb(tamper, 'reports', 'report')} a tamper code`,
       href: rosterFilterHref(depotId, { flag: 'tamper' }),
+      destination: 'Roster',
     },
   ];
   const lines = candidates.filter((line) => line.count > 0).slice(0, ATTENTION_MAX_LINES);
