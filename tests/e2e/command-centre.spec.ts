@@ -449,20 +449,15 @@ test.describe('UPSRTC AI Operations Copilot', () => {
     await assertClean('impact dashboard');
   });
 
-  test('22. fleet distribution opens from the command bar without a prior selection', async ({
-    page,
-  }) => {
+  test('22. Depot Management opens the depot module from the command bar', async ({ page }) => {
     await page.goto('/project/upsrtc');
-    await expect(page.getByTestId('alert-item').first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('open-depot-management')).toBeVisible({ timeout: 60_000 });
 
-    // No vehicle selected yet — the view must anchor one itself.
-    await expect(page.getByTestId('bus-detail-drawer')).toHaveCount(0);
+    await page.getByTestId('open-depot-management').click();
 
-    await page.getByTestId('open-fleet-distribution').click();
-
-    await expect(page.getByTestId('demand-stage')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId('demand-time-slider')).toBeVisible();
-    await expect(page.getByTestId('demand-stage').getByText('Redistribution plan')).toBeVisible();
+    await expect(page).toHaveURL(/\/project\/depots$/);
+    await expect(page.getByRole('heading', { level: 1, name: /Network overview/i })).toBeVisible();
+    await expect(page.getByTestId('depot-nav')).toBeVisible();
   });
 
   test('23. alert stream carries exactly one vehicle-fault alert', async ({ page }) => {
@@ -478,7 +473,7 @@ test.describe('UPSRTC AI Operations Copilot', () => {
 
     expect(kinds.filter((k) => k === 'breakdown')).toHaveLength(1);
     expect(kinds.filter((k) => k === 'bunching' || k === 'traffic')).toHaveLength(4);
-    // Demand is reviewed from Fleet Distribution, never streamed as an alert.
+    // Demand is reviewed from the bus drawer and Scenario Lab, never streamed as an alert.
     expect(kinds).not.toContain('demand');
   });
 
