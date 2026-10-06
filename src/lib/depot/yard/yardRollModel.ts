@@ -173,3 +173,15 @@ export function noYardPanel(model: YardModel, snapshotsSeen: number | undefined)
     remedy,
   };
 }
+
+/**
+ * A state group's heading, in the one form every group row takes (mono capitals, "·"
+ * separators): "STANDING · 52 · 5 LISTED", "DARK · 35 · ALL LISTED", "IN SERVICE · 4".
+ */
+export function rollGroupHeading(group: Pick<RollGroup, 'label' | 'count' | 'rows'>): string {
+  const parts = [group.label, formatCount(group.count)];
+  if (group.rows.length > 0) {
+    parts.push(group.rows.length === group.count ? 'all listed' : `${formatCount(group.rows.length)} listed`);
+  }
+  return parts.join(' · ').toUpperCase();
+}
