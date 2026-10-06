@@ -1,9 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { StatusBoard } from '@/components/depot/cockpit/StatusBoard';
+import { AvailabilityBar } from '@/components/depot/cockpit/AvailabilityBar';
 import { LeagueGrid } from '@/components/depot/league/LeagueGrid';
 import { KpiBand } from '@/components/depot/network/KpiBand';
-import type { StatusBoard as StatusBoardModel } from '@/lib/depot/cockpit/cockpitModel';
 import type { LeagueRow } from '@/lib/depot/league/leagueModel';
 import type { Figure, NetworkKpis } from '@/lib/depot/types';
 import { metricInfo } from '@/lib/depot/forecast/wording';
@@ -83,20 +82,15 @@ describe('overview KPI band', () => {
   });
 });
 
-describe('cockpit status board', () => {
+describe('cockpit availability bar', () => {
   it('puts the on-road share week beside the on-road figure, for this depot', () => {
-    const board = {
-      fleet: 10,
-      states: [
-        { state: 'on_road', label: 'On road', count: 6 },
-        { state: 'dark', label: 'Dark', count: 4 },
-      ],
-      standing: 0,
-      locations: null,
-      yard: { established: false as const, sentence: 'No yard.' },
-    } as unknown as StatusBoardModel;
-    const status = { live: 0, stationary: 0, noSignal: 0, underMaintenance: 0, unknown: 0 };
-    const markup = renderToStaticMarkup(<StatusBoard board={board} status={status} />);
+    const segments = [
+      { state: 'on_road' as const, label: 'On road', count: 6, share: 0.6, shareText: '60%' },
+      { state: 'dark' as const, label: 'Dark', count: 4, share: 0.4, shareText: '40%' },
+    ];
+    const markup = renderToStaticMarkup(
+      <AvailabilityBar fleet={10} segments={segments} text="Of 10 buses." standing={{ kind: 'no-yard', sentence: 'No yard.' }} />,
+    );
     expect(hooks.forecast).toHaveBeenCalledWith({
       metric: 'onRoadShare',
       scope: { kind: 'depot', depotId: '20' },

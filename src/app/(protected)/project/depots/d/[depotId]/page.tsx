@@ -17,7 +17,8 @@ export default async function DepotCockpitPage({
     <>
       <PageHeader
         title="Depot cockpit"
-        description="What is on the road, what is standing, what is late out and what needs attention, on the latest snapshot of the feed."
+        description="What needs attention now, what is available, and what leaves the yard next."
+        provenanceLine={{ default: 'derived' }}
       />
       <DepotCockpit />
     </>

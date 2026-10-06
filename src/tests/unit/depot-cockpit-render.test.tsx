@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DepotDetailContextValue } from '@/components/depot/data/DepotDetailProvider';
 import { DepotCockpit } from '@/components/depot/cockpit/DepotCockpit';
 import { OutshedTracker } from '@/components/depot/cockpit/OutshedTracker';
-import { StatusBoard } from '@/components/depot/cockpit/StatusBoard';
+import { AvailabilityBar } from '@/components/depot/cockpit/AvailabilityBar';
 import type { TrackerRow } from '@/lib/depot/cockpit/cockpitTypes';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
 
@@ -54,15 +54,9 @@ describe('DepotCockpit branches', () => {
 
 describe('cockpit empty states', () => {
   it('gives a depot with no buses one sentence, not five zeros', () => {
-    const board = {
-      fleet: 0,
-      states: [],
-      standing: 0,
-      locations: null,
-      yard: { established: false as const, sentence: 'No yard.' },
-    };
-    const status = { live: 0, stationary: 0, noSignal: 0, underMaintenance: 0, unknown: 0 };
-    const markup = renderToStaticMarkup(<StatusBoard board={board} status={status} />);
+    const markup = renderToStaticMarkup(
+      <AvailabilityBar fleet={0} segments={[]} text="" standing={{ kind: 'no-yard', sentence: 'No yard.' }} />,
+    );
     expect(textOf(markup)).toBe(
       'No bus is homed at this depot on this snapshot, so there is no status to show.',
     );
@@ -73,7 +67,6 @@ describe('cockpit empty states', () => {
       <OutshedTracker
         depotId="20"
         rows={[]}
-        coverage={{ n: 0, of: 10 }}
         coverageSentence="0 of 10 buses carry a schedule for the feed date, 2026-10-06."
         hasSchedules={false}
         noSchedulesSentence="No bus carries a schedule for the feed date, 2026-10-06, so there are no departures to track."
@@ -100,7 +93,6 @@ describe('cockpit empty states', () => {
       <OutshedTracker
         depotId="20"
         rows={[row]}
-        coverage={{ n: 1, of: 1 }}
         coverageSentence="1 of 1 buses carry a schedule for the feed date."
         hasSchedules
         noSchedulesSentence="none"
@@ -108,5 +100,54 @@ describe('cockpit empty states', () => {
     );
     expect(textOf(markup)).toContain('Scheduled departures for the feed date, most urgent first');
     expect(textOf(markup)).not.toContain("Today's");
+  });
+});
+
+describe('cockpit page with data', () => {
+  const buses = Array.from({ length: 7 }, (_, i) => ({
+    registrationNumber: `UP${i}`,
+    state: i < 2 ? 'off_road' : 'standing',
+    location: 'in_yard',
+    mainPowerOn: i >= 6,
+    tamperCode: null,
+    notHeardMin: null,
+  }));
+  const data = {
+    feedNow: '2026-10-05T14:20:00.000Z',
+    stale: false,
+    depot: {
+      id: '20', name: 'Varanasi', kind: 'depot', fleet: 7,
+      status: { live: 0, stationary: 7, noSignal: 0, underMaintenance: 0, unknown: 0 },
+      states: { inService: 0, onRoad: 0, standing: 5, dark: 0, offRoad: 2 },
+    },
+    score: null,
+    yard: { value: null, provenance: 'derived', coverage: { n: 0, of: 0 } },
+    buses,
+    outshed: { rows: [], coverage: { n: 0, of: 7 } },
+    exceptions: {
+      depot: [],
+      bus: buses.slice(0, 6).map((b) => ({
+        id: `power_cut:${b.registrationNumber}`, registrationNumber: b.registrationNumber, depotId: '20',
+        depotName: 'Varanasi', kind: 'power_cut', severity: 'info', lastSeen: null, detail: null,
+      })),
+    },
+    visitors: [{ registrationNumber: 'X1' }, { registrationNumber: 'X2' }],
+  };
+
+  it('leads with counted attention links, keeps visitors to one line and the briefing collapsed', () => {
+    setContext({ data: data as unknown as DepotDetailContextValue['data'] });
+    const markup = renderToStaticMarkup(<DepotCockpit />);
+    const text = textOf(markup);
+    expect(markup.indexOf('depot-attention')).toBeLessThan(markup.indexOf('depot-status-board'));
+    expect(markup).toContain('href="/project/depots/d/20/roster?flag=power_off"');
+    expect(markup).toContain('href="/project/depots/d/20/roster?state=off_road"');
+    expect(text).toContain('2 visiting buses in the yard');
+    expect(markup).toContain('href="/project/depots/d/20/yard"');
+    expect(markup).not.toContain('data-testid="briefing-card"');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toMatch(/<details[^>]*data-testid="depot-cockpit-method"/);
+    expect(markup).not.toMatch(/<details[^>]* open/);
+    expect(text).toContain('Show all 6');
+    expect(markup).toContain('data-testid="depot-no-yard"');
   });
 });
