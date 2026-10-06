@@ -1,8 +1,9 @@
 import { requireProjectSession } from '@/lib/auth/server';
 import { DEPOTS_ROOT } from '@/lib/depot/nav';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
+import { NetworkOverview } from '@/components/depot/network/NetworkOverview';
 
-/** Network overview. The pending panel is replaced once the live depot feed lands (P1). */
+/** Network overview: figures, map, rankings, exceptions and the depot table. */
 export default async function DepotsOverviewPage() {
   // Layouts do not re-run on client navigation, so the page gates itself too.
   await requireProjectSession(DEPOTS_ROOT);
@@ -13,11 +14,7 @@ export default async function DepotsOverviewPage() {
         title="Network overview"
         description="Fleet strength, status and efficiency across every UPSRTC depot."
       />
-      <section className="depot-panel p-6" data-testid="depot-overview-pending">
-        <p className="depot-prose">
-          Depot figures appear here once the live depot feed is connected.
-        </p>
-      </section>
+      <NetworkOverview />
     </>
   );
 }
