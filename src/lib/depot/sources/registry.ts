@@ -181,18 +181,30 @@ const TIMETABLE: FeedEntry = {
 const CREW: FeedEntry = {
   id: 'crew-duties',
   name: 'Crew and duties',
-  status: 'awaiting',
-  summary: 'Duty rosters and crew availability, reported as depot totals.',
-  unlocks: 'Duty coverage against the timetable; crew shortfall per depot.',
+  status: 'modelled',
+  summary:
+    'Crew availability as anonymous driver and conductor slots per depot, MODELLED today; duties come from the modelled duty board.',
+  unlocks:
+    'The crew page: duty coverage and shortfall per depot, on real rosters. Availability and rostering only; no individual is assessed.',
   fields: [
-    { name: 'depotId', type: 'string' },
-    { name: 'date', type: 'date' },
-    { name: 'dutyId', type: 'string' },
-    { name: 'blockId', type: 'string', note: 'The block the duty covers.' },
-    { name: 'dutyStart', type: 'time' },
-    { name: 'dutyEnd', type: 'time' },
-    { name: 'crewRequired', type: 'integer' },
-    { name: 'crewAvailable', type: 'integer' },
+    { name: 'depotId', type: 'string', note: 'The home depot the slot belongs to.' },
+    { name: 'date', type: 'date', note: 'The operating date the availability applies to.' },
+    {
+      name: 'slotId',
+      type: 'string',
+      note: 'An anonymous slot such as D-014; never a name or a staff number.',
+    },
+    { name: 'role', type: 'driver | conductor', note: 'The role the slot fills.' },
+    {
+      name: 'availability',
+      type: 'available | weekly_off | leave | training | absent',
+      note: 'Whether the slot can be rostered on the date.',
+    },
+    {
+      name: 'hoursThisWeek',
+      type: 'number',
+      note: 'Hours already rostered this week, used only for the duty-hours limits.',
+    },
   ],
 };
 
@@ -215,31 +227,58 @@ const MAINTENANCE: FeedEntry = {
 const FUEL: FeedEntry = {
   id: 'fuel',
   name: 'Fuel',
-  status: 'awaiting',
-  summary: 'Fuel issued per bus, with the odometer reading at the time.',
-  unlocks: 'Fuel use per kilometre by depot, and a way to confirm the odometer unit.',
+  status: 'modelled',
+  summary:
+    'Fuel issued per bus per day, MODELLED today from the distance each bus runs and a consumption per service class.',
+  unlocks:
+    'The fuel page: fuel use and cost per kilometre by bus, route and depot, and a way to confirm the odometer unit.',
   fields: [
-    { name: 'registrationNumber', type: 'string' },
-    { name: 'date', type: 'date' },
-    { name: 'litres', type: 'number' },
-    { name: 'odometerKm', type: 'number', note: 'In kilometres.' },
-    { name: 'depotId', type: 'string' },
+    { name: 'registrationNumber', type: 'string', note: 'The bus; joins to the GPS feed.' },
+    { name: 'date', type: 'date', note: 'The operating date of the issue.' },
+    {
+      name: 'distanceKm',
+      type: 'number',
+      note: 'Kilometres run that day; zero means no distance recorded.',
+    },
+    { name: 'fuelLitres', type: 'number', note: 'Litres issued, to one decimal.' },
+    {
+      name: 'serviceClass',
+      type: 'ordinary | express | ac | premium',
+      note: 'The bus class, which sets the expected consumption.',
+    },
+    { name: 'routeName', type: 'string | null', note: 'The route the bus ran, if any.' },
   ],
 };
 
 const TICKETING: FeedEntry = {
   id: 'ticketing-ridership',
   name: 'Ticketing and ridership',
-  status: 'awaiting',
-  summary: 'Tickets sold and revenue per trip, from the ticketing machines.',
-  unlocks: 'Revenue and load per route and depot; demand-based requirement.',
+  status: 'modelled',
+  summary:
+    'Boardings and revenue per route per day, MODELLED today from trips, a load factor per class and fares. A route master with real route lengths is also needed for earnings per kilometre.',
+  unlocks:
+    'The revenue page and the economics page: revenue and load per route and depot, and the Depot Economics Index on measured figures.',
   fields: [
-    { name: 'tripId', type: 'string' },
-    { name: 'registrationNumber', type: 'string' },
-    { name: 'date', type: 'date' },
-    { name: 'passengers', type: 'integer' },
-    { name: 'revenue', type: 'number', note: 'In rupees.' },
-    { name: 'kilometresOperated', type: 'number' },
+    { name: 'routeName', type: 'string', note: 'The route; joins to the GPS feed route name.' },
+    { name: 'date', type: 'date', note: 'The operating date.' },
+    {
+      name: 'serviceClass',
+      type: 'ordinary | express | ac | premium',
+      note: 'The class the route is run as.',
+    },
+    {
+      name: 'trips',
+      type: 'integer',
+      note: 'Trips run that day; a trip is one run from one end of the route to the other.',
+    },
+    { name: 'seatCapacity', type: 'integer', note: 'Seat-trips offered: trips times seats per trip.' },
+    { name: 'boardings', type: 'integer', note: 'Passengers who boarded, from tickets sold.' },
+    { name: 'revenue', type: 'number', note: 'Fare revenue in rupees.' },
+    {
+      name: 'routeLengthKm',
+      type: 'number | null',
+      note: 'From the route master; null when not known, which withholds earnings per kilometre.',
+    },
   ],
 };
 
