@@ -15,6 +15,7 @@ import {
   type ForecastQuery,
 } from '@/lib/depot/live/forecastView';
 import { errorSentence, metricInfo } from '@/lib/depot/forecast/wording';
+import type { ForecastError } from '@/lib/depot/forecast/types';
 
 const fixtureRows = normalizeDepotRows(liveFixture).rows;
 const fixtureView = (over: Partial<FleetSnapshotView> = {}): FleetSnapshotView => ({
@@ -98,7 +99,7 @@ describe('forecastSections', () => {
     expect(sections.sentences.unavailable).toBeNull();
     expect(sections.sentences.method).toMatch(/\.$/);
     expect(sections.sentences.error).toBe(
-      errorSentence('onRoadShare', result.forecast.error.overHorizon, result.forecast.backtestDays),
+      errorSentence(result.forecast.error, result.forecast.backtestDays),
     );
     expect(sections.sentences.horizon).toContain('next 14 days');
     expect(sections.sentences.trend).toMatch(/^MODELLED trend: (up|down|steady)/);
@@ -136,36 +137,61 @@ describe('forecastSections', () => {
     const sections = forecastSections(dailySeries(35, rhythm), 'onRoadShare', 14);
     expect(sections.forecast.result.status).toBe('ok');
     expect(sections.sentences.method).toBe(
-      'Forecast repeats the same weekday from the week before. Weekly smoothing needs 42 days ' +
-        'of history and this series has 35.',
+      'Forecast repeats the same weekday from the week before. Weekly smoothing needs 55 days ' +
+        'of history for a 14-day forecast and this series has 35.',
     );
   });
 });
 
 describe('errorSentence', () => {
-  it('states a rate error in percentage points, not as a fraction', () => {
-    expect(errorSentence('offRoadRate', 0.012, 28)).toBe(
-      'Typical error about 1.2 percentage points over the last four weeks.',
+  const errorOf = (
+    byDaysAhead: readonly number[],
+    unit: ForecastError['unit'],
+    statedAsFraction = false,
+  ): ForecastError => ({
+    overHorizon: byDaysAhead.reduce((a, b) => a + b, 0) / byDaysAhead.length,
+    byDaysAhead,
+    unit,
+    statedAsFraction,
+  });
+
+  it('states a rate error in percentage points a day ahead and at the end of the horizon', () => {
+    const error = errorOf([0.012, ...Array(12).fill(0.02), 0.029], 'percentage_points', true);
+    expect(errorSentence(error, 28)).toBe(
+      'MODELLED: typically within 1.2 percentage points a day ahead and 2.9 two weeks ahead, ' +
+        'judged on the last four weeks.',
     );
   });
 
-  it('states a count error in whole buses', () => {
-    expect(errorSentence('available', 3.4, 28)).toBe(
-      'Typical error about 3 buses over the last four weeks.',
+  it('states a count error in whole buses and names a week or other horizons', () => {
+    expect(errorSentence(errorOf([1.2, 2, 2, 2, 2, 2, 3.4], 'buses'), 21)).toBe(
+      'MODELLED: typically within 1 bus a day ahead and 3 buses a week ahead, judged on the last 21 days.',
     );
-    expect(errorSentence('available', 1.2, 21)).toBe(
-      'Typical error about 1 bus over the last 21 days.',
+    expect(errorSentence(errorOf([0.84, 1, 1, 1, 1, 1, 1, 1, 1, 1.25], 'points'), 28)).toBe(
+      'MODELLED: typically within 0.8 points a day ahead and 1.3 points 10 days ahead, ' +
+        'judged on the last four weeks.',
     );
   });
 
-  it('states an index error in points and never rounds a real error to zero', () => {
-    expect(errorSentence('index', 0.84, 28)).toBe(
-      'Typical error about 0.8 points over the last four weeks.',
+  it('never rounds a real error to zero, and says when there was none', () => {
+    expect(errorSentence(errorOf([0.01, 0.02], 'points'), 28)).toBe(
+      'MODELLED: typically within under 0.1 points a day ahead and under 0.1 points 2 days ahead, ' +
+        'judged on the last four weeks.',
     );
-    expect(errorSentence('index', 0.01, 28)).toBe(
-      'Typical error under 0.1 points over the last four weeks.',
+    expect(errorSentence(errorOf([0, 0], 'points'), 28)).toBe(
+      'MODELLED: no error in the backtest over the last four weeks.',
     );
-    expect(errorSentence('index', 0, 28)).toBe('No error over the last four weeks.');
+  });
+});
+
+describe('unavailableSentence', () => {
+  it('names the missing day when a gap, not a short record, stops the forecast', () => {
+    const gapped = dailySeries(60, (i) => 60 + (i % 7)).filter((p) => p.date !== '2026-09-30');
+    const sections = forecastSections(gapped, 'index', 14);
+    expect(sections.sentences.unavailable).toBe(
+      'No forecast: the history is missing 30 Sep 2026, so only the 6 days since count, ' +
+        'and a forecast needs 28.',
+    );
   });
 });
 
@@ -217,11 +243,34 @@ describe('buildForecastResponse', () => {
   });
 
   it('answers 404 for a depot that is not in the feed', async () => {
-    const query: ForecastQuery = { ...network('index'), scope: { kind: 'depot', depotId: '99999' } };
+    const query: ForecastQuery = {
+      ...network('index'),
+      scope: { kind: 'depot', depotId: '99999' },
+    };
     expect(await buildForecastResponse(fixtureView(), query)).toEqual({
       status: 404,
       body: { error: 'Depot not found' },
     });
+  });
+
+  it('fits once per snapshot rows, scope, metric and horizon; a poll does not refit', async () => {
+    const first = await buildForecastResponse(fixtureView(), network('index'));
+    const poll = await buildForecastResponse(
+      fixtureView({ fetchedAt: '2026-10-06T08:00:35.000Z' }),
+      network('index'),
+    );
+    const other = await buildForecastResponse(fixtureView(), network('index', 90, 21));
+    if (first.status !== 200 || poll.status !== 200 || other.status !== 200)
+      throw new Error('expected 200');
+    expect(poll.body.forecast).toBe(first.body.forecast);
+    expect(poll.body.fetchedAt).toBe('2026-10-06T08:00:35.000Z');
+    expect(other.body.forecast).not.toBe(first.body.forecast);
+    const newRows = await buildForecastResponse(
+      fixtureView({ rows: [...fixtureRows] }),
+      network('index'),
+    );
+    if (newRows.status !== 200) throw new Error('expected 200');
+    expect(newRows.body.forecast).not.toBe(first.body.forecast);
   });
 
   it('builds a fresh envelope on every call', async () => {

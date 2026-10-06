@@ -97,7 +97,7 @@ describe('TrendChart', () => {
       'Forecast, MODELLED',
       'Forecast range (80% of past errors), MODELLED',
     ]);
-    expect(text()).toContain('Typical error about');
+    expect(text()).toContain('MODELLED: typically within');
     expect(text()).toContain('Forecast for the next 14 days.');
     expect(text().toLowerCase()).not.toContain('simulated');
   });

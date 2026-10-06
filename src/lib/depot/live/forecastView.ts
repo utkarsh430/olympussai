@@ -1,4 +1,4 @@
-import type { DepotApiError } from '../api';
+import type { DepotApiError, DepotFeedEnvelope } from '../api';
 import type { DepotForecastResponse, ForecastSections } from '../forecast/api';
 import { DEFAULT_HORIZON_DAYS, MAX_HORIZON_DAYS, SEASON_DAYS } from '../forecast/config';
 import { forecastSeries } from '../forecast/forecast';
@@ -6,13 +6,13 @@ import { summariseTrend } from '../forecast/trend';
 import { forecastSentences, metricInfo } from '../forecast/wording';
 import type { FleetSnapshotView } from '../repositories/types';
 import type { MetricKey, SeriesPoint } from '../sim/types';
-import { feedEnvelope } from './analysis';
+import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
 import { buildHistoryResponse, parseHistoryQuery, type HistoryQuery } from './historyView';
 
 /**
  * Default history window when the query names none. Longer than the history
- * route's 30 days so the weekly-smoothing method can be offered (it needs 42)
- * and the backtest scores a full four weeks.
+ * route's 30 days so the weekly-smoothing method can be offered (55 days for
+ * a two-week horizon) and the backtest scores a full four weeks.
  */
 export const FORECAST_DEFAULT_DAYS = 90;
 /** Shorter than one weekly cycle says nothing the live value does not. */
@@ -24,8 +24,7 @@ export interface ForecastQuery extends HistoryQuery {
 }
 
 export type ParsedForecastQuery =
-  | { readonly ok: true; readonly query: ForecastQuery }
-  | { readonly ok: false };
+  { readonly ok: true; readonly query: ForecastQuery } | { readonly ok: false };
 
 export type ForecastViewResult =
   | { readonly status: 200; readonly body: DepotForecastResponse }
@@ -72,28 +71,47 @@ export function forecastSections(
   };
 }
 
+type ForecastBody = Omit<DepotForecastResponse, keyof DepotFeedEnvelope>;
+
+/*
+ * The body depends on the rows (through the analysis, which also fixes the
+ * live anchor and operating date), the scope, the metric, the window and the
+ * horizon, so it is held per analysis under that key and goes with the
+ * snapshot. A poll on the same rows therefore never refits. The envelope is
+ * never part of it.
+ */
+const bodies = new WeakMap<SnapshotAnalysis, Map<string, ForecastBody>>();
+
+function bodyKey({ metric, scope, days, horizon }: ForecastQuery): string {
+  const where = scope.kind === 'depot' ? `depot:${scope.depotId}` : 'network';
+  return `${where}|${metric}|${days}|${horizon}`;
+}
+
 /**
- * The forecast page payload. The history is read through the history view on
- * every call, so it ends on this snapshot's live value, and the envelope is
- * this request's own; nothing is memoised across requests.
+ * The forecast page payload. The history ends on this snapshot's live value,
+ * the fitted body is shared by every request on the same rows, and the
+ * envelope is this request's own.
  */
 export async function buildForecastResponse(
   view: FleetSnapshotView,
   query: ForecastQuery,
 ): Promise<ForecastViewResult> {
+  const analysis = analyseSnapshot(view);
+  const key = bodyKey(query);
+  const held = bodies.get(analysis)?.get(key);
+  if (held !== undefined) return { status: 200, body: { ...feedEnvelope(view), ...held } };
   const { metric, scope, days, horizon } = query;
   const history = await buildHistoryResponse(view, { metric, scope, days });
   if (history.status !== 200) return history;
   const { series, anchor } = history.body;
-  return {
-    status: 200,
-    body: {
-      ...feedEnvelope(view),
-      metric: metricInfo(metric),
-      scope,
-      horizonDays: horizon,
-      history: { provenance: 'modelled', series, anchor },
-      ...forecastSections(series, metric, horizon),
-    },
+  const body: ForecastBody = {
+    metric: metricInfo(metric),
+    scope,
+    horizonDays: horizon,
+    history: { provenance: 'modelled', series, anchor },
+    ...forecastSections(series, metric, horizon),
   };
+  const byKey = bodies.get(analysis) ?? new Map<string, ForecastBody>();
+  bodies.set(analysis, new Map([...byKey, [key, body]]));
+  return { status: 200, body: { ...feedEnvelope(view), ...body } };
 }
