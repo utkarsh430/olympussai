@@ -18,7 +18,9 @@ import { YARD_MIN_CLUSTER } from './yard';
  *  - nothing remembered, or an entry more than YARD_HOLD_MAX_HOURS of feed
  *    time away from this snapshot: the rule decides;
  *  - an entry written at this very feed time (a re-fetch with new rows): that
- *    yard, unchanged, so every poll of one feed time agrees;
+ *    circle and `heldSince`, unchanged, so every poll of one feed time places
+ *    buses alike; `parked` and `inCluster` are recounted from these rows, so
+ *    the yard agrees with the bus locations on the same response (N5);
  *  - the rule gives a yard whose centre is inside the remembered circle: that
  *    yard replaces the remembered one and is not held;
  *  - the rule gives no yard, or one elsewhere: the remembered yard is kept if
@@ -57,20 +59,36 @@ function isStandingWithFix(row: DepotBusRow): row is PositionedRow {
   return row.speedKmph <= MOVING_SPEED_KMPH;
 }
 
+interface CircleCounts {
+  readonly parked: number;
+  readonly inCluster: number;
+}
+
+/** Standing buses, and those inside the circle (only recently heard ones when `recentOnly`). */
+function countCircle(
+  kept: Yard,
+  depotRows: readonly DepotBusRow[],
+  feedNow: string,
+  recentOnly: boolean,
+): CircleCounts {
+  const standing = depotRows.filter(isStandingWithFix);
+  const inside = standing.filter(
+    (r) =>
+      (!recentOnly || isRecentlyHeard(gpsAgeMinutes(r, feedNow))) &&
+      distanceM(r.latitude, r.longitude, kept.lat, kept.lng) <= kept.radiusM,
+  );
+  return { parked: standing.length, inCluster: inside.length };
+}
+
 function heldYard(
   kept: Yard,
   depotRows: readonly DepotBusRow[],
   heldSince: string,
   feedNow: string,
 ): Yard | null {
-  const standing = depotRows.filter(isStandingWithFix);
-  const inside = standing.filter(
-    (r) =>
-      isRecentlyHeard(gpsAgeMinutes(r, feedNow)) &&
-      distanceM(r.latitude, r.longitude, kept.lat, kept.lng) <= kept.radiusM,
-  );
-  if (inside.length < YARD_MIN_CLUSTER) return null;
-  return { ...kept, parked: standing.length, inCluster: inside.length, heldSince };
+  const counts = countCircle(kept, depotRows, feedNow, true);
+  if (counts.inCluster < YARD_MIN_CLUSTER) return null;
+  return { ...kept, ...counts, heldSince };
 }
 
 /**
@@ -89,7 +107,12 @@ export function continueYard(
     remembered: ruleYard === null ? null : { yard: ruleYard, seenMs: feedMs },
   };
   if (remembered === null || Math.abs(feedMs - remembered.seenMs) > YARD_HOLD_MAX_MS) return fresh;
-  if (remembered.seenMs === feedMs) return { yard: remembered.yard, remembered };
+  if (remembered.seenMs === feedMs) {
+    // A held yard counts as it was held on (recent reports); an established one, every bus.
+    const recentOnly = remembered.yard.heldSince !== undefined;
+    const counts = countCircle(remembered.yard, depotRows, feedNow, recentOnly);
+    return { yard: { ...remembered.yard, ...counts }, remembered };
+  }
   const kept = remembered.yard;
   const overlaps =
     ruleYard !== null && distanceM(ruleYard.lat, ruleYard.lng, kept.lat, kept.lng) <= kept.radiusM;
