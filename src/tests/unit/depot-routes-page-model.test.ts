@@ -5,7 +5,6 @@ import { NO_CLASS } from '@/lib/depot/routes/routeQuery';
 import {
   ROUTE_PAGE_SIZE,
   offsetOf,
-  routeRangeSentence,
   serverPage,
 } from '@/lib/depot/routes/routesPageModel';
 
@@ -154,17 +153,6 @@ describe('paging', () => {
     expect(pageItems(items, { offset: 100, limit: 25 })).toEqual([]);
   });
 
-  it('states the range and the filter honestly', () => {
-    expect(routeRangeSentence({ offset: 0, shown: 25, total: 1204 }, 1204)).toBe(
-      'Showing 1–25 of 1,204 routes',
-    );
-    expect(routeRangeSentence({ offset: 25, shown: 5, total: 30 }, 1204)).toBe(
-      'Showing 26–30 of 30 routes that match these filters, out of 1,204 in the feed',
-    );
-    expect(routeRangeSentence({ offset: 0, shown: 0, total: 0 }, 1204)).toBe(
-      'No routes match these filters, out of 1,204 in the feed',
-    );
-  });
 });
 
 describe('row wording', () => {

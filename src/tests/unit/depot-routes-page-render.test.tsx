@@ -156,8 +156,27 @@ describe('RoutesPage plan panel', () => {
     state.allocation = slot({ data: PLAN });
     const markup = renderToStaticMarkup(<RoutesPage />);
     expect(markup).toContain('depot-table depot-table-fixed');
-    expect(textOf(markup)).toContain('Median delay, min');
+    expect(textOf(markup)).toContain('Delay min');
+    expect(markup).toContain('title="Median delay of the buses with a usable delay, in minutes"');
     expect(textOf(markup)).not.toMatch(/\d min</);
+    // the basis is the delay cells' title, not a column of sentences
+    expect(markup).toContain('title="based on 5 of 5 buses"');
+  });
+
+  it('has one pager, under the table, and no range sentence or top pager', () => {
+    state.allocation = slot({ data: PLAN });
+    const many = { ...ROUTES, total: 1271, inFeed: 1271 };
+    state.routes = slot({ data: many });
+    const markup = renderToStaticMarkup(<RoutesPage />);
+    expect(textOf(markup)).toContain('Rows 1 to 25 of 1,271');
+    expect(markup.indexOf('data-testid="depot-pager"')).toBeGreaterThan(markup.indexOf('</table>'));
+    expect(textOf(markup)).not.toMatch(/Showing \d|Page \d+ of/);
+    expect(markup).toContain('data-testid="depot-filter-row"');
+  });
+
+  it('hides the pager at 25 rows or fewer', () => {
+    state.allocation = slot({ data: PLAN });
+    expect(renderToStaticMarkup(<RoutesPage />)).not.toContain('data-testid="depot-pager"');
   });
 
   it('is one state panel with the loader when nothing can be planned', () => {
