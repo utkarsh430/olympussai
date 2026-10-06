@@ -67,18 +67,23 @@ describe('yard hold (S50c)', () => {
     }
   });
 
-  it('returns the remembered yard unchanged for a repeated feed time, held or not (I4)', () => {
+  it('keeps the circle on a repeated feed time and recounts it from this snapshot (I4, N5)', () => {
     const store = createYardMemoryStore();
     step(store, heardAt(blob('A', 10, A, 20, { depotId: '1' }), atMin(0)), atMin(0));
-    const held = step(store, heardAt(tied(), atMin(1)), atMin(1));
+    const held = step(store, heardAt(tied(), atMin(1)), atMin(1)) as Yard;
+    const entry = store.byDepot.get('1');
     const near = busAt('N', { x: 5, y: 5 }, { depotId: '1' });
     const repeat = step(store, heardAt(tied([near]), atMin(1)), atMin(1));
-    expect(repeat).toEqual(held);
-    // No yard decided at a feed time stays no yard on its repeat.
-    const other = createYardMemoryStore();
-    expect(step(other, heardAt(tied(), atMin(0)), atMin(0))).toBeUndefined();
+    expect(repeat).toEqual({ ...held, parked: held.parked + 1, inCluster: held.inCluster + 1 });
+    expect(store.byDepot.get('1')).toBe(entry);
+  });
+
+  it('lets the rule decide a repeat of a feed time decided as no yard, without writing (N2)', () => {
+    const store = createYardMemoryStore();
+    expect(step(store, heardAt(tied(), atMin(0)), atMin(0))).toBeUndefined();
     const single = heardAt(blob('A', 10, A, 20, { depotId: '1' }), atMin(0));
-    expect(step(other, single, atMin(0))).toBeUndefined();
+    expect(step(store, single, atMin(0))).toEqual(inferYards(single).get('1'));
+    expect(store.byDepot.has('1')).toBe(false);
   });
 
   it('treats an entry older than the hold cap as nothing remembered (M1)', () => {
