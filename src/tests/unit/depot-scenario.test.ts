@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { compareOutcomes, runScenario } from '@/lib/depot/optimise/scenario';
 import {
   DEFAULT_SPARE_RATIO,
+  MAX_FLEET_ADJUSTMENT,
   MAX_SPARE_RATIO,
   MAX_SURGE_PERCENT,
   MAX_TRANSFER_KM,
@@ -140,11 +141,17 @@ describe('runScenario', () => {
   });
 
   it('honours the clamped transfer range', () => {
-    // Depots 0.5 degrees apart are about 72 km by road at the default detour.
+    // Depots 0.5 degrees apart are about 72 km by road at the default detour, so a
+    // legitimate 25 km limit (no clamp) leaves every deficit out of reach.
     const near = runScenario(BASE, { maxTransferKm: MIN_TRANSFER_KM });
-    expect(near.plan.transfers.every((t) => t.distanceKm <= MIN_TRANSFER_KM)).toBe(true);
+    expect(near.plan.transfers).toEqual([]);
+    expect(near.clamped).toEqual([]);
     const far = runScenario(BASE, { maxTransferKm: MAX_TRANSFER_KM });
     expect(far.plan.transfers.length).toBeGreaterThan(0);
+    // A limit below the floor is raised to it, so still no transfers, and a note says so.
+    const below = runScenario(BASE, { maxTransferKm: 1 });
+    expect(below.plan.transfers).toEqual([]);
+    expect(below.clamped).toHaveLength(1);
   });
 
   it('uses scenario locks and exclusions in the plan', () => {
@@ -202,5 +209,147 @@ describe('compareOutcomes', () => {
       uncoveredDeficit: 0,
       depotsInDeficitAfter: 0,
     });
+  });
+});
+
+/** One depot with the given peak, so spare and surge arithmetic can be read off directly. */
+function single(peak: number): readonly DepotBalance[] {
+  return [depot('x', 1000, peak, 26)];
+}
+
+describe('exact scenario arithmetic', () => {
+  it('does not let float noise add a bus to the spare target', () => {
+    const spare = (ratio: number, peak: number): number =>
+      byId(runScenario(single(peak), { spareRatio: ratio }).balances, 'x').spareTarget;
+    expect(spare(0.07, 100)).toBe(7);
+    expect(spare(0.14, 50)).toBe(7);
+    expect(spare(0.28, 25)).toBe(7);
+  });
+
+  it('rounds an exact half of a surge up', () => {
+    const peakAfter = (peak: number, percent: number): number =>
+      byId(runScenario(single(peak), { demandSurges: [{ depotId: 'x', percent }] }).balances, 'x')
+        .peakRequirement;
+    expect(peakAfter(50, 15)).toBe(58);
+    expect(peakAfter(45, -30)).toBe(32);
+    expect(peakAfter(50, 12.5)).toBe(56); // 56.25
+  });
+
+  it('spare target is the exact rational ceiling for every 1% ratio and peak 1-400', () => {
+    for (let hundredths = 0; hundredths <= 30; hundredths++) {
+      for (let peak = 1; peak <= 400; peak++) {
+        const out = runScenario(single(peak), { spareRatio: hundredths / 100 });
+        const expected = Math.floor((peak * hundredths + 99) / 100);
+        expect(byId(out.balances, 'x').spareTarget, `${hundredths}% of ${peak}`).toBe(expected);
+        expect(out.clamped).toEqual([]);
+      }
+    }
+  });
+
+  it('surged peak is the exact round-half-up result for every whole percent -50..100', () => {
+    for (let percent = -50; percent <= 100; percent++) {
+      for (let peak = 1; peak <= 400; peak++) {
+        const out = runScenario(single(peak), { demandSurges: [{ depotId: 'x', percent }] });
+        const expected = Math.floor((2 * peak * (100 + percent) + 100) / 200);
+        expect(byId(out.balances, 'x').peakRequirement, `${percent}% of ${peak}`).toBe(expected);
+      }
+    }
+  });
+});
+
+describe('hostile and compounded scenario inputs', () => {
+  const adjust = (deltaBuses: number) =>
+    runScenario(BASE, { fleetAdjustments: [{ depotId: 'a', deltaBuses }] });
+
+  it('treats a non-finite fleet delta as 0 with a note', () => {
+    for (const bad of [NaN, Infinity, -Infinity]) {
+      const out = adjust(bad);
+      expect(byId(out.balances, 'a')).toEqual(byId(runScenario(BASE, {}).balances, 'a'));
+      expect(out.clamped).toHaveLength(1);
+    }
+  });
+
+  it('truncates a fractional fleet delta toward zero with a note', () => {
+    expect(byId(adjust(2.9).balances, 'a').available).toBe(132);
+    expect(byId(adjust(-2.9).balances, 'a').available).toBe(128);
+    expect(adjust(2.9).clamped).toHaveLength(1);
+  });
+
+  it('clamps the fleet delta magnitude to MAX_FLEET_ADJUSTMENT with a note', () => {
+    const up = adjust(100000);
+    expect(byId(up.balances, 'a').available).toBe(130 + MAX_FLEET_ADJUSTMENT);
+    expect(up.clamped).toHaveLength(1);
+  });
+
+  it('falls back to defaults for non-finite ratio, distance and surge, with notes', () => {
+    const out = runScenario(BASE, {
+      spareRatio: NaN,
+      maxTransferKm: Infinity,
+      demandSurges: [{ depotId: 'a', percent: NaN }],
+    });
+    expect(out.clamped).toHaveLength(3);
+    expect(out.balances).toEqual(runScenario(BASE, {}).balances);
+    expect(out.plan).toEqual(runScenario(BASE, {}).plan);
+  });
+
+  it('sums surges on one depot and clamps the sum with a note', () => {
+    const two = runScenario(BASE, {
+      demandSurges: [
+        { depotId: 'a', percent: 100 },
+        { depotId: 'a', percent: 100 },
+      ],
+    });
+    expect(byId(two.balances, 'a').peakRequirement).toBe(200);
+    expect(two.clamped).toHaveLength(1);
+    const offsetting = runScenario(BASE, {
+      demandSurges: [
+        { depotId: 'a', percent: 30 },
+        { depotId: 'a', percent: -10 },
+      ],
+    });
+    expect(byId(offsetting.balances, 'a').peakRequirement).toBe(120);
+    expect(offsetting.clamped).toEqual([]);
+  });
+
+  it('sums fleet adjustments on one depot before the availability floor', () => {
+    const out = runScenario(BASE, {
+      fleetAdjustments: [
+        { depotId: 'b', deltaBuses: -60 },
+        { depotId: 'b', deltaBuses: -60 },
+      ],
+    });
+    expect(byId(out.balances, 'b').available).toBe(0);
+    expect(out.clamped).toHaveLength(1);
+    const net = runScenario(BASE, {
+      fleetAdjustments: [
+        { depotId: 'b', deltaBuses: -60 },
+        { depotId: 'b', deltaBuses: 50 },
+      ],
+    });
+    expect(byId(net.balances, 'b').available).toBe(80);
+    expect(net.clamped).toEqual([]);
+  });
+
+  it('never throws on hostile input', () => {
+    const hostile = [NaN, Infinity, -Infinity, 1e300, -1e300, -7, 0.5, 2.5];
+    for (const n of hostile) {
+      expect(() =>
+        runScenario(BASE, {
+          spareRatio: n,
+          maxTransferKm: n,
+          fleetAdjustments: [
+            { depotId: 'a', deltaBuses: n },
+            { depotId: 'a', deltaBuses: n },
+            { depotId: 'nope', deltaBuses: n },
+            { depotId: 'e', deltaBuses: n },
+          ],
+          demandSurges: [
+            { depotId: 'b', percent: n },
+            { depotId: 'b', percent: n },
+            { depotId: 'nope', percent: n },
+          ],
+        }),
+      ).not.toThrow();
+    }
   });
 });

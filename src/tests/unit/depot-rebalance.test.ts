@@ -81,7 +81,7 @@ describe('planTransfers', () => {
     );
     expect(plan.transfers.map((t) => t.id).sort()).toEqual(['s1>d1', 's2>d2']);
     const expected = 2 * roadDistanceKm(at(0), at(2), 1);
-    expect(plan.totalBusKm).toBeCloseTo(expected, 2);
+    expect(plan.totalBusKm).toBeCloseTo(expected, 1);
     const nearestFirst = roadDistanceKm(at(3), at(2), 1) + roadDistanceKm(at(0), at(5), 1);
     expect(plan.totalBusKm).toBeLessThan(nearestFirst);
   });
@@ -251,7 +251,7 @@ describe('planTransfers', () => {
       for (const t of plan.transfers) {
         expect(Number.isInteger(t.buses)).toBe(true);
         expect(t.buses).toBeGreaterThan(0);
-        expect(t.busKm).toBeCloseTo(t.buses * t.distanceKm, 6);
+        expect(Math.abs(t.busKm - t.buses * t.distanceKm)).toBeLessThanOrEqual(0.05 + 1e-9);
         expect(t.distanceKm).toBeLessThanOrEqual(PARAMS.maxTransferKm);
       }
     }
@@ -308,5 +308,21 @@ describe('planTransfers', () => {
     expect(elapsed).toBeLessThan(1000);
     const uncovered = plan.uncovered.reduce((sum, u) => sum + u.buses, 0);
     expect(plan.coveredDeficit + uncovered).toBe(plan.before.totalDeficit);
+  });
+
+  it('reports bus-kilometres to one decimal with no float residue', () => {
+    const rand = lcg(31);
+    for (let trial = 0; trial < 30; trial++) {
+      const balances = Array.from({ length: 16 }, (_, i) =>
+        depot(`d${i}`, Math.floor(rand() * 15) - 7, {
+          lat: 26 + rand() * 1.5,
+          lng: 80 + rand() * 1.5,
+        }),
+      );
+      const plan = planTransfers(balances, DEFAULT_REBALANCE_PARAMS);
+      for (const value of [plan.totalBusKm, ...plan.transfers.map((t) => t.busKm)]) {
+        expect(value).toBe(Number(value.toFixed(1)));
+      }
+    }
   });
 });
