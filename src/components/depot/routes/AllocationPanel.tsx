@@ -4,7 +4,6 @@ import { useMemo, type ReactNode } from 'react';
 import { ErrorPanel, LoadingBlock } from '@/components/depot/shell/DataStates';
 import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
 import { SectionLabel } from '@/components/depot/shell/SectionLabel';
-import { StatePanel } from '@/components/depot/shell/StatePanel';
 import type { DepotAllocationState } from '@/hooks/useDepotAllocation';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { moveRows, type UnmovedGroup } from '@/lib/depot/routes/allocationGroups';
@@ -44,26 +43,14 @@ function PlanBasis({ allocation }: { readonly allocation: DepotAllocationRespons
 /**
  * The plan as one panel: a headline sentence (the thresholds in its `title`), the figure
  * band and the recommended moves when something is planned, the unmoved, outside-the-plan
- * and unprofiled routes as collapsed rows with counts. When nothing can be planned it is
- * one state panel; the route-details loader follows it either way (see the section).
+ * and unprofiled routes as collapsed rows with counts. When nothing can be planned it draws
+ * nothing: the loader row above it carries the sentence (see the section).
  */
 export function AllocationPanel({ allocation, groups }: AllocationPanelProps) {
   const h = useMemo(() => allocationHeadline(allocation), [allocation]);
   const rows = useMemo(() => moveRows(allocation.moves), [allocation.moves]);
-  if (!h.planned) {
-    return (
-      <>
-        <StatePanel
-          kind="not-established"
-          sentence={h.emptyLine}
-          remedy="Choose a depot below and load its route details; the plan measures each route once its stops are known."
-        />
-        <div className="mt-3">
-          <PlanBasis allocation={allocation} />
-        </div>
-      </>
-    );
-  }
+  // Nothing planned: the section is the loader's one row (its sentence says why).
+  if (!h.planned) return null;
   return (
     <>
       <p
@@ -99,12 +86,17 @@ export interface AllocationSectionProps {
   readonly loader: ReactNode;
 }
 
-/** The plan panel with its loading and error states; the plan is a recommendation only. */
+/**
+ * The plan section: its label (MODELLED, recommendation only), the route-details loader's
+ * row, then the plan, its loading footprint or its error. The loader keeps one position in
+ * every state, so a plan that fills mid-run never unmounts (and so cancels) it.
+ */
 export function AllocationSection({ state, groups, loader }: AllocationSectionProps) {
   const { data, error, loading, refresh } = state;
   return (
     <section aria-labelledby={TITLE_ID} className="mb-8 min-w-0">
       <SectionLabel id={TITLE_ID} label={ROUTES_TEXT.allocationTitle} tag="modelled" note={RECOMMENDATION_ONLY} />
+      {loader}
       {loading ? (
         <LoadingBlock rows={3} rowHeight={48} label="Loading the allocation plan" />
       ) : data ? (
@@ -116,9 +108,6 @@ export function AllocationSection({ state, groups, loader }: AllocationSectionPr
           onRetry={refresh}
         />
       )}
-      {/* One stable position: a plan that becomes planned mid-run must not unmount (and so
-          cancel) the loader. */}
-      <div className="mt-4">{loader}</div>
     </section>
   );
 }

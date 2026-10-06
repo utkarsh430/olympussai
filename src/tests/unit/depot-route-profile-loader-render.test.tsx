@@ -3,10 +3,11 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ProfileLoader } from '@/components/depot/routes/ProfileLoader';
+import { LOADER_COST_LINE } from '@/lib/depot/routes/loaderRow';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const DEPOTS = [{ value: '49', label: 'Bhaisali' }];
+const DEPOTS = [{ value: '49', label: 'Bhaisali', busesOnRoutes: 12 }];
 const LIST = {
   routes: [
     { routeName: 'R1', profiled: false },
@@ -52,7 +53,9 @@ async function render(wait: (ms: number, signal: AbortSignal) => Promise<void>, 
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
-  await act(async () => root?.render(<ProfileLoader depots={DEPOTS} onFinished={onFinished} wait={wait} />));
+  await act(async () => root?.render(
+      <ProfileLoader depots={DEPOTS} defaultDepotId="" onFinished={onFinished} wait={wait} />,
+    ));
   const select = container.querySelector('select') as HTMLSelectElement;
   await act(async () => {
     select.value = '49';
@@ -75,15 +78,32 @@ afterEach(async () => {
 });
 
 describe('route profile loader', () => {
+  it('starts on the default depot with its sentence, and still looks nothing up until pressed', async () => {
+    const calls = stubFetch(false);
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const lead = "No route can be planned yet: no route's details have been loaded.";
+    await act(async () =>
+      root?.render(<ProfileLoader depots={DEPOTS} defaultDepotId="49" lead={lead} onFinished={() => {}} />),
+    );
+    await flush();
+    expect(calls).toEqual([]);
+    expect(status()).toBe(lead);
+    expect((container.querySelector('select') as HTMLSelectElement).value).toBe('49');
+    expect(button('Load route details')?.textContent).toBe('Load route details (3 routes)');
+  });
+
   it('does nothing until pressed, then loads one at a time and finishes', async () => {
     const calls = stubFetch(false);
     const onFinished = vi.fn();
     await render(async () => {}, onFinished);
     expect(calls).toEqual([]);
-    expect(button('Load route details')?.textContent).toBe(
-      'Load route details for Bhaisali (3 routes)',
+    expect(button('Load route details')?.textContent).toBe('Load route details (3 routes)');
+    expect(button('Load route details')?.title).toBe(
+      'Looks up 3 routes of Bhaisali on the route-details service: one lookup per route, one at a time, at most 40 a press.',
     );
-    expect(container.textContent).toContain('Each route is one lookup on the route-details service.');
+    expect(container.textContent).toContain(LOADER_COST_LINE);
     await act(async () => button('Load route details')?.click());
     await flush();
     expect(calls).toEqual(['R1', 'R2', 'R3']);
