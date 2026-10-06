@@ -4,7 +4,13 @@ import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { useRouteProfile } from '@/hooks/useRouteProfile';
-import { drawerView, type DrawerMove, type DrawerRoute } from '@/lib/depot/routes/routeDrawerModel';
+import { DataTable, type Column } from '@/components/depot/shell/DataTable';
+import {
+  NO_TIME,
+  drawerView,
+  type DrawerMove,
+  type DrawerRoute,
+} from '@/lib/depot/routes/routeDrawerModel';
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -44,38 +50,49 @@ function DrawerBody({ route, move, onProfiled }: Pick<RouteDrawerProps, 'route' 
   }
   return (
     <>
+      <p className="depot-prose mb-3 flex flex-wrap items-baseline gap-2">
+        <ProvenanceBadge provenance="derived" />
+        <span>From the route-details feed and the inferred depot positions.</span>
+      </p>
       <p className="depot-prose">{view.operatorsLine} {view.busesLine}</p>
-      <h3 className="depot-label mb-2 mt-4 flex items-center gap-2">
-        Dead kilometres <ProvenanceBadge provenance="derived" />
-      </h3>
+      <h3 className="depot-label mb-2 mt-4">Dead kilometres</h3>
       {view.deadKmLines.map((line) => (
         <p key={line} className="depot-prose">{line}</p>
       ))}
-      <h3 className="depot-label mb-2 mt-4 flex items-center gap-2">
-        Terminals <ProvenanceBadge provenance="derived" />
-      </h3>
+      <h3 className="depot-label mb-2 mt-4">Terminals</h3>
       <p className="depot-prose">
         From {view.firstStop ?? 'an unnamed stop'} to {view.lastStop ?? 'an unnamed stop'}, from the
         route-details feed. {view.durationLine} {view.unlocatedLine}
       </p>
-      <h3 className="depot-label mb-2 mt-4 flex items-center gap-2">
-        Stops in order <ProvenanceBadge provenance="derived" />
-      </h3>
-      <ol className="m-0 list-none p-0">
-        {view.stops.map((s) => (
-          <li
-            key={s.sequence}
-            className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] gap-x-3 border-b border-depot-line py-1.5 font-mono text-[13px] text-depot-ink"
-          >
-            <span className="tabular-nums text-depot-muted">{s.sequence}</span>
-            <span className="min-w-0 break-words">{s.name}</span>
-            <span className="text-right tabular-nums">{s.time}</span>
-          </li>
-        ))}
-      </ol>
+      <h3 className="depot-label mb-2 mt-4">Stops in order</h3>
+      <DataTable
+        columns={STOP_COLUMNS}
+        rows={view.stops}
+        rowKey={(s) => String(s.sequence)}
+        caption="Stops in order"
+        fixedRows
+      />
     </>
   );
 }
+
+interface StopRow {
+  readonly sequence: number;
+  readonly name: string;
+  readonly time: string;
+}
+
+/** The stops on the shared table options; a stop without a time is a dash with the reason. */
+const STOP_COLUMNS: readonly Column<StopRow>[] = [
+  { key: 'seq', header: '#', align: 'right', width: '2.5rem', render: (s) => String(s.sequence) },
+  { key: 'name', header: 'Stop', render: (s) => s.name },
+  {
+    key: 'time',
+    header: 'Scheduled',
+    align: 'right',
+    render: (s) => (s.time === NO_TIME ? <span title="No scheduled time">—</span> : s.time),
+  },
+];
 
 /**
  * Side sheet for one route, after the bus drawer: a modal dialog where focus

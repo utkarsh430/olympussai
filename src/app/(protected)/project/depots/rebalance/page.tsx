@@ -13,8 +13,12 @@ export default async function FleetDistributionPage() {
     <>
       <PageHeader
         title="Fleet distribution"
-        description="For every depot, the buses it has against the buses it needs, and the transfers between depots that the optimiser recommends."
-        provenance="modelled"
+        description="Each depot's buses against its need, and the transfers that would close the gaps."
+        provenanceLine={{
+          default: 'mixed',
+          live: 'Fleet, off-the-road and available counts',
+          modelled: 'requirement, spare target, surplus, deficit and every transfer',
+        }}
       />
       <RebalancePage />
     </>

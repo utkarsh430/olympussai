@@ -21,7 +21,12 @@ const filterRoutes = (routes: readonly RouteListItem[], f: Filters): RouteListIt
       (f.depotId === null || r.operators.some((o) => o.depotId === f.depotId)) &&
       inClass(r, f.serviceClass),
   );
-import { deadKmWords, delayWords, operatorsView } from '@/lib/depot/routes/routeRowWording';
+import {
+  deadKmWords,
+  delayWords,
+  medianCell,
+  operatorsView,
+} from '@/lib/depot/routes/routeRowWording';
 
 type Op = { depotId: string; depotName: string; buses: number };
 
@@ -209,5 +214,11 @@ describe('row wording', () => {
     expect(
       deadKmWords(route('R', [AGRA], { profiled: true, deadKm: { ...deadKm, approximated: false, depotPosition: 'yard' } })),
     ).toEqual({ value: '12.3', note: null });
+  });
+});
+
+describe('medianCell', () => {
+  it('drops the unit, which the column header carries', () => {
+    expect(medianCell({ medianMin: 4.46, lateShare: 0.3, coverage: { n: 6, of: 8 } })).toBe('+4.5');
   });
 });

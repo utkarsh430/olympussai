@@ -136,3 +136,37 @@ describe('RoutesPage content', () => {
     expect(markup).not.toMatch(/\shidden(=|\s|>)/);
   });
 });
+
+describe('RoutesPage plan panel', () => {
+  beforeEach(() => {
+    state.routes = slot({ data: ROUTES });
+  });
+
+  it('puts the plan panel above the route table and states the thresholds in a title', () => {
+    state.allocation = slot({ data: PLAN });
+    const markup = renderToStaticMarkup(<RoutesPage />);
+    expect(markup.indexOf('allocation-title')).toBeLessThan(markup.indexOf('route-table-title'));
+    expect(markup).toContain('title="The plan moves a route only for a saving of at least 5 km a day');
+    expect(textOf(markup)).toContain(TRIP_DEFINITION);
+    expect(textOf(markup)).toContain('within half a minute');
+    expect(markup).toContain('data-testid="route-profile-loader"');
+  });
+
+  it('puts the route table on fixed rows with the delay unit in its header', () => {
+    state.allocation = slot({ data: PLAN });
+    const markup = renderToStaticMarkup(<RoutesPage />);
+    expect(markup).toContain('depot-table depot-table-fixed');
+    expect(textOf(markup)).toContain('Median delay, min');
+    expect(textOf(markup)).not.toMatch(/\d min</);
+  });
+
+  it('is one state panel with the loader when nothing can be planned', () => {
+    const none = { ...PLAN, coverage: { ...PLAN.coverage, planned: { n: 0, of: 2 } }, moves: [] };
+    state.allocation = slot({ data: none });
+    const markup = renderToStaticMarkup(<RoutesPage />);
+    expect(textOf(markup)).toContain('No route can be planned yet');
+    expect(markup).not.toContain('data-testid="depot-figure-band"');
+    expect(markup).toContain('data-testid="route-profile-loader"');
+    expect(textOf(markup)).toContain('Each route is one lookup on the route-details service.');
+  });
+});

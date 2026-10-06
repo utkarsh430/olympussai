@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
 import { useDepotDistribution, type DepotDistributionState } from '@/hooks/useDepotDistribution';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
@@ -16,7 +16,9 @@ import type { TransferRow } from '@/lib/depot/rebalance/transferModel';
 import { BalanceSummary } from './BalanceSummary';
 import { BalanceTable } from './BalanceTable';
 import { DecisionTrail } from './DecisionTrail';
-import { PageIntro } from './PageIntro';
+import { Disclosure } from './Disclosure';
+import { RecommendationNotice, WhatIfStrip } from './PageIntro';
+import { RebalanceMethod } from './RebalanceMethod';
 import { ScenarioCompare } from './ScenarioCompare';
 import { ScenarioPanel } from './ScenarioPanel';
 import { TransferMap } from './TransferMap';
@@ -57,6 +59,7 @@ export function Distribution({
 }) {
   const [form, setForm] = useState(BASELINE_FORM);
   const [resetCount, setResetCount] = useState(0);
+  const [sandboxOpen, setSandboxOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -71,6 +74,7 @@ export function Distribution({
 
   function reset(): void {
     setForm(BASELINE_FORM);
+    setSandboxOpen(true);
     setResetCount((n) => n + 1);
     setAnnouncement(RESET_ANNOUNCEMENT);
   }
@@ -102,68 +106,80 @@ export function Distribution({
     setAnnouncement(recorded ? said : UNDO_REFUSED);
   }
 
+  const maxBuses = view.rows.reduce((m, r) => Math.max(m, r.buses), 0);
   return (
     <div className="flex min-w-0 flex-col">
       {data.stale || state.error ? <StaleStrip since={data.feedNow} /> : null}
-      <PageIntro
-        spareRatio={data.requirementParams.spareRatio}
-        fixture={data.source === 'fixture'}
-        sentence={view.sentence}
-        onReset={reset}
-        announcement={announcement}
-      />
-      <div className="flex min-w-0 flex-col gap-8">
-        <BalanceSummary summary={view.summary} scenarioActive={view.key !== null} />
-        {view.delta ? (
-          <ScenarioCompare
-            delta={view.delta}
-            baseline={view.baselineSummary}
-            scenario={view.summary}
-          />
-        ) : null}
-        <section aria-labelledby="rebalance-map-heading" className="min-w-0">
-          <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
-            <h2 id="rebalance-map-heading" className="depot-section-label mb-0">
-              Recommended transfers
-            </h2>
-            <ProvenanceBadge provenance="modelled" />
-          </div>
-          <TransferMap
-            geometry={view.geometry}
-            selectedId={selected?.id ?? null}
-            onSelect={setSelectedId}
-          />
-          <div className="mt-3">
-            <TransferMapLegend maxBuses={view.rows.reduce((m, r) => Math.max(m, r.buses), 0)} />
-          </div>
-          <p role="status" className="depot-prose mb-2 mt-4 text-xs">
-            {selected
-              ? `Selected: ${busesWord(selected.buses)} from ${selected.fromName} to ${selected.toName}, modelled. Its line and both depots are highlighted on the map.`
-              : 'Select a transfer to highlight it on the map.'}
-          </p>
-          <TransferSection
-            view={view}
-            selectedId={selected?.id ?? null}
-            onSelect={setSelectedId}
-            onDecide={decide}
-          />
-        </section>
-        <BalanceTable rows={view.depotRows} />
-        <ScenarioPanel
-          key={resetCount}
-          form={form}
-          onChange={(update) => setForm((current) => update(current))}
-          onReset={reset}
-          depots={view.depots}
-          clampNotes={view.clampNotes}
-          headingRef={headingRef}
+      <RecommendationNotice fixture={data.source === 'fixture'} />
+      <WhatIfStrip sentence={view.sentence} onReset={reset} />
+      <BalanceSummary summary={view.summary} scenarioActive={view.key !== null} />
+      {view.delta ? (
+        <ScenarioCompare delta={view.delta} baseline={view.baselineSummary} scenario={view.summary} />
+      ) : null}
+      <section aria-labelledby="rebalance-map-heading" className="mb-8 min-w-0">
+        <SectionLabel
+          id="rebalance-map-heading"
+          label="Recommended transfers"
+          count={view.rows.length}
+          tag="modelled"
+          note="Largest first; select one to highlight it on the map"
         />
+        <div className="flex min-w-0 flex-col gap-6 xl:grid xl:grid-cols-12 xl:items-start">
+          <div className="order-1 min-w-0 xl:order-2 xl:col-span-5">
+            <TransferSection
+              view={view}
+              selectedId={selected?.id ?? null}
+              onSelect={setSelectedId}
+              onDecide={decide}
+            />
+            <p role="status" data-testid="rebalance-status" className="mt-2 min-h-5 text-[13px] text-depot-ink">
+              {announcement}
+            </p>
+          </div>
+          <div className="order-2 min-w-0 xl:order-1 xl:col-span-7">
+            <TransferMap
+              geometry={view.geometry}
+              selectedId={selected?.id ?? null}
+              onSelect={setSelectedId}
+            />
+            <p role="status" className="depot-prose mt-2 text-xs">
+              {selected
+                ? `Selected: ${busesWord(selected.buses)} from ${selected.fromName} to ${selected.toName}. Its line and both depots are highlighted on the map.`
+                : 'Select a transfer to highlight it on the map.'}
+            </p>
+            <div className="mt-3">
+              <TransferMapLegend maxBuses={maxBuses} />
+            </div>
+          </div>
+        </div>
+      </section>
+      <div className="flex min-w-0 flex-col gap-8">
+        <Disclosure
+          label="What-if sandbox"
+          note="Recomputed in this browser; nothing is sent"
+          open={sandboxOpen}
+          onToggle={setSandboxOpen}
+          headingId="rebalance-sandbox-heading"
+          headingRef={headingRef}
+          keepMounted
+        >
+          <ScenarioPanel
+            key={resetCount}
+            form={form}
+            onChange={(update) => setForm((current) => update(current))}
+            onReset={reset}
+            depots={view.depots}
+            clampNotes={view.clampNotes}
+          />
+        </Disclosure>
+        <BalanceTable rows={view.depotRows} />
         <DecisionTrail
           trail={view.trail}
           operatingDate={data.operatingDate}
           onUndo={undo}
           capacityNote={trailCapacityNote(log.slice)}
         />
+        <RebalanceMethod spareRatio={data.requirementParams.spareRatio} />
       </div>
     </div>
   );

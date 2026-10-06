@@ -52,8 +52,11 @@ const UNAVAILABLE: Readonly<Record<Unavailable, string>> = {
 const plural = (n: number, one: string, many: string): string =>
   `${formatCount(n)} ${n === 1 ? one : many}`;
 
+/** The time of a stop the profile gives no schedule for. */
+export const NO_TIME = 'No time';
+
 const timeOf = (scheduled: string | null): string =>
-  scheduled?.match(/^(\d{2}:\d{2})/)?.[1] ?? 'No time';
+  scheduled?.match(/^(\d{2}:\d{2})/)?.[1] ?? NO_TIME;
 
 function durationLine(minutes: number | null): string {
   if (minutes === null || !Number.isFinite(minutes) || minutes <= 0) {

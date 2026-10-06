@@ -103,7 +103,7 @@ afterEach(async () => {
 });
 
 describe('MODELLED wording', () => {
-  it('is on the transfer table caption and every figure column header', async () => {
+  it('is on the transfer table caption, and the figure headers leave it to the section label', async () => {
     await render(
       <TransferTable
         rows={[ROW]}
@@ -117,7 +117,7 @@ describe('MODELLED wording', () => {
     const headers = texts('thead th');
     const figures = headers.filter((h) => /buses|km|spare|short/i.test(h));
     expect(figures).toHaveLength(5);
-    for (const header of figures) expect(header).toMatch(/modelled/i);
+    for (const header of figures) expect(header).not.toMatch(/modelled/i);
   });
 
   it('is on both comparison column headings', async () => {

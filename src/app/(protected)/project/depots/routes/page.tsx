@@ -13,8 +13,12 @@ export default async function DepotRoutesPage() {
     <>
       <PageHeader
         title="Routes"
-        description="Every route the live feed shows, and which depot should run each one so buses drive fewer empty kilometres to and from its terminals."
-        provenance="derived"
+        description="Every route in the feed, and which depot should run each one."
+        provenanceLine={{
+          default: 'mixed',
+          live: 'Routes and buses, and stops and terminals from the route-details feed',
+          modelled: 'depot positions (inferred), trips and the dead kilometres built on them',
+        }}
       />
       <RoutesPage />
     </>

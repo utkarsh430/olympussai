@@ -1,9 +1,16 @@
 'use client';
 
+import { useRef } from 'react';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { TableOverflowCue, useColumnsToTheRight } from '@/components/depot/shell/TableOverflowCue';
 import type { DepotRoutesResponse, RouteListItem } from '@/lib/depot/routes/api';
 import { LATE_AFTER_MIN } from '@/lib/depot/routes/delayConfig';
-import { deadKmWords, delayWords, operatorsView } from '@/lib/depot/routes/routeRowWording';
+import {
+  deadKmWords,
+  delayWords,
+  medianCell,
+  operatorsView,
+} from '@/lib/depot/routes/routeRowWording';
 import type { RouteSort, RouteSortKey, RoutesQuery } from '@/lib/depot/routes/routeQuery';
 import { offsetOf, routeRangeSentence, serverPage } from '@/lib/depot/routes/routesPageModel';
 import { formatCount } from '@/lib/depot/format';
@@ -61,7 +68,7 @@ const COLUMNS: readonly RouteColumn[] = [
       return <FigureWithNote value={w.value} note={w.note} />;
     },
   },
-  { key: 'median', header: 'Median delay', right: true, render: (r) => delayWords(r.delay).median },
+  { key: 'median', header: 'Median delay, min', right: true, render: (r) => medianCell(r.delay) },
   {
     key: 'late',
     header: 'Late',
@@ -94,9 +101,16 @@ export interface RouteTableProps {
  */
 export function RouteTable({ data, query, onQueryChange, onOpenRoute }: RouteTableProps) {
   const sort = query.sort;
+  const frame = useRef<HTMLDivElement>(null);
+  const moreColumns = useColumnsToTheRight(frame, true);
   const current = serverPage(data.total, data.offset, data.limit);
-  const filters: RouteFilters = { depotId: query.depotId, serviceClass: query.serviceClass, q: query.q };
-  const changeFilters = (next: RouteFilters): void => onQueryChange({ ...query, ...next, offset: 0 });
+  const filters: RouteFilters = {
+    depotId: query.depotId,
+    serviceClass: query.serviceClass,
+    q: query.q,
+  };
+  const changeFilters = (next: RouteFilters): void =>
+    onQueryChange({ ...query, ...next, offset: 0 });
   const setPage = (page: number): void =>
     onQueryChange({ ...query, offset: offsetOf(page, query.limit) });
   const toggleSort = (key: RouteSortKey): void => {
@@ -119,76 +133,89 @@ export function RouteTable({ data, query, onQueryChange, onOpenRoute }: RouteTab
       <p className="depot-prose mb-2 text-xs" role="status">
         {`${routeRangeSentence(range, data.inFeed)}.`}
       </p>
-      <div role="region" aria-label="Route table" tabIndex={0} className="depot-table-frame">
-        <table className="depot-table">
-          <caption className="sr-only">Every route in the live feed</caption>
-          <thead>
-            <tr>
-              {COLUMNS.map((c) => (
-                <th
-                  key={c.key}
-                  scope="col"
-                  title={c.title}
-                  aria-sort={c.key === 'basis' ? undefined : ariaSort(sort, c.key)}
-                  className={`${c.frozen ? `${c.frozen} !z-20` : ''} ${c.right ? 'depot-align-right' : ''}`}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    {c.key === 'basis' ? (
-                      c.header
-                    ) : (
-                      <button
-                        type="button"
-                        className="depot-sort-button"
-                        onClick={() => toggleSort(c.key as RouteSortKey)}
-                      >
-                        {c.header}
-                        <span aria-hidden className="inline-block w-3 text-holo-glow">
-                          {sort?.key === c.key ? (sort.direction === 'asc' ? '↑' : '↓') : ''}
-                        </span>
-                      </button>
-                    )}
-                    {c.provenance ? <ProvenanceBadge provenance={c.provenance} /> : null}
-                  </span>
-                  {c.title ? <span className="sr-only">{c.title}</span> : null}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.routes.length === 0 ? (
+      <div className="relative min-w-0">
+        <div
+          ref={frame}
+          role="region"
+          aria-label="Route table"
+          tabIndex={0}
+          className="depot-table-frame"
+        >
+          <table className="depot-table depot-table-fixed">
+            <caption className="sr-only">Every route in the live feed</caption>
+            <thead>
               <tr>
-                <td colSpan={COLUMNS.length} className="depot-prose !py-6">
-                  No routes match these filters. Choose All depots or All classes, or clear the name, to widen the list.
-                </td>
-              </tr>
-            ) : null}
-            {data.routes.map((row) => (
-              <tr key={row.routeName} className="group hover:bg-depot-raised">
                 {COLUMNS.map((c) => (
-                  <td
+                  <th
                     key={c.key}
-                    className={`${c.frozen ? `${c.frozen} bg-depot-page group-hover:bg-depot-raised` : 'whitespace-nowrap'} ${
-                      c.right ? 'depot-align-right' : ''
-                    }`}
+                    scope="col"
+                    title={c.title}
+                    aria-sort={c.key === 'basis' ? undefined : ariaSort(sort, c.key)}
+                    className={`${c.frozen ? `${c.frozen} !z-20` : ''} ${c.right ? 'depot-align-right' : ''}`}
                   >
-                    {c.key === 'route' ? (
-                      <button
-                        type="button"
-                        className="depot-link block max-w-[11rem] truncate text-left"
-                        title={row.description ?? row.routeName}
-                        onClick={(event) => onOpenRoute(row, event.currentTarget)}
-                      >
-                        {row.routeName}
-                      </button>
-                    ) : (
-                      c.render(row)
-                    )}
-                  </td>
+                    <span className="inline-flex items-center gap-2">
+                      {c.key === 'basis' ? (
+                        c.header
+                      ) : (
+                        <button
+                          type="button"
+                          className="depot-sort-button"
+                          onClick={() => toggleSort(c.key as RouteSortKey)}
+                        >
+                          {c.header}
+                          <span aria-hidden className="inline-block w-3 text-holo-glow">
+                            {sort?.key === c.key ? (sort.direction === 'asc' ? '↑' : '↓') : ''}
+                          </span>
+                        </button>
+                      )}
+                      {c.provenance ? <ProvenanceBadge provenance={c.provenance} /> : null}
+                    </span>
+                    {c.title ? <span className="sr-only">{c.title}</span> : null}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.routes.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={COLUMNS.length}
+                    className="depot-prose !h-auto !whitespace-normal !py-6"
+                  >
+                    No routes match these filters. Choose All depots or All classes, or clear the
+                    name, to widen the list.
+                  </td>
+                </tr>
+              ) : null}
+              {data.routes.map((row) => (
+                <tr key={row.routeName} className="group hover:bg-depot-raised">
+                  {COLUMNS.map((c) => (
+                    <td
+                      key={c.key}
+                      className={`${c.frozen ? `${c.frozen} bg-depot-page group-hover:bg-depot-raised` : 'whitespace-nowrap'} ${
+                        c.right ? 'depot-align-right' : ''
+                      }`}
+                    >
+                      {c.key === 'route' ? (
+                        <button
+                          type="button"
+                          className="depot-link block max-w-[11rem] truncate text-left"
+                          title={row.description ?? row.routeName}
+                          onClick={(event) => onOpenRoute(row, event.currentTarget)}
+                        >
+                          {row.routeName}
+                        </button>
+                      ) : (
+                        c.render(row)
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {moreColumns ? <TableOverflowCue /> : null}
       </div>
     </>
   );

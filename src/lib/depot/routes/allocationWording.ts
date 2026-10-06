@@ -206,7 +206,13 @@ export const DEAD_KM_MEANING =
   "Dead kilometres are the empty running between those positions and each route's first and last stops.";
 
 export const PROFILES_GROW_WITH_USE =
-  "A route's stops are fetched one route at a time, when that route is opened below or a depot's roster or a bus on it is opened, never in bulk, so coverage grows with use.";
+  "A route's stops are fetched one route at a time: when the route is opened below, when a depot's roster or a bus on it is opened, or when a depot's routes are loaded from the plan panel, at most 40 a press and never by itself, so coverage grows with use.";
 
 export const RECOMMENDATION_ONLY =
   'Recommendation only: no route is reassigned. Any change of depot is decided and made outside this page.';
+
+/** The plan panel's one headline sentence: what would move, and on how many routes. */
+export function planHeadline(a: DepotAllocationResponse): string {
+  const { planned } = a.coverage;
+  return `${allocationHeadline(a).movesLine} Based on ${formatCount(planned.n)} of ${routes(planned.of)} with a known profile.`;
+}
