@@ -241,6 +241,16 @@ describe('summariseDepots', () => {
       expect(onlyDepot(rows).centroid).toEqual({ lat: 15, lng: 81 });
     });
 
+    it('centroid ignores a (0, 0) fix, which is a device with no fix and not a place', () => {
+      const rows = [
+        makeRow({ latitude: 26, longitude: 80 }),
+        makeRow({ latitude: 0, longitude: 0 }),
+        makeRow({ latitude: 0, longitude: 0 }),
+      ];
+      expect(onlyDepot(rows).centroid).toEqual({ lat: 26, lng: 80 });
+      expect(onlyDepot([makeRow({ latitude: 0, longitude: 0 })]).centroid).toBeNull();
+    });
+
     it('centroid is null with no positions', () => {
       const rows = [makeRow({ latitude: null, longitude: null })];
       expect(onlyDepot(rows).centroid).toBeNull();
