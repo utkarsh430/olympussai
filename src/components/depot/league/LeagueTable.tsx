@@ -24,7 +24,7 @@ import { scoreWindowSentence, scoreWindowShort } from '@/lib/depot/network/score
 import { MIN_FLEET_FOR_RANK } from '@/lib/depot/score/config';
 import type { PeerGroupId } from '@/lib/depot/score/types';
 import { LEAGUE_HOW_PRODUCED } from '@/lib/depot/network/howProduced';
-import { HowProduced } from '@/components/depot/network/HowProduced';
+import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { LeagueFilters } from './LeagueFilters';
 import { LeagueGrid } from './LeagueGrid';
 import { ScoreBreakdown } from './ScoreBreakdown';
@@ -124,7 +124,7 @@ export function LeagueTable() {
           <ScoreBreakdown row={selected} feedNow={data.feedNow} headingRef={headingRef} />
         ) : null}
       </div>
-      <HowProduced paragraphs={LEAGUE_HOW_PRODUCED} />
+      <HowProduced paragraphs={LEAGUE_HOW_PRODUCED} className="mt-10" />
     </>
   );
 }

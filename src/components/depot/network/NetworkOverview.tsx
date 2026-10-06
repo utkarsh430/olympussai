@@ -20,7 +20,7 @@ import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import { DepotTable } from './DepotTable';
 import { MapSection } from './MapSection';
 import { ExceptionSummary } from './ExceptionSummary';
-import { HowProduced } from './HowProduced';
+import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { KpiBand } from './KpiBand';
 import { RankedStrip } from './RankedStrip';
 import { SelectionBar } from './SelectionBar';
@@ -105,7 +105,7 @@ function OverviewBody({ data }: { readonly data: DepotNetworkResponse }) {
           </div>
         </>
       )}
-      <HowProduced paragraphs={OVERVIEW_HOW_PRODUCED} />
+      <HowProduced paragraphs={OVERVIEW_HOW_PRODUCED} className="mt-10" />
     </div>
   );
 }

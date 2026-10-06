@@ -14,6 +14,8 @@ export interface HowProducedProps {
   readonly id?: string;
   /** Kept per page so existing page tests can find their disclosure. */
   readonly testId?: string;
+  /** Outer spacing only (a top margin where the page's flow has no gap). */
+  readonly className?: string;
 }
 
 /**
@@ -23,7 +25,8 @@ export interface HowProducedProps {
  * summary has a real expanded state for assistive technology. The only script is the
  * anchor: browsers do not reliably open a closed `<details>` on a fragment link.
  */
-export function HowProduced({ paragraphs = [], children, id, testId }: HowProducedProps) {
+export function HowProduced(props: HowProducedProps) {
+  const { paragraphs = [], children, id, testId, className = '' } = props;
   const ref = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
@@ -40,7 +43,7 @@ export function HowProduced({ paragraphs = [], children, id, testId }: HowProduc
     <details
       ref={ref}
       id={id}
-      className="group min-w-0 scroll-mt-[var(--depot-anchor-mt)] border-t border-depot-line pt-3"
+      className={`group min-w-0 scroll-mt-[var(--depot-anchor-mt)] border-t border-depot-line pt-3 ${className}`}
       data-testid={testId ?? 'depot-how-produced'}
     >
       <summary className="flex cursor-pointer list-none items-baseline gap-2 py-1 font-mono text-[11px] uppercase tracking-[0.16em] text-depot-muted hover:text-depot-ink [&::-webkit-details-marker]:hidden">
