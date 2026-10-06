@@ -7,9 +7,11 @@
  */
 import 'server-only';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
+  isAuthorizedProject,
   isProduction,
 } from './config';
 import { createSessionToken, verifySessionToken, type SessionClaims } from './session';
@@ -48,4 +50,18 @@ export async function clearSession(): Promise<void> {
     ...baseCookieOptions(),
     maxAge: 0,
   });
+}
+
+/**
+ * Server-component gate: return the session, or redirect to login carrying the
+ * path to come back to. Defence in depth behind the edge middleware — every
+ * protected layout and page calls it, because layouts do not re-run on client
+ * navigation.
+ */
+export async function requireProjectSession(nextPath: string): Promise<SessionClaims> {
+  const session = await getSession();
+  if (!session || !isAuthorizedProject(session.project)) {
+    redirect(`/login?next=${encodeURIComponent(nextPath)}`);
+  }
+  return session;
 }
