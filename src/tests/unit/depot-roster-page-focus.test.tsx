@@ -126,3 +126,33 @@ describe('RosterPage drawer focus under StrictMode', () => {
     expect(document.activeElement).toBe(second);
   });
 });
+
+describe('RosterPage filters in the URL', () => {
+  const toggle = (word: string): HTMLButtonElement => {
+    const found = Array.from(container.querySelectorAll('[role="group"] button')).find((b) =>
+      (b.textContent ?? '').startsWith(word),
+    );
+    if (!found) throw new Error(`no toggle ${word}`);
+    return found as HTMLButtonElement;
+  };
+
+  it('writes a state toggle into the query and keeps it when a bus opens and closes', async () => {
+    await click(toggle('In service'));
+    expect(search).toBe('state=in_service');
+    expect(toggle('In service').getAttribute('aria-pressed')).toBe('true');
+    expect(container.textContent).toContain('Showing 2 of 2 buses');
+    await click(openerFor('MH12AB1000'));
+    expect(new URLSearchParams(search).get('state')).toBe('in_service');
+    await click(document.querySelector('[role="dialog"] button') as HTMLElement);
+    expect(search).toBe('state=in_service');
+  });
+
+  it('says when nothing matches and offers to clear the filters', async () => {
+    await click(toggle('Dark'));
+    expect(container.textContent).toContain('No bus matches these filters');
+    const clear = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Clear the filters');
+    await click(clear as HTMLElement);
+    expect(search).toBe('');
+    expect(container.textContent).toContain('Showing 2 of 2 buses');
+  });
+});
