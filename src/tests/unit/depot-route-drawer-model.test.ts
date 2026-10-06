@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  drawerPhase,
   drawerView,
   rateLimitSentence,
   type DrawerRoute,
@@ -97,5 +98,42 @@ describe('rateLimitSentence', () => {
   it('never prints a header it cannot read', () => {
     expect(rateLimitSentence(null)).toBe('Too many route lookups just now. Try again shortly.');
     expect(rateLimitSentence('<b>soon</b>')).toBe('Too many route lookups just now. Try again shortly.');
+  });
+});
+
+describe('the drawer states', () => {
+  const idle = { data: null, error: null, loading: false };
+
+  it('says it is loading, and says so differently once the lookup is slow', () => {
+    expect(drawerPhase({ ...idle, loading: true })).toEqual({
+      kind: 'loading',
+      sentence: "Loading this route's stops from the route-details service.",
+    });
+    expect(drawerPhase({ ...idle, loading: true, slow: true })).toEqual({
+      kind: 'slow',
+      sentence: 'Still waiting for the route-details service; one lookup can take a while.',
+    });
+  });
+
+  it('gives a rate-limit wait its own state with its seconds, apart from a failure', () => {
+    const limited = 'Too many route lookups just now. Try again in 9 seconds.';
+    expect(drawerPhase({ ...idle, error: limited, retryAfterSeconds: 9 })).toEqual({
+      kind: 'limited',
+      sentence: limited,
+    });
+    expect(drawerPhase({ ...idle, error: 'Route details are unavailable right now.' })).toEqual({
+      kind: 'failed',
+      sentence: 'Route details are unavailable right now.',
+    });
+  });
+
+  it('is ready once the profile has arrived', () => {
+    const data = { status: 'unavailable', reason: 'no_schedule', fetchedAt: 'x' } as const;
+    expect(drawerPhase({ ...idle, data }).kind).toBe('ready');
+  });
+
+  it('says plainly when the feed has no stops for the route', () => {
+    const view = drawerView({ status: 'ok', profile: { ...PROFILE, stops: [] } }, ROUTE, null);
+    expect(view).toEqual({ status: 'unavailable', sentence: 'No stops in the feed for this route.' });
   });
 });
