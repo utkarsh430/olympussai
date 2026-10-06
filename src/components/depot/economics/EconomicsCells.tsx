@@ -7,7 +7,6 @@ import {
   type EconomicsCell,
   type EconomicsRow,
 } from '@/lib/depot/revenue/economicsPageModel';
-import { modelledHeader } from '@/lib/depot/revenue/revenuePageModel';
 import type { SortValue } from '@/lib/depot/tableSort';
 
 /*
@@ -55,14 +54,14 @@ export const COLUMNS: readonly Column[] = [
   { key: 'depot', header: 'Depot', className: FROZEN.depot, sortValue: (r) => r.name },
   {
     key: 'index',
-    header: modelledHeader('Economics index'),
+    header: 'Economics index',
     className: FROZEN.index,
     sortValue: (r) => r.economicsIndex,
   },
   { key: 'peerGroup', header: 'Peer group', className: '', sortValue: (r) => r.peerGroupLabel },
   ...ECONOMICS_COMPONENT_SPECS.map((spec) => ({
     key: spec.key,
-    header: modelledHeader(spec.label),
+    header: spec.label,
     className: '',
     right: true,
     sortValue: (r: EconomicsRow): SortValue => cellOf(r, spec.key)?.value ?? null,
@@ -72,17 +71,10 @@ export const COLUMNS: readonly Column[] = [
 
 function MetricCell({ cell }: { readonly cell: EconomicsCell | undefined }) {
   if (!cell) return null;
-  const note =
-    cell.noteText === null ? null : (
-      <span aria-hidden className="block text-[11px] text-depot-muted">
-        {cell.noteText}
-      </span>
-    );
   if (cell.value === null) {
     return (
       <span title={cell.description}>
         <span aria-hidden className="text-depot-muted">{cell.valueText}</span>
-        {note}
         <span className="sr-only">{cell.description}</span>
       </span>
     );
@@ -95,7 +87,6 @@ function MetricCell({ cell }: { readonly cell: EconomicsCell | undefined }) {
           {`${cell.differenceText} ${WORD[cell.direction]}`.trim()}
         </span>
       )}
-      {note}
       <span className="sr-only">{cell.description}</span>
     </span>
   );
@@ -105,9 +96,8 @@ function IndexCell({ row }: { readonly row: EconomicsRow }) {
   if (row.economicsIndex === null) {
     const reason = row.reasonText ?? 'Not ranked';
     return (
-      <span className="block whitespace-normal text-[11px] text-depot-muted" title={reason}>
-        not ranked
-        {row.reasonShort === null ? null : <span className="block">{row.reasonShort}</span>}
+      <span className="block truncate text-[11px] text-depot-muted" title={reason}>
+        {row.reasonShort === null ? 'not ranked' : `not ranked · ${row.reasonShort}`}
         <span className="sr-only">{`: ${reason}`}</span>
       </span>
     );

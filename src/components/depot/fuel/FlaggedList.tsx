@@ -3,28 +3,34 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { rosterBusHref } from '@/lib/depot/depotNav';
 import type { FuelFlaggedBus, FuelResponse } from '@/lib/depot/fuel/api';
+import { formatKmPerLitre, groupLabel } from '@/lib/depot/fuel/fuelPageModel';
 import {
-  flaggedHeadline,
-  formatKmPerLitre,
-  groupLabel,
-  noComparisonNote,
-  noDistanceNote,
-  notRunNote,
-  shortfallNote,
-  peersDifferNote,
-  routeLabel,
-  ruleSentence,
-} from '@/lib/depot/fuel/fuelPageModel';
+  BASIS_LABEL,
+  NOTHING_STANDS_OUT,
+  formatVariance,
+  routeDash,
+  showRouteColumn,
+  standOutFooter,
+  standOutNote,
+} from '@/lib/depot/fuel/fuelPageTables';
 
-function buildColumns(depotId: string): readonly Column<FuelFlaggedBus>[] {
+function buildColumns(depotId: string, withRoute: boolean): readonly Column<FuelFlaggedBus>[] {
+  const route: Column<FuelFlaggedBus> = {
+    key: 'route',
+    header: 'Route',
+    sortValue: (b) => b.routeName,
+    title: (b) => b.routeName ?? 'No route',
+    render: (b) => routeDash(b.routeName),
+  };
   return [
     {
       key: 'registration',
       header: 'Registration',
       sortValue: (b) => b.registrationNumber,
+      title: (b) => b.registrationNumber,
       render: (b) => (
         <Link
           href={rosterBusHref(depotId, b.registrationNumber)}
@@ -34,18 +40,8 @@ function buildColumns(depotId: string): readonly Column<FuelFlaggedBus>[] {
         </Link>
       ),
     },
-    {
-      key: 'class',
-      header: 'Class',
-      sortValue: (b) => b.serviceClass,
-      render: (b) => groupLabel(b.serviceClass),
-    },
-    {
-      key: 'route',
-      header: 'Route',
-      sortValue: (b) => b.routeName,
-      render: (b) => routeLabel(b.routeName),
-    },
+    { key: 'class', header: 'Class', sortValue: (b) => b.serviceClass, render: (b) => groupLabel(b.serviceClass) },
+    ...(withRoute ? [route] : []),
     {
       key: 'kmpl',
       header: 'Km per litre',
@@ -55,7 +51,7 @@ function buildColumns(depotId: string): readonly Column<FuelFlaggedBus>[] {
     },
     {
       key: 'median',
-      header: 'Peers median',
+      header: "Peers' median",
       align: 'right',
       sortValue: (b) => b.peerMedianKmPerLitre,
       render: (b) => formatKmPerLitre(b.peerMedianKmPerLitre),
@@ -63,54 +59,43 @@ function buildColumns(depotId: string): readonly Column<FuelFlaggedBus>[] {
     {
       key: 'variance',
       header: 'Variance',
+      align: 'right',
       sortValue: (b) => b.variancePct,
-      render: (b) => b.statement,
+      render: (b) => formatVariance(b.variancePct),
     },
+    { key: 'basis', header: 'Basis', sortValue: (b) => b.comparison, render: (b) => BASIS_LABEL[b.comparison] },
   ];
 }
 
-/** The buses whose use per kilometre stands out from their peers, and the rule behind the list. */
+/** The buses whose use per kilometre stands out from their peers: a numeric variance and a short basis. */
 export function FlaggedList({ data }: { readonly data: FuelResponse }) {
-  const columns = useMemo(() => buildColumns(data.depot.id), [data.depot.id]);
-  const unlisted = {
-    peersDiffer: data.peersDifferCount,
-    noComparison: data.noComparisonCount,
-    thresholdPct: data.rule.thresholdPct,
-  };
-  // With nothing listed the headline already carries these two sentences.
-  const listed = data.flaggedTotal > 0;
-  const notes = [
-    listed ? peersDifferNote(unlisted.peersDiffer, unlisted.thresholdPct) : null,
-    listed ? noComparisonNote(unlisted.noComparison) : null,
-    noDistanceNote(data.noDistanceCount),
-    notRunNote(data.notRunCount),
-    shortfallNote(data.day.dutiesWithoutBus),
-  ].filter((n): n is string => n !== null);
+  const withRoute = showRouteColumn(data.flagged);
+  const columns = useMemo(() => buildColumns(data.depot.id, withRoute), [data.depot.id, withRoute]);
+  const footer = standOutFooter(data);
   return (
-    <section aria-labelledby="depot-fuel-flagged-heading" className="animate-rise">
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 id="depot-fuel-flagged-heading" className="depot-section-label !mb-0">
-          Buses that stand out
-        </h2>
-        <ProvenanceBadge provenance="modelled" />
-      </div>
-      <p className="depot-prose mb-1" role="status">
-        {flaggedHeadline(data.flaggedTotal, data.flagged.length, unlisted)}
-      </p>
-      <p className="depot-prose mb-3">{ruleSentence(data.rule.thresholdPct, data.rule.minPeers)}</p>
-      {notes.map((note) => (
-        <p key={note} className="depot-prose mb-3">
-          {note}
+    <section aria-labelledby="depot-fuel-flagged-heading" className="min-w-0">
+      <SectionLabel
+        id="depot-fuel-flagged-heading"
+        label="Buses that stand out"
+        count={data.flaggedTotal}
+        note={standOutNote(data.rule.thresholdPct, data.rule.minPeers)}
+      />
+      {data.flagged.length === 0 ? (
+        <p className="depot-prose" role="status">
+          {NOTHING_STANDS_OUT}
         </p>
-      ))}
-      {data.flagged.length === 0 ? null : (
+      ) : (
         <DataTable
           columns={columns}
           rows={data.flagged}
           rowKey={(b) => b.registrationNumber}
-          caption="Buses whose modelled fuel use per kilometre stands out from their peers"
+          caption="Buses whose fuel use per kilometre stands out from their peers"
+          fixedRows
+          freezeFirstColumn
+          overflowCue
         />
       )}
+      {footer ? <p className="depot-prose mt-2">{footer}</p> : null}
     </section>
   );
 }

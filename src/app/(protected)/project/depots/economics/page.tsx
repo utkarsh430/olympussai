@@ -12,9 +12,12 @@ export default async function DepotEconomicsPage() {
   return (
     <>
       <PageHeader
-        title="Economics (modelled)"
-        description="Depots ranked by a modelled index of earnings per kilometre, fuel cost per kilometre and load factor, within peer groups of similar fleet size. The feed carries no ticketing, so every figure is modelled, not measured."
-        provenance="modelled"
+        title="Economics"
+        description="Depots ranked on earnings, fuel cost and load factor within peer groups."
+        provenanceLine={{
+          default: 'modelled',
+          replacedBy: 'fuel issue records, odometer readings, a ticketing feed and a route master',
+        }}
       />
       <EconomicsPage />
     </>

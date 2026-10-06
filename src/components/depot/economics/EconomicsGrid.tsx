@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { useMemo, useRef, useState } from 'react';
+import { TableOverflowCue, useColumnsToTheRight } from '@/components/depot/shell/TableOverflowCue';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import {
   emptyRowText,
   type EconomicsFilters,
@@ -28,6 +29,8 @@ export interface EconomicsGridProps {
 
 export function EconomicsGrid({ rows, allRows, filters, selectedId, onSelect }: EconomicsGridProps) {
   const [sort, setSort] = useState<Sort | null>(null);
+  const frame = useRef<HTMLDivElement>(null);
+  const moreColumns = useColumnsToTheRight(frame, true);
   const visible = useMemo(() => {
     const column = sort ? COLUMNS.find((c) => c.key === sort.key) : undefined;
     return sort && column ? sortRows(rows, column.sortValue, sort.direction) : rows;
@@ -35,18 +38,20 @@ export function EconomicsGrid({ rows, allRows, filters, selectedId, onSelect }: 
   const toggle = (key: string): void =>
     setSort((s) => ({ key, direction: s?.key === key && s.direction === 'asc' ? 'desc' : 'asc' }));
 
+  if (visible.length === 0) {
+    return <StatePanel kind="empty" sentence={emptyRowText(allRows, filters)} />;
+  }
   return (
+    <div className="relative min-w-0">
     <div
+      ref={frame}
       role="region"
-      aria-label="Depot economics ranking, modelled"
+      aria-label="Depot economics ranking"
       tabIndex={0}
       className="depot-table-frame"
     >
-      <table className="depot-table">
-        <caption className="px-2 py-2 text-left">
-          <span className="depot-label mr-2">Depot Economics Index ranking within peer groups</span>
-          <ProvenanceBadge provenance="modelled" />
-        </caption>
+      <table className="depot-table depot-table-fixed">
+        <caption className="sr-only">Depot Economics Index ranking within peer groups</caption>
         <thead>
           <tr>
             {COLUMNS.map((c) => {
@@ -70,13 +75,6 @@ export function EconomicsGrid({ rows, allRows, filters, selectedId, onSelect }: 
           </tr>
         </thead>
         <tbody>
-          {visible.length === 0 ? (
-            <tr>
-              <td colSpan={COLUMNS.length} className="depot-prose !py-6">
-                {emptyRowText(allRows, filters)}
-              </td>
-            </tr>
-          ) : null}
           {visible.map((row) => {
             const selected = row.depotId === selectedId;
             return (
@@ -101,6 +99,8 @@ export function EconomicsGrid({ rows, allRows, filters, selectedId, onSelect }: 
           })}
         </tbody>
       </table>
+    </div>
+    {moreColumns ? <TableOverflowCue /> : null}
     </div>
   );
 }

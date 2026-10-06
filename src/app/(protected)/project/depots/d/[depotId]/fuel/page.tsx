@@ -19,8 +19,8 @@ export default async function DepotFuelPage({
     <>
       <PageHeader
         title="Fuel and cost"
-        description="Fuel issued and distance for the day, kilometres per litre and cost per kilometre by service class and route, and the buses whose use per kilometre stands out from their peers."
-        provenance="modelled"
+        description="Fuel, distance and cost for the day, and the buses that stand out from their peers."
+        provenanceLine={{ default: 'modelled', replacedBy: 'fuel issue records and odometer readings' }}
       />
       <Suspense fallback={<LoadingBlock rows={14} label="Loading the fuel and cost view" />}>
         <FuelPage />
