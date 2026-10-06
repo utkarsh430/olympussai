@@ -1,5 +1,5 @@
 import type { UpstreamSource } from '@/models/canonical';
-import { formatCount, formatFeedTime } from './format';
+import { formatCount, formatDurationMinutes, formatFeedTime } from './format';
 import type { PageRefreshState } from './pageRefresh';
 import type { Provenance } from './types';
 
@@ -7,7 +7,8 @@ import type { Provenance } from './types';
  * Wording of the top bar's feed chip. It says how fresh the data is, never
  * which server cache layer answered: a cached answer inside the cache window is
  * as fresh as the feed, so it reads LIVE. STALE means the last good data is
- * being shown during an outage. CHECK CLOCK means the feed is live but enough
+ * being shown during an outage. FEED QUIET means the upstream answers but its newest
+ * report trails the fetch by more than `FEED_QUIET_AFTER_MIN`. CHECK CLOCK means the feed is live but enough
  * reports are stamped ahead of the server's clock that the feed clock may lag
  * (P4). The age goes in `title` and screen-reader text.
  */
@@ -54,6 +55,33 @@ export interface FeedChip {
 const SECOND_MS = 1_000;
 const MINUTE_MS = 60 * SECOND_MS;
 const HOUR_MS = 60 * MINUTE_MS;
+
+/** From this many minutes between the feed's newest report and the fetch, the feed is quiet. */
+export const FEED_QUIET_AFTER_MIN = 10;
+/** The feed clock's digits are Indian time (UTC+05:30) behind a misleading `Z`. */
+const FEED_IST_OFFSET_MIN = 330;
+const FEED_DIGITS = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/;
+
+/**
+ * Whole minutes by which the feed's newest report trails the fetch, both on the Indian
+ * clock: the feed time is read from its digits (the `Z` ignored), and the fetch time, a
+ * true instant, is moved to Indian time. Null when either does not parse.
+ */
+export function feedLagMinutes(feedNow: string | null, fetchedAt: string): number | null {
+  const match = feedNow ? FEED_DIGITS.exec(feedNow) : null;
+  const fetchedMs = Date.parse(fetchedAt);
+  if (!match || !Number.isFinite(fetchedMs)) return null;
+  const parts = match.slice(1).map((part) => (part === undefined ? 0 : Number(part)));
+  const [year = 0, month = 1, day = 1, hour = 0, minute = 0, second = 0] = parts;
+  const feedMs = Date.UTC(year, month - 1, day, hour, minute, second);
+  return Math.floor((fetchedMs + FEED_IST_OFFSET_MIN * MINUTE_MS - feedMs) / MINUTE_MS);
+}
+
+/** True when the upstream answers but its newest report is older than the quiet limit. */
+export function isFeedQuiet(data: Pick<FeedChipData, 'feedNow' | 'fetchedAt'>): boolean {
+  const lag = feedLagMinutes(data.feedNow, data.fetchedAt);
+  return lag !== null && lag > FEED_QUIET_AFTER_MIN;
+}
 
 /** "38 s", "4 min", "2 h 5 min"; null when the age cannot be known. */
 export function ageWords(ms: number): string | null {
@@ -134,6 +162,20 @@ export function feedChip({ data, error, loading, nowMs, page }: FeedChipInput): 
   }
 
   if (pageFailed) return pageStaleChip(data, page.since, nowMs);
+
+  const lag = feedLagMinutes(data.feedNow, data.fetchedAt);
+  if (lag !== null && lag > FEED_QUIET_AFTER_MIN) {
+    const quiet =
+      `The newest report in the feed is ${formatDurationMinutes(lag)} older than the last ` +
+      `fetch. Data ${received(data, nowMs)}`;
+    const title = clock === null ? quiet : `${quiet}. ${clock}.`;
+    return {
+      text: `FEED QUIET · ${time}`,
+      tone: 'stale',
+      title,
+      srText: `Feed status: feed quiet. ${title}`,
+    };
+  }
 
   if (clock !== null) {
     const title = `${clock}. Data ${received(data, nowMs)}`;
