@@ -1,26 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useScopeListbox } from './useScopeListbox';
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import {
   depotIdFromPath,
   filterScopeOptions,
-  moveActiveIndex,
   NETWORK_SCOPE_KEY,
-  scopeLabel,
+  scopeLabelForPath,
   scopeOptions,
-  type ActiveMove,
   type ScopeOption,
 } from '@/lib/depot/depotNav';
 
-const MOVE_KEYS: Readonly<Record<string, ActiveMove>> = {
-  ArrowDown: 'next',
-  ArrowUp: 'previous',
-  Home: 'first',
-  End: 'last',
-};
 const CRUMB = 'font-mono text-[11px] uppercase tracking-[0.16em]';
 
 /**
@@ -37,17 +30,17 @@ export function ScopeSwitcher() {
   const { data, error, loading } = useDepotNetworkContext();
   const depotId = depotIdFromPath(pathname);
   const depots = data?.depots ?? null;
-  const label = scopeLabel(depotId, depots);
+  const label = scopeLabelForPath(pathname, depots);
+  const currentKey = depotId ?? NETWORK_SCOPE_KEY;
   const options = useMemo(() => (depots ? scopeOptions(depots) : []), [depots]);
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [active, setActive] = useState(-1);
   const visible = useMemo(() => filterScopeOptions(options, query), [options, query]);
 
   const baseId = useId();
   const listboxId = `${baseId}-listbox`;
-  const optionId = (index: number): string => `${baseId}-option-${index}`;
+  const optionId = useCallback((index: number): string => `${baseId}-option-${index}`, [baseId]);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -57,8 +50,20 @@ export function ScopeSwitcher() {
     if (returnFocus) buttonRef.current?.focus();
   }, []);
 
+  const { active, setActive, onKeyDown } = useScopeListbox({
+    open,
+    count: visible.length,
+    optionId,
+    rootRef,
+    onSelect: (index) => {
+      const option = visible[index];
+      if (option) select(option);
+    },
+    onClose: close,
+  });
+
   const openList = (): void => {
-    const current = options.findIndex((o) => o.key === (depotId ?? NETWORK_SCOPE_KEY));
+    const current = options.findIndex((o) => o.key === currentKey);
     setQuery('');
     setActive(current === -1 ? 0 : current);
     setOpen(true);
@@ -72,36 +77,6 @@ export function ScopeSwitcher() {
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
-
-  useEffect(() => {
-    if (!open || active < 0) return;
-    document.getElementById(`${baseId}-option-${active}`)?.scrollIntoView({ block: 'nearest' });
-  }, [open, active, baseId]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent): void => {
-      if (!rootRef.current?.contains(event.target as Node)) close(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [open, close]);
-
-  const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
-    const move = MOVE_KEYS[event.key];
-    if (move) {
-      event.preventDefault();
-      setActive((index) => moveActiveIndex(index, move, visible.length));
-    } else if (event.key === 'Enter') {
-      event.preventDefault();
-      const option = visible[active];
-      if (option) select(option);
-    } else if (event.key === 'Escape' || event.key === 'Tab') {
-      // Tab too: the field unmounts as the list closes, so focus must land somewhere known.
-      event.preventDefault();
-      close(true);
-    }
-  };
 
   const onQueryChange = (value: string): void => {
     setQuery(value);
@@ -174,6 +149,7 @@ export function ScopeSwitcher() {
                 id={optionId(index)}
                 role="option"
                 aria-selected={index === active}
+                aria-current={option.key === currentKey ? 'true' : undefined}
                 onPointerDown={(event) => event.preventDefault()}
                 onPointerMove={() => setActive(index)}
                 onClick={() => select(option)}
@@ -185,7 +161,7 @@ export function ScopeSwitcher() {
               >
                 <span className="min-w-0 truncate text-[13px]">{option.label}</span>
                 <span className="shrink-0 text-[11px] text-depot-muted">
-                  {option.key === (depotId ?? NETWORK_SCOPE_KEY) ? 'Current · ' : ''}
+                  {option.key === currentKey ? 'Current · ' : ''}
                   {option.detail}
                 </span>
               </li>
