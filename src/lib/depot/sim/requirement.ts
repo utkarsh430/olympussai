@@ -63,7 +63,7 @@ function peerMedianOnRoad(depots: readonly DepotSummary[]): number {
   const shares = depots.flatMap((d) => {
     if (d.kind !== 'depot' || d.fleet < MIN_PEER_FLEET) return [];
     const share = componentValues(d).onRoad;
-    return share === null ? [] : [share];
+    return share === null || !Number.isFinite(share) ? [] : [share];
   });
   return median(shares) ?? 0;
 }
