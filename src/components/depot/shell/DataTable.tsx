@@ -72,6 +72,8 @@ export interface DataTableProps<T> {
   /** The expander button's accessible name for a row; "Show details" by default. */
   readonly expandLabel?: (row: T) => string;
   readonly multipleExpanded?: boolean;
+  /** A row that is open on first render (a link that lands on one row's detail). */
+  readonly initialExpandedKey?: string;
   /**
    * Print a repeated column (peer group, status, severity) once, as a group row with its
    * count, instead of on every row; drop that column from `columns`. Groups follow the
@@ -154,10 +156,11 @@ export function DataTable<T>({
   renderExpanded,
   expandLabel,
   multipleExpanded = false,
+  initialExpandedKey,
   group,
 }: DataTableProps<T>) {
   const autoId = useId();
-  const expanded = useExpandedRows(multipleExpanded);
+  const expanded = useExpandedRows(multipleExpanded, initialExpandedKey);
   const tableKey = id ?? autoId;
   const shownColumns = useMemo<readonly Column<T>[]>(() => {
     if (!renderExpanded) return columns;

@@ -49,6 +49,22 @@ afterEach(async () => {
 });
 
 describe('DataTable row expander', () => {
+  it('opens the row named by initialExpandedKey on first render, so a link can land on an open row', async () => {
+    await mount(
+      <DataTable
+        columns={COLUMNS}
+        rows={ROWS}
+        rowKey={(r) => r.id}
+        caption="Duties"
+        renderExpanded={expand}
+        initialExpandedKey="c"
+      />,
+    );
+    expect(expandedRows()).toEqual(['Bus off road.']);
+    const open = toggles().filter((b) => b.getAttribute('aria-expanded') === 'true');
+    expect(open).toHaveLength(1);
+  });
+
   it('puts a disclosure column after the first, with a button only where there is content', async () => {
     await mount(
       <DataTable

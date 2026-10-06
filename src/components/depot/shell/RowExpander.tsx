@@ -9,8 +9,10 @@ export interface ExpandedRows {
 }
 
 /** Which rows are open: one at a time unless `multiple`; a new Set on every change. */
-export function useExpandedRows(multiple: boolean): ExpandedRows {
-  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
+export function useExpandedRows(multiple: boolean, initialKey?: string): ExpandedRows {
+  const [open, setOpen] = useState<ReadonlySet<string>>(
+    () => new Set(initialKey === undefined ? [] : [initialKey]),
+  );
   const toggle = useCallback(
     (key: string): void =>
       setOpen((current) => {
