@@ -168,16 +168,20 @@ const bodies = new WeakMap<SnapshotAnalysis, Map<string, DutyBoardBody>>();
  * The operating date comes from the feed clock, never the wall clock.
  */
 export function buildDutyBoard(view: FleetSnapshotView, depotId: string): DutyBoardResponse | null {
-  const detail = buildDepotDetail(view, depotId);
-  if (!detail) return null;
   const analysis = analyseSnapshot(view);
+  // Existence and the name come from the shared analysis; the bus list is built
+  // only on a memo miss, so a repeat poll does no per-request work.
+  const depot = analysis.depotsById.get(depotId);
+  if (!depot) return null;
   const operatingDate = operatingDateOf(view.feedNow, view.fetchedAt);
   const key = `${depotId}|${operatingDate}`;
   const held = bodies.get(analysis) ?? new Map<string, DutyBoardBody>();
   bodies.set(analysis, held);
   let body = held.get(key);
   if (!body) {
-    const built = buildBody(analysis, depotId, detail.depot.name, detail.buses, operatingDate);
+    const detail = buildDepotDetail(view, depotId);
+    if (!detail) return null;
+    const built = buildBody(analysis, depotId, depot.name, detail.buses, operatingDate);
     if (!built) return null;
     body = built;
     held.set(key, body);
