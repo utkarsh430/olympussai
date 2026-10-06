@@ -51,12 +51,32 @@ export interface BusScheduleInput {
   readonly tripId: string | null;
 }
 
+export interface BusScheduleOptions {
+  /**
+   * The operating date the fallback dates count back from. A caller that reads the
+   * feed passes the date from the feed's clock; without one it is the India date of
+   * the `now` passed in, never the machine clock read here.
+   */
+  readonly today?: string;
+}
+
+/** `today` itself and the days before it that a lookup falls back to. */
+const FALLBACK_DAY_OFFSETS = [0, -1, -2] as const;
+
+/**
+ * The most calls one lookup can make to the schedule server: the requested date,
+ * then each fallback date. A limiter that protects that server charges this much
+ * for every lookup it lets through.
+ */
+export const SCHEDULE_MAX_UPSTREAM_CALLS = 1 + FALLBACK_DAY_OFFSETS.length;
+
 export async function fetchBusSchedule(
   input: BusScheduleInput,
   now: number = Date.now(),
+  options: BusScheduleOptions = {},
 ): Promise<ScheduleResponse> {
   const regNum = input.regNum.toUpperCase();
-  const today = indiaDate();
+  const today = options.today ?? indiaDate(new Date(now));
   const requestedDate = input.date ?? today;
   const tripId = input.tripId;
   // The trip id selects which journey is returned, so it belongs in the key.
@@ -122,7 +142,7 @@ export async function fetchBusSchedule(
  * whose live record carries no assignment at all.
  */
 function candidateDates(requested: string, today: string): string[] {
-  return [...new Set([requested, today, shiftDate(today, -1), shiftDate(today, -2)])];
+  return [...new Set([requested, ...FALLBACK_DAY_OFFSETS.map((days) => shiftDate(today, days))])];
 }
 
 interface ResolveResult {

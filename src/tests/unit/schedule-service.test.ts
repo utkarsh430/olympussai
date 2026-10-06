@@ -231,4 +231,31 @@ describe('fetchBusSchedule (direct)', () => {
     expect(cached.fetchedAt).toBe(new Date(T0 + 60_000).toISOString());
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
+
+  it('counts the fallback dates back from the clock passed in, not the machine clock', async () => {
+    const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
+    mockFetch.mockResolvedValue(ok(NOT_ASSIGNED));
+    const twoDaysOn = T0 + 2 * 86_400_000;
+    await fetchBusSchedule({ regNum: REG, date: '2026-10-01', tripId: null }, twoDaysOn);
+    expect(mockFetch.mock.calls.map(urlDate)).toEqual([
+      '2026-10-01',
+      '2026-10-08',
+      '2026-10-07',
+      '2026-10-06',
+    ]);
+  });
+
+  it('counts the fallback dates back from the operating date it is given', async () => {
+    const { fetchBusSchedule, SCHEDULE_MAX_UPSTREAM_CALLS } = await import(
+      '@/lib/upsrtc/scheduleService'
+    );
+    mockFetch.mockResolvedValue(ok(NOT_ASSIGNED));
+    await fetchBusSchedule({ regNum: REG, date: '2026-10-01', tripId: null }, T0, {
+      today: '2026-10-20',
+    });
+    const dates = mockFetch.mock.calls.map(urlDate);
+    expect(dates).toEqual(['2026-10-01', '2026-10-20', '2026-10-19', '2026-10-18']);
+    // The most calls one lookup can make.
+    expect(SCHEDULE_MAX_UPSTREAM_CALLS).toBe(dates.length);
+  });
 });

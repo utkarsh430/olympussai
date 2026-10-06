@@ -88,16 +88,26 @@ function frozenProfile(profile: RouteProfile): RouteProfile {
   });
 }
 
+interface Lookup {
+  readonly bus: DepotBusRow;
+  /** The date the upstream is asked for: the bus's own scheduled date when it has one. */
+  readonly date: string;
+  /** The operating date from the feed's clock. */
+  readonly feedDate: string;
+  readonly key: string;
+}
+
 async function fetchProfile(
   routeName: string,
-  bus: DepotBusRow,
-  date: string,
+  { bus, date, feedDate }: Lookup,
   now: number,
 ): Promise<RouteProfileResult> {
   try {
+    // The service's fallback dates count back from the feed's date, not the wall clock.
     const response = await fetchBusSchedule(
       { regNum: bus.registrationNumber, date, tripId: bus.journeyId },
       now,
+      { today: feedDate },
     );
     // The fixture is a stand-in, not this route: never present it as real data.
     if (response.source === 'fixture') return unavailable('upstream_error');
@@ -128,15 +138,16 @@ async function fetchProfile(
 }
 
 /** The bus a profile is fetched for and its cache key, or null when no bus runs the route. */
-function lookupFor(routeName: string, view: FleetSnapshotView) {
+function lookupFor(routeName: string, view: FleetSnapshotView): Lookup | null {
   if (!isValidRouteName(routeName)) return null;
   const bus = view.rows
     .filter((row) => row.routeName === routeName)
     .sort(compareCandidates(view.feedNow))[0];
   if (!bus) return null;
   // The operating date comes from the feed's clock, never the wall clock.
-  const date = operatingDate(bus, operatingDateOf(view.feedNow, view.fetchedAt));
-  return { bus, date, key: `${routeName}:${date}` };
+  const feedDate = operatingDateOf(view.feedNow, view.fetchedAt);
+  const date = operatingDate(bus, feedDate);
+  return { bus, date, feedDate, key: `${routeName}:${date}` };
 }
 
 const freshNegative = (routeName: string, now: number): NegativeEntry | undefined => {
@@ -166,7 +177,7 @@ export async function getRouteProfile(
 ): Promise<RouteProfileResult> {
   const lookup = lookupFor(routeName, view);
   if (!lookup) return unavailable('no_bus_on_route');
-  const { bus, date, key } = lookup;
+  const { key } = lookup;
 
   const known = profiles.get(key);
   if (known) return { status: 'ok', profile: known };
@@ -177,7 +188,7 @@ export async function getRouteProfile(
   const pending = inFlight.get(key);
   if (pending) return pending;
 
-  const request = fetchProfile(routeName, bus, date, now)
+  const request = fetchProfile(routeName, lookup, now)
     .then((result): RouteProfileResult => {
       if (result.status !== 'ok') {
         setBounded(negatives, routeName, { result, storedAt: now });

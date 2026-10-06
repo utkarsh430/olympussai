@@ -127,6 +127,7 @@ describe('getRouteProfile', () => {
     expect(mockService).toHaveBeenCalledWith(
       { regNum: 'UP78JT4102', date: '2026-10-06', tripId: '30396' },
       T0,
+      { today: '2026-10-06' },
     );
     if (result.status !== 'ok') throw new Error('expected ok');
     expect(result.profile.routeName).toBe(ROUTE);
@@ -135,6 +136,13 @@ describe('getRouteProfile', () => {
     expect(result.profile.description).toBe('BAREILLY TO RUDRAPUR');
     expect(result.profile.scheduledDurationMin).toBe(120);
     expect(result.profile.lengthKm).toBeCloseTo(111.2, 1);
+  });
+
+  it("asks for the bus's own date and counts fallback dates back from the feed's date", async () => {
+    const overnight = row('UP1', { scheduledStart: '2026-10-04T22:00:00.000Z' });
+    await getRouteProfile(ROUTE, view([overnight]), T0);
+    expect(mockService.mock.calls[0]?.[0].date).toBe('2026-10-04');
+    expect(mockService.mock.calls[0]?.[2]).toEqual({ today: '2026-10-06' });
   });
 
   it('falls back to the feed date when the bus has no scheduled start', async () => {
