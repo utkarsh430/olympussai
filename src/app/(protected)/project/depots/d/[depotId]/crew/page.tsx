@@ -21,7 +21,11 @@ export default async function DepotCrewPage({
       <PageHeader
         title="Crew"
         description="Drivers and conductors available against the day's crew shifts."
-        provenanceLine={{ default: 'modelled', replacedBy: 'a crew roster and leave feed' }}
+        provenanceLine={{
+          default: 'modelled',
+          replacedBy: 'a crew roster and leave feed',
+          feedId: 'crew-duties',
+        }}
       />
       <p className="depot-prose -mt-3 mb-6" data-testid="crew-people-sentence">
         {PEOPLE_SENTENCE}

@@ -20,7 +20,11 @@ export default async function DepotFuelPage({
       <PageHeader
         title="Fuel and cost"
         description="Fuel, distance and cost for the day, and the buses that stand out from their peers."
-        provenanceLine={{ default: 'modelled', replacedBy: 'fuel issue records and odometer readings' }}
+        provenanceLine={{
+          default: 'modelled',
+          replacedBy: 'fuel issue records and odometer readings',
+          feedId: 'fuel',
+        }}
       />
       <Suspense fallback={<LoadingBlock rows={14} label="Loading the fuel and cost view" />}>
         <FuelPage />
