@@ -29,6 +29,7 @@ const NOT_FOUND = { ok: false, status: 404 } as const;
 function depotIdsOf(query: CopilotQuery): string[] {
   switch (query.kind) {
     case 'depotSummary':
+    case 'depotMeasure':
     case 'transfersFor':
     case 'exceptionsFor':
     case 'outshedStatus':

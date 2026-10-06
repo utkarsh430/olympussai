@@ -1,4 +1,4 @@
-import type { CopilotQuery, RankMetric } from '@/lib/depot/copilot/queries';
+import type { CopilotQuery, DepotMeasure, RankMetric } from '@/lib/depot/copilot/queries';
 import {
   AMBIGUOUS_DEPOT_QUERY,
   OUT_OF_SCOPE_QUERY,
@@ -6,6 +6,7 @@ import {
   metricHigherIsBetter,
 } from '@/lib/depot/copilot/queries';
 import { resolveDepot, type DepotRef } from '@/lib/depot/copilot/router/resolveDepot';
+import { measureOf, withoutMeasureWords } from '@/lib/depot/copilot/router/measures';
 import { sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
 
 /**
@@ -224,6 +225,26 @@ function rankQuery(text: string): CopilotQuery {
   return { kind: 'rankDepots', metric, order, limit: limitFrom(text) };
 }
 
+/**
+ * Round 8 A: one measure with no depot named. Asked from a depot, it is that depot's
+ * figure unless the question says it is about the network; otherwise it is the
+ * network's summary, which carries the network's own figure for it.
+ */
+function measureWithoutDepot(
+  text: string,
+  depots: readonly DepotRef[],
+  measure: DepotMeasure,
+  scope: string | undefined,
+): CopilotQuery {
+  if (scope !== undefined && !NETWORK.test(text)) {
+    return { kind: 'depotMeasure', depotId: scope, measure };
+  }
+  if (wantsOtherThanNetwork(withoutMeasureWords(text)) || namesAmbiguousDepot(text, depots)) {
+    return declined(text, depots);
+  }
+  return { kind: 'networkSummary' };
+}
+
 /** Words that point at the depot the question was asked from. */
 const THIS_DEPOT = /\b(this|my|our|current) depot\b|\bhere\b/;
 
@@ -279,8 +300,14 @@ export function scriptedRoute(
     if (first !== undefined) return { kind: 'transfersFor', depotId: first };
     return { kind: DEFICIT.test(text) ? 'depotsInDeficit' : 'depotsInSurplus' };
   }
-  if (first !== undefined) return { kind: 'depotSummary', depotId: first };
+  const measure = measureOf(text);
+  if (first !== undefined) {
+    return measure === undefined
+      ? { kind: 'depotSummary', depotId: first }
+      : { kind: 'depotMeasure', depotId: first, measure };
+  }
   if (RANKING.test(text)) return rankQuery(text);
+  if (measure !== undefined) return measureWithoutDepot(text, depots, measure, scope);
   if (NETWORK.test(text) && !wantsOtherThanNetwork(text) && !namesAmbiguousDepot(text, depots)) {
     return { kind: 'networkSummary' };
   }

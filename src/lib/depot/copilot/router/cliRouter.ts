@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  DEPOT_MEASURES,
   UNSUPPORTED_QUERY,
   copilotQuerySchema,
   type CopilotQuery,
@@ -17,6 +18,7 @@ import { sanitizeQuestion } from '@/lib/depot/copilot/router/sanitize';
 const KINDS = [
   'networkSummary',
   'depotSummary',
+  'depotMeasure',
   'rankDepots',
   'depotsInDeficit',
   'depotsInSurplus',
@@ -32,6 +34,7 @@ export const ROUTER_JSON_SCHEMA: Readonly<Record<string, unknown>> = {
   properties: {
     kind: { type: 'string', enum: KINDS },
     depot: { type: 'string' },
+    measure: { type: 'string', enum: DEPOT_MEASURES },
     depotA: { type: 'string' },
     depotB: { type: 'string' },
     metric: { type: 'string', enum: ['index', 'onRoad', 'offRoad', 'dark', 'scheduled'] },
@@ -46,6 +49,9 @@ const name = z.string().min(1).max(120);
 const wireSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('networkSummary') }).strict(),
   z.object({ kind: z.literal('depotSummary'), depot: name }).strict(),
+  z
+    .object({ kind: z.literal('depotMeasure'), depot: name, measure: z.enum(DEPOT_MEASURES) })
+    .strict(),
   z
     .object({
       kind: z.literal('rankDepots'),
@@ -68,7 +74,7 @@ export function buildRouterSystemPrompt(): string {
     'You route a question about a bus depot network to exactly one query from a fixed catalogue.',
     'Reply only with one JSON object matching the supplied schema.',
     `The kind is one of: ${KINDS.join(', ')}.`,
-    'Include only the fields that kind needs: depot for depotSummary, transfersFor, exceptionsFor and outshedStatus; depotA and depotB for compareDepots; metric, order and limit for rankDepots.',
+    'Include only the fields that kind needs: depot for depotSummary, transfersFor, exceptionsFor and outshedStatus; depotA and depotB for compareDepots; metric, order and limit for rankDepots; depot and measure for depotMeasure.',
     'Name depots exactly as they appear in the depot list, as text. Never invent a depot and never write an identifier.',
     'For rankDepots, order top means the highest value of the metric and bottom the lowest.',
     'Choose unsupported when the question fits no kind, names no depot where one is needed, or concerns any person.',
@@ -111,6 +117,8 @@ function resolveWire(wire: z.infer<typeof wireSchema>, depots: readonly DepotRef
     case 'exceptionsFor':
     case 'outshedStatus':
       return { kind: wire.kind, depotId: id(wire.depot) };
+    case 'depotMeasure':
+      return { kind: wire.kind, depotId: id(wire.depot), measure: wire.measure };
     case 'compareDepots':
       return { kind: wire.kind, depotA: id(wire.depotA), depotB: id(wire.depotB) };
     default:

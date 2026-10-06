@@ -12,10 +12,26 @@ const depotId = z.string().refine(isValidDepotId, 'Not a valid depot id');
 
 export const UNSUPPORTED_REASONS = ['out_of_scope', 'people', 'ambiguous_depot'] as const;
 const RANK_METRICS = ['index', 'onRoad', 'offRoad', 'dark', 'scheduled'] as const;
+/** Round 8: the single figures a question may ask for at one depot. */
+export const DEPOT_MEASURES = [
+  'dark',
+  'offRoad',
+  'powerCut',
+  'inYard',
+  'onRoad',
+  'standing',
+  'fleet',
+  'index',
+  'rank',
+  'visitors',
+] as const;
 
 export const copilotQuerySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('networkSummary') }).strict(),
   z.object({ kind: z.literal('depotSummary'), depotId }).strict(),
+  z
+    .object({ kind: z.literal('depotMeasure'), depotId, measure: z.enum(DEPOT_MEASURES) })
+    .strict(),
   z
     .object({
       kind: z.literal('rankDepots'),
@@ -42,6 +58,7 @@ export const copilotQuerySchema = z.discriminatedUnion('kind', [
 
 export type CopilotQuery = z.infer<typeof copilotQuerySchema>;
 export type RankMetric = (typeof RANK_METRICS)[number];
+export type DepotMeasure = (typeof DEPOT_MEASURES)[number];
 export const UNSUPPORTED_QUERY: CopilotQuery = { kind: 'unsupported' };
 export const OUT_OF_SCOPE_QUERY: CopilotQuery = { kind: 'unsupported', reason: 'out_of_scope' };
 export const PEOPLE_QUERY: CopilotQuery = { kind: 'unsupported', reason: 'people' };
