@@ -90,8 +90,17 @@ function button(name: string): HTMLButtonElement {
   return found;
 }
 
+/** Approve sits in the transfer's "Why?" row: open it once, then press Approve. */
+async function approve(): Promise<void> {
+  const why = container.querySelector<HTMLButtonElement>('button[aria-label^="Why?"]');
+  if (why?.getAttribute('aria-expanded') === 'false') await act(async () => why.click());
+  await act(async () => button('Approve').click());
+}
+
 beforeEach(() => {
   actGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+  // "Why?" on the server plan asks for a rationale; these tests never reach a network.
+  globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('offline')) as typeof fetch;
   window.localStorage.clear();
 });
 
@@ -104,19 +113,20 @@ afterEach(async () => {
 describe('fleet distribution page', () => {
   it('announces a decision politely and ignores a repeat click', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
-    await act(async () => button('Approve').click());
+    await approve();
     const status = container.querySelector('[data-testid="rebalance-status"]');
     expect(status?.textContent).toBe(
       'Approved 5 buses Agra to Kanpur. Recorded only; nothing dispatched.',
     );
     expect(container.textContent).toContain('Approved for 5 buses');
-    await act(async () => button('Approve').click());
+    await approve();
     const stored = JSON.parse(window.localStorage.getItem('depot-transfer-decisions-v1') ?? '{}');
     expect(stored.events).toHaveLength(1);
   });
 
   it('moves focus to the sandbox heading after a reset and says so', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
+    await typeInto('scenario-spare', '15');
     await act(async () => button('Reset to the server plan').click());
     expect(document.activeElement?.id).toBe('rebalance-sandbox-heading');
     expect(container.textContent).toContain(RESET_ANNOUNCEMENT);
@@ -129,7 +139,7 @@ describe('write order', () => {
     const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('quota');
     });
-    await act(async () => button('Approve').click());
+    await approve();
     spy.mockRestore();
     expect(window.localStorage.getItem('upsrtc-copilot-audit-v1')).toBeNull();
     expect(window.localStorage.getItem('depot-transfer-decisions-v1')).toBeNull();
@@ -140,7 +150,7 @@ describe('write order', () => {
 
   it('writes the slice and the audit event together when storage accepts', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
-    await act(async () => button('Approve').click());
+    await approve();
     expect(window.localStorage.getItem('upsrtc-copilot-audit-v1')).not.toBeNull();
     expect(window.localStorage.getItem('depot-transfer-decisions-v1')).not.toBeNull();
   });
@@ -186,7 +196,7 @@ describe('decision trail keys', () => {
 describe('undo announcement', () => {
   it('announces an undo in the same status line', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
-    await act(async () => button('Approve').click());
+    await approve();
     await act(async () => button('Undo').click());
     const status = container.querySelector('[data-testid="rebalance-status"]');
     expect(status?.textContent).toBe(
@@ -196,7 +206,7 @@ describe('undo announcement', () => {
 
   it('says so when the write of an undo is refused', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
-    await act(async () => button('Approve').click());
+    await approve();
     const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('quota');
     });
@@ -219,17 +229,34 @@ describe('transfer rationale row', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     const detail = container.querySelector('[data-testid="transfer-detail-agra>kanpur"] td');
-    expect(detail?.getAttribute('colspan')).toBe('9');
+    expect(detail?.getAttribute('colspan')).toBe('6');
     expect(detail?.textContent).toContain('Try again');
+    expect(detail?.textContent).toContain(
+      'Agra has 5 spare before this transfer and 0 after; Kanpur is 5 short before and 0 after.',
+    );
+    expect(detail?.querySelectorAll('button[aria-pressed]')).toHaveLength(3);
   });
 
-  it('offers no rationale under a what-if and says why once', async () => {
+  it('keeps Approve, Reject and Defer out of the 36px row: they are in the "Why?" row', async () => {
     const props = { rows: [ROW], selectedId: null, onSelect: () => {}, onDecide: () => {} };
     await render(<TransferTable {...props} serverPlan={false} />);
-    expect(container.querySelector('button[aria-expanded]')).toBeNull();
-    expect(container.textContent).toContain(
-      'A written rationale is available for the server plan only.',
-    );
+    const dataRow = container.querySelector('tbody tr');
+    expect(dataRow?.querySelectorAll('td')).toHaveLength(6);
+    expect(dataRow?.textContent).not.toMatch(/Approve|Reject|Defer/);
+    expect(dataRow?.querySelector('input')).toBeNull();
+  });
+
+  it('opens figures and the decision under a what-if, with no rationale, and says why once', async () => {
+    const props = { rows: [ROW], selectedId: null, onSelect: () => {}, onDecide: () => {} };
+    await render(<TransferTable {...props} serverPlan={false} />);
+    const said = 'A written rationale is available for the server plan only.';
+    expect(container.textContent?.split(said)).toHaveLength(2);
+    await act(async () => button('Why?').click());
+    const detail = container.querySelector('[data-testid="transfer-detail-agra>kanpur"] td');
+    expect(detail?.textContent).toContain('Agra has 5 spare before this transfer');
+    expect(detail?.textContent).not.toContain('Try again');
+    expect(detail?.querySelectorAll('button[aria-pressed]')).toHaveLength(3);
+    expect(container.textContent?.split(said)).toHaveLength(2);
   });
 });
 
@@ -257,35 +284,45 @@ async function typeInto(id: string, text: string): Promise<void> {
 }
 
 describe('reset to the server plan', () => {
-  it('offers one reset while no what-if shows, in the sandbox', async () => {
+  it('offers no reset while the server plan shows', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
-    expect(resetButtons()).toHaveLength(1);
-    expect(container.querySelector('[data-testid="rebalance-whatif-strip"] button')).toBeNull();
+    expect(resetButtons()).toHaveLength(0);
+    expect(container.querySelector('[data-testid="rebalance-whatif-strip"]')).toBeNull();
   });
 
-  it('adds one in the what-if strip while a what-if shows, with a distinct accessible name', async () => {
+  it('says a what-if shows in one line, with the one reset, worded "Reset to the server plan"', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     await typeInto('scenario-spare', '15');
-    const inStrip = container.querySelectorAll('[data-testid="rebalance-whatif-strip"] button');
-    expect(inStrip).toHaveLength(1);
-    const names = resetButtons().map(accessibleName);
-    expect(names).toHaveLength(2);
-    expect(new Set(names).size).toBe(2);
+    const strip = container.querySelector('[data-testid="rebalance-whatif-strip"]');
+    expect(strip?.querySelectorAll('button')).toHaveLength(1);
+    expect(resetButtons().map(accessibleName)).toEqual(['Reset to the server plan']);
+    const sentences = container.querySelectorAll('[data-testid="rebalance-whatif-sentence"]');
+    expect(sentences).toHaveLength(1);
+    expect(strip?.contains(sentences[0] ?? null)).toBe(true);
+    expect(sentences[0]?.textContent).toMatch(/^Showing a what-if, not the server plan: /);
+    expect(sentences[0]?.getAttribute('title')).toBe(sentences[0]?.textContent);
   });
 
-  it('shows each field empty with its default as the placeholder, and no strip reset', async () => {
+  it('shows every field with the value in force and its unit, before and after a reset', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
+    const field = (id: string) => container.querySelector<HTMLInputElement>(`#${id}`);
+    const unitOf = (id: string) => field(id)?.nextElementSibling?.textContent;
+    expect(field('scenario-spare')?.value).toBe('8');
+    expect(unitOf('scenario-spare')).toBe('%');
+    expect(field('scenario-distance')?.value).toBe('250');
+    expect(unitOf('scenario-distance')).toBe('km');
     await typeInto('scenario-spare', '15');
-    const inStrip = container.querySelector('[data-testid="rebalance-whatif-strip"] button');
-    await act(async () => (inStrip as HTMLButtonElement).click());
-    const spare = container.querySelector<HTMLInputElement>('#scenario-spare');
-    const distance = container.querySelector<HTMLInputElement>('#scenario-distance');
-    expect(spare?.value).toBe('');
-    expect(spare?.placeholder).toBe('8 (default)');
-    expect(distance?.placeholder).toBe('250 (default)');
-    expect(container.querySelector('[data-testid="rebalance-whatif-strip"] button')).toBeNull();
-    expect(container.querySelector('[data-testid="rebalance-whatif-sentence"]')).toBeNull();
-    expect(resetButtons()).toHaveLength(1);
+    await act(async () => button('Reset to the server plan').click());
+    expect(field('scenario-spare')?.value).toBe('8');
+    expect(field('scenario-distance')?.value).toBe('250');
+    expect(container.querySelector('[data-testid="rebalance-whatif-strip"]')).toBeNull();
+    expect(resetButtons()).toHaveLength(0);
+  });
+
+  it('shows no what-if when a field is put back to the value in force', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await typeInto('scenario-distance', '250');
+    expect(container.querySelector('[data-testid="rebalance-whatif-strip"]')).toBeNull();
   });
 });
 
@@ -310,6 +347,105 @@ describe('page layout', () => {
   });
 });
 
+describe('provenance tags on the visible page (ruling S51)', () => {
+  it('tags every figure of the generated before-and-after band MODELLED', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const band = container.querySelector('[data-testid="rebalance-summary"]');
+    const figures = band?.querySelectorAll('li') ?? [];
+    expect(figures).toHaveLength(5);
+    for (const figure of figures) {
+      expect(figure.querySelector('[data-provenance="modelled"]')?.textContent).toMatch(
+        /modelled/i,
+      );
+    }
+  });
+
+  it('tags the generated columns of the every-depot table in their header cells only', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const toggle = container.querySelector<HTMLButtonElement>('#rebalance-balance-heading button');
+    await act(async () => toggle?.click());
+    const table = container.querySelector('[data-testid="rebalance-balances"] table');
+    const headers = [...(table?.querySelectorAll('thead th') ?? [])];
+    const tagged = headers
+      .filter((th) => th.querySelector('[data-provenance="modelled"]'))
+      .map((th) => th.textContent?.replace(/modelled/i, '').trim());
+    expect(tagged).toEqual(['Peak need', 'Spare', 'Required', 'Balance']);
+    const plain = headers.filter((th) => !th.querySelector('[data-provenance]'));
+    expect(plain.map((th) => th.textContent)).toEqual(['Depot', 'Fleet', 'Off road', 'Available']);
+    expect(table?.querySelector('tbody [data-provenance]')).toBeNull();
+  });
+
+  it('tags the recommended transfers section label MODELLED', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const heading = container.querySelector('#rebalance-map-heading');
+    expect(heading?.textContent).toMatch(/^Recommended transfers/);
+    const label = heading?.closest('[data-testid="depot-section-label"]');
+    expect(label?.querySelector('[data-provenance="modelled"]')).not.toBeNull();
+  });
+});
+
+describe('shortfall the plan cannot cover', () => {
+  it('is one compact line with its square when every shortfall is covered', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const line = container.querySelector('[data-testid="rebalance-covered"]');
+    expect(line?.textContent).toContain('Every modelled shortfall is covered');
+    expect(line?.querySelector('[data-testid="depot-state-square"]')).not.toBeNull();
+    expect(container.textContent).not.toMatch(/shortfall the plan cannot cover/i);
+  });
+
+  it('is a full list only when there is something to list', async () => {
+    const data = response();
+    const plan = {
+      ...data.plan,
+      uncovered: [{ depotId: 'kanpur', buses: 2, reason: 'insufficient_surplus' }],
+    };
+    await render(<Distribution data={{ ...data, plan } as typeof data} state={{ error: null }} />);
+    const section = container.querySelector('[data-testid="rebalance-uncovered"]');
+    expect(section?.textContent).toMatch(/shortfall the plan cannot cover/i);
+    expect(section?.querySelectorAll('li')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="rebalance-covered"]')).toBeNull();
+  });
+});
+
+describe('decision trail', () => {
+  it('is one line and the append-only note while empty, with no group headings', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const trail = container.querySelector('[data-testid="rebalance-trail"]');
+    expect(trail?.querySelector('h2')?.textContent).toBe(
+      'Decision trail · 2026-10-06: none recorded in this browser',
+    );
+    expect(trail?.querySelector('h3')).toBeNull();
+    expect(trail?.querySelector('ol')).toBeNull();
+    const note = trail?.querySelector('[data-testid="rebalance-trail-note"]');
+    expect(note?.className).toContain('depot-note');
+    expect(note?.textContent).toMatch(/append-only/);
+    expect(note?.textContent).toMatch(/kept in this browser only.*no transfer order is issued/);
+  });
+
+  it('expands to the group with entries once a decision is recorded', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await approve();
+    const trail = container.querySelector('[data-testid="rebalance-trail"]');
+    expect(trail?.querySelector('h2')?.textContent).toBe('Decision trail · 2026-10-06');
+    expect([...(trail?.querySelectorAll('h3') ?? [])].map((h) => h.textContent)).toEqual([
+      'On the modelled plan',
+    ]);
+    expect(trail?.querySelector('[data-testid="rebalance-trail-note"]')).not.toBeNull();
+  });
+});
+
+describe('transfer plan split', () => {
+  it('puts the table in 55% and the map in 45% at xl, the table first below xl', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    const table = container.querySelector('[data-testid="rebalance-transfers"]');
+    const grid = table?.closest('[class*="xl:grid-cols"]');
+    expect(grid?.className).toContain('xl:grid-cols-[minmax(0,45fr)_minmax(0,55fr)]');
+    const tableColumn = [...(grid?.children ?? [])].find((c) => c.contains(table ?? null));
+    expect(tableColumn?.className).toContain('order-1');
+    expect(tableColumn?.className).toContain('xl:order-2');
+  });
+});
+
 describe('transfer table preview', () => {
   const many = Array.from({ length: 12 }, (_, i) => ({ ...ROW, id: `t${i}` }));
   const props = { selectedId: null, onSelect: () => {}, onDecide: () => {} };
@@ -317,7 +453,7 @@ describe('transfer table preview', () => {
   it('shows ten transfers and a "Show all" control that reveals the rest', async () => {
     await render(<TransferTable rows={many} {...props} serverPlan={false} />);
     expect(container.querySelectorAll('tbody tr')).toHaveLength(10);
-    await act(async () => button('Show all 12 transfers').click());
+    await act(async () => button('Show all 12›').click());
     expect(container.querySelectorAll('tbody tr')).toHaveLength(12);
   });
 

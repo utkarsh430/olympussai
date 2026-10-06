@@ -8,6 +8,12 @@ import {
   TRANSFER_PREVIEW,
   transferPreview,
 } from '@/lib/depot/rebalance/pageLayout';
+import {
+  spareBeforeAfter,
+  TRANSFER_COLUMNS,
+  TRANSFER_TABLE_PX,
+  transferFrameInnerPx,
+} from '@/lib/depot/rebalance/transferColumns';
 import type { BalanceRow, PlanSummary } from '@/lib/depot/rebalance/rebalanceModel';
 
 const totals = (deficitDepots: number, deficit: number) => ({
@@ -30,25 +36,28 @@ const SUMMARY = {
 const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `t${i}` }));
 
 describe('plan figures', () => {
-  it('gives four figures with before and after in one value', () => {
+  it('gives five figures with before and after in one value, the surplus side included', () => {
     const figures = planFigures(SUMMARY);
     expect(figures.map((f) => f.label)).toEqual([
       'Short depots',
+      'Spare buses',
       'Buses moved',
       'Empty running',
       'Deficit covered',
     ]);
     expect(figures[0]?.value).toBe('9 → 0');
-    expect(figures[1]?.caption).toBe('in 13 transfers');
-    expect(figures[2]?.value).toBe('576.0');
-    expect(figures[2]?.caption).toBe('bus-km, road estimate');
-    expect(figures[3]?.value).toBe('29 of 31');
-    expect(figures[3]?.caption).toBe('2 buses left uncovered');
+    expect(figures[1]?.value).toBe('40 → 40');
+    expect(figures[1]?.caption).toBe('network, before → after');
+    expect(figures[2]?.caption).toBe('in 13 transfers');
+    expect(figures[3]?.value).toBe('576.0');
+    expect(figures[3]?.caption).toBe('bus-km, road estimate');
+    expect(figures[4]?.value).toBe('29 of 31');
+    expect(figures[4]?.caption).toBe('2 buses left uncovered');
   });
 
   it('says every bus is covered when nothing is left', () => {
     const covered = { ...SUMMARY, uncoveredDeficit: 0 } as PlanSummary;
-    expect(planFigures(covered)[3]?.caption).toBe('every short bus covered');
+    expect(planFigures(covered)[4]?.caption).toBe('every short bus covered');
   });
 });
 
@@ -82,6 +91,12 @@ describe('same place note', () => {
   it('says nothing for depots a real distance apart', () => {
     expect(samePlaceNote({ fromName: 'A', toName: 'B', distanceKm: 12 })).toBeNull();
   });
+
+  it('says nothing for a distance that is not a finite, non-negative number', () => {
+    for (const distanceKm of [Number.NaN, -1, Number.NEGATIVE_INFINITY]) {
+      expect(samePlaceNote({ fromName: 'A', toName: 'B', distanceKm })).toBeNull();
+    }
+  });
 });
 
 describe('every-depot table', () => {
@@ -97,5 +112,34 @@ describe('every-depot table', () => {
   it('keeps the part-of-plan column only when it varies', () => {
     expect(partOfPlanVaries(balance(5))).toBe(false);
     expect(partOfPlanVaries([...balance(5), ...balance(1, false)])).toBe(true);
+  });
+});
+
+describe('transfer table columns at 1440', () => {
+  it('keeps transfer, buses, road km and bus-km, and every column fits the frame uncut', () => {
+    expect(TRANSFER_COLUMNS.map((c) => c.label)).toEqual([
+      'Transfer',
+      'Buses',
+      'Road km',
+      'Bus-km',
+      'Decision',
+      'Why?',
+    ]);
+    expect(TRANSFER_TABLE_PX).toBe(616);
+    expect(transferFrameInnerPx()).toBe(622);
+    expect(TRANSFER_TABLE_PX).toBeLessThanOrEqual(transferFrameInnerPx());
+  });
+
+  it('says the giver and receiver figures before and after in one sentence, never below zero', () => {
+    const row = {
+      fromName: 'Meerut',
+      toName: 'Bhaisali',
+      buses: 9,
+      giverSurplusBefore: 20,
+      receiverDeficitBefore: 6,
+    };
+    expect(spareBeforeAfter(row)).toBe(
+      'Meerut has 20 spare before this transfer and 11 after; Bhaisali is 6 short before and 0 after.',
+    );
   });
 });

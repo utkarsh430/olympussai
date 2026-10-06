@@ -12,7 +12,9 @@ export interface DepotValueFieldProps {
   /** With a value field, the value commits like every other number field. */
   readonly value?: {
     readonly label: string;
-    readonly placeholder: string;
+    readonly unit: string;
+    /** The value in force for a depot: what the what-if set for it, else 0. */
+    readonly inForce: (depotId: string) => number;
     readonly parse: (raw: string) => ParseResult;
     readonly onCommit: (depotId: string, value: number) => void;
   };
@@ -46,12 +48,13 @@ export function DepotValueField({ id, legend, depots, value, action }: DepotValu
         </select>
       </label>
       {value && depotId ? (
-        // Keyed by depot, so choosing another depot starts an empty field.
+        // Keyed by depot, so choosing another depot starts at that depot's value in force.
         <NumberField
           key={depotId}
           id={`${id}-${depotId}`}
           label={value.label}
-          placeholder={value.placeholder}
+          inForce={value.inForce(depotId)}
+          unit={value.unit}
           parse={value.parse}
           onCommit={(v) => {
             if (v !== null) value.onCommit(depotId, v);
@@ -67,7 +70,7 @@ export function DepotValueField({ id, legend, depots, value, action }: DepotValu
           {action.label}
         </button>
       ) : null}
-      {error ? <p className="w-full text-[11px] text-alert-amber">{error}</p> : null}
+      {error ? <p className="depot-note w-full text-alert-amber">{error}</p> : null}
     </fieldset>
   );
 }

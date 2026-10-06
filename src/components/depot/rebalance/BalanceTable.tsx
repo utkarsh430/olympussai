@@ -8,6 +8,7 @@ import { balancePreview, partOfPlanVaries } from '@/lib/depot/rebalance/pageLayo
 import type { BalanceRow } from '@/lib/depot/rebalance/rebalanceModel';
 import { BalanceBar } from './BalanceBar';
 import { CollapsedSection } from '@/components/depot/shell/CollapsedSection';
+import { ShowAllButton } from '@/components/depot/shell/LongLists';
 
 export interface BalanceTableProps {
   /** In model order: operating depots by balance, deepest deficit first; other kinds after. */
@@ -54,6 +55,7 @@ function columnsFor(maxMagnitude: number, withPart: boolean): readonly Column<Ba
     },
     {
       key: 'peak',
+      tag: 'modelled',
       header: 'Peak need',
       align: 'right',
       sortValue: (r) => r.peakRequirement,
@@ -61,6 +63,7 @@ function columnsFor(maxMagnitude: number, withPart: boolean): readonly Column<Ba
     },
     {
       key: 'spare',
+      tag: 'modelled',
       header: 'Spare',
       align: 'right',
       sortValue: (r) => r.spareTarget,
@@ -68,6 +71,7 @@ function columnsFor(maxMagnitude: number, withPart: boolean): readonly Column<Ba
     },
     {
       key: 'required',
+      tag: 'modelled',
       header: 'Required',
       align: 'right',
       sortValue: (r) => r.required,
@@ -75,6 +79,7 @@ function columnsFor(maxMagnitude: number, withPart: boolean): readonly Column<Ba
     },
     {
       key: 'balance',
+      tag: 'modelled',
       header: 'Balance',
       sortValue: (r) => r.balance,
       render: (r) => <BalanceBar balance={r.balance} maxMagnitude={maxMagnitude} />,
@@ -84,6 +89,10 @@ function columnsFor(maxMagnitude: number, withPart: boolean): readonly Column<Ba
 }
 
 /**
+ * Generated columns (peak need, spare target, required, balance) carry the MODELLED tag in
+ * their header cells, because each sits beside a real depot (ruling S51); the fleet, off
+ * road and available columns match the page's line and carry nothing.
+ *
  * Every depot's live availability against its modelled requirement, collapsed under its
  * heading: the fifteen deepest shortfalls, then "Show all N". The "Part of plan" column
  * shows only when some unit takes no part (it is constant otherwise).
@@ -107,7 +116,7 @@ export function BalanceTable({ rows }: BalanceTableProps) {
       testId="rebalance-balances"
     >
       {withPart ? (
-        <p className="depot-prose mb-2 text-xs">
+        <p className="depot-note mb-2">
           Hired, electric and enforcement units are listed after the depots and take no part in
           the plan.
         </p>
@@ -123,14 +132,13 @@ export function BalanceTable({ rows }: BalanceTableProps) {
         overflowCue
       />
       {rows.length > shown.length || showAll ? (
-        <button
-          type="button"
-          className="depot-link mt-2 text-[13px]"
-          aria-expanded={showAll}
-          onClick={() => setShowAll((v) => !v)}
-        >
-          {showAll ? 'Show the fifteen deepest' : `Show all ${formatCount(rows.length)} depots`}
-        </button>
+        <div className="mt-2">
+          <ShowAllButton
+            total={rows.length}
+            expanded={showAll}
+            onToggle={() => setShowAll((v) => !v)}
+          />
+        </div>
       ) : null}
     </CollapsedSection>
   );

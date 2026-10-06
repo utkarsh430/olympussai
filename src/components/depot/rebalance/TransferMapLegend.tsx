@@ -1,4 +1,4 @@
-import { MAX_ARC_PX, MIN_ARC_PX, arcWidthPx } from '@/lib/depot/rebalance/mapGeometry';
+import { MAX_ARC_PX, arcWidthPx } from '@/lib/depot/rebalance/mapGeometry';
 import { BALANCED_COLOUR, DEFICIT_COLOUR, SURPLUS_COLOUR } from './BalanceBar';
 
 /** Same arc colour the map draws with. */
@@ -29,8 +29,10 @@ function Mark({ shape }: { readonly shape: 'square' | 'triangle' | 'circle' }) {
 }
 
 /**
- * What the map's shapes, colours and line widths mean, with the marks beside
- * the words. Shape and colour both carry surplus and deficit.
+ * What the map's shapes, colours and line widths mean: the marks and line samples beside
+ * their labels, nothing more. No "· modelled" per item (the section label carries the tag)
+ * and no paragraph (how a line's width is drawn is said in the closing disclosure). Shape
+ * and colour both carry surplus and deficit.
  */
 export function TransferMapLegend({ maxBuses }: TransferMapLegendProps) {
   const samples = SAMPLE_SHARES.map((share) => Math.max(1, Math.round(maxBuses * share))).filter(
@@ -43,28 +45,24 @@ export function TransferMapLegend({ maxBuses }: TransferMapLegendProps) {
       className="grid grid-cols-1 gap-x-8 gap-y-3 text-[11px] text-depot-muted md:grid-cols-2"
     >
       <div>
-        <p className="depot-label mb-1.5">Depots</p>
+        <div className="depot-label mb-1.5">Depots</div>
         <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
           <li className="flex items-center gap-1.5">
             <Mark shape="square" />
-            Square: spare buses · modelled
+            Spare buses
           </li>
           <li className="flex items-center gap-1.5">
             <Mark shape="triangle" />
-            Downward triangle: short of buses · modelled
+            Short of buses
           </li>
           <li className="flex items-center gap-1.5">
             <Mark shape="circle" />
-            Circle: balanced · modelled
+            Balanced
           </li>
         </ul>
       </div>
       <div>
-        <p className="depot-label mb-1.5">Transfers · modelled</p>
-        <p className="mb-2 font-sans text-xs leading-snug">
-          A line runs from the giving depot to the receiving one, arrow at the receiver. Its width
-          grows with the square root of the buses moved, from {MIN_ARC_PX} to {MAX_ARC_PX} px.
-        </p>
+        <div className="depot-label mb-1.5">Transfers, arrow at the receiver</div>
         <ul className="flex flex-wrap items-center gap-4">
           {samples.map((buses) => (
             <li key={buses} className="flex items-center gap-1.5">

@@ -1,7 +1,7 @@
 'use client';
 
 import type { DecisionTrail as Trail, TrailItem } from '@/lib/depot/rebalance/decisionEvents';
-import { describeTrailItem } from '@/lib/depot/rebalance/decisionWording';
+import { TRAIL_NOTE, describeTrailItem, trailHeading } from '@/lib/depot/rebalance/decisionWording';
 
 export interface DecisionTrailProps {
   readonly trail: Trail;
@@ -19,73 +19,68 @@ function timeOf(iso: string): string {
 }
 
 function List({
+  label,
   items,
-  empty,
   onUndo,
 }: {
+  readonly label: string;
   readonly items: readonly TrailItem[];
-  readonly empty: string;
   readonly onUndo: (item: TrailItem) => void;
 }) {
-  if (items.length === 0) return <p className="depot-prose text-xs">{empty}</p>;
+  if (items.length === 0) return null;
   return (
-    <ol className="flex flex-col divide-y divide-depot-line rounded-md border border-depot-line">
-      {items.map((item, index) => (
-        // A damaged store can repeat ids, so the position is part of the key.
-        <li key={`${index}-${item.eventId}`} className="flex min-w-0 flex-wrap items-baseline gap-x-3 px-3 py-2">
-          <span className="text-[11px] text-depot-faint">{timeOf(item.at)}</span>
-          <span className="min-w-0 flex-1 text-[13px] text-depot-ink">
-            {describeTrailItem(item)}
-            {item.scenario ? (
-              <span className="block text-[11px] text-depot-muted">
-                What-if: {item.scenarioLabel ?? 'a what-if scenario'}
-              </span>
+    <>
+      <h3 className="depot-label mb-1.5 mt-4">{label}</h3>
+      <ol className="flex flex-col divide-y divide-depot-line rounded-md border border-depot-line">
+        {items.map((item, index) => (
+          // A damaged store can repeat ids, so the position is part of the key.
+          <li
+            key={`${index}-${item.eventId}`}
+            className="flex min-w-0 flex-wrap items-baseline gap-x-3 px-3 py-2"
+          >
+            <span className="text-[11px] text-depot-faint">{timeOf(item.at)}</span>
+            <span className="min-w-0 flex-1 text-[13px] text-depot-ink">
+              {describeTrailItem(item)}
+              {item.scenario ? (
+                <span className="block text-[11px] text-depot-muted">
+                  What-if: {item.scenarioLabel ?? 'a what-if scenario'}
+                </span>
+              ) : null}
+              {item.note ? (
+                <span className="block font-sans text-xs text-depot-muted">Note: {item.note}</span>
+              ) : null}
+            </span>
+            {item.undoable ? (
+              <button type="button" className="depot-link text-[11px]" onClick={() => onUndo(item)}>
+                Undo
+              </button>
             ) : null}
-            {item.note ? (
-              <span className="block font-sans text-xs text-depot-muted">Note: {item.note}</span>
-            ) : null}
-          </span>
-          {item.undoable ? (
-            <button type="button" className="depot-link text-[11px]" onClick={() => onUndo(item)}>
-              Undo
-            </button>
-          ) : null}
-        </li>
-      ))}
-    </ol>
+          </li>
+        ))}
+      </ol>
+    </>
   );
 }
 
 /**
- * Every decision for the operating date, newest first, with decisions on the
- * baseline plan listed apart from decisions on a what-if scenario.
+ * Every decision for the operating date, newest first, with decisions on the baseline plan
+ * listed apart from decisions on a what-if scenario. Empty, it is one heading line saying
+ * none is recorded; the note that the trail is a local, append-only record and that
+ * nothing is dispatched stays visible in every state.
  */
 export function DecisionTrail({ trail, operatingDate, onUndo, capacityNote }: DecisionTrailProps) {
+  const entries = trail.baseline.length + trail.scenario.length;
   return (
     <section aria-labelledby="rebalance-trail-heading" data-testid="rebalance-trail">
-      <h2 id="rebalance-trail-heading" className="depot-section-label">
-        Decision trail, {operatingDate}
+      <h2 id="rebalance-trail-heading" className="depot-section-label mb-1.5">
+        {trailHeading(operatingDate, entries)}
       </h2>
-      <p className="depot-prose mb-3 text-xs">
-        Decisions are kept in this browser only and are not sent anywhere. The trail is append-only:
-        Undo records a further entry and deletes nothing. A decision changes nothing but this
-        record; no transfer order is issued.
+      <p className="depot-note" data-testid="rebalance-trail-note">
+        {TRAIL_NOTE}
       </p>
-      {capacityNote ? (
-        <p className="depot-prose mb-3 text-xs text-alert-amber">{capacityNote}</p>
-      ) : null}
-      <h3 className="depot-label mb-1.5">On the modelled plan</h3>
-      <List
-        items={trail.baseline}
-        empty="No decisions on the modelled plan for this date yet."
-        onUndo={onUndo}
-      />
-      <h3 className="depot-label mb-1.5 mt-4">On what-if scenarios</h3>
-      <List
-        items={trail.scenario}
-        empty="No decisions on a what-if scenario for this date yet."
-        onUndo={onUndo}
-      />
+      {capacityNote ? <p className="depot-note mt-2 text-alert-amber">{capacityNote}</p> : null}
+      <List label="On the modelled plan" items={trail.baseline} onUndo={onUndo} />
+      <List label="On what-if scenarios" items={trail.scenario} onUndo={onUndo} />
     </section>
   );
 }

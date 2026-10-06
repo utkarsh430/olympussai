@@ -11,6 +11,7 @@ import { isRepeatDecision } from '@/lib/depot/rebalance/decisionReducers';
 import { trailCapacityNote } from '@/lib/depot/rebalance/decisionStore';
 import { decisionAnnouncement, undoAnnouncement } from '@/lib/depot/rebalance/decisionWording';
 import { busesWord, type TransferDecisionKind } from '@/lib/depot/rebalance/rebalanceModel';
+import { serverInForce } from '@/lib/depot/rebalance/fieldsInForce';
 import { BASELINE_FORM } from '@/lib/depot/rebalance/scenarioForm';
 import type { TransferRow } from '@/lib/depot/rebalance/transferModel';
 import { BalanceSummary } from './BalanceSummary';
@@ -124,19 +125,23 @@ export function Distribution({
           tag="modelled"
           note="Largest first; select one to highlight it on the map"
         />
-        <div className="flex min-w-0 flex-col gap-6 xl:grid xl:grid-cols-12 xl:items-start">
-          <div className="order-1 min-w-0 xl:order-2 xl:col-span-5">
+        <div className="flex min-w-0 flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,45fr)_minmax(0,55fr)] xl:items-start">
+          <div className="order-1 min-w-0 xl:order-2">
             <TransferSection
               view={view}
               selectedId={selected?.id ?? null}
               onSelect={setSelectedId}
               onDecide={decide}
             />
-            <p role="status" data-testid="rebalance-status" className="mt-2 min-h-5 text-[13px] text-depot-ink">
+            <p
+              role="status"
+              data-testid="rebalance-status"
+              className="depot-prose mt-2 min-h-5 text-[13px]"
+            >
               {announcement}
             </p>
           </div>
-          <div className="order-2 min-w-0 xl:order-1 xl:col-span-7">
+          <div className="order-2 min-w-0 xl:order-1">
             <TransferMap
               geometry={view.geometry}
               selectedId={selected?.id ?? null}
@@ -167,7 +172,7 @@ export function Distribution({
             key={resetCount}
             form={form}
             onChange={(update) => setForm((current) => update(current))}
-            onReset={reset}
+            inForce={serverInForce(data)}
             depots={view.depots}
             clampNotes={view.clampNotes}
           />
