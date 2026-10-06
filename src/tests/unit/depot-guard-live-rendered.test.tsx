@@ -125,11 +125,8 @@ describe('no page calls the sample or last-good data live', () => {
   });
 
   it.each(FEEDS)("the copilot's decline, on %s", (_name, feed) => {
-    const network = { ...networkState(feed), depots: [], scores: [] } as unknown;
-    const request = buildAnswer(
-      { kind: 'unsupported', reason: 'people' },
-      { network: { ...(network as { data: DepotNetworkResponse }).data, ...feed } },
-    );
+    const { data } = networkState(feed) as { readonly data: DepotNetworkResponse };
+    const request = buildAnswer({ kind: 'unsupported', reason: 'people' }, { network: data });
     const prose = request.scriptedDraft.paragraphs.join(' ');
     expect(prose).toContain('would be answered from');
     expect(liveClaims(`<p>${prose}</p>`)).toEqual([]);
