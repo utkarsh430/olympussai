@@ -269,9 +269,13 @@ const TICKETING: FeedEntry = {
     {
       name: 'trips',
       type: 'integer',
-      note: 'Trips run that day; a trip is one run from one end of the route to the other.',
+      note: 'Trips run that day. A trip is a run out and back from the depot, so two legs; a one-way run counts as half a trip.',
     },
-    { name: 'seatCapacity', type: 'integer', note: 'Seat-trips offered: trips times seats per trip.' },
+    {
+      name: 'seatCapacity',
+      type: 'integer',
+      note: 'Seat-kilometres offered, counted per leg (seats times the length of each leg run); occupied seat-kilometres, from tickets, are counted the same way.',
+    },
     { name: 'boardings', type: 'integer', note: 'Passengers who boarded, from tickets sold.' },
     { name: 'revenue', type: 'number', note: 'Fare revenue in rupees.' },
     {

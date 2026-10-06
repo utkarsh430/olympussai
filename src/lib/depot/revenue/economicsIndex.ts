@@ -1,99 +1,32 @@
 import { compareText } from '../fuel/compare';
-import { MIN_PEER_GROUP, Z_CLAMP } from '../score/config';
+import { MIN_PEER_GROUP } from '../score/config';
 import { assignPeerGroups } from '../score/peerGroups';
-import {
-  ECONOMICS_MIN_ROUTE_COVERAGE,
-  ECONOMICS_MIN_ROUTES,
-  ECONOMICS_WEIGHTS,
-} from '../sim/revenueConfig';
+import { ECONOMICS_MIN_ROUTE_COVERAGE, ECONOMICS_MIN_ROUTES } from '../sim/revenueConfig';
 import type { Coverage } from '../types';
-import { clamp, median, robustZ } from '../stats/robust';
+import {
+  COMPONENTS,
+  indexFrom,
+  medianOf,
+  missingOf,
+  safeCoverage,
+  scoreComponents,
+  valuesOf,
+  type Values,
+} from './economicsComponents';
 import type {
   DepotEconomicsScore,
   EconomicsComponent,
-  EconomicsComponentKey,
   EconomicsInput,
   EconomicsRankReason,
 } from './types';
 
 /*
- * The Depot Economics Index (MODELLED). It is scored with the efficiency
- * index's peer groups and robust statistics, but it is a separate module with
- * a separate result type: a modelled economic figure never enters the Depot
- * Efficiency Index, and nothing under score/ imports this file.
+ * The Depot Economics Index (MODELLED): who is ranked, within which peer group,
+ * and in what order. It is scored with the efficiency index's peer groups and
+ * robust statistics, but it is a separate module with a separate result type: a
+ * modelled economic figure never enters the Depot Efficiency Index, and nothing
+ * under score/ imports this file.
  */
-
-interface ComponentConfig {
-  readonly key: EconomicsComponentKey;
-  readonly weight: number;
-  readonly higherIsBetter: boolean;
-}
-
-const COMPONENTS: readonly ComponentConfig[] = [
-  { key: 'earningsPerKm', weight: ECONOMICS_WEIGHTS.earningsPerKm, higherIsBetter: true },
-  { key: 'costPerKm', weight: ECONOMICS_WEIGHTS.costPerKm, higherIsBetter: false },
-  { key: 'loadFactor', weight: ECONOMICS_WEIGHTS.loadFactor, higherIsBetter: true },
-];
-
-const INDEX_CENTRE = 50;
-const INDEX_HALF_RANGE = 50;
-const TENTH = 10;
-
-type Values = Readonly<Record<EconomicsComponentKey, number | null>>;
-
-/** A figure that is not a finite number is missing, never a value. */
-function finiteOrNull(value: number | null): number | null {
-  return value !== null && Number.isFinite(value) ? value : null;
-}
-
-/** A coverage that is not a pair of finite counts is no coverage: 0 of 0. */
-function safeCoverage(coverage: Coverage): Coverage {
-  return Number.isFinite(coverage.n) && Number.isFinite(coverage.of)
-    ? { n: coverage.n, of: coverage.of }
-    : { n: 0, of: 0 };
-}
-
-function valuesOf(input: Readonly<EconomicsInput>): Values {
-  return {
-    earningsPerKm: finiteOrNull(input.earningsPerKm),
-    costPerKm: finiteOrNull(input.costPerKm),
-    loadFactor: finiteOrNull(input.loadFactor),
-  };
-}
-
-function missingOf(values: Values): EconomicsComponentKey[] {
-  return COMPONENTS.filter((c) => values[c.key] === null).map((c) => c.key);
-}
-
-function medianOf(key: EconomicsComponentKey, sample: readonly Values[]): number | null {
-  return median(sample.flatMap((v) => (v[key] === null ? [] : [v[key] as number])));
-}
-
-function scoreComponents(
-  values: Values,
-  sample: readonly Values[],
-  earningsCoverage: Coverage,
-): EconomicsComponent[] {
-  return COMPONENTS.map((config): EconomicsComponent => {
-    const value = values[config.key];
-    const peerMedian = medianOf(config.key, sample);
-    const coverage = config.key === 'earningsPerKm' ? earningsCoverage : null;
-    const base = { key: config.key, value, peerMedian, coverage, provenance: 'modelled' } as const;
-    if (value === null) return { ...base, z: null, contribution: 0 };
-    const peers = sample.flatMap((v) => (v[config.key] === null ? [] : [v[config.key] as number]));
-    const raw = robustZ(value, peers);
-    const clamped = raw === null ? 0 : clamp(raw, -Z_CLAMP, Z_CLAMP);
-    // Written this way so a zero z never becomes negative zero.
-    const z = config.higherIsBetter || clamped === 0 ? clamped : -clamped;
-    return { ...base, z, contribution: config.weight * z };
-  });
-}
-
-function indexFrom(components: readonly EconomicsComponent[]): number {
-  const weighted = components.reduce((sum, c) => sum + c.contribution, 0);
-  const scaled = INDEX_CENTRE + (weighted / Z_CLAMP) * INDEX_HALF_RANGE;
-  return Math.round(clamp(scaled, 0, 100) * TENTH) / TENTH;
-}
 
 type Standing = 'eligible' | 'missing_component' | 'thin_route_coverage';
 
@@ -176,7 +109,8 @@ export function scoreEconomics(inputs: readonly EconomicsInput[]): DepotEconomic
         components: COMPONENTS.map((c) => ({
           key: c.key,
           value: own[c.key],
-          peerMedian: medianOf(c.key, sample),
+          // A sample under the minimum is no peer group: no median is offered.
+          peerMedian: sample.length < MIN_PEER_GROUP ? null : medianOf(c.key, sample),
           coverage: c.key === 'earningsPerKm' ? safeCoverage(input.earningsCoverage) : null,
           z: null,
           contribution: 0,

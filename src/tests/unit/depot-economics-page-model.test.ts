@@ -238,7 +238,7 @@ describe('breakdownRows', () => {
   it('lists value, peer median, z, weight and contribution per component', () => {
     const [row] = buildEconomicsRows([entry('1')]);
     const rows = row ? breakdownRows(row, { earningsPerKm: 0.4, costPerKm: 0.35, loadFactor: 0.25 }) : [];
-    expect(rows.map((r) => r.label)).toEqual(['Earnings per km', 'Cost per km', 'Load factor']);
+    expect(rows.map((r) => r.label)).toEqual(['Earnings per km', 'Fuel cost per km', 'Load factor']);
     expect(rows[0]).toMatchObject({
       valueText: '₹30.00 per km',
       peerMedianText: '₹25.00 per km',

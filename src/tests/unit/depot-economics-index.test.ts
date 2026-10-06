@@ -50,6 +50,56 @@ function isNonDecreasing(xs: readonly (number | null)[]): boolean {
   return xs.every((x, i) => x !== null && (i === 0 || x >= (xs[i - 1] ?? 0)));
 }
 
+function fleetInput(id: string, fleet: number, overrides: Partial<EconomicsInput> = {}): EconomicsInput {
+  const i = Number(id.slice(1)) % 5;
+  return {
+    depot: depot(id, 'depot', fleet),
+    earningsPerKm: 30 + 2 * i,
+    costPerKm: 22 - i,
+    loadFactor: 0.4 + 0.05 * i,
+    earningsCoverage: { n: 4, of: 4 },
+    ...overrides,
+  };
+}
+
+describe('scoreEconomics, worked figures', () => {
+  it('scores the best of five depots 72.5 and ranks it first (hand calculation)', () => {
+    // Earnings 30..38 (median 34, MAD 2), cost 22..18 (median 20, MAD 1), load 0.40..0.60
+    // (median 0.50, MAD 0.05). Best depot: 38, 18, 0.60. Each z is 4/(1.4826*2) = 1.349,
+    // the weights sum to 1, so the weighted z is 1.349 and the index is 50 + 1.349/3*50 = 72.5.
+    const five = Array.from({ length: 5 }, (_, i) => fleetInput(`d${i}`, 50));
+    const best = scoreEconomics(five).find((s) => s.depotId === 'd4');
+    expect(best?.economicsIndex).toBe(72.5);
+    expect(best?.rank).toBe(1);
+    expect(best?.peerCount).toBe(5);
+    expect(scoreEconomics(five).find((s) => s.depotId === 'd0')?.economicsIndex).toBe(27.5);
+  });
+
+  it('offers no peer median when too few depots remain to be peers', () => {
+    const four = Array.from({ length: 4 }, (_, i) => fleetInput(`d${i}`, 50));
+    const [first] = scoreEconomics(four);
+    expect(first?.reason).toBe('peer_group_too_small');
+    expect(first?.components.map((c) => c.peerMedian)).toEqual([null, null, null]);
+  });
+
+  it('judges each peer group on its own: one falls below the minimum, the others do not', () => {
+    const small = Array.from({ length: 5 }, (_, i) => fleetInput(`d${i}`, 20));
+    const medium = Array.from({ length: 5 }, (_, i) =>
+      fleetInput(`d${5 + i}`, 50, i < 2 ? { loadFactor: null } : {}),
+    );
+    const large = Array.from({ length: 5 }, (_, i) => fleetInput(`d${10 + i}`, 90));
+    const scores = scoreEconomics([...small, ...medium, ...large]);
+    const byId = new Map(scores.map((s) => [s.depotId, s] as const));
+    expect(scores.filter((s) => s.peerGroup === 'small' && s.ranked)).toHaveLength(5);
+    expect(scores.filter((s) => s.peerGroup === 'large' && s.ranked)).toHaveLength(5);
+    // Medium keeps three complete depots, under the minimum of five.
+    expect(byId.get('d7')?.reason).toBe('peer_group_too_small');
+    expect(byId.get('d7')?.ranked).toBe(false);
+    expect(byId.get('d5')?.reason).toBe('missing_component');
+    expect(byId.get('d0')?.reason).toBe('ok');
+  });
+});
+
 describe('scoreEconomics', () => {
   it('has component weights that sum to one', () => {
     const total = Object.values(ECONOMICS_WEIGHTS).reduce((s, w) => s + w, 0);

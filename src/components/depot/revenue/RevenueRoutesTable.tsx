@@ -3,7 +3,12 @@
 import { useMemo, useState } from 'react';
 import { formatCount } from '@/lib/depot/format';
 import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
-import { buildRouteRows, type RevenueRow } from '@/lib/depot/revenue/revenuePageModel';
+import {
+  DERIVED_LENGTH_HEADER,
+  buildRouteRows,
+  modelledHeader,
+  type RevenueRow,
+} from '@/lib/depot/revenue/revenuePageModel';
 import type { RouteRevenueFigure } from '@/lib/depot/revenue/types';
 import { sortRows, type SortDirection, type SortValue } from '@/lib/depot/tableSort';
 
@@ -21,25 +26,37 @@ interface Column {
 const COLUMNS: readonly Column[] = [
   { key: 'route', header: 'Route', sortValue: (r) => r.routeName, render: (r) => r.routeName },
   { key: 'class', header: 'Class', sortValue: (r) => r.classLabel, render: (r) => r.classLabel },
-  { key: 'trips', header: 'Trips', right: true, sortValue: (r) => r.trips, render: (r) => formatCount(r.trips) },
+  {
+    key: 'trips',
+    header: modelledHeader('Trips'),
+    right: true,
+    sortValue: (r) => r.trips,
+    render: (r) => formatCount(r.trips),
+  },
   {
     key: 'boardings',
-    header: 'Boardings',
+    header: modelledHeader('Boardings'),
     right: true,
     sortValue: (r) => r.boardings,
     render: (r) => formatCount(r.boardings),
   },
   {
     key: 'load',
-    header: 'Load factor',
+    header: modelledHeader('Load factor'),
     right: true,
     sortValue: (r) => r.loadFactor,
     render: (r) => r.loadFactorText,
   },
-  { key: 'revenue', header: 'Revenue', right: true, sortValue: (r) => r.revenue, render: (r) => r.revenueText },
+  {
+    key: 'revenue',
+    header: modelledHeader('Revenue'),
+    right: true,
+    sortValue: (r) => r.revenue,
+    render: (r) => r.revenueText,
+  },
   {
     key: 'earnings',
-    header: 'Earnings per km',
+    header: modelledHeader('Earnings per km'),
     right: true,
     sortValue: (r) => r.earningsPerKm,
     render: (r) =>
@@ -52,7 +69,13 @@ const COLUMNS: readonly Column[] = [
         </span>
       ),
   },
-  { key: 'length', header: 'Route length', right: true, sortValue: () => null, render: (r) => r.lengthText },
+  {
+    key: 'length',
+    header: DERIVED_LENGTH_HEADER,
+    right: true,
+    sortValue: (r) => r.lengthKm,
+    render: (r) => r.lengthText,
+  },
 ];
 
 interface Sort {
@@ -132,11 +155,11 @@ export function RevenueRoutesTable({ routes }: { readonly routes: readonly Route
       {sorted.length > ROW_CAP ? (
         <button
           type="button"
-          aria-pressed={showAll}
+          aria-expanded={showAll}
           onClick={() => setShowAll((value) => !value)}
           className="mt-2 rounded-[3px] border border-depot-line px-2 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-depot-muted hover:text-depot-ink"
         >
-          {showAll ? `Show top ${ROW_CAP}` : `Show all ${formatCount(sorted.length)}`}
+          {`Show all ${formatCount(sorted.length)}`}
         </button>
       ) : null}
     </section>

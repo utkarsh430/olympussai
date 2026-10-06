@@ -49,7 +49,7 @@ export function RevenueHero({ routes }: { readonly routes: readonly RouteRevenue
       {hero.toggleLabel ? (
         <button
           type="button"
-          aria-pressed={showAll}
+          aria-expanded={showAll}
           onClick={() => setShowAll((value) => !value)}
           className="mt-3 rounded-[3px] border border-depot-line px-2 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-depot-muted hover:text-depot-ink"
         >

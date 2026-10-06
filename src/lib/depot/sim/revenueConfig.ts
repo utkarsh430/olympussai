@@ -9,8 +9,9 @@ import type { ServiceClass } from './types';
  * HOW THE FIGURES RELATE (read this before showing two of them together)
  *  - A trip is a run out and back from the depot: two legs. Its service
  *    kilometres are twice the route length.
- *  - The load factor is occupied seat-kilometres over seat-kilometres, so on
- *    one leg occupied seats = seats x load factor, whatever the length.
+ *  - A route's load factor is the share of seats filled on a leg, so occupied
+ *    seats = seats x load factor, whatever the length. A depot's is occupied
+ *    seats over seats offered, weighted by trips (not by seat-kilometres).
  *  - A boarding rides AVG_TRIP_LENGTH_SHARE of the route length on average, so a
  *    leg carries seats x load factor / AVG_TRIP_LENGTH_SHARE boardings (whole
  *    people, floored). Seats turn over along the way, so boardings can exceed
@@ -121,6 +122,15 @@ export const ECONOMICS_WEIGHTS = {
   costPerKm: 0.35,
   loadFactor: 0.25,
 } as const;
+
+/**
+ * The robust z-score at which a component of the economics index stops
+ * counting for more: a weighted total of +ECONOMICS_Z_CLAMP reaches 100 and its
+ * negative reaches 0. Owned here, not borrowed from the efficiency index, so a
+ * change to that index's scale cannot move this one. The breakdown note is
+ * built from it.
+ */
+export const ECONOMICS_Z_CLAMP = 3;
 
 /** The parameters as one value, sent with every response that shows a modelled revenue figure. */
 export const REVENUE_MODEL_PARAMS = {

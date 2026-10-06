@@ -112,7 +112,7 @@ describe('EconomicsPage', () => {
     const text = host.textContent ?? '';
     expect(text).toContain('Depot Economics Index ranking within peer groups');
     expect(host.querySelector('[data-provenance="modelled"]')).not.toBeNull();
-    expect(text).toContain('Economics indexMODELLED');
+    expect(text).toContain('Economics index (MODELLED)');
     expect(text).toContain('separate from the Depot Efficiency Index, which is built from live data');
     expect(host.querySelector('a[href="/project/depots/league"]')).not.toBeNull();
     expect(host.querySelector('a[href="/project/depots/d/1"]')).not.toBeNull();
@@ -129,6 +129,105 @@ describe('EconomicsPage', () => {
     expect(panel?.textContent).toContain('rank 1 of 6 in its peer group');
     expect(panel?.textContent).toContain('₹30.00 per km');
     expect(panel?.textContent).toContain('on 2 of 2 routes');
+  });
+});
+
+function sparseData(): EconomicsResponse {
+  const base = DATA.depots[0] as EconomicsResponse['depots'][number];
+  const unranked = (id: string): EconomicsResponse['depots'][number] => ({
+    ...base,
+    depotId: id,
+    name: `Depot ${id}`,
+    earningsCoverage: { n: 0, of: 9 },
+    score: {
+      ...base.score,
+      depotId: id,
+      ranked: false,
+      reason: 'missing_component',
+      missing: ['earningsPerKm'],
+      economicsIndex: null,
+      rank: null,
+      peerCount: null,
+      components: base.score.components.map((c) =>
+        c.key === 'earningsPerKm' ? { ...c, value: null, peerMedian: null, z: null } : c,
+      ),
+    },
+  });
+  return { ...DATA, depots: [unranked('2'), unranked('3'), unranked('4')] } as EconomicsResponse;
+}
+
+function useData(data: EconomicsResponse): void {
+  vi.mocked(useDepotEconomics).mockReturnValue({
+    data,
+    error: null,
+    loading: false,
+    refresh: vi.fn(),
+  } as unknown as ReturnType<typeof useDepotEconomics>);
+}
+
+describe('EconomicsPage truthfulness', () => {
+  it('tags every modelled column header on the grid and the breakdown', async () => {
+    await render(<EconomicsPage />);
+    const headers = [...host.querySelectorAll('thead th')].map((th) => th.textContent ?? '');
+    for (const label of ['Earnings per km', 'Fuel cost per km', 'Load factor']) {
+      expect(headers.some((h) => h.includes(`${label} (MODELLED)`))).toBe(true);
+    }
+    const button = host.querySelector<HTMLButtonElement>('button[aria-label^="Economics breakdown"]');
+    await act(async () => button?.click());
+    const panel = host.querySelector('[data-testid="depot-economics-breakdown"]');
+    const inner = [...(panel?.querySelectorAll('th') ?? [])].map((th) => th.textContent ?? '');
+    expect(inner).toContain('Depot (MODELLED)');
+    expect(inner).toContain('Peer median (MODELLED)');
+    expect(panel?.textContent).toContain('Fuel cost per km');
+  });
+
+  it('says fuel is one cost, what the index can tell, and carries the full statement', async () => {
+    await render(<EconomicsPage />);
+    const text = host.textContent ?? '';
+    expect(text).toContain('Fuel is only one cost. The difference between earnings and fuel cost per kilometre is not profit.');
+    expect(text).toContain('is not a finding about any depot');
+    expect(text).toContain('planning assumptions');
+    expect(text).toMatch(/fuel issue records/i);
+    expect(text).toContain('A trip is a run out and back');
+    expect(host.querySelector('a[href="/project/depots/sources"]')).not.toBeNull();
+  });
+
+  it('puts no aria-selected on a table row', async () => {
+    await render(<EconomicsPage />);
+    expect(host.querySelector('tbody tr[aria-selected]')).toBeNull();
+    expect(host.querySelector('tbody tr button[aria-pressed]')).not.toBeNull();
+  });
+
+  it('explains an almost empty ranking, shows unranked depots, and gives each a visible reason', async () => {
+    useData(sparseData());
+    await render(<EconomicsPage />);
+    const text = host.textContent ?? '';
+    expect(text).toContain('Only 0 of 3 operating depots can be ranked.');
+    expect(host.querySelector('a[href="/project/depots/routes"]')).not.toBeNull();
+    expect(host.querySelectorAll('tbody tr')).toHaveLength(3);
+    const first = host.querySelector('tbody tr')?.textContent ?? '';
+    expect(first).toContain('not ranked');
+    expect(first).toContain('length not known');
+    expect(first).toContain('0 of 9 routes');
+  });
+
+  it('says nothing is ranked yet when the filter is turned off, and filters when searching', async () => {
+    useData(sparseData());
+    await render(<EconomicsPage />);
+    const box = host.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    expect(box?.checked).toBe(true);
+    await act(async () => box?.click());
+    expect(host.textContent).toContain('Nothing is ranked yet.');
+  });
+
+  it('announces a selected depot that the filters hide', async () => {
+    useData(sparseData());
+    await render(<EconomicsPage />);
+    const button = host.querySelector<HTMLButtonElement>('button[aria-label^="Economics breakdown"]');
+    await act(async () => button?.click());
+    const box = host.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    await act(async () => box?.click());
+    expect(host.querySelector('[role="status"]')?.textContent).toMatch(/hidden by the filters/i);
   });
 });
 
@@ -153,14 +252,14 @@ describe('revenue components', () => {
     );
     expect(host.querySelectorAll('[data-provenance="modelled"]')).toHaveLength(5);
     expect(host.textContent).toContain('₹12,345');
-    expect(host.textContent).toContain('Based on 0 of 2 routes whose length is known');
+    expect(host.textContent).toContain('Based on 0 of 2 routes with kilometres run and a known length');
     expect(host.textContent).toContain('Flat fare, length not known: 40.0% of revenue, 50.0% of routes');
   });
 
   it('prints the response notes and the definitions in the MODELLED statement', async () => {
     await render(<ModelledStatement params={REVENUE_MODEL_PARAMS} notes={[MIXED_CLASS_NOTE]} />);
     expect(host.textContent).toContain('most numerous class');
-    expect(host.textContent).toContain('occupied seat-kilometres over seat-kilometres');
+    expect(host.textContent).toContain('occupied seats over seats offered, weighted by trips');
   });
 
   it('caps the hero and offers Show all', async () => {
@@ -169,8 +268,44 @@ describe('revenue components', () => {
     expect(host.querySelectorAll('li')).toHaveLength(10);
     const toggle = host.querySelector<HTMLButtonElement>('button');
     expect(toggle?.textContent).toBe('Show all 12');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle?.hasAttribute('aria-pressed')).toBe(false);
     await act(async () => toggle?.click());
     expect(host.querySelectorAll('li')).toHaveLength(12);
+    // One signal: the label stays, the expanded state changes.
+    expect(toggle?.textContent).toBe('Show all 12');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('keeps one fixed Show all label with aria-expanded on the route table', async () => {
+    const routes = Array.from({ length: 30 }, (_, i) => route(`R${i}`, 100 + i));
+    await render(<RevenueRoutesTable routes={routes} />);
+    const toggle = host.querySelector<HTMLButtonElement>('button[aria-expanded]');
+    expect(toggle?.textContent).toBe('Show all 30');
+    await act(async () => toggle?.click());
+    expect(toggle?.textContent).toBe('Show all 30');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('tags every modelled route-table header and the derived length', async () => {
+    await render(<RevenueRoutesTable routes={[route('R0', 100)]} />);
+    const headers = [...host.querySelectorAll('th')].map((th) => th.textContent ?? '');
+    for (const label of ['Trips', 'Boardings', 'Load factor', 'Revenue', 'Earnings per km']) {
+      expect(headers.some((h) => h.includes(`${label} (MODELLED)`))).toBe(true);
+    }
+    expect(headers.some((h) => h.includes('Route length (DERIVED)'))).toBe(true);
+  });
+
+  it('sorts the route length column by the length itself', async () => {
+    const long = { ...route('Long', 100), lengthKm: 90, lengthProvenance: 'derived' } as RouteRevenueFigure;
+    const short = { ...route('Short', 200), lengthKm: 10, lengthProvenance: 'derived' } as RouteRevenueFigure;
+    await render(<RevenueRoutesTable routes={[long, short]} />);
+    const button = [...host.querySelectorAll<HTMLButtonElement>('th button')].find((b) =>
+      b.textContent?.includes('Route length'),
+    );
+    await act(async () => button?.click());
+    const names = [...host.querySelectorAll('tbody tr td:first-child')].map((td) => td.textContent);
+    expect(names).toEqual(['Short', 'Long']);
   });
 
   it('says why earnings are withheld in the route table', async () => {
