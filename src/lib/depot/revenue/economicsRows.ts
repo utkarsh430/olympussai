@@ -1,4 +1,3 @@
-import { formatCount } from '../format';
 import { PEER_GROUP_LABEL } from '../labels';
 import { MIN_FLEET_FOR_RANK } from '../score/config';
 import type { Coverage, DepotKind } from '../types';
@@ -10,7 +9,7 @@ import {
   specOf,
   type DifferenceDirection,
 } from './economicsFormat';
-import { LENGTH_NOT_KNOWN } from './revenuePageModel';
+import { coverageSentence, NO_KM_RUN } from './revenuePageModel';
 import type { DepotEconomicsScore, EconomicsComponentKey } from './types';
 
 /* The economics page's rows: one per unit, with its cells, rank and reason. */
@@ -29,7 +28,7 @@ export interface EconomicsCell {
   readonly direction: DifferenceDirection;
   /** Value, difference and the word, for a title and screen-reader text. */
   readonly description: string;
-  /** The coverage or the reason beside a figure that is missing or thin; null otherwise. */
+  /** Beside earnings per km: how many of the routes' lengths are real; null on the others. */
   readonly noteText: string | null;
   readonly coverage: Coverage | null;
   readonly z: number | null;
@@ -52,7 +51,7 @@ export interface EconomicsRow {
   /** The reason in a few words, shown under "not ranked" in the grid; null when ranked. */
   readonly reasonShort: string | null;
   readonly cells: readonly EconomicsCell[];
-  readonly earningsCoverage: EconomicsDepotRow['earningsCoverage'];
+  readonly lengthCoverage: EconomicsDepotRow['lengthCoverage'];
 }
 
 function unrankedShort(entry: EconomicsDepotRow): string | null {
@@ -61,8 +60,7 @@ function unrankedShort(entry: EconomicsDepotRow): string | null {
   if (score.reason === 'not_a_depot') return 'not an operating depot';
   if (score.reason === 'fleet_too_small') return `fewer than ${MIN_FLEET_FOR_RANK} buses`;
   if (score.reason === 'peer_group_too_small') return 'peer group too small';
-  if (score.reason === 'thin_route_coverage') return 'too few routes with a known length';
-  if (score.missing.includes('earningsPerKm')) return LENGTH_NOT_KNOWN;
+  if (score.missing.includes('earningsPerKm')) return NO_KM_RUN;
   return 'a component could not be worked out';
 }
 
@@ -76,15 +74,11 @@ function unrankedText(entry: EconomicsDepotRow): string | null {
   if (score.reason === 'peer_group_too_small') {
     return 'Not ranked: its peer group has too few depots with complete figures to compare.';
   }
-  if (score.reason === 'thin_route_coverage') {
-    const { n, of } = entry.earningsCoverage;
-    return `Not ranked: too few of its routes have a known length (${formatCount(n)} of ${formatCount(of)}), so its earnings per kilometre are not used.`;
-  }
   if (score.missing.includes('earningsPerKm')) {
-    return 'No route has a known length, so earnings per kilometre cannot be modelled for this depot.';
+    return 'No duty ran in its modelled day (none of its buses reports a route, or none was available), so it has no earnings per kilometre.';
   }
   if (score.missing.includes('costPerKm')) {
-    return 'No distance is modelled for its buses, so fuel cost per kilometre cannot be worked out.';
+    return 'No bus ran in its modelled day, so fuel cost per kilometre cannot be worked out.';
   }
   return 'No seats are offered in the model, so its load factor cannot be worked out.';
 }
@@ -92,21 +86,12 @@ function unrankedText(entry: EconomicsDepotRow): string | null {
 const NOT_WORKED_OUT = 'not worked out';
 const NO_PEER_MEDIAN_REASON: DepotEconomicsScore['reason'] = 'peer_group_too_small';
 
-function routesText(coverage: Coverage): string {
-  return coverage.of === 0 ? 'no routes run' : `${formatCount(coverage.n)} of ${formatCount(coverage.of)} routes`;
+/** The earnings cell always says what its lengths rest on: a coverage figure, never a gate. */
+function earningsNote(entry: EconomicsDepotRow): string {
+  return coverageSentence(entry.lengthCoverage).toLowerCase();
 }
-
-/** The earnings cell says why it has no figure, or why a figure is not used; never a dash alone. */
-function earningsNote(entry: EconomicsDepotRow, value: number | null): string | null {
-  if (value === null) return routesText(entry.earningsCoverage);
-  if (entry.score.reason === 'thin_route_coverage') {
-    return `too few routes with a known length (${routesText(entry.earningsCoverage)})`;
-  }
-  return null;
-}
-
 function missingText(key: EconomicsComponentKey): string {
-  return key === 'earningsPerKm' ? LENGTH_NOT_KNOWN : NOT_WORKED_OUT;
+  return key === 'earningsPerKm' ? NO_KM_RUN : NOT_WORKED_OUT;
 }
 
 function toCells(entry: EconomicsDepotRow): EconomicsCell[] {
@@ -120,7 +105,7 @@ function toCells(entry: EconomicsDepotRow): EconomicsCell[] {
     const wording = describeDifference(component.key, delta, spec.higherIsBetter);
     const valueText =
       component.value === null ? missingText(component.key) : formatComponentValue(component.key, component.value);
-    const noteText = component.key === 'earningsPerKm' ? earningsNote(entry, component.value) : null;
+    const noteText = component.key === 'earningsPerKm' ? earningsNote(entry) : null;
     const compared = wording.direction === 'unknown' ? '' : `, ${wording.text}`;
     return {
       key: component.key,
@@ -170,7 +155,7 @@ export function buildEconomicsRows(depots: readonly EconomicsDepotRow[]): Econom
       reasonText: unrankedText(entry),
       reasonShort: unrankedShort(entry),
       cells: toCells(entry),
-      earningsCoverage: entry.earningsCoverage,
+      lengthCoverage: entry.lengthCoverage,
     }))
     .sort(compareDefault);
 }

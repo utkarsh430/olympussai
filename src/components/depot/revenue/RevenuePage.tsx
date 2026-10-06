@@ -1,6 +1,7 @@
 'use client';
 
 import { useDepotDetailContext } from '@/components/depot/data/DepotDetailProvider';
+import { modelledDaySentence } from '@/lib/depot/sim/operatingDayWording';
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
 import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
 import { useDepotRevenue } from '@/hooks/useDepotRevenue';
@@ -19,7 +20,7 @@ const LOADING_ROWS = 12;
  * the scope's provider, which has already validated it.
  */
 export function RevenuePage() {
-  const { depotId } = useDepotDetailContext();
+  const { depotId, data: detail } = useDepotDetailContext();
   const { data, error, loading, refresh } = useDepotRevenue(depotId);
 
   if (loading) return <LoadingBlock rows={LOADING_ROWS} label="Loading the revenue view" />;
@@ -35,6 +36,13 @@ export function RevenuePage() {
   return (
     <div className="flex flex-col gap-8">
       {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
+      <p className="depot-prose max-w-3xl">
+        {modelledDaySentence({
+          scheduled: detail?.outshed.coverage ?? null,
+          duties: data.day.duties,
+          routes: data.day.routes,
+        })}
+      </p>
       <RevenueSummary totals={data.summary} operatingDate={data.operatingDate} />
       <RevenueHero routes={data.routes} />
       <RevenueRoutesTable routes={data.routes} />

@@ -12,6 +12,14 @@ import {
   UNKNOWN_DURATION_FACTOR,
 } from './tripFrequencyConfig';
 
+/*
+ * Which question this answers: how often the buses seen on a route NOW would
+ * turn round in a day. It is anchored on the live fleet and feeds the route
+ * allocation only. It is not the day's trips: what a depot ran and earned on an
+ * operating date comes from the modelled operating day (operatingDay.ts), where
+ * a trip is a duty that a bus ran.
+ */
+
 /**
  * Which live figures a modelled trip count rests on. `bus_count_over_cap`
  * refuses a route with more buses than the model accepts: it is not modelled

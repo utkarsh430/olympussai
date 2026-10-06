@@ -1,4 +1,5 @@
 import { formatCount } from '../format';
+import { modelledDaySentence, type ModelledDayReference } from '../sim/operatingDayWording';
 import type { AvailabilityCounts } from './api';
 import type { CrewAvailability, CrewRole, RoleShortfall, ShortfallCause } from './types';
 
@@ -189,4 +190,9 @@ export function pageOf<T>(rows: readonly T[], page: number, size: number): Page<
   const pageCount = Math.max(1, Math.ceil(rows.length / size));
   const clamped = Math.min(Math.max(0, page), pageCount - 1);
   return { page: clamped, pageCount, rows: rows.slice(clamped * size, (clamped + 1) * size) };
+}
+
+/** The shared cross-reference to the modelled day; the words are built in one place for every page. */
+export function crossReferenceSentence(reference: ModelledDayReference): string {
+  return modelledDaySentence(reference);
 }

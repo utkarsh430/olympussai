@@ -105,9 +105,12 @@ describe('buildFuelResponse', () => {
   it('asks the repository for this depot buses on the feed operating date', async () => {
     const { repo, fuelDay } = stub(baseDays);
     await buildFuelResponse(view(world()), '1', repo);
-    const [buses, date] = fuelDay.mock.calls[0] as unknown as [{ registrationNumber: string }[], string];
-    expect(date).toBe('2026-10-06');
-    expect(buses.map((b) => b.registrationNumber).sort()).toEqual(['A1', 'A2', 'A3', 'A4']);
+    // S41: the repository is asked with the depot's modelled operating day, not a bus list.
+    const [asked] = fuelDay.mock.calls[0] as unknown as [
+      { operatingDate: string; depotId: string; fleet: number },
+    ];
+    expect(asked.operatingDate).toBe('2026-10-06');
+    expect([asked.depotId, asked.fleet]).toEqual(['1', 4]);
   });
 
   it('reconciles its totals, classes and routes with the analysis', async () => {
@@ -239,7 +242,9 @@ describe('buildFuelResponse', () => {
     const next = await buildFuelResponse(view(rows, { feedNow: '2026-10-07T08:00:00Z' }), '1', repo);
     expect(next?.operatingDate).toBe('2026-10-07');
     expect(fuelDay).toHaveBeenCalledTimes(2);
-    expect((fuelDay.mock.calls[1] as unknown as [unknown, string])[1]).toBe('2026-10-07');
+    expect(
+      (fuelDay.mock.calls[1] as unknown as [{ operatingDate: string }])[0].operatingDate,
+    ).toBe('2026-10-07');
   });
 
   it('keys the held body on the repository as well', async () => {

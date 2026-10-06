@@ -139,7 +139,7 @@ describe('buildEconomicsResponse', () => {
     const noLength = byId(response, NO_LENGTH_DEPOT).score;
     expect(noLength).toMatchObject({ ranked: false, reason: 'missing_component' });
     expect(noLength.missing).toContain('earningsPerKm');
-    expect(byId(response, NO_LENGTH_DEPOT).earningsCoverage).toEqual({ n: 0, of: 2 });
+    expect(byId(response, NO_LENGTH_DEPOT).lengthCoverage).toEqual({ n: 0, of: 2 });
     expect(byId(response, SMALL_DEPOT).score).toMatchObject({
       ranked: false,
       reason: 'fleet_too_small',

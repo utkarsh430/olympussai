@@ -44,7 +44,7 @@ export function EconomicsBreakdown({
       </h2>
       <p className="depot-prose mt-1">{explainEconomics(row)}</p>
       <p className="mt-1 text-[11px] text-depot-muted">
-        {`Earnings per km: ${coverageSentence(row.earningsCoverage).toLowerCase()}.`}
+        {`Earnings per km: ${coverageSentence(row.lengthCoverage).toLowerCase()}.`}
       </p>
       <div className="depot-table-frame mt-3">
         <table className="depot-table">

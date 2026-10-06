@@ -57,7 +57,7 @@ function entry(
     name: `Depot ${id}`,
     kind: 'depot',
     fleet: 40,
-    earningsCoverage: { n: 2, of: 2 },
+    lengthCoverage: { n: 2, of: 2 },
     score,
     ...row,
   };
@@ -85,7 +85,7 @@ const UNRANKED_THIN = entry('6', {
   economicsIndex: null,
   rank: null,
   peerCount: null,
-}, { earningsCoverage: { n: 1, of: 9 } });
+}, { lengthCoverage: { n: 1, of: 9 } });
 const UNRANKED_GROUP = entry('5', {
   ranked: false,
   reason: 'peer_group_too_small',

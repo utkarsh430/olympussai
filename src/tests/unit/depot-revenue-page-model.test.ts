@@ -44,7 +44,7 @@ const TOTALS: DepotRevenueTotals = {
   flatFareRevenueShare: 0.25,
   flatFareRouteShare: 0.5,
   earningsPerKm: 12.345,
-  earningsCoverage: { n: 1, of: 2 },
+  lengthCoverage: { n: 1, of: 2 },
   provenance: 'modelled',
 };
 
@@ -98,7 +98,7 @@ describe('summaryTiles', () => {
     expect(none.find((t) => t.key === 'revenue')?.note).toBeNull();
   });
   it('shows a withheld earnings tile as length not known, with its coverage', () => {
-    const tile = summaryTiles({ ...TOTALS, earningsPerKm: null, earningsCoverage: { n: 0, of: 2 } }).find(
+    const tile = summaryTiles({ ...TOTALS, earningsPerKm: null, lengthCoverage: { n: 0, of: 2 } }).find(
       (t) => t.key === 'earningsPerKm',
     );
     expect(tile?.value).toBe('length not known');
