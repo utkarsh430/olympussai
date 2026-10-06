@@ -35,6 +35,21 @@ describe('the attention strip', () => {
     expect(filler?.getAttribute('aria-hidden')).not.toBeNull();
   });
 
+  it('sets five lines on one row from 1280px, each a stacked cell that wraps, the filler gone', () => {
+    const strip = render(FIVE);
+    expect(strip.querySelector('ul')?.className).toContain('xl:grid-cols-5');
+    expect(strip.querySelector('[data-testid="depot-attention-filler"]')?.className).toContain('xl:hidden');
+    const link = strip.querySelector('[data-testid="depot-attention-dark"]');
+    expect(link?.className).toContain('xl:flex-col');
+    expect(link?.querySelector('[title]')?.className).toContain('xl:whitespace-normal');
+  });
+
+  it('keeps six lines in two columns of three, never a row of five with an orphan', () => {
+    const six = [...FIVE, line('late', 3, 'departures are overdue')];
+    expect(render(six).querySelector('ul')?.className).not.toContain('xl:grid-cols-5');
+    expect(render(FIVE.slice(0, 4)).querySelector('ul')?.className).not.toContain('xl:grid-cols-5');
+  });
+
   it('has no filler when the strip is even', () => {
     expect(
       render(FIVE.slice(0, 4)).querySelector('[data-testid="depot-attention-filler"]'),
