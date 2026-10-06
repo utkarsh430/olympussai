@@ -13,6 +13,7 @@ import {
   decisionsFor,
   rowDecisionsFor,
 } from '@/lib/depot/rebalance/decisionReducers';
+import { undoAnnouncement } from '@/lib/depot/rebalance/decisionWording';
 
 const DATE = '2026-10-06';
 
@@ -177,5 +178,15 @@ describe('validateNote', () => {
     expect(validateNote('x'.repeat(NOTE_MAX_CHARS))).toMatchObject({ ok: true });
     const long = validateNote('x'.repeat(NOTE_MAX_CHARS + 1));
     expect(long.ok).toBe(false);
+  });
+});
+
+describe('undoAnnouncement', () => {
+  it('names the decision that was withdrawn', () => {
+    expect(undoAnnouncement('approved', 5, 'Agra', 'Kanpur')).toBe(
+      'Undid the approval of 5 buses Agra to Kanpur. Recorded only; nothing dispatched.',
+    );
+    expect(undoAnnouncement('rejected', 1, 'Agra', 'Kanpur')).toContain('the rejection of 1 bus ');
+    expect(undoAnnouncement('deferred', 2, 'A', 'B')).toContain('the deferral of 2 buses');
   });
 });

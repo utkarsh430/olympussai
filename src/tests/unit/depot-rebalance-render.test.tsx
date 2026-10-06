@@ -121,6 +121,30 @@ describe('fleet distribution page', () => {
   });
 });
 
+describe('undo announcement', () => {
+  it('announces an undo in the same status line', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await act(async () => button('Approve').click());
+    await act(async () => button('Undo').click());
+    const status = container.querySelector('[data-testid="rebalance-notice"] [role="status"]');
+    expect(status?.textContent).toBe(
+      'Undid the approval of 5 buses Agra to Kanpur. Recorded only; nothing dispatched.',
+    );
+  });
+
+  it('says so when the write of an undo is refused', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await act(async () => button('Approve').click());
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota');
+    });
+    await act(async () => button('Undo').click());
+    spy.mockRestore();
+    const status = container.querySelector('[data-testid="rebalance-notice"] [role="status"]');
+    expect(status?.textContent).toContain('The undo could not be recorded');
+  });
+});
+
 describe('transfer rationale row', () => {
   it('opens a full-width detail row that shows its own error when the request fails', async () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('offline')) as typeof fetch;
