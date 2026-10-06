@@ -1,7 +1,7 @@
 import { fetchUpstream, UPSRTC_LIVE_URL, REQUEST_TIMEOUT_MS } from '@/lib/upsrtc/client';
 import type { UpstreamFetchResult } from '@/lib/upsrtc/client';
 import { normalizeLivePayload } from '@/lib/upsrtc/normalizer';
-import { deriveFeedNow, normalizeDepotRows } from '@/lib/upsrtc/depotNormalizer';
+import { deriveFeedClock, normalizeDepotRows } from '@/lib/upsrtc/depotNormalizer';
 import { TtlCache } from '@/lib/upsrtc/cache';
 import { loadFleetFixture, resetFleetFixtureForTests } from '@/lib/upsrtc/fleetFixture';
 import liveFixture from '@/fixtures/upsrtc-live-sample.json';
@@ -79,19 +79,24 @@ let generation = 0;
 interface DepotProjection {
   readonly rows: readonly DepotBusRow[];
   readonly feedNow: string | null;
+  readonly feedClockAheadRows: number;
 }
 
-/** The depot projection depends on the payload alone, never on the clock. */
-function projectDepot(payload: unknown): DepotProjection {
+/**
+ * The depot projection depends on the payload and the fetch time only: the
+ * fetch bounds how far ahead a receive time may set the feed clock (S56a).
+ */
+function projectDepot(payload: unknown, fetchedAtMs: number): DepotProjection {
   const rows = normalizeDepotRows(payload).rows;
-  return { rows, feedNow: deriveFeedNow(rows) };
+  const clock = deriveFeedClock(rows, fetchedAtMs);
+  return { rows, feedNow: clock.feedNow, feedClockAheadRows: clock.aheadRows };
 }
 
 /** Both projections from one payload, so they can never describe different fetches. */
 function buildSnapshot(
   payload: unknown,
   now: number,
-  depot: DepotProjection = projectDepot(payload),
+  depot: DepotProjection = projectDepot(payload, now),
 ): LiveSnapshot {
   const live = normalizeLivePayload(payload, now);
   return {
@@ -101,6 +106,7 @@ function buildSnapshot(
     rejectedRecordCount: live.rejectedRecordCount,
     fetchedAt: new Date(now).toISOString(),
     feedNow: depot.feedNow,
+    feedClockAheadRows: depot.feedClockAheadRows,
   };
 }
 
@@ -124,7 +130,8 @@ let fixture: FixtureProjection | null = null;
 function fixtureResult(now: number): LiveSnapshotResult {
   if (!fixture) {
     const payload: unknown = loadFleetFixture() ?? liveFixture;
-    fixture = { payload, depot: projectDepot(payload) };
+    // Recorded rows are all older than any fetch, so the first fetch time serves for good.
+    fixture = { payload, depot: projectDepot(payload, now) };
   }
   return {
     snapshot: buildSnapshot(fixture.payload, now, fixture.depot),
