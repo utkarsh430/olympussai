@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { changeFrom, inForceText } from '@/lib/depot/rebalance/fieldsInForce';
 import {
   PREVIOUS_VALUE_NOTE,
   createCommitScheduler,
@@ -12,9 +13,15 @@ import type { ParseResult } from '@/lib/depot/rebalance/scenarioParsers';
 export interface NumberFieldProps {
   readonly id: string;
   readonly label: string;
-  readonly placeholder: string;
+  /** The value in force (the server plan's, or the what-if's): the field starts with it. */
+  readonly inForce: number;
+  /** Shown after the field ("%", "km", "buses"). */
+  readonly unit: string;
   readonly parse: (raw: string) => ParseResult;
-  /** Called with the value, or null for blank, after a pause or on blur or Enter. */
+  /**
+   * Called after a pause or on blur or Enter with the new value, or null when the field is
+   * blank or holds the value in force (no change).
+   */
   readonly onCommit: (value: number | null) => void;
   readonly className?: string;
 }
@@ -27,20 +34,25 @@ export interface NumberFieldProps {
 export function NumberField({
   id,
   label,
-  placeholder,
+  inForce,
+  unit,
   parse,
   onCommit,
   className,
 }: NumberFieldProps) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState(() => inForceText(inForce));
   const commitRef = useRef(onCommit);
+  const inForceRef = useRef(inForce);
   const schedulerRef = useRef<CommitScheduler<number | null> | null>(null);
 
   useEffect(() => {
     commitRef.current = onCommit;
+    inForceRef.current = inForce;
   });
   useEffect(() => {
-    const scheduler = createCommitScheduler<number | null>((v) => commitRef.current(v));
+    const scheduler = createCommitScheduler<number | null>((v) =>
+      commitRef.current(changeFrom(v, inForceRef.current)),
+    );
     schedulerRef.current = scheduler;
     return () => scheduler.cancel();
   }, []);
@@ -60,23 +72,25 @@ export function NumberField({
       <label htmlFor={id} className="depot-label">
         {label}
       </label>
-      <input
-        id={id}
-        type="text"
-        inputMode="decimal"
-        placeholder={placeholder}
-        value={text}
-        aria-invalid={evaluation.kind === 'invalid'}
-        aria-describedby={evaluation.kind === 'invalid' ? errorId : undefined}
-        onChange={(e) => change(e.target.value)}
-        onBlur={() => schedulerRef.current?.flush()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') schedulerRef.current?.flush();
-        }}
-        className="depot-field w-32 scroll-mt-[var(--depot-scroll-mt)] placeholder:text-depot-muted"
-      />
+      <span className="flex min-w-0 items-baseline gap-2">
+        <input
+          id={id}
+          type="text"
+          inputMode="decimal"
+          value={text}
+          aria-invalid={evaluation.kind === 'invalid'}
+          aria-describedby={evaluation.kind === 'invalid' ? errorId : undefined}
+          onChange={(e) => change(e.target.value)}
+          onBlur={() => schedulerRef.current?.flush()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') schedulerRef.current?.flush();
+          }}
+          className="depot-field w-24 scroll-mt-[var(--depot-scroll-mt)] tabular-nums"
+        />
+        <span className="font-mono text-[13px] text-depot-muted">{unit}</span>
+      </span>
       {evaluation.kind === 'invalid' ? (
-        <p id={errorId} className="text-[11px] text-alert-amber">
+        <p id={errorId} className="depot-note text-alert-amber">
           {evaluation.error} {PREVIOUS_VALUE_NOTE}.
         </p>
       ) : null}

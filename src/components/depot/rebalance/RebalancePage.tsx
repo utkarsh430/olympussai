@@ -11,6 +11,7 @@ import { isRepeatDecision } from '@/lib/depot/rebalance/decisionReducers';
 import { trailCapacityNote } from '@/lib/depot/rebalance/decisionStore';
 import { decisionAnnouncement, undoAnnouncement } from '@/lib/depot/rebalance/decisionWording';
 import { busesWord, type TransferDecisionKind } from '@/lib/depot/rebalance/rebalanceModel';
+import { serverInForce } from '@/lib/depot/rebalance/fieldsInForce';
 import { BASELINE_FORM } from '@/lib/depot/rebalance/scenarioForm';
 import type { TransferRow } from '@/lib/depot/rebalance/transferModel';
 import { BalanceSummary } from './BalanceSummary';
@@ -132,7 +133,11 @@ export function Distribution({
               onSelect={setSelectedId}
               onDecide={decide}
             />
-            <p role="status" data-testid="rebalance-status" className="mt-2 min-h-5 text-[13px] text-depot-ink">
+            <p
+              role="status"
+              data-testid="rebalance-status"
+              className="depot-prose mt-2 min-h-5 text-[13px]"
+            >
               {announcement}
             </p>
           </div>
@@ -167,7 +172,7 @@ export function Distribution({
             key={resetCount}
             form={form}
             onChange={(update) => setForm((current) => update(current))}
-            onReset={reset}
+            inForce={serverInForce(data)}
             depots={view.depots}
             clampNotes={view.clampNotes}
           />

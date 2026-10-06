@@ -25,35 +25,36 @@ export interface WhatIfStripProps {
   readonly onReset: () => void;
 }
 
+export const WHAT_IF_WORD = 'What-if';
+export const WHAT_IF_LEAD = 'Showing a what-if, not the server plan:';
+export const RESET_LABEL = 'Reset to the server plan';
+
 /**
- * While a what-if shows: one compact line that sticks directly below the shell's sticky
- * layers (`--depot-sticky-top`, so never over the navigation), saying so, with the reset.
- * Its height is the shell's intro height, so it covers no more than one line of what
- * scrolls beneath it. The full what-if sentence runs in the flow under it.
+ * While a what-if shows: the page says so in this ONE compact line, with the page's one
+ * reset. It sticks directly below the shell's sticky layers (`--depot-sticky-top`: below
+ * the top bar and, under 900px, the navigation strip, whose z-index is higher), so it never
+ * covers the navigation; its height is the shell's intro height, one line. A long what-if
+ * truncates, its full text in `title`.
  */
 export function WhatIfStrip({ sentence, onReset }: WhatIfStripProps) {
   if (!sentence) return null;
+  const full = `${WHAT_IF_LEAD} ${sentence}`;
   return (
-    <>
-      <div
-        data-testid="rebalance-whatif-strip"
-        className="sticky top-[var(--depot-sticky-top)] z-20 mb-2 flex h-[var(--depot-intro-h)] min-w-0 items-center gap-x-4 border-y border-alert-amber/50 bg-depot-page"
+    <div
+      data-testid="rebalance-whatif-strip"
+      className="sticky top-[var(--depot-sticky-top)] z-20 mb-4 flex h-[var(--depot-intro-h)] min-w-0 items-center gap-x-3 border-y border-alert-amber/50 bg-depot-page"
+    >
+      <span className="depot-label shrink-0 !text-alert-amber">{WHAT_IF_WORD}</span>
+      <p
+        data-testid="rebalance-whatif-sentence"
+        className="depot-note min-w-0 flex-1 truncate !text-depot-ink"
+        title={full}
       >
-        <p className="min-w-0 truncate font-mono text-[11px] uppercase tracking-[0.12em] text-alert-amber">
-          What-if showing, not the server plan
-        </p>
-        <button
-          type="button"
-          className="depot-link ml-auto shrink-0 text-[11px]"
-          aria-label="Reset to the server plan: stop showing the what-if"
-          onClick={onReset}
-        >
-          Reset to the server plan
-        </button>
-      </div>
-      <p data-testid="rebalance-whatif-sentence" className="depot-prose mb-4 text-[13px] text-depot-ink">
-        What-if showing, not the server plan: {sentence}
+        {full}
       </p>
-    </>
+      <button type="button" className="depot-link shrink-0 text-[13px]" onClick={onReset}>
+        {RESET_LABEL}
+      </button>
+    </div>
   );
 }

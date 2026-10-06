@@ -1,6 +1,6 @@
 'use client';
 
-import { DEFAULT_REBALANCE_PARAMS, DEFAULT_SPARE_RATIO } from '@/lib/depot/optimise/config';
+import type { PlanInForce } from '@/lib/depot/rebalance/fieldsInForce';
 import { FIELD_LABELS } from '@/lib/depot/rebalance/scenarioFields';
 import {
   parseBusDelta,
@@ -30,24 +30,24 @@ export interface ScenarioPanelProps {
   readonly form: ScenarioFormState;
   /** Receives a function so a late commit always builds on the latest form. */
   readonly onChange: (update: Update) => void;
-  readonly onReset: () => void;
+  /** The server plan's own parameters: the number fields start with them. */
+  readonly inForce: PlanInForce;
   readonly depots: readonly DepotOption[];
   /** The optimiser's clamp notes, already in the planner's units and depot names. */
   readonly clampNotes: readonly string[];
 }
-
-const PERCENT = 100;
 
 function signed(n: number): string {
   return n > 0 ? `+${n}` : `−${Math.abs(n)}`;
 }
 
 /**
- * The what-if form. A committed change re-plans in this browser; nothing is
- * sent. Values pass on as typed: the optimiser clamps, and says so below.
+ * The what-if form. Every field shows the value in force, with its unit; a committed
+ * change re-plans in this browser and nothing is sent. Values pass on as typed: the
+ * optimiser clamps, and says so below. The page's one reset is in the what-if line.
  */
 export function ScenarioPanel(props: ScenarioPanelProps) {
-  const { form, onChange, onReset, depots, clampNotes } = props;
+  const { form, onChange, inForce, depots, clampNotes } = props;
   const nameOf = (id: string): string => depots.find((d) => d.id === id)?.name ?? id;
   const list = (
     items: readonly { key: string; text: string }[],
@@ -55,23 +55,24 @@ export function ScenarioPanel(props: ScenarioPanelProps) {
   ) => <ActiveList items={items} onRemove={(id) => onChange(remove(id))} />;
   return (
     <div data-testid="rebalance-sandbox">
-      <p className="depot-prose mb-3 text-xs">
-        Change an assumption and the plan is recomputed here in your browser once you pause, leave
-        the field or press Enter. Nothing is sent and nothing is dispatched.
+      <p className="depot-note mb-3">
+        The plan is recomputed once you pause, leave a field or press Enter.
       </p>
       <form className="depot-panel flex flex-col gap-4 p-4" onSubmit={(e) => e.preventDefault()}>
         <div className="flex flex-wrap gap-4">
           <NumberField
             id="scenario-spare"
             label={FIELD_LABELS.spare}
-            placeholder={`${DEFAULT_SPARE_RATIO * PERCENT} (default)`}
+            inForce={inForce.sparePercent}
+            unit="%"
             parse={parseSparePercent}
             onCommit={(v) => onChange((f) => withSparePercent(f, v))}
           />
           <NumberField
             id="scenario-distance"
             label={FIELD_LABELS.distance}
-            placeholder={`${DEFAULT_REBALANCE_PARAMS.maxTransferKm} (default)`}
+            inForce={inForce.maxTransferKm}
+            unit="km"
             parse={parseDistanceKm}
             onCommit={(v) => onChange((f) => withMaxTransferKm(f, v))}
           />
@@ -102,9 +103,13 @@ export function ScenarioPanel(props: ScenarioPanelProps) {
           depots={depots}
           value={{
             label: FIELD_LABELS.fleet,
-            placeholder: '+12 or -5',
+            unit: 'buses',
+            inForce: (id) => form.fleetAdjustments.find((a) => a.depotId === id)?.deltaBuses ?? 0,
             parse: parseBusDelta,
-            onCommit: (id, v) => onChange((f) => withFleetAdjustment(f, id, v)),
+            onCommit: (id, v) =>
+              onChange((f) =>
+                v === 0 ? withoutFleetAdjustment(f, id) : withFleetAdjustment(f, id, v),
+              ),
           }}
         />
         {list(
@@ -120,9 +125,11 @@ export function ScenarioPanel(props: ScenarioPanelProps) {
           depots={depots}
           value={{
             label: FIELD_LABELS.surge,
-            placeholder: '+15 or -10',
+            unit: '%',
+            inForce: (id) => form.demandSurges.find((s) => s.depotId === id)?.percent ?? 0,
             parse: parseSurgePercent,
-            onCommit: (id, v) => onChange((f) => withSurge(f, id, v)),
+            onCommit: (id, v) =>
+              onChange((f) => (v === 0 ? withoutSurge(f, id) : withSurge(f, id, v))),
           }}
         />
         {list(
@@ -135,7 +142,7 @@ export function ScenarioPanel(props: ScenarioPanelProps) {
         <div role="status" aria-live="polite">
           {clampNotes.length ? (
             <div className="border-l-2 border-alert-amber pl-3">
-              <p className="depot-label text-alert-amber">Inputs the optimiser adjusted</p>
+              <div className="depot-label text-alert-amber">Inputs the optimiser adjusted</div>
               <ul className="mt-1 list-none text-[13px] text-depot-ink">
                 {clampNotes.map((note) => (
                   <li key={note}>{note}</li>
@@ -143,11 +150,6 @@ export function ScenarioPanel(props: ScenarioPanelProps) {
               </ul>
             </div>
           ) : null}
-        </div>
-        <div>
-          <button type="button" className="hud-button" onClick={onReset}>
-            Reset to the server plan
-          </button>
         </div>
       </form>
     </div>

@@ -126,6 +126,7 @@ describe('fleet distribution page', () => {
 
   it('moves focus to the sandbox heading after a reset and says so', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
+    await typeInto('scenario-spare', '15');
     await act(async () => button('Reset to the server plan').click());
     expect(document.activeElement?.id).toBe('rebalance-sandbox-heading');
     expect(container.textContent).toContain(RESET_ANNOUNCEMENT);
@@ -283,35 +284,45 @@ async function typeInto(id: string, text: string): Promise<void> {
 }
 
 describe('reset to the server plan', () => {
-  it('offers one reset while no what-if shows, in the sandbox', async () => {
+  it('offers no reset while the server plan shows', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
-    expect(resetButtons()).toHaveLength(1);
-    expect(container.querySelector('[data-testid="rebalance-whatif-strip"] button')).toBeNull();
+    expect(resetButtons()).toHaveLength(0);
+    expect(container.querySelector('[data-testid="rebalance-whatif-strip"]')).toBeNull();
   });
 
-  it('adds one in the what-if strip while a what-if shows, with a distinct accessible name', async () => {
+  it('says a what-if shows in one line, with the one reset, worded "Reset to the server plan"', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
     await typeInto('scenario-spare', '15');
-    const inStrip = container.querySelectorAll('[data-testid="rebalance-whatif-strip"] button');
-    expect(inStrip).toHaveLength(1);
-    const names = resetButtons().map(accessibleName);
-    expect(names).toHaveLength(2);
-    expect(new Set(names).size).toBe(2);
+    const strip = container.querySelector('[data-testid="rebalance-whatif-strip"]');
+    expect(strip?.querySelectorAll('button')).toHaveLength(1);
+    expect(resetButtons().map(accessibleName)).toEqual(['Reset to the server plan']);
+    const sentences = container.querySelectorAll('[data-testid="rebalance-whatif-sentence"]');
+    expect(sentences).toHaveLength(1);
+    expect(strip?.contains(sentences[0] ?? null)).toBe(true);
+    expect(sentences[0]?.textContent).toMatch(/^Showing a what-if, not the server plan: /);
+    expect(sentences[0]?.getAttribute('title')).toBe(sentences[0]?.textContent);
   });
 
-  it('shows each field empty with its default as the placeholder, and no strip reset', async () => {
+  it('shows every field with the value in force and its unit, before and after a reset', async () => {
     await render(<Distribution data={response()} state={{ error: null }} />);
+    const field = (id: string) => container.querySelector<HTMLInputElement>(`#${id}`);
+    const unitOf = (id: string) => field(id)?.nextElementSibling?.textContent;
+    expect(field('scenario-spare')?.value).toBe('8');
+    expect(unitOf('scenario-spare')).toBe('%');
+    expect(field('scenario-distance')?.value).toBe('250');
+    expect(unitOf('scenario-distance')).toBe('km');
     await typeInto('scenario-spare', '15');
-    const inStrip = container.querySelector('[data-testid="rebalance-whatif-strip"] button');
-    await act(async () => (inStrip as HTMLButtonElement).click());
-    const spare = container.querySelector<HTMLInputElement>('#scenario-spare');
-    const distance = container.querySelector<HTMLInputElement>('#scenario-distance');
-    expect(spare?.value).toBe('');
-    expect(spare?.placeholder).toBe('8 (default)');
-    expect(distance?.placeholder).toBe('250 (default)');
-    expect(container.querySelector('[data-testid="rebalance-whatif-strip"] button')).toBeNull();
-    expect(container.querySelector('[data-testid="rebalance-whatif-sentence"]')).toBeNull();
-    expect(resetButtons()).toHaveLength(1);
+    await act(async () => button('Reset to the server plan').click());
+    expect(field('scenario-spare')?.value).toBe('8');
+    expect(field('scenario-distance')?.value).toBe('250');
+    expect(container.querySelector('[data-testid="rebalance-whatif-strip"]')).toBeNull();
+    expect(resetButtons()).toHaveLength(0);
+  });
+
+  it('shows no what-if when a field is put back to the value in force', async () => {
+    await render(<Distribution data={response()} state={{ error: null }} />);
+    await typeInto('scenario-distance', '250');
+    expect(container.querySelector('[data-testid="rebalance-whatif-strip"]')).toBeNull();
   });
 });
 
