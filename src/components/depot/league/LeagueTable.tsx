@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDepotNetworkContext } from '@/components/depot/data/DepotNetworkProvider';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
 import {
@@ -142,6 +142,8 @@ export function LeagueTable() {
   const { data, error, loading, refresh } = useDepotNetworkContext();
   const [filters, setFilters] = useState<Filters>(DEFAULT_LEAGUE_FILTERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusPending, setFocusPending] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   const allRows = useMemo(
     () => (data ? buildLeagueRows(data.depots, data.scores) : []),
@@ -152,11 +154,27 @@ export function LeagueTable() {
     () => PEER_GROUP_DISPLAY_ORDER.filter((g) => allRows.some((r) => r.peerGroup === g)),
     [allRows],
   );
-  const columns = useMemo(
-    () => buildColumns((row) => setSelectedId(row.depotId), selectedId),
-    [selectedId],
-  );
-  const selected = allRows.find((row) => row.depotId === selectedId) ?? null;
+  const select = useCallback((row: LeagueRow): void => {
+    setSelectedId(row.depotId);
+    setFocusPending(true);
+  }, []);
+  const columns = useMemo(() => buildColumns(select, selectedId), [select, selectedId]);
+  // Only a depot the current filters still show keeps its breakdown open.
+  const selected = rows.find((row) => row.depotId === selectedId) ?? null;
+
+  useEffect(() => {
+    if (selectedId !== null && selected === null) setSelectedId(null);
+  }, [selectedId, selected]);
+
+  // A selection mounts the breakdown below a tall table: bring it into view and
+  // move focus there, so keyboard and screen-reader users land on it.
+  useEffect(() => {
+    if (!focusPending || selected === null || headingRef.current === null) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    headingRef.current.focus({ preventScroll: true });
+    headingRef.current.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+    setFocusPending(false);
+  }, [focusPending, selected]);
 
   if (loading) return <LoadingBlock rows={10} label="Loading the league table" />;
   if (!data) {
@@ -172,18 +190,20 @@ export function LeagueTable() {
       <LeagueFilters filters={filters} peerGroups={peerGroups} onChange={setFilters} />
       <p className="depot-prose mb-2 text-xs" role="status">
         {`Showing ${formatCount(rows.length)} of ${formatCount(allRows.length)} depots. `}
-        Select a depot to see how its score is made up.
+        {selected
+          ? `Score breakdown showing for ${selected.name}.`
+          : 'Select a depot to see how its score is made up.'}
       </p>
       <DataTable
         columns={columns}
         rows={rows}
         rowKey={(row) => row.depotId}
         caption="Depot league table"
-        onRowSelect={(row) => setSelectedId(row.depotId)}
+        onRowSelect={select}
         selectedKey={selectedId ?? undefined}
         emptyMessage="No depots match these filters. Try a different peer group or turn on Show unranked."
       />
-      {selected ? <ScoreBreakdown row={selected} /> : null}
+      {selected ? <ScoreBreakdown row={selected} headingRef={headingRef} /> : null}
     </>
   );
 }
