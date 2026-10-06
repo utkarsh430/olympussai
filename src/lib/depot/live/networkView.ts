@@ -17,6 +17,7 @@ const networkBody = memoiseBody((view, analysis): NetworkBody => ({
   exceptionCounts: analysis.report.counts,
   exceptionSeverityCounts: analysis.exceptionSeverityCounts,
   exceptionBasis: EXCEPTION_BASIS,
+  yardSnapshotsSeen: analysis.yardSnapshotsSeen,
 }));
 
 /**

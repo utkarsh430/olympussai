@@ -16,6 +16,7 @@ import {
   applyYardContinuity,
   defaultYardMemoryStore,
   resetYardMemoryStore,
+  yardSnapshotsSeen,
   type YardMemoryStore,
 } from '../infer/yardMemory';
 import { locateBus } from '../infer/location';
@@ -67,6 +68,11 @@ export interface SnapshotAnalysis {
   readonly scoreWindow: ScoreWindow;
   /** After yard continuity: the one set of yards every location and page uses. */
   readonly yards: ReadonlyMap<string, Yard>;
+  /**
+   * Per depot id with a home depot: feed times the yard memory has decided
+   * the depot on, as it stood after this snapshot (N10). 0 for the fixture.
+   */
+  readonly yardSnapshotsSeen: Readonly<Record<string, number>>;
   readonly rowsByDepot: ReadonlyMap<string, readonly DepotBusRow[]>;
   readonly locations: ReadonlyMap<string, LocatedBus>;
   /** The one function a bus's location comes from, for every view. */
@@ -142,6 +148,14 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
   const yards = applyYardContinuity(stores.yardMemory, rows, inferYards(rows), feedNow, {
     fixture,
   });
+  // Copied now: the store moves on, the memoised analysis must not.
+  const seen = Object.freeze(
+    Object.fromEntries(
+      [...new Set(rows.flatMap((r) => (r.depotId === null ? [] : [r.depotId])))]
+        .sort()
+        .map((id) => [id, fixture ? 0 : yardSnapshotsSeen(stores.yardMemory, id)]),
+    ),
+  );
   const locations = new Map(rows.map((r) => [r.registrationNumber, locateBus(r, yards)]));
   const locate = (r: DepotBusRow): LocatedBus =>
     locations.get(r.registrationNumber) ?? locateBus(r, yards);
@@ -159,6 +173,7 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
     scoresById: new Map(scores.map((s) => [s.depotId, s])),
     scoreWindow: windowed.window,
     yards,
+    yardSnapshotsSeen: seen,
     rowsByDepot: groupBy(rows, (r) => homeOf(r.depotId)),
     locations,
     locate,

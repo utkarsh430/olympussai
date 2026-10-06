@@ -37,10 +37,24 @@ export interface YardMemoryStore {
   readonly byDepot: Map<string, RememberedYard>;
   /** Depots decided at `lastFeedMs`, so a repeat can tell "no yard" from "never seen". */
   decidedAtLast: ReadonlySet<string>;
+  /** Per depot: the feed times its yard was decided on and written (N10). */
+  readonly seenByDepot: Map<string, DepotSeen>;
+}
+
+export interface DepotSeen {
+  readonly count: number;
+  /** Feed time, in ms, of the latest of them. */
+  readonly seenMs: number;
 }
 
 export function createYardMemoryStore(): YardMemoryStore {
-  return { lastFeedMs: null, behindRun: 0, byDepot: new Map(), decidedAtLast: new Set() };
+  return {
+    lastFeedMs: null,
+    behindRun: 0,
+    byDepot: new Map(),
+    decidedAtLast: new Set(),
+    seenByDepot: new Map(),
+  };
 }
 
 const GLOBAL_KEY = '__depotYardMemoryStore';
@@ -59,6 +73,7 @@ export function resetYardMemoryStore(store: YardMemoryStore = defaultYardMemoryS
   store.behindRun = 0;
   store.byDepot.clear();
   store.decidedAtLast = new Set();
+  store.seenByDepot.clear();
 }
 
 function rowsByDepot(rows: readonly DepotBusRow[]): Map<string, DepotBusRow[]> {
@@ -72,16 +87,22 @@ function rowsByDepot(rows: readonly DepotBusRow[]): Map<string, DepotBusRow[]> {
   return groups;
 }
 
-function prune(store: YardMemoryStore, feedMs: number): void {
-  for (const [id, entry] of [...store.byDepot]) {
-    if (feedMs - entry.seenMs > YARD_HOLD_MAX_MS) store.byDepot.delete(id);
+/** Drops entries not seen for the hold cap, then the least recently seen past the depot cap. */
+function pruneEntries(map: Map<string, { readonly seenMs: number }>, feedMs: number): void {
+  for (const [id, entry] of [...map]) {
+    if (feedMs - entry.seenMs > YARD_HOLD_MAX_MS) map.delete(id);
   }
-  const excess = store.byDepot.size - YARD_MEMORY_MAX_DEPOTS;
+  const excess = map.size - YARD_MEMORY_MAX_DEPOTS;
   if (excess <= 0) return;
-  const oldestFirst = [...store.byDepot].sort(
+  const oldestFirst = [...map].sort(
     ([idA, a], [idB, b]) => a.seenMs - b.seenMs || (idA < idB ? -1 : idA > idB ? 1 : 0),
   );
-  for (const [id] of oldestFirst.slice(0, excess)) store.byDepot.delete(id);
+  for (const [id] of oldestFirst.slice(0, excess)) map.delete(id);
+}
+
+function prune(store: YardMemoryStore, feedMs: number): void {
+  pruneEntries(store.byDepot, feedMs);
+  pruneEntries(store.seenByDepot, feedMs);
 }
 
 export interface YardContinuityOptions {
@@ -125,6 +146,8 @@ export function applyYardContinuity(
     );
     if (decision.yard) yards.set(id, decision.yard);
     if (!writes) continue;
+    const count = (store.seenByDepot.get(id)?.count ?? 0) + 1;
+    store.seenByDepot.set(id, { count, seenMs: feedMs });
     if (decision.remembered) store.byDepot.set(id, decision.remembered);
     else store.byDepot.delete(id);
   }
@@ -136,7 +159,12 @@ export function applyYardContinuity(
   return yards;
 }
 
-/** Stub until N10 lands. */
+/**
+ * The feed times this store has decided `depotId`'s yard on (N10): since the
+ * process started, the memory's last epoch, or the depot's last absence longer
+ * than the hold cap. A yard can be held only from the second, so at 0 or 1 a
+ * missing yard may mean a fresh start rather than refusing evidence.
+ */
 export function yardSnapshotsSeen(store: YardMemoryStore, depotId: string): number {
-  return store.byDepot.has(depotId) ? 0 : 0;
+  return store.seenByDepot.get(depotId)?.count ?? 0;
 }
