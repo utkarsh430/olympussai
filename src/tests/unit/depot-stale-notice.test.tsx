@@ -33,14 +33,16 @@ afterEach(() => {
 });
 
 describe('StaleStrip, the stale feed said once', () => {
-  it('shows nothing for young data, but holds the notice slot open', () => {
+  it('shows nothing and takes no room for young data', () => {
+    // An empty gap held open while the notice waits would itself move the page each time
+    // a response turns stale and fresh again. The notice costs one move, when it appears.
     vi.setSystemTime(FETCHED_MS + 2 * MINUTE_MS);
     render(<StaleStrip since={SINCE} />);
     const slot = screen.getByTestId('depot-stale');
     expect(slot.textContent).toBe('');
-    expect(slot.getAttribute('data-state')).toBe('reserved');
+    expect(slot.getAttribute('data-state')).toBe('waiting');
     expect(screen.queryByTestId('depot-notice')).toBeNull();
-    expect(slot.className).toContain('min-h-[3.75rem]');
+    expect(slot.className).not.toContain('min-h-');
   });
 
   it('brings in the one shared notice, in the same slot, once the data passes the limit', () => {
