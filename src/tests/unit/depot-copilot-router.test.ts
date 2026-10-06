@@ -87,10 +87,7 @@ describe('scriptedRoute', () => {
     ['How is the whole fleet doing today?', { kind: 'networkSummary' }],
     ['Tell me about Kanpur', { kind: 'depotSummary', depotId: '101' }],
     ['How is Gorakhpur doing?', { kind: 'depotSummary', depotId: '105' }],
-    [
-      'Which depots perform best?',
-      { kind: 'rankDepots', metric: 'index', order: 'top', limit: 5 },
-    ],
+    ['Which depots perform best?', { kind: 'rankDepots', metric: 'index', order: 'top', limit: 5 }],
     [
       'Show the 3 worst depots for dark buses',
       { kind: 'rankDepots', metric: 'dark', order: 'top', limit: 3 },
