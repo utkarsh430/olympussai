@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import { formatCount } from '@/lib/depot/format';
 import { SEVERITY_LABEL } from '@/lib/depot/labels';
 import { DEPOTS_ROOT } from '@/lib/depot/nav';
@@ -64,13 +63,15 @@ function KindList({
 export interface ExceptionSummaryProps {
   readonly counts: Readonly<Record<ExceptionKind, number>>;
   readonly severities: Readonly<Record<ExceptionSeverity, number>>;
+  /** Depot exceptions are windowed, bus counts are not: the sentence that says so. */
+  readonly windowNote?: string;
 }
 
 /**
- * Exceptions on this snapshot, split by scope (depots, buses), each kind a
+ * Exceptions, split by scope (depots, buses), each kind a
  * link into the exceptions page filtered to it. Rules, not a box.
  */
-export function ExceptionSummary({ counts, severities }: ExceptionSummaryProps) {
+export function ExceptionSummary({ counts, severities, windowNote }: ExceptionSummaryProps) {
   const scope = exceptionScope(counts, severities);
   const groups = exceptionGroups(counts);
   const none = scope.depot.total === 0 && scope.bus.total === 0;
@@ -79,12 +80,17 @@ export function ExceptionSummary({ counts, severities }: ExceptionSummaryProps) 
     <section aria-labelledby="depot-exceptions-heading" data-testid="depot-exception-summary">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3">
         <h2 id="depot-exceptions-heading" className="depot-section-label !mb-0 flex gap-2">
-          Exceptions <ProvenanceBadge provenance="derived" />
+          Exceptions
         </h2>
         <Link href={EXCEPTIONS_HREF} className="depot-link text-[13px]">
           Open the exceptions page
         </Link>
       </div>
+      {windowNote ? (
+        <p className="mb-2 text-[11px] text-depot-muted" data-testid="depot-exception-window">
+          {windowNote}
+        </p>
+      ) : null}
       {none ? (
         <p className="depot-prose">No depot or bus meets an exception rule on this snapshot.</p>
       ) : (

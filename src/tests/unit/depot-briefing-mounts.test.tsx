@@ -55,6 +55,21 @@ describe('Network overview briefing', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('folds the card into one closed row and ends the page with the closed disclosure', () => {
+    contexts.network = {
+      ...base,
+      data: { stale: false, depots: [], scores: [], kpis: {}, feedNow: 'x' },
+    };
+    const markup = renderToStaticMarkup(<NetworkOverview />);
+    const row = markup.slice(markup.indexOf('data-testid="depot-briefing-row"') - 60);
+    expect(row.startsWith('<details') || row.includes('<details class')).toBe(true);
+    expect(markup).not.toMatch(/<details[^>]*\sopen/);
+    expect(markup).toContain('How these figures are produced');
+    expect(markup.indexOf('How these figures are produced')).toBeGreaterThan(
+      markup.indexOf('Network briefing'),
+    );
+  });
+
   it('does not show the card while loading or after a failure', () => {
     contexts.network = { ...base, data: null, loading: true };
     expect(renderToStaticMarkup(<NetworkOverview />)).not.toContain('Network briefing');
@@ -73,6 +88,21 @@ describe('Depot cockpit briefing', () => {
     const markup = renderToStaticMarkup(<DepotCockpit />);
     expect(countOf(markup, '>Depot briefing<')).toBe(1);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('folds the card into one closed row and ends the page with the closed disclosure', () => {
+    contexts.network = {
+      ...base,
+      data: { stale: false, depots: [], scores: [], kpis: {}, feedNow: 'x' },
+    };
+    const markup = renderToStaticMarkup(<NetworkOverview />);
+    const row = markup.slice(markup.indexOf('data-testid="depot-briefing-row"') - 60);
+    expect(row.startsWith('<details') || row.includes('<details class')).toBe(true);
+    expect(markup).not.toMatch(/<details[^>]*\sopen/);
+    expect(markup).toContain('How these figures are produced');
+    expect(markup.indexOf('How these figures are produced')).toBeGreaterThan(
+      markup.indexOf('Network briefing'),
+    );
   });
 
   it('does not show the card while loading or after a failure', () => {
