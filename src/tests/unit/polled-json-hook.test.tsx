@@ -1,4 +1,7 @@
 import { act } from 'react';
+
+const signIn = vi.hoisted(() => ({ redirect: vi.fn() }));
+vi.mock('@/lib/depot/signInRedirect', () => ({ redirectToSignIn: signIn.redirect }));
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -202,6 +205,18 @@ describe('usePolledJson', () => {
     await tick(DEFAULT_POLL_INTERVAL_MS);
     await settle(calls[1], 401);
     expect(state().error).toBe(SESSION_EXPIRED_MESSAGE);
+  });
+
+  it('on 401 drops the figures, sends the browser to sign in and stops polling', async () => {
+    signIn.redirect.mockClear();
+    await mount(<PolledProbe url="/api/a" />);
+    await settle(calls[0], 200, doc('good'));
+    await tick(DEFAULT_POLL_INTERVAL_MS);
+    await settle(calls[1], 401);
+    expect(state()).toMatchObject({ data: null, error: SESSION_EXPIRED_MESSAGE });
+    expect(signIn.redirect).toHaveBeenCalledTimes(1);
+    await tick(DEFAULT_POLL_INTERVAL_MS * 3);
+    expect(calls).toHaveLength(2);
   });
 
   it('refresh aborts the in-flight request and applies only the second response', async () => {

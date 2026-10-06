@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { feedTimeOf, reportRefreshFailure } from '@/lib/depot/pageRefresh';
+import { redirectToSignIn } from '@/lib/depot/signInRedirect';
 
 export const DEFAULT_POLL_INTERVAL_MS = 60_000;
 const UNAUTHORISED = 401;
@@ -73,7 +74,8 @@ function messageForStatus(status: number, custom: Readonly<Record<number, string
  * per URL. A new request aborts the one in flight; an aborted or unmounted request
  * sets no state; a URL change discards the previous URL's data in the same render,
  * unless the caller asked to keep it across a query change of the same resource.
- * A 404 drops the data and stops the ticks. A failure that keeps data is reported to
+ * A 404 drops the data and stops the ticks; a 401 does the same and sends the browser
+ * to sign in (`redirectToSignIn`). A failure that keeps data is reported to
  * the page-refresh store (`lib/depot/pageRefresh`), which the shell's notice reads.
  */
 export function useJsonResource<T>(
@@ -123,6 +125,11 @@ export function useJsonResource<T>(
         if (controller.signal.aborted) return;
         const message = messageForStatus(response.status, messagesRef.current);
         if (response.status === NOT_FOUND) return gone(message);
+        if (response.status === UNAUTHORISED) {
+          // The session has ended: protected figures leave the screen and the user signs in.
+          redirectToSignIn();
+          return gone(message);
+        }
         if (!response.ok) return fail(message);
         const payload = (await response.json()) as T;
         stopped = false;
