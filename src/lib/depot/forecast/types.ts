@@ -39,13 +39,11 @@ export interface Forecast {
   readonly historyDays: number;
 }
 
+/** A daily series refused as a whole, reported instead of thrown. */
+export type SeriesInputReason = 'invalid_date' | 'duplicate_date' | 'non_finite_value' | 'out_of_range';
+
 /** Input the forecast refuses, reported instead of thrown. */
-export type InvalidInputReason =
-  | 'invalid_date'
-  | 'duplicate_date'
-  | 'non_finite_value'
-  | 'out_of_range'
-  | 'invalid_horizon';
+export type InvalidInputReason = SeriesInputReason | 'invalid_horizon';
 
 export type ForecastResult =
   | { readonly status: 'ok'; readonly forecast: Forecast }

@@ -8,7 +8,7 @@
  */
 import type { SeriesPoint } from '../sim/types';
 import type { ValidRange } from './config';
-import type { InvalidInputReason } from './types';
+import type { SeriesInputReason } from './types';
 
 const MS_PER_DAY = 86_400_000;
 const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -31,9 +31,9 @@ export function addDays(date: string, days: number): string {
 
 export type PreparedSeries =
   | { readonly ok: true; readonly run: readonly SeriesPoint[] }
-  | { readonly ok: false; readonly reason: InvalidInputReason };
+  | { readonly ok: false; readonly reason: SeriesInputReason };
 
-function invalidReason(point: SeriesPoint, range: ValidRange): InvalidInputReason | null {
+function invalidReason(point: SeriesPoint, range: ValidRange): SeriesInputReason | null {
   if (parseDay(point.date) === null) return 'invalid_date';
   if (!Number.isFinite(point.value)) return 'non_finite_value';
   if (point.value < range.min || point.value > range.max) return 'out_of_range';
