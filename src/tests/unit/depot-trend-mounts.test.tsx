@@ -65,25 +65,25 @@ describe('overview KPI band', () => {
     ]);
   });
 
-  it('names the metric and tags the week MODELLED on its own line, with no LIVE tag on a figure', () => {
+  it('names both measures in one sans note beside the band, with ONE MODELLED tag and no LIVE tag', () => {
     const markup = renderToStaticMarkup(<KpiBand kpis={KPIS} depots={[]} />);
-    const page = text(markup);
-    expect(page).toMatch(/On-road share, MODELLED: (steady|up|down)[^]*over 7 days/);
-    expect(page).toMatch(/Dark rate, MODELLED: (steady|up|down)[^]*over 7 days/);
-    expect(markup.match(/data-testid="trend-week-line"/g)).toHaveLength(2);
-    // Design wave: the page's DERIVED provenance line says live once; the trend line,
-    // which differs from it, carries its own MODELLED tag, outside the figure band.
+    const note = markup.slice(markup.indexOf('data-testid="depot-kpi-trends"'));
+    expect(text(note)).toMatch(
+      /On-road share (steady|up|down)[^]*over 7 days; dark rate (steady|up|down)[^]*over 7 days\./,
+    );
+    expect(markup).toMatch(/<p class="depot-caption[^"]*" data-testid="depot-kpi-trends"/);
+    // Round 2: the tag is drawn once, never repeated in the words.
+    expect(markup.match(/data-provenance="modelled"/g)).toHaveLength(1);
+    expect(text(note).match(/MODELLED/g)).toHaveLength(1);
     expect(markup).not.toContain('data-provenance="live"');
-    const trends = markup.slice(markup.indexOf('data-testid="depot-kpi-trends"'));
-    expect(trends).toContain('data-provenance="modelled"');
     const band = markup.slice(0, markup.indexOf('data-testid="depot-kpi-trends"'));
-    expect(band).not.toContain('trend-week-line');
+    expect(band).not.toMatch(/share|rate/i);
   });
 
   it('prints nothing while the trend is loading', () => {
     hooks.forecast.mockReturnValue(polled(null, { loading: true }));
     expect(renderToStaticMarkup(<KpiBand kpis={KPIS} depots={[]} />)).not.toContain(
-      'trend-week-line',
+      'depot-kpi-trends',
     );
   });
 });

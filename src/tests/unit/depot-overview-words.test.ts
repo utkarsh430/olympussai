@@ -4,7 +4,6 @@ import {
   TABLE_ROW_CAP,
   figureTag,
   kpiLayout,
-  secondaryReading,
   tableCap,
   tableColumnKeys,
   tableHeading,
@@ -94,8 +93,10 @@ describe('figure tags and the quiet line', () => {
     expect(figureTag('modelled')).toBe('modelled');
   });
 
-  it('reads a secondary figure as label, count and its note', () => {
-    expect(secondaryReading(kpiLayout(KPIS, UNITS).secondary[0]!)).toMatch(/^Reporting [\d,]+ \(27% of fleet\)$/);
+  it('gives a second-row figure its share as the caption, not a free line', () => {
+    const reporting = kpiLayout(KPIS, UNITS).secondary[0]!;
+    expect(reporting.label).toBe('Reporting');
+    expect(reporting.note).toBe('27% of fleet');
   });
 });
 

@@ -173,11 +173,6 @@ export function unrankedSentence(summary: UnrankedSummary): string {
   return `${counted(summary.total, 'unit', 'units')} ${verb} not ranked: ${parts.join(', ')}.`;
 }
 
-/** "Reporting 2,853 (29% of fleet)": a secondary figure as one reading of the quiet line. */
-export function secondaryReading(figure: KpiFigure): string {
-  return `${figure.label} ${formatCount(figure.value)}${figure.note ? ` (${figure.note})` : ''}`;
-}
-
 /**
  * A figure's own tag only when its provenance differs from the page's DERIVED default:
  * live and derived figures are said once by the provenance line and the feed chip.
