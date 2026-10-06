@@ -201,7 +201,8 @@ describe('scoreDepots', () => {
       states: { inService: 3 },
       assigned: 2,
     });
-    const [score] = scoreDepots([small, ...peers()]);
+    const score = scoreDepots([small, ...peers()])[0];
+    if (score === undefined) throw new Error('no score returned');
     expect(score.ranked).toBe(false);
     expect(score.reason).toBe('fleet_too_small');
     expect(score.index).toBeNull();
@@ -216,7 +217,8 @@ describe('scoreDepots', () => {
 
   it('never ranks non-depot kinds', () => {
     const squad = depot({ id: 'sq', kind: 'enforcement', fleet: 300 });
-    const [score] = scoreDepots([squad, ...peers()]);
+    const score = scoreDepots([squad, ...peers()])[0];
+    if (score === undefined) throw new Error('no score returned');
     expect(score.reason).toBe('not_a_depot');
     expect(score.ranked).toBe(false);
     expect(score.index).toBeNull();
@@ -234,9 +236,8 @@ describe('scoreDepots', () => {
 
     const scored = scoreDepots(peers());
     const ordered = [...scored].sort((a, b) => (a.rank as number) - (b.rank as number));
-    for (let i = 1; i < ordered.length; i++) {
-      expect(ordered[i - 1].index as number).toBeGreaterThanOrEqual(ordered[i].index as number);
-    }
+    const indexes = ordered.map((s) => s.index as number);
+    expect(indexes).toEqual([...indexes].sort((a, b) => b - a));
   });
 
   it('puts every depot in one group when a tercile is too small', () => {

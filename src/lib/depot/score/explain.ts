@@ -18,11 +18,12 @@ export function strongestAndWeakest(score: DepotScore): StrongestAndWeakest {
     const found = score.components.find((c) => c.key === config.key);
     return found === undefined ? [] : [found];
   });
-  if (ordered.length === 0) return { strongest: null, weakest: null };
+  const [first, ...rest] = ordered;
+  if (first === undefined) return { strongest: null, weakest: null };
 
-  let strongest = ordered[0];
-  let weakest = ordered[0];
-  for (const c of ordered) {
+  let strongest = first;
+  let weakest = first;
+  for (const c of rest) {
     if (c.contribution > strongest.contribution) strongest = c;
     if (c.contribution < weakest.contribution) weakest = c;
   }

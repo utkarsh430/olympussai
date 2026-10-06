@@ -8,8 +8,8 @@ function score(contributions: readonly number[], ranked = true): DepotScore {
     key: c.key,
     value: 0.5,
     peerMedian: 0.5,
-    z: ranked ? contributions[i] : null,
-    contribution: ranked ? contributions[i] : 0,
+    z: ranked ? (contributions[i] ?? 0) : null,
+    contribution: ranked ? (contributions[i] ?? 0) : 0,
   }));
   return {
     depotId: 'a',

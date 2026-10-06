@@ -9,6 +9,13 @@
 /** Scales MAD to match a standard deviation for normally distributed data. */
 export const MAD_TO_SIGMA = 1.4826;
 
+/** Indexed read that treats an out-of-range index as the bug it would be. */
+function nth(sorted: readonly number[], index: number): number {
+  const value = sorted[index];
+  if (value === undefined) throw new RangeError(`index ${index} outside sample`);
+  return value;
+}
+
 function sortedCopy(values: readonly number[]): number[] {
   return [...values].sort((a, b) => a - b);
 }
@@ -17,7 +24,7 @@ export function median(values: readonly number[]): number | null {
   if (values.length === 0) return null;
   const sorted = sortedCopy(values);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  return sorted.length % 2 === 1 ? nth(sorted, mid) : (nth(sorted, mid - 1) + nth(sorted, mid)) / 2;
 }
 
 /** Median absolute deviation from the median. */
@@ -48,7 +55,7 @@ export function tercileCuts(values: readonly number[]): readonly [number, number
   if (values.length === 0) return null;
   const sorted = sortedCopy(values);
   // Integer arithmetic so thirds never suffer floating-point rounding.
-  const at = (thirds: number): number => sorted[Math.ceil((sorted.length * thirds) / 3) - 1];
+  const at = (thirds: number): number => nth(sorted, Math.ceil((sorted.length * thirds) / 3) - 1);
   return [at(1), at(2)];
 }
 
