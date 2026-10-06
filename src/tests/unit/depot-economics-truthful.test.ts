@@ -177,6 +177,18 @@ describe('a depot without a usable earnings figure', () => {
   });
 });
 
+describe('the short reason under not ranked', () => {
+  it('is a few visible words for every kind of unranked row, and null when ranked', () => {
+    const short = (e: EconomicsDepotRow) => buildEconomicsRows([e])[0]?.reasonShort;
+    expect(short(NO_LENGTH)).toBe('length not known');
+    expect(short(THIN)).toBe('too few routes with a known length');
+    expect(short(SMALL_GROUP)).toBe('peer group too small');
+    expect(short(TINY_FLEET)).toBe('fewer than 10 buses');
+    expect(short(OTHER_UNIT)).toBe('not an operating depot');
+    expect(short(entry('1'))).toBeNull();
+  });
+});
+
 describe('a depot whose peer group is too small', () => {
   it('shows no peer median and no better or worse words', () => {
     const [row] = buildEconomicsRows([SMALL_GROUP]);

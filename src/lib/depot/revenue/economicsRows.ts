@@ -49,8 +49,21 @@ export interface EconomicsRow {
   readonly economicsIndex: number | null;
   readonly peerCount: number | null;
   readonly reasonText: string | null;
+  /** The reason in a few words, shown under "not ranked" in the grid; null when ranked. */
+  readonly reasonShort: string | null;
   readonly cells: readonly EconomicsCell[];
   readonly earningsCoverage: EconomicsDepotRow['earningsCoverage'];
+}
+
+function unrankedShort(entry: EconomicsDepotRow): string | null {
+  const { score } = entry;
+  if (score.ranked) return null;
+  if (score.reason === 'not_a_depot') return 'not an operating depot';
+  if (score.reason === 'fleet_too_small') return `fewer than ${MIN_FLEET_FOR_RANK} buses`;
+  if (score.reason === 'peer_group_too_small') return 'peer group too small';
+  if (score.reason === 'thin_route_coverage') return 'too few routes with a known length';
+  if (score.missing.includes('earningsPerKm')) return LENGTH_NOT_KNOWN;
+  return 'a component could not be worked out';
 }
 
 function unrankedText(entry: EconomicsDepotRow): string | null {
@@ -155,6 +168,7 @@ export function buildEconomicsRows(depots: readonly EconomicsDepotRow[]): Econom
       economicsIndex: entry.score.economicsIndex,
       peerCount: entry.score.peerCount,
       reasonText: unrankedText(entry),
+      reasonShort: unrankedShort(entry),
       cells: toCells(entry),
       earningsCoverage: entry.earningsCoverage,
     }))
