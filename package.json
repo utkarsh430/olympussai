@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:sample": "E2E_SUITE=sample playwright test",
     "inspect:api": "tsx scripts/inspect-upsrtc-api.ts",
     "build:depot-fixture": "tsx scripts/build-depot-fixture.ts",
     "generate-pin-hash": "node scripts/generate-pin-hash.mjs",
