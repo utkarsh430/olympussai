@@ -3,6 +3,9 @@
 import { Fragment } from 'react';
 import { ExpandToggle, expandedRowId, useExpandedRows } from '@/components/depot/shell/RowExpander';
 import {
+  AXIS_STRIP_PX,
+  AXIS_TICK_TOP_PX,
+  NOW_FLAG_BOTTOM_PX,
   axisTicks,
   nowLabel,
   nowLabelAnchor,
@@ -45,22 +48,23 @@ function Axis({ feedNow }: { readonly feedNow: string | null }) {
       <div className={`${LABEL_COLUMN} depot-label sticky left-0 z-40 bg-depot-surface px-3 py-2`}>
         Duty
       </div>
-      <div className={`${TRACK} h-11`}>
+      <div className={TRACK} style={{ height: AXIS_STRIP_PX }}>
         {axisTicks().map((tick) => (
           <span
             key={tick.label}
-            className="absolute top-1 -translate-x-1/2 font-mono text-[11px] leading-4 text-depot-muted"
-            style={{ left: `${tick.leftPct}%` }}
+            className="absolute -translate-x-1/2 font-mono text-[11px] leading-4 text-depot-muted"
+            style={{ left: `${tick.leftPct}%`, top: AXIS_TICK_TOP_PX }}
           >
             {tick.label}
           </span>
         ))}
         {now === null || nowText === null ? null : (
+          // One line, never wrapped: a wrapped flag would rise into the tick labels' line.
           <span
             data-testid="duty-now-label"
             data-anchor={nowLabelAnchor(now)}
-            className={`absolute bottom-1 z-10 ${FLAG_SHIFT[nowLabelAnchor(now)]} rounded-[2px] bg-alert-amber px-1 font-mono text-[11px] leading-4 text-depot-page`}
-            style={{ left: `${now}%` }}
+            className={`absolute bottom-1 z-10 ${FLAG_SHIFT[nowLabelAnchor(now)]} whitespace-nowrap rounded-[2px] bg-alert-amber px-1 font-mono text-[11px] leading-4 text-depot-page`}
+            style={{ left: `${now}%`, bottom: NOW_FLAG_BOTTOM_PX }}
           >
             {nowText}
           </span>

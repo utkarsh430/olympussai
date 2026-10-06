@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DutyBoard } from '@/components/depot/duties/DutyBoard';
 import type { BoardDuty } from '@/lib/depot/duties/api';
-import { buildBoardRows } from '@/lib/depot/duties/dutyBoardModel';
+import { buildBoardRows, NOW_FLAG_BOTTOM_PX } from '@/lib/depot/duties/dutyBoardModel';
 
 const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
 const originalActFlag = actGlobal.IS_REACT_ACT_ENVIRONMENT;
@@ -167,6 +167,15 @@ describe('DutyBoard', () => {
     expect(container.querySelector('[data-testid="duty-now-label"]')?.textContent).toBe(
       'Now 10:00',
     );
+  });
+
+  it('keeps the now flag on one line, so near the axis end it never wraps up into a tick label', () => {
+    // At 640px the flag at 21:35 has only the axis's last few percent to its right; as a
+    // shrink-to-fit box it would wrap to "Now / 21:35" and rise over "20:00".
+    render('2026-10-06T21:35:00Z');
+    const flag = container.querySelector<HTMLElement>('[data-testid="duty-now-label"]');
+    expect(flag?.className.split(/\s+/)).toContain('whitespace-nowrap');
+    expect(flag?.style.bottom).toBe(`${NOW_FLAG_BOTTOM_PX}px`);
   });
 
   // The State and Bus headers carry the MODELLED tag;

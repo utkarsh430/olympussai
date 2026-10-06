@@ -154,6 +154,58 @@ export function nowLabelAnchor(pct: number): 'start' | 'middle' | 'end' {
   return pct > PERCENT - NOW_FLAG_EDGE_PCT ? 'end' : 'middle';
 }
 
+/**
+ * The axis strip's two lines. The tick labels sit on a 16px line 4px from its top; the
+ * now flag on a 16px line 4px from its bottom, in a 44px strip, so the two lines never
+ * meet. The flag keeps to ONE line (it must not wrap: near the axis end a shrink-to-fit
+ * box has only the last few percent of the track and would wrap to "Now / 21:35", rising
+ * over the "20:00" label).
+ */
+export const AXIS_STRIP_PX = 44;
+export const AXIS_TICK_TOP_PX = 4;
+export const NOW_FLAG_BOTTOM_PX = 4;
+const AXIS_LINE_PX = 16;
+/** Mono 11px: every glyph 0.6em. The flag adds 4px of padding each side. */
+const AXIS_GLYPH_PX = 6.6;
+const NOW_FLAG_PADDING_PX = 4;
+
+/** A box on the axis strip, in px from the track's left edge and the strip's top. */
+export interface AxisBox {
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+  readonly bottom: number;
+}
+
+const textWidth = (text: string): number => text.length * AXIS_GLYPH_PX;
+
+/** Where each tick label is drawn on a track `trackPx` wide (centred on its tick). */
+export function axisTickBoxes(trackPx: number): readonly AxisBox[] {
+  return axisTicks().map((tick) => {
+    const centre = (tick.leftPct / PERCENT) * trackPx;
+    const half = textWidth(tick.label) / 2;
+    return { left: centre - half, right: centre + half, top: AXIS_TICK_TOP_PX, bottom: AXIS_TICK_TOP_PX + AXIS_LINE_PX };
+  });
+}
+
+/** Where the now flag is drawn on a track `trackPx` wide, or null when there is no line. */
+export function nowFlagBox(feedNow: string | null, trackPx: number): AxisBox | null {
+  const pct = nowLinePct(feedNow);
+  const text = nowLabel(feedNow);
+  if (pct === null || text === null) return null;
+  const width = textWidth(text) + 2 * NOW_FLAG_PADDING_PX;
+  const at = (pct / PERCENT) * trackPx;
+  const anchor = nowLabelAnchor(pct);
+  const left = anchor === 'start' ? at : anchor === 'end' ? at - width : at - width / 2;
+  const bottom = AXIS_STRIP_PX - NOW_FLAG_BOTTOM_PX;
+  return { left, right: left + width, top: bottom - AXIS_LINE_PX, bottom };
+}
+
+/** True when two boxes on the axis strip share any area. */
+export function axisBoxesOverlap(a: AxisBox, b: AxisBox): boolean {
+  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
+
 export function nowSentence(feedNow: string | null): string {
   const minutes = feedMinutes(feedNow);
   if (minutes === null) return 'The feed has no clock, so there is no now line.';

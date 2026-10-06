@@ -19,6 +19,9 @@ import {
   heldOutParts,
   nowLabel,
   nowLabelAnchor,
+  nowFlagBox,
+  axisTickBoxes,
+  axisBoxesOverlap,
   nowLinePct,
   nowSentence,
   viewAnnouncement,
@@ -124,6 +127,32 @@ describe('now line', () => {
     expect(nowLinePct(null)).toBeNull();
     expect(nowLinePct('garbage')).toBeNull();
     expect(nowLinePct('2026-10-06T02:30:00Z')).toBeNull();
+  });
+
+  it('never puts the now flag over an axis label, a few minutes either side of every tick', () => {
+    // The axis's track from 640 to 1440px: the frame less the 160px duty column and the
+    // track's 16px inset each side (about 400px at 640, 1,000px and more at 1440).
+    const clock = (minute: number): string =>
+      `2026-10-06T${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}:00Z`;
+    for (const trackPx of [400, 450, 560, 780, 1000, 1160]) {
+      const ticks = axisTickBoxes(trackPx);
+      for (const tick of axisTicks()) {
+        const [hour, minute] = tick.label.split(':').map(Number);
+        const at = (hour ?? 0) * 60 + (minute ?? 0);
+        for (const offset of [-5, -2, 0, 2, 5]) {
+          const flag = nowFlagBox(clock(Math.min(Math.max(at + offset, 240), 1439)), trackPx);
+          expect(flag, `${tick.label}${offset} at ${trackPx}`).not.toBeNull();
+          if (flag === null) continue;
+          expect(flag.bottom - flag.top, 'one line').toBe(16);
+          for (const box of ticks) {
+            expect(axisBoxesOverlap(flag, box), `${tick.label}${offset} at ${trackPx}`).toBe(false);
+          }
+          // And it stays inside the track and its 16px inset, so it is never clipped.
+          expect(flag.left).toBeGreaterThanOrEqual(-16);
+          expect(flag.right).toBeLessThanOrEqual(trackPx + 16);
+        }
+      }
+    }
   });
 });
 
