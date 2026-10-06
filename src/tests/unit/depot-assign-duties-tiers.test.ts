@@ -111,6 +111,19 @@ describe('assignDuties cost tiers (ruling S47 b)', () => {
   });
 });
 
+describe('assignDuties tier weights hold at a large depot', () => {
+  it('keeps every bus in service in the day at 300 buses and 250 duties', () => {
+    const buses = Array.from({ length: 300 }, (_, i) =>
+      bus(`B${String(i).padStart(3, '0')}`, i % 3 === 0 ? 'in_service' : 'standing', `R${i % 7}`),
+    );
+    const duties = Array.from({ length: 250 }, (_, i) => duty(`D${i}`, `R${i % 5}`, 240 + (i % 60) * 10));
+    const plan = assignDuties(duties, buses, fleetOf([]), { feedMinute: 600 });
+    const taken = new Set(plan.assignments.map((a) => a.registrationNumber));
+    for (const b of buses) if (b.state === 'in_service') expect(taken.has(b.registrationNumber)).toBe(true);
+    expect(plan.unassignedDuties).toBe(0);
+  });
+});
+
 describe('assignDuties records how each bus stands now (ruling S47 c)', () => {
   it('on the road, in the yard, or standing where no yard is established; null without a bus', () => {
     const plan = assignDuties(
