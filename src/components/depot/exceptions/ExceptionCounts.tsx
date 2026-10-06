@@ -46,10 +46,13 @@ export function ExceptionCounts({
     <section
       aria-label="Exceptions by kind"
       data-testid="depot-exception-counts"
-      className="depot-panel mb-6 grid gap-5 p-4 md:grid-cols-2"
+      className="depot-panel mb-6 p-4"
     >
-      <CountGroup heading="Depots" kinds={DEPOT_KINDS} counts={counts} />
-      <CountGroup heading="Buses" kinds={BUS_KINDS} counts={counts} />
+      <h2 className="depot-label mb-3">Exceptions by kind</h2>
+      <div className="grid gap-5 md:grid-cols-2">
+        <CountGroup heading="Depots" kinds={DEPOT_KINDS} counts={counts} />
+        <CountGroup heading="Buses" kinds={BUS_KINDS} counts={counts} />
+      </div>
     </section>
   );
 }

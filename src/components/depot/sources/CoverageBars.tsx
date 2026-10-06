@@ -13,6 +13,13 @@ function share(populated: number, of: number): number {
  * only a visual aid.
  */
 export function CoverageBars({ coverage }: { readonly coverage: readonly FieldCoverage[] }) {
+  if (coverage.length === 0) {
+    return (
+      <p className="depot-prose" data-testid="depot-coverage-empty">
+        No coverage was measured on this snapshot, because the feed returned no bus records.
+      </p>
+    );
+  }
   return (
     <ul className="flex flex-col gap-3" data-testid="depot-coverage-bars">
       {coverage.map((item) => {

@@ -10,7 +10,7 @@ export function FeedSchema({ feed }: { readonly feed: FeedEntry }) {
     feed.status === 'awaiting' ? 'Expected schema' : 'Fields read from this feed';
   return (
     <details className="depot-details mt-3">
-      <summary>{`${heading} · ${feed.fields.length} fields`}</summary>
+      <summary>{`${feed.name}: ${heading.toLowerCase()} · ${feed.fields.length} fields`}</summary>
       <div className="depot-table-frame mt-2 !max-h-[24rem]">
         <table className="depot-table">
           <caption className="sr-only">{`${heading} for ${feed.name}`}</caption>
