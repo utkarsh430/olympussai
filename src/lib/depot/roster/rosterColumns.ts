@@ -4,8 +4,8 @@
  * shows from 1280):
  *
  *   wide    (1440 and up, ~1,158 px inside the frame): every column, 1,048 px.
- *   desk    (1280 to 1439, ~998 px): every column, tighter, 988 px.
- *   medium  (1024 to 1279, ~974 px): SCHEDULED START goes to the drawer, 880 px.
+ *   desk    (1280 to 1439, ~998 px): SCHEDULED START goes to the drawer, 888 px.
+ *   medium  (1024 to 1279, ~974 px): the same set, 880 px.
  *   narrow  (640 to 1023, ~590 px): registration, state, short location, last heard, 516 px.
  *   phone   (under 640, ~326 px at 360): registration, state (square and word), short location.
  *
@@ -64,14 +64,18 @@ const WIDE: Widths = {
   flags: 120,
 };
 
+/**
+ * At 1280 the frame (about 1,000 px) cannot hold every column at the widths their typical
+ * values need (a route name such as KSB_1284_ORD_OUT, "not heard 2 h 22 min"), so SCHEDULED
+ * START goes to the drawer as it does below 1280, and every column keeps its 1440 width.
+ */
 const DESK: Widths = {
-  registration: 112,
+  registration: 120,
   state: 116,
-  location: 188,
-  route: 128,
-  start: 160,
-  heard: 172,
-  flags: 112,
+  location: 196,
+  route: 152,
+  heard: 184,
+  flags: 120,
 };
 
 const MEDIUM: Widths = {

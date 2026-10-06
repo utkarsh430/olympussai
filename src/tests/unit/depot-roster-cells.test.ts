@@ -101,7 +101,7 @@ describe('column sets and widths per tier', () => {
     expect(rosterWidthSum(tier)).toBeLessThanOrEqual(ROSTER_TIER_FRAME_PX[tier]);
   });
   it('pins the sums written in the report', () => {
-    expect(tiers.map((tier) => rosterWidthSum(tier))).toEqual([1048, 988, 880, 516, 324]);
+    expect(tiers.map((tier) => rosterWidthSum(tier))).toEqual([1048, 888, 880, 516, 324]);
   });
   it('leaves room to spare at 1440 (it overflowed by 10px)', () => {
     expect(ROSTER_TIER_FRAME_PX.wide - rosterWidthSum('wide')).toBeGreaterThanOrEqual(100);
@@ -110,10 +110,15 @@ describe('column sets and widths per tier', () => {
     for (const tier of tiers) expect(rosterColumnKeys(tier)).not.toContain('running');
     expect(rosterColumnWidth('flags', 'wide')).toBe(120);
   });
-  it('shows every column from 1280, and moves SCHEDULED START to the drawer below it', () => {
+  it('gives every column at 1280 the width it has at 1440, so a typical value is not cut', () => {
+    for (const key of rosterColumnKeys('desk')) {
+      expect(rosterColumnWidth(key, 'desk')).toBeGreaterThanOrEqual(rosterColumnWidth(key, 'wide'));
+    }
+  });
+  it('shows every column from 1440, and moves SCHEDULED START to the drawer below it', () => {
     const all = ['registration', 'state', 'location', 'route', 'start', 'heard', 'flags'];
     expect(rosterColumnKeys('wide')).toEqual(all);
-    expect(rosterColumnKeys('desk')).toEqual(all);
+    expect(rosterColumnKeys('desk')).toEqual(rosterColumnKeys('medium'));
     expect(rosterColumnKeys('medium')).toEqual([
       'registration',
       'state',
