@@ -71,7 +71,12 @@ describe('planTransfers', () => {
     // Surplus s1@0, s2@3; deficit d1@2, d2@5 (tenths of a degree). Nearest-first
     // sends s2>d1 (0.1) then s1>d2 (0.5) = 0.6 degrees; the optimum is s1>d1 + s2>d2 = 0.4.
     const plan = planTransfers(
-      [depot('s1', 1, at(0)), depot('s2', 1, at(3)), depot('d1', -1, at(2)), depot('d2', -1, at(5))],
+      [
+        depot('s1', 1, at(0)),
+        depot('s2', 1, at(3)),
+        depot('d1', -1, at(2)),
+        depot('d2', -1, at(5)),
+      ],
       PARAMS,
     );
     expect(plan.transfers.map((t) => t.id).sort()).toEqual(['s1>d1', 's2>d2']);
@@ -127,17 +132,22 @@ describe('planTransfers', () => {
     expect(plan.transfers.every((t) => t.fromDepotId !== 'locked')).toBe(true);
     expect(plan.coveredDeficit).toBe(2);
 
-    const receiving = planTransfers(
-      [depot('locked', -2, at(0)), depot('free', 3, at(1))],
-      { ...PARAMS, lockedDepotIds: ['locked'] },
-    );
+    const receiving = planTransfers([depot('locked', -2, at(0)), depot('free', 3, at(1))], {
+      ...PARAMS,
+      lockedDepotIds: ['locked'],
+    });
     expect(receiving.transfers).toHaveLength(1);
     expect(receiving.transfers[0]?.toDepotId).toBe('locked');
   });
 
   it('leaves excluded depots out entirely', () => {
     const plan = planTransfers(
-      [depot('skip', 9, at(0)), depot('skipNeed', -9, at(1)), depot('s', 1, at(2)), depot('d', -1, at(3))],
+      [
+        depot('skip', 9, at(0)),
+        depot('skipNeed', -9, at(1)),
+        depot('s', 1, at(2)),
+        depot('d', -1, at(3)),
+      ],
       { ...PARAMS, excludedDepotIds: ['skip', 'skipNeed'] },
     );
     expect(plan.transfers.map((t) => t.id)).toEqual(['s>d']);
@@ -147,7 +157,12 @@ describe('planTransfers', () => {
 
   it('reports depots without a position as no_position and never routes through them', () => {
     const plan = planTransfers(
-      [depot('s', 5, at(0)), depot('lost', -2, null), depot('lostSurplus', 4, null), depot('d', -1, at(1))],
+      [
+        depot('s', 5, at(0)),
+        depot('lost', -2, null),
+        depot('lostSurplus', 4, null),
+        depot('d', -1, at(1)),
+      ],
       PARAMS,
     );
     expect(plan.transfers.map((t) => t.id)).toEqual(['s>d']);
@@ -158,7 +173,11 @@ describe('planTransfers', () => {
     const rand = lcg(5);
     for (let trial = 0; trial < 25; trial++) {
       const balances = Array.from({ length: 14 }, (_, i) =>
-        depot(`d${i}`, Math.floor(rand() * 13) - 6, rand() < 0.1 ? null : at(Math.floor(rand() * 40))),
+        depot(
+          `d${i}`,
+          Math.floor(rand() * 13) - 6,
+          rand() < 0.1 ? null : at(Math.floor(rand() * 40)),
+        ),
       );
       const plan = planTransfers(balances, PARAMS);
       expect(summariseBalances(applyTransfers(balances, plan.transfers))).toEqual(plan.after);

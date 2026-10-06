@@ -92,12 +92,12 @@ export function minCostMaxFlow(
     if (viaArc[sink] === -1) break;
 
     let bottleneck = Infinity;
-    for (let v = sink; v !== source; ) {
+    for (let v = sink; v !== source;) {
       const a = viaArc[v] as number;
       bottleneck = Math.min(bottleneck, (arcs[a] as Arc).capacity);
       v = (arcs[a ^ 1] as Arc).to;
     }
-    for (let v = sink; v !== source; ) {
+    for (let v = sink; v !== source;) {
       const a = viaArc[v] as number;
       (arcs[a] as Arc).capacity -= bottleneck;
       (arcs[a ^ 1] as Arc).capacity += bottleneck;

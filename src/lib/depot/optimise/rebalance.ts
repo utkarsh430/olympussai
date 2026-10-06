@@ -147,7 +147,9 @@ export function planTransfers(
   }
   transfers.sort(
     (a, b) =>
-      b.buses - a.buses || compareIds(a.fromDepotId, b.fromDepotId) || compareIds(a.toDepotId, b.toDepotId),
+      b.buses - a.buses ||
+      compareIds(a.fromDepotId, b.fromDepotId) ||
+      compareIds(a.toDepotId, b.toDepotId),
   );
 
   const uncovered: UncoveredDeficit[] = [];

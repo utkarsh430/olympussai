@@ -150,7 +150,9 @@ describe('runScenario', () => {
   it('uses scenario locks and exclusions in the plan', () => {
     const outcome = runScenario(BASE, { lockedDepotIds: ['a'], excludedDepotIds: ['c'] });
     expect(outcome.plan.transfers).toEqual([]);
-    expect(outcome.plan.uncovered).toEqual([{ depotId: 'b', buses: 18, reason: 'insufficient_surplus' }]);
+    expect(outcome.plan.uncovered).toEqual([
+      { depotId: 'b', buses: 18, reason: 'no_surplus_in_range' },
+    ]);
   });
 
   it('ignores adjustments for unknown depots with a note, and never mutates the base', () => {
@@ -163,7 +165,9 @@ describe('runScenario', () => {
 
   it('is deterministic', () => {
     const scenario = { spareRatio: 0.12, demandSurges: [{ depotId: 'a', percent: 15 }] };
-    expect(runScenario(BASE, scenario)).toEqual(runScenario([...BASE].reverse(), scenario));
+    expect(runScenario(BASE, scenario).plan).toEqual(
+      runScenario([...BASE].reverse(), scenario).plan,
+    );
   });
 });
 
@@ -173,7 +177,8 @@ describe('compareOutcomes', () => {
     const candidate = runScenario(BASE, { demandSurges: [{ depotId: 'b', percent: 50 }] });
     const delta = compareOutcomes(baseline, candidate);
     const moved = (o: typeof baseline): number => o.plan.transfers.reduce((s, t) => s + t.buses, 0);
-    const uncovered = (o: typeof baseline): number => o.plan.uncovered.reduce((s, u) => s + u.buses, 0);
+    const uncovered = (o: typeof baseline): number =>
+      o.plan.uncovered.reduce((s, u) => s + u.buses, 0);
     expect(delta).toEqual({
       transfers: candidate.plan.transfers.length - baseline.plan.transfers.length,
       busesMoved: moved(candidate) - moved(baseline),
