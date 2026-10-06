@@ -1,0 +1,23 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+const CSS = readFileSync(path.resolve(__dirname, '../../app/globals.css'), 'utf8');
+
+/** The body of the first rule whose selector list is exactly `selector` (whitespace-insensitive). */
+function rule(selector: string): string {
+  const escaped = selector
+    .split(/\s+/)
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('\\s+');
+  return new RegExp(`(?:^|[\\n}])\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(CSS)?.[1] ?? '';
+}
+
+describe('the depot colour rules in globals.css', () => {
+  it("draws a figure's accent bar inside its own tile, so a wrapped band never lends it to the figure above", () => {
+    const body = rule('.depot-figure::before');
+    const top = /\btop:\s*(-?\d+)(px)?\s*;/.exec(body);
+    expect(top).not.toBeNull();
+    expect(Number(top?.[1])).toBeGreaterThanOrEqual(0);
+  });
+});

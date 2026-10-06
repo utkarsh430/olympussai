@@ -545,7 +545,7 @@
   }
 
   /* A figure in a band (FigureBand's Figure) in its meaning's tone: a short lit accent
-     under the band's top hairline, a faint wash of the tone falling from the top, and the
+     along its own tile's top edge (so on a wrapped band each bar sits on its own figure), a faint wash of the tone falling from the top, and the
      value in the tone with a soft glow. All paint: no box changes size. */
   .depot-figure {
     position: relative;
@@ -555,7 +555,7 @@
   .depot-figure::before {
     content: '';
     position: absolute;
-    top: -8px;
+    top: 0;
     left: 16px;
     width: 32px;
     height: 2px;
