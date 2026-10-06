@@ -192,4 +192,17 @@ describe('summariseTrend', () => {
     );
     expect(index.fourWeeks?.change).toBe(1.2);
   });
+
+  it('takes the nearest-rank 80th percentile of the changes at the lag, by a plain count', () => {
+    const values = Array.from({ length: 50 }, (_, i) => 50 + ((i * 7919) % 23) / 3);
+    const series = values.map((value, i) => ({ date: dateAt(i), value }));
+    const changes: number[] = [];
+    for (let t = 7; t < values.length; t += 1) {
+      changes.push(Math.abs((values[t] as number) - (values[t - 7] as number)));
+    }
+    const sorted = [...changes].sort((a, b) => a - b);
+    const at = (q: number): number => sorted[Math.ceil(q * sorted.length) - 1] as number;
+    expect(at(0.8)).not.toBe(at(0.9));
+    expect(okOf(summariseTrend(series, 'index')).week.steadyWithin).toBe(Math.max(1, at(0.8)));
+  });
 });
