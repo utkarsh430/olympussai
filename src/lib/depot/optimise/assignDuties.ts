@@ -16,7 +16,7 @@ const MINUTES_PER_HOUR = 60;
 const EMPTY_MASTER_AGE_YEARS = 0;
 const DEFAULT_CLASS: ServiceClass = 'ordinary';
 
-type Exclusion = 'off_road' | 'dark' | 'not_in_yard';
+type Exclusion = 'off_road' | 'dark' | 'not_in_yard' | 'not_heard';
 
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -58,19 +58,21 @@ export interface AssignDutiesOptions {
 
 const NO_FEED_CLOCK: PlanNow = { kind: 'no_feed_clock' };
 
-/** Standing, on a report recent enough to say where the bus is standing now. */
-function isStandingNow(bus: DepotBusView): boolean {
-  return (
-    bus.state === 'standing' && isRecentlyHeard(bus.gpsAgeMin) && (bus.notHeardMin ?? null) === null
-  );
+/**
+ * Heard within the module's reporting window (`isRecentlyHeard`, the rule a
+ * bus's "not heard for N min" comes from), whether moving or standing. A last
+ * report older than that cannot say how the bus stands now (ruling S55).
+ */
+function isHeardRecently(bus: DepotBusView): boolean {
+  return isRecentlyHeard(bus.gpsAgeMin) && (bus.notHeardMin ?? null) === null;
 }
 
 /**
  * How an eligible bus stands now, or why it is not eligible: off the road and
- * dark never; in service or on the road always (it is out working); a standing
- * bus only on a recent report (yard or not: an old report cannot say where it
- * stands now, which `not_in_yard` covers) and, when a yard is established,
- * only in it.
+ * dark never; then, when the feed has a clock, a bus not heard recently
+ * (`not_heard`) whether moving or standing; with no clock no report can be
+ * aged, so recency is not judged. In service or on the road is eligible (it is
+ * out working); a standing bus, when a yard is established, only in it.
  */
 function standingOf(
   bus: DepotBusView,
@@ -80,8 +82,8 @@ function standingOf(
   if (bus.state === 'off_road') return 'off_road';
   if (bus.state === 'dark') return 'dark';
   if (now.kind === 'later_day') return laterDayStanding(bus, yardEstablished);
+  if (now.kind === 'feed_time' && !isHeardRecently(bus)) return 'not_heard';
   if (bus.state === 'in_service' || bus.state === 'on_road') return 'on_road';
-  if (!isStandingNow(bus)) return 'not_in_yard';
   if (!yardEstablished) return 'standing';
   return bus.location === 'in_yard' ? 'in_yard' : 'not_in_yard';
 }
@@ -155,8 +157,9 @@ const TIERS = 5;
 
 /**
  * Proposes which bus runs which duty: an exact minimum-cost matching (ruling
- * S47). Buses off the road or dark, and standing buses that are not known to
- * be in the yard now, are excluded first, each with one reason. Every other
+ * S47). Buses off the road or dark, buses not heard recently (when the feed
+ * has a clock), and standing buses away from an established yard are
+ * excluded first, each with one reason (ruling S55). Every other
  * pairing is allowed and costed in lexicographic tiers:
  *  1. a bus on the road (in service or not) before a standing one, so when
  *     there are fewer duties than buses the buses left over are standing ones;

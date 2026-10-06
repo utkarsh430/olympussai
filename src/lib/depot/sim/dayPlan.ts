@@ -24,6 +24,8 @@ export interface DutyPlan {
   readonly plan: AssignmentPlan;
   /** True when the depot has no yard, so eligibility ignored location. */
   readonly locationIgnored: boolean;
+  /** True when the feed has no clock, so recency did not decide eligibility (ruling S55). */
+  readonly recencyNotJudged: boolean;
   /** Feed rows left out because their registration repeated an earlier one's. */
   readonly duplicateRowsDropped: number;
 }
@@ -119,6 +121,7 @@ export function planDay(input: DayPlanInput): DutyPlan {
     fleet,
     plan,
     locationIgnored: !input.yardEstablished,
+    recencyNotJudged: input.now.kind === 'no_feed_clock',
     duplicateRowsDropped: dropped,
   };
 }

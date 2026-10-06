@@ -56,17 +56,20 @@ describe('assignDuties eligibility (ruling S47 b)', () => {
     expect(new Set(Object.values(busOf(plan)))).toEqual(new Set(['A', 'B', null]));
   });
 
-  it('with a yard, a standing bus on an old report is not eligible though it reported the yard', () => {
-    const plan = assignDuties([duty('1', 'R')], [bus('A', 'standing', null, 'in_yard', 300)], fleetOf([]));
-    expect(plan.excluded).toEqual([{ registrationNumber: 'A', reason: 'not_in_yard' }]);
+  it('with a yard, a standing bus on an old report is not heard recently though it reported the yard', () => {
+    const plan = assignDuties([duty('1', 'R')], [bus('A', 'standing', null, 'in_yard', 300)], fleetOf([]), {
+      now: { kind: 'feed_time', feedMinute: 600 },
+    });
+    expect(plan.excluded).toEqual([{ registrationNumber: 'A', reason: 'not_heard' }]);
     expect(plan.unassignedDuties).toBe(1);
   });
 
   it('without a yard, a standing bus on an old report is not eligible either', () => {
     const plan = assignDuties([duty('1', 'R')], [bus('A', 'standing', null, 'unknown', 300)], fleetOf([]), {
       yardEstablished: false,
+      now: { kind: 'feed_time', feedMinute: 600 },
     });
-    expect(plan.excluded).toEqual([{ registrationNumber: 'A', reason: 'not_in_yard' }]);
+    expect(plan.excluded).toEqual([{ registrationNumber: 'A', reason: 'not_heard' }]);
   });
 });
 

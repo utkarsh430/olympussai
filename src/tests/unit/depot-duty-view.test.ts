@@ -121,20 +121,20 @@ describe('buildDutyBoard', () => {
   });
 
   it('carries the reason through: a depot with no usable bus leaves every duty without one', () => {
-    // No yard, and none of the buses was heard inside the reporting window: with no yard
-    // only a standing bus on a recent report is eligible, so every bus is held out.
+    // No yard, and none of the buses was heard inside the reporting window: every bus is
+    // held out as not heard recently (S55), and no duty blames the yard.
     const quietSince = new Date(Date.parse(FEED_NOW) - 90 * 60_000).toISOString();
     const b = board(scattered().map((r) => ({ ...r, gpsTimestamp: quietSince })));
     expect(b.eligibilityIgnoredLocation).toBe(true);
     expect(b.counts.assigned).toBe(0);
     expect(b.counts.unassigned).toBe(b.counts.duties);
-    expect(b.counts.excluded.notInYard).toBe(6);
+    expect(b.counts.excluded.notHeard).toBe(6);
+    expect(b.counts.excluded.notInYard).toBe(0);
     for (const d of b.duties) {
       expect(d.registrationNumber).toBeNull();
-      expect(d.blockers).not.toBeNull();
-      expect(d.state).toBe(d.blockers && d.blockers.notInYard > 0 ? 'bus_not_in_yard' : 'no_bus');
+      expect(d.blockers?.notHeard).toBe(6);
+      expect(d.state).toBe('no_bus');
     }
-    expect(b.duties.some((d) => d.state === 'bus_not_in_yard')).toBe(true);
   });
 
   it('gives an assigned duty a bus, no blockers and the assigned state', () => {
@@ -195,7 +195,7 @@ describe('buildDutyBoard without a yard, and with repeated rows', () => {
   it('matches standing buses heard recently and says location was ignored', () => {
     const b = board(scattered(6));
     expect(b.eligibilityIgnoredLocation).toBe(true);
-    expect(b.counts.excluded).toEqual({ notInYard: 0, offRoad: 0, dark: 0 });
+    expect(b.counts.excluded).toEqual({ notInYard: 0, notHeard: 0, offRoad: 0, dark: 0 });
     expect(b.counts.assigned + b.counts.spare).toBe(6);
     expect(b.counts.assigned).toBeGreaterThan(0);
   });

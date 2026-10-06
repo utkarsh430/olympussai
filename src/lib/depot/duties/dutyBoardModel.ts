@@ -190,13 +190,16 @@ export function spareSentence(spare: readonly string[], context?: SpareContext):
 }
 
 /**
- * Buses held out of the matching, counted. With no yard established the server
- * ignored location, so its "not in the yard" count means "not standing on a recent
- * report" and is worded so (`eligibilityIgnoredLocation`).
+ * Buses held out of the matching, counted. "Not heard recently" is its own
+ * reason, moving or standing (ruling S55). With no yard established the server
+ * ignores location, so a "not in the yard" count is then worded as "not
+ * standing on a recent report" (`eligibilityIgnoredLocation`).
  */
 export function heldOutParts(blockers: DutyBlockers, locationIgnored = false): readonly string[] {
   const where = locationIgnored ? 'not standing on a recent report' : 'not in the yard';
+  const notHeard = blockers.notHeard ?? 0;
   return [
+    notHeard > 0 ? `${formatCount(notHeard)} not heard recently` : null,
     blockers.notInYard > 0 ? `${formatCount(blockers.notInYard)} ${where}` : null,
     blockers.offRoad > 0 ? `${formatCount(blockers.offRoad)} off the road` : null,
     blockers.dark > 0 ? `${formatCount(blockers.dark)} dark` : null,

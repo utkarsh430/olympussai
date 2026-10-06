@@ -14,7 +14,7 @@ import { dutyPlanFor } from './operatingDayView';
 
 type DutyBoardBody = Omit<DutyBoardResponse, keyof ReturnType<typeof feedEnvelope>>;
 
-const NO_BLOCKERS: DutyBlockers = { notInYard: 0, offRoad: 0, dark: 0 };
+const NO_BLOCKERS: DutyBlockers = { notInYard: 0, notHeard: 0, offRoad: 0, dark: 0 };
 
 /** Counts the held-out buses of one class (or of any class) by reason. */
 function blockersFor(
@@ -23,6 +23,7 @@ function blockersFor(
   serviceClass: ServiceClass | null,
 ): DutyBlockers {
   let notInYard = 0;
+  let notHeard = 0;
   let offRoad = 0;
   let dark = 0;
   for (const e of excluded) {
@@ -30,10 +31,11 @@ function blockersFor(
       continue;
     }
     if (e.reason === 'not_in_yard') notInYard += 1;
+    else if (e.reason === 'not_heard') notHeard += 1;
     else if (e.reason === 'off_road') offRoad += 1;
     else if (e.reason === 'dark') dark += 1;
   }
-  return { notInYard, offRoad, dark };
+  return { notInYard, notHeard, offRoad, dark };
 }
 
 function stateOf(registration: string | null, blockers: DutyBlockers): DutyState {
@@ -91,6 +93,7 @@ function buildBody(
     routesWithoutDuty: planned.routesWithoutDuty,
     counts,
     eligibilityIgnoredLocation: planned.locationIgnored,
+    recencyNotJudged: planned.recencyNotJudged,
     duplicateRowsDropped: planned.duplicateRowsDropped,
   };
 }

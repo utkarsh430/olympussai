@@ -97,7 +97,7 @@ describe('the duty board and recency (S55, N3)', () => {
     expect(b?.counts.assigned).toBeGreaterThan(0);
     expect(b?.counts.excluded.notInYard).toBe(0);
     expect(b?.recencyNotJudged).toBe(true);
-    expect(buildDutyBoard(view(FEED_NOW, rows), '1')?.recencyNotJudged).toBe(false);
+    expect(buildDutyBoard(view(FEED_NOW, [...rows]), '1')?.recencyNotJudged).toBe(false);
   });
 
   it('counts a stale yard bus as not heard recently', () => {

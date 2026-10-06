@@ -229,7 +229,7 @@ describe('assignDuties with no yard established', () => {
     expect(plan.excluded).toEqual([]);
   });
 
-  it('holds out off-road, dark, quiet and clockless buses; a moving bus is out working', () => {
+  it('holds out off-road, dark and buses not heard recently; a moving bus is out working', () => {
     const buses = [
       heard('X', 'off_road', 2),
       heard('D', 'dark', 2),
@@ -238,13 +238,17 @@ describe('assignDuties with no yard established', () => {
       heard('Q', 'standing', 45),
       heard('N', 'standing', null),
     ];
-    const plan = assignDuties([duty(0)], buses, fleetOf([]), NO_YARD);
+    // On the feed clock, a bus whose report is old or cannot be aged is not heard recently (S55).
+    const plan = assignDuties([duty(0)], buses, fleetOf([]), {
+      ...NO_YARD,
+      now: { kind: 'feed_time', feedMinute: 600 },
+    });
     expect(plan.unassignedDuties).toBe(0);
     expect(['M', 'S']).toContain(plan.assignments[0]?.registrationNumber);
     expect(plan.excluded).toEqual([
       { registrationNumber: 'D', reason: 'dark' },
-      { registrationNumber: 'N', reason: 'not_in_yard' },
-      { registrationNumber: 'Q', reason: 'not_in_yard' },
+      { registrationNumber: 'N', reason: 'not_heard' },
+      { registrationNumber: 'Q', reason: 'not_heard' },
       { registrationNumber: 'X', reason: 'off_road' },
     ]);
   });

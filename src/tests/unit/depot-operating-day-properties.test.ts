@@ -43,14 +43,16 @@ function depotCase(n: number): OperatingDayInput {
 }
 
 const CASES = Array.from({ length: 150 }, (_, n) => depotCase(n));
-const onTheRoad = (b: DepotBusView): boolean => b.state === 'in_service' || b.state === 'on_road';
+/** Out working AND heard within the reporting window: a bus last heard long ago is not (S55). */
+const onTheRoad = (b: DepotBusView): boolean =>
+  (b.state === 'in_service' || b.state === 'on_road') && (b.gpsAgeMin ?? Infinity) <= 30;
 
 function liveRouteOf(input: OperatingDayInput): Map<string, string | null> {
   return new Map(input.buses.map((b) => [b.registrationNumber, b.routeName]));
 }
 
 describe('the modelled day keeps to the live fleet (ruling S47)', () => {
-  it('runs every bus in service or on the road whenever the duties are at least those buses', () => {
+  it('runs every bus in service or on the road, heard recently, whenever the duties are at least those', () => {
     let checked = 0;
     for (const input of CASES) {
       const day = modelOperatingDay(input);

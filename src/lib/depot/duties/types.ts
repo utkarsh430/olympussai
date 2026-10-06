@@ -39,7 +39,13 @@ export interface TimetableRepository {
   dutiesFor(depotId: string, operatingDate: string): Promise<readonly Duty[]>;
 }
 
-export type Ineligibility = 'off_road' | 'dark' | 'not_in_yard' | 'class_mismatch';
+/**
+ * Why a bus is held out of the matching. `not_heard`: its last report is older
+ * than the reporting window, moving or standing (ruling S55). `class_mismatch`
+ * is no longer produced (class is a cost, ruling S47); kept so the vocabulary
+ * only grows.
+ */
+export type Ineligibility = 'off_road' | 'dark' | 'not_in_yard' | 'not_heard' | 'class_mismatch';
 
 /**
  * The moment a plan is made "as of" (ruling S55). A plan for the feed's own
