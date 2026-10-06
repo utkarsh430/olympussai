@@ -64,9 +64,14 @@ describe('getLiveSnapshot', () => {
     mockFetch.mockReset();
     mockFleet.mockClear();
     delete process.env.NEXT_PUBLIC_DEMO_MODE;
+    // Each change of what is served is logged; the lines are pinned in their own test file.
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
+    vi.mocked(console.error).mockRestore();
+    vi.mocked(console.warn).mockRestore();
     if (originalDemo === undefined) delete process.env.NEXT_PUBLIC_DEMO_MODE;
     else process.env.NEXT_PUBLIC_DEMO_MODE = originalDemo;
   });

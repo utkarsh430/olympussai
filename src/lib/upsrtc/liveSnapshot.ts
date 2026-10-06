@@ -3,7 +3,7 @@ import type { UpstreamFetchResult } from '@/lib/upsrtc/client';
 import { normalizeLivePayload } from '@/lib/upsrtc/normalizer';
 import { deriveFeedClock, normalizeDepotRows } from '@/lib/upsrtc/depotNormalizer';
 import { TtlCache } from '@/lib/upsrtc/cache';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError, logDepotNotice } from '@/lib/depot/log';
 import { loadFleetFixture, resetFleetFixtureForTests } from '@/lib/upsrtc/fleetFixture';
 import liveFixture from '@/fixtures/upsrtc-live-sample.json';
 import type { CanonicalLiveBus, UpstreamSource } from '@/models/canonical';
@@ -93,6 +93,41 @@ const cache = new TtlCache<LiveSnapshot>(LIVE_CACHE_TTL_MS);
 let inFlight: Promise<LiveSnapshotResult> | null = null;
 // Until this wall time, a failed refresh is not retried; null while the upstream answers.
 let retryAfterMs: number | null = null;
+
+/*
+ * What the chain is serving, so that each change is logged once with its reason and never
+ * once per request: live → last-good or the saved sample when a refresh fails (or demo mode
+ * is on), last-good → the saved sample if last-good is ever gone, and back to live on
+ * recovery. The reason never carries an address, which may hold credentials.
+ */
+type ServingFrom = 'live' | 'last-good' | 'sample';
+const SERVING_WORDS: Readonly<Record<ServingFrom, string>> = {
+  live: 'live data',
+  'last-good': 'last good data',
+  sample: 'the saved sample',
+};
+const LOG_SCOPE = 'live-snapshot';
+const ADDRESS_PATTERN = /[a-z][a-z0-9+.-]*:\/\/\S+/gi;
+let servingFrom: ServingFrom = 'live';
+
+function noteServing(next: ServingFrom, reason: string): void {
+  if (next === servingFrom) return;
+  const previous = servingFrom;
+  servingFrom = next;
+  if (next === 'live') {
+    const was = SERVING_WORDS[previous];
+    logDepotNotice(LOG_SCOPE, `upstream recovered; serving live data again instead of ${was}`);
+    return;
+  }
+  const safeReason = reason.replace(ADDRESS_PATTERN, '(address withheld)');
+  const change = `serving ${SERVING_WORDS[next]} instead of ${SERVING_WORDS[previous]}`;
+  logDepotError(LOG_SCOPE, `${change}: ${safeReason}`);
+}
+
+function noteFallback(result: LiveSnapshotResult, reason: string): LiveSnapshotResult {
+  noteServing(result.source === 'fixture' ? 'sample' : 'last-good', reason);
+  return result;
+}
 // Bumped by the test reset so a refresh started before it cannot write afterwards.
 let generation = 0;
 
@@ -192,6 +227,7 @@ async function refresh(now: number): Promise<LiveSnapshotResult> {
         liveDiagnostics.lastError = null;
         liveDiagnostics.consecutiveFailures = 0;
         retryAfterMs = null;
+        noteServing('live', '');
       }
       return { snapshot, source: 'live', stale: false };
     }
@@ -204,6 +240,7 @@ async function refresh(now: number): Promise<LiveSnapshotResult> {
     liveDiagnostics.lastError = failure;
     liveDiagnostics.consecutiveFailures += 1;
     retryAfterMs = now + LIVE_RETRY_BACKOFF_MS;
+    return noteFallback(fallbackResult(now), `upstream refresh failed (${failure})`);
   }
   return fallbackResult(now);
 }
@@ -245,14 +282,17 @@ export function getLiveSnapshot(
   // Explicit offline demo mode for presentations without connectivity.
   if (process.env.NEXT_PUBLIC_DEMO_MODE === '1') {
     liveDiagnostics.lastError = 'Fixture mode forced via NEXT_PUBLIC_DEMO_MODE';
-    return Promise.resolve(fixtureResult(now));
+    return Promise.resolve(noteFallback(fixtureResult(now), 'demo mode is on'));
   }
 
   const cached = cache.get(CACHE_KEY, now);
   if (cached) return Promise.resolve({ snapshot: cached, source: 'cache', stale: false });
 
   // Backing off after a failure: answer as the failed refresh did, without the upstream.
-  if (retryAfterMs !== null && now < retryAfterMs) return Promise.resolve(fallbackResult(now));
+  if (retryAfterMs !== null && now < retryAfterMs) {
+    const reason = `upstream refresh failed (${liveDiagnostics.lastError ?? 'unknown'})`;
+    return Promise.resolve(noteFallback(fallbackResult(now), reason));
+  }
 
   const refreshing = sharedRefresh(now);
   // Stale-while-revalidate for callers that accept it: the refresh above runs on regardless.
@@ -267,6 +307,7 @@ export function resetLiveSnapshotForTests(): void {
   cache.clear();
   inFlight = null;
   retryAfterMs = null;
+  servingFrom = 'live';
   generation += 1;
   fixture = null;
   resetFleetFixtureForTests();
