@@ -7,7 +7,45 @@
 import type { DepotFeedEnvelope } from '../api';
 import type { HistoryScope, MetricKey, SeriesAnchor, SeriesPoint } from '../sim/types';
 import type { MetricKind } from './config';
-import type { TrendResult } from './trend';
+import type { TrendDirection, TrendResult, TrendUnit } from './trend';
+
+export const DEPOT_TRENDS_ENDPOINT = '/api/upsrtc/depot/trends';
+
+/** One row's trend in brief: what a sparkline cell prints beside its line. */
+export interface TrendBrief {
+  /** The headline direction: the four-week one when there is one, else the week's. */
+  readonly direction: TrendDirection;
+  /** Change over 7 days, in the metric's trend unit, rounded as printed. */
+  readonly week: number;
+  /** Change over 28 days; null when the history is shorter than 29 days. */
+  readonly fourWeeks: number | null;
+  /** "MODELLED trend: up 2.1 percentage points over 4 weeks". */
+  readonly sentence: string;
+}
+
+/** The network or one unit: a compact MODELLED series for a sparkline and its trend. */
+export interface TrendRow {
+  /** 'network', or the depot id. */
+  readonly id: string;
+  readonly name: string;
+  /** Date of the last value, which is the live value; empty when there is no value. */
+  readonly endDate: string;
+  /** Oldest first, one per day, ending on the live value. Empty when there is no value. */
+  readonly values: readonly number[];
+  /** Null when there is no value or too little history for a trend. */
+  readonly trend: TrendBrief | null;
+}
+
+/** Payload of GET /api/upsrtc/depot/trends: every sparkline of one metric, no forecast. */
+export interface DepotTrendsResponse extends DepotFeedEnvelope {
+  readonly provenance: 'modelled';
+  readonly metric: ForecastMetricInfo;
+  readonly trendUnit: TrendUnit;
+  /** Days in each `values`. */
+  readonly days: number;
+  readonly network: TrendRow;
+  readonly units: readonly TrendRow[];
+}
 import type { ForecastResult } from './types';
 
 export const DEPOT_FORECAST_ENDPOINT = '/api/upsrtc/depot/forecast';
@@ -37,7 +75,7 @@ export interface ForecastMetricInfo {
 export interface ForecastSentences {
   /** Chart title; always carries MODELLED. */
   readonly title: string;
-  /** "MODELLED trend: up 2.1 percentage points over 30 days". */
+  /** "MODELLED trend: up 2.1 percentage points over 4 weeks". */
   readonly trend: string | null;
   /** The method in plain words, and why it was chosen. */
   readonly method: string | null;

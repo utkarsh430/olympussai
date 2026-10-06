@@ -76,6 +76,8 @@ export const KIND_WORDS: Readonly<Record<PointKind, string>> = {
 };
 
 const MAX_X_TICKS = 6;
+/** Ends the text equivalent, so a screen-reader user knows every value is one press away. */
+const TABLE_NOTE = 'Values are available as a table.';
 const BAND_SHARE = Math.round(BAND_QUANTILE * 100);
 
 const LEGEND: Readonly<Record<LegendEntry['key'], LegendEntry>> = {
@@ -84,7 +86,7 @@ const LEGEND: Readonly<Record<LegendEntry['key'], LegendEntry>> = {
   forecast: { key: 'forecast', label: 'Forecast, MODELLED', mark: 'dashed' },
   band: {
     key: 'band',
-    label: `Forecast range (${BAND_SHARE}% of past errors), MODELLED`,
+    label: `Forecast range (${BAND_SHARE}% of past errors at each day ahead), MODELLED`,
     mark: 'area',
   },
 };
@@ -161,7 +163,8 @@ function summaryOf(input: TrendChartInput, points: readonly ChartPoint[]): strin
     parts.push(`MODELLED forecast to ${formatDate(last.date)} ${ends}`);
   }
   const unavailable = input.sentences.unavailable;
-  return `${label}, ${parts.join('; ')}.${unavailable ? ` ${unavailable}` : ''}`;
+  const why = unavailable ? ` ${unavailable}` : '';
+  return `${label}, ${parts.join('; ')}.${why} ${TABLE_NOTE}`;
 }
 
 export function buildTrendChartModel(input: TrendChartInput): TrendChartModel {

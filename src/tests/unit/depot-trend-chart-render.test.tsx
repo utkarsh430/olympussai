@@ -95,9 +95,9 @@ describe('TrendChart', () => {
       'History, MODELLED',
       'Live value, LIVE',
       'Forecast, MODELLED',
-      'Forecast range (80% of past errors), MODELLED',
+      'Forecast range (80% of past errors at each day ahead), MODELLED',
     ]);
-    expect(text()).toContain('Typical error about');
+    expect(text()).toContain('MODELLED: typically within');
     expect(text()).toContain('Forecast for the next 14 days.');
     expect(text().toLowerCase()).not.toContain('simulated');
   });
@@ -110,8 +110,15 @@ describe('TrendChart', () => {
     expect(container.querySelector('[data-testid="trend-plot-stub"]')).not.toBeNull();
     expect(container.querySelector('table')).toBeNull();
 
+    const controlled = button?.getAttribute('aria-controls') ?? '';
+    expect(controlled).not.toBe('');
+    expect(container.querySelector(`[id="${controlled}"]`)).not.toBeNull();
+    const status = container.querySelector('[role="status"]');
+    expect(status?.textContent).toBe('');
     act(() => button?.click());
     expect(button?.getAttribute('aria-pressed')).toBe('true');
+    expect(status?.textContent).toBe('Showing the values as a table.');
+    expect(container.querySelector(`[id="${controlled}"] table`)).not.toBeNull();
     expect(container.querySelector('[data-testid="trend-plot-stub"]')).toBeNull();
     const headers = [...container.querySelectorAll('th')].map((th) => th.textContent);
     expect(headers).toEqual(['Date', 'Value', 'Low', 'High', 'Kind']);

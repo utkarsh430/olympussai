@@ -75,9 +75,16 @@ describe('Holt-Winters additive', () => {
     expect(forecast.method).toBe('holt_winters');
     expect(forecast.reason).toBe('holt_winters_better');
     expect(forecast.backtestDays).toBe(28);
-    expect(forecast.seasonalNaiveMae).toBeCloseTo(7 * 0.3, 9);
-    expect(forecast.holtWintersMae).toBeLessThan(TOLERANCE);
-    expect(forecast.backtestMae).toBe(forecast.holtWintersMae);
+    // Seasonal-naive misses by one week's trend up to 7 days ahead, two weeks' after.
+    expect(forecast.seasonalNaiveError).toBeCloseTo((7 * 0.3 + 14 * 0.3) / 2, 9);
+    expect(forecast.holtWintersError).toBeLessThan(TOLERANCE);
+    expect(forecast.error).toEqual({
+      overHorizon: forecast.holtWintersError,
+      byDaysAhead: expect.any(Array),
+      unit: 'points',
+      statedAsFraction: false,
+    });
+    expect(forecast.error.byDaysAhead).toHaveLength(14);
     const truth = trendPlusRhythm(84, 30, 0.3).slice(70);
     forecast.points.forEach((p, i) => {
       expect(Math.abs(p.value - (truth[i] as number))).toBeLessThan(TOLERANCE);
@@ -99,14 +106,18 @@ describe('method choice', () => {
     expect(chooseMethod(naive, hw)).toEqual({ method, reason });
   });
 
-  it('does not offer Holt-Winters with fewer than two full weeks before the backtest window', () => {
-    const short = okOf(forecastSeries(seriesOf(trendPlusRhythm(41, 30, 0.3)), 'index'));
-    expect(short.method).toBe('seasonal_naive');
-    expect(short.reason).toBe('short_history');
-    expect(short.holtWintersMae).toBeNull();
-    const enough = okOf(forecastSeries(seriesOf(trendPlusRhythm(42, 30, 0.3)), 'index'));
+  it.each([
+    [14, 54],
+    [7, 47],
+    [28, 68],
+  ])('at %s days ahead, offers Holt-Winters only after two weeks before every scored origin (%s days is short)', (horizon, short) => {
+    const tooShort = okOf(forecastSeries(seriesOf(trendPlusRhythm(short, 30, 0.3)), 'index', horizon));
+    expect(tooShort.method).toBe('seasonal_naive');
+    expect(tooShort.reason).toBe('short_history');
+    expect(tooShort.holtWintersError).toBeNull();
+    const enough = okOf(forecastSeries(seriesOf(trendPlusRhythm(short + 1, 30, 0.3)), 'index', horizon));
     expect(enough.method).toBe('holt_winters');
-    expect(enough.holtWintersMae).not.toBeNull();
+    expect(enough.holtWintersError).not.toBeNull();
   });
 
   it('keeps the simpler method on an exact tie', () => {
@@ -118,7 +129,7 @@ describe('method choice', () => {
   });
 
   it('breaks grid ties towards the smallest alpha, then beta, then gamma', () => {
-    expect(bestHoltWinters(Array(56).fill(40))?.params).toEqual({
+    expect(bestHoltWinters(Array(56).fill(40), 14)?.params).toEqual({
       alpha: ALPHA_GRID[0],
       beta: BETA_GRID[0],
       gamma: GAMMA_GRID[0],
@@ -128,10 +139,10 @@ describe('method choice', () => {
   it('picks the grid point with the lowest backtest error', () => {
     const rng = new SeededRandom(seedFor('forecast-grid', START, 'noise'));
     const values = trendPlusRhythm(84, 40, 0.1).map((v) => v + rng.float(-3, 3));
-    const best = bestHoltWinters(values);
+    const best = bestHoltWinters(values, 14);
     if (best === null) throw new Error('expected a fit');
     GRID.forEach((params) => {
-      const score = backtestHoltWinters(values, params);
+      const score = backtestHoltWinters(values, params, 14);
       expect(best.score.mae).toBeLessThanOrEqual(score?.mae ?? Infinity);
     });
   });
@@ -147,34 +158,42 @@ describe('method choice', () => {
       const rng = new SeededRandom(seedFor('forecast-noise', START, `series:${i}`));
       const values = Array.from({ length: rng.int(42, 120) }, () => 60 + rng.float(-4, 4));
       const forecast = okOf(forecastSeries(seriesOf(values), 'index'));
-      const naive = backtestSeasonalNaive(values).mae;
-      const hw = bestHoltWinters(values)?.score.mae ?? Infinity;
-      expect(forecast.seasonalNaiveMae).toBe(naive);
-      expect(forecast.holtWintersMae).toBe(hw);
+      const naive = backtestSeasonalNaive(values, 14).mae;
+      const hw = bestHoltWinters(values, 14)?.score.mae ?? Infinity;
+      expect(forecast.seasonalNaiveError).toBe(naive);
+      expect(forecast.holtWintersError ?? Infinity).toBe(hw);
       expect(forecast.method === 'holt_winters').toBe(hw < naive * 0.95);
       return { ratio: hw / naive, method: forecast.method };
     });
-    const nearTies = outcomes.filter((o) => o.ratio >= 0.95 && o.ratio < 1);
-    expect(nearTies.length).toBeGreaterThan(0);
-    nearTies.forEach((o) => expect(o.method).toBe('seasonal_naive'));
+    // Scored over two weeks ahead, the sample holds both outcomes.
+    const kept = outcomes.filter((o) => o.ratio >= 0.95);
+    expect(kept.length).toBeGreaterThan(0);
+    kept.forEach((o) => expect(o.method).toBe('seasonal_naive'));
+    expect(outcomes.some((o) => o.method === 'holt_winters')).toBe(true);
   });
 });
 
 describe('Holt-Winters against the valid range', () => {
-  it('clips a rate forecast that would climb past 1, band and all', () => {
-    const values = trendPlusRhythm(49, 0, 0).map((s, t) => 0.8 + 0.004 * t + s / 1000);
+  it('clips a rate climbing past 1 first, and keeps its band on the inner side', () => {
+    const rng = new SeededRandom(seedFor('forecast-edge', START, 'rate'));
+    const values = trendPlusRhythm(63, 0, 0).map((s, t) => 0.65 + 0.005 * t + s / 1000 + rng.float(-0.002, 0.002));
     const forecast = okOf(forecastSeries(seriesOf(values), 'onRoadShare'));
     expect(forecast.method).toBe('holt_winters');
     const lastPoint = forecast.points.at(-1);
-    expect(lastPoint).toEqual({ date: dateAt(62), value: 1, low: 1, high: 1 });
-    forecast.points.forEach((p) => expect(p.high).toBeLessThanOrEqual(1));
+    expect(lastPoint).toMatchObject({ date: dateAt(76), value: 1, high: 1 });
+    expect(1 - (lastPoint?.low ?? 1)).toBeGreaterThan(0.001);
+    forecast.points.forEach((p) => {
+      expect(p.high).toBeLessThanOrEqual(1);
+      expect(p.high).toBeGreaterThan(p.low);
+    });
   });
 
   it('clips a falling count at zero and keeps whole numbers', () => {
-    const values = trendPlusRhythm(49, 70, -1.2).map(Math.round);
+    const values = trendPlusRhythm(63, 90, -1.2).map(Math.round);
     const forecast = okOf(forecastSeries(seriesOf(values), 'available'));
     expect(forecast.method).toBe('holt_winters');
     expect(forecast.points.at(-1)).toMatchObject({ value: 0, low: 0 });
+    expect(forecast.points.at(-1)?.high).toBeGreaterThan(0);
     forecast.points.forEach((p) => {
       expect(p.low).toBeGreaterThanOrEqual(0);
       [p.value, p.low, p.high].forEach((v) => expect(Number.isInteger(v)).toBe(true));

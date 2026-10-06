@@ -7,8 +7,8 @@
  * Too short a run then reads as insufficient history, never as a silent guess.
  */
 import type { SeriesPoint } from '../sim/types';
-import type { ValidRange } from './config';
-import type { SeriesInputReason } from './types';
+import type { SeriesRules } from './config';
+import type { InsufficientHistory, SeriesInputReason } from './types';
 
 const MS_PER_DAY = 86_400_000;
 const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -30,13 +30,19 @@ export function addDays(date: string, days: number): string {
 }
 
 export type PreparedSeries =
-  | { readonly ok: true; readonly run: readonly SeriesPoint[] }
+  | {
+      readonly ok: true;
+      readonly run: readonly SeriesPoint[];
+      /** The latest missing day when earlier days exist before the run, else null. */
+      readonly missingDate: string | null;
+    }
   | { readonly ok: false; readonly reason: SeriesInputReason };
 
-function invalidReason(point: SeriesPoint, range: ValidRange): SeriesInputReason | null {
+function invalidReason(point: SeriesPoint, rules: SeriesRules): SeriesInputReason | null {
   if (parseDay(point.date) === null) return 'invalid_date';
   if (!Number.isFinite(point.value)) return 'non_finite_value';
-  if (point.value < range.min || point.value > range.max) return 'out_of_range';
+  if (point.value < rules.min || point.value > rules.max) return 'out_of_range';
+  if (rules.wholeNumbers && !Number.isInteger(point.value)) return 'non_integer_count';
   return null;
 }
 
@@ -48,10 +54,10 @@ function invalidReason(point: SeriesPoint, range: ValidRange): SeriesInputReason
  */
 export function prepareSeries(
   series: readonly SeriesPoint[],
-  range: ValidRange,
+  rules: SeriesRules,
 ): PreparedSeries {
   for (const point of series) {
-    const reason = invalidReason(point, range);
+    const reason = invalidReason(point, rules);
     if (reason !== null) return { ok: false, reason };
   }
   // ISO dates sort correctly as strings.
@@ -63,5 +69,23 @@ export function prepareSeries(
     if (day === previous) return { ok: false, reason: 'duplicate_date' };
     if (day - previous === MS_PER_DAY && start === i) start = i - 1;
   }
-  return { ok: true, run: sorted.slice(Math.max(start, 0)) };
+  const run = sorted.slice(Math.max(start, 0));
+  const first = run[0];
+  const missingDate = start > 0 && first !== undefined ? addDays(first.date, -1) : null;
+  return { ok: true, run, missingDate };
+}
+
+/** The refusal for a run shorter than `required`, naming the gap when one caused it. */
+export function insufficientHistory(
+  prepared: Extract<PreparedSeries, { ok: true }>,
+  required: number,
+): InsufficientHistory {
+  const { run, missingDate } = prepared;
+  return {
+    status: 'insufficient_history',
+    historyDays: run.length,
+    required,
+    cause: missingDate === null ? 'short_record' : 'gap',
+    missingDate,
+  };
 }

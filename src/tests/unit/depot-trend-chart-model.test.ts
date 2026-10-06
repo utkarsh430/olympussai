@@ -103,7 +103,7 @@ describe('buildTrendChartModel', () => {
       'History, MODELLED',
       'Live value, LIVE',
       'Forecast, MODELLED',
-      'Forecast range (80% of past errors), MODELLED',
+      'Forecast range (80% of past errors at each day ahead), MODELLED',
     ]);
     expect(model.points[0]?.description).toBe('MODELLED history');
     expect(model.now?.description).toBe('LIVE value');
@@ -118,6 +118,7 @@ describe('buildTrendChartModel', () => {
       'No forecast: it needs at least 28 days of history and this series has 20.',
     );
     expect(model.summary).toContain('No forecast');
+    expect(model.summary).toContain('Values are available as a table.');
   });
 
   it('draws a single point without a NaN anywhere', () => {
@@ -137,10 +138,10 @@ describe('buildTrendChartModel', () => {
         reason: 'short_history',
         horizonDays: 1,
         points: [{ date: '2026-10-07', value: 0.99, low: 0.9, high: 1.08 }],
-        backtestMae: 0.01,
+        error: { overHorizon: 0.01, byDaysAhead: [0.01], unit: 'percentage_points', statedAsFraction: true },
         backtestDays: 2,
-        seasonalNaiveMae: 0.01,
-        holtWintersMae: null,
+        seasonalNaiveError: 0.01,
+        holtWintersError: null,
         historyDays: 30,
       },
     };
@@ -190,7 +191,7 @@ describe('sparkline', () => {
   it('labels itself from the trend summary sentence', () => {
     const { trend } = forecastSections(dailySeries(40, (i) => 50 + i * 0.2), 'index', 14);
     expect(sparklineLabel('Efficiency index', trend.result)).toBe(
-      'Efficiency index, MODELLED trend: up 6.0 points over 30 days, ending on the live value',
+      'Efficiency index, MODELLED trend: up 5.6 points over 4 weeks, ending on the live value',
     );
     const short = forecastSections(dailySeries(5, () => 50), 'index', 14).trend.result;
     expect(sparklineLabel('Efficiency index', short)).toBe('Efficiency index: no trend yet');

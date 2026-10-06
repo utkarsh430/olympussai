@@ -6,6 +6,7 @@ import { METRIC_RANGES, RATE_METRICS } from '../sim/history';
 import type { MetricKey } from '../sim/types';
 import { DEI_COMPONENTS } from '../score/config';
 import type { DeiComponentKey } from '../score/types';
+import type { TrendUnit } from './types';
 
 /** The weekly rhythm: depot operations repeat on a seven-day cycle. */
 export const SEASON_DAYS = 7;
@@ -14,11 +15,16 @@ export const MIN_HISTORY_DAYS = 28;
 export const DEFAULT_HORIZON_DAYS = 14;
 /** Beyond four weeks the band is too wide to say anything useful. */
 export const MAX_HORIZON_DAYS = 28;
-/** Rolling-origin backtest: one-step-ahead forecasts over the last four weeks. */
+/** Rolling-origin backtest: the last four weeks are forecast 1 to H days ahead. */
 export const BACKTEST_DAYS = 28;
+/**
+ * Fewest errors one days-ahead figure (its error and its band) is read from.
+ * A thinner horizon borrows its neighbours' errors; see `pooledErrors`.
+ */
+export const MIN_BAND_SAMPLES = 10;
 /** Holt-Winters must beat seasonal-naive by more than this share of its error. */
 export const METHOD_MARGIN = 0.05;
-/** The band is this quantile of the chosen method's absolute backtest residuals. */
+/** The band h days ahead is this quantile of the chosen method's absolute h-step errors. */
 export const BAND_QUANTILE = 0.8;
 
 /**
@@ -42,6 +48,13 @@ export function metricKindOf(metric: MetricKey): MetricKind {
   return METRIC_RANGES[metric].decimals === 0 ? 'count' : 'index';
 }
 
+/** The unit each kind is stated in; a rate is stored as a fraction but stated in points. */
+export const UNIT_OF_KIND: Readonly<Record<MetricKind, TrendUnit>> = {
+  rate: 'percentage_points',
+  index: 'points',
+  count: 'buses',
+};
+
 export interface ValidRange {
   readonly min: number;
   readonly max: number;
@@ -52,7 +65,38 @@ export function validRangeOf(metric: MetricKey): ValidRange {
   return { min, max };
 }
 
-/** Changes smaller than this, in the metric's own unit, read as steady. */
+/**
+ * No depot or network holds anywhere near this many buses (the state fleet is
+ * a few thousand), so a larger count is a feed fault, not a reading. It also
+ * keeps every error sum finite.
+ */
+export const COUNT_SANE_MAX = 100_000;
+
+/** What a series must satisfy before any forecast or trend reads it. */
+export interface SeriesRules {
+  readonly min: number;
+  /** Always finite: an unbounded count is capped at `COUNT_SANE_MAX`. */
+  readonly max: number;
+  /** Counts of buses are whole numbers. */
+  readonly wholeNumbers: boolean;
+}
+
+export function seriesRulesOf(metric: MetricKey): SeriesRules {
+  const { min, max } = validRangeOf(metric);
+  const wholeNumbers = metricKindOf(metric) === 'count';
+  return { min, max: Number.isFinite(max) ? max : COUNT_SANE_MAX, wholeNumbers };
+}
+
+/**
+ * A change reads as steady while it is smaller than this quantile of the
+ * series' own absolute changes at the same lag (in the display unit), so a
+ * noisy series needs a bigger move before it is called up or down.
+ */
+export const STEADY_QUANTILE = 0.8;
+/** Fewer changes than this at a lag (two weeks' worth) say too little: the floor alone applies. */
+export const MIN_STEADY_CHANGES = 14;
+
+/** The least change that can read as a direction, in the display unit, whatever the noise. */
 export const STEADY_BAND: Readonly<Record<MetricKind, number>> = {
   rate: 0.5, // percentage points
   index: 1, // points

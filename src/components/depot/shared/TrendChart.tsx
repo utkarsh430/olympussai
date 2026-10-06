@@ -30,7 +30,9 @@ export function TrendChart({
 }: TrendChartProps) {
   const model = useMemo(() => buildTrendChartModel(data), [data]);
   const [asTable, setAsTable] = useState(false);
+  const [announced, setAnnounced] = useState(false);
   const titleId = useId();
+  const bodyId = useId();
   const Heading = `h${headingLevel}` as const;
   return (
     <section aria-labelledby={titleId} className="min-w-0">
@@ -42,24 +44,34 @@ export function TrendChart({
           type="button"
           className="depot-filter-button"
           aria-pressed={asTable}
-          onClick={() => setAsTable((shown) => !shown)}
+          aria-controls={bodyId}
+          onClick={() => {
+            setAsTable((shown) => !shown);
+            setAnnounced(true);
+          }}
         >
           Show as table
         </button>
       </div>
+      {/* Announces the swap; silent until the control is first used. */}
+      <p role="status" className="sr-only">
+        {announced ? (asTable ? 'Showing the values as a table.' : 'Showing the chart.') : ''}
+      </p>
       <TrendLegend entries={model.legend} />
-      {asTable ? (
-        <TrendTable model={model} />
-      ) : (
-        <div
-          role="img"
-          aria-label={model.summary}
-          className="relative w-full min-w-0"
-          style={{ minHeight: height }}
-        >
-          <TrendPlot model={model} unit={data.metric.unit} height={height} />
-        </div>
-      )}
+      <div id={bodyId}>
+        {asTable ? (
+          <TrendTable model={model} />
+        ) : (
+          <div
+            role="img"
+            aria-label={model.summary}
+            className="relative w-full min-w-0"
+            style={{ minHeight: height }}
+          >
+            <TrendPlot model={model} unit={data.metric.unit} height={height} />
+          </div>
+        )}
+      </div>
       <div className="mt-3 space-y-1">
         {model.notes.map((note) => (
           <p key={note} className="depot-prose">
