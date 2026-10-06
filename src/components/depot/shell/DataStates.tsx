@@ -1,4 +1,3 @@
-import { formatFeedTime } from '@/lib/depot/format';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import { StatePanel } from './StatePanel';
 
@@ -66,20 +65,8 @@ export function ErrorPanel({ message, onRetry, title, children }: ErrorPanelProp
   );
 }
 
-export interface StaleStripProps {
-  /** The feed time of the last good data (ISO string), or null when unknown. */
-  readonly since: string | null;
-}
-
-/** Amber hairline above content that is older than the latest poll. */
-export function StaleStrip({ since }: StaleStripProps) {
-  const time = formatFeedTime(since);
-  return (
-    <p role="status" data-testid="depot-stale" className="depot-stale-strip">
-      {time === '—' ? 'Showing last good data' : `Showing last good data from ${time}`}
-    </p>
-  );
-}
+// The stale notice reads the shell feed's clock, so it lives in a client module.
+export { StaleStrip, type StaleStripProps } from './StaleNotice';
 
 /** One sentence in prose saying what is absent and why. A `StatePanel` of kind empty. */
 export function EmptyState({ children }: { readonly children: React.ReactNode }) {
