@@ -161,3 +161,58 @@ describe('league filters', () => {
     host.remove();
   });
 });
+
+describe('league score breakdown focus, on the real page', () => {
+  it('returns focus to the row that opened the breakdown when the expanded row closes', async () => {
+    feed.value = STATES[3][1];
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    })) as unknown as typeof window.matchMedia;
+    const scroll = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = () => undefined;
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    const page = await DepotLeaguePage();
+    await act(async () => root.render(page));
+
+    const row = (): HTMLElement => host.querySelector<HTMLElement>('[data-league-row="b"]') as HTMLElement;
+    const breakdown = (): Element | null => host.querySelector('[data-testid="league-breakdown-row"]');
+    const enter = (): void => {
+      act(() => {
+        row().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+    };
+
+    // Opened from the keyboard: the expanded row sits under its row and takes focus.
+    row().focus();
+    enter();
+    expect(breakdown()).not.toBeNull();
+    expect(breakdown()?.previousElementSibling).toBe(row());
+    expect(breakdown()?.contains(document.activeElement)).toBe(true);
+
+    // Closed by activating the same row with the pointer: focus is back on the row.
+    act(() => row().click());
+    expect(breakdown()).toBeNull();
+    expect(document.activeElement).toBe(row());
+
+    // Opened again and closed from the keyboard, Enter on the row: focus is back on it.
+    enter();
+    expect(breakdown()).not.toBeNull();
+    // Focus is in the breakdown here, so only the page's own move can put it back on the row.
+    expect(document.activeElement).not.toBe(row());
+    enter();
+    expect(breakdown()).toBeNull();
+    expect(document.activeElement).toBe(row());
+
+    act(() => root.unmount());
+    host.remove();
+    Element.prototype.scrollIntoView = scroll;
+  });
+});
