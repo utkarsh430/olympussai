@@ -43,6 +43,21 @@ export interface CopilotAnswerTable {
   readonly rows: readonly (readonly string[])[];
 }
 
+/** A depot an answer was about, by id and its display name. */
+export interface CopilotScopeDepot {
+  readonly depotId: string;
+  readonly depotName: string;
+}
+
+/**
+ * Round 8 A: the scope the ANSWER used, which may differ from the form's select
+ * (a question that names a depot is answered about that depot).
+ */
+export type CopilotAnswerScope =
+  | { readonly kind: 'network' }
+  | ({ readonly kind: 'depot' } & CopilotScopeDepot)
+  | { readonly kind: 'depots'; readonly depots: readonly CopilotScopeDepot[] };
+
 export interface CopilotApiResponse {
   readonly headline: string;
   readonly paragraphs: readonly string[];
@@ -57,6 +72,8 @@ export interface CopilotApiResponse {
   readonly interpretedAs?: string;
   /** `ask` only: the rows behind the answer, when the query returns a list. */
   readonly table?: CopilotAnswerTable;
+  /** `ask` only: what the answer is about. Absent when the question was declined. */
+  readonly answerScope?: CopilotAnswerScope;
 }
 
 /** Error body. 400 invalid request, 401, 403 cross-origin, 404 unknown depot or transfer, 429, 503. */

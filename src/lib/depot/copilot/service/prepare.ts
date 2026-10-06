@@ -6,7 +6,11 @@ import { buildTransferRationale } from '@/lib/depot/copilot/facts/transfer';
 import type { CopilotQuery } from '@/lib/depot/copilot/queries';
 import { scriptedRoute } from '@/lib/depot/copilot/router/scriptedRouter';
 import type { CopilotRequest } from '@/lib/depot/copilot/types';
-import type { CopilotAnswerTable, CopilotScope } from '@/lib/depot/copilot/wire';
+import type {
+  CopilotAnswerScope,
+  CopilotAnswerTable,
+  CopilotScope,
+} from '@/lib/depot/copilot/wire';
 import { buildDepotDetail } from '@/lib/depot/live/depotView';
 import { buildDistributionResponse } from '@/lib/depot/live/distributionView';
 import { buildNetworkResponse } from '@/lib/depot/live/networkView';
@@ -20,6 +24,7 @@ export type Prepared =
       readonly request: CopilotRequest;
       readonly interpretedAs?: string;
       readonly table?: CopilotAnswerTable;
+      readonly answerScope?: CopilotAnswerScope;
     }
   | { readonly ok: false; readonly status: 404 };
 

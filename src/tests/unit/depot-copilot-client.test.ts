@@ -85,6 +85,21 @@ describe('requestCopilot', () => {
   });
 
   it.each([
+    { kind: 'network' },
+    { kind: 'depot', depotId: '49', depotName: 'KAUSHAMBI' },
+    {
+      kind: 'depots',
+      depots: [
+        { depotId: '49', depotName: 'KAUSHAMBI' },
+        { depotId: '101', depotName: 'KANPUR' },
+      ],
+    },
+  ])('accepts the scope the answer used (round 8 A): %j', async (answerScope) => {
+    stub(200, { ...GOOD, answerScope });
+    expect(await requestCopilot(BODY)).toEqual({ ok: true, response: { ...GOOD, answerScope } });
+  });
+
+  it.each([
     [401, 'session_expired'],
     [404, 'not_found'],
     [400, 'invalid'],
@@ -180,6 +195,12 @@ describe('requestCopilot bounds', () => {
     [
       'over-long fact label',
       { ...GOOD, facts: [{ ...fact, label: 'l'.repeat(MAX_FACT_LABEL_CHARS + 1) }] },
+    ],
+    ['an unknown answer scope', { ...GOOD, answerScope: { kind: 'route' } }],
+    ['a depot scope without a name', { ...GOOD, answerScope: { kind: 'depot', depotId: '49' } }],
+    [
+      'a depot scope with an over-long name',
+      { ...GOOD, answerScope: { kind: 'depot', depotId: '49', depotName: 'n'.repeat(500) } },
     ],
     [
       'over-long interpretedAs',
