@@ -298,7 +298,8 @@ one line under its title: `LIVE`, `DERIVED`, `MODELLED` or `REFERENCE`. Point
 at that line on each page.
 
 _Click **Depot Management** in the command bar. Check the feed chip reads
-`LIVE`._
+`LIVE` (if it reads `FIXTURE`, the pages run on a saved sample of the fleet and
+say "sample data" under each title: say so)._
 
 > "This is the same live feed, seen depot by depot. Every count here comes from
 > the same fetch as the map we just used."
@@ -307,24 +308,34 @@ _Open **League table**._
 
 > "Each depot is compared only with depots of a similar fleet size. The index
 > is computed from the live feed over the last twenty minutes, so a depot does
-> not jump up and down the table with every poll."
+> not jump up and down the table with every poll. The line under the title
+> says exactly which window it covers."
 
 _Switch to one depot with the scope switcher, then open its **Yard** page._
 
 > "The system has no map of our depots. It learns where each yard is from where
-> that depot's buses park. Where it cannot be sure, it says so and does not
-> draw a yard."
+> that depot's buses park, by a rule stated on the page. Once it has found a
+> yard it keeps it while the buses are still standing there. Where it cannot be
+> sure, it says so and does not draw a yard."
+
+_Open the depot's **Duties** page._
+
+> "The feed has no timetable, so the day's duties are modelled, and the line
+> under the title says so and dates the day. Which real bus would take each
+> duty is worked out once, and the crew, fuel and revenue pages read that same
+> day. It is a proposal: no duty is assigned."
 
 _Open **Fleet distribution**._
 
-> "What each depot has is live. What each depot needs is modelled, because we
-> do not yet have the timetable. So these transfers show how the optimiser
+> "What each depot has is live. What each depot needs is modelled, because the
+> feed carries no timetable. So these transfers show how the optimiser
 > works; they are not a recommendation to act on today. Nothing is moved."
 
 _Open the depot's **Revenue** or the network **Economics** page._
 
-> "This page is modelled from start to finish: the feed carries no ticketing,
-> fuel or crew data, and the page says so under its title. When the
+> "This page is modelled from start to finish, on the same modelled day as the
+> duties: the feed carries no ticketing, fuel or crew data, and the page says so
+> under its title. When the
 > corporation supplies those feeds, the same screens run on real figures."
 
 _Open **Data sources**._

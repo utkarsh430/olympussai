@@ -149,9 +149,12 @@ and `Routes API: not used`.
 ## Depot Management (`/project/depots`)
 
 The depot module does not use the `PREDICTIVE` marker. It uses four provenance
-words (`src/lib/depot/labels.ts`), declared once per page under the header,
-with a tag only on a figure, column or section that differs from the page
-default (ruling S44; `src/lib/depot/provenanceLine.ts`):
+words (`src/lib/depot/labels.ts`), declared once per page in a line under the
+header, with a tag only on a figure, column or section that differs from the
+page default (rulings S44 and S51; `src/lib/depot/provenanceLine.ts`). Where a
+generated figure or status sits beside a real, named bus, depot or route, that
+column or section carries one tag on every page. Each page's line is pinned by
+a test:
 
 | Word | Meaning |
 | --- | --- |
@@ -162,22 +165,31 @@ default (ruling S44; `src/lib/depot/provenanceLine.ts`):
 
 All depot figures are computed from the same snapshot as the command-centre
 map (`src/lib/upsrtc/liveSnapshot.ts`), and every age is measured against the
-feed's own clock. Full detail: [`DEPOT_MANAGEMENT.md`](DEPOT_MANAGEMENT.md).
+feed's own clock. Bus states are the module's classified states (On road,
+Standing, Dark, Off road) everywhere, never the feed's own status field
+(ruling S60), so the network's state counts are DERIVED. The efficiency index
+and the depot exceptions that compare a depot with its peers are computed over
+a rolling 20-minute window of snapshots held in the server process
+(`src/lib/depot/score/window.ts`), and each page says the window it covers; bus
+exceptions are as of the feed time. When the live feed and last good data are
+both unavailable, the module runs on a saved full-fleet sample and every page's
+provenance line says "sample data". Full detail:
+[`DEPOT_MANAGEMENT.md`](DEPOT_MANAGEMENT.md).
 
 ### Per page
 
 | Page | LIVE | DERIVED | MODELLED | REFERENCE |
 | --- | --- | --- | --- | --- |
-| Network overview | Fleet counts, state and status mix | KPIs, unit kind, efficiency index | — | — |
+| Network overview | Fleet counts | State counts (classified), KPIs, unit kind, efficiency index over the window | — | — |
 | League table | — | Efficiency index and rank over a rolling 20-minute window; peer groups | — | — |
 | Fleet distribution | Fleet, off-road | Available buses, depot positions (inferred yards), transfer plan | Requirement, hence surplus and deficit | — |
-| Routes | Routes seen in the feed, buses on them | Route profiles (stops, terminals, length) once loaded; dead kilometres; allocation plan | Trips per day | — |
-| Exceptions | Bus flags (power, tamper code, emergency, long silence) | Depot exceptions against peers | — | — |
+| Routes | Routes seen in the feed, buses on them | Route profiles (stops, terminals, length) once a person loads them; dead kilometres; allocation plan (empty until profiles are loaded) | Trips per day | — |
+| Exceptions | Bus flags (power, tamper code, emergency, long silence), as of the feed time | Depot exceptions against peers, over the rolling window | — | — |
 | Economics | — | Real route lengths where profiles are cached | Earnings, cost and load factor per km; the economics index | — |
 | Network and depot trends | Today's value (the series' last point) | — | Every earlier point, every forecast and band | — |
 | Cockpit, Roster | Bus states, positions, last report, timetable on demand | Location against the yard, outshedding, depot exceptions | — | — |
-| Yard | Positions of standing buses | The yard (inferred; held for up to 12 h) | Lane layout and capacity; the parking order rests on modelled duties | — |
-| Duties | Bus states | Eligibility (in yard, not dark, not off road) | Duties; bus class and age | — |
+| Yard | Positions of standing buses | The yard (inferred; held for up to 12 h) | Lane layout and capacity; the night parking order rests on the modelled duty plan | — |
+| Duties | Bus states | Eligibility (not off road, not dark, heard recently, a standing bus in the yard) | Duties; which bus runs each; bus class and age | — |
 | Maintenance | Buses the feed reports under maintenance | Silence age on the feed clock | Odometer, service history and due dates; workshop bays | — |
 | Crew | — | — | Every figure: anonymous slots, shifts, coverage | — |
 | Fuel and cost | — | Real route lengths where cached | Litres, km per litre, cost, flagged buses | — |
@@ -190,12 +202,13 @@ All paths are under `src/lib/depot/`.
 
 | Model | Assumption | Parameters (file) |
 | --- | --- | --- |
-| Requirement | A depot needs a share of its available buses at peak, raised when its on-road share is above its peers' | base 0.86, sensitivity 0.5, seeded ±0.04 (`sim/config.ts`); spare ratio 0.08, range 0–0.3 (`optimise/config.ts`) |
+| Requirement | A depot needs a share of its available buses at peak, raised when its on-road share over the rolling window is above its peers' (ruling S63) | base 0.86, sensitivity 0.5, seeded ±0.04 (`sim/config.ts`); spare ratio 0.08, range 0–0.3 (`optimise/config.ts`) |
 | Depot master | Parking capacity 1.0–1.25 × fleet; one workshop bay per 25 buses; one fuel point per 60 | `sim/config.ts`, `sim/depotMaster.ts` |
 | Fleet master | Class from route-name tokens, else seeded proportions; seats 52 / 44 / 40 / 45 (ordinary / express / ac / premium); age up to 15 years | `sim/config.ts`, `sim/fleetMaster.ts` |
 | Trip frequency | 1–2 depot-anchored runs per bus per day | `sim/tripFrequencyConfig.ts` |
-| Duties | One duty per bus needed at peak, round-robin over routes; 4–10 h when no duration is known | `sim/duties.ts` |
-| Operating day | One modelled day per depot and date feeds crew, fuel and revenue (ruling S41); a typical length by class for a route with no cached profile | `sim/operatingDay.ts`, `sim/operatingDayConfig.ts` |
+| Duties | One duty per bus needed at peak, round-robin over routes; a seeded 4–10 h each (the feed carries no durations) | `sim/duties.ts` |
+| Duty plan | One plan per snapshot, depot and date, matched by one matcher; read by the duty board, crew, the night parking order, fuel, revenue and economics (ruling S47) | `sim/dayPlan.ts`, `optimise/assignDuties.ts` |
+| Operating day | The day read off that plan (ruling S41); a typical length by class for a route with no cached profile | `sim/operatingDay.ts`, `sim/operatingDayConfig.ts` |
 | Crew | 1.45 drivers and 1.4 conductors per shift plus 2 reserve slots; leave 6%, training 3%, absent 4%; 10 h a day, 48 h a week | `sim/crew.ts`, `crew/types.ts` |
 | Fuel | 4.8 / 4.6 / 4.0 / 3.6 km per litre; ₹92 per litre; a bus flagged at 15% from the median of at least 2 peers | `sim/fuelConfig.ts`, `fuel/types.ts` |
 | Revenue | Load factor 0.62 / 0.55 / 0.45 / 0.40; fare ₹1.1 / 1.5 / 2.2 / 2.8 per occupied seat-km; two legs per trip | `sim/revenueConfig.ts` |
@@ -207,8 +220,8 @@ All paths are under `src/lib/depot/`.
 ### What changes when a real feed replaces a model
 
 A real feed is a new adapter behind the same repository interface
-(`src/lib/depot/repositories/index.ts`) or, for a model not yet behind one, a
-new repository. The page's provenance declaration and the Data sources entry
+(`src/lib/depot/repositories/index.ts`) or, for a model that views call
+directly, a new repository. The page's provenance declaration and the Data sources entry
 change from `MODELLED` to `LIVE`; the screens and algorithms stay. A depot
 master replaces inferred yards and modelled capacity; a network timetable
 replaces the requirement, duties and trip frequency, so surplus and deficit

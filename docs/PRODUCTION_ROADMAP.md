@@ -83,9 +83,10 @@ None of the work below is done.
 | --- | --- |
 | Accounts | Real user accounts in place of the shared PIN, and per-depot permissions (a depot manager sees their depot); today any PIN holder opens every depot |
 | History | A database of daily per-depot snapshots and an ingestion worker that writes them, behind the existing `HistoryRepository`; trends and forecasts then stop being modelled |
-| Copilot | An API-key provider behind `CopilotProvider` (`src/lib/depot/copilot/types.ts`); the current Claude provider is the local `claude` command and works only where Claude Code is signed in |
+| Copilot | An API-key provider behind `CopilotProvider` (`src/lib/depot/copilot/types.ts`); the current Claude provider is the local `claude` command, for the owner's own machine only. Before any staff-facing provider is switched on, the wording rules recorded as open for the owner-only path must be enforced on every draft: a later sentence denying an earlier one, obligation words, and a true figure given a false meaning, scope or window (rulings S59, S61; see [`DEPOT_COPILOT_OPERATIONS.md`](DEPOT_COPILOT_OPERATIONS.md#what-a-claude-draft-can-still-say)) |
 | Shared state | A shared store for the rolling score window, yard memory, route-profile cache, rate limiters and copilot caches and budget, so several instances agree and a restart does not reset them |
-| Route details | An agreed policy with the owner of the schedule API on lookup volume, or the route and stop master above, before any bulk fetching |
+| Route details | An agreed policy with the owner of the schedule API on lookup volume, or the route and stop master above, before any bulk fetching. Today details are fetched one route at a time on a person's action, at most 40 routes a press of the Routes page's loader |
+| Timetable-fixed day | With a real timetable the modelled day becomes fixed; today it is recomputed from each snapshot and worded "as of the feed time" |
 | Decision trail | Transfer approvals and rejections stored server-side with the user's identity (today they are kept in the browser) |
 
 ---

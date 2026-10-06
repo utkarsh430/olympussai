@@ -1,6 +1,6 @@
 # Depot Management — module reference
 
-**Last updated:** 2026-10-06
+**Last updated:** 6 Oct 2026
 
 The reference for the Depot Management module at `/project/depots`: what it is for, where
 its data comes from, every route and API, every inference and model with its constants,
@@ -29,8 +29,10 @@ What it does not do:
 - **No database.** Live figures come from the current snapshot; history and trends are a
   generated series behind a repository interface (section 8).
 - **One shared PIN, no per-depot permissions.** Any signed-in user can open any depot.
-- **Route details are fetched one route at a time on a user's action**, never crawled
+- **Route details are fetched one route at a time on a person's action**, never crawled
   (section 7.9).
+- **Server state is held in process memory** (section 6): a restart forgets it, and several
+  instances each hold their own copy.
 
 ## 2. Scopes and URL structure
 
@@ -65,6 +67,13 @@ depot layout (`d/[depotId]/layout.tsx`) refuses a malformed id with `notFound()`
 session check, and `d/not-found.tsx` renders the miss. The client polls the depot APIs every
 60 s (`DEFAULT_POLL_INTERVAL_MS` in `src/hooks/usePolledJson.ts`).
 
+**The shell.** One navigation model (`src/lib/depot/shellModel.ts`) feeds two forms: from
+1280 px wide a left rail with the depot's pages first (in depot scope) and then the network
+groups; below 1280 px a top bar and one horizontal strip of the current scope's pages, with
+Operations, Sign out and (in depot scope) the network pages behind the bar's menu. The shared page pieces (page header, provenance line,
+figure bands, tables, notices, the stale strip, the footer) are documented in
+[`DEPOT_UI_PATTERNS.md`](DEPOT_UI_PATTERNS.md#shell-navigation-and-the-footer).
+
 ## 3. Provenance
 
 Four words, defined in `src/lib/depot/labels.ts`:
@@ -78,17 +87,26 @@ Four words, defined in `src/lib/depot/labels.ts`:
 
 The word "simulated" is not used for depot data, on screen or in documents.
 
-**Declared once per page (ruling S44).** A page declares its default provenance once,
-under its header, as one tag and one fixed-formula sentence: `provenanceLine` on
-`PageHeader`, rendered by `ProvenanceLine` from the pure `provenanceLine()` in
-`src/lib/depot/provenanceLine.ts`. Its descriptions are `modelled` (optionally naming what
-replaces it, with a link to Data sources), `mixed` (naming the live part and the modelled
-part), `derived`, `live` and `reference`. Only a figure, column or section whose provenance
-differs from the page default carries its own tag; an all-modelled page carries the tag
-once. The stale, sample-data, unavailable and waiting wordings come from the same function.
-See [`DEPOT_UI_PATTERNS.md`](DEPOT_UI_PATTERNS.md#provenance-line). At the time of writing,
-pages are being moved onto `provenanceLine`; some still declare provenance through section
-and figure tags.
+**Declared once per page (rulings S44 and S51).** Every depot page declares its default
+provenance once, in a line under its header: one tag and one fixed-formula sentence, from
+the pure `provenanceLine()` in `src/lib/depot/provenanceLine.ts`, rendered by
+`ProvenanceLine`. Its descriptions are `modelled` (optionally naming what replaces it, with
+a link to Data sources), `mixed` (naming what is live, what is derived and what is
+modelled, in that order), `derived` (optionally stating the efficiency index window),
+`live` and `reference`. A page that rests on the modelled operating day adds the day's
+sentence (`src/lib/depot/modelledDayLine.ts`). The stale, sample-data, unavailable and
+waiting wordings come from the same function, so a page on the saved sample says "sample
+data" in this line.
+
+Only what differs from the page default carries its own tag, with one guard (S51): a
+section or column where a generated figure or status sits beside a real, named bus, depot
+or route carries one tag (on the section label when the whole section is generated,
+otherwise on the column header), on every page, including all-modelled ones. A generated
+band of figures on a mixed or derived page carries one tag for the band. Each page's line is
+pinned by a test that renders the page's real component in its states (for example
+`depot-routes-page-provenance.test.tsx`, `depot-maintenance-provenance.test.tsx`,
+`depot-fuel-revenue-provenance.test.tsx`). See
+[`DEPOT_UI_PATTERNS.md`](DEPOT_UI_PATTERNS.md#provenance-line).
 
 ## 4. The live data path
 
@@ -113,16 +131,51 @@ views (src/lib/depot/live/*View.ts) ──► route handlers (src/app/api/upsrtc
 - **One upstream fetch, two projections.** The map route and the depot module read the
   same `LiveSnapshot`, so a depot count and a map pin always describe one payload.
 - **Snapshot chain.** Live upstream, then the fresh cache (`LIVE_CACHE_TTL_MS = 15_000`),
-  then last-known-good flagged `stale`, then the sanitised fixture. `NEXT_PUBLIC_DEMO_MODE`
-  forces the fixture. The feed chip shows `LIVE` or `STALE`, never `CACHE`
-  (`src/lib/depot/feedChip.ts`).
-- **The feed clock.** `feedNow` is the newest `receivedTime` in the payload; every age
-  (minutes since a fix, darkness, outshedding, the score window, yard holds, the operating
-  date) is measured against it, never against the server's wall clock, so a stale or
-  fixture snapshot stays internally consistent. The wall clock is used only for the HTTP
-  envelope's `fetchedAt`, cache TTLs and rate-limit windows.
+  then last-known-good, then the saved sample (section 4.1). `NEXT_PUBLIC_DEMO_MODE=1`
+  forces the saved sample.
+- **When the depot pages call the feed stale (ruling S57).** The shared snapshot flags every
+  answer served after a failed refresh as stale. The depot pages do not: the fleet
+  repository (`src/lib/depot/repositories/liveFleetRepository.ts`) reports last-good data
+  as stale only when it is older than `LAST_GOOD_FRESH_MS = 90_000` (90 s) by its fetch
+  time, or when its age cannot be known; the saved sample is always stale.
+- **The feed chip** (`src/lib/depot/feedChip.ts`) reads `LIVE`, `STALE`, `CHECK CLOCK` or
+  `FIXTURE`, never which cache layer answered. `CHECK CLOCK` means the feed is live but at
+  least `FEED_CLOCK_AHEAD_WARN_SHARE = 0.01` of the response's rows, and at least
+  `FEED_CLOCK_AHEAD_WARN_MIN_ROWS = 20`, were stamped ahead of the feed clock's ceiling, so
+  the feed clock may lag. A page shows its stale notice only once the data is older than
+  `STALE_NOTICE_AFTER_MS` (5 minutes, same file) by the browser clock; before that the chip
+  and the provenance line carry it alone.
+- **The feed clock (ruling S56a).** `feedNow` is the newest receive time that is not later
+  than the snapshot's own fetch time read in Indian time plus `FEED_CLOCK_MAX_LEAD_MIN = 5`
+  minutes (`deriveFeedClock` in `src/lib/upsrtc/depotNormalizer.ts`). Rows stamped beyond
+  that are ignored for the clock, counted, and sent as `feedClockAheadRows` (only when above
+  zero). It does not depend on how many buses report, so a night feed with few buses still
+  advances; the saved sample's clock has no upper limit. Every age (minutes since a fix,
+  darkness, outshedding, the score window, yard holds, the operating date) is measured
+  against `feedNow`, never against the server's wall clock, so a stale or sample snapshot
+  stays internally consistent. The wall clock is used for the envelope's `fetchedAt`, cache
+  TTLs, the stale limits above and rate-limit windows.
 - **Server-side aggregation.** The browser never receives the fleet's ~9.6k rows for a
   network page; it receives summaries. Per-bus rows are sent only for one depot.
+
+### 4.1 The saved full-fleet sample
+
+When the live feed and last-good data are both unavailable, or `NEXT_PUBLIC_DEMO_MODE=1`, the
+app serves a saved sample of the whole fleet: `src/fixtures/upsrtc-fleet-sample.json.gz`,
+gzip-compressed JSON (ruling S52). It is read lazily on the first fallback and memoised for
+the life of the process (`src/lib/upsrtc/fleetFixture.ts`); if it is missing or unreadable,
+the small `src/fixtures/upsrtc-live-sample.json` is used instead. The response's `source` is
+`fixture`, the chip reads `FIXTURE`, and every page's provenance line says "sample data" with
+the sample's own feed time. The score window and the yard memory are neither read nor
+written for it.
+
+It is built by `npm run build:depot-fixture` (`scripts/build-depot-fixture.ts`): one request
+to the live feed, no retry, keeping only the raw keys the normalisers read
+(`FLEET_FIXTURE_KEYS` in `src/lib/upsrtc/fleetFixtureShape.ts`). It holds no personal data:
+`src/tests/unit/fleet-fixture-shape.test.ts` fails if a key that suggests a person is ever
+allowlisted, and `src/tests/unit/fleet-fixture-file.test.ts` reads the saved file and fails
+on any key outside the allowlist, any key suggesting a person, or any value that looks like a
+phone number.
 
 ### Server house rules (every depot view)
 
@@ -191,8 +244,7 @@ Data sources registry entry (`src/lib/depot/sources/registry.ts`) from `modelled
 `live`. Nothing else imports the adapter. The history adapter is the one a database
 replaces: a daily store of per-depot snapshots behind `series()`.
 
-Models that are not yet behind a repository and are called directly by views: the
-requirement model, the depot master (`sim/depotMaster.ts`: parking capacity, bays, fuel
+Models called directly by views, with no repository between: the requirement model, the depot master (`sim/depotMaster.ts`: parking capacity, bays, fuel
 points), the yard lane layout, the fleet master (`sim/fleetMaster.ts`), the duty plan and
 operating day, and the maintenance service model. Replacing them means adding a repository
 first.
@@ -202,8 +254,9 @@ first.
 | State | Where | Bound |
 | --- | --- | --- |
 | Live snapshot cache and last-known-good | `src/lib/upsrtc/liveSnapshot.ts` | 15 s TTL |
-| Rolling score window | `score/windowStore.ts` | 20 min of feed time, ≤ 120 samples per depot |
+| Rolling score window | `score/windowStore.ts` | 20 min of feed time, ≤ 120 samples per depot, ≤ 1,000 depots |
 | Yard memory | `infer/yardMemory.ts` | 12 h hold, ≤ 1,000 depots |
+| The modelled day and duty plan | `live/operatingDayView.ts` | one slot per analysis, held per snapshot |
 | Memoised analyses and view bodies | `live/analysis.ts` | held weakly per snapshot |
 | Route-profile cache | `routes/routeCatalogue.ts` | ≤ 2,000 routes; negative answers 10 min |
 | Allocation plan | `live/allocationView.ts` | re-planned at most every 30 s per rows |
@@ -211,7 +264,9 @@ first.
 | Copilot runtime: response cache, in-flight sharing, allowances, limiters, CLI semaphore and breaker | `copilot/service/` | see the copilot document |
 
 Consequences: a restart or cold start empties all of it. The score window then starts
-short and screens say "since HH:MM"; yards are re-established from one snapshot; the route
+with one sample and screens say "from one snapshot at HH:MM", then "over the last N
+minutes" with N the minutes the samples actually span, until the window is full; yards are decided again from single snapshots, and the
+cockpit says "This server has decided this depot's yard on N snapshots so far"; the route
 catalogue is empty until users load details again; the copilot's limits and budget reset.
 With several instances, each holds its own copy: two requests can be scored over different
 windows, see different held yards and different cached routes, and every limit and the
@@ -229,12 +284,21 @@ First matching rule wins: feed says under maintenance → `off_road`; no signal,
 or a fix older than `DARK_AFTER_MIN = 360` minutes → `dark`; speed at or below
 `MOVING_SPEED_KMPH = 3` → `standing`; moving, carrying a route, scheduled for the feed date
 and heard within `REPORTING_WINDOW_MIN = 30` → `in_service`; any other moving bus →
-`on_road`. A bus quiet for more than the reporting window but not yet dark gets
+`on_road`. "Scheduled for the feed date" also accepts a trip whose scheduled start and end
+span the feed time (an overnight trip). A bus quiet for more than the reporting window but
+not yet dark gets
 "Not heard for N min" (`notHeardMinutes`) rather than a new state. `LONG_DARK_AFTER_MIN =
 4320` marks the long-dark exception.
 
 Location (`infer/location.ts`): `in_yard`, `at_other_yard`, `away` or `unknown`, testing the
-bus's own yard first.
+bus's own yard first. "In the yard" means every bus of the depot inside the yard circle,
+whatever its state; a figure of the standing subset says "standing in the yard" (S53).
+
+**One state vocabulary (ruling S60).** Every page and the network figures use these
+classified states, worded On road, Standing, Dark and Off road, never the feed's own status
+field: the network KPIs (`onRoad`, `stationary`, `noSignal`, `underMaintenance`) are sums of
+the classified states, so they partition the fleet and a network total is the sum of what
+each depot's cockpit and roster show (`networkKpis` in `live/aggregate.ts`).
 
 ### 7.2 Depot kind and peer groups — `live/depotKind.ts`, `score/peerGroups.ts`
 
@@ -252,14 +316,35 @@ schedule coverage 0.15, device integrity 0.10. Each is a robust z against the pe
 deviation around the median × 1.2533 is used, ruling S9), clamped to `Z_CLAMP = 3`, signed so
 higher is better, weighted, and scaled to 0–100 as `50 + (weighted / 3) × 50` (`score/dei.ts`).
 
-**Rolling window (ruling S42).** Components are computed from counts summed over the
-snapshots seen in the last `SCORE_WINDOW_MIN = 20` minutes of feed time, at most
-`SCORE_WINDOW_MAX_SAMPLES = 120` (`score/window.ts`), one sample per distinct feed time. A
-repeated or older snapshot adds nothing. The `network`, `exceptions` and `[depotId]`
-responses carry `scoreWindow` (minutes, since, samples). Ruling S42 asks every screen to state
-the window ("over the last 20 minutes", or "since HH:MM" when shorter); at the time of writing
-no page component reads `scoreWindow`, and the League table's description still reads "One
-snapshot of the live feed". Peer-group membership follows present fleet size. The window is process memory (section 6).
+**Rolling window (rulings S42, S50b, S56b, S56c).** Components are ratios of each depot's
+counts summed over the snapshots of the last `SCORE_WINDOW_MIN = 20` minutes of feed time,
+at most `SCORE_WINDOW_MAX_SAMPLES = 120` per depot (`score/window.ts`) and at most
+`SCORE_WINDOW_MAX_DEPOTS = 1000` depots (`score/windowStore.ts`), one sample per distinct
+feed time. What each arrival does (`score/windowStore.ts`, `score/epoch.ts`):
+
+- a newer feed time adds a sample per depot and prunes the window at that time;
+- a feed time already held (a re-fetch with new rows) replaces that sample;
+- an older feed time still inside the window is inserted in order and scored on the window
+  up to its own feed time;
+- a sample more than one window behind the newest (a straggler: an upstream cache stuck in
+  the past, or a clock that really went back) is scored on its own counts and never touches
+  the window. A new epoch (window and yard memory emptied, the straggler accepted) starts
+  only after `NEW_EPOCH_AFTER_BEHIND = 3` stragglers in a row, each later than the one
+  before and within one window of it, spanning at least `EPOCH_RUN_MIN_SPAN_MS` (3 minutes)
+  of feed time with no current sample between. A cache repeating one old snapshot never
+  spans anything, so it never starts an epoch; a clock that stepped back and keeps
+  advancing does;
+- the saved sample, or a snapshot with no feed time, is scored on its own counts; the
+  window is neither read nor written.
+
+The `network`, `exceptions` and `[depotId]` responses carry `scoreWindow`: the window's
+length, `since`, `samples`, and `coveredMin` (the whole minutes of feed time the samples
+actually span); each depot's score carries its own `samples`. Pages word the window only
+through `score/windowWords.ts`: "over the last N minutes" (from `coveredMin`, so
+shorter than 20 while the window fills), "from one snapshot at HH:MM" for a single sample,
+or "since HH:MM, N snapshots" when the span cannot be read in whole minutes (see
+[`DEPOT_UI_PATTERNS.md`](DEPOT_UI_PATTERNS.md#index-window-words)). Peer-group membership
+follows present fleet size. The window is process memory (section 6).
 
 ### 7.4 Exceptions — `exceptions/`
 
@@ -271,35 +356,64 @@ exceptions: `long_dark`, `power_cut`, `tamper_code` (any code other than
 `NORMAL_TAMPER_CODE = 'C'`; the meaning of other codes is not asserted), `emergency`, capped at
 `BUS_EXCEPTION_CAP = 500` with counts taken before the cap (`exceptions/config.ts`).
 
+Each exception carries its `basis` (`EXCEPTION_BASIS` in `exceptions/config.ts`): the three
+peer comparisons are `window` (compared over the rolling window), and `power_cut_cluster` and
+every bus exception are `feed_time` (as of the feed time). The exceptions page labels each
+one accordingly ("Last 20 min", or "As of HH:MM"; `exceptions/basisWords.ts`). The page and
+the API can be scoped to one depot (`?depot=<id>` on the page; the response then carries
+`depotScope`).
+
 ### 7.5 Yard inference — `infer/yard.ts`, `infer/yardClusters.ts`
 
 There is no depot master, so a yard is learned from where a depot's standing buses park.
 Parked buses are linked by distance (density clustering, ruling S25): a bus is a core point
 when at least `YARD_CORE_MIN_NEIGHBOURS = 4` parked buses, itself included, stand within
 `YARD_LINK_M = 150` m; core points within the link distance form one group, and any other
-bus within reach of a core point joins that group as a border member without extending it. The rule, as screens state it (`infer/yardRuleText.ts`, built
-from the constants):
+bus within reach of a core point joins that group as a border member without extending it.
+
+**Adjacent groups are one place (ruling S46, `infer/yardPlace.ts`).** Starting from the
+largest group, any group whose nearest bus stands within `YARD_ADJACENT_M` (twice the link
+distance, 300 m) of a bus already in the place is taken in, unless that would make the place
+wider than the maximum span, and the search repeats after each one taken. This happens
+before the size, share, dominance and span tests. It keeps a compound with two parking areas
+a little more than the link distance apart from flipping between one yard and none.
+
+The rule, as screens state it, is the sentence `YARD_RULE_SENTENCE` in
+`src/lib/depot/infer/yardRuleText.ts`, built from the constants; that file is the source of
+truth. With today's constants it reads:
 
 > A yard is claimed only when at least 6 parked buses stand together, each within 150 m of
 > the next, in one place that holds at least 25% of the depot's parked buses, 1.5 times as
-> many as any other place, and is no more than 1.5 km across.
+> many as any other place, and is no more than 1.5 km across. Groups of buses standing within
+> 300 m of each other count as one place.
 
 (`YARD_MIN_CLUSTER = 6`, `YARD_MIN_SHARE = 0.25`, `YARD_DOMINANCE_RATIO = 1.5`,
-`YARD_MAX_SPAN_M = 1500`.) The yard's radius is the largest member distance plus
+`YARD_MAX_SPAN_M = 1500`, `YARD_ADJACENT_M = 2 * YARD_LINK_M`, all in `infer/yard.ts`.) The yard's radius is the largest member distance plus
 `YARD_RADIUS_PAD_M = 40`, at least `YARD_MIN_RADIUS_M = 120`. Otherwise the depot has no yard
 and screens say so. Screens describe an inferred yard as "Learned from where the depot's
 buses park; not a surveyed location" (`live/depotView.ts`).
 
 ### 7.6 Yard continuity — `infer/yardContinuity.ts`, `infer/yardMemory.ts`
 
-Ruling S43. Once a yard is established in this process it is kept while at least
-`YARD_MIN_CLUSTER` (6) of the depot's standing buses are inside it, even when another stand
-has grown as large, for up to `YARD_HOLD_MAX_HOURS = 12` hours of feed time. A held yard
-carries `Yard.heldSince`, and the depot response's yard note reads "Kept where the depot's
-yard was learned earlier: this snapshot alone would not place it." (`live/depotView.ts`).
-Ruling S43 asks for "held since HH:MM" on screen; no page model renders `heldSince` at the
-time of writing. Only a newer feed time writes the memory; an older
-one bypasses it. A fresh process remembers nothing.
+Rulings S43 and S50c. Once a yard is established in this process, a later snapshot that
+would not place it (no yard, or one elsewhere) keeps it while at least `YARD_MIN_CLUSTER`
+(6) of the depot's standing buses with a usable position, heard within the reporting
+window, are inside its circle; dead devices left in the yard do not keep it. The held
+circle stays exactly where and as large as it was, so buses at its edge cannot walk it
+outward. A hold ends `YARD_HOLD_MAX_HOURS = 12` hours of feed time after it began, or as soon
+as too few recently heard buses stand in it; the rule then decides afresh. When the rule
+places a yard inside the remembered circle, that yard replaces the remembered one. A
+re-fetch at the same feed time returns the remembered circle unchanged. The memory follows
+the same straggler and epoch rule as the score window (section 7.3) and holds at most
+`YARD_MEMORY_MAX_DEPOTS = 1000` depots; the saved sample neither reads nor writes it.
+
+A held yard carries `Yard.heldSince`; the cockpit and the yard page say "Yard held since
+HH:MM: this snapshot alone would not place it." (`cockpit/availability.ts`,
+`yard/yardPageModel.ts`). The start-up count (`yardSnapshotsSeen` in `infer/yardMemory.ts`,
+sent on the depot and duty-board responses) says how many snapshots this process has
+decided the depot's yard on; it is not sent for the saved sample or the unassigned group.
+Limits: a fresh process remembers nothing, so a yard that only continuity was keeping can be
+missing for a while after a restart; and each instance keeps its own memory.
 
 ### 7.7 Outshedding — `infer/outshed.ts`
 
@@ -318,6 +432,14 @@ live figures (`sim/config.ts`): a base utilisation of 0.86 of available buses at
 plus a spare ratio (`DEFAULT_SPARE_RATIO = 0.08`, range 0–0.3, in `optimise/config.ts`).
 Available = fleet − off-road.
 
+The on-road share it reads, and the peer median it is compared with, are taken over the
+rolling score window (ruling S63, `windowedOnRoadShares` in `sim/requirement.ts`), the same
+`onRoad` component the efficiency index sums; a depot new to the window reads its
+single-snapshot share, then the peer median. So the requirement, and with it the modelled
+day and the transfer plan, move only as fast as the window does. On a cold server with one
+sample it equals the single-snapshot requirement. Fleet and off-road counts are still read
+from each snapshot.
+
 Transfers (`optimise/rebalance.ts`, `optimise/minCostFlow.ts`): min-cost max-flow by
 successive shortest paths from surplus to deficit depots, distance = straight line × detour
 factor 1.3, up to a maximum transfer distance (default 250 km, bounded 25–600). Only
@@ -334,12 +456,21 @@ A route profile (ordered stops, terminals, one-way length) is read through one b
 that route, from the schedule API, once per route per operating day, and cached
 (`routes/routeCatalogue.ts`: `ROUTE_CACHE_MAX = 2000`, negative answers for
 `ROUTE_NEGATIVE_TTL_MS = 600_000`). Stops at 0,0 stay in the list but do not count toward
-length. There is **no background crawl** (ruling S40). A profile is fetched one route at a time,
-when a user opens that route on the Routes page, or opens a depot's roster or a bus on that
-route (`PROFILES_GROW_WITH_USE` in `routes/allocationWording.ts`), so coverage grows with use.
-Ruling S40 also approved a user-initiated, sequential loader for one depot's routes; it is
-not in this build. Cache misses are limited (`ROUTE_PROFILE_FETCH_LIMITS` in
-`rateLimit.ts`): 20 per identity, 40 per trusted address, 120 per process, per minute.
+length. There is **no background crawl** (ruling S40). A profile is fetched one route at a
+time, only on a person's action: when that route is opened on the Routes page, when a
+depot's roster or a bus on the route is opened, or when a person presses "Load route
+details" for one depot on the Routes page's plan panel (`PROFILES_GROW_WITH_USE` in
+`routes/allocationWording.ts`), so coverage grows with use.
+
+The loader (`routes/profileLoader.ts`) never starts by itself, runs one lookup at a time in
+order, never in parallel, can be cancelled, waits out a 429's `Retry-After` and retries the
+same route (at most `MAX_PAUSES_PER_ROUTE = 3` pauses), and loads at most
+`PROFILE_LOAD_CAP = 40` routes a press. The depot select lists each depot with its number of
+routes in the feed (the `routes` count on each depot option of the routes response) and
+preselects the depot most worth a press (`routes/loaderRow.ts`). Until details are loaded the
+plan is empty and says so ("No route can be planned yet: no route's details have been
+loaded."). Cache misses are limited (`ROUTE_PROFILE_FETCH_LIMITS` in `rateLimit.ts`): 20 per
+identity, 40 per trusted address, 120 per process, per minute.
 
 The allocation (`optimise/allocate.ts`) recommends which depot should run each route to cut
 dead kilometres (inferred yard to the route's real first and last stop) within capacity. It
@@ -347,25 +478,71 @@ starts from the current allocation; in a first phase routes, taken in regret ord
 their best depot that still has room, and a local search then tries swaps. A shift or swap is
 applied only when it saves at least `MIN_SAVING_KM_PER_DAY = 5` in total (a swap as a whole, ruling S20), up to
 `MAX_MOVES = 200` (`optimise/allocateConfig.ts`). Trips per day are modelled
-(`sim/tripFrequency.ts`, 1–2 depot-anchored runs per bus). Only routes whose profiles are
-already cached are planned. Unchanged routes carry one reason (ruling S21).
+(`sim/tripFrequency.ts`). Only routes whose profiles are already cached are planned; the
+plan is re-made at most every `REPLAN_MIN_INTERVAL_MS = 30_000` (`live/allocationView.ts`),
+so newly loaded profiles appear in it within half a minute. Unchanged routes carry one
+reason (ruling S21).
 
-### 7.10 Duties and bus-to-duty matching — `sim/duties.ts`, `optimise/assignDuties.ts`
+### 7.10 Duties and the one bus-to-duty matcher — `sim/duties.ts`, `sim/dayPlan.ts`, `optimise/assignDuties.ts`
 
-The modelled duty plan has exactly one duty per bus the depot needs at peak, dealt
-round-robin over the depot's routes in name order; durations are out-and-back plus layover
-when a scheduled duration is known, otherwise a seeded 4–10 h; starts cluster on a morning
-peak. The matching (Hungarian algorithm, `optimise/hungarian.ts`) excludes buses that are off
-road, dark or not in the yard (one reason each), forbids cross-class pairs, and costs
-`ageYears × round(durationHours)` so longer duties prefer younger buses. When the depot has no
-established yard, location is ignored. Duties without a bus are `no_eligible_bus`.
+**One plan (ruling S47).** `planDay` (`sim/dayPlan.ts`) is the one place a depot's modelled
+duties are generated and its buses matched to them, held once per snapshot, depot and
+operating date (`live/operatingDayView.ts`). The duty board, the crew roster, the night
+parking order and the modelled day (fuel, revenue, economics) all read this plan, so they
+cannot disagree. A repeated registration keeps the most recently heard row (S62).
 
-### 7.11 Night parking order — `optimise/parkingOrder.ts`, `sim/yardLayout.ts`
+The modelled duty plan has exactly one duty per bus the depot needs at peak (section 7.8),
+dealt round-robin over the depot's routes in name order, so when the requirement is smaller
+than the route count the last routes get none and are listed. The feed carries no scheduled
+durations, so every duty length is a seeded 4–10 h; starts cluster on a morning peak
+(`sim/duties.ts`).
+
+**The matcher** (`assignDuties`, an exact minimum-cost matching by the Hungarian algorithm in
+`optimise/hungarian.ts`). Eligibility, each exclusion with one reason: off the road and dark
+never; when the feed has a clock, a bus not heard within the reporting window, moving or
+standing (S55); a standing bus away from an established yard. A bus in service or on the
+road is eligible: it is out working. Every other pairing is allowed and costed in tiers, in
+this order (each tier outweighs everything below it):
+
+1. a bus on the road before a standing one, so the buses left over are standing ones;
+2. a bus in service before one merely moving;
+3. a bus reporting the duty's route live takes that route's duty;
+4. a bus of the duty's service class;
+5. time fit: a duty started by the feed time on a bus on the road, a duty still to start on a
+   standing bus;
+6. `ageYears × round(durationHours)`, so longer duties prefer younger buses; then a fixed
+   order by registration.
+
+Duties without a bus are `no_eligible_bus`; eligible buses without a duty are spare, and the
+board says where the spare buses stand. Each assignment records how its bus stands now.
+
+**Three plan modes** (`PlanMode`, sent as `planMode`; rulings S55, S62, S62b):
+
+- `as_of_feed_time`: the feed's own date once its first duty has started, with every tier.
+- `before_first_duty`: the feed's own date before its first duty starts. The day has not
+  begun, so there is no time fit (tiers 2 and 5 drop) and tier 1 becomes "the yard first":
+  buses standing in the yard take the earliest duties, buses still out on late trips the
+  ones after.
+- `later_day`: a later date (the parking order's next day). Only the buses in the yard are
+  taken, and tiers 1, 2 and 5 drop: how buses stand now says nothing about that day.
+
+A feed with no clock, or a depot with no duties, plans `as_of_feed_time`. The day is
+recomputed from each snapshot, so its duty count can change from one feed time to the next;
+it is worded "as of the feed time" and would become fixed only when a real timetable is
+supplied.
+
+### 7.11 Night parking order — `optimise/parkingOrder.ts`, `live/parkingView.ts`, `sim/yardLayout.ts`
 
 The lane layout is modelled: lanes of 6–10 buses summing to the modelled parking capacity,
-seeded by depot id. The plan deals buses by ascending first departure, layer by layer from
-the lane mouths, so the earliest departures sit at different mouths and no bus is blocked by
-a later one; buses beyond capacity overflow latest-first.
+seeded by depot id. The buses to park are exactly the depot's own buses the feed places in
+its yard. The date it plans (rulings S55, S62): before the first duty of the feed's date it
+plans that date, from the same shared plan as the duty board; from the first duty on, it
+plans the next date with the `later_day` plan, which covers the yard buses only, so it says
+which yard bus leaves first, never how many duties the depot can cover that day; the
+response's `operatingDate` says which. The plan deals buses by ascending first departure,
+layer by layer from the lane mouths, so the earliest departures sit at different mouths and
+no bus is blocked by a later one; buses beyond capacity overflow latest-first. It is MODELLED
+and a suggestion only.
 
 ### 7.12 Maintenance — `maintenance/`
 
@@ -383,11 +560,15 @@ itself.
 
 ### 7.13 One modelled operating day — `sim/operatingDay.ts`
 
-Ruling S41. Crew, fuel, revenue and the duty count all derive from one modelled day per depot
-and date: the duty plan, and which available buses ran which duty (class matched, seeded
-order). A bus that ran covered its duty's route out and back; a route's length is the real
-one when its profile is cached (DERIVED), else a typical class length (MODELLED,
-`sim/operatingDayConfig.ts`). It reads:
+Rulings S41 and S47. Crew, fuel, revenue, economics and the duty count all derive from one
+modelled day per depot and date, read off the one duty plan (section 7.10): its duties and
+the bus the matcher put on each. A bus with a duty ran its route out and back; every other
+bus did not run. A route's length is the real one when its profile is cached and the length
+is between `MIN_REAL_LENGTH_KM = 2` and `MAX_REAL_LENGTH_KM = 2000` (DERIVED), else a
+typical class length seeded by the route name (MODELLED, `sim/operatingDayConfig.ts`). A
+newly cached profile changes lengths, never which bus runs which duty. Pages on the day state
+it once in their provenance line through `modelledDaySentence` (`src/lib/depot/modelledDayLine.ts`).
+It reads:
 
 - **Crew** (`sim/crew.ts`, `crew/roster.ts`): shifts derived from duties (a duty longer than
   `MAX_DUTY_HOURS_PER_DAY = 10` is split, ruling S27); slots per shift 1.45 drivers and 1.4
@@ -425,13 +606,30 @@ quantile of that method's h-step errors, pooled when fewer than `MIN_BAND_SAMPLE
 ## 8. The copilot
 
 A server route (`POST /api/upsrtc/depot/copilot`) writes briefings, transfer rationales and
-answers. Every figure comes from server facts; a model writes only the wording, validated by
-a token grammar and a closed vocabulary (rulings S26, S38) before anyone sees it. Two
-providers behind the `CopilotProvider` interface (`copilot/types.ts`): `scripted` (always
-available) and `claude-cli`, which runs the locally installed `claude` command and works only
-on a machine where Claude Code is signed in. A staff-facing deployment needs an API-key
-provider behind the same interface; it is not built. Settings, limits and what one PIN holder
-can do: [`DEPOT_COPILOT_OPERATIONS.md`](DEPOT_COPILOT_OPERATIONS.md).
+answers. In summary (detail, settings and limits in
+[`DEPOT_COPILOT_OPERATIONS.md`](DEPOT_COPILOT_OPERATIONS.md)):
+
+- **The question router is closed and deterministic.** A typed question is matched by a
+  keyword router (`copilot/router/scriptedRouter.ts`, called from `copilot/service/prepare.ts`)
+  that can only return a query from a fixed catalogue, or decline; free text never reaches a
+  model. Questions about people are declined.
+- **Every figure comes from server facts.** A writer supplies only the wording around them,
+  as a draft checked by a token grammar, a closed vocabulary and the wording rules before
+  anyone sees it (rulings S26, S38, S49, S61). The vocabulary holds no word that states a
+  cause, blames or names a person, or raises an alarm; the rules refuse numbers, units, rates,
+  other days, negation and a second noun beside a figure.
+- **The scripted writer is the default.** Two providers sit behind the `CopilotProvider`
+  interface (`copilot/types.ts`): `scripted`, fixed server templates, always available; and
+  `claude-cli`, which runs the locally installed `claude` command and is created only when
+  `CLAUDE_BIN` is set to a binary that passes the safety checks and `DEPOT_COPILOT_PROVIDER` is
+  not `scripted` (`copilot/service/cliFactory.ts`). Without that, every answer is scripted.
+- **The command-line writer is for the owner's own machine only.** It uses the owner's
+  personal sign-in. A staff-facing deployment needs an API-key provider behind the same
+  interface; it does not exist. The wording rules still open on the model path (a later
+  sentence denying an earlier one, obligation words, a true figure given a false meaning or
+  window) are recorded limits of that owner-only path (rulings S59, S61) and must be closed
+  before any staff-facing provider is switched on.
+- Answer tables carry provenance per column.
 
 ## 9. Directory map
 
@@ -447,11 +645,12 @@ can do: [`DEPOT_COPILOT_OPERATIONS.md`](DEPOT_COPILOT_OPERATIONS.md).
 | `sim/` | Every model: requirement, depot and fleet master, duties, operating day, crew, fuel, ridership, history, yard layout |
 | `routes/` | Route catalogue and profiles, route table, allocation inputs, dead kilometres |
 | `crew/`, `fuel/`, `revenue/`, `maintenance/`, `duties/`, `yard/`, `cockpit/`, `roster/`, `league/`, `network/`, `rebalance/` | Per-domain page models and payload types |
+| `score/epoch.ts` | The straggler and epoch rule shared by the score window and the yard memory |
 | `forecast/` | Trend, seasonal-naive, Holt-Winters, backtest, band, chart models |
 | `copilot/` | Facts, grammar, vocabulary, providers, CLI runner, service, client |
 | `repositories/` | The data seam and composition root |
 | `sources/` | The Data sources registry |
-| top level | Ids, navigation, labels, provenance line, feed chip, rate limiter, formatting |
+| top level | Ids, navigation and the shell model, labels, provenance line, modelled-day line, feed chip, rate limiter, formatting |
 
 `src/components/depot/`: one folder per page (`cockpit`, `roster`, `yard`, `duties`,
 `maintenance`, `crew`, `fuel`, `revenue`, `economics`, `league`, `network`, `rebalance`,
@@ -460,15 +659,16 @@ provenance line, data states), `shared` and `data`.
 
 ## 10. Testing
 
-- **Unit:** Vitest under `src/tests/unit/`, named `depot-<subject>.test.ts(x)`; 216 of the
-  230 test files there belong to the module. Run one with
+- **Unit:** Vitest under `src/tests/unit/`, module tests named `depot-<subject>.test.ts(x)`
+  (plus the `fleet-fixture-*` tests). On 6 Oct 2026, listing that folder gave 371 test files,
+  352 of them named `depot-*` (file counts, not test counts). Run one with
   `npx vitest run src/tests/unit/depot-yard.test.ts`, or all with `npm run test`.
-- **End to end:** `tests/e2e/depot-management.spec.ts` (the deep link through login, the
-  shell, Back to Operations, the banned-wording check, no sideways scroll at three widths,
-  the skip link, a console-error-free load). Run with `npm run test:e2e` after
-  `npm run build`. It needs `E2E_PROJECT_PIN` (without it the suite is skipped); optional
-  `E2E_PROJECT_NAME`, `E2E_HOST`, `E2E_PORT`, `E2E_ORIGIN`. The server needs the app's own
-  environment (section 3 of the README).
+- **Browser:** `tests/e2e/depot-management.spec.ts`, run with `npm run test:e2e` after
+  `npm run build`. It covers the deep link through login, the shell, Back to Operations, the
+  banned-wording check, no sideways scroll at 1440, 1024 and 800 px, the skip link and a
+  console-error-free load, all on the network overview. It needs `E2E_PROJECT_PIN` (without
+  it the suite is skipped); optional `E2E_PROJECT_NAME`, `E2E_HOST`, `E2E_PORT`,
+  `E2E_ORIGIN`. The server needs the app's own environment (section 3 of the README).
 - **Odometer evidence:** `npx tsx scripts/calibrate-odometer.ts --live` (two upstream reads
   at least a minute apart; aggregates only).
 
