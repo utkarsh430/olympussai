@@ -16,7 +16,7 @@ import type { TransferRow } from '@/lib/depot/rebalance/transferModel';
 import { BalanceSummary } from './BalanceSummary';
 import { BalanceTable } from './BalanceTable';
 import { DecisionTrail } from './DecisionTrail';
-import { Disclosure } from './Disclosure';
+import { CollapsedSection } from '@/components/depot/shell/CollapsedSection';
 import { RecommendationNotice, WhatIfStrip } from './PageIntro';
 import { RebalanceMethod } from './RebalanceMethod';
 import { ScenarioCompare } from './ScenarioCompare';
@@ -154,7 +154,7 @@ export function Distribution({
         </div>
       </section>
       <div className="flex min-w-0 flex-col gap-8">
-        <Disclosure
+        <CollapsedSection
           label="What-if sandbox"
           note="Recomputed in this browser; nothing is sent"
           open={sandboxOpen}
@@ -171,7 +171,7 @@ export function Distribution({
             depots={view.depots}
             clampNotes={view.clampNotes}
           />
-        </Disclosure>
+        </CollapsedSection>
         <BalanceTable rows={view.depotRows} />
         <DecisionTrail
           trail={view.trail}

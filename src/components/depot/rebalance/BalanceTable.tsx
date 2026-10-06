@@ -7,7 +7,7 @@ import { formatCount } from '@/lib/depot/format';
 import { balancePreview, partOfPlanVaries } from '@/lib/depot/rebalance/pageLayout';
 import type { BalanceRow } from '@/lib/depot/rebalance/rebalanceModel';
 import { BalanceBar } from './BalanceBar';
-import { Disclosure } from './Disclosure';
+import { CollapsedSection } from '@/components/depot/shell/CollapsedSection';
 
 export interface BalanceTableProps {
   /** In model order: operating depots by balance, deepest deficit first; other kinds after. */
@@ -99,7 +99,7 @@ export function BalanceTable({ rows }: BalanceTableProps) {
   const shown = balancePreview(rows, showAll);
 
   return (
-    <Disclosure
+    <CollapsedSection
       label="Every depot: available against required"
       count={rows.length}
       note="Deepest shortfall first"
@@ -132,6 +132,6 @@ export function BalanceTable({ rows }: BalanceTableProps) {
           {showAll ? 'Show the fifteen deepest' : `Show all ${formatCount(rows.length)} depots`}
         </button>
       ) : null}
-    </Disclosure>
+    </CollapsedSection>
   );
 }
