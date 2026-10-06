@@ -1,5 +1,6 @@
 import type {
   HourBasis,
+  HourReliability,
   Proposal,
   RouteHourFigures,
   RouteHourlyResponse,
@@ -142,6 +143,14 @@ const PROPOSALS: readonly Proposal[] = [
   },
 ];
 
+/** Punctuality from the feed's journeys: the observed hours' delays, placed by scheduled start. */
+function reliabilityAt(hour: number): HourReliability {
+  const delay = DELAY[hour];
+  if (delay === undefined) return { hour, delayMedianMin: null, lateShare: null, coverage: { n: 0, of: 0 } };
+  const [medianMin, lateShare, covered] = delay;
+  return { hour, delayMedianMin: medianMin, lateShare, coverage: { n: covered, of: covered } };
+}
+
 /** A full response for the route; any field may be replaced. */
 export function routeHourlyFixture(
   overrides: Partial<RouteHourlyResponse> = {},
@@ -169,6 +178,7 @@ export function routeHourlyFixture(
     proposals: PROPOSALS,
     demandBasis:
       'Seats offered for the day times the modelled load factor of an ordinary service, spread by its hour-of-day shape.',
+    reliability: Array.from({ length: 24 }, (_, hour) => reliabilityAt(hour)),
     feedNow: '2026-10-06T11:24:00Z',
     fetchedAt: '2026-10-06T05:54:10.000Z',
     source: 'live',

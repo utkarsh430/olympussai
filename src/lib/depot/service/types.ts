@@ -254,6 +254,16 @@ export interface Proposal {
   readonly impact: ProposalImpact | null;
 }
 
+/** Punctuality of one hour of one route's day, from the journeys the feed reported (DERIVED). */
+export interface HourReliability {
+  readonly hour: number;
+  readonly delayMedianMin: number | null;
+  /** Share of the journeys carrying a delay that ran more than LATE_AFTER_MIN behind. */
+  readonly lateShare: number | null;
+  /** Journeys carrying a delay, of the journeys placed in the hour. */
+  readonly coverage: Coverage;
+}
+
 /** The per-route hourly view, as the API answers it. */
 export interface RouteHourlyBody {
   readonly routeName: string;
@@ -271,6 +281,8 @@ export interface RouteHourlyBody {
   readonly routeCoverage: Coverage;
   readonly proposals: readonly Proposal[];
   readonly demandBasis: string;
+  /** Punctuality by hour from the journeys the feed reported, placed by scheduled start; 24 hours. */
+  readonly reliability: readonly HourReliability[];
 }
 
 export interface RouteHourlyResponse extends RouteHourlyBody, DepotFeedEnvelope {}
