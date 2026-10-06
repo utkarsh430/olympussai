@@ -53,8 +53,8 @@ const REQUEST: CopilotRequest = {
 };
 
 const GOOD_DRAFT: CopilotDraft = {
-  headline: 'Claude headline',
-  paragraphs: ['Claude says {{fact:buses}}.'],
+  headline: 'Fleet headline',
+  paragraphs: ['The fleet is {{fact:buses}}.'],
 };
 
 const cliThatReturns = (draft: CopilotDraft): CopilotProvider => ({
@@ -148,8 +148,8 @@ describe('createCopilotEngine', () => {
       provider: 'claude-cli',
       fellBack: false,
       fallbackReason: null,
-      headline: 'Claude headline',
-      paragraphs: ['Claude says 1,204.'],
+      headline: 'Fleet headline',
+      paragraphs: ['The fleet is 1,204.'],
       usedFactIds: ['buses'],
     });
     expect(Number.isNaN(Date.parse(out.generatedAt))).toBe(false);
@@ -666,7 +666,7 @@ describe('createClaudeCliProvider', () => {
     });
   });
 
-  it('fails with error, without spawning, when the request has too many facts', async () => {
+  it('rejects the request, without spawning, when it has too many facts', async () => {
     const spawn = vi.fn<SpawnLike>(fakeSpawn(() => undefined));
     const facts = Array.from({ length: 61 }, (_, i) => ({
       id: `f${i}`,
