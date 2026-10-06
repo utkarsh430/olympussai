@@ -149,6 +149,11 @@ describe('ParkingPlan', () => {
     expect(warn).not.toContain('parking-overflow');
   });
 
+  it('goes to two lane columns only at xl, never at md or lg', () => {
+    expect(html).toContain('xl:grid-cols-2');
+    expect(html).not.toMatch(/(?:^|[\s"])(?:sm|md|lg):grid-cols-/);
+  });
+
   it('uses no hidden attribute and never says simulated', () => {
     expect(html).not.toMatch(/\shidden[\s>=]/);
     expect(html.toLowerCase()).not.toContain('simulated');

@@ -105,7 +105,7 @@ export function ParkingPlan({ depotId, order, operatingDate }: ParkingPlanProps)
         {blocked.text}
       </p>
       <h3 className="depot-section-label mt-4">Lanes</h3>
-      <ul className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
+      <ul className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-3">
         {order.lanes.map((lane) => (
           <LaneList key={lane.id} depotId={depotId} lane={lane} />
         ))}
