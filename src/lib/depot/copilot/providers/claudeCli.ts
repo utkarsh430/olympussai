@@ -1,5 +1,4 @@
-import { accessSync, constants, statSync } from 'node:fs';
-import { dirname, isAbsolute } from 'node:path';
+import { dirname } from 'node:path';
 import { buildCliArgs, isValidModelName } from '@/lib/depot/copilot/cli/args';
 import { classifyCliFailure, parseCliOutput } from '@/lib/depot/copilot/cli/classify';
 import { buildChildEnv } from '@/lib/depot/copilot/cli/env';
@@ -19,6 +18,12 @@ import {
 } from '@/lib/depot/copilot/config';
 import { createCallLimiter, type CallLimiter } from '@/lib/depot/copilot/limiter';
 import { MAX_PROMPT_BYTES } from '@/lib/depot/copilot/limits';
+import {
+  assertUsableBinary,
+  isAbsoluteBinary,
+  nodeBinaryFs,
+  type BinaryFs,
+} from '@/lib/depot/copilot/providers/binary';
 import { createSemaphore, type Semaphore } from '@/lib/depot/copilot/semaphore';
 import {
   CopilotFailure,
@@ -30,10 +35,14 @@ import {
 // Defined in types.ts (the semaphore needs it and imports from there too, so
 // defining it here would create an import cycle); re-exported for callers.
 export { CopilotFailure };
+export { assertUsableBinary, isAbsoluteBinary };
 
 export interface ClaudeCliDeps {
   readonly spawn: SpawnLike;
-  /** Absolute path to the CLI; a bare name would be resolved through PATH. */
+  /**
+   * Absolute path to the CLI; a bare name would be resolved through PATH. It is
+   * verified at construction (see `assertUsableBinary`) and its real path spawned.
+   */
   readonly bin: string;
   readonly model: string;
   /** Throwaway HOME for the child, so it cannot read the server user's config. */
@@ -48,26 +57,17 @@ export interface ClaudeCliDeps {
   readonly semaphore?: Semaphore;
   /** Hourly and daily call budget; defaults to the configured limits on the system clock. */
   readonly limiter?: CallLimiter;
+  /** File-system calls for the binary check; defaults to the real file system. */
+  readonly fs?: BinaryFs;
 }
 
 const SCHEMA_JSON = JSON.stringify(DRAFT_JSON_SCHEMA);
-
-/** Pure check: an absolute path with no NUL byte. */
-export function isAbsoluteBinary(path: string): boolean {
-  return path.length > 0 && !path.includes('\0') && isAbsolute(path);
-}
-
-/** Startup check for wiring code: absolute, an existing regular file, executable. */
-export function assertUsableBinary(path: string): void {
-  if (!isAbsoluteBinary(path)) throw new Error('The Claude binary path must be absolute');
-  if (!statSync(path).isFile()) throw new Error('The Claude binary path is not a file');
-  accessSync(path, constants.X_OK);
-}
 
 /** Writes drafts through `claude -p`. Every failure is a `CopilotFailure`. */
 export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
   if (!isAbsoluteBinary(deps.bin)) throw new Error('The Claude binary path must be absolute');
   if (!isValidModelName(deps.model)) throw new RangeError('Invalid model name');
+  const bin = assertUsableBinary(deps.bin, deps.fs ?? nodeBinaryFs);
   const semaphore = deps.semaphore ?? createSemaphore(CLI_CONCURRENCY, CLI_QUEUE);
   const limiter =
     deps.limiter ??
@@ -102,7 +102,7 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
         if (!limiter.tryAcquire()) throw new CopilotFailure('budget_exhausted', 'call budget used');
         return runCli(
           {
-            bin: deps.bin,
+            bin,
             args,
             env: buildChildEnv(deps.env, deps.home, nodeDir),
             cwd: deps.cwd(),

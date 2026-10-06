@@ -15,8 +15,10 @@ export function buildChildEnv(
   home: string,
   nodeDir: string,
 ): Record<string, string> {
-  if (!nodeDir.startsWith('/') || nodeDir.includes(':'))
+  // Absolute, and no ':' (it would smuggle in a second PATH entry) or NUL.
+  if (!nodeDir.startsWith('/') || nodeDir.includes(':') || nodeDir.includes('\0')) {
     throw new RangeError('Invalid node directory');
+  }
   const env: Record<string, string> = {
     PATH: `${SYSTEM_PATH}:${nodeDir}`,
     HOME: home,
