@@ -113,26 +113,51 @@ async function fetchProfile(
   }
 }
 
+/** The bus a profile is fetched for and its cache key, or null when no bus runs the route. */
+function lookupFor(routeName: string, view: FleetSnapshotView, now: number) {
+  if (!isValidRouteName(routeName)) return null;
+  const bus = view.rows
+    .filter((row) => row.routeName === routeName)
+    .sort(compareCandidates(view.feedNow))[0];
+  if (!bus) return null;
+  const date = operatingDate(bus, view, now);
+  return { bus, date, key: `${routeName}:${date}` };
+}
+
+const freshNegative = (routeName: string, now: number): NegativeEntry | undefined => {
+  const negative = negatives.get(routeName);
+  return negative && now - negative.storedAt < ROUTE_NEGATIVE_TTL_MS ? negative : undefined;
+};
+
+/**
+ * Read-only: true when `getRouteProfile` with the same arguments would call
+ * the upstream (no cached profile, no fresh negative answer, nothing in
+ * flight), so a caller can limit cache misses without limiting hits.
+ */
+export function routeProfileNeedsFetch(
+  routeName: string,
+  view: FleetSnapshotView,
+  now: number = Date.now(),
+): boolean {
+  const lookup = lookupFor(routeName, view, now);
+  if (!lookup) return false;
+  return !profiles.has(lookup.key) && !freshNegative(routeName, now) && !inFlight.has(lookup.key);
+}
+
 export async function getRouteProfile(
   routeName: string,
   view: FleetSnapshotView,
   now: number = Date.now(),
 ): Promise<RouteProfileResult> {
-  if (!isValidRouteName(routeName)) return unavailable('no_bus_on_route');
-
-  const bus = view.rows
-    .filter((row) => row.routeName === routeName)
-    .sort(compareCandidates(view.feedNow))[0];
-  if (!bus) return unavailable('no_bus_on_route');
-
-  const date = operatingDate(bus, view, now);
-  const key = `${routeName}:${date}`;
+  const lookup = lookupFor(routeName, view, now);
+  if (!lookup) return unavailable('no_bus_on_route');
+  const { bus, date, key } = lookup;
 
   const known = profiles.get(key);
   if (known) return { status: 'ok', profile: known };
 
-  const negative = negatives.get(routeName);
-  if (negative && now - negative.storedAt < ROUTE_NEGATIVE_TTL_MS) return negative.result;
+  const negative = freshNegative(routeName, now);
+  if (negative) return negative.result;
 
   const pending = inFlight.get(key);
   if (pending) return pending;

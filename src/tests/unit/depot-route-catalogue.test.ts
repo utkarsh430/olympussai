@@ -368,7 +368,10 @@ describe('error logging and cache hygiene', () => {
 });
 
 describe('routeProfileNeedsFetch', () => {
-  beforeEach(() => resetRouteCatalogueForTests());
+  beforeEach(() => {
+    resetRouteCatalogueForTests();
+    mockService.mockReset();
+  });
 
   it('is true only when getRouteProfile would call the upstream', async () => {
     const fleet = view([row('UP1')]);
