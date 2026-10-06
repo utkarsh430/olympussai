@@ -57,8 +57,19 @@ function result(
  * Where one scheduled departure stands. Rules run in order, first match wins;
  * null when the row has no schedule for the feed date.
  *
+ *  1. `scheduledEnd` earlier than feedNow: `ended`
+ *  2. a credible `actualStart`: `departed` (evidence `actual_time`)
+ *  3. `scheduledStart` later than feedNow: `upcoming`, whether or not the bus is
+ *     dark or located, so a manager sees an upcoming run whose bus is silent
+ *  4. bus is `dark`, or its location is `unknown`: `unknown`
+ *  5. bus is `in_service`/`on_road`, or located `away`/`at_other_yard`:
+ *     `departed` (evidence `left_yard`)
+ *  6. within OUTSHED_GRACE_MIN of `scheduledStart`: `due`
+ *  7. otherwise: `overdue`, with `minutesOverdue` = whole minutes past the
+ *     scheduled start (grace period included, not subtracted)
+ *
  * A dark bus's position is a stale last fix, so it never proves a departure:
- * only a credible actual time can (rule 2). Otherwise it is `unknown`.
+ * only a credible actual time can (rule 2).
  */
 export function classifyOutshed(
   row: DepotBusRow,
@@ -88,18 +99,18 @@ export function classifyOutshed(
     }
   }
 
+  if (start > now) return make('upcoming');
+
+  if (state === 'dark' || located.location === 'unknown') return make('unknown');
+
   const isOut =
     state === 'in_service' ||
     state === 'on_road' ||
     located.location === 'away' ||
     located.location === 'at_other_yard';
-  if (start <= now && state !== 'dark' && isOut) {
-    return make('departed', { evidence: 'left_yard' });
-  }
+  if (isOut) return make('departed', { evidence: 'left_yard' });
 
-  if (state === 'dark' || located.location === 'unknown') return make('unknown');
-  if (start > now) return make('upcoming');
-
+  // Whole minutes past the scheduled start, grace period included.
   const minutesPast = Math.floor((now - start) / MS_PER_MIN);
   if (minutesPast <= OUTSHED_GRACE_MIN) return make('due');
   return make('overdue', { minutesOverdue: minutesPast });
