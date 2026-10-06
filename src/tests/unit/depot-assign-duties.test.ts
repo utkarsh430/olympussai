@@ -166,6 +166,43 @@ describe('assignDuties', () => {
     expect(plan.spareBuses).toEqual(['B']);
   });
 
+  it('ignores non-finite ages when taking the median', () => {
+    // The finite ages are 2 and 10, so unknown buses cost as age 6; the NaN must not poison it.
+    const fleet = fleetOf([
+      ['N1', 'ordinary', Number.NaN],
+      ['C', 'ordinary', 10],
+      ['N2', 'ordinary', Number.NaN],
+      ['B', 'ordinary', 2],
+      ['N3', 'ordinary', Number.NaN],
+    ]);
+    const buses = [bus('B'), bus('C'), bus('UNKNOWN')];
+    const plan = assignDuties([duty(0, 'ordinary', 10)], buses, fleet);
+    expect(plan.assignments[0]?.registrationNumber).toBe('B');
+    // Between age 2 (B) and age 10 (C), an unknown bus at age 6 is picked before C for a short duty.
+    const two = assignDuties([duty(0, 'ordinary', 10), duty(1, 'ordinary', 1)], buses, fleet);
+    expect(two.assignments.map((a) => a.registrationNumber)).toEqual(['B', 'UNKNOWN']);
+  });
+
+  it('costs an eligible bus whose own age is non-finite at the fallback age', () => {
+    const fleet = fleetOf([
+      ['B', 'ordinary', 2],
+      ['C', 'ordinary', 10],
+      ['N', 'ordinary', Number.NaN],
+    ]);
+    const plan = assignDuties([duty(0, 'ordinary', 10)], [bus('N'), bus('C')], fleet);
+    expect(plan.assignments[0]?.registrationNumber).toBe('N');
+  });
+
+  it('falls back as for an empty master when every age is non-finite', () => {
+    const fleet = fleetOf([
+      ['B', 'ordinary', Number.NaN],
+      ['A', 'ordinary', Number.POSITIVE_INFINITY],
+    ]);
+    const plan = assignDuties([duty(0)], [bus('Z'), bus('Y')], fleet);
+    expect(plan.assignments[0]?.registrationNumber).toBe('Y');
+    expect(plan.spareBuses).toEqual(['Z']);
+  });
+
   it('is identical for shuffled buses and does not mutate frozen inputs', () => {
     const buses = Array.from({ length: 12 }, (_, i) => bus(`Q${i}`));
     const fleet = fleetOf(buses.map((b, i) => [b.registrationNumber, 'ordinary', i % 4]));
