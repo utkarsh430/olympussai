@@ -33,6 +33,15 @@ export function shellNav(pathname: string, depots: readonly ScopeDepot[] | null)
   };
 }
 
+/**
+ * The prototype disclaimer as the depot shell prints it: the shared sentence without its
+ * leading "Prototype.", because the PROTOTYPE pill directly before it already says so.
+ * The shared constant, and every other surface that prints it, stay unchanged.
+ */
+export function depotDisclaimerText(sentence: string): string {
+  return sentence.replace(/^Prototype\.\s+/, '');
+}
+
 /** The rail's groups from 1280px: the depot first when there is one, then the network. */
 export function railGroups(nav: ShellNav): readonly DepotNavGroup[] {
   return nav.depotGroup ? [nav.depotGroup, ...nav.networkGroups] : nav.networkGroups;
