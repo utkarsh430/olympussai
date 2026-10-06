@@ -1,6 +1,7 @@
 import type { Provenance } from '@/lib/depot/types';
 import type { TrendTableRow } from '@/lib/depot/forecast/trendsTableModel';
 import { DEI_COMPONENTS } from '@/lib/depot/score/config';
+import { DEFAULT_HISTORY_DAYS } from '@/lib/depot/sim/config';
 import type { DeiComponentKey } from '@/lib/depot/score/types';
 import type { SortValue } from '@/lib/depot/tableSort';
 import {
@@ -38,7 +39,7 @@ export const INDEX_TITLE =
   'Efficiency index, 0 to 100. A typical peer scores 50; the tick on the bar marks 50. ' +
   'Select a depot’s index to see how its score is made up.';
 export const TREND_TITLE =
-  'Efficiency index over the last 30 days: a MODELLED history ending on the live value, and ' +
+  `Efficiency index over the last ${DEFAULT_HISTORY_DAYS} days: a MODELLED history ending on the live value, and ` +
   'its direction over 4 weeks. Sorts by the change over 4 weeks.';
 
 const COMPONENT_BY_KEY = new Map(DEI_COMPONENTS.map((c) => [c.key, c]));

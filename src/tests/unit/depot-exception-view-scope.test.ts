@@ -11,7 +11,8 @@ import { modelledFuelRepository } from '@/lib/depot/repositories/modelledFuelRep
 import { modelledRevenueRepository } from '@/lib/depot/repositories/modelledRevenueRepository';
 import type { DepotRepositories, FleetSnapshotView } from '@/lib/depot/repositories/types';
 import type { DepotExceptionsResponse } from '@/lib/depot/api';
-import { BUS_EXCEPTION_KINDS, DEFAULT_BUS_PAGE_QUERY } from '@/lib/depot/exceptions/busPage';
+import { DEFAULT_BUS_PAGE_QUERY } from '@/lib/depot/exceptions/busPage';
+import { BUS_EXCEPTION_KINDS } from '@/lib/depot/exceptions/config';
 import { analyseSnapshot, resetAnalysisForTests } from '@/lib/depot/live/analysis';
 import { buildPagedExceptionsResponse } from '@/lib/depot/live/exceptionView';
 import { GET } from '@/app/api/upsrtc/depot/exceptions/route';

@@ -20,8 +20,6 @@ export interface LoaderDepot extends FilterOption {
   readonly busesOnRoutes: number | null;
 }
 
-export const LOADER_COST_LINE = 'One lookup on the route-details service per route, one at a time';
-
 /** What a depot is ordered by: its routes when known, else its buses on routes. */
 function weight(d: LoaderDepot): number {
   return d.routes ?? d.busesOnRoutes ?? -1;

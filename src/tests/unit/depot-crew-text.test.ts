@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   AVAILABILITY_ORDER,
   PEOPLE_SENTENCE,
-  HATCHED_AVAILABILITY,
   ROSTER_NOTE,
   SLOT_NOTE,
   availabilitySegments,
@@ -10,7 +9,6 @@ import {
   dutiesSentence,
   emptyCrewSentence,
   modelledStatement,
-  pageOf,
   shortfallText,
   uncoveredCountSentence,
   reliefSentence,
@@ -37,11 +35,6 @@ describe('crew page wording', () => {
     expect(SLOT_NOTE).toBe(
       'Slot numbers only reflect the order in which the roster picked them and say nothing about a person.',
     );
-  });
-
-  it('draws weekly off and leave differently without colour', () => {
-    expect(HATCHED_AVAILABILITY).toContain('leave');
-    expect(HATCHED_AVAILABILITY).not.toContain('weekly_off');
   });
 
   it('orders the segments and gives each a word, a count and a share', () => {
@@ -148,11 +141,4 @@ describe('crew page wording', () => {
     );
   });
 
-  it('pages rows without mutating them', () => {
-    const rows = Array.from({ length: 45 }, (_, i) => i);
-    expect(pageOf(rows, 0, 20)).toMatchObject({ page: 0, pageCount: 3, rows: rows.slice(0, 20) });
-    expect(pageOf(rows, 2, 20).rows).toHaveLength(5);
-    expect(pageOf(rows, 9, 20).page).toBe(2);
-    expect(pageOf([], 0, 20)).toMatchObject({ page: 0, pageCount: 1, rows: [] });
-  });
 });

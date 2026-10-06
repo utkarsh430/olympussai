@@ -2,9 +2,11 @@
 
 import type { DepotDetailResponse } from '@/lib/depot/api';
 import { isValidDepotId } from '@/lib/depot/ids';
+import { DEPOT_NOT_FOUND_MESSAGE } from '@/lib/depot/scopeState';
 import { usePolledJson, type PolledState } from '@/hooks/usePolledJson';
 
-export const DEPOT_NOT_FOUND_MESSAGE = 'Depot not found';
+/** Defined with the scope state, which reads it; exported here too for the depot hooks. */
+export { DEPOT_NOT_FOUND_MESSAGE };
 export const INVALID_DEPOT_ID_MESSAGE = 'Invalid depot id';
 
 const NOT_FOUND = 404;

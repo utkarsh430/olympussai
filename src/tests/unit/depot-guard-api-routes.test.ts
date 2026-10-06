@@ -56,8 +56,8 @@ vi.mock('@/lib/depot/routes/routeCatalogue', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/lib/depot/routes/routeCatalogue')>();
   return { ...real, getRouteProfile: vi.fn(real.getRouteProfile) };
 });
-vi.mock('@/lib/depot/log', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/depot/log')>()),
+vi.mock('@/lib/serverLog', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/serverLog')>()),
   logDepotError: vi.fn(),
 }));
 

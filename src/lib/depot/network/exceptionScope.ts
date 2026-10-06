@@ -1,9 +1,9 @@
 import { formatCount } from '@/lib/depot/format';
+import { BUS_KIND_SEVERITY, DEPOT_EXCEPTION_KINDS } from '@/lib/depot/exceptions/config';
 import { DEPOTS_ROOT } from '@/lib/depot/nav';
 import { exceptionRows, type ExceptionKindRow } from './overviewModel';
 import type {
   BusExceptionKind,
-  DepotExceptionKind,
   ExceptionKind,
   ExceptionSeverity,
 } from '@/lib/depot/exceptions/types';
@@ -13,24 +13,12 @@ import type {
  * exceptions are different things, so a bare "2,041 in all" is never shown.
  *
  * Built only from the network response's uncapped counts. Each bus kind has one
- * fixed severity (`exceptions/busExceptions.ts`), so the bus split by severity
+ * fixed severity (`BUS_KIND_SEVERITY` in `exceptions/config.ts`), so the bus split by severity
  * is exact from the counts by kind; the depot split is what remains of the
  * server's severity totals (depot exceptions are only critical or warning).
  */
 
-const DEPOT_KINDS: ReadonlySet<ExceptionKind> = new Set<DepotExceptionKind>([
-  'dark_share_high',
-  'off_road_high',
-  'on_road_low',
-  'power_cut_cluster',
-]);
-
-const BUS_KIND_SEVERITY: Readonly<Record<BusExceptionKind, ExceptionSeverity>> = {
-  emergency: 'critical',
-  long_dark: 'warning',
-  power_cut: 'info',
-  tamper_code: 'info',
-};
+const DEPOT_KINDS: ReadonlySet<ExceptionKind> = new Set<ExceptionKind>(DEPOT_EXCEPTION_KINDS);
 
 export interface ExceptionScope {
   readonly depot: { readonly total: number; readonly critical: number; readonly warning: number };

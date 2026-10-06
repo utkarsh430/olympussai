@@ -17,7 +17,7 @@ import {
  * kill guard (src/tests/setup/signalGuard.ts) would fail any test that reached
  * the real `process.kill` with one.
  */
-vi.mock('@/lib/depot/log', () => ({ logDepotError: vi.fn() }));
+vi.mock('@/lib/serverLog', () => ({ logDepotError: vi.fn() }));
 
 const PID = 2 ** 30;
 

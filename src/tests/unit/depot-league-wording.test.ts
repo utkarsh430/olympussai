@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   formatSignedDifference,
   leagueSectionNote,
-  leagueStatusLine,
   metricCellWording,
   peerRankPhrase,
   windowMark,
@@ -30,42 +29,6 @@ function score(depotId: string, reason: RankReason): {
   return { depotId, ranked: reason === 'ok', reason };
 }
 
-describe('leagueStatusLine', () => {
-  it('says the ruling sentence, built from the data', () => {
-    const depots = [
-      ...Array.from({ length: 118 }, (_, i) => depot(`r${i}`, 'depot')),
-      depot('tiny', 'depot'),
-      ...Array.from({ length: 20 }, (_, i) => depot(`h${i}`, 'hired')),
-      depot('e', 'electric'),
-      depot('f', 'enforcement'),
-      depot('g', 'enforcement'),
-      depot('unassigned', 'unassigned'),
-    ];
-    const scores = [
-      ...Array.from({ length: 118 }, (_, i) => score(`r${i}`, 'ok')),
-      score('tiny', 'fleet_too_small'),
-      ...depots.filter((d) => d.kind !== 'depot').map((d) => score(d.id, 'not_a_depot')),
-    ];
-    expect(leagueStatusLine(depots, scores, 10)).toBe(
-      '118 ranked of 119 operating depots · 1 not ranked (fewer than 10 buses) · ' +
-        '24 other units not ranked',
-    );
-  });
-
-  it('drops a clause whose count is zero and says one unit in the singular', () => {
-    const depots = [depot('a', 'depot'), depot('b', 'hired')];
-    const scores = [score('a', 'ok'), score('b', 'not_a_depot')];
-    expect(leagueStatusLine(depots, scores, 10)).toBe(
-      '1 ranked of 1 operating depot · 1 other unit not ranked',
-    );
-  });
-
-  it('counts an operating depot with no score as not ranked', () => {
-    expect(leagueStatusLine([depot('a', 'depot')], [], 10)).toBe(
-      '0 ranked of 1 operating depot · 1 not ranked (fewer than 10 buses)',
-    );
-  });
-});
 
 describe('peerRankPhrase', () => {
   it('names the peer group so the count is not read as a depot total', () => {

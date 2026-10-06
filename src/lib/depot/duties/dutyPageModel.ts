@@ -3,7 +3,8 @@ import { REPORTING_WINDOW_MIN } from '../infer/thresholds';
 import { modelledDayLine } from '../modelledDayLine';
 import type { Coverage } from '../types';
 import type { BoardDuty, DutyBoardResponse } from './api';
-import { crossReferenceSentence, heldOutParts } from './dutyBoardModel';
+import { modelledDaySentence } from '../sim/operatingDayWording';
+import { heldOutParts } from './dutyBoardModel';
 import { matchedCaption, recencySentence, spareCaption } from './dutyStanding';
 
 const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
@@ -134,7 +135,7 @@ export function dutiesModelledDay(input: {
 
 /** The empty board's one "no duties" sentence, dated in the plain form ("6 Oct 2026"). */
 export function emptyBoardSentence(operatingDate: string): string {
-  return crossReferenceSentence({
+  return modelledDaySentence({
     scheduled: null,
     duties: 0,
     routes: 0,

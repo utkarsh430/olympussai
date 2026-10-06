@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   CELL_PADDING_X_REM,
   FROZEN_KEYS,
-  LEAGUE_COMPONENT_ORDER,
   LEAGUE_SCROLLING_COLUMNS,
   TIER_CLASS,
   frozenBlockRem,
@@ -11,7 +10,6 @@ import {
   frozenStyle,
   tableWidthPx,
 } from '@/lib/depot/league/leagueColumns';
-import { DEI_COMPONENTS } from '@/lib/depot/score/config';
 
 const PX_PER_REM = 16;
 /** A 360px phone with 16px gutters and the frame's own 1px borders. */
@@ -76,10 +74,6 @@ describe('league frozen block', () => {
 });
 
 describe('league column order', () => {
-  it('puts schedule coverage and device integrity first, every component exactly once', () => {
-    expect(LEAGUE_COMPONENT_ORDER.slice(0, 2)).toEqual(['scheduled', 'deviceHealth']);
-    expect([...LEAGUE_COMPONENT_ORDER].sort()).toEqual(DEI_COMPONENTS.map((c) => c.key).sort());
-  });
 
   it('shows schedule coverage, device integrity and on-road share from 640px, the rest wider', () => {
     const tierOf = (key: string) => LEAGUE_SCROLLING_COLUMNS.find((c) => c.key === key)?.tier;

@@ -2,21 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   exampleQuestions,
   failureSentence,
-  generatedAtText,
   groupFactsByProvenance,
   noticeSentence,
-  providerTagText,
   validateQuestion,
 } from '@/lib/depot/copilot/ui/copilotView';
 import { MAX_QUESTION_CHARS } from '@/lib/depot/copilot/limits';
 import type { CopilotFactView } from '@/lib/depot/copilot/wire';
 
-describe('providerTagText', () => {
-  it('names who wrote the text', () => {
-    expect(providerTagText('claude')).toBe('Written by Claude');
-    expect(providerTagText('scripted')).toBe('Scripted response');
-  });
-});
 
 describe('noticeSentence', () => {
   it('gives a sentence per notice and nothing for none', () => {
@@ -55,21 +47,6 @@ describe('failureSentence', () => {
   });
 });
 
-describe('generatedAtText', () => {
-  it('shows the time in Indian Standard Time', () => {
-    expect(generatedAtText('2026-10-06T09:30:00.000Z', false)).toBe('Written at 15:00 IST');
-  });
-
-  it('says so when the text was served from cache', () => {
-    expect(generatedAtText('2026-10-06T09:30:00.000Z', true)).toBe(
-      'Written at 15:00 IST, reused from earlier on this snapshot',
-    );
-  });
-
-  it('gives no time for an unreadable stamp', () => {
-    expect(generatedAtText('not a date', false)).toBe('Written just now');
-  });
-});
 
 describe('validateQuestion', () => {
   it('trims and collapses whitespace', () => {

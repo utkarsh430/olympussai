@@ -25,16 +25,3 @@ export function seasonalNaiveForecast(
   );
 }
 
-/**
- * Signed one-step-ahead residuals (actual minus forecast) for each of the
- * last `windowDays` values, each forecast from the value one season earlier.
- */
-export function seasonalNaiveResiduals(
-  values: readonly number[],
-  windowDays: number,
-  season: number = SEASON_DAYS,
-): number[] {
-  const first = values.length - windowDays;
-  if (first < season) throw new RangeError('Backtest window reaches before the first season');
-  return values.slice(first).map((v, i) => v - (values[first + i - season] as number));
-}

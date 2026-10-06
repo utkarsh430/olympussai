@@ -3,7 +3,7 @@ import type { UpstreamFetchResult } from '@/lib/upsrtc/client';
 import { normalizeLivePayload } from '@/lib/upsrtc/normalizer';
 import { deriveFeedClock, normalizeDepotRows } from '@/lib/upsrtc/depotNormalizer';
 import { TtlCache } from '@/lib/upsrtc/cache';
-import { logDepotError, logDepotNotice } from '@/lib/depot/log';
+import { logDepotError, logDepotNotice } from '@/lib/serverLog';
 import { loadFleetFixture, resetFleetFixtureForTests } from '@/lib/upsrtc/fleetFixture';
 import liveFixture from '@/fixtures/upsrtc-live-sample.json';
 import type { CanonicalLiveBus, UpstreamSource } from '@/models/canonical';

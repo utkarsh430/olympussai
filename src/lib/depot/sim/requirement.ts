@@ -60,13 +60,17 @@ function compareDepotIds(a: string, b: string): number {
   return compareText(a, b);
 }
 
-/** On-road shares by depot id, each over the rolling score window; null when it has none. */
+/**
+ * On-road shares by depot id; null when it has none. Built per snapshot over the rolling
+ * score window, then held at each depot's highest so far in the operating date
+ * (`live/peakShareHold.ts`) before the requirement reads it.
+ */
 export type WindowedOnRoadShares = ReadonlyMap<string, number | null>;
 
 const NO_WINDOW: WindowedOnRoadShares = new Map();
 
 /**
- * Each depot's on-road share over the rolling score window (ruling S63): the
+ * Each depot's on-road share over the rolling score window in this snapshot: the
  * `onRoad` component the scores were summed over, the same one the efficiency
  * index and the league breakdown use. Built by the callers from the analysis.
  */
@@ -113,9 +117,10 @@ interface Basis {
 }
 
 /**
- * The depot's on-road share against its peers' median, both over the rolling
- * score window (ruling S63): the instantaneous share moves every minute, and
- * the modelled day and the transfer plan moved with it. Then a seeded draw.
+ * The depot's held on-road share (its busiest windowed share so far in the
+ * operating date) against the peers' median of those: the instantaneous share
+ * moves every minute, and even the windowed share falls through the evening, so
+ * the modelled day and the transfer plan would move with them. Then a seeded draw.
  */
 function peakRequirementFor(depot: DepotSummary, available: number, basis: Basis): number {
   const { peerMedian, operatingDate, params } = basis;
@@ -175,8 +180,8 @@ function balanceFor(
 
 /**
  * One balance per depot, sorted by depot id. Pure; never mutates its inputs.
- * `windowed` gives each depot's on-road share over the rolling score window
- * (`windowedOnRoadShares`, ruling S63); a depot it lacks a value for reads its
+ * `windowed` gives each depot's busiest windowed on-road share so far in the
+ * operating date (`live/peakShareHold.ts`); a depot it lacks a value for reads its
  * single-snapshot share, then the peer median. Every caller that shows a
  * requirement passes the same map, so they all rest on one requirement.
  */

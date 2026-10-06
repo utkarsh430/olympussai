@@ -16,7 +16,6 @@ import {
   barLabel,
   defaultBoardView,
   MIN_TRACK_PX,
-  TABLE_FIRST_QUERY,
   heldOutParts,
   nowLabel,
   nowLabelAnchor,
@@ -301,7 +300,6 @@ describe('the board view and the timeline width (round 3, Duties Must 1)', () =>
   it('opens as a table below 640 px and as the chart from 640 px', () => {
     expect(defaultBoardView(true)).toBe('table');
     expect(defaultBoardView(false)).toBe('chart');
-    expect(TABLE_FIRST_QUERY).toBe('(max-width: 639px)');
   });
 
   it('measures bar text against the narrowest track the fitted chart has (640 px wide)', () => {

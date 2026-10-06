@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  LOADER_COST_LINE,
   defaultLoaderDepot,
   loadButtonTitle,
   loaderDepotLabel,
@@ -71,6 +70,5 @@ describe('the loader row', () => {
     expect(loadButtonTitle('BIJNOR', 12)).toBe(
       'Looks up 12 routes of BIJNOR on the route-details service: one lookup per route, one at a time, at most 40 a press.',
     );
-    expect(LOADER_COST_LINE).toBe('One lookup on the route-details service per route, one at a time');
   });
 });

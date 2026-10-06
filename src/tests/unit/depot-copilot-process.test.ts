@@ -20,7 +20,7 @@ import type { CopilotRequest } from '@/lib/depot/copilot/types';
  * Process control on every exit path. Nothing here sends a real signal: the
  * group kill is an injected fake, and every child is an event emitter.
  */
-vi.mock('@/lib/depot/log', () => ({ logDepotError: vi.fn() }));
+vi.mock('@/lib/serverLog', () => ({ logDepotError: vi.fn() }));
 
 /** Above every OS pid limit, so a signal that reached the real kill could only fail. */
 const PID = 2 ** 30;

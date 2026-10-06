@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { modelledDaySentence } from '@/lib/depot/sim/operatingDayWording';
 import DepotCrewPage from '@/app/(protected)/project/depots/d/[depotId]/crew/page';
 import type { CrewResponse } from '@/lib/depot/crew/api';
 import {
@@ -9,7 +10,6 @@ import {
   SHORTFALL_EXPLANATION,
   coverageLine,
   crewDisclosure,
-  crossReferenceSentence,
   SLOT_NOTE,
   availabilityText,
   dutiesSentence,
@@ -65,8 +65,8 @@ describe('every sentence the crew page model can produce', () => {
       SLOT_NOTE,
       SHORTFALL_EXPLANATION,
       NO_UNCOVERED_SENTENCE,
-      crossReferenceSentence({ scheduled: { n: 5, of: 200 }, duties: 158, routes: 14 }),
-      crossReferenceSentence({ scheduled: null, duties: 0, routes: 0 }),
+      modelledDaySentence({ scheduled: { n: 5, of: 200 }, duties: 158, routes: 14 }),
+      modelledDaySentence({ scheduled: null, duties: 0, routes: 0 }),
       coverageLine({ shiftsRequired: 160, shiftsCovered: 160, shiftsUncovered: 0, dutiesNeedingRelief: 0 }, []),
       coverageLine({ shiftsRequired: 160, shiftsCovered: 160, shiftsUncovered: 0, dutiesNeedingRelief: 3 }, []),
       coverageLine(

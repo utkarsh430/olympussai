@@ -135,23 +135,18 @@ export interface BusRangeInput {
   readonly kind: BusExceptionKind | null;
   readonly offset: number;
   readonly total: number;
-  /** Rows on this page. */
-  readonly shown: number;
 }
 
-/** "Showing 1–25 of 698 long dark buses", with "at MEERUT" when a depot is chosen. */
+/**
+ * Said in place of the bus list when it has no rows: "No long dark buses on this snapshot",
+ * with "at MEERUT" when a depot is chosen. The table's own footer states the shown range.
+ */
 export function busRangeSentence(page: BusRangeInput, depotName: string | null): string {
-  const [one, many] = BUS_KIND_NOUN[page.kind ?? 'any'];
+  const [, many] = BUS_KIND_NOUN[page.kind ?? 'any'];
   const where = depotName === null ? '' : ` at ${depotName}`;
-  if (page.total === 0 || page.shown === 0) {
-    return page.total === 0
-      ? `No ${many}${where} on this snapshot`
-      : `No rows on this page; ${formatCount(page.total)} ${many}${where} in all`;
-  }
-  const first = page.offset + 1;
-  const last = page.offset + page.shown;
-  const noun = page.total === 1 ? one : many;
-  return `Showing ${formatCount(first)}–${formatCount(last)} of ${formatCount(page.total)} ${noun}${where}`;
+  return page.total === 0
+    ? `No ${many}${where} on this snapshot`
+    : `No rows on this page; ${formatCount(page.total)} ${many}${where} in all`;
 }
 
 /** Offsets for Previous and Next; null where there is no such page. */
@@ -189,15 +184,6 @@ export function depotScopeLine(groups: readonly DepotExceptionGroup[]): string {
   const exceptions = groups.reduce((n, g) => n + g.exceptions.length, 0);
   if (exceptions === groups.length) return '';
   return `${formatCount(exceptions)} exceptions in ${formatCount(groups.length)} depots: a depot is listed once, under its worst level.`;
-}
-
-/** The query string for a kind filter: `?kind=long_dark`, or the bare path when cleared. */
-export function kindSearch(search: string, kind: ExceptionKind | null): string {
-  const params = new URLSearchParams(search);
-  if (kind === null) params.delete('kind');
-  else params.set('kind', kind);
-  const text = params.toString();
-  return text === '' ? '' : `?${text}`;
 }
 
 export interface BusColumnPlan {

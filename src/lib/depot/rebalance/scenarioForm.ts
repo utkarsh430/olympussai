@@ -39,12 +39,18 @@ export const BASELINE_FORM: ScenarioFormState = {
 };
 
 const PERCENT = 100;
+/** Percentages are compared to two decimals, so 0.07 x 100 (7.000000000000001) still equals 7. */
+const PERCENT_DECIMALS = 100;
+
+function roundPercent(value: number): number {
+  return Math.round(value * PERCENT_DECIMALS) / PERCENT_DECIMALS;
+}
 
 /** Spare ratio as a percentage, or null when it is the default. */
 export function activeSpare(state: ScenarioFormState): number | null {
   const { sparePercent } = state;
   if (sparePercent === null) return null;
-  return sparePercent === DEFAULT_SPARE_RATIO * PERCENT ? null : sparePercent;
+  return roundPercent(sparePercent) === roundPercent(DEFAULT_SPARE_RATIO * PERCENT) ? null : sparePercent;
 }
 
 function activeMaxKm(state: ScenarioFormState): number | null {

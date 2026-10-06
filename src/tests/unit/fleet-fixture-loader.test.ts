@@ -1,9 +1,9 @@
 import { gzipSync } from 'node:zlib';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/depot/log', () => ({ logDepotError: vi.fn() }));
+vi.mock('@/lib/serverLog', () => ({ logDepotError: vi.fn() }));
 
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 import { loadFleetFixture, resetFleetFixtureForTests } from '@/lib/upsrtc/fleetFixture';
 
 const log = vi.mocked(logDepotError);

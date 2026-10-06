@@ -88,7 +88,7 @@ export function BusExceptionSection(props: BusExceptionSectionProps) {
           kind="empty"
           compact
           tone="ok"
-          sentence={busRangeSentence({ ...page, shown: 0 }, depotName)}
+          sentence={busRangeSentence(page, depotName)}
         />
       ) : (
         <div aria-busy={pending}>

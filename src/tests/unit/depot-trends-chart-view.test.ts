@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { trendSummary } from '@/lib/depot/forecast/chartModel';
 import { buildTrendsChartView, chartCaption } from '@/lib/depot/forecast/trendsChartView';
+import { FOUR_WEEK_DAYS } from '@/lib/depot/forecast/trend';
 import { forecastResponse } from './depot-trends-fixtures';
 
 const FULL = forecastResponse('onRoadShare', 70);
@@ -90,6 +91,6 @@ describe('the caption line', () => {
 
   it('says a missing four-week trend in words', () => {
     const caption = chartCaption(forecastResponse('onRoadShare', 20)) ?? '';
-    expect(caption).toMatch(/^No trend over 4 weeks yet \(20 of 29 days\) · /);
+    expect(caption.startsWith(`No trend over 4 weeks yet (20 of ${FOUR_WEEK_DAYS + 1} days) · `)).toBe(true);
   });
 });

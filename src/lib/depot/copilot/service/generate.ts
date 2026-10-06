@@ -1,7 +1,7 @@
 import { UNAVAILABLE_DRAFT } from '@/lib/depot/copilot/resolve';
 import type { CopilotRequest, CopilotText } from '@/lib/depot/copilot/types';
 import type { CopilotApiResponse, CopilotDataSource } from '@/lib/depot/copilot/wire';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 import { withheldStrings } from '@/lib/depot/copilot/errorText';
 import { logCopilotFailure } from '@/lib/depot/copilot/service/failureLog';
 import {

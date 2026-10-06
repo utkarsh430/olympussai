@@ -28,7 +28,7 @@ export interface RequirementParams {
   readonly spareRatio: number;
   /** Share of available buses a typical depot needs at peak. */
   readonly baseUtilisation: number;
-  /** How strongly a depot's on-road share over the score window moves its requirement. */
+  /** How strongly a depot's busiest windowed on-road share so far today moves its requirement. */
   readonly utilisationSensitivity: number;
   /** Half-width of the seeded per-depot variation. */
   readonly noise: number;

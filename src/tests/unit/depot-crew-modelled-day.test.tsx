@@ -241,10 +241,6 @@ describe('every string the crew page model can produce', () => {
       ['Drivers', 234],
       ['Conductors', 1],
     ],
-    crossReferenceSentence: [
-      [{ scheduled: { n: 5, of: 200 }, duties: 158, routes: 14, operatingDate: '2026-10-06' }],
-      [{ scheduled: null, duties: 0, routes: 0, operatingDate: '2026-10-06' }],
-    ],
     coverageLine: [
       [
         { shiftsRequired: 40, shiftsCovered: 30, shiftsUncovered: 10, dutiesNeedingRelief: 0 },

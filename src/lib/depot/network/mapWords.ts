@@ -26,9 +26,6 @@ export function positionNote(depot: Pick<DepotSummary, 'positioned'>): string {
   return `Position: median of ${formatCount(depot.positioned)} positioned ${noun} (derived)`;
 }
 
-export const SUGGESTION_LABEL = 'Suggestion';
-export const LOWEST_OPERATING_LABEL = 'Lowest index among operating depots';
-
 /**
  * Why the suggestion is not a league table: an index is scored within a peer
  * group, so "lowest" is the lowest on the depot's own peer group's ranking, and
@@ -36,24 +33,6 @@ export const LOWEST_OPERATING_LABEL = 'Lowest index among operating depots';
  */
 export const SUGGESTION_NOTE =
   'Indices are scored within peer groups, so this is the lowest within its own peer group ranking, not a like-for-like comparison across groups. A tie goes to the smaller depot id.';
-
-/**
- * What the empty selected-depot panel offers: the ranked operating depot with
- * the lowest index (ties to the smaller id), or null when none is ranked.
- */
-export function lowestOperatingDepot(rows: readonly DepotRow[]): DepotRow | null {
-  let lowest: { readonly row: DepotRow; readonly index: number } | null = null;
-  for (const row of rows) {
-    const index = rankedIndex(row);
-    if (row.depot.kind !== 'depot' || index === null) continue;
-    const better =
-      lowest === null ||
-      index < lowest.index ||
-      (index === lowest.index && row.depot.id < lowest.row.depot.id);
-    if (better) lowest = { row, index };
-  }
-  return lowest?.row ?? null;
-}
 
 /**
  * The depot scope for a unit; null for the unassigned bucket, which is not a

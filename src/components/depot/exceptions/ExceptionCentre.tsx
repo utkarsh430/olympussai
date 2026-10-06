@@ -9,7 +9,8 @@ import { SectionLabel } from '@/components/depot/shell/SectionLabel';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
 import { StatePanel } from '@/components/depot/shell/StatePanel';
 import type { DepotExceptionsResponse } from '@/lib/depot/api';
-import { BUS_EXCEPTION_KINDS, BUS_PAGE_DEFAULT_LIMIT } from '@/lib/depot/exceptions/busPage';
+import { BUS_PAGE_DEFAULT_LIMIT } from '@/lib/depot/exceptions/busPage';
+import { BUS_EXCEPTION_KINDS } from '@/lib/depot/exceptions/config';
 import { EXCEPTION_KIND_LABEL } from '@/lib/depot/exceptions/describe';
 import {
   depotScopeLine,

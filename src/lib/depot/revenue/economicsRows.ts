@@ -195,8 +195,6 @@ export function emptyRowText(rows: readonly EconomicsRow[], filters: EconomicsFi
   return 'The filters hide every row. Clear the search or turn on Show unranked.';
 }
 
-export const DEFAULT_ECONOMICS_FILTERS: EconomicsFilters = { showUnranked: false, search: '' };
-
 export function filterEconomicsRows(
   rows: readonly EconomicsRow[],
   filters: EconomicsFilters,

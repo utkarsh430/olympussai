@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { jsonResponse } from '@/lib/upsrtc/respond';
 import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 import { buildEconomicsResponse } from '@/lib/depot/live/economicsView';
 
 export const runtime = 'nodejs';

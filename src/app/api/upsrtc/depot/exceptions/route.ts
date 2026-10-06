@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { jsonResponse } from '@/lib/upsrtc/respond';
 import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
 import { getRepositories } from '@/lib/depot/repositories';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 import { DEPOT_NOT_FOUND, depotFilterKnown } from '@/lib/depot/live/analysis';
 import { parseBusPageQuery } from '@/lib/depot/exceptions/busPage';
 import { buildPagedExceptionsResponse } from '@/lib/depot/live/exceptionView';

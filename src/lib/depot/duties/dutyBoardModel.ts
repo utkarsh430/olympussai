@@ -1,5 +1,4 @@
 import { formatCount, formatFeedTime } from '../format';
-import { modelledDaySentence, type ModelledDayReference } from '../sim/operatingDayWording';
 import type { BoardDuty, DutyBlockers, DutyState } from './api';
 import { CLASS_WORD, STANDING_WORD, busClassWord } from './dutyStanding';
 import type { BusStandingNow, SpareByStanding } from './types';
@@ -185,7 +184,7 @@ export function emptyDutiesSentence(input: {
   readonly routeCount: number;
   readonly peakRequirement: number;
 }): string {
-  // The shared "no duties" sentence (crossReferenceSentence) says that there are none;
+  // The shared "no duties" sentence (modelledDaySentence) says that there are none;
   // this says only why, so an empty board never carries two "no duties" sentences.
   if (input.routeCount === 0) {
     return 'None of its buses reports a route in the live feed, so there is nothing to run a duty on.';
@@ -312,9 +311,6 @@ const TEXT_PAD_PX = 12;
  */
 export const MIN_TRACK_PX = 640 - 32 - 160 - 32;
 
-/** Below 640 px the board opens as the table; the chart stays one press away. */
-export const TABLE_FIRST_QUERY = '(max-width: 639px)';
-
 /** The view the board opens in until the reader picks one (critique Duties Must 1). */
 export function defaultBoardView(narrow: boolean): BoardView {
   return narrow ? 'table' : 'chart';
@@ -356,9 +352,4 @@ export function nowLabel(feedNow: string | null): string | null {
 
 export function viewAnnouncement(view: BoardView, dutyCount: number): string {
   return `Showing the ${view}, ${dutyCount} ${plural(dutyCount, 'duty', 'duties')}`;
-}
-
-/** The shared cross-reference to the modelled day; the words are built in one place for every page. */
-export function crossReferenceSentence(reference: ModelledDayReference): string {
-  return modelledDaySentence(reference);
 }

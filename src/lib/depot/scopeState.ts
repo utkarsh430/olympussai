@@ -1,5 +1,7 @@
-import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
 import { scopeLabel, type ScopeDepot } from './depotNav';
+
+/** The depot API's error body for an unknown depot; the hooks and the scope state read it. */
+export const DEPOT_NOT_FOUND_MESSAGE = 'Depot not found';
 
 export interface DepotScopeInput {
   /** The depot the address names, or null for the network scope. */

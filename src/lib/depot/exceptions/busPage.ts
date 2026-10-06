@@ -14,13 +14,6 @@ export const BUS_PAGE_MAX_LIMIT = 100;
 /** Far beyond any real list; it only stops absurd numbers. */
 export const BUS_PAGE_MAX_OFFSET = 100_000_000;
 
-export const BUS_EXCEPTION_KINDS: readonly BusExceptionKind[] = [
-  'long_dark',
-  'power_cut',
-  'tamper_code',
-  'emergency',
-];
-
 export interface BusPageQuery {
   /** Null for every bus kind. */
   readonly kind: BusExceptionKind | null;

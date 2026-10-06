@@ -5,14 +5,9 @@ import type {
   CopilotDataSource,
   CopilotFactView,
   CopilotPublicNotice,
-  CopilotPublicProvider,
 } from '../wire';
 
 /** Wording and small pure decisions for the copilot UI; components only render these. */
-
-export function providerTagText(provider: CopilotPublicProvider): string {
-  return provider === 'claude' ? 'Written by Claude' : 'Scripted response';
-}
 
 /**
  * The footer's words for figures that are not from the live feed, the same words the
@@ -47,21 +42,6 @@ export function failureSentence(kind: CopilotFailureKind, retryAfterSeconds = 0)
   if (kind !== 'rate_limited') return FAILURE_SENTENCE[kind];
   const unit = retryAfterSeconds === 1 ? 'second' : 'seconds';
   return `Too many requests. Try again in ${retryAfterSeconds} ${unit}.`;
-}
-
-const TIME_FORMAT = new Intl.DateTimeFormat('en-GB', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-  timeZone: 'Asia/Kolkata',
-});
-
-/** The depot module reads in Indian Standard Time; the zone is fixed so server and browser agree. */
-export function generatedAtText(generatedAt: string, cached: boolean): string {
-  const date = new Date(generatedAt);
-  if (Number.isNaN(date.getTime())) return 'Written just now';
-  const base = `Written at ${TIME_FORMAT.format(date)} IST`;
-  return cached ? `${base}, reused from earlier on this snapshot` : base;
 }
 
 export type QuestionCheck =

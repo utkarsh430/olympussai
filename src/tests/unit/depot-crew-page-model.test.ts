@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   AVAILABILITY_ORDER,
   AVAILABILITY_PATTERN,
-  HATCHED_AVAILABILITY,
   SHORTFALL_EXPLANATION,
   coverageLine,
   crewDisclosure,
@@ -69,8 +68,7 @@ describe('availability patterns', () => {
     expect(new Set(patterns).size).toBe(AVAILABILITY_ORDER.length);
   });
 
-  it('keeps leave hatched and weekly off solid', () => {
-    expect(HATCHED_AVAILABILITY).toContain('leave');
+  it('keeps weekly off solid', () => {
     expect(AVAILABILITY_PATTERN.weekly_off).toBe('grey');
   });
 });

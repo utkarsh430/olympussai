@@ -11,7 +11,7 @@ import {
   type CopilotProvider,
   type CopilotRequest,
 } from '@/lib/depot/copilot/types';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 import { DEFAULT_COPILOT_MODEL, LOG_SCOPE } from '@/lib/depot/copilot/service/constants';
 
 export interface CliFactoryDeps {

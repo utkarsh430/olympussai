@@ -1,7 +1,7 @@
 import type { DepotDetailResponse } from '@/lib/depot/api';
 import { depotHref } from '@/lib/depot/depotNav';
 import { formatCount } from '@/lib/depot/format';
-import { DARK_AFTER_MIN } from '@/lib/depot/infer/thresholds';
+import { DARK_AFTER_MIN, REPORTING_WINDOW_MIN } from '@/lib/depot/infer/thresholds';
 import { DEPOTS_ROOT } from '@/lib/depot/nav';
 import { hasTamperCode, notHeardText } from '@/lib/depot/roster/rosterModel';
 import { rosterFilterHref } from '@/lib/depot/roster/rosterQuery';
@@ -13,8 +13,6 @@ import { rosterFilterHref } from '@/lib/depot/roster/rosterQuery';
 
 export const ATTENTION_MAX_LINES = 6;
 const MINUTES_PER_HOUR = 60;
-/** The reporting window the server's `notHeardMin` flag is measured against. */
-const NOT_HEARD_AFTER_MIN = 30;
 
 export interface AttentionLine {
   readonly key: string;
@@ -95,7 +93,7 @@ export function buildAttention(detail: DepotDetailResponse, depotId: string): At
     {
       key: 'not_heard',
       count: notHeard,
-      text: `${buses(notHeard)} ${verb(notHeard, 'has', 'have')} not been heard for over ${NOT_HEARD_AFTER_MIN} min`,
+      text: `${buses(notHeard)} ${verb(notHeard, 'has', 'have')} not been heard for over ${REPORTING_WINDOW_MIN} min`,
       href: rosterFilterHref(depotId, { flag: 'not_heard' }),
       destination: 'Roster',
     },

@@ -2,18 +2,13 @@ import { describe, it, expect } from 'vitest';
 import type { DepotRevenueTotals, RouteRevenueFigure } from '@/lib/depot/revenue/types';
 import { REVENUE_MODEL_PARAMS } from '@/lib/depot/sim/revenueConfig';
 import {
-  HERO_CAP,
   buildRouteRows,
   coverageSentence,
   modelledLengthSentence,
-  NO_KM_RUN,
   formatLoadFactor,
   formatRupeesPerKm,
-  DERIVED_LENGTH_HEADER,
-  heroBars,
-  modelledHeader,
   modelledStatement,
-  summaryTiles,
+  TRIPS_NOTE,
   withheldSentence,
 } from '@/lib/depot/revenue/revenuePageModel';
 
@@ -78,49 +73,24 @@ describe('formatting', () => {
   });
 });
 
-describe('summaryTiles', () => {
-  it('lists trips, boardings, load factor, revenue and earnings, each with its note', () => {
-    const tiles = summaryTiles(TOTALS);
-    expect(tiles.map((t) => t.key)).toEqual([
-      'trips',
-      'boardings',
-      'loadFactor',
-      'revenue',
-      'earningsPerKm',
-    ]);
-    const value = (key: string) => tiles.find((t) => t.key === key)?.value;
-    expect(value('boardings')).toBe('12,34,567');
-    expect(value('revenue')).toBe('₹12,34,567');
-    expect(value('loadFactor')).toBe('61.2%');
-    expect(value('earningsPerKm')).toBe('₹12.35 per km');
-    expect(tiles.find((t) => t.key === 'earningsPerKm')?.note).toBe(
+describe('the revenue notes the page shows', () => {
+  it('words the length coverage and the trip note', () => {
+    expect(coverageSentence(TOTALS.lengthCoverage)).toBe(
       'Lengths: 1 of 2 routes from real route profiles, the rest modelled',
     );
-    expect(tiles.find((t) => t.key === 'trips')?.note).toBe(
-      'Duties run in the modelled day, one trip out and back each',
+    expect(coverageSentence({ n: 0, of: 2 })).toBe(
+      'Lengths: 0 of 2 routes from real route profiles, the rest modelled',
     );
+    expect(TRIPS_NOTE).toBe('Duties run in the modelled day, one trip out and back each');
+    expect(formatLoadFactor(TOTALS.loadFactor)).toBe('61.2%');
   });
-  it('states the share of revenue that rests on a modelled length, on the revenue tile', () => {
-    const tiles = summaryTiles(TOTALS);
+  it('states the share of revenue that rests on a modelled length', () => {
     // modelledLengthRevenueShare 0.25 -> 25.0%.
-    expect(tiles.find((t) => t.key === 'revenue')?.note).toBe(
+    expect(modelledLengthSentence(TOTALS)).toBe(
       '25.0% of revenue is on routes of modelled length (no real profile yet)',
     );
-    expect(tiles.find((t) => t.key === 'loadFactor')?.note).toBe(
-      'Occupied seats over seats offered, weighted by trips',
-    );
-    const none = summaryTiles({ ...TOTALS, modelledLengthRevenueShare: 0 });
-    expect(none.find((t) => t.key === 'revenue')?.note).toBeNull();
+    expect(modelledLengthSentence({ ...TOTALS, modelledLengthRevenueShare: 0 })).toBeNull();
     expect(modelledLengthSentence({ ...TOTALS, modelledLengthRevenueShare: null })).toBeNull();
-  });
-  it('shows earnings as no kilometres run only when nothing ran, with its coverage', () => {
-    const tile = summaryTiles({
-      ...TOTALS,
-      earningsPerKm: null,
-      lengthCoverage: { n: 0, of: 2 },
-    }).find((t) => t.key === 'earningsPerKm');
-    expect(tile?.value).toBe(NO_KM_RUN);
-    expect(tile?.note).toBe('Lengths: 0 of 2 routes from real route profiles, the rest modelled');
   });
 });
 
@@ -161,51 +131,7 @@ describe('buildRouteRows', () => {
   });
 });
 
-describe('heroBars', () => {
-  const routes = Array.from({ length: HERO_CAP + 3 }, (_, i) =>
-    route({ routeName: `R${i}`, revenue: (HERO_CAP + 3 - i) * 1000 }),
-  );
-  it('caps at the top routes and offers Show all N', () => {
-    const hero = heroBars(routes, false);
-    expect(hero.bars).toHaveLength(HERO_CAP);
-    expect(hero.total).toBe(HERO_CAP + 3);
-    expect(hero.toggleLabel).toBe(`Show all ${HERO_CAP + 3}`);
-    expect(hero.bars[0]?.widthPercent).toBe(100);
-  });
-  it('shows every route when asked, under the same fixed label', () => {
-    const hero = heroBars(routes, true);
-    expect(hero.bars).toHaveLength(HERO_CAP + 3);
-    expect(hero.toggleLabel).toBe(`Show all ${HERO_CAP + 3}`);
-  });
-  it('says in a bar when the route length is modelled', () => {
-    const flat = heroBars([route({ routeName: 'F', revenue: 100 })], false).bars[0];
-    expect(flat?.description).toBe('F: ₹100 modelled revenue (modelled route length)');
-    const known = heroBars(
-      [route({ routeName: 'K', revenue: 100, lengthProvenance: 'derived', lengthKm: 40 })],
-      false,
-    ).bars[0];
-    expect(known?.description).toBe('K: ₹100 modelled revenue');
-  });
-  it('offers no toggle when every route fits', () => {
-    const hero = heroBars(routes.slice(0, 3), false);
-    expect(hero.toggleLabel).toBeNull();
-  });
-  it('sizes bars in proportion to rounded revenue, never below zero', () => {
-    const hero = heroBars(
-      [route({ routeName: 'X', revenue: 400 }), route({ routeName: 'Y', revenue: 100 })],
-      false,
-    );
-    expect(hero.bars.map((b) => b.widthPercent)).toEqual([100, 25]);
-    expect(heroBars([route({ routeName: 'Z', revenue: 0 })], false).bars[0]?.widthPercent).toBe(0);
-  });
-  it('gives each bar a text equivalent', () => {
-    expect(heroBars(routes, false).bars[0]?.description).toBe(
-      'R0: ₹13,000 modelled revenue (modelled route length)',
-    );
-  });
-});
-
-describe('route rows and headers', () => {
+describe('route rows', () => {
   it('carries the numeric length so the column can sort by it', () => {
     const [row] = buildRouteRows([
       route({ routeName: 'L', lengthKm: 41.6, lengthProvenance: 'derived' }),
@@ -213,12 +139,6 @@ describe('route rows and headers', () => {
     expect(row?.lengthKm).toBe(41.6);
     expect(row?.lengthText).toBe('42 km (derived)');
     expect(buildRouteRows([route({ routeName: 'N' })])[0]?.lengthKm).toBe(100);
-  });
-  it('tags a modelled column header and a derived one', () => {
-    expect(modelledHeader('Earnings per km')).toBe('Earnings per km (MODELLED)');
-    // The length column now mixes real (DERIVED) and typical (MODELLED) lengths, so the
-    // header carries no single tag and every cell says which it is (see buildRouteRows).
-    expect(DERIVED_LENGTH_HEADER).toBe('Route length');
   });
 });
 

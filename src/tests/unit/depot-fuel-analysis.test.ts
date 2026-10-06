@@ -5,7 +5,6 @@ import { analyseFuel } from '@/lib/depot/fuel/analysis';
 import { isSupportedMedian } from '@/lib/depot/fuel/support';
 import {
   DEFAULT_PRICE_PER_LITRE,
-  FUEL_REASON_LABELS,
   FUEL_VARIANCE_FLAG_PCT,
   type BusFuelDay,
 } from '@/lib/depot/fuel/types';
@@ -213,7 +212,6 @@ describe('analyseFuel: a flag needs a supported peer median', () => {
       ['B', 'peers_differ'],
       ['C', null],
     ]);
-    expect(FUEL_REASON_LABELS.peers_differ).toBe('Peers differ too much to compare');
   });
 
   it('keeps the figure and the variance on a bus whose peers differ', () => {
@@ -402,7 +400,7 @@ describe('analyseFuel: purity and wording', () => {
       PRICE,
     );
     expect(result.flagged.length).toBeGreaterThan(0);
-    return JSON.stringify([result, FUEL_REASON_LABELS]);
+    return JSON.stringify(result);
   }
 
   it('never says theft, pilferage, misuse, driver or conductor', () => {

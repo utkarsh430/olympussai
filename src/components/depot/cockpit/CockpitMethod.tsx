@@ -1,4 +1,5 @@
 import { describeMix, statusSegments } from '@/components/depot/network/StatusMixBar';
+import { REPORTING_WINDOW_MIN } from '@/lib/depot/infer/thresholds';
 import { YARD_RULE_SENTENCE } from '@/lib/depot/infer/yardRuleText';
 import type { StatusMix } from '@/lib/depot/types';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
@@ -24,7 +25,7 @@ export function CockpitMethod({ fleet, yardSentence, yardEstablished, status }: 
     <HowProduced testId="depot-cockpit-method" id={COCKPIT_HOW_ID}>
       <p className="depot-prose">
         Each bus is in exactly one of five states, inferred from its last report; the five add up
-        to the fleet of {fleet.toLocaleString('en-IN')}. A bus heard more than 30 minutes ago keeps
+        to the fleet of {fleet.toLocaleString('en-IN')}. A bus heard more than {REPORTING_WINDOW_MIN} minutes ago keeps
         the state it last reported and is marked as not heard.
       </p>
       <p className="depot-prose">{yard}</p>

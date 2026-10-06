@@ -201,11 +201,6 @@ export interface CappedRows<T> {
   readonly hidden: number;
 }
 
-export function capTrendRows<T>(rows: readonly T[], expanded: boolean): CappedRows<T> {
-  if (expanded || rows.length <= TREND_ROW_CAP) return { shown: rows, hidden: 0 };
-  return { shown: rows.slice(0, TREND_ROW_CAP), hidden: rows.length - TREND_ROW_CAP };
-}
-
 const SORT_WORDS: Readonly<Record<TrendSortKey, string>> = {
   name: 'name',
   week: `change over ${WEEK_DAYS} days`,

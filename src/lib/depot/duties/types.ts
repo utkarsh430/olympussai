@@ -35,10 +35,6 @@ export interface ParkingPlan {
   readonly overflow: readonly string[];
 }
 
-export interface TimetableRepository {
-  dutiesFor(depotId: string, operatingDate: string): Promise<readonly Duty[]>;
-}
-
 /**
  * Why a bus is held out of the matching. `not_heard`: its last report is older
  * than the reporting window, moving or standing (ruling S55). `class_mismatch`

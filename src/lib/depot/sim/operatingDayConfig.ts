@@ -26,9 +26,6 @@ export const TYPICAL_ROUTE_LENGTH_KM: Readonly<
 /** Seeds a route's modelled length by its name alone, so it is the same on every date. */
 export const ROUTE_LENGTH_SALT = 'route-length';
 
-/** Seeds the order in which a depot's available buses took the day's duties. */
-export const BUS_ORDER_SALT = 'day-bus-order';
-
 /**
  * A real length under this is not taken as known; the modelled figure is used
  * and the route counts as modelled. Basis: two located stops a few hundred

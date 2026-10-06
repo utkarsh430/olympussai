@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { requireUpsrtcAccess, unauthorizedResponse } from '@/lib/auth/authorize';
 import { jsonResponse } from '@/lib/upsrtc/respond';
 import { isValidRouteName } from '@/lib/depot/ids';
-import { logDepotError } from '@/lib/depot/log';
+import { logDepotError } from '@/lib/serverLog';
 import {
   createWindowLimiter,
   requestAddress, requestIdentity,

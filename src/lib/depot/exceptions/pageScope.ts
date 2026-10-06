@@ -1,7 +1,7 @@
 import type { DepotExceptionsResponse } from '../api';
 import { formatCount } from '../format';
 import { EXCEPTION_KIND_LABEL, SEVERITY_LABEL } from '../labels';
-import { BUS_EXCEPTION_KINDS } from './busPage';
+import { BUS_EXCEPTION_KINDS, DEPOT_EXCEPTION_KINDS } from './config';
 import type {
   BusExceptionKind,
   DepotException,
@@ -32,16 +32,9 @@ export interface ExceptionPageScope {
 
 type ScopeInput = Pick<DepotExceptionsResponse, 'report' | 'busSeverityCounts' | 'depotScope'>;
 
-const DEPOT_KINDS: readonly DepotExceptionKind[] = [
-  'dark_share_high',
-  'off_road_high',
-  'on_road_low',
-  'power_cut_cluster',
-];
-
 function depotKindCounts(list: readonly DepotException[]): Record<DepotExceptionKind, number> {
   return Object.fromEntries(
-    DEPOT_KINDS.map((kind) => [kind, list.filter((e) => e.kind === kind).length]),
+    DEPOT_EXCEPTION_KINDS.map((kind) => [kind, list.filter((e) => e.kind === kind).length]),
   ) as Record<DepotExceptionKind, number>;
 }
 

@@ -1,7 +1,7 @@
 import { fetchBusSchedule } from '@/lib/upsrtc/scheduleService';
 import type { RateDecision } from '../rateLimit';
 import { isValidRouteName } from '../ids';
-import { logDepotError } from '../log';
+import { logDepotError } from '@/lib/serverLog';
 import { classifyBusState, gpsAgeMinutes } from '../infer/busState';
 import type { FleetSnapshotView } from '../repositories/types';
 import type { DepotBusRow } from '@/models/depotLive';

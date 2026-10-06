@@ -3,7 +3,6 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ProfileLoader } from '@/components/depot/routes/ProfileLoader';
-import { LOADER_COST_LINE } from '@/lib/depot/routes/loaderRow';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -104,7 +103,9 @@ describe('route profile loader', () => {
       'Looks up 3 routes of Bhaisali on the route-details service: one lookup per route, one at a time, at most 40 a press.',
     );
     // The cost line is said once, in the closing disclosure; the button counts the lookups.
-    expect(container.textContent).not.toContain(LOADER_COST_LINE);
+    expect(container.textContent).not.toContain(
+      'One lookup on the route-details service per route, one at a time',
+    );
     await act(async () => button('Load route details')?.click());
     await flush();
     expect(calls).toEqual(['R1', 'R2', 'R3']);

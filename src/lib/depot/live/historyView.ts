@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_HISTORY_DAYS } from '../sim/config';
 import type { DepotApiError, DepotFeedEnvelope, DepotHistoryResponse } from '../api';
 import { isValidDepotId } from '../ids';
 import { getRepositories } from '../repositories';
@@ -14,7 +15,6 @@ import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis
 import { queryMemo } from './queryMemo';
 
 const METRICS = ['onRoadShare', 'offRoadRate', 'darkRate', 'index', 'available'] as const;
-const DEFAULT_DAYS = 30;
 const MIN_DAYS = 7;
 const MAX_DAYS = 180;
 const WHOLE_NUMBER = /^[0-9]{1,4}$/;
@@ -50,7 +50,7 @@ const querySchema = z
       .regex(WHOLE_NUMBER)
       .transform(Number)
       .pipe(z.number().int().min(MIN_DAYS).max(MAX_DAYS))
-      .default(String(DEFAULT_DAYS)),
+      .default(String(DEFAULT_HISTORY_DAYS)),
   })
   .strict()
   .refine((q) => (q.scope === 'depot') === (q.depotId !== undefined));

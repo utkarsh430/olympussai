@@ -1,7 +1,6 @@
 import { formatCount } from '../format';
 import type { ModelledDaySummary } from '../sim/operatingDayTypes';
 import { noDutiesReason } from '../sim/operatingDayWording';
-import { formatRupees } from './format';
 import type { FuelGroupRow, FuelTotals } from './types';
 
 /*
@@ -13,7 +12,6 @@ import type { FuelGroupRow, FuelTotals } from './types';
 const DASH = '—';
 const NO_ROUTE = 'No route';
 const TENTH = 10;
-const FULL_BAR_PCT = 100;
 const CLASS_LABELS: Readonly<Record<string, string>> = {
   ordinary: 'Ordinary',
   express: 'Express',
@@ -21,7 +19,6 @@ const CLASS_LABELS: Readonly<Record<string, string>> = {
   premium: 'Premium',
 };
 
-const buses = (n: number): string => (n === 1 ? '1 bus' : `${formatCount(n)} buses`);
 const tenths = (value: number): number => Math.round(value * TENTH);
 
 /** A figure to one decimal with Indian grouping of the whole part. */
@@ -51,32 +48,6 @@ export function groupLabel(key: string | null): string {
 /** A route name as the page words it; a null key is a bus with no route. Not a class label. */
 export function routeLabel(key: string | null): string {
   return key === null ? NO_ROUTE : key;
-}
-
-export interface ClassBar {
-  readonly key: string;
-  readonly label: string;
-  /** Share of the longest bar, 0 to 100; 0 for a class with no distance. */
-  readonly widthPct: number;
-  readonly valueText: string;
-  readonly detail: string;
-}
-
-/** One labelled bar per class: km per litre against the best class, zero-based. */
-export function classBars(rows: readonly FuelGroupRow[]): readonly ClassBar[] {
-  const top = Math.max(0, ...rows.map((r) => (r.kmPerLitre === null ? 0 : tenths(r.kmPerLitre))));
-  return rows.map((row) => {
-    const hasValue = row.kmPerLitre !== null && row.distanceKm > 0;
-    const key = row.key ?? '';
-    return {
-      key,
-      label: groupLabel(row.key),
-      widthPct:
-        hasValue && top > 0 ? Math.round((tenths(row.kmPerLitre ?? 0) / top) * FULL_BAR_PCT) : 0,
-      valueText: hasValue ? `${formatKmPerLitre(row.kmPerLitre)} km/L` : 'No distance',
-      detail: `${buses(row.busCount)}, ${row.distanceKm > 0 ? formatKm(row.distanceKm) : 'no distance'}`,
-    };
-  });
 }
 
 export interface RouteRow extends FuelGroupRow {
@@ -136,33 +107,6 @@ export function routeCell(row: FuelGroupRow, field: RouteField): string {
   }
 }
 
-export interface SummaryPrice {
-  readonly price: number;
-  readonly defaulted: boolean;
-}
-
-/** '158 of 200 buses run a duty (modelled)': the buses with a duty, out of the depot's buses. */
-function ranText(ran: number, day: ModelledDaySummary | undefined): string {
-  if (!day) return `${buses(ran)} run a duty`;
-  return `${formatCount(ran)} of ${buses(day.buses)} run a duty (modelled)`;
-}
-
-/** The depot's day in one sentence. The page tags it MODELLED beside the sentence. */
-export function summarySentence(
-  totals: FuelTotals,
-  price?: SummaryPrice,
-  day?: ModelledDaySummary,
-): string {
-  const base =
-    `${ranText(totals.busCount, day)} and covered ${formatKm(totals.distanceKm)}, and were issued ` +
-    `${formatLitres(totals.fuelLitres)} of fuel, costing ${formatRupees(totals.cost)}.`;
-  if (!price) return base;
-  const unit = `${formatRupees(price.price)} per litre`;
-  return price.defaulted
-    ? `${base} Fuel cost uses a planning price of ${unit}, not a quoted price.`
-    : `${base} Fuel cost uses ${unit}.`;
-}
-
 /** Cost is a sum of per-bus rounded rupees, so it need not equal litres times the price. */
 export const COST_NOTE =
   'Fuel cost is summed from each bus’s fuel cost, each to the nearest rupee.';
@@ -200,32 +144,6 @@ export interface UnlistedCounts {
   readonly peersDiffer: number;
   readonly noComparison: number;
   readonly thresholdPct: number;
-}
-
-/**
- * The headline over the list. When nothing is listed but some buses were left
- * out, it says so rather than claiming that no bus stands out.
- */
-export function flaggedHeadline(total: number, shown: number, unlisted?: UnlistedCounts): string {
-  if (total === 0) {
-    const notes = unlisted
-      ? [
-          peersDifferNote(unlisted.peersDiffer, unlisted.thresholdPct),
-          noComparisonNote(unlisted.noComparison),
-        ]
-      : [];
-    const present = notes.filter((n): n is string => n !== null);
-    if (present.length === 0) return 'No bus stands out from its peers in the modelled day.';
-    return [
-      'No bus is listed as standing out from its peers in the modelled day.',
-      ...present,
-    ].join(' ');
-  }
-  if (total === 1) return '1 bus stands out from its peers.';
-  const lead = `${formatCount(total)} buses stand out from their peers`;
-  return shown < total
-    ? `${lead}; the ${formatCount(shown)} with the largest variance are listed.`
-    : `${lead}.`;
 }
 
 export function noDistanceNote(count: number): string | null {
