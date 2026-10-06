@@ -131,6 +131,9 @@ describe('buildCrewResponse', () => {
     const response = await build(rows, modelledCrewRepository);
     const { summary } = response;
     expect(summary.shiftsRequired).toBe(expected.shiftsRequired);
+    // One literal figure, so an engine error the wiring above repeats on both sides still fails:
+    // this fixture's 30 buses give 26 modelled duties, each one shift needing one driver.
+    expect([duties.length, summary.shiftsRequired, summary.driver.required]).toEqual([26, 26, 26]);
     expect(summary.shiftsCovered).toBe(expected.shiftsCovered);
     expect(summary.shiftsUncovered).toBe(expected.shiftsUncovered);
     expect(summary.shiftsCovered + summary.shiftsUncovered).toBe(summary.shiftsRequired);
