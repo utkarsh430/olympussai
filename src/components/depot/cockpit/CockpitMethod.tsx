@@ -1,6 +1,7 @@
 import { describeMix, statusSegments } from '@/components/depot/network/StatusMixBar';
 import { YARD_RULE_SENTENCE } from '@/lib/depot/infer/yardRuleText';
 import type { StatusMix } from '@/lib/depot/types';
+import { HowProduced } from '@/components/depot/shell/HowProduced';
 
 export interface CockpitMethodProps {
   readonly fleet: number;
@@ -13,9 +14,7 @@ export interface CockpitMethodProps {
 /** "How these figures are produced": closed by default, at the end of the page. */
 export function CockpitMethod({ fleet, yardSentence, yardEstablished, status }: CockpitMethodProps) {
   return (
-    <details className="min-w-0 border-t border-depot-line pt-3" data-testid="depot-cockpit-method">
-      <summary className="depot-label cursor-pointer">How these figures are produced</summary>
-      <div className="depot-prose mt-3 max-w-prose space-y-2 text-[13px]">
+    <HowProduced testId="depot-cockpit-method">
         <p>
           Each bus is in exactly one of five states, inferred from its last report; the five add up
           to the fleet of {fleet.toLocaleString('en-IN')}. A bus heard more than 30 minutes ago keeps
@@ -35,7 +34,6 @@ export function CockpitMethod({ fleet, yardSentence, yardEstablished, status }: 
           The briefing is a short written summary of the latest figures. It is advisory: it
           describes and recommends, it does not instruct.
         </p>
-      </div>
-    </details>
+    </HowProduced>
   );
 }
