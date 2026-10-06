@@ -35,20 +35,22 @@ const NO_CLOCK = 'The feed has no clock, so no bus could be judged by how recent
 const YARD_NO_CLOCK = 'A standing bus must be in the yard to be eligible.';
 const NO_YARD_NO_CLOCK =
   'No yard is established for this depot, so location is not used: every bus that is not off the road or dark is eligible, standing or out on the road.';
+// Ruling S62b: before the first duty the yard buses take the earliest duties, and
+// eligibility is judged as on the feed clock, so its sentence follows.
 const BEFORE_YARD =
-  'Before the first departure: buses are matched as they stand in the yard. No duty has started, so only a bus standing in the yard is eligible, and being out on the road or the feed time does not count.';
+  'Before the first departure: buses in the yard are matched to the earliest duties; buses still out take the ones after.';
 const BEFORE_NO_YARD =
-  'Before the first departure: no duty has started, so how buses stand now does not count. No yard is established for this depot, so every bus that is not off the road or dark is eligible.';
+  'Before the first departure: standing buses are matched to the earliest duties; buses still out take the ones after.';
 
-describe('how eligibility was judged, for each mode, clock and yard (S62, m-d)', () => {
+describe('how eligibility was judged, for each mode, clock and yard (S62b, m-d)', () => {
   const cases: readonly (readonly [PlanMode | undefined, boolean, boolean, readonly string[]])[] = [
     ['as_of_feed_time', false, false, [YARD_FEED]],
     [undefined, false, false, [YARD_FEED]],
     ['as_of_feed_time', false, true, [NO_YARD_FEED]],
     ['as_of_feed_time', true, false, [NO_CLOCK, YARD_NO_CLOCK]],
     ['as_of_feed_time', true, true, [NO_CLOCK, NO_YARD_NO_CLOCK]],
-    ['before_first_duty', false, false, [BEFORE_YARD]],
-    ['before_first_duty', false, true, [BEFORE_NO_YARD]],
+    ['before_first_duty', false, false, [BEFORE_YARD, YARD_FEED]],
+    ['before_first_duty', false, true, [BEFORE_NO_YARD, NO_YARD_FEED]],
   ];
   for (const [planMode, noClock, noYard, expected] of cases) {
     it(`${planMode ?? 'no mode sent'}, ${noClock ? 'no clock' : 'clock'}, ${noYard ? 'no yard' : 'yard'}`, () => {
