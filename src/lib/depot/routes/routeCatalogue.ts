@@ -127,6 +127,9 @@ async function fetchProfile(
     if (response.source === 'fixture') return unavailable('upstream_error');
     if (!response.schedule) return unavailable('no_schedule');
     const { schedule } = response;
+    // No stops is no route to profile. Held as a ten-minute negative, so the route
+    // reads as not profiled and is asked about again, never as profiled for the day.
+    if (schedule.stops.length === 0) return unavailable('no_schedule');
     // A bus reassigned since the snapshot, or a trip id that fell back to the
     // day's earliest trip, returns another route's stops. Never catalogue those.
     // Compared without regard to case or padding: the upstream does not format
@@ -161,8 +164,15 @@ function lookupFor(routeName: string, view: FleetSnapshotView): Lookup | null {
   // The operating date comes from the feed's clock, never the wall clock.
   const feedDate = operatingDateOf(view.feedNow, view.fetchedAt);
   const date = operatingDate(bus, feedDate);
-  return { bus, date, feedDate, key: `${routeName}:${date}` };
+  return { bus, date, feedDate, key: profileKey(routeName, feedDate) };
 }
+
+/**
+ * A profile is held for the route and the feed's operating date, not the date of
+ * the bus it was read through: when another bus with another scheduled date (an
+ * overnight service) ranks first later the same day, the profile is still found.
+ */
+const profileKey = (routeName: string, feedDate: string): string => `${routeName}:${feedDate}`;
 
 const freshNegative = (routeName: string, now: number): NegativeEntry | undefined => {
   const negative = negatives.get(routeName);
@@ -224,8 +234,8 @@ export async function getRouteProfile(
 }
 
 /**
- * Profiles already cached for the routes in this snapshot, looked up exactly
- * as `getRouteProfile` would (same sampled bus, same operating date) but never
+ * Profiles already cached for the routes in this snapshot, under the same key
+ * `getRouteProfile` uses (the route and the feed's operating date) but never
  * fetched: a view over many routes must not turn into a crawl of the upstream.
  * Routes absent from the result have not been profiled today. `feedDate` is
  * the operating date the view derived from the feed's clock.
@@ -234,19 +244,11 @@ export function cachedRouteProfiles(
   view: FleetSnapshotView,
   feedDate: string,
 ): ReadonlyMap<string, RouteProfile> {
-  const byRoute = new Map<string, DepotBusRow[]>();
-  for (const row of view.rows) {
-    if (!isValidRouteName(row.routeName)) continue;
-    const group = byRoute.get(row.routeName);
-    if (group) group.push(row);
-    else byRoute.set(row.routeName, [row]);
-  }
-  const order = compareCandidates(view.feedNow);
   const found = new Map<string, RouteProfile>();
-  for (const [routeName, rows] of byRoute) {
-    const bus = rows.reduce((best, row) => (order(row, best) < 0 ? row : best));
-    const profile = profiles.get(`${routeName}:${operatingDate(bus, feedDate)}`);
-    if (profile) found.set(routeName, profile);
+  for (const row of view.rows) {
+    if (!isValidRouteName(row.routeName) || found.has(row.routeName)) continue;
+    const profile = profiles.get(profileKey(row.routeName, feedDate));
+    if (profile) found.set(row.routeName, profile);
   }
   return found;
 }

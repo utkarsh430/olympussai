@@ -9,6 +9,7 @@ import { fetchBusSchedule } from '@/lib/upsrtc/scheduleService';
 import {
   ROUTE_CACHE_MAX,
   ROUTE_NEGATIVE_TTL_MS,
+  cachedRouteProfiles,
   getRouteProfile,
   inFlightSizeForTests,
   resetRouteCatalogueForTests,
@@ -378,13 +379,38 @@ describe('error logging and cache hygiene', () => {
     expect(mockService).toHaveBeenCalledTimes(1);
   });
 
-  it("does not serve yesterday's ok entry for today's operating date", async () => {
+  it("does not serve yesterday's ok entry once the feed's operating date moves on", async () => {
     mockService.mockResolvedValue(live(schedule()));
     await getRouteProfile(ROUTE, view([row('UP1')]), T0);
     const nextDay = row('UP1', { scheduledStart: '2026-10-07T08:00:00.000Z' });
-    await getRouteProfile(ROUTE, view([nextDay]), T0 + 86_400_000);
+    const nextFeed = { ...view([nextDay]), feedNow: '2026-10-07T10:00:00.000Z' };
+    await getRouteProfile(ROUTE, nextFeed, T0 + 86_400_000);
     expect(mockService).toHaveBeenCalledTimes(2);
     expect(mockService.mock.calls[1]?.[0].date).toBe('2026-10-07');
+  });
+
+  it('keeps a profile for the operating day when the best bus changes to one of another date', async () => {
+    mockService.mockResolvedValue(live(schedule()));
+    await getRouteProfile(ROUTE, view([row('UP1')]), T0);
+    // An overnight service that left yesterday now ranks first for the route.
+    const overnight = row('UP0', { scheduledStart: '2026-10-05T22:00:00.000Z' });
+    const later = view([overnight, row('UP1', { gpsTimestamp: '2026-10-06T09:00:00.000Z' })]);
+    expect(routeProfileNeedsFetch(ROUTE, later, T0 + 1)).toBe(false);
+    expect((await getRouteProfile(ROUTE, later, T0 + 1)).status).toBe('ok');
+    expect(cachedRouteProfiles(later, '2026-10-06').has(ROUTE)).toBe(true);
+    expect(mockService).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a schedule with no stops as no schedule, asked about again after the TTL', async () => {
+    const fleet = view([row('UP1')]);
+    mockService.mockResolvedValue(live({ ...schedule(), stops: [] }));
+    expect(await getRouteProfile(ROUTE, fleet, T0)).toEqual({
+      status: 'unavailable',
+      reason: 'no_schedule',
+    });
+    expect(cachedRouteProfiles(fleet, '2026-10-06').has(ROUTE)).toBe(false);
+    expect(routeProfileNeedsFetch(ROUTE, fleet, T0 + ROUTE_NEGATIVE_TTL_MS - 1)).toBe(false);
+    expect(routeProfileNeedsFetch(ROUTE, fleet, T0 + ROUTE_NEGATIVE_TTL_MS)).toBe(true);
   });
 });
 
