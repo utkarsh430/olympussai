@@ -70,6 +70,14 @@ function OpenDepot({ row }: { readonly row: DepotRow }) {
 }
 
 /**
+ * Shorter state words for the panel's narrow list, so a label and its value stay on one
+ * line each; the bar above keeps the full names in its accessible name.
+ */
+const PANEL_STATE_WORDS: Readonly<Record<string, string>> = {
+  onRoad: 'On road, no schedule',
+};
+
+/**
  * Summary of the selected depot beside the map. It is fed by the shared
  * selection, so the ranked lists and the table fill it as well as the map.
  * It is as tall as its content, never stretched to the map's height.
@@ -111,7 +119,7 @@ export function DepotMapPanel({
           <h3
             id={PANEL_HEADING_ID}
             tabIndex={-1}
-            className="mt-1 break-words text-[15px] text-depot-ink"
+            className="mt-1 break-normal text-[15px] text-depot-ink"
           >
             {depot.name}
           </h3>
@@ -160,8 +168,10 @@ export function DepotMapPanel({
             <ul className="mt-2 space-y-0.5 text-[13px] tabular-nums">
               {segments.map((segment) => (
                 <li key={segment.key} className="flex justify-between gap-3">
-                  <span className="text-depot-muted">{segment.label}</span>
-                  <span className="text-depot-ink">
+                  <span className="whitespace-nowrap text-depot-muted">
+                    {PANEL_STATE_WORDS[segment.key] ?? segment.label}
+                  </span>
+                  <span className="whitespace-nowrap text-depot-ink">
                     {formatCount(segment.count)}{' '}
                     <span className="text-depot-muted">
                       {formatShare(segment.count, depot.fleet)}

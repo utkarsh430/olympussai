@@ -94,6 +94,21 @@ describe('the network panel wording', () => {
       expect(bannedOnScreen(container)).toEqual([]);
     },
   );
+
+  it('breaks a unit name only at spaces and keeps each state label and its value on one line', () => {
+    act(() => root.render(<Host initial={A} />));
+    const panel = container.querySelector('[data-testid="depot-map-panel"]');
+    const heading = panel?.querySelector('h3');
+    expect(heading?.className).not.toContain('break-words');
+    expect(heading?.className).toContain('break-normal');
+    const items = Array.from(panel?.querySelectorAll('li') ?? []);
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) {
+      for (const part of Array.from(item.children)) expect(part.className).toContain('whitespace-nowrap');
+    }
+    // The long state name is shortened here; the full one stays the bar's accessible name.
+    expect(items.map((li) => li.firstElementChild?.textContent)).toContain('On road, no schedule');
+  });
 });
 
 describe('clearing the selection keeps keyboard focus on the page', () => {
