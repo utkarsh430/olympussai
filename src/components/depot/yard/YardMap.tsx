@@ -7,11 +7,7 @@ import { BUS_STATE_LABEL } from '@/lib/depot/labels';
 import { onMapsAuthFailure } from '@/lib/maps/authFailure';
 import { getMapsLoader, isMapsConfigured } from '@/lib/maps/loader';
 import { removeMapListeners } from '@/lib/maps/listeners';
-import {
-  BUS_STATE_COLOUR,
-  type YardMapPoint,
-  type YardModel,
-} from '@/lib/depot/yard/yardModel';
+import { BUS_STATE_COLOUR, type YardMapPoint, type YardModel } from '@/lib/depot/yard/yardModel';
 
 type Status = 'loading' | 'ready' | 'error';
 type Handle = google.maps.MapsEventListener | undefined;
@@ -89,7 +85,10 @@ export function YardMap({ model }: YardMapProps) {
       refused = true;
       fail('The basemap refused this request for this domain.');
     });
-    const timer = window.setTimeout(() => fail('The basemap took too long to load.'), LOAD_TIMEOUT_MS);
+    const timer = window.setTimeout(
+      () => fail('The basemap took too long to load.'),
+      LOAD_TIMEOUT_MS,
+    );
 
     getMapsLoader()
       .importLibrary('maps')

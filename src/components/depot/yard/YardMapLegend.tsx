@@ -1,5 +1,9 @@
 import { BUS_STATE_LABEL } from '@/lib/depot/labels';
-import { BUS_STATE_COLOUR, DISPLAY_RADIUS_FACTOR, YARD_STATE_ORDER } from '@/lib/depot/yard/yardModel';
+import {
+  BUS_STATE_COLOUR,
+  DISPLAY_RADIUS_FACTOR,
+  YARD_STATE_ORDER,
+} from '@/lib/depot/yard/yardModel';
 
 const SWATCH_PX = 14;
 const CENTRE = SWATCH_PX / 2;
