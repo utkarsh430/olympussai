@@ -11,6 +11,7 @@ import {
   noComparisonNote,
   noDistanceNote,
   peersDifferNote,
+  routeCell,
   routeLabel,
   routeRows,
   ruleSentence,
@@ -139,6 +140,29 @@ describe('sentences', () => {
   });
   it('explains an empty day', () => {
     expect(emptyText()).toContain('no bus has modelled distance');
+  });
+});
+
+describe('route rows with no distance and the Other row', () => {
+  it('says No distance rather than listing zeros', () => {
+    const none = row({ distanceKm: 0, fuelLitres: 0, cost: 0, kmPerLitre: null, costPerKm: null });
+    for (const field of ['distance', 'litres', 'cost', 'kmpl', 'cpk'] as const) {
+      expect(routeCell(none, field)).toBe('No distance');
+    }
+    const fuelOnly = row({ distanceKm: 0, fuelLitres: 12, cost: 1104, kmPerLitre: null, costPerKm: null });
+    expect(routeCell(fuelOnly, 'distance')).toBe('No distance');
+    expect(routeCell(fuelOnly, 'kmpl')).toBe('No distance');
+    expect(routeCell(fuelOnly, 'litres')).toBe('12 L');
+    expect(routeCell(row({ distanceKm: 300, fuelLitres: 60 }), 'distance')).toBe('300 km');
+  });
+
+  it('adds one Other routes row with its own key after the listed routes', () => {
+    const other = { routeCount: 7, totals: row({ key: null, busCount: 9 }) };
+    const rows = routeRows([row({ key: 'R1' })], other);
+    expect(rows.map((r) => r.label)).toEqual(['R1', 'Other routes (7)']);
+    expect(rows[1]?.busCount).toBe(9);
+    expect(new Set(rows.map((r) => r.rowKey)).size).toBe(2);
+    expect(routeRows([row({ key: 'R1' })], null)).toHaveLength(1);
   });
 });
 

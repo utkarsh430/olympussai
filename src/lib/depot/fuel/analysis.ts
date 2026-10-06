@@ -65,6 +65,22 @@ function totalsOf(rows: readonly BusFuelFigure[]): FuelTotals {
   };
 }
 
+/** Totals of several groups, summing tenths as integers so the parts reconcile to the whole. */
+export function mergeTotals(parts: readonly FuelTotals[]): FuelTotals {
+  const distanceTenths = parts.reduce((s, p) => s + Math.round(p.distanceKm * TENTH), 0);
+  const litreTenths = parts.reduce((s, p) => s + Math.round(p.fuelLitres * TENTH), 0);
+  const cost = parts.reduce((s, p) => s + p.cost, 0);
+  const distanceKm = distanceTenths / TENTH;
+  return {
+    distanceKm,
+    fuelLitres: litreTenths / TENTH,
+    cost,
+    kmPerLitre: distanceTenths > 0 && litreTenths > 0 ? distanceTenths / litreTenths : null,
+    costPerKm: distanceTenths > 0 ? cost / distanceKm : null,
+    busCount: parts.reduce((s, p) => s + p.busCount, 0),
+  };
+}
+
 function groupRows(
   rows: readonly BusFuelFigure[],
   keyOf: (row: BusFuelFigure) => string | null,

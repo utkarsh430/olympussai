@@ -22,6 +22,12 @@ export interface FuelFlaggedBus {
   readonly statement: string;
 }
 
+/** The routes not listed individually, with their combined figures. */
+export interface FuelOtherRoutes {
+  readonly routeCount: number;
+  readonly totals: FuelTotals;
+}
+
 /** GET /api/upsrtc/depot/[depotId]/fuel. Everything here is modelled. */
 export interface FuelResponse extends DepotFeedEnvelope {
   readonly depot: { readonly id: string; readonly name: string };
@@ -33,9 +39,11 @@ export interface FuelResponse extends DepotFeedEnvelope {
   readonly priceDefaulted: boolean;
   readonly totals: FuelTotals;
   readonly perClass: readonly FuelGroupRow[];
-  /** At most FUEL_ROUTE_CAP rows, as the analysis orders them. */
+  /** The FUEL_ROUTE_CAP routes with the highest cost, dearest first. */
   readonly perRoute: readonly FuelGroupRow[];
   readonly routeTotal: number;
+  /** The routes beyond the cap, summed, so the listed rows and this one add to `totals`. */
+  readonly otherRoutes: FuelOtherRoutes | null;
   /** At most FUEL_FLAGGED_CAP, largest variance first. */
   readonly flagged: readonly FuelFlaggedBus[];
   readonly flaggedTotal: number;

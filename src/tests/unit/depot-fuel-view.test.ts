@@ -10,7 +10,7 @@ import { buildFuelResponse } from '@/lib/depot/live/fuelView';
 import { analyseFuel } from '@/lib/depot/fuel/analysis';
 import { FUEL_FLAGGED_CAP, FUEL_ROUTE_CAP } from '@/lib/depot/fuel/api';
 import { DEFAULT_PRICE_PER_LITRE, FUEL_VARIANCE_FLAG_PCT, MIN_PEERS } from '@/lib/depot/fuel/types';
-import type { BusFuelDay, FuelRepository } from '@/lib/depot/fuel/types';
+import type { BusFuelDay, FuelRepository, FuelTotals } from '@/lib/depot/fuel/types';
 import { GET } from '@/app/api/upsrtc/depot/[depotId]/fuel/route';
 
 vi.mock('@/lib/auth/authorize', async (importOriginal) => {
@@ -188,6 +188,35 @@ describe('buildFuelResponse', () => {
     expect(routes.perRoute).toHaveLength(FUEL_ROUTE_CAP);
     expect(routes.routeTotal).toBe(FUEL_ROUTE_CAP + 7);
     expect(JSON.stringify(routes)).not.toContain('perBus');
+  });
+
+  it('takes the routes with the highest cost and folds the rest into one Other row', async () => {
+    const days = (): BusFuelDay[] =>
+      Array.from({ length: FUEL_ROUTE_CAP + 7 }, (_, i) => ({
+        ...day(`Q${i}`, 5, `RT${String(i).padStart(3, '0')}`),
+        // Later route names cost more, so a first-100-alphabetical cap would drop the dearest.
+        fuelLitres: 10 + i,
+      }));
+    const response = await build(days);
+    expect(response.perRoute).toHaveLength(FUEL_ROUTE_CAP);
+    expect(response.routeTotal).toBe(FUEL_ROUTE_CAP + 7);
+    expect(response.perRoute[0]?.key).toBe(`RT${String(FUEL_ROUTE_CAP + 6).padStart(3, '0')}`);
+    const costs = response.perRoute.map((r) => r.cost);
+    expect(costs).toEqual([...costs].sort((a, b) => b - a));
+    const other = response.otherRoutes;
+    expect(other?.routeCount).toBe(7);
+    // The table (listed routes plus Other) sums to the depot total.
+    const listed = [...response.perRoute, ...(other ? [other.totals] : [])];
+    const sum = (pick: (t: FuelTotals) => number): number =>
+      listed.reduce((total, t) => total + pick(t), 0);
+    expect(sum((t) => t.cost)).toBe(response.totals.cost);
+    expect(Math.round(sum((t) => t.fuelLitres) * 10) / 10).toBe(response.totals.fuelLitres);
+    expect(Math.round(sum((t) => t.distanceKm) * 10) / 10).toBe(response.totals.distanceKm);
+    expect(sum((t) => t.busCount)).toBe(response.totals.busCount);
+  });
+
+  it('has no Other row when every route is listed', async () => {
+    expect((await build()).otherRoutes).toBeNull();
   });
 
   it('builds the envelope per call while reusing the body for the same rows', async () => {

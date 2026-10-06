@@ -1,11 +1,19 @@
 import type { FleetSnapshotView } from '../repositories/types';
-import { FUEL_FLAGGED_CAP, FUEL_ROUTE_CAP, type FuelFlaggedBus, type FuelResponse } from '../fuel/api';
-import { analyseFuel } from '../fuel/analysis';
+import {
+  FUEL_FLAGGED_CAP,
+  FUEL_ROUTE_CAP,
+  type FuelFlaggedBus,
+  type FuelOtherRoutes,
+  type FuelResponse,
+} from '../fuel/api';
+import { compareText } from '../fuel/compare';
+import { analyseFuel, mergeTotals } from '../fuel/analysis';
 import {
   FUEL_VARIANCE_FLAG_PCT,
   MIN_PEERS,
   type BusFuelFigure,
   type FuelAnalysis,
+  type FuelGroupRow,
   type FlaggedBus,
   type FuelRepository,
 } from '../fuel/types';
@@ -33,6 +41,19 @@ function toFlaggedBus(flag: FlaggedBus, figure: BusFuelFigure | undefined): Fuel
   };
 }
 
+/** Dearest route first; equal cost falls back to the name so the order never depends on input. */
+function routesByCost(rows: readonly FuelGroupRow[]): readonly FuelGroupRow[] {
+  return [...rows].sort(
+    (a, b) =>
+      b.cost - a.cost ||
+      (a.key === b.key ? 0 : a.key === null ? 1 : b.key === null ? -1 : compareText(a.key, b.key)),
+  );
+}
+
+function otherRoutesOf(rest: readonly FuelGroupRow[]): FuelOtherRoutes | null {
+  return rest.length === 0 ? null : { routeCount: rest.length, totals: mergeTotals(rest) };
+}
+
 function shape(
   analysis: FuelAnalysis,
   depot: FuelBody['depot'],
@@ -42,6 +63,7 @@ function shape(
   const flagged = analysis.flagged
     .map((flag) => toFlaggedBus(flag, byRegistration.get(flag.registrationNumber)))
     .filter((bus): bus is FuelFlaggedBus => bus !== null);
+  const byCost = routesByCost(analysis.perRoute);
   return {
     depot,
     provenance: 'modelled',
@@ -50,8 +72,9 @@ function shape(
     priceDefaulted: analysis.priceDefaulted,
     totals: analysis.depot,
     perClass: analysis.perClass,
-    perRoute: analysis.perRoute.slice(0, FUEL_ROUTE_CAP),
-    routeTotal: analysis.perRoute.length,
+    perRoute: byCost.slice(0, FUEL_ROUTE_CAP),
+    routeTotal: byCost.length,
+    otherRoutes: otherRoutesOf(byCost.slice(FUEL_ROUTE_CAP)),
     flagged: flagged.slice(0, FUEL_FLAGGED_CAP),
     flaggedTotal: flagged.length,
     noDistanceCount: analysis.perBus.filter((b) => b.withheldReason === 'no_distance').length,

@@ -84,13 +84,53 @@ export interface RouteRow extends FuelGroupRow {
 }
 
 const NO_ROUTE_KEY = '\u0000no-route';
+const OTHER_ROUTES_KEY = '\u0000other-routes';
+const NO_DISTANCE = 'No distance';
 
-export function routeRows(rows: readonly FuelGroupRow[]): readonly RouteRow[] {
-  return rows.map((row) => ({
+/** The listed routes, then one row summing every route beyond the cap. */
+export function routeRows(
+  rows: readonly FuelGroupRow[],
+  other: { readonly routeCount: number; readonly totals: FuelTotals } | null = null,
+): readonly RouteRow[] {
+  const listed = rows.map((row) => ({
     ...row,
     label: routeLabel(row.key),
     rowKey: row.key === null ? NO_ROUTE_KEY : `route:${row.key}`,
   }));
+  if (other === null) return listed;
+  return [
+    ...listed,
+    {
+      ...other.totals,
+      key: null,
+      label: `Other routes (${formatCount(other.routeCount)})`,
+      rowKey: OTHER_ROUTES_KEY,
+    },
+  ];
+}
+
+export type RouteField = 'distance' | 'litres' | 'cost' | 'kmpl' | 'cpk';
+
+/**
+ * One cell of the route table. A group with no distance has no distance, no
+ * rate and no cost per km, so those read "No distance"; litres and cost show
+ * only when there is something to show, never as zeros.
+ */
+export function routeCell(row: FuelGroupRow, field: RouteField): string {
+  const noDistance = row.distanceKm <= 0;
+  const nothing = noDistance && row.fuelLitres <= 0 && row.cost <= 0;
+  switch (field) {
+    case 'distance':
+      return noDistance ? NO_DISTANCE : formatKm(row.distanceKm);
+    case 'kmpl':
+      return noDistance ? NO_DISTANCE : formatKmPerLitre(row.kmPerLitre);
+    case 'cpk':
+      return noDistance ? NO_DISTANCE : formatCostPerKm(row.costPerKm);
+    case 'litres':
+      return nothing ? NO_DISTANCE : formatLitres(row.fuelLitres);
+    case 'cost':
+      return nothing ? NO_DISTANCE : formatRupees(row.cost);
+  }
 }
 
 export interface SummaryPrice {
