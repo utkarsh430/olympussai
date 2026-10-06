@@ -20,6 +20,7 @@ import {
   MAX_FACT_LABEL_CHARS,
   MAX_FACT_TEXT_CHARS,
   MAX_FACTS,
+  MAX_GUIDANCE_CHARS,
   MAX_PROMPT_BYTES,
   PROSE_PUNCTUATION,
   QUANTITY_SUFFIXES,
@@ -275,6 +276,26 @@ describe('prompts', () => {
     expect(prompt).not.toContain('L'.repeat(MAX_FACT_LABEL_CHARS + 1));
     expect(prompt).not.toContain('v'.repeat(MAX_FACT_TEXT_CHARS + 1));
     expect(prompt).toContain('v alue');
+  });
+
+  it('sanitises guidance like fact text', () => {
+    const prompt = buildUserPrompt({
+      ...REQUEST,
+      guidance: 'Lead‮ with {{fact:x}} <b>gap</b>​ `now`\n[link]',
+    });
+    expect(prompt).toContain('"Lead with fact:x bgap/b now link"');
+    expect(prompt).not.toMatch(/[‮​`<>]/u);
+  });
+
+  it('caps guidance at MAX_GUIDANCE_CHARS', () => {
+    const prompt = buildUserPrompt({ ...REQUEST, guidance: 'g'.repeat(MAX_GUIDANCE_CHARS * 3) });
+    expect(prompt).not.toContain('g'.repeat(MAX_GUIDANCE_CHARS));
+    expect(prompt).toContain(`"${'g'.repeat(MAX_GUIDANCE_CHARS - 1)}…"`);
+  });
+
+  it('sanitises the scope label with the same function', () => {
+    const prompt = buildUserPrompt({ ...REQUEST, scopeLabel: 'Depot <i>{{fact:x}}</i>⠀ A' });
+    expect(prompt).toContain('BEGIN SCOPE\n"Depot ifact:x/i A"\nEND SCOPE');
   });
 
   it('refuses more than the maximum number of facts', () => {
