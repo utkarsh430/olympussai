@@ -734,7 +734,7 @@ describe('answers', () => {
         ),
       );
     expect(prose('ambiguous_depot')).toContain(
-      "That name matches more than one depot. Use the depot's full name.",
+      "That name matches several depots. Use the depot's full name.",
     );
     expect(prose('ambiguous_depot')).not.toMatch(/people/i);
     expect(prose('people')).toContain('Questions about people are outside that scope.');
