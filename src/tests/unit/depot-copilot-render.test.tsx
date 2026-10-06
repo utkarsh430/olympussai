@@ -1,7 +1,15 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnswerTable } from '@/components/depot/copilot/AnswerTable';
+import { AskPanel } from '@/components/depot/copilot/AskPanel';
+import { BriefingCard } from '@/components/depot/copilot/BriefingCard';
+import { RationaleButton } from '@/components/depot/copilot/RationaleButton';
+
+// The panel only reads the depot list; the real provider would start a poll.
+vi.mock('@/components/depot/data/DepotNetworkProvider', () => ({
+  useDepotNetworkContext: () => ({ data: null, error: null, loading: false, refresh: () => {} }),
+}));
 import { CopilotText } from '@/components/depot/copilot/CopilotText';
 import { FactChips } from '@/components/depot/copilot/FactChips';
 
@@ -108,5 +116,105 @@ describe('small component behaviour', () => {
   it('CopilotText renders no heading element when the level is null', async () => {
     await render(<CopilotText headline="H" paragraphs={['p']} headingLevel={null} />);
     expect(container.querySelector('h2, h3, h4')).toBeNull();
+  });
+});
+
+const ANSWER = {
+  headline: 'Headline',
+  paragraphs: ['Body.'],
+  provider: 'scripted',
+  notice: 'none',
+  generatedAt: '2026-10-06T09:30:00.000Z',
+  cached: false,
+  facts: [],
+};
+
+function stubFetchOk(): ReturnType<typeof vi.fn> {
+  const fn = vi.fn(async () => ({ status: 200, ok: true, json: async () => ANSWER }));
+  globalThis.fetch = fn as unknown as typeof fetch;
+  return fn;
+}
+
+async function click(element: Element | null): Promise<void> {
+  await act(async () => {
+    (element as HTMLElement).click();
+  });
+}
+
+describe('BriefingCard', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('requests nothing until asked, announces progress and focuses the headline', async () => {
+    const fn = stubFetchOk();
+    await render(<BriefingCard scope={{ kind: 'network' }} title="Network briefing" />);
+    expect(fn).not.toHaveBeenCalled();
+    const status = container.querySelector('[role="status"]') as HTMLElement;
+    expect(status.textContent).toBe('');
+    await click(container.querySelector('button'));
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[role="status"]')).toBe(status);
+    expect(status.textContent).toBe('Briefing ready');
+    expect(document.activeElement?.textContent).toBe('Headline');
+  });
+});
+
+describe('rationale parts', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('requests once per expansion and keeps the text across collapse and re-open', async () => {
+    const fn = stubFetchOk();
+    await render(<RationaleButton transferId="t1" label="Kurla to Panvel" headingLevel={4} />);
+    const toggle = container.querySelector('button') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.getAttribute('aria-label')).toBe('Why? Kurla to Panvel');
+    await click(toggle);
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-testid="rationale-status"]')?.textContent).toBe(
+      'Explanation ready',
+    );
+    expect(container.querySelector('[data-testid="rationale-panel"]')?.textContent).toContain(
+      'Body.',
+    );
+    await click(toggle);
+    expect(container.querySelector('[data-testid="rationale-panel"]')).toBeNull();
+    await click(toggle);
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-testid="rationale-panel"]')?.textContent).toContain(
+      'Headline',
+    );
+  });
+
+  it('live region holds only a short string, never the text', async () => {
+    stubFetchOk();
+    await render(<RationaleButton transferId="t1" label="x" />);
+    await click(container.querySelector('button'));
+    const status = container.querySelector('[data-testid="rationale-status"]');
+    expect(status?.textContent).not.toContain('Body.');
+  });
+});
+
+describe('AskPanel', () => {
+  it('shows only network examples when no depot is chosen', async () => {
+    await render(
+        <AskPanel />
+    );
+    expect(container.textContent).not.toContain('this depot');
+    expect(container.querySelectorAll('[aria-label="Example questions"] button')).toHaveLength(4);
+  });
+
+  it('an empty submit keeps the button enabled and says what to do in the status line', async () => {
+    await render(
+        <AskPanel />
+    );
+    const submit = container.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submit.disabled).toBe(false);
+    await click(submit);
+    expect(container.querySelector('p[role="status"]')?.textContent).toBe('Type a question first.');
   });
 });
