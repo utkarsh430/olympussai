@@ -180,6 +180,16 @@ describe('buildParkingResponse', () => {
     expect(p.order!.parkedCount + p.order!.overflow.length).toBe(12);
   });
 
+  it('uses one trimmed registration for the duty lookup and the plan', () => {
+    const padded = parked().map((r) => ({ ...r, registrationNumber: ` ${r.registrationNumber} ` }));
+    const slots = parking(padded).order!.lanes.flatMap((l) => l.slots);
+    expect(slots.every((s) => s.registrationNumber === s.registrationNumber.trim())).toBe(true);
+    const withDuty = (all: typeof slots): number =>
+      all.filter((s) => s.firstDutyStartMin !== null).length;
+    expect(withDuty(slots)).toBeGreaterThan(0);
+    expect(withDuty(slots)).toBe(withDuty(parking(parked()).order!.lanes.flatMap((l) => l.slots)));
+  });
+
   it('counts a bus of another depot standing in the yard against capacity but does not order it', () => {
     const rows = [...parked(), row({ registrationNumber: 'V1', depotId: '2', depotName: 'Other' })];
     const p = parking(rows);
