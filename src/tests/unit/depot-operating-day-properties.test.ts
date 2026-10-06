@@ -65,6 +65,19 @@ describe('the modelled day keeps to the live fleet (ruling S47)', () => {
     expect(checked).toBeGreaterThan(30);
   });
 
+  it('runs every bus in service, heard recently, whenever the duties are at least those (S55, N5)', () => {
+    let checked = 0;
+    for (const input of CASES) {
+      const day = modelOperatingDay(input);
+      const inService = input.buses.filter((b) => b.state === 'in_service' && onTheRoad(b));
+      if (day.duties.length < inService.length) continue;
+      checked += 1;
+      const ran = new Set(day.runs.map((r) => r.registrationNumber));
+      for (const b of inService) expect(ran.has(b.registrationNumber)).toBe(true);
+    }
+    expect(checked).toBeGreaterThan(30);
+  });
+
   it('puts a bus that runs on its live route whenever that route has a free duty', () => {
     for (const input of CASES) {
       const day = modelOperatingDay(input);
