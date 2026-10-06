@@ -254,8 +254,8 @@ describe('buildParkingResponse', () => {
     expect(p.order?.provenance).toBe('modelled');
   });
 
-  it('gives every parked bus a first duty tomorrow even when more buses are out now (S55, N1)', () => {
-    // 12 buses standing in the yard and 60 out in service on their routes, far from it.
+  /** 12 buses standing in the yard and 60 out in service on their routes, far from it; a new array each call. */
+  const yardAndOut = (): DepotBusRow[] => {
     const out = Array.from({ length: 60 }, (_, i) => {
       const p = fromMetres({ x: 8_000 + i * 50, y: 0 }, HOME.lat, HOME.lng);
       return row({
@@ -270,17 +270,32 @@ describe('buildParkingResponse', () => {
         scheduledEnd: '2026-10-06T10:00:00Z',
       });
     });
-    const rows = [...parked(12), ...out];
+    return [...parked(12), ...out];
+  };
+
+  it('gives every parked bus a first duty tomorrow even when more buses are out now (S55, N1)', () => {
+    const rows = yardAndOut();
     const next = nextOperatingDate('2026-10-06');
     const tomorrow = laterDayPlanFor(analyseSnapshot(view(rows)), '1', next);
     expect(tomorrow?.duties.length ?? 0).toBeGreaterThanOrEqual(12);
-    const v = view(rows);
-    const boardBefore = buildDutyBoard(v, '1');
-    const slots = parking(rows, v).order!.lanes.flatMap((l) => l.slots);
+    const slots = parking(rows).order!.lanes.flatMap((l) => l.slots);
     expect(slots).toHaveLength(12);
     for (const s of slots) expect(s.firstDutyStartMin).not.toBeNull();
-    // Today's board is untouched by tomorrow's plan.
-    expect(buildDutyBoard(v, '1')).toEqual(boardBefore);
+  });
+
+  it('leaves today\'s board as it is without a parking request (m-c)', () => {
+    // Each board on its own fresh rows and a process just started, so no memo is shared.
+    for (const feedNow of ['2026-10-06T08:00:00Z', '2026-10-07T00:05:00Z']) {
+      resetAnalysisForTests();
+      const alone = view(yardAndOut(), { feedNow });
+      const boardAlone = buildDutyBoard(alone, '1');
+      resetAnalysisForTests();
+      const withParking = view(yardAndOut(), { feedNow });
+      expect(parking(withParking.rows, withParking).order).not.toBeNull();
+      const boardAfter = buildDutyBoard(withParking, '1');
+      expect(boardAlone).not.toBeNull();
+      expect(boardAfter).toEqual(boardAlone);
+    }
   });
 
   it('gives a duty time to a bus the matching assigned and null to one with no duty', () => {
