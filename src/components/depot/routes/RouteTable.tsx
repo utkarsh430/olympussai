@@ -132,7 +132,7 @@ export function RouteTable({ data, busy = false, query, onQueryChange, onOpenRou
           className={`depot-table-frame ${busy ? 'opacity-60' : ''}`}
         >
           <table className={`depot-table depot-table-fixed ${TIER_MIN_WIDTH}`} style={tierWidths(columns)}>
-            <caption className="sr-only">Every route in the live feed</caption>
+            <caption className="sr-only">Every route in the feed</caption>
             <thead>
               <tr>
                 {columns.map((c) => (

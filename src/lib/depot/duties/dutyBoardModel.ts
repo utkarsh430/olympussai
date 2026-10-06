@@ -187,7 +187,7 @@ export function emptyDutiesSentence(input: {
   // The shared "no duties" sentence (modelledDaySentence) says that there are none;
   // this says only why, so an empty board never carries two "no duties" sentences.
   if (input.routeCount === 0) {
-    return 'None of its buses reports a route in the live feed, so there is nothing to run a duty on.';
+    return 'None of its buses reports a route in the feed, so there is nothing to run a duty on.';
   }
   return 'The modelled peak requirement is zero buses.';
 }

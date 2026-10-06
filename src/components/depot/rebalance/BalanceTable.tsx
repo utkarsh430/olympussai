@@ -125,7 +125,7 @@ export function BalanceTable({ rows }: BalanceTableProps) {
         columns={columns}
         rows={shown}
         rowKey={(r) => r.depotId}
-        caption="Depot balances: live availability against modelled requirement"
+        caption="Depot balances: availability from the feed against modelled requirement"
         emptyMessage="No depot balances are available on this snapshot."
         fixedRows
         freezeFirstColumn
