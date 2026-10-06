@@ -1,6 +1,8 @@
+import { Suspense } from 'react';
 import { requireProjectSession } from '@/lib/auth/server';
 import { RoutesPage } from '@/components/depot/routes/RoutesPage';
 import { PageHeader } from '@/components/depot/shell/PageHeader';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 
 const ROUTES_PATH = '/project/depots/routes';
 
@@ -24,7 +26,10 @@ export default async function DepotRoutesPage() {
           modelled: 'trips a day and the daily dead kilometres built on them',
         }}
       />
-      <RoutesPage />
+      {/* RoutesPage reads the ?depot= scope (useSearchParams), so it sits in a boundary. */}
+      <Suspense fallback={<StatePanel kind="loading" rows={10} sentence="Loading the routes" />}>
+        <RoutesPage />
+      </Suspense>
     </>
   );
 }
