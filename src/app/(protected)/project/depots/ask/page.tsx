@@ -18,7 +18,7 @@ const ASK_PROVENANCE = {
 
 const HOW_PRODUCED: readonly string[] = [
   "You can ask about rankings, a depot's summary or one of its figures, depots short of buses or with spare buses, transfers and exceptions. Choose a depot under About for questions about one depot; a question that names a depot is answered about that depot, and the chip beside the question says which.",
-  'Answers are advisory, and every figure in them comes from the latest data. Shortfalls, spare buses and transfers rest on modelled requirement figures; their columns carry the MODELLED tag. The footer under each answer names who wrote it, a scripted template or the Claude model, and how many figures it used.',
+  'Answers are advisory. Rankings, depot summaries and exceptions are computed from the latest feed; shortfalls, spare buses and transfers rest on modelled requirement figures, not on the feed. When an answer lists depots short of buses or with spare buses, the column of those figures carries the modelled tag; an answer about transfers has no table. The footer under each answer names who wrote it, a scripted template or the Claude model, and how many figures it used.',
   'The last five answers stay on this page and nothing is stored.',
 ];
 
