@@ -42,6 +42,18 @@ export interface TimetableRepository {
 export type Ineligibility = 'off_road' | 'dark' | 'not_in_yard' | 'class_mismatch';
 
 /**
+ * The moment a plan is made "as of" (ruling S55). A plan for the feed's own
+ * operating date is as of the feed clock (`feedMinute`, minutes past midnight),
+ * or of no clock when the feed has none. A plan for a later date (the night
+ * parking order plans tomorrow) is not as of any moment of that day: how the
+ * buses stand now cannot rank them for it.
+ */
+export type PlanNow =
+  | { readonly kind: 'feed_time'; readonly feedMinute: number }
+  | { readonly kind: 'no_feed_clock' }
+  | { readonly kind: 'later_day' };
+
+/**
  * How a bus with a duty stands now, by its live state: out on the road (in
  * service or not), standing in the depot's yard, or standing where location
  * cannot be judged because the depot has no yard established.

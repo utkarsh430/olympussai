@@ -1,5 +1,5 @@
 import type { DepotBusView } from '../api';
-import type { AssignmentPlan, Duty } from '../duties/types';
+import type { AssignmentPlan, Duty, PlanNow } from '../duties/types';
 import { assignDuties } from '../optimise/assignDuties';
 import type { DepotSummary } from '../types';
 import { modelDuties } from './duties';
@@ -37,7 +37,8 @@ export interface DayPlanInput {
   /** False when the depot has no yard: location then cannot decide eligibility. */
   readonly yardEstablished: boolean;
   /** Minutes past midnight on the feed clock when it reads the operating date, else null. */
-  readonly feedMinute: number | null;
+  readonly feedMinute?: number | null;
+  readonly now?: PlanNow;
 }
 
 const FEED_CLOCK = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/;
@@ -108,7 +109,7 @@ export function planDay(input: DayPlanInput): DutyPlan {
   );
   const plan = assignDuties(duties, buses, fleet, {
     yardEstablished: input.yardEstablished,
-    feedMinute: input.feedMinute,
+    feedMinute: input.feedMinute ?? null,
   });
   return {
     duties,
