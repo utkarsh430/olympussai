@@ -9,6 +9,7 @@ import {
   YARD_MIN_RADIUS_M,
   YARD_CELL_M,
   YARD_RADIUS_PAD_M,
+  YARD_MAX_SPAN_CELLS,
 } from '@/lib/depot/infer/yard';
 
 const ORIGIN = { lat: 26.85, lng: 80.95 };
@@ -67,6 +68,17 @@ function cellRow(n: number): DepotBusRow[] {
   const first = -Math.floor(n / 2);
   return Array.from({ length: n }, (_, k) => first + k).flatMap((j) =>
     at(`W${j}`, 6, fromMetres({ x: 75 + 150 * j, y: 75 }, ORIGIN.lat, ORIGIN.lng), 8),
+  );
+}
+
+/** Six buses (by default) at the centre of each listed grid cell, on the grid anchored at ORIGIN. */
+function cellsAt(
+  prefix: string,
+  cells: readonly (readonly [number, number])[],
+  perCell = 6,
+): DepotBusRow[] {
+  return cells.flatMap(([cx, cy]) =>
+    at(`${prefix}${cx}_${cy}`, perCell, fromMetres({ x: 75 + 150 * cx, y: 75 + 150 * cy }, ORIGIN.lat, ORIGIN.lng), 8),
   );
 }
 
@@ -154,19 +166,69 @@ describe('inferYard', () => {
     expect(countInYard(rows, yard!)).toBe(30);
   });
 
-  it('infers a yard from six adjacent cells, near the middle, with most buses in it', () => {
+  it('infers a yard from six adjacent cells, centred, with every bus in it', () => {
     const rows = cellRow(6);
-    const yard = inferYard(rows);
+    const yard = inferYard(rows)!;
     expect(yard).not.toBeNull();
-    const trueMiddle = fromMetres({ x: 75 + 150 * 0.5, y: 75 }, ORIGIN.lat, ORIGIN.lng);
-    expect(distanceM(yard!.lat, yard!.lng, trueMiddle.lat, trueMiddle.lng)).toBeLessThan(100);
-    expect(countInYard(rows, yard!)).toBeGreaterThanOrEqual(30);
+    const trueMiddle = fromMetres({ x: 150, y: 75 }, ORIGIN.lat, ORIGIN.lng);
+    expect(distanceM(yard.lat, yard.lng, trueMiddle.lat, trueMiddle.lng)).toBeLessThan(30);
+    expect(yard.inCluster).toBe(36);
+    expect(countInYard(rows, yard)).toBe(36);
   });
 
-  it('gives identical wide-yard and two-stand results for reversed and shuffled input', () => {
+  it('holds an L-shaped yard of five cells whole', () => {
+    const rows = cellsAt('L', [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2]]);
+    const yard = inferYard(rows)!;
+    expect(yard.inCluster).toBe(30);
+    expect(countInYard(rows, yard)).toBe(30);
+  });
+
+  it('treats stands in diagonally touching cells as one yard', () => {
+    const yard = inferYard(cellsAt('D', [[0, 0], [1, 1]]));
+    expect(yard?.inCluster).toBe(12);
+  });
+
+  it.each([2, 3, 4])(
+    'claims no yard for 10 and 9 buses with a stand %i cells away (ratio below 1.5)',
+    (gap) => {
+      const rows = [...cellsAt('Y', [[0, 0]], 10), ...cellsAt('S', [[gap, 0]], 9)];
+      expect(inferYard(rows)).toBeNull();
+    },
+  );
+
+  it('keeps a 12-bus yard when a 6-bus stand is one empty cell away, without its buses', () => {
+    const yardRows = cellsAt('Y', [[0, 0]], 12);
+    const standRows = cellsAt('S', [[2, 0]], 6);
+    const yard = inferYard([...yardRows, ...standRows])!;
+    expect(yard).not.toBeNull();
+    expect(yard.inCluster).toBe(12);
+    expect(countInYard(yardRows, yard)).toBe(12);
+    expect(countInYard(standRows, yard)).toBe(0);
+  });
+
+  it('claims no yard for a 31-bus yard against a 28-bus wide stand 3 km away', () => {
+    const base = far(3);
+    const stand = [0, 1, 2, 3].flatMap((j) =>
+      at(`S${j}`, 7, fromMetres({ x: 150 * j, y: 0 }, base.lat, base.lng), 8),
+    );
+    expect(inferYard([...cellsAt('Y', [[0, 0]], 31), ...stand])).toBeNull();
+  });
+
+  it('accepts a line of ten cells but not eleven or twelve (a road, not a yard)', () => {
+    const line = (n: number) => Array.from({ length: n }, (_, i) => [i - 5, 0] as const);
+    expect(inferYard(cellsAt('R', line(10)))).not.toBeNull();
+    expect(inferYard(cellsAt('R', line(11)))).toBeNull();
+    expect(inferYard(cellsAt('R', line(12)))).toBeNull();
+  });
+
+  it('gives identical output for reversed and shuffled input in every scenario', () => {
     const scenarios = [
       cellRow(5),
       cellRow(6),
+      cellsAt('L', [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2]]),
+      cellsAt('D', [[0, 0], [1, 1]]),
+      [...cellsAt('Y', [[0, 0]], 10), ...cellsAt('S', [[3, 0]], 9)],
+      [...cellsAt('Y', [[0, 0]], 12), ...cellsAt('S', [[2, 0]], 6)],
       [...at('A', 6, ORIGIN), ...at('B', 7, far(30))],
       [...at('A', 6, ORIGIN), ...at('B', 12, far(30))],
     ];
@@ -225,8 +287,8 @@ describe('inferYard', () => {
     expect(inferYard(at('A', 10, ORIGIN, 2))!.radiusM).toBe(YARD_MIN_RADIUS_M);
   });
 
-  it('sizes a wide cluster from its spread, within what the 5x5 cell block allows', () => {
-    const blockDiagonalM = 5 * Math.SQRT2 * YARD_CELL_M;
+  it('sizes a wide cluster from its spread, within what the span limit allows', () => {
+    const blockDiagonalM = YARD_MAX_SPAN_CELLS * Math.SQRT2 * YARD_CELL_M;
     const yard = inferYard(at('A', 40, ORIGIN, 220));
     expect(yard).not.toBeNull();
     expect(yard!.radiusM).toBeGreaterThan(YARD_MIN_RADIUS_M);
