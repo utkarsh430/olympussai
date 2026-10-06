@@ -8,6 +8,13 @@ export interface AnswerTableProps {
 
 /** The rows behind an answer: a real table, every cell display text. */
 export function AnswerTable({ table, caption }: AnswerTableProps) {
+  if (table.columns.length === 0 || table.rows.length === 0) {
+    return (
+      <p className="depot-prose" data-testid="copilot-table-empty">
+        No rows matched.
+      </p>
+    );
+  }
   return (
     <div className="depot-table-frame" data-testid="copilot-table">
       <table className="depot-table w-full">
