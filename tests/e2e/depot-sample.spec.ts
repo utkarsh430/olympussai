@@ -318,10 +318,7 @@ test.describe('3. no sideways page scroll on any depot page', () => {
   }
 
   test('the transfers table fits its box at 1280 px', async ({ page, sample }) => {
-    test.fixme(
-      true,
-      'the transfers table is wider than its scroll box at 1280 px',
-    );
+    test.fixme(true, 'the transfers table is wider than its scroll box at 1280 px');
     expect(sample.depotId).toBeTruthy();
     await page.setViewportSize({ width: 1280, height: 900 });
     await openPage(page, '/project/depots/rebalance', 'Fleet distribution');
@@ -330,4 +327,51 @@ test.describe('3. no sideways page scroll on any depot page', () => {
     const overflow = await box.evaluate((el) => el.scrollWidth - el.clientWidth);
     expect(overflow).toBe(0);
   });
+});
+
+test.describe('4. deep links into a depot', () => {
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
+  test.use({ storageState: SIGNED_OUT });
+
+  test('signing in keeps the path and the query of a depot-scope deep link', async ({
+    page,
+    sample,
+  }) => {
+    const target = `/project/depots/d/${sample.depotId}/roster?state=dark`;
+    await page.goto(target);
+
+    await expect(page).toHaveURL(/\/login\?/);
+    expect(new URL(page.url()).searchParams.get('next')).toBe(target);
+
+    await page.getByLabel('Project name').fill(E2E_PROJECT_NAME);
+    await page.getByLabel('Project PIN').fill(E2E_PIN ?? '');
+    await page.getByRole('button', { name: /Enter Project/i }).click();
+
+    await expect(page).toHaveURL((url) => `${url.pathname}${url.search}` === target);
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Roster', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('group', { name: 'State' }).getByRole('button', { name: /^Dark/ }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+test.describe('4. a malformed depot id', () => {
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
+
+  for (const suffix of ['', '/roster']) {
+    test(`/project/depots/d/abc${suffix} gives the not-found page, not an error`, async ({
+      page,
+      sample,
+    }) => {
+      expect(sample.depotId).not.toBe('abc');
+      const res = await page.goto(`/project/depots/d/abc${suffix}`);
+
+      expect(res?.status()).toBe(404);
+      await expect(
+        page.getByRole('heading', { level: 1, name: 'Depot not found', exact: true }),
+      ).toBeVisible();
+    });
+  }
 });
