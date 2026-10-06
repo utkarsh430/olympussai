@@ -41,8 +41,13 @@ const requestSchema = z.discriminatedUnion('task', [
     .strict(),
 ]);
 
-/** A validated request; for `ask`, `question` has been through `sanitizeQuestion`. */
-export type ValidCopilotRequest = CopilotApiRequest;
+declare const validated: unique symbol;
+
+/**
+ * A validated request; for `ask`, `question` has been through
+ * `sanitizeQuestion`. Branded, so only `parseCopilotBody` can produce one.
+ */
+export type ValidCopilotRequest = CopilotApiRequest & { readonly [validated]: true };
 
 /** Null for anything that is not JSON of exactly the wire shape, or an ask with no question left. */
 export function parseCopilotBody(text: string): ValidCopilotRequest | null {
@@ -54,8 +59,8 @@ export function parseCopilotBody(text: string): ValidCopilotRequest | null {
   }
   const parsed = requestSchema.safeParse(raw);
   if (!parsed.success) return null;
-  const body: ValidCopilotRequest = parsed.data;
-  if (body.task !== 'ask') return body;
+  const body: CopilotApiRequest = parsed.data;
+  if (body.task !== 'ask') return body as ValidCopilotRequest;
   const question = sanitizeQuestion(body.question);
-  return question === '' ? null : { ...body, question };
+  return question === '' ? null : ({ ...body, question } as ValidCopilotRequest);
 }

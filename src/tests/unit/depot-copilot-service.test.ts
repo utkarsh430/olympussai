@@ -11,7 +11,8 @@ import type { FallbackReason } from '@/lib/depot/copilot/types';
 import { buildCopilotRuntime, getCopilotRuntime } from '@/lib/depot/copilot/service/runtime';
 import { answerCopilot, type AnswerCall } from '@/lib/depot/copilot/service/generate';
 import { prepareCopilotRequest, type Prepared } from '@/lib/depot/copilot/service/prepare';
-import type { ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
+import { parseCopilotBody, type ValidCopilotRequest } from '@/lib/depot/copilot/service/schema';
+import type { CopilotApiRequest } from '@/lib/depot/copilot/wire';
 
 const rows = normalizeDepotRows(liveFixture).rows;
 const view = (over: Partial<FleetSnapshotView> = {}): FleetSnapshotView => ({
@@ -23,7 +24,7 @@ const view = (over: Partial<FleetSnapshotView> = {}): FleetSnapshotView => ({
   recordCount: rows.length,
   ...over,
 });
-const NETWORK: ValidCopilotRequest = { task: 'briefing', scope: { kind: 'network' } };
+const NETWORK: CopilotApiRequest = { task: 'briefing', scope: { kind: 'network' } };
 const LEAKS = [
   'not_installed',
   'not_authenticated',
@@ -44,8 +45,15 @@ beforeEach(() => {
 });
 afterEach(() => errorSpy.mockRestore());
 
-function prepared(body: ValidCopilotRequest = NETWORK, v: FleetSnapshotView = view()) {
-  const result = prepareCopilotRequest(body, v);
+/** Bodies go through the parser, the only source of a validated request. */
+function valid(raw: CopilotApiRequest): ValidCopilotRequest {
+  const body = parseCopilotBody(JSON.stringify(raw));
+  if (!body) throw new Error('fixture must parse');
+  return body;
+}
+
+function prepared(raw: CopilotApiRequest = NETWORK, v: FleetSnapshotView = view()) {
+  const result = prepareCopilotRequest(valid(raw), v);
   if (!result.ok) throw new Error('fixture must prepare');
   return result;
 }
@@ -160,7 +168,7 @@ describe('prepareCopilotRequest on the sample fixture', () => {
       'briefing',
     );
     const unknown = prepareCopilotRequest(
-      { task: 'briefing', scope: { kind: 'depot', depotId: '999999' } },
+      valid({ task: 'briefing', scope: { kind: 'depot', depotId: '999999' } }),
       view(),
     );
     expect(unknown).toEqual({ ok: false, status: 404 });
@@ -172,7 +180,7 @@ describe('prepareCopilotRequest on the sample fixture', () => {
       'rationale',
     );
     expect(
-      prepareCopilotRequest({ task: 'rationale', transferId: '999998>999999' }, view()),
+      prepareCopilotRequest(valid({ task: 'rationale', transferId: '999998>999999' }), view()),
     ).toEqual({
       ok: false,
       status: 404,
