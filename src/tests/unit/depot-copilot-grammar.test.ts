@@ -17,6 +17,11 @@ const FACTS: readonly CopilotFact[] = [
   fact('name', 'AGRA'),
   fact('n2', 'KANPUR'),
   fact('n3', 'MEERUT'),
+  fact('pct', '71%'),
+  fact('dash', '\u2014'),
+  fact('buses', '31 buses'),
+  fact('depots', '7 depots'),
+  fact('clock', '14:05'),
 ];
 const render = (text: string, headline = 'Network briefing'): boolean =>
   renderDraft({ headline, paragraphs: [text] }, FACTS).ok;
@@ -110,6 +115,9 @@ describe('token grammar boundaries', () => {
     '{{fact:name}}, {{fact:n2}} and {{fact:n3}} are steady.',
     '{{fact:a}} of {{fact:b}} are dark.',
     '{{fact:name}} has {{fact:a}}.',
+    '{{fact:name}} at {{fact:a}}; {{fact:n2}} at {{fact:b}}.',
+    'The fleet is {{fact:depots}}, {{fact:buses}} in all.',
+    'As of {{fact:clock}}, {{fact:buses}} are reporting ({{fact:pct}}), {{fact:a}} are dark.',
   ];
   it.each(accepted)('accepts %j', (text) => expect(render(text)).toBe(true));
 
@@ -137,7 +145,10 @@ describe('token grammar boundaries', () => {
     ['two figures, comma only', 'The fleet is {{fact:a}}, {{fact:b}}.'],
     ['two figures, single letter', 'The fleet is {{fact:a}} a {{fact:b}}.'],
     ['two names, space only', '{{fact:name}} {{fact:n2}} are steady.'],
-    ['two names, semicolon only', '{{fact:name}}; {{fact:n2}} are steady.'],
+    ['two names, colon only', '{{fact:name}}: {{fact:n2}} are steady.'],
+    ['bare figure, comma, percentage', 'The fleet is {{fact:a}}, {{fact:pct}}.'],
+    ['dash, comma, figure', 'The fleet is {{fact:dash}}, {{fact:a}}.'],
+    ['unit figures, space only', 'The fleet is {{fact:buses}} {{fact:depots}}.'],
     ['name then figure, space only', '{{fact:name}} {{fact:a}} are dark.'],
     ['Roman numeral capitals of a listed word', 'The fleet DID move.'],
     ['unknown fact', 'The fleet is {{fact:zz}}.'],

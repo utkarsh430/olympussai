@@ -25,6 +25,23 @@ reveal review rise run say schedule see seek seem send serve set settle share sh
 slip slow sort speak stand start state stay stem stop suggest supply support surface
 take tell tend test think track trail transfer travel treat trend try turn use vary visit
 wait want warrant watch weaken widen work worsen write brief home answer phrase
+infer instruct weigh expose update name suit wish hire last absorb accumulate acknowledge
+adapt adopt advance align alter anticipate appoint arrange attach attribute bring broaden
+calculate clarify combine commit communicate compensate concentrate conclude conduct confine
+constrain consult convert correct count delay demonstrate deny derive design develop
+diminish discuss display distribute divert draw drift earn eliminate emphasise encounter
+encourage engage enhance evaluate examine exhibit expand experience explore express favour
+feature focus forecast free fulfil function generate govern guide halt highlight ignore
+illustrate impose inspect intend interpret interrupt introduce investigate isolate judge
+justify label launch maintain mention minimise mitigate note obtain offset omit outline
+outweigh overcome overlap overlook persist prefer preserve press prioritise process prompt
+protect question quote realise recognise reconcile redirect refine reinforce reject relieve
+relocate remind renew reorganise request reserve resist restrict revise rotate satisfy scale
+secure select separate shape shorten signal simplify smooth specify spread stabilise strain
+strengthen stress stretch struggle submit substitute succeed suffer summarise suspend sustain
+switch target tighten tolerate trace trigger underline undermine undertake unfold uphold
+validate verify view warn welcome withdraw wonder
+configure inferred hardest harder worth yet nearer preferable preferably healthy
 arose arisen became began begun bore borne brought built came caught chose chosen dealt drew
 drawn drove driven fell fallen fed felt found gave given went gone grew grown held kept knew
 known laid lain led left lent lost made meant met paid ran rose risen said saw seen sent
