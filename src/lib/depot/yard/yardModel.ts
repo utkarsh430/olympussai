@@ -4,6 +4,7 @@ import { MOVING_SPEED_KMPH } from '@/lib/depot/infer/thresholds';
 import type { Yard } from '@/lib/depot/infer/types';
 import type { BusOpState } from '@/lib/depot/types';
 import { YARD_RULE_SENTENCE } from '@/lib/depot/infer/yardRuleText';
+import { compareText } from '@/lib/depot/stats/order';
 
 /** Fixed order for every state grouping, busiest operational state first. */
 export const YARD_STATE_ORDER: readonly BusOpState[] = [
@@ -91,10 +92,6 @@ export interface YardModel {
   /** Visitors drawn as hollow markers, and visitors the feed gave no position for. */
   readonly visitorsDrawn: number;
   readonly visitorsWithoutPosition: number;
-}
-
-function compareText(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function byRegistration(buses: readonly DepotBusView[]): DepotBusView[] {

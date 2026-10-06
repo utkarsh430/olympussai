@@ -5,6 +5,7 @@ import {
   roundToDecimals,
   wholeTenths,
 } from '@/lib/depot/stats/rounding';
+import { median, medianOr } from '@/lib/depot/stats/robust';
 
 describe('the shared rounding rules', () => {
   it('rounds a half up for the plain rules, and away from zero for the symmetric one', () => {
@@ -21,5 +22,14 @@ describe('the shared rounding rules', () => {
     expect(wholeTenths(12.34)).toBe(123);
     expect(Object.is(wholeTenths(-0.04), -0)).toBe(true);
     expect(Object.is(roundHalfAwayFromZero(-0.004, 2), 0)).toBe(true);
+  });
+});
+
+describe('the shared median for callers that need a number', () => {
+  it("is the plain median for a sample and the caller's own answer for an empty one", () => {
+    expect(medianOr([3, 1, 2, 10], 0)).toBe(2.5);
+    expect(medianOr([], 0)).toBe(0);
+    expect(medianOr([], NaN)).toBeNaN();
+    expect(median([])).toBeNull();
   });
 });

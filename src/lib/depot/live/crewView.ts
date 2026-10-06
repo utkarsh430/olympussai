@@ -13,7 +13,7 @@ import {
   type CrewRole,
   type CrewSlot,
 } from '../crew/types';
-import { compareText } from '../exceptions/depotExceptions';
+import { compareText } from '@/lib/depot/stats/order';
 import type { FleetSnapshotView } from '../repositories/types';
 import { operatingDateOf } from '../sim/seed';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';

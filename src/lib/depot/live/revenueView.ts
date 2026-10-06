@@ -1,4 +1,4 @@
-import { compareText } from '../exceptions/depotExceptions';
+import { compareText } from '@/lib/depot/stats/order';
 import type { FleetSnapshotView, DepotRepositories } from '../repositories/types';
 import type { RevenueResponse } from '../revenue/api';
 import { analyseRevenue } from '../revenue/analysis';

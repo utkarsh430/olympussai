@@ -1,5 +1,5 @@
 import { SeededRandom } from '../../simulation/seededRandom';
-import { compareText } from '../fuel/compare';
+import { compareText } from '@/lib/depot/stats/order';
 import type { BusFuelDay } from '../fuel/types';
 import { STATIC_SEED_DATE } from './config';
 import {

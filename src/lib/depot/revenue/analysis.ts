@@ -1,4 +1,4 @@
-import { compareText } from '../fuel/compare';
+import { compareText } from '@/lib/depot/stats/order';
 import type {
   DepotRevenueTotals,
   RevenueAnalysis,

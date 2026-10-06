@@ -17,6 +17,7 @@ import {
 } from './config';
 import { seedFor } from './seed';
 import type { RequirementParams } from './types';
+import { compareText } from '@/lib/depot/stats/order';
 
 interface Bounds {
   readonly min: number;
@@ -45,10 +46,6 @@ export function clampRequirementParams(params: RequirementParams): RequirementPa
 /** ceil(peak x ratio) in integers: Math.ceil(100 * 0.07) is 8 in floating point. */
 export function spareTargetFor(peakRequirement: number, spareRatio: number): number {
   return Math.ceil((peakRequirement * Math.round(spareRatio * BASIS_POINTS)) / BASIS_POINTS);
-}
-
-function compareText(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /** Numeric ids first, in numeric order; anything else after, alphabetically. */

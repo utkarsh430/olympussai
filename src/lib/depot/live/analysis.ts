@@ -33,7 +33,7 @@ import {
   detectBusExceptions,
   detectDepotExceptions,
 } from '../exceptions';
-import { compareText } from '../exceptions/depotExceptions';
+import { compareText } from '@/lib/depot/stats/order';
 import { windowedOnRoadShares, type WindowedOnRoadShares } from '../sim/requirement';
 import { operatingDateOf } from '../sim/seed';
 import { summariseDepots } from './aggregate';

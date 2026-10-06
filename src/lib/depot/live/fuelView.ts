@@ -6,7 +6,7 @@ import {
   type FuelOtherRoutes,
   type FuelResponse,
 } from '../fuel/api';
-import { compareText } from '../fuel/compare';
+import { compareText } from '@/lib/depot/stats/order';
 import { analyseFuel, mergeTotals } from '../fuel/analysis';
 import {
   FUEL_VARIANCE_FLAG_PCT,

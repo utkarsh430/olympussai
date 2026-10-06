@@ -1,7 +1,7 @@
 import { SeededRandom } from '../../simulation/seededRandom';
 import type { DepotBusView } from '../api';
 import type { Duty, PlanNow } from '../duties/types';
-import { compareText } from '../fuel/compare';
+import { compareText } from '@/lib/depot/stats/order';
 import { STATIC_SEED_DATE } from './config';
 import { planDay, type DutyPlan } from './dayPlan';
 import { classFromRoute } from './fleetMaster';

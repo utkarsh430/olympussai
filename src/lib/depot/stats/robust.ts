@@ -30,6 +30,14 @@ export function median(values: readonly number[]): number | null {
   return sorted.length % 2 === 1 ? nth(sorted, mid) : (nth(sorted, mid - 1) + nth(sorted, mid)) / 2;
 }
 
+/**
+ * The median, or `empty` for an empty sample, for callers that need a number: the yard
+ * geometry reads an empty sample as NaN, the depot's yard centre as 0.
+ */
+export function medianOr(values: readonly number[], empty: number): number {
+  return median(values) ?? empty;
+}
+
 /** Median absolute deviation from the median. */
 export function mad(values: readonly number[]): number | null {
   const centre = median(values);

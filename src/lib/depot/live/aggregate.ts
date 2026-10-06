@@ -17,6 +17,7 @@ import { classifyDepotKind } from './depotKind';
 const UNASSIGNED_NAME = 'Unassigned';
 import { NORMAL_TAMPER_CODE } from '../exceptions/config';
 import { MS_PER_MINUTE } from '@/lib/depot/units';
+import { medianOr } from '@/lib/depot/stats/robust';
 
 const EMPTY_STATUS: StatusMix = { live: 0, stationary: 0, noSignal: 0, underMaintenance: 0, unknown: 0 };
 const EMPTY_STATES: StateMix = { inService: 0, onRoad: 0, standing: 0, dark: 0, offRoad: 0 };
@@ -37,20 +38,13 @@ const STATE_KEY: Record<ReturnType<typeof classifyBusState>, keyof StateMix> = {
   off_road: 'offRoad',
 };
 
-function median(values: readonly number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  const upper = sorted[mid] ?? 0;
-  return sorted.length % 2 === 1 ? upper : ((sorted[mid - 1] ?? upper) + upper) / 2;
-}
-
 /** Per-axis median of the usable positions; a (0, 0) fix is no place, so it never pulls the median. */
 function centroidOf(rows: readonly DepotBusRow[]): LatLng | null {
   const placed = rows.filter(isUsablePosition);
   if (placed.length === 0) return null;
   return {
-    lat: median(placed.map((r) => r.latitude)),
-    lng: median(placed.map((r) => r.longitude)),
+    lat: medianOr(placed.map((r) => r.latitude), 0),
+    lng: medianOr(placed.map((r) => r.longitude), 0),
   };
 }
 

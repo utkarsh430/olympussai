@@ -1,4 +1,4 @@
-import { compareText } from './compare';
+import { compareText } from '@/lib/depot/stats/order';
 import { median } from '../stats/robust';
 import { isSupportedMedian } from './support';
 import {

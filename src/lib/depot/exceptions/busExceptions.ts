@@ -3,7 +3,7 @@ import type { BusOpState, DepotSummary } from '../types';
 import { gpsAgeMinutes } from '../infer/busState';
 import { LONG_DARK_AFTER_MIN } from '../infer/thresholds';
 import { BUS_KIND_SEVERITY, EXCEPTION_BASIS, NORMAL_TAMPER_CODE, SEVERITY_ORDER } from './config';
-import { compareText } from './depotExceptions';
+import { compareText } from '@/lib/depot/stats/order';
 import type { BusException, BusExceptionKind, ExceptionSeverity } from './types';
 
 interface Finding {
