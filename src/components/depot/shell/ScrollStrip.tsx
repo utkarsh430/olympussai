@@ -80,7 +80,14 @@ export function ScrollStrip({
 
   return (
     <div className={`relative ${className}`}>
-      <div ref={scroller} className={scrollClassName} data-testid="depot-scroll-strip">
+      {/* `relative`: the row is the containing block of anything absolutely positioned inside
+          it (a visually hidden label, for one), so such a child scrolls and clips with the row
+          instead of widening the page. */}
+      <div
+        ref={scroller}
+        className={`relative ${scrollClassName}`}
+        data-testid="depot-scroll-strip"
+      >
         {children}
       </div>
       {cue.before ? (
