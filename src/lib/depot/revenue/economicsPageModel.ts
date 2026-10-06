@@ -291,3 +291,14 @@ export function breakdownRows(
     contributionText: row.ranked ? signed(cell.contribution) : DASH,
   }));
 }
+
+/** The one sentence that keeps the two indices apart; the link goes between lead and tail. */
+export const INDEX_SEPARATION = {
+  lead: 'The Depot Economics Index is MODELLED from planning assumptions and is separate from the Depot Efficiency Index, which is built from live data. The efficiency index is on the ',
+  linkText: 'league table',
+  tail: '.',
+} as const;
+
+/** The footnote under a breakdown: how contributions become the index. */
+export const BREAKDOWN_NOTE =
+  'Each component is compared with the peer median, signed so higher is better (lower cost counts as better). The weighted contributions are summed and scaled so a typical peer sits at 50: a total of +3 reaches 100 and −3 reaches 0.';

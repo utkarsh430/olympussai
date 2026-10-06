@@ -4,6 +4,8 @@ import type { DepotEconomicsScore, EconomicsComponent } from '@/lib/depot/revenu
 import {
   breakdownRows,
   buildEconomicsRows,
+  BREAKDOWN_NOTE,
+  INDEX_SEPARATION,
   describeDifference,
   economicsStatusLine,
   explainEconomics,
@@ -182,6 +184,16 @@ describe('explainEconomics', () => {
     });
     const [row] = buildEconomicsRows([level]);
     expect(row && explainEconomics(row)).toMatch(/no single measure stands out/i);
+  });
+});
+
+describe('the two indices', () => {
+  it('keeps them apart in one sentence that names each and the data behind it', () => {
+    const sentence = `${INDEX_SEPARATION.lead}${INDEX_SEPARATION.linkText}${INDEX_SEPARATION.tail}`;
+    expect(sentence).toContain('Depot Economics Index is MODELLED');
+    expect(sentence).toContain('separate from the Depot Efficiency Index, which is built from live data');
+    expect(sentence).not.toMatch(/\d/);
+    expect(BREAKDOWN_NOTE.toLowerCase()).not.toContain('efficiency');
   });
 });
 
