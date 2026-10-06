@@ -232,7 +232,7 @@ describe('fetchBusSchedule (direct)', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps answering "not assigned" when a fallback date failed, unless asked to be strict', async () => {
+  it('answers "not assigned" when a fallback date failed, unless asked to be strict', async () => {
     const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
     mockFetch.mockImplementation(async (url) =>
       new URL(url).searchParams.get('date') === TODAY ? ok(NOT_ASSIGNED) : fail,
@@ -268,6 +268,15 @@ describe('fetchBusSchedule (direct)', () => {
     expect(second.source).toBe('cache');
     expect(second.schedule).toBeNull();
     expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('stamps the fallback sample with the clock passed in, not the machine clock', async () => {
+    const { fetchBusSchedule } = await import('@/lib/upsrtc/scheduleService');
+    mockFetch.mockResolvedValue(fail);
+    const later = T0 + 3_600_000;
+    const response = await fetchBusSchedule({ regNum: REG, date: TODAY, tripId: null }, later);
+    expect(response.source).toBe('fixture');
+    expect(response.fetchedAt).toBe(new Date(later).toISOString());
   });
 
   it('holds at most its bound of lookups, forgetting the oldest first', async () => {

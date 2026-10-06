@@ -120,7 +120,7 @@ export async function fetchBusSchedule(
   }
 
   if (process.env.NEXT_PUBLIC_DEMO_MODE === '1') {
-    return fixtureSchedule(regNum, requestedDate, 'Fixture mode forced');
+    return fixtureSchedule(regNum, requestedDate, 'Fixture mode forced', now);
   }
 
   scheduleDiagnostics.lastAttemptAt = new Date(now).toISOString();
@@ -157,7 +157,7 @@ export async function fetchBusSchedule(
     } satisfies ScheduleResponse;
   }
 
-  return fixtureSchedule(regNum, requestedDate, scheduleDiagnostics.lastError);
+  return fixtureSchedule(regNum, requestedDate, scheduleDiagnostics.lastError, now);
 }
 
 /**
@@ -240,11 +240,16 @@ function noAssignmentMessage(date: string): string {
   return `No UPSRTC schedule assigned to this vehicle (checked ${date} and the preceding operating days).`;
 }
 
-function fixtureSchedule(regNum: string, date: string, reason: string | null): ScheduleResponse {
+function fixtureSchedule(
+  regNum: string,
+  date: string,
+  reason: string | null,
+  now: number,
+): ScheduleResponse {
   const schedule = normalizeSchedulePayload(scheduleFixture, regNum, date);
   return {
     schedule,
-    fetchedAt: new Date().toISOString(),
+    fetchedAt: new Date(now).toISOString(),
     source: 'fixture',
     stale: true,
     message: reason
