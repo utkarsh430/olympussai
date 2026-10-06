@@ -109,7 +109,8 @@ describe('the epoch run (P1)', () => {
   });
 
   it('starts no epoch on three stragglers from unrelated old times', () => {
-    const r = replay([BASE, BASE - 1500, BASE - 3600, BASE - 2400, BASE - 1500, BASE - 3600]);
+    // The review's sequence: -3600 precedes -1500, so the run restarts there and holds two.
+    const r = replay([BASE, BASE - 1500, BASE - 3600, BASE - 2400]);
     expect(r.windowEpochs).toEqual([]);
   });
 
