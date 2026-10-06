@@ -5,8 +5,11 @@ const KEY_WIDTH = 18;
 const KEY_HEIGHT = 10;
 const MID = KEY_HEIGHT / 2;
 
-/** A small drawing of the mark the entry names: solid line, dot, dashed line or wash. */
-function LegendKey({ mark }: { readonly mark: LegendMark }) {
+/**
+ * A small drawing of the mark the entry names, in the colour the chart draws it: the
+ * history line cyan, the live dot cyan, the forecast's dashed line and its band teal.
+ */
+export function LegendKey({ mark }: { readonly mark: LegendMark }) {
   return (
     <svg width={KEY_WIDTH} height={KEY_HEIGHT} aria-hidden="true" className="shrink-0">
       {mark === 'line' ? (
@@ -25,7 +28,7 @@ function LegendKey({ mark }: { readonly mark: LegendMark }) {
           y1={MID}
           x2={KEY_WIDTH - 1}
           y2={MID}
-          stroke={TREND_COLOUR.accent}
+          stroke={TREND_COLOUR.forecast}
           strokeWidth={2}
           strokeDasharray={FORECAST_DASH}
         />
@@ -39,7 +42,7 @@ function LegendKey({ mark }: { readonly mark: LegendMark }) {
           y={1}
           width={KEY_WIDTH - 2}
           height={KEY_HEIGHT - 2}
-          fill={TREND_COLOUR.accent}
+          fill={TREND_COLOUR.forecast}
           fillOpacity={BAND_OPACITY * 2}
         />
       ) : null}
