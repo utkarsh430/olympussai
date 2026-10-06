@@ -564,3 +564,77 @@ test.describe('7. keyboard: open a row, close it, focus returns', () => {
     await expect(row).toBeFocused();
   });
 });
+
+const SUPPORTED_QUESTION = 'Give me a summary of the network.';
+const PERSON_QUESTION = 'Who is the best driver at this depot?';
+const DECLINE_HEADLINE = 'That question is outside what can be answered here';
+const COPILOT_LIMIT_PROBES = 15;
+
+async function ask(page: DepotPage, question: string): Promise<void> {
+  await page.getByLabel('Your question').fill(question);
+  await page.getByRole('button', { name: 'Submit', exact: true }).click();
+}
+
+// The copilot is rate limited per session, so these few tests run in order, the cooldown last.
+test.describe('8. the copilot on its scripted writer', () => {
+  test.skip(!E2E_PIN, `SKIPPED: ${PIN_MISSING}`);
+  test.describe.configure({ mode: 'serial' });
+
+  test('a supported question gets an answer signed by the scripted writer', async ({
+    page,
+    sample,
+  }) => {
+    expect(sample.depotId).toBeTruthy();
+    await openPage(page, '/project/depots/ask', 'Ask');
+    await ask(page, SUPPORTED_QUESTION);
+
+    const answer = page.getByTestId('ask-answer').first();
+    await expect(answer).toBeVisible();
+    await expect(answer.getByTestId('copilot-provider')).toHaveText(/^scripted$/i);
+    await expect(answer.getByTestId('copilot-footer-line')).toContainText(/written \d{2}:\d{2}/);
+    await expect(answer.getByTestId('copilot-data-source')).toContainText('sample data');
+    await expect(answer.getByTestId('copilot-footer')).not.toContainText(/claude/i);
+  });
+
+  test('a question about a person gets the fixed decline', async ({ page, sample }) => {
+    expect(sample.depotId).toBeTruthy();
+    await openPage(page, '/project/depots/ask', 'Ask');
+    await ask(page, PERSON_QUESTION);
+
+    const answer = page.getByTestId('ask-answer').first();
+    await expect(answer).toContainText(DECLINE_HEADLINE);
+    await expect(answer).toContainText('Questions about people are outside that scope.');
+    await expect(answer.getByTestId('copilot-footer')).not.toContainText(/claude/i);
+  });
+
+  test('the decline does not call the sample the live data', async ({ page, sample }) => {
+    test.fixme(
+      true,
+      'the decline says questions "would be answered from the live data" on the sample',
+    );
+    expect(sample.depotId).toBeTruthy();
+    await openPage(page, '/project/depots/ask', 'Ask');
+    await ask(page, PERSON_QUESTION);
+    await expect(page.getByTestId('ask-answer').first()).toContainText(DECLINE_HEADLINE);
+    await expect(page.getByTestId('ask-answer').first()).not.toContainText(/\blive\b/i);
+  });
+
+  test('past the limit the page shows the cooldown', async ({ page, sample, baseURL }) => {
+    expect(sample.depotId).toBeTruthy();
+    await openPage(page, '/project/depots/ask', 'Ask');
+    let limited = false;
+    for (let i = 0; i < COPILOT_LIMIT_PROBES && !limited; i += 1) {
+      const res = await page.request.post('/api/upsrtc/depot/copilot', {
+        headers: { Origin: String(baseURL) },
+        data: { task: 'ask', question: SUPPORTED_QUESTION, scope: { kind: 'network' } },
+      });
+      limited = res.status() === 429;
+      if (!limited) expect(res.status()).toBe(200);
+    }
+    expect(limited).toBe(true);
+
+    await ask(page, SUPPORTED_QUESTION);
+    await expect(page.getByText('Too many requests. Please wait.')).toBeVisible();
+    await expect(page.getByTestId('ask-countdown')).toHaveText(/^Try again in \d+ seconds?\.$/);
+  });
+});
