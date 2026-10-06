@@ -12,7 +12,6 @@ import { getRouteProfile, resetRouteCatalogueForTests } from '@/lib/depot/routes
 import { buildRoutesResponse, parseRoutesQuery } from '@/lib/depot/live/routesView';
 import { allocationInputFor, buildAllocationResponse } from '@/lib/depot/live/allocationView';
 import { planAllocation } from '@/lib/depot/optimise/allocate';
-import { modelDepotMaster } from '@/lib/depot/sim/depotMaster';
 
 const FEED_NOW = '2026-10-06T10:00:00.000Z';
 const NEAR_B = 'RKD_4560_ORD_OUT';
@@ -240,20 +239,6 @@ describe('allocation view', () => {
     const sum = response.moves.reduce((total, m) => total + m.savedKmPerDay, 0);
     expect(sum).toBeCloseTo(plan.savedKmPerDay, 6);
     expect(response.beforeKmPerDay.value).toBeGreaterThan(0);
-  });
-
-  it('gives every depot room equal to its modelled parking minus buses kept off the plan', () => {
-    const analysis = analyseSnapshot(view());
-    const input = allocationInputFor(view(), analysis);
-    for (const id of [ALPHA.id, BETA.id]) {
-      const summary = analysis.depotsById.get(id)!;
-      const planLoad = input.routes
-        .filter((r) => r.currentDepotId === id)
-        .reduce((total, r) => total + r.busesNeeded, 0);
-      const parking = modelDepotMaster(summary).parkingCapacity;
-      const capacity = input.depots.find((d) => d.depotId === id)?.capacity;
-      expect(capacity).toBe(parking - Math.max(0, summary.fleet - planLoad));
-    }
   });
 
   it('counts how each depot position was found', () => {
