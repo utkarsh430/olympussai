@@ -13,9 +13,10 @@ import {
   DEAD_KM_MEANING,
   PROFILES_GROW_WITH_USE,
   RECOMMENDATION_ONLY,
-  TRIP_MEANING,
+  TRIPS_MODELLED_NOTE,
 } from '@/lib/depot/routes/allocationWording';
-import type { DepotAllocationResponse } from '@/lib/depot/routes/api';
+import { ALLOCATION_EXCLUSIONS, UNCHANGED_REASONS, type DepotAllocationResponse } from '@/lib/depot/routes/api';
+import { TRIP_DEFINITION } from '@/lib/depot/sim/tripFrequencyConfig';
 
 const TRIP_MODEL = {
   factorMin: 1,
@@ -26,6 +27,10 @@ const TRIP_MODEL = {
   noise: 0.15,
 };
 const PARAMS = { minSavingKmPerDay: 5, maxMoves: 200, detourFactor: 1.3, tripModel: TRIP_MODEL };
+
+function countsOf<R extends string>(reasons: readonly R[], items: readonly { reason: R }[]): Record<R, number> {
+  return Object.fromEntries(reasons.map((r) => [r, items.filter((i) => i.reason === r).length])) as Record<R, number>;
+}
 
 function response(partial: Partial<DepotAllocationResponse> = {}): DepotAllocationResponse {
   return {
@@ -42,12 +47,24 @@ function response(partial: Partial<DepotAllocationResponse> = {}): DepotAllocati
     afterKmPerDay: { value: 10000.04, provenance: 'modelled', coverage: { n: 412, of: 1204 } },
     savedKmPerDay: { value: 2345.63, provenance: 'modelled', coverage: { n: 412, of: 1204 } },
     moves: [],
+    reason: null,
+    q: null,
+    offset: 0,
+    limit: 0,
     unchanged: [],
+    unchangedTotal: 0,
     excluded: [],
+    excludedTotal: 0,
+    profilesPending: false,
+    profilesPendingNote: null,
+    tripDefinition: TRIP_DEFINITION,
     provenance: { deadKmPerTrip: 'derived', tripsPerDay: 'modelled', kmPerDay: 'modelled', capacity: 'modelled' },
     params: PARAMS,
     profileEndpoint: '/api/upsrtc/depot/route/{routeName}',
     ...partial,
+    // As the server does: the counts by reason cover the whole lists.
+    unchangedByReason: countsOf(UNCHANGED_REASONS, partial.unchanged ?? []),
+    excludedByReason: countsOf(ALLOCATION_EXCLUSIONS, partial.excluded ?? []),
   };
 }
 
@@ -203,10 +220,10 @@ describe('fixed sentences', () => {
   });
 
   it('explains trips, use-driven coverage and recommendation only, never "simulated"', () => {
-    for (const s of [TRIP_MEANING, DEAD_KM_MEANING, PROFILES_GROW_WITH_USE, RECOMMENDATION_ONLY]) {
+    for (const s of [TRIPS_MODELLED_NOTE, DEAD_KM_MEANING, PROFILES_GROW_WITH_USE, RECOMMENDATION_ONLY]) {
       expect(s.toLowerCase()).not.toContain('simulated');
     }
-    expect(TRIP_MEANING).toContain('first stop');
+    expect(TRIPS_MODELLED_NOTE).toContain('modelled from the buses');
     expect(DEAD_KM_MEANING).toContain('first and last stops');
     expect(PROFILES_GROW_WITH_USE).toContain('one route at a time');
     expect(PROFILES_GROW_WITH_USE).toContain('never in bulk');

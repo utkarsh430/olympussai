@@ -110,13 +110,16 @@ export function moveNote(move: Pick<RouteMove, 'madeRoom' | 'savedKmPerDay'>): s
   return toTenths(move.savedKmPerDay) <= 0 ? `${MADE_ROOM}, no saving of its own` : MADE_ROOM;
 }
 
+const sumOf = (counts: Readonly<Record<string, number>>): number =>
+  Object.values(counts).reduce((total, n) => total + n, 0);
+
 function countsLine<T extends string>(
-  items: readonly { readonly reason: T }[],
+  counts: Readonly<Record<T, number>>,
   order: readonly T[],
   short: (reason: T) => string,
 ): string {
   return order
-    .map((reason) => ({ reason, n: items.filter((item) => item.reason === reason).length }))
+    .map((reason) => ({ reason, n: counts[reason] }))
     .filter((entry) => entry.n > 0)
     .map((entry) => `${formatCount(entry.n)} ${short(entry.reason)}`)
     .join(', ');
@@ -150,6 +153,9 @@ function positionsLine(p: DepotAllocationResponse['depotPositions']): string {
 export function allocationHeadline(a: DepotAllocationResponse): AllocationHeadline {
   const { planned, profiled } = a.coverage;
   const params = a.params;
+  // The lists are paged on the server; the counts by reason are always whole.
+  const staying = sumOf(a.unchangedByReason);
+  const outside = sumOf(a.excludedByReason);
   const madeRoom = a.moves.filter((m) => m.madeRoom).length;
   const movesLine =
     a.moves.length === 0
@@ -165,16 +171,16 @@ export function allocationHeadline(a: DepotAllocationResponse): AllocationHeadli
     emptyLine: `No route can be planned yet: none of the ${routes(planned.of)} in the feed has a known profile that can be measured from a depot.`,
     movesLine,
     stayLine:
-      a.unchanged.length === 0
+      staying === 0
         ? null
-        : `${routes(a.unchanged.length)} would stay: ${countsLine(a.unchanged, UNCHANGED_ORDER, (r) =>
+        : `${routes(staying)} would stay: ${countsLine(a.unchangedByReason, UNCHANGED_ORDER, (r) =>
             unchangedShort(r, params),
           )}.`,
     excludedLine:
-      a.excluded.length === 0
+      outside === 0
         ? null
-        : `${routes(a.excluded.length)} are outside the plan: ${countsLine(
-            a.excluded,
+        : `${routes(outside)} are outside the plan: ${countsLine(
+            a.excludedByReason,
             EXCLUSION_ORDER,
             (r) => EXCLUSION_SHORT[r],
           )}.`,
@@ -192,14 +198,15 @@ export function notProfiledSentence(missing: number, total: number): string {
   return `${formatCount(missing)} of ${routes(total)} have no known profile yet, so the plan cannot measure their dead kilometres.`;
 }
 
-export const TRIP_MEANING =
-  'A trip here is one run out of the depot: the bus drives empty from its depot to the first stop, runs the route, and drives empty back from the last stop. The feed does not carry trip counts, so trips a day are modelled from the buses on the route and its scheduled length.';
+/** Printed after the server's trip definition. */
+export const TRIPS_MODELLED_NOTE =
+  'The feed does not carry trip counts, so trips a day are modelled from the buses on the route and its scheduled length.';
 
 export const DEAD_KM_MEANING =
   "Dead kilometres are the empty running between those positions and each route's first and last stops.";
 
 export const PROFILES_GROW_WITH_USE =
-  "A route's stops are fetched one route at a time, when a depot's roster or a bus on that route is opened, never in bulk, so coverage grows with use.";
+  "A route's stops are fetched one route at a time, when that route is opened below or a depot's roster or a bus on it is opened, never in bulk, so coverage grows with use.";
 
 export const RECOMMENDATION_ONLY =
   'Recommendation only: no route is reassigned. Any change of depot is decided and made outside this page.';

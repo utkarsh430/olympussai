@@ -1,16 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import type { RouteListItem } from '@/lib/depot/routes/api';
+import { classOptions, depotOptions, inClass, pageItems, sortRoutes } from '@/lib/depot/routes/routeListing';
+import { NO_CLASS } from '@/lib/depot/routes/routeQuery';
 import {
-  NO_CLASS,
-  NO_ROUTE_FILTERS,
   ROUTE_PAGE_SIZE,
-  classOptions,
-  depotOptions,
-  filterRoutes,
-  pageOf,
+  offsetOf,
   routeRangeSentence,
-  sortRoutes,
+  serverPage,
 } from '@/lib/depot/routes/routesPageModel';
+
+interface Filters {
+  readonly depotId: string | null;
+  readonly serviceClass: string | null;
+}
+const NO_ROUTE_FILTERS: Filters = { depotId: null, serviceClass: null };
+/** The server's depot and class filters, as `routesView` applies them. */
+const filterRoutes = (routes: readonly RouteListItem[], f: Filters): RouteListItem[] =>
+  routes.filter(
+    (r) =>
+      (f.depotId === null || r.operators.some((o) => o.depotId === f.depotId)) &&
+      inClass(r, f.serviceClass),
+  );
 import { deadKmWords, delayWords, operatorsView } from '@/lib/depot/routes/routeRowWording';
 
 type Op = { depotId: string; depotName: string; buses: number };
@@ -124,17 +134,19 @@ describe('sortRoutes', () => {
 describe('paging', () => {
   const items = Array.from({ length: 60 }, (_, i) => i);
 
-  it('cuts pages of the page size and counts them', () => {
-    const p = pageOf(items, 2);
+  it('cuts a server page and numbers it from the offset and the true total', () => {
     expect(ROUTE_PAGE_SIZE).toBe(25);
-    expect(p).toMatchObject({ page: 2, pageCount: 3, offset: 50, total: 60 });
-    expect(p.items).toEqual(items.slice(50));
+    expect(pageItems(items, { offset: 50, limit: 25 })).toEqual(items.slice(50));
+    expect(serverPage(60, 50, 25)).toEqual({ page: 2, pageCount: 3 });
+    expect(offsetOf(2, 25)).toBe(50);
   });
 
-  it('clamps a page past the end (a filter or poll shrank the list) and below the start', () => {
-    expect(pageOf(items, 9).page).toBe(2);
-    expect(pageOf(items, -1).page).toBe(0);
-    expect(pageOf([], 3)).toMatchObject({ page: 0, pageCount: 1, offset: 0, total: 0, items: [] });
+  it('clamps a page past the end (a filter or poll shrank the list) and copes with no rows', () => {
+    expect(serverPage(60, 225, 25).page).toBe(2);
+    expect(offsetOf(-1, 25)).toBe(0);
+    expect(serverPage(0, 75, 25)).toEqual({ page: 0, pageCount: 1 });
+    expect(serverPage(60, 0, 0)).toEqual({ page: 0, pageCount: 1 });
+    expect(pageItems(items, { offset: 100, limit: 25 })).toEqual([]);
   });
 
   it('states the range and the filter honestly', () => {
