@@ -9,12 +9,11 @@ import { DEPOT_NOT_FOUND_MESSAGE } from '@/hooks/useDepotDetail';
 import { buildCockpit } from '@/lib/depot/cockpit/cockpitModel';
 import type { CopilotScope } from '@/lib/depot/copilot/wire';
 import { depotHref } from '@/lib/depot/depotNav';
-import { formatCount } from '@/lib/depot/format';
 import { DEPOTS_ROOT } from '@/lib/depot/nav';
 import { AttentionStrip } from './AttentionStrip';
 import { AvailabilityBar } from './AvailabilityBar';
 import { BriefingRow } from './BriefingRow';
-import { CockpitMethod } from './CockpitMethod';
+import { COCKPIT_HOW_ID, CockpitMethod } from './CockpitMethod';
 import { DepotExceptions } from './DepotExceptions';
 import { OutshedTracker } from './OutshedTracker';
 
@@ -44,18 +43,6 @@ function UnknownDepot({ depotId }: { readonly depotId: string }) {
   );
 }
 
-function VisitorLine({ depotId, count }: { readonly depotId: string; readonly count: number }) {
-  return (
-    <p className="min-w-0 font-mono text-[13px] text-depot-muted" data-testid="depot-visitor-line">
-      {count === 0 ? 'No visiting bus stands in this yard.' : `${formatCount(count)} visiting ${count === 1 ? 'bus' : 'buses'} in the yard`}
-      {' · '}
-      <Link href={`${depotHref(depotId)}/yard`} className="depot-link">
-        Open Yard
-      </Link>
-    </p>
-  );
-}
-
 /**
  * The depot manager's first screen of a shift, from the scope's single detail poll:
  * what needs attention (the hero), availability, the next departures, exceptions,
@@ -80,16 +67,17 @@ export function DepotCockpit() {
   }
 
   return (
-    <div data-testid="depot-cockpit" className="min-w-0 space-y-8">
+    <div data-testid="depot-cockpit" className="depot-stack min-w-0">
       {data.stale || error ? <StaleStrip since={data.feedNow} /> : null}
       <AttentionStrip attention={model.attention} />
       <AvailabilityBar
         fleet={model.board.fleet}
         segments={model.availability}
         text={model.availabilityText}
-        standing={model.standing}
+        yard={model.yardLine}
+        yardHref={`${depotHref(depotId)}/yard`}
+        howId={COCKPIT_HOW_ID}
       />
-      <VisitorLine depotId={depotId} count={model.visitorCount} />
       <OutshedTracker
         depotId={depotId}
         rows={model.tracker}

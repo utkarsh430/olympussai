@@ -95,18 +95,19 @@ describe('cockpit availability bar', () => {
       { state: 'dark' as const, label: 'Dark', count: 4, share: 0.4, shareText: '40%' },
     ];
     const markup = renderToStaticMarkup(
-      <AvailabilityBar fleet={10} segments={segments} text="Of 10 buses." standing={{ kind: 'no-yard', sentence: 'No yard.' }} />,
+      <AvailabilityBar fleet={10} segments={segments} text="Of 10 buses." yard={{ kind: 'no-yard', sentence: 'No yard.' }} yardHref="/y" howId="how" />,
     );
     expect(hooks.forecast).toHaveBeenCalledWith({
       metric: 'onRoadShare',
       scope: { kind: 'depot', depotId: '20' },
     });
-    const cell = markup.slice(
-      markup.indexOf('depot-state-on_road'),
-      markup.indexOf('depot-state-dark'),
-    );
-    expect(text(cell)).toMatch(/On-road share, MODELLED: .* over 7 days/);
-    expect(markup.match(/data-testid="trend-week-line"/g)).toHaveLength(1);
+    // Round 2 (critique, cockpit Must 3): the week line is the section label's note, its
+    // tag in words once, and no longer inside the legend.
+    const label = markup.slice(0, markup.indexOf('depot-availability-bar'));
+    expect(text(label)).toMatch(/On-road share, MODELLED: .* over 7 days/);
+    expect(text(markup).match(/MODELLED/g)).toHaveLength(1);
+    const legend = markup.slice(markup.indexOf('Availability legend'));
+    expect(legend).not.toMatch(/MODELLED/);
   });
 });
 

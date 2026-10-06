@@ -15,7 +15,7 @@ import type { DepotScore } from '@/lib/depot/score/types';
 import type { DepotSummary } from '@/lib/depot/types';
 import type { CockpitHeader, CockpitModel, ExceptionLine, VisitorRow } from './cockpitTypes';
 import { buildAttention } from './attention';
-import { availabilitySegments, availabilityText, standingLine } from './availability';
+import { availabilitySegments, availabilityText, yardLine } from './availability';
 import { depotExceptionLines, groupBusExceptions } from './exceptionGroups';
 import { indexMeta, type IndexMeta } from './indexMeta';
 import { buildBoard, describeYard } from './statusBoard';
@@ -116,7 +116,12 @@ export function buildCockpit(detail: DepotDetailResponse): CockpitModel {
     attention: buildAttention(detail, detail.depot.id),
     availability: availabilitySegments(board),
     availabilityText: availabilityText(board),
-    standing: standingLine(board, detail.yard.value?.heldSince ?? null),
+    yardLine: yardLine(board, {
+      inYard: detail.locationMix.in_yard,
+      visitors: detail.visitors.length,
+      heldSince: detail.yard.value?.heldSince ?? null,
+      snapshotsSeen: detail.yardSnapshotsSeen,
+    }),
     exceptionGroups: groupBusExceptions(detail.exceptions.bus, detail.depot.id),
     depotExceptions: depotExceptionLines(detail.exceptions.depot, detail.scoreWindow, detail.feedNow),
     visitorCount: detail.visitors.length,

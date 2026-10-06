@@ -4,7 +4,7 @@ import { buildAttention } from '@/lib/depot/cockpit/attention';
 import {
   availabilitySegments,
   availabilityText,
-  standingLine,
+  yardLine,
 } from '@/lib/depot/cockpit/availability';
 import { depotExceptionLines, groupBusExceptions } from '@/lib/depot/cockpit/exceptionGroups';
 import { indexMeta } from '@/lib/depot/cockpit/indexMeta';
@@ -124,31 +124,61 @@ describe('availability bar', () => {
   it('gives every state its word, count and share, summing to the fleet', () => {
     const segments = availabilitySegments(BOARD);
     expect(segments.map((s) => s.count).reduce((a, b) => a + b, 0)).toBe(200);
-    expect(segments[0]).toMatchObject({ state: 'in_service', label: 'In service', count: 5, shareText: '2.5%' });
+    expect(segments[0]).toMatchObject({ state: 'in_service', label: 'In service', count: 5, shareText: '3%' });
   });
 
   it('has a text equivalent', () => {
     expect(availabilityText(BOARD)).toBe(
-      'Of 200 buses: 5 in service (2.5%), 55 on road, no schedule in feed (27.5%), 86 standing (43%), 44 dark (22%), 10 off road (5%).',
+      'Of 200 buses: 5 in service (3%), 55 on road, no schedule in feed (28%), 86 standing (43%), 44 dark (22%), 10 off road (5%).',
     );
   });
 
-  it('puts the standing split on one line', () => {
-    expect(standingLine(BOARD, null)).toEqual({
+  it('shows every share at one precision, and a small one as under 1%', () => {
+    const tiny = { ...BOARD, fleet: 400, states: BOARD.states.map((c, i) => (i === 0 ? { ...c, count: 2 } : c)) };
+    expect(availabilitySegments(tiny)[0]?.shareText).toBe('<1%');
+    expect(availabilitySegments({ ...BOARD, states: BOARD.states.map((c) => ({ ...c, count: 0 })) })[0]?.shareText).toBe('0%');
+  });
+
+  const SEEN = { inYard: 77, visitors: 68, heldSince: null, snapshotsSeen: 40 };
+
+  it('puts every bus in the yard, the visitors and the standing split on one line', () => {
+    expect(yardLine(BOARD, SEEN)).toEqual({
       kind: 'split',
-      text: '86 standing: 59 in the yard · 2 at another yard · 25 away · 0 location unknown',
+      text: "77 of this depot's buses in the yard, with 68 visiting · 86 standing: 59 standing in the yard, 2 at another yard, 25 away",
       held: null,
     });
+    const line = yardLine(BOARD, { ...SEEN, visitors: 0 });
+    expect(line.kind === 'split' && line.text).toMatch(/^77 of this depot's buses in the yard, no visiting bus · /);
+  });
+
+  it('never says "in the yard" for the standing subset without "standing"', () => {
+    const line = yardLine(BOARD, SEEN);
+    const text = line.kind === 'split' ? line.text : '';
+    expect(text.match(/(\S+) in the yard/g)).toEqual(["buses in the yard", 'standing in the yard']);
   });
 
   it('says when the yard is held', () => {
-    const line = standingLine(BOARD, '2026-10-05T14:02:00.000Z');
+    const line = yardLine(BOARD, { ...SEEN, heldSince: '2026-10-05T14:02:00.000Z' });
     expect(line.kind === 'split' && line.held).toBe('Yard held since 14:02: this snapshot alone would not place it.');
   });
 
-  it('gives the yard rule when no yard is established', () => {
-    const line = standingLine({ ...BOARD, locations: null, yard: { established: false, sentence: 'No yard is established.' } }, null);
-    expect(line).toEqual({ kind: 'no-yard', sentence: 'No yard is established.' });
+  it('gives one line when no yard is established, the rule left to the closing disclosure', () => {
+    const noYard = { ...BOARD, locations: null, yard: { established: false, sentence: 'Rule.' } } as StatusBoard;
+    expect(yardLine(noYard, SEEN)).toEqual({
+      kind: 'no-yard',
+      sentence: 'No yard is established yet: no place where these buses park meets the yard rule.',
+    });
+  });
+
+  it('says the server has only just started when it has decided the yard on at most one snapshot', () => {
+    const noYard = { ...BOARD, locations: null, yard: { established: false, sentence: 'Rule.' } } as StatusBoard;
+    for (const snapshotsSeen of [0, 1]) {
+      expect(yardLine(noYard, { ...SEEN, snapshotsSeen })).toEqual({
+        kind: 'starting',
+        sentence: 'The server has only just started, so no yard is placed yet; one may be found within a few snapshots.',
+      });
+    }
+    expect(yardLine(noYard, { ...SEEN, snapshotsSeen: undefined }).kind).toBe('no-yard');
   });
 });
 

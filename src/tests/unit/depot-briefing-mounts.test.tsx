@@ -20,7 +20,10 @@ vi.mock('@/components/depot/cockpit/AttentionStrip', () => ({ AttentionStrip: ()
 vi.mock('@/components/depot/cockpit/AvailabilityBar', () => ({ AvailabilityBar: () => null }));
 vi.mock('@/components/depot/cockpit/OutshedTracker', () => ({ OutshedTracker: () => null }));
 vi.mock('@/components/depot/cockpit/DepotExceptions', () => ({ DepotExceptions: () => null }));
-vi.mock('@/components/depot/cockpit/CockpitMethod', () => ({ CockpitMethod: () => null }));
+vi.mock('@/components/depot/cockpit/CockpitMethod', () => ({
+  COCKPIT_HOW_ID: 'how-produced',
+  CockpitMethod: () => <div data-testid="depot-cockpit-method" />,
+}));
 vi.mock('@/lib/depot/cockpit/cockpitModel', () => ({
   buildCockpit: (): unknown => ({
     header: { kindLabel: 'Depot', fleet: 0 },
@@ -90,18 +93,19 @@ describe('Depot cockpit briefing', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  // Guard review M5: this test rendered the network overview; it now renders the cockpit.
   it('folds the card into one closed row and ends the page with the closed disclosure', () => {
-    contexts.network = {
+    contexts.detail = {
       ...base,
-      data: { stale: false, depots: [], scores: [], kpis: {}, feedNow: 'x' },
+      depotId: '20',
+      data: { stale: false, feedNow: 'x', depot: { status: {} }, outshed: { coverage: {} } },
     };
-    const markup = renderToStaticMarkup(<NetworkOverview />);
-    const row = markup.slice(markup.indexOf('data-testid="depot-briefing-row"') - 60);
-    expect(row.startsWith('<details') || row.includes('<details class')).toBe(true);
-    expect(markup).not.toMatch(/<details[^>]*\sopen/);
-    expect(markup).toContain('How these figures are produced');
-    expect(markup.indexOf('How these figures are produced')).toBeGreaterThan(
-      markup.indexOf('Network briefing'),
+    const markup = renderToStaticMarkup(<DepotCockpit />);
+    expect(markup).toContain('data-testid="depot-briefing-row"');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).not.toContain('data-testid="briefing-card"');
+    expect(markup.indexOf('data-testid="depot-cockpit-method"')).toBeGreaterThan(
+      markup.indexOf('data-testid="depot-briefing-row"'),
     );
   });
 
