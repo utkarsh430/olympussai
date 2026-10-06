@@ -18,9 +18,9 @@ export default async function DepotRevenuePage({
   return (
     <>
       <PageHeader
-        title="Revenue and ridership (modelled)"
-        description="Trips, boardings and revenue by route for the operating date. The feed carries no ticketing, so every figure here is modelled from planning assumptions, not measured."
-        provenance="modelled"
+        title="Revenue and ridership"
+        description="Trips, boardings and revenue by route for the operating date."
+        provenanceLine={{ default: 'modelled', replacedBy: 'a ticketing feed and a route master' }}
       />
       <Suspense fallback={<LoadingBlock rows={12} label="Loading the revenue view" />}>
         <RevenuePage />

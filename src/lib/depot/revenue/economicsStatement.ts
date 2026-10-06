@@ -50,7 +50,7 @@ export function lengthCoverageLine(depots: readonly EconomicsDepotRow[]): string
   const run = operating.reduce((total, d) => total + d.lengthCoverage.of, 0);
   if (run <= 0) return null;
   const noun = run === 1 ? 'route' : 'routes';
-  return `Route lengths: ${formatCount(real)} of ${formatCount(run)} ${noun} run in the modelled day rest on a real route profile; the rest use a MODELLED typical length for their class. Earnings and fuel cost per kilometre do not depend on the length, so it moves the revenue totals, not the ranking.`;
+  return `Route lengths: ${formatCount(real)} of ${formatCount(run)} ${noun} run in the modelled day rest on a real route profile; the rest use a modelled typical length for their class. Earnings and fuel cost per kilometre do not depend on the length, so it moves the revenue totals, not the ranking.`;
 }
 
 export interface EconomicsStatement {

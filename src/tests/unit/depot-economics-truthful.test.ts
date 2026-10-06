@@ -121,7 +121,7 @@ describe('the real-length coverage across the network', () => {
     // Real lengths summed over operating depots: 2 + 2 + 0 + 2 = 6 of 2 + 2 + 9 + 9 = 22
     // routes; the hired unit (not an operating depot) is left out.
     expect(lengthCoverageLine([entry('1'), entry('2'), NO_LENGTH, THIN, OTHER_UNIT])).toBe(
-      'Route lengths: 6 of 22 routes run in the modelled day rest on a real route profile; the rest use a MODELLED typical length for their class. Earnings and fuel cost per kilometre do not depend on the length, so it moves the revenue totals, not the ranking.',
+      'Route lengths: 6 of 22 routes run in the modelled day rest on a real route profile; the rest use a modelled typical length for their class. Earnings and fuel cost per kilometre do not depend on the length, so it moves the revenue totals, not the ranking.',
     );
   });
   it('says nothing when no route ran', () => {

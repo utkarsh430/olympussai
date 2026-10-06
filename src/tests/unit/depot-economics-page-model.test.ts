@@ -173,18 +173,18 @@ describe('economicsStatusLine', () => {
       OTHER_UNIT,
     ]);
     expect(line).toBe(
-      '2 ranked of 4 operating depots (MODELLED) · 1 not ranked: no duty ran in the modelled day · 1 not ranked: fewer than 10 buses · 1 other unit is not an operating depot',
+      '2 ranked of 4 operating depots · 1 not ranked: no duty ran in the modelled day · 1 not ranked: fewer than 10 buses · 1 other unit is not an operating depot',
     );
   });
   it('counts a thin real-length coverage as ranked and the group reason on its own', () => {
     // The coverage gate is gone (S39): only the peer-group size guard is left to count here.
     expect(economicsStatusLine([RANKED_THIN, UNRANKED_GROUP, UNRANKED_GROUP])).toBe(
-      '1 ranked of 3 operating depots (MODELLED) · 2 not ranked: its peer group has too few depots with complete figures',
+      '1 ranked of 3 operating depots · 2 not ranked: its peer group has too few depots with complete figures',
     );
   });
   it('uses the singular for one operating depot and omits empty reasons', () => {
     expect(economicsStatusLine([entry('1', { peerCount: 1 })])).toBe(
-      '1 ranked of 1 operating depot (MODELLED)',
+      '1 ranked of 1 operating depot',
     );
   });
 });
@@ -225,7 +225,7 @@ describe('explainEconomics', () => {
 describe('the two indices', () => {
   it('keeps them apart in one sentence that names each and the data behind it', () => {
     const sentence = `${INDEX_SEPARATION.lead}${INDEX_SEPARATION.linkText}${INDEX_SEPARATION.tail}`;
-    expect(sentence).toContain('Depot Economics Index is MODELLED');
+    expect(sentence).toContain('Depot Economics Index is modelled');
     expect(sentence).toContain('separate from the Depot Efficiency Index, which is built from live data');
     expect(sentence).not.toMatch(/\d/);
     expect(BREAKDOWN_NOTE.toLowerCase()).not.toContain('efficiency');

@@ -2,8 +2,8 @@
 
 import { useMemo } from 'react';
 import { DataTable, type Column } from '@/components/depot/shell/DataTable';
-import { EmptyState } from '@/components/depot/shell/DataStates';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import { formatCount } from '@/lib/depot/format';
 import type { FuelOtherRoutes } from '@/lib/depot/fuel/api';
 import { routeCell, routeRows, type RouteRow } from '@/lib/depot/fuel/fuelPageModel';
@@ -64,31 +64,25 @@ export interface RouteTableProps {
 /** Routes with their figures; capped by the server, with the true count beside it. */
 export function RouteTable({ rows, total, other }: RouteTableProps) {
   const shaped = useMemo(() => routeRows(rows, other), [rows, other]);
+  const note =
+    total > rows.length
+      ? `Highest cost first: ${formatCount(rows.length)} of ${formatCount(total)} routes, the rest summed in one row`
+      : 'Highest cost first';
   return (
-    <section aria-labelledby="depot-fuel-routes-heading" className="animate-rise">
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 id="depot-fuel-routes-heading" className="depot-section-label !mb-0">
-          By route
-        </h2>
-        <ProvenanceBadge provenance="modelled" />
-      </div>
+    <section aria-labelledby="depot-fuel-routes-heading" className="min-w-0">
+      <SectionLabel id="depot-fuel-routes-heading" label="By route" count={total} note={note} />
       {rows.length === 0 ? (
-        <EmptyState>No route has modelled fuel for this date.</EmptyState>
+        <StatePanel kind="empty" sentence="No route has fuel figures for this date." />
       ) : (
-        <>
-          {total > rows.length ? (
-            <p className="depot-prose mb-2">
-              Showing the {formatCount(rows.length)} routes with the highest cost of {formatCount(total)}; the
-              rest are summed in one row, so the table adds up to the depot total.
-            </p>
-          ) : null}
-          <DataTable
-            columns={COLUMNS}
-            rows={shaped}
-            rowKey={(r) => r.rowKey}
-            caption="Modelled fuel and cost by route"
-          />
-        </>
+        <DataTable
+          columns={COLUMNS}
+          rows={shaped}
+          rowKey={(r) => r.rowKey}
+          caption="Fuel and cost by route"
+          fixedRows
+          freezeFirstColumn
+          overflowCue
+        />
       )}
     </section>
   );

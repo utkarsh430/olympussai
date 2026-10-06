@@ -1,4 +1,3 @@
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
 import {
   BREAKDOWN_NOTE,
   breakdownRows,
@@ -7,7 +6,7 @@ import {
   type EconomicsRow,
 } from '@/lib/depot/revenue/economicsPageModel';
 import type { EconomicsResponse } from '@/lib/depot/revenue/api';
-import { coverageSentence, modelledHeader } from '@/lib/depot/revenue/revenuePageModel';
+import { coverageSentence } from '@/lib/depot/revenue/revenuePageModel';
 
 /**
  * Why one depot scored what it did on the MODELLED economics index: each
@@ -28,17 +27,14 @@ export function EconomicsBreakdown({
     <section
       aria-labelledby="economics-breakdown-title"
       data-testid="depot-economics-breakdown"
-      className="depot-panel min-w-0 p-4 xl:sticky xl:top-20 xl:self-start"
+      className="depot-panel min-w-0 p-4 2xl:sticky 2xl:top-[var(--depot-panel-top)] 2xl:self-start"
     >
-      <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="depot-label">Economics breakdown (modelled)</span>
-        <ProvenanceBadge provenance="modelled" />
-      </p>
+      <p className="depot-label">Economics breakdown</p>
       <h2
         id="economics-breakdown-title"
         ref={headingRef}
         tabIndex={-1}
-        className="mt-1 font-mono text-sm text-depot-ink focus:outline-none"
+        className="mt-1 scroll-mt-[var(--depot-anchor-mt)] font-mono text-sm text-depot-ink focus:outline-none"
       >
         {`${row.name} · ${peerRankPhrase(row)}`}
       </h2>
@@ -52,17 +48,30 @@ export function EconomicsBreakdown({
           <thead>
             <tr>
               <th scope="col">Component</th>
-              <th scope="col" className="depot-align-right">{modelledHeader('Depot')}</th>
-              <th scope="col" className="depot-align-right">{modelledHeader('Peer median')}</th>
-              <th scope="col" className="depot-align-right">{modelledHeader('Z (higher is better)')}</th>
-              <th scope="col" className="depot-align-right">Weight</th>
-              <th scope="col" className="depot-align-right">{modelledHeader('Contribution')}</th>
+              <th scope="col" className="depot-align-right">
+                Depot
+              </th>
+              <th scope="col" className="depot-align-right">
+                Peer median
+              </th>
+              <th scope="col" className="depot-align-right">
+                Z (higher is better)
+              </th>
+              <th scope="col" className="depot-align-right">
+                Weight
+              </th>
+              <th scope="col" className="depot-align-right">
+                Contribution
+              </th>
             </tr>
           </thead>
           <tbody>
             {breakdownRows(row, weights).map((c) => (
               <tr key={c.key}>
-                <th scope="row" className="!static !bg-transparent !text-left !normal-case !tracking-normal !text-depot-ink">
+                <th
+                  scope="row"
+                  className="!static !bg-transparent !text-left !normal-case !tracking-normal !text-depot-ink"
+                >
                   {c.label}
                 </th>
                 <td className="depot-align-right">
