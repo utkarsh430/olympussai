@@ -85,7 +85,7 @@ describe('deadKmFor', () => {
     expect(dead).not.toBeNull();
     expect(dead!.outKm).toBe(Math.round(outM / 100) / 10);
     expect(dead!.inKm).toBe(Math.round(inM / 100) / 10);
-    expect(dead!.perTripKm).toBe(Math.round((outM + inM) / 100) / 10);
+    expect(dead!.perTripKm).toBe((Math.round(outM / 100) + Math.round(inM / 100)) / 10);
     expect(dead!.firstStopUsed).toBe('North');
     expect(dead!.lastStopUsed).toBe('East');
     expect(dead!.approximated).toBe(false);
@@ -118,6 +118,27 @@ describe('deadKmFor', () => {
     expect(deadKmFor(YARD, profile(stops), NaN)).toBeNull();
     expect(deadKmFor(YARD, profile(stops), 0)).toBeNull();
     expect(deadKmFor(YARD, profile(stops), Infinity)).toBeNull();
+  });
+
+  it('shows figures that add up: perTripKm is outKm plus inKm to one decimal', () => {
+    let seed = 12345;
+    const rand = (): number => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    for (let i = 0; i < 300; i += 1) {
+      const yard = { lat: 20 + rand() * 10, lng: 75 + rand() * 10 };
+      const a = stop(1, 20 + rand() * 10, 75 + rand() * 10);
+      const b = stop(2, 20 + rand() * 10, 75 + rand() * 10);
+      const detour = 1 + rand();
+      const dead = deadKmFor(yard, profile([a, b]), detour)!;
+      expect(Math.round(dead.perTripKm * 10)).toBe(
+        Math.round(dead.outKm * 10) + Math.round(dead.inKm * 10),
+      );
+      const outM = Math.round(haversineKm(yard.lat, yard.lng, a.lat!, a.lng!) * 1000 * detour);
+      const inM = Math.round(haversineKm(b.lat!, b.lng!, yard.lat, yard.lng) * 1000 * detour);
+      expect(Math.abs(dead.perTripKm - (outM + inM) / 1000)).toBeLessThanOrEqual(0.1 + 1e-9);
+    }
   });
 
   it('scales with the detour factor', () => {
