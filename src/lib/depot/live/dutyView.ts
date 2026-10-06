@@ -7,6 +7,7 @@ import type {
 } from '../duties/api';
 import type { Duty, DutyAssignment } from '../duties/types';
 import type { FleetSnapshotView } from '../repositories/types';
+import type { ModelledBus } from '../sim/types';
 import { operatingDateOf } from '../sim/seed';
 import { analyseSnapshot, feedEnvelope, type SnapshotAnalysis } from './analysis';
 import { dutyPlanFor } from './operatingDayView';
@@ -44,6 +45,7 @@ function toBoardDuty(
   duty: Duty,
   assignment: DutyAssignment | undefined,
   heldOut: DutyBlockers,
+  fleet: ReadonlyMap<string, ModelledBus>,
 ): BoardDuty {
   const registration = assignment?.registrationNumber ?? null;
   const blockers = registration === null ? heldOut : null;
@@ -55,6 +57,7 @@ function toBoardDuty(
     serviceClass: duty.serviceClass,
     registrationNumber: registration,
     busStanding: registration === null ? null : (assignment?.busStanding ?? null),
+    busClass: registration === null ? null : (fleet.get(registration)?.serviceClass ?? null),
     state: stateOf(registration, blockers ?? NO_BLOCKERS),
     blockers,
   };
@@ -68,10 +71,10 @@ function buildBody(
 ): DutyBoardBody | null {
   const planned = dutyPlanFor(analysis, depotId, operatingDate);
   if (!planned) return null;
-  const { duties, plan } = planned;
+  const { duties, plan, fleet } = planned;
   const byDuty = new Map(plan.assignments.map((a) => [a.dutyId, a]));
   const heldOut = blockersFor(plan.excluded);
-  const board = duties.map((d) => toBoardDuty(d, byDuty.get(d.id), heldOut));
+  const board = duties.map((d) => toBoardDuty(d, byDuty.get(d.id), heldOut, fleet));
   const counts: DutyBoardCounts = {
     duties: board.length,
     assigned: board.length - plan.unassignedDuties,
@@ -87,8 +90,9 @@ function buildBody(
     peakRequirement: planned.peakRequirement,
     routeCount: planned.routeCount,
     duties: board,
-    spareBuses: plan.spareBuses,
-    routesWithoutDuty: planned.routesWithoutDuty,
+    // Copies, frozen: the plan is shared by every page and must never be changed through a body.
+    spareBuses: Object.freeze([...plan.spareBuses]),
+    routesWithoutDuty: Object.freeze([...planned.routesWithoutDuty]),
     counts,
     eligibilityIgnoredLocation: planned.locationIgnored,
     recencyNotJudged: planned.recencyNotJudged,
