@@ -403,10 +403,10 @@ describe('revenue components', () => {
       'Boardings',
       'Load factor',
       'Revenue',
-      'Earnings per km',
+      '₹ / km',
     ]);
     expect(band[3]?.value).toBe('₹12,345');
-    expect(band[3]?.caption).toBe('40.0% on modelled lengths');
+    expect(band[3]?.caption).toBe('route lengths modelled');
     expect(band[4]?.caption).toBe('no kilometres run');
     for (const f of band) expect(`${f.label}${f.value}${f.caption}`).not.toMatch(/MODELLED/);
   });
@@ -423,7 +423,7 @@ describe('revenue components', () => {
     expect(host.textContent).toContain('the class its name states (ordinary when it states none)');
     expect(host.textContent).toContain('occupied seats over seats offered, weighted by trips');
     expect(host.textContent).toContain(
-      'Duties that ran in the modelled day, one trip out and back each',
+      'Duties run in the modelled day, one trip out and back each',
     );
     expect(host.textContent).toContain(
       '40.0% of revenue is on routes of modelled length (no real profile yet)',
@@ -434,15 +434,19 @@ describe('revenue components', () => {
     expect(host.querySelector('a[href="/project/depots/sources"]')).not.toBeNull();
   });
 
-  it('pages the route table at 25 and draws an inline revenue bar', async () => {
+  // Round 2 (critique revenue #1, #2): the pager only above 25 rows; the bar sits in the
+  // load-factor cell; the length coverage moved to the band caption (one statement).
+  it('pages the route table above 25 rows and draws the bar in the load-factor cell', async () => {
     const routes = Array.from({ length: 30 }, (_, i) => route(`R${i}`, 100 + i));
-    await render(<RevenueRoutesTable routes={routes} coverage={{ n: 0, of: 30 }} />);
+    await render(<RevenueRoutesTable routes={routes} />);
     expect(host.querySelectorAll('tbody tr')).toHaveLength(25);
     expect(host.textContent).toContain('Rows 1 to 25 of 30');
+    const cells = host.querySelectorAll('tbody tr td:nth-child(5)');
+    expect(cells[0]?.querySelector('.depot-bar-fill')).not.toBeNull();
+    expect(cells[0]?.textContent).toBe('50.0%');
     expect(host.querySelectorAll('tbody .depot-bar-fill').length).toBe(25);
-    expect(host.textContent).toContain(
-      'Lengths: 0 of 30 routes from real route profiles, the rest modelled',
-    );
+    await render(<RevenueRoutesTable routes={routes.slice(0, 4)} />);
+    expect(host.textContent).not.toMatch(/Rows 1 to|Previous|Next/);
   });
 
   it('tags nothing MODELLED in the table; only a length from a real profile is DERIVED', async () => {
@@ -451,9 +455,7 @@ describe('revenue components', () => {
       lengthKm: 80,
       lengthProvenance: 'derived',
     } as RouteRevenueFigure;
-    await render(
-      <RevenueRoutesTable routes={[route('R0', 100), derived]} coverage={{ n: 1, of: 2 }} />,
-    );
+    await render(<RevenueRoutesTable routes={[route('R0', 100), derived]} />);
     const headers = [...host.querySelectorAll('th')].map((th) => th.textContent ?? '');
     expect(headers.some((h) => /MODELLED/i.test(h))).toBe(false);
     for (const label of [
@@ -461,7 +463,7 @@ describe('revenue components', () => {
       'Boardings',
       'Load factor',
       'Revenue',
-      'Earnings per km',
+      '₹ / km',
       'Route length',
     ]) {
       expect(headers.some((h) => h.includes(label))).toBe(true);
@@ -469,7 +471,8 @@ describe('revenue components', () => {
     const tags = [...host.querySelectorAll('[data-provenance]')].map((t) =>
       t.getAttribute('data-provenance'),
     );
-    expect(tags).toEqual(['derived']);
+    // Ruling S51 (round 2): the by-route section carries MODELLED on its label.
+    expect(tags).toEqual(['modelled', 'derived']);
     expect(host.textContent).not.toMatch(/\(modelled\)|\(derived\)/);
   });
 
@@ -484,7 +487,7 @@ describe('revenue components', () => {
       lengthKm: 10,
       lengthProvenance: 'derived',
     } as RouteRevenueFigure;
-    await render(<RevenueRoutesTable routes={[long, short]} coverage={{ n: 2, of: 2 }} />);
+    await render(<RevenueRoutesTable routes={[long, short]} />);
     const button = [...host.querySelectorAll<HTMLButtonElement>('th button')].find((b) =>
       b.textContent?.includes('Route length'),
     );
@@ -501,16 +504,14 @@ describe('revenue components', () => {
       earningsPerKm: null,
       earningsWithheld: 'no_service_km',
     } as RouteRevenueFigure;
-    await render(
-      <RevenueRoutesTable routes={[route('R0', 120), idle]} coverage={{ n: 0, of: 2 }} />,
-    );
+    await render(<RevenueRoutesTable routes={[route('R0', 120), idle]} />);
     // 120 rupees over 480 km = 0.25 a km.
-    expect(host.textContent).toContain('₹0.25');
+    expect(host.textContent).toContain('0.25');
     // The reason is in the cell's title, not a sentence in the cell.
     expect(
-      host.querySelector('td[title*="ran no kilometres and has no earnings per kilometre"]'),
+      host.querySelector('td[title*="runs no kilometres and has no earnings per kilometre"]'),
     ).not.toBeNull();
     expect(host.textContent).not.toContain('undefined');
-    expect(host.textContent).toContain('Earnings per km');
+    expect(host.textContent).toContain('₹ / km'); // round 2: the header is "₹ / km"
   });
 });
