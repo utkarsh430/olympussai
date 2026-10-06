@@ -180,14 +180,34 @@ function rankQuery(text: string): CopilotQuery {
   return { kind: 'rankDepots', metric, order, limit: limitFrom(text) };
 }
 
-export function scriptedRoute(question: string, depots: readonly DepotRef[]): CopilotQuery {
+/** Words that point at the depot the question was asked from. */
+const THIS_DEPOT = /\b(this|my|our|current) depot\b|\bhere\b/;
+
+/**
+ * `scopeDepotId` is the depot the question was asked from, if any. It counts as
+ * named when the text says "this depot" (or "here"), and fills in for a query
+ * that needs a depot when none is named; it never displaces a named depot and
+ * never turns a network, ranking or list question into a depot one.
+ */
+export function scriptedRoute(
+  question: string,
+  depots: readonly DepotRef[],
+  scopeDepotId?: string,
+): CopilotQuery {
   const clean = sanitizeQuestion(question);
   const text = clean.toLowerCase();
   if (text === '' || PEOPLE.test(text) || LEADING_WHO.test(text)) return UNSUPPORTED_QUERY;
 
-  const [first, second] = findDepots(text, depots);
-  const needsDepot = (build: (id: string) => CopilotQuery): CopilotQuery =>
-    first === undefined ? UNSUPPORTED_QUERY : build(first);
+  const scope = depots.some((d) => d.id === scopeDepotId) ? scopeDepotId : undefined;
+  const named = findDepots(text, depots);
+  const [first, second] =
+    scope !== undefined && THIS_DEPOT.test(text) && !named.includes(scope)
+      ? [scope, ...named]
+      : named;
+  const needsDepot = (build: (id: string) => CopilotQuery): CopilotQuery => {
+    const id = first ?? scope;
+    return id === undefined ? UNSUPPORTED_QUERY : build(id);
+  };
 
   if (COMPARE.test(text) || (first !== undefined && second !== undefined)) {
     if (first === undefined || second === undefined) return UNSUPPORTED_QUERY;
