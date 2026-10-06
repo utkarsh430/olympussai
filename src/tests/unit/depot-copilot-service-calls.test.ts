@@ -34,11 +34,17 @@ function prepared(depotIndex = -1) {
 }
 
 type Draft = (request: CopilotRequest, signal?: AbortSignal) => Promise<CopilotDraft>;
+/**
+ * The service's clock stands still at T0, so whether a call may start depends
+ * only on the deadline a test chose, never on how busy the machine is. The
+ * deadline's own abort timer still runs on real time (`deadlineAt - now()`).
+ */
+const T0 = Date.UTC(2026, 9, 6, 9);
 function runtimeWith(draft: Draft, minClaudeMs = 0) {
   const provider = { id: 'claude-cli' as const, draft: vi.fn(draft) };
   return {
     provider,
-    runtime: buildCopilotRuntime({ setting: 'auto', cli: provider, minClaudeMs }),
+    runtime: buildCopilotRuntime({ setting: 'auto', cli: provider, minClaudeMs, now: () => T0 }),
   };
 }
 
@@ -49,7 +55,7 @@ const hangUntilAborted: Draft = (_request, signal) =>
   });
 
 const call = (over: Partial<AnswerCall> = {}): AnswerCall => ({
-  deadlineAt: Date.now() + 5_000,
+  deadlineAt: T0 + 5_000,
   signal: new AbortController().signal,
   identity: 'me',
   ...over,
@@ -83,7 +89,7 @@ describe('answerCopilot spending Claude calls', () => {
     const response = await answerCopilot(
       runtime,
       prepared(),
-      call({ deadlineAt: Date.now() + 20 }),
+      call({ deadlineAt: T0 + 20 }),
     );
     expect(response).toMatchObject({ provider: 'scripted', notice: 'claude_unavailable' });
     expect(provider.draft.mock.calls[0]?.[1]?.aborted).toBe(true);
@@ -121,7 +127,7 @@ describe('answerCopilot spending Claude calls', () => {
     const { runtime, provider } = runtimeWith(hangUntilAborted);
     for (let i = 0; i < 6; i += 1) {
       // A different identity each time, so the per-identity allowance is not what stops it.
-      const terms = call({ deadlineAt: Date.now() + 10, identity: `id-${i}` });
+      const terms = call({ deadlineAt: T0 + 10, identity: `id-${i}` });
       await answerCopilot(runtime, prepared(i), terms);
     }
     expect(provider.draft).toHaveBeenCalledTimes(6);
@@ -148,7 +154,7 @@ describe('answerCopilot spending Claude calls', () => {
     const response = await answerCopilot(
       runtime,
       prepared(),
-      call({ deadlineAt: Date.now() + 500 }),
+      call({ deadlineAt: T0 + 500 }),
     );
     expect(response).toMatchObject({ provider: 'scripted', notice: 'claude_unavailable' });
     expect(provider.draft).not.toHaveBeenCalled();

@@ -78,14 +78,21 @@ function prepared(raw: CopilotApiRequest = NETWORK, v: FleetSnapshotView = view(
   return result;
 }
 
+/**
+ * The Claude runtime's clock stands still, so whether a call may start depends
+ * only on the deadline a test chose, never on how busy the machine is.
+ */
+const T0 = Date.UTC(2026, 9, 6, 9);
+const now = (): number => T0;
+
 function fakeCli(draft: CopilotProvider['draft']) {
   const provider = { id: 'claude-cli' as const, draft: vi.fn(draft) };
-  const runtime = buildCopilotRuntime({ setting: 'auto', cli: provider, minClaudeMs: 0 });
+  const runtime = buildCopilotRuntime({ setting: 'auto', cli: provider, minClaudeMs: 0, now });
   return { provider, runtime };
 }
 
 const soon = (deadlineMs = 5_000): AnswerCall => ({
-  deadlineAt: Date.now() + deadlineMs,
+  deadlineAt: now() + deadlineMs,
   signal: new AbortController().signal,
   identity: 'test',
 });
@@ -155,17 +162,17 @@ describe('answerCopilot with an injected provider', () => {
   });
 
   it('says nothing when scripted is the chosen provider, and says Claude is missing when it was chosen', async () => {
-    const scripted = buildCopilotRuntime({ setting: 'scripted', cli: null });
+    const scripted = buildCopilotRuntime({ setting: 'scripted', cli: null, now });
     expect(await answerCopilot(scripted, prepared(), soon())).toMatchObject({
       provider: 'scripted',
       notice: 'none',
     });
-    const chosen = buildCopilotRuntime({ setting: 'claude-cli', cli: null });
+    const chosen = buildCopilotRuntime({ setting: 'claude-cli', cli: null, now });
     expect((await answerCopilot(chosen, prepared(), soon())).notice).toBe('claude_unavailable');
   });
 
   it('turns a scripted draft that cannot render into the fixed text, never an error', async () => {
-    const runtime = buildCopilotRuntime({ setting: 'scripted', cli: null });
+    const runtime = buildCopilotRuntime({ setting: 'scripted', cli: null, now });
     const base = prepared();
     const broken: Prepared = {
       ...base,
@@ -257,7 +264,7 @@ describe('prepareCopilotRequest on the sample fixture', () => {
   });
 
   it("keeps the builders' provenance and leaves the stale notice to the response step", async () => {
-    const runtime = buildCopilotRuntime({ setting: 'scripted', cli: null });
+    const runtime = buildCopilotRuntime({ setting: 'scripted', cli: null, now });
     const response = await answerCopilot(runtime, prepared(NETWORK, view({ stale: true })), soon());
     expect(response.paragraphs.join(' ')).not.toContain('stale');
     expect(
@@ -285,7 +292,7 @@ describe('round 4: stale notice and limits (S37, S38 item 13)', () => {
   const paragraphs = (n: number): string[] =>
     Array.from({ length: n }, () => 'The fleet is steady.');
   const scripted = (): ReturnType<typeof buildCopilotRuntime> =>
-    buildCopilotRuntime({ setting: 'scripted', cli: null });
+    buildCopilotRuntime({ setting: 'scripted', cli: null, now });
 
   afterEach(() => vi.unstubAllGlobals());
 
