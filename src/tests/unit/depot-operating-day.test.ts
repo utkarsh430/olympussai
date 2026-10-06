@@ -223,3 +223,41 @@ describe('modelOperatingDay over many depots and dates', () => {
     expect(b.routes.map((r) => r.lengthKm)).toEqual(a.routes.map((r) => r.lengthKm));
   });
 });
+
+describe('class matching considers every available bus', () => {
+  it('never leaves a duty on a bus of another class while an idle bus of its class stands by', () => {
+    let mismatches = 0;
+    for (let n = 0; n < 160; n += 1) {
+      const { buses, peak, depot } = depotOf(n);
+      const date = `2026-10-${String(1 + (n % 28)).padStart(2, '0')}`;
+      const d = day(buses, peak, {}, date, depot);
+      const idleClasses = new Set(
+        d.notRun
+          .filter((idle) => idle.reason === 'no_duty')
+          .map((idle) => {
+            const view = buses.find((b) => b.registrationNumber === idle.registrationNumber);
+            return modelBus(idle.registrationNumber, view?.routeName ?? null).serviceClass;
+          }),
+      );
+      for (const run of d.runs) {
+        if (!run.classMatched && idleClasses.has(run.dutyClass)) mismatches += 1;
+      }
+    }
+    expect(mismatches).toBe(0);
+  });
+
+  it('gives the one AC duty the AC bus even when it comes last in the day order', () => {
+    // Nine ordinary buses and one AC bus on an AC route, requirement 1: whatever the seeded
+    // order, an AC duty takes the AC bus and the ordinary buses stand idle.
+    const buses = [
+      ...Array.from({ length: 9 }, (_, i) => bus(`UP70O${i}`, 'standing', 'KANPUR_ORD_2')),
+      bus('UP70AC1', 'standing', 'LUCKNOW_AC_9'),
+    ];
+    for (const date of ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05']) {
+      const d = day(buses, 1, {}, date, DEPOT);
+      for (const run of d.runs.filter((r) => r.dutyClass === 'ac')) {
+        expect(run.registrationNumber).toBe('UP70AC1');
+      }
+    }
+  });
+});

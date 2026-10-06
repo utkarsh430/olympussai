@@ -61,13 +61,15 @@ function inDayOrder(buses: readonly DepotBusView[], operatingDate: string): Mode
 }
 
 /**
- * Gives each duty, in order, the first bus of its class among those that ran;
- * the duties still open then take the buses left, in order. A duty beyond the
- * buses stays without one.
+ * Gives each duty, in order, the first free bus of its class in the whole
+ * available pool, so a duty never runs on a bus of another class while one of
+ * its own class stands idle; the duties still open then take the free buses
+ * left, in the day's order. As many buses run as there are duties, or as there
+ * are buses if fewer; a duty beyond the buses stays without one.
  */
 function matchInOrder(
   duties: readonly Duty[],
-  runners: readonly ModelledBus[],
+  pool: readonly ModelledBus[],
 ): ReadonlyMap<string, ModelledBus> {
   const taken = new Set<string>();
   const byDuty = new Map<string, ModelledBus>();
@@ -78,10 +80,10 @@ function matchInOrder(
   };
   const free = (bus: ModelledBus): boolean => !taken.has(bus.registrationNumber);
   for (const duty of duties) {
-    give(duty, runners.find((bus) => free(bus) && bus.serviceClass === duty.serviceClass));
+    give(duty, pool.find((bus) => free(bus) && bus.serviceClass === duty.serviceClass));
   }
   for (const duty of duties) {
-    if (!byDuty.has(duty.id)) give(duty, runners.find(free));
+    if (!byDuty.has(duty.id)) give(duty, pool.find(free));
   }
   return byDuty;
 }
@@ -123,8 +125,8 @@ function toMatch(duty: Duty, bus: ModelledBus): Match {
 /**
  * The depot's one MODELLED day for an operating date (ruling S41). The duties
  * are `modelDuties`' own; the available buses, in a seeded order that changes
- * with the date, run one duty each, class matched where the buses that ran
- * allow; every other bus did not run and has no distance. A bus that ran
+ * with the date, run one duty each, class matched across the whole available
+ * pool where it allows; every other bus did not run and has no distance. A bus that ran
  * covered its duty's route out and back. This is a record of the day and is
  * separate from the duty board's live matching of buses now standing in the
  * yard to duties still to come; both read the same duties. Pure: no clock, no
@@ -141,7 +143,7 @@ export function modelOperatingDay(input: OperatingDayInput): OperatingDay {
     operatingDate,
   );
   const available = inDayOrder(buses.filter(isAvailable), operatingDate);
-  const byDuty = matchInOrder(duties, available.slice(0, duties.length));
+  const byDuty = matchInOrder(duties, available);
   const matches = duties.flatMap((duty) => {
     const bus = byDuty.get(duty.id);
     return bus ? [toMatch(duty, bus)] : [];
