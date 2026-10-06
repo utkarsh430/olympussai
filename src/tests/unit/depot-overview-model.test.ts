@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import {
   exceptionRows,
   exceptionTotals,
@@ -56,9 +57,9 @@ describe('joinScores', () => {
     const scores = [score('a', 50), score('b', 60)];
     const rows = joinScores(depots, scores);
     expect(rows.map((row) => row.depot.id)).toEqual(['b', 'a', 'c']);
-    expect(rows[0].score?.index).toBe(60);
-    expect(rows[1].score?.index).toBe(50);
-    expect(rows[2].score).toBeNull();
+    expect(rows[0]?.score?.index).toBe(60);
+    expect(rows[1]?.score?.index).toBe(50);
+    expect(rows[2]?.score).toBeNull();
   });
 
   it('does not mutate its inputs', () => {

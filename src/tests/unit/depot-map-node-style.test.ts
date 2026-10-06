@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import {
   INDEX_BANDS,
   MAX_RADIUS_PX,
@@ -15,7 +16,7 @@ describe('nodeRadius', () => {
     const fleets = [0, 1, 5, 20, 50, 100, 200, 300, 400];
     const radii = fleets.map((fleet) => nodeRadius(fleet, MAX_FLEET));
     radii.slice(1).forEach((radius, index) => {
-      expect(radius).toBeGreaterThanOrEqual(radii[index]);
+      expect(radius).toBeGreaterThanOrEqual(radii[index] ?? Number.POSITIVE_INFINITY);
     });
   });
 
@@ -55,10 +56,10 @@ describe('nodeRadius', () => {
 describe('indexBand', () => {
   it('has five ordered bands covering 0 to 100', () => {
     expect(INDEX_BANDS).toHaveLength(5);
-    expect(INDEX_BANDS[0].min).toBe(0);
-    expect(INDEX_BANDS[INDEX_BANDS.length - 1].max).toBe(100);
+    expect(INDEX_BANDS[0]?.min).toBe(0);
+    expect(INDEX_BANDS[INDEX_BANDS.length - 1]?.max).toBe(100);
     INDEX_BANDS.slice(1).forEach((band, index) => {
-      expect(band.min).toBe(INDEX_BANDS[index].max);
+      expect(band.min).toBe(INDEX_BANDS[index]?.max);
     });
   });
 
@@ -96,9 +97,9 @@ describe('nodeStyle', () => {
   it('fills a ranked depot with its band colour', () => {
     const style = nodeStyle({ fleet: 200, index: 85, ranked: true }, 400);
     expect(style.hollow).toBe(false);
-    expect(style.fill).toBe(INDEX_BANDS[4].fill);
+    expect(style.fill).toBe(INDEX_BANDS[4]?.fill);
     expect(style.fillOpacity).toBeGreaterThan(0);
-    expect(style.bandLabel).toBe(INDEX_BANDS[4].label);
+    expect(style.bandLabel).toBe(INDEX_BANDS[4]?.label);
   });
 
   it('draws an unranked depot hollow with a neutral stroke', () => {
