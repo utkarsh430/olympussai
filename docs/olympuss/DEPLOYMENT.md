@@ -70,13 +70,16 @@ differs between instances or after a restart:
 
 - **The live snapshot** (`src/lib/upsrtc/liveSnapshot.ts`): the short-lived snapshot
   cache, the last good copy of the feed, the back-off after a failed refresh, the count of
-  short replies, and which of live, last-good or the saved sample is being served (each
-  change of it is logged once per instance). Each instance polls the corporation's feed on
+  short replies (a reply with far fewer buses than the last good one is treated as a failed
+  refresh, and the third such reply in a row is accepted as the fleet's new size), and which
+  of live, last-good or the saved sample is being served (each change of it is logged once
+  per instance). Each instance polls the corporation's feed on
   its own, so the upstream load grows with the number of instances. A fresh instance
   during an outage has no last good copy and serves the saved sample (`FIXTURE`) while a
-  warm one serves its last good data. The depot pages refresh in the background while
-  their data is still young; a serverless platform may freeze an instance before that
-  refresh finishes, so the next request on it waits instead.
+  warm one serves its last good data. The depot pages are served a snapshot up to 90
+  seconds old at once while a refresh runs in the background, so they usually show data
+  about one poll old, under its own feed time; a serverless platform may freeze an instance
+  before that refresh finishes, so the next request on it waits instead.
 - **The score window and the yard memory.** The efficiency index, ranks and
   peer-comparison exceptions are summed over a rolling window of feed time, and an
   established yard is held while its buses still stand in it. Each instance has its own,
@@ -89,8 +92,9 @@ differs between instances or after a restart:
   operating date, so the modelled operating day (duties, crew, fuel, revenue, economics)
   and the fleet-distribution plan built on it can still change until the morning peak has passed
   and then hold. Each instance holds its own maxima from the snapshots it has seen, so two
-  instances give a different modelled day and plan until each has seen the peak, and an
-  instance started in the evening models a smaller day than one that saw the morning.
+  instances give a different modelled day and plan until each has seen the peak, the
+  first snapshots after a restart can set the day's high values, and an instance started
+  in the evening models a smaller day than one that saw the morning.
 - **The view memos.** Response bodies are memoised on the snapshot and, for pages that
   take query parameters, on those parameters, in maps bounded in size (oldest out). They
   change cost, not figures: each cold instance pays again for the analysis, the modelled
@@ -102,13 +106,14 @@ differs between instances or after a restart:
   the next request reaches the same instance; a user who presses Load again spends more
   lookups. The schedule cache behind those lookups (and behind the command centre's
   schedule route) is per instance too.
-- **The route-lookup limiter.** It counts lookups per user, per address and per process.
-  Every count is per instance, so the stated ceiling on calls to the corporation's
+- **The route-lookup limiter.** It counts calls to the corporation's schedule server per
+  user, per address and per process, one slot per call taken just before the call is made
+  (a lookup makes one to four calls). Every count is per instance, so the stated ceiling on calls to the corporation's
   schedule server is a ceiling per instance: with several instances the real ceiling is
   that figure times the number of instances, and a restart starts every count again.
-- **The allocation plan.** The fleet-distribution plan is held for a span of feed time
-  rather than re-planned on every snapshot, and the response gives the feed time it was
-  planned at. Each instance holds its own plan, so two instances can show plans made at
+- **The allocation plan.** The Routes page's route-to-depot plan is held for five minutes
+  of feed time rather than re-planned on every snapshot, and the response gives the feed
+  time it was planned at (`plannedAt`). Each instance holds its own plan, so two instances can show plans made at
   different feed times.
 - **The copilot.** Its request limiters (per user, per address, per process), its answer
   cache and its joining of identical requests in progress are per instance: the process

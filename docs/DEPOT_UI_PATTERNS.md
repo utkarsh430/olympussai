@@ -2,13 +2,11 @@
 
 The shared pieces every depot page uses. Each is built once in `src/components/depot/shell/`
 (the copilot footer in `src/components/depot/copilot/`); a page applies them and never
-rebuilds them. The direction they implement is `.superpowers/sdd/_swarm/design-wave-rulings.md`
-(cited below as "Rulings §n"); the measurements come from the round-4 design critique
-(`review-design-critique-round4.md`, "critique §n"). Page order, top to bottom: `PageHeader`
+rebuilds them, so every page reads and measures the same. Page order, top to bottom: `PageHeader`
 (with its provenance line), the one hero, supporting sections under `SectionLabel`s, and one
 closed disclosure at the end, "How these figures are produced".
 
-## What not to do (critique §5 and §6)
+## What not to do
 
 - No sentence in the mono face. Every `<p>` carries `depot-prose`, `depot-note`, `depot-caption`,
   `font-sans` or `sr-only` (a source-scan test enforces it; see "Prose and notes").
@@ -48,7 +46,7 @@ fails if a listed file no longer needs to be there. The list must end empty.
 
 ## Vertical rhythm and depot-stack
 
-Held by the pieces (critique §7): header label 11/16, 4px, title 20/28, 8px, prose 14/20, 8px,
+Held by the pieces: header label 11/16, 4px, title 20/28, 8px, prose 14/20, 8px,
 provenance 12/20, then 24px to the hero. A section: 40px above its hairline (28px under 640px),
 16px to the label, 12px to the content. Band 88px. Table header 32px, rows 36px.
 
@@ -59,10 +57,11 @@ a wrapped child (`<div><FigureBand/></div>`). The closing disclosure is the stac
 
 Do not space sections with `flex flex-col gap-N` or `space-y-N`: a band keeps its own 24px
 margin outside a stack, so `gap-6` plus the band gives 48px, and a band followed by a section
-with no stack gives 24px. Round 5 measured 23, 35, 42, 50 and 62px; the causes per page are in
-the round-5 shell report. The rhythm is one number: 40px from a band's (or section's) bottom
+with no stack gives 24px; pages spaced by hand ended up anywhere from 23 to 62px apart. The
+rhythm is one number, the standard on every page: 40px from a band's (or section's) bottom
 rule to the next section's rule, 16px from that rule to the label, 12px from the label to the
-content.
+content. The rule under a figure band followed by the next section's rule is that rhythm, not
+a defect.
 
 ```tsx
 <div className="depot-stack">
@@ -73,7 +72,7 @@ content.
 ```
 
 The shell's `<main>` ends with 40px of padding, so the disclosure sits 40px above the footer,
-not the critique's 32px (the main padding is chrome; flagged for its owner).
+not 32px (the main padding belongs to the shell, not to the page).
 
 ## PageHeader
 
@@ -92,7 +91,7 @@ page's only `h1`.
 />
 ```
 
-Rule: Rulings §1 (anatomy; nothing between the header and the hero).
+Rule: nothing sits between the header and the hero.
 
 ## Provenance line
 
@@ -126,7 +125,13 @@ provenanceLine={{ default: 'mixed', live: 'Bus states', modelled: 'duties',
 Stale: the sentence says "… the last good data, feed time 12:36." and "last good data" is drawn
 in the stale tone (amber, semibold; the words carry it). Sample-data, unavailable and waiting
 variants are worded by the function (a mixed page never calls its live part LIVE when it is
-not). Rule: Rulings §2. After declaring the default, tag only what differs (see "Tags").
+not). After declaring the default, tag only what differs (see "Tags").
+
+The same holds for every other sentence on a page: on the saved sample or on last-good data
+a caption, legend, chart label, table caption, trend sentence or footer never calls its
+figures live. Where it names the data's source it takes the words the feed chip uses for
+that source (`src/lib/depot/feedChip.ts`); otherwise it is worded so that it is true in all
+three states.
 
 `feedId` must be a registry id (`src/lib/depot/sources/registry.ts`; a test checks every page).
 `indexWindow` puts the index window in the line itself: do not repeat it elsewhere.
@@ -191,13 +196,15 @@ control over the label row with absolute positioning).
 
 `FigureBand { label, children }` holds up to five `Figure { label, value, caption?, tag?,
 share?, hero?, title? }`. Figures are a fixed width and left-packed: 232px from 1440px, 200px
-from 1280px, 192px from 1024px (five fit one row at each) (wrapping when the column is narrower), two equal columns below 1024px. Every
+from 1280px, 192px from 1024px (five fit one row at each), wrapping when the column is
+narrower. Below 1024px the rows are set by `figureBandColumns`
+(`src/lib/depot/shell/figureBandLayout.ts`): two figures 2, three 3, four 2 + 2 on a phone
+and 4 from 640px, five 3 + 2. Every
 figure is mono 24px (`hero`: display 32px, one per page). Label and caption truncate with the
 full text in `title`. 88px tall. A figure's label row is a fixed 16px line box
 (`depot-tag-row`): a tag beside the label is drawn 16px tall and never lowers the figure. `tag` only for a generated figure on a MIXED or DERIVED page.
 No `compact` (16px) form: no page needs one; the two hand-rolled 16px bands (exceptions,
-economics) become ordinary bands. From 640px to 1023px the band is three columns, so five
-figures read 3 + 2.
+economics) become ordinary bands.
 
 `FigureBand { tag }` puts ONE tag on the whole band (the band's name and a pill on a line
 above the figures): use it when every figure in the band is generated and the page default is
@@ -223,7 +230,7 @@ Column extras: `unit` (shown after the header, "EARNINGS ₹/KM", so cells carry
 `tag` (a pill in the header cell, only when the column differs from the page default; it keeps
 the header's 16px line box).
 
-**One row treatment (round 5).** A row that opens something is the control; no page draws a
+**One row treatment.** A row that opens something is the control; no page draws a
 boxed per-row button ("SELECT", "WHY?", an index cell button).
 
 - *Opens elsewhere* (`onRowSelect`): the whole row is the click target, Enter and Space on the
@@ -264,7 +271,7 @@ const COLUMNS: Column<Row>[] = [
   group={{ key: (r) => r.peerGroup }} />
 ```
 
-Rule: Rulings §3 (tables). No sentence in a cell; an empty cell is a mono dash with the reason
+Rule: no sentence in a cell; an empty cell is a mono dash with the reason
 in `title`.
 
 ## StatePanel
@@ -352,7 +359,9 @@ only way a date is shown; a raw `YYYY-MM-DD` never reaches the screen), and
 <td title={formatFeedDateTime(bus.lastSeen)}>{formatRelative(bus.lastSeen, feed.feedNow)}</td>
 ```
 
-Rule: Rulings §3 (timestamps; never an ISO string; the full time in `title`).
+Rule: never an ISO string; the full time in `title`. Beside the feed clock, a time is
+`formatFeedTimeOn(iso, feedNow)`: "19:45" on the feed's day, "5 Oct, 19:45" on another day,
+so a bus last heard yesterday evening never reads as later than now.
 
 ## Copilot footer
 
@@ -370,7 +379,6 @@ it; a page that wants the "write again" line must pass the feed times.
 />
 ```
 
-Rule: Rulings §3 (copilot output).
 
 `BriefingCard` takes `currentFeedTime?`: pass the page's `feedNow`. The card keeps the feed
 time of its request and passes both to the footer, which then says "The page has updated
@@ -426,10 +434,30 @@ Pages do nothing here; for reference.
   | 390 | none | 32 | 358px |
   | 360 | none | 32 | 328px |
 
+- **One geometry, one width helper.** The breakpoints, rail width, gutters and table frame
+  border are defined once in `src/lib/depot/shell/geometry.ts`; `contentWidthAt(viewport)`
+  gives the column above and `tableRoomAt(viewport)` the room a table frame has. A table's
+  width is `tableWidth(widths, keys, { expander })` (`src/lib/depot/shell/tableWidth.ts`),
+  which throws on a column with no width and counts the shared `EXPANDER_WIDTH_PX` (24);
+  every page's frames come from these, so a change to the rail or a gutter fails the
+  layout tests of every page it moves.
+- **One width-tier hook.** `useWidthTier(tiers)` (`src/components/depot/shell/useWidthTier.ts`)
+  reads min-width media queries through `useSyncExternalStore`, and on the server or with no
+  `matchMedia` returns the widest tier. `useTableTier` (tiers in
+  `src/lib/depot/shell/tableTier.ts`), `useBelowDesktop` and `usePhone`
+  (`components/depot/shell/`), the roster's tier, `useUnitsTier`
+  (`components/depot/network/useUnitsTier.ts`) and the duty board's table-first switch are
+  named uses of it; each page keeps its own tier names.
+- **One map start-up.** The overview, transfer and yard maps start through `useBaseMap`
+  (`src/components/depot/shell/useBaseMap.ts`): it loads the map library, waits at most
+  `BASE_MAP_LOAD_TIMEOUT_MS` (15 s), and cleans up. A refusal from the map service is final,
+  even after the map is ready; a timeout is not: a library that loads after it still builds
+  the map, and the status becomes ready.
+
 - **Stale feed, said once.** While a response is stale, a page renders
   `<StaleNotice since={data.feedNow} />` as before. For the first `STALE_NOTICE_AFTER_MS`
   (5 minutes) of the data's age, from its fetch time against the browser clock, the chip and
-  the provenance line carry it alone and the strip shows nothing; after that, or when the age
+  the provenance line carry it alone and the notice shows nothing; after that, or when the age
   cannot be known, it shows the one shared `Notice` (STALE, "Showing last good data from
   HH:MM"). Its slot holds the notice's height from the moment it mounts, so nothing moves
   when the notice appears. The age defaults to the shell feed's fetch time (every depot
@@ -444,7 +472,7 @@ Pages do nothing here; for reference.
   data", and a page's `StaleNotice` stands down (one notice per page). It clears when the
   request succeeds again or the page unmounts. Pages do nothing: every `useDepot*` hook
   reports through the shared hook. The shell's own network feed does not report; it keeps
-  the chip, the provenance line and the timed strip above.
+  the chip, the provenance line and the timed stale notice above.
 - **Feed quiet.** When the feed's newest report (its clock, Indian time digits) trails the
   fetch time, moved to Indian time, by more than `FEED_QUIET_AFTER_MIN` (10), the chip reads
   FEED QUIET · HH:MM in the stale tone, its title says by how much, and the provenance line
@@ -464,7 +492,8 @@ Pages do nothing here; for reference.
 - **Skip link and footer.** "Skip to depot content" is the first focusable element on every
   depot page and moves focus to `<main>`. The prototype disclaimer is in the page flow after
   the content, in the footer's `depot` variant: after the PROTOTYPE pill the sentence starts at
-  "Vehicle positions…" (the leading "Prototype." is dropped there only, `depotDisclaimerText`),
-  wraps in sans 11/16 at most 90 characters wide, never cut off.
+  "Vehicle positions…" (the leading "Prototype." is dropped there only, and "are live UPSRTC
+  data" reads "are UPSRTC data", since a depot page can be on the sample or last-good data;
+  `depotDisclaimerText` in `src/lib/depot/shellModel.ts`; the command centre's sentence is
+  unchanged), wraps in sans 11/16 at most 90 characters wide, never cut off.
 
-Rule: Rulings §4 and §3 (footer).
