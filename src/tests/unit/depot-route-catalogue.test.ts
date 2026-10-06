@@ -209,6 +209,20 @@ describe('getRouteProfile', () => {
     expect(mockService).toHaveBeenCalledTimes(1);
   });
 
+  it('never grows the negative answers past the same bound, evicting the oldest first', async () => {
+    mockService.mockResolvedValue(live(null));
+    const total = ROUTE_CACHE_MAX + 5;
+    for (let i = 0; i < total; i += 1) {
+      await getRouteProfile(`N_${i}`, view([row('UP1', { routeName: `N_${i}` })]), T0);
+    }
+    mockService.mockClear();
+    // Both asks are well inside the negative TTL: only an evicted answer is fetched again.
+    await getRouteProfile(`N_${total - 1}`, view([row('UP1', { routeName: `N_${total - 1}` })]), T0);
+    expect(mockService).not.toHaveBeenCalled();
+    await getRouteProfile('N_0', view([row('UP1', { routeName: 'N_0' })]), T0);
+    expect(mockService).toHaveBeenCalledTimes(1);
+  });
+
   it('chooses the same bus whatever order the rows arrive in', async () => {
     const rows = [
       row('UP9', { speedKmph: 0 }),
