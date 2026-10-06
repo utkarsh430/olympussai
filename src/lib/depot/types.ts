@@ -98,9 +98,13 @@ export interface NetworkKpis {
   readonly fleet: Figure;
   readonly depots: Figure;
   readonly reporting: Figure;
+  /** Classified state: in service or moving. With the next three it partitions the fleet. */
   readonly onRoad: Figure;
+  /** Classified state: standing. */
   readonly stationary: Figure;
+  /** Classified state: dark (no signal for the dark threshold or longer). */
   readonly noSignal: Figure;
+  /** Classified state: off road. */
   readonly underMaintenance: Figure;
   readonly assigned: Figure;
 }

@@ -127,7 +127,13 @@ function sumOf(depots: readonly DepotSummary[], pick: (d: DepotSummary) => numbe
   return depots.reduce((total, d) => total + pick(d), 0);
 }
 
-/** Network totals. Every count carries how much of the fleet it covers. */
+/**
+ * Network totals. Every count carries how much of the fleet it covers. The four state
+ * totals use the module's classified states (`classifyBusState`), not the feed's own
+ * status field, so a network total is the sum of what each depot's cockpit and roster
+ * show, and the four partition the fleet: on road (in service or moving), standing, dark
+ * (no signal for the dark threshold or longer) and off road.
+ */
 export function networkKpis(depots: readonly DepotSummary[]): NetworkKpis {
   const fleetTotal = sumOf(depots, (d) => d.fleet);
   const figure = (value: number, provenance: Figure['provenance']): Figure => ({
@@ -139,10 +145,10 @@ export function networkKpis(depots: readonly DepotSummary[]): NetworkKpis {
     fleet: figure(fleetTotal, 'live'),
     depots: figure(depots.filter((d) => d.kind === 'depot').length, 'derived'),
     reporting: figure(sumOf(depots, (d) => d.reporting), 'derived'),
-    onRoad: figure(sumOf(depots, (d) => d.status.live), 'live'),
-    stationary: figure(sumOf(depots, (d) => d.status.stationary), 'live'),
-    noSignal: figure(sumOf(depots, (d) => d.status.noSignal), 'live'),
-    underMaintenance: figure(sumOf(depots, (d) => d.status.underMaintenance), 'live'),
+    onRoad: figure(sumOf(depots, (d) => d.states.inService + d.states.onRoad), 'derived'),
+    stationary: figure(sumOf(depots, (d) => d.states.standing), 'derived'),
+    noSignal: figure(sumOf(depots, (d) => d.states.dark), 'derived'),
+    underMaintenance: figure(sumOf(depots, (d) => d.states.offRoad), 'derived'),
     assigned: figure(sumOf(depots, (d) => d.assigned), 'derived'),
   };
 }
