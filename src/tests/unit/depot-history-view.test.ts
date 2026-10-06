@@ -141,12 +141,18 @@ describe('buildHistoryResponse anchors', () => {
 
   it('computes the network on-road share as a ratio of sums, not a mean of rates', async () => {
     // Depot 1: 2 of 2 on the road (share 1). Depot 2: 2 of 20 (share 0.1). Mean 0.55, ratio 4/22.
-    const view = viewOf([...buses('1', 'Alambagh', 2, 2), ...buses('2', 'Kaiserbagh', 20, 2)]);
+    // An enforcement squad of 10 buses, all moving, would lift the ratio to 14/32 if it were counted.
+    const view = viewOf([
+      ...buses('1', 'Alambagh', 2, 2),
+      ...buses('2', 'Kaiserbagh', 20, 2),
+      ...buses('3', 'Enforcement Squad', 10, 10),
+    ]);
     const result = await buildHistoryResponse(view, network('onRoadShare'));
     expect(result.status).toBe(200);
     if (result.status !== 200) return;
     expect(result.body.anchor.value).toBe(Math.round((4 / 22) * 1e4) / 1e4);
     expect(result.body.anchor.value).not.toBe(0.55);
+    expect(result.body.anchor.value).not.toBe(Math.round((14 / 32) * 1e4) / 1e4);
   });
 
   it('responds 404 for an unranked depot index and an unknown depot', async () => {
