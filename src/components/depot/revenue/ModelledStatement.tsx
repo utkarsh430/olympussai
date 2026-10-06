@@ -6,7 +6,13 @@ import type { RevenueResponse } from '@/lib/depot/revenue/api';
 const SOURCES_PATH = '/project/depots/sources';
 
 /** What is modelled, what a trip means here, and what real feeds replace it. */
-export function ModelledStatement({ params }: { readonly params: RevenueResponse['model']['params'] }) {
+export function ModelledStatement({
+  params,
+  notes,
+}: {
+  readonly params: RevenueResponse['model']['params'];
+  readonly notes: RevenueResponse['notes'];
+}) {
   return (
     <section aria-labelledby="revenue-statement-title" className="depot-panel min-w-0 p-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -19,6 +25,11 @@ export function ModelledStatement({ params }: { readonly params: RevenueResponse
         {modelledStatement(params).map((paragraph) => (
           <p key={paragraph} className="depot-prose">
             {paragraph}
+          </p>
+        ))}
+        {notes.map((note) => (
+          <p key={note} className="depot-prose">
+            {note}
           </p>
         ))}
         <p className="depot-prose">

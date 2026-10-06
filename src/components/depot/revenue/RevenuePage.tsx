@@ -38,7 +38,7 @@ export function RevenuePage() {
       <RevenueSummary totals={data.summary} operatingDate={data.operatingDate} />
       <RevenueHero routes={data.routes} />
       <RevenueRoutesTable routes={data.routes} />
-      <ModelledStatement params={data.model.params} />
+      <ModelledStatement params={data.model.params} notes={data.notes} />
     </div>
   );
 }

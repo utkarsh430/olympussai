@@ -24,7 +24,7 @@ function component(
     key,
     value,
     peerMedian,
-    coverage: key === 'earningsPerKm' ? { n: 4, of: 6 } : null,
+    coverage: key === 'earningsPerKm' ? { n: 2, of: 4 } : null,
     z: contribution, contribution,
     provenance: 'modelled',
   };
@@ -79,6 +79,20 @@ const UNRANKED_SMALL = entry('8', {
   rank: null,
   peerGroup: null,
 }, { fleet: 4 });
+const UNRANKED_THIN = entry('6', {
+  ranked: false,
+  reason: 'thin_route_coverage',
+  economicsIndex: null,
+  rank: null,
+  peerCount: null,
+}, { earningsCoverage: { n: 1, of: 9 } });
+const UNRANKED_GROUP = entry('5', {
+  ranked: false,
+  reason: 'peer_group_too_small',
+  economicsIndex: null,
+  rank: null,
+  peerCount: null,
+});
 const OTHER_UNIT = entry('7', {
   ranked: false,
   reason: 'not_a_depot',
@@ -167,6 +181,11 @@ describe('economicsStatusLine', () => {
       '2 ranked of 4 operating depots (MODELLED) · 1 not ranked: no route with a known length · 1 not ranked: fewer than 10 buses · 1 other unit is not an operating depot',
     );
   });
+  it('counts the two coverage and group reasons on their own', () => {
+    expect(economicsStatusLine([UNRANKED_THIN, UNRANKED_GROUP, UNRANKED_GROUP])).toBe(
+      '0 ranked of 3 operating depots (MODELLED) · 1 not ranked: too few routes with a known length · 2 not ranked: its peer group has too few depots with complete figures',
+    );
+  });
   it('uses the singular for one operating depot and omits empty reasons', () => {
     expect(economicsStatusLine([entry('1', { peerCount: 1 })])).toBe(
       '1 ranked of 1 operating depot (MODELLED)',
@@ -184,6 +203,17 @@ describe('explainEconomics', () => {
   it('gives the reason for an unranked depot', () => {
     const [row] = buildEconomicsRows([UNRANKED_SMALL]);
     expect(row && explainEconomics(row)).toMatch(/at least 10 buses/);
+  });
+  it('words the two new reasons in plain terms', () => {
+    const [thin] = buildEconomicsRows([UNRANKED_THIN]);
+    const [group] = buildEconomicsRows([UNRANKED_GROUP]);
+    expect(thin?.reasonText).toBe(
+      'Not ranked: too few of its routes have a known length (1 of 9), so its earnings per kilometre are not used.',
+    );
+    expect(group?.reasonText).toBe(
+      'Not ranked: its peer group has too few depots with complete figures to compare.',
+    );
+    expect(thin && explainEconomics(thin)).toBe(thin?.reasonText);
   });
   it('says nothing stands out when every contribution is level', () => {
     const level = entry('1', {
@@ -217,5 +247,7 @@ describe('breakdownRows', () => {
       contributionText: '+0.80',
     });
     expect(rows[2]?.contributionText).toBe('−0.40');
+    expect(rows[0]?.coverageText).toBe('2 of 4 routes');
+    expect(rows[1]?.coverageText).toBeNull();
   });
 });

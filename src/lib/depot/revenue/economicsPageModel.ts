@@ -4,7 +4,8 @@ import type { ECONOMICS_WEIGHTS } from '../sim/revenueConfig';
 import type { DepotKind } from '../types';
 import { formatCount } from '../format';
 import type { EconomicsDepotRow } from './api';
-import type { DepotEconomicsScore, EconomicsComponentKey } from './types';
+import type { DepotEconomicsScore, EconomicsComponentKey, EconomicsRankReason } from './types';
+import type { Coverage } from '../types';
 
 /*
  * The network economics page's rows, sentences and breakdown. This is the
@@ -98,6 +99,7 @@ export interface EconomicsCell {
   readonly direction: DifferenceDirection;
   /** Value, difference and the word, for a title and screen-reader text. */
   readonly description: string;
+  readonly coverage: Coverage | null;
   readonly z: number | null;
   readonly contribution: number;
 }
@@ -125,6 +127,13 @@ function unrankedText(entry: EconomicsDepotRow): string | null {
   if (score.reason === 'not_a_depot') return 'Not an operating depot, so it is not ranked.';
   if (score.reason === 'fleet_too_small') {
     return `Needs at least ${MIN_FLEET_FOR_RANK} buses to be ranked; this depot has ${entry.fleet}.`;
+  }
+  if (score.reason === 'peer_group_too_small') {
+    return 'Not ranked: its peer group has too few depots with complete figures to compare.';
+  }
+  if (score.reason === 'thin_route_coverage') {
+    const { n, of } = entry.earningsCoverage;
+    return `Not ranked: too few of its routes have a known length (${formatCount(n)} of ${formatCount(of)}), so its earnings per kilometre are not used.`;
   }
   if (score.missing.includes('earningsPerKm')) {
     return 'No route has a known length, so earnings per kilometre cannot be modelled for this depot.';
@@ -154,6 +163,7 @@ function toCells(score: DepotEconomicsScore): EconomicsCell[] {
       differenceText: formatComponentDifference(component.key, delta),
       direction: wording.direction,
       description: `${spec.label} ${valueText}, ${wording.text}`,
+      coverage: component.coverage,
       z: component.z,
       contribution: component.contribution,
     };
@@ -215,6 +225,10 @@ export function filterEconomicsRows(
 
 const SEP = ' · ';
 
+function count(depots: readonly EconomicsDepotRow[], reason: EconomicsRankReason): number {
+  return depots.filter((d) => d.score.reason === reason).length;
+}
+
 /** "4 ranked of 6 operating depots (MODELLED) · 1 not ranked: no route with a known length". */
 export function economicsStatusLine(depots: readonly EconomicsDepotRow[]): string {
   const operating = depots.filter((d) => d.kind === 'depot');
@@ -223,12 +237,18 @@ export function economicsStatusLine(depots: readonly EconomicsDepotRow[]): strin
     (d) => d.score.reason === 'missing_component' && d.score.missing.includes('earningsPerKm'),
   ).length;
   const tooSmall = operating.filter((d) => d.score.reason === 'fleet_too_small').length;
+  const thin = count(operating, 'thin_route_coverage');
+  const smallGroup = count(operating, 'peer_group_too_small');
   const otherMissing = operating.filter((d) => d.score.reason === 'missing_component').length - noLength;
   const others = depots.length - operating.length;
   const noun = operating.length === 1 ? 'operating depot' : 'operating depots';
   const parts = [
     `${formatCount(ranked)} ranked of ${formatCount(operating.length)} ${noun} (MODELLED)`,
     noLength > 0 ? `${formatCount(noLength)} not ranked: no route with a known length` : null,
+    thin > 0 ? `${formatCount(thin)} not ranked: too few routes with a known length` : null,
+    smallGroup > 0
+      ? `${formatCount(smallGroup)} not ranked: its peer group has too few depots with complete figures`
+      : null,
     tooSmall > 0 ? `${formatCount(tooSmall)} not ranked: fewer than ${MIN_FLEET_FOR_RANK} buses` : null,
     otherMissing > 0 ? `${formatCount(otherMissing)} not ranked: a component could not be worked out` : null,
     others > 0
@@ -266,6 +286,8 @@ export interface BreakdownRow {
   readonly label: string;
   readonly valueText: string;
   readonly peerMedianText: string;
+  /** "2 of 8 routes" for earnings per km; null for the other components. */
+  readonly coverageText: string | null;
   readonly zText: string;
   readonly weightText: string;
   readonly contributionText: string;
@@ -286,6 +308,10 @@ export function breakdownRows(
     label: cell.label,
     valueText: cell.valueText,
     peerMedianText: formatComponentValue(cell.key, cell.peerMedian),
+    coverageText:
+      cell.coverage === null
+        ? null
+        : `${formatCount(cell.coverage.n)} of ${formatCount(cell.coverage.of)} routes`,
     zText: cell.z === null ? DASH : signed(cell.z),
     weightText: `${Math.round(weights[cell.key] * PERCENT)}%`,
     contributionText: row.ranked ? signed(cell.contribution) : DASH,

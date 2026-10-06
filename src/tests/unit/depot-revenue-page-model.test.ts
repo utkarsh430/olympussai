@@ -85,6 +85,15 @@ describe('summaryTiles', () => {
       'Based on 1 of 2 routes whose length is known',
     );
   });
+  it('states the share of revenue and of routes that rests on the flat fare, on the revenue tile', () => {
+    const tiles = summaryTiles(TOTALS);
+    expect(tiles.find((t) => t.key === 'revenue')?.note).toBe(
+      'Flat fare, length not known: 25.0% of revenue, 50.0% of routes',
+    );
+    expect(tiles.find((t) => t.key === 'loadFactor')?.note).toBe('Occupied seats over seats offered');
+    const none = summaryTiles({ ...TOTALS, flatFareRevenueShare: null, flatFareRouteShare: null });
+    expect(none.find((t) => t.key === 'revenue')?.note).toBeNull();
+  });
   it('shows a withheld earnings tile as a dash with the reason', () => {
     const tile = summaryTiles({ ...TOTALS, earningsPerKm: null, earningsCoverage: { n: 0, of: 2 } }).find(
       (t) => t.key === 'earningsPerKm',
@@ -159,7 +168,10 @@ describe('modelledStatement', () => {
   it('says what is modelled, what a trip is and that these are planning assumptions', () => {
     expect(text).toContain('MODELLED');
     expect(text).toMatch(/no ticketing/i);
-    expect(text).toMatch(/a trip is one run/i);
+    expect(text).toMatch(/a trip is a run out and back/i);
+    expect(text).toMatch(/occupied seat-kilometres over seat-kilometres/i);
+    expect(text).toMatch(/earnings per kilometre are seats times load factor times the fare/i);
+    expect(text).toMatch(/average boarding rides 45% of the route/i);
     expect(text).toMatch(/planning assumptions/i);
     expect(text).toMatch(/not the corporation's figures/i);
   });

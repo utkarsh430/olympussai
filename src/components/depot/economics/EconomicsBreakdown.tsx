@@ -65,7 +65,12 @@ export function EconomicsBreakdown({
                 <th scope="row" className="!static !bg-transparent !text-left !normal-case !tracking-normal !text-depot-ink">
                   {c.label}
                 </th>
-                <td className="depot-align-right">{c.valueText}</td>
+                <td className="depot-align-right">
+                  {c.valueText}
+                  {c.coverageText === null ? null : (
+                    <span className="block text-[11px] text-depot-muted">{`on ${c.coverageText}`}</span>
+                  )}
+                </td>
                 <td className="depot-align-right">{c.peerMedianText}</td>
                 <td className="depot-align-right">{c.zText}</td>
                 <td className="depot-align-right">{c.weightText}</td>
