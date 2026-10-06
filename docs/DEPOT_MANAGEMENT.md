@@ -255,9 +255,11 @@ higher is better, weighted, and scaled to 0–100 as `50 + (weighted / 3) × 50`
 **Rolling window (ruling S42).** Components are computed from counts summed over the
 snapshots seen in the last `SCORE_WINDOW_MIN = 20` minutes of feed time, at most
 `SCORE_WINDOW_MAX_SAMPLES = 120` (`score/window.ts`), one sample per distinct feed time. A
-repeated or older snapshot adds nothing. Responses carry `scoreWindow` (minutes, since,
-samples) and screens say "over the last 20 minutes" or "since HH:MM". Peer-group membership
-follows present fleet size. The window is process memory (section 6).
+repeated or older snapshot adds nothing. The `network`, `exceptions` and `[depotId]`
+responses carry `scoreWindow` (minutes, since, samples). Ruling S42 asks every screen to state
+the window ("over the last 20 minutes", or "since HH:MM" when shorter); at the time of writing
+no page component reads `scoreWindow`, and the League table's description still reads "One
+snapshot of the live feed". Peer-group membership follows present fleet size. The window is process memory (section 6).
 
 ### 7.4 Exceptions — `exceptions/`
 

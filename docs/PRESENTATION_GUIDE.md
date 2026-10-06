@@ -126,7 +126,7 @@ its provenance once, under its title: `LIVE` (from the feed), `DERIVED`
 | Order | Page | What it shows | What to say about provenance |
 | --- | --- | --- | --- |
 | 1 | **Overview** (`/project/depots`) | Fleet strength and state mix for every unit in the feed | Counts and states are live; the efficiency index is derived from them. |
-| 2 | **League table** | Operating depots ranked within peers of similar fleet size | Derived. The index is computed over the last 20 minutes of feed snapshots, so it does not jump with each poll; just after a restart the window is shorter and the page says "since". |
+| 2 | **League table** | Operating depots ranked within peers of similar fleet size | Derived. The index is computed over the last 20 minutes of feed snapshots the server has seen, so it does not jump with each poll; just after a server restart the window is shorter. Say this yourself: the page does not yet state the window. |
 | 3 | **Exceptions** | Depots and buses that stand out, with the figures behind each | Derived. Tamper codes are flagged, but their meaning is not asserted. |
 | 4 | A depot's **Cockpit**, then **Yard** | What is on the road, standing, late out; who is in the yard now | States are live. The yard is inferred from where buses park, not surveyed; some depots show no yard because the rule refuses to guess. |
 | 5 | **Fleet distribution** | Buses each depot has against what it needs; recommended transfers | Supply is live; the requirement is modelled, so surplus, deficit and every transfer rest on a model. Nothing is dispatched. |
