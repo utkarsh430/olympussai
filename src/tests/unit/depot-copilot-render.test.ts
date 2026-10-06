@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { CopilotDraft, CopilotFact } from '@/lib/depot/copilot/types';
 import {
+  MAX_FACT_TEXT_CHARS,
+  MAX_RENDERED_HEADLINE_CHARS,
+  MAX_RENDERED_PARAGRAPH_CHARS,
   MAX_HEADLINE_CHARS,
   MAX_PARAGRAPHS,
   MAX_PARAGRAPH_CHARS,
   QUANTITY_WORDS,
 } from '@/lib/depot/copilot/limits';
-import { renderDraft } from '@/lib/depot/copilot/render';
+import { renderDraft, sanitizeFactText } from '@/lib/depot/copilot/render';
 
 const fact = (id: string, text: string): CopilotFact => ({
   id,
@@ -125,6 +128,144 @@ describe('renderDraft', () => {
   it('rejects input of the wrong shape', () => {
     const bad = { headline: 1, paragraphs: 'x' } as unknown as CopilotDraft;
     expect(rejected(bad)).toMatch(/shape/i);
+  });
+
+  describe('allowlist (bypasses of the digit and word checks)', () => {
+    it.each([
+      ['Devanagari digits', 'About १२ buses.'],
+      ['Arabic-Indic digits', 'About ٣٤ buses.'],
+      ['full-width digits', 'About １２ buses.'],
+      ['mathematical digits', 'About \u{1D7D0}\u{1D7D1} buses.'],
+      ['superscript digits', 'About ² buses.'],
+      ['circled numbers', 'About ① buses.'],
+      ['vulgar fractions', 'About ½ of buses.'],
+      ['roman numeral characters', 'About Ⅻ buses.'],
+      ['soft hyphen splitting a word', 'There are th­ree of them.'],
+      ['zero-width space splitting a word', 'There are t​wo of them.'],
+      ['bidi override', 'Fleet ‮is late.'],
+      ['line separator', 'Fleet is late.'],
+      ['unicode tag character', 'Fleet \u{E0041} is late.'],
+      ['Cyrillic homoglyph', 'There are twо of them.'],
+      ['full-width letters', 'There are ｔｗｏ of them.'],
+      ['percent sign', 'Late share is high %.'],
+      ['at sign', 'Mail me @ home.'],
+      ['curly quote', 'Fleet’s late.'],
+    ])('rejects %s', (_name, text) => {
+      expect(renderDraft(draft('Head', text), FACTS).ok).toBe(false);
+      expect(renderDraft(draft(text, 'ok'), FACTS).ok).toBe(false);
+    });
+
+    it('rejects a percent sign after a placeholder', () => {
+      expect(rejected(draft('Head', 'Share {{fact:share}}% late.'))).toBeTruthy();
+    });
+
+    it.each([
+      'Adjacent {{fact:buses}}{{fact:share}} here.',
+      'Touching{{fact:buses}} a letter.',
+      'Touching {{fact:buses}}s a letter.',
+    ])('rejects placeholder adjacency in %s', (text) => {
+      expect(rejected(draft('Head', text))).toMatch(/adjacen|placeholder/i);
+    });
+
+    it.each([
+      'Hundreds of buses.',
+      'Thousands late.',
+      'Lakhs of trips.',
+      'Fares doubled.',
+      'Twenty buses.',
+      'Thirteen buses.',
+      'Ninety buses.',
+      'Zero buses.',
+      'A billion trips.',
+      'A couple of buses.',
+      'Several buses.',
+      'Both depots.',
+      'The majority is late.',
+      'Once again.',
+      'Thrice a day.',
+      'A single bus.',
+      'Fivefold growth.',
+      'Halves the gap.',
+      'A fifth of buses.',
+      'Per cent of buses.',
+      'The percentage is high.',
+      'Most buses are late.',
+    ])('rejects the widened quantity word in %s', (text) => {
+      expect(rejected(draft('Head', text))).toMatch(/quantity/i);
+    });
+
+    it.each(['It is XII buses.', 'Section MCM here.'])('rejects roman numerals in %s', (text) => {
+      expect(rejected(draft('Head', text))).toMatch(/roman/i);
+    });
+
+    it.each([
+      'Visit evil.com today.',
+      'See www. now.',
+      'Use mailto for it.',
+      'Use javascript for it.',
+      'It ends.Next starts.',
+    ])('rejects a link or bare domain in %s', (text) => {
+      expect(renderDraft(draft('Head', text), FACTS).ok).toBe(false);
+    });
+
+    it.each([
+      'Bareilly leads its peer group, and one of its yards is full.',
+      'Depot ({{fact:depot}}) is full.',
+      'Depot is {{fact:depot}}.',
+      '"{{fact:depot}}" leads; the rest follow: slowly.',
+      'A well-known yard is full.',
+      "It's the larger yard.",
+    ])('still accepts ordinary prose: %s', (text) => {
+      expect(renderDraft(draft('Head', text), FACTS).ok).toBe(true);
+    });
+
+    it('rejects duplicate fact ids', () => {
+      const dup = [fact('a', 'x'), fact('a', 'y')];
+      expect(renderDraft(draft('Head', 'Value {{fact:a}}.'), dup).ok).toBe(false);
+    });
+  });
+
+  describe('fact text and rendered size', () => {
+    it('sanitises and caps fact text on insertion', () => {
+      const messy = fact('a', `‮evil\nline ${'x'.repeat(500)}`);
+      const result = renderDraft(draft('Head', 'Value {{fact:a}}.'), [messy]);
+      expect(result.ok).toBe(true);
+      const text = result.ok ? (result.paragraphs[0] ?? '') : '';
+      expect(text).not.toMatch(/[‮\n]/);
+      expect(text.startsWith('Value evil line xxx')).toBe(true);
+      expect(text.length).toBeLessThanOrEqual('Value .'.length + MAX_FACT_TEXT_CHARS);
+    });
+
+    it('rejects a rendered paragraph longer than the rendered cap', () => {
+      const long = fact('a', 'y'.repeat(MAX_FACT_TEXT_CHARS));
+      const body = Array.from({ length: 30 }, () => '{{fact:a}}').join(' ');
+      expect(body.length).toBeLessThanOrEqual(600);
+      expect(rejected(draft('Head', body)).toLowerCase()).toContain('rendered');
+      expect(long.text.length).toBe(MAX_FACT_TEXT_CHARS);
+    });
+
+    it('rejects a rendered headline longer than the rendered cap', () => {
+      const long = fact('a', 'y'.repeat(MAX_FACT_TEXT_CHARS));
+      const result = renderDraft(draft('{{fact:a}} {{fact:a}} {{fact:a}}', 'ok'), [long]);
+      expect(result).toMatchObject({ ok: false });
+      expect(MAX_RENDERED_HEADLINE_CHARS).toBe(240);
+      expect(MAX_RENDERED_PARAGRAPH_CHARS).toBe(2000);
+    });
+  });
+
+  describe('sanitizeFactText', () => {
+    it('normalises, strips invisible characters, collapses whitespace and caps', () => {
+      expect(sanitizeFactText('ＡＢ  a​b\t\nc\u0000')).toBe('AB ab c');
+      expect(sanitizeFactText('x'.repeat(300))).toHaveLength(MAX_FACT_TEXT_CHARS);
+      expect(sanitizeFactText('abcdef', 3)).toBe('abc');
+      expect(sanitizeFactText('\u{E0041}‮ok')).toBe('ok');
+    });
+
+    it('keeps ordinary fact values intact', () => {
+      expect(sanitizeFactText('1,204')).toBe('1,204');
+      expect(sanitizeFactText('BAREILLY(R)')).toBe('BAREILLY(R)');
+      expect(sanitizeFactText('31%')).toBe('31%');
+    });
   });
 
   it('does not mutate its input', () => {
