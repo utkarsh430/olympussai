@@ -1,0 +1,149 @@
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { MapHoverCard } from '@/components/depot/rebalance/MapHoverCard';
+import { ScenarioCompare } from '@/components/depot/rebalance/ScenarioCompare';
+import { TransferMapLegend } from '@/components/depot/rebalance/TransferMapLegend';
+import { TransferTable } from '@/components/depot/rebalance/TransferTable';
+import type { ScenarioDelta } from '@/lib/depot/optimise/types';
+import type { MapGeometry } from '@/lib/depot/rebalance/mapGeometry';
+import type { PlanSummary } from '@/lib/depot/rebalance/rebalanceModel';
+import type { TransferRow } from '@/lib/depot/rebalance/transferModel';
+
+/*
+ * Generated figures must say MODELLED where they are shown. These tests pin
+ * the words, so a regression cannot pass the type checker and the linter.
+ */
+
+const actGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+let root: Root | null = null;
+let container: HTMLElement;
+
+const ROW: TransferRow = {
+  id: 'agra>kanpur',
+  fromDepotId: 'agra',
+  fromName: 'Agra',
+  toDepotId: 'kanpur',
+  toName: 'Kanpur',
+  buses: 5,
+  distanceKm: 120,
+  busKm: 600,
+  giverSurplusBefore: 5,
+  receiverDeficitBefore: 5,
+  decision: null,
+};
+
+const DELTA: ScenarioDelta = {
+  transfers: 0,
+  busesMoved: 0,
+  totalBusKm: 0,
+  coveredDeficit: 0,
+  uncoveredDeficit: 0,
+  depotsInDeficitAfter: 0,
+};
+
+const SUMMARY = {
+  before: { totalSurplus: 5, totalDeficit: 5 },
+  after: { totalSurplus: 0, totalDeficit: 0 },
+  transfers: 1,
+  busesMoved: 5,
+  coveredDeficit: 5,
+  uncoveredDeficit: 0,
+  busKm: 600,
+} as unknown as PlanSummary;
+
+const GEOMETRY: MapGeometry = {
+  nodes: [
+    {
+      depotId: 'agra',
+      depotName: 'Agra',
+      position: { lat: 27.1, lng: 78 },
+      balance: 5,
+      cls: 'surplus',
+    },
+    {
+      depotId: 'kanpur',
+      depotName: 'Kanpur',
+      position: { lat: 26.4, lng: 80.3 },
+      balance: -5,
+      cls: 'deficit',
+    },
+  ],
+  arcs: [
+    {
+      transferId: ROW.id,
+      fromDepotId: 'agra',
+      toDepotId: 'kanpur',
+      from: { lat: 27.1, lng: 78 },
+      to: { lat: 26.4, lng: 80.3 },
+      buses: 5,
+      widthPx: 4,
+    },
+  ],
+} as unknown as MapGeometry;
+
+async function render(element: React.ReactElement): Promise<void> {
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+  await act(async () => root?.render(element));
+}
+
+function texts(selector: string): string[] {
+  return [...container.querySelectorAll(selector)].map((e) => e.textContent ?? '');
+}
+
+beforeEach(() => {
+  actGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+});
+
+afterEach(async () => {
+  await act(async () => root?.unmount());
+  container.remove();
+});
+
+describe('MODELLED wording', () => {
+  it('is on the transfer table caption and every figure column header', async () => {
+    await render(
+      <TransferTable
+        rows={[ROW]}
+        selectedId={null}
+        onSelect={() => {}}
+        onDecide={() => {}}
+        serverPlan
+      />,
+    );
+    expect(container.querySelector('caption')?.textContent).toMatch(/modelled/i);
+    const headers = texts('thead th');
+    const figures = headers.filter((h) => /buses|km|spare|short/i.test(h));
+    expect(figures).toHaveLength(5);
+    for (const header of figures) expect(header).toMatch(/modelled/i);
+  });
+
+  it('is on both comparison column headings', async () => {
+    await render(<ScenarioCompare delta={DELTA} baseline={SUMMARY} scenario={SUMMARY} />);
+    const headers = texts('thead th');
+    expect(headers[1]).toMatch(/modelled/i);
+    expect(headers[2]).toMatch(/modelled/i);
+  });
+
+  it('is on every legend entry', async () => {
+    await render(<TransferMapLegend maxBuses={10} />);
+    const entries = texts('[data-testid="rebalance-map-legend"] > div:first-child li');
+    expect(entries).toHaveLength(3);
+    for (const entry of entries) expect(entry).toMatch(/modelled/i);
+    expect(texts('[data-testid="rebalance-map-legend"] p.depot-label').join(' ')).toMatch(
+      /transfers · modelled/i,
+    );
+  });
+
+  it('is on the hover card for a depot and for a transfer', async () => {
+    await render(<MapHoverCard hover="node:agra" geometry={GEOMETRY} />);
+    expect(container.textContent).toMatch(/modelled/i);
+    await act(async () =>
+      root?.render(<MapHoverCard hover={`arc:${ROW.id}`} geometry={GEOMETRY} />),
+    );
+    expect(container.textContent).toContain('Agra → Kanpur');
+    expect(container.textContent).toMatch(/modelled/i);
+  });
+});
