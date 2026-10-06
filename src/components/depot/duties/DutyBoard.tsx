@@ -30,13 +30,8 @@ function ViewToggle({ view, onView }: {
   readonly onView: (view: BoardView) => void;
 }) {
   return (
-    // In the section label's right slot from 640px (SectionLabel has no controls slot, so
-    // it is placed over the label row); on a phone it sits under the label.
-    <div
-      role="group"
-      aria-label="Show duties as"
-      className="mb-3 flex gap-1 sm:absolute sm:right-0 sm:top-3 sm:mb-0"
-    >
+    // Sits in the section label's controls slot; the row wraps it under the label on a phone.
+    <div role="group" aria-label="Show duties as" className="flex gap-1">
       {VIEWS.map((option) => (
         <button
           key={option.id}
@@ -66,10 +61,13 @@ export function DutyBoard({ depotId, rows, feedNow, figures, notes }: DutyBoardP
   const [view, setView] = useState<BoardView>('chart');
   return (
     <section aria-labelledby="duty-board-title" data-testid="duty-board" className="min-w-0">
-      <div className="relative min-w-0">
-        <SectionLabel id="duty-board-title" label="Duty timeline" count={rows.length} tag="modelled" />
-        <ViewToggle view={view} onView={setView} />
-      </div>
+      <SectionLabel
+        id="duty-board-title"
+        label="Duty timeline"
+        count={rows.length}
+        tag="modelled"
+        controls={<ViewToggle view={view} onView={setView} />}
+      />
       <p className="sr-only" role="status" data-testid="duty-view-status">
         {viewAnnouncement(view, rows.length)}
       </p>
