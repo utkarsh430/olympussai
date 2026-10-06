@@ -118,7 +118,9 @@ export function TransferMap({ geometry, selectedId, onSelect }: TransferMapProps
     );
     getMapsLoader()
       .importLibrary('maps')
-      .then(({ Map }) => {
+      .then(async ({ Map }) => {
+        // Markers live in the marker library, as in the network map.
+        await getMapsLoader().importLibrary('marker');
         if (settled || !containerRef.current) return;
         settled = true;
         clearTimeout(timer);
