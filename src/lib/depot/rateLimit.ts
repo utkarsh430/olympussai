@@ -128,3 +128,15 @@ export function requestIdentity(
       : `claims:${JSON.stringify([claims.project, claims.role, claims.iat, claims.exp])}`;
   return sha256(`${session}\n${trustedAddress(headers, env)}`);
 }
+
+/**
+ * `GET /api/upsrtc/depot/route/[routeName]`: a cache miss calls the
+ * government's schedule server, so misses (never hits) are limited per
+ * identity and for the whole process, which protects that server.
+ */
+export const ROUTE_PROFILE_FETCH_LIMITS = {
+  perIdentityPerMinute: 20,
+  perProcessPerMinute: 120,
+  windowMs: 60_000,
+  maxIdentities: 5_000,
+} as const;

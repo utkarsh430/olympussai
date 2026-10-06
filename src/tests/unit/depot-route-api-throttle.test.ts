@@ -37,18 +37,20 @@ const call = (): Promise<Response> =>
 beforeEach(() => {
   sidCounter += 1;
   signedInAs(`throttle-${sidCounter}`);
-  vi.mocked(getLiveSnapshot).mockReset().mockResolvedValue({
-    snapshot: {
-      buses: [],
-      depotRows: [],
-      recordCount: 0,
-      rejectedRecordCount: 0,
-      fetchedAt: '2026-10-06T10:00:00.000Z',
-      feedNow: null,
-    },
-    source: 'live',
-    stale: false,
-  });
+  vi.mocked(getLiveSnapshot)
+    .mockReset()
+    .mockResolvedValue({
+      snapshot: {
+        buses: [],
+        depotRows: [],
+        recordCount: 0,
+        rejectedRecordCount: 0,
+        fetchedAt: '2026-10-06T10:00:00.000Z',
+        feedNow: null,
+      },
+      source: 'live',
+      stale: false,
+    });
   vi.mocked(getRouteProfile)
     .mockReset()
     .mockResolvedValue({ status: 'unavailable', reason: 'no_schedule' });
@@ -69,7 +71,10 @@ describe('route profile upstream throttle', () => {
     expect(limited.headers.get('cache-control')).toBe('no-store');
     const seconds = Number(limited.headers.get('retry-after'));
     expect(seconds).toBeGreaterThan(0);
-    expect(await limited.json()).toEqual({ error: 'Too many requests', retryAfterSeconds: seconds });
+    expect(await limited.json()).toEqual({
+      error: 'Too many requests',
+      retryAfterSeconds: seconds,
+    });
     expect(getRouteProfile).not.toHaveBeenCalled();
     // Another identity still fetches.
     signedInAs('someone-else');
