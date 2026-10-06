@@ -33,7 +33,7 @@ import {
  *    replaced by the new counts, and scores use the window.
  *  - An older feed time still inside the window (upstream answered from an
  *    older cache, as seen live): inserted in feed-time order and scored on the
- *    window as it then stands.
+ *    window as it then stands, up to its own feed time (N7).
  *  - A feed time more than one window behind the newest (a straggler, see
  *    epoch.ts): scored on its own counts; the store is not touched. The third
  *    straggler in a row, with no current sample between, starts a new epoch:
@@ -192,7 +192,9 @@ export function observeDepots(
   const values = new Map<string, ComponentValues>();
   const windows = new Map<string, ScoreWindow>();
   for (const depot of depots) {
-    const held = useStore ? (store.byDepot.get(depot.id) ?? []) : [];
+    // Only samples in [feedMs - window, feedMs] (N7): a late snapshot is never scored on, or
+    // states a span reaching, samples newer than itself; the newest is unaffected.
+    const held = useStore ? pruneSamples(store.byDepot.get(depot.id) ?? [], feedMs) : [];
     if (held.length === 0) {
       values.set(depot.id, valuesOfCounts(countsOf(depot)));
       windows.set(depot.id, {
