@@ -1,5 +1,9 @@
 import type { DepotBusRow } from '@/models/depotLive';
-import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
+import { createServiceHoldStore } from '@/lib/depot/live/serviceHold';
+import type { RouteHourlyQuery } from '@/lib/depot/live/routeHourlyView';
+import { createMemoryHourlyObservationRepository } from '@/lib/depot/repositories/memoryHourlyObservationRepository';
+import { createMemoryScheduledTripRepository } from '@/lib/depot/repositories/memoryScheduledTripRepository';
+import type { FleetSnapshotView, ServiceRepositories } from '@/lib/depot/repositories/types';
 
 /*
  * One small, valid fleet snapshot for the depot guards: three depots of
@@ -9,6 +13,8 @@ import type { FleetSnapshotView } from '@/lib/depot/repositories/types';
 
 export const GUARD_FEED_NOW = '2026-10-06T08:00:00Z';
 const ROUTES = ['AGRA_EXP_1', 'KANPUR_ORD_2', 'DELHI_AC_3'] as const;
+/** A route the guard snapshot carries, for the views and routes of one route. */
+export const GUARD_ROUTE = ROUTES[0];
 
 function row(over: Partial<DepotBusRow>): DepotBusRow {
   return {
@@ -41,4 +47,17 @@ export function guardView(): FleetSnapshotView {
     rows, feedNow: GUARD_FEED_NOW, fetchedAt: '2026-10-06T08:00:05.000Z', source: 'live',
     stale: false, recordCount: rows.length,
   };
+}
+
+/** The hour-by-hour stores, empty and private to the caller. */
+export function guardServiceRepositories(): ServiceRepositories {
+  return {
+    hourly: createMemoryHourlyObservationRepository(createServiceHoldStore()),
+    scheduled: createMemoryScheduledTripRepository(),
+  };
+}
+
+/** One route of the guard snapshot, on the feed's own date. */
+export function guardRouteHourlyQuery(): RouteHourlyQuery {
+  return { routeName: GUARD_ROUTE, date: null };
 }
