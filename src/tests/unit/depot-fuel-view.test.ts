@@ -203,6 +203,26 @@ describe('buildFuelResponse', () => {
     expect(fuelDay).toHaveBeenCalledTimes(1);
   });
 
+  it('keys the held body on the operating date as well as the depot', async () => {
+    const rows = world();
+    const { repo, fuelDay } = stub(baseDays);
+    await buildFuelResponse(view(rows), '1', repo);
+    const next = await buildFuelResponse(view(rows, { feedNow: '2026-10-07T08:00:00Z' }), '1', repo);
+    expect(next?.operatingDate).toBe('2026-10-07');
+    expect(fuelDay).toHaveBeenCalledTimes(2);
+    expect((fuelDay.mock.calls[1] as unknown as [unknown, string])[1]).toBe('2026-10-07');
+  });
+
+  it('keys the held body on the repository as well', async () => {
+    const rows = world();
+    const first = stub(baseDays);
+    const second = stub(() => [day('A1', 5), day('A2', 5), day('A3', 5)]);
+    const a = await buildFuelResponse(view(rows), '1', first.repo);
+    const b = await buildFuelResponse(view(rows), '1', second.repo);
+    expect(a?.flaggedTotal).toBe(1);
+    expect(b?.flaggedTotal).toBe(0);
+  });
+
   it('does not hold a failed read', async () => {
     const rows = world();
     const fuelDay = vi.fn().mockRejectedValueOnce(new Error('boom')).mockResolvedValue(baseDays());

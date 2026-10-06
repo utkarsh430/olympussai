@@ -75,11 +75,27 @@ async function buildBody(
 }
 
 /*
- * The body depends only on the rows and the depot, so it is held per analysis
- * and depot, as a promise so concurrent polls share one read. A failed read is
- * dropped so the next request retries; a null body (unknown depot) is not held.
+ * The body depends on the rows (through the analysis), the depot, the operating
+ * date and the fuel source, so it is held under all four, as a promise so
+ * concurrent polls share one read. `memoiseBody` is not used: it is synchronous
+ * and keyed on the snapshot alone, while this body awaits a repository and
+ * varies by depot, date and source. A failed read is dropped so the next
+ * request retries; a null body (unknown depot) is not held.
  */
-const bodies = new WeakMap<SnapshotAnalysis, Map<string, Promise<FuelBody | null>>>();
+const bodies = new WeakMap<
+  SnapshotAnalysis,
+  WeakMap<FuelRepository, Map<string, Promise<FuelBody | null>>>
+>();
+
+function heldFor(analysis: SnapshotAnalysis, fuel: FuelRepository) {
+  const byRepository =
+    bodies.get(analysis) ??
+    new WeakMap<FuelRepository, Map<string, Promise<FuelBody | null>>>();
+  bodies.set(analysis, byRepository);
+  const held = byRepository.get(fuel) ?? new Map<string, Promise<FuelBody | null>>();
+  byRepository.set(fuel, held);
+  return held;
+}
 
 /**
  * One depot's fuel page payload, or null when the snapshot has no such depot.
@@ -92,17 +108,17 @@ export async function buildFuelResponse(
   fuel: FuelRepository,
 ): Promise<FuelResponse | null> {
   const analysis = analyseSnapshot(view);
-  const perDepot = bodies.get(analysis) ?? new Map<string, Promise<FuelBody | null>>();
-  bodies.set(analysis, perDepot);
-  const held = perDepot.get(depotId);
+  const perKey = heldFor(analysis, fuel);
+  const key = `${depotId}|${operatingDateOf(view.feedNow, view.fetchedAt)}`;
+  const held = perKey.get(key);
   const pending = held ?? buildBody(view, depotId, fuel);
   if (held === undefined) {
-    perDepot.set(depotId, pending);
+    perKey.set(key, pending);
     pending.then(
       (body) => {
-        if (body === null) perDepot.delete(depotId);
+        if (body === null) perKey.delete(key);
       },
-      () => perDepot.delete(depotId),
+      () => perKey.delete(key),
     );
   }
   const body = await pending;
