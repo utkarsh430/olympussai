@@ -22,10 +22,6 @@ import {
   MAX_FACTS,
   MAX_GUIDANCE_CHARS,
   MAX_PROMPT_BYTES,
-  PROSE_PUNCTUATION,
-  QUANTITY_SUFFIXES,
-  QUANTITY_WORDS,
-  ROMAN_NUMERAL_LETTERS,
 } from '@/lib/depot/copilot/limits';
 import type { CopilotRequest, CopilotTask } from '@/lib/depot/copilot/types';
 

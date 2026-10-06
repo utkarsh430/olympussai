@@ -9,7 +9,12 @@ import {
   VOCABULARY_WORDS,
 } from '@/lib/depot/copilot/vocabulary';
 
-const fact = (id: string, text: string): CopilotFact => ({ id, label: id, text, provenance: 'live' });
+const fact = (id: string, text: string): CopilotFact => ({
+  id,
+  label: id,
+  text,
+  provenance: 'live',
+});
 const FACTS: readonly CopilotFact[] = [
   fact('a', '3'),
   fact('b', '5'),
@@ -92,7 +97,10 @@ describe('hostile inputs from the security review', () => {
   });
 
   it('never returns draft text in the reason', () => {
-    const result = renderDraft({ headline: 'Xyzzy plugh', paragraphs: ['Qwerty {{fact:zz}}.'] }, FACTS);
+    const result = renderDraft(
+      { headline: 'Xyzzy plugh', paragraphs: ['Qwerty {{fact:zz}}.'] },
+      FACTS,
+    );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).not.toMatch(/xyzzy|plugh|qwerty|zz/i);
   });
@@ -163,9 +171,10 @@ describe('vocabulary invariants', () => {
     `^(?:${QUANTITY_WORDS.filter((w) => !w.includes(' ')).join('|')})(?:${QUANTITY_SUFFIXES.join('|')})?$`,
   );
   /** Every form the matcher can accept: listed words and listed words with an ending. */
-  const forms = VOCABULARY_WORDS.flatMap((w) => [w, ...REGULAR_ENDINGS.map((e) => `${w}${e}`)]).filter(
-    isVocabularyWord,
-  );
+  const forms = VOCABULARY_WORDS.flatMap((w) => [
+    w,
+    ...REGULAR_ENDINGS.map((e) => `${w}${e}`),
+  ]).filter(isVocabularyWord);
 
   it('is a closed list of roughly two to three thousand forms', () => {
     expect(new Set(VOCABULARY_WORDS).size).toBe(VOCABULARY_WORDS.length);
@@ -192,7 +201,9 @@ describe('vocabulary invariants', () => {
   it('holds no Roman numeral and no single letter other than "a"', () => {
     expect(forms.filter(isRomanNumeral)).toEqual([]);
     expect(forms.filter((w) => w.length === 1)).toEqual(['a']);
-    expect(['i', 'v', 'x', 'k', 'm', 'e', 'vi', 'xl', 'mix', 'mi'].filter(isVocabularyWord)).toEqual([]);
+    expect(
+      ['i', 'v', 'x', 'k', 'm', 'e', 'vi', 'xl', 'mix', 'mi'].filter(isVocabularyWord),
+    ).toEqual([]);
   });
 
   it('allows the vague quantifiers that state no figure', () => {

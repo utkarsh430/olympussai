@@ -56,7 +56,8 @@ export interface CopilotText {
 
 export interface CopilotProvider {
   readonly id: CopilotProviderId;
-  draft(request: CopilotRequest): Promise<CopilotDraft>;
+  /** `signal` ends the work early: a caller's deadline or a client disconnect. */
+  draft(request: CopilotRequest, signal?: AbortSignal): Promise<CopilotDraft>;
 }
 
 /** A provider could not produce a draft; `reason` says why, for the fallback. */

@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { renderDraft } from '@/lib/depot/copilot/render';
 import type { CopilotFact } from '@/lib/depot/copilot/types';
 
-const fact = (id: string, text: string): CopilotFact => ({ id, label: id, text, provenance: 'live' });
+const fact = (id: string, text: string): CopilotFact => ({
+  id,
+  label: id,
+  text,
+  provenance: 'live',
+});
 
 const FACTS: readonly CopilotFact[] = [
   fact('fleet', '1,204 buses'),
@@ -90,7 +95,7 @@ const CORPUS: readonly string[] = [
   'There are no exceptions flagged on this snapshot.',
   'The answer depends on the yard boundary, which is not yet established for {{fact:name}}.',
   'Its dark rate ({{fact:darkshare}}) is lower than that of its peers.',
-  'The depot\'s on-road share is {{fact:onroad}}; its peers are slightly higher.',
+  "The depot's on-road share is {{fact:onroad}}; its peers are slightly higher.",
   'In short: the fleet is largely on the road, and the exceptions are few.',
   'This depot is described as "stretched" because its deficit is large relative to its fleet.',
   'The comparison covers {{fact:name}} and {{fact:other}} only.',

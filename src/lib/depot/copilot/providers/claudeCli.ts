@@ -1,4 +1,4 @@
-import { dirname } from 'node:path';
+import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { buildCliArgs, isValidModelName } from '@/lib/depot/copilot/cli/args';
 import { classifyCliFailure, parseCliOutput } from '@/lib/depot/copilot/cli/classify';
 import { buildChildEnv } from '@/lib/depot/copilot/cli/env';
@@ -8,15 +8,8 @@ import {
   DRAFT_JSON_SCHEMA,
 } from '@/lib/depot/copilot/cli/prompt';
 import { runCli, type SpawnLike } from '@/lib/depot/copilot/cli/run';
-import {
-  CLI_CONCURRENCY,
-  CLI_MAX_CALLS_PER_DAY,
-  CLI_MAX_CALLS_PER_HOUR,
-  CLI_MAX_OUTPUT_BYTES,
-  CLI_QUEUE,
-  CLI_TIMEOUT_MS,
-} from '@/lib/depot/copilot/config';
-import { createCallLimiter, type CallLimiter } from '@/lib/depot/copilot/limiter';
+import { CLI_MAX_OUTPUT_BYTES, CLI_TIMEOUT_MS } from '@/lib/depot/copilot/config';
+import type { CallLimiter } from '@/lib/depot/copilot/limiter';
 import { MAX_PROMPT_BYTES } from '@/lib/depot/copilot/limits';
 import {
   assertUsableBinary,
@@ -24,7 +17,7 @@ import {
   nodeBinaryFs,
   type BinaryFs,
 } from '@/lib/depot/copilot/providers/binary';
-import { createSemaphore, type Semaphore } from '@/lib/depot/copilot/semaphore';
+import type { Semaphore } from '@/lib/depot/copilot/semaphore';
 import {
   CopilotFailure,
   type CopilotDraft,
@@ -53,10 +46,14 @@ export interface ClaudeCliDeps {
   readonly env: Readonly<Record<string, string | undefined>>;
   /** Directory of the running node executable; defaults to this process's. */
   readonly nodeDir?: string;
-  /** Shared across providers when more than one is built; defaults to a private one. */
-  readonly semaphore?: Semaphore;
-  /** Hourly and daily call budget; defaults to the configured limits on the system clock. */
-  readonly limiter?: CallLimiter;
+  /**
+   * Required, with no private default: build ONE semaphore and ONE limiter per
+   * process and pass them to every provider, or each caller gets a fresh budget.
+   */
+  readonly semaphore: Semaphore;
+  readonly limiter: CallLimiter;
+  /** HOME and the working directory must lie outside this; defaults to the server's cwd. */
+  readonly repoRoot?: string;
   /** File-system calls for the binary check; defaults to the real file system. */
   readonly fs?: BinaryFs;
 }
@@ -67,20 +64,26 @@ const SCHEMA_JSON = JSON.stringify(DRAFT_JSON_SCHEMA);
 export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
   if (!isAbsoluteBinary(deps.bin)) throw new Error('The Claude binary path must be absolute');
   if (!isValidModelName(deps.model)) throw new RangeError('Invalid model name');
-  const bin = assertUsableBinary(deps.bin, deps.fs ?? nodeBinaryFs);
-  const semaphore = deps.semaphore ?? createSemaphore(CLI_CONCURRENCY, CLI_QUEUE);
-  const limiter =
-    deps.limiter ??
-    createCallLimiter({
-      now: Date.now,
-      perHour: CLI_MAX_CALLS_PER_HOUR,
-      perDay: CLI_MAX_CALLS_PER_DAY,
-    });
+  const fs = deps.fs ?? nodeBinaryFs;
+  assertUsableBinary(deps.bin, fs);
+  const { semaphore, limiter } = deps;
+  // Checked at run time too: an untyped caller must not get an unlimited provider.
+  if (!semaphore || !limiter) throw new Error('A shared semaphore and limiter are required');
+  const repoRoot = resolve(deps.repoRoot ?? process.cwd());
+  /** Absolute and outside the repository, so the child can read no project file. */
+  const isPrivateDir = (path: string): boolean => {
+    if (!isAbsolute(path) || path.includes('\0')) return false;
+    const fromRepo = relative(repoRoot, resolve(path));
+    return fromRepo.startsWith('..') || isAbsolute(fromRepo);
+  };
+  if (!isPrivateDir(deps.home)) {
+    throw new Error('The child HOME must be absolute and outside the repository');
+  }
   const nodeDir = deps.nodeDir ?? dirname(process.execPath);
 
   return {
     id: 'claude-cli',
-    async draft(request: CopilotRequest): Promise<CopilotDraft> {
+    async draft(request: CopilotRequest, signal?: AbortSignal): Promise<CopilotDraft> {
       let stdin: string;
       let args: string[];
       try {
@@ -97,6 +100,15 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
       if (Buffer.byteLength(stdin, 'utf8') > MAX_PROMPT_BYTES) {
         throw new CopilotFailure('request_rejected', 'prompt too large');
       }
+      // Verified on every call, before a slot or budget is used.
+      let bin: string;
+      try {
+        bin = assertUsableBinary(deps.bin, fs);
+      } catch {
+        throw new CopilotFailure('not_installed', 'binary check failed');
+      }
+      const cwd = deps.cwd();
+      if (!isPrivateDir(cwd)) throw new CopilotFailure('error', 'working directory rejected');
       const result = await semaphore.run(() => {
         // Counted where an attempt really starts, so queued or refused work costs nothing.
         if (!limiter.tryAcquire()) throw new CopilotFailure('budget_exhausted', 'call budget used');
@@ -105,10 +117,11 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
             bin,
             args,
             env: buildChildEnv(deps.env, deps.home, nodeDir),
-            cwd: deps.cwd(),
+            cwd,
             stdin,
             timeoutMs: CLI_TIMEOUT_MS,
             maxOutputBytes: CLI_MAX_OUTPUT_BYTES,
+            signal,
           },
           deps.spawn,
         );

@@ -42,7 +42,8 @@ export const AUTHORED_PHRASES: readonly (readonly string[])[] = [
 
 function parseToken(raw: string): Token | null {
   const placeholder = PLACEHOLDER_TOKEN.exec(raw);
-  if (placeholder) return { kind: 'placeholder', id: placeholder[1] ?? '', mark: placeholder[2] ?? '' };
+  if (placeholder)
+    return { kind: 'placeholder', id: placeholder[1] ?? '', mark: placeholder[2] ?? '' };
   const word = WORD_TOKEN.exec(raw);
   // Matching is case-insensitive on the whole token.
   return word ? { kind: 'word', core: (word[1] ?? '').toLowerCase() } : null;
@@ -82,11 +83,9 @@ export interface FactEdges {
  * `, ` unless the left value ends in a bare number and the right one does not
  * start with a letter ("Agra, Kanpur" and "7 depots, 31 buses" pass; "3, 5" fails).
  */
-function joinedPlaceholders(
-  tokens: readonly Token[],
-  edgesOf: (id: string) => FactEdges,
-): boolean {
-  let previous: { readonly index: number; readonly id: string; readonly mark: string } | null = null;
+function joinedPlaceholders(tokens: readonly Token[], edgesOf: (id: string) => FactEdges): boolean {
+  let previous: { readonly index: number; readonly id: string; readonly mark: string } | null =
+    null;
   for (const [index, token] of tokens.entries()) {
     if (token.kind === 'word') {
       if (token.core.length >= MIN_JOINING_WORD_LETTERS) previous = null;

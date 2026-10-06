@@ -1,14 +1,26 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
-import { runCli, type ChildLike, type RunCliInput, type SpawnLike } from '@/lib/depot/copilot/cli/run';
+import {
+  runCli,
+  type ChildLike,
+  type RunCliInput,
+  type SpawnLike,
+} from '@/lib/depot/copilot/cli/run';
 import { createCallLimiter } from '@/lib/depot/copilot/limiter';
 import { MAX_COMBINING_MARKS } from '@/lib/depot/copilot/limits';
 import { assertUsableBinary, type BinaryFs } from '@/lib/depot/copilot/providers/binary';
-import { createClaudeCliProvider, type ClaudeCliDeps } from '@/lib/depot/copilot/providers/claudeCli';
+import {
+  createClaudeCliProvider,
+  type ClaudeCliDeps,
+} from '@/lib/depot/copilot/providers/claudeCli';
 import { sanitizeFactText } from '@/lib/depot/copilot/render';
 import { createCopilotEngine, UNAVAILABLE_DRAFT } from '@/lib/depot/copilot/resolve';
 import { createSemaphore } from '@/lib/depot/copilot/semaphore';
-import { CopilotFailure, type CopilotProvider, type CopilotRequest } from '@/lib/depot/copilot/types';
+import {
+  CopilotFailure,
+  type CopilotProvider,
+  type CopilotRequest,
+} from '@/lib/depot/copilot/types';
 
 vi.mock('@/lib/depot/log', () => ({ logDepotError: vi.fn() }));
 
@@ -76,7 +88,11 @@ describe('process control', () => {
     const child = fakeChild();
     const killGroup = vi.fn();
     const controller = new AbortController();
-    const promise = runCli({ ...INPUT, timeoutMs: 5000, signal: controller.signal }, () => child, killGroup);
+    const promise = runCli(
+      { ...INPUT, timeoutMs: 5000, signal: controller.signal },
+      () => child,
+      killGroup,
+    );
     controller.abort();
     await expect(promise).resolves.toMatchObject({ ok: false, reason: 'request_rejected' });
     expect(killGroup).toHaveBeenCalledWith(4242);
@@ -89,7 +105,9 @@ describe('process control', () => {
 const SAFE: BinaryFs = {
   realpath: (path) => path,
   stat: (path) =>
-    path.endsWith('claude') ? { isFile: true, mode: 0o100755, uid: 0 } : { isFile: false, mode: 0o40755, uid: 0 },
+    path.endsWith('claude')
+      ? { isFile: true, mode: 0o100755, uid: 0 }
+      : { isFile: false, mode: 0o40755, uid: 0 },
 };
 const deps = (extra: Partial<ClaudeCliDeps> = {}): ClaudeCliDeps => ({
   spawn: () => {
@@ -115,7 +133,7 @@ const deps = (extra: Partial<ClaudeCliDeps> = {}): ClaudeCliDeps => ({
 
 describe('provider factory', () => {
   it('requires a shared semaphore and limiter', () => {
-    const { semaphore: _s, limiter: _l, ...rest } = deps();
+    const rest = { ...deps(), semaphore: undefined, limiter: undefined } as unknown;
     expect(() => createClaudeCliProvider(rest as ClaudeCliDeps)).toThrow(/semaphore and limiter/);
   });
 
@@ -152,7 +170,9 @@ describe('provider factory', () => {
       },
       stat: SAFE.stat,
     };
-    expect(() => assertUsableBinary('/secret/claude', missing)).toThrow(/^The Claude binary is missing/);
+    expect(() => assertUsableBinary('/secret/claude', missing)).toThrow(
+      /^The Claude binary is missing/,
+    );
     expect(() => assertUsableBinary('/secret/claude', missing)).not.toThrow(/secret|ENOENT/);
     const foreign: BinaryFs = { ...SAFE, stat: (p) => ({ ...SAFE.stat(p), uid: 777 }) };
     expect(() => assertUsableBinary('/opt/claude/claude', foreign, 501)).toThrow(/owner/);
@@ -214,8 +234,14 @@ describe('engine', () => {
       },
     };
     const text = await build(failing('error'), thrower).engine.generate(REQUEST);
-    expect(text).toMatchObject({ headline: UNAVAILABLE_DRAFT.headline, fallbackReason: 'scripted_unavailable' });
-    const broken = { ...REQUEST, facts: [{ ...REQUEST.facts[0], text: undefined }] } as unknown as CopilotRequest;
+    expect(text).toMatchObject({
+      headline: UNAVAILABLE_DRAFT.headline,
+      fallbackReason: 'scripted_unavailable',
+    });
+    const broken = {
+      ...REQUEST,
+      facts: [{ ...REQUEST.facts[0], text: undefined }],
+    } as unknown as CopilotRequest;
     await expect(build(failing('error')).engine.generate(broken)).resolves.toMatchObject({
       fallbackReason: 'scripted_unavailable',
     });

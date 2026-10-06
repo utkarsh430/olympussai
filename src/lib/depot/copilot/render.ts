@@ -50,7 +50,8 @@ const ALLOWED_PROSE = new RegExp(`^[A-Za-z ${inClass(PROSE_PUNCTUATION)}]*$`);
 
 const GRAMMAR_REASONS: Readonly<Record<GrammarProblem, string>> = {
   spacing: 'Draft has a leading, trailing or double space',
-  token: 'Draft has a token outside the grammar (misplaced punctuation or a placeholder adjacent to something)',
+  token:
+    'Draft has a token outside the grammar (misplaced punctuation or a placeholder adjacent to something)',
   vocabulary: 'Draft uses a word outside the vocabulary',
   joined_placeholders: 'Draft has placeholders joined without a word between',
 };

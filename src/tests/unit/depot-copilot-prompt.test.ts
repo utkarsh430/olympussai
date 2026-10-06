@@ -18,7 +18,12 @@ import { renderDraft } from '@/lib/depot/copilot/render';
 import type { CopilotFact, CopilotRequest } from '@/lib/depot/copilot/types';
 import { REGULAR_ENDINGS, VOCABULARY_WORDS } from '@/lib/depot/copilot/vocabulary';
 
-const fact = (id: string, text: string): CopilotFact => ({ id, label: id, text, provenance: 'live' });
+const fact = (id: string, text: string): CopilotFact => ({
+  id,
+  label: id,
+  text,
+  provenance: 'live',
+});
 const FACTS: readonly CopilotFact[] = [
   fact('fleet', '1,204 buses'),
   fact('share', '71%'),
@@ -41,10 +46,13 @@ describe('system prompt and validator agreement', () => {
     expect(renders(example)).toBe(true);
   });
 
-  it.each(PROMPT_REJECTED_EXAMPLES)('quotes the rejected example %j, and it is refused', (example) => {
-    expect(prompt).toContain(example);
-    expect(renders(example)).toBe(false);
-  });
+  it.each(PROMPT_REJECTED_EXAMPLES)(
+    'quotes the rejected example %j, and it is refused',
+    (example) => {
+      expect(prompt).toContain(example);
+      expect(renders(example)).toBe(false);
+    },
+  );
 
   it('states the caps before and after substitution, the grammar and the endings', () => {
     for (const cap of [
@@ -58,7 +66,9 @@ describe('system prompt and validator agreement', () => {
     expect(prompt).toContain(`at most one of ${TRAILING_MARKS.join(' ')}`);
     expect(prompt).toContain(`endings ${REGULAR_ENDINGS.join(' ')}`);
     expect(prompt).toMatch(/exactly one space/);
-    expect(prompt).toMatch(/Every figure, with its unit, and every name is a \{\{fact:id\}\} placeholder/);
+    expect(prompt).toMatch(
+      /Every figure, with its unit, and every name is a \{\{fact:id\}\} placeholder/,
+    );
     expect(prompt).toMatch(/any other word, however ordinary, rejects the whole draft/);
     for (const phrase of AUTHORED_PHRASES) expect(prompt).toContain(phrase.join(' '));
   });
