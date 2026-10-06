@@ -33,6 +33,12 @@ export interface ScoreWindow {
   readonly since: string | null;
   /** Snapshots summed. One means the figure is from a single snapshot. */
   readonly samples: number;
+  /**
+   * Whole minutes of feed time the samples actually span (first to last); 0
+   * for one sample. A screen says "over the last N minutes" from this, never
+   * from `lengthMin`. Always set by the live analysis.
+   */
+  readonly coveredMin?: number;
 }
 
 export type RankReason = 'ok' | 'not_a_depot' | 'fleet_too_small';
@@ -52,4 +58,10 @@ export interface DepotScore {
   readonly components: readonly DeiComponent[];
   /** The window the component values were summed over. Always set by the live analysis. */
   readonly window?: ScoreWindow;
+  /**
+   * Snapshots this depot's values were summed over (its own `window.samples`),
+   * so a depot new to the window (1) can be told from peers scored on many.
+   * Always set by the live analysis.
+   */
+  readonly samples?: number;
 }
