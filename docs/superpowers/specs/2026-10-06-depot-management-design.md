@@ -368,7 +368,7 @@ Maps rendering in e2e.
 
 ## Amendments made during the build
 
-Added 2026-10-06 after the build. The approved text above is unchanged; where it and this
+Added 6 Oct 2026 after the build; brought up to ruling S63 the same day. The approved text above is unchanged; where it and this
 list disagree, this list and the code win. Rulings are numbered as in the build's decision
 ledger (S-numbers) and the P0 phase ledger. Process-only rulings (S1, S2, S4, S8, and the
 dispatch rulings of P0 and P1) are left out. The module as built is described in
@@ -381,8 +381,11 @@ dispatch rulings of P0 and P1) are left out. The module as built is described in
 - S5: the two unreachable steps of command-centre e2e test 21 (Diagnostics and Audit buttons removed on `main`) are dropped; its wording assertions stay.
 - S14/S15: the e2e host and port are configurable and the default host is `localhost`, the origin the Maps key authorises.
 - S23: the bus drawer is a hand-built modal with scroll lock and a focus trap, not a Radix dialog.
-- S24: "unit" means any home-depot value in the feed, "operating depot" a unit of kind `depot`; the feed chip says `LIVE` or `STALE`, never `CACHE`.
-- S44 (amends the plans' "every figure carries a provenance tag"): each page declares its default provenance once, under its header, as one tag and one fixed-formula sentence; only what differs carries its own tag; no "Modelled" in titles, column headers or cells of an all-modelled page.
+- S24: "unit" means any home-depot value in the feed, "operating depot" a unit of kind `depot`; the feed chip never says `CACHE` (it reads `LIVE` or `STALE`, `FIXTURE` on the saved sample, and `CHECK CLOCK` from S56c).
+- S44 (amends the plans' "every figure carries a provenance tag"): each page declares its default provenance once, under its header, as one tag and one fixed-formula sentence; only what differs carries its own tag; no "Modelled" in titles, column headers or cells of an all-modelled page. Amended by S51.
+- S51 (amends S44): a section or column where a generated figure or status sits beside a real, named bus, depot or route carries one tag on every page, all-modelled pages included; a generated band on a mixed or derived page carries its tag; every page's provenance line is pinned by a test through the real component.
+- S53 (wording, in part): "in the yard" means every bus of the depot inside the yard circle whatever its state, and a standing subset is called "standing in the yard"; the cockpit's emergency line links to the exceptions page filtered by kind and depot, which honours both on entry; the modelled day being recomputed from each snapshot is accepted and worded "as of the feed time".
+- S60: one state vocabulary on screen, the classified states; the network figures (on road, standing, dark, off road) are sums of the classified states, DERIVED, and partition the fleet, instead of sums of the feed's own status field.
 
 **Live path and inference**
 
@@ -391,9 +394,15 @@ dispatch rulings of P0 and P1) are left out. The module as built is described in
 - S6: outshedding order is ended, departed on actual time, upcoming (even when dark), unknown, departed by location, due, overdue.
 - S13, S16, S19 (each superseded by S25): the grid-based yard rules tried in rounds 2 to 4. From S19 the yard radius survives: the largest member distance plus padding, not the 90th percentile.
 - S25 (replaces the spec's "150 m grid, densest cell plus neighbours, centroid and p90 radius ... 50% in-cluster"): yard inference is distance-linked density clustering (150 m link, 4 points for a core), with a share floor of one quarter; minimum 6 buses and 1.5x dominance stay.
-- S43 (replaces the spec's "merged with a seed file to stop jitter"): yard continuity in process memory; an established yard is kept while at least six of the depot's standing buses are in it, for up to twelve hours. No seed file exists.
+- S43 (replaces the spec's "merged with a seed file to stop jitter"): yard continuity in process memory; an established yard is kept while at least six of the depot's standing buses are in it, for up to twelve hours. No seed file exists. Refined by S50c: the held circle stays fixed, a repeat feed time returns the remembered yard, and only buses heard recently keep a hold.
 - S9: when the MAD is zero, the robust z falls back to the mean absolute deviation around the median (factor 1.2533).
-- S42: the Depot Efficiency Index and the peer-comparison depot exceptions are computed from counts summed over a rolling 20-minute window of snapshots held in process memory, not from one snapshot.
+- S42: the Depot Efficiency Index and the peer-comparison depot exceptions are computed from counts summed over a rolling 20-minute window of snapshots held in process memory, not from one snapshot. Refined by S50b, S56b and S56c.
+- S46 (refines S25): groups of parked buses whose nearest buses stand within 300 m (twice the link distance) are one place, merged largest first while the place stays within the 1.5 km span, before the size, share, dominance and span tests; the yard rule sentence says so.
+- S50 (in part replaced by S56): (b) an in-window out-of-order sample is inserted in order, a repeated feed time with new rows replaces its sample, and responses carry `coveredMin` and per-depot sample counts; (c) see S43; (d) "in service" also accepts an overnight trip still running at the feed time, and each exception states whether it is compared over the window or as of the feed time. Its part (a), a percentile clock guard, was replaced by S56a.
+- S56 (replaces S50a and the epoch part of S50b): (a) the feed clock is the newest receive time not later than the snapshot's fetch time read in Indian time plus 5 minutes, rows beyond it ignored for the clock and counted; (b) a sample more than one window behind the newest is scored alone and never touches the window or the yard memory.
+- S56c (amends S56b): a new epoch needs three stragglers, each later than the one before and within one window of it, spanning at least 3 minutes of feed time; the start-up count of yard decisions is not sent for the saved sample or the unassigned group; the saved sample's clock has no upper limit; 1% or more of a response's rows (at least 20) ahead of the clock turns the feed chip to `CHECK CLOCK`.
+- S57: freshness, not the path, decides `stale` on the depot pages: last-good data younger than 90 s is not stale; the saved sample always is.
+- S52 (amends the spec's offline fallback): the fallback is a full-fleet saved sample, gzip-compressed, allowlisted keys only, read lazily on first fallback and memoised; a missing or bad file falls back to the small sample. Built by `npm run build:depot-fixture`.
 
 **Fleet distribution and routes**
 
@@ -401,12 +410,17 @@ dispatch rulings of P0 and P1) are left out. The module as built is described in
 - S20: an allocation swap is accepted when the swap as a whole saves the minimum, not each leg.
 - S21: unchanged routes gain the reasons `over_capacity` and `move_limit`, with a fixed precedence.
 - S22: a route's per-trip kilometres are the sum of the rounded outbound and inbound figures.
-- S40 (amends the spec's route efficiency and allocation inputs): no background crawl of the route details API; profiles are fetched one route at a time on a user's action. The ruling also approved a user-initiated, bounded per-depot loader; it is not in this build.
+- S40 (amends the spec's route efficiency and allocation inputs): no background crawl of the route details API; profiles are fetched one route at a time on a user's action. The ruling also approved a user-initiated, bounded per-depot loader; it is built (`src/lib/depot/routes/profileLoader.ts`: one lookup at a time, at most 40 routes a press, never by itself).
 
 **Modelled domains**
 
 - S11: modelled rate series scale their daily variation with the level (sqrt(p(1-p)) with a floor).
-- S41: crew, fuel, revenue and the duty count all derive from one modelled operating day per depot and date.
+- S41: crew, fuel, revenue and the duty count all derive from one modelled operating day per depot and date. Extended by S47.
+- S47: the day decides which bus runs each duty once: one plan per snapshot, depot, operating date and catalogue revision, shared by the duty board, crew, the night parking order, fuel, revenue and economics, from one matcher (`assignDuties`). A bus in service or on the road is eligible; cost tiers keep on-road buses in the day, then a bus reporting the duty's route, then class, then time fit.
+- S48: the economics sentence says a depot's per-kilometre figures weight its routes by distance; the operating-date fallback reads the fetch time in Indian time; day wording is dated and tense-neutral; a real route length under a named floor is treated as not known; capacity is the seats offered.
+- S55 (refines S47): a later day's plan ignores how buses stand now; every bus must be heard recently to be eligible; in service ranks above merely moving; an unassigned duty's reason no longer names a class; the spare sentence says where spare buses stand.
+- S62 and S62b (extend S55): until the first duty of the feed's own date has started, the day has not begun: no time fit, buses standing in the yard take the earliest duties and buses still out the ones after, and the night parking order plans the feed's own date from that same plan; from the first duty on it plans the next date. A repeated registration keeps the most recently heard row.
+- S63: the requirement model reads each depot's on-road share, and the peer median, over the rolling score window instead of the single snapshot.
 - S27: crew are rostered against shifts derived from duties (a duty longer than the daily limit is split), and required crew is the shift count.
 - S30: each crew role gets a fixed reserve of two slots on top of the ratio.
 - S36: an uncovered shift carries a reason per role, and the page says a shortfall is an outcome of the model.
@@ -429,6 +443,9 @@ dispatch rulings of P0 and P1) are left out. The module as built is described in
 - S38: further rules on what the model may write next to a figure (refines S26).
 - S29, S37: limits key on a session identity (a random session id claim added to the session token) plus the client address when a trusted header is configured; scripted answers have a high process ceiling; Claude work is bounded by a per-identity allowance and the process budget.
 - S45: a worded relation between two true figures is accepted as a residual risk.
+- S49: the wording guard reads two words either side of a figure and refuses rate makers, day-shift words and negation there; words the scripted writer never needs are removed from the vocabulary; an IPv6 caller is keyed on its /64.
+- S59: the two wording rules still open on the model path (a later figure-less sentence denying an earlier one; obligation words and the noun-use opener) are recorded limits of the owner-only command-line writer, to be closed before any staff-facing provider is switched on.
+- S61: person, cause, blame and alarm words are removed from the closed vocabulary (kept only inside fixed phrases); what remains of a true figure given a false meaning is a recorded limit of the owner-only path.
 
 **Differences from the text above with no ruling found in the ledger**
 
