@@ -16,7 +16,8 @@ import {
   PEER_GROUP_LABEL,
   buildLeagueRows,
   filterLeagueRows,
-  formatPoints,
+  describeDifference,
+  type DifferenceDirection,
   formatRate,
   unrankedSentence,
   type LeagueFilters as Filters,
@@ -33,6 +34,13 @@ const PEER_GROUP_SORT: Readonly<Record<PeerGroupId, number>> = {
   medium: 1,
   large: 2,
   all: 3,
+};
+/** Colour only reinforces the wording beside it. */
+const DIRECTION_TONE: Readonly<Record<DifferenceDirection, string>> = {
+  better: 'text-alert-green',
+  worse: 'text-alert-amber',
+  level: 'text-depot-faint',
+  unknown: 'text-depot-faint',
 };
 const PEER_GROUP_DISPLAY_ORDER: readonly PeerGroupId[] = ['small', 'medium', 'large', 'all'];
 
@@ -51,10 +59,13 @@ function rateColumn(key: DeiComponentKey): Column<LeagueRow> {
     render: (row) => {
       const cell = componentOf(row, key);
       if (!cell) return '—';
+      const difference = describeDifference(cell.deltaPoints, cell.higherIsBetter);
       return (
         <span className="inline-flex flex-col items-end leading-tight">
           <span>{formatRate(cell.value)}</span>
-          <span className="text-[11px] text-depot-faint">{formatPoints(cell.deltaPoints)}</span>
+          <span className={`text-[11px] ${DIRECTION_TONE[difference.direction]}`}>
+            {difference.text}
+          </span>
         </span>
       );
     },

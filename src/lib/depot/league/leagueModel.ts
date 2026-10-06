@@ -8,6 +8,7 @@ export interface ComponentCell {
   readonly key: DeiComponentKey;
   readonly label: string;
   readonly weight: number;
+  readonly higherIsBetter: boolean;
   /** The depot's own rate, 0 to 1. */
   readonly value: number | null;
   readonly peerMedian: number | null;
@@ -64,6 +65,7 @@ function toCells(score: DepotScore): ComponentCell[] {
       key: component.key,
       label: config?.label ?? component.key,
       weight: config?.weight ?? 0,
+      higherIsBetter: config?.higherIsBetter ?? true,
       value,
       peerMedian,
       deltaPoints: value === null || peerMedian === null ? null : (value - peerMedian) * PERCENT,
@@ -139,6 +141,32 @@ export function formatPoints(delta: number | null): string {
   const rounded = Math.round(delta * 10) / 10;
   if (rounded === 0) return '0.0 pts';
   return `${rounded > 0 ? '+' : '−'}${Math.abs(rounded).toFixed(1)} pts`;
+}
+
+export type DifferenceDirection = 'better' | 'worse' | 'level' | 'unknown';
+
+export interface DifferenceWording {
+  readonly text: string;
+  readonly direction: DifferenceDirection;
+}
+
+/**
+ * Says in words whether a difference from the peer median is good or bad. For
+ * off-road and dark rates a positive difference is worse, so the sign alone
+ * must never be left to carry the meaning.
+ */
+export function describeDifference(
+  deltaPoints: number | null,
+  higherIsBetter: boolean,
+): DifferenceWording {
+  if (deltaPoints === null) return { text: 'no peer median', direction: 'unknown' };
+  const rounded = Math.round(Math.abs(deltaPoints) * 10) / 10;
+  if (rounded === 0) return { text: 'level with peers', direction: 'level' };
+  const good = deltaPoints > 0 === higherIsBetter;
+  return {
+    text: `${rounded.toFixed(1)} pts ${good ? 'better' : 'worse'} than peers`,
+    direction: good ? 'better' : 'worse',
+  };
 }
 
 /** Why a depot has no rank; null for a ranked depot. */
