@@ -336,6 +336,19 @@ describe('getLiveSnapshot', () => {
     expect(later.snapshot.depotRows).toBe(first.snapshot.depotRows);
   });
 
+  // P3: a machine clock set before the sample was captured must not make every row "ahead".
+  it('keeps the saved sample on its own newest receive time whatever the machine clock', async () => {
+    process.env.NEXT_PUBLIC_DEMO_MODE = '1';
+    const late = await getLiveSnapshot(T0);
+    resetLiveSnapshotForTests();
+    const early = await getLiveSnapshot(Date.parse('2026-01-01T00:00:00.000Z'));
+    expect(early.source).toBe('fixture');
+    expect(early.snapshot.feedNow).not.toBeNull();
+    expect(early.snapshot.feedNow).toBe(late.snapshot.feedNow);
+    expect(early.snapshot.feedClockAheadRows).toBe(0);
+    expect(late.snapshot.feedClockAheadRows).toBe(0);
+  });
+
   it('reuses the fixture depot rows across requests and re-stamps only the time', async () => {
     process.env.NEXT_PUBLIC_DEMO_MODE = '1';
     const first = await getLiveSnapshot(T0);
