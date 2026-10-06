@@ -53,7 +53,8 @@ export function unmatchedLine(
 
 /**
  * The server ignored location because no yard is established. Recency still applies
- * unless the feed has no clock (`recencyNotJudged`), when it is not claimed.
+ * unless the feed has no clock (`recencyNotJudged`), when it is not claimed. A bus out
+ * on the road is eligible as much as a standing one, so both are named (review m2).
  */
 export function locationIgnoredSentence(
   ignored: boolean | undefined,
@@ -62,9 +63,12 @@ export function locationIgnoredSentence(
   if (ignored !== true) return null;
   const who =
     recencyNotJudged === true
-      ? 'every standing bus'
-      : `every standing bus heard in the last ${REPORTING_WINDOW_MIN} minutes`;
-  return `No yard is established for this depot, so location is not used: ${who} is eligible.`;
+      ? 'every bus'
+      : `every bus heard in the last ${REPORTING_WINDOW_MIN} minutes`;
+  return (
+    `No yard is established for this depot, so location is not used: ${who} that is not ` +
+    'off the road or dark is eligible, standing or out on the road.'
+  );
 }
 
 const BEFORE_FIRST_DUTY_YARD =
