@@ -161,7 +161,12 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
     locations.get(r.registrationNumber) ?? locateBus(r, yards);
   const visitors = groupBy(rows, (r) => locations.get(r.registrationNumber)?.otherDepotId ?? null);
   for (const group of visitors.values()) group.sort(byRegistration);
-  const depotExceptions = detectDepotExceptions(depots, scores, rows, stateOf);
+  const scoresById = new Map(scores.map((s) => [s.depotId, s]));
+  // A windowed exception states its own depot's samples, not the network's widest (N9).
+  const depotExceptions = detectDepotExceptions(depots, scores, rows, stateOf).map(
+    (e): DepotException =>
+      e.basis === 'window' ? { ...e, samples: scoresById.get(e.depotId)?.samples ?? 1 } : e,
+  );
   const busExceptions = detectBusExceptions(rows, depots, feedNow, stateOf);
   return {
     feedNow,
@@ -170,7 +175,7 @@ export function analyseWith(view: FleetSnapshotView, stores: AnalysisStores): Sn
     depots,
     depotsById: new Map(depots.map((d) => [d.id, d])),
     scores,
-    scoresById: new Map(scores.map((s) => [s.depotId, s])),
+    scoresById,
     scoreWindow: windowed.window,
     yards,
     yardSnapshotsSeen: seen,
