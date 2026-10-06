@@ -1,11 +1,19 @@
 import type { FleetSnapshotView } from '../repositories/types';
-import { FUEL_FLAGGED_CAP, FUEL_ROUTE_CAP, type FuelFlaggedBus, type FuelResponse } from '../fuel/api';
-import { analyseFuel } from '../fuel/analysis';
+import {
+  FUEL_FLAGGED_CAP,
+  FUEL_ROUTE_CAP,
+  type FuelFlaggedBus,
+  type FuelOtherRoutes,
+  type FuelResponse,
+} from '../fuel/api';
+import { compareText } from '../fuel/compare';
+import { analyseFuel, mergeTotals } from '../fuel/analysis';
 import {
   FUEL_VARIANCE_FLAG_PCT,
   MIN_PEERS,
   type BusFuelFigure,
   type FuelAnalysis,
+  type FuelGroupRow,
   type FlaggedBus,
   type FuelRepository,
 } from '../fuel/types';
@@ -16,14 +24,9 @@ import { buildDepotDetail } from './depotView';
 type FuelBody = Omit<FuelResponse, keyof ReturnType<typeof feedEnvelope>>;
 
 const TENTH = 10;
-const PERCENT = 100;
 const toTenth = (value: number): number => Math.round(value * TENTH) / TENTH;
 
-/**
- * The flagged bus with its own figure and its peers' median. The analysis keeps
- * the variance, not the median, so the median is read back from it: median =
- * own figure x (1 + variance), good to the tenth the page shows.
- */
+/** The flagged bus with its own figure and the exact median of its peers, both to a tenth. */
 function toFlaggedBus(flag: FlaggedBus, figure: BusFuelFigure | undefined): FuelFlaggedBus | null {
   if (!figure || figure.kmPerLitre === null) return null;
   return {
@@ -31,11 +34,24 @@ function toFlaggedBus(flag: FlaggedBus, figure: BusFuelFigure | undefined): Fuel
     routeName: flag.routeName,
     serviceClass: flag.serviceClass,
     kmPerLitre: toTenth(figure.kmPerLitre),
-    peerMedianKmPerLitre: toTenth(figure.kmPerLitre * (1 + flag.variancePct / PERCENT)),
+    peerMedianKmPerLitre: toTenth(flag.peerMedianKmPerLitre),
     variancePct: flag.variancePct,
     comparison: flag.comparison,
     statement: flag.statement,
   };
+}
+
+/** Dearest route first; equal cost falls back to the name so the order never depends on input. */
+function routesByCost(rows: readonly FuelGroupRow[]): readonly FuelGroupRow[] {
+  return [...rows].sort(
+    (a, b) =>
+      b.cost - a.cost ||
+      (a.key === b.key ? 0 : a.key === null ? 1 : b.key === null ? -1 : compareText(a.key, b.key)),
+  );
+}
+
+function otherRoutesOf(rest: readonly FuelGroupRow[]): FuelOtherRoutes | null {
+  return rest.length === 0 ? null : { routeCount: rest.length, totals: mergeTotals(rest) };
 }
 
 function shape(
@@ -47,6 +63,7 @@ function shape(
   const flagged = analysis.flagged
     .map((flag) => toFlaggedBus(flag, byRegistration.get(flag.registrationNumber)))
     .filter((bus): bus is FuelFlaggedBus => bus !== null);
+  const byCost = routesByCost(analysis.perRoute);
   return {
     depot,
     provenance: 'modelled',
@@ -55,13 +72,15 @@ function shape(
     priceDefaulted: analysis.priceDefaulted,
     totals: analysis.depot,
     perClass: analysis.perClass,
-    perRoute: analysis.perRoute.slice(0, FUEL_ROUTE_CAP),
-    routeTotal: analysis.perRoute.length,
+    perRoute: byCost.slice(0, FUEL_ROUTE_CAP),
+    routeTotal: byCost.length,
+    otherRoutes: otherRoutesOf(byCost.slice(FUEL_ROUTE_CAP)),
     flagged: flagged.slice(0, FUEL_FLAGGED_CAP),
     flaggedTotal: flagged.length,
     noDistanceCount: analysis.perBus.filter((b) => b.withheldReason === 'no_distance').length,
     noComparisonCount: analysis.perBus.filter((b) => b.withheldReason === 'no_comparison_group')
       .length,
+    peersDifferCount: analysis.perBus.filter((b) => b.withheldReason === 'peers_differ').length,
     rule: { thresholdPct: FUEL_VARIANCE_FLAG_PCT, minPeers: MIN_PEERS },
   };
 }
@@ -79,11 +98,27 @@ async function buildBody(
 }
 
 /*
- * The body depends only on the rows and the depot, so it is held per analysis
- * and depot, as a promise so concurrent polls share one read. A failed read is
- * dropped so the next request retries; a null body (unknown depot) is not held.
+ * The body depends on the rows (through the analysis), the depot, the operating
+ * date and the fuel source, so it is held under all four, as a promise so
+ * concurrent polls share one read. `memoiseBody` is not used: it is synchronous
+ * and keyed on the snapshot alone, while this body awaits a repository and
+ * varies by depot, date and source. A failed read is dropped so the next
+ * request retries; a null body (unknown depot) is not held.
  */
-const bodies = new WeakMap<SnapshotAnalysis, Map<string, Promise<FuelBody | null>>>();
+const bodies = new WeakMap<
+  SnapshotAnalysis,
+  WeakMap<FuelRepository, Map<string, Promise<FuelBody | null>>>
+>();
+
+function heldFor(analysis: SnapshotAnalysis, fuel: FuelRepository) {
+  const byRepository =
+    bodies.get(analysis) ??
+    new WeakMap<FuelRepository, Map<string, Promise<FuelBody | null>>>();
+  bodies.set(analysis, byRepository);
+  const held = byRepository.get(fuel) ?? new Map<string, Promise<FuelBody | null>>();
+  byRepository.set(fuel, held);
+  return held;
+}
 
 /**
  * One depot's fuel page payload, or null when the snapshot has no such depot.
@@ -96,17 +131,17 @@ export async function buildFuelResponse(
   fuel: FuelRepository,
 ): Promise<FuelResponse | null> {
   const analysis = analyseSnapshot(view);
-  const perDepot = bodies.get(analysis) ?? new Map<string, Promise<FuelBody | null>>();
-  bodies.set(analysis, perDepot);
-  const held = perDepot.get(depotId);
+  const perKey = heldFor(analysis, fuel);
+  const key = `${depotId}|${operatingDateOf(view.feedNow, view.fetchedAt)}`;
+  const held = perKey.get(key);
   const pending = held ?? buildBody(view, depotId, fuel);
   if (held === undefined) {
-    perDepot.set(depotId, pending);
+    perKey.set(key, pending);
     pending.then(
       (body) => {
-        if (body === null) perDepot.delete(depotId);
+        if (body === null) perKey.delete(key);
       },
-      () => perDepot.delete(depotId),
+      () => perKey.delete(key),
     );
   }
   const body = await pending;

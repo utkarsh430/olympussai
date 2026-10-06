@@ -8,6 +8,8 @@ import type {
   CrewShifts,
   CrewSlot,
   CrewSummary,
+  RoleShortfall,
+  ShortfallCause,
   UncoveredReason,
 } from './types';
 
@@ -27,7 +29,7 @@ type Booked = ReadonlyMap<string, readonly CrewShift[]>;
 
 type SlotPick =
   | { readonly kind: 'slot'; readonly id: string }
-  | { readonly kind: 'none'; readonly hoursRefused: boolean };
+  | { readonly kind: 'none'; readonly hoursRefused: boolean; readonly poolEmpty: boolean };
 
 const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 const minutesOf = (shift: CrewShift): number => shift.endMin - shift.startMin;
@@ -86,7 +88,7 @@ function pickSlot(slots: readonly CrewSlot[], booked: Booked, shift: CrewShift):
     if (withinDay && withinWeek) return { kind: 'slot', id: slot.id };
     hoursRefused = true;
   }
-  return { kind: 'none', hoursRefused };
+  return { kind: 'none', hoursRefused, poolEmpty: slots.length === 0 };
 }
 
 function book(booked: Booked, ids: readonly string[], shift: CrewShift): Booked {
@@ -99,6 +101,18 @@ function countBy<K extends string>(keys: readonly K[], values: readonly K[]): Re
   return Object.fromEntries(
     keys.map((key) => [key, values.filter((value) => value === key).length]),
   ) as Record<K, number>;
+}
+
+function causeOf(pick: Extract<SlotPick, { kind: 'none' }>): ShortfallCause {
+  if (pick.hoursRefused) return 'hours_limit';
+  return pick.poolEmpty ? 'no_slot_available' : 'all_rostered';
+}
+
+function shortfallsOf(picks: readonly SlotPick[]): readonly RoleShortfall[] {
+  return ROLES.flatMap((role, i) => {
+    const pick = picks[i];
+    return pick?.kind === 'none' ? [{ role, cause: causeOf(pick) }] : [];
+  });
 }
 
 function uncoveredReason(picks: readonly SlotPick[]): UncoveredReason {
@@ -155,6 +169,7 @@ export function rosterCrew(duties: readonly Duty[], crew: readonly CrewSlot[]): 
         conductorSlot: conductor.id,
         uncoveredReason: null,
         shortRoles: [],
+        shortfalls: [],
       });
     } else {
       assignments.push({
@@ -163,6 +178,7 @@ export function rosterCrew(duties: readonly Duty[], crew: readonly CrewSlot[]): 
         conductorSlot: null,
         uncoveredReason: uncoveredReason(picks),
         shortRoles: ROLES.filter((_, i) => picks[i]?.kind === 'none'),
+        shortfalls: shortfallsOf(picks),
       });
     }
   }

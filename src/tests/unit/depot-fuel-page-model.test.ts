@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { FuelGroupRow, FuelTotals } from '@/lib/depot/fuel/types';
 import {
+  COST_NOTE,
   classBars,
   emptyText,
   flaggedHeadline,
@@ -8,7 +9,11 @@ import {
   formatKmPerLitre,
   groupLabel,
   modelledStatement,
+  noComparisonNote,
   noDistanceNote,
+  peersDifferNote,
+  routeCell,
+  routeLabel,
   routeRows,
   ruleSentence,
   summarySentence,
@@ -86,13 +91,43 @@ describe('sentences', () => {
     expect(summarySentence(totals({ busCount: 3 }))).toContain('3 buses');
   });
   it('names a defaulted price', () => {
-    expect(summarySentence(totals(), { price: 92, defaulted: true })).toContain('default');
-    expect(summarySentence(totals(), { price: 92, defaulted: false })).not.toContain('default');
+    expect(summarySentence(totals(), { price: 92, defaulted: true })).toContain(
+      'Cost uses a planning price of ₹92 per litre, not a quoted price',
+    );
+    expect(summarySentence(totals(), { price: 92, defaulted: false })).toContain(
+      'Cost uses ₹92 per litre.',
+    );
+    expect(summarySentence(totals(), { price: 92, defaulted: false })).not.toContain('planning');
   });
   it('states the rule from the constants', () => {
     const s = ruleSentence(15, 2);
     expect(s).toContain('15%');
     expect(s).toContain('fewer than 2 peers has no comparison');
+    expect(s).toContain('only when');
+    expect(s).toContain('at least 2 of those peers lie within 15% of that median');
+  });
+  it('words the buses left unlisted', () => {
+    expect(peersDifferNote(0, 15)).toBeNull();
+    expect(peersDifferNote(1, 15)).toBe(
+      '1 bus is above the 15% threshold but is not listed, because its peers differ too much to give a reliable median.',
+    );
+    expect(peersDifferNote(3, 15)).toBe(
+      '3 buses are above the 15% threshold but are not listed, because their peers differ too much to give a reliable median.',
+    );
+    expect(noComparisonNote(0)).toBeNull();
+    expect(noComparisonNote(2)).toBe('2 buses have too few similar buses to compare and are not listed.');
+    expect(noComparisonNote(1)).toBe('1 bus has too few similar buses to compare and is not listed.');
+  });
+  it('never says no bus stands out without the sentence for an unlisted bus', () => {
+    const none = { peersDiffer: 0, noComparison: 0, thresholdPct: 15 };
+    expect(flaggedHeadline(0, 0, none)).toBe('No bus stands out from its peers today.');
+    const some = flaggedHeadline(0, 0, { ...none, peersDiffer: 2 });
+    expect(some).not.toBe('No bus stands out from its peers today.');
+    expect(some).toContain('No bus is listed as standing out from its peers today.');
+    expect(some).toContain('2 buses are above the 15% threshold');
+    const other = flaggedHeadline(0, 0, { ...none, noComparison: 1 });
+    expect(other).toContain('1 bus has too few similar buses to compare');
+    expect(flaggedHeadline(2, 2, { ...none, peersDiffer: 2 })).toBe('2 buses stand out from their peers.');
   });
   it('words the flagged headline and the no-distance note', () => {
     expect(flaggedHeadline(0, 0)).toBe('No bus stands out from its peers today.');
@@ -109,6 +144,57 @@ describe('sentences', () => {
   });
 });
 
+describe('cost note', () => {
+  it('says the cost is summed from each bus to the nearest rupee', () => {
+    expect(COST_NOTE).toBe('Cost is summed from each bus’s cost, each to the nearest rupee.');
+  });
+});
+
+describe('route rows with no distance and the Other row', () => {
+  it('says No distance rather than listing zeros', () => {
+    const none = row({ distanceKm: 0, fuelLitres: 0, cost: 0, kmPerLitre: null, costPerKm: null });
+    for (const field of ['distance', 'litres', 'cost', 'kmpl', 'cpk'] as const) {
+      expect(routeCell(none, field)).toBe('No distance');
+    }
+    const fuelOnly = row({ distanceKm: 0, fuelLitres: 12, cost: 1104, kmPerLitre: null, costPerKm: null });
+    expect(routeCell(fuelOnly, 'distance')).toBe('No distance');
+    expect(routeCell(fuelOnly, 'kmpl')).toBe('No distance');
+    expect(routeCell(fuelOnly, 'litres')).toBe('12 L');
+    expect(routeCell(row({ distanceKm: 300, fuelLitres: 60 }), 'distance')).toBe('300 km');
+  });
+
+  it('adds one Other routes row with its own key after the listed routes', () => {
+    const other = { routeCount: 7, totals: row({ key: null, busCount: 9 }) };
+    const rows = routeRows([row({ key: 'R1' })], other);
+    expect(rows.map((r) => r.label)).toEqual(['R1', 'Other routes (7)']);
+    expect(rows[1]?.busCount).toBe(9);
+    expect(new Set(rows.map((r) => r.rowKey)).size).toBe(2);
+    expect(routeRows([row({ key: 'R1' })], null)).toHaveLength(1);
+  });
+});
+
+describe('route labels and row keys', () => {
+  it('labels a route as it is named and a null route as No route', () => {
+    expect(routeLabel(null)).toBe('No route');
+    expect(routeLabel('ORD_1')).toBe('ORD_1');
+    // A route named like a class is a route, not a class.
+    expect(routeLabel('ac')).toBe('ac');
+    expect(routeLabel('express')).toBe('express');
+    expect(groupLabel('ac')).toBe('AC');
+  });
+
+  it('keys rows apart even when a route is literally named No route or like a class', () => {
+    const rows = routeRows([
+      row({ key: null }),
+      row({ key: 'No route' }),
+      row({ key: 'ac' }),
+      row({ key: 'AC' }),
+    ]);
+    expect(new Set(rows.map((r) => r.rowKey)).size).toBe(4);
+    expect(rows.map((r) => r.label)).toEqual(['No route', 'No route', 'ac', 'AC']);
+  });
+});
+
 describe('wording rule', () => {
   it('never names a person, a cause or misconduct', () => {
     const banned = /theft|pilfer|misuse|driver|conductor|driving|engine|tyre|\bload\b|traffic|simulated/i;
@@ -121,6 +207,16 @@ describe('wording rule', () => {
       flaggedHeadline(0, 0),
       flaggedHeadline(1, 1),
       flaggedHeadline(9, 5),
+      flaggedHeadline(0, 0, { peersDiffer: 2, noComparison: 1, thresholdPct: 15 }),
+      peersDifferNote(1, 15) ?? '',
+      peersDifferNote(4, 15) ?? '',
+      noComparisonNote(1) ?? '',
+      noComparisonNote(3) ?? '',
+      flaggedHeadline(0, 0, { peersDiffer: 2, noComparison: 1, thresholdPct: 15 }),
+      peersDifferNote(1, 15) ?? '',
+      peersDifferNote(4, 15) ?? '',
+      noComparisonNote(1) ?? '',
+      noComparisonNote(3) ?? '',
       noDistanceNote(1) ?? '',
       noDistanceNote(3) ?? '',
       ...classBars([row(), row({ distanceKm: 0, kmPerLitre: null })]).flatMap((b) => [

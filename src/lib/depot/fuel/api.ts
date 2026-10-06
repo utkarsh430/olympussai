@@ -14,12 +14,18 @@ export interface FuelFlaggedBus {
   readonly serviceClass: ServiceClass;
   /** Kilometres per litre for the day, one decimal. */
   readonly kmPerLitre: number;
-  /** Median of its peers, derived from the module's variance; one decimal. */
+  /** Median of its peers, as the analysis measured the variance against it; one decimal. */
   readonly peerMedianKmPerLitre: number;
   readonly variancePct: number;
   readonly comparison: FuelComparisonScope;
   /** The analysis module's own sentence. */
   readonly statement: string;
+}
+
+/** The routes not listed individually, with their combined figures. */
+export interface FuelOtherRoutes {
+  readonly routeCount: number;
+  readonly totals: FuelTotals;
 }
 
 /** GET /api/upsrtc/depot/[depotId]/fuel. Everything here is modelled. */
@@ -29,12 +35,15 @@ export interface FuelResponse extends DepotFeedEnvelope {
   /** The operating date, taken from the feed's clock. */
   readonly operatingDate: string;
   readonly pricePerLitre: number;
+  /** True when no price was supplied and the planning price stands in; the view supplies none. */
   readonly priceDefaulted: boolean;
   readonly totals: FuelTotals;
   readonly perClass: readonly FuelGroupRow[];
-  /** At most FUEL_ROUTE_CAP rows, as the analysis orders them. */
+  /** The FUEL_ROUTE_CAP routes with the highest cost, dearest first. */
   readonly perRoute: readonly FuelGroupRow[];
   readonly routeTotal: number;
+  /** The routes beyond the cap, summed, so the listed rows and this one add to `totals`. */
+  readonly otherRoutes: FuelOtherRoutes | null;
   /** At most FUEL_FLAGGED_CAP, largest variance first. */
   readonly flagged: readonly FuelFlaggedBus[];
   readonly flaggedTotal: number;
@@ -42,5 +51,10 @@ export interface FuelResponse extends DepotFeedEnvelope {
   readonly noDistanceCount: number;
   /** Buses with distance but too few peers to compare. */
   readonly noComparisonCount: number;
+  /**
+   * Buses above the threshold that are not listed because fewer than `minPeers`
+   * of their peers lie near the peers' median (`peers_differ`).
+   */
+  readonly peersDifferCount: number;
   readonly rule: { readonly thresholdPct: number; readonly minPeers: number };
 }

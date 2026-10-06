@@ -9,8 +9,8 @@ import { resetAnalysisForTests } from '@/lib/depot/live/analysis';
 import { buildFuelResponse } from '@/lib/depot/live/fuelView';
 import { analyseFuel } from '@/lib/depot/fuel/analysis';
 import { FUEL_FLAGGED_CAP, FUEL_ROUTE_CAP } from '@/lib/depot/fuel/api';
-import { FUEL_VARIANCE_FLAG_PCT, MIN_PEERS } from '@/lib/depot/fuel/types';
-import type { BusFuelDay, FuelRepository } from '@/lib/depot/fuel/types';
+import { DEFAULT_PRICE_PER_LITRE, FUEL_VARIANCE_FLAG_PCT, MIN_PEERS } from '@/lib/depot/fuel/types';
+import type { BusFuelDay, FuelRepository, FuelTotals } from '@/lib/depot/fuel/types';
 import { GET } from '@/app/api/upsrtc/depot/[depotId]/fuel/route';
 
 vi.mock('@/lib/auth/authorize', async (importOriginal) => {
@@ -117,7 +117,9 @@ describe('buildFuelResponse', () => {
     expect(response.perClass).toEqual(analysis.perClass);
     expect(response.perRoute).toEqual(analysis.perRoute);
     expect(response.pricePerLitre).toBe(analysis.pricePerLitre);
-    expect(response.priceDefaulted).toBe(false);
+    // The view supplies no price, so the planning price is the default and says so.
+    expect(response.priceDefaulted).toBe(true);
+    expect(response.pricePerLitre).toBe(DEFAULT_PRICE_PER_LITRE);
     expect(response.provenance).toBe('modelled');
     expect(response.operatingDate).toBe('2026-10-06');
   });
@@ -125,6 +127,7 @@ describe('buildFuelResponse', () => {
   it('lists the flagged bus with its figure and its peers median, and counts the rest', async () => {
     const response = await build();
     expect(response.flaggedTotal).toBe(1);
+    expect(response.peersDifferCount).toBe(0);
     expect(response.flagged[0]).toMatchObject({
       registrationNumber: 'A3',
       kmPerLitre: 3,
@@ -134,6 +137,33 @@ describe('buildFuelResponse', () => {
     expect(response.flagged[0]?.statement).toContain('more fuel per kilometre than similar buses');
     expect(response.noDistanceCount).toBe(1);
     expect(response.rule).toEqual({ thresholdPct: FUEL_VARIANCE_FLAG_PCT, minPeers: MIN_PEERS });
+  });
+
+  it('shows the exact peers median, not one derived from the rounded variance', async () => {
+    const litres = (reg: string, fuelLitres: number): BusFuelDay => ({
+      registrationNumber: reg,
+      distanceKm: 300,
+      fuelLitres,
+      serviceClass: 'ordinary',
+      routeName: 'R1',
+    });
+    const response = await build(() => [litres('A1', 48), litres('A2', 48), litres('A3', 70)]);
+    // Peers 6.25 km/L. Reading it back from 45.8% on 4.2857 gives 6.2486, shown as 6.2.
+    expect(response.flagged[0]?.peerMedianKmPerLitre).toBe(6.3);
+  });
+
+  it('counts buses above the threshold whose peers differ too much, and lists none', async () => {
+    const response = await build(() => [day('A1', 4), day('A2', 4), day('A3', 8)]);
+    expect(response.flaggedTotal).toBe(0);
+    expect(response.peersDifferCount).toBe(2);
+    expect(response.noComparisonCount).toBe(0);
+  });
+
+  it('counts buses above the threshold whose peers differ too much, and lists none', async () => {
+    const response = await build(() => [day('A1', 4), day('A2', 4), day('A3', 8)]);
+    expect(response.flaggedTotal).toBe(0);
+    expect(response.peersDifferCount).toBe(2);
+    expect(response.noComparisonCount).toBe(0);
   });
 
   it('counts buses with distance but no comparison', async () => {
@@ -160,6 +190,35 @@ describe('buildFuelResponse', () => {
     expect(JSON.stringify(routes)).not.toContain('perBus');
   });
 
+  it('takes the routes with the highest cost and folds the rest into one Other row', async () => {
+    const days = (): BusFuelDay[] =>
+      Array.from({ length: FUEL_ROUTE_CAP + 7 }, (_, i) => ({
+        ...day(`Q${i}`, 5, `RT${String(i).padStart(3, '0')}`),
+        // Later route names cost more, so a first-100-alphabetical cap would drop the dearest.
+        fuelLitres: 10 + i,
+      }));
+    const response = await build(days);
+    expect(response.perRoute).toHaveLength(FUEL_ROUTE_CAP);
+    expect(response.routeTotal).toBe(FUEL_ROUTE_CAP + 7);
+    expect(response.perRoute[0]?.key).toBe(`RT${String(FUEL_ROUTE_CAP + 6).padStart(3, '0')}`);
+    const costs = response.perRoute.map((r) => r.cost);
+    expect(costs).toEqual([...costs].sort((a, b) => b - a));
+    const other = response.otherRoutes;
+    expect(other?.routeCount).toBe(7);
+    // The table (listed routes plus Other) sums to the depot total.
+    const listed = [...response.perRoute, ...(other ? [other.totals] : [])];
+    const sum = (pick: (t: FuelTotals) => number): number =>
+      listed.reduce((total, t) => total + pick(t), 0);
+    expect(sum((t) => t.cost)).toBe(response.totals.cost);
+    expect(Math.round(sum((t) => t.fuelLitres) * 10) / 10).toBe(response.totals.fuelLitres);
+    expect(Math.round(sum((t) => t.distanceKm) * 10) / 10).toBe(response.totals.distanceKm);
+    expect(sum((t) => t.busCount)).toBe(response.totals.busCount);
+  });
+
+  it('has no Other row when every route is listed', async () => {
+    expect((await build()).otherRoutes).toBeNull();
+  });
+
   it('builds the envelope per call while reusing the body for the same rows', async () => {
     const rows = world();
     const { repo, fuelDay } = stub(baseDays);
@@ -171,6 +230,26 @@ describe('buildFuelResponse', () => {
     expect(stale?.flagged).toBe(fresh?.flagged);
     expect(stale?.totals).toBe(fresh?.totals);
     expect(fuelDay).toHaveBeenCalledTimes(1);
+  });
+
+  it('keys the held body on the operating date as well as the depot', async () => {
+    const rows = world();
+    const { repo, fuelDay } = stub(baseDays);
+    await buildFuelResponse(view(rows), '1', repo);
+    const next = await buildFuelResponse(view(rows, { feedNow: '2026-10-07T08:00:00Z' }), '1', repo);
+    expect(next?.operatingDate).toBe('2026-10-07');
+    expect(fuelDay).toHaveBeenCalledTimes(2);
+    expect((fuelDay.mock.calls[1] as unknown as [unknown, string])[1]).toBe('2026-10-07');
+  });
+
+  it('keys the held body on the repository as well', async () => {
+    const rows = world();
+    const first = stub(baseDays);
+    const second = stub(() => [day('A1', 5), day('A2', 5), day('A3', 5)]);
+    const a = await buildFuelResponse(view(rows), '1', first.repo);
+    const b = await buildFuelResponse(view(rows), '1', second.repo);
+    expect(a?.flaggedTotal).toBe(1);
+    expect(b?.flaggedTotal).toBe(0);
   });
 
   it('does not hold a failed read', async () => {

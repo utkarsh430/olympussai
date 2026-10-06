@@ -2,14 +2,17 @@ import { describe, it, expect } from 'vitest';
 import {
   AVAILABILITY_ORDER,
   PEOPLE_SENTENCE,
+  HATCHED_AVAILABILITY,
   ROSTER_NOTE,
+  SLOT_NOTE,
   availabilitySegments,
   availabilityText,
   dutiesSentence,
   emptyCrewSentence,
   modelledStatement,
   pageOf,
-  reasonText,
+  shortfallText,
+  uncoveredCountSentence,
   reliefSentence,
   shiftLabel,
   shiftsSentence,
@@ -28,6 +31,17 @@ describe('crew page wording', () => {
     expect(ROSTER_NOTE).toMatch(/first-fit/);
     expect(ROSTER_NOTE).toMatch(/not an optimised/);
     expect(ROSTER_NOTE).toMatch(/Nothing is assigned or instructed/);
+  });
+
+  it('says slot numbers reflect pick order only', () => {
+    expect(SLOT_NOTE).toBe(
+      'Slot numbers only reflect the order in which the roster picked them and say nothing about a person.',
+    );
+  });
+
+  it('draws weekly off and leave differently without colour', () => {
+    expect(HATCHED_AVAILABILITY).toContain('leave');
+    expect(HATCHED_AVAILABILITY).not.toContain('weekly_off');
   });
 
   it('orders the segments and gives each a word, a count and a share', () => {
@@ -56,14 +70,22 @@ describe('crew page wording', () => {
     expect(availabilityText('conductor', ONE)).toMatch(/^Conductors, 1 slot: 1 available/);
   });
 
-  it('words the reason in plain words, by role', () => {
-    expect(reasonText(['driver'], 'no_available_crew')).toBe('No driver available');
-    expect(reasonText(['driver', 'conductor'], 'no_available_crew')).toBe(
-      'No driver or conductor available',
+  it('words each short role separately with its own cause', () => {
+    expect(shortfallText([{ role: 'driver', cause: 'no_slot_available' }])).toBe(
+      'Driver: no driver is available today.',
     );
-    expect(reasonText(['conductor'], 'hours_limit')).toBe(
-      'Available conductor crew would exceed the hours limit',
+    expect(
+      shortfallText([
+        { role: 'driver', cause: 'all_rostered' },
+        { role: 'conductor', cause: 'hours_limit' },
+      ]),
+    ).toBe(
+      'Driver: all available drivers are already rostered at this time. Conductor: would exceed the hours limit.',
     );
+    expect(shortfallText([{ role: 'conductor', cause: 'all_rostered' }])).toBe(
+      'Conductor: all available conductors are already rostered at this time.',
+    );
+    expect(shortfallText([])).not.toMatch(/ or /);
   });
 
   it('labels a shift with its place in the duty', () => {
@@ -84,10 +106,10 @@ describe('crew page wording', () => {
 
   it('words crew strength against need', () => {
     expect(strengthSentence('driver', { required: 40, available: 58 })).toBe(
-      '58 drivers available for 40 shifts.',
+      '58 drivers are available across the day for 40 shifts, some of which overlap.',
     );
     expect(strengthSentence('conductor', { required: 1, available: 1 })).toBe(
-      '1 conductor available for 1 shift.',
+      '1 conductor is available across the day for 1 shift, some of which overlap.',
     );
   });
 
@@ -107,7 +129,18 @@ describe('crew page wording', () => {
     expect(text).toMatch(/crew strength/);
     expect(text).toMatch(/10 hours a day and 48 hours a week/);
     expect(text).toMatch(/crew roster and leave feed/);
+    expect(text).toContain(
+      'A shortfall here is an outcome of the model: a drawn mix of weekly off, leave, training and absence, and shifts that start together. It is not a finding about this depot.',
+    );
     expect(text).not.toMatch(/simulated/i);
+  });
+
+  it('states the true uncovered count, capped or not', () => {
+    expect(uncoveredCountSentence(3, 3)).toBe('3 uncovered shifts.');
+    expect(uncoveredCountSentence(1, 1)).toBe('1 uncovered shift.');
+    expect(uncoveredCountSentence(200, 1234)).toBe(
+      'Showing the first 200 of 1,234 uncovered shifts, most pressing first.',
+    );
   });
 
   it('pages rows without mutating them', () => {

@@ -1,6 +1,6 @@
 import { formatCount } from '../format';
 import type { AvailabilityCounts } from './api';
-import type { CrewAvailability, CrewRole, UncoveredReason } from './types';
+import type { CrewAvailability, CrewRole, RoleShortfall, ShortfallCause } from './types';
 
 /*
  * Every sentence, grouping and page slice the crew page shows is built here,
@@ -14,6 +14,10 @@ export const PEOPLE_SENTENCE = 'Availability and rostering only. No individual i
 
 export const ROSTER_NOTE =
   'The roster is a simple first-fit suggestion, not an optimised one: earliest shift first, lowest slot number first. Nothing is assigned or instructed.';
+
+/** Under the roster: slot numbers must not read as a ranking or a workload. */
+export const SLOT_NOTE =
+  'Slot numbers only reflect the order in which the roster picked them and say nothing about a person.';
 
 export const SOURCES_HREF = '/project/depots/sources';
 
@@ -41,6 +45,12 @@ const AVAILABILITY_PHRASE: Readonly<Record<CrewAvailability, string>> = {
   training: 'in training',
   absent: 'absent',
 };
+
+/**
+ * Weekly off and leave are both greys and sit side by side in the bar, so
+ * leave alone is drawn hatched: the two differ by pattern, not only by tone.
+ */
+export const HATCHED_AVAILABILITY: readonly CrewAvailability[] = ['leave'];
 
 const PERCENT = 100;
 
@@ -84,16 +94,19 @@ export function availabilityText(role: CrewRole, counts: AvailabilityCounts): st
   return `${ROLE_PLURAL[role]}, ${countOf(total, 'slot', 'slots')}: ${parts.join(', ')}.`;
 }
 
-function rolesText(roles: readonly CrewRole[], joiner: string): string {
-  return roles.join(joiner);
-}
+const CAUSE_TEXT: Readonly<Record<ShortfallCause, (role: CrewRole) => string>> = {
+  no_slot_available: (role) => `no ${role} is available today.`,
+  all_rostered: (role) => `all available ${role}s are already rostered at this time.`,
+  hours_limit: () => 'would exceed the hours limit.',
+};
 
-/** Why a shift is uncovered, in plain words. */
-export function reasonText(roles: readonly CrewRole[], reason: UncoveredReason): string {
-  if (reason === 'hours_limit') {
-    return `Available ${rolesText(roles, ' and ')} crew would exceed the hours limit`;
-  }
-  return `No ${rolesText(roles, ' or ')} available`;
+const capitalise = (text: string): string => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+
+/** Why a shift is uncovered: each short role on its own, never "driver or conductor". */
+export function shortfallText(shortfalls: readonly RoleShortfall[]): string {
+  return shortfalls
+    .map(({ role, cause }) => `${capitalise(role)}: ${CAUSE_TEXT[cause](role)}`)
+    .join(' ');
 }
 
 export function shiftLabel(shift: {
@@ -117,9 +130,10 @@ export function strengthSentence(
   role: CrewRole,
   figures: { readonly required: number; readonly available: number },
 ): string {
+  const verb = figures.available === 1 ? 'is' : 'are';
   return (
-    `${countOf(figures.available, role, `${role}s`)} available for ` +
-    `${countOf(figures.required, 'shift', 'shifts')}.`
+    `${countOf(figures.available, role, `${role}s`)} ${verb} available across the day for ` +
+    `${countOf(figures.required, 'shift', 'shifts')}, some of which overlap.`
   );
 }
 
@@ -144,6 +158,11 @@ export function rosterCountSentence(shown: number, total: number): string {
   return `Showing the first ${formatCount(shown)} of ${countOf(total, 'covered shift', 'covered shifts')}.`;
 }
 
+export function uncoveredCountSentence(shown: number, total: number): string {
+  if (shown >= total) return `${countOf(total, 'uncovered shift', 'uncovered shifts')}.`;
+  return `Showing the first ${formatCount(shown)} of ${countOf(total, 'uncovered shift', 'uncovered shifts')}, most pressing first.`;
+}
+
 export function modelledStatement(limits: {
   readonly dailyHours: number;
   readonly weeklyHours: number;
@@ -153,7 +172,9 @@ export function modelledStatement(limits: {
     'of the day’s shifts, the mix of weekly off, leave, training and absence, and hours ' +
     `worked this week. A slot is limited to ${limits.dailyHours} hours a day and ` +
     `${limits.weeklyHours} hours a week. A crew roster and leave feed from the depot will ` +
-    'replace the model.'
+    'replace the model. A shortfall here is an outcome of the model: a drawn mix of weekly ' +
+    'off, leave, training and absence, and shifts that start together. It is not a finding ' +
+    'about this depot.'
   );
 }
 

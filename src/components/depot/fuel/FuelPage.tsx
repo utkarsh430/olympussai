@@ -47,7 +47,7 @@ export function FuelPage() {
         <>
           <ClassBars rows={data.perClass} />
           <FlaggedList data={data} />
-          <RouteTable rows={data.perRoute} total={data.routeTotal} />
+          <RouteTable rows={data.perRoute} total={data.routeTotal} other={data.otherRoutes} />
         </>
       )}
       <p className="depot-prose max-w-3xl">

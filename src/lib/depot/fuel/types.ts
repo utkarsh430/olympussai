@@ -38,7 +38,7 @@ export const FUEL_REASON_LABELS: Readonly<Record<FuelWithheldReason, string>> = 
   no_distance: 'No distance recorded',
   no_fuel: 'No fuel recorded',
   no_comparison_group: 'Too few similar buses to compare',
-  peers_differ: 'peers differ too much to compare',
+  peers_differ: 'Peers differ too much to compare',
 };
 
 export type FuelComparisonScope = 'route' | 'depot';
@@ -52,6 +52,8 @@ export interface BusFuelFigure extends FuelFigure {
   /** Whole rupees. */
   readonly cost: number;
   readonly comparison: FuelComparisonScope | null;
+  /** Median kilometres per litre of the peers compared against, unrounded; null with no comparison. */
+  readonly peerMedianKmPerLitre: number | null;
   /**
    * Set for no_distance and no_fuel (no figure) and for no_comparison_group and
    * peers_differ. For the last two `kmPerLitre` is still a figure, so a page
@@ -80,6 +82,8 @@ export interface FlaggedBus {
   readonly registrationNumber: string;
   readonly routeName: string | null;
   readonly serviceClass: ServiceClass;
+  /** The median kilometres per litre of its peers that the variance was measured against, unrounded. */
+  readonly peerMedianKmPerLitre: number;
   readonly variancePct: number;
   readonly comparison: FuelComparisonScope;
   /** The sentence a page shows: states a variance, never a cause. */

@@ -44,6 +44,7 @@ function figureFor(day: BusFuelDay, pricePerLitre: number): BusFuelFigure {
     costPerKm: measured ? cost / distanceKm : null,
     variancePct: null,
     comparison: null,
+    peerMedianKmPerLitre: null,
     withheldReason,
   };
 }
@@ -61,6 +62,22 @@ function totalsOf(rows: readonly BusFuelFigure[]): FuelTotals {
     kmPerLitre: distanceTenths > 0 && litreTenths > 0 ? distanceTenths / litreTenths : null,
     costPerKm: distanceTenths > 0 ? cost / distanceKm : null,
     busCount: rows.length,
+  };
+}
+
+/** Totals of several groups, summing tenths as integers so the parts reconcile to the whole. */
+export function mergeTotals(parts: readonly FuelTotals[]): FuelTotals {
+  const distanceTenths = parts.reduce((s, p) => s + Math.round(p.distanceKm * TENTH), 0);
+  const litreTenths = parts.reduce((s, p) => s + Math.round(p.fuelLitres * TENTH), 0);
+  const cost = parts.reduce((s, p) => s + p.cost, 0);
+  const distanceKm = distanceTenths / TENTH;
+  return {
+    distanceKm,
+    fuelLitres: litreTenths / TENTH,
+    cost,
+    kmPerLitre: distanceTenths > 0 && litreTenths > 0 ? distanceTenths / litreTenths : null,
+    costPerKm: distanceTenths > 0 ? cost / distanceKm : null,
+    busCount: parts.reduce((s, p) => s + p.busCount, 0),
   };
 }
 
@@ -132,7 +149,7 @@ function compared(
     // The figure stays; only the flag is held back when the peers do not stand behind the median.
     const unsupported = variancePct > FUEL_VARIANCE_FLAG_PCT && !isSupportedMedian(peers);
     const withheldReason = unsupported ? 'peers_differ' : null;
-    return { ...row, comparison, variancePct, withheldReason };
+    return { ...row, comparison, variancePct, peerMedianKmPerLitre: centre, withheldReason };
   }
   return { ...row, withheldReason: 'no_comparison_group' };
 }
@@ -145,12 +162,14 @@ function statementFor(variancePct: number, comparison: FuelComparisonScope): str
 
 function flagFor(row: BusFuelFigure): FlaggedBus | null {
   if (row.variancePct === null || row.comparison === null) return null;
+  if (row.peerMedianKmPerLitre === null) return null;
   if (row.withheldReason !== null) return null;
   if (row.variancePct <= FUEL_VARIANCE_FLAG_PCT) return null;
   return {
     registrationNumber: row.registrationNumber,
     routeName: row.routeName,
     serviceClass: row.serviceClass,
+    peerMedianKmPerLitre: row.peerMedianKmPerLitre,
     variancePct: row.variancePct,
     comparison: row.comparison,
     statement: statementFor(row.variancePct, row.comparison),
@@ -163,15 +182,16 @@ function flagFor(row: BusFuelFigure): FlaggedBus | null {
  * depot). Variance is a figure about a vehicle, stated without a cause. Output
  * order never depends on input order.
  *
- * A price that is not finite and positive is replaced by DEFAULT_PRICE_PER_LITRE
- * and `priceDefaulted` is true, so a page can say so.
+ * A price that is missing, or not finite and positive, is replaced by
+ * DEFAULT_PRICE_PER_LITRE and `priceDefaulted` is true, so a page can say so.
  */
 export function analyseFuel(
   days: readonly BusFuelDay[],
-  pricePerLitre: number = DEFAULT_PRICE_PER_LITRE,
+  pricePerLitre?: number,
 ): FuelAnalysis {
-  const priceDefaulted = !(Number.isFinite(pricePerLitre) && pricePerLitre > 0);
-  const price = priceDefaulted ? DEFAULT_PRICE_PER_LITRE : pricePerLitre;
+  const supplied = pricePerLitre !== undefined && Number.isFinite(pricePerLitre) && pricePerLitre > 0;
+  const priceDefaulted = !supplied;
+  const price = supplied ? pricePerLitre : DEFAULT_PRICE_PER_LITRE;
   const base = days
     .map((day) => figureFor(day, price))
     .sort((a, b) => compareText(a.registrationNumber, b.registrationNumber));

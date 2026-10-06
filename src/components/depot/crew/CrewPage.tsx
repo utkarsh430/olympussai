@@ -54,7 +54,7 @@ export function CrewPage() {
       {stale}
       <CrewSummary summary={data.summary} />
       <AvailabilityHero availability={data.availability} />
-      <UncoveredShifts shifts={data.uncovered} />
+      <UncoveredShifts shifts={data.uncovered} total={data.uncoveredTotal} />
       <RosterSection roster={data.roster} total={data.rosterTotal} />
       <ModelledStatement limits={data.limits} />
     </div>

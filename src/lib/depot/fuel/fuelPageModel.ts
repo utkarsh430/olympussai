@@ -46,6 +46,11 @@ export function groupLabel(key: string | null): string {
   return CLASS_LABELS[key] ?? key;
 }
 
+/** A route name as the page words it; a null key is a bus with no route. Not a class label. */
+export function routeLabel(key: string | null): string {
+  return key === null ? NO_ROUTE : key;
+}
+
 export interface ClassBar {
   readonly key: string;
   readonly label: string;
@@ -74,10 +79,58 @@ export function classBars(rows: readonly FuelGroupRow[]): readonly ClassBar[] {
 
 export interface RouteRow extends FuelGroupRow {
   readonly label: string;
+  /** Stable and unique per group: never the label, which two groups can share. */
+  readonly rowKey: string;
 }
 
-export function routeRows(rows: readonly FuelGroupRow[]): readonly RouteRow[] {
-  return rows.map((row) => ({ ...row, label: groupLabel(row.key) }));
+const NO_ROUTE_KEY = '\u0000no-route';
+const OTHER_ROUTES_KEY = '\u0000other-routes';
+const NO_DISTANCE = 'No distance';
+
+/** The listed routes, then one row summing every route beyond the cap. */
+export function routeRows(
+  rows: readonly FuelGroupRow[],
+  other: { readonly routeCount: number; readonly totals: FuelTotals } | null = null,
+): readonly RouteRow[] {
+  const listed = rows.map((row) => ({
+    ...row,
+    label: routeLabel(row.key),
+    rowKey: row.key === null ? NO_ROUTE_KEY : `route:${row.key}`,
+  }));
+  if (other === null) return listed;
+  return [
+    ...listed,
+    {
+      ...other.totals,
+      key: null,
+      label: `Other routes (${formatCount(other.routeCount)})`,
+      rowKey: OTHER_ROUTES_KEY,
+    },
+  ];
+}
+
+export type RouteField = 'distance' | 'litres' | 'cost' | 'kmpl' | 'cpk';
+
+/**
+ * One cell of the route table. A group with no distance has no distance, no
+ * rate and no cost per km, so those read "No distance"; litres and cost show
+ * only when there is something to show, never as zeros.
+ */
+export function routeCell(row: FuelGroupRow, field: RouteField): string {
+  const noDistance = row.distanceKm <= 0;
+  const nothing = noDistance && row.fuelLitres <= 0 && row.cost <= 0;
+  switch (field) {
+    case 'distance':
+      return noDistance ? NO_DISTANCE : formatKm(row.distanceKm);
+    case 'kmpl':
+      return noDistance ? NO_DISTANCE : formatKmPerLitre(row.kmPerLitre);
+    case 'cpk':
+      return noDistance ? NO_DISTANCE : formatCostPerKm(row.costPerKm);
+    case 'litres':
+      return nothing ? NO_DISTANCE : formatLitres(row.fuelLitres);
+    case 'cost':
+      return nothing ? NO_DISTANCE : formatRupees(row.cost);
+  }
 }
 
 export interface SummaryPrice {
@@ -92,20 +145,65 @@ export function summarySentence(totals: FuelTotals, price?: SummaryPrice): strin
     `${formatLitres(totals.fuelLitres)} of fuel, costing ${formatRupees(totals.cost)}.`;
   if (!price) return base;
   const unit = `${formatRupees(price.price)} per litre`;
-  return `${base} Cost uses ${price.defaulted ? `the default price of ${unit}` : unit}.`;
+  return price.defaulted
+    ? `${base} Cost uses a planning price of ${unit}, not a quoted price.`
+    : `${base} Cost uses ${unit}.`;
 }
+
+/** Cost is a sum of per-bus rounded rupees, so it need not equal litres times the price. */
+export const COST_NOTE = 'Cost is summed from each bus’s cost, each to the nearest rupee.';
 
 /** The flagging rule in one sentence, from the module's own constants. */
 export function ruleSentence(thresholdPct: number, minPeers: number): string {
   return (
-    `A bus is listed when it uses more than ${thresholdPct}% more fuel per kilometre than the ` +
-    `median of its peers: the other buses of its class on its route, or of its class in the ` +
-    `depot when the route has too few. A bus with fewer than ${minPeers} peers has no comparison.`
+    `A bus is listed only when it uses more than ${thresholdPct}% more fuel per kilometre than the ` +
+    `median of its peers (the other buses of its class on its route, or of its class in the ` +
+    `depot when the route has too few) and at least ${minPeers} of those peers lie within ` +
+    `${thresholdPct}% of that median. A bus with fewer than ${minPeers} peers has no comparison.`
   );
 }
 
-export function flaggedHeadline(total: number, shown: number): string {
-  if (total === 0) return 'No bus stands out from its peers today.';
+/** Buses above the threshold that are not listed because their peers disagree. */
+export function peersDifferNote(count: number, thresholdPct: number): string | null {
+  if (count <= 0) return null;
+  const one = count === 1;
+  return (
+    `${one ? '1 bus is' : `${formatCount(count)} buses are`} above the ${thresholdPct}% ` +
+    `threshold but ${one ? 'is' : 'are'} not listed, because ${one ? 'its' : 'their'} peers ` +
+    'differ too much to give a reliable median.'
+  );
+}
+
+/** Buses with distance but too few similar buses to compare. */
+export function noComparisonNote(count: number): string | null {
+  if (count <= 0) return null;
+  return count === 1
+    ? '1 bus has too few similar buses to compare and is not listed.'
+    : `${formatCount(count)} buses have too few similar buses to compare and are not listed.`;
+}
+
+export interface UnlistedCounts {
+  readonly peersDiffer: number;
+  readonly noComparison: number;
+  readonly thresholdPct: number;
+}
+
+/**
+ * The headline over the list. When nothing is listed but some buses were left
+ * out, it says so rather than claiming that no bus stands out.
+ */
+export function flaggedHeadline(total: number, shown: number, unlisted?: UnlistedCounts): string {
+  if (total === 0) {
+    const notes = unlisted
+      ? [
+          peersDifferNote(unlisted.peersDiffer, unlisted.thresholdPct),
+          noComparisonNote(unlisted.noComparison),
+        ]
+      : [];
+    const present = notes.filter((n): n is string => n !== null);
+    if (present.length === 0) return 'No bus stands out from its peers today.';
+    return ['No bus is listed as standing out from its peers today.', ...present].join(' ');
+  }
   if (total === 1) return '1 bus stands out from its peers.';
   const lead = `${formatCount(total)} buses stand out from their peers`;
   return shown < total

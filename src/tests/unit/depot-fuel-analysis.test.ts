@@ -212,13 +212,30 @@ describe('analyseFuel: a flag needs a supported peer median', () => {
       ['B', 'peers_differ'],
       ['C', null],
     ]);
-    expect(FUEL_REASON_LABELS.peers_differ).toBe('peers differ too much to compare');
+    expect(FUEL_REASON_LABELS.peers_differ).toBe('Peers differ too much to compare');
   });
 
   it('keeps the figure and the variance on a bus whose peers differ', () => {
     const f = figureOf([day('A', 4), day('B', 4), day('C', 8)], 'A');
     expect(f?.kmPerLitre).toBeCloseTo(4, 0);
     expect(f?.comparison).toBe('route');
+  });
+});
+
+describe('analyseFuel: the peers median of a flagged bus', () => {
+  const litres = (reg: string, fuelLitres: number): BusFuelDay => ({
+    registrationNumber: reg,
+    distanceKm: 300,
+    fuelLitres,
+    serviceClass: 'ordinary',
+    routeName: ROUTE,
+  });
+
+  it('exports the exact median the variance was measured against', () => {
+    // Peers at 300 km / 48 L are 6.25 km/L; the bus at 70 L is 4.2857 km/L.
+    const result = analyseFuel([litres('A', 48), litres('B', 48), litres('C', 70)], PRICE);
+    expect(result.flagged.map((f) => f.registrationNumber)).toEqual(['C']);
+    expect(result.flagged[0]?.peerMedianKmPerLitre).toBe(6.25);
   });
 });
 
@@ -269,6 +286,11 @@ describe('analyseFuel: price', () => {
     const result = analyseFuel([day('A', 5)], price);
     expect(result.priceDefaulted).toBe(true);
     expect(result.pricePerLitre).toBe(DEFAULT_PRICE_PER_LITRE);
+  });
+
+  it('marks the planning price as the default when no price is supplied', () => {
+    const result = analyseFuel([day('A', 5)]);
+    expect(result).toMatchObject({ priceDefaulted: true, pricePerLitre: DEFAULT_PRICE_PER_LITRE });
   });
 
   it('uses a valid price as given', () => {
