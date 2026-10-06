@@ -1,6 +1,7 @@
 import { ErrorPanel, LoadingBlock } from '@/components/depot/shell/DataStates';
 import { TREND_CHART_MIN_HEIGHT, TrendChart } from '@/components/depot/shared/TrendChart';
-import { trendLinesBesideChart } from '@/lib/depot/forecast/trendsPageModel';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
+import { noTrendSentence, trendLinesBesideChart } from '@/lib/depot/forecast/trendsPageModel';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
 import type { DepotForecastState } from '@/hooks/useDepotForecast';
 
@@ -46,10 +47,20 @@ export function ForecastBlock({ state, errorTitle }: ForecastBlockProps) {
   return (
     <div className="flex min-w-0 flex-col gap-3" data-testid="trends-forecast">
       <TrendChart data={data} headingLevel={2} />
+      {data.trend.result.status !== 'ok' ? (
+        <StatePanel
+          kind="not-established"
+          sentence={noTrendSentence(data.trend.result)}
+          remedy="The trend appears once the history is long enough and has no gap."
+          testId="trends-no-trend"
+        />
+      ) : null}
       <ul className="depot-prose flex flex-col gap-1" data-testid="trends-trend-lines">
-        {trendLinesBesideChart(data.trend.result, data.sentences.trend).map((line) => (
-          <li key={line}>{line}</li>
-        ))}
+        {data.trend.result.status === 'ok'
+          ? trendLinesBesideChart(data.trend.result, data.sentences.trend).map((line) => (
+              <li key={line}>{line}</li>
+            ))
+          : null}
       </ul>
     </div>
   );

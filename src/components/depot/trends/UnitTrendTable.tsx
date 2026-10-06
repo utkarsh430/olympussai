@@ -3,128 +3,114 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Sparkline } from '@/components/depot/shared/Sparkline';
-import { EmptyState } from '@/components/depot/shell/DataStates';
+import { DataTable, useTableSort, type Column } from '@/components/depot/shell/DataTable';
+import { Pager } from '@/components/depot/shell/LongLists';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import type { DepotTrendsResponse } from '@/lib/depot/forecast/api';
 import {
-  capTrendRows,
   defaultTrendSort,
   sortTrendRows,
   trendColumnHeaders,
   trendTableCaption,
   trendTableRows,
-  type TrendSort,
+  TREND_ROW_CAP,
   type TrendSortKey,
+  type TrendTableRow,
 } from '@/lib/depot/forecast/trendsTableModel';
+import { pageRange } from '@/lib/depot/listPaging';
 
 export interface UnitTrendTableProps {
   readonly data: DepotTrendsResponse;
 }
 
-function SortHeader({
-  label,
-  sortKey,
-  sort,
-  onSort,
-  right = false,
-}: {
-  readonly label: string;
-  readonly sortKey: TrendSortKey;
-  readonly sort: TrendSort;
-  readonly onSort: (key: TrendSortKey) => void;
-  readonly right?: boolean;
-}) {
-  const active = sort.key === sortKey ? sort.direction : null;
-  return (
-    <th
-      scope="col"
-      aria-sort={active === null ? 'none' : active === 'asc' ? 'ascending' : 'descending'}
-      className={`!whitespace-normal ${right ? 'depot-align-right' : ''}`}
-    >
-      <button type="button" className="depot-sort-button" onClick={() => onSort(sortKey)}>
-        {label}
-        <span aria-hidden className="inline-block w-3 text-holo-glow">
-          {active === null ? '' : active === 'asc' ? '↑' : '↓'}
-        </span>
-      </button>
-    </th>
-  );
+function columnsFor(data: DepotTrendsResponse): readonly Column<TrendTableRow>[] {
+  const headers = trendColumnHeaders(data.trendUnit, data.days);
+  // Missing changes sort last in either direction, as the model's own sort does.
+  return [
+    {
+      key: 'name',
+      header: 'Unit',
+      sortValue: (row) => row.name.toLowerCase(),
+      render: (row) => (
+        <Link href={row.href} className="depot-link">
+          {row.name}
+        </Link>
+      ),
+      title: (row) => row.name,
+    },
+    {
+      key: 'spark',
+      header: headers.spark,
+      render: (row) => <Sparkline values={row.values} label={row.sparkLabel} tagged={false} />,
+    },
+    {
+      key: 'week',
+      header: headers.week,
+      align: 'right',
+      sortValue: (row) => row.week,
+      render: (row) => row.weekText,
+    },
+    {
+      key: 'fourWeeks',
+      header: headers.fourWeeks,
+      align: 'right',
+      sortValue: (row) => row.fourWeeks,
+      render: (row) => row.fourWeeksText,
+    },
+  ];
 }
 
 /**
- * Every unit's MODELLED trend for one metric, from the single batch
- * response: a sparkline with its text equivalent, the week's change and the
- * four weeks' direction. Worst first; each unit links to its own Trends page.
+ * Every unit's trend for one metric from the single batch response: a sparkline with
+ * its text equivalent, the week's change with its direction word and the four weeks'
+ * change with its word. Sortable by either change, worst first, paged at 25; each
+ * unit links to its own Trends page.
  */
 export function UnitTrendTable({ data }: UnitTrendTableProps) {
-  const [sort, setSort] = useState<TrendSort>(() => defaultTrendSort(data.metric.higherIsBetter));
-  const [expanded, setExpanded] = useState(false);
   const rows = useMemo(() => trendTableRows(data), [data]);
-  const sorted = useMemo(() => sortTrendRows(rows, sort), [rows, sort]);
-  const { shown, hidden } = capTrendRows(sorted, expanded);
-  const headers = trendColumnHeaders(data.trendUnit, data.days);
-  const onSort = (key: TrendSortKey): void =>
-    setSort((s) => ({ key, direction: s.key === key && s.direction === 'asc' ? 'desc' : 'asc' }));
+  const columns = useMemo(() => columnsFor(data), [data]);
+  const initial = defaultTrendSort(data.metric.higherIsBetter);
+  const tableSort = useTableSort(columns, initial);
+  const [page, setPage] = useState(0);
+  const sort = tableSort.sort ?? initial;
+  const sorted = useMemo(
+    () => sortTrendRows(rows, { key: sort.key as TrendSortKey, direction: sort.direction }),
+    [rows, sort.key, sort.direction],
+  );
+  const range = pageRange(page, sorted.length, TREND_ROW_CAP);
+  const shown = sorted.slice(range.start, range.end);
 
   if (rows.length === 0) {
     return (
-      <EmptyState>
-        No unit reports this measure on this snapshot, so there is no trend to list.
-      </EmptyState>
+      <StatePanel
+        kind="no-data"
+        sentence="No unit reports this measure on this snapshot, so there is no trend to list."
+        rows={3}
+      />
     );
   }
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <div role="region" aria-label="Unit trends" tabIndex={0} className="depot-table-frame">
-        <table className="depot-table" data-testid="trends-unit-table">
-          <caption className="caption-top border-b border-depot-line bg-depot-surface px-3 py-2 text-left font-sans text-xs text-depot-muted">
-            {trendTableCaption(data.metric.label, rows.length, shown.length, sort)}
-          </caption>
-          <thead>
-            <tr>
-              <SortHeader label="Unit" sortKey="name" sort={sort} onSort={onSort} />
-              <th scope="col" className="!whitespace-normal">
-                {headers.spark}
-              </th>
-              <SortHeader label={headers.week} sortKey="week" sort={sort} onSort={onSort} right />
-              <SortHeader
-                label={headers.fourWeeks}
-                sortKey="fourWeeks"
-                sort={sort}
-                onSort={onSort}
-                right
-              />
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((row) => (
-              <tr key={row.id}>
-                <td className="max-w-56 truncate">
-                  <Link href={row.href} className="depot-link">
-                    {row.name}
-                  </Link>
-                </td>
-                <td>
-                  <Sparkline values={row.values} label={row.sparkLabel} tagged={false} />
-                </td>
-                <td className="depot-align-right whitespace-nowrap">{row.weekText}</td>
-                <td className="depot-align-right whitespace-nowrap">{row.fourWeeksText}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {hidden > 0 || expanded ? (
-        <div>
-          <button
-            type="button"
-            className="depot-filter-button"
-            aria-expanded={expanded}
-            onClick={() => setExpanded((e) => !e)}
-          >
-            {expanded ? 'Show the first rows' : `Show all ${rows.length} units`}
-          </button>
-        </div>
-      ) : null}
+    <div className="flex min-w-0 flex-col gap-1" data-testid="trends-unit-table">
+      <DataTable
+        columns={columns}
+        rows={shown}
+        rowKey={(row) => row.id}
+        caption={trendTableCaption(data.metric.label, rows.length, shown.length, {
+          key: sort.key as TrendSortKey,
+          direction: sort.direction,
+        })}
+        tableSort={{
+          ...tableSort,
+          setSort: (next) => {
+            setPage(0);
+            tableSort.setSort(next);
+          },
+        }}
+        fixedRows
+        freezeFirstColumn
+        overflowCue
+      />
+      <Pager page={range.page} total={sorted.length} pageSize={TREND_ROW_CAP} onPage={setPage} />
     </div>
   );
 }

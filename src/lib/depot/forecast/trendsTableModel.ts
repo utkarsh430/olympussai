@@ -1,15 +1,20 @@
 /**
  * The network Trends page's list of units for one metric: a sparkline, the
- * change over a week and over four weeks, sortable by either change and
- * capped until the reader asks for every row. Built from one batch response.
+ * change over a week and over four weeks, sortable by either change and paged
+ * at 25. Built from one batch response.
  *
  * The batch response states the week's change but not its direction (its
- * `direction` is the four-week one when there is one), so the week column
- * prints a signed change and only the four-week column prints a word.
+ * `direction` is the four-week one when there is one). The row carries its whole
+ * series and the date it ends on, so the week's direction word is computed here
+ * with the same function and dead band the four-week word comes from
+ * (`summariseTrend`); it is printed only when that recomputation agrees with the
+ * batch's own week change, so a word never contradicts the figure beside it.
  */
 import type { SortDirection } from '../tableSort';
 import type { DepotTrendsResponse, TrendRow } from './api';
-import { FOUR_WEEK_DAYS, WEEK_DAYS, type TrendUnit } from './trend';
+import type { MetricKey, SeriesPoint } from '../sim/types';
+import { addDays } from './series';
+import { FOUR_WEEK_DAYS, summariseTrend, WEEK_DAYS, type TrendDirection, type TrendUnit } from './trend';
 import { depotTrendsPath, trendsHref } from './trendsPageModel';
 
 export type TrendSortKey = 'name' | 'week' | 'fourWeeks';
@@ -54,6 +59,29 @@ function signed(change: number, unit: TrendUnit): string {
   return `${change > 0 ? '+' : MINUS}${text}`;
 }
 
+/** The series of a batch row, with its dates counted back from the date it ends on. */
+function seriesOf(row: TrendRow): readonly SeriesPoint[] {
+  const last = row.values.length - 1;
+  return row.values.map((value, index) => ({ date: addDays(row.endDate, index - last), value }));
+}
+
+/** The week's direction by the shared dead-band rule; null when it cannot be established. */
+export function weekDirection(row: TrendRow, metric: MetricKey): TrendDirection | null {
+  if (row.trend === null || row.values.length === 0 || row.endDate === '') return null;
+  const result = summariseTrend(seriesOf(row), metric);
+  if (result.status !== 'ok') return null;
+  return result.summary.week.change === row.trend.week ? result.summary.week.direction : null;
+}
+
+function weekText(row: TrendRow, unit: TrendUnit, metric: MetricKey): string {
+  const trend = row.trend;
+  if (trend === null) return NO_VALUE;
+  const direction = weekDirection(row, metric);
+  if (direction === null) return signed(trend.week, unit);
+  if (direction === 'steady') return `steady, ${signed(trend.week, unit)}`;
+  return `${direction} ${Math.abs(trend.week).toFixed(DECIMALS[unit])}`;
+}
+
 function fourWeeksText(row: TrendRow, unit: TrendUnit): string {
   const trend = row.trend;
   if (trend === null) return NO_VALUE;
@@ -85,7 +113,7 @@ export function trendTableRows(
     sparkLabel: unitSparkLabel(metric.label, row.name, row.trend),
     week: row.trend?.week ?? null,
     fourWeeks: row.trend?.fourWeeks ?? null,
-    weekText: row.trend === null ? NO_VALUE : signed(row.trend.week, trendUnit),
+    weekText: weekText(row, trendUnit, metric.key),
     fourWeeksText: fourWeeksText(row, trendUnit),
   }));
 }
@@ -98,9 +126,9 @@ export interface TrendColumnHeaders {
 
 export function trendColumnHeaders(unit: TrendUnit, days: number): TrendColumnHeaders {
   return {
-    spark: `Last ${days} days, MODELLED`,
-    week: `Change over ${WEEK_DAYS} days, ${UNIT_WORDS[unit]}, MODELLED`,
-    fourWeeks: `Over ${FOUR_WEEK_DAYS / WEEK_DAYS} weeks, ${UNIT_WORDS[unit]}, MODELLED`,
+    spark: `Last ${days} days`,
+    week: `Change over ${WEEK_DAYS} days, ${UNIT_WORDS[unit]}`,
+    fourWeeks: `Over ${FOUR_WEEK_DAYS / WEEK_DAYS} weeks, ${UNIT_WORDS[unit]}`,
   };
 }
 
@@ -158,7 +186,7 @@ export function trendTableCaption(
 ): string {
   const count = shown >= total ? `all ${total} units` : `${shown} of ${total} units`;
   return (
-    `MODELLED trends of ${metricLabel.toLowerCase()}: ${count}, ` +
+    `Trends of ${metricLabel.toLowerCase()}: ${count}, ` +
     `by ${SORT_WORDS[sort.key]}, ${orderWords(sort)}`
   );
 }

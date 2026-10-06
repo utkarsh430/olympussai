@@ -95,14 +95,14 @@ describe('page wording', () => {
     expect(MODELLED_HISTORY_NOTE.toLowerCase()).not.toContain('simulated');
   });
 
-  it('gives the week and four-week trend sentences, each tagged MODELLED', () => {
+  it('gives the week and four-week trend sentences, each without a tag of its own (the chart carries it)', () => {
     const result = okTrend(
       change(7, 0.3, 'steady over 7 days'),
       change(28, 2.1, 'up 2.1 percentage points over 4 weeks'),
     );
     expect(trendLines(result)).toEqual([
-      'MODELLED trend: steady over 7 days',
-      'MODELLED trend: up 2.1 percentage points over 4 weeks',
+      'Trend: steady over 7 days',
+      'Trend: up 2.1 percentage points over 4 weeks',
     ]);
   });
 
@@ -113,15 +113,15 @@ describe('page wording', () => {
     );
     expect(
       trendLinesBesideChart(result, 'MODELLED trend: up 2.1 percentage points over 4 weeks'),
-    ).toEqual(['MODELLED trend: steady over 7 days']);
+    ).toEqual(['Trend: steady over 7 days']);
     expect(trendLinesBesideChart(result, null)).toHaveLength(2);
   });
 
   it('says why there is no four-week trend when the history is under 29 days', () => {
     const result = okTrend(change(7, -1, 'down 1.0 percentage points over 7 days'), null);
     expect(trendLines(result)).toEqual([
-      'MODELLED trend: down 1.0 percentage points over 7 days',
-      'No MODELLED trend over 4 weeks yet: it needs 29 days of history and this series has 90.',
+      'Trend: down 1.0 percentage points over 7 days',
+      'No trend over 4 weeks yet: it needs 29 days of history and this series has 90.',
     ]);
   });
 
@@ -134,7 +134,7 @@ describe('page wording', () => {
         cause: 'short_record',
         missingDate: null,
       }),
-    ).toEqual(['No MODELLED trend yet: it needs 8 days of history and this series has 5.']);
+    ).toEqual(['No trend yet: it needs 8 days of history and this series has 5.']);
     expect(
       trendLines({
         status: 'insufficient_history',
@@ -144,10 +144,10 @@ describe('page wording', () => {
         missingDate: '2026-10-02',
       }),
     ).toEqual([
-      'No MODELLED trend yet: the history is missing 2 Oct 2026, so only the 3 days since count, and a trend needs 8.',
+      'No trend yet: the history is missing 2 Oct 2026, so only the 3 days since count, and a trend needs 8.',
     ]);
     expect(trendLines({ status: 'invalid_input', reason: 'out_of_range' })).toEqual([
-      'No MODELLED trend: the history for this measure could not be read.',
+      'No trend: the history for this measure could not be read.',
     ]);
   });
 });

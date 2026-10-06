@@ -24,8 +24,8 @@ export default async function DepotTrendsPage({
     <>
       <PageHeader
         title="Trends"
-        description="Where each network measure has been and where it is heading: a trend ending on the live value, a short forecast with its range, and every unit's trend for the same measure."
-        provenance="modelled"
+        description="Where each network measure has been and where it is heading, with a forecast range."
+        provenanceLine={{ default: 'modelled', replacedBy: 'a database of real history' }}
       />
       <NetworkTrends metric={metric} />
     </>

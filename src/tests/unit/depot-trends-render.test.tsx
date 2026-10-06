@@ -60,15 +60,20 @@ describe('network Trends page', () => {
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
   });
 
-  it('says once that the history is generated, and tags every trend line MODELLED', () => {
-    const page = text(renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />));
+  it('says once that the history is generated and keeps the MODELLED tag to the chart', () => {
+    const markup = renderToStaticMarkup(<NetworkTrends metric="onRoadShare" />);
+    const page = text(markup);
+    // The sentence now lives in the closed disclosure; the provenance line is the header's.
     expect(page.match(/generated until a database of real history exists/g)).toHaveLength(1);
+    expect(markup).toContain('How these figures are produced');
     expect(page).toContain('On-road share: trend and forecast, MODELLED');
-    expect(page.match(/MODELLED trend: [a-z0-9. ]+ over 7 days/g)).toHaveLength(1);
-    expect(page.match(/MODELLED trend: [a-z0-9. ]+ over 4 weeks/g)).toHaveLength(1);
+    expect(page.match(/Trend: [a-z0-9. ]+ over 7 days/g)).toHaveLength(1);
     expect(page).toContain('judged on the last four weeks');
-    expect(page).toContain('Every unit, MODELLED');
-    expect(page).toContain('MODELLED trends of on-road share: all 2 units');
+    expect(page).toContain('Every unit');
+    expect(page).not.toContain('Every unit, MODELLED');
+    expect(page).toContain('Trends of on-road share: all 2 units');
+    // No other tag: the table's headers and caption carry none.
+    expect(markup.match(/<th[^>]*>[^<]*MODELLED/g)).toBeNull();
     expect(page.toLowerCase()).not.toContain('simulated');
   });
 
@@ -84,6 +89,8 @@ describe('network Trends page', () => {
     expect(page).toContain(
       'No forecast: it needs at least 28 days of history and this series has 20.',
     );
+    // 20 days is enough for a trend, so none of the not-established panels shows.
+    expect(page).not.toContain('No trend yet');
   });
 
   it('holds the footprint while loading, and offers Retry with a title on failure', () => {
@@ -143,10 +150,15 @@ describe('the unit table', () => {
     );
     act(() => (fourWeeks as HTMLButtonElement).click());
     expect(names()[0]).toBe('Depot 26');
-    const more = container.querySelector('button[aria-expanded="false"]') as HTMLButtonElement;
-    expect(more.textContent).toBe(`Show all ${TREND_ROW_CAP + 2} units`);
-    act(() => more.click());
-    expect(names()).toHaveLength(TREND_ROW_CAP + 2);
+    // The shared pager replaced "Show all N" (rulings: a page whose purpose is the list pages at 25).
+    expect(container.querySelector('[data-testid="depot-pager"] [role="status"]')?.textContent).toBe(
+      `Rows 1 to ${TREND_ROW_CAP} of ${TREND_ROW_CAP + 2}`,
+    );
+    const next = Array.from(container.querySelectorAll('[data-testid="depot-pager"] button')).find(
+      (b) => b.textContent === 'Next',
+    ) as HTMLButtonElement;
+    act(() => next.click());
+    expect(names()).toHaveLength(2);
   });
 });
 
@@ -164,10 +176,14 @@ describe('depot Trends page', () => {
 
   it('sets available buses beside the modelled requirement and says both are modelled', () => {
     const page = text(renderToStaticMarkup(<DepotTrends metric="onRoadShare" />));
-    expect(page).toContain('Available buses against the requirement, MODELLED');
-    expect(page).toContain('modelled requirement of 40 (36 at peak plus 4 spare)');
+    expect(page).toContain('Available buses against the requirement');
+    expect(page).not.toContain('requirement, MODELLED');
+    // The longer comparison sentence is the band's title, not a second paragraph.
+    expect(renderToStaticMarkup(<DepotTrends metric="onRoadShare" />)).toContain(
+      'modelled requirement of 40 (36 at peak plus 4 spare)',
+    );
     expect(page).toContain('Both sides are MODELLED');
-    expect(page).toContain('Modelled requirement');
+    expect(page).toContain('Requirement');
     expect(page).toContain('Days below the requirement');
   });
 

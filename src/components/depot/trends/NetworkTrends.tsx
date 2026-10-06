@@ -1,6 +1,8 @@
 'use client';
 
 import { ErrorPanel, LoadingBlock, StaleStrip } from '@/components/depot/shell/DataStates';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { ProducedDisclosure } from '@/components/depot/sources/ProducedDisclosure';
 import { MODELLED_HISTORY_NOTE, NETWORK_TRENDS_PATH } from '@/lib/depot/forecast/trendsPageModel';
 import type { MetricKey } from '@/lib/depot/sim/types';
 import { DEPOT_UNAVAILABLE_MESSAGE } from '@/hooks/usePolledJson';
@@ -33,18 +35,18 @@ export function NetworkTrends({ metric }: NetworkTrendsProps) {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
+      <div className="flex min-w-0 flex-col gap-3">
         <MetricChooser path={NETWORK_TRENDS_PATH} metric={metric} />
-        <p className="depot-prose max-w-3xl" data-testid="trends-history-note">
-          {MODELLED_HISTORY_NOTE}
-        </p>
+        {stale ? <StaleStrip since={forecast.data?.feedNow ?? trends.data?.feedNow ?? null} /> : null}
+        <ForecastBlock state={forecast} errorTitle="Could not load the network trend" />
       </div>
-      {stale ? <StaleStrip since={forecast.data?.feedNow ?? trends.data?.feedNow ?? null} /> : null}
-      <ForecastBlock state={forecast} errorTitle="Could not load the network trend" />
       <section aria-labelledby="trends-units-heading" className="min-w-0">
-        <h2 id="trends-units-heading" className="depot-section-label">
-          Every unit, MODELLED
-        </h2>
+        <SectionLabel
+          id="trends-units-heading"
+          label="Every unit"
+          count={trends.data?.units.length}
+          note="Worst four-week change first"
+        />
         {trends.data ? (
           <UnitTrendTable data={trends.data} />
         ) : trends.loading || trends.error === null ? (
@@ -57,6 +59,13 @@ export function NetworkTrends({ metric }: NetworkTrendsProps) {
           />
         )}
       </section>
+      <ProducedDisclosure>
+        <p>{MODELLED_HISTORY_NOTE}</p>
+        <p>
+          A change smaller than the series&apos; own usual movement at that lag reads as steady, so
+          noise is never reported as a direction. The week and the four-week words use the same rule.
+        </p>
+      </ProducedDisclosure>
     </div>
   );
 }

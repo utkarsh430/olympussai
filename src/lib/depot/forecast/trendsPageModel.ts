@@ -59,18 +59,18 @@ export function trendsHref(path: string, metric: MetricKey): string {
 }
 
 /** The trend of a series too short or broken to have one: why, in words. */
-function noTrendSentence(result: Exclude<TrendResult, { status: 'ok' }>): string {
+export function noTrendSentence(result: Exclude<TrendResult, { status: 'ok' }>): string {
   if (result.status === 'invalid_input') {
-    return 'No MODELLED trend: the history for this measure could not be read.';
+    return 'No trend: the history for this measure could not be read.';
   }
   if (result.missingDate !== null) {
     return (
-      `No MODELLED trend yet: the history is missing ${formatDate(result.missingDate, true)}, ` +
+      `No trend yet: the history is missing ${formatDate(result.missingDate, true)}, ` +
       `so only the ${result.historyDays} days since count, and a trend needs ${result.required}.`
     );
   }
   return (
-    `No MODELLED trend yet: it needs ${result.required} days of history and this series ` +
+    `No trend yet: it needs ${result.required} days of history and this series ` +
     `has ${result.historyDays}.`
   );
 }
@@ -79,15 +79,21 @@ function noTrendSentence(result: Exclude<TrendResult, { status: 'ok' }>): string
 export function trendLines(result: TrendResult): readonly string[] {
   if (result.status !== 'ok') return [noTrendSentence(result)];
   const { week, fourWeeks, historyDays } = result.summary;
-  const weekLine = `MODELLED trend: ${week.sentence}`;
+  const weekLine = `Trend: ${week.sentence}`;
   if (fourWeeks === null) {
     return [
       weekLine,
-      `No MODELLED trend over 4 weeks yet: it needs ${FOUR_WEEK_DAYS + 1} days of history and ` +
+      `No trend over 4 weeks yet: it needs ${FOUR_WEEK_DAYS + 1} days of history and ` +
         `this series has ${historyDays}.`,
     ];
   }
-  return [weekLine, `MODELLED trend: ${fourWeeks.sentence}`];
+  return [weekLine, `Trend: ${fourWeeks.sentence}`];
+}
+
+const TREND_TAG = /^(MODELLED trend|Trend): /;
+
+function withoutTrendTag(line: string): string {
+  return line.replace(TREND_TAG, '');
 }
 
 /**
@@ -98,5 +104,7 @@ export function trendLinesBesideChart(
   result: TrendResult,
   chartLine: string | null,
 ): readonly string[] {
-  return trendLines(result).filter((line) => line !== chartLine);
+  // The chart prints its own tag on its headline sentence: compare without any tag.
+  const bare = chartLine === null ? null : withoutTrendTag(chartLine);
+  return trendLines(result).filter((line) => withoutTrendTag(line) !== bare);
 }

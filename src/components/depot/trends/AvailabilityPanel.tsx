@@ -1,5 +1,7 @@
 import { ErrorPanel, LoadingBlock } from '@/components/depot/shell/DataStates';
-import { ProvenanceBadge } from '@/components/depot/shell/ProvenanceBadge';
+import { Figure, FigureBand } from '@/components/depot/shell/FigureBand';
+import { SectionLabel } from '@/components/depot/shell/SectionLabel';
+import { StatePanel } from '@/components/depot/shell/StatePanel';
 import {
   BOTH_MODELLED_NOTE,
   compareAvailability,
@@ -19,38 +21,28 @@ export interface AvailabilityPanelProps {
   readonly distribution: DepotDistributionState;
 }
 
-function Figures({ comparison }: { readonly comparison: AvailabilityComparison }) {
-  if (comparison.status !== 'ok') return null;
-  const cells = [
-    { label: 'Modelled requirement', value: formatCount(comparison.required) },
-    {
-      label: `Forecast, next ${comparison.horizonDays} days`,
-      value: `${formatCount(comparison.lowest)} to ${formatCount(comparison.highest)}`,
-    },
-    {
-      label: 'Days below the requirement',
-      value: `${comparison.daysBelow} of ${comparison.horizonDays}`,
-    },
-  ];
+function Figures({ comparison }: { readonly comparison: Extract<AvailabilityComparison, { status: 'ok' }> }) {
   return (
-    <dl className="flex flex-wrap gap-x-8 gap-y-3">
-      {cells.map((cell) => (
-        <div key={cell.label} className="min-w-0">
-          <dt className="depot-label">{cell.label}</dt>
-          <dd className="mt-0.5 flex flex-wrap items-baseline gap-2">
-            <span className="text-[15px] tabular-nums text-depot-ink">{cell.value}</span>
-            <ProvenanceBadge provenance="modelled" />
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <FigureBand label="Available buses against the requirement">
+      <Figure label="Requirement" value={formatCount(comparison.required)} caption="buses" />
+      <Figure
+        label={`Forecast, next ${comparison.horizonDays} days`}
+        value={`${formatCount(comparison.lowest)} to ${formatCount(comparison.highest)}`}
+        caption="available buses"
+      />
+      <Figure
+        label="Days below the requirement"
+        value={`${comparison.daysBelow} of ${comparison.horizonDays}`}
+      />
+    </FigureBand>
   );
 }
 
 /**
- * The forecast of available buses beside the fleet distribution's modelled
- * requirement for this depot, with one sentence on what the comparison
- * means and one saying both sides are modelled.
+ * The forecast of available buses beside the fleet distribution's requirement for
+ * this depot: one short figure band and one sentence saying both sides are modelled.
+ * When the comparison cannot be made, a state panel says why in the comparison's own
+ * sentence. The longer sentence on what the comparison means is the band's `title`.
  */
 export function AvailabilityPanel({ depotId, available, distribution }: AvailabilityPanelProps) {
   const failed =
@@ -74,19 +66,21 @@ export function AvailabilityPanel({ depotId, available, distribution }: Availabi
       balance,
       available.data.sentences.unavailable,
     );
-    body = (
-      <div className="flex flex-col gap-3" data-testid="trends-availability">
-        <Figures comparison={comparison} />
-        <p className="depot-prose max-w-3xl">{comparison.sentence}</p>
-        <p className="font-sans text-xs text-depot-muted">{BOTH_MODELLED_NOTE}</p>
-      </div>
-    );
+    body =
+      comparison.status === 'ok' ? (
+        <div className="flex flex-col gap-2" data-testid="trends-availability" title={comparison.sentence}>
+          <Figures comparison={comparison} />
+          <p className="font-sans text-xs text-depot-muted">{BOTH_MODELLED_NOTE}</p>
+        </div>
+      ) : (
+        <div data-testid="trends-availability">
+          <StatePanel kind="not-established" sentence={comparison.sentence} remedy={BOTH_MODELLED_NOTE} />
+        </div>
+      );
   }
   return (
     <section aria-labelledby="trends-availability-heading" className="min-w-0">
-      <h2 id="trends-availability-heading" className="depot-section-label">
-        Available buses against the requirement, MODELLED
-      </h2>
+      <SectionLabel id="trends-availability-heading" label="Available buses against the requirement" />
       {body}
     </section>
   );
