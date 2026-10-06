@@ -1,5 +1,6 @@
 import { MAX_ARC_PX, MIN_ARC_PX } from '@/lib/depot/rebalance/mapGeometry';
 import { SAME_PLACE_KM } from '@/lib/depot/rebalance/pageLayout';
+import { SCORE_WINDOW_MIN } from '@/lib/depot/score/window';
 import { HowProduced } from '@/components/depot/shell/HowProduced';
 
 const PERCENT = 100;
@@ -14,8 +15,14 @@ export function RebalanceMethod({ spareRatio }: { readonly spareRatio: number })
           feed snapshot. Modelled: the feed carries no network timetable, so each depot&apos;s
           requirement is modelled by a stated rule (a depot whose buses are more on the road
           than its peers&apos; is assumed stretched, one with many standing buses to have slack)
-          plus a spare margin of {spare}% of peak need. The requirement stays modelled until a
-          timetable is supplied, so every transfer is a modelled recommendation.
+          plus a spare margin of {spare}% of peak need. The rule reads each depot&apos;s
+          busiest {SCORE_WINDOW_MIN}-minute on-road share so far today, so the requirement, and the
+          modelled day built on it, can grow until the morning peak has passed and then holds as
+          buses come home; a bus taken off the road still lowers what is available. Each server
+          works from the feed it has seen, so two servers can differ until each has seen the
+          peak, and one restarted later in the day starts again from what it then sees. The
+          requirement stays modelled until a timetable is supplied, so every transfer is a
+          modelled recommendation.
         </p>
         <p className="depot-prose">
           Road distances are estimates between inferred depot positions. Two depots inferred
