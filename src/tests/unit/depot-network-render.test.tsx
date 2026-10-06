@@ -131,3 +131,22 @@ describe('SelectionBar', () => {
     expect(container.querySelector('a')).toBeNull();
   });
 });
+
+describe('unit terminology and the empty panel', () => {
+  it('says "unit" where the selection can be any unit', () => {
+    act(() => root.render(<Host initial={null} />));
+    expect(container.querySelector('#depot-panel-heading')?.textContent).toBe('Selected unit');
+    expect(container.textContent).toContain('No unit selected.');
+    expect(container.textContent).not.toMatch(/Selected depot|No depot selected/);
+  });
+
+  it('offers the lowest operating depot as a derived suggestion within its peer group', () => {
+    act(() => root.render(<Host initial={null} />));
+    const panel = container.querySelector('[data-testid="depot-map-panel"]');
+    expect(panel?.textContent).toContain('Suggestion');
+    expect(panel?.querySelector('[data-provenance="derived"]')?.textContent).toBe('DERIVED');
+    expect(panel?.textContent).toContain('Lowest index among operating depots');
+    expect(panel?.textContent).toContain('within its own peer group ranking');
+    expect(panel?.textContent).toContain('Depot b');
+  });
+});

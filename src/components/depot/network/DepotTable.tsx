@@ -40,7 +40,7 @@ function count(pick: (row: DepotRow) => number) {
 const COLUMNS: readonly (Column<DepotRow> & { readonly key: TableColumnKey })[] = [
   {
     key: 'name',
-    header: 'Depot',
+    header: 'Unit',
     sortValue: (row) => row.depot.name,
     render: (row) => <span className="whitespace-nowrap">{row.depot.name}</span>,
   },

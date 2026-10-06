@@ -56,7 +56,7 @@ export function SelectionLine({
           </button>
         </>
       ) : (
-        <span className="font-sans text-[13px] text-depot-muted">No depot selected.</span>
+        <span className="font-sans text-[13px] text-depot-muted">No unit selected.</span>
       )}
     </div>
   );
@@ -87,7 +87,7 @@ export function SelectionBar({ row }: { readonly row: DepotRow | null }) {
         </>
       ) : (
         <span className="font-sans text-[13px] text-depot-muted">
-          Select a row to see the depot on the map and in the summary beside it.
+          Select a row to see the unit on the map and in the summary beside it.
         </span>
       )}
     </div>
