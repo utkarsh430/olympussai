@@ -11,10 +11,14 @@ import {
 import { runCli, type SpawnLike } from '@/lib/depot/copilot/cli/run';
 import {
   CLI_CONCURRENCY,
+  CLI_MAX_CALLS_PER_DAY,
+  CLI_MAX_CALLS_PER_HOUR,
   CLI_MAX_OUTPUT_BYTES,
   CLI_QUEUE,
   CLI_TIMEOUT_MS,
 } from '@/lib/depot/copilot/config';
+import { createCallLimiter, type CallLimiter } from '@/lib/depot/copilot/limiter';
+import { MAX_PROMPT_BYTES } from '@/lib/depot/copilot/limits';
 import { createSemaphore, type Semaphore } from '@/lib/depot/copilot/semaphore';
 import {
   CopilotFailure,
@@ -42,6 +46,8 @@ export interface ClaudeCliDeps {
   readonly nodeDir?: string;
   /** Shared across providers when more than one is built; defaults to a private one. */
   readonly semaphore?: Semaphore;
+  /** Hourly and daily call budget; defaults to the configured limits on the system clock. */
+  readonly limiter?: CallLimiter;
 }
 
 const SCHEMA_JSON = JSON.stringify(DRAFT_JSON_SCHEMA);
@@ -63,24 +69,38 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
   if (!isAbsoluteBinary(deps.bin)) throw new Error('The Claude binary path must be absolute');
   if (!isValidModelName(deps.model)) throw new RangeError('Invalid model name');
   const semaphore = deps.semaphore ?? createSemaphore(CLI_CONCURRENCY, CLI_QUEUE);
+  const limiter =
+    deps.limiter ??
+    createCallLimiter({
+      now: Date.now,
+      perHour: CLI_MAX_CALLS_PER_HOUR,
+      perDay: CLI_MAX_CALLS_PER_DAY,
+    });
   const nodeDir = deps.nodeDir ?? dirname(process.execPath);
 
   return {
     id: 'claude-cli',
     async draft(request: CopilotRequest): Promise<CopilotDraft> {
       let stdin: string;
+      let args: string[];
       try {
         stdin = buildUserPrompt(request);
+        args = buildCliArgs({
+          schemaJson: SCHEMA_JSON,
+          systemPrompt: buildSystemPrompt(request.task),
+          model: deps.model,
+        });
       } catch {
-        throw new CopilotFailure('error', 'request too large for the CLI');
+        // Request shape, not CLI health: never starts a cool-down.
+        throw new CopilotFailure('request_rejected', 'request cannot be sent to the CLI');
       }
-      const args = buildCliArgs({
-        schemaJson: SCHEMA_JSON,
-        systemPrompt: buildSystemPrompt(request.task),
-        model: deps.model,
-      });
-      const result = await semaphore.run(() =>
-        runCli(
+      if (Buffer.byteLength(stdin, 'utf8') > MAX_PROMPT_BYTES) {
+        throw new CopilotFailure('request_rejected', 'prompt too large');
+      }
+      const result = await semaphore.run(() => {
+        // Counted where an attempt really starts, so queued or refused work costs nothing.
+        if (!limiter.tryAcquire()) throw new CopilotFailure('budget_exhausted', 'call budget used');
+        return runCli(
           {
             bin: deps.bin,
             args,
@@ -91,8 +111,8 @@ export function createClaudeCliProvider(deps: ClaudeCliDeps): CopilotProvider {
             maxOutputBytes: CLI_MAX_OUTPUT_BYTES,
           },
           deps.spawn,
-        ),
-      );
+        );
+      });
       if (!result.ok) throw new CopilotFailure(result.reason, result.detail);
 
       const parsed = parseCliOutput(result.stdout);

@@ -404,7 +404,7 @@ describe('createClaudeCliProvider', () => {
       REQUEST,
     );
     const options = spawn.mock.calls[0]?.[2];
-    expect(options?.env).toEqual({ PATH: '/opt/node/bin:/usr/bin:/bin', HOME: '/tmp/home' });
+    expect(options?.env).toEqual({ PATH: '/usr/bin:/bin:/opt/node/bin', HOME: '/tmp/home' });
     expect(options?.cwd).toBe('/tmp/empty');
   });
 

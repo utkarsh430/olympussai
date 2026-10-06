@@ -66,7 +66,7 @@ const failure = (reason: FallbackReason, detail: string): RunCliResult => ({
  */
 export function runCli(input: RunCliInput, spawn: SpawnLike): Promise<RunCliResult> {
   if (Buffer.byteLength(input.stdin, 'utf8') > MAX_PROMPT_BYTES) {
-    return Promise.resolve(failure('error', 'prompt exceeds the size cap'));
+    return Promise.resolve(failure('request_rejected', 'prompt exceeds the size cap'));
   }
   return new Promise<RunCliResult>((resolve) => {
     let child: ChildLike;

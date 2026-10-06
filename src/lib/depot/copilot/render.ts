@@ -65,7 +65,9 @@ function isConcatenatedNumber(token: string): boolean {
   const reach: boolean[] = Array.from({ length: token.length + 1 }, () => false);
   reach[0] = true;
   for (let i = 1; i <= token.length; i += 1) {
-    reach[i] = NUMBER_STEMS.some((s) => s.length <= i && reach[i - s.length] && token.endsWith(s, i));
+    reach[i] = NUMBER_STEMS.some(
+      (s) => s.length <= i && reach[i - s.length] && token.endsWith(s, i),
+    );
   }
   return reach[token.length] === true && token.replace(/one/g, '') !== '';
 }
@@ -116,7 +118,8 @@ function checkProse(text: string): string | null {
   // Punctuation must not join two figures ("5.2", "12,345", "12:30", "3-5").
   if (FUSED_PLACEHOLDERS.test(text)) return 'Draft has placeholders joined without a word between';
   // A sign or decimal point must not change a figure ("-12", ".5").
-  if (SIGNED_PLACEHOLDER.test(text)) return 'Draft puts a sign or decimal point before a placeholder';
+  if (SIGNED_PLACEHOLDER.test(text))
+    return 'Draft puts a sign or decimal point before a placeholder';
   return null;
 }
 
